@@ -99,7 +99,7 @@ export function AdminMailAudit() {
 
   return (
     <AdminPageShell
-      subtitle="Reading another account's mail is recorded: each conversation list, each conversation opened and each .eml download writes a row to the audit log under your address"
+      subtitle="Reading another account's mail is recorded: each conversation list, each conversation opened and each .eml download first writes a row to the audit log under your address. If that row cannot be written, nothing is shown"
       title="Mail audit"
     >
       <input

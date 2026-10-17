@@ -856,7 +856,11 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put?: never;
+        /**
+         * Update an account's display name or recovery email
+         * @description Each field present in the body is written through fastcore; absent fields are left as they are. The two fields are written one after the other, so a failure on recovery_email can leave display_name already changed. Records an `account.update` audit row when anything changed.
+         */
+        put: operations["updateAccount"];
         post?: never;
         /**
          * Remove an account
@@ -1056,7 +1060,11 @@ export interface paths {
         get: operations["getGroupPermissions"];
         /** Set permissions for a group (replaces existing) */
         put: operations["setGroupPermissions"];
-        post?: never;
+        /**
+         * Set permissions for a group (replaces existing)
+         * @description Same handler as PUT on this path, kept as a POST alias. Replaces the group's permission set; an empty list clears it. The handler answers 204 with no body (not ApiResult).
+         */
+        post: operations["setGroupPermissionsPost"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1262,7 +1270,11 @@ export interface paths {
         /** List encryption keys for the current user */
         get: operations["listKeys"];
         put?: never;
-        post?: never;
+        /**
+         * Save a public key for an email address
+         * @description Upserts the key stored for `email`; an existing key for the same email is replaced. The key text is not validated.
+         */
+        post: operations["saveKey"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1597,40 +1609,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/dav/calendars/{user}/{calendar}/{uid}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** CalDAV event resource */
-        get: operations["davEvent"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/dav/contacts/{user}/{book}/{uid}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** CardDAV contact resource */
-        get: operations["davContact"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/.well-known/mta-sts.txt": {
         parameters: {
             query?: never;
@@ -1655,7 +1633,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Outlook autodiscover (GET)
+         * @description Same handler as POST: takes no input and returns the same static IMAP (993, SSL) and SMTP (465, SSL) settings for MAILRS_HOSTNAME with LoginName %EMAILADDRESS%.
+         */
+        get: operations["autodiscoverOutlookGet"];
         put?: never;
         /** Outlook/ActiveSync autodiscover */
         post: operations["autodiscoverOutlook"];
@@ -1767,7 +1749,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Outlook autodiscover (GET)
+         * @description Same handler as POST: takes no input and returns the same static IMAP (993, SSL) and SMTP (465, SSL) settings for MAILRS_HOSTNAME with LoginName %EMAILADDRESS%.
+         */
+        get: operations["autodiscoverOutlookGetCapitalized"];
         put?: never;
         /**
          * Create Autodiscover Autodiscover.xml
@@ -2087,14 +2073,12 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Success */
-                200: {
+                /** @description Done; empty body */
+                204: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": Record<string, never>;
-                    };
+                    content?: never;
                 };
             };
         };
@@ -2266,14 +2250,12 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Success */
-                200: {
+                /** @description Done; empty body */
+                204: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": Record<string, never>;
-                    };
+                    content?: never;
                 };
             };
         };
@@ -2346,18 +2328,59 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Success */
-                200: {
+                /** @description Stored */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Key not editable here or value out of range */
+                400: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": Record<string, never>;
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No valid session; empty body */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Caller has no admin.* permission and is not super admin; empty body */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Body rejected by the JSON extractor (400 malformed JSON, 415 wrong content type, 422 missing or mistyped field); plain-text body from the framework */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Could not save; body {"error": "could not save the setting"} */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
             };
         };
-        post?: never;
+        /**
+         * Update admin system config
+         * @description Same handler as PUT on this path, kept as a POST alias. Stores a setting that a running process reads; settings read at process start, local_domains and unknown keys answer 400 with {"error"} saying where they are set. The value is trimmed before it is stored. Records a `system_config.set` audit row.
+         */
+        post: operations["putSystemConfigKeyPost"];
         /**
          * Delete admin system config
          * @description Stub — full schema TBD.
@@ -2371,14 +2394,12 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Success */
-                200: {
+                /** @description Reset to the built-in default; empty body */
+                204: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": Record<string, never>;
-                    };
+                    content?: never;
                 };
             };
         };
@@ -2596,14 +2617,12 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Success */
-                200: {
+                /** @description Done; empty body */
+                204: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": Record<string, never>;
-                    };
+                    content?: never;
                 };
             };
         };
@@ -2866,14 +2885,12 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Success */
-                200: {
+                /** @description Done; empty body */
+                204: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": Record<string, never>;
-                    };
+                    content?: never;
                 };
             };
         };
@@ -3094,49 +3111,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/mail/check-deliverability": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Create mail check deliverability
-         * @description Stub — full schema TBD.
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["CheckDeliverabilityRequest"];
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": Record<string, never>;
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/mail/spam-feedback": {
         parameters: {
             query?: never;
@@ -3163,14 +3137,12 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Success */
-                200: {
+                /** @description Done; empty body */
+                204: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": Record<string, never>;
-                    };
+                    content?: never;
                 };
             };
         };
@@ -3583,435 +3555,6 @@ export interface paths {
         };
         trace?: never;
     };
-    "/dav/calendars/{user}/{calendar}/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get dav calendars
-         * @description Stub — full schema TBD.
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": Record<string, never>;
-                    };
-                };
-            };
-        };
-        /**
-         * Update dav calendars
-         * @description Stub — full schema TBD.
-         */
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "text/calendar": string;
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": Record<string, never>;
-                    };
-                };
-            };
-        };
-        /**
-         * Create dav calendars
-         * @description Stub — full schema TBD.
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/xml": string;
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": Record<string, never>;
-                    };
-                };
-            };
-        };
-        /**
-         * Delete dav calendars
-         * @description Stub — full schema TBD.
-         */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": Record<string, never>;
-                    };
-                };
-            };
-        };
-        options?: never;
-        head?: never;
-        /**
-         * Patch dav calendars
-         * @description Stub — full schema TBD.
-         */
-        patch: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/xml": string;
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": Record<string, never>;
-                    };
-                };
-            };
-        };
-        trace?: never;
-    };
-    "/dav/contacts/{user}/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get dav contacts
-         * @description Stub — full schema TBD.
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": Record<string, never>;
-                    };
-                };
-            };
-        };
-        /**
-         * Update dav contacts
-         * @description Stub — full schema TBD.
-         */
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "text/vcard": string;
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": Record<string, never>;
-                    };
-                };
-            };
-        };
-        /**
-         * Create dav contacts
-         * @description Stub — full schema TBD.
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/xml": string;
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": Record<string, never>;
-                    };
-                };
-            };
-        };
-        /**
-         * Delete dav contacts
-         * @description Stub — full schema TBD.
-         */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": Record<string, never>;
-                    };
-                };
-            };
-        };
-        options?: never;
-        head?: never;
-        /**
-         * Patch dav contacts
-         * @description Stub — full schema TBD.
-         */
-        patch: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/xml": string;
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": Record<string, never>;
-                    };
-                };
-            };
-        };
-        trace?: never;
-    };
-    "/dav/contacts/{user}/{book}/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get dav contacts
-         * @description Stub — full schema TBD.
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": Record<string, never>;
-                    };
-                };
-            };
-        };
-        /**
-         * Update dav contacts
-         * @description Stub — full schema TBD.
-         */
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "text/vcard": string;
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": Record<string, never>;
-                    };
-                };
-            };
-        };
-        /**
-         * Create dav contacts
-         * @description Stub — full schema TBD.
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/xml": string;
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": Record<string, never>;
-                    };
-                };
-            };
-        };
-        /**
-         * Delete dav contacts
-         * @description Stub — full schema TBD.
-         */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": Record<string, never>;
-                    };
-                };
-            };
-        };
-        options?: never;
-        head?: never;
-        /**
-         * Patch dav contacts
-         * @description Stub — full schema TBD.
-         */
-        patch: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/xml": string;
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": Record<string, never>;
-                    };
-                };
-            };
-        };
-        trace?: never;
-    };
     "/jmap/eventsource/": {
         parameters: {
             query?: never;
@@ -4297,8 +3840,8 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Cache flushed */
-                200: {
+                /** @description Cache flushed; empty body */
+                204: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -4321,23 +3864,6 @@ export interface paths {
         };
         /** List inbound DMARC aggregate reports, newest window first */
         get: operations["listDmarcReports"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/admin/dmarc/reports/{sid}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** One DMARC report with its per-source rows */
-        get: operations["getDmarcReport"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4875,6 +4401,802 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/conversations/mark-all-read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark every unread conversation read, mailbox-wide or for one list
+         * @description With none of `folder`, `unread`, `starred` set and `archived` false, marks the whole mailbox. With any of them, marks exactly the list `GET /api/conversations` would show for the same query (`category`, `section` and `include_quarantined` then also narrow it). Takes the conversation list's query string; `limit`, `before` and `accounts` are parsed but ignored.
+         */
+        post: operations["markAllConversationsRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/conversations/unseen-count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Count unread conversations */
+        get: operations["getUnseenCount"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/conversations/{thread_id}/mark-junk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move a conversation to Junk
+         * @description Moves the thread to Junk. Does not change the caller's sender whitelist or blacklist.
+         */
+        post: operations["markThreadJunk"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/conversations/{thread_id}/mark-not-junk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move a conversation out of Junk and whitelist its senders
+         * @description Moves the thread to the Inbox and adds each participant address (except the caller's own) to the caller's sender whitelist. The whitelist write is best-effort: a lookup or kevy failure there does not fail the request.
+         */
+        post: operations["markThreadNotJunk"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/conversations/{thread_id}/mark-notification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move a conversation to Notifications
+         * @description Moves the thread into the Notifications bucket and trains the classifier.
+         */
+        post: operations["markThreadNotification"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/conversations/{thread_id}/mark-promotion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move a conversation to Promotions
+         * @description Moves the thread into the Promotions bucket and trains the classifier.
+         */
+        post: operations["markThreadPromotion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/conversations/{thread_id}/move-to-inbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move a conversation back to the Inbox
+         * @description Moves the thread into the Inbox bucket and trains the classifier.
+         */
+        post: operations["moveThreadToInbox"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mail/sent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List sent messages, one row per message
+         * @description One row per outbound message (not per thread), newest first. No query parameters; the list is not paginated.
+         */
+        get: operations["listSentMessages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/spam/whitelist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the caller's sender whitelist */
+        get: operations["listSpamWhitelist"];
+        put?: never;
+        /**
+         * Add an address to the caller's sender whitelist
+         * @description The address is trimmed and lowercased before it is stored.
+         */
+        post: operations["addSpamWhitelist"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/spam/whitelist/{address}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove an address from the caller's sender whitelist */
+        delete: operations["removeSpamWhitelist"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/spam/blacklist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the caller's sender blacklist */
+        get: operations["listSpamBlacklist"];
+        put?: never;
+        /**
+         * Add an address to the caller's sender blacklist
+         * @description The address is trimmed and lowercased before it is stored.
+         */
+        post: operations["addSpamBlacklist"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/spam/blacklist/{address}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove an address from the caller's sender blacklist */
+        delete: operations["removeSpamBlacklist"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/icon/{domain}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the brand icon for a sender domain
+         * @description Tries the domain's BIMI SVG, then Google's and DuckDuckGo's favicon services; a subdomain without an icon falls back to its registrable domain. Results are cached server-side (hits 7 days, misses 24 hours). A domain that is not a plausible hostname (empty, longer than 253, or containing anything but ASCII letters, digits, `.` and `-`) gets 204, never 4xx.
+         */
+        get: operations["getDomainIcon"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mail/keys/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Whether the caller has any saved public keys */
+        get: operations["getKeysStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mail/sends": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the caller's sends with per-recipient delivery status
+         * @description One row per send attempt (not per conversation). Not yet read by the web UI.
+         */
+        get: operations["listSends"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mail/sends:shadow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Compare the Send rows against the Sent conversation axis
+         * @description Cutover gate for the Send view: counts Sent-folder threads (up to 2000) that have no Send row, split at `since`. `missing_since` must be 0 before the UI reads the Send list. No request body.
+         */
+        post: operations["shadowSends"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mail/sends/{send_id}/source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download the stored RFC 5322 bytes of a send */
+        get: operations["getSendSource"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mail/sends/{send_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a finished send, its resends and the sender's copy
+         * @description Marks the sender's own copy of the message deleted and removes the send row and every resend of it.
+         */
+        delete: operations["deleteSend"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mail/sends/{send_id}/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Re-enqueue a send's stored envelope unchanged
+         * @description Same bytes and Message-ID, to every recipient of the original, under a new send id `<stem>#r<n>`. The original row is left as is. No request body.
+         */
+        post: operations["resendSend"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mail/sends/{send_id}/redraft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Turn a send back into compose fields for re-editing
+         * @description Attachment bytes stay on the server; only metadata is returned. A following send names attachments to keep by `index` (in `redraft_keep`). Bcc is reconstructed as queued recipients not in To/Cc.
+         */
+        get: operations["getSendRedraft"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scheduled": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the caller's scheduled (future-dated) outbound jobs
+         * @description One entry per outbound job (per recipient), soonest first. Missing envelope fields are returned as empty strings.
+         */
+        get: operations["listScheduled"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scheduled/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel a scheduled outbound job
+         * @description Removes the job from the scheduled index and deletes it. No request body.
+         */
+        post: operations["cancelScheduled"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scheduled/{id}/reschedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Change the send time of a scheduled outbound job */
+        post: operations["rescheduleScheduled"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/identities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List external sign-in identities linked to the caller's account */
+        get: operations["listIdentities"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/identities:unlink": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Remove one external sign-in identity from the caller's account */
+        post: operations["unlinkIdentity"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/external-providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List external login providers configured on this deployment */
+        get: operations["listExternalProviders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/external/{provider}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Start an external sign-in by redirecting to the provider
+         * @description Stores a PKCE verifier under a random state for 10 minutes, then redirects to the provider's authorize URL with `response_type=code`, `client_id`, `redirect_uri` (MAILRS_EXTERNAL_LOGIN_REDIRECT_URI, default https://mail.golia.jp/api/auth/oidc/callback), `scope`, `state`, `code_challenge`, `code_challenge_method=S256`. The provider returns to /api/auth/oidc/callback.
+         */
+        get: operations["startExternalLogin"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/webhook-subscriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a webhook subscription for any account
+         * @description Admin counterpart of POST /api/agent/webhooks with a different shape: the owning account is named in the body, event_type is required, and the URL and event type are stored as given without validation. Records a `webhook.create` audit row.
+         */
+        post: operations["adminCreateWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/webhook-subscriptions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a webhook subscription by id
+         * @description Records a `webhook.delete` audit row even when the id did not exist.
+         */
+        delete: operations["adminDeleteWebhook"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/accounts/{address}/webhook-subscriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List an account's webhook subscriptions */
+        get: operations["adminListAccountWebhooks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/audit-log/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export audit log entries for a time window
+         * @description Same rows and filters as GET /api/admin/audit-log but with no row cap: every stored entry is scanned. Returned as JSON (not CSV or NDJSON), newest first as stored. `limit` is accepted by the shared query struct but ignored here.
+         */
+        get: operations["exportAuditLog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/audit/conversations/{thread_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read one conversation's summary row as a target user sees it
+         * @description Records an `audit.read_thread` audit row. The messages are at .../messages.
+         */
+        get: operations["auditConversationDetail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/queues": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List outbound jobs that are queued, waiting to retry, or in flight
+         * @description Up to 100 job ids from each of the pending list, the retry set and the in-flight list, de-duplicated, one row per job whose record still exists. Each row is the job's stored envelope with `message_data_b64` removed and `status` overwritten with the list it was found in. Envelope fields are whatever the writer stored, so extra fields (e.g. `last_attempt_at`) can appear.
+         */
+        get: operations["listAdminQueue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dav/principals/{user}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * DAV principal for the user (GET or any WebDAV method)
+         * @description Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. Any other method answers 207 with the principal's calendar-home-set (/dav/calendars/{user}/) and addressbook-home-set (/dav/addressbooks/{user}/). The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.
+         */
+        get: operations["davPrincipalGet"];
+        /**
+         * DAV principal for the user (PUT or any WebDAV method)
+         * @description Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. Any other method answers 207 with the principal's calendar-home-set (/dav/calendars/{user}/) and addressbook-home-set (/dav/addressbooks/{user}/). The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.
+         */
+        put: operations["davPrincipalPut"];
+        /**
+         * DAV principal for the user (POST or any WebDAV method)
+         * @description Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. Any other method answers 207 with the principal's calendar-home-set (/dav/calendars/{user}/) and addressbook-home-set (/dav/addressbooks/{user}/). The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.
+         */
+        post: operations["davPrincipalPost"];
+        /**
+         * DAV principal for the user (DELETE or any WebDAV method)
+         * @description Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. Any other method answers 207 with the principal's calendar-home-set (/dav/calendars/{user}/) and addressbook-home-set (/dav/addressbooks/{user}/). The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.
+         */
+        delete: operations["davPrincipalDelete"];
+        /** DAV principal for the user: DAV capabilities */
+        options: operations["davPrincipalOptions"];
+        head?: never;
+        /**
+         * DAV principal for the user (PATCH or any WebDAV method)
+         * @description Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. Any other method answers 207 with the principal's calendar-home-set (/dav/calendars/{user}/) and addressbook-home-set (/dav/addressbooks/{user}/). The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.
+         */
+        patch: operations["davPrincipalPatch"];
+        trace?: never;
+    };
+    "/dav/addressbooks/{user}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * CardDAV address book collection (GET or any WebDAV method)
+         * @description Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. REPORT answers 207 with every vCard in the user's `default` book as address-data (503 with an empty body when kevy is unreachable); any other method answers 207 listing the single `default` address book. The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.
+         */
+        get: operations["davAddressbooksGet"];
+        /**
+         * CardDAV address book collection (PUT or any WebDAV method)
+         * @description Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. REPORT answers 207 with every vCard in the user's `default` book as address-data (503 with an empty body when kevy is unreachable); any other method answers 207 listing the single `default` address book. The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.
+         */
+        put: operations["davAddressbooksPut"];
+        /**
+         * CardDAV address book collection (POST or any WebDAV method)
+         * @description Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. REPORT answers 207 with every vCard in the user's `default` book as address-data (503 with an empty body when kevy is unreachable); any other method answers 207 listing the single `default` address book. The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.
+         */
+        post: operations["davAddressbooksPost"];
+        /**
+         * CardDAV address book collection (DELETE or any WebDAV method)
+         * @description Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. REPORT answers 207 with every vCard in the user's `default` book as address-data (503 with an empty body when kevy is unreachable); any other method answers 207 listing the single `default` address book. The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.
+         */
+        delete: operations["davAddressbooksDelete"];
+        /** CardDAV address book collection: DAV capabilities */
+        options: operations["davAddressbooksOptions"];
+        head?: never;
+        /**
+         * CardDAV address book collection (PATCH or any WebDAV method)
+         * @description Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. REPORT answers 207 with every vCard in the user's `default` book as address-data (503 with an empty body when kevy is unreachable); any other method answers 207 listing the single `default` address book. The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.
+         */
+        patch: operations["davAddressbooksPatch"];
+        trace?: never;
+    };
+    "/dav/calendars/{user}/{cal}/{uid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Fetch a calendar event */
+        get: operations["davCalendarEventGet"];
+        /**
+         * Store a calendar event
+         * @description The raw body is stored under the uid without parsing. Always answers 201, also when the write to kevy failed; no ETag is returned.
+         */
+        put: operations["davCalendarEventPut"];
+        post?: never;
+        /**
+         * Delete a calendar event
+         * @description Always answers 204, whether or not the uid existed or the kevy call succeeded.
+         */
+        delete: operations["davCalendarEventDelete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dav/addressbooks/{user}/{book}/{uid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Fetch a contact */
+        get: operations["davAddressbookContactGet"];
+        /**
+         * Store a contact
+         * @description The raw body is stored under the uid without parsing. Always answers 201, also when the write to kevy failed; no ETag is returned.
+         */
+        put: operations["davAddressbookContactPut"];
+        post?: never;
+        /**
+         * Delete a contact
+         * @description Always answers 204, whether or not the uid existed or the kevy call succeeded.
+         */
+        delete: operations["davAddressbookContactDelete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/_health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Health check (alias of /api/health)
+         * @description Same handler as /api/health. Pings the network kevy; `status` is `healthy` when the ping succeeds and `degraded` otherwise. Always 200.
+         */
+        get: operations["getHealthShort"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/.well-known/apple-mobileconfig": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Apple Mail configuration profile
+         * @description Unsigned .mobileconfig plist for an IMAP account (993, SSL) and SMTP (465, SSL) on MAILRS_HOSTNAME. A fresh PayloadUUID is generated per request.
+         */
+        get: operations["appleMobileconfig"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4910,21 +5232,25 @@ export interface components {
             bounced: number;
         };
         HealthResponse: {
+            /**
+             * @description `healthy` when a kevy ping succeeds, otherwise `degraded`
+             * @enum {string}
+             */
+            status: "healthy" | "degraded";
+            /** @description Same as `kevy` */
+            ok: boolean;
             /** @enum {string} */
-            status: "healthy" | "degraded" | "unhealthy";
-            /** @description 0=healthy, 1=degraded-valkey, 2=degraded-pg, 3=unhealthy */
-            level: number;
-            pg: boolean;
-            valkey: boolean;
-            /** Format: int64 */
-            uptime_secs: number;
+            service: "mailrs-webapi";
             version: string;
-            active_sessions?: number;
-            account_cache_size?: number;
-            /** Format: int64 */
-            total_connections?: number;
-            /** Format: int64 */
-            total_messages?: number;
+            /**
+             * Format: int64
+             * @description Seconds since this webapi process started
+             */
+            uptime_secs: number;
+            /** @description Result of a kevy ping made by this request */
+            kevy: boolean;
+            /** @description Always null: this lane has no PostgreSQL backend */
+            pg: null;
         };
         LoginRequest: {
             address: string;
@@ -5281,10 +5607,6 @@ export interface components {
             /** Format: int64 */
             updated_at: number;
         };
-        RetryResponse: {
-            success: boolean;
-            message: string;
-        };
         CreateApiKeyRequest: {
             name: string;
             /**
@@ -5398,13 +5720,15 @@ export interface components {
         AuditLogEntry: {
             /** Format: int64 */
             id: number;
+            /**
+             * Format: int64
+             * @description Unix seconds; read from `occurred_at` or `timestamp` in the stored row, always serialized as `timestamp`
+             */
+            timestamp: number;
             actor: string;
             action: string;
-            target?: string;
-            detail?: string;
-            ip_address?: string;
-            /** Format: int64 */
-            created_at: number;
+            target: string;
+            detail: string;
         };
         VerifyRequest: {
             address: string;
@@ -5461,10 +5785,6 @@ export interface components {
             basic_auth_user?: string;
             basic_auth_pass?: string;
         };
-        CheckDeliverabilityRequest: {
-            to: string[];
-            from?: string;
-        };
         DmarcReportSummary: {
             /** @description Storage id, <org_name>!<report_id> */
             sid?: string;
@@ -5489,19 +5809,6 @@ export interface components {
             passing?: number;
             /** Format: int64 */
             rows?: number;
-        };
-        DmarcReportRow: {
-            source_ip?: string;
-            /** Format: int64 */
-            count?: number;
-            disposition?: string;
-            /** @description Alignment-aware DKIM outcome */
-            dkim?: string;
-            /** @description Alignment-aware SPF outcome */
-            spf?: string;
-            header_from?: string;
-            envelope_from?: string | null;
-            passed?: boolean;
         };
         DmarcSourceSummary: {
             source_ip?: string;
@@ -5583,6 +5890,16 @@ export interface components {
             /** @enum {string} */
             create?: "all-users" | "admins-only";
         };
+        SpamListResponse: {
+            /** @description Lowercased email addresses, sorted ascending */
+            entries: string[];
+        };
+        SpamListAddRequest: {
+            /** @description Email address; must contain `@` after trimming */
+            address: string;
+        };
+        /** @description WebDAV multistatus XML document (RFC 4918 section 13), served as application/xml; charset=utf-8 with a `DAV: 1, 2, calendar-access, addressbook` header */
+        DavMultistatus: string;
     };
     responses: never;
     parameters: never;
@@ -5716,14 +6033,12 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Logout successful */
-            200: {
+            /** @description Logout successful; empty body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiResult"];
-                };
+                content?: never;
             };
         };
     };
@@ -5866,14 +6181,12 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Flag update result */
-            200: {
+            /** @description Flags updated; empty body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiResult"];
-                };
+                content?: never;
             };
         };
     };
@@ -6142,14 +6455,12 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Draft deleted */
-            200: {
+            /** @description Draft deleted; empty body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiResult"];
-                };
+                content?: never;
             };
         };
     };
@@ -6166,14 +6477,12 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Feedback recorded */
-            200: {
+            /** @description Feedback recorded; empty body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiResult"];
-                };
+                content?: never;
             };
         };
     };
@@ -6375,14 +6684,12 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Deletion result */
-            200: {
+            /** @description Deleted; empty body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiResult"];
-                };
+                content?: never;
             };
         };
     };
@@ -6397,14 +6704,12 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Result */
-            200: {
+            /** @description Done; empty body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiResult"];
-                };
+                content?: never;
             };
         };
     };
@@ -6419,14 +6724,12 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Result */
-            200: {
+            /** @description Done; empty body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiResult"];
-                };
+                content?: never;
             };
         };
     };
@@ -6441,14 +6744,12 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Result */
-            200: {
+            /** @description Done; empty body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiResult"];
-                };
+                content?: never;
             };
         };
     };
@@ -6463,14 +6764,12 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Result */
-            200: {
+            /** @description Done; empty body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiResult"];
-                };
+                content?: never;
             };
         };
     };
@@ -6485,14 +6784,12 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Result */
-            200: {
+            /** @description Done; empty body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiResult"];
-                };
+                content?: never;
             };
         };
     };
@@ -6507,14 +6804,12 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Result */
-            200: {
+            /** @description Done; empty body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiResult"];
-                };
+                content?: never;
             };
         };
     };
@@ -6529,14 +6824,12 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Result */
-            200: {
+            /** @description Done; empty body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiResult"];
-                };
+                content?: never;
             };
         };
     };
@@ -6551,14 +6844,12 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Result */
-            200: {
+            /** @description Done; empty body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiResult"];
-                };
+                content?: never;
             };
         };
     };
@@ -6577,14 +6868,12 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Result */
-            200: {
+            /** @description Done; empty body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiResult"];
-                };
+                content?: never;
             };
         };
     };
@@ -6599,14 +6888,12 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Result */
-            200: {
+            /** @description Done; empty body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiResult"];
-                };
+                content?: never;
             };
         };
     };
@@ -6745,16 +7032,12 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description API key revoked */
-            200: {
+            /** @description API key revoked; empty body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": {
-                        success?: boolean;
-                    };
-                };
+                content?: never;
             };
             /** @description API key not found or already revoked */
             404: {
@@ -6827,16 +7110,12 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Webhook deleted */
-            200: {
+            /** @description Webhook deleted; empty body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": {
-                        success?: boolean;
-                    };
-                };
+                content?: never;
             };
             /** @description Webhook not found or already deleted */
             404: {
@@ -6878,14 +7157,12 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Retry result */
-            200: {
+            /** @description Done; empty body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["RetryResponse"];
-                };
+                content?: never;
             };
         };
     };
@@ -6922,14 +7199,12 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Result */
-            200: {
+            /** @description Done; empty body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiResult"];
-                };
+                content?: never;
             };
         };
     };
@@ -6944,14 +7219,12 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Result */
-            200: {
+            /** @description Done; empty body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiResult"];
-                };
+                content?: never;
             };
         };
     };
@@ -7025,14 +7298,74 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Result */
-            200: {
+            /** @description Done; empty body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiResult"];
+                content?: never;
+            };
+        };
+    };
+    updateAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                address: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    display_name?: string;
+                    recovery_email?: string;
                 };
+            };
+        };
+        responses: {
+            /** @description Updated (or nothing to update) */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No valid session; empty body */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Caller has no admin.* permission and is not super admin; empty body */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such account (status passed through from fastcore); empty body */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Body rejected by the JSON extractor (400 malformed JSON, 415 wrong content type, 422 missing or mistyped field); plain-text body from the framework */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description fastcore failed to store the account; empty body */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -7047,14 +7380,12 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Result */
-            200: {
+            /** @description Account removed; empty body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiResult"];
-                };
+                content?: never;
             };
         };
     };
@@ -7102,14 +7433,12 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Result */
-            200: {
+            /** @description Done; empty body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiResult"];
-                };
+                content?: never;
             };
         };
     };
@@ -7150,14 +7479,12 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Result */
-            200: {
+            /** @description Done; empty body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiResult"];
-                };
+                content?: never;
             };
         };
     };
@@ -7172,14 +7499,12 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Result */
-            200: {
+            /** @description Done; empty body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiResult"];
-                };
+                content?: never;
             };
         };
     };
@@ -7242,14 +7567,12 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Result */
-            200: {
+            /** @description Done; empty body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiResult"];
-                };
+                content?: never;
             };
         };
     };
@@ -7541,14 +7864,64 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Result */
-            200: {
+            /** @description Stored; empty body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiResult"];
+                content?: never;
+            };
+        };
+    };
+    setGroupPermissionsPost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetGroupPermissionsRequest"];
+            };
+        };
+        responses: {
+            /** @description Stored */
+            204: {
+                headers: {
+                    [name: string]: unknown;
                 };
+                content?: never;
+            };
+            /** @description No valid session; empty body */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Caller has no admin.* permission and is not super admin; empty body */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Body rejected by the JSON extractor (400 malformed JSON, 415 wrong content type, 422 missing or mistyped field); plain-text body from the framework */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal error (kevy unreachable); empty body */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -7589,14 +7962,12 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Result */
-            200: {
+            /** @description Done; empty body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiResult"];
-                };
+                content?: never;
             };
         };
     };
@@ -7612,14 +7983,12 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Result */
-            200: {
+            /** @description Done; empty body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiResult"];
-                };
+                content?: never;
             };
         };
     };
@@ -7659,14 +8028,12 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Reset email sent (always returns success to prevent enumeration) */
-            200: {
+            /** @description Reset email sent (always returns success to prevent enumeration); empty body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiResult"];
-                };
+                content?: never;
             };
             /** @description Rate limited */
             429: {
@@ -7693,14 +8060,12 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Password reset successfully */
-            200: {
+            /** @description Password reset successfully; empty body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiResult"];
-                };
+                content?: never;
             };
             /** @description Invalid or expired token */
             400: {
@@ -7892,14 +8257,12 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Signature deleted */
-            200: {
+            /** @description Signature deleted; empty body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiResult"];
-                };
+                content?: never;
             };
         };
     };
@@ -7918,8 +8281,67 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["EncryptionKeyInfo"][];
+                    "application/json": {
+                        items: {
+                            email: string;
+                            key_armored: string;
+                        }[];
+                    };
                 };
+            };
+        };
+    };
+    saveKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    email: string;
+                    /** @description ASCII-armored public key */
+                    key_armored: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Saved; empty body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Body is not valid JSON */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing `Content-Type: application/json` */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Body lacks `email` or `key_armored` */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description kevy unavailable; empty body */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -8178,14 +8600,12 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Template deleted */
-            200: {
+            /** @description Template deleted; empty body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiResult"];
-                };
+                content?: never;
             };
         };
     };
@@ -8308,14 +8728,12 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Group deleted */
-            200: {
+            /** @description Group deleted; empty body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiResult"];
-                };
+                content?: never;
             };
         };
     };
@@ -8358,14 +8776,12 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Member added */
-            200: {
+            /** @description Member added; empty body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiResult"];
-                };
+                content?: never;
             };
         };
     };
@@ -8381,24 +8797,28 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Member removed */
-            200: {
+            /** @description Member removed; empty body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiResult"];
-                };
+                content?: never;
             };
         };
     };
     getAuditLog: {
         parameters: {
             query?: {
+                /** @description Maximum rows returned, counted after the filters */
                 limit?: number;
-                offset?: number;
+                /** @description Exact actor email */
                 actor?: string;
+                /** @description Action prefix, e.g. `account` matches `account.*` */
                 action?: string;
+                /** @description Lower bound, Unix seconds, inclusive */
+                since?: number;
+                /** @description Upper bound, Unix seconds, exclusive */
+                until?: number;
             };
             header?: never;
             path?: never;
@@ -8406,13 +8826,15 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Audit log entries */
+            /** @description Audit log entries, newest first as stored */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AuditLogEntry"][];
+                    "application/json": {
+                        items: components["schemas"]["AuditLogEntry"][];
+                    };
                 };
             };
         };
@@ -8517,54 +8939,6 @@ export interface operations {
             };
         };
     };
-    davEvent: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user: string;
-                calendar: string;
-                uid: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description iCalendar event */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/calendar": string;
-                };
-            };
-        };
-    };
-    davContact: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user: string;
-                book: string;
-                uid: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description vCard contact */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/vcard": string;
-                };
-            };
-        };
-    };
     mtaStsPolicy: {
         parameters: {
             query?: never;
@@ -8581,6 +8955,26 @@ export interface operations {
                 };
                 content: {
                     "text/plain": string;
+                };
+            };
+        };
+    };
+    autodiscoverOutlookGet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Autodiscover XML response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/xml": string;
                 };
             };
         };
@@ -8629,6 +9023,89 @@ export interface operations {
             };
         };
     };
+    autodiscoverOutlookGetCapitalized: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Autodiscover XML response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/xml": string;
+                };
+            };
+        };
+    };
+    putSystemConfigKeyPost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateConfigRequest"];
+            };
+        };
+        responses: {
+            /** @description Stored */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Key not editable here or value out of range */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No valid session; empty body */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Caller has no admin.* permission and is not super admin; empty body */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Body rejected by the JSON extractor (400 malformed JSON, 415 wrong content type, 422 missing or mistyped field); plain-text body from the framework */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Could not save; body {"error": "could not save the setting"} */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     listDmarcReports: {
         parameters: {
             query?: {
@@ -8648,31 +9125,6 @@ export interface operations {
                 content: {
                     "application/json": {
                         items?: components["schemas"]["DmarcReportSummary"][];
-                    };
-                };
-            };
-        };
-    };
-    getDmarcReport: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                sid: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Report detail */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        report?: components["schemas"]["DmarcReportSummary"];
-                        rows?: components["schemas"]["DmarcReportRow"][];
                     };
                 };
             };
@@ -9276,6 +9728,2113 @@ export interface operations {
             };
             /** @description No such account */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    markAllConversationsRead: {
+        parameters: {
+            query?: {
+                /** @description Folder of the list to mark */
+                folder?: string;
+                /** @description Unread filter of the list to mark */
+                unread?: boolean;
+                /** @description Starred filter of the list to mark */
+                starred?: boolean;
+                /** @description Mark the archived list */
+                archived?: boolean;
+                /** @description Category filter; applies only when the request is scoped */
+                category?: string;
+                /** @description Section filter; applies only when the request is scoped */
+                section?: string;
+                /** @description Include conversations held as suspected fraud; applies only when the request is scoped */
+                include_quarantined?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Number of conversations flipped to read */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        success: true;
+                        /** Format: int32 */
+                        flipped: number;
+                    };
+                };
+            };
+            /** @description A query parameter failed to parse (e.g. non-boolean `unread`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getUnseenCount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Number of unread, non-archived, non-spam threads, excluding self-replies */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: int64 */
+                        count: number;
+                    };
+                };
+            };
+        };
+    };
+    markThreadJunk: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                thread_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Done; empty body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Thread not found for this user (core-api NotFound); other core-api errors map to 400/403/409/500/501/503/504 with an empty body */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    markThreadNotJunk: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                thread_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Done; empty body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Thread not found for this user (core-api NotFound); other core-api errors map to 400/403/409/500/501/503/504 with an empty body */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    markThreadNotification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                thread_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Done; empty body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Thread not found for this user (core-api NotFound); other core-api errors map to 400/403/409/500/501/503/504 with an empty body */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    markThreadPromotion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                thread_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Done; empty body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Thread not found for this user (core-api NotFound); other core-api errors map to 400/403/409/500/501/503/504 with an empty body */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    moveThreadToInbox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                thread_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Done; empty body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Thread not found for this user (core-api NotFound); other core-api errors map to 400/403/409/500/501/503/504 with an empty body */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listSentMessages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sent messages */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: int32 */
+                        uid: number;
+                        message_id: string;
+                        thread_id: string;
+                        /** @description Raw To: header */
+                        to: string;
+                        subject: string;
+                        /**
+                         * Format: int64
+                         * @description Epoch seconds
+                         */
+                        internal_date: number;
+                    }[];
+                };
+            };
+        };
+    };
+    listSpamWhitelist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller's entries, lowercased, sorted ascending */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpamListResponse"];
+                };
+            };
+            /** @description kevy unavailable; empty body */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    addSpamWhitelist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SpamListAddRequest"];
+            };
+        };
+        responses: {
+            /** @description Added (idempotent); empty body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `address` empty after trimming or contains no `@`; or the body is not valid JSON */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing `Content-Type: application/json` */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Body is JSON but lacks a string `address` */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description kevy unavailable; empty body */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    removeSpamWhitelist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Address to remove; lowercased before removal, not trimmed */
+                address: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed, or was not present; empty body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description kevy unavailable; empty body */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listSpamBlacklist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller's entries, lowercased, sorted ascending */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpamListResponse"];
+                };
+            };
+            /** @description kevy unavailable; empty body */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    addSpamBlacklist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SpamListAddRequest"];
+            };
+        };
+        responses: {
+            /** @description Added (idempotent); empty body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `address` empty after trimming or contains no `@`; or the body is not valid JSON */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing `Content-Type: application/json` */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Body is JSON but lacks a string `address` */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description kevy unavailable; empty body */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    removeSpamBlacklist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Address to remove; lowercased before removal, not trimmed */
+                address: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed, or was not present; empty body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description kevy unavailable; empty body */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getDomainIcon: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Sender domain; trimmed and lowercased */
+                domain: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Icon bytes. Content-Type is the upstream's when it starts with `image/` (commonly image/svg+xml, image/png, image/x-icon, image/vnd.microsoft.icon, image/jpeg, image/gif, image/webp), otherwise image/png. At most 256 KiB. Cache-Control: public, max-age=86400, stale-while-revalidate=604800 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/*": string;
+                };
+            };
+            /** @description No icon for this domain, or the domain is invalid; empty body. Cache-Control: public, max-age=86400 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getKeysStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Key status */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description true when key_count > 0 */
+                        configured: boolean;
+                        key_count: number;
+                    };
+                };
+            };
+            /** @description kevy unavailable; empty body */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listSends: {
+        parameters: {
+            query?: {
+                /** @description Clamped to 1..200 */
+                limit?: number;
+                /** @description Negative values are treated as 0 */
+                offset?: number;
+                /** @description Filter by status; empty means no filter, an unknown value is rejected with 400 */
+                status?: "scheduled" | "sending" | "delivered" | "failed" | "partial" | "cancelled";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sends */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        send_id: string;
+                        thread_id: string;
+                        subject: string;
+                        to: string[];
+                        /**
+                         * Format: int64
+                         * @description Unix seconds
+                         */
+                        created_at: number;
+                        /** @enum {string} */
+                        status: "scheduled" | "sending" | "delivered" | "failed" | "partial" | "cancelled";
+                        /** @description Whether stored envelope bytes exist, so resend / redraft can work */
+                        can_resend: boolean;
+                        /** @description Send id this one is a resend of */
+                        resent_from: string | null;
+                        recipients: {
+                            recipient: string;
+                            delivered: boolean;
+                            pending: boolean;
+                            /** @description Remote reply code, 0 before any server answered */
+                            code: number;
+                            /** @description Remote reply text, verbatim */
+                            message: string;
+                        }[];
+                    }[];
+                };
+            };
+            /** @description Unknown `status` value (empty body) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description kevy read/write failed (empty body) */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    shadowSends: {
+        parameters: {
+            query: {
+                /** @description Unix seconds; sends at or after this must have a row */
+                since: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Shadow report */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        axis_threads: number;
+                        projection_sends: number;
+                        missing_before: number;
+                        /** @description The gate; must be 0 */
+                        missing_since: number;
+                        samples: string[];
+                    };
+                };
+            };
+            /** @description `since` missing or not an integer (axum Query rejection, plain-text body) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description kevy read/write failed (empty body) */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description core list_conversations call failed (empty body) */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getSendSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Send id: the Message-ID of the original send, or `<message-id>#r<n>` for a resend */
+                send_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Raw message exactly as it was queued */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "message/rfc822": string;
+                };
+            };
+            /** @description No such send for this user, or the stored file is missing (empty body) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Send has no stored envelope bytes (`can_resend` is false) (empty body) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description kevy or maildir read failed (empty body) */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteSend: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Send id: the Message-ID of the original send, or `<message-id>#r<n>` for a resend */
+                send_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such send for this user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Send is still `sending` or `scheduled`; cancel it first */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description kevy failure, or a core error (other core errors are passed through with the core's status code) */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    resendSend: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Send id: the Message-ID of the original send, or `<message-id>#r<n>` for a resend */
+                send_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Resend queued */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description New send id */
+                        send_id: string;
+                        /** @description The send id given in the path */
+                        resent_from: string;
+                    };
+                };
+            };
+            /** @description No such send, or stored file missing */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No stored envelope bytes, or the original has no recipients */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description kevy / maildir failure */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getSendRedraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Send id: the Message-ID of the original send, or `<message-id>#r<n>` for a resend */
+                send_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Compose fields */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        redraft_of: string;
+                        to: string[];
+                        cc: string[];
+                        bcc: string[];
+                        subject: string;
+                        /** @description Plain-text body, empty if none */
+                        body: string;
+                        /** @description HTML body, empty if none */
+                        html_body: string;
+                        /** @description The original's thread id; null when it had none */
+                        in_reply_to: string | null;
+                        attachments: {
+                            index: number;
+                            filename: string;
+                            content_type: string;
+                            /** @description Bytes */
+                            size: number;
+                        }[];
+                    };
+                };
+            };
+            /** @description No such send, or stored file missing */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No stored envelope bytes */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description kevy / maildir failure */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listScheduled: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Scheduled jobs */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** @description Outbound job id */
+                            id: string;
+                            /**
+                             * Format: int64
+                             * @description Unix seconds
+                             */
+                            scheduled_at: number;
+                            recipient: string;
+                            subject: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description kevy read/write failed (empty body) */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    cancelScheduled: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outbound job id (member of the scheduled index) */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cancelled */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found, not the caller's, or kevy error (all answer 404) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    rescheduleScheduled: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outbound job id (member of the scheduled index) */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * Format: int64
+                     * @description New send time, Unix seconds; must be in the future
+                     */
+                    scheduled_at: number;
+                };
+            };
+        };
+        responses: {
+            /** @description Rescheduled */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `scheduled_at` is not in the future (also axum's 400 for malformed JSON) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found, not the caller's, or kevy error */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing `Content-Type: application/json` (axum Json rejection) */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Body does not match the schema (axum Json rejection) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listIdentities: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Linked identities */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            issuer: string;
+                            subject: string;
+                            /** @description Provider key derived from the issuer; null when no configured provider has that issuer */
+                            provider: string | null;
+                        }[];
+                    };
+                };
+            };
+            /** @description kevy unavailable (empty body) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    unlinkIdentity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    issuer: string;
+                    subject: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Unlinked */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not linked to the caller's account (same answer whether it exists elsewhere or not) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing JSON content type (axum Json rejection) */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Body missing `issuer` or `subject` (axum Json rejection) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description kevy unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listExternalProviders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Provider keys */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Keys of providers that have a client id configured, in this fixed order */
+                        providers: ("portal" | "google" | "github" | "microsoft" | "apple")[];
+                    };
+                };
+            };
+        };
+    };
+    startExternalLogin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: "portal" | "google" | "github" | "microsoft" | "apple";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Redirect to the provider's authorization endpoint */
+            303: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Provider not configured: `{"error": "provider not configured"}` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Could not store the flow state in kevy (empty body) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    adminCreateWebhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Account that owns the subscription */
+                    account_address: string;
+                    url: string;
+                    event_type: string;
+                    filter_sender?: string;
+                    filter_thread_id?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Created */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: int64 */
+                        id: number;
+                        signing_secret: string;
+                    };
+                };
+            };
+            /** @description No valid session; empty body */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Caller has no admin.* permission and is not super admin; empty body */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Body rejected by the JSON extractor (400 malformed JSON, 415 wrong content type, 422 missing or mistyped field); plain-text body from the framework */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal error (kevy unreachable); empty body */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    adminDeleteWebhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description id is not an integer; plain-text body from the framework */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No valid session; empty body */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Caller has no admin.* permission and is not super admin; empty body */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No subscription with this id; empty body */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal error (kevy unreachable); empty body */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    adminListAccountWebhooks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                address: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Subscriptions of the account; an unknown address gives an empty list */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: int64 */
+                            id: number;
+                            account_address: string;
+                            url: string;
+                            event_type: string;
+                            /** @description Omitted when not set */
+                            filter_sender?: string;
+                            /** @description Omitted when not set */
+                            filter_thread_id?: string;
+                            /** @description HMAC signing secret; this admin listing returns it in full */
+                            signing_secret: string;
+                            active: boolean;
+                            /**
+                             * Format: int64
+                             * @description Unix seconds
+                             */
+                            created_at: number;
+                        }[];
+                    };
+                };
+            };
+            /** @description No valid session; empty body */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Caller has no admin.* permission and is not super admin; empty body */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal error (kevy unreachable); empty body */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    exportAuditLog: {
+        parameters: {
+            query?: {
+                /** @description Lower bound, Unix seconds, inclusive */
+                since?: number;
+                /** @description Upper bound, Unix seconds, exclusive */
+                until?: number;
+                /** @description Exact actor email */
+                actor?: string;
+                /** @description Action prefix, e.g. `account` matches `account.*` */
+                action?: string;
+                /** @description Accepted, ignored by this endpoint */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Matching entries */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: int64 */
+                            id: number;
+                            /**
+                             * Format: int64
+                             * @description Unix seconds; read from `occurred_at` or `timestamp` in the stored row, always serialized as `timestamp`
+                             */
+                            timestamp: number;
+                            actor: string;
+                            action: string;
+                            target: string;
+                            detail: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Query string rejected (e.g. non-integer since); plain-text body from the framework */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No valid session; empty body */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Caller has no admin.* permission and is not super admin; empty body */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal error (kevy unreachable); empty body */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auditConversationDetail: {
+        parameters: {
+            query: {
+                /** @description Target account; `target_user` is accepted as an alias */
+                user: string;
+            };
+            header?: never;
+            path: {
+                thread_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Conversation summary */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        thread_id: string;
+                        subject: string;
+                        /** @description Participants as a single string, as stored on the thread row */
+                        participants: string;
+                        message_count: number;
+                        /** Format: int64 */
+                        last_date: number;
+                        snippet: string;
+                    };
+                };
+            };
+            /** @description `user` missing; plain-text body from the framework */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No valid session; empty body */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Caller has no admin.* permission and is not super admin; empty body */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The user has no such thread; empty body */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Core RPC failed (other core statuses are passed through); empty body */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listAdminQueue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Queue rows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: ({
+                            /** Format: int64 */
+                            id?: number;
+                            sender?: string;
+                            recipient?: string;
+                            original_sender?: string | null;
+                            /** @enum {string} */
+                            status: "pending" | "retrying" | "inflight";
+                            attempts?: number;
+                            last_error?: string | null;
+                            /** Format: int64 */
+                            next_retry?: number | null;
+                            /** Format: int64 */
+                            scheduled_at?: number | null;
+                            /** Format: int64 */
+                            created_at?: number;
+                            /** Format: int64 */
+                            updated_at?: number;
+                            send_id?: string | null;
+                            /**
+                             * Format: int64
+                             * @description Set by the sender after an attempt
+                             */
+                            last_attempt_at?: number;
+                        } & {
+                            [key: string]: unknown;
+                        })[];
+                    };
+                };
+            };
+            /** @description No valid session; empty body */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Caller has no admin.* permission and is not super admin; empty body */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal error (kevy unreachable); empty body */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    davPrincipalGet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Multistatus XML */
+            207: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/xml": components["schemas"]["DavMultistatus"];
+                };
+            };
+            /** @description No valid session; empty body */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    davPrincipalPut: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Multistatus XML */
+            207: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/xml": components["schemas"]["DavMultistatus"];
+                };
+            };
+            /** @description No valid session; empty body */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    davPrincipalPost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Multistatus XML */
+            207: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/xml": components["schemas"]["DavMultistatus"];
+                };
+            };
+            /** @description No valid session; empty body */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    davPrincipalDelete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Multistatus XML */
+            207: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/xml": components["schemas"]["DavMultistatus"];
+                };
+            };
+            /** @description No valid session; empty body */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    davPrincipalOptions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Empty body; `Allow: OPTIONS, GET, HEAD, PROPFIND, REPORT, PUT, DELETE, MKCOL, MKCALENDAR` and `DAV: 1, 2, calendar-access, addressbook` headers */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No valid session; empty body */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    davPrincipalPatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Multistatus XML */
+            207: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/xml": components["schemas"]["DavMultistatus"];
+                };
+            };
+            /** @description No valid session; empty body */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    davAddressbooksGet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Multistatus XML */
+            207: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/xml": components["schemas"]["DavMultistatus"];
+                };
+            };
+            /** @description No valid session; empty body */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    davAddressbooksPut: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Multistatus XML */
+            207: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/xml": components["schemas"]["DavMultistatus"];
+                };
+            };
+            /** @description No valid session; empty body */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    davAddressbooksPost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Multistatus XML */
+            207: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/xml": components["schemas"]["DavMultistatus"];
+                };
+            };
+            /** @description No valid session; empty body */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    davAddressbooksDelete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Multistatus XML */
+            207: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/xml": components["schemas"]["DavMultistatus"];
+                };
+            };
+            /** @description No valid session; empty body */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    davAddressbooksOptions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Empty body; `Allow: OPTIONS, GET, HEAD, PROPFIND, REPORT, PUT, DELETE, MKCOL, MKCALENDAR` and `DAV: 1, 2, calendar-access, addressbook` headers */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No valid session; empty body */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    davAddressbooksPatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Multistatus XML */
+            207: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/xml": components["schemas"]["DavMultistatus"];
+                };
+            };
+            /** @description No valid session; empty body */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    davCalendarEventGet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Ignored; the authenticated user is used */
+                user: string;
+                cal: string;
+                /** @description Last path segment, stored verbatim as the key (including any .ics/.vcf suffix) */
+                uid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The stored body, as text/calendar; charset=utf-8 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/calendar": string;
+                };
+            };
+            /** @description No valid session; empty body */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not stored, or kevy unreachable; empty body */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    davCalendarEventPut: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Ignored; the authenticated user is used */
+                user: string;
+                cal: string;
+                /** @description Last path segment, stored verbatim as the key (including any .ics/.vcf suffix) */
+                uid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "text/calendar": string;
+            };
+        };
+        responses: {
+            /** @description Accepted (empty body) */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No valid session; empty body */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    davCalendarEventDelete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Ignored; the authenticated user is used */
+                user: string;
+                cal: string;
+                /** @description Last path segment, stored verbatim as the key (including any .ics/.vcf suffix) */
+                uid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No valid session; empty body */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    davAddressbookContactGet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Ignored; the authenticated user is used */
+                user: string;
+                book: string;
+                /** @description Last path segment, stored verbatim as the key (including any .ics/.vcf suffix) */
+                uid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The stored body, as text/vcard; charset=utf-8 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/vcard": string;
+                };
+            };
+            /** @description No valid session; empty body */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not stored, or kevy unreachable; empty body */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    davAddressbookContactPut: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Ignored; the authenticated user is used */
+                user: string;
+                book: string;
+                /** @description Last path segment, stored verbatim as the key (including any .ics/.vcf suffix) */
+                uid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "text/vcard": string;
+            };
+        };
+        responses: {
+            /** @description Accepted (empty body) */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No valid session; empty body */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    davAddressbookContactDelete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Ignored; the authenticated user is used */
+                user: string;
+                book: string;
+                /** @description Last path segment, stored verbatim as the key (including any .ics/.vcf suffix) */
+                uid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No valid session; empty body */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getHealthShort: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Health */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        status: "healthy" | "degraded";
+                        ok: boolean;
+                        /** @constant */
+                        service: "mailrs-webapi";
+                        version: string;
+                        /** Format: int64 */
+                        uptime_secs: number;
+                        kevy: boolean;
+                        /** @description Always null in this process (no PostgreSQL backend) */
+                        pg: null;
+                    };
+                };
+            };
+        };
+    };
+    appleMobileconfig: {
+        parameters: {
+            query?: {
+                /** @description Pre-filled as account name, address and usernames; defaults to the literal %EMAILADDRESS%. Must be a plain `local@domain` address (RFC 5322 atext local part, LDH domain labels); anything else answers 400. Every interpolated value is XML-escaped */
+                emailaddress?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Configuration profile plist */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/x-apple-aspen-config": string;
+                };
+            };
+            /** @description emailaddress is not a plain email address; plain-text body */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };

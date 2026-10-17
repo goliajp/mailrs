@@ -2,6 +2,7 @@
 //! machine + command handlers, [`backend`] for the kevy + maildir
 //! backend, and [`spawn`] / [`spawn_tls`] for the listener wiring.
 
+mod auth;
 pub mod backend;
 pub mod fetch;
 mod fetch_items;
@@ -12,6 +13,8 @@ mod mock_tests;
 mod query;
 pub mod search_eval;
 mod session;
+#[cfg(test)]
+mod tls_tests;
 
 use std::sync::Arc;
 
@@ -22,7 +25,11 @@ use crate::FastcoreState;
 
 /// Bind plaintext IMAP on `MAILRS_IMAP_BIND` (default `0.0.0.0:143`).
 /// Set the env to `off` to disable.
-pub async fn spawn(state: Arc<FastcoreState>) {
+///
+/// With a certificate the port offers STARTTLS and refuses to log in
+/// until it is used. Without one (dev) there is no way to encrypt, so
+/// logins are accepted in clear and nothing advertises STARTTLS.
+pub async fn spawn(state: Arc<FastcoreState>, tls: Option<TlsState>) {
     let bind = std::env::var("MAILRS_IMAP_BIND").unwrap_or_else(|_| "0.0.0.0:143".to_string());
     if bind.eq_ignore_ascii_case("off") || bind.is_empty() {
         tracing::debug!("MAILRS_IMAP_BIND=off — skipping IMAP listener");
@@ -35,7 +42,14 @@ pub async fn spawn(state: Arc<FastcoreState>) {
             return;
         }
     };
-    tracing::info!(%bind, "imap: listening");
+    if tls.is_none() {
+        tracing::warn!(%bind, "imap: no certificate — no STARTTLS, passwords are accepted in clear");
+    }
+    tracing::info!(%bind, starttls = tls.is_some(), "imap: listening");
+    serve_plain(listener, state, tls).await;
+}
+
+async fn serve_plain(listener: TcpListener, state: Arc<FastcoreState>, tls: Option<TlsState>) {
     loop {
         let (sock, peer) = match listener.accept().await {
             Ok(pair) => pair,
@@ -45,9 +59,13 @@ pub async fn spawn(state: Arc<FastcoreState>) {
             }
         };
         let state = state.clone();
+        let tls = tls.clone();
         tokio::spawn(async move {
             tracing::debug!(%peer, "imap: connection open");
-            session::run(state, sock).await;
+            match tls {
+                Some(tls) => session::run_upgradable(state, sock, tls).await,
+                None => session::run(state, sock).await,
+            }
             tracing::debug!(%peer, "imap: connection closed");
         });
     }
@@ -71,6 +89,10 @@ pub async fn spawn_tls(state: Arc<FastcoreState>, tls: TlsState) {
         }
     };
     tracing::info!(%bind, "imaps: listening (implicit TLS)");
+    serve_tls(listener, state, tls).await;
+}
+
+async fn serve_tls(listener: TcpListener, state: Arc<FastcoreState>, tls: TlsState) {
     loop {
         let (sock, peer) = match listener.accept().await {
             Ok(pair) => pair,

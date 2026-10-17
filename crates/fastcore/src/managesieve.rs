@@ -5,8 +5,9 @@
 //! of truth. This server lets a standard sieve client (sieve-connect,
 //! Thunderbird's sieve add-on, …) manage the active script directly.
 //!
-//! Supported: STARTTLS advertise, AUTHENTICATE PLAIN (argon2 against the
-//! kevy account blob, same as IMAP/POP3), LISTSCRIPTS, GETSCRIPT,
+//! Supported: STARTTLS (RFC 5804 §2.2, when a certificate is configured;
+//! no AUTHENTICATE until it is used), AUTHENTICATE PLAIN (argon2 against
+//! the kevy account blob, same as IMAP/POP3), LISTSCRIPTS, GETSCRIPT,
 //! PUTSCRIPT (compile-validated via mailrs-sieve), SETACTIVE,
 //! DELETESCRIPT, CHECKSCRIPT, HAVESPACE, CAPABILITY, NOOP, LOGOUT.
 //!
@@ -16,19 +17,28 @@
 
 use std::sync::Arc;
 
-use kevy_client::Connection;
-use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
+use mailrs_tls_reload::TlsState;
+use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::net::TcpListener;
 
 use crate::FastcoreState;
+use auth::handle_authenticate;
+use script::{delete_script, load_script, read_script_literal, sanitize, store_script};
+
+mod auth;
+mod script;
+#[cfg(test)]
+mod tls_tests;
 
 /// The single script name we present. Real name is irrelevant (one
 /// script per user) but a stable label keeps clients happy.
 const SCRIPT_NAME: &str = "mailrs";
 
 /// Spawn the plaintext ManageSieve listener on `MAILRS_MANAGESIEVE_BIND`
-/// (default `0.0.0.0:4190`). Set the env to `off` to disable.
-pub async fn spawn(state: Arc<FastcoreState>) {
+/// (default `0.0.0.0:4190`). Set the env to `off` to disable. Without a
+/// certificate (dev) STARTTLS is not offered and AUTHENTICATE works in
+/// clear.
+pub async fn spawn(state: Arc<FastcoreState>, tls: Option<TlsState>) {
     let bind =
         std::env::var("MAILRS_MANAGESIEVE_BIND").unwrap_or_else(|_| "0.0.0.0:4190".to_string());
     if bind.eq_ignore_ascii_case("off") || bind.is_empty() {
@@ -42,7 +52,14 @@ pub async fn spawn(state: Arc<FastcoreState>) {
             return;
         }
     };
-    tracing::info!(%bind, "managesieve: listening");
+    if tls.is_none() {
+        tracing::warn!(%bind, "managesieve: no certificate — no STARTTLS, passwords are accepted in clear");
+    }
+    tracing::info!(%bind, starttls = tls.is_some(), "managesieve: listening");
+    serve_plain(listener, state, tls).await;
+}
+
+async fn serve_plain(listener: TcpListener, state: Arc<FastcoreState>, tls: Option<TlsState>) {
     loop {
         let (sock, peer) = match listener.accept().await {
             Ok(pair) => pair,
@@ -52,40 +69,77 @@ pub async fn spawn(state: Arc<FastcoreState>) {
             }
         };
         let state = state.clone();
+        let tls = tls.clone();
         tokio::spawn(async move {
-            if let Err(e) = session(state, sock).await {
+            if let Err(e) = session(state, sock, tls).await {
                 tracing::debug!(%peer, error = %e, "managesieve: session ended");
             }
         });
     }
 }
 
-fn greeting() -> String {
-    // capability list per RFC 5804 §1.7 — advertised at connect + after
-    // any state change (we send it once at greeting + after AUTH).
+/// Capability list per RFC 5804 §1.7, sent at connect, on CAPABILITY and
+/// after STARTTLS. Before TLS no mechanism is on offer, so SASL is empty.
+fn greeting(starttls: bool) -> String {
     let mut s = String::new();
     s.push_str("\"IMPLEMENTATION\" \"mailrs\"\r\n");
     s.push_str("\"SIEVE\" \"fileinto reject vacation envelope\"\r\n");
-    s.push_str("\"SASL\" \"PLAIN\"\r\n");
+    if starttls {
+        s.push_str("\"SASL\" \"\"\r\n\"STARTTLS\"\r\n");
+    } else {
+        s.push_str("\"SASL\" \"PLAIN\"\r\n");
+    }
     s.push_str("\"VERSION\" \"1.0\"\r\n");
     s.push_str("OK\r\n");
     s
 }
 
-async fn session<S>(state: Arc<FastcoreState>, sock: S) -> std::io::Result<()>
+/// `tls`: STARTTLS is on offer. After it the capabilities are sent again
+/// on the TLS stream, and whatever was buffered in clear is dropped.
+async fn session<S>(
+    state: Arc<FastcoreState>,
+    sock: S,
+    tls: Option<TlsState>,
+) -> std::io::Result<()>
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
     let (rx, mut tx) = tokio::io::split(sock);
     let mut reader = BufReader::new(rx);
-    tx.write_all(greeting().as_bytes()).await?;
+    tx.write_all(greeting(tls.is_some()).as_bytes()).await?;
+    let Some(tls) = tls else {
+        return serve(&state, &mut reader, &mut tx, false).await.map(|_| ());
+    };
+    if !serve(&state, &mut reader, &mut tx, true).await? {
+        return Ok(());
+    }
+    let sock = reader.into_inner().unsplit(tx);
+    let stream = tls.acceptor().accept(sock).await?;
+    let (rx, mut tx) = tokio::io::split(stream);
+    tx.write_all(greeting(false).as_bytes()).await?;
+    serve(&state, &mut BufReader::new(rx), &mut tx, false)
+        .await
+        .map(|_| ())
+}
 
+/// Runs commands until LOGOUT or EOF (false), or until the client is told
+/// to begin TLS (true, only when `starttls`).
+async fn serve<R, W>(
+    state: &Arc<FastcoreState>,
+    reader: &mut R,
+    tx: &mut W,
+    starttls: bool,
+) -> std::io::Result<bool>
+where
+    R: AsyncBufRead + Unpin,
+    W: AsyncWrite + Unpin,
+{
     let mut authed_user: Option<String> = None;
     let mut line = String::new();
     loop {
         line.clear();
         if reader.read_line(&mut line).await? == 0 {
-            return Ok(());
+            return Ok(false);
         }
         let trimmed = line.trim_end_matches(['\r', '\n']);
         let mut parts = trimmed.splitn(2, ' ');
@@ -93,13 +147,22 @@ where
         let arg = parts.next().unwrap_or("").trim();
 
         match cmd.as_str() {
-            "CAPABILITY" => tx.write_all(greeting().as_bytes()).await?,
+            "CAPABILITY" => tx.write_all(greeting(starttls).as_bytes()).await?,
             "NOOP" => tx.write_all(b"OK \"NOOP completed\"\r\n").await?,
             "LOGOUT" => {
                 tx.write_all(b"OK \"Bye\"\r\n").await?;
-                return Ok(());
+                return Ok(false);
             }
-            "AUTHENTICATE" => match handle_authenticate(&state, arg, &mut reader, &mut tx).await? {
+            "AUTHENTICATE" if starttls => {
+                tx.write_all(b"NO (ENCRYPT-NEEDED) \"use STARTTLS first\"\r\n")
+                    .await?;
+            }
+            "STARTTLS" if starttls => {
+                tx.write_all(b"OK \"Begin TLS negotiation now\"\r\n")
+                    .await?;
+                return Ok(true);
+            }
+            "AUTHENTICATE" => match handle_authenticate(state, arg, reader, tx).await? {
                 Some(user) => {
                     authed_user = Some(user);
                     tx.write_all(b"OK \"Authenticated\"\r\n").await?;
@@ -111,7 +174,7 @@ where
                 tx.write_all(b"OK \"Within limits\"\r\n").await?;
             }
             "CHECKSCRIPT" => {
-                let (_name, body) = read_script_literal(arg, &mut reader).await?;
+                let (_name, body) = read_script_literal(arg, reader).await?;
                 match mailrs_sieve::compile_sieve(&body) {
                     Ok(_) => tx.write_all(b"OK \"Script is valid\"\r\n").await?,
                     Err(e) => {
@@ -125,7 +188,7 @@ where
                     tx.write_all(b"NO \"Authenticate first\"\r\n").await?;
                     continue;
                 };
-                let (_name, body) = read_script_literal(arg, &mut reader).await?;
+                let (_name, body) = read_script_literal(arg, reader).await?;
                 match mailrs_sieve::compile_sieve(&body) {
                     Ok(_) => {
                         if store_script(user, &body) {
@@ -188,10 +251,7 @@ where
                 tx.write_all(b"OK \"Deleted\"\r\n").await?;
             }
             "STARTTLS" => {
-                // plaintext listener: advertise but no in-band upgrade
-                // here (use the TLS listener variant). Politely refuse.
-                tx.write_all(b"NO \"STARTTLS not available on this port\"\r\n")
-                    .await?;
+                tx.write_all(b"NO \"STARTTLS not available\"\r\n").await?;
             }
             _ => {
                 tx.write_all(b"NO \"Unknown command\"\r\n").await?;
@@ -200,118 +260,8 @@ where
     }
 }
 
-/// AUTHENTICATE PLAIN: either inline base64 arg, or a `{n+}` literal
-/// continuation. Returns the authenticated address on success.
-async fn handle_authenticate<R, W>(
-    state: &Arc<FastcoreState>,
-    arg: &str,
-    reader: &mut BufReader<R>,
-    tx: &mut W,
-) -> std::io::Result<Option<String>>
-where
-    R: AsyncRead + Unpin,
-    W: AsyncWrite + Unpin,
-{
-    // arg = `"PLAIN"` optionally followed by the initial response
-    let mut it = arg.splitn(2, ' ');
-    let mech = unquote(it.next().unwrap_or(""));
-    if !mech.eq_ignore_ascii_case("PLAIN") {
-        return Ok(None);
-    }
-    let b64 = match it.next() {
-        Some(rest) if !rest.trim().is_empty() => unquote(rest.trim()).to_string(),
-        _ => {
-            // request the SASL response as a literal
-            tx.write_all(b"{0+}\r\n").await?;
-            let mut resp = String::new();
-            reader.read_line(&mut resp).await?;
-            resp.trim_end_matches(['\r', '\n']).to_string()
-        }
-    };
-    use base64::Engine as _;
-    let Ok(raw) = base64::engine::general_purpose::STANDARD.decode(b64.trim()) else {
-        return Ok(None);
-    };
-    // SASL PLAIN: authzid \0 authcid \0 passwd
-    let mut fields = raw.split(|b| *b == 0);
-    let _authzid = fields.next();
-    let authcid = fields.next().and_then(|b| std::str::from_utf8(b).ok());
-    let passwd = fields.next().and_then(|b| std::str::from_utf8(b).ok());
-    match (authcid, passwd) {
-        (Some(user), Some(pass)) if crate::imap::backend::verify_password(state, user, pass) => {
-            Ok(Some(user.to_string()))
-        }
-        _ => Ok(None),
-    }
-}
-
-/// Parse the `{n}` / `{n+}` literal that follows PUTSCRIPT/CHECKSCRIPT
-/// and read exactly n bytes. `arg` is `"name" {len+}` or just `{len+}`.
-async fn read_script_literal<R>(
-    arg: &str,
-    reader: &mut BufReader<R>,
-) -> std::io::Result<(String, String)>
-where
-    R: AsyncRead + Unpin,
-{
-    // extract optional script name + the {len} literal marker
-    let name = if arg.trim_start().starts_with('"') {
-        let inner = &arg.trim_start()[1..];
-        inner.split('"').next().unwrap_or("").to_string()
-    } else {
-        SCRIPT_NAME.to_string()
-    };
-    let len: usize = arg
-        .rsplit('{')
-        .next()
-        .and_then(|s| s.trim_end_matches(['}', '+', '\r', '\n']).parse().ok())
-        .unwrap_or(0);
-    let mut buf = vec![0u8; len];
-    tokio::io::AsyncReadExt::read_exact(reader, &mut buf).await?;
-    // consume the trailing CRLF after the literal payload
-    let mut tail = String::new();
-    let _ = reader.read_line(&mut tail).await;
-    Ok((name, String::from_utf8_lossy(&buf).into_owned()))
-}
-
-fn kevy() -> Option<Connection> {
-    let url = std::env::var("MAILRS_KEVY_URL").ok()?;
-    Connection::connect(&url).ok()
-}
-
-fn store_script(user: &str, body: &str) -> bool {
-    let Some(mut c) = kevy() else { return false };
-    c.set(
-        mailrs_core_sidestate::sieve_key(user).as_bytes(),
-        body.as_bytes(),
-    )
-    .is_ok()
-}
-
-fn load_script(user: &str) -> Option<String> {
-    let mut c = kevy()?;
-    let raw = c
-        .get(mailrs_core_sidestate::sieve_key(user).as_bytes())
-        .ok()
-        .flatten()?;
-    let s = String::from_utf8(raw).ok()?;
-    (!s.trim().is_empty()).then_some(s)
-}
-
-fn delete_script(user: &str) {
-    if let Some(mut c) = kevy() {
-        let _ = c.del(&[mailrs_core_sidestate::sieve_key(user).as_bytes()]);
-    }
-}
-
 fn unquote(s: &str) -> &str {
     s.trim().trim_matches('"')
-}
-
-/// ManageSieve response strings are quoted; strip CR/LF/quote so a
-/// compiler error can't break the wire framing.
-fn sanitize(s: &str) -> String {
-    s.replace(['\r', '\n', '"'], " ")
 }
 
 #[cfg(test)]
@@ -325,13 +275,8 @@ mod tests {
     }
 
     #[test]
-    fn sanitize_neutralizes_framing_chars() {
-        assert_eq!(sanitize("bad\r\nscript\"x"), "bad  script x");
-    }
-
-    #[test]
     fn greeting_advertises_plain_and_version() {
-        let g = greeting();
+        let g = greeting(false);
         assert!(g.contains("\"SASL\" \"PLAIN\""));
         assert!(g.contains("\"VERSION\" \"1.0\""));
         assert!(g.ends_with("OK\r\n"));

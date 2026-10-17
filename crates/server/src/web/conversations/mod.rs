@@ -601,7 +601,6 @@ mod tests {
             account_address: "admin@golia.jp".to_string(),
             expires_at: None,
             id: 1,
-            app_id: None,
         };
 
         // verify key hash matches

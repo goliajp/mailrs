@@ -2,9 +2,8 @@
  * DMARC wire-schema tests.
  *
  * The fixtures below are byte-identical to the JSON asserted in
- * `crates/webapi/src/handlers/dmarc.rs` — see its `report_list_wire_shape`,
- * `report_row_wire_shape_keeps_null_envelope_from`, and
- * `source_list_wire_shape` tests. Both sides are pinned to the same
+ * `crates/webapi/src/handlers/dmarc.rs` — see its `report_list_wire_shape`
+ * and `source_list_wire_shape` tests. Both sides are pinned to the same
  * literal, so renaming a Rust field breaks the Rust test before this
  * one can start failing silently in the browser.
  *
@@ -15,12 +14,7 @@
 
 import { describe, expect, it } from 'vitest'
 
-import {
-  wireDmarcReportDetailSchema,
-  wireDmarcReportListSchema,
-  wireDmarcRowSchema,
-  wireDmarcSourceListSchema,
-} from '../schemas/dmarc'
+import { wireDmarcReportListSchema, wireDmarcSourceListSchema } from '../schemas/dmarc'
 
 const REPORT_JSON = {
   begin: 1784937600,
@@ -33,17 +27,6 @@ const REPORT_JSON = {
   rows: 2,
   sid: 'google.com!1234567890',
   total: 7,
-}
-
-const ROW_JSON = {
-  count: 5,
-  disposition: 'none',
-  dkim: 'pass',
-  envelope_from: null,
-  header_from: 'golia.jp',
-  passed: true,
-  source_ip: '203.0.113.10',
-  spf: 'pass',
 }
 
 describe('wireDmarcReportListSchema', () => {
@@ -79,47 +62,6 @@ describe('wireDmarcReportListSchema', () => {
     expect(() =>
       wireDmarcReportListSchema.parse({ items: [{ ...REPORT_JSON, total: '7' }] })
     ).toThrow()
-  })
-})
-
-describe('wireDmarcRowSchema', () => {
-  it('parses a row with a null envelope_from', () => {
-    const parsed = wireDmarcRowSchema.parse(ROW_JSON)
-
-    expect(parsed).toEqual({
-      count: 5,
-      disposition: 'none',
-      dkim: 'pass',
-      envelopeFrom: null,
-      headerFrom: 'golia.jp',
-      passed: true,
-      sourceIp: '203.0.113.10',
-      spf: 'pass',
-    })
-  })
-
-  it('parses a row with a populated envelope_from', () => {
-    const parsed = wireDmarcRowSchema.parse({ ...ROW_JSON, envelope_from: 'golia.jp' })
-    expect(parsed.envelopeFrom).toBe('golia.jp')
-  })
-
-  it('rejects a row missing envelope_from entirely', () => {
-    // nullable, not optional — the handler always emits the key.
-    const { envelope_from: _omitted, ...withoutKey } = ROW_JSON
-    expect(() => wireDmarcRowSchema.parse(withoutKey)).toThrow()
-  })
-})
-
-describe('wireDmarcReportDetailSchema', () => {
-  it('parses report plus rows', () => {
-    const parsed = wireDmarcReportDetailSchema.parse({
-      report: REPORT_JSON,
-      rows: [ROW_JSON],
-    })
-
-    expect(parsed.report.sid).toBe('google.com!1234567890')
-    expect(parsed.rows).toHaveLength(1)
-    expect(parsed.rows[0].sourceIp).toBe('203.0.113.10')
   })
 })
 

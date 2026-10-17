@@ -513,14 +513,11 @@ RFC 7489 aggregate reports. mailrs parses any that arrive at the
 collector mailbox (`MAILRS_DMARC_REPORT_MAILBOX`, default local-part
 `dmarc`) and stores them. These endpoints read that store.
 
-All three require the `admin.domains` permission.
+Both require the `admin.domains` permission.
 
 ```
 curl -H "Authorization: Bearer <API_KEY>" \
      "https://mail.golia.ai/api/admin/dmarc/reports?limit=50"
-
-curl -H "Authorization: Bearer <API_KEY>" \
-     "https://mail.golia.ai/api/admin/dmarc/reports/google.com!1234567890"
 
 curl -H "Authorization: Bearer <API_KEY>" \
      "https://mail.golia.ai/api/admin/dmarc/sources?domain=golia.jp&days=30"
@@ -540,25 +537,6 @@ curl -H "Authorization: Bearer <API_KEY>" \
     "total": 7,
     "passing": 5,
     "rows": 2
-  }]
-}
-```
-
-`GET /api/admin/dmarc/reports/{sid}` adds the per-source rows, highest
-volume first. `passed` reflects `policy_evaluated` (alignment-aware),
-not the raw SPF/DKIM results:
-```json
-{
-  "report": { "...": "as above" },
-  "rows": [{
-    "source_ip": "203.0.113.10",
-    "count": 5,
-    "disposition": "none",
-    "dkim": "pass",
-    "spf": "pass",
-    "header_from": "golia.jp",
-    "envelope_from": null,
-    "passed": true
   }]
 }
 ```

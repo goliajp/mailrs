@@ -9,7 +9,7 @@
  * network beyond localhost.
  *
  * Tier 2 (opt-in): full flows against a live instance. Enabled by
- *   MAILRS_E2E_BASE=https://mail.smk.ai \
+ *   MAILRS_E2E_BASE=https://mail.example.com \
  *   MAILRS_E2E_USER=... MAILRS_E2E_PASS=... bun run test:perf
  * CI leaves the env unset → tier self-skips.
  *

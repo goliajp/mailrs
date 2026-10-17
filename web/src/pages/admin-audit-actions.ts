@@ -19,6 +19,7 @@ export const ACTION_GROUPS: { label: string; prefixes: string[]; value: string }
   { label: 'Cache', prefixes: ['cache.'], value: 'cache' },
   { label: 'System config', prefixes: ['system_config.'], value: 'system_config' },
   { label: 'Greylist', prefixes: ['greylist.'], value: 'greylist' },
+  { label: 'Mock mail', prefixes: ['mock.'], value: 'mock' },
   {
     label: 'Drafts, signatures and templates',
     prefixes: ['draft.', 'signature.', 'template.'],

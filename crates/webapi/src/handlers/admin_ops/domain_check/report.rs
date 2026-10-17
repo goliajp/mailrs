@@ -3,7 +3,7 @@
 
 use serde::Serialize;
 
-use super::signer::Signer;
+use super::signer::{DkimFinding, Signing};
 
 /// What one DNS question came back with.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -43,8 +43,10 @@ pub struct DomainCheckReport {
 pub struct Lookups {
     pub mx: Lookup,
     pub spf: Lookup,
-    /// Who signs this domain's mail, when signing is configured.
-    pub dkim_signer: Option<Signer>,
+    /// How this domain's mail is signed.
+    pub dkim_signer: DkimFinding,
+    /// the key record, asked only when the domain's mail is signed with an
+    /// aligned `d=`
     pub dkim: Lookup,
     pub dmarc: Lookup,
 }
@@ -153,23 +155,47 @@ fn spf_check(lookup: &Lookup) -> CheckResult {
     }
 }
 
-fn dkim_check(signer: Option<&Signer>, domain: &str, lookup: &Lookup) -> CheckResult {
-    let what = match signer {
-        Some(s) if !s.aligns_with(domain) => {
-            return check(
-                "DKIM",
-                CheckStatus::Fail,
-                format!(
-                    "Mail from {domain} is signed as {}, so DMARC does not align",
-                    s.domain
-                ),
-                vec![format!(
-                    "Add {domain}:<selector>:<key file> to MAILRS_DKIM_KEYS and publish the key at <selector>._domainkey.{domain}"
-                )],
-            );
-        }
-        Some(s) => format!("DKIM key at {}._domainkey.{}", s.selector, s.domain),
-        None => "DKIM key".to_string(),
+const LOAD_FAILED: &str = "The key for it in MAILRS_DKIM_KEYS did not load in the sender: the file could not be read or is not a valid key. The sender log says which";
+
+/// Why mail from `domain` does not carry an aligned signature, when it
+/// does not.
+fn unaligned(f: &DkimFinding, domain: &str) -> Option<(String, Vec<String>)> {
+    let no_key = format!("The sender signs no DKIM key for {domain}");
+    let fix = format!(
+        "Add {domain}:<selector>:<key file> to MAILRS_DKIM_KEYS and publish the key at <selector>._domainkey.{domain}"
+    );
+    let consequence = match &f.signing {
+        Signing::By(s) if s.aligns_with(domain) => return None,
+        Signing::By(s) => format!(
+            "{no_key}: its mail goes out signed as {}, so DMARC does not align",
+            s.domain
+        ),
+        Signing::Unsigned => format!("{no_key}: its mail goes out unsigned"),
+        Signing::DefaultKeyBroken(d) => format!(
+            "{no_key}, and its default key for {d} did not load: mail from {domain} cannot be signed and is refused"
+        ),
+        Signing::Unknown => return None,
+    };
+    let detail = match f.key_not_loaded {
+        true => LOAD_FAILED.to_string(),
+        false => fix,
+    };
+    Some((consequence, vec![detail]))
+}
+
+fn dkim_check(f: &DkimFinding, domain: &str, lookup: &Lookup) -> CheckResult {
+    let mut r = dkim_judgement(f, domain, lookup);
+    r.details.extend(f.note.clone());
+    r
+}
+
+fn dkim_judgement(f: &DkimFinding, domain: &str, lookup: &Lookup) -> CheckResult {
+    if let Some((message, details)) = unaligned(f, domain) {
+        return check("DKIM", CheckStatus::Fail, message, details);
+    }
+    let what = match &f.signing {
+        Signing::By(s) => format!("DKIM key at {}._domainkey.{}", s.selector, s.domain),
+        _ => "DKIM key".to_string(),
     };
     if let Some(r) = unresolved("DKIM", &what, lookup) {
         return r;
@@ -243,7 +269,7 @@ pub fn build_report(domain: &str, checked_at: i64, lookups: &Lookups) -> DomainC
         checks: vec![
             mx_check(&lookups.mx),
             spf_check(&lookups.spf),
-            dkim_check(lookups.dkim_signer.as_ref(), domain, &lookups.dkim),
+            dkim_check(&lookups.dkim_signer, domain, &lookups.dkim),
             dmarc_check(&lookups.dmarc),
         ],
     }
@@ -252,6 +278,18 @@ pub fn build_report(domain: &str, checked_at: i64, lookups: &Lookups) -> DomainC
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::handlers::admin_ops::domain_check::signer::Signer;
+
+    fn by(domain: &str, selector: &str) -> DkimFinding {
+        DkimFinding {
+            signing: Signing::By(Signer {
+                domain: domain.into(),
+                selector: selector.into(),
+            }),
+            key_not_loaded: false,
+            note: None,
+        }
+    }
 
     fn found(v: &[&str]) -> Lookup {
         Lookup::Found(v.iter().map(|s| s.to_string()).collect())
@@ -261,10 +299,7 @@ mod tests {
         Lookups {
             mx: found(&["10 mail.golia.ai"]),
             spf: found(&["google-site-verification=x", "v=spf1 mx -all"]),
-            dkim_signer: Some(Signer {
-                domain: "golia.jp".into(),
-                selector: "mail".into(),
-            }),
+            dkim_signer: by("golia.jp", "mail"),
             dkim: found(&["v=DKIM1; k=rsa; p=MIIBIjANBg"]),
             dmarc: found(&["v=DMARC1; p=reject; rua=mailto:dmarc@golia.jp"]),
         }
@@ -301,10 +336,7 @@ mod tests {
         let l = Lookups {
             mx: Lookup::Missing,
             spf: found(&["google-site-verification=x"]),
-            dkim_signer: Some(Signer {
-                domain: "example.com".into(),
-                selector: "mail".into(),
-            }),
+            dkim_signer: by("example.com", "mail"),
             dkim: Lookup::Failed("timed out".into()),
             dmarc: Lookup::Missing,
         };
@@ -357,11 +389,16 @@ mod tests {
     #[test]
     fn no_selector_means_dkim_was_not_checked() {
         let mut l = healthy();
-        l.dkim_signer = None;
+        l.dkim_signer = DkimFinding {
+            signing: Signing::Unknown,
+            key_not_loaded: false,
+            note: Some("from env".into()),
+        };
         l.dkim = Lookup::NotAsked(NO_SIGNING.into());
         let c = &build_report("golia.jp", 0, &l).checks[2];
         assert_eq!(c.status, CheckStatus::Warn);
         assert_eq!(c.message, NO_SIGNING);
+        assert_eq!(c.details, ["from env"]);
     }
 
     const NO_SIGNING: &str = "MAILRS_DKIM_DOMAIN or MAILRS_DKIM_SELECTOR is not set on webapi";
@@ -373,9 +410,36 @@ mod tests {
         assert_eq!(c.status, CheckStatus::Fail);
         assert_eq!(
             c.message,
-            "Mail from new-domain.com is signed as golia.jp, so DMARC does not align"
+            "The sender signs no DKIM key for new-domain.com: its mail goes out signed as golia.jp, so DMARC does not align"
         );
-        assert!(c.details[0].contains("MAILRS_DKIM_KEYS"));
+        assert!(c.details[0].starts_with("Add new-domain.com:<selector>"));
+    }
+
+    #[test]
+    fn a_key_listed_but_not_loaded_says_so() {
+        let mut l = healthy();
+        l.dkim_signer.key_not_loaded = true;
+        let c = &build_report("golia.ai", 0, &l).checks[2];
+        assert_eq!(c.status, CheckStatus::Fail);
+        assert!(c.message.contains("signed as golia.jp"), "{}", c.message);
+        assert!(c.details[0].contains("did not load in the sender"));
+    }
+
+    #[test]
+    fn no_dkim_in_the_sender_means_unsigned_and_a_broken_default_means_refused() {
+        let mut l = healthy();
+        l.dkim_signer.signing = Signing::Unsigned;
+        let c = &build_report("golia.ai", 0, &l).checks[2];
+        assert_eq!(c.status, CheckStatus::Fail);
+        assert_eq!(
+            c.message,
+            "The sender signs no DKIM key for golia.ai: its mail goes out unsigned"
+        );
+        l.dkim_signer.signing = Signing::DefaultKeyBroken("golia.jp".into());
+        let c = &build_report("golia.ai", 0, &l).checks[2];
+        assert_eq!(c.status, CheckStatus::Fail);
+        assert!(c.message.contains("default key for golia.jp did not load"));
+        assert!(c.message.ends_with("is refused"));
     }
 
     #[test]

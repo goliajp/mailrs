@@ -43,11 +43,26 @@ xcodegen generate >/dev/null
 # The stub the tests read. Killed on the way out whatever happens: a
 # leftover listener makes the next run look like it passed against
 # yesterday's data.
-pkill -f "Testing/stub-api.py" 2>/dev/null || true
+# The stub is shared with ios-build.sh and android-build.sh: take the
+# same pid lock they do, and stop a leftover only by the pid it recorded.
+STUB_LOCK=/tmp/mailrs-stub.lock
+STUB_PIDFILE=/tmp/mailrs-stub-api.pid
+if [ -f "$STUB_LOCK" ] && kill -0 "$(cat "$STUB_LOCK" 2>/dev/null)" 2>/dev/null; then
+    echo "!! the test stub is in use by pid $(cat "$STUB_LOCK") — another suite is running" >&2
+    exit 1
+fi
+echo $$ > "$STUB_LOCK"
+if [ -f "$STUB_PIDFILE" ]; then
+    kill "$(cat "$STUB_PIDFILE")" 2>/dev/null || true
+    sleep 0.2
+fi
 MAILRS_STUB_REAL="${MAILRS_STUB_REAL:-}" python3 Testing/stub-api.py "$STUB_PORT" >/tmp/mailrs-ios-shots-stub.log 2>&1 &
 STUB_PID=$!
+echo "$STUB_PID" > "$STUB_PIDFILE"
 cleanup() {
     kill "$STUB_PID" 2>/dev/null || true
+    rm -f "$STUB_PIDFILE"
+    [ "$(cat "$STUB_LOCK" 2>/dev/null)" = "$$" ] && rm -f "$STUB_LOCK"
     xcrun simctl ui "$UDID" content_size large >/dev/null 2>&1 || true
     xcrun simctl ui "$UDID" appearance dark >/dev/null 2>&1 || true
 }

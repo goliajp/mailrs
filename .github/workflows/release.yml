@@ -11,10 +11,6 @@ on:
   push:
     tags:
       - 'v*.*.*'
-      # Phase 2/3/4 split topology, ships to staging only. Tag examples:
-      # split-v0.1.0 → builds same multi-arch image, but the deploy step
-      # at the end (which targets prod) is gated to v*.*.*.
-      - 'split-v*'
 
 env:
   REGISTRY: ghcr.io
@@ -125,9 +121,8 @@ jobs:
             arch: amd64
           # arm64 builds on the self-hosted Mac mini (mini-goliajp,
           # macOS/ARM64) instead of GitHub-hosted `ubuntu-24.04-arm`.
-          # The hosted arm64 pool queues badly (v2.8.1 waited ~1.5h,
-          # aging the staging soak verdict past the gate's 3600s limit
-          # → TIMEOUT). The dedicated mini has zero queue. It builds
+          # The hosted arm64 pool queues badly (v2.8.1 waited ~1.5h).
+          # The dedicated mini has zero queue. It builds
           # linux/arm64 natively via Docker Desktop's arm64 Linux VM
           # (no QEMU). Requires Docker running on the mini.
           # Fallback: revert this line to `ubuntu-24.04-arm` if the
@@ -142,7 +137,7 @@ jobs:
 
       - name: extract version from tag
         id: ver
-        run: _v="${GITHUB_REF_NAME#split-}"; echo "version=${_v#v}" >> "$GITHUB_OUTPUT"
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
       # The self-hosted mini (arm64 leg) runs OrbStack, whose `docker`
       # CLI lives at /usr/local/bin/docker. The runner service's PATH
@@ -176,9 +171,8 @@ jobs:
           # bump.sh, no developer ceremony beyond `git tag v<x.y.z>`.
           # CACHE_BUST=ref_name busts the layer cache on the exact
           # version so a stale Rust-builder layer can never be reused
-          # across versions (a split-v0.0.5 test build once poisoned the
-          # prod cache scope and shipped its image as v2.9.0 —
-          # 2026-07-15 incident).
+          # across versions (a test tag's build once poisoned the cache
+          # scope and shipped its image as v2.9.0 — 2026-07-15 incident).
           build-args: |
             VERSION=${{ steps.ver.outputs.version }}
             CACHE_BUST=${{ github.ref_name }}
@@ -186,10 +180,8 @@ jobs:
           # `manifest` job below collects per-arch digests and stamps
           # the semver tags on the combined manifest.
           outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
-          # Separate cache scope for split-v* TEST tags so they never
-          # share (and never poison) the prod v* cache scope.
-          cache-from: type=gha,scope=${{ matrix.arch }}${{ startsWith(github.ref_name, 'split-') && '-test' || '' }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.arch }}${{ startsWith(github.ref_name, 'split-') && '-test' || '' }}
+          cache-from: type=gha,scope=${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.arch }}
 
       - name: export digest
         run: |
@@ -253,20 +245,11 @@ jobs:
         run: |
           docker buildx imagetools inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.docker.outputs.version }}
 
-  # Prod deploy. The staging soak gate that used to sit here was removed
-  # 2026-07-21: staging shares t01 with other projects, and a busy
-  # neighbour would starve its TCP accept enough to spike one request's
-  # latency and fail the whole release, while slow_pct stayed at ~0%.
-  # Releases are direct-to-prod; the CI path exists for the multi-arch
-  # image + GitHub Release, and no longer depends on staging.
+  # Prod deploy to t02. The `gate` job above is the only check between
+  # the tag and production.
   deploy:
     name: deploy to prod
     needs: [manifest]
-    # Prod-deploy step only runs for `v*.*.*` tags. `split-v*` tags
-    # build + push the multi-arch image so staging can pull it, but
-    # never touch prod. See deploy/SPLIT_STAGING_SMOKE.md for the
-    # operator runbook.
-    if: startsWith(github.ref_name, 'v')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -274,7 +257,7 @@ jobs:
 
       - name: extract version from tag
         id: ver
-        run: _v="${GITHUB_REF_NAME#split-}"; echo "version=${_v#v}" >> "$GITHUB_OUTPUT"
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
       # Sync the compose file to host BEFORE the SSH script runs. If
       # this tag changed compose (e.g. new bind mount, new env, new

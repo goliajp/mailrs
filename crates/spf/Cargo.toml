@@ -31,9 +31,10 @@ compact_str = "0.9"
 [dev-dependencies]
 criterion = { workspace = true }
 tokio = { workspace = true }
-# Comparator for honest head-to-head benches. Same `mail-auth` version the
-# server crate already pulls in transitively, so no extra resolution cost.
-mail-auth = "0.9"
+# Comparator for honest head-to-head benches. Without `report`, which
+# would pull in zip and quick-xml for DMARC report parsing the benches
+# never touch.
+mail-auth = { version = "0.13", default-features = false, features = ["aws-lc-rs"] }
 dhat = "0.3"   # mem profile (examples/dhat_profile.rs)
 
 [[bench]]

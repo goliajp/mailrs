@@ -30,6 +30,14 @@ fn now_secs() -> i64 {
         .unwrap_or(0)
 }
 
+/// The audit row for a read of someone else's mail, written before the
+/// read; when it cannot be written the tool fails and reads nothing.
+fn audit_first(actor: &str, action: &str, target: &str, detail: &str) -> Result<(), McpError> {
+    crate::handlers::audit::record_required(actor, action, target, detail).map_err(|_| {
+        McpError::internal_error("the audit log cannot be written, so nothing was read", None)
+    })
+}
+
 #[tool_router(router = tool_router_v2_batch14, vis = "pub")]
 impl MailrsMcpService {
     #[tool(
@@ -41,6 +49,12 @@ impl MailrsMcpService {
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
         self.require_admin(&user).await?;
+        audit_first(
+            &user,
+            "audit.list_conversations",
+            &params.target_user,
+            "via mcp",
+        )?;
         let limit = params.limit.unwrap_or(20).min(50);
         let req = mailrs_core_api::method::conversation::ListConversationsRequest {
             filter: mailrs_core_api::types::ConversationFilter {
@@ -56,12 +70,6 @@ impl MailrsMcpService {
             .map_err(|e| {
                 McpError::internal_error(format!("audit_list_conversations: {e}"), None)
             })?;
-        crate::handlers::audit::record(
-            &user,
-            "audit.list_conversations",
-            &params.target_user,
-            "via mcp",
-        );
         let items: Vec<_> = resp
             .items
             .into_iter()
@@ -91,18 +99,18 @@ impl MailrsMcpService {
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
         self.require_admin(&user).await?;
+        audit_first(
+            &user,
+            "audit.read_thread",
+            &params.target_user,
+            &params.thread_id,
+        )?;
         let resp = self
             .state
             .core
             .list_thread_messages(&params.target_user, &params.thread_id)
             .await
             .map_err(|e| McpError::internal_error(format!("audit_read_thread: {e}"), None))?;
-        crate::handlers::audit::record(
-            &user,
-            "audit.read_thread",
-            &params.target_user,
-            &params.thread_id,
-        );
         let maildir_root =
             std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
         let store = mailrs_message_store::MaildirStore;

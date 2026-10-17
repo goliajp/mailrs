@@ -5,13 +5,13 @@
  *   1. Unauthenticated tier (CI-safe): `vite preview` serves the
  *      production build locally; specs measure login-page LCP / CLS
  *      against fixed budgets. Fully deterministic — no network, no
- *      credentials, no staging dependency.
+ *      credentials, no live instance needed.
  *   2. Authenticated tier (opt-in): when `MAILRS_E2E_BASE` +
  *      `MAILRS_E2E_USER` + `MAILRS_E2E_PASS` are set, the full
  *      3-flow suite (dashboard load / open thread / compose reply)
  *      runs against that live instance. CI leaves these unset so
- *      the tier self-skips; run locally against staging for the
- *      complete picture.
+ *      the tier self-skips; run locally against a live instance for
+ *      the complete picture.
  *
  * Run: `bun run test:perf` (builds first via the script chain).
  */

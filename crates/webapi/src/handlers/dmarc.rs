@@ -19,7 +19,7 @@ use std::sync::Arc;
 
 use axum::{
     Json,
-    extract::{Extension, Path, Query, State},
+    extract::{Extension, Query, State},
     http::StatusCode,
 };
 use serde::{Deserialize, Serialize};
@@ -115,15 +115,6 @@ pub struct ReportRow {
     pub passed: bool,
 }
 
-/// Detail response: summary plus rows.
-#[derive(Debug, Serialize)]
-pub struct ReportDetailResponse {
-    /// The report's summary fields.
-    pub report: ReportSummary,
-    /// Every row, highest count first.
-    pub rows: Vec<ReportRow>,
-}
-
 /// A sending source rolled up across reports.
 #[derive(Debug, Serialize)]
 pub struct SourceSummary {
@@ -180,36 +171,6 @@ pub async fn list_reports(
         .filter_map(|(sid, flat)| summary_from_hash(&sid, &flat))
         .collect();
     Ok(Json(ReportListResponse { items }))
-}
-
-/// GET /api/admin/dmarc/reports/{sid} — one report with its rows.
-pub async fn get_report(
-    State(state): State<Arc<WebState>>,
-    Extension(AuthedUser(user)): Extension<AuthedUser>,
-    Path(sid): Path<String>,
-) -> Result<Json<ReportDetailResponse>, StatusCode> {
-    require_permission(&state, &user, PERMISSION).await?;
-
-    let key_sid = sid.clone();
-    let (flat, row_blobs) = with_kevy(move |c| {
-        let flat = c.hgetall(format!("{REPORT_PREFIX}{key_sid}").as_bytes())?;
-        let rows = c.zrange(format!("{ROWS_PREFIX}{key_sid}").as_bytes(), 0, -1)?;
-        Ok((flat, rows))
-    })?;
-
-    let report = summary_from_hash(&sid, &flat).ok_or(StatusCode::NOT_FOUND)?;
-    let mut rows: Vec<ReportRow> = row_blobs
-        .into_iter()
-        .filter_map(|blob| serde_json::from_slice::<ReportRow>(&blob).ok())
-        .collect();
-    // Highest-volume sources first. The zset is scored by count, but
-    // kevy-client's zrange does not return scores, so sort here.
-    rows.sort_by(|a, b| {
-        b.count
-            .cmp(&a.count)
-            .then_with(|| a.source_ip.cmp(&b.source_ip))
-    });
-    Ok(Json(ReportDetailResponse { report, rows }))
 }
 
 /// GET /api/admin/dmarc/sources — per-source-IP rollup over a window.
@@ -524,7 +485,7 @@ mod tests {
         assert!(out.items.is_empty());
     }
 
-    // The three tests below pin the exact JSON these handlers emit.
+    // The two tests below pin the exact JSON these handlers emit.
     // `web/src/wire/schemas/__tests__/dmarc.test.ts` uses byte-identical
     // fixtures, so a field rename here fails on this side before it can
     // reach the browser as a silent validation error.
@@ -562,36 +523,6 @@ mod tests {
                     "rows": 2
                 }]
             })
-        );
-    }
-
-    #[test]
-    fn report_row_wire_shape_keeps_null_envelope_from() {
-        let row = ReportRow {
-            source_ip: "203.0.113.10".into(),
-            count: 5,
-            disposition: "none".into(),
-            dkim: "pass".into(),
-            spf: "pass".into(),
-            header_from: "golia.jp".into(),
-            envelope_from: None,
-            passed: true,
-        };
-
-        assert_eq!(
-            serde_json::to_value(&row).expect("serializes"),
-            serde_json::json!({
-                "source_ip": "203.0.113.10",
-                "count": 5,
-                "disposition": "none",
-                "dkim": "pass",
-                "spf": "pass",
-                "header_from": "golia.jp",
-                "envelope_from": null,
-                "passed": true
-            }),
-            "envelope_from must serialize as null, not be omitted — the \
-             frontend schema types it as nullable, not optional"
         );
     }
 

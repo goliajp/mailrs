@@ -125,7 +125,7 @@ pub async fn run() {
     // Phase 4.3 — claim-loop scaffold. Periodically polls
     // /v1/outbound/claim. SMTP delivery + mark_delivered land in a
     // subsequent loop; today this just exercises the RPC + logs depth so
-    // staging operators see the channel working.
+    // operators see the channel working.
     tokio::spawn(claim_loop(Arc::clone(&state)));
 
     // Idle until SIGTERM / Ctrl-C. Worker loops mount onto this state

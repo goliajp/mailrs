@@ -38,16 +38,36 @@ pub struct AuditFact {
     pub detail: String,
 }
 
-/// Record one audit fact. Best-effort + fire-and-forget: an audit
-/// write must never fail the operation it describes. Actor/action are
-/// cheap `&str`; the row is LPUSH'd so newest reads first.
+/// Record one audit fact. Best-effort: an audit write must never fail
+/// the operation it describes. The row is LPUSH'd so newest reads first.
 pub fn record(actor: &str, action: &str, target: &str, detail: &str) {
+    let _ = write(actor, action, target, detail);
+}
+
+/// Record one audit fact for an operation that must not happen
+/// unrecorded: the row is written before the caller goes on, and a write
+/// that fails answers 503 so the caller returns nothing.
+pub fn record_required(
+    actor: &str,
+    action: &str,
+    target: &str,
+    detail: &str,
+) -> Result<(), axum::http::StatusCode> {
+    write(actor, action, target, detail).map_err(|_| axum::http::StatusCode::SERVICE_UNAVAILABLE)
+}
+
+fn write(
+    actor: &str,
+    action: &str,
+    target: &str,
+    detail: &str,
+) -> Result<(), axum::http::StatusCode> {
     let actor = actor.to_string();
     let action = action.to_string();
     let target = target.to_string();
     let detail = detail.to_string();
     let now = now_secs();
-    let _ = with_kevy(move |c| {
+    with_kevy(move |c| {
         let id = c.incr(AUDIT_CTR.as_bytes())?;
         let fact = AuditFact {
             id,
@@ -73,7 +93,7 @@ pub fn record(actor: &str, action: &str, target: &str, detail: &str) {
             }
         }
         Ok(())
-    });
+    })
 }
 
 fn now_secs() -> i64 {
