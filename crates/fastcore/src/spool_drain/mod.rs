@@ -12,9 +12,10 @@
 //! maildir self-heal (see `healed_from_maildir` in `lib.rs`) then
 //! threads and indexes it.
 //!
-//! Recipient resolution is direct-mailbox only in v1 — no alias table
-//! yet (that's a follow-up gap). Files with no resolvable recipient are
-//! left in the spool with a warn log so a human can look.
+//! A recipient resolves to its own maildir, a fresh account's, an alias
+//! target's, or — failing all three — an email group's members. Files
+//! with no resolvable recipient are left in the spool with a warn log so
+//! a human can look.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -25,12 +26,15 @@ use mailrs_core::spool::decode_spool_blob;
 use crate::FastcoreState;
 
 mod deliver;
+mod email_group;
 mod mock;
-mod relay;
+mod recipient;
+pub mod relay;
 mod reported_to;
 mod stuck;
 
 pub(crate) use deliver::*;
+use recipient::resolve_local;
 use reported_to::reported_to;
 use stuck::{forget_departed, stuck_is_new};
 
@@ -137,6 +141,13 @@ pub fn drain_once(
             delivered += usize::from(stored);
             continue;
         }
+        let inbound = recipient::Inbound {
+            state,
+            maildir_root,
+            filename: &filename,
+            body,
+            env: &env,
+        };
         let mut delivered_here = 0usize;
         let mut unresolved: Vec<String> = Vec::new();
         for (rcpt_index, raw_fwd) in env.forward_paths.iter().enumerate() {
@@ -161,7 +172,7 @@ pub fn drain_once(
                     continue;
                 }
             }
-            if relay::relays_outward(env.is_authenticated, fwd, relay::local_domains()) {
+            if relay::relays_outward(env.is_authenticated, fwd, &relay::local_domains(state)) {
                 match relay::enqueue_submission(&env.reverse_path, raw_fwd, body) {
                     Ok(()) => delivered_here += 1,
                     Err(e) => {
@@ -171,30 +182,10 @@ pub fn drain_once(
                 }
                 continue;
             }
-            // 1. Resolve the addressable recipient — direct maildir, or
-            //    the alias table (`mailrs:alias:<addr>` → target). Both
-            //    cases return the address we'll actually deliver TO.
-            let resolved_addr: Option<String> = if has_maildir(maildir_root, fwd) {
-                Some(fwd.clone())
-            } else if provision_if_account(state, maildir_root, fwd) {
-                // account exists in kevy but was never provisioned a
-                // maildir (fresh add_account) — create the skeleton so
-                // its very first mail is deliverable
-                Some(fwd.clone())
-            } else {
-                let via_alias = state.alias_store.resolve(fwd).ok().flatten();
-                via_alias.and_then(|a| {
-                    let a = canonical_recipient(&a);
-                    if has_maildir(maildir_root, &a)
-                        || provision_if_account(state, maildir_root, &a)
-                    {
-                        tracing::info!(orig = %fwd, aliased = %a, "spool alias resolved");
-                        Some(a)
-                    } else {
-                        None
-                    }
-                })
-            };
+            // 1. Resolve the addressable recipient — direct maildir, a
+            //    fresh account, or the alias table — to the mailbox we
+            //    actually deliver TO.
+            let resolved_addr = resolve_local(state, maildir_root, fwd);
             // SRS reverse (G6): a bounce addressed to
             // SRS0=...@<our-domain> is the return path for mail we
             // forwarded. Reverse it to the original sender and relay
@@ -225,167 +216,21 @@ pub fn drain_once(
                 continue;
             }
             let Some(addr) = resolved_addr else {
-                unresolved.push(fwd.clone());
+                // 1b. An email group's address goes to its members.
+                match inbound.deliver_to_group(fwd) {
+                    Some(group) => {
+                        delivered_here += group.delivered;
+                        unresolved.extend(group.unresolved);
+                    }
+                    None => unresolved.push(fwd.clone()),
+                }
                 continue;
             };
-            // 1b. DMARC aggregate reports sent to the collector mailbox
-            //     are parsed and stored here. Delivery is unaffected —
-            //     the report still lands in the mailbox as ordinary
-            //     mail, and every failure inside is logged and
-            //     swallowed. Non-collector recipients short-circuit on
-            //     the address check before any MIME work happens.
-            crate::dmarc_ingest::maybe_ingest(reported_to(fwd, &addr), body);
-            // 1c. Feedback-loop complaints to abuse@ / postmaster@ take
-            //     the complainant off the sending list. Same shape: a
-            //     side effect, never a filter.
-            crate::fbl::maybe_record_complaint(maildir_root, reported_to(fwd, &addr), body);
-            // 1d. TLS-RPT reports (RFC 8460) to the tlsrpt collector.
-            crate::tlsrpt_ingest::maybe_ingest(reported_to(fwd, &addr), body);
-            // 2. Consult the recipient's sieve script. Actions map to a
-            //    Decision that overrides the default INBOX write.
-            let outcome = crate::sieve_apply::decide(&addr, body, Some(&env.reverse_path));
-            // vacation fires only after a successful LOCAL delivery below
-            let mut delivered_locally = false;
-            match outcome.decision {
-                crate::sieve_apply::Decision::Discard => {
-                    delivered_here += 1;
-                    tracing::info!(recipient = %addr, "sieve: discard");
-                }
-                crate::sieve_apply::Decision::Reject(reason) => {
-                    // Backscatter guard: DSN only when the receiver's
-                    // antispam verdict routed to INBOX (auth-scored OK
-                    // proxy — the envelope carries no raw SPF/DKIM
-                    // result) AND the sender is a real address. Anything
-                    // else is silently consumed.
-                    let allow = env.target_folder.eq_ignore_ascii_case("INBOX")
-                        && !crate::bounce::suppress_bounce(&env.reverse_path);
-                    if allow {
-                        let (reporting_mta, from_domain) = crate::bounce::dsn_identity();
-                        let dsn = crate::bounce::compose_dsn(
-                            &reporting_mta,
-                            &from_domain,
-                            &env.reverse_path,
-                            &addr,
-                            "5.7.1",
-                            &format!("550 5.7.1 {reason}"),
-                            body,
-                        );
-                        match enqueue_outbound(&env.reverse_path, "", &dsn) {
-                            Ok(()) => tracing::info!(recipient = %addr, "sieve: reject DSN queued"),
-                            Err(e) => tracing::warn!(recipient = %addr, error = %e,
-                                "sieve: reject DSN enqueue failed; message discarded"),
-                        }
-                    } else {
-                        tracing::info!(recipient = %addr, "sieve: reject suppressed (backscatter guard)");
-                    }
-                    delivered_here += 1;
-                }
-                crate::sieve_apply::Decision::Redirect(target) => {
-                    match enqueue_redirect(&addr, &target, body, &env.reverse_path) {
-                        Ok(()) => {
-                            delivered_here += 1;
-                            tracing::info!(recipient = %addr, %target, "sieve: redirect");
-                        }
-                        Err(e) => {
-                            tracing::warn!(recipient = %addr, %target, error = %e,
-                                "sieve: redirect enqueue failed; falling back to Keep");
-                            match deliver(maildir_root, &addr, "", &filename, body) {
-                                Ok(true) => {
-                                    delivered_here += 1;
-                                    delivered_locally = true;
-                                    crate::ingest_delivered_file(
-                                        state,
-                                        &addr,
-                                        &filename,
-                                        body,
-                                        &env.target_folder,
-                                        env.fraud_verdict.as_deref(),
-                                    );
-                                }
-                                _ => unresolved.push(addr.clone()),
-                            }
-                        }
-                    }
-                }
-                crate::sieve_apply::Decision::FileInto(folder) => {
-                    let subfolder = crate::sieve_apply::maildir_subfolder(&folder);
-                    match deliver(maildir_root, &addr, &subfolder, &filename, body) {
-                        Ok(true) => {
-                            delivered_here += 1;
-                            delivered_locally = true;
-                            tracing::info!(recipient = %addr, %subfolder, "sieve: fileinto");
-                            let blob_ref = format!("{subfolder}/{filename}");
-                            crate::ingest_delivered_file(
-                                state,
-                                &addr,
-                                &blob_ref,
-                                body,
-                                &folder,
-                                env.fraud_verdict.as_deref(),
-                            );
-                        }
-                        Ok(false) => {
-                            tracing::warn!(recipient = %addr, %subfolder,
-                                "sieve: fileinto target dir missing; falling back to INBOX");
-                            if let Ok(true) = deliver(maildir_root, &addr, "", &filename, body) {
-                                delivered_here += 1;
-                                delivered_locally = true;
-                                crate::ingest_delivered_file(
-                                    state,
-                                    &addr,
-                                    &filename,
-                                    body,
-                                    &env.target_folder,
-                                    env.fraud_verdict.as_deref(),
-                                );
-                            } else {
-                                unresolved.push(addr.clone());
-                            }
-                        }
-                        Err(e) => {
-                            tracing::warn!(recipient = %addr, error = %e,
-                                "sieve: fileinto write failed; falling back to INBOX");
-                            if let Ok(true) = deliver(maildir_root, &addr, "", &filename, body) {
-                                delivered_here += 1;
-                                delivered_locally = true;
-                                crate::ingest_delivered_file(
-                                    state,
-                                    &addr,
-                                    &filename,
-                                    body,
-                                    &env.target_folder,
-                                    env.fraud_verdict.as_deref(),
-                                );
-                            } else {
-                                unresolved.push(addr.clone());
-                            }
-                        }
-                    }
-                }
-                crate::sieve_apply::Decision::Keep => {
-                    match deliver(maildir_root, &addr, "", &filename, body) {
-                        Ok(true) => {
-                            delivered_here += 1;
-                            delivered_locally = true;
-                            crate::ingest_delivered_file(
-                                state,
-                                &addr,
-                                &filename,
-                                body,
-                                &env.target_folder,
-                                env.fraud_verdict.as_deref(),
-                            );
-                        }
-                        Ok(false) => unresolved.push(addr.clone()),
-                        Err(e) => {
-                            tracing::warn!(fwd = %addr, error = %e, "spool deliver");
-                            unresolved.push(addr.clone());
-                        }
-                    }
-                }
-            }
-            if delivered_locally && let Some(vac) = outcome.vacation {
-                crate::sieve_apply::maybe_vacation_reply(&addr, &env.reverse_path, body, &vac);
+            // 2. Report side effects, sieve, and the maildir write.
+            if inbound.deliver_resolved(fwd, &addr) {
+                delivered_here += 1;
+            } else {
+                unresolved.push(addr);
             }
         }
         if delivered_here > 0 {

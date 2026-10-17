@@ -267,7 +267,7 @@ pub(crate) async fn run_with_roles(roles: Roles) {
         event_bus: event_bus.clone(),
         metrics: web_state.clone() as Arc<dyn mailrs_receiver::ConnectionMetrics>,
         rate_limiter,
-        local_domains: cfg.local_domains.clone(),
+        runtime: cfg.local_domains.clone().into(),
         org_names: cfg.org_names.clone(),
         org_name_allowed_domains: cfg.org_name_allowed_domains.clone(),
         outbound_enqueue: outbound_queue.clone().map(|p| {

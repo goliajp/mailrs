@@ -18,9 +18,7 @@ use super::params::{AccountGroupParams, AddressParams, SetAccountPasswordParams}
 use super::{MailrsMcpService, ok_result};
 use crate::handlers::kevy_util::with_kevy;
 
-fn group_members_key(group_id: i64) -> String {
-    format!("admin:groups:{group_id}:members")
-}
+use mailrs_core_sidestate::families::permission_groups::members_key as group_members_key;
 
 #[tool_router(router = tool_router_v2_batch11, vis = "pub")]
 impl MailrsMcpService {

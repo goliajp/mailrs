@@ -299,7 +299,6 @@ describe('request bodies match the shared contract', () => {
     const body = await bodyOf(() =>
       adminPost('/admin/groups', {
         description: 'Full administrative access',
-        domain: 'golia.jp',
         name: 'admins',
       })
     )

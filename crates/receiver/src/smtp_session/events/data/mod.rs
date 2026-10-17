@@ -14,6 +14,7 @@ use mailrs_smtp_codec::{SmtpCodec, SmtpInput};
 use super::super::delivered::DeliveredMessage;
 use super::super::headers::format_received_header;
 use super::super::{ConnectionContext, DATA_TIMEOUT, SessionAction};
+use super::reply::{code, send_reply};
 
 mod antispam;
 mod mock_gate;
@@ -74,7 +75,7 @@ where
             let all_mock = match mock_gate::check(&forward_paths, sandbox_ns.is_some(), ctx).await {
                 mock_gate::MockGate::Mixed => false,
                 mock_gate::MockGate::AllMock => true,
-                mock_gate::MockGate::Refuse(resp) => return reply(framed, resp).await,
+                mock_gate::MockGate::Refuse(resp) => return send_reply(framed, resp).await,
             };
             if !is_authenticated && !all_mock && ctx.antispam_enabled {
                 match run_antispam(
@@ -88,7 +89,7 @@ where
                 )
                 .await
                 {
-                    AntiSpamOutcome::Reject(resp) => return reply(framed, resp).await,
+                    AntiSpamOutcome::Reject(resp) => return send_reply(framed, resp).await,
                     AntiSpamOutcome::Continue {
                         full_message: new_msg,
                         target_folder: tf,
@@ -127,7 +128,8 @@ where
             // monolith inline delivery: resolve/sieve/relay run here, against
             // the session's deps. (In the split, the core consumer runs the
             // same helpers against its own deps after fetching from spool.)
-            let deps = ctx.delivery_deps();
+            let local_domains = ctx.runtime.local_domains.current();
+            let deps = ctx.delivery_deps(&local_domains);
             let (local_rcpts, remote_rcpts) = classify_recipients(&forward_paths, &deps).await;
 
             let mut ok = true;
@@ -284,7 +286,7 @@ where
                     }
                     RemoteEnqueueResult::RelayDenied => {
                         let resp = Response::new(550, Some(code(5, 7, 1)), "Relay access denied");
-                        return reply(framed, resp).await;
+                        return send_reply(framed, resp).await;
                     }
                 }
             }
@@ -304,7 +306,7 @@ where
             } else {
                 Response::new(451, Some(code(4, 3, 0)), "Local error in processing")
             };
-            reply(framed, resp).await
+            send_reply(framed, resp).await
         }
         Ok(Some(Ok(SmtpInput::DataRejected))) => {
             let resp = Response::new(
@@ -318,7 +320,12 @@ where
                 from = %reverse_path,
                 "SMTP smuggling attempt detected"
             );
-            reply(framed, resp).await
+            send_reply(framed, resp).await
+        }
+        // the codec's only InvalidData: the payload passed the size limit
+        Ok(Some(Err(e))) if e.kind() == std::io::ErrorKind::InvalidData => {
+            let _ = framed.send(Response::too_large().format()).await;
+            SessionAction::Close
         }
         Err(_) => {
             // data transfer timeout
@@ -329,22 +336,4 @@ where
         }
         _ => SessionAction::Close,
     }
-}
-
-fn code(class: u8, subject: u16, detail: u16) -> mailrs_smtp_proto::EnhancedCode {
-    mailrs_smtp_proto::EnhancedCode {
-        class,
-        subject,
-        detail,
-    }
-}
-
-async fn reply<S>(framed: &mut Framed<S, SmtpCodec>, resp: Response) -> SessionAction
-where
-    S: AsyncRead + AsyncWrite + Unpin,
-{
-    if framed.send(resp.format()).await.is_err() {
-        return SessionAction::Close;
-    }
-    SessionAction::Continue
 }

@@ -16,9 +16,11 @@ import { MobileModal } from '@/components/mobile-modal'
 import { ScrollableTable } from '@/components/scrollable-table'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
 import { adminKeys } from '@/lib/query-keys'
-import { adminDelete, adminListGet, adminPost } from '@/wire/endpoints/admin'
+import { adminDelete, adminListGet, adminObjectGet, adminPost } from '@/wire/endpoints/admin'
 
 const HEADERS = ['Domain', 'Created', 'Actions']
+
+type SystemConfigEntry = { key: string; value: null | string }
 
 export function AdminDomains() {
   const { data, error, isPending, refetch } = useQuery({
@@ -26,6 +28,13 @@ export function AdminDomains() {
     queryFn: ({ signal }) => adminListGet<DomainInfo>('/admin/domains', signal),
   })
   const domains = data ?? []
+  // the MX target is the server's own hostname, which System Config shows
+  const { data: systemConfig } = useQuery({
+    queryKey: adminKeys.systemConfig(),
+    queryFn: ({ signal }) =>
+      adminObjectGet<{ entries?: SystemConfigEntry[] }>('/admin/system-config', signal),
+  })
+  const steps = setupSteps(mailHost(systemConfig?.entries))
 
   const [adding, setAdding] = useState(false)
   const [newDomain, setNewDomain] = useState('')
@@ -88,6 +97,73 @@ export function AdminDomains() {
     }
   }
 
+  const renderList = () => {
+    if (isPending) return <AdminTableSkeleton cols={3} headers={HEADERS} rows={5} />
+    if (error) return <AdminErrorState error={error} onRetry={() => refetch()} />
+    if (domains.length === 0 && !adding) {
+      return (
+        <AdminEmptyState
+          description={steps}
+          icon={<Globe className="h-10 w-10" />}
+          title="No domains configured"
+        />
+      )
+    }
+    return (
+      <ScrollableTable>
+        <table className="w-full text-left text-sm">
+          <thead className="border-border bg-bg-secondary border-b">
+            <tr>
+              <th className="px-4 py-2.5 font-medium">Domain</th>
+              <th className="px-4 py-2.5 font-medium">Created</th>
+              <th className="px-4 py-2.5 text-right font-medium">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {domains.map((domain) => (
+              <Fragment key={domain.name}>
+                <tr className="border-border border-b last:border-0">
+                  <td className="px-4 py-3 font-medium">
+                    <Copyable value={domain.name}>{domain.name}</Copyable>
+                  </td>
+                  <td className="text-fg-secondary px-4 py-3">
+                    {new Date(domain.created_at * 1000).toLocaleDateString()}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <button
+                      className="text-accent mr-3 text-xs hover:opacity-80 disabled:opacity-50"
+                      disabled={checking === domain.name}
+                      onClick={() => toggleReport(domain.name)}
+                    >
+                      {checkLabel(checking === domain.name, Boolean(reports[domain.name]))}
+                    </button>
+                    <button
+                      className="text-danger text-xs transition-colors hover:opacity-70"
+                      onClick={() => setDeleteTarget(domain.name)}
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+                {reports[domain.name] && (
+                  <tr>
+                    <td className="px-4 pt-1 pb-4" colSpan={3}>
+                      <DomainHealthCard
+                        checking={checking === domain.name}
+                        onRecheck={() => handleCheck(domain.name)}
+                        report={reports[domain.name]}
+                      />
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            ))}
+          </tbody>
+        </table>
+      </ScrollableTable>
+    )
+  }
+
   return (
     <AdminPageShell
       actions={
@@ -100,6 +176,7 @@ export function AdminDomains() {
           </button>
         )
       }
+      subtitle={domainsSubtitle(domains.length, steps)}
       title="Domains"
     >
       {adding && (
@@ -121,7 +198,7 @@ export function AdminDomains() {
             disabled={addDomain.isPending || !newDomain.trim()}
             onClick={handleAdd}
           >
-            {addDomain.isPending ? 'Saving...' : 'Save'}
+            {pendingLabel(addDomain.isPending, 'Saving...', 'Save')}
           </button>
           <button
             className="text-fg-secondary hover:bg-bg-secondary rounded-md px-3 py-1.5 text-sm transition-colors"
@@ -132,69 +209,7 @@ export function AdminDomains() {
         </div>
       )}
 
-      {isPending ? (
-        <AdminTableSkeleton cols={3} headers={HEADERS} rows={5} />
-      ) : error ? (
-        <AdminErrorState error={error} onRetry={() => refetch()} />
-      ) : domains.length === 0 && !adding ? (
-        <AdminEmptyState
-          description="Add a domain to start receiving mail for it."
-          icon={<Globe className="h-10 w-10" />}
-          title="No domains configured"
-        />
-      ) : (
-        <ScrollableTable>
-          <table className="w-full text-left text-sm">
-            <thead className="border-border bg-bg-secondary border-b">
-              <tr>
-                <th className="px-4 py-2.5 font-medium">Domain</th>
-                <th className="px-4 py-2.5 font-medium">Created</th>
-                <th className="px-4 py-2.5 text-right font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {domains.map((domain) => (
-                <Fragment key={domain.name}>
-                  <tr className="border-border border-b last:border-0">
-                    <td className="px-4 py-3 font-medium">
-                      <Copyable value={domain.name}>{domain.name}</Copyable>
-                    </td>
-                    <td className="text-fg-secondary px-4 py-3">
-                      {new Date(domain.created_at * 1000).toLocaleDateString()}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        className="text-accent mr-3 text-xs hover:opacity-80 disabled:opacity-50"
-                        disabled={checking === domain.name}
-                        onClick={() => toggleReport(domain.name)}
-                      >
-                        {checkLabel(checking === domain.name, Boolean(reports[domain.name]))}
-                      </button>
-                      <button
-                        className="text-danger text-xs transition-colors hover:opacity-70"
-                        onClick={() => setDeleteTarget(domain.name)}
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                  {reports[domain.name] && (
-                    <tr>
-                      <td className="px-4 pt-1 pb-4" colSpan={3}>
-                        <DomainHealthCard
-                          checking={checking === domain.name}
-                          onRecheck={() => handleCheck(domain.name)}
-                          report={reports[domain.name]}
-                        />
-                      </td>
-                    </tr>
-                  )}
-                </Fragment>
-              ))}
-            </tbody>
-          </table>
-        </ScrollableTable>
-      )}
+      {renderList()}
 
       {deleteTarget && (
         <MobileModal onClose={() => setDeleteTarget(null)} open>
@@ -215,7 +230,7 @@ export function AdminDomains() {
                 disabled={deleteDomain.isPending}
                 onClick={() => handleDelete(deleteTarget)}
               >
-                {deleteDomain.isPending ? 'Deleting...' : 'Delete'}
+                {pendingLabel(deleteDomain.isPending, 'Deleting...', 'Delete')}
               </button>
             </div>
           </div>
@@ -229,4 +244,24 @@ function checkLabel(running: boolean, shown: boolean): string {
   if (running) return 'Checking...'
   if (shown) return 'Hide'
   return 'Check'
+}
+
+function domainsSubtitle(count: number, steps: string): string | undefined {
+  if (count === 0) return undefined
+  return `${steps}. A domain added here is accepted within a minute`
+}
+
+function mailHost(entries: SystemConfigEntry[] | undefined): string {
+  const host = entries?.find((e) => e.key === 'hostname')?.value
+  if (host) return host
+  return "this server's mail hostname"
+}
+
+function pendingLabel(pending: boolean, busy: string, idle: string): string {
+  if (pending) return busy
+  return idle
+}
+
+function setupSteps(host: string): string {
+  return `To receive mail for a domain: add it here, point its MX record at ${host}, then use Check to verify SPF, DKIM, DMARC and MX`
 }
