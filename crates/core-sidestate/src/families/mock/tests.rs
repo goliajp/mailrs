@@ -17,6 +17,7 @@ fn meta(ns: &str, id: &str, tag: &str, subject: &str) -> MessageMeta {
         rcpt: format!("{ns}.{tag}@mock.example.test"),
         size: 0,
         received_at: 0,
+        uid: 0,
         summary: mailrs_mock::parsed::Summary {
             subject: subject.to_string(),
             ..Default::default()
@@ -241,4 +242,62 @@ fn an_smtp_token_verifies_until_it_is_rotated() {
     assert!(!verify_smtp_token(&mut c, "tok", &first).unwrap());
     assert!(verify_smtp_token(&mut c, "tok", &second).unwrap());
     assert!(!verify_smtp_token(&mut c, "other", &second).unwrap());
+}
+
+#[test]
+fn uids_ascend_and_restart_only_with_a_new_namespace() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut c = conn("uids");
+    create_namespace(&mut c, "a@x.test", "uids").unwrap();
+    for id in ["u1", "u2"] {
+        store_message(&mut c, tmp.path(), meta("uids", id, "t", "s"), b"x").unwrap();
+    }
+    store_message(&mut c, tmp.path(), meta("uids", "u1", "t", "s"), b"x").unwrap();
+    let uid = |c: &mut Connection, id: &str| get_message(c, "uids", id).unwrap().unwrap().uid;
+    assert_eq!((uid(&mut c, "u1"), uid(&mut c, "u2")), (1, 2));
+    delete_message(&mut c, tmp.path(), "uids", "u2").unwrap();
+    store_message(&mut c, tmp.path(), meta("uids", "u3", "t", "s"), b"x").unwrap();
+    assert_eq!(uid(&mut c, "u3"), 3, "a uid was reused");
+    delete_namespace(&mut c, tmp.path(), "uids").unwrap();
+    create_namespace(&mut c, "a@x.test", "uids").unwrap();
+    store_message(&mut c, tmp.path(), meta("uids", "u4", "t", "s"), b"x").unwrap();
+    assert_eq!(uid(&mut c, "u4"), 1);
+}
+
+#[test]
+fn new_mail_queues_one_webhook_delivery_and_deleting_the_namespace_ends_it() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut c = conn("webhook");
+    create_namespace(&mut c, "a@x.test", "hooked").unwrap();
+    let sub = set_webhook(&mut c, "hooked", "https://hooks.example/in").unwrap();
+    assert_eq!(sub.event_type, EVENT);
+    assert_eq!(
+        get_namespace(&mut c, "hooked")
+            .unwrap()
+            .unwrap()
+            .webhook_url
+            .as_deref(),
+        Some("https://hooks.example/in")
+    );
+    store_message(&mut c, tmp.path(), meta("hooked", "h1", "t", "hello"), b"x").unwrap();
+    let mut out = meta("hooked", "h2", "t", "sent");
+    out.direction = Direction::CapturedOut;
+    store_message(&mut c, tmp.path(), out, b"x").unwrap();
+    let due = crate::families::webhook_outbox::claim_due(&mut c, i64::MAX / 2, 10).unwrap();
+    assert_eq!(due.len(), 1, "one delivery, for the inbound message only");
+    assert_eq!(due[0].subscription_id, sub.id);
+    assert_eq!(due[0].account_address, "a@x.test");
+    let payload: serde_json::Value = serde_json::from_str(&due[0].payload).unwrap();
+    assert_eq!(payload["event"], EVENT);
+    assert_eq!(payload["data"]["id"], "h1");
+
+    let replaced = set_webhook(&mut c, "hooked", "https://hooks.example/v2").unwrap();
+    let subs = crate::families::webhooks::list(&mut c, "a@x.test").unwrap();
+    assert_eq!(subs.iter().map(|s| s.id).collect::<Vec<_>>(), [replaced.id]);
+    delete_namespace(&mut c, tmp.path(), "hooked").unwrap();
+    assert!(
+        crate::families::webhooks::list(&mut c, "a@x.test")
+            .unwrap()
+            .is_empty()
+    );
 }

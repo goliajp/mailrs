@@ -6,6 +6,9 @@ pub mod backend;
 pub mod fetch;
 mod fetch_items;
 mod mailbox;
+mod mock;
+#[cfg(test)]
+mod mock_tests;
 mod query;
 pub mod search_eval;
 mod session;

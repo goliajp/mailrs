@@ -8,7 +8,7 @@ use axum::http::StatusCode;
 use mailrs_core_sidestate::families::mock::{self, Direction, MessageMeta, Stored};
 use serde::Serialize;
 
-use super::service::{MockApiError, MockApiResult, MockCaller, authorize, store};
+use super::service::{MockApiError, MockApiResult, MockCaller, authorize, now_ms, store};
 use crate::WebState;
 
 #[derive(Debug, Clone)]
@@ -101,12 +101,37 @@ pub async fn send(
             rcpt: to_owned.join(", "),
             size: 0,
             received_at: 0,
+            uid: 0,
             summary: summary.clone(),
         };
         if mock::store_message(c, mock::root(), captured, &raw)? == Stored::Full {
             return Err(mock::MockError::StoreFull);
         }
         for (i, rcpt) in to_owned.iter().enumerate() {
+            if let Some(sim) = mock::simulation(rcpt) {
+                let now = now_ms() / 1000;
+                let reply = mailrs_mock::simulation::reply(sim, domain, &from, rcpt, &raw, now);
+                let answer = MessageMeta {
+                    id: format!("{id}-{i}"),
+                    namespace: ns_owned.clone(),
+                    tag: sim.name().to_string(),
+                    direction: Direction::In,
+                    rcpt: from.clone(),
+                    size: 0,
+                    received_at: 0,
+                    uid: 0,
+                    summary: mailrs_mock::parse_message(&reply).summary,
+                };
+                mock::store_message(c, mock::root(), answer, &reply)?;
+                match sim.delivered() {
+                    true => delivered.push(rcpt.clone()),
+                    false => not_delivered.push(NotDelivered {
+                        address: rcpt.clone(),
+                        reason: "simulated bounce; the report is in this namespace",
+                    }),
+                }
+                continue;
+            }
             let Some(addr) = mock::parse(rcpt) else {
                 not_delivered.push(NotDelivered {
                     address: rcpt.clone(),
@@ -125,6 +150,7 @@ pub async fn send(
                 rcpt: rcpt.to_ascii_lowercase(),
                 size: 0,
                 received_at: 0,
+                uid: 0,
                 summary: summary.clone(),
             };
             match mock::store_message(c, mock::root(), copy, &raw)? {

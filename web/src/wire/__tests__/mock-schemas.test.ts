@@ -9,27 +9,26 @@ import {
 } from '../schemas/mock'
 
 /**
- * Written from the Rust structs, not captured: the feature is not deployed
- * yet. Each object is what serde produces for that struct, flattening
- * included — `NamespaceView` carries `Namespace`'s fields at the top level,
- * `MessageMeta` carries `Summary`'s, `FullMessage` carries `MessageMeta`'s.
+ * Captured from production on 2.95.0 (2026-10-17), plus `uid` and
+ * `webhook_url`, which arrived after that release.
  */
 const MESSAGE_META = {
-  attachments: [{ content_type: 'application/pdf', filename: 'a.pdf', size: 1234 }],
+  attachments: [],
   cc: [],
   codes: ['482913'],
   direction: 'in',
-  from: 'GitHub <noreply@github.com>',
-  id: '9f86d081884c7d65',
-  links: [{ text: 'Verify', url: 'https://github.com/login/device/verify?token=abc' }],
-  message_id: '<abc@github.com>',
-  namespace: 'insight',
-  rcpt: 'insight.signup-0417@mock.golia.jp',
-  received_at: 1_792_195_200_123,
-  size: 5321,
-  subject: '[GitHub] Please verify your device',
-  tag: 'signup-0417',
-  to: ['insight.signup-0417@mock.golia.jp'],
+  from: 'lihao@golia.jp',
+  id: 'a4944da5bfdcb2d5',
+  links: [],
+  message_id: '<179220630269.56984.7756892933248975240@golia.jp>',
+  namespace: 'devops-check',
+  rcpt: 'devops-check.t1@mock.golia.jp',
+  received_at: 1_792_206_304_447,
+  size: 470,
+  subject: 'mock email check',
+  tag: 't1',
+  to: ['devops-check.t1@mock.golia.jp'],
+  uid: 1,
 }
 
 describe('mock mail schemas', () => {
@@ -37,18 +36,19 @@ describe('mock mail schemas', () => {
     const parsed = mockNamespaceListSchema.parse({
       namespaces: [
         {
-          address: 'insight.test@mock.golia.jp',
-          created_at: 1_792_195_000_000,
-          dropped: 3,
-          messages: 12,
-          name: 'insight',
+          address: 'devops-check.test@mock.golia.jp',
+          created_at: 1_792_206_288_897,
+          dropped: 0,
+          messages: 0,
+          name: 'devops-check',
           owner: 'lihao@golia.jp',
           smtp_enabled: false,
+          webhook_url: null,
         },
       ],
     })
-    expect(parsed.namespaces[0].address).toBe('insight.test@mock.golia.jp')
-    expect(parsed.namespaces[0].dropped).toBe(3)
+    expect(parsed.namespaces[0].address).toBe('devops-check.test@mock.golia.jp')
+    expect(parsed.namespaces[0].webhook_url).toBeNull()
   })
 
   it('parses a message list with both directions', () => {
@@ -68,15 +68,16 @@ describe('mock mail schemas', () => {
     expect(mockMessageListSchema.safeParse(bad).success).toBe(false)
   })
 
-  it('parses a full message, html absent', () => {
+  it('parses the wait response for a full message, html absent', () => {
     const parsed = mockFullMessageSchema.parse({
       ...MESSAGE_META,
       dropped: 0,
       html: null,
-      text: 'Your code is 482913',
+      status: 'received',
+      text: 'Your verification code is 482913\r\n',
     })
     expect(parsed.codes).toEqual(['482913'])
-    expect(parsed.links[0].text).toBe('Verify')
+    expect(parsed.links).toEqual([])
     expect(parsed.html).toBeNull()
   })
 

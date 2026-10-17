@@ -11,6 +11,7 @@ import type {
   MockNamespace,
   MockSendResult,
   MockSmtpCredentials,
+  MockWebhook,
 } from '../schemas/mock'
 
 import { getToken } from '@/store/auth'
@@ -25,6 +26,7 @@ import {
   mockNamespaceSchema,
   mockSendResultSchema,
   mockSmtpCredentialsSchema,
+  mockWebhookSchema,
 } from '../schemas/mock'
 import { emptyResponseSchema } from '../schemas/mutations'
 
@@ -40,6 +42,15 @@ export type MockSendInput = {
 export function mockRawUrl(ns: string, id: string): string {
   const token = encodeURIComponent(getToken() ?? '')
   return `/api${messagePath(ns, id)}/raw?token=${token}`
+}
+
+/** `DELETE /api/mock/namespaces/{ns}/webhook` → 204. */
+export async function wireClearMockWebhook(ns: string): Promise<void> {
+  await wireFetch(emptyResponseSchema, {
+    allowEmpty: true,
+    method: 'DELETE',
+    path: `/mock/namespaces/${encodeURIComponent(ns)}/webhook`,
+  })
 }
 
 /** `POST /api/mock/namespaces` → 201 `NamespaceView`. */
@@ -118,6 +129,15 @@ export function wireRotateMockSmtpToken(ns: string): Promise<MockSmtpCredentials
   return wireFetch(mockSmtpCredentialsSchema, {
     method: 'POST',
     path: `/mock/namespaces/${encodeURIComponent(ns)}/smtp-token`,
+  })
+}
+
+/** `PUT /api/mock/namespaces/{ns}/webhook` → the URL and its signing secret. */
+export function wireSetMockWebhook(ns: string, url: string): Promise<MockWebhook> {
+  return wireFetch(mockWebhookSchema, {
+    body: { url },
+    method: 'PUT',
+    path: `/mock/namespaces/${encodeURIComponent(ns)}/webhook`,
   })
 }
 

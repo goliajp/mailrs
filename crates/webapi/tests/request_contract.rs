@@ -185,34 +185,6 @@ fn totp_code_body_matches() {
     assert_eq!(v.code, "123456");
 }
 
-#[test]
-fn mock_namespace_create_body_matches() {
-    let v: handlers::mock::rest::CreateNamespace = parse("mock-namespace-create");
-    assert_eq!(v.name, "insight");
-}
-
-#[test]
-fn mock_address_create_body_matches() {
-    let v: handlers::mock::rest::NewAddress = parse("mock-address-create");
-    assert_eq!(v.tag.as_deref(), Some("signup-0417"));
-    // the client sends `{}` when no tag is given; the server then picks one
-    let none: handlers::mock::rest::NewAddress = serde_json::from_str("{}").expect("empty body");
-    assert_eq!(none.tag, None);
-}
-
-#[test]
-fn mock_send_body_matches() {
-    let v: handlers::mock::rest::SendBody = parse("mock-send");
-    assert_eq!(v.from_tag.as_deref(), Some("sender"));
-    assert_eq!(
-        v.to,
-        ["insight.signup-0417@mock.golia.jp", "someone@example.com"]
-    );
-    assert_eq!(v.subject, "Your verification code");
-    assert_eq!(v.text, "Your code is 482913");
-    assert_eq!(v.html.as_deref(), Some("<p>Your code is 482913</p>"));
-}
-
 /// An unknown field is refused, by name.
 ///
 #[test]
@@ -283,6 +255,7 @@ fn every_fixture_has_a_test() {
         "mock-address-create",
         "mock-namespace-create",
         "mock-send",
+        "mock-webhook-set",
         "reaction-toggle",
         "recovery-email-set",
         "reset-password",

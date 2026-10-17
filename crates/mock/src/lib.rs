@@ -9,8 +9,10 @@
 pub mod address;
 pub mod extract;
 pub mod parsed;
+pub mod simulation;
 #[cfg(feature = "schema")]
 pub mod tool_params;
 
 pub use address::{MockAddress, NameError, is_mock_domain, parse_address, validate_namespace};
 pub use parsed::{Attachment, Link, ParsedMessage, parse_message};
+pub use simulation::Simulation;

@@ -13,6 +13,7 @@ const NAMESPACE = {
   name: 'insight',
   owner: 'lihao@golia.jp',
   smtp_enabled: false,
+  webhook_url: null,
 }
 
 const META = {
@@ -28,6 +29,7 @@ const META = {
   size: 100,
   tag: 'signup',
   to: ['insight.signup@mock.golia.jp'],
+  uid: 1,
 }
 
 function renderAt(url: string) {

@@ -7,6 +7,9 @@
 //! the public surface is intentionally a single function returning
 //! a single struct.
 
+mod build;
+pub use build::{ReportSpec, build};
+
 /// Parsed RFC 5965 ARF feedback report.
 ///
 /// All fields are owned `String` (not `&str`) — callers typically

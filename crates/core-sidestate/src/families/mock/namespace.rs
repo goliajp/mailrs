@@ -13,6 +13,7 @@ pub struct Namespace {
     pub messages: usize,
     pub dropped: i64,
     pub smtp_enabled: bool,
+    pub webhook_url: Option<String>,
 }
 
 /// Create `name` for `owner`. Names are global: the address grammar has no
@@ -44,6 +45,7 @@ pub fn create_namespace(conn: &mut Connection, owner: &str, name: &str) -> MockR
         messages: 0,
         dropped: 0,
         smtp_enabled: false,
+        webhook_url: None,
     })
 }
 
@@ -63,12 +65,14 @@ pub fn get_namespace(conn: &mut Connection, name: &str) -> MockResult<Option<Nam
         messages: conn.zcard(msgs_key(name).as_bytes())?,
         dropped: dropped(conn, name)?,
         smtp_enabled: false,
+        webhook_url: None,
     };
     for pair in fields.chunks_exact(2) {
         match pair[0].as_slice() {
             b"owner" => ns.owner = utf8(pair[1].clone()),
             b"created_at" => ns.created_at = utf8(pair[1].clone()).parse().unwrap_or(0),
             b"smtp_token_hash" => ns.smtp_enabled = !pair[1].is_empty(),
+            b"webhook_url" => ns.webhook_url = Some(utf8(pair[1].clone())),
             _ => {}
         }
     }
@@ -96,6 +100,7 @@ pub fn delete_namespace(conn: &mut Connection, root: &Path, name: &str) -> MockR
     let Some(ns) = get_namespace(conn, name)? else {
         return Err(MockError::NotFound);
     };
+    clear_webhook(conn, name)?;
     let ids = conn.zrange(msgs_key(name).as_bytes(), 0, -1)?;
     for id in &ids {
         conn.del(&[msg_key(&utf8(id.clone())).as_bytes()])?;
@@ -115,6 +120,7 @@ pub fn delete_namespace(conn: &mut Connection, root: &Path, name: &str) -> MockR
         ns_key(name).as_bytes(),
         dropped_key(name).as_bytes(),
         tags_key(name).as_bytes(),
+        uid_key(name).as_bytes(),
     ])?;
     conn.srem(owner_key(&ns.owner).as_bytes(), &[name.as_bytes()])?;
     conn.srem(NS_INDEX, &[name.as_bytes()])?;
@@ -196,6 +202,14 @@ pub fn minted_at(conn: &mut Connection, ns: &str, tag: &str) -> MockResult<Optio
     Ok(conn
         .hget(tags_key(ns).as_bytes(), tag.as_bytes())?
         .and_then(|v| utf8(v).parse().ok()))
+}
+
+/// The highest IMAP UID handed out in the namespace; 0 before its first message.
+pub fn last_uid(conn: &mut Connection, ns: &str) -> MockResult<u32> {
+    Ok(conn
+        .get(uid_key(ns).as_bytes())?
+        .and_then(|v| utf8(v).parse().ok())
+        .unwrap_or(0))
 }
 
 fn dropped(conn: &mut Connection, name: &str) -> MockResult<i64> {
