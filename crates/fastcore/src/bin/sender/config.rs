@@ -2,6 +2,8 @@
 
 use std::sync::Arc;
 
+use mailrs_core_sidestate::families::dkim_signers::DkimSigners;
+
 use super::*;
 
 #[derive(Clone)]
@@ -101,4 +103,84 @@ pub(super) fn load_dkim_from_env() -> Option<Arc<DkimSignConfig>> {
         parsed_key: Arc::new(std::sync::OnceLock::new()),
         extra_keys,
     }))
+}
+
+/// What `dkim` can sign, as the domain check reads it.
+fn dkim_signers(dkim: Option<&DkimSignConfig>) -> DkimSigners {
+    match dkim {
+        Some(d) => DkimSigners {
+            default_domain: Some(d.domain.to_ascii_lowercase()),
+            selectors: mailrs_outbound_queue::dkim_signers::usable_selectors(d),
+        },
+        None => DkimSigners::default(),
+    }
+}
+
+/// Replace the published DKIM signers with what `dkim` can sign.
+pub(super) fn publish_dkim_signers(
+    conn: &mut kevy_client::Connection,
+    dkim: Option<&DkimSignConfig>,
+) -> std::io::Result<DkimSigners> {
+    let signers = dkim_signers(dkim);
+    mailrs_core_sidestate::families::dkim_signers::publish(conn, &signers, now_secs())?;
+    Ok(signers)
+}
+
+/// Connect once at boot, exiting when that fails so a bad URL surfaces
+/// now, and publish which domains this process signs for: webapi's domain
+/// check cannot read the key files and asks this instead.
+pub(super) fn boot_kevy(cfg: &Cfg) {
+    let mut conn = match kevy(&cfg.kevy_url) {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::error!(err = %e, "kevy connect failed at boot — exiting");
+            std::process::exit(2);
+        }
+    };
+    match publish_dkim_signers(&mut conn, cfg.dkim.as_deref()) {
+        Ok(s) => tracing::info!(
+            domains = s.selectors.len(),
+            "DKIM: published signing domains"
+        ),
+        Err(e) => tracing::warn!(err = %e, "DKIM: publishing signing domains failed"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mailrs_core_sidestate::families::dkim_signers::read;
+
+    #[test]
+    fn a_sender_without_dkim_publishes_that_it_signs_nothing() {
+        let mut c = kevy_client::Connection::connect("mem://sender-dkim-off").unwrap();
+        publish_dkim_signers(&mut c, None).unwrap();
+        let back = read(&mut c).unwrap().expect("published");
+        assert_eq!(back.signers, DkimSigners::default());
+    }
+
+    #[test]
+    fn a_key_that_does_not_parse_is_not_published_as_a_signer() {
+        let mut c = kevy_client::Connection::connect("mem://sender-dkim-broken").unwrap();
+        let mut extra = std::collections::HashMap::new();
+        extra.insert(
+            "golia.ai".to_string(),
+            mailrs_outbound_queue::dkim_sign::DkimDomainKey {
+                selector: "s2".into(),
+                private_key_pem: "not a key".into(),
+                ..Default::default()
+            },
+        );
+        let cfg = DkimSignConfig {
+            selector: "mail".into(),
+            domain: "Golia.JP".into(),
+            private_key_pem: "not a key either".into(),
+            extra_keys: extra,
+            ..Default::default()
+        };
+        publish_dkim_signers(&mut c, Some(&cfg)).unwrap();
+        let back = read(&mut c).unwrap().expect("published");
+        assert_eq!(back.signers.default_domain.as_deref(), Some("golia.jp"));
+        assert!(back.signers.selectors.is_empty(), "{back:?}");
+    }
 }

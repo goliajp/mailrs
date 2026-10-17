@@ -46,7 +46,7 @@ pub(crate) async fn ingest_sync_loop(state: Arc<FastcoreState>) {
     // died between the file landing and the index write. Those files are
     // necessarily recent, so the routine pass only inspects names newer
     // than INCREMENTAL_WINDOW and costs a readdir instead of ~48k header
-    // reads (staging 2026-07-19).
+    // reads.
     //
     // A full pass still runs at boot and once a day, to catch anything a
     // clock skew or an out-of-band file drop put outside the window.

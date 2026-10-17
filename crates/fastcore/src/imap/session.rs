@@ -14,12 +14,12 @@ use std::sync::Arc;
 
 use futures_util::{SinkExt, StreamExt};
 use mailrs_imap_codec::{ImapCodec, ImapInput};
-use mailrs_imap_proto::{
-    ImapCommand, format_bad, format_bye, format_capability, format_no, format_ok, parse_command,
-};
+use mailrs_imap_proto::{ImapCommand, format_bad, format_bye, format_no, format_ok, parse_command};
+use mailrs_tls_reload::TlsState;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::codec::Framed;
 
+use super::auth;
 use super::backend::{self, ImapMessage, MailboxInfo};
 use crate::FastcoreState;
 
@@ -51,35 +51,72 @@ impl State {
     }
 }
 
-/// Entry point — takes a plaintext connection and drives it to
-/// completion. STARTTLS transitions happen at the listener layer
-/// (this loop doesn't own the socket type after upgrade).
+/// A connection that is already encrypted, or a plaintext one when no
+/// certificate is configured: logins are accepted and nothing offers
+/// STARTTLS.
 pub async fn run<S>(state: Arc<FastcoreState>, io: S)
 where
     S: AsyncRead + AsyncWrite + Send + Unpin + 'static,
 {
     let mut framed = Framed::new(io, ImapCodec::new());
-    // Greeting per RFC 3501 §7.5. Sent before the client says anything.
-    let greeting = format!(
-        "* OK [CAPABILITY IMAP4rev1 IDLE STARTTLS AUTH=PLAIN NAMESPACE ENABLE SORT QUOTA CONDSTORE QRESYNC] {} ready\r\n",
-        state
-            .mailbox
-            .store_ref()
-            .get(b"hostname")
-            .ok()
-            .flatten()
-            .and_then(|b| String::from_utf8(b).ok())
-            .unwrap_or_else(|| "mailrs".into())
-    );
-    if framed.send(greeting.into_bytes()).await.is_err() {
+    if greet(&state, &mut framed, false).await {
+        serve(&state, &mut framed, false).await;
+    }
+}
+
+/// A plaintext connection offering STARTTLS. After the upgrade the
+/// session starts over on the TLS stream: no greeting (RFC 9051
+/// §6.2.1), and nothing the client sent in clear is kept.
+pub async fn run_upgradable<S>(state: Arc<FastcoreState>, io: S, tls: TlsState)
+where
+    S: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+{
+    let mut framed = Framed::new(io, ImapCodec::new());
+    if !greet(&state, &mut framed, true).await || !serve(&state, &mut framed, true).await {
         return;
     }
+    // into_inner drops whatever the client pipelined after STARTTLS
+    match tls.acceptor().accept(framed.into_inner()).await {
+        Ok(stream) => {
+            serve(&state, &mut Framed::new(stream, ImapCodec::new()), false).await;
+        }
+        Err(e) => tracing::debug!(error = %e, "imap: STARTTLS handshake failed"),
+    }
+}
 
+/// Greeting per RFC 3501 §7.5. Sent before the client says anything.
+async fn greet<S>(state: &FastcoreState, framed: &mut Framed<S, ImapCodec>, starttls: bool) -> bool
+where
+    S: AsyncRead + AsyncWrite + Send + Unpin,
+{
+    let host = state
+        .mailbox
+        .store_ref()
+        .get(b"hostname")
+        .ok()
+        .flatten()
+        .and_then(|b| String::from_utf8(b).ok())
+        .unwrap_or_else(|| "mailrs".into());
+    let caps = auth::capabilities(starttls).join(" ");
+    let greeting = format!("* OK [CAPABILITY {caps}] {host} ready\r\n");
+    framed.send(greeting.into_bytes()).await.is_ok()
+}
+
+/// Runs commands until the connection ends (false) or the client is told
+/// to begin TLS (true, only when `starttls`).
+async fn serve<S>(
+    state: &Arc<FastcoreState>,
+    framed: &mut Framed<S, ImapCodec>,
+    starttls: bool,
+) -> bool
+where
+    S: AsyncRead + AsyncWrite + Send + Unpin,
+{
     let mut session = State::NotAuthed;
     // ENABLE QRESYNC is connection-scoped (RFC 7162 §3.2.5)
     let mut qresync = false;
     while let Some(frame) = framed.next().await {
-        let Ok(input) = frame else { return };
+        let Ok(input) = frame else { return false };
         let line = match input {
             ImapInput::Line(s) => s,
             ImapInput::LiteralData(_) => {
@@ -87,35 +124,50 @@ where
                 continue;
             }
         };
-        let parsed = match parse_command(line.trim_end()) {
-            Ok(cmd) => cmd,
-            Err(e) => {
-                let _ = framed
-                    .send(format_bad("*", &format!("parse: {e}")).into_bytes())
-                    .await;
-                continue;
+        let line = line.trim_end();
+        let tag = line.split_once(' ').map_or("", |(t, _)| t).to_string();
+        let command = match auth::early(line, &tag, starttls, framed).await {
+            auth::Early::Parse => match parse_command(line) {
+                Ok(cmd) => cmd.command,
+                Err(e) => {
+                    let _ = framed
+                        .send(format_bad("*", &format!("parse: {e}")).into_bytes())
+                        .await;
+                    continue;
+                }
+            },
+            auth::Early::Login { username, password } => ImapCommand::Login { username, password },
+            auth::Early::Reply(out) => {
+                if send_all(framed, out).await {
+                    continue;
+                }
+                return false;
             }
+            auth::Early::StartTls => {
+                let ok = format_ok(&tag, "Begin TLS negotiation now");
+                return framed.send(ok.into_bytes()).await.is_ok();
+            }
+            auth::Early::Closed => return false,
         };
-        let is_logout = matches!(parsed.command, ImapCommand::Logout);
-        let tag = parsed.tag;
-        let responses = dispatch(
-            &state,
-            &mut session,
-            &tag,
-            parsed.command,
-            &mut framed,
-            &mut qresync,
-        )
-        .await;
-        for r in responses {
-            if framed.send(r.into_bytes()).await.is_err() {
-                return;
-            }
-        }
-        if is_logout {
-            return;
+        let is_logout = matches!(command, ImapCommand::Logout);
+        let responses = dispatch(state, &mut session, &tag, command, framed, &mut qresync).await;
+        if !send_all(framed, responses).await || is_logout {
+            return false;
         }
     }
+    false
+}
+
+async fn send_all<S>(framed: &mut Framed<S, ImapCodec>, out: Vec<String>) -> bool
+where
+    S: AsyncRead + AsyncWrite + Send + Unpin,
+{
+    for r in out {
+        if framed.send(r.into_bytes()).await.is_err() {
+            return false;
+        }
+    }
+    true
 }
 
 async fn dispatch<S>(
@@ -133,23 +185,6 @@ where
         return out;
     }
     match cmd {
-        ImapCommand::Capability => vec![
-            format_capability(&[
-                "IMAP4rev1",
-                "AUTH=PLAIN",
-                "IDLE",
-                "NAMESPACE",
-                "ENABLE",
-                "UNSELECT",
-                "MOVE",
-                "SPECIAL-USE",
-                "SORT",
-                "QUOTA",
-                "CONDSTORE",
-                "QRESYNC",
-            ]),
-            format_ok(tag, "CAPABILITY completed"),
-        ],
         ImapCommand::Noop => vec![format_ok(tag, "NOOP completed")],
         ImapCommand::Logout => vec![
             format_bye("mailrs logging out"),

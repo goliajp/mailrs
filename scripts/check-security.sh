@@ -3,7 +3,8 @@
 # Fails non-zero on any unhandled vulnerability, license issue,
 # advisory, or registry source.
 #
-# Run before release.sh. Both tools require:
+# Part of the direct-deploy.sh gate. Needs network (advisory database,
+# crates.io index for yanked checks) and both tools:
 #   cargo install cargo-audit cargo-deny
 set -euo pipefail
 

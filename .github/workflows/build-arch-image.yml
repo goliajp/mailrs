@@ -1,16 +1,8 @@
 # Build + push the 4-binary split image for arch/** branches.
 #
-# Mirrors deploy-staging.yml's build step but with two differences:
-#
-# 1. Gates on the `test` workflow having succeeded on the same arch
-#    branch — same `workflow_run` pattern, just with a different branch
-#    filter.
-# 2. Stops at ghcr push — does NOT deploy to staging or prod. The
-#    arch/split-fastcore branch is experimental: the resulting
-#    `ghcr.io/goliajp/mailrs:arch-split-fastcore` image is available
-#    for manual `docker pull` on a staging host but no host is
-#    auto-updated. We will write a follow-up workflow once we have a
-#    dedicated split staging host.
+# Stops at the ghcr push and deploys nothing: arch/** branches are
+# experimental, and the resulting `ghcr.io/goliajp/mailrs:arch-<suffix>`
+# image is there for a manual `docker pull`.
 #
 # Image tag: `arch-<branch-suffix>` (e.g. `arch-split-fastcore`).
 

@@ -142,9 +142,9 @@ pub async fn create_namespace(
         ));
     }
     let (user, name) = (caller.user.clone(), name.trim().to_ascii_lowercase());
-    Ok(view(store(move |c| {
-        mock::create_namespace(c, &user, &name)
-    })?))
+    let created = store(move |c| mock::create_namespace(c, &user, &name))?;
+    crate::handlers::audit::record(&caller.user, "mock.namespace_create", &created.name, "");
+    Ok(view(created))
 }
 
 /// The caller's namespaces; every namespace when an admin asks for `all`.
@@ -182,9 +182,12 @@ pub async fn delete_namespace(
             "a key scoped to namespaces cannot delete them",
         ));
     }
-    authorize(state, caller, ns).await?;
+    let found = authorize(state, caller, ns).await?;
     let ns = ns.to_string();
-    store(move |c| mock::delete_namespace(c, mock::root(), &ns))
+    store(move |c| mock::delete_namespace(c, mock::root(), &ns))?;
+    let detail = format!("owner={}", found.owner);
+    crate::handlers::audit::record(&caller.user, "mock.namespace_delete", &found.name, &detail);
+    Ok(())
 }
 
 #[derive(Debug, Serialize)]

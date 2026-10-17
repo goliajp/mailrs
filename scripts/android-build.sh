@@ -38,6 +38,17 @@ MAIL_STUB_SUBMISSION=9587
 MAIL_STUB_UNTRUSTED=9994
 MAIL_STUB_PROBE=9995
 MAIL_STUB_PID=""
+# the stubs record their pids here, shared with the iOS scripts; a
+# leftover is stopped by that pid, never by matching command lines
+STUB_PIDFILE=/tmp/mailrs-stub-api.pid
+MAIL_STUB_PIDFILE=/tmp/mailrs-tls-stub.pid
+stop_recorded() {
+    if [ -f "$1" ]; then
+        kill "$(cat "$1")" 2>/dev/null || true
+        rm -f "$1"
+        sleep 0.2
+    fi
+}
 APK="android/app/build/outputs/apk/debug/app-debug.apk"
 
 export ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
@@ -89,12 +100,12 @@ release_stub_lock() {
 
 start_stub() {
     claim_stub_or_refuse
-    if lsof -nP -iTCP:$STUB_PORT -sTCP:LISTEN >/dev/null 2>&1; then
-        say "stub already listening on $STUB_PORT — leaving it alone"
-        return
-    fi
+    # the lock is ours, so a stub still recorded is a crashed run's: stop
+    # it by its pid and start this build of the stub
+    stop_recorded "$STUB_PIDFILE"
     python3 ios/Testing/stub-api.py > /tmp/mailrs-stub.log 2>&1 &
     STUB_PID=$!
+    echo "$STUB_PID" > "$STUB_PIDFILE"
     for _ in $(seq 1 20); do
         curl -s -o /dev/null --max-time 1 "http://localhost:$STUB_PORT/api/conversations" && break
         sleep 0.3
@@ -128,13 +139,13 @@ start_stub() {
     # per run and is not in git.
     ios/Testing/make-test-ca.sh "$CERT_DIR" >/dev/null
     cp "$CERT_DIR/ca.pem" android/app/src/debug/res/raw/mailrs_test_ca.pem
-    pkill -f "Testing/tls-mail-stub.py" 2>/dev/null || true
-    sleep 0.2
+    stop_recorded "$MAIL_STUB_PIDFILE"
     python3 ios/Testing/tls-mail-stub.py "$CERT_DIR" \
         --imaps "$MAIL_STUB_IMAPS" --submission "$MAIL_STUB_SUBMISSION" \
         --imaps-untrusted "$MAIL_STUB_UNTRUSTED" --probe "$MAIL_STUB_PROBE" \
         >/tmp/mailrs-tls-stub.log 2>&1 &
     MAIL_STUB_PID=$!
+    echo "$MAIL_STUB_PID" > "$MAIL_STUB_PIDFILE"
     for _ in $(seq 1 20); do
         nc -z 127.0.0.1 "$MAIL_STUB_IMAPS" 2>/dev/null && break
         sleep 0.25
@@ -148,8 +159,8 @@ start_stub() {
     say "tls mail stub up (imaps $MAIL_STUB_IMAPS, submission $MAIL_STUB_SUBMISSION)"
 }
 stop_stub() {
-    [ -n "$STUB_PID" ] && kill "$STUB_PID" 2>/dev/null || true
-    [ -n "$MAIL_STUB_PID" ] && kill "$MAIL_STUB_PID" 2>/dev/null || true
+    [ -n "$STUB_PID" ] && stop_recorded "$STUB_PIDFILE"
+    [ -n "$MAIL_STUB_PID" ] && stop_recorded "$MAIL_STUB_PIDFILE"
     release_stub_lock
 }
 trap stop_stub EXIT

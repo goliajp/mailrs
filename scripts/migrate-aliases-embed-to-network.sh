@@ -14,7 +14,6 @@
 # defaults:
 #   fastcore-container = mailrs-fastcore  (prod)
 #   kevy-container     = mailrs-kevy      (prod)
-# e.g. staging: mailrs-staging-fastcore + mailrs-staging-kevy
 set -eu
 
 SSH_HOST="${1:?usage: $0 <ssh-host> [fastcore-container] [kevy-container]}"

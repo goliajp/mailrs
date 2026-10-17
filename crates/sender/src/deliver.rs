@@ -1,9 +1,9 @@
 //! Minimal SMTP delivery for Phase 4.5.
 //!
 //! Resolves MX for the recipient domain, connects to the top MX on
-//! port 25 (plain SMTP — staging is mostly internal relay; STARTTLS +
-//! DKIM signing come with checklist 4.6–4.7), runs MAIL FROM / RCPT TO /
-//! DATA / .QUIT, returns the SMTP response.
+//! port 25 (plain SMTP; STARTTLS + DKIM signing come with checklist
+//! 4.6–4.7), runs MAIL FROM / RCPT TO / DATA / .QUIT, returns the SMTP
+//! response.
 //!
 //! Failure modes:
 //! - DNS resolve error / no MX records  → `Err`, caller marks failed

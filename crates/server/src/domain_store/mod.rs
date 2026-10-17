@@ -8,14 +8,13 @@ use crate::health::HealthState;
 
 // DomainStore — split across submodules in this directory:
 //   audit, totp, accounts, domains, aliases, sieve, permissions,
-//   groups, apps, email_groups, encryption. Each submodule
+//   groups, email_groups, encryption. Each submodule
 //   attaches `impl DomainStore` blocks for its entity group;
 //   mod.rs owns the struct + types + constructor + cache + the
 //   pg() / kevy accessor helpers used by every handler.
 
 mod accounts;
 mod aliases;
-mod apps;
 mod audit;
 mod domains;
 mod email_groups;
@@ -220,20 +219,6 @@ pub struct EmailGroup {
     pub domain: String,
     pub name: String,
     pub description: String,
-    pub created_at: i64,
-}
-
-// --- App struct ---
-
-#[derive(Debug, Serialize, Clone)]
-pub struct App {
-    pub id: i64,
-    pub app_id: String,
-    pub name: String,
-    pub description: String,
-    pub owner_address: String,
-    pub scopes: String,
-    pub active: bool,
     pub created_at: i64,
 }
 
