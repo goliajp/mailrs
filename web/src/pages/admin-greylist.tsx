@@ -1,18 +1,20 @@
 import type { GreylistForm } from './admin-greylist-form'
+import type { Column } from '@/components/admin-page'
 import type { GreylistLocalEntry, GreylistLocalKind, GreylistLocalListName } from '@/lib/types'
 
 import { useQuery } from '@tanstack/react-query'
 import { Shield } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router'
 
 import {
   AdminEmptyState,
   AdminErrorState,
   AdminPageShell,
+  AdminTable,
   AdminTableSkeleton,
+  ConfirmAction,
 } from '@/components/admin-page'
-import { MobileModal } from '@/components/mobile-modal'
-import { ScrollableTable } from '@/components/scrollable-table'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
 import { adminKeys } from '@/lib/query-keys'
 import { adminDelete, adminListGet, adminPost } from '@/wire/endpoints/admin'
@@ -27,14 +29,36 @@ import { GreylistAddForm } from './admin-greylist-form'
  */
 type GreylistRow = Omit<GreylistLocalEntry, 'id'> & { id: number | string }
 
-const HEADERS = ['Value', 'Kind', 'List', 'Note', 'Created', 'By', 'Actions']
+const HEADERS = ['Value', 'Kind', 'List', 'Note', 'Added', 'By', '']
 const NO_ROWS: GreylistRow[] = []
+const KINDS: GreylistLocalKind[] = ['domain', 'email', 'cidr']
+const LISTS: GreylistLocalListName[] = ['white', 'black']
+const KIND_LABELS: Record<GreylistLocalKind, string> = {
+  cidr: 'CIDR',
+  domain: 'Domain',
+  email: 'Email',
+}
+const LIST_LABELS: Record<GreylistLocalListName, string> = { black: 'Black', white: 'White' }
+
+// the receiver builds the greylist stage, and with it these lists, only when this is set
+const ENABLE_NOTE =
+  'The receiver reads these lists only while greylisting is on (MAILRS_GREYLIST_ENABLED=1); with it off, the default, no entry has any effect'
 
 export function AdminGreylist() {
-  const [filterKind, setFilterKind] = useState<'all' | GreylistLocalKind>('all')
-  const [filterList, setFilterList] = useState<'all' | GreylistLocalListName>('all')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const filterKind = pick(searchParams.get('kind'), KINDS)
+  const filterList = pick(searchParams.get('list'), LISTS)
   const [adding, setAdding] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState<null | number | string>(null)
+  const [deleteTarget, setDeleteTarget] = useState<GreylistRow | null>(null)
+
+  const setFilter = (key: 'kind' | 'list', value: string) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (value === 'all') next.delete(key)
+      else next.set(key, value)
+      return next
+    })
+  }
 
   const { data, error, isPending, refetch } = useQuery({
     queryKey: adminKeys.greylistLocal(),
@@ -45,9 +69,7 @@ export function AdminGreylist() {
   const filtered = useMemo(
     () =>
       entries.filter(
-        (e) =>
-          (filterKind === 'all' || e.kind === filterKind) &&
-          (filterList === 'all' || e.list === filterList)
+        (e) => (!filterKind || e.kind === filterKind) && (!filterList || e.list === filterList)
       ),
     [entries, filterKind, filterList]
   )
@@ -61,15 +83,97 @@ export function AdminGreylist() {
         note: f.note.trim() || null,
         value: f.value.trim(),
       }),
-    successMsg: (f) => `${f.list} ${f.kind} "${f.value.trim()}" added`,
+    successMsg: (f) => `"${f.value.trim()}" added to the ${f.list} list`,
   })
 
   const deleteEntry = useAdminMutation({
     invalidateKey: adminKeys.greylistLocal(),
-    successMsg: 'Entry removed',
+    successMsg: 'Entry deleted',
     mutationFn: (id: number | string) =>
       adminDelete(`/admin/greylist/local-lists/${encodeURIComponent(String(id))}`),
   })
+
+  const columns: Column<GreylistRow>[] = [
+    {
+      header: 'Value',
+      key: 'value',
+      cell: (e) => <span className="font-mono text-xs">{e.value}</span>,
+    },
+    {
+      header: 'Kind',
+      key: 'kind',
+      cell: (e) => <span className="text-fg-secondary">{KIND_LABELS[e.kind]}</span>,
+    },
+    {
+      header: 'List',
+      key: 'list',
+      cell: (e) => (
+        <span className={`rounded px-2 py-0.5 text-xs font-medium ${listStyle(e.list)}`}>
+          {LIST_LABELS[e.list]}
+        </span>
+      ),
+    },
+    {
+      header: 'Note',
+      key: 'note',
+      cell: (e) => <span className="text-fg-secondary text-xs">{e.note ?? '—'}</span>,
+    },
+    {
+      align: 'end',
+      header: 'Added',
+      key: 'created',
+      cell: (e) => <span className="text-fg-muted text-xs">{formatCreated(e.created_at)}</span>,
+    },
+    {
+      header: 'By',
+      key: 'by',
+      cell: (e) => <span className="text-fg-muted text-xs">{e.created_by ?? '—'}</span>,
+    },
+    {
+      align: 'end',
+      header: 'Actions',
+      hideHeader: true,
+      key: 'actions',
+      cell: (e) => (
+        <button
+          className="text-danger text-xs transition-colors hover:opacity-70"
+          onClick={() => setDeleteTarget(e)}
+          type="button"
+        >
+          Delete
+        </button>
+      ),
+    },
+  ]
+
+  const renderBody = () => {
+    if (isPending) return <AdminTableSkeleton cols={HEADERS.length} headers={HEADERS} rows={5} />
+    if (error) {
+      return <AdminErrorState error={error} onRetry={() => refetch()} what="the greylist entries" />
+    }
+    if (entries.length === 0 && !adding) {
+      return (
+        <AdminEmptyState
+          description={`Add a sender's domain, address or network here to let it skip greylisting (white) or to refuse its mail (black). ${ENABLE_NOTE}`}
+          icon={<Shield className="h-10 w-10" />}
+          title="No greylist entries yet"
+        />
+      )
+    }
+    if (filtered.length === 0) {
+      return (
+        <p className="text-fg-muted py-8 text-center text-sm">No entries match these filters</p>
+      )
+    }
+    return (
+      <AdminTable
+        columns={columns}
+        label="Greylist entries"
+        rowKey={(e) => String(e.id)}
+        rows={filtered}
+      />
+    )
+  }
 
   return (
     <AdminPageShell
@@ -78,36 +182,41 @@ export function AdminGreylist() {
           <button
             className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:opacity-90"
             onClick={() => setAdding(true)}
+            type="button"
           >
-            Add Entry
+            Add entry
           </button>
         )
       }
-      title="Greylist Local Lists"
+      subtitle={`White entries skip greylisting, black entries are refused with SMTP 550 5.7.1, and black wins when a sender matches both. ${ENABLE_NOTE}`}
+      title="Greylist"
     >
-      <div className="border-border mb-4 flex flex-wrap items-center gap-2 rounded-lg border p-3 text-sm">
-        <label className="text-fg-muted text-xs">Kind</label>
+      <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
         <select
-          aria-label="Filter kind"
+          aria-label="Filter by kind"
           className="border-border bg-bg-secondary rounded-md border px-2 py-1 text-sm"
-          onChange={(e) => setFilterKind(e.target.value as 'all' | GreylistLocalKind)}
-          value={filterKind}
+          onChange={(e) => setFilter('kind', e.target.value)}
+          value={filterKind ?? 'all'}
         >
-          <option value="all">all</option>
-          <option value="domain">domain</option>
-          <option value="email">email</option>
-          <option value="cidr">cidr</option>
+          <option value="all">All kinds</option>
+          {KINDS.map((k) => (
+            <option key={k} value={k}>
+              {KIND_LABELS[k]}
+            </option>
+          ))}
         </select>
-        <label className="text-fg-muted ml-2 text-xs">List</label>
         <select
-          aria-label="Filter list"
+          aria-label="Filter by list"
           className="border-border bg-bg-secondary rounded-md border px-2 py-1 text-sm"
-          onChange={(e) => setFilterList(e.target.value as 'all' | GreylistLocalListName)}
-          value={filterList}
+          onChange={(e) => setFilter('list', e.target.value)}
+          value={filterList ?? 'all'}
         >
-          <option value="all">all</option>
-          <option value="white">white</option>
-          <option value="black">black</option>
+          <option value="all">Both lists</option>
+          {LISTS.map((l) => (
+            <option key={l} value={l}>
+              {LIST_LABELS[l]}
+            </option>
+          ))}
         </select>
       </div>
 
@@ -126,42 +235,19 @@ export function AdminGreylist() {
         />
       )}
 
-      <GreylistBody
-        adding={adding}
-        entries={entries}
-        error={error}
-        filtered={filtered}
-        isPending={isPending}
-        onDelete={setDeleteTarget}
-        onRetry={() => refetch()}
-      />
+      {renderBody()}
 
-      {deleteTarget !== null && (
-        <MobileModal onClose={() => setDeleteTarget(null)} open>
-          <div className="bg-surface w-full max-w-sm rounded-lg p-6 shadow-lg">
-            <p className="text-fg-secondary mb-4 text-sm">
-              Delete this greylist entry? Re-adding it later is fine; this only removes the current
-              row.
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                className="text-fg-secondary hover:bg-bg-secondary rounded-md px-3 py-1.5 text-sm transition-colors"
-                onClick={() => setDeleteTarget(null)}
-              >
-                Cancel
-              </button>
-              <button
-                className="bg-danger rounded-md px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
-                disabled={deleteEntry.isPending}
-                onClick={() =>
-                  deleteEntry.mutate(deleteTarget, { onSettled: () => setDeleteTarget(null) })
-                }
-              >
-                {busyLabel(deleteEntry.isPending, 'Delete', 'Deleting…')}
-              </button>
-            </div>
-          </div>
-        </MobileModal>
+      {deleteTarget && (
+        <ConfirmAction
+          confirmLabel={busyLabel(deleteEntry.isPending, 'Delete entry', 'Deleting...')}
+          consequence={deleteConsequence(deleteTarget)}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={() =>
+            deleteEntry.mutate(deleteTarget.id, { onSettled: () => setDeleteTarget(null) })
+          }
+          pending={deleteEntry.isPending}
+          title={`Delete ${deleteTarget.value} from the ${deleteTarget.list} list?`}
+        />
       )}
     </AdminPageShell>
   )
@@ -172,83 +258,19 @@ function busyLabel(busy: boolean, idle: string, working: string): string {
   return idle
 }
 
+function deleteConsequence(entry: GreylistRow): string {
+  const reload =
+    'The entry is deleted, and the receiver drops it at its next reload, within a minute. This only matters while greylisting is on (MAILRS_GREYLIST_ENABLED=1)'
+  if (entry.list === 'black') {
+    return `Mail from ${entry.value} is no longer refused by this entry. ${reload}`
+  }
+  return `Mail from ${entry.value} no longer skips greylisting through this entry and is greylisted like anyone else's. ${reload}`
+}
+
 function formatCreated(unix: number): string {
   if (!unix) return '—'
   const iso = new Date(unix * 1000).toISOString()
   return `${iso.slice(0, 10)} ${iso.slice(11, 16)}`
-}
-
-function GreylistBody({
-  adding,
-  entries,
-  error,
-  filtered,
-  isPending,
-  onDelete,
-  onRetry,
-}: {
-  adding: boolean
-  entries: GreylistRow[]
-  error: Error | null
-  filtered: GreylistRow[]
-  isPending: boolean
-  onDelete: (id: number | string) => void
-  onRetry: () => void
-}) {
-  if (isPending) return <AdminTableSkeleton cols={HEADERS.length} headers={HEADERS} rows={5} />
-  if (error) return <AdminErrorState error={error} onRetry={onRetry} />
-  if (filtered.length === 0 && !adding) {
-    let title = 'No entries match the filters'
-    if (entries.length === 0) title = 'No local greylist entries'
-    return (
-      <AdminEmptyState
-        description="Local lists override Phase 1's remote whitelist. White entries bypass greylisting; black entries are rejected with SMTP 550. Add your first entry to get started."
-        icon={<Shield className="h-10 w-10" />}
-        title={title}
-      />
-    )
-  }
-  return (
-    <ScrollableTable>
-      <table className="w-full text-left text-sm">
-        <thead className="border-border bg-bg-secondary border-b">
-          <tr>
-            {HEADERS.map((h) => (
-              <th className={thClass(h)} key={h}>
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {filtered.map((e) => (
-            <tr className="border-border border-b last:border-0" key={String(e.id)}>
-              <td className="px-4 py-3 font-mono text-xs">{e.value}</td>
-              <td className="text-fg-secondary px-4 py-3">{e.kind}</td>
-              <td className="px-4 py-3">
-                <span
-                  className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${listStyle(e.list)}`}
-                >
-                  {e.list}
-                </span>
-              </td>
-              <td className="text-fg-secondary px-4 py-3 text-xs">{e.note ?? '—'}</td>
-              <td className="text-fg-muted px-4 py-3 text-xs">{formatCreated(e.created_at)}</td>
-              <td className="text-fg-muted px-4 py-3 text-xs">{e.created_by ?? '—'}</td>
-              <td className="px-4 py-3 text-right">
-                <button
-                  className="text-danger text-xs transition-colors hover:opacity-70"
-                  onClick={() => onDelete(e.id)}
-                >
-                  Delete
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </ScrollableTable>
-  )
 }
 
 function listStyle(list: GreylistLocalListName): string {
@@ -256,7 +278,7 @@ function listStyle(list: GreylistLocalListName): string {
   return 'bg-accent/10 text-accent'
 }
 
-function thClass(header: string): string {
-  if (header === 'Actions') return 'px-4 py-2.5 text-right font-medium'
-  return 'px-4 py-2.5 font-medium'
+function pick<T extends string>(raw: null | string, allowed: readonly T[]): null | T {
+  if (raw === null) return null
+  return allowed.find((a) => a === raw) ?? null
 }

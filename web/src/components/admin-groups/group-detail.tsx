@@ -3,6 +3,7 @@ import type { GroupInfo } from './group-info'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 
+import { ConfirmAction } from '@/components/admin-page'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
 import { adminKeys } from '@/lib/query-keys'
 import { adminDelete, adminPost, adminPut, adminStringListGet } from '@/wire/endpoints/admin'
@@ -15,6 +16,7 @@ export function GroupDetail({
   group: GroupInfo
 }) {
   const [newMember, setNewMember] = useState('')
+  const [removeTarget, setRemoveTarget] = useState<null | string>(null)
 
   const { data: permissionsData } = useQuery({
     queryKey: adminKeys.groupPermissions(group.id),
@@ -51,8 +53,7 @@ export function GroupDetail({
   const loading = !permissionsData || !membersData
 
   const handleTogglePermission = (perm: string, checked: boolean) => {
-    const updated = checked ? [...permissions, perm] : permissions.filter((p) => p !== perm)
-    updatePermissions.mutate(updated)
+    updatePermissions.mutate(toggled(permissions, perm, checked))
   }
 
   const handleAddMember = () => {
@@ -65,18 +66,16 @@ export function GroupDetail({
     })
   }
 
-  const handleRemoveMember = (address: string) => {
-    // single-step confirm — small affordance vs full modal is intentional
-    if (!window.confirm(`Remove member "${address}" from this group?`)) return
-    removeMember.mutate(address)
+  const handleRemove = (address: string) => {
+    removeMember.mutate(address, { onSettled: () => setRemoveTarget(null) })
   }
 
   if (loading) {
-    return <div className="text-fg-muted px-4 py-3 text-sm">Loading...</div>
+    return <div className="text-fg-muted text-sm">Loading...</div>
   }
 
   return (
-    <div className="space-y-4 px-4 pt-1 pb-4">
+    <div className="space-y-4">
       <div>
         <h4 className="text-fg-secondary mb-2 text-xs font-medium">Permissions</h4>
         <div className="flex flex-wrap gap-2">
@@ -95,7 +94,7 @@ export function GroupDetail({
             </label>
           ))}
           {allPermissions.length === 0 && (
-            <span className="text-fg-muted text-xs">No permissions available</span>
+            <span className="text-fg-muted text-xs">The server lists no permissions to grant</span>
           )}
         </div>
       </div>
@@ -107,7 +106,9 @@ export function GroupDetail({
             aria-label="New member address"
             className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
             onChange={(e) => setNewMember(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleAddMember()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleAddMember()
+            }}
             placeholder="user@example.com"
             value={newMember}
           />
@@ -116,32 +117,64 @@ export function GroupDetail({
             disabled={!newMember.trim() || addMember.isPending}
             onClick={handleAddMember}
           >
-            {addMember.isPending ? 'Adding...' : 'Add'}
+            {pendingLabel(addMember.isPending, 'Adding...', 'Add member')}
           </button>
         </div>
-        {members.length > 0 ? (
-          <div className="flex flex-wrap gap-1.5">
-            {members.map((addr) => (
-              <span
-                className="bg-surface text-fg-secondary inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium"
-                key={addr}
-              >
-                {addr}
-                <button
-                  aria-label={`Remove ${addr}`}
-                  className="text-danger hover:opacity-70 disabled:opacity-50"
-                  disabled={removeMember.isPending}
-                  onClick={() => handleRemoveMember(addr)}
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-          </div>
-        ) : (
-          <span className="text-fg-muted text-xs">No members</span>
-        )}
+        <MemberList members={members} onRemove={setRemoveTarget} />
       </div>
+
+      {removeTarget && (
+        <ConfirmAction
+          confirmLabel={pendingLabel(removeMember.isPending, 'Removing...', 'Remove member')}
+          consequence={`${removeTarget} loses the permissions ${group.name} grants, unless its own account or another group grants them too. The account is kept`}
+          onCancel={() => setRemoveTarget(null)}
+          onConfirm={() => handleRemove(removeTarget)}
+          pending={removeMember.isPending}
+          title={`Remove ${removeTarget} from ${group.name}?`}
+        />
+      )}
     </div>
   )
+}
+
+function MemberList({
+  members,
+  onRemove,
+}: {
+  members: string[]
+  onRemove: (address: string) => void
+}) {
+  if (members.length === 0) {
+    return (
+      <span className="text-fg-muted text-xs">
+        No members yet. An account added here gets every permission checked above
+      </span>
+    )
+  }
+  return (
+    <ul className="divide-border divide-y text-sm">
+      {members.map((addr) => (
+        <li className="flex items-center justify-between py-1.5" key={addr}>
+          <span className="text-fg-secondary">{addr}</span>
+          <button
+            className="text-danger text-xs hover:opacity-70"
+            onClick={() => onRemove(addr)}
+            type="button"
+          >
+            Remove
+          </button>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function pendingLabel(pending: boolean, busy: string, idle: string): string {
+  if (pending) return busy
+  return idle
+}
+
+function toggled(current: string[], perm: string, on: boolean): string[] {
+  if (on) return [...current, perm]
+  return current.filter((p) => p !== perm)
 }

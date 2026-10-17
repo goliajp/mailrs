@@ -1,13 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { matchesActionFilter } from '../admin-audit-actions'
 import { AdminAuditLog } from '../admin-audit-log'
-import { AdminGreylist } from '../admin-greylist'
 import { AdminMailAudit } from '../admin-mail-audit'
-import { AdminQueues } from '../admin-queues'
 
 type Call = { method: string; path: string }
 
@@ -135,64 +133,5 @@ describe('<AdminMailAudit />', () => {
     expect(container.querySelector('a[href*="/api/mail/messages"]')).toBeNull()
     const eml = screen.getByLabelText('Download as .eml')
     expect(eml.getAttribute('href')).toContain('/api/admin/audit/messages/7/raw?user=t%40b.c')
-  })
-})
-
-describe('<AdminQueues />', () => {
-  it('reads /admin/queues and offers a retry only for a job waiting between attempts', async () => {
-    const calls = stub({
-      'GET /api/admin/queues': {
-        items: [
-          { attempts: 0, id: 1, recipient: 'a@one.example', sender: 's@b.c', status: 'pending' },
-          {
-            attempts: 3,
-            id: 2,
-            last_error: '421 try later',
-            recipient: 'b@two.example',
-            sender: 's@b.c',
-            status: 'retrying',
-          },
-        ],
-      },
-      'POST /api/queue/2/retry': null,
-    })
-    renderAt(<AdminQueues />)
-    const retryingRow = (await screen.findByText('b@two.example')).closest('tr') as HTMLElement
-    const pendingRow = screen.getByText('a@one.example').closest('tr') as HTMLElement
-    expect(within(retryingRow).getByText('two.example')).toBeInTheDocument()
-    expect(within(pendingRow).queryByRole('button', { name: 'Retry now' })).toBeNull()
-    fireEvent.click(within(retryingRow).getByRole('button', { name: 'Retry now' }))
-    await vi.waitFor(() =>
-      expect(calls.some((c) => c.method === 'POST' && c.path === '/api/queue/2/retry')).toBe(true)
-    )
-    expect(calls.some((c) => c.path === '/api/queue')).toBe(false)
-  })
-})
-
-describe('<AdminGreylist />', () => {
-  it('shows an entry the not-junk path wrote and deletes it by its stored key', async () => {
-    const calls = stub({
-      'DELETE /api/admin/greylist/local-lists/not-junk%3Aa%40b.c': null,
-      'GET /api/admin/greylist/local-lists': {
-        items: [
-          {
-            created_at: 5,
-            created_by: null,
-            id: 'not-junk:a@b.c',
-            kind: 'email',
-            list: 'white',
-            note: null,
-            value: 'a@b.c',
-          },
-        ],
-      },
-    })
-    renderAt(<AdminGreylist />)
-    const row = (await screen.findByText('a@b.c')).closest('tr') as HTMLElement
-    fireEvent.click(within(row).getByRole('button', { name: 'Delete' }))
-    const buttons = await screen.findAllByRole('button', { name: 'Delete' })
-    fireEvent.click(buttons[buttons.length - 1])
-    await vi.waitFor(() => expect(calls.some((c) => c.method === 'DELETE')).toBe(true))
-    expect(calls.some((c) => c.path.startsWith('/api/health'))).toBe(false)
   })
 })

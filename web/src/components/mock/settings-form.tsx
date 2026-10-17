@@ -21,7 +21,7 @@ type NumberField = {
 // the bounds the server enforces (core-sidestate families/mock/settings.rs)
 const FIELDS: NumberField[] = [
   {
-    help: 'Older messages are deleted. A shorter value applies to stored mail on the next hourly sweep',
+    help: 'Older messages are deleted. A shorter value reaches stored mail at the next sweep, within six hours; a longer one applies to new mail',
     key: 'retention_days',
     label: 'Keep messages for (days)',
     max: 30,
@@ -35,7 +35,7 @@ const FIELDS: NumberField[] = [
     min: 10,
   },
   {
-    help: 'Past this, new mock mail is refused until old mail expires',
+    help: 'Past this, new mock mail is refused until old mail expires or is deleted',
     key: 'max_total_mb',
     label: 'Total storage (MB)',
     max: 20480,
