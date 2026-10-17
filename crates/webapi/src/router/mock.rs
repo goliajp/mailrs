@@ -9,6 +9,10 @@ pub(super) fn mock_routes() -> axum::Router<Arc<WebState>> {
 
     axum::Router::new()
         .route(
+            "/api/admin/mock",
+            get(crate::handlers::mock::admin::overview),
+        )
+        .route(
             "/api/mock/namespaces",
             get(mock::list_namespaces).post(mock::create_namespace),
         )

@@ -5,6 +5,7 @@
  */
 
 import type {
+  MockAdminOverview,
   MockFullMessage,
   MockMessageList,
   MockMintedAddress,
@@ -18,6 +19,7 @@ import { getToken } from '@/store/auth'
 
 import { wireFetch } from '../client'
 import {
+  mockAdminOverviewSchema,
   mockDeletedSchema,
   mockFullMessageSchema,
   mockMessageListSchema,
@@ -42,6 +44,11 @@ export type MockSendInput = {
 export function mockRawUrl(ns: string, id: string): string {
   const token = encodeURIComponent(getToken() ?? '')
   return `/api${messagePath(ns, id)}/raw?token=${token}`
+}
+
+/** `GET /api/admin/mock` → every namespace and the store's totals. Admins only. */
+export function wireAdminMockOverview(signal?: AbortSignal): Promise<MockAdminOverview> {
+  return wireFetch(mockAdminOverviewSchema, { path: '/admin/mock', signal })
 }
 
 /** `DELETE /api/mock/namespaces/{ns}/webhook` → 204. */
