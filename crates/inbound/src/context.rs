@@ -82,6 +82,27 @@ pub struct ReceiveContext {
     /// The domains this server is the mail host for — see
     /// [`PipelineInput::local_domains`](crate::PipelineInput).
     pub local_domains: std::collections::HashSet<String>,
+
+    // ===== operator allow list =====
+    /// What the operator's allow list matched, set by the stage that
+    /// reads it, before authentication has run.
+    pub allow_list: AllowListMatch,
+    /// The operator's allow list vouches for this sender, see
+    /// [`PipelineInput::sender_allowed`](crate::PipelineInput).
+    pub sender_allowed: bool,
+}
+
+/// What an operator allow list matched for one message.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum AllowListMatch {
+    /// Nothing matched.
+    #[default]
+    None,
+    /// The client IP is in a listed network. Needs no authentication.
+    Network,
+    /// This address (lowercased) matched a listed address or domain. It
+    /// vouches for the sender only once authentication proves it.
+    Address(String),
 }
 
 impl ReceiveContext {
@@ -127,6 +148,8 @@ impl ReceiveContext {
             recipient_whitelist: std::collections::HashSet::new(),
             recipient_blacklist: std::collections::HashSet::new(),
             local_domains: std::collections::HashSet::new(),
+            allow_list: AllowListMatch::None,
+            sender_allowed: false,
         }
     }
 
@@ -175,6 +198,7 @@ impl ReceiveContext {
             recipient_whitelist: self.recipient_whitelist.clone(),
             local_domains: self.local_domains.clone(),
             recipient_blacklist: self.recipient_blacklist.clone(),
+            sender_allowed: self.sender_allowed,
         }
     }
 }

@@ -40,14 +40,16 @@ pub async fn add_account(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// DELETE /api/admin/accounts/{address} — remove account entries from
-/// fastcore's embedded kevy. Does not touch maildir on disk.
+/// DELETE /api/admin/accounts/{address} — remove the account in fastcore,
+/// then end every session and agent key the address holds.
 pub async fn remove_account(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Path(address): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
     state.core.remove_account(&address).await.map_err(map_err)?;
+    // after the account is gone, so no sign-in can slip in behind it
+    crate::handlers::auth::revoke_all_access(&address)?;
     crate::handlers::audit::record(&actor, "account.delete", &address, "");
     Ok(StatusCode::NO_CONTENT)
 }
@@ -82,6 +84,12 @@ pub async fn set_account_password(
         .set_account_password(&address, &wire::SetPasswordRequest { password_hash })
         .await
         .map_err(map_err)?;
+    // whoever signed in with the old password is signed out; agent keys
+    // are separate credentials and stay
+    let addr = address.clone();
+    crate::handlers::kevy_util::with_kevy(move |c| {
+        crate::handlers::auth::revoke_sessions(c, &addr)
+    })?;
     crate::handlers::audit::record(&actor, "account.password_reset", &address, "");
     Ok(StatusCode::NO_CONTENT)
 }
@@ -90,12 +98,10 @@ pub async fn set_account_password(
 pub struct UpdateAccountRequest {
     pub display_name: Option<String>,
     pub recovery_email: Option<String>,
-    pub disabled: Option<bool>,
 }
 
 /// PUT /api/admin/accounts/{address} — patch account fields via
-/// fastcore. `disabled` is accepted and ignored: the account blob has no
-/// such field yet.
+/// fastcore.
 pub async fn update_account(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(actor)): Extension<AuthedUser>,

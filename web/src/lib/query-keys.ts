@@ -90,7 +90,6 @@ export const adminKeys = {
   accounts: () => [...adminKeys.all(), 'accounts'] as const,
   aliases: () => [...adminKeys.all(), 'aliases'] as const,
   all: () => ['admin'] as const,
-  apps: () => [...adminKeys.all(), 'apps'] as const,
   auditLog: () => [...adminKeys.all(), 'audit-log'] as const,
   dmarcReports: () => [...adminKeys.all(), 'dmarc-reports'] as const,
   dmarcSources: (days: number) => [...adminKeys.all(), 'dmarc-sources', days] as const,

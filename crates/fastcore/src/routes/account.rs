@@ -147,16 +147,6 @@ pub(crate) async fn update_account_route(
     axum::http::StatusCode::NO_CONTENT.into_response()
 }
 
-pub(crate) async fn remove_account_route(
-    State(state): State<Arc<FastcoreState>>,
-    Path(address): Path<String>,
-) -> axum::response::Response {
-    if let Err(e) = state.mailbox.delete_account(&address) {
-        tracing::warn!(err = %e, %address, "delete_account failed");
-    }
-    axum::http::StatusCode::NO_CONTENT.into_response()
-}
-
 pub(crate) async fn set_quota_route(
     State(state): State<Arc<FastcoreState>>,
     Path(address): Path<String>,

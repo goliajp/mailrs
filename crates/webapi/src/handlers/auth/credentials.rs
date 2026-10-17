@@ -286,15 +286,6 @@ pub async fn change_password(
     // Revoke all outstanding sessions for this address — the address
     // itself owns the session:by_addr:<address> set of tokens.
     let addr_c = address.clone();
-    let _ = crate::handlers::kevy_util::with_kevy(move |c| {
-        let idx = format!("session:by_addr:{addr_c}");
-        let tokens = c.smembers(idx.as_bytes()).unwrap_or_default();
-        for t in tokens {
-            let key = format!("session:{}", String::from_utf8_lossy(&t));
-            let _ = c.del(&[key.as_bytes()]);
-        }
-        let _ = c.del(&[idx.as_bytes()]);
-        Ok(())
-    });
+    let _ = crate::handlers::kevy_util::with_kevy(move |c| super::revoke_sessions(c, &addr_c));
     (StatusCode::OK, Json(serde_json::json!({"success": true}))).into_response()
 }

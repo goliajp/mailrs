@@ -10,12 +10,14 @@
 //! - [`resolver`]  — [`DkimResolver`] trait + (optional) hickory impl
 //! - [`verifier`]  — full verify() entry point
 //! - [`error`]     — error / temp-fail / perm-fail types
+//! - [`key_list`]  — per-domain `domain:selector:key_path` lists and which entry signs a domain
 
 pub mod canon;
 pub mod crypto;
 pub mod error;
 pub mod header;
 pub mod headers;
+pub mod key_list;
 pub mod resolver;
 pub mod sign;
 pub mod verifier;

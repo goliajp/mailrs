@@ -185,12 +185,12 @@ export function AdminAccounts() {
 }
 
 /**
- * Deleting removes the account record and its own permissions only. The
- * maildir stays, and delivery checks the maildir before the account, so
- * mail keeps arriving there. Open sessions are not revoked.
+ * Deleting removes the account, revokes its sessions and agent keys, and
+ * moves its maildir to `.deleted/`. The receiver then refuses the address
+ * like any other unknown one, unless an alias or catch-all resolves it.
  */
 function accountDeleteConsequence(address: string): string {
-  return `${address} can no longer sign in, though sessions already open are not ended. Its stored mail stays on disk, and new mail to the address is still delivered into that mailbox. Its aliases and group memberships are kept`
+  return `${address} can no longer sign in, and its open sessions and agent keys stop working. Its stored mail is moved aside on disk, kept but no longer visible. New mail to the address is refused unless an alias or catch-all takes it. Its aliases and group memberships are kept`
 }
 
 function pageParam(p: number): null | string {

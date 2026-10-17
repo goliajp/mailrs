@@ -858,7 +858,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Remove an account */
+        /**
+         * Remove an account
+         * @description The account can no longer sign in, and every session and agent key it holds is revoked. Aliases pointing at the address and its group memberships are kept.
+         */
         delete: operations["removeAccount"];
         options?: never;
         head?: never;
@@ -1105,59 +1108,6 @@ export interface paths {
         /** List all available permission strings */
         get: operations["getAllPermissions"];
         put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/admin/apps": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List all registered applications */
-        get: operations["listApps"];
-        put?: never;
-        /** Create a new application with an initial API key */
-        post: operations["createApp"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/admin/apps/{app_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get application details */
-        get: operations["getApp"];
-        put?: never;
-        post?: never;
-        /** Delete an application */
-        delete: operations["deleteApp"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/admin/apps/{app_id}/scopes": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Update application scopes (permissions) */
-        put: operations["updateAppScopes"];
         post?: never;
         delete?: never;
         options?: never;
@@ -5235,18 +5185,6 @@ export interface components {
             /** Format: int64 */
             created_at: number;
         };
-        App: {
-            /** Format: int64 */
-            id: number;
-            app_id: string;
-            name: string;
-            scopes: string[];
-            /**
-             * Format: int64
-             * @description unix seconds
-             */
-            created_at: number;
-        };
         AddDomainRequest: {
             name: string;
         };
@@ -5318,22 +5256,6 @@ export interface components {
         };
         SetOverridesRequest: {
             overrides: components["schemas"]["OverrideEntry"][];
-        };
-        CreateAppRequest: {
-            name: string;
-            /** @description Permission scopes */
-            scopes: string[];
-        };
-        CreateAppResponse: {
-            /** Format: int64 */
-            id: number;
-            app_id: string;
-            /** @description Returned only here; only its sha256 is stored */
-            secret: string;
-        };
-        UpdateAppScopesRequest: {
-            /** @description Permission scopes; replaces the app's list */
-            scopes: string[];
         };
         SmtpConfigSnapshot: {
             hostname: string;
@@ -7380,20 +7302,25 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                id: number;
+                id: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Result */
-            200: {
+            /** @description Deleted */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiResult"];
+                content?: never;
+            };
+            /** @description No alias has this source address */
+            404: {
+                headers: {
+                    [name: string]: unknown;
                 };
+                content?: never;
             };
         };
     };
@@ -7561,14 +7488,19 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Result */
-            200: {
+            /** @description Deleted */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiResult"];
+                content?: never;
+            };
+            /** @description The group is builtin and cannot be deleted */
+            409: {
+                headers: {
+                    [name: string]: unknown;
                 };
+                content?: never;
             };
         };
     };
@@ -7708,134 +7640,6 @@ export interface operations {
                 content: {
                     "application/json": string[];
                 };
-            };
-        };
-    };
-    listApps: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description List of apps */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        items: components["schemas"]["App"][];
-                    };
-                };
-            };
-        };
-    };
-    createApp: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateAppRequest"];
-            };
-        };
-        responses: {
-            /** @description App created; the secret is in this response only */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CreateAppResponse"];
-                };
-            };
-        };
-    };
-    getApp: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                app_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description App details */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["App"];
-                };
-            };
-            /** @description App not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    deleteApp: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                app_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Result */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiResult"];
-                };
-            };
-        };
-    };
-    updateAppScopes: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                app_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateAppScopesRequest"];
-            };
-        };
-        responses: {
-            /** @description Scopes replaced */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description No app with this id */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
         };
     };

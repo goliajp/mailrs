@@ -24,8 +24,6 @@
 //!                                          / retry; drained parallel
 //!                                          to old pending list on claim)
 //!   `mailrs:outbound:scheduled-idx` zset  (score=scheduled_at)
-//!   `mailrs:outbound:done-idx`      list  (LPUSH on any terminal
-//!                                          transition)
 //!
 //! Every write path in this file now performs the equivalent op on the
 //! new keys after the existing legacy op — best-effort, `let _ =`
@@ -145,10 +143,9 @@ pub async fn mark_bounced<S: NetKevy>(
 /// v2.5.1 §P8-B-A helper: terminal transition on the new job hash.
 /// `state` = b"delivered" | b"bounced" | b"failed" (no-retry).
 /// The row hash + counter are already handled by the legacy path;
-/// this only mirrors the FSM state + done-idx tail + 24h TTL.
+/// this only mirrors the FSM state + 24h TTL.
 pub fn dual_write_terminal(conn: &mut kevy_client::Connection, id: i64, state: &[u8]) {
     let now_str = now_secs().to_string();
-    let id_str = id.to_string();
     let job_k = job_key(id);
     let _ = conn.pipeline(|p| {
         p.cmd(&[
@@ -160,7 +157,6 @@ pub fn dual_write_terminal(conn: &mut kevy_client::Connection, id: i64, state: &
             now_str.as_bytes(),
         ]);
         p.cmd(&[b"HDEL", job_k.as_bytes(), b"claimed_at"]);
-        p.cmd(&[b"LPUSH", DONE_IDX, id_str.as_bytes()]);
         // 24 h retention on the terminal-state hash — enough for
         // post-mortem inspection without ballooning AOF (per RFC §9).
         p.cmd(&[b"EXPIRE", job_k.as_bytes(), b"86400"]);

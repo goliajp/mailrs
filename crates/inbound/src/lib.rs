@@ -80,7 +80,7 @@ pub use auth_header::{
     AuthResult, SenderTrust, build_auth_header, fold_sender_trust, format_auth_results,
     format_auth_results_header, parse_auth_results, sender_trust, sender_trust_with,
 };
-pub use context::{AuthResults, DmarcPolicy, ReceiveContext};
+pub use context::{AllowListMatch, AuthResults, DmarcPolicy, ReceiveContext};
 pub use decision::{DeliveryDecision, PipelineInput, make_delivery_decision, sender_listed};
 pub use identity::{
     deception_in_display_name, deception_in_identity, from_header, subject_header, x_mailer_header,

@@ -6,10 +6,6 @@
 #       enqueue_count == delivered + failed + bounced +
 #                        len(pending) + len(inflight) + len(pending-idx)
 #
-#   invariant_2 (no_double_process):
-#       for every job:{id} hash — state ∈ {pending,inflight,delivered,
-#       failed,bounced}; done-idx has no duplicate ids
-#
 #   invariant_3 (state_hash_matches_legacy):
 #       Phase 6.2 dual-write parity — for every id, either both old
 #       hash and new job hash exist, or neither
@@ -46,7 +42,6 @@ bounced=$(kv GET mailrs:outbound:bounced:count | tr -dc '0-9')
 pending_llen=$(kv LLEN mailrs:outbound:pending | tr -dc '0-9')
 inflight_llen=$(kv LLEN mailrs:outbound:inflight | tr -dc '0-9')
 pending_idx=$(kv LLEN mailrs:outbound:pending-idx | tr -dc '0-9')
-done_idx=$(kv LLEN mailrs:outbound:done-idx | tr -dc '0-9')
 
 counter=${counter:-0}
 delivered=${delivered:-0}
@@ -55,7 +50,6 @@ bounced=${bounced:-0}
 pending_llen=${pending_llen:-0}
 inflight_llen=${inflight_llen:-0}
 pending_idx=${pending_idx:-0}
-done_idx=${done_idx:-0}
 
 echo "==> kevy state snapshot"
 printf "  %-24s %s\n" "counter"          "$counter"
@@ -65,7 +59,6 @@ printf "  %-24s %s\n" "bounced:count"    "$bounced"
 printf "  %-24s %s\n" "pending (llen)"   "$pending_llen"
 printf "  %-24s %s\n" "inflight (llen)"  "$inflight_llen"
 printf "  %-24s %s\n" "pending-idx"      "$pending_idx"
-printf "  %-24s %s\n" "done-idx"         "$done_idx"
 
 # -------- invariant 1: no_loss --------
 terminal=$(( delivered + failed + bounced ))
@@ -90,27 +83,6 @@ if [ -n "$BASELINE" ]; then
     fi
 else
     echo "  (no BASELINE_ENQUEUE set — reporting only)"
-fi
-
-# -------- invariant 2: no double process --------
-# The legacy `{delivered,failed,bounced}:count` keys are only INCRed
-# by the webapi/RPC mark_* path — sender-direct terminal transitions
-# (max_attempts, permanent failure) never touch them. So `terminal`
-# above under-counts sender-side terminations. Use LRANGE on done-idx
-# + shell-side uniq -c to detect ids that appear twice, which IS the
-# gross double-process failure mode we care about.
-echo
-echo "==> invariant_2 (no_double_process)"
-DUP_COUNT=$(kv LRANGE mailrs:outbound:done-idx 0 -1 \
-    | sed -n 's/^[0-9]\+) "\(.*\)"$/\1/p' \
-    | sort | uniq -d | wc -l | tr -d ' ')
-DUP_COUNT=${DUP_COUNT:-0}
-echo "  done_idx_ids_appearing_twice=$DUP_COUNT"
-if [ "$DUP_COUNT" -gt 0 ]; then
-    echo "  FAIL: at least one id landed in done-idx more than once"
-    STATUS=1
-else
-    echo "  PASS: every done-idx entry is unique"
 fi
 
 # -------- invariant 3: dual-write parity --------

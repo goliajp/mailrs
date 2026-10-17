@@ -3,6 +3,8 @@
 
 use serde::Serialize;
 
+use super::signer::Signer;
+
 /// What one DNS question came back with.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Lookup {
@@ -41,8 +43,8 @@ pub struct DomainCheckReport {
 pub struct Lookups {
     pub mx: Lookup,
     pub spf: Lookup,
-    /// The selector asked for, when one is configured.
-    pub dkim_selector: Option<String>,
+    /// Who signs this domain's mail, when signing is configured.
+    pub dkim_signer: Option<Signer>,
     pub dkim: Lookup,
     pub dmarc: Lookup,
 }
@@ -151,9 +153,22 @@ fn spf_check(lookup: &Lookup) -> CheckResult {
     }
 }
 
-fn dkim_check(selector: Option<&str>, domain: &str, lookup: &Lookup) -> CheckResult {
-    let what = match selector {
-        Some(s) => format!("DKIM key at {s}._domainkey.{domain}"),
+fn dkim_check(signer: Option<&Signer>, domain: &str, lookup: &Lookup) -> CheckResult {
+    let what = match signer {
+        Some(s) if !s.aligns_with(domain) => {
+            return check(
+                "DKIM",
+                CheckStatus::Fail,
+                format!(
+                    "Mail from {domain} is signed as {}, so DMARC does not align",
+                    s.domain
+                ),
+                vec![format!(
+                    "Add {domain}:<selector>:<key file> to MAILRS_DKIM_KEYS and publish the key at <selector>._domainkey.{domain}"
+                )],
+            );
+        }
+        Some(s) => format!("DKIM key at {}._domainkey.{}", s.selector, s.domain),
         None => "DKIM key".to_string(),
     };
     if let Some(r) = unresolved("DKIM", &what, lookup) {
@@ -228,7 +243,7 @@ pub fn build_report(domain: &str, checked_at: i64, lookups: &Lookups) -> DomainC
         checks: vec![
             mx_check(&lookups.mx),
             spf_check(&lookups.spf),
-            dkim_check(lookups.dkim_selector.as_deref(), domain, &lookups.dkim),
+            dkim_check(lookups.dkim_signer.as_ref(), domain, &lookups.dkim),
             dmarc_check(&lookups.dmarc),
         ],
     }
@@ -246,7 +261,10 @@ mod tests {
         Lookups {
             mx: found(&["10 mail.golia.ai"]),
             spf: found(&["google-site-verification=x", "v=spf1 mx -all"]),
-            dkim_selector: Some("mail".into()),
+            dkim_signer: Some(Signer {
+                domain: "golia.jp".into(),
+                selector: "mail".into(),
+            }),
             dkim: found(&["v=DKIM1; k=rsa; p=MIIBIjANBg"]),
             dmarc: found(&["v=DMARC1; p=reject; rua=mailto:dmarc@golia.jp"]),
         }
@@ -283,7 +301,10 @@ mod tests {
         let l = Lookups {
             mx: Lookup::Missing,
             spf: found(&["google-site-verification=x"]),
-            dkim_selector: Some("mail".into()),
+            dkim_signer: Some(Signer {
+                domain: "example.com".into(),
+                selector: "mail".into(),
+            }),
             dkim: Lookup::Failed("timed out".into()),
             dmarc: Lookup::Missing,
         };
@@ -336,11 +357,35 @@ mod tests {
     #[test]
     fn no_selector_means_dkim_was_not_checked() {
         let mut l = healthy();
-        l.dkim_selector = None;
-        l.dkim = Lookup::NotAsked("MAILRS_DKIM_SELECTOR is not set on webapi".into());
+        l.dkim_signer = None;
+        l.dkim = Lookup::NotAsked(NO_SIGNING.into());
         let c = &build_report("golia.jp", 0, &l).checks[2];
         assert_eq!(c.status, CheckStatus::Warn);
-        assert_eq!(c.message, "MAILRS_DKIM_SELECTOR is not set on webapi");
+        assert_eq!(c.message, NO_SIGNING);
+    }
+
+    const NO_SIGNING: &str = "MAILRS_DKIM_DOMAIN or MAILRS_DKIM_SELECTOR is not set on webapi";
+
+    #[test]
+    fn a_domain_signed_as_another_fails_whatever_dns_says() {
+        // the key record may well exist; the sender still signs d=golia.jp
+        let c = &build_report("new-domain.com", 0, &healthy()).checks[2];
+        assert_eq!(c.status, CheckStatus::Fail);
+        assert_eq!(
+            c.message,
+            "Mail from new-domain.com is signed as golia.jp, so DMARC does not align"
+        );
+        assert!(c.details[0].contains("MAILRS_DKIM_KEYS"));
+    }
+
+    #[test]
+    fn a_subdomain_signed_as_its_parent_is_judged_on_the_parent_key() {
+        let c = &build_report("news.golia.jp", 0, &healthy()).checks[2];
+        assert_eq!(c.status, CheckStatus::Pass);
+        assert_eq!(
+            c.message,
+            "DKIM key at mail._domainkey.golia.jp is published"
+        );
     }
 
     #[test]

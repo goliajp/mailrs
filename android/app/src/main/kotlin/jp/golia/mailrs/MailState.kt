@@ -135,7 +135,6 @@ data class UiState(
     val suppressed: List<String> = emptyList(),
     val groups: List<Admin.Group> = emptyList(),
     val emailGroups: List<Admin.EmailGroup> = emptyList(),
-    val apps: List<Admin.App> = emptyList(),
     /** The account whose side state is showing, if one is. */
     val accountDetail: AccountDetail? = null,
     /** The group whose members are showing, if one is. */
@@ -188,8 +187,7 @@ enum class AdminSection(val title: String, val emptyMessage: String) {
     Blocked("Always blocked", "Nothing is refused on sight."),
     Suppressed("Suppressed", "The sender is retrying everybody."),
     Groups("Permission groups", "No groups are defined."),
-    EmailGroups("Email groups", "No distribution addresses."),
-    Apps("Apps", "Nothing holds credentials here.");
+    EmailGroups("Email groups", "No distribution addresses.");
 
     fun rows(state: UiState): List<jp.golia.mailrs.ui.AdminRow> = when (this) {
         // Not deletable here: removing an account takes its mail
@@ -303,18 +301,6 @@ enum class AdminSection(val title: String, val emptyMessage: String) {
                 ).joinToString(" · "),
                 deletable = false,
                 drillable = true,
-            )
-        }
-        Apps -> state.apps.map { a ->
-            jp.golia.mailrs.ui.AdminRow(
-                key = a.id.toString(),
-                headline = a.name.ifBlank { a.appId },
-                detail = listOfNotNull(
-                    a.ownerAddress.takeIf(String::isNotBlank),
-                    if (a.active) null else "inactive",
-                    a.scopes.joinToString(", ").takeIf(String::isNotBlank),
-                ).joinToString(" · "),
-                deletable = false,
             )
         }
         EmailGroups -> state.emailGroups.map { g ->

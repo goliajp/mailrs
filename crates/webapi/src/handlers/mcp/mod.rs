@@ -12,7 +12,7 @@
 //! v2.0.0 tool count = 37 (legacy `tool_router_v1`) + 25 (v2 batches
 //! 1-10) = **62 total** — up from 37 in v1.9.x. Hits the plan
 //! target. Batch layout:
-//!   1. admin-read (groups/apps/email-groups/greylist/aliases)
+//!   1. admin-read (groups/email-groups/greylist/aliases)
 //!   2. admin-misc (reconcile_maildir / list_scheduled / group members)
 //!   3. per-user outbound control (cancel + reschedule scheduled)
 //!   4. self-introspection (my permissions + own scheduled)

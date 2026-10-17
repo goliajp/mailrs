@@ -1,5 +1,5 @@
 //! v1 MCP tools over the directory: accounts, groups, domains, aliases,
-//! apps, email groups.
+//! email groups.
 //!
 //! Split out of `mcp/mod.rs` on 2026-08-02, which held all sixty-one v1
 //! tools in one 2,450-line file. Tool
@@ -147,12 +147,13 @@ impl MailMcpService {
     }
 
     #[tool(
-        description = "List all email aliases and forwards. Returns source, target, domain, type."
+        description = "List every alias: `id` (the source address), `source_address`, `target_address`, `domain`. The same rows as the admin Aliases page. Requires admin.aliases permission."
     )]
     async fn list_aliases_admin(
         &self,
         Parameters(_params): Parameters<ListAliasesAdminParams>,
     ) -> Result<CallToolResult, McpError> {
+        self.require_permission("admin.aliases")?;
         let ds = self.ds()?;
         let aliases = ds
             .list_aliases()
@@ -162,36 +163,14 @@ impl MailMcpService {
             .into_iter()
             .map(|a| {
                 serde_json::json!({
-                    "id": a.id, "source_address": a.source_address,
+                    "id": a.source_address, "source_address": a.source_address,
                     "target_address": a.target_address, "domain": a.domain,
-                    "alias_type": a.alias_type, "active": a.active,
                 })
             })
             .collect();
-        self.json_result(&items)
-    }
-
-    #[tool(description = "List all registered apps with their scopes and status.")]
-    async fn list_apps(
-        &self,
-        Parameters(_params): Parameters<ListAppsParams>,
-    ) -> Result<CallToolResult, McpError> {
-        self.require_permission("admin.accounts")?;
-        let ds = self.ds()?;
-        let apps = ds
-            .list_apps(None)
-            .await
-            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
-        let items: Vec<serde_json::Value> = apps
-            .into_iter()
-            .map(|a| {
-                serde_json::json!({
-                    "app_id": a.app_id, "name": a.name, "description": a.description,
-                    "scopes": a.scopes, "owner": a.owner_address, "active": a.active,
-                })
-            })
-            .collect();
-        self.json_result(&items)
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::json!({ "items": items }).to_string(),
+        )]))
     }
 
     #[tool(

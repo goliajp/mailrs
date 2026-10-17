@@ -31,6 +31,13 @@
 #       take the other option — they exist, and say out loud that this
 #       backend cannot see. Close these when pg/spg grows the column.
 #
+#   GET /v1/admin/recipients/{address}/deliverable
+#       The receiver's RCPT check. Its answer has to come from the same
+#       resolution the core delivers with: on fastcore the spool drain's
+#       `route`, on pg-core `DomainStore::resolve_recipient`, which nothing
+#       on that lane runs today. A stub answering "deliverable" would hide
+#       that; mount the real one when the lane is reactivated.
+#
 # Why a ratchet and not equality: the two sets are genuinely unequal today,
 # and a gate that is red on arrival is a gate nobody reads — the same reason
 # `kevy-cli doctor` warns rather than fails on `duplicates`.

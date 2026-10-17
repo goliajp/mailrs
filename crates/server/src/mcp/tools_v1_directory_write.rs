@@ -268,7 +268,7 @@ impl MailMcpService {
     }
 
     #[tool(
-        description = "Add an email alias or forward. Type 'alias' delivers to local account, 'forward' relays externally. Requires admin.aliases permission."
+        description = "Add an email alias. Mail to `source_address` is delivered to `target_address`. Returns the alias id, which is its source address. Requires admin.aliases permission."
     )]
     async fn add_alias(
         &self,
@@ -276,32 +276,38 @@ impl MailMcpService {
     ) -> Result<CallToolResult, McpError> {
         self.require_permission("admin.aliases")?;
         let ds = self.ds()?;
-        let id = ds
-            .add_alias(
-                &params.source_address,
-                &params.target_address,
-                &params.domain,
-                &params.alias_type,
-                0,
-            )
-            .await
-            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
+        let domain = params
+            .source_address
+            .split_once('@')
+            .map(|(_, d)| d)
+            .unwrap_or("");
+        ds.add_alias(
+            &params.source_address,
+            &params.target_address,
+            domain,
+            "alias",
+            0,
+        )
+        .await
+        .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
         ds.log_audit(
             &self.auth_user.address,
             "alias_added",
-            &id.to_string(),
+            &params.source_address,
             &format!(
-                "source={} target={} type={}",
-                params.source_address, params.target_address, params.alias_type
+                "source={} target={}",
+                params.source_address, params.target_address
             ),
         )
         .await;
         Ok(CallToolResult::success(vec![Content::text(
-            serde_json::json!({"status": "alias_added", "id": id, "source": params.source_address, "target": params.target_address}).to_string(),
+            serde_json::json!({ "id": params.source_address }).to_string(),
         )]))
     }
 
-    #[tool(description = "Remove an email alias by ID. Requires admin.aliases permission.")]
+    #[tool(
+        description = "Remove the alias whose source is `source_address`. Fails when no such alias exists. Requires admin.aliases permission."
+    )]
     async fn remove_alias(
         &self,
         Parameters(params): Parameters<RemoveAliasParams>,
@@ -309,101 +315,22 @@ impl MailMcpService {
         self.require_permission("admin.aliases")?;
         let ds = self.ds()?;
         let removed = ds
-            .remove_alias(params.id)
+            .remove_alias_by_source(&params.source_address)
             .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
-        if removed {
-            ds.log_audit(
-                &self.auth_user.address,
-                "alias_removed",
-                &params.id.to_string(),
-                "",
-            )
-            .await;
-            self.ok_result("alias_removed", &params.id.to_string())
-        } else {
-            Err(McpError::invalid_params("alias not found", None))
+        if !removed {
+            return Err(McpError::invalid_params(
+                format!("no alias {}", params.source_address),
+                None,
+            ));
         }
-    }
-
-    #[tool(
-        description = "Register a new app and generate its API key. The key is only returned once. Requires admin.accounts permission."
-    )]
-    async fn create_app(
-        &self,
-        Parameters(params): Parameters<CreateAppParams>,
-    ) -> Result<CallToolResult, McpError> {
-        self.require_permission("admin.accounts")?;
-        let ds = self.ds()?;
-        let pool = self
-            .web_state
-            .pg_pool
-            .as_ref()
-            .ok_or_else(|| McpError::internal_error("database unavailable", None))?;
-
-        let app_id = uuid::Uuid::new_v4().to_string();
-        let id = ds
-            .create_app(
-                &app_id,
-                &params.name,
-                &params.description,
-                &self.auth_user.address,
-                &params.scopes,
-            )
-            .await
-            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
-
-        let (full_key, prefix, key_hash) = crate::api_key_store::generate_api_key();
-        let key_id = crate::api_key_store::insert_app_api_key(
-            pool,
-            &prefix,
-            &key_hash,
-            &full_key,
-            &self.auth_user.address,
-            &params.name,
-            id,
-            None,
-        )
-        .await
-        .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
-
         ds.log_audit(
             &self.auth_user.address,
-            "app_created",
-            &app_id,
-            &format!("name={}", params.name),
+            "alias_removed",
+            &params.source_address,
+            "",
         )
         .await;
-
-        Ok(CallToolResult::success(vec![Content::text(
-            serde_json::json!({
-                "app_id": app_id, "name": params.name, "scopes": params.scopes,
-                "api_key": {"id": key_id, "key": full_key, "prefix": prefix},
-                "warning": "Save this API key now. It cannot be retrieved again.",
-            })
-            .to_string(),
-        )]))
-    }
-
-    #[tool(
-        description = "Delete an app and revoke all its API keys. Requires admin.accounts permission."
-    )]
-    async fn delete_app(
-        &self,
-        Parameters(params): Parameters<DeleteAppParams>,
-    ) -> Result<CallToolResult, McpError> {
-        self.require_permission("admin.accounts")?;
-        let ds = self.ds()?;
-        let removed = ds
-            .remove_app(&params.app_id)
-            .await
-            .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
-        if removed {
-            ds.log_audit(&self.auth_user.address, "app_deleted", &params.app_id, "")
-                .await;
-            self.ok_result("app_deleted", &params.app_id)
-        } else {
-            Err(McpError::invalid_params("app not found", None))
-        }
+        self.ok_result("alias_removed", &params.source_address)
     }
 }

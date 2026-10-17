@@ -25,7 +25,7 @@ Config for Claude Code or any MCP client:
 }
 ```
 
-94 tools auto-discovered via MCP, grouped by category (the table below is a selection; `tools/list` is the authority, and `scripts/check-mcp-parity.sh` holds the two server lanes to the same set):
+91 tools auto-discovered via MCP, grouped by category (the table below is a selection; `tools/list` is the authority, and `scripts/check-mcp-parity.sh` holds the two server lanes to the same set):
 
 ### Email Operations
 
@@ -61,7 +61,7 @@ Config for Claude Code or any MCP client:
 |------|-----------|-------------|
 | list_accounts | admin.accounts | List all email accounts (address, domain, display_name, active) |
 | create_account | admin.accounts | Create account (onboarding). Auto-joins domain's default user group |
-| remove_account | admin.accounts | Remove account (offboarding). Cascades group memberships, API keys, overrides |
+| remove_account | admin.accounts | Remove account (offboarding). It can no longer sign in, its sessions and agent keys stop working, stored mail is moved aside on disk (kept, not visible), and new mail to the address is refused unless an alias or catch-all takes it. Aliases and group memberships are kept |
 | set_account_password | admin.accounts | Reset an account's password (argon2 hashed) |
 
 ### Permission Management
@@ -85,9 +85,9 @@ Config for Claude Code or any MCP client:
 
 | Tool | Permission | Description |
 |------|-----------|-------------|
-| list_aliases_admin | any authenticated | List all email aliases and forwards (source, target, domain, type) |
-| add_alias | admin.aliases | Add alias ("alias" = local delivery) or forward ("forward" = remote relay) |
-| remove_alias | admin.aliases | Remove an email alias by ID |
+| list_aliases_admin | admin.aliases | List every alias: `id` (the source address), `source_address`, `target_address`, `domain` — the same rows as `GET /api/admin/aliases` |
+| add_alias | admin.aliases | Deliver mail for `source_address` to `target_address`; replaces an existing alias with the same source |
+| remove_alias | admin.aliases | Remove the alias whose source is `source_address`; an error when there is none |
 
 ### Email Group Management (Distribution Lists)
 
@@ -99,14 +99,6 @@ Config for Claude Code or any MCP client:
 | get_email_group_members | any authenticated | List members of an email group |
 | add_email_group_member | admin.accounts | Add a member to an email group |
 | remove_email_group_member | admin.accounts | Remove a member from an email group |
-
-### App Management
-
-| Tool | Permission | Description |
-|------|-----------|-------------|
-| list_apps | admin.accounts | List all registered apps with scopes and status |
-| create_app | admin.accounts | Register app and generate API key (key shown only once) |
-| delete_app | admin.accounts | Delete app and revoke all its API keys |
 
 ### Webhook Management
 
@@ -275,19 +267,15 @@ Response includes groups, effective permissions, accessible domains, and super s
 ```json
 {
   "source_address": "team@golia.jp",
-  "target_address": "user@golia.jp",
-  "domain": "golia.jp",
-  "alias_type": "alias"
+  "target_address": "user@golia.jp"
 }
 ```
-`alias_type`: `"alias"` (local delivery, default) or `"forward"` (remote relay).
+Returns `{"id": "team@golia.jp"}`: an alias is identified by its source address.
 
-#### create_app
+#### remove_alias
 ```json
 {
-  "name": "My Integration",
-  "description": "optional description",
-  "scopes": "mail.send,mail.read"
+  "source_address": "team@golia.jp"
 }
 ```
 
@@ -613,7 +601,7 @@ mailrs uses group-based RBAC (role-based access control).
 | mail.read | Read own mailbox |
 | mail.read_domain | Read all mailboxes in a domain |
 | admin.domains | Manage domains (add, remove) |
-| admin.accounts | Manage accounts (create, remove, password reset) and apps |
+| admin.accounts | Manage accounts (create, remove, password reset) |
 | admin.aliases | Manage email aliases and forwarding rules |
 | admin.groups | Manage permission groups and memberships |
 | admin.queue | Manage outbound delivery queue (view, retry) |
@@ -647,7 +635,8 @@ If account is in the `super` group, all permissions on all domains are granted.
 
 ### Offboarding Workflow
 
-1. `remove_account` -- removes account, group memberships, API keys, and permission overrides (cascade-deleted via FK)
+1. `remove_account` -- the account can no longer sign in; its open sessions and agent keys stop working; stored mail is moved aside on disk (kept, not visible); new mail to the address is refused unless an alias or catch-all takes it
+2. Aliases pointing at the address and its group memberships are kept: remove them with `remove_alias` / `remove_account_from_group` if they should go too
 
 ---
 
@@ -951,10 +940,10 @@ curl https://mail.golia.ai/api/admin/aliases \
 curl -X POST https://mail.golia.ai/api/admin/aliases \
   -H "Authorization: Bearer mlrs_..." \
   -H "Content-Type: application/json" \
-  -d '{"source_address": "team@golia.jp", "target_address": "user@golia.jp", "domain": "golia.jp", "alias_type": "alias"}'
+  -d '{"source_address": "team@golia.jp", "target_address": "user@golia.jp"}'
 
-# remove alias
-curl -X DELETE https://mail.golia.ai/api/admin/aliases/1 \
+# remove alias (by source address; 404 when there is none)
+curl -X DELETE https://mail.golia.ai/api/admin/aliases/team@golia.jp \
   -H "Authorization: Bearer mlrs_..."
 ```
 
@@ -1072,35 +1061,6 @@ curl -X POST https://mail.golia.ai/api/admin/sieve \
   -d '{"address": "user@golia.jp", "script": "require \"fileinto\"; ..."}'
 
 curl -X DELETE https://mail.golia.ai/api/admin/sieve \
-  -H "Authorization: Bearer mlrs_..."
-```
-
-### App Management (requires admin.accounts)
-
-```
-# list apps
-curl https://mail.golia.ai/api/admin/apps \
-  -H "Authorization: Bearer mlrs_..."
-
-# create app
-curl -X POST https://mail.golia.ai/api/admin/apps \
-  -H "Authorization: Bearer mlrs_..." \
-  -H "Content-Type: application/json" \
-  -d '{"name": "My Integration", "scopes": ["mail.send", "mail.read"]}'
-# -> {"id": 1, "app_id": "app_1", "secret": "..."}; the secret is returned only here
-
-# replace an app's scopes (204)
-curl -X PUT https://mail.golia.ai/api/admin/apps/{app_id}/scopes \
-  -H "Authorization: Bearer mlrs_..." \
-  -H "Content-Type: application/json" \
-  -d '{"scopes": ["mail.read"]}'
-
-# get app details
-curl https://mail.golia.ai/api/admin/apps/{app_id} \
-  -H "Authorization: Bearer mlrs_..."
-
-# delete app
-curl -X DELETE https://mail.golia.ai/api/admin/apps/{app_id} \
   -H "Authorization: Bearer mlrs_..."
 ```
 
@@ -1228,54 +1188,44 @@ curl -X DELETE https://mail.golia.ai/api/agent/webhooks/1 \
 
 ---
 
-## 5. API Keys & Apps
+## 5. Agent Keys
 
-### User API Keys
-
-User API keys are bound to a specific account and inherit that account's permissions. They must be created via session auth (web login).
+Integrations authenticate with agent keys. A key belongs to the account that created it and acts as that account, limited to the scopes it was created with; an empty scope list means the account's full access. Create one with session auth (web login):
 
 ```
-# create key (requires session auth)
 curl -X POST https://mail.golia.ai/api/agent/keys \
   -H "Authorization: Bearer <session_token>" \
   -H "Content-Type: application/json" \
-  -d '{"name": "my-agent", "expires_at": "2027-01-01T00:00:00Z"}'
+  -d '{"name": "my-agent", "scopes": ["mail:read", "mail:write"]}'
 ```
 
-Response:
+Scopes: `mail:read`, `mail:write`, `admin`, `mock`, `mock:<namespace>`; anything else answers 400.
+
+Response — the secret is returned only here:
 ```json
 {
   "id": 1,
-  "key": "mlrs_625735a4_631d4f9a29061c279419fb17b3939f9d7eebfba8",
-  "prefix": "625735a4",
-  "name": "my-agent",
-  "expires_at": "2027-01-01T00:00:00Z"
+  "secret": "mk_3f9a0c..."
 }
 ```
 
+Use it as `Authorization: Bearer mk_...` on REST and MCP.
+
 ```
-# list keys
+# list keys (no secrets, only each key's first 8 characters as `prefix`)
 curl https://mail.golia.ai/api/agent/keys \
-  -H "Authorization: Bearer <session_token_or_api_key>"
+  -H "Authorization: Bearer <session_token_or_agent_key>"
 
 # revoke key
 curl -X DELETE https://mail.golia.ai/api/agent/keys/1 \
   -H "Authorization: Bearer <session_token>"
 ```
 
-Revocation is immediate. Cached credentials are evicted from Valkey.
-
-### App API Keys
-
-An app's secret is created when registering it via `POST /api/admin/apps` or the MCP `create_app` tool, and returned only in that response. Apps carry an explicit scope list rather than inheriting from a user account.
-
-Scopes use the same permission names as the RBAC system (e.g., `["mail.send", "mail.read", "admin.aliases"]`).
-
-No API endpoint accepts an app secret as a credential yet; machine callers authenticate with agent keys (`mk_...`, `POST /api/agent/keys`).
+Revocation is immediate. Deleting the account revokes every key it owns.
 
 ### internal.rpc
 
-The `internal.rpc` permission is reserved for service-to-service communication. It is not grantable to regular users. App keys with this scope can make internal RPC calls between mailrs components.
+The `internal.rpc` permission is reserved for service-to-service communication. It is not grantable to regular users.
 
 ---
 
@@ -1302,6 +1252,6 @@ HTTP status codes:
 - 400 -- bad request (invalid input, missing required fields)
 - 401 -- authentication required or invalid credentials
 - 403 -- forbidden (insufficient permissions for the requested operation)
-- 404 -- not found (message, account, domain, alias, or app does not exist)
+- 404 -- not found (message, account, domain or alias does not exist)
 - 429 -- rate limited (back off and retry)
 - 500 -- server error (internal failure)

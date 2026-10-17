@@ -1,5 +1,5 @@
 //! Parameters for the admin tools: accounts, domains, aliases,
-//! groups, apps, webhooks, the queue, audit and system config.
+//! groups, webhooks, the queue, audit and system config.
 
 use serde::Deserialize;
 
@@ -88,19 +88,14 @@ pub(crate) struct ListAliasesAdminParams {}
 pub(crate) struct AddAliasParams {
     /// source address (the alias, e.g. "team@golia.jp")
     pub source_address: String,
-    /// target address (receives mail, e.g. "user@golia.jp")
+    /// address mail to the source is delivered to (e.g. "user@golia.jp")
     pub target_address: String,
-    /// domain name
-    pub domain: String,
-    /// "alias" (local delivery) or "forward" (remote forward)
-    #[serde(default = "default_alias_type")]
-    pub alias_type: String,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub(crate) struct RemoveAliasParams {
-    /// alias ID from list_aliases
-    pub id: i64,
+    /// source address of the alias, as list_aliases_admin reports it
+    pub source_address: String,
 }
 
 // --- greylist local lists (Phase 2) ---
@@ -133,28 +128,6 @@ pub(crate) struct GreylistLocalAddParams {
 pub(crate) struct GreylistLocalRemoveParams {
     /// id from greylist_local_list output
     pub id: i64,
-}
-
-// --- app management ---
-
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-pub(crate) struct ListAppsParams {}
-
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-pub(crate) struct CreateAppParams {
-    /// app display name
-    pub name: String,
-    /// app description
-    #[serde(default)]
-    pub description: String,
-    /// comma-separated permission scopes
-    pub scopes: String,
-}
-
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-pub(crate) struct DeleteAppParams {
-    /// app_id (UUID) from list_apps
-    pub app_id: String,
 }
 
 // --- webhook management ---

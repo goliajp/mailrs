@@ -118,41 +118,20 @@ impl DkimSignConfig {
     /// 3. **Default**: the top-level `selector` / `domain` /
     ///    `private_key_pem` on this config.
     ///
+    /// Steps 1 and 2 are [`mailrs_dkim::key_list::entry_for_domain`], so a
+    /// report on which key signs a domain gives the same answer.
+    ///
     /// Returns `(d_value, selector, parsed_rsa_key)` with `d_value`
     /// being the matched key (or the default `domain` field).
     fn key_for_from_domain(
         &self,
         from_domain: &str,
     ) -> Result<(String, String, RsaSigningKey), String> {
-        // 1. exact match
-        if let Some(dk) = self.extra_keys.get(from_domain) {
-            return Ok((
-                from_domain.to_string(),
-                dk.selector.clone(),
-                dk.rsa_key()?.clone(),
-            ));
+        if let Some((d, dk)) =
+            mailrs_dkim::key_list::entry_for_domain(&self.extra_keys, from_domain)
+        {
+            return Ok((d.to_string(), dk.selector.clone(), dk.rsa_key()?.clone()));
         }
-        // 2. suffix walk — strip the leading label and try again.
-        //    The walk stops once there's only one label left (we never
-        //    match against a bare TLD).
-        let mut rest = from_domain;
-        while let Some(idx) = rest.find('.') {
-            let parent = &rest[idx + 1..];
-            // require at least one '.' remaining (so we don't match
-            // against a bare TLD like "com")
-            if !parent.contains('.') {
-                break;
-            }
-            if let Some(dk) = self.extra_keys.get(parent) {
-                return Ok((
-                    parent.to_string(),
-                    dk.selector.clone(),
-                    dk.rsa_key()?.clone(),
-                ));
-            }
-            rest = parent;
-        }
-        // 3. default
         Ok((
             self.domain.clone(),
             self.selector.clone(),

@@ -248,8 +248,6 @@ fn every_fixture_has_a_test() {
         "account-update",
         "agent-key-create",
         "alias-create",
-        "app-create",
-        "app-scopes-set",
         "domain-create",
         "group-permissions-set",
         "push-register",

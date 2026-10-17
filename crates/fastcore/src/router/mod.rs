@@ -16,6 +16,7 @@ use axum::routing::{delete, get, post, put};
 
 use crate::*;
 
+mod directory_routes;
 mod maintenance_routes;
 
 pub fn build_router(state: Arc<FastcoreState>) -> Router {
@@ -88,20 +89,6 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
             )
             .route(adm::PATH_SET_ACCOUNT_PASSWORD, post(set_password_route))
             .route(adm::PATH_SET_MESSAGE_FLAGS, post(set_message_flags_route))
-            // Aliases live in the fastcore-embedded kevy so the spool drain
-            // (also in-process) can resolve `contact@golia.jp -> lihao` and
-            // similar single-hop forwards. Distinct namespace from webapi's
-            // network-kevy `admin:aliases` hash — that older store is not
-            // consulted by the drain and stays around only until UI wiring
-            // catches up.
-            .route(
-                "/v1/admin/aliases:local",
-                get(list_local_aliases).post(upsert_local_alias),
-            )
-            .route(
-                "/v1/admin/aliases:local/{source}",
-                delete(delete_local_alias_route),
-            )
             // Ops endpoint — reset every user's ingest cursor to 0 so the
             // next sync tick re-processes historic threads and (via the
             // Group F diff path) backfills messages fastcore missed under
@@ -385,7 +372,8 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
             .route(msg::PATH_EXPUNGE, post(routes::message::expunge));
     // Before `with_state`: the maintenance routes take the same state,
     // and applying it first would leave them nothing to attach to.
-    let business = maintenance_routes::maintenance_routes(business).with_state(state);
+    let business = maintenance_routes::maintenance_routes(business);
+    let business = directory_routes::directory_routes(business).with_state(state);
 
     base.merge(business)
 }

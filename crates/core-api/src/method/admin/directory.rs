@@ -158,8 +158,18 @@ pub struct ResolveRecipientResponse {
     pub local: bool,
 }
 
+/// `GET` — whether mail to `address` would be delivered here, answered
+/// without changing anything. `500` when a store it consults cannot be
+/// read: that is not the same as "no such recipient".
+pub const PATH_RECIPIENT_DELIVERABLE: &str = "/v1/admin/recipients/{address}/deliverable";
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct RecipientDeliverableResponse {
+    pub deliverable: bool,
+}
+
 // ════════════════════════════════════════════════════════════════════
-// Wire types — apps
+// Wire types — domains
 // ════════════════════════════════════════════════════════════════════
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

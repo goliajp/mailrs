@@ -287,11 +287,7 @@ pub(crate) async fn issue_session(
                 &blob_bytes,
                 std::time::Duration::from_secs(7 * 24 * 3600),
             )?;
-            // Per-user session index — makes it possible to revoke all
-            // active sessions when the password changes.
-            let idx = format!("session:by_addr:{addr_clone}");
-            c.sadd(idx.as_bytes(), &[token_clone.as_bytes()])?;
-            Ok(())
+            super::revoke::index_session(&mut c, &addr_clone, &token_clone)
         })
         .await;
     } else {

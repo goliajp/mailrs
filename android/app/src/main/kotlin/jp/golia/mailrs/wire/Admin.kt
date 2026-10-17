@@ -220,27 +220,6 @@ object Admin {
     data class AddMemberRequest(@SerialName("member_address") val memberAddress: String)
 
     /**
-     * An application holding credentials against this server.
-     *
-     * Backend: `crates/core-api/src/method/admin/credentials.rs` —
-     * `AppWire`.
-     */
-    @Serializable
-    data class App(
-        val id: Long,
-        @SerialName("app_id") val appId: String = "",
-        val name: String = "",
-        val description: String = "",
-        @SerialName("owner_address") val ownerAddress: String = "",
-        val scopes: List<String> = emptyList(),
-        val active: Boolean = true,
-        @SerialName("created_at") val createdAt: Long = 0,
-    )
-
-    @Serializable
-    data class AppList(val items: List<App> = emptyList())
-
-    /**
      * Where a webhook sends, and on what.
      *
      * `signing_secret` is on the wire and is deliberately **not shown**:

@@ -79,7 +79,7 @@ pub(super) fn dav_routes() -> axum::Router<Arc<WebState>> {
 /// The admin surface, behind `admin_middleware`.
 pub(super) fn admin_routes() -> axum::Router<Arc<WebState>> {
     use crate::handlers;
-    use axum::routing::{delete, get, post, put};
+    use axum::routing::{delete, get, post};
 
     axum::Router::new()
         .merge(directory::directory_routes())
@@ -100,10 +100,6 @@ pub(super) fn admin_routes() -> axum::Router<Arc<WebState>> {
         .route(
             "/api/admin/suppressions",
             get(handlers::admin::list_suppressions).delete(handlers::admin::clear_suppressions),
-        )
-        .route(
-            "/api/admin/apps/{app_id}/scopes",
-            put(handlers::admin::set_app_scopes),
         )
         .route(
             "/api/admin/cache/flush-conversations",
