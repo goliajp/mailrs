@@ -11,6 +11,7 @@
  *   - fn send              -> 201 SendResult (handlers/mock/send.rs)
  *   - fn rotate_smtp_token -> 201 SmtpCredentials
  *   - fn set_webhook       -> MockWebhook (handlers/mock/service.rs)
+ *   - fn overview          -> AdminOverview (handlers/mock/admin.rs, GET /api/admin/mock)
  *
  * Shapes read off the structs, none renamed:
  *   - `NamespaceView` (handlers/mock/service.rs) flattens `Namespace`
@@ -138,3 +139,24 @@ export const mockWebhookSchema = z.object({
 })
 
 export type MockWebhook = z.infer<typeof mockWebhookSchema>
+
+/** Mirrors `AdminNamespace`: `Namespace` flattened, plus its bytes on disk. */
+export const mockAdminNamespaceSchema = mockNamespaceSchema.omit({ address: true }).extend({
+  bytes: z.number(),
+})
+
+export type MockAdminNamespace = z.infer<typeof mockAdminNamespaceSchema>
+
+/** Mirrors `AdminOverview`. `domain` is empty when the feature is off. */
+export const mockAdminOverviewSchema = z.object({
+  bytes: z.number(),
+  domain: z.string(),
+  dropped: z.number(),
+  max_bytes: z.number(),
+  max_namespaces_per_user: z.number(),
+  namespaces: z.array(mockAdminNamespaceSchema),
+  received: z.number(),
+  rejected_unknown_ns: z.number(),
+})
+
+export type MockAdminOverview = z.infer<typeof mockAdminOverviewSchema>

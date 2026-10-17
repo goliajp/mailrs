@@ -4874,6 +4874,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/mock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every mock namespace and the mock store's totals (admins) */
+        get: operations["adminMockOverview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -9277,6 +9294,38 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    adminMockOverview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Overview */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description empty when the feature is off */
+                        domain?: string;
+                        received?: number;
+                        rejected_unknown_ns?: number;
+                        bytes?: number;
+                        max_bytes?: number;
+                        dropped?: number;
+                        max_namespaces_per_user?: number;
+                        namespaces?: (components["schemas"]["MockNamespace"] & {
+                            bytes?: number;
+                        })[];
+                    };
+                };
             };
         };
     };

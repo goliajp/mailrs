@@ -4,6 +4,7 @@
 //! Mail is read here and written by fastcore's spool drain; both go through
 //! `mailrs_core_sidestate::families::mock`, which owns the keys and paths.
 
+pub mod admin;
 pub mod messages;
 pub mod rest;
 pub mod send;
