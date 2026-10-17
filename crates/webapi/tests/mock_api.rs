@@ -213,6 +213,24 @@ async fn a_namespace_receives_waits_reads_and_stays_its_owners() {
             .any(|m| m.direction == Direction::CapturedOut)
     );
 
+    // the admin overview sees every owner's namespace and its files
+    let axum::Json(overview) = mailrs_webapi::handlers::mock::admin::overview()
+        .await
+        .unwrap();
+    let names: Vec<&str> = overview
+        .namespaces
+        .iter()
+        .map(|n| n.namespace.name.as_str())
+        .collect();
+    assert_eq!(names, ["ann-app", "bob-app"]);
+    assert_eq!(overview.domain, DOMAIN);
+    let on_disk: i64 = overview.namespaces.iter().map(|n| n.bytes).sum();
+    assert_eq!(
+        on_disk, overview.bytes,
+        "per-namespace bytes disagree with the total"
+    );
+    assert!(overview.bytes > 0);
+
     let removed = messages::delete_messages(&st, &ann, "ann-app", None, Some("signup"))
         .await
         .unwrap();

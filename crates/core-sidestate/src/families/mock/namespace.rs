@@ -219,6 +219,11 @@ fn dropped(conn: &mut Connection, name: &str) -> MockResult<i64> {
         .unwrap_or(0))
 }
 
+/// Bytes of the message files `ns` holds under `root`.
+pub fn namespace_bytes(root: &Path, ns: &str) -> i64 {
+    dir_bytes(&root.join(ns))
+}
+
 pub(super) fn dir_bytes(dir: &Path) -> i64 {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return 0;

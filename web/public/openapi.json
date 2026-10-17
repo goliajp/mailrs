@@ -7316,6 +7316,69 @@
           }
         }
       }
+    },
+    "/api/admin/mock": {
+      "get": {
+        "operationId": "adminMockOverview",
+        "summary": "Every mock namespace and the mock store's totals (admins)",
+        "tags": [
+          "Mock mail"
+        ],
+        "responses": {
+          "200": {
+            "description": "Overview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "domain": {
+                      "type": "string",
+                      "description": "empty when the feature is off"
+                    },
+                    "received": {
+                      "type": "integer"
+                    },
+                    "rejected_unknown_ns": {
+                      "type": "integer"
+                    },
+                    "bytes": {
+                      "type": "integer"
+                    },
+                    "max_bytes": {
+                      "type": "integer"
+                    },
+                    "dropped": {
+                      "type": "integer"
+                    },
+                    "max_namespaces_per_user": {
+                      "type": "integer"
+                    },
+                    "namespaces": {
+                      "type": "array",
+                      "items": {
+                        "allOf": [
+                          {
+                            "$ref": "#/components/schemas/MockNamespace"
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "bytes": {
+                                "type": "integer"
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
