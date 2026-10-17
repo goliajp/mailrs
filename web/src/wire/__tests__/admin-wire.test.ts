@@ -32,7 +32,7 @@ describe('admin writes', () => {
 
   it('still pass a body through when there is one', async () => {
     answer(200, { id: 3, secret: 's' })
-    await expect(adminPost('/admin/apps', {})).resolves.toEqual({ id: 3, secret: 's' })
+    await expect(adminPost('/admin/aliases', {})).resolves.toEqual({ id: 3, secret: 's' })
   })
 })
 

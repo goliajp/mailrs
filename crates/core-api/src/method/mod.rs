@@ -54,7 +54,6 @@
 //!
 //!   /v1/admin/accounts                            # domain_store
 //!   /v1/admin/aliases
-//!   /v1/admin/apps
 //!   /v1/admin/groups
 //!   /v1/admin/email-groups
 //!   /v1/admin/domains

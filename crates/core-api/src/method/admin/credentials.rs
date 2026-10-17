@@ -1,39 +1,8 @@
-//! The machine-to-machine surface: apps, API keys, webhooks, OAuth
+//! The machine-to-machine surface: API keys, webhooks, OAuth
 //! clients, signing keys.
 
 use crate::types::UserAddress;
 use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AppWire {
-    pub id: i64,
-    pub app_id: String,
-    pub name: String,
-    pub description: String,
-    pub owner_address: UserAddress,
-    pub scopes: Vec<String>,
-    pub active: bool,
-    pub created_at: i64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CreateAppRequest {
-    pub app_id: String,
-    pub name: String,
-    pub description: String,
-    pub owner_address: UserAddress,
-    pub scopes: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UpdateAppScopesRequest {
-    pub scopes: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AppListResponse {
-    pub items: Vec<AppWire>,
-}
 
 // ════════════════════════════════════════════════════════════════════
 // Wire types — audit log

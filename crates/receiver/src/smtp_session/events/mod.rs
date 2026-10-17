@@ -10,7 +10,10 @@ use mailrs_smtp_codec::SmtpCodec;
 use super::auth;
 use super::{ConnectionContext, SessionAction};
 
+pub(super) use rcpt_gate::refuse_unknown_rcpt;
+
 mod data;
+mod rcpt_gate;
 mod reply;
 mod shutdown;
 mod starttls;

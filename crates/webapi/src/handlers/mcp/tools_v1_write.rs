@@ -74,12 +74,15 @@ impl MailrsMcpService {
             .remove_account(&params.address)
             .await
             .map_err(|e| McpError::internal_error(format!("remove_account: {e}"), None))?;
+        crate::handlers::auth::revoke_all_access(&params.address).map_err(|code| {
+            McpError::internal_error(format!("remove_account: revoking access: {code}"), None)
+        })?;
         crate::handlers::audit::record(&user, "account.delete", &params.address, "via mcp");
         Ok(ok_result())
     }
 
     #[tool(
-        description = "Add an email alias/forward (requires an admin permission). Type 'alias' delivers to a local account; 'forward' relays outbound."
+        description = "Add an email alias (requires an admin permission). Mail to `source_address` is delivered to `target_address`; an existing alias with the same source is replaced. Returns the alias id, which is its source address."
     )]
     async fn add_alias(
         &self,
@@ -87,47 +90,43 @@ impl MailrsMcpService {
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
         self.require_admin(&user).await?;
-        let domain = params
-            .source_address
-            .rsplit_once('@')
-            .map(|(_, d)| d.to_string())
-            .unwrap_or_default();
-        let req = mailrs_core_api::method::admin::AddAliasRequest {
-            source_address: params.source_address.clone(),
-            target_address: params.target_address.clone(),
-            domain,
-            alias_type: params.alias_type.unwrap_or_else(|| "alias".into()),
-        };
-        let resp = self
-            .state
-            .core
-            .add_alias(&req)
-            .await
-            .map_err(|e| McpError::internal_error(format!("add_alias: {e}"), None))?;
+        crate::handlers::admin_directory::store_alias(
+            &self.state,
+            &params.source_address,
+            &params.target_address,
+        )
+        .await
+        .map_err(|code| McpError::internal_error(format!("add_alias: {code}"), None))?;
         crate::handlers::audit::record(
             &user,
             "alias.create",
             &params.source_address,
-            &format!("→ {}", params.target_address),
+            &format!("-> {} via mcp", params.target_address),
         );
         Ok(CallToolResult::success(vec![Content::text(
-            serde_json::to_string(&resp).unwrap_or_default(),
+            serde_json::json!({ "id": params.source_address }).to_string(),
         )]))
     }
 
-    #[tool(description = "Remove an alias by id (requires an admin permission).")]
+    #[tool(
+        description = "Remove the alias whose source is `source_address` (requires an admin permission). Fails when no such alias exists."
+    )]
     async fn remove_alias(
         &self,
         Parameters(params): Parameters<RemoveAliasParams>,
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
         self.require_admin(&user).await?;
-        self.state
-            .core
-            .remove_alias(params.id)
+        crate::handlers::admin_directory::delete_alias(&self.state, &params.source_address)
             .await
-            .map_err(|e| McpError::internal_error(format!("remove_alias: {e}"), None))?;
-        crate::handlers::audit::record(&user, "alias.delete", &params.id.to_string(), "via mcp");
+            .map_err(|code| match code {
+                axum::http::StatusCode::NOT_FOUND => McpError::invalid_params(
+                    format!("remove_alias: no alias {}", params.source_address),
+                    None,
+                ),
+                _ => McpError::internal_error(format!("remove_alias: {code}"), None),
+            })?;
+        crate::handlers::audit::record(&user, "alias.delete", &params.source_address, "via mcp");
         Ok(ok_result())
     }
 

@@ -8,7 +8,7 @@ use mailrs_core_sidestate::families::email_groups::{
     COUNTER_KEY as EG_CTR, GROUPS_KEY as EG_KEY, members_key as email_group_members_key,
 };
 use mailrs_core_sidestate::families::permission_groups::{
-    GROUPS_COUNTER, GROUPS_KEY, members_key, permissions_key,
+    GROUPS_COUNTER, GROUPS_KEY, members_key, parse_group, permissions_key,
 };
 
 pub async fn list_groups() -> Result<Json<serde_json::Value>, StatusCode> {
@@ -54,13 +54,25 @@ pub async fn create_group(
     Ok(Json(g))
 }
 
+/// DELETE /api/admin/groups/{id} — 409 for a builtin group.
 pub async fn delete_group(Path(id): Path<i64>) -> Result<StatusCode, StatusCode> {
-    with_kevy(move |c| {
+    let deleted = with_kevy(move |c| {
+        let row = c.hget(GROUPS_KEY.as_bytes(), id.to_string().as_bytes())?;
+        if row
+            .as_deref()
+            .and_then(parse_group)
+            .is_some_and(|g| g.is_builtin)
+        {
+            return Ok(false);
+        }
         c.hdel(GROUPS_KEY.as_bytes(), &[id.to_string().as_bytes()])?;
         c.del(&[permissions_key(id).as_bytes(), members_key(id).as_bytes()])?;
-        Ok(())
+        Ok(true)
     })?;
-    Ok(StatusCode::NO_CONTENT)
+    match deleted {
+        true => Ok(StatusCode::NO_CONTENT),
+        false => Err(StatusCode::CONFLICT),
+    }
 }
 
 pub async fn get_group_permissions(

@@ -103,6 +103,41 @@ async fn groups_store_what_they_are_given_and_deletes_leave_nothing() {
         .expect("listed");
     assert!(row["domain"].is_null());
     assert_eq!(row["is_builtin"], false);
+
+    // a builtin group refuses deletion and keeps its members; an ordinary
+    // one goes
+    let mut c = kevy_client::Connection::connect("mem://webapi-admin-directory").unwrap();
+    let builtin = serde_json::json!({ "id": 900, "name": "super", "is_builtin": true });
+    c.hset(
+        b"admin:groups",
+        &[(b"900".as_slice(), builtin.to_string().as_bytes())],
+    )
+    .unwrap();
+    c.sadd(
+        b"admin:groups:900:members",
+        &[b"root@example.test".as_slice()],
+    )
+    .unwrap();
+    assert_eq!(
+        groups::delete_group(Path(900)).await,
+        Err(StatusCode::CONFLICT)
+    );
+    assert!(c.hget(b"admin:groups", b"900").unwrap().is_some());
+    assert_eq!(c.smembers(b"admin:groups:900:members").unwrap().len(), 1);
+
+    let ordinary = created["id"].as_i64().unwrap();
+    assert_eq!(
+        groups::delete_group(Path(ordinary)).await,
+        Ok(StatusCode::NO_CONTENT)
+    );
+    let Json(list) = groups::list_groups().await.expect("list");
+    assert!(
+        list["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|g| g["id"] != ordinary)
+    );
 }
 
 #[tokio::test]

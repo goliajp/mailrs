@@ -28,29 +28,8 @@ impl MailrsMcpService {
         let user = self.require_user()?.to_string();
         self.require_admin(&user).await?;
         let root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
-        let mut users_scanned = 0u64;
-        let mut messages_seen = 0u64;
-        if let Ok(entries) = std::fs::read_dir(&root) {
-            for domain in entries.flatten() {
-                if !domain.file_type().map(|t| t.is_dir()).unwrap_or(false) {
-                    continue;
-                }
-                if let Ok(user_dirs) = std::fs::read_dir(domain.path()) {
-                    for u in user_dirs.flatten() {
-                        if !u.file_type().map(|t| t.is_dir()).unwrap_or(false) {
-                            continue;
-                        }
-                        users_scanned += 1;
-                        for sub in ["new", "cur"] {
-                            let p = u.path().join(sub);
-                            if let Ok(msgs) = std::fs::read_dir(&p) {
-                                messages_seen += msgs.count() as u64;
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        let (users_scanned, messages_seen) =
+            crate::handlers::admin_ops::count_maildir(std::path::Path::new(&root));
         Ok(CallToolResult::success(vec![Content::text(
             serde_json::json!({
                 "users_scanned": users_scanned,

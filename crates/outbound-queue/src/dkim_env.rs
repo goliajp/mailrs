@@ -19,6 +19,8 @@
 
 use std::collections::HashMap;
 
+use mailrs_dkim::key_list::{SkipReason, parse_key_list};
+
 use crate::dkim_sign::DkimDomainKey;
 
 /// Read `MAILRS_DKIM_KEYS` and build the per-domain key map.
@@ -42,37 +44,29 @@ where
     F: FnMut(&str) -> std::io::Result<String>,
 {
     let mut out = HashMap::new();
-    for entry in raw.split(',') {
-        let entry = entry.trim();
-        if entry.is_empty() {
-            continue;
-        }
-        let parts: Vec<&str> = entry.splitn(3, ':').collect();
-        if parts.len() != 3 {
-            tracing::warn!(
-                event = "config_error",
-                entry,
-                "MAILRS_DKIM_KEYS entry skipped (expected domain:selector:path)"
-            );
-            continue;
-        }
-        let domain = parts[0].trim();
-        let selector = parts[1].trim();
-        let path = parts[2].trim();
-        if domain.is_empty() || selector.is_empty() || path.is_empty() {
-            tracing::warn!(
-                event = "config_error",
-                entry,
-                "MAILRS_DKIM_KEYS entry skipped (empty field)"
-            );
-            continue;
-        }
-        let pem = match read_key(path) {
+    for item in parse_key_list(raw) {
+        let entry = match item {
+            Ok(entry) => entry,
+            Err(skipped) => {
+                let why = match skipped.reason {
+                    SkipReason::NotThreeFields => "expected domain:selector:path",
+                    SkipReason::EmptyField => "empty field",
+                };
+                tracing::warn!(
+                    event = "config_error",
+                    entry = skipped.entry,
+                    "MAILRS_DKIM_KEYS entry skipped ({why})"
+                );
+                continue;
+            }
+        };
+        let pem = match read_key(entry.key_path) {
             Ok(pem) => pem,
             Err(e) => {
                 tracing::warn!(
                     event = "config_error",
-                    entry,
+                    domain = %entry.domain,
+                    path = entry.key_path,
                     error = %e,
                     "MAILRS_DKIM_KEYS entry skipped (key file unreadable)"
                 );
@@ -80,9 +74,9 @@ where
             }
         };
         out.insert(
-            domain.to_ascii_lowercase(),
+            entry.domain,
             DkimDomainKey {
-                selector: selector.to_string(),
+                selector: entry.selector.to_string(),
                 private_key_pem: pem,
                 parsed_key: Default::default(),
             },

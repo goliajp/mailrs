@@ -97,6 +97,10 @@ async fn the_receiver_takes_store_domains_and_the_stored_size_limit() {
         kevy_embedded::Store::open(kevy_embedded::Config::default()).unwrap(),
     ));
     mailbox.upsert_domain("added.example", 1).unwrap();
+    // RCPT to a local address nobody receives is refused
+    for bob in ["bob@added.example", "bob@golia.example"] {
+        mailbox.upsert_account(bob, "{}").unwrap();
+    }
     let router =
         mailrs_fastcore::build_router(Arc::new(mailrs_fastcore::FastcoreState::new(mailbox)));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();

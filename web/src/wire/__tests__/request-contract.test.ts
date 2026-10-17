@@ -217,23 +217,6 @@ describe('request bodies match the shared contract', () => {
     expect(body).toEqual(fixture('group-permissions-set'))
   })
 
-  it('app create', async () => {
-    const { adminPost } = await import('../endpoints/admin')
-    const body = await bodyOf(() =>
-      adminPost('/admin/apps', { name: 'ci-bot', scopes: ['mail.read', 'mail.send'] })
-    )
-    expect(body).toEqual(fixture('app-create'))
-  })
-
-  it('app scopes set', async () => {
-    const { adminPut } = await import('../endpoints/admin')
-    const appId = 'app_1'
-    const body = await bodyOf(() =>
-      adminPut(`/admin/apps/${appId}/scopes`, { scopes: ['mail.read'] })
-    )
-    expect(body).toEqual(fixture('app-scopes-set'))
-  })
-
   it('login', async () => {
     const { wireLogin } = await import('../endpoints/auth')
     const body = await bodyOf(() => wireLogin('lihao@golia.jp', 'not-a-real-password'))

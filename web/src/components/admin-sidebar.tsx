@@ -1,6 +1,5 @@
 import {
   ArrowLeftRight,
-  Blocks,
   Eye,
   Filter,
   FlaskConical,
@@ -26,7 +25,7 @@ const navGroups: { items: NavItem[]; label: string }[] = [
       { icon: <LayoutGrid className="h-4 w-4" />, label: 'Overview', to: '/admin/overview' },
       { icon: <ListOrdered className="h-4 w-4" />, label: 'Queues', to: '/admin/queues' },
       { icon: <ShieldCheck className="h-4 w-4" />, label: 'DMARC', to: '/admin/dmarc' },
-      { icon: <Filter className="h-4 w-4" />, label: 'Greylist', to: '/admin/greylist' },
+      { icon: <Filter className="h-4 w-4" />, label: 'Sender lists', to: '/admin/greylist' },
       { icon: <FlaskConical className="h-4 w-4" />, label: 'Mock mail', to: '/admin/mock' },
     ],
     label: 'Mail flow',
@@ -38,7 +37,6 @@ const navGroups: { items: NavItem[]; label: string }[] = [
       { icon: <ArrowLeftRight className="h-4 w-4" />, label: 'Aliases', to: '/admin/aliases' },
       { icon: <Mail className="h-4 w-4" />, label: 'Email groups', to: '/admin/email-groups' },
       { icon: <Shield className="h-4 w-4" />, label: 'Permission groups', to: '/admin/groups' },
-      { icon: <Blocks className="h-4 w-4" />, label: 'Apps', to: '/admin/apps' },
     ],
     label: 'Directory',
   },

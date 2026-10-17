@@ -62,7 +62,6 @@ describe('adminKeys', () => {
     expect(adminKeys.domains()).toEqual(['admin', 'domains'])
     expect(adminKeys.accounts()).toEqual(['admin', 'accounts'])
     expect(adminKeys.aliases()).toEqual(['admin', 'aliases'])
-    expect(adminKeys.apps()).toEqual(['admin', 'apps'])
     expect(adminKeys.auditLog()).toEqual(['admin', 'audit-log'])
     expect(adminKeys.emailGroups()).toEqual(['admin', 'email-groups'])
     expect(adminKeys.groups()).toEqual(['admin', 'groups'])

@@ -13,6 +13,9 @@ use crate::SenderTrust;
 use crate::auth_header::build_auth_header;
 use crate::context::{AuthResults, DmarcPolicy};
 
+mod junk_reason;
+use junk_reason::build_junk_reason;
+
 /// Score contributed to the spam total when receive-time authentication
 /// folds to [`SenderTrust::Suspicious`] (DMARC alignment failed, or a hard
 /// SPF/DKIM fail with no DMARC record — i.e. the From domain is being
@@ -152,6 +155,11 @@ pub struct PipelineInput {
     /// domain", and carrying that meaning here would trust every
     /// sender on earth.
     pub local_domains: std::collections::HashSet<String>,
+    /// The operator's allow list vouches for this sender: a listed
+    /// network, or a listed address whose domain authentication proved.
+    /// Accept past scores, DMARC and the recipient's blacklist; not past
+    /// a virus, and [`assess`](crate::assess)'s fraud hold ignores it.
+    pub sender_allowed: bool,
 }
 
 /// Whether a per-user sender list names this message's envelope sender
@@ -171,17 +179,18 @@ pub fn sender_listed(
 ///
 /// 1. Greylist (highest — defer before any other work).
 /// 2. Virus found (hard 550 reject).
-/// 3. DMARC policy=reject (hard 550 reject).
-/// 4. **Recipient whitelist hit → Accept**, unless DMARC failed under
+/// 3. **Operator allow list vouches for the sender → Accept.**
+/// 4. DMARC policy=reject (hard 550 reject).
+/// 5. **Recipient whitelist hit → Accept**, unless DMARC failed under
 ///    the sender domain's `p=quarantine`.
-/// 5. **Recipient blacklist hit → Junk** (v2.4.1 Phase 3, RFC-B §D4).
+/// 6. **Recipient blacklist hit → Junk** (v2.4.1 Phase 3, RFC-B §D4).
 ///    Runs after virus / DMARC-reject so a blacklist entry can't save
 ///    virus mail from a hard reject, but before content scoring so an
 ///    explicitly-blocked sender can't accidentally clear a low-score
 ///    threshold.
-/// 6. DMARC policy=quarantine (route to Junk).
-/// 7. Combined `content_score + ptr_score + ai_score >= spam_threshold` (Junk).
-/// 8. Default: Accept.
+/// 7. DMARC policy=quarantine (route to Junk).
+/// 8. Combined `content_score + ptr_score + ai_score >= spam_threshold` (Junk).
+/// 9. Default: Accept.
 ///
 /// The function is pure — same input always produces the same output. Use
 /// it directly if you don't want the [`Pipeline`](crate::Pipeline) framework.
@@ -211,6 +220,10 @@ pub fn make_delivery_decision(input: &PipelineInput) -> DeliveryDecision {
         &input.auth.dmarc,
         dmarc_reason,
     );
+
+    if input.sender_allowed {
+        return DeliveryDecision::Accept { auth_header };
+    }
 
     if input.auth.dmarc_policy == DmarcPolicy::Reject {
         return DeliveryDecision::Reject {
@@ -330,55 +343,6 @@ pub fn make_delivery_decision(input: &PipelineInput) -> DeliveryDecision {
     DeliveryDecision::Accept { auth_header }
 }
 
-/// Build the Junk-decision reason string with a single pre-sized
-/// allocation instead of the `format!` macro's geometric String growth.
-///
-/// The Junk path was measured (criterion bench, M-series Mac, release)
-/// at ~735 ns total vs. ~337 ns for the Accept path — the 2.4× gap is
-/// entirely this string-build. Using `String::with_capacity` + `write!`
-/// avoids both the intermediate `Vec<String>` from `matched_rules.join`
-/// and the geometric resize cascade that `format!` does (16 → 32 → 64 …).
-fn build_junk_reason(input: &PipelineInput, total_score: f64, suspicious_score: f64) -> String {
-    use std::fmt::Write as _;
-    // Capacity for the prefix (~50 bytes) + numeric fields (~6 bytes
-    // each w/ {:.1}) + a generous 64-byte budget for matched_rules.
-    // Real-world reasons rarely exceed 150 bytes.
-    let mut out = String::with_capacity(176);
-    let _ = write!(
-        out,
-        "score {total_score:.1} >= {:.1} (content={:.1}, ptr={:.1}, ai={:.1}",
-        input.spam_threshold, input.content_score, input.ptr_score, input.ai_score,
-    );
-    // Only mention the sender-trust contribution when it fired, so clean
-    // mail's reason string stays as before.
-    if suspicious_score > 0.0 {
-        let _ = write!(out, ", sender=suspicious(+{suspicious_score:.1})");
-    }
-    // Named in the reason, because "why is this in Junk" has a very
-    // different answer here than a content score does — and because a
-    // false positive has to be findable in the log by the person who
-    // needs to add a domain to the allow-list.
-    // Named, because a false positive has to be findable in the log by
-    // whoever needs to fix it.
-    let fraud = input.fraud.score();
-    if fraud > 0.0 {
-        let _ = write!(out, ", {}(+{fraud:.1})", input.fraud.rules().join(", "));
-    }
-    out.push_str(", ");
-    // Inline the rule-name join — avoid `matched_rules.join(", ")` which
-    // builds an intermediate Vec<&str> + sums the lengths first.
-    let mut first = true;
-    for rule in &input.matched_rules {
-        if !first {
-            out.push_str(", ");
-        }
-        out.push_str(rule);
-        first = false;
-    }
-    out.push(')');
-    out
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -435,7 +399,40 @@ mod tests {
             recipient_whitelist: std::collections::HashSet::new(),
             recipient_blacklist: std::collections::HashSet::new(),
             local_domains: std::collections::HashSet::new(),
+            sender_allowed: false,
         }
+    }
+
+    /// The operator's allow list outranks every score, the DMARC policy
+    /// and the recipient's blacklist, but not a virus and not the fraud
+    /// hold, which judges the message and not the sender.
+    #[test]
+    fn an_allowed_sender_is_accepted_unless_it_sends_a_virus_or_fraud() {
+        let mut input = baseline_input();
+        input.auth.dmarc_policy = DmarcPolicy::Reject;
+        input.content_score = 50.0;
+        input.recipient_blacklist.insert("a@x.com".into());
+        input.from_addr = "a@x.com".into();
+        assert!(matches!(
+            make_delivery_decision(&input),
+            DeliveryDecision::Reject { .. }
+        ));
+        input.sender_allowed = true;
+        assert!(matches!(
+            make_delivery_decision(&input),
+            DeliveryDecision::Accept { .. }
+        ));
+        input.fraud = mailrs_fraud::findings_for(&[mailrs_fraud::RULE_GENERATED_MAILER]);
+        assert!(crate::holds(&input.fraud));
+        assert!(
+            crate::assess(&input).quarantined,
+            "an allowed sender's fraud was not held"
+        );
+        input.virus_found = Some("Eicar-Test-Signature".into());
+        assert!(matches!(
+            make_delivery_decision(&input),
+            DeliveryDecision::Reject { .. }
+        ));
     }
 
     // ── a mailer string no client writes ─────────────────────────

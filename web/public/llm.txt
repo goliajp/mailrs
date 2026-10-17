@@ -1,6 +1,6 @@
 # mailrs - AI Email API
 
-> Full-featured email server API: send, read, search, reply, manage accounts/domains/aliases/groups/apps — via MCP or REST.
+> Full-featured email server API: send, read, search, reply, manage accounts/domains/aliases/groups — via MCP or REST.
 
 Base URL: https://mail.golia.ai
 Auth: Bearer API key or session token on all requests
@@ -11,7 +11,7 @@ OpenAPI spec: https://mail.golia.ai/openapi.json
 ## MCP (recommended)
 
 Streamable HTTP endpoint: https://mail.golia.ai/mcp
-94 tools auto-discovered, grouped by category (identical on both server lanes):
+91 tools auto-discovered, grouped by category (identical on both server lanes):
 
 ```json
 {"mcpServers":{"mailrs":{"type":"streamable-http","url":"https://mail.golia.ai/mcp","headers":{"Authorization":"Bearer <API_KEY>"}}}}
@@ -26,7 +26,7 @@ Streamable HTTP endpoint: https://mail.golia.ai/mcp
 **Domains:** list_domains, add_domain, remove_domain
 **Aliases:** list_aliases_admin, add_alias, remove_alias
 **Email Groups:** list_email_groups, create_email_group, delete_email_group, get_email_group_members, add_email_group_member, remove_email_group_member
-**Apps & Webhooks:** list_apps, create_app, delete_app, list_webhooks, create_webhook, delete_webhook
+**Webhooks:** list_webhooks, create_webhook, delete_webhook
 **Queue & Scheduling:** get_queue, list_admin_queue, retry_queue_message, list_failed_outbound, list_own_scheduled, list_scheduled_outbound, cancel_scheduled, reschedule_scheduled
 **Encryption:** list_own_encryption_keys, get_public_key_of, set_encryption_key, delete_encryption_key
 **Greylist:** list_greylist_local, greylist_local_add, greylist_local_remove
@@ -64,7 +64,6 @@ Streamable HTTP endpoint: https://mail.golia.ai/mcp
 - GET/POST/DELETE /api/admin/aliases — alias CRUD
 - GET/POST/DELETE /api/admin/email-groups — email group CRUD + /members
 - GET/POST/DELETE /api/admin/groups — group CRUD + /permissions + /members
-- GET/POST/DELETE /api/admin/apps — app CRUD + /scopes
 - GET /api/admin/permissions — list all permissions
 - GET /api/admin/dmarc/reports — inbound DMARC aggregate reports, newest first (?limit=) (admin.domains)
 - GET /api/admin/dmarc/reports/{sid} — one report with its per-source rows (admin.domains)

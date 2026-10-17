@@ -271,20 +271,6 @@ class AdminFlowTest : MailrsUiTest() {
         }
     }
 
-    @Test
-    fun apps_name_their_owner_and_scopes() {
-        signIn()
-        waitForTag("list.conversations", "the inbox never listed")
-        compose.onNodeWithTag("button.folders").performClick()
-        waitForTag("drawer.lists", "the drawer never opened")
-        compose.onNodeWithTag("drawer.item.Settings").performClick()
-        compose.onNodeWithTag("admin.Apps").performScrollTo().performClick()
-        waitForTag("list.admin", "the apps never listed")
-
-        compose.onNodeWithText("Reporting").assertIsDisplayed()
-        compose.onNodeWithText("lihao@golia.jp · mail.read").assertIsDisplayed()
-    }
-
     /**
      * Settings, and the way out of the account.
      *

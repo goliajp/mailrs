@@ -22,8 +22,6 @@
 //!                                          / retry; drained parallel
 //!                                          to old pending list on claim)
 //!   `mailrs:outbound:scheduled-idx` zset  (score=scheduled_at)
-//!   `mailrs:outbound:done-idx`      list  (LPUSH on any terminal
-//!                                          transition)
 //!
 //! Every write path in this file now performs the equivalent op on the
 //! new keys after the existing legacy op — best-effort, `let _ =`
@@ -87,8 +85,6 @@ pub const SCHEDULED_IDX: &[u8] = b"mailrs:outbound:scheduled-idx";
 
 /// Ids of jobs that failed for good; the sender adds them.
 pub const FAILED_SET: &[u8] = b"mailrs:outbound:failed";
-
-const DONE_IDX: &[u8] = b"mailrs:outbound:done-idx";
 
 /// Read `mailrs:outbound:{id}` blob → OutboundMessageWire (loose blob
 /// fields + synthesized status/attempts defaults).

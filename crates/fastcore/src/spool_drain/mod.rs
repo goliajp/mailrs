@@ -12,10 +12,10 @@
 //! maildir self-heal (see `healed_from_maildir` in `lib.rs`) then
 //! threads and indexes it.
 //!
-//! A recipient resolves to its own maildir, a fresh account's, an alias
-//! target's, or — failing all three — an email group's members. Files
-//! with no resolvable recipient are left in the spool with a warn log so
-//! a human can look.
+//! A recipient resolves to its own maildir, a fresh account's, an email
+//! group's members, or an alias target's (`route`). Files with no
+//! resolvable recipient are left in the spool with a warn log so a human
+//! can look, and set aside after a week (`aging`).
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -25,16 +25,19 @@ use mailrs_core::spool::decode_spool_blob;
 
 use crate::FastcoreState;
 
+mod aging;
+mod check;
 mod deliver;
 mod email_group;
 mod mock;
 mod recipient;
 pub mod relay;
 mod reported_to;
+mod route;
 mod stuck;
 
+pub(crate) use check::recipient_deliverable_route;
 pub(crate) use deliver::*;
-use recipient::{aliased, own_mailbox};
 use reported_to::reported_to;
 use stuck::{forget_departed, stuck_is_new};
 
@@ -182,59 +185,9 @@ pub fn drain_once(
                 }
                 continue;
             }
-            // 1. The recipient's own mailbox: a maildir or a fresh account.
-            let own = own_mailbox(state, maildir_root, fwd);
-            // SRS reverse (G6): a bounce addressed to
-            // SRS0=...@<our-domain> is the return path for mail we
-            // forwarded. Reverse it to the original sender and relay
-            // the bounce outward — never deliver it locally.
-            //
-            // This one reads `raw_fwd`, not the folded form. An SRS local
-            // part is `SRS0=<hmac>=<tt>=<domain>=<local>`, and both halves
-            // of it are case-sensitive: `reverse` strips the literal
-            // `SRS0=` prefix, and the HMAC is computed over the domain and
-            // local part it carries. Folding the address would make the
-            // prefix strip fail and, past that, produce a different hash —
-            // so bounces for mail we forwarded would stop being relayed and
-            // would instead land in `unresolved` and sit in the spool. That
-            // is the same defect this fold exists to remove, so the fold
-            // must not reach here.
-            if raw_fwd.to_ascii_uppercase().starts_with("SRS0=")
-                && let Ok(secret) = std::env::var("MAILRS_SRS_SECRET")
-                && let Some(original) =
-                    mailrs_srs::reverse(raw_fwd, &secret, mailrs_srs::DEFAULT_TIMESTAMP_WINDOW_DAYS)
-            {
-                match enqueue_outbound(&original, "", body) {
-                    Ok(()) => {
-                        tracing::info!(srs = %raw_fwd, %original, "SRS bounce relayed");
-                        delivered_here += 1;
-                    }
-                    Err(e) => tracing::warn!(srs = %raw_fwd, error = %e, "SRS relay failed"),
-                }
-                continue;
-            }
-            // 1b. An email group's address goes to its members. Checked
-            //     before the alias table: a domain catch-all answers for
-            //     every address without a mailbox and would take the
-            //     group's mail.
-            if own.is_none()
-                && let Some(group) = inbound.deliver_to_group(fwd)
-            {
-                delivered_here += group.delivered;
-                unresolved.extend(group.unresolved);
-                continue;
-            }
-            // 1c. Otherwise the alias table, catch-all included.
-            let Some(addr) = own.or_else(|| aliased(state, maildir_root, fwd)) else {
-                unresolved.push(fwd.clone());
-                continue;
-            };
-            // 2. Report side effects, sieve, and the maildir write.
-            if inbound.deliver_resolved(fwd, &addr) {
-                delivered_here += 1;
-            } else {
-                unresolved.push(addr);
-            }
+            let copies = inbound.deliver_to(raw_fwd, fwd);
+            delivered_here += copies.delivered;
+            unresolved.extend(copies.unresolved);
         }
         if delivered_here > 0 {
             match std::fs::remove_file(&path) {
@@ -259,7 +212,7 @@ pub fn drain_once(
                     "spool delivered to some recipients only"
                 );
             }
-        } else if stuck_is_new(&filename) {
+        } else if !aging::set_aside_if_stale(dir, &path, &filename) && stuck_is_new(&filename) {
             // Warn once per file, not once per tick. This fires every
             // drain interval otherwise, and three genuinely undeliverable
             // messages spent 11 days reprinting the same two lines every

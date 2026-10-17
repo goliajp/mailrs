@@ -63,17 +63,14 @@ pub struct AddressParams {
 pub struct AddAliasParams {
     /// Alias source address, e.g. `sales@example.com`.
     pub source_address: String,
-    /// Target address the alias forwards to.
+    /// Address mail to the source is delivered to.
     pub target_address: String,
-    /// Alias type: `alias` (default, deliver to local target) or `forward`.
-    #[serde(default)]
-    pub alias_type: Option<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct RemoveAliasParams {
-    /// Deterministic alias id returned by `list_aliases`.
-    pub id: i64,
+    /// Source address of the alias, as `list_aliases_admin` reports it.
+    pub source_address: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -263,21 +260,6 @@ pub struct AccountGroupParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
-pub struct CreateAppParams {
-    /// App display name.
-    pub name: String,
-    /// Scope strings granted to the app (e.g. `mail.read`, `mail.send`).
-    #[serde(default)]
-    pub scopes: Vec<String>,
-}
-
-#[derive(Debug, Deserialize, JsonSchema)]
-pub struct AppIdParams {
-    /// App id as returned by `list_apps` / `create_app`.
-    pub app_id: String,
-}
-
-#[derive(Debug, Deserialize, JsonSchema)]
 pub struct CreateEmailGroupParams {
     /// Group address, e.g. `team@example.com`.
     pub address: String,
@@ -406,4 +388,35 @@ pub struct FraudVerdictParams {
 pub struct ReleaseQuarantinedParams {
     /// Thread id as returned by `list_quarantined`.
     pub thread_id: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn properties<T: JsonSchema>() -> Vec<String> {
+        let schema = serde_json::to_value(schemars::schema_for!(T)).unwrap();
+        let mut keys: Vec<String> = schema["properties"]
+            .as_object()
+            .unwrap()
+            .keys()
+            .cloned()
+            .collect();
+        keys.sort();
+        keys
+    }
+
+    #[test]
+    fn alias_params_take_what_the_rest_routes_take() {
+        assert_eq!(
+            properties::<AddAliasParams>(),
+            ["source_address", "target_address"]
+        );
+        assert_eq!(properties::<RemoveAliasParams>(), ["source_address"]);
+        let p: RemoveAliasParams =
+            serde_json::from_str(r#"{"source_address":"sales@example.com"}"#).unwrap();
+        assert_eq!(p.source_address, "sales@example.com");
+        // the old numeric id names nothing in the alias store
+        assert!(serde_json::from_str::<RemoveAliasParams>(r#"{"id":3}"#).is_err());
+    }
 }

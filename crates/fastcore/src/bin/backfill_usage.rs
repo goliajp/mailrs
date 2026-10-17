@@ -67,7 +67,10 @@ fn main() {
         std::process::exit(1);
     };
     for d in domains.flatten() {
-        if !d.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+        // dot-dirs are not domains: `.deleted` holds deleted accounts' mail
+        if !d.file_type().map(|t| t.is_dir()).unwrap_or(false)
+            || d.file_name().to_string_lossy().starts_with('.')
+        {
             continue;
         }
         let domain = d.file_name().to_string_lossy().into_owned();

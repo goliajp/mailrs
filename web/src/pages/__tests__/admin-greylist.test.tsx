@@ -81,7 +81,7 @@ describe('<AdminGreylist />', () => {
     })
     expect(
       within(dialog).getByText(
-        "Mail from a@b.c no longer skips greylisting through this entry and is greylisted like anyone else's. The entry is deleted, and the receiver drops it at its next reload, within a minute. This only matters while greylisting is on (MAILRS_GREYLIST_ENABLED=1)"
+        "Mail from a@b.c no longer goes to the inbox through this entry and is checked for spam like anyone else's. The entry is deleted, and the receiver drops it at its next reload, within a minute"
       )
     ).toBeInTheDocument()
     expect(calls.some((c) => c.method === 'DELETE')).toBe(false)
@@ -106,12 +106,13 @@ describe('<AdminGreylist />', () => {
     ).toBeInTheDocument()
   })
 
-  it('does not claim the lists act when greylisting may be off', async () => {
+  it('says the lists apply without greylisting and white needs proof', async () => {
     stub({ 'GET /api/admin/greylist/local-lists': { items: [] } })
     renderAt()
-    expect(await screen.findByText('No greylist entries yet')).toBeInTheDocument()
-    expect(screen.getAllByText(/only while greylisting is on/).length).toBeGreaterThan(0)
-    expect(screen.queryByText(/never both/)).toBeNull()
+    expect(await screen.findByText('No sender list entries yet')).toBeInTheDocument()
+    expect(screen.getAllByText(/apply whether or not greylisting is on/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/counts only when SPF or DKIM proves/).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/only while greylisting is on/)).toBeNull()
   })
 
   it('filters by the list in the URL', async () => {

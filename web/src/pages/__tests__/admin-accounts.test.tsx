@@ -65,7 +65,7 @@ describe('<AdminAccounts />', () => {
     expect(
       await screen.findByRole('alertdialog', { name: 'Delete qa@golia.jp?' })
     ).toHaveTextContent(
-      'qa@golia.jp can no longer sign in, though sessions already open are not ended. Its stored mail stays on disk, and new mail to the address is still delivered into that mailbox. Its aliases and group memberships are kept'
+      'qa@golia.jp can no longer sign in, and its open sessions and agent keys stop working. Its stored mail is moved aside on disk, kept but no longer visible. New mail to the address is refused unless an alias or catch-all takes it. Its aliases and group memberships are kept'
     )
     fireEvent.click(screen.getByRole('button', { name: 'Delete account' }))
     await vi.waitFor(() => expect(calls.some((c) => c.method === 'DELETE')).toBe(true))

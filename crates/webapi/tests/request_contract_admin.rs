@@ -115,16 +115,6 @@ fn account_sieve_body_matches() {
     assert!(v.script.ends_with('\n'), "the trailing newline survives");
 }
 
-/// Scopes are a list on both app writes; a comma-joined string answered 422.
-#[test]
-fn app_bodies_match() {
-    let v: handlers::apps_keys::CreateAppRequest = parse("app-create");
-    assert_eq!(v.name, "ci-bot");
-    assert_eq!(v.scopes, ["mail.read", "mail.send"]);
-    let v: handlers::apps_keys::AppScopesRequest = parse("app-scopes-set");
-    assert_eq!(v.scopes, ["mail.read"]);
-}
-
 #[test]
 fn system_config_body_matches() {
     let v: handlers::system_config::SetSystemConfigRequest = parse("system-config-set");
