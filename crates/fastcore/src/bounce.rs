@@ -530,4 +530,44 @@ mod tests {
         assert!(!text.contains("In-Reply-To"));
         assert!(text.contains("multipart/report"));
     }
+
+    /// A DSN delivered through the hand-off queue must be removable by
+    /// deleting its conversation: the delete finds files through the
+    /// thread's message list.
+    #[test]
+    fn a_delivered_dsn_is_found_by_deleting_its_thread() {
+        let store = std::sync::Arc::new(
+            kevy_embedded::Store::open(kevy_embedded::Config::default()).unwrap(),
+        );
+        let state = Arc::new(crate::FastcoreState::new(
+            mailrs_mailbox_kevy::KevyMailboxStore::new(store),
+        ));
+        let dsn = compose_dsn(
+            "mx.test",
+            "mock.example.test",
+            "lihao@golia.test",
+            "bounce@mock.example.test",
+            "5.1.1",
+            "550 simulated",
+            b"Message-ID: <orig@golia.test>\r\nSubject: try\r\n\r\nhi",
+        );
+        crate::ingest_delivered_file(
+            &state,
+            "lihao@golia.test",
+            "1792208880.Mdsn1.bounce",
+            &dsn,
+            "INBOX",
+            None,
+        );
+        let (existed, refs) = state
+            .mailbox
+            .delete_thread("lihao@golia.test", "orig@golia.test")
+            .unwrap();
+        assert!(existed);
+        assert_eq!(
+            refs,
+            ["1792208880.Mdsn1.bounce"],
+            "the delete found no file to unlink"
+        );
+    }
 }

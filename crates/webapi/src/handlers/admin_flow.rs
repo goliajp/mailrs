@@ -33,6 +33,9 @@ pub struct Outbound {
 
 #[derive(Debug, Serialize)]
 pub struct MockFlow {
+    /// messages kept in every namespace now
+    pub stored: u64,
+    /// messages stored since mock mail started, counting expired and deleted ones
     pub received: i64,
     pub bytes: i64,
     pub max_bytes: i64,
@@ -70,7 +73,9 @@ pub async fn flow(State(state): State<Arc<WebState>>) -> Json<Flow> {
         _ => with_kevy(|c| {
             let stats = mock::stats(c).map_err(std::io::Error::other)?;
             let settings = mock::settings(c).map_err(std::io::Error::other)?;
+            let namespaces = mock::list_namespaces(c, None).map_err(std::io::Error::other)?;
             Ok(MockFlow {
+                stored: namespaces.iter().map(|n| n.messages as u64).sum(),
                 received: stats.received,
                 bytes: stats.bytes,
                 max_bytes: settings.max_total_bytes(),
