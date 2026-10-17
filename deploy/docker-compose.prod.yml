@@ -45,7 +45,9 @@ services:
       - "587:587"
     environment:
       MAILRS_HOSTNAME: mail.golia.ai
-      MAILRS_LOCAL_DOMAINS: golia.jp,golia.ai,dadaya.jp,marspot.com,bitreits.com,doracawl.com,madcawl.com
+      MAILRS_LOCAL_DOMAINS: golia.jp,golia.ai,dadaya.jp,marspot.com,bitreits.com,doracawl.com,madcawl.com,mock.golia.jp
+      # disposable test mailboxes; every process that touches them reads it
+      MAILRS_MOCK_DOMAIN: mock.golia.jp
       # Somebody sending as this company from an address that is not it
       # — `mailrs-fraud`. Full names only: `golia` as a substring
       # matches 490 GitHub notifications carrying a `goliajp/…` path.
@@ -120,7 +122,9 @@ services:
       # Kept identical to the receiver's block above; a copy that
       # drifts is a sweep that judges by different rules than the
       # receive path.
-      MAILRS_LOCAL_DOMAINS: golia.jp,golia.ai,dadaya.jp,marspot.com,bitreits.com,doracawl.com,madcawl.com
+      MAILRS_LOCAL_DOMAINS: golia.jp,golia.ai,dadaya.jp,marspot.com,bitreits.com,doracawl.com,madcawl.com,mock.golia.jp
+      # disposable test mailboxes; every process that touches them reads it
+      MAILRS_MOCK_DOMAIN: mock.golia.jp
       # Which stamp on `Authentication-Results:` is ours. The fraud
       # rescan reads it to tell mail that arrived from a stranger
       # from mail our own people submitted; unset, it says so and
@@ -198,6 +202,8 @@ services:
       MAILRS_WEB_BIND: 0.0.0.0:3100
       MAILRS_WEB_STATIC_DIR: /opt/mailrs/web
       MAILRS_MAILDIR: /data/maildir
+      MAILRS_MOCK_DOMAIN: mock.golia.jp
+      MAILRS_HOSTNAME: mail.golia.ai
       RUST_LOG: info
     volumes:
       - mailrs-data:/data
@@ -246,9 +252,12 @@ services:
       # any forward breaks DMARC. All seven domains publish the same
       # public key, so one file serves them all.
       MAILRS_DKIM_KEYS: ${MAILRS_DKIM_KEYS:-}
+      # mail to the mock domain is stored under /data/mock, never sent
+      MAILRS_MOCK_DOMAIN: mock.golia.jp
       RUST_LOG: info
     volumes:
       - /apps/mailrs/dkim:/dkim:ro
+      - mailrs-data:/data
     restart: unless-stopped
 
   kevy-server:

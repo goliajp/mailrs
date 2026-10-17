@@ -1,0 +1,25 @@
+[package]
+name = "mailrs-mock"
+version = "0.0.1"
+edition = "2024"
+description = "Disposable test mailboxes: address grammar, namespace names, and the parsed view of a captured message with its one-time codes and links."
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mailrs-clean = { path = "../clean", version = "1" }
+mailrs-mime = { path = "../mime", version = "2" }
+mailrs-rfc5322 = { path = "../rfc5322", version = "1" }
+mailrs-rfc2047 = { path = "../rfc2047", version = "1" }
+serde = { version = "1", features = ["derive"] }
+schemars = { version = "1", optional = true }
+
+[dev-dependencies]
+proptest = "1"
+
+[features]
+# the MCP tool argument structs, shared by both MCP lanes
+schema = ["dep:schemars"]

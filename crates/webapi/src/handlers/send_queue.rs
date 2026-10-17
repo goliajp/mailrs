@@ -369,7 +369,7 @@ pub(crate) async fn mirror_send_to_sender_view(
         .iter()
         .chain(parts.cc.iter())
         .chain(parts.bcc.iter())
-        .filter(|s| !s.trim().is_empty())
+        .filter(|s| !s.trim().is_empty() && !mailrs_core_sidestate::families::mock::is_mock(s))
         .cloned()
         .collect();
     if !contact_targets.is_empty() {

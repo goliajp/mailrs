@@ -32,6 +32,7 @@ import { connectionStatusAtom } from '@/store/ui'
 
 const Admin = lazy(() => import('@/pages/admin').then((m) => ({ default: m.Admin })))
 const Chat = lazy(() => import('@/pages/chat').then((m) => ({ default: m.Chat })))
+const MockMail = lazy(() => import('@/pages/mock').then((m) => ({ default: m.MockMail })))
 const Dashboard = lazy(() => import('@/pages/dashboard').then((m) => ({ default: m.Dashboard })))
 const Playground = lazy(() => import('@/pages/playground').then((m) => ({ default: m.Playground })))
 const Protocol = lazy(() => import('@/pages/protocol').then((m) => ({ default: m.Protocol })))
@@ -73,6 +74,7 @@ const router = createBrowserRouter([
           { element: <PageProtocol />, errorElement: <RouteErrorFallback />, path: '/protocol' },
           { element: <PageAdmin />, errorElement: <RouteErrorFallback />, path: '/admin/*' },
           { element: <PageSettings />, errorElement: <RouteErrorFallback />, path: '/settings' },
+          { element: <PageMock />, errorElement: <RouteErrorFallback />, path: '/mock' },
           {
             element: <PageChat />,
             errorElement: <RouteErrorFallback />,
@@ -185,6 +187,16 @@ function PageDashboard() {
     <PagePane>
       <Suspense fallback={<DashboardShellSkeleton />}>
         <Dashboard />
+      </Suspense>
+    </PagePane>
+  )
+}
+
+function PageMock() {
+  return (
+    <PagePane>
+      <Suspense fallback={<LoadingFallback />}>
+        <MockMail />
       </Suspense>
     </PagePane>
   )

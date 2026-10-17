@@ -219,6 +219,7 @@ mod tests {
             target_folder: "INBOX".into(),
             received_at: 42,
             fraud_verdict: None,
+            sandbox_ns: None,
             schema_version: SPOOL_SCHEMA_VERSION,
         }
     }

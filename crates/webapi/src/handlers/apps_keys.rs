@@ -116,6 +116,7 @@ pub async fn create_agent_key(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Json(req): Json<CreateAgentKeyRequest>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
+    crate::session::validate_agent_scopes(&req.scopes)?;
     let counter = format!("agent:keys:counter:{user}");
     let id = with_kevy(move |c| next_id(c, &counter))?;
     let secret = format!("mk_{}", random_hex(24));
@@ -256,12 +257,8 @@ pub async fn migrate_legacy_agent_key_indexes(
 ///
 /// Same rows as the admin surface: a user's address *is* their account
 /// address, so both now read and write `admin:webhooks:{address}` through
-/// `core_sidestate::families::webhooks`. Until 2026-07-31 this wrote a
-/// second namespace, `agent:webhooks:{user}`, which meant a subscription
-/// created in Settings was invisible to the admin list and vice versa, and
-/// the two CRUD implementations had drifted — this one had no
-/// `filter_sender` until a fortnight ago and still allocated ids from its
-/// own counter, so the two namespaces could hand out the same id.
+/// `core_sidestate::families::webhooks`. A separate `agent:webhooks:{user}`
+/// namespace once made the two lists disjoint and their ids collide.
 pub async fn list_agent_webhooks(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {

@@ -179,7 +179,8 @@ async fn process_one(cfg: Cfg, id: String) {
     }
 
     if mock::is_mock_recipient(&recipient) {
-        return mock::report_delivered(cfg, id, &envelope, &sender, &recipient).await;
+        return mock::report_delivered(cfg, id, &envelope, &sender, &recipient, &message_bytes)
+            .await;
     }
 
     // Enforce a per-item retry floor. If we picked this up too soon,
@@ -204,8 +205,7 @@ async fn process_one(cfg: Cfg, id: String) {
         .unwrap_or("")
         .to_string();
     let outcome = try_deliver(&cfg, &sender, &recipient, &message_bytes, &original_sender).await;
-    // Once, before the queue handling below, so every arm is covered by
-    // construction rather than by remembering.
+    // once, before the queue handling, so every arm is covered by construction
     report_send_outcome(
         &cfg,
         envelope.get("send_id").and_then(|v| v.as_str()),

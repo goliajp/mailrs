@@ -16,6 +16,8 @@
 //!   to demote mailing-list traffic in inbox sorting.
 //! - [`parse_unsubscribe`] — the same header read for what it says:
 //!   where unsubscribing goes, and whether RFC 8058 one-click applies.
+//! - [`html_to_clean_text`] — the last stage of that pipeline alone:
+//!   HTML rendered as paragraph-aware plain text, nothing removed.
 //! - [`preview_line`] — the one line under the subject in a list, with
 //!   the preheader padding real senders use taken out of it.
 //! - [`is_automated_sender`] — local-part pattern check for
@@ -149,9 +151,10 @@ mod quote;
 mod sender;
 mod unsubscribe;
 
+pub use html::html_to_clean_text;
 use html::{
-    count_pattern, detect_tracking_pixels, html_to_clean_text, remove_template_chrome,
-    remove_tracking_and_hidden, remove_unsafe_elements,
+    count_pattern, detect_tracking_pixels, remove_template_chrome, remove_tracking_and_hidden,
+    remove_unsafe_elements,
 };
 pub use preview::preview_line;
 pub use quote::split_quoted_content;

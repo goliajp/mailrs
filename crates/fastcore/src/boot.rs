@@ -245,10 +245,9 @@ pub async fn run() {
     // TLS-RPT daily aggregate submission (G8.3).
     tlsrpt::spawn_submit(state.clone());
 
-    // v2.4.2 Phase 4.2 (RFC-C §4.2): Junk-folder retention sweep.
-    // Runs every 24h; expunges Junk-zset entries whose latest_date
-    // is older than the per-user TTL (default 30 days).
+    // retention sweeps: Junk past the per-user TTL, mock mail past 3 days
     junk_ttl::spawn(state.clone());
+    crate::mock_sweep::spawn(state.clone());
     snooze_wake::spawn(state.clone());
     crate::fraud_backfill::spawn(state.clone(), &kevy_dir);
     // Say now whether push is on, rather than at the first delivery.
