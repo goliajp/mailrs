@@ -147,7 +147,7 @@ pub async fn sync(src: &Client, dst: &Client, opts: &SyncOpts) -> Result<SyncRep
     Ok(report)
 }
 
-/// Recreate one account on `dst`: `add_account` with a placeholder
+/// Create one account on `dst` unless it is there: `add_account` with a placeholder
 /// password (needed because `add_account` hashes plaintext), then
 /// overwrite with the real hash via `set_account_password`.
 async fn sync_account(
@@ -163,12 +163,19 @@ async fn sync_account(
         return Ok(());
     }
 
-    dst.add_account(&AddAccountRequest {
-        address: address.to_string(),
-        display_name: display_name.to_string(),
-        password: opts.account_placeholder_pw.clone(),
-    })
-    .await?;
+    // an account already on `dst` (a re-run) is kept as it is: creating it
+    // again answers 409 rather than resetting its quota and permissions
+    match dst
+        .add_account(&AddAccountRequest {
+            address: address.to_string(),
+            display_name: display_name.to_string(),
+            password: opts.account_placeholder_pw.clone(),
+        })
+        .await
+    {
+        Ok(()) | Err(CoreApiError::Conflict(_)) => {}
+        Err(e) => return Err(e),
+    }
 
     if let Some(hash) = src
         .get_account_with_hash(address)
