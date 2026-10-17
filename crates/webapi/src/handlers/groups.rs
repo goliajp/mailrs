@@ -20,16 +20,23 @@ pub struct CreateGroupRequest {
     pub name: String,
     #[serde(default)]
     pub description: String,
+    /// The domain the group is scoped to; absent or empty means global.
+    #[serde(default)]
+    pub domain: Option<String>,
 }
 
 pub async fn create_group(
     Json(req): Json<CreateGroupRequest>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let id = with_kevy(|c| next_id(c, GROUPS_CTR))?;
+    let domain = req.domain.filter(|d| !d.is_empty());
+    // same row shape as `GroupWire`; only the builtin `super` group is builtin
     let g = serde_json::json!({
         "id": id,
         "name": req.name,
         "description": req.description,
+        "domain": domain,
+        "is_builtin": false,
         "created_at": now_secs(),
     });
     let payload = serde_json::to_vec(&g).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -165,32 +172,42 @@ pub struct CreateEmailGroupRequest {
     /// Same as `domain`: sent, previously dropped.
     #[serde(default)]
     pub description: String,
-    /// Initial membership. The UI creates groups empty and adds members
-    /// through `POST /admin/email-groups/{id}/members`, so this stays
-    /// defaulted rather than becoming required.
+    /// Initial membership, written to the member set. The UI creates
+    /// groups empty and adds members through
+    /// `POST /admin/email-groups/{id}/members`.
     #[serde(default)]
     pub members: Vec<String>,
+}
+
+/// The one place an email group's members are stored.
+pub(crate) fn email_group_members_key(id: impl std::fmt::Display) -> String {
+    format!("admin:email-group:{id}:members")
 }
 
 pub async fn create_email_group(
     Json(req): Json<CreateEmailGroupRequest>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let id = with_kevy(|c| next_id(c, EG_CTR))?;
+    // members live only in the member set, never in the row
     let g = serde_json::json!({
         "id": id,
         "address": req.address,
         "domain": req.domain,
         "name": req.name,
         "description": req.description,
-        "members": req.members,
         "created_at": now_secs(),
     });
     let payload = serde_json::to_vec(&g).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let members = req.members;
     with_kevy(move |c| {
         c.hset(
             EG_KEY.as_bytes(),
             &[(id.to_string().as_bytes(), payload.as_slice())],
         )?;
+        let refs: Vec<&[u8]> = members.iter().map(|m| m.as_bytes()).collect();
+        if !refs.is_empty() {
+            c.sadd(email_group_members_key(id).as_bytes(), &refs)?;
+        }
         Ok(())
     })?;
     Ok(Json(g))
@@ -199,6 +216,7 @@ pub async fn create_email_group(
 pub async fn delete_email_group(Path(id): Path<i64>) -> Result<StatusCode, StatusCode> {
     with_kevy(move |c| {
         c.hdel(EG_KEY.as_bytes(), &[id.to_string().as_bytes()])?;
+        c.del(&[email_group_members_key(id).as_bytes()])?;
         Ok(())
     })?;
     Ok(StatusCode::NO_CONTENT)

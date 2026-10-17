@@ -24,7 +24,8 @@ import {
   adminEmptyResultSchema,
   adminListSchema,
   adminObjectSchema,
-  adminResultSchema,
+  adminStringListSchema,
+  adminWriteResultSchema,
 } from '../schemas/admin'
 
 type AnyObj = Record<string, unknown>
@@ -46,20 +47,40 @@ export async function adminListGet<T = AnyObj>(path: string, signal?: AbortSigna
   return raw.items as unknown as T[]
 }
 
-// ── mutations ──────────────────────────────────────────────────
-
 export async function adminObjectGet<T = AnyObj>(path: string, signal?: AbortSignal): Promise<T> {
   return wireFetch(adminObjectSchema, { path, signal }) as unknown as Promise<T>
 }
 
+// ── mutations ──────────────────────────────────────────────────
+
 export async function adminPatch<T = AnyObj>(path: string, body?: unknown): Promise<T> {
-  return wireFetch(adminResultSchema, { body, method: 'PATCH', path }) as unknown as Promise<T>
+  return wireFetch(adminWriteResultSchema, {
+    allowEmpty: true,
+    body,
+    method: 'PATCH',
+    path,
+  }) as unknown as Promise<T>
 }
 
 export async function adminPost<T = AnyObj>(path: string, body?: unknown): Promise<T> {
-  return wireFetch(adminResultSchema, { body, method: 'POST', path }) as unknown as Promise<T>
+  return wireFetch(adminWriteResultSchema, {
+    allowEmpty: true,
+    body,
+    method: 'POST',
+    path,
+  }) as unknown as Promise<T>
 }
 
 export async function adminPut<T = AnyObj>(path: string, body?: unknown): Promise<T> {
-  return wireFetch(adminResultSchema, { body, method: 'PUT', path }) as unknown as Promise<T>
+  return wireFetch(adminWriteResultSchema, {
+    allowEmpty: true,
+    body,
+    method: 'PUT',
+    path,
+  }) as unknown as Promise<T>
+}
+
+/** A list of strings (permissions, members, group names), however the endpoint wraps it. */
+export async function adminStringListGet(path: string, signal?: AbortSignal): Promise<string[]> {
+  return wireFetch(adminStringListSchema, { path, signal })
 }

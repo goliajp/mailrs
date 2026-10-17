@@ -1,4 +1,5 @@
 {
   "description": "Full administrative access",
+  "domain": "golia.jp",
   "name": "admins"
 }

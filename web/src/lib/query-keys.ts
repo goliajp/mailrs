@@ -109,6 +109,7 @@ export const adminKeys = {
     [...adminKeys.all(), 'mail-audit-thread', address, threadId] as const,
   mock: () => [...adminKeys.all(), 'mock'] as const,
   overviewAuditLog: () => [...adminKeys.all(), 'overview-audit-log'] as const,
+  overviewFlow: () => [...adminKeys.all(), 'overview-flow'] as const,
   overviewHealth: () => [...adminKeys.all(), 'overview-health'] as const,
   overviewSmtp: () => [...adminKeys.all(), 'overview-smtp'] as const,
   overviewStatus: () => [...adminKeys.all(), 'overview-status'] as const,
@@ -157,5 +158,8 @@ export const mockKeys = {
   all: () => ['mock'] as const,
   message: (ns: string, id: string) => [...mockKeys.all(), 'message', ns, id] as const,
   messages: (ns: string) => [...mockKeys.all(), 'messages', ns] as const,
-  namespaces: () => [...mockKeys.all(), 'namespaces'] as const,
+  namespaces: (scope?: 'all' | 'mine') => {
+    if (scope === undefined) return [...mockKeys.all(), 'namespaces'] as const
+    return [...mockKeys.all(), 'namespaces', scope] as const
+  },
 }

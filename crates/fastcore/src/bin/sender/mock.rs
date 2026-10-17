@@ -88,6 +88,7 @@ fn capture(cfg: &Cfg, id: &str, recipient: &str, message: &[u8]) -> sendfam::Rec
         }
         Ok(Stored::NoNamespace) => state(false, 550, format!("550 5.1.1 no mock namespace {ns}")),
         Ok(Stored::Full) => state(false, 452, "452 4.3.1 mock mail storage is full".into()),
+        Ok(Stored::Disabled) => state(false, 550, "550 5.1.1 mock mail is turned off".into()),
         Err(e) => {
             tracing::warn!(%id, %rcpt, error = %e, "mock: capture failed");
             state(false, 451, format!("451 4.3.0 mock store unavailable: {e}"))

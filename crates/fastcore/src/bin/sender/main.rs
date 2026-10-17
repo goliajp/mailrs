@@ -53,7 +53,7 @@ use retry_queue::*;
 use mailrs_core_sidestate::families::outbound::{PENDING_IDX, SCHEDULED_IDX};
 
 const PENDING_IDX_KEY: &[u8] = PENDING_IDX;
-const FAILED_KEY: &[u8] = b"mailrs:outbound:failed";
+use mailrs_core_sidestate::families::outbound::FAILED_SET as FAILED_KEY;
 
 impl Cfg {
     fn from_env() -> Self {

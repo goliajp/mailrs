@@ -1,5 +1,6 @@
 import type { CalDateTime } from '@/lib/invite-time'
 import type { Attendee } from '@/lib/invite-types'
+import type { RsvpBody } from '@/wire/endpoints/invites'
 
 import { useQuery } from '@tanstack/react-query'
 import { Calendar, Check, Clock, MapPin, Users, Video, X } from 'lucide-react'
@@ -19,7 +20,8 @@ import {
 } from '@/lib/invite-time'
 import { queryClient } from '@/lib/query-client'
 import { calendarKeys, messageKeys } from '@/lib/query-keys'
-import { adminListGet, adminObjectGet, adminPost } from '@/wire/endpoints/admin'
+import { adminListGet, adminObjectGet } from '@/wire/endpoints/admin'
+import { wireInviteCounter, wireInviteRsvp } from '@/wire/endpoints/invites'
 
 type ConflictRow = {
   dtend: null | string
@@ -125,7 +127,7 @@ export function InviteCard({
   const send = async (partstat: 'ACCEPTED' | 'DECLINED' | 'TENTATIVE') => {
     setRsvp('pending')
     try {
-      const body: { partstat: string; recurrence_id?: string } = { partstat }
+      const body: RsvpBody = { partstat }
       if (recurrenceIso) {
         body.recurrence_id = recurrenceIso.endsWith('Z') ? recurrenceIso : `${recurrenceIso}Z`
       }
@@ -133,10 +135,7 @@ export function InviteCard({
       // the invite (route mismatch, RBAC, race). HTTP-level success alone
       // is not enough — fail loud here so the UI doesn't lie about the
       // reply going out (MRS-20 incident).
-      const res = await adminPost<{ message?: string; success: boolean }>(
-        `/invites/${messageUid}/rsvp`,
-        body
-      )
+      const res = await wireInviteRsvp(messageUid, body)
       if (!res.success) {
         setRsvp({ error: res.message ?? 'reply rejected by server' })
         return
@@ -151,20 +150,18 @@ export function InviteCard({
   }
 
   const sendCounter = async () => {
-    if (!counterStart) return
+    if (!counterStart || !counterEnd) return
     setRsvp('pending')
     try {
       // <input type="datetime-local"> yields a wall-clock string with no
       // timezone — Date treats it as local time and toISOString() emits
-      // the corresponding UTC. That's what the server expects.
-      const startIso = new Date(counterStart).toISOString()
-      const endIso = counterEnd ? new Date(counterEnd).toISOString() : null
-      const body: { dtend?: null | string; dtstart: string } = { dtstart: startIso }
-      if (endIso) body.dtend = endIso
-      const res = await adminPost<{ message?: string; success: boolean }>(
-        `/invites/${messageUid}/counter`,
-        body
-      )
+      // the corresponding UTC. That's what the server expects, under the
+      // names its CounterRequest reads: `start` and `end`, both required
+      const body = {
+        end: new Date(counterEnd).toISOString(),
+        start: new Date(counterStart).toISOString(),
+      }
+      const res = await wireInviteCounter(messageUid, body)
       if (!res.success) {
         setRsvp({ error: res.message ?? 'counter rejected by server' })
         return
@@ -452,7 +449,7 @@ export function InviteCard({
                 />
                 <button
                   className="bg-accent text-accent-fg hover:bg-accent-hover rounded-md px-3 py-1.5 text-sm transition-colors disabled:opacity-50"
-                  disabled={!counterStart || rsvp === 'pending'}
+                  disabled={!counterStart || !counterEnd || rsvp === 'pending'}
                   onClick={() => void sendCounter()}
                   type="button"
                 >

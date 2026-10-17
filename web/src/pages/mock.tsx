@@ -1,6 +1,8 @@
+import type { AuthInfo } from '@/store/auth'
 import type { MockMessageMeta, MockNamespace } from '@/wire/schemas/mock'
 
 import { useQuery } from '@tanstack/react-query'
+import { useAtomValue } from 'jotai'
 import { FlaskConical } from 'lucide-react'
 import { useSearchParams } from 'react-router'
 
@@ -15,6 +17,7 @@ import { SmtpPanel } from '@/components/mock/smtp-panel'
 import { WebhookPanel } from '@/components/mock/webhook-panel'
 import { cn } from '@/lib/cn'
 import { mockKeys } from '@/lib/query-keys'
+import { authAtom } from '@/store/auth'
 import { wireListMockMessages, wireListMockNamespaces } from '@/wire/endpoints/mock'
 
 const EMPTY_NAMESPACES: readonly MockNamespace[] = []
@@ -28,9 +31,11 @@ type Tool = 'send' | 'smtp' | 'webhook'
 /** `/mock?ns=<namespace>&msg=<id>` — the selection lives in the URL. */
 export function MockMail() {
   const [params, setParams] = useSearchParams()
+  const admin = isAdmin(useAtomValue(authAtom))
+  const everyone = admin && params.get('scope') === 'all'
   const query = useQuery({
-    queryKey: mockKeys.namespaces(),
-    queryFn: ({ signal }) => wireListMockNamespaces(signal),
+    queryKey: mockKeys.namespaces(scopeOf(everyone)),
+    queryFn: ({ signal }) => wireListMockNamespaces(signal, everyone),
     // a 404 here is a settled answer: the deployment has no mock domain
     retry: (count, error) => !isMockDisabled(error) && count < 1,
   })
@@ -59,18 +64,24 @@ export function MockMail() {
 
   // a new namespace starts with nothing open; within one, `tool` stays put
   const selectNamespace = (ns: null | string) =>
-    setParams(withParam(new URLSearchParams(), 'ns', ns))
+    setParams(withParam(withParam(new URLSearchParams(), 'scope', scopeParam(everyone)), 'ns', ns))
+  const selectScope = (all: boolean) =>
+    setParams(withParam(new URLSearchParams(), 'scope', scopeParam(all)))
   const selectMessage = (msg: null | string) => setParams(withParam(params, 'msg', msg))
   const selectTool = (tool: null | Tool) => setParams(withParam(params, 'tool', tool))
 
   return (
     <AdminPageShell subtitle={SUBTITLE} title={TITLE}>
       <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
-        <NamespaceList
-          namespaces={namespaces}
-          onSelect={selectNamespace}
-          selected={selected?.name ?? null}
-        />
+        <div className="space-y-3">
+          {admin && <ScopeSwitch everyone={everyone} onChange={selectScope} />}
+          <NamespaceList
+            everyone={everyone}
+            namespaces={namespaces}
+            onSelect={selectNamespace}
+            selected={selected?.name ?? null}
+          />
+        </div>
         {selected === null && (
           <p className="text-fg-muted py-12 text-center text-sm">
             {pickPrompt(namespaces.length, query.isPending)}
@@ -89,6 +100,11 @@ export function MockMail() {
       </div>
     </AdminPageShell>
   )
+}
+
+function isAdmin(auth: AuthInfo | null): boolean {
+  if (auth === null) return false
+  return auth.permissions.some((p) => p === '*' || p.startsWith('admin.'))
 }
 
 function NamespaceView({
@@ -183,6 +199,65 @@ function pickPrompt(count: number, pending: boolean): string {
   if (pending) return 'Loading…'
   if (count === 0) return 'Create a namespace to get test addresses'
   return 'Pick a namespace'
+}
+
+function ScopeButton({
+  active,
+  children,
+  onClick,
+}: {
+  active: boolean
+  children: React.ReactNode
+  onClick: () => void
+}) {
+  return (
+    <button
+      aria-pressed={active}
+      className={cn(
+        'rounded px-2.5 py-1 transition-colors',
+        active && 'bg-bg-secondary text-fg',
+        !active && 'text-fg-muted hover:text-fg'
+      )}
+      onClick={onClick}
+      type="button"
+    >
+      {children}
+    </button>
+  )
+}
+
+function scopeOf(everyone: boolean): 'all' | 'mine' {
+  if (everyone) return 'all'
+  return 'mine'
+}
+
+function scopeParam(everyone: boolean): null | string {
+  if (everyone) return 'all'
+  return null
+}
+
+/** Admins can switch between their own namespaces and everyone's. */
+function ScopeSwitch({
+  everyone,
+  onChange,
+}: {
+  everyone: boolean
+  onChange: (all: boolean) => void
+}) {
+  return (
+    <div
+      aria-label="Whose namespaces"
+      className="border-border inline-flex rounded-md border p-0.5 text-xs"
+      role="group"
+    >
+      <ScopeButton active={!everyone} onClick={() => onChange(false)}>
+        Mine
+      </ScopeButton>
+      <ScopeButton active={everyone} onClick={() => onChange(true)}>
+        Everyone’s
+      </ScopeButton>
+    </div>
+  )
 }
 
 function toggle(current: null | Tool, clicked: Tool): null | Tool {

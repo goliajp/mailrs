@@ -67,9 +67,11 @@ async fn a_namespace_receives_waits_reads_and_stays_its_owners() {
     let st = state();
     let ann = user("ann@example.test");
 
-    let created = service::create_namespace(&ann, "ann-app").await.unwrap();
+    let created = service::create_namespace(&st, &ann, "ann-app")
+        .await
+        .unwrap();
     assert_eq!(created.address, format!("ann-app.test@{DOMAIN}"));
-    let taken = service::create_namespace(&user("bob@example.test"), "ann-app").await;
+    let taken = service::create_namespace(&st, &user("bob@example.test"), "ann-app").await;
     assert_eq!(taken.unwrap_err().status, 409);
 
     let minted = service::new_address(&st, &ann, "ann-app", Some("signup"))
@@ -151,7 +153,7 @@ async fn a_namespace_receives_waits_reads_and_stays_its_owners() {
     .await;
     assert_eq!(hidden.unwrap_err().status, 404);
     assert_eq!(
-        service::create_namespace(&scoped, "x-new")
+        service::create_namespace(&st, &scoped, "x-new")
             .await
             .unwrap_err()
             .status,
@@ -165,7 +167,9 @@ async fn a_namespace_receives_waits_reads_and_stays_its_owners() {
     );
 
     // sending reaches mock recipients only
-    service::create_namespace(&bob, "bob-app").await.unwrap();
+    service::create_namespace(&st, &bob, "bob-app")
+        .await
+        .unwrap();
     let sent = send(
         &st,
         &ann,
@@ -213,23 +217,16 @@ async fn a_namespace_receives_waits_reads_and_stays_its_owners() {
             .any(|m| m.direction == Direction::CapturedOut)
     );
 
-    // the admin overview sees every owner's namespace and its files
+    // the admin overview counts every owner's namespaces; an admin's
+    // listing of them is `list_namespaces(all)`, covered by its own route
     let axum::Json(overview) = mailrs_webapi::handlers::mock::admin::overview()
         .await
         .unwrap();
-    let names: Vec<&str> = overview
-        .namespaces
-        .iter()
-        .map(|n| n.namespace.name.as_str())
-        .collect();
-    assert_eq!(names, ["ann-app", "bob-app"]);
     assert_eq!(overview.domain, DOMAIN);
-    let on_disk: i64 = overview.namespaces.iter().map(|n| n.bytes).sum();
-    assert_eq!(
-        on_disk, overview.bytes,
-        "per-namespace bytes disagree with the total"
-    );
-    assert!(overview.bytes > 0);
+    assert_eq!((overview.usage.namespaces, overview.usage.owners), (2, 2));
+    assert!(overview.usage.bytes > 0);
+    let listed = service::list_namespaces(&st, &ann, false).await.unwrap();
+    assert!(listed.iter().map(|n| n.bytes).sum::<i64>() > 0);
 
     let removed = messages::delete_messages(&st, &ann, "ann-app", None, Some("signup"))
         .await

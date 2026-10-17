@@ -16,93 +16,61 @@ import {
 } from 'lucide-react'
 import { NavLink } from 'react-router'
 
-const navItems = [
+type NavItem = { icon: React.ReactNode; label: string; to: string }
+
+// grouped by what an operator comes to do: watch mail move, manage who
+// and what the server hosts, look back at what happened, change settings
+const navGroups: { items: NavItem[]; label: string }[] = [
   {
-    icon: <LayoutGrid className="h-4 w-4" />,
-    label: 'Overview',
-    to: '/admin/overview',
+    items: [
+      { icon: <LayoutGrid className="h-4 w-4" />, label: 'Overview', to: '/admin/overview' },
+      { icon: <ListOrdered className="h-4 w-4" />, label: 'Queues', to: '/admin/queues' },
+      { icon: <ShieldCheck className="h-4 w-4" />, label: 'DMARC', to: '/admin/dmarc' },
+      { icon: <Filter className="h-4 w-4" />, label: 'Greylist', to: '/admin/greylist' },
+      { icon: <FlaskConical className="h-4 w-4" />, label: 'Mock mail', to: '/admin/mock' },
+    ],
+    label: 'Mail flow',
   },
   {
-    icon: <Globe className="h-4 w-4" />,
-    label: 'Domains',
-    to: '/admin/domains',
+    items: [
+      { icon: <Globe className="h-4 w-4" />, label: 'Domains', to: '/admin/domains' },
+      { icon: <Users className="h-4 w-4" />, label: 'Accounts', to: '/admin/accounts' },
+      { icon: <ArrowLeftRight className="h-4 w-4" />, label: 'Aliases', to: '/admin/aliases' },
+      { icon: <Mail className="h-4 w-4" />, label: 'Email groups', to: '/admin/email-groups' },
+      { icon: <Shield className="h-4 w-4" />, label: 'Permission groups', to: '/admin/groups' },
+      { icon: <Blocks className="h-4 w-4" />, label: 'Apps', to: '/admin/apps' },
+    ],
+    label: 'Directory',
   },
   {
-    icon: <ShieldCheck className="h-4 w-4" />,
-    label: 'DMARC',
-    to: '/admin/dmarc',
+    items: [
+      { icon: <Eye className="h-4 w-4" />, label: 'Mail audit', to: '/admin/mail-audit' },
+      { icon: <ScrollText className="h-4 w-4" />, label: 'Audit log', to: '/admin/audit-log' },
+    ],
+    label: 'Oversight',
   },
   {
-    icon: <Users className="h-4 w-4" />,
-    label: 'Accounts',
-    to: '/admin/accounts',
-  },
-  {
-    icon: <ArrowLeftRight className="h-4 w-4" />,
-    label: 'Aliases',
-    to: '/admin/aliases',
-  },
-  {
-    icon: <Shield className="h-4 w-4" />,
-    label: 'Groups',
-    to: '/admin/groups',
-  },
-  {
-    icon: <Mail className="h-4 w-4" />,
-    label: 'Email Groups',
-    to: '/admin/email-groups',
-  },
-  {
-    icon: <Blocks className="h-4 w-4" />,
-    label: 'Apps',
-    to: '/admin/apps',
-  },
-  {
-    icon: <ListOrdered className="h-4 w-4" />,
-    label: 'Queues',
-    to: '/admin/queues',
-  },
-  {
-    icon: <Filter className="h-4 w-4" />,
-    label: 'Greylist',
-    to: '/admin/greylist',
-  },
-  {
-    icon: <FlaskConical className="h-4 w-4" />,
-    label: 'Mock Mail',
-    to: '/admin/mock',
-  },
-  {
-    icon: <Eye className="h-4 w-4" />,
-    label: 'Mail Audit',
-    to: '/admin/mail-audit',
-  },
-  {
-    icon: <ScrollText className="h-4 w-4" />,
-    label: 'Audit Log',
-    to: '/admin/audit-log',
-  },
-  {
-    icon: <Settings className="h-4 w-4" />,
-    label: 'System Config',
-    to: '/admin/system-config',
+    items: [
+      {
+        icon: <Settings className="h-4 w-4" />,
+        label: 'System config',
+        to: '/admin/system-config',
+      },
+    ],
+    label: 'Settings',
   },
 ]
+
+const allItems = navGroups.flatMap((g) => g.items)
 
 export function AdminSidebar() {
   return (
     <>
-      {/* mobile: horizontal tab bar */}
+      {/* mobile: one scrolling row of every page */}
       <nav className="border-border flex items-center gap-1.5 overflow-x-auto border-b px-3 py-2 select-none md:hidden">
-        {navItems.map((item) => (
+        {allItems.map((item) => (
           <NavLink
-            className={({ isActive }) =>
-              `flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs transition-colors ${
-                isActive
-                  ? 'bg-accent/10 text-fg font-medium'
-                  : 'text-fg-muted hover:bg-bg-secondary'
-              }`
-            }
+            className={({ isActive }) => linkClass(isActive, true)}
             key={item.to}
             to={item.to}
           >
@@ -112,30 +80,33 @@ export function AdminSidebar() {
         ))}
       </nav>
 
-      {/* desktop: vertical sidebar */}
-      <aside className="border-border hidden h-full w-48 shrink-0 flex-col border-r select-none md:flex">
-        <div className="px-3 py-4">
-          <p className="text-fg-muted text-xs font-medium tracking-wider uppercase">Server</p>
-        </div>
-        <nav className="flex-1 px-3">
-          {navItems.map((item) => (
-            <NavLink
-              className={({ isActive }) =>
-                `flex w-full items-center gap-2.5 rounded-md px-3 py-1.5 text-sm transition-colors ${
-                  isActive
-                    ? 'bg-accent/10 text-fg font-medium'
-                    : 'text-fg-secondary hover:bg-bg-secondary'
-                }`
-              }
-              key={item.to}
-              to={item.to}
-            >
-              <span className="text-fg-muted">{item.icon}</span>
-              <span>{item.label}</span>
-            </NavLink>
-          ))}
-        </nav>
+      {/* desktop: grouped column */}
+      <aside className="border-border hidden h-full w-52 shrink-0 flex-col overflow-y-auto border-r py-3 select-none md:flex">
+        {navGroups.map((group) => (
+          <nav aria-label={group.label} className="mb-4 px-3" key={group.label}>
+            <p className="text-fg-muted mb-1 px-3 text-xs">{group.label}</p>
+            {group.items.map((item) => (
+              <NavLink
+                className={({ isActive }) => linkClass(isActive, false)}
+                key={item.to}
+                to={item.to}
+              >
+                <span className="text-fg-muted">{item.icon}</span>
+                <span>{item.label}</span>
+              </NavLink>
+            ))}
+          </nav>
+        ))}
       </aside>
     </>
   )
+}
+
+function linkClass(isActive: boolean, compact: boolean): string {
+  const base = compact
+    ? 'flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs transition-colors'
+    : 'flex w-full items-center gap-2.5 rounded-md px-3 py-1.5 text-sm transition-colors'
+  if (isActive) return `${base} bg-accent/10 text-fg font-medium`
+  if (compact) return `${base} text-fg-muted hover:bg-bg-secondary`
+  return `${base} text-fg-secondary hover:bg-bg-secondary`
 }

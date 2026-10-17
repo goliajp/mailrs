@@ -12,6 +12,7 @@
  *   - fn rotate_smtp_token -> 201 SmtpCredentials
  *   - fn set_webhook       -> MockWebhook (handlers/mock/service.rs)
  *   - fn overview          -> AdminOverview (handlers/mock/admin.rs, GET /api/admin/mock)
+ *   - fn save_settings     -> Settings (PUT /api/admin/mock/settings)
  *
  * Shapes read off the structs, none renamed:
  *   - `NamespaceView` (handlers/mock/service.rs) flattens `Namespace`
@@ -30,6 +31,7 @@ import { z } from 'zod'
 /** Mirrors `NamespaceView`. */
 export const mockNamespaceSchema = z.object({
   address: z.string(),
+  bytes: z.number(),
   created_at: z.number(),
   dropped: z.number(),
   messages: z.number(),
@@ -140,23 +142,30 @@ export const mockWebhookSchema = z.object({
 
 export type MockWebhook = z.infer<typeof mockWebhookSchema>
 
-/** Mirrors `AdminNamespace`: `Namespace` flattened, plus its bytes on disk. */
-export const mockAdminNamespaceSchema = mockNamespaceSchema.omit({ address: true }).extend({
-  bytes: z.number(),
+/** Mirrors `Settings` (core-sidestate families/mock/settings.rs). */
+export const mockSettingsSchema = z.object({
+  create: z.enum(['all-users', 'admins-only']),
+  enabled: z.boolean(),
+  max_messages: z.number(),
+  max_namespaces_per_user: z.number(),
+  max_total_mb: z.number(),
+  retention_days: z.number(),
 })
 
-export type MockAdminNamespace = z.infer<typeof mockAdminNamespaceSchema>
+export type MockSettings = z.infer<typeof mockSettingsSchema>
 
-/** Mirrors `AdminOverview`. `domain` is empty when the feature is off. */
+/** Mirrors `AdminOverview` (handlers/mock/admin.rs). `domain` is empty when none is configured. */
 export const mockAdminOverviewSchema = z.object({
-  bytes: z.number(),
   domain: z.string(),
-  dropped: z.number(),
-  max_bytes: z.number(),
-  max_namespaces_per_user: z.number(),
-  namespaces: z.array(mockAdminNamespaceSchema),
-  received: z.number(),
-  rejected_unknown_ns: z.number(),
+  settings: mockSettingsSchema,
+  usage: z.object({
+    bytes: z.number(),
+    dropped: z.number(),
+    namespaces: z.number(),
+    owners: z.number(),
+    received: z.number(),
+    rejected_unknown_ns: z.number(),
+  }),
 })
 
 export type MockAdminOverview = z.infer<typeof mockAdminOverviewSchema>

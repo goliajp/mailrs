@@ -1,7 +1,16 @@
 //! Server configuration the admin UI reads and writes: SMTP, the system
 //! config map, and the OIDC discovery document.
 
-use axum::{Json, extract::Path, http::StatusCode};
+use axum::{
+    Json,
+    extract::{Extension, Path},
+    http::StatusCode,
+};
+
+use crate::handlers::conversations::AuthedUser;
+
+mod store;
+use store::{CONFIG_KEY, CONFIG_META_KEY, ConfigMeta, pairs, remove, store, with_meta};
 
 use crate::handlers::kevy_util::with_kevy;
 
@@ -36,62 +45,6 @@ pub async fn oidc_config() -> Json<serde_json::Value> {
     }))
 }
 
-pub async fn get_smtp_config() -> Result<Json<serde_json::Value>, StatusCode> {
-    // Prefer an operator-provided override in kevy (set via
-    // `set_smtp_config`), otherwise synthesise the shape the admin UI
-    // expects from the process env. The webapi doesn't own the SMTP
-    // listeners in the fastcore split — `mailrs-receiver` does — so
-    // the ports come from the same env vars the receiver reads.
-    let key = b"admin:config:smtp".to_vec();
-    if let Ok(Some(bytes)) = with_kevy(move |c| c.get(&key).map_err(std::io::Error::from))
-        && let Ok(v) = serde_json::from_slice::<serde_json::Value>(&bytes)
-    {
-        return Ok(Json(v));
-    }
-    fn env_u16(name: &str, default: u16) -> u16 {
-        std::env::var(name)
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(default)
-    }
-    let hostname = std::env::var("MAILRS_HOSTNAME").unwrap_or_else(|_| "mail.example.com".into());
-    let domains: Vec<String> = std::env::var("MAILRS_LOCAL_DOMAINS")
-        .unwrap_or_default()
-        .split(',')
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-        .collect();
-    let tls_enabled = std::env::var("MAILRS_TLS_ENABLED")
-        .map(|s| s == "1" || s.eq_ignore_ascii_case("true"))
-        .unwrap_or(true);
-    let max_message_size = std::env::var("MAILRS_MAX_MESSAGE_SIZE_BYTES")
-        .ok()
-        .and_then(|s| s.parse::<u64>().ok());
-    let mut out = serde_json::json!({
-        "hostname": hostname,
-        "smtp_port": env_u16("MAILRS_SMTP_PORT", 25),
-        "submission_port": env_u16("MAILRS_SUBMISSION_PORT", 587),
-        "imap_port": env_u16("MAILRS_IMAP_PORT", 143),
-        "local_domains": domains,
-        "tls_enabled": tls_enabled,
-    });
-    if let Some(sz) = max_message_size
-        && let Some(o) = out.as_object_mut()
-    {
-        o.insert("max_message_size".into(), serde_json::json!(sz));
-    }
-    Ok(Json(out))
-}
-
-pub async fn set_smtp_config(Json(cfg): Json<serde_json::Value>) -> Result<StatusCode, StatusCode> {
-    let payload = serde_json::to_vec(&cfg).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    with_kevy(move |c| {
-        c.set(b"admin:config:smtp", payload.as_slice())?;
-        Ok(())
-    })?;
-    Ok(StatusCode::NO_CONTENT)
-}
-
 /// GET /api/admin/system-config
 ///
 /// Returns the `{success, entries}` envelope the admin UI expects.
@@ -105,18 +58,13 @@ pub async fn set_smtp_config(Json(cfg): Json<serde_json::Value>) -> Result<Statu
 /// read from kevy; otherwise the `source: "env"` reading (or the built-
 /// in default) wins. UI renders "Environment" pill next to the value.
 pub async fn get_system_config() -> Result<Json<serde_json::Value>, StatusCode> {
-    let flat = with_kevy(|c| {
-        c.hgetall(b"admin:system-config")
-            .map_err(std::io::Error::from)
-    })?;
-    let mut overrides: std::collections::HashMap<String, String> = std::collections::HashMap::new();
-    let mut i = 0;
-    while i + 1 < flat.len() {
-        let k = String::from_utf8_lossy(&flat[i]).to_string();
-        let v = String::from_utf8_lossy(&flat[i + 1]).to_string();
-        overrides.insert(k, v);
-        i += 2;
-    }
+    let (flat, meta_flat) =
+        with_kevy(|c| Ok((c.hgetall(CONFIG_KEY)?, c.hgetall(CONFIG_META_KEY)?)))?;
+    let overrides = pairs(flat);
+    let meta: std::collections::HashMap<String, ConfigMeta> = pairs(meta_flat)
+        .into_iter()
+        .filter_map(|(k, v)| Some((k, serde_json::from_str(&v).ok()?)))
+        .collect();
     // The catalog is the union of what the operator has already
     // overridden and a small built-in list of tunables the UI wants to
     // surface even on a fresh install. Keeps the page useful when
@@ -184,7 +132,7 @@ pub async fn get_system_config() -> Result<Json<serde_json::Value>, StatusCode> 
         } else {
             (default.to_string(), "default")
         };
-        entries.push(serde_json::json!({
+        let mut entry = serde_json::json!({
             "key": key,
             "value": value,
             "default_value": default,
@@ -192,7 +140,11 @@ pub async fn get_system_config() -> Result<Json<serde_json::Value>, StatusCode> 
             "group": group,
             "source": source,
             "value_type": "string",
-        }));
+        });
+        if source == "database" {
+            with_meta(&mut entry, meta.get(*key));
+        }
+        entries.push(entry);
     }
     // Any operator override that isn't in the built-in catalog still
     // gets surfaced so the UI can show / edit / remove it.
@@ -200,7 +152,7 @@ pub async fn get_system_config() -> Result<Json<serde_json::Value>, StatusCode> 
         if seen.contains(k) {
             continue;
         }
-        entries.push(serde_json::json!({
+        let mut entry = serde_json::json!({
             "key": k,
             "value": v,
             "default_value": "",
@@ -208,7 +160,9 @@ pub async fn get_system_config() -> Result<Json<serde_json::Value>, StatusCode> 
             "group": "custom",
             "source": "database",
             "value_type": "string",
-        }));
+        });
+        with_meta(&mut entry, meta.get(k));
+        entries.push(entry);
     }
     Ok(Json(serde_json::json!({
         "success": true,
@@ -231,28 +185,32 @@ pub struct SetSystemConfigRequest {
     pub value: String,
 }
 
+/// The MCP tool's entry point; the tool writes its own audit row.
 pub async fn set_system_config_key(
     Path(k): Path<String>,
     Json(req): Json<SetSystemConfigRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    with_kevy(move |c| {
-        c.hset(
-            b"admin:system-config",
-            &[(k.as_bytes(), req.value.as_bytes())],
-        )?;
-        Ok(())
-    })?;
+    store(k, req.value, None)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// `PUT /api/admin/system-config/{key}` from the admin page.
+pub async fn put_system_config_key(
+    Extension(AuthedUser(actor)): Extension<AuthedUser>,
+    Path(k): Path<String>,
+    Json(req): Json<SetSystemConfigRequest>,
+) -> Result<StatusCode, StatusCode> {
+    store(k.clone(), req.value.clone(), Some(actor.clone()))?;
+    crate::handlers::audit::record(&actor, "system_config.set", &k, &req.value);
     Ok(StatusCode::NO_CONTENT)
 }
 
 /// `DELETE /api/admin/system-config/{key}` — back to the built-in default.
-///
-/// The client has a reset button; the fastcore lane had no route for it, so
-/// the button answered 405.
-pub async fn delete_system_config_key(Path(k): Path<String>) -> Result<StatusCode, StatusCode> {
-    with_kevy(move |c| {
-        c.hdel(b"admin:system-config", &[k.as_bytes()])?;
-        Ok(())
-    })?;
+pub async fn delete_system_config_key(
+    Extension(AuthedUser(actor)): Extension<AuthedUser>,
+    Path(k): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    remove(k.clone())?;
+    crate::handlers::audit::record(&actor, "system_config.reset", &k, "");
     Ok(StatusCode::NO_CONTENT)
 }

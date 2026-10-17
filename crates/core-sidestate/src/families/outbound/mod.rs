@@ -85,6 +85,9 @@ pub const PENDING_IDX: &[u8] = b"mailrs:outbound:pending-idx";
 /// never run. One exported name, and the two cannot drift again.
 pub const SCHEDULED_IDX: &[u8] = b"mailrs:outbound:scheduled-idx";
 
+/// Ids of jobs that failed for good; the sender adds them.
+pub const FAILED_SET: &[u8] = b"mailrs:outbound:failed";
+
 const DONE_IDX: &[u8] = b"mailrs:outbound:done-idx";
 
 /// Read `mailrs:outbound:{id}` blob → OutboundMessageWire (loose blob

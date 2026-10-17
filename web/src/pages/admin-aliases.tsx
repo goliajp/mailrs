@@ -1,5 +1,3 @@
-import type { AliasInfo, DomainInfo } from '@/lib/types'
-
 import { useQuery } from '@tanstack/react-query'
 import { AtSign } from 'lucide-react'
 import { useState } from 'react'
@@ -16,16 +14,23 @@ import { useAdminMutation } from '@/hooks/use-admin-mutations'
 import { adminKeys } from '@/lib/query-keys'
 import { adminDelete, adminListGet, adminPost } from '@/wire/endpoints/admin'
 
-const EMPTY_FORM = {
-  alias_type: 'alias',
-  domain: '',
-  source_address: '',
-  target_address: '',
-}
+const EMPTY_FORM = { source_address: '', target_address: '' }
 
 type AliasForm = typeof EMPTY_FORM
 
-const HEADERS = ['Source', 'Target', 'Domain', 'Type', 'Actions']
+/**
+ * What the alias store holds: a pair, keyed by its source address. It
+ * keeps no type or creation time, so the page shows neither.
+ * Backend: crates/webapi/src/handlers/admin_directory.rs — fn list_aliases
+ */
+type AliasRow = {
+  domain: string
+  id: string
+  source_address: string
+  target_address: string
+}
+
+const HEADERS = ['Source', 'Target', 'Domain', 'Actions']
 
 export function AdminAliases() {
   const {
@@ -35,26 +40,18 @@ export function AdminAliases() {
     refetch,
   } = useQuery({
     queryKey: adminKeys.aliases(),
-    queryFn: ({ signal }) => adminListGet<AliasInfo>('/admin/aliases', signal),
+    queryFn: ({ signal }) => adminListGet<AliasRow>('/admin/aliases', signal),
   })
   const aliases = aliasesData ?? []
 
-  const { data: domainsData } = useQuery({
-    queryKey: adminKeys.domains(),
-    queryFn: ({ signal }) => adminListGet<DomainInfo>('/admin/domains', signal),
-  })
-  const domains = domainsData ?? []
-
   const [adding, setAdding] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState<null | number>(null)
+  const [deleteTarget, setDeleteTarget] = useState<null | string>(null)
   const [form, setForm] = useState<AliasForm>(EMPTY_FORM)
 
   const addAlias = useAdminMutation({
     invalidateKey: adminKeys.aliases(),
     mutationFn: (f: AliasForm) =>
       adminPost('/admin/aliases', {
-        alias_type: f.alias_type,
-        domain: f.domain,
         source_address: f.source_address.trim(),
         target_address: f.target_address.trim(),
       }),
@@ -64,10 +61,10 @@ export function AdminAliases() {
   const deleteAlias = useAdminMutation({
     invalidateKey: adminKeys.aliases(),
     successMsg: 'Alias removed',
-    mutationFn: (id: number) => adminDelete(`/admin/aliases/${id}`),
+    mutationFn: (id: string) => adminDelete(`/admin/aliases/${encodeURIComponent(id)}`),
   })
 
-  const formValid = !!form.source_address.trim() && !!form.target_address.trim() && !!form.domain
+  const formValid = !!form.source_address.trim() && !!form.target_address.trim()
 
   const handleAdd = () => {
     if (!formValid) return
@@ -79,7 +76,7 @@ export function AdminAliases() {
     })
   }
 
-  const handleDelete = (id: number) => {
+  const handleDelete = (id: string) => {
     deleteAlias.mutate(id, {
       onSettled: () => setDeleteTarget(null),
     })
@@ -119,30 +116,6 @@ export function AdminAliases() {
             />
           </div>
           <div className="flex gap-2">
-            <select
-              aria-label="Domain"
-              className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
-              onChange={(e) => setForm({ ...form, domain: e.target.value })}
-              value={form.domain}
-            >
-              <option value="">Select domain...</option>
-              {domains.map((d) => (
-                <option key={d.name} value={d.name}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
-            <select
-              aria-label="Alias type"
-              className="border-border bg-bg-secondary w-36 rounded-md border px-3 py-1.5 text-sm"
-              onChange={(e) => setForm({ ...form, alias_type: e.target.value })}
-              value={form.alias_type}
-            >
-              <option value="alias">Alias</option>
-              <option value="forward">Forward</option>
-            </select>
-          </div>
-          <div className="flex gap-2">
             <button
               className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm disabled:opacity-50"
               disabled={!formValid || addAlias.isPending}
@@ -164,7 +137,7 @@ export function AdminAliases() {
       )}
 
       {isPending ? (
-        <AdminTableSkeleton cols={5} headers={HEADERS} rows={5} />
+        <AdminTableSkeleton cols={4} headers={HEADERS} rows={5} />
       ) : error ? (
         <AdminErrorState error={error} onRetry={() => refetch()} />
       ) : aliases.length === 0 && !adding ? (
@@ -181,7 +154,6 @@ export function AdminAliases() {
                 <th className="px-4 py-2.5 font-medium">Source</th>
                 <th className="px-4 py-2.5 font-medium">Target</th>
                 <th className="px-4 py-2.5 font-medium">Domain</th>
-                <th className="px-4 py-2.5 font-medium">Type</th>
                 <th className="px-4 py-2.5 text-right font-medium">Actions</th>
               </tr>
             </thead>
@@ -191,17 +163,6 @@ export function AdminAliases() {
                   <td className="px-4 py-3 font-medium">{alias.source_address}</td>
                   <td className="text-fg-secondary px-4 py-3">{alias.target_address}</td>
                   <td className="text-fg-secondary px-4 py-3">{alias.domain}</td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${
-                        alias.alias_type === 'forward'
-                          ? 'bg-accent/10 text-accent'
-                          : 'bg-surface text-fg-secondary'
-                      }`}
-                    >
-                      {alias.alias_type}
-                    </span>
-                  </td>
                   <td className="px-4 py-3 text-right">
                     <button
                       className="text-danger text-xs transition-colors hover:opacity-70"

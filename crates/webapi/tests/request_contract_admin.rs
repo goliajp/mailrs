@@ -30,11 +30,10 @@ fn email_group_create_body_matches() {
 
 #[test]
 fn alias_create_body_matches() {
-    let v: mailrs_core_api::method::admin::AddAliasRequest = parse("alias-create");
+    // the alias store holds the pair only; the domain is the source's
+    let v: handlers::admin_directory::AddAliasRequest = parse("alias-create");
     assert_eq!(v.source_address, "devops@golia.jp");
     assert_eq!(v.target_address, "lihao@golia.jp");
-    assert_eq!(v.domain, "golia.jp");
-    assert_eq!(v.alias_type, "forward");
 }
 
 #[test]
@@ -42,6 +41,12 @@ fn account_create_body_matches() {
     let v: mailrs_core_api::method::admin::AddAccountRequest = parse("account-create");
     assert_eq!(v.address.as_str(), "qa@golia.jp");
     assert_eq!(v.display_name, "QA");
+    assert_eq!(v.password, "not-a-real-password");
+}
+
+#[test]
+fn account_password_body_matches() {
+    let v: handlers::admin_directory::SetAccountPasswordRequest = parse("account-password-set");
     assert_eq!(v.password, "not-a-real-password");
 }
 
@@ -89,6 +94,7 @@ fn remaining_admin_bodies_match() {
     let group: handlers::groups::CreateGroupRequest = parse("group-create");
     assert_eq!(group.name, "admins");
     assert_eq!(group.description, "Full administrative access");
+    assert_eq!(group.domain.as_deref(), Some("golia.jp"));
 
     let member: handlers::groups::AddGroupMemberRequest = parse("group-members-add");
     assert_eq!(member.address, "qa@golia.jp");
@@ -108,6 +114,16 @@ fn account_sieve_body_matches() {
     assert!(v.script.starts_with("require [\"fileinto\"];\n"));
     assert!(v.script.contains("fileinto \"Notifications\";"));
     assert!(v.script.ends_with('\n'), "the trailing newline survives");
+}
+
+/// Scopes are a list on both app writes; a comma-joined string answered 422.
+#[test]
+fn app_bodies_match() {
+    let v: handlers::apps_keys::CreateAppRequest = parse("app-create");
+    assert_eq!(v.name, "ci-bot");
+    assert_eq!(v.scopes, ["mail.read", "mail.send"]);
+    let v: handlers::apps_keys::AppScopesRequest = parse("app-scopes-set");
+    assert_eq!(v.scopes, ["mail.read"]);
 }
 
 #[test]

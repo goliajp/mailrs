@@ -11,6 +11,13 @@ use mailrs_smtp_proto::session::State;
 
 use super::super::super::ConnectionContext;
 
+enum Lookup {
+    Off,
+    NoNamespace,
+    Full,
+    Accept,
+}
+
 pub(super) enum MockGate {
     /// some recipient is real, or the feature is off
     Mixed,
@@ -55,22 +62,37 @@ pub(super) async fn check(
         .collect();
     let looked_up = tokio::task::spawn_blocking(move || {
         client.with_conn(|conn| {
+            let limits = mock::settings(conn).map_err(std::io::Error::other)?;
+            if !limits.enabled {
+                return Ok(Lookup::Off);
+            }
             let mut any = false;
             for ns in &namespaces {
                 any |= mock::namespace_exists(conn, ns).map_err(std::io::Error::other)?;
             }
             if !any {
                 mock::count_rejected_unknown_ns(conn).map_err(std::io::Error::other)?;
-                return Ok((false, false));
+                return Ok(Lookup::NoNamespace);
             }
-            let full =
-                mock::total_bytes(conn).map_err(std::io::Error::other)? >= mock::MAX_TOTAL_BYTES;
-            Ok((true, full))
+            let used = mock::total_bytes(conn).map_err(std::io::Error::other)?;
+            match used >= limits.max_total_bytes() {
+                true => Ok(Lookup::Full),
+                false => Ok(Lookup::Accept),
+            }
         })
     })
     .await;
     match looked_up {
-        Ok(Ok((false, _))) => MockGate::Refuse(Response::new(
+        Ok(Ok(Lookup::Off)) => MockGate::Refuse(Response::new(
+            550,
+            Some(EnhancedCode {
+                class: 5,
+                subject: 1,
+                detail: 1,
+            }),
+            "Mock mail is turned off",
+        )),
+        Ok(Ok(Lookup::NoNamespace)) => MockGate::Refuse(Response::new(
             550,
             Some(EnhancedCode {
                 class: 5,
@@ -79,7 +101,7 @@ pub(super) async fn check(
             }),
             "No such mock namespace",
         )),
-        Ok(Ok((true, true))) => MockGate::Refuse(Response::new(
+        Ok(Ok(Lookup::Full)) => MockGate::Refuse(Response::new(
             452,
             Some(EnhancedCode {
                 class: 4,

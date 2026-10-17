@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Trash2 } from 'lucide-react'
 import { useState } from 'react'
 
+import { bytes } from '@/components/admin-overview/flow-model'
 import { cn } from '@/lib/cn'
 import { mockKeys } from '@/lib/query-keys'
 import { wireCreateMockNamespace, wireDeleteMockNamespace } from '@/wire/endpoints/mock'
@@ -14,10 +15,13 @@ import { errorText } from './errors'
 
 /** The caller's namespaces, a create form above them, delete behind a confirm. */
 export function NamespaceList({
+  everyone,
   namespaces,
   onSelect,
   selected,
 }: {
+  /** listing every user's namespaces: show owners, hide the create form */
+  everyone: boolean
   namespaces: readonly MockNamespace[]
   onSelect: (name: null | string) => void
   selected: null | string
@@ -59,25 +63,29 @@ export function NamespaceList({
 
   return (
     <section aria-label="Namespaces" className="space-y-3">
-      <form className="flex gap-2" onSubmit={submit}>
-        <input
-          aria-label="New namespace name"
-          className={inputClass}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="my-app"
-          value={name}
-        />
-        <button
-          className={cn(btnPrimary, 'shrink-0')}
-          disabled={name.trim() === '' || create.isPending}
-          type="submit"
-        >
-          Create
-        </button>
-      </form>
-      <p className="text-fg-muted text-mini">
-        3–32 characters of a-z, 0-9 and -, unique across the server
-      </p>
+      {!everyone && (
+        <>
+          <form className="flex gap-2" onSubmit={submit}>
+            <input
+              aria-label="New namespace name"
+              className={inputClass}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="my-app"
+              value={name}
+            />
+            <button
+              className={cn(btnPrimary, 'shrink-0')}
+              disabled={name.trim() === '' || create.isPending}
+              type="submit"
+            >
+              Create
+            </button>
+          </form>
+          <p className="text-fg-muted text-mini">
+            3–32 characters of a-z, 0-9 and -, unique across the server
+          </p>
+        </>
+      )}
 
       {namespaces.length === 0 && (
         <p className="text-fg-muted py-6 text-center text-sm">No namespaces yet</p>
@@ -90,6 +98,7 @@ export function NamespaceList({
             namespace={ns}
             onDelete={() => setDeleting(ns.name)}
             onSelect={() => onSelect(ns.name)}
+            showOwner={everyone}
           />
         ))}
       </ul>
@@ -110,11 +119,13 @@ function NamespaceRow({
   namespace,
   onDelete,
   onSelect,
+  showOwner,
 }: {
   active: boolean
   namespace: MockNamespace
   onDelete: () => void
   onSelect: () => void
+  showOwner: boolean
 }) {
   return (
     <li
@@ -132,8 +143,11 @@ function NamespaceRow({
       >
         <span className="block truncate text-sm font-medium">{namespace.name}</span>
         <span className="text-fg-muted block truncate font-mono text-xs">{namespace.address}</span>
+        {showOwner && (
+          <span className="text-fg-secondary block truncate text-xs">{namespace.owner}</span>
+        )}
         <span className="text-fg-muted text-mini block">
-          {namespace.messages} messages · {namespace.dropped} dropped
+          {namespace.messages} messages, {bytes(namespace.bytes)}, {namespace.dropped} dropped
         </span>
       </button>
       <button
