@@ -48,3 +48,22 @@ export const adminResultSchema = z
   .passthrough()
 
 export type WireAdminResult = z.infer<typeof adminResultSchema>
+
+/**
+ * A write's answer: the envelope above, or nothing at all. Most admin
+ * writes answer 204, and checking that empty body against the envelope
+ * failed every one of them after the write had succeeded.
+ */
+export const adminWriteResultSchema = z.union([z.undefined(), adminResultSchema])
+
+/**
+ * A list of strings, under whichever key the endpoint uses —
+ * `{items}`, `{permissions}`, `{members}`, `{groups}` — or bare.
+ */
+export const adminStringListSchema = z.union([
+  z.array(z.string()),
+  z
+    .record(z.string(), z.unknown())
+    .transform((o) => Object.values(o).find((v) => Array.isArray(v)) ?? [])
+    .pipe(z.array(z.string())),
+])

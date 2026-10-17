@@ -20,8 +20,12 @@ pub struct Namespace {
 /// room for the owner.
 pub fn create_namespace(conn: &mut Connection, owner: &str, name: &str) -> MockResult<Namespace> {
     mailrs_mock::validate_namespace(name).map_err(MockError::BadName)?;
+    let limits = settings(conn)?;
+    if !limits.enabled {
+        return Err(MockError::Disabled);
+    }
     let owner_set = owner_key(owner);
-    if conn.scard(owner_set.as_bytes())? >= MAX_NAMESPACES_PER_USER {
+    if conn.scard(owner_set.as_bytes())? >= limits.max_namespaces_per_user {
         return Err(MockError::TooManyNamespaces);
     }
     // the set insert is the claim: of two racing creates, one adds the member
@@ -185,6 +189,7 @@ pub fn verify_smtp_token(conn: &mut Connection, name: &str, token: &str) -> Mock
 /// start from then rather than from the moment the wait began.
 pub fn record_minted(conn: &mut Connection, ns: &str, tag: &str, at_ms: i64) -> MockResult<()> {
     let key = tags_key(ns);
+    let retention = settings(conn)?.retention();
     conn.hset(
         key.as_bytes(),
         &[(tag.as_bytes(), at_ms.to_string().as_bytes())],
@@ -192,7 +197,7 @@ pub fn record_minted(conn: &mut Connection, ns: &str, tag: &str, at_ms: i64) -> 
     conn.hexpire(
         key.as_bytes(),
         &[tag.as_bytes()],
-        RETENTION,
+        retention,
         kevy_client::HExpireCond::Always,
     )?;
     Ok(())

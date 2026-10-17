@@ -86,6 +86,10 @@ pub(super) fn divert(
             tracing::warn!(%rcpt, "mock: store full; dropped");
             Diverted::Done
         }
+        Ok(Stored::Disabled) => {
+            tracing::info!(%rcpt, "mock: turned off; dropped");
+            Diverted::Done
+        }
         Err(e) => {
             tracing::warn!(%rcpt, error = %e, "mock: store failed; will retry");
             Diverted::Retry

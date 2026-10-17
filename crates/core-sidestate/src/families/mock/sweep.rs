@@ -19,16 +19,18 @@ impl SweepReport {
     }
 }
 
-// a file older than this with no listing is left over from a write whose
-// zset insert failed
-const ORPHAN_AGE: Duration = Duration::from_secs(RETENTION.as_secs() + 3600);
+// a file older than retention plus this with no listing is left over
+// from a write whose zset insert failed
+const ORPHAN_GRACE: Duration = Duration::from_secs(3600);
 const BATCH: i64 = 100;
 
 /// Remove expired messages, files nothing lists, and correct the byte
 /// total from the files themselves. Reads only, when there is nothing to do.
 pub fn sweep(conn: &mut Connection, root: &Path, now_ms: i64) -> MockResult<SweepReport> {
     let mut report = SweepReport::default();
-    let cutoff = now_ms - RETENTION.as_millis() as i64;
+    let retention = settings(conn)?.retention();
+    let cutoff = now_ms - retention.as_millis() as i64;
+    let orphan_age = retention + ORPHAN_GRACE;
     let names: Vec<String> = conn.smembers(NS_INDEX)?.into_iter().map(utf8).collect();
     for ns in &names {
         report.expired += expire_namespace(conn, root, ns, cutoff)?;
@@ -43,7 +45,7 @@ pub fn sweep(conn: &mut Connection, root: &Path, now_ms: i64) -> MockResult<Swee
                 }
                 continue;
             }
-            bytes += sweep_dir(conn, &dir.path(), &name, &mut report)?;
+            bytes += sweep_dir(conn, &dir.path(), &name, orphan_age, &mut report)?;
         }
     }
     if total_bytes(conn)? != bytes {
@@ -83,6 +85,7 @@ fn sweep_dir(
     conn: &mut Connection,
     dir: &Path,
     ns: &str,
+    orphan_age: Duration,
     report: &mut SweepReport,
 ) -> MockResult<i64> {
     let mut bytes = 0;
@@ -95,7 +98,7 @@ fn sweep_dir(
             .modified()
             .ok()
             .and_then(|t| t.elapsed().ok())
-            .is_some_and(|age| age > ORPHAN_AGE);
+            .is_some_and(|age| age > orphan_age);
         let path = file.path();
         let id = path
             .file_stem()
