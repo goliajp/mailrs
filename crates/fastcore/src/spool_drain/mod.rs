@@ -133,14 +133,8 @@ pub fn drain_once(
                 continue;
             }
         };
-        // a sandbox login's mail goes to its namespace whoever it is for
-        if let Some(ns) = &env.sandbox_ns {
-            if let mock::Diverted::Done =
-                mock::capture_sandbox(state, ns, &filename, &env.forward_paths, body)
-                && std::fs::remove_file(&path).is_ok()
-            {
-                delivered += 1;
-            }
+        if let Some(stored) = mock::drain_sandbox(state, &env, &filename, &path, body) {
+            delivered += usize::from(stored);
             continue;
         }
         let mut delivered_here = 0usize;
@@ -155,7 +149,8 @@ pub fn drain_once(
             // logging) gets the canonical form too, so the address a
             // human reads in a log is the one the lookups used.
             let fwd = &canonical_recipient(raw_fwd);
-            match mock::divert(state, fwd, rcpt_index, &filename, body) {
+            let from = mock::Sender::of(&env);
+            match mock::divert(state, from, fwd, rcpt_index, &filename, body) {
                 mock::Diverted::No => {}
                 mock::Diverted::Done => {
                     delivered_here += 1;

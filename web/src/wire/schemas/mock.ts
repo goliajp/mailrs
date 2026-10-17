@@ -10,6 +10,7 @@
  *   - fn delete_message(s) -> json!({ "deleted": usize })
  *   - fn send              -> 201 SendResult (handlers/mock/send.rs)
  *   - fn rotate_smtp_token -> 201 SmtpCredentials
+ *   - fn set_webhook       -> MockWebhook (handlers/mock/service.rs)
  *
  * Shapes read off the structs, none renamed:
  *   - `NamespaceView` (handlers/mock/service.rs) flattens `Namespace`
@@ -18,8 +19,9 @@
  *     `Summary` (crates/mock/src/parsed.rs); `Direction` is kebab-case
  *   - `FullMessage` flattens `MessageMeta` and adds `text`, `html`, `dropped`
  *
- * No capture from a deployment yet: the feature ships in the same change as
- * this file. Times are milliseconds since the epoch.
+ * The test fixtures are responses captured from production on 2.95.0, with
+ * `uid` and `webhook_url` added by hand: those two fields arrived after it.
+ * Times are milliseconds since the epoch.
  */
 
 import { z } from 'zod'
@@ -33,6 +35,7 @@ export const mockNamespaceSchema = z.object({
   name: z.string(),
   owner: z.string(),
   smtp_enabled: z.boolean(),
+  webhook_url: z.string().nullable(),
 })
 
 export type MockNamespace = z.infer<typeof mockNamespaceSchema>
@@ -85,6 +88,7 @@ export const mockMessageMetaSchema = z.object({
   subject: z.string(),
   tag: z.string(),
   to: z.array(z.string()),
+  uid: z.number(),
 })
 
 export type MockMessageMeta = z.infer<typeof mockMessageMetaSchema>
@@ -126,3 +130,11 @@ export const mockSmtpCredentialsSchema = z.object({
 })
 
 export type MockSmtpCredentials = z.infer<typeof mockSmtpCredentialsSchema>
+
+/** Mirrors `MockWebhook`. The secret signs every delivery, as for other webhooks. */
+export const mockWebhookSchema = z.object({
+  signing_secret: z.string(),
+  url: z.string(),
+})
+
+export type MockWebhook = z.infer<typeof mockWebhookSchema>

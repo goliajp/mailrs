@@ -49,6 +49,7 @@ fn arrive(ns: &str, tag: &str, raw: &[u8]) {
         rcpt: format!("{ns}.{tag}@{DOMAIN}"),
         size: 0,
         received_at: 0,
+        uid: 0,
         summary: mailrs_mock::parse_message(raw).summary,
     };
     mock::store_message(&mut c, mock::root(), meta, raw).unwrap();

@@ -237,3 +237,32 @@ pub async fn rotate_smtp_token(
     let creds = messages::rotate_smtp_token(&state, &caller(user, &scopes), &ns).await?;
     Ok((StatusCode::CREATED, Json(creds)))
 }
+
+#[derive(Debug, Deserialize)]
+pub struct SetWebhook {
+    pub url: String,
+}
+
+pub async fn set_webhook(
+    State(state): State<Arc<WebState>>,
+    (Extension(AuthedUser(user)), Extension(scopes)): Auth,
+    Path(ns): Path<String>,
+    Json(body): Json<SetWebhook>,
+) -> Result<impl IntoResponse, MockApiError> {
+    let hook = service::set_webhook(&state, &caller(user, &scopes), &ns, &body.url).await?;
+    Ok(Json(hook))
+}
+
+pub async fn clear_webhook(
+    State(state): State<Arc<WebState>>,
+    (Extension(AuthedUser(user)), Extension(scopes)): Auth,
+    Path(ns): Path<String>,
+) -> Result<StatusCode, MockApiError> {
+    match service::clear_webhook(&state, &caller(user, &scopes), &ns).await? {
+        true => Ok(StatusCode::NO_CONTENT),
+        false => Err(MockApiError {
+            status: StatusCode::NOT_FOUND,
+            message: "this namespace has no webhook".into(),
+        }),
+    }
+}

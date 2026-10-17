@@ -72,7 +72,6 @@ pub(super) async fn enqueue_bounce_dsn(
     reason: &str,
     message: &[u8],
 ) {
-    use base64::Engine as _;
     if mailrs_fastcore::bounce::suppress_bounce(sender) {
         tracing::info!(%recipient, "bounce suppressed (null/daemon sender)");
         return;
@@ -89,19 +88,7 @@ pub(super) async fn enqueue_bounce_dsn(
     let cfg = cfg.clone();
     let sender = sender.trim_matches(|c| c == '<' || c == '>').to_string();
     let res = spawn_blocking(move || {
-        let mut c = kevy(&cfg.kevy_url)?;
-        let id = format!("{}-{}", now_secs(), std::process::id());
-        let key = format!("mailrs:bounce:{id}");
-        let b64 = base64::engine::general_purpose::STANDARD.encode(&dsn);
-        c.hset(
-            key.as_bytes(),
-            &[
-                (b"recipient" as &[u8], sender.as_bytes()),
-                (b"blob", b64.as_bytes()),
-            ],
-        )?;
-        c.lpush(mailrs_fastcore::bounce::BOUNCE_PENDING, &[id.as_bytes()])?;
-        Ok::<(), std::io::Error>(())
+        mailrs_fastcore::bounce_queue::enqueue_notice(&mut kevy(&cfg.kevy_url)?, &sender, &dsn)
     })
     .await;
     match res {

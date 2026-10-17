@@ -7234,6 +7234,88 @@
           }
         }
       }
+    },
+    "/api/mock/namespaces/{ns}/webhook": {
+      "put": {
+        "operationId": "setMockWebhook",
+        "summary": "POST each new message to url (event mock_message), replacing any earlier webhook",
+        "tags": [
+          "Mock mail"
+        ],
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "url"
+                ],
+                "properties": {
+                  "url": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The webhook and its signing secret",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string"
+                    },
+                    "signing_secret": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "clearMockWebhook",
+        "summary": "Remove the namespace's webhook",
+        "tags": [
+          "Mock mail"
+        ],
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed"
+          },
+          "404": {
+            "description": "No webhook"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -9493,6 +9575,10 @@
           "address": {
             "type": "string",
             "description": "an example address; any tag works"
+          },
+          "webhook_url": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -9583,6 +9669,10 @@
                 }
               }
             }
+          },
+          "uid": {
+            "type": "integer",
+            "description": "IMAP UID"
           }
         }
       },

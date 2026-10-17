@@ -42,6 +42,10 @@ pub(super) async fn check(
     if forward_paths.is_empty() || !forward_paths.iter().all(|r| mock::is_mock(r)) {
         return MockGate::Mixed;
     }
+    // a simulation address always exists; the drain decides who is answered
+    if forward_paths.iter().any(|r| mock::simulation(r).is_some()) {
+        return MockGate::AllMock;
+    }
     let Some(client) = ctx.spam_lists_client.clone() else {
         return MockGate::AllMock;
     };
