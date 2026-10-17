@@ -761,11 +761,11 @@ Query parameters:
 ### Search Emails
 
 ```
-curl "https://mail.golia.ai/api/conversations?q=invoice&limit=10" \
+curl "https://mail.golia.ai/api/conversations/search?q=invoice&limit=10" \
   -H "Authorization: Bearer mlrs_..."
 ```
 
-Same response format as list conversations.
+Same response format as list conversations. `GET /api/conversations` itself does not search: it has no `q` parameter and ignores one.
 
 ### Read a Message
 
