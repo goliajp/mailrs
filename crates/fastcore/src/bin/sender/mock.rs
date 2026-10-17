@@ -36,7 +36,10 @@ pub(super) async fn report_delivered(
     message: &[u8],
 ) {
     let send_id = envelope.get("send_id").and_then(|v| v.as_str());
-    if mock::is_mock(extract_addr_spec(recipient)) {
+    if let Some(sim) = mock::simulation(extract_addr_spec(recipient)) {
+        let state = simulate(&cfg, sim, sender, recipient, message);
+        record_state(&cfg, send_id, sender, state);
+    } else if mock::is_mock(extract_addr_spec(recipient)) {
         let state = capture(&cfg, &id, recipient, message);
         record_state(&cfg, send_id, sender, state);
     } else {
@@ -70,6 +73,7 @@ fn capture(cfg: &Cfg, id: &str, recipient: &str, message: &[u8]) -> sendfam::Rec
         rcpt: rcpt.clone(),
         size: 0,
         received_at: 0,
+        uid: 0,
         summary: mailrs_mock::parse_message(message).summary,
     };
     let stored = super::kevy(&cfg.kevy_url)
@@ -88,6 +92,36 @@ fn capture(cfg: &Cfg, id: &str, recipient: &str, message: &[u8]) -> sendfam::Rec
             tracing::warn!(%id, %rcpt, error = %e, "mock: capture failed");
             state(false, 451, format!("451 4.3.0 mock store unavailable: {e}"))
         }
+    }
+}
+
+// the answer goes into the sender's own INBOX; the suppression list and
+// the feedback loop never hear about it
+fn simulate(
+    cfg: &Cfg,
+    sim: mailrs_mock::Simulation,
+    sender: &str,
+    recipient: &str,
+    message: &[u8],
+) -> sendfam::RecipientState {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    let rcpt = extract_addr_spec(recipient);
+    let reply = mailrs_mock::simulation::reply(sim, mock::domain(), sender, rcpt, message, now);
+    let queued = super::kevy(&cfg.kevy_url)
+        .and_then(|mut c| mailrs_fastcore::bounce_queue::enqueue_notice(&mut c, sender, &reply));
+    if let Err(e) = queued {
+        tracing::warn!(%recipient, error = %e, "mock: simulated reply not queued");
+    }
+    let status = sim.status_line();
+    sendfam::RecipientState {
+        recipient: recipient.to_string(),
+        delivered: sim.delivered(),
+        pending: false,
+        code: status[..3].parse().unwrap_or(0),
+        message: status.to_string(),
     }
 }
 

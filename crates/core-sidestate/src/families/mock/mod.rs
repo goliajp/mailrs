@@ -1,11 +1,12 @@
 //! Disposable test mailboxes in the network kevy.
 //!
 //! ```text
-//! mailrs:mock:ns:{ns}        hash  owner, created_at, smtp_token_hash
+//! mailrs:mock:ns:{ns}        hash  owner, created_at, smtp_token_hash, webhook_id, webhook_url
 //! mailrs:mock:ns:{ns}:dropped int  messages dropped to stay under the cap
 //! mailrs:mock:ns-idx         set   every namespace
 //! mailrs:mock:owner:{user}   set   the user's namespaces
 //! mailrs:mock:ns:{ns}:msgs   zset  message ids, score = arrival ms
+//! mailrs:mock:ns:{ns}:uid    int   last IMAP UID handed out
 //! mailrs:mock:ns:{ns}:tags   hash  tag -> ms it was handed out (field expires with retention)
 //! mailrs:mock:msg:{id}       hash  ns, tag, direction, rcpt, size, received_at, summary
 //!                                  (expires with the message)
@@ -29,11 +30,13 @@ mod messages;
 mod namespace;
 mod stats;
 mod sweep;
+mod webhook;
 
 pub use messages::*;
 pub use namespace::*;
 pub use stats::*;
 pub use sweep::*;
+pub use webhook::*;
 
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
@@ -75,6 +78,11 @@ pub fn parse(addr: &str) -> Option<mailrs_mock::MockAddress> {
     mailrs_mock::parse_address(addr, domain())
 }
 
+/// The fixed-result address `addr` names, under the configured domain.
+pub fn simulation(addr: &str) -> Option<mailrs_mock::Simulation> {
+    mailrs_mock::Simulation::of(addr, domain())
+}
+
 pub fn is_mock(addr: &str) -> bool {
     mailrs_mock::is_mock_domain(addr, domain())
 }
@@ -98,6 +106,10 @@ fn msgs_key(ns: &str) -> String {
 
 fn dropped_key(ns: &str) -> String {
     format!("mailrs:mock:ns:{ns}:dropped")
+}
+
+fn uid_key(ns: &str) -> String {
+    format!("mailrs:mock:ns:{ns}:uid")
 }
 
 fn tags_key(ns: &str) -> String {

@@ -81,6 +81,9 @@ Addresses `{namespace}.{any-tag}@mock.golia.jp` receive mail that never reaches 
 - DELETE /api/mock/namespaces/{ns}/messages/{id}, DELETE /api/mock/namespaces/{ns}/messages?tag=
 - POST /api/mock/namespaces/{ns}/send — send from the namespace; only mock recipients receive it
 - POST /api/mock/namespaces/{ns}/smtp-token — SMTP password for `{ns}@mock.golia.jp` on 587: everything that login sends is kept in the namespace, never delivered
+- PUT/DELETE /api/mock/namespaces/{ns}/webhook — POST every new message to a URL (`{"url": "https://…"}`; event `mock_message`, signed like other webhooks)
+- IMAP: log in as `{ns}@mock.golia.jp` with the SMTP password to read the namespace read-only (INBOX)
+- Fixed-result addresses: mail to `bounce@`, `ooto@`, `delay@`, `complaint@mock.golia.jp` (also `+tag`) answers the sender with a bounce, an out-of-office reply, a delay notice or an abuse report — in the sender's own INBOX, or in the namespace for sandbox and `send` mail. Nothing reaches the suppression list
 
 ### Agent
 - POST/GET/DELETE /api/agent/keys — API key management (scopes: admin, mail:read, mail:write, mock, mock:{namespace}; none = full access)

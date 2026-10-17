@@ -5,7 +5,7 @@ use crate::*;
 /// `/api/mock/*`: disposable test mailboxes.
 pub(super) fn mock_routes() -> axum::Router<Arc<WebState>> {
     use crate::handlers::mock::rest as mock;
-    use axum::routing::{delete, get, post};
+    use axum::routing::{delete, get, post, put};
 
     axum::Router::new()
         .route(
@@ -18,6 +18,10 @@ pub(super) fn mock_routes() -> axum::Router<Arc<WebState>> {
             post(mock::new_address),
         )
         .route("/api/mock/namespaces/{ns}/send", post(mock::send))
+        .route(
+            "/api/mock/namespaces/{ns}/webhook",
+            put(mock::set_webhook).delete(mock::clear_webhook),
+        )
         .route(
             "/api/mock/namespaces/{ns}/smtp-token",
             post(mock::rotate_smtp_token),

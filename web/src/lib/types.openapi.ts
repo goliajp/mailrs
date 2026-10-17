@@ -4856,6 +4856,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/mock/namespaces/{ns}/webhook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** POST each new message to url (event mock_message), replacing any earlier webhook */
+        put: operations["setMockWebhook"];
+        post?: never;
+        /** Remove the namespace's webhook */
+        delete: operations["clearMockWebhook"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -5552,6 +5570,7 @@ export interface components {
             smtp_enabled?: boolean;
             /** @description an example address; any tag works */
             address?: string;
+            webhook_url?: string | null;
         };
         MockMessage: {
             id?: string;
@@ -5578,6 +5597,8 @@ export interface components {
                 size?: number;
                 content_type?: string;
             }[];
+            /** @description IMAP UID */
+            uid?: number;
         };
         MockFullMessage: components["schemas"]["MockMessage"] & {
             text?: string;
@@ -9198,6 +9219,64 @@ export interface operations {
                         password?: string;
                     };
                 };
+            };
+        };
+    };
+    setMockWebhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ns: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    url: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The webhook and its signing secret */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        url?: string;
+                        signing_secret?: string;
+                    };
+                };
+            };
+        };
+    };
+    clearMockWebhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ns: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No webhook */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

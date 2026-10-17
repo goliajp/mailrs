@@ -253,31 +253,29 @@ pub fn maybe_vacation_reply(recipient: &str, envelope_from: &str, raw: &[u8], va
     }
 }
 
-/// Push the composed vacation reply onto the outbound queue with a
-/// null envelope sender (RFC 3834 §3.3 — auto-replies must not bounce).
+/// Queue the composed vacation reply with a null envelope sender (RFC 3834
+/// §3.3: auto-replies must not bounce), through the shared primitive the
+/// sender's claim reads. A hand-written `mailrs:outbound:pending` push here
+/// had no reader, so every vacation reply was silently never sent.
 fn enqueue_vacation_outbound(conn: &mut Connection, to: &str, body: &[u8]) -> std::io::Result<()> {
     use base64::Engine as _;
-    let now_ms = std::time::SystemTime::now()
+    let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
+        .map(|d| d.as_secs() as i64)
         .unwrap_or(0);
-    let id = format!("{now_ms}-vac");
     let b64 = base64::engine::general_purpose::STANDARD.encode(body);
-    let envelope = serde_json::json!({
-        "sender": "<>",
-        "recipient": to,
-        "message_data_b64": b64,
-        "attempts": 0,
-        "next_attempt": 0,
-        "id": &id,
-        "envelope_from": "<>",
-    });
-    let key = format!("mailrs:outbound:{id}");
-    conn.hset(
-        key.as_bytes(),
-        &[(b"blob".as_slice(), envelope.to_string().as_bytes())],
+    mailrs_core_sidestate::families::outbound::write_fresh_pending(
+        conn,
+        &mailrs_core_sidestate::families::outbound::FreshPending {
+            sender: "<>",
+            recipient: to,
+            message_data_base64: &b64,
+            scheduled_at: None,
+            original_sender: None,
+            send_id: None,
+        },
+        now,
     )?;
-    conn.lpush(b"mailrs:outbound:pending", &[id.as_bytes()])?;
     Ok(())
 }
 
@@ -346,6 +344,62 @@ mod tests {
     fn reject_is_a_first_class_decision() {
         let a = vec![SieveAction::Reject("no thanks".into())];
         assert_eq!(action_to_decision(&a), Decision::Reject("no thanks".into()));
+    }
+
+    /// The reply has to land where the sender claims from: the job hash
+    /// plus `pending-idx`, with a null envelope sender. Against a real
+    /// kevy-server, because the shared primitive writes with a pipeline.
+    #[tokio::test]
+    async fn a_vacation_reply_is_queued_where_the_sender_reads() {
+        use mailrs_core_sidestate::families::outbound::PENDING_IDX;
+        use testcontainers::core::{IntoContainerPort, WaitFor};
+        use testcontainers::runners::AsyncRunner;
+        use testcontainers::{GenericImage, ImageExt};
+
+        let _startup = mailrs_test_docker::startup_lock().await;
+        let container = GenericImage::new("ghcr.io/goliajp/kevy", "6.4.0")
+            .with_wait_for(WaitFor::message_on_stderr("starting:"))
+            .with_exposed_port(6379.tcp())
+            .with_startup_timeout(mailrs_test_docker::STARTUP_TIMEOUT)
+            .start()
+            .await
+            .expect("start kevy container");
+        let host = container.get_host().await.unwrap().to_string();
+        let url = format!(
+            "kevy://{}:{}",
+            mailrs_test_docker::ipv4_loopback(&host),
+            container.get_host_port_ipv4(6379).await.unwrap()
+        );
+        drop(_startup);
+        let blob = tokio::task::spawn_blocking(move || {
+            let mut conn = (0..50)
+                .find_map(|_| {
+                    let c = Connection::connect(&url).ok();
+                    if c.is_none() {
+                        std::thread::sleep(std::time::Duration::from_millis(100));
+                    }
+                    c
+                })
+                .expect("kevy answers");
+            super::enqueue_vacation_outbound(
+                &mut conn,
+                "asker@example.org",
+                b"Subject: OOO\r\n\r\nx",
+            )
+            .unwrap();
+            assert_eq!(conn.llen(b"mailrs:outbound:pending").unwrap(), 0);
+            let ids = conn.lrange(PENDING_IDX, 0, -1).unwrap();
+            assert_eq!(ids.len(), 1, "nothing on the queue the sender reads");
+            let id = String::from_utf8(ids[0].clone()).unwrap();
+            conn.hget(format!("mailrs:outbound:job:{id}").as_bytes(), b"blob")
+                .unwrap()
+                .unwrap()
+        })
+        .await
+        .unwrap();
+        let job: serde_json::Value = serde_json::from_slice(&blob).unwrap();
+        assert_eq!(job["recipient"], "asker@example.org");
+        assert_eq!(job["sender"], "<>");
     }
 
     #[test]

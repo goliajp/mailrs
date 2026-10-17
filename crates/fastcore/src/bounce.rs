@@ -328,7 +328,7 @@ fn drain_one(state: &Arc<FastcoreState>, url: &str, maildir_root: &str) {
         let Ok(id) = String::from_utf8(id_bytes) else {
             continue;
         };
-        let key = format!("mailrs:bounce:{id}");
+        let key = crate::bounce_queue::entry_key(&id);
         let recipient = conn
             .hget(key.as_bytes(), b"recipient")
             .ok()
