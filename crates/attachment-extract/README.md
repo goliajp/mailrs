@@ -4,9 +4,9 @@
 [![Docs.rs](https://docs.rs/mailrs-attachment-extract/badge.svg)](https://docs.rs/mailrs-attachment-extract)
 [![License](https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue.svg)](#license)
 
-Extract text from email (or any) attachments — **PDF** via
-`pdf-extract` (pure Rust embedded-text path) and **images** via
-the **tesseract CLI** subprocess.
+Extract text from email (or any) attachments — **PDF** via a
+pure-Rust text layer on top of `lopdf` and **images** via the
+**tesseract CLI** subprocess.
 
 Designed for the case where you need plain-text from arbitrary
 attachments — indexing, search, embedding generation, spam scoring,
@@ -17,8 +17,12 @@ tesseract is installed and avoids the C-library bindings tax.
 ## Two-stage PDF fallback
 
 PDFs come in two flavours:
-1. **Real PDFs** with embedded text — extract via `pdf-extract` in
-   ~1 ms, confidence `1.0`, exact.
+1. **Real PDFs** with embedded text — extract from the content
+   streams in ~1 ms, confidence `1.0`, exact. Characters are mapped
+   through ToUnicode CMaps, the predefined CJK CMaps, Adobe-Japan1
+   CIDs, base encodings with `/Differences` (Adobe Glyph List), and
+   the cmap of an embedded TrueType program. Pages are separated by
+   `\u{000C}`.
 2. **Scanned PDFs** with image pages only — embedded extraction
    returns near-empty text; fall back to OCR on the raw PDF bytes
    (tesseract can handle PDFs directly), confidence `~0.85`.
@@ -74,7 +78,7 @@ if extraction_method("application/pdf") != ExtractionMethod::Unsupported {
 - **tesseract** CLI for image OCR. Install via `brew install
   tesseract` / `apt install tesseract-ocr` / etc. Language packs
   optional but recommended (`tesseract-ocr-jpn`, etc.).
-- **pdf-extract** is a pure-Rust dep, no system requirement.
+- PDF parsing (`lopdf`) is pure Rust, no system requirement.
 
 If tesseract isn't installed, `extract_content` for image
 content-types returns an `Err`. PDF extraction still works for
