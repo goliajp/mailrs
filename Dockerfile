@@ -29,8 +29,8 @@ ARG VERSION=0.0.0
 # below so buildx's GHA cache can NEVER reuse a stale Rust-builder
 # layer across versions. Without it, buildx keyed the sed RUN on the
 # literal command (`sed …$VERSION…`), not the substituted value, so a
-# split-v0.0.5 test build's layer was served to the v2.9.0 build and
-# shipped a 0.0.5 binary as 2.9.0 (2026-07-15 incident).
+# 0.0.5 test build's layer was served to the v2.9.0 build and shipped
+# a 0.0.5 binary as 2.9.0 (2026-07-15 incident).
 ARG CACHE_BUST=none
 
 # Cap parallel cargo jobs to bound peak build memory. The release
@@ -120,8 +120,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN groupadd -r -g 10001 mailrs && useradd -r -u 10001 -g mailrs -d /data -s /sbin/nologin mailrs
 
 # The monolith (mailrs-server) is deliberately NOT built or shipped.
-# Nothing runs it: every service in both the prod and staging compose
-# files overrides the entrypoint to one of the four role binaries below.
+# Nothing runs it: every service in the prod compose file overrides the entrypoint to one of the four role binaries below.
 # It was still the heaviest build step in this stage, because the spg
 # feature pulls in the whole embedded SQL engine.
 #

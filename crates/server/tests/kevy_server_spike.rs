@@ -15,8 +15,8 @@
 //! binary / `ghcr.io/goliajp/kevy` image) and its RESP clients
 //! (`kevy-resp-client` / `kevy-client` / `kevy-cli`) DO ship — the network
 //! layer is exercised separately by the ramp-to-break load test under
-//! `~/workspace/kevy-loadtest/` (real network server, business-mix load on
-//! staging). Same engine + same RESP command set both ways, so these
+//! `~/workspace/kevy-loadtest/` (real network server, business-mix load).
+//! Same engine + same RESP command set both ways, so these
 //! semantic guarantees carry across the eventual in-process → network
 //! cutover (P4/P6): it's a transport swap, not a semantic gamble.
 //!

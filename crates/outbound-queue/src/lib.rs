@@ -50,6 +50,8 @@ use std::sync::Arc;
 pub mod dkim_env;
 /// DKIM signing helpers (RFC 6376): config + sign-and-prepend.
 pub mod dkim_sign;
+/// Which domains a DKIM config can really sign for.
+pub mod dkim_signers;
 /// Delivery Status Notification (RFC 3464) formatting.
 pub mod dsn;
 /// MTA-STS (RFC 8461) policy lookup + caching.

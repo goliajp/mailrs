@@ -30,7 +30,7 @@ pub struct DkimDomainKey {
 }
 
 impl DkimDomainKey {
-    fn rsa_key(&self) -> Result<&RsaSigningKey, String> {
+    pub(crate) fn rsa_key(&self) -> Result<&RsaSigningKey, String> {
         let cached = self
             .parsed_key
             .get_or_init(|| load_rsa_key(&self.private_key_pem));
@@ -95,7 +95,7 @@ impl DkimSignConfig {
     /// only), parsing the PEM once on first call and caching the
     /// result (success OR error) so every later call is a
     /// pointer-load.
-    fn rsa_key(&self) -> Result<&RsaSigningKey, String> {
+    pub(crate) fn rsa_key(&self) -> Result<&RsaSigningKey, String> {
         let cached = self
             .parsed_key
             .get_or_init(|| load_rsa_key(&self.private_key_pem));
@@ -793,5 +793,62 @@ Wob7+tvQ4QgOJAUWByTxMHczAY8Vrl45gxYS29ahbuvjtjPVLgHcaFnZPfun8i6u\n\
             "default domain should NOT have been used"
         );
         assert!(s.contains("s=mail"));
+    }
+
+    fn usable_key(selector: &str, pem: &str) -> DkimDomainKey {
+        DkimDomainKey {
+            selector: selector.into(),
+            private_key_pem: pem.into(),
+            ..Default::default()
+        }
+    }
+
+    fn usable_config(default_pem: &str, extra: &[(&str, DkimDomainKey)]) -> DkimSignConfig {
+        DkimSignConfig {
+            selector: "mail".into(),
+            domain: "Golia.JP".into(),
+            private_key_pem: default_pem.into(),
+            extra_keys: extra
+                .iter()
+                .map(|(d, k)| (d.to_string(), k.clone()))
+                .collect(),
+            ..Default::default()
+        }
+    }
+
+    fn usable_pairs(m: &HashMap<String, String>) -> Vec<(&str, &str)> {
+        let mut v: Vec<_> = m.iter().map(|(d, s)| (d.as_str(), s.as_str())).collect();
+        v.sort_unstable();
+        v
+    }
+
+    #[test]
+    fn every_key_that_parses_is_listed_with_its_selector() {
+        let cfg = usable_config(
+            TEST_RSA_KEY,
+            &[
+                ("golia.ai", usable_key("s2", TEST_RSA_KEY)),
+                ("dadaya.jp", usable_key("s3", "not a key")),
+            ],
+        );
+        assert_eq!(
+            usable_pairs(&crate::dkim_signers::usable_selectors(&cfg)),
+            [("golia.ai", "s2"), ("golia.jp", "mail")]
+        );
+    }
+
+    #[test]
+    fn a_default_key_that_does_not_parse_leaves_the_default_out() {
+        let cfg = usable_config("garbage", &[("golia.ai", usable_key("s2", TEST_RSA_KEY))]);
+        assert_eq!(
+            usable_pairs(&crate::dkim_signers::usable_selectors(&cfg)),
+            [("golia.ai", "s2")]
+        );
+    }
+
+    #[test]
+    fn a_broken_per_domain_key_for_the_default_domain_removes_it() {
+        let cfg = usable_config(TEST_RSA_KEY, &[("golia.jp", usable_key("s9", "garbage"))]);
+        assert!(crate::dkim_signers::usable_selectors(&cfg).is_empty());
     }
 }

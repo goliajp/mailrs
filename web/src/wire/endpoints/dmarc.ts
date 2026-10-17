@@ -13,19 +13,7 @@
 import type { DmarcSourceList } from '../schemas/dmarc'
 
 import { wireFetch } from '../client'
-import {
-  wireDmarcReportDetailSchema,
-  wireDmarcReportListSchema,
-  wireDmarcSourceListSchema,
-} from '../schemas/dmarc'
-
-/** `GET /api/admin/dmarc/reports/{sid}` — one report with its rows. */
-export async function fetchDmarcReport(sid: string, signal?: AbortSignal) {
-  return wireFetch(wireDmarcReportDetailSchema, {
-    path: `/admin/dmarc/reports/${encodeURIComponent(sid)}`,
-    signal,
-  })
-}
+import { wireDmarcReportListSchema, wireDmarcSourceListSchema } from '../schemas/dmarc'
 
 /** `GET /api/admin/dmarc/reports` — newest reporting window first. */
 export async function fetchDmarcReports(limit?: number, signal?: AbortSignal) {

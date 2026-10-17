@@ -25,7 +25,7 @@ use mailrs_syscall::{Errno, madvise_dontneed, mmap_anon_rw_aligned, munmap};
 /// Default span byte length. Bumped from the legacy `PageBump` 16 KB
 /// to 512 KB on the mailrs fork: combined with `PER_CLASS_CAP = 4096`,
 /// 16 KB capped each size class at 64 MB of addressable arena, which
-/// `mailrs-server` boot exhausted on the 4096-byte class (staging
+/// `mailrs-server` boot exhausted on the 4096-byte class (the
 /// reproducer logged `memory allocation of 2520 bytes failed` →
 /// `handle_alloc_error`). 512 KB raises the per-class ceiling to
 /// 2 GB. Cannot go above 1 MB because `Span::slot_count` is `u16`

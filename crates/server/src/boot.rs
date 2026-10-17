@@ -216,7 +216,7 @@ pub(crate) async fn run_with_roles(roles: Roles) {
             url = %url,
             interval_secs = interval,
         );
-        // monolith (staging dogfood lane): no disk cache — its whitelist
+        // monolith: no disk cache — its whitelist
         // behaviour predates the receiver-split hardening and stays as-was
         greylist_sync::spawn_sync_task(handle, url, interval, None);
     } else {

@@ -75,12 +75,17 @@ pub(crate) async fn mcp_auth_middleware(
         }
     };
 
+    // keys issued to the removed apps feature carry app_id; they must not
+    // fall through to the owner's account permissions
+    if record.app_id.is_some() {
+        return (StatusCode::UNAUTHORIZED, "invalid api key").into_response();
+    }
+
     let cached = api_key_store::VerifiedApiKey {
         key_hash: record.key_hash,
         account_address: record.account_address,
         expires_at: record.expires_at,
         id: record.id,
-        app_id: record.app_id,
     };
 
     // verify hash
@@ -105,65 +110,23 @@ pub(crate) async fn mcp_auth_middleware(
         });
     }
 
-    // resolve display_name and permissions
-    let (display_name, permissions, auth_method) = if let Some(app_id) = cached.app_id {
-        // app key
-        if let Some(ref ds) = state.domain_store {
-            let app = ds.get_app_by_id(app_id).await.ok().flatten();
-            match app {
-                Some(app) if app.active => {
-                    let scopes: Vec<String> = app
-                        .scopes
-                        .split(',')
-                        .map(|s| s.trim().to_string())
-                        .filter(|s| !s.is_empty())
-                        .collect();
-                    let all_domains: Vec<String> = ds
-                        .list_domains()
-                        .await
-                        .unwrap_or_default()
-                        .into_iter()
-                        .map(|d| d.name)
-                        .collect();
-                    let perms = crate::permission::from_scopes(&scopes, &all_domains);
-                    (
-                        app.name.clone(),
-                        perms,
-                        AuthMethod::AppKey(cached.id, app_id),
-                    )
-                }
-                _ => {
-                    return (StatusCode::UNAUTHORIZED, "app disabled or not found").into_response();
-                }
-            }
-        } else {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "auth backend unavailable",
-            )
-                .into_response();
-        }
+    // resolve display_name and permissions from account groups
+    let (display_name, permissions, auth_method) = if let Some(ref ds) = state.domain_store {
+        let dn = match ds.get_account_with_hash(&cached.account_address).await {
+            Ok(Some((account, _))) => account.display_name,
+            _ => cached.account_address.clone(),
+        };
+        let perms = ds
+            .load_account_permissions(&cached.account_address)
+            .await
+            .unwrap_or_else(|_| crate::permission::compute_effective_permissions(&[], &[], &[]));
+        (dn, perms, AuthMethod::ApiKey(cached.id))
     } else {
-        // user key
-        if let Some(ref ds) = state.domain_store {
-            let dn = match ds.get_account_with_hash(&cached.account_address).await {
-                Ok(Some((account, _))) => account.display_name,
-                _ => cached.account_address.clone(),
-            };
-            let perms = ds
-                .load_account_permissions(&cached.account_address)
-                .await
-                .unwrap_or_else(|_| {
-                    crate::permission::compute_effective_permissions(&[], &[], &[])
-                });
-            (dn, perms, AuthMethod::ApiKey(cached.id))
-        } else {
-            (
-                cached.account_address.clone(),
-                crate::permission::compute_effective_permissions(&[], &[], &[]),
-                AuthMethod::ApiKey(cached.id),
-            )
-        }
+        (
+            cached.account_address.clone(),
+            crate::permission::compute_effective_permissions(&[], &[], &[]),
+            AuthMethod::ApiKey(cached.id),
+        )
     };
 
     let auth_user = AuthUser {

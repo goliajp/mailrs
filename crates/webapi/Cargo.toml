@@ -76,7 +76,7 @@ sha2 = "0.10"
 hmac = "0.12"
 uuid = { version = "1", features = ["v4"] }
 url = "2"
-quick-xml = { version = "0.37", features = ["serialize"] }
+quick-xml = { version = "0.42", features = ["serialize"] }
 metrics-exporter-prometheus = { version = "0.18", default-features = false }
 metrics = "0.24"
 

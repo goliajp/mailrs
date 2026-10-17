@@ -44,8 +44,8 @@ psl = "2"
 sqlx = { workspace = true, optional = true }
 spg-sqlx = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
-quick-xml = { version = "0.41.0", features = ["serialize"] }
-zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
+quick-xml = { version = "0.42", features = ["serialize"] }
+zip = { version = "9.0.4", default-features = false, features = ["deflate"] }
 mailrs-mime = { version = "2.0.1", path = "../mime" }
 
 [dev-dependencies]

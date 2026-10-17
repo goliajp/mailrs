@@ -279,15 +279,8 @@
           "Auth"
         ],
         "responses": {
-          "200": {
-            "description": "Logout successful",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResult"
-                }
-              }
-            }
+          "204": {
+            "description": "Logout successful; empty body"
           }
         }
       }
@@ -483,15 +476,8 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "Flag update result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResult"
-                }
-              }
-            }
+          "204": {
+            "description": "Flags updated; empty body"
           }
         }
       }
@@ -856,15 +842,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Draft deleted",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResult"
-                }
-              }
-            }
+          "204": {
+            "description": "Draft deleted; empty body"
           }
         }
       }
@@ -887,15 +866,8 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "Feedback recorded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResult"
-                }
-              }
-            }
+          "204": {
+            "description": "Feedback recorded; empty body"
           }
         }
       }
@@ -1259,15 +1231,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Deletion result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResult"
-                }
-              }
-            }
+          "204": {
+            "description": "Deleted; empty body"
           }
         }
       }
@@ -1290,15 +1255,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResult"
-                }
-              }
-            }
+          "204": {
+            "description": "Done; empty body"
           }
         }
       }
@@ -1321,15 +1279,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResult"
-                }
-              }
-            }
+          "204": {
+            "description": "Done; empty body"
           }
         }
       }
@@ -1352,15 +1303,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResult"
-                }
-              }
-            }
+          "204": {
+            "description": "Done; empty body"
           }
         }
       }
@@ -1383,15 +1327,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResult"
-                }
-              }
-            }
+          "204": {
+            "description": "Done; empty body"
           }
         }
       }
@@ -1414,15 +1351,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResult"
-                }
-              }
-            }
+          "204": {
+            "description": "Done; empty body"
           }
         }
       }
@@ -1445,15 +1375,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResult"
-                }
-              }
-            }
+          "204": {
+            "description": "Done; empty body"
           }
         }
       }
@@ -1476,15 +1399,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResult"
-                }
-              }
-            }
+          "204": {
+            "description": "Done; empty body"
           }
         }
       }
@@ -1507,15 +1423,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResult"
-                }
-              }
-            }
+          "204": {
+            "description": "Done; empty body"
           }
         }
       }
@@ -1548,15 +1457,8 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResult"
-                }
-              }
-            }
+          "204": {
+            "description": "Done; empty body"
           }
         }
       },
@@ -1577,15 +1479,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResult"
-                }
-              }
-            }
+          "204": {
+            "description": "Done; empty body"
           }
         }
       }
@@ -1788,20 +1683,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "API key revoked",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean"
-                    }
-                  }
-                }
-              }
-            }
+          "204": {
+            "description": "API key revoked; empty body"
           },
           "404": {
             "description": "API key not found or already revoked"
@@ -1884,20 +1767,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Webhook deleted",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean"
-                    }
-                  }
-                }
-              }
-            }
+          "204": {
+            "description": "Webhook deleted; empty body"
           },
           "404": {
             "description": "Webhook not found or already deleted"
@@ -1948,15 +1819,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Retry result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RetryResponse"
-                }
-              }
-            }
+          "204": {
+            "description": "Done; empty body"
           }
         }
       }
@@ -2001,15 +1865,8 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResult"
-                }
-              }
-            }
+          "204": {
+            "description": "Done; empty body"
           }
         }
       }
@@ -2032,15 +1889,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResult"
-                }
-              }
-            }
+          "204": {
+            "description": "Done; empty body"
           }
         }
       }
@@ -2172,15 +2022,8 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResult"
-                }
-              }
-            }
+          "204": {
+            "description": "Done; empty body"
           }
         }
       }
@@ -2203,18 +2046,67 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResult"
+          "204": {
+            "description": "Account removed; empty body"
+          }
+        },
+        "description": "The account can no longer sign in, and every session and agent key it holds is revoked. Aliases pointing at the address and its group memberships are kept."
+      },
+      "put": {
+        "operationId": "updateAccount",
+        "summary": "Update an account's display name or recovery email",
+        "tags": [
+          "Admin Accounts"
+        ],
+        "description": "Each field present in the body is written through fastcore; absent fields are left as they are. The two fields are written one after the other, so a failure on recovery_email can leave display_name already changed. Records an `account.update` audit row when anything changed.",
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "display_name": {
+                    "type": "string"
+                  },
+                  "recovery_email": {
+                    "type": "string"
+                  }
                 }
               }
             }
           }
         },
-        "description": "The account can no longer sign in, and every session and agent key it holds is revoked. Aliases pointing at the address and its group memberships are kept."
+        "responses": {
+          "204": {
+            "description": "Updated (or nothing to update)"
+          },
+          "404": {
+            "description": "No such account (status passed through from fastcore); empty body"
+          },
+          "422": {
+            "description": "Body rejected by the JSON extractor (400 malformed JSON, 415 wrong content type, 422 missing or mistyped field); plain-text body from the framework"
+          },
+          "500": {
+            "description": "fastcore failed to store the account; empty body"
+          },
+          "401": {
+            "description": "No valid session; empty body"
+          },
+          "403": {
+            "description": "Caller has no admin.* permission and is not super admin; empty body"
+          }
+        }
       }
     },
     "/api/admin/accounts/{address}/quota": {
@@ -2277,15 +2169,8 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResult"
-                }
-              }
-            }
+          "204": {
+            "description": "Done; empty body"
           }
         }
       }
@@ -2347,15 +2232,8 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResult"
-                }
-              }
-            }
+          "204": {
+            "description": "Done; empty body"
           }
         }
       },
@@ -2376,15 +2254,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResult"
-                }
-              }
-            }
+          "204": {
+            "description": "Done; empty body"
           }
         }
       }
@@ -2483,15 +2354,8 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResult"
-                }
-              }
-            }
+          "204": {
+            "description": "Done; empty body"
           }
         }
       }
@@ -2842,15 +2706,54 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResult"
-                }
+          "204": {
+            "description": "Stored; empty body"
+          }
+        }
+      },
+      "post": {
+        "operationId": "setGroupPermissionsPost",
+        "summary": "Set permissions for a group (replaces existing)",
+        "tags": [
+          "Admin Groups"
+        ],
+        "description": "Same handler as PUT on this path, kept as a POST alias. Replaces the group's permission set; an empty list clears it. The handler answers 204 with no body (not ApiResult).",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetGroupPermissionsRequest"
               }
             }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Stored"
+          },
+          "422": {
+            "description": "Body rejected by the JSON extractor (400 malformed JSON, 415 wrong content type, 422 missing or mistyped field); plain-text body from the framework"
+          },
+          "500": {
+            "description": "Internal error (kevy unreachable); empty body"
+          },
+          "401": {
+            "description": "No valid session; empty body"
+          },
+          "403": {
+            "description": "Caller has no admin.* permission and is not super admin; empty body"
           }
         }
       }
@@ -2917,15 +2820,8 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResult"
-                }
-              }
-            }
+          "204": {
+            "description": "Done; empty body"
           }
         }
       }
@@ -2957,15 +2853,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResult"
-                }
-              }
-            }
+          "204": {
+            "description": "Done; empty body"
           }
         }
       }
@@ -3035,15 +2924,8 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "Reset email sent (always returns success to prevent enumeration)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResult"
-                }
-              }
-            }
+          "204": {
+            "description": "Reset email sent (always returns success to prevent enumeration); empty body"
           },
           "429": {
             "description": "Rate limited"
@@ -3082,15 +2964,8 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "Password reset successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResult"
-                }
-              }
-            }
+          "204": {
+            "description": "Password reset successfully; empty body"
           },
           "400": {
             "description": "Invalid or expired token"
@@ -3341,15 +3216,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Signature deleted",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResult"
-                }
-              }
-            }
+          "204": {
+            "description": "Signature deleted; empty body"
           }
         }
       }
@@ -3367,13 +3235,81 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/EncryptionKeyInfo"
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "email",
+                          "key_armored"
+                        ],
+                        "properties": {
+                          "email": {
+                            "type": "string"
+                          },
+                          "key_armored": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
                   }
                 }
               }
             }
+          }
+        }
+      },
+      "post": {
+        "operationId": "saveKey",
+        "summary": "Save a public key for an email address",
+        "description": "Upserts the key stored for `email`; an existing key for the same email is replaced. The key text is not validated.",
+        "tags": [
+          "Encryption Keys"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string"
+                  },
+                  "key_armored": {
+                    "type": "string",
+                    "description": "ASCII-armored public key"
+                  }
+                },
+                "required": [
+                  "email",
+                  "key_armored"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Saved; empty body"
+          },
+          "400": {
+            "description": "Body is not valid JSON"
+          },
+          "415": {
+            "description": "Missing `Content-Type: application/json`"
+          },
+          "422": {
+            "description": "Body lacks `email` or `key_armored`"
+          },
+          "500": {
+            "description": "kevy unavailable; empty body"
           }
         }
       }
@@ -3750,15 +3686,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Template deleted",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResult"
-                }
-              }
-            }
+          "204": {
+            "description": "Template deleted; empty body"
           }
         }
       }
@@ -3955,15 +3884,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Group deleted",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResult"
-                }
-              }
-            }
+          "204": {
+            "description": "Group deleted; empty body"
           }
         }
       }
@@ -4038,15 +3960,8 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "Member added",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResult"
-                }
-              }
-            }
+          "204": {
+            "description": "Member added; empty body"
           }
         }
       }
@@ -4078,15 +3993,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Member removed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResult"
-                }
-              }
-            }
+          "204": {
+            "description": "Member removed; empty body"
           }
         }
       }
@@ -4104,42 +4012,64 @@
             "in": "query",
             "schema": {
               "type": "integer",
-              "default": 50
-            }
-          },
-          {
-            "name": "offset",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "default": 0
-            }
+              "default": 100,
+              "minimum": 0
+            },
+            "description": "Maximum rows returned, counted after the filters"
           },
           {
             "name": "actor",
             "in": "query",
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Exact actor email"
           },
           {
             "name": "action",
             "in": "query",
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "Action prefix, e.g. `account` matches `account.*`"
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "Lower bound, Unix seconds, inclusive"
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "Upper bound, Unix seconds, exclusive"
           }
         ],
         "responses": {
           "200": {
-            "description": "Audit log entries",
+            "description": "Audit log entries, newest first as stored",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/AuditLogEntry"
-                  }
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AuditLogEntry"
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
                 }
               }
             }
@@ -4253,100 +4183,6 @@
         }
       }
     },
-    "/dav/calendars/{user}/{calendar}/{uid}": {
-      "get": {
-        "operationId": "davEvent",
-        "summary": "CalDAV event resource",
-        "tags": [
-          "DAV"
-        ],
-        "parameters": [
-          {
-            "name": "user",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "calendar",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "uid",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "iCalendar event",
-            "content": {
-              "text/calendar": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/dav/contacts/{user}/{book}/{uid}": {
-      "get": {
-        "operationId": "davContact",
-        "summary": "CardDAV contact resource",
-        "tags": [
-          "DAV"
-        ],
-        "parameters": [
-          {
-            "name": "user",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "book",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "uid",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "vCard contact",
-            "content": {
-              "text/vcard": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/.well-known/mta-sts.txt": {
       "get": {
         "operationId": "mtaStsPolicy",
@@ -4396,6 +4232,27 @@
               "schema": {
                 "type": "string",
                 "description": "Microsoft Autodiscover XML request \u2014 see Microsoft Autodiscover Protocol spec"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "autodiscoverOutlookGet",
+        "summary": "Outlook autodiscover (GET)",
+        "tags": [
+          "Autodiscover"
+        ],
+        "security": [],
+        "description": "Same handler as POST: takes no input and returns the same static IMAP (993, SSL) and SMTP (465, SSL) settings for MAILRS_HOSTNAME with LoginName %EMAILADDRESS%.",
+        "responses": {
+          "200": {
+            "description": "Autodiscover XML response",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           }
@@ -4483,6 +4340,27 @@
               "schema": {
                 "type": "string",
                 "description": "Microsoft Autodiscover XML request \u2014 see Microsoft Autodiscover Protocol spec"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "autodiscoverOutlookGetCapitalized",
+        "summary": "Outlook autodiscover (GET)",
+        "tags": [
+          "Autodiscover"
+        ],
+        "security": [],
+        "description": "Same handler as POST: takes no input and returns the same static IMAP (993, SSL) and SMTP (465, SSL) settings for MAILRS_HOSTNAME with LoginName %EMAILADDRESS%.",
+        "responses": {
+          "200": {
+            "description": "Autodiscover XML response",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           }
@@ -4628,15 +4506,8 @@
         "summary": "Delete admin oauth clients",
         "description": "Stub \u2014 full schema TBD.",
         "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+          "204": {
+            "description": "Done; empty body"
           }
         }
       }
@@ -4700,15 +4571,8 @@
         "summary": "Delete admin suppressions",
         "description": "Stub \u2014 full schema TBD.",
         "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+          "204": {
+            "description": "Done; empty body"
           }
         }
       },
@@ -4752,15 +4616,8 @@
         "summary": "Delete admin system config",
         "description": "Stub \u2014 full schema TBD.",
         "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+          "204": {
+            "description": "Reset to the built-in default; empty body"
           }
         }
       },
@@ -4768,15 +4625,37 @@
         "summary": "Update admin system config",
         "description": "Stores a setting that a running process reads; today only max_message_size_bytes (1 to 52428800 bytes). Settings read at process start (hostname, ports, TLS), local_domains, and unknown keys answer 400 with {\"error\"} saying where they are set.",
         "responses": {
-          "200": {
-            "description": "Success",
+          "204": {
+            "description": "Stored"
+          },
+          "400": {
+            "description": "Key not editable here or value out of range",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
+          },
+          "422": {
+            "description": "Body rejected by the JSON extractor (400 malformed JSON, 415 wrong content type, 422 missing or mistyped field); plain-text body from the framework"
+          },
+          "500": {
+            "description": "Could not save; body {\"error\": \"could not save the setting\"}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session; empty body"
+          },
+          "403": {
+            "description": "Caller has no admin.* permission and is not super admin; empty body"
           }
         },
         "requestBody": {
@@ -4787,6 +4666,65 @@
                 "$ref": "#/components/schemas/UpdateConfigRequest"
               }
             }
+          }
+        }
+      },
+      "post": {
+        "operationId": "putSystemConfigKeyPost",
+        "summary": "Update admin system config",
+        "description": "Same handler as PUT on this path, kept as a POST alias. Stores a setting that a running process reads; settings read at process start, local_domains and unknown keys answer 400 with {\"error\"} saying where they are set. The value is trimmed before it is stored. Records a `system_config.set` audit row.",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateConfigRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Stored"
+          },
+          "400": {
+            "description": "Key not editable here or value out of range",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Body rejected by the JSON extractor (400 malformed JSON, 415 wrong content type, 422 missing or mistyped field); plain-text body from the framework"
+          },
+          "500": {
+            "description": "Could not save; body {\"error\": \"could not save the setting\"}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session; empty body"
+          },
+          "403": {
+            "description": "Caller has no admin.* permission and is not super admin; empty body"
           }
         }
       }
@@ -4894,15 +4832,8 @@
         "summary": "Create auth recovery email",
         "description": "Stub \u2014 full schema TBD.",
         "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+          "204": {
+            "description": "Done; empty body"
           }
         },
         "requestBody": {
@@ -5058,15 +4989,8 @@
         "summary": "Delete calendar feeds",
         "description": "Stub \u2014 full schema TBD.",
         "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+          "204": {
+            "description": "Done; empty body"
           }
         }
       }
@@ -5187,48 +5111,13 @@
         }
       }
     },
-    "/api/mail/check-deliverability": {
-      "post": {
-        "summary": "Create mail check deliverability",
-        "description": "Stub \u2014 full schema TBD.",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CheckDeliverabilityRequest"
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/mail/spam-feedback": {
       "post": {
         "summary": "Create mail spam feedback",
         "description": "Stub \u2014 full schema TBD.",
         "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+          "204": {
+            "description": "Done; empty body"
           }
         },
         "requestBody": {
@@ -5527,351 +5416,6 @@
         }
       }
     },
-    "/dav/calendars/{user}/{calendar}/": {
-      "delete": {
-        "summary": "Delete dav calendars",
-        "description": "Stub \u2014 full schema TBD.",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "summary": "Get dav calendars",
-        "description": "Stub \u2014 full schema TBD.",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "summary": "Patch dav calendars",
-        "description": "Stub \u2014 full schema TBD.",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/xml": {
-              "schema": {
-                "type": "string",
-                "description": "WebDAV/CalDAV/CardDAV XML body (PROPPATCH/REPORT/MKCALENDAR/MKCOL)"
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "summary": "Create dav calendars",
-        "description": "Stub \u2014 full schema TBD.",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/xml": {
-              "schema": {
-                "type": "string",
-                "description": "WebDAV/CalDAV/CardDAV XML body (PROPPATCH/REPORT/MKCALENDAR/MKCOL)"
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "summary": "Update dav calendars",
-        "description": "Stub \u2014 full schema TBD.",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": false,
-          "content": {
-            "text/calendar": {
-              "schema": {
-                "type": "string",
-                "description": "RFC 5545 iCalendar resource (CalDAV PUT)"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/dav/contacts/{user}/": {
-      "delete": {
-        "summary": "Delete dav contacts",
-        "description": "Stub \u2014 full schema TBD.",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "summary": "Get dav contacts",
-        "description": "Stub \u2014 full schema TBD.",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "summary": "Patch dav contacts",
-        "description": "Stub \u2014 full schema TBD.",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/xml": {
-              "schema": {
-                "type": "string",
-                "description": "WebDAV/CalDAV/CardDAV XML body (PROPPATCH/REPORT/MKCALENDAR/MKCOL)"
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "summary": "Create dav contacts",
-        "description": "Stub \u2014 full schema TBD.",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/xml": {
-              "schema": {
-                "type": "string",
-                "description": "WebDAV/CalDAV/CardDAV XML body (PROPPATCH/REPORT/MKCALENDAR/MKCOL)"
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "summary": "Update dav contacts",
-        "description": "Stub \u2014 full schema TBD.",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": false,
-          "content": {
-            "text/vcard": {
-              "schema": {
-                "type": "string",
-                "description": "RFC 6350 vCard resource (CardDAV PUT)"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/dav/contacts/{user}/{book}/": {
-      "delete": {
-        "summary": "Delete dav contacts",
-        "description": "Stub \u2014 full schema TBD.",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "summary": "Get dav contacts",
-        "description": "Stub \u2014 full schema TBD.",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "summary": "Patch dav contacts",
-        "description": "Stub \u2014 full schema TBD.",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/xml": {
-              "schema": {
-                "type": "string",
-                "description": "WebDAV/CalDAV/CardDAV XML body (PROPPATCH/REPORT/MKCALENDAR/MKCOL)"
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "summary": "Create dav contacts",
-        "description": "Stub \u2014 full schema TBD.",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/xml": {
-              "schema": {
-                "type": "string",
-                "description": "WebDAV/CalDAV/CardDAV XML body (PROPPATCH/REPORT/MKCALENDAR/MKCOL)"
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "summary": "Update dav contacts",
-        "description": "Stub \u2014 full schema TBD.",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": false,
-          "content": {
-            "text/vcard": {
-              "schema": {
-                "type": "string",
-                "description": "RFC 6350 vCard resource (CardDAV PUT)"
-              }
-            }
-          }
-        }
-      }
-    },
     "/jmap/eventsource/": {
       "get": {
         "summary": "Get jmap eventsource",
@@ -6073,8 +5617,8 @@
           "admin"
         ],
         "responses": {
-          "200": {
-            "description": "Cache flushed"
+          "204": {
+            "description": "Cache flushed; empty body"
           }
         }
       }
@@ -6110,48 +5654,6 @@
                       "type": "array",
                       "items": {
                         "$ref": "#/components/schemas/DmarcReportSummary"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/admin/dmarc/reports/{sid}": {
-      "get": {
-        "operationId": "getDmarcReport",
-        "summary": "One DMARC report with its per-source rows",
-        "tags": [
-          "Admin DMARC"
-        ],
-        "parameters": [
-          {
-            "name": "sid",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Report detail",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "report": {
-                      "$ref": "#/components/schemas/DmarcReportSummary"
-                    },
-                    "rows": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/DmarcReportRow"
                       }
                     }
                   }
@@ -7393,6 +6895,2741 @@
           }
         }
       }
+    },
+    "/api/conversations/mark-all-read": {
+      "post": {
+        "operationId": "markAllConversationsRead",
+        "summary": "Mark every unread conversation read, mailbox-wide or for one list",
+        "description": "With none of `folder`, `unread`, `starred` set and `archived` false, marks the whole mailbox. With any of them, marks exactly the list `GET /api/conversations` would show for the same query (`category`, `section` and `include_quarantined` then also narrow it). Takes the conversation list's query string; `limit`, `before` and `accounts` are parsed but ignored.",
+        "tags": [
+          "Conversations"
+        ],
+        "parameters": [
+          {
+            "name": "folder",
+            "in": "query",
+            "description": "Folder of the list to mark",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "unread",
+            "in": "query",
+            "description": "Unread filter of the list to mark",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "starred",
+            "in": "query",
+            "description": "Starred filter of the list to mark",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "archived",
+            "in": "query",
+            "description": "Mark the archived list",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "description": "Category filter; applies only when the request is scoped",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "section",
+            "in": "query",
+            "description": "Section filter; applies only when the request is scoped",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "include_quarantined",
+            "in": "query",
+            "description": "Include conversations held as suspected fraud; applies only when the request is scoped",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Number of conversations flipped to read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "flipped": {
+                      "type": "integer",
+                      "format": "int32",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "flipped"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A query parameter failed to parse (e.g. non-boolean `unread`)"
+          }
+        }
+      }
+    },
+    "/api/conversations/unseen-count": {
+      "get": {
+        "operationId": "getUnseenCount",
+        "summary": "Count unread conversations",
+        "tags": [
+          "Conversations"
+        ],
+        "responses": {
+          "200": {
+            "description": "Number of unread, non-archived, non-spam threads, excluding self-replies",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "count": {
+                      "type": "integer",
+                      "format": "int64"
+                    }
+                  },
+                  "required": [
+                    "count"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/conversations/{thread_id}/mark-junk": {
+      "post": {
+        "operationId": "markThreadJunk",
+        "summary": "Move a conversation to Junk",
+        "description": "Moves the thread to Junk. Does not change the caller's sender whitelist or blacklist.",
+        "tags": [
+          "Conversations"
+        ],
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done; empty body"
+          },
+          "404": {
+            "description": "Thread not found for this user (core-api NotFound); other core-api errors map to 400/403/409/500/501/503/504 with an empty body"
+          }
+        }
+      }
+    },
+    "/api/conversations/{thread_id}/mark-not-junk": {
+      "post": {
+        "operationId": "markThreadNotJunk",
+        "summary": "Move a conversation out of Junk and whitelist its senders",
+        "description": "Moves the thread to the Inbox and adds each participant address (except the caller's own) to the caller's sender whitelist. The whitelist write is best-effort: a lookup or kevy failure there does not fail the request.",
+        "tags": [
+          "Conversations"
+        ],
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done; empty body"
+          },
+          "404": {
+            "description": "Thread not found for this user (core-api NotFound); other core-api errors map to 400/403/409/500/501/503/504 with an empty body"
+          }
+        }
+      }
+    },
+    "/api/conversations/{thread_id}/mark-notification": {
+      "post": {
+        "operationId": "markThreadNotification",
+        "summary": "Move a conversation to Notifications",
+        "description": "Moves the thread into the Notifications bucket and trains the classifier.",
+        "tags": [
+          "Conversations"
+        ],
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done; empty body"
+          },
+          "404": {
+            "description": "Thread not found for this user (core-api NotFound); other core-api errors map to 400/403/409/500/501/503/504 with an empty body"
+          }
+        }
+      }
+    },
+    "/api/conversations/{thread_id}/mark-promotion": {
+      "post": {
+        "operationId": "markThreadPromotion",
+        "summary": "Move a conversation to Promotions",
+        "description": "Moves the thread into the Promotions bucket and trains the classifier.",
+        "tags": [
+          "Conversations"
+        ],
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done; empty body"
+          },
+          "404": {
+            "description": "Thread not found for this user (core-api NotFound); other core-api errors map to 400/403/409/500/501/503/504 with an empty body"
+          }
+        }
+      }
+    },
+    "/api/conversations/{thread_id}/move-to-inbox": {
+      "post": {
+        "operationId": "moveThreadToInbox",
+        "summary": "Move a conversation back to the Inbox",
+        "description": "Moves the thread into the Inbox bucket and trains the classifier.",
+        "tags": [
+          "Conversations"
+        ],
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done; empty body"
+          },
+          "404": {
+            "description": "Thread not found for this user (core-api NotFound); other core-api errors map to 400/403/409/500/501/503/504 with an empty body"
+          }
+        }
+      }
+    },
+    "/api/mail/sent": {
+      "get": {
+        "operationId": "listSentMessages",
+        "summary": "List sent messages, one row per message",
+        "description": "One row per outbound message (not per thread), newest first. No query parameters; the list is not paginated.",
+        "tags": [
+          "Mail"
+        ],
+        "responses": {
+          "200": {
+            "description": "Sent messages",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "uid": {
+                        "type": "integer",
+                        "format": "int32",
+                        "minimum": 0
+                      },
+                      "message_id": {
+                        "type": "string"
+                      },
+                      "thread_id": {
+                        "type": "string"
+                      },
+                      "to": {
+                        "type": "string",
+                        "description": "Raw To: header"
+                      },
+                      "subject": {
+                        "type": "string"
+                      },
+                      "internal_date": {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "Epoch seconds"
+                      }
+                    },
+                    "required": [
+                      "uid",
+                      "message_id",
+                      "thread_id",
+                      "to",
+                      "subject",
+                      "internal_date"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/spam/whitelist": {
+      "get": {
+        "operationId": "listSpamWhitelist",
+        "summary": "List the caller's sender whitelist",
+        "tags": [
+          "Mail"
+        ],
+        "responses": {
+          "200": {
+            "description": "The caller's entries, lowercased, sorted ascending",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpamListResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "kevy unavailable; empty body"
+          }
+        }
+      },
+      "post": {
+        "operationId": "addSpamWhitelist",
+        "summary": "Add an address to the caller's sender whitelist",
+        "description": "The address is trimmed and lowercased before it is stored.",
+        "tags": [
+          "Mail"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpamListAddRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Added (idempotent); empty body"
+          },
+          "400": {
+            "description": "`address` empty after trimming or contains no `@`; or the body is not valid JSON"
+          },
+          "415": {
+            "description": "Missing `Content-Type: application/json`"
+          },
+          "422": {
+            "description": "Body is JSON but lacks a string `address`"
+          },
+          "500": {
+            "description": "kevy unavailable; empty body"
+          }
+        }
+      }
+    },
+    "/api/spam/whitelist/{address}": {
+      "delete": {
+        "operationId": "removeSpamWhitelist",
+        "summary": "Remove an address from the caller's sender whitelist",
+        "tags": [
+          "Mail"
+        ],
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "description": "Address to remove; lowercased before removal, not trimmed",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed, or was not present; empty body"
+          },
+          "500": {
+            "description": "kevy unavailable; empty body"
+          }
+        }
+      }
+    },
+    "/api/spam/blacklist": {
+      "get": {
+        "operationId": "listSpamBlacklist",
+        "summary": "List the caller's sender blacklist",
+        "tags": [
+          "Mail"
+        ],
+        "responses": {
+          "200": {
+            "description": "The caller's entries, lowercased, sorted ascending",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpamListResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "kevy unavailable; empty body"
+          }
+        }
+      },
+      "post": {
+        "operationId": "addSpamBlacklist",
+        "summary": "Add an address to the caller's sender blacklist",
+        "description": "The address is trimmed and lowercased before it is stored.",
+        "tags": [
+          "Mail"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpamListAddRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Added (idempotent); empty body"
+          },
+          "400": {
+            "description": "`address` empty after trimming or contains no `@`; or the body is not valid JSON"
+          },
+          "415": {
+            "description": "Missing `Content-Type: application/json`"
+          },
+          "422": {
+            "description": "Body is JSON but lacks a string `address`"
+          },
+          "500": {
+            "description": "kevy unavailable; empty body"
+          }
+        }
+      }
+    },
+    "/api/spam/blacklist/{address}": {
+      "delete": {
+        "operationId": "removeSpamBlacklist",
+        "summary": "Remove an address from the caller's sender blacklist",
+        "tags": [
+          "Mail"
+        ],
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "description": "Address to remove; lowercased before removal, not trimmed",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed, or was not present; empty body"
+          },
+          "500": {
+            "description": "kevy unavailable; empty body"
+          }
+        }
+      }
+    },
+    "/api/icon/{domain}": {
+      "get": {
+        "operationId": "getDomainIcon",
+        "summary": "Get the brand icon for a sender domain",
+        "description": "Tries the domain's BIMI SVG, then Google's and DuckDuckGo's favicon services; a subdomain without an icon falls back to its registrable domain. Results are cached server-side (hits 7 days, misses 24 hours). A domain that is not a plausible hostname (empty, longer than 253, or containing anything but ASCII letters, digits, `.` and `-`) gets 204, never 4xx.",
+        "tags": [
+          "Mail"
+        ],
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "required": true,
+            "description": "Sender domain; trimmed and lowercased",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Icon bytes. Content-Type is the upstream's when it starts with `image/` (commonly image/svg+xml, image/png, image/x-icon, image/vnd.microsoft.icon, image/jpeg, image/gif, image/webp), otherwise image/png. At most 256 KiB. Cache-Control: public, max-age=86400, stale-while-revalidate=604800",
+            "content": {
+              "image/*": {
+                "schema": {
+                  "type": "string",
+                  "contentMediaType": "image/*"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "No icon for this domain, or the domain is invalid; empty body. Cache-Control: public, max-age=86400"
+          }
+        }
+      }
+    },
+    "/api/mail/keys/status": {
+      "get": {
+        "operationId": "getKeysStatus",
+        "summary": "Whether the caller has any saved public keys",
+        "tags": [
+          "Encryption Keys"
+        ],
+        "responses": {
+          "200": {
+            "description": "Key status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "configured": {
+                      "type": "boolean",
+                      "description": "true when key_count > 0"
+                    },
+                    "key_count": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "configured",
+                    "key_count"
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "kevy unavailable; empty body"
+          }
+        }
+      }
+    },
+    "/api/mail/sends": {
+      "get": {
+        "operationId": "listSends",
+        "summary": "List the caller's sends with per-recipient delivery status",
+        "tags": [
+          "Mail"
+        ],
+        "description": "One row per send attempt (not per conversation). Not yet read by the web UI.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Clamped to 1..200",
+            "schema": {
+              "type": "integer",
+              "default": 50
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "Negative values are treated as 0",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Filter by status; empty means no filter, an unknown value is rejected with 400",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "scheduled",
+                "sending",
+                "delivered",
+                "failed",
+                "partial",
+                "cancelled"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sends",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "send_id": {
+                        "type": "string"
+                      },
+                      "thread_id": {
+                        "type": "string"
+                      },
+                      "subject": {
+                        "type": "string"
+                      },
+                      "to": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "created_at": {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "Unix seconds"
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "scheduled",
+                          "sending",
+                          "delivered",
+                          "failed",
+                          "partial",
+                          "cancelled"
+                        ]
+                      },
+                      "can_resend": {
+                        "type": "boolean",
+                        "description": "Whether stored envelope bytes exist, so resend / redraft can work"
+                      },
+                      "resent_from": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Send id this one is a resend of"
+                      },
+                      "recipients": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "recipient": {
+                              "type": "string"
+                            },
+                            "delivered": {
+                              "type": "boolean"
+                            },
+                            "pending": {
+                              "type": "boolean"
+                            },
+                            "code": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 65535,
+                              "description": "Remote reply code, 0 before any server answered"
+                            },
+                            "message": {
+                              "type": "string",
+                              "description": "Remote reply text, verbatim"
+                            }
+                          },
+                          "required": [
+                            "recipient",
+                            "delivered",
+                            "pending",
+                            "code",
+                            "message"
+                          ]
+                        }
+                      }
+                    },
+                    "required": [
+                      "send_id",
+                      "thread_id",
+                      "subject",
+                      "to",
+                      "created_at",
+                      "status",
+                      "can_resend",
+                      "resent_from",
+                      "recipients"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown `status` value (empty body)"
+          },
+          "500": {
+            "description": "kevy read/write failed (empty body)"
+          }
+        }
+      }
+    },
+    "/api/mail/sends:shadow": {
+      "post": {
+        "operationId": "shadowSends",
+        "summary": "Compare the Send rows against the Sent conversation axis",
+        "tags": [
+          "Mail"
+        ],
+        "description": "Cutover gate for the Send view: counts Sent-folder threads (up to 2000) that have no Send row, split at `since`. `missing_since` must be 0 before the UI reads the Send list. No request body.",
+        "parameters": [
+          {
+            "name": "since",
+            "in": "query",
+            "required": true,
+            "description": "Unix seconds; sends at or after this must have a row",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Shadow report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "axis_threads": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "projection_sends": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "missing_before": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "missing_since": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "The gate; must be 0"
+                    },
+                    "samples": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "axis_threads",
+                    "projection_sends",
+                    "missing_before",
+                    "missing_since",
+                    "samples"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`since` missing or not an integer (axum Query rejection, plain-text body)"
+          },
+          "502": {
+            "description": "core list_conversations call failed (empty body)"
+          },
+          "500": {
+            "description": "kevy read/write failed (empty body)"
+          }
+        }
+      }
+    },
+    "/api/mail/sends/{send_id}/source": {
+      "get": {
+        "operationId": "getSendSource",
+        "summary": "Download the stored RFC 5322 bytes of a send",
+        "tags": [
+          "Mail"
+        ],
+        "parameters": [
+          {
+            "name": "send_id",
+            "in": "path",
+            "required": true,
+            "description": "Send id: the Message-ID of the original send, or `<message-id>#r<n>` for a resend",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Raw message exactly as it was queued",
+            "content": {
+              "message/rfc822": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such send for this user, or the stored file is missing (empty body)"
+          },
+          "409": {
+            "description": "Send has no stored envelope bytes (`can_resend` is false) (empty body)"
+          },
+          "500": {
+            "description": "kevy or maildir read failed (empty body)"
+          }
+        }
+      }
+    },
+    "/api/mail/sends/{send_id}": {
+      "delete": {
+        "operationId": "deleteSend",
+        "summary": "Delete a finished send, its resends and the sender's copy",
+        "tags": [
+          "Mail"
+        ],
+        "description": "Marks the sender's own copy of the message deleted and removes the send row and every resend of it.",
+        "parameters": [
+          {
+            "name": "send_id",
+            "in": "path",
+            "required": true,
+            "description": "Send id: the Message-ID of the original send, or `<message-id>#r<n>` for a resend",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "404": {
+            "description": "No such send for this user"
+          },
+          "409": {
+            "description": "Send is still `sending` or `scheduled`; cancel it first"
+          },
+          "500": {
+            "description": "kevy failure, or a core error (other core errors are passed through with the core's status code)"
+          }
+        }
+      }
+    },
+    "/api/mail/sends/{send_id}/resend": {
+      "post": {
+        "operationId": "resendSend",
+        "summary": "Re-enqueue a send's stored envelope unchanged",
+        "tags": [
+          "Mail"
+        ],
+        "description": "Same bytes and Message-ID, to every recipient of the original, under a new send id `<stem>#r<n>`. The original row is left as is. No request body.",
+        "parameters": [
+          {
+            "name": "send_id",
+            "in": "path",
+            "required": true,
+            "description": "Send id: the Message-ID of the original send, or `<message-id>#r<n>` for a resend",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resend queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "send_id": {
+                      "type": "string",
+                      "description": "New send id"
+                    },
+                    "resent_from": {
+                      "type": "string",
+                      "description": "The send id given in the path"
+                    }
+                  },
+                  "required": [
+                    "send_id",
+                    "resent_from"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such send, or stored file missing"
+          },
+          "409": {
+            "description": "No stored envelope bytes, or the original has no recipients"
+          },
+          "500": {
+            "description": "kevy / maildir failure"
+          }
+        }
+      }
+    },
+    "/api/mail/sends/{send_id}/redraft": {
+      "get": {
+        "operationId": "getSendRedraft",
+        "summary": "Turn a send back into compose fields for re-editing",
+        "tags": [
+          "Mail"
+        ],
+        "description": "Attachment bytes stay on the server; only metadata is returned. A following send names attachments to keep by `index` (in `redraft_keep`). Bcc is reconstructed as queued recipients not in To/Cc.",
+        "parameters": [
+          {
+            "name": "send_id",
+            "in": "path",
+            "required": true,
+            "description": "Send id: the Message-ID of the original send, or `<message-id>#r<n>` for a resend",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Compose fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "redraft_of": {
+                      "type": "string"
+                    },
+                    "to": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "cc": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "bcc": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "subject": {
+                      "type": "string"
+                    },
+                    "body": {
+                      "type": "string",
+                      "description": "Plain-text body, empty if none"
+                    },
+                    "html_body": {
+                      "type": "string",
+                      "description": "HTML body, empty if none"
+                    },
+                    "in_reply_to": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "The original's thread id; null when it had none"
+                    },
+                    "attachments": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "index": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "filename": {
+                            "type": "string"
+                          },
+                          "content_type": {
+                            "type": "string"
+                          },
+                          "size": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Bytes"
+                          }
+                        },
+                        "required": [
+                          "index",
+                          "filename",
+                          "content_type",
+                          "size"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "redraft_of",
+                    "to",
+                    "cc",
+                    "bcc",
+                    "subject",
+                    "body",
+                    "html_body",
+                    "in_reply_to",
+                    "attachments"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such send, or stored file missing"
+          },
+          "409": {
+            "description": "No stored envelope bytes"
+          },
+          "500": {
+            "description": "kevy / maildir failure"
+          }
+        }
+      }
+    },
+    "/api/scheduled": {
+      "get": {
+        "operationId": "listScheduled",
+        "summary": "List the caller's scheduled (future-dated) outbound jobs",
+        "tags": [
+          "Mail"
+        ],
+        "description": "One entry per outbound job (per recipient), soonest first. Missing envelope fields are returned as empty strings.",
+        "responses": {
+          "200": {
+            "description": "Scheduled jobs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "Outbound job id"
+                          },
+                          "scheduled_at": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": "Unix seconds"
+                          },
+                          "recipient": {
+                            "type": "string"
+                          },
+                          "subject": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "scheduled_at",
+                          "recipient",
+                          "subject"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "kevy read/write failed (empty body)"
+          }
+        }
+      }
+    },
+    "/api/scheduled/{id}/cancel": {
+      "post": {
+        "operationId": "cancelScheduled",
+        "summary": "Cancel a scheduled outbound job",
+        "tags": [
+          "Mail"
+        ],
+        "description": "Removes the job from the scheduled index and deletes it. No request body.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Outbound job id (member of the scheduled index)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Cancelled"
+          },
+          "404": {
+            "description": "Not found, not the caller's, or kevy error (all answer 404)"
+          }
+        }
+      }
+    },
+    "/api/scheduled/{id}/reschedule": {
+      "post": {
+        "operationId": "rescheduleScheduled",
+        "summary": "Change the send time of a scheduled outbound job",
+        "tags": [
+          "Mail"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Outbound job id (member of the scheduled index)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "scheduled_at": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "New send time, Unix seconds; must be in the future"
+                  }
+                },
+                "required": [
+                  "scheduled_at"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Rescheduled"
+          },
+          "400": {
+            "description": "`scheduled_at` is not in the future (also axum's 400 for malformed JSON)"
+          },
+          "404": {
+            "description": "Not found, not the caller's, or kevy error"
+          },
+          "415": {
+            "description": "Missing `Content-Type: application/json` (axum Json rejection)"
+          },
+          "422": {
+            "description": "Body does not match the schema (axum Json rejection)"
+          }
+        }
+      }
+    },
+    "/api/auth/identities": {
+      "get": {
+        "operationId": "listIdentities",
+        "summary": "List external sign-in identities linked to the caller's account",
+        "tags": [
+          "Auth"
+        ],
+        "responses": {
+          "200": {
+            "description": "Linked identities",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "issuer": {
+                            "type": "string"
+                          },
+                          "subject": {
+                            "type": "string"
+                          },
+                          "provider": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "Provider key derived from the issuer; null when no configured provider has that issuer"
+                          }
+                        },
+                        "required": [
+                          "issuer",
+                          "subject",
+                          "provider"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "kevy unavailable (empty body)"
+          }
+        }
+      }
+    },
+    "/api/auth/identities:unlink": {
+      "post": {
+        "operationId": "unlinkIdentity",
+        "summary": "Remove one external sign-in identity from the caller's account",
+        "tags": [
+          "Auth"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "issuer": {
+                    "type": "string"
+                  },
+                  "subject": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "issuer",
+                  "subject"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Unlinked"
+          },
+          "404": {
+            "description": "Not linked to the caller's account (same answer whether it exists elsewhere or not)"
+          },
+          "503": {
+            "description": "kevy unavailable"
+          },
+          "415": {
+            "description": "Missing JSON content type (axum Json rejection)"
+          },
+          "422": {
+            "description": "Body missing `issuer` or `subject` (axum Json rejection)"
+          }
+        }
+      }
+    },
+    "/api/auth/external-providers": {
+      "get": {
+        "operationId": "listExternalProviders",
+        "summary": "List external login providers configured on this deployment",
+        "tags": [
+          "Auth"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Provider keys",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "providers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "portal",
+                          "google",
+                          "github",
+                          "microsoft",
+                          "apple"
+                        ]
+                      },
+                      "description": "Keys of providers that have a client id configured, in this fixed order"
+                    }
+                  },
+                  "required": [
+                    "providers"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/external/{provider}": {
+      "get": {
+        "operationId": "startExternalLogin",
+        "summary": "Start an external sign-in by redirecting to the provider",
+        "tags": [
+          "Auth"
+        ],
+        "security": [],
+        "description": "Stores a PKCE verifier under a random state for 10 minutes, then redirects to the provider's authorize URL with `response_type=code`, `client_id`, `redirect_uri` (MAILRS_EXTERNAL_LOGIN_REDIRECT_URI, default https://mail.golia.jp/api/auth/oidc/callback), `scope`, `state`, `code_challenge`, `code_challenge_method=S256`. The provider returns to /api/auth/oidc/callback.",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "portal",
+                "google",
+                "github",
+                "microsoft",
+                "apple"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "303": {
+            "description": "Redirect to the provider's authorization endpoint",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Provider not configured: `{\"error\": \"provider not configured\"}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Could not store the flow state in kevy (empty body)"
+          }
+        }
+      }
+    },
+    "/api/admin/webhook-subscriptions": {
+      "post": {
+        "operationId": "adminCreateWebhook",
+        "summary": "Create a webhook subscription for any account",
+        "tags": [
+          "Webhooks"
+        ],
+        "description": "Admin counterpart of POST /api/agent/webhooks with a different shape: the owning account is named in the body, event_type is required, and the URL and event type are stored as given without validation. Records a `webhook.create` audit row.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "account_address": {
+                    "type": "string",
+                    "description": "Account that owns the subscription"
+                  },
+                  "url": {
+                    "type": "string"
+                  },
+                  "event_type": {
+                    "type": "string"
+                  },
+                  "filter_sender": {
+                    "type": "string"
+                  },
+                  "filter_thread_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "account_address",
+                  "url",
+                  "event_type"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "signing_secret": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "signing_secret"
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Body rejected by the JSON extractor (400 malformed JSON, 415 wrong content type, 422 missing or mistyped field); plain-text body from the framework"
+          },
+          "500": {
+            "description": "Internal error (kevy unreachable); empty body"
+          },
+          "401": {
+            "description": "No valid session; empty body"
+          },
+          "403": {
+            "description": "Caller has no admin.* permission and is not super admin; empty body"
+          }
+        }
+      }
+    },
+    "/api/admin/webhook-subscriptions/{id}": {
+      "delete": {
+        "operationId": "adminDeleteWebhook",
+        "summary": "Delete a webhook subscription by id",
+        "tags": [
+          "Webhooks"
+        ],
+        "description": "Records a `webhook.delete` audit row even when the id did not exist.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "404": {
+            "description": "No subscription with this id; empty body"
+          },
+          "400": {
+            "description": "id is not an integer; plain-text body from the framework"
+          },
+          "500": {
+            "description": "Internal error (kevy unreachable); empty body"
+          },
+          "401": {
+            "description": "No valid session; empty body"
+          },
+          "403": {
+            "description": "Caller has no admin.* permission and is not super admin; empty body"
+          }
+        }
+      }
+    },
+    "/api/admin/accounts/{address}/webhook-subscriptions": {
+      "get": {
+        "operationId": "adminListAccountWebhooks",
+        "summary": "List an account's webhook subscriptions",
+        "tags": [
+          "Webhooks"
+        ],
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Subscriptions of the account; an unknown address gives an empty list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "format": "int64"
+                          },
+                          "account_address": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string"
+                          },
+                          "event_type": {
+                            "type": "string"
+                          },
+                          "filter_sender": {
+                            "type": "string",
+                            "description": "Omitted when not set"
+                          },
+                          "filter_thread_id": {
+                            "type": "string",
+                            "description": "Omitted when not set"
+                          },
+                          "signing_secret": {
+                            "type": "string",
+                            "description": "HMAC signing secret; this admin listing returns it in full"
+                          },
+                          "active": {
+                            "type": "boolean"
+                          },
+                          "created_at": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": "Unix seconds"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "account_address",
+                          "url",
+                          "event_type",
+                          "signing_secret",
+                          "active",
+                          "created_at"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (kevy unreachable); empty body"
+          },
+          "401": {
+            "description": "No valid session; empty body"
+          },
+          "403": {
+            "description": "Caller has no admin.* permission and is not super admin; empty body"
+          }
+        }
+      }
+    },
+    "/api/admin/audit-log/export": {
+      "get": {
+        "operationId": "exportAuditLog",
+        "summary": "Export audit log entries for a time window",
+        "tags": [
+          "Audit"
+        ],
+        "description": "Same rows and filters as GET /api/admin/audit-log but with no row cap: every stored entry is scanned. Returned as JSON (not CSV or NDJSON), newest first as stored. `limit` is accepted by the shared query struct but ignored here.",
+        "parameters": [
+          {
+            "name": "since",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "Lower bound, Unix seconds, inclusive"
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "Upper bound, Unix seconds, exclusive"
+          },
+          {
+            "name": "actor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact actor email"
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Action prefix, e.g. `account` matches `account.*`"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 100
+            },
+            "description": "Accepted, ignored by this endpoint"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "format": "int64"
+                          },
+                          "timestamp": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": "Unix seconds; read from `occurred_at` or `timestamp` in the stored row, always serialized as `timestamp`"
+                          },
+                          "actor": {
+                            "type": "string"
+                          },
+                          "action": {
+                            "type": "string"
+                          },
+                          "target": {
+                            "type": "string"
+                          },
+                          "detail": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "timestamp",
+                          "actor",
+                          "action",
+                          "target",
+                          "detail"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Query string rejected (e.g. non-integer since); plain-text body from the framework"
+          },
+          "500": {
+            "description": "Internal error (kevy unreachable); empty body"
+          },
+          "401": {
+            "description": "No valid session; empty body"
+          },
+          "403": {
+            "description": "Caller has no admin.* permission and is not super admin; empty body"
+          }
+        }
+      }
+    },
+    "/api/admin/audit/conversations/{thread_id}": {
+      "get": {
+        "operationId": "auditConversationDetail",
+        "summary": "Read one conversation's summary row as a target user sees it",
+        "tags": [
+          "Audit"
+        ],
+        "description": "Records an `audit.read_thread` audit row. The messages are at .../messages.",
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "user",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "description": "Target account; `target_user` is accepted as an alias"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Conversation summary",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "thread_id": {
+                      "type": "string"
+                    },
+                    "subject": {
+                      "type": "string"
+                    },
+                    "participants": {
+                      "type": "string",
+                      "description": "Participants as a single string, as stored on the thread row"
+                    },
+                    "message_count": {
+                      "type": "integer"
+                    },
+                    "last_date": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "snippet": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "thread_id",
+                    "subject",
+                    "participants",
+                    "message_count",
+                    "last_date",
+                    "snippet"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`user` missing; plain-text body from the framework"
+          },
+          "404": {
+            "description": "The user has no such thread; empty body"
+          },
+          "500": {
+            "description": "Core RPC failed (other core statuses are passed through); empty body"
+          },
+          "401": {
+            "description": "No valid session; empty body"
+          },
+          "403": {
+            "description": "Caller has no admin.* permission and is not super admin; empty body"
+          }
+        }
+      }
+    },
+    "/api/admin/queues": {
+      "get": {
+        "operationId": "listAdminQueue",
+        "summary": "List outbound jobs that are queued, waiting to retry, or in flight",
+        "tags": [
+          "Queue"
+        ],
+        "description": "Up to 100 job ids from each of the pending list, the retry set and the in-flight list, de-duplicated, one row per job whose record still exists. Each row is the job's stored envelope with `message_data_b64` removed and `status` overwritten with the list it was found in. Envelope fields are whatever the writer stored, so extra fields (e.g. `last_attempt_at`) can appear.",
+        "responses": {
+          "200": {
+            "description": "Queue rows",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true,
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "format": "int64"
+                          },
+                          "sender": {
+                            "type": "string"
+                          },
+                          "recipient": {
+                            "type": "string"
+                          },
+                          "original_sender": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "pending",
+                              "retrying",
+                              "inflight"
+                            ]
+                          },
+                          "attempts": {
+                            "type": "integer"
+                          },
+                          "last_error": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "next_retry": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ],
+                            "format": "int64"
+                          },
+                          "scheduled_at": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ],
+                            "format": "int64"
+                          },
+                          "created_at": {
+                            "type": "integer",
+                            "format": "int64"
+                          },
+                          "updated_at": {
+                            "type": "integer",
+                            "format": "int64"
+                          },
+                          "send_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "last_attempt_at": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": "Set by the sender after an attempt"
+                          }
+                        },
+                        "required": [
+                          "status"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (kevy unreachable); empty body"
+          },
+          "401": {
+            "description": "No valid session; empty body"
+          },
+          "403": {
+            "description": "Caller has no admin.* permission and is not super admin; empty body"
+          }
+        }
+      }
+    },
+    "/dav/principals/{user}/": {
+      "get": {
+        "operationId": "davPrincipalGet",
+        "summary": "DAV principal for the user (GET or any WebDAV method)",
+        "tags": [
+          "DAV"
+        ],
+        "description": "Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. Any other method answers 207 with the principal's calendar-home-set (/dav/calendars/{user}/) and addressbook-home-set (/dav/addressbooks/{user}/). The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.",
+        "parameters": [
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "207": {
+            "description": "Multistatus XML",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/DavMultistatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session; empty body"
+          }
+        }
+      },
+      "put": {
+        "operationId": "davPrincipalPut",
+        "summary": "DAV principal for the user (PUT or any WebDAV method)",
+        "tags": [
+          "DAV"
+        ],
+        "description": "Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. Any other method answers 207 with the principal's calendar-home-set (/dav/calendars/{user}/) and addressbook-home-set (/dav/addressbooks/{user}/). The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.",
+        "parameters": [
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "207": {
+            "description": "Multistatus XML",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/DavMultistatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session; empty body"
+          }
+        }
+      },
+      "post": {
+        "operationId": "davPrincipalPost",
+        "summary": "DAV principal for the user (POST or any WebDAV method)",
+        "tags": [
+          "DAV"
+        ],
+        "description": "Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. Any other method answers 207 with the principal's calendar-home-set (/dav/calendars/{user}/) and addressbook-home-set (/dav/addressbooks/{user}/). The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.",
+        "parameters": [
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "207": {
+            "description": "Multistatus XML",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/DavMultistatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session; empty body"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "davPrincipalPatch",
+        "summary": "DAV principal for the user (PATCH or any WebDAV method)",
+        "tags": [
+          "DAV"
+        ],
+        "description": "Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. Any other method answers 207 with the principal's calendar-home-set (/dav/calendars/{user}/) and addressbook-home-set (/dav/addressbooks/{user}/). The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.",
+        "parameters": [
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "207": {
+            "description": "Multistatus XML",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/DavMultistatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session; empty body"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "davPrincipalDelete",
+        "summary": "DAV principal for the user (DELETE or any WebDAV method)",
+        "tags": [
+          "DAV"
+        ],
+        "description": "Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. Any other method answers 207 with the principal's calendar-home-set (/dav/calendars/{user}/) and addressbook-home-set (/dav/addressbooks/{user}/). The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.",
+        "parameters": [
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "207": {
+            "description": "Multistatus XML",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/DavMultistatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session; empty body"
+          }
+        }
+      },
+      "options": {
+        "operationId": "davPrincipalOptions",
+        "summary": "DAV principal for the user: DAV capabilities",
+        "tags": [
+          "DAV"
+        ],
+        "parameters": [
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Empty body; `Allow: OPTIONS, GET, HEAD, PROPFIND, REPORT, PUT, DELETE, MKCOL, MKCALENDAR` and `DAV: 1, 2, calendar-access, addressbook` headers"
+          },
+          "401": {
+            "description": "No valid session; empty body"
+          }
+        }
+      }
+    },
+    "/dav/addressbooks/{user}/": {
+      "get": {
+        "operationId": "davAddressbooksGet",
+        "summary": "CardDAV address book collection (GET or any WebDAV method)",
+        "tags": [
+          "DAV"
+        ],
+        "description": "Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. REPORT answers 207 with every vCard in the user's `default` book as address-data (503 with an empty body when kevy is unreachable); any other method answers 207 listing the single `default` address book. The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.",
+        "parameters": [
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "207": {
+            "description": "Multistatus XML",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/DavMultistatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session; empty body"
+          }
+        }
+      },
+      "put": {
+        "operationId": "davAddressbooksPut",
+        "summary": "CardDAV address book collection (PUT or any WebDAV method)",
+        "tags": [
+          "DAV"
+        ],
+        "description": "Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. REPORT answers 207 with every vCard in the user's `default` book as address-data (503 with an empty body when kevy is unreachable); any other method answers 207 listing the single `default` address book. The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.",
+        "parameters": [
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "207": {
+            "description": "Multistatus XML",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/DavMultistatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session; empty body"
+          }
+        }
+      },
+      "post": {
+        "operationId": "davAddressbooksPost",
+        "summary": "CardDAV address book collection (POST or any WebDAV method)",
+        "tags": [
+          "DAV"
+        ],
+        "description": "Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. REPORT answers 207 with every vCard in the user's `default` book as address-data (503 with an empty body when kevy is unreachable); any other method answers 207 listing the single `default` address book. The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.",
+        "parameters": [
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "207": {
+            "description": "Multistatus XML",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/DavMultistatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session; empty body"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "davAddressbooksPatch",
+        "summary": "CardDAV address book collection (PATCH or any WebDAV method)",
+        "tags": [
+          "DAV"
+        ],
+        "description": "Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. REPORT answers 207 with every vCard in the user's `default` book as address-data (503 with an empty body when kevy is unreachable); any other method answers 207 listing the single `default` address book. The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.",
+        "parameters": [
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "207": {
+            "description": "Multistatus XML",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/DavMultistatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session; empty body"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "davAddressbooksDelete",
+        "summary": "CardDAV address book collection (DELETE or any WebDAV method)",
+        "tags": [
+          "DAV"
+        ],
+        "description": "Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. REPORT answers 207 with every vCard in the user's `default` book as address-data (503 with an empty body when kevy is unreachable); any other method answers 207 listing the single `default` address book. The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.",
+        "parameters": [
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "207": {
+            "description": "Multistatus XML",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/DavMultistatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session; empty body"
+          }
+        }
+      },
+      "options": {
+        "operationId": "davAddressbooksOptions",
+        "summary": "CardDAV address book collection: DAV capabilities",
+        "tags": [
+          "DAV"
+        ],
+        "parameters": [
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Empty body; `Allow: OPTIONS, GET, HEAD, PROPFIND, REPORT, PUT, DELETE, MKCOL, MKCALENDAR` and `DAV: 1, 2, calendar-access, addressbook` headers"
+          },
+          "401": {
+            "description": "No valid session; empty body"
+          }
+        }
+      }
+    },
+    "/dav/calendars/{user}/{cal}/{uid}": {
+      "put": {
+        "operationId": "davCalendarEventPut",
+        "summary": "Store a calendar event",
+        "tags": [
+          "DAV"
+        ],
+        "parameters": [
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Ignored; the authenticated user is used"
+          },
+          {
+            "name": "cal",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Last path segment, stored verbatim as the key (including any .ics/.vcf suffix)"
+          }
+        ],
+        "description": "The raw body is stored under the uid without parsing. Always answers 201, also when the write to kevy failed; no ETag is returned.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "text/calendar": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Accepted (empty body)"
+          },
+          "401": {
+            "description": "No valid session; empty body"
+          }
+        }
+      },
+      "get": {
+        "operationId": "davCalendarEventGet",
+        "summary": "Fetch a calendar event",
+        "tags": [
+          "DAV"
+        ],
+        "parameters": [
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Ignored; the authenticated user is used"
+          },
+          {
+            "name": "cal",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Last path segment, stored verbatim as the key (including any .ics/.vcf suffix)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The stored body, as text/calendar; charset=utf-8",
+            "content": {
+              "text/calendar": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not stored, or kevy unreachable; empty body"
+          },
+          "401": {
+            "description": "No valid session; empty body"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "davCalendarEventDelete",
+        "summary": "Delete a calendar event",
+        "tags": [
+          "DAV"
+        ],
+        "parameters": [
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Ignored; the authenticated user is used"
+          },
+          {
+            "name": "cal",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Last path segment, stored verbatim as the key (including any .ics/.vcf suffix)"
+          }
+        ],
+        "description": "Always answers 204, whether or not the uid existed or the kevy call succeeded.",
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "401": {
+            "description": "No valid session; empty body"
+          }
+        }
+      }
+    },
+    "/dav/addressbooks/{user}/{book}/{uid}": {
+      "put": {
+        "operationId": "davAddressbookContactPut",
+        "summary": "Store a contact",
+        "tags": [
+          "DAV"
+        ],
+        "parameters": [
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Ignored; the authenticated user is used"
+          },
+          {
+            "name": "book",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Last path segment, stored verbatim as the key (including any .ics/.vcf suffix)"
+          }
+        ],
+        "description": "The raw body is stored under the uid without parsing. Always answers 201, also when the write to kevy failed; no ETag is returned.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "text/vcard": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Accepted (empty body)"
+          },
+          "401": {
+            "description": "No valid session; empty body"
+          }
+        }
+      },
+      "get": {
+        "operationId": "davAddressbookContactGet",
+        "summary": "Fetch a contact",
+        "tags": [
+          "DAV"
+        ],
+        "parameters": [
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Ignored; the authenticated user is used"
+          },
+          {
+            "name": "book",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Last path segment, stored verbatim as the key (including any .ics/.vcf suffix)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The stored body, as text/vcard; charset=utf-8",
+            "content": {
+              "text/vcard": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not stored, or kevy unreachable; empty body"
+          },
+          "401": {
+            "description": "No valid session; empty body"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "davAddressbookContactDelete",
+        "summary": "Delete a contact",
+        "tags": [
+          "DAV"
+        ],
+        "parameters": [
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Ignored; the authenticated user is used"
+          },
+          {
+            "name": "book",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Last path segment, stored verbatim as the key (including any .ics/.vcf suffix)"
+          }
+        ],
+        "description": "Always answers 204, whether or not the uid existed or the kevy call succeeded.",
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "401": {
+            "description": "No valid session; empty body"
+          }
+        }
+      }
+    },
+    "/_health": {
+      "get": {
+        "operationId": "getHealthShort",
+        "summary": "Health check (alias of /api/health)",
+        "tags": [
+          "Status"
+        ],
+        "security": [],
+        "description": "Same handler as /api/health. Pings the network kevy; `status` is `healthy` when the ping succeeds and `degraded` otherwise. Always 200.",
+        "responses": {
+          "200": {
+            "description": "Health",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "healthy",
+                        "degraded"
+                      ]
+                    },
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "service": {
+                      "type": "string",
+                      "const": "mailrs-webapi"
+                    },
+                    "version": {
+                      "type": "string"
+                    },
+                    "uptime_secs": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "kevy": {
+                      "type": "boolean"
+                    },
+                    "pg": {
+                      "type": "null",
+                      "description": "Always null in this process (no PostgreSQL backend)"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "ok",
+                    "service",
+                    "version",
+                    "uptime_secs",
+                    "kevy",
+                    "pg"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/.well-known/apple-mobileconfig": {
+      "get": {
+        "operationId": "appleMobileconfig",
+        "summary": "Apple Mail configuration profile",
+        "tags": [
+          "Autodiscover"
+        ],
+        "security": [],
+        "description": "Unsigned .mobileconfig plist for an IMAP account (993, SSL) and SMTP (465, SSL) on MAILRS_HOSTNAME. A fresh PayloadUUID is generated per request.",
+        "parameters": [
+          {
+            "name": "emailaddress",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Pre-filled as account name, address and usernames; defaults to the literal %EMAILADDRESS%. Must be a plain `local@domain` address (RFC 5322 atext local part, LDH domain labels); anything else answers 400. Every interpolated value is XML-escaped"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Configuration profile plist",
+            "content": {
+              "application/x-apple-aspen-config": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "emailaddress is not a plain email address; plain-text body"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -7498,49 +9735,46 @@
             "type": "string",
             "enum": [
               "healthy",
-              "degraded",
-              "unhealthy"
+              "degraded"
+            ],
+            "description": "`healthy` when a kevy ping succeeds, otherwise `degraded`"
+          },
+          "ok": {
+            "type": "boolean",
+            "description": "Same as `kevy`"
+          },
+          "service": {
+            "type": "string",
+            "enum": [
+              "mailrs-webapi"
             ]
-          },
-          "level": {
-            "type": "integer",
-            "description": "0=healthy, 1=degraded-valkey, 2=degraded-pg, 3=unhealthy"
-          },
-          "pg": {
-            "type": "boolean"
-          },
-          "valkey": {
-            "type": "boolean"
-          },
-          "uptime_secs": {
-            "type": "integer",
-            "format": "int64"
           },
           "version": {
             "type": "string"
           },
-          "active_sessions": {
-            "type": "integer"
-          },
-          "account_cache_size": {
-            "type": "integer"
-          },
-          "total_connections": {
+          "uptime_secs": {
             "type": "integer",
-            "format": "int64"
+            "format": "int64",
+            "minimum": 0,
+            "description": "Seconds since this webapi process started"
           },
-          "total_messages": {
-            "type": "integer",
-            "format": "int64"
+          "kevy": {
+            "type": "boolean",
+            "description": "Result of a kevy ping made by this request"
+          },
+          "pg": {
+            "type": "null",
+            "description": "Always null: this lane has no PostgreSQL backend"
           }
         },
         "required": [
           "status",
-          "level",
-          "pg",
-          "valkey",
+          "ok",
+          "service",
+          "version",
           "uptime_secs",
-          "version"
+          "kevy",
+          "pg"
         ]
       },
       "LoginRequest": {
@@ -8808,21 +11042,6 @@
           "updated_at"
         ]
       },
-      "RetryResponse": {
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean"
-          },
-          "message": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "success",
-          "message"
-        ]
-      },
       "CreateApiKeyRequest": {
         "type": "object",
         "properties": {
@@ -9146,6 +11365,11 @@
             "type": "integer",
             "format": "int64"
           },
+          "timestamp": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unix seconds; read from `occurred_at` or `timestamp` in the stored row, always serialized as `timestamp`"
+          },
           "actor": {
             "type": "string"
           },
@@ -9157,20 +11381,15 @@
           },
           "detail": {
             "type": "string"
-          },
-          "ip_address": {
-            "type": "string"
-          },
-          "created_at": {
-            "type": "integer",
-            "format": "int64"
           }
         },
         "required": [
           "id",
+          "timestamp",
           "actor",
           "action",
-          "created_at"
+          "target",
+          "detail"
         ]
       },
       "VerifyRequest": {
@@ -9360,23 +11579,6 @@
           "url"
         ]
       },
-      "CheckDeliverabilityRequest": {
-        "type": "object",
-        "properties": {
-          "to": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "from": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "to"
-        ]
-      },
       "DmarcReportSummary": {
         "type": "object",
         "properties": {
@@ -9418,39 +11620,6 @@
           "rows": {
             "type": "integer",
             "format": "int64"
-          }
-        }
-      },
-      "DmarcReportRow": {
-        "type": "object",
-        "properties": {
-          "source_ip": {
-            "type": "string"
-          },
-          "count": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "disposition": {
-            "type": "string"
-          },
-          "dkim": {
-            "type": "string",
-            "description": "Alignment-aware DKIM outcome"
-          },
-          "spf": {
-            "type": "string",
-            "description": "Alignment-aware SPF outcome"
-          },
-          "header_from": {
-            "type": "string"
-          },
-          "envelope_from": {
-            "type": "string",
-            "nullable": true
-          },
-          "passed": {
-            "type": "boolean"
           }
         }
       },
@@ -9699,6 +11868,37 @@
             ]
           }
         }
+      },
+      "SpamListResponse": {
+        "type": "object",
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Lowercased email addresses, sorted ascending"
+          }
+        },
+        "required": [
+          "entries"
+        ]
+      },
+      "SpamListAddRequest": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string",
+            "description": "Email address; must contain `@` after trimming"
+          }
+        },
+        "required": [
+          "address"
+        ]
+      },
+      "DavMultistatus": {
+        "type": "string",
+        "description": "WebDAV multistatus XML document (RFC 4918 section 13), served as application/xml; charset=utf-8 with a `DAV: 1, 2, calendar-access, addressbook` header"
       }
     }
   }

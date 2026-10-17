@@ -55,6 +55,17 @@ fn arrive(ns: &str, tag: &str, raw: &[u8]) {
     mock::store_message(&mut c, mock::root(), meta, raw).unwrap();
 }
 
+fn audit_rows(action: &str) -> Vec<serde_json::Value> {
+    let mut c =
+        kevy_client::Connection::connect(&std::env::var("MAILRS_KEVY_URL").unwrap()).unwrap();
+    c.lrange(b"admin:audit_log", 0, -1)
+        .unwrap()
+        .iter()
+        .map(|r| serde_json::from_slice::<serde_json::Value>(r).unwrap())
+        .filter(|r| r["action"] == action)
+        .collect()
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_namespace_receives_waits_reads_and_stays_its_owners() {
     let tmp = tempfile::tempdir().unwrap();
@@ -73,6 +84,10 @@ async fn a_namespace_receives_waits_reads_and_stays_its_owners() {
     assert_eq!(created.address, format!("ann-app.test@{DOMAIN}"));
     let taken = service::create_namespace(&st, &user("bob@example.test"), "ann-app").await;
     assert_eq!(taken.unwrap_err().status, 409);
+    let created_rows = audit_rows("mock.namespace_create");
+    assert_eq!(created_rows.len(), 1, "a refused create leaves no row");
+    assert_eq!(created_rows[0]["actor"], "ann@example.test");
+    assert_eq!(created_rows[0]["target"], "ann-app");
 
     let minted = service::new_address(&st, &ann, "ann-app", Some("signup"))
         .await
@@ -232,13 +247,45 @@ async fn a_namespace_receives_waits_reads_and_stays_its_owners() {
         .await
         .unwrap();
     assert_eq!(removed, 1);
+    assert!(audit_rows("mock.namespace_delete").is_empty());
     service::delete_namespace(&st, &ann, "ann-app")
         .await
         .unwrap();
+    let deleted = audit_rows("mock.namespace_delete");
+    assert_eq!(deleted.len(), 1);
+    assert_eq!(
+        (
+            &deleted[0]["actor"],
+            &deleted[0]["target"],
+            &deleted[0]["detail"]
+        ),
+        (
+            &serde_json::json!("ann@example.test"),
+            &serde_json::json!("ann-app"),
+            &serde_json::json!("owner=ann@example.test")
+        )
+    );
     assert!(
         service::list_namespaces(&st, &ann, false)
             .await
             .unwrap()
             .is_empty()
     );
+
+    let admin = mailrs_webapi::handlers::conversations::AuthedUser("root@example.test".into());
+    let settings = mock::Settings {
+        retention_days: 9,
+        ..overview.settings
+    };
+    let axum::Json(back) = mailrs_webapi::handlers::mock::admin::save_settings(
+        axum::Extension(admin),
+        axum::Json(settings),
+    )
+    .await
+    .unwrap();
+    assert_eq!(back.retention_days, 9);
+    let saved = audit_rows("mock.settings_update");
+    assert_eq!(saved.len(), 1);
+    assert_eq!(saved[0]["actor"], "root@example.test");
+    assert_eq!(saved[0]["detail"], "retention_days: 3 → 9");
 }

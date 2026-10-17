@@ -60,38 +60,6 @@ export const wireDmarcReportListSchema = z.object({
   items: z.array(wireDmarcReportSchema),
 })
 
-/** One row inside a report. Mirrors Rust `ReportRow`. */
-export const wireDmarcRowSchema = z
-  .object({
-    count: z.number(),
-    disposition: z.string(),
-    dkim: z.string(),
-    envelope_from: z.string().nullable(),
-    header_from: z.string(),
-    passed: z.boolean(),
-    source_ip: z.string(),
-    spf: z.string(),
-  })
-  .transform((v) => ({
-    count: v.count,
-    disposition: v.disposition,
-    dkim: v.dkim,
-    envelopeFrom: v.envelope_from,
-    headerFrom: v.header_from,
-    passed: v.passed,
-    sourceIp: v.source_ip,
-    spf: v.spf,
-  }))
-
-/** A report row as the UI consumes it. */
-export type DmarcRow = z.infer<typeof wireDmarcRowSchema>
-
-/** `GET /api/admin/dmarc/reports/{sid}`. Mirrors `ReportDetailResponse`. */
-export const wireDmarcReportDetailSchema = z.object({
-  report: wireDmarcReportSchema,
-  rows: z.array(wireDmarcRowSchema),
-})
-
 /** One sending source rolled up. Mirrors Rust `SourceSummary`. */
 export const wireDmarcSourceSchema = z
   .object({

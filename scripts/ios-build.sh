@@ -136,6 +136,17 @@ fi
 # A lock turns that into one line. It holds a pid, so a lock left by a
 # crashed run is not a lock at all.
 STUB_LOCK=/tmp/mailrs-stub.lock
+# the stubs record their pids here, shared with android-build.sh; a
+# leftover is stopped by that pid, never by matching command lines
+STUB_PIDFILE=/tmp/mailrs-stub-api.pid
+MAIL_STUB_PIDFILE=/tmp/mailrs-tls-stub.pid
+stop_recorded() {
+    if [ -f "$1" ]; then
+        kill "$(cat "$1")" 2>/dev/null || true
+        rm -f "$1"
+        sleep 0.2
+    fi
+}
 claim_stub_or_refuse() {
     if [ -f "$STUB_LOCK" ]; then
         holder=$(cat "$STUB_LOCK" 2>/dev/null || echo "")
@@ -159,11 +170,11 @@ echo "==> [3/3] test (stub on :$STUB_PORT)"
 # a stale one without `/debug/fetched` made the attachment-index
 # assertion read `[]` and look like the app had not fetched anything.
 claim_stub_or_refuse
-pkill -f "Testing/stub-api.py" 2>/dev/null || true
-sleep 0.3
+stop_recorded "$STUB_PIDFILE"
 python3 Testing/stub-api.py "$STUB_PORT" >/tmp/mailrs-ios-stub.log 2>&1 &
 STUB_PID=$!
-trap 'kill $STUB_PID 2>/dev/null || true; release_stub_lock' EXIT
+echo "$STUB_PID" > "$STUB_PIDFILE"
+trap 'stop_recorded "$STUB_PIDFILE"; release_stub_lock' EXIT
 for _ in $(seq 1 20); do
     curl -fsS -o /dev/null "http://127.0.0.1:$STUB_PORT/api/conversations" && break
     sleep 0.25
@@ -199,14 +210,14 @@ Testing/make-test-ca.sh "$CERT_DIR" >/dev/null
 xcrun simctl boot "$UDID" 2>/dev/null || true
 xcrun simctl bootstatus "$UDID" -b >/dev/null 2>&1 || true
 xcrun simctl keychain "$UDID" add-root-cert "$CERT_DIR/ca.pem"
-pkill -f "Testing/tls-mail-stub.py" 2>/dev/null || true
-sleep 0.2
+stop_recorded "$MAIL_STUB_PIDFILE"
 python3 Testing/tls-mail-stub.py "$CERT_DIR" \
     --imaps "$MAIL_STUB_IMAPS" --submission "$MAIL_STUB_SUBMISSION" \
     --imaps-untrusted "$MAIL_STUB_UNTRUSTED" --probe "$MAIL_STUB_PROBE" \
     >/tmp/mailrs-tls-stub.log 2>&1 &
 MAIL_STUB_PID=$!
-trap 'kill $STUB_PID $MAIL_STUB_PID 2>/dev/null || true; release_stub_lock' EXIT
+echo "$MAIL_STUB_PID" > "$MAIL_STUB_PIDFILE"
+trap 'stop_recorded "$STUB_PIDFILE"; stop_recorded "$MAIL_STUB_PIDFILE"; release_stub_lock' EXIT
 for _ in $(seq 1 20); do
     nc -z 127.0.0.1 "$MAIL_STUB_IMAPS" 2>/dev/null && break
     sleep 0.25

@@ -152,7 +152,7 @@ async fn sync_mirrors_and_is_idempotent() {
 }
 
 /// Deliver two distinct messages that share a Message-ID (real mail has
-/// duplicate + empty Message-IDs — a staging migration hit 7 dup groups
+/// duplicate + empty Message-IDs — one real migration hit 7 dup groups
 /// + 1 empty). The sync must dedup on blob_ref (the physically-unique
 /// key), NOT message_id: both must cross once, and a re-run must deliver
 /// zero. A message_id-keyed set collapsed these and re-delivered them.
@@ -209,7 +209,7 @@ async fn sync_dedupes_on_blob_ref_not_message_id() {
     let msgs = b.list_thread_messages(user, thread).await.unwrap();
     assert_eq!(msgs.items.len(), 2, "B holds both messages");
 
-    // re-run: zero re-delivery (the bug that inflated the 56 on staging)
+    // re-run: zero re-delivery (a message_id-keyed set re-delivered these)
     let r2 = sync(&a, &b, &SyncOpts::default()).await.unwrap();
     assert_eq!(
         r2.messages_delivered, 0,

@@ -297,11 +297,7 @@ async fn main() {
         "mailrs-fastcore-sender starting"
     );
 
-    // Fail fast on kevy connect so misconfig surfaces at boot.
-    if let Err(e) = kevy(&cfg.kevy_url) {
-        tracing::error!(err = %e, "kevy connect failed at boot — exiting");
-        std::process::exit(2);
-    }
+    boot_kevy(&cfg);
 
     // v2.5.2 §P8-B-B boot hook: reset any inflight job hash that a prior
     // sender crashed on. Best-effort — a network kevy blip here shouldn't

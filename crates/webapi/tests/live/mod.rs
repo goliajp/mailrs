@@ -17,6 +17,8 @@ pub struct Live {
     pub mailbox: mailrs_mailbox_kevy::KevyMailboxStore,
     pub base: String,
     pub http: reqwest::Client,
+    /// the router's state, for calling a handler without signing in
+    pub state: Arc<WebState>,
 }
 
 /// Start both servers. `kevy` must already be in `MAILRS_KEVY_URL`.
@@ -37,12 +39,13 @@ pub async fn start(kevy: &str) -> Live {
         started_at: std::time::Instant::now(),
         llm_config: None,
     });
-    let base = serve(mailrs_webapi::build_router(state)).await;
+    let base = serve(mailrs_webapi::build_router(state.clone())).await;
     Live {
         core: Client::new(core_url, "secret"),
         mailbox,
         base,
         http: reqwest::Client::new(),
+        state,
     }
 }
 
