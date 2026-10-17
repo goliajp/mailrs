@@ -5,6 +5,9 @@ use std::io;
 use crate::KevyMailboxStore;
 use crate::keys;
 
+/// `(message id, this user's uid, this user's maildir file)`.
+pub type MessageFile = (String, Option<u32>, Option<String>);
+
 impl KevyMailboxStore {
     /// `(message id, this user's uid, this user's maildir file)` for every
     /// message of `thread_id`. The uid and file are read from the user's own
@@ -15,15 +18,14 @@ impl KevyMailboxStore {
         &self,
         user: &str,
         thread_id: &str,
-    ) -> io::Result<Vec<(String, Option<u32>, Option<String>)>> {
+    ) -> io::Result<Vec<MessageFile>> {
         let msgs_zset = keys::thread_messages(thread_id);
         let store = self.store();
         // Enumerated outside the delete's atomic block: AtomicCtx has no
         // `zrange`, and every blob is a plain `get` — one round trip
         // per message on a typical thread (< 20 hops).
         let members = store.zrange(msgs_zset.as_bytes(), 0, -1)?;
-        let mut per_msg: Vec<(String, Option<u32>, Option<String>)> =
-            Vec::with_capacity(members.len());
+        let mut per_msg: Vec<MessageFile> = Vec::with_capacity(members.len());
         for (mid_bytes, _score) in &members {
             let Ok(mid) = std::str::from_utf8(mid_bytes) else {
                 continue;
