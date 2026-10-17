@@ -107,6 +107,18 @@ for route in sorted(routes):
 
 stale = sorted(r for r in allowed if r not in routes)
 
+# The other direction: a path the web client's API layer asks for that no
+# route serves. `/api/admin/flow` shipped that way once — the client was
+# written, the route line never landed — and the page answered 404.
+missing = []
+for path in glob.glob("web/src/wire/endpoints/*.ts"):
+    text = re.sub(r"\$\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", "{}", open(path).read())
+    for m in re.finditer(r"""path:\s*[`'"](/[^`'"?]*)""", text):
+        # a query string appended by a helper collapses to a trailing `{}`
+        asked = norm("/api" + re.sub(r"(?<=[^/])\{\}$", "", m.group(1)))
+        if asked not in routes:
+            missing.append(f"{asked}  ({path})")
+
 if dead:
     print("!! registered, but no client calls them and no reason is given:")
     for route in dead:
@@ -118,7 +130,12 @@ if stale:
     for route in stale:
         print(f"   {route}")
 
-if dead or stale:
+if missing:
+    print("!! the web client asks for paths no route serves:")
+    for m in sorted(set(missing)):
+        print(f"   {m}")
+
+if dead or stale or missing:
     sys.exit(1)
 print(f"routes: {len(routes)} registered, {len(allowed)} allowed without a client")
 PYEOF
