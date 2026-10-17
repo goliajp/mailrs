@@ -411,4 +411,11 @@ describe('request bodies match the shared contract', () => {
     expect(body).toEqual(fixture('mock-send'))
     expect(capturedRequest().path).toBe('/api/mock/namespaces/insight/send')
   })
+
+  it('mock webhook set', async () => {
+    const { wireSetMockWebhook } = await import('../endpoints/mock')
+    const body = await bodyOf(() => wireSetMockWebhook('insight', 'https://example.com/hooks/mock'))
+    expect(body).toEqual(fixture('mock-webhook-set'))
+    expect(capturedRequest().path).toBe('/api/mock/namespaces/insight/webhook')
+  })
 })

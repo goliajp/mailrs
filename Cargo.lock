@@ -3548,6 +3548,7 @@ dependencies = [
  "mailrs-sieve",
  "mailrs-smtp-client",
  "mailrs-srs",
+ "mailrs-test-docker",
  "mailrs-threadstate",
  "mailrs-tls-reload",
  "mailrs-tls-rpt",
@@ -3563,6 +3564,7 @@ dependencies = [
  "serde_json",
  "sha2 0.10.9",
  "tempfile",
+ "testcontainers",
  "tokio",
  "tokio-rustls",
  "tokio-util",
@@ -3817,6 +3819,7 @@ dependencies = [
 name = "mailrs-mock"
 version = "0.0.1"
 dependencies = [
+ "mailrs-arf",
  "mailrs-clean",
  "mailrs-mime",
  "mailrs-rfc2047",

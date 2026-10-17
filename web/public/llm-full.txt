@@ -474,6 +474,22 @@ without touching a real mailbox.
   is delivered.
 - An agent key with scope `mock` reaches only mock mail; `mock:{ns}`
   reaches only that namespace and cannot create or delete namespaces.
+- **Webhook**: `PUT /api/mock/namespaces/{ns}/webhook` with
+  `{"url": "https://…"}` POSTs every message that arrives in the
+  namespace as `{"event": "mock_message", "timestamp": <unix s>,
+  "data": <message>}`, signed and retried like every other webhook;
+  the response carries the signing secret. `DELETE` removes it.
+- **IMAP**: log in as `{ns}@mock.golia.jp` with the SMTP password.
+  One read-only INBOX holding the namespace's received mail; writes
+  answer `NO [READ-ONLY]`.
+- **Fixed-result addresses**: `bounce@`, `ooto@`, `delay@` and
+  `complaint@mock.golia.jp` (each also with `+tag`) answer with a
+  failed DSN, an out-of-office auto-reply, a delayed DSN, or an RFC
+  5965 abuse report. A signed-in account gets the answer in its own
+  INBOX; mail from a sandbox login or `mock_send` gets it in the
+  namespace (tag = the address's name). Mail from outside gets no
+  answer. Nothing touches the suppression list or feedback-loop
+  processing.
 
 Typical agent flow:
 

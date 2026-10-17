@@ -129,6 +129,9 @@ async fn dispatch<S>(
 where
     S: AsyncRead + AsyncWrite + Send + Unpin,
 {
+    if let Some(out) = super::mock::intercept(state, session, tag, &cmd, framed).await {
+        return out;
+    }
     match cmd {
         ImapCommand::Capability => vec![
             format_capability(&[

@@ -26,6 +26,9 @@ pub struct MessageMeta {
     pub rcpt: String,
     pub size: usize,
     pub received_at: i64,
+    /// IMAP UID: ascending in arrival order within the namespace, never reused
+    #[serde(default)]
+    pub uid: u32,
     #[serde(flatten)]
     pub summary: Summary,
 }
@@ -87,6 +90,10 @@ pub fn store_message(
     std::fs::write(&path, raw)?;
     meta.size = raw.len();
     meta.received_at = now_ms();
+    meta.uid = conn
+        .incr(uid_key(&ns).as_bytes())?
+        .try_into()
+        .unwrap_or(u32::MAX);
     let json = serde_json::to_vec(&meta).map_err(std::io::Error::other)?;
     conn.hset(
         key.as_bytes(),
@@ -100,6 +107,9 @@ pub fn store_message(
     conn.incr_by(BYTES, raw.len() as i64)?;
     conn.incr(RECEIVED)?;
     drop_over_cap(conn, root, &ns)?;
+    if meta.direction == Direction::In {
+        notify(conn, &meta)?;
+    }
     Ok(Stored::Stored)
 }
 

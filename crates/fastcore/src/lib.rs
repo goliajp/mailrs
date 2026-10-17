@@ -6,8 +6,7 @@
 //! - `POST /v1/users/{user}/conversations:list` — Rock 1 read path
 //!
 //! The rest of the 87-route surface fills in as `mailbox-kevy` grows
-//! method coverage. Run alongside (or instead of) the monolith core
-//! to A/B test conversation-list latency under the same load.
+//! method coverage, alongside or instead of the monolith core.
 //!
 //! Environment:
 //! - `MAILRS_FASTCORE_BIND` — listen address (default `0.0.0.0:3301`,
@@ -25,6 +24,7 @@ mod bayes_train;
 pub mod boot;
 pub use boot::run;
 pub mod bounce;
+pub mod bounce_queue;
 mod calendar_sync;
 pub mod dmarc_ingest;
 pub mod fbl;

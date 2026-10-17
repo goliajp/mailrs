@@ -220,3 +220,44 @@ pub(super) fn now_ms() -> i64 {
         .map(|d| d.as_millis() as i64)
         .unwrap_or(0)
 }
+
+#[derive(Debug, Serialize)]
+pub struct MockWebhook {
+    pub url: String,
+    /// HMAC key the deliveries are signed with, as for every webhook
+    pub signing_secret: String,
+}
+
+/// POST each new message of `ns` to `url`, replacing any earlier webhook.
+pub async fn set_webhook(
+    state: &Arc<WebState>,
+    caller: &MockCaller,
+    ns: &str,
+    url: &str,
+) -> MockApiResult<MockWebhook> {
+    authorize(state, caller, ns).await?;
+    let url = url.trim().to_string();
+    let scheme_ok = url.starts_with("https://") || url.starts_with("http://");
+    if !scheme_ok || url.len() > 2048 || url.contains(char::is_whitespace) {
+        return Err(MockApiError::new(
+            StatusCode::BAD_REQUEST,
+            "the webhook is an http(s) URL",
+        ));
+    }
+    let ns_name = ns.to_string();
+    let sub = store(move |c| mock::set_webhook(c, &ns_name, &url))?;
+    Ok(MockWebhook {
+        url: sub.url,
+        signing_secret: sub.signing_secret,
+    })
+}
+
+pub async fn clear_webhook(
+    state: &Arc<WebState>,
+    caller: &MockCaller,
+    ns: &str,
+) -> MockApiResult<bool> {
+    authorize(state, caller, ns).await?;
+    let ns_name = ns.to_string();
+    store(move |c| mock::clear_webhook(c, &ns_name))
+}

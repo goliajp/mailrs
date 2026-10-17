@@ -12,6 +12,7 @@ import { MessageList } from '@/components/mock/message-list'
 import { NamespaceList } from '@/components/mock/namespace-list'
 import { SendForm } from '@/components/mock/send-form'
 import { SmtpPanel } from '@/components/mock/smtp-panel'
+import { WebhookPanel } from '@/components/mock/webhook-panel'
 import { cn } from '@/lib/cn'
 import { mockKeys } from '@/lib/query-keys'
 import { wireListMockMessages, wireListMockNamespaces } from '@/wire/endpoints/mock'
@@ -22,7 +23,7 @@ const POLL_MS = 5000
 const TITLE = 'Mock mail'
 const SUBTITLE = 'Disposable mailboxes for tests: sign up with an address, read the code here'
 
-type Tool = 'send' | 'smtp'
+type Tool = 'send' | 'smtp' | 'webhook'
 
 /** `/mock?ns=<namespace>&msg=<id>` — the selection lives in the URL. */
 export function MockMail() {
@@ -127,6 +128,11 @@ function NamespaceView({
           label="Send test mail"
           onClick={() => onSelectTool(toggle(tool, 'send'))}
         />
+        <ToolTab
+          active={tool === 'webhook'}
+          label="Webhook"
+          onClick={() => onSelectTool(toggle(tool, 'webhook'))}
+        />
       </div>
       {/* hidden rather than unmounted: the SMTP password exists only in the panel's state */}
       <div className={cn(tool !== 'smtp' && 'hidden')}>
@@ -134,6 +140,9 @@ function NamespaceView({
       </div>
       <div className={cn(tool !== 'send' && 'hidden')}>
         <SendForm namespace={namespace.name} />
+      </div>
+      <div className={cn(tool !== 'webhook' && 'hidden')}>
+        <WebhookPanel current={namespace.webhook_url} namespace={namespace.name} />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
@@ -166,7 +175,7 @@ function NamespaceView({
 }
 
 function parseTool(raw: null | string): null | Tool {
-  if (raw === 'send' || raw === 'smtp') return raw
+  if (raw === 'send' || raw === 'smtp' || raw === 'webhook') return raw
   return null
 }
 
