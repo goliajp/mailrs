@@ -97,7 +97,7 @@ impl MailrsMcpService {
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
         self.require_admin(&user).await?;
-        let key = format!("admin:email-group:{}:members", params.id);
+        let key = mailrs_core_sidestate::families::email_groups::members_key(&params.id);
         let members = with_kevy(move |c| c.smembers(key.as_bytes()).map_err(std::io::Error::from))
             .map_err(|_| McpError::internal_error("kevy read", None))?;
         let items: Vec<String> = members

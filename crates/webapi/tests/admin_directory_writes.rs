@@ -85,35 +85,24 @@ async fn groups_store_what_they_are_given_and_deletes_leave_nothing() {
     groups::delete_email_group(Path(id)).await.expect("delete");
     assert_eq!(members(&st, id).await["items"], serde_json::json!([]));
 
-    // a permission group keeps its domain and reports itself not builtin
-    let Json(scoped) = groups::create_group(Json(groups::CreateGroupRequest {
+    // a permission group reports itself not builtin and claims no domain:
+    // nothing limits its permissions to one
+    let Json(created) = groups::create_group(Json(groups::CreateGroupRequest {
         name: "ops".into(),
         description: String::new(),
-        domain: Some("example.test".into()),
-    }))
-    .await
-    .expect("create group");
-    let Json(global) = groups::create_group(Json(groups::CreateGroupRequest {
-        name: "all".into(),
-        description: String::new(),
-        domain: Some(String::new()),
     }))
     .await
     .expect("create group");
     let Json(list) = groups::list_groups().await.expect("list");
-    let row = |id: &serde_json::Value| {
-        list["items"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .find(|g| g["id"] == *id)
-            .cloned()
-            .expect("listed")
-    };
-    let scoped = row(&scoped["id"]);
-    assert_eq!(scoped["domain"], "example.test");
-    assert_eq!(scoped["is_builtin"], false);
-    assert!(row(&global["id"])["domain"].is_null(), "empty means global");
+    let row = list["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|g| g["id"] == created["id"])
+        .cloned()
+        .expect("listed");
+    assert!(row["domain"].is_null());
+    assert_eq!(row["is_builtin"], false);
 }
 
 #[tokio::test]

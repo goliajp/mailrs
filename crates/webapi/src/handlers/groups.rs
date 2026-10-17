@@ -4,6 +4,12 @@ use axum::{Json, extract::Path, http::StatusCode};
 
 use crate::handlers::complete::*;
 use crate::handlers::kevy_util::with_kevy;
+use mailrs_core_sidestate::families::email_groups::{
+    COUNTER_KEY as EG_CTR, GROUPS_KEY as EG_KEY, members_key as email_group_members_key,
+};
+use mailrs_core_sidestate::families::permission_groups::{
+    GROUPS_COUNTER, GROUPS_KEY, members_key, permissions_key,
+};
 
 pub async fn list_groups() -> Result<Json<serde_json::Value>, StatusCode> {
     let vals = with_kevy(|c| hgetall_values(c, GROUPS_KEY))?;
@@ -20,22 +26,20 @@ pub struct CreateGroupRequest {
     pub name: String,
     #[serde(default)]
     pub description: String,
-    /// The domain the group is scoped to; absent or empty means global.
-    #[serde(default)]
-    pub domain: Option<String>,
 }
 
 pub async fn create_group(
     Json(req): Json<CreateGroupRequest>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let id = with_kevy(|c| next_id(c, GROUPS_CTR))?;
-    let domain = req.domain.filter(|d| !d.is_empty());
-    // same row shape as `GroupWire`; only the builtin `super` group is builtin
+    let id = with_kevy(|c| next_id(c, GROUPS_COUNTER))?;
+    // same row shape as `GroupWire`; only the builtin `super` group is
+    // builtin. `domain` stays null: nothing scopes a group's permissions to
+    // a domain, so a group that named one would still grant everywhere
     let g = serde_json::json!({
         "id": id,
         "name": req.name,
         "description": req.description,
-        "domain": domain,
+        "domain": null,
         "is_builtin": false,
         "created_at": now_secs(),
     });
@@ -53,10 +57,7 @@ pub async fn create_group(
 pub async fn delete_group(Path(id): Path<i64>) -> Result<StatusCode, StatusCode> {
     with_kevy(move |c| {
         c.hdel(GROUPS_KEY.as_bytes(), &[id.to_string().as_bytes()])?;
-        c.del(&[
-            format!("admin:groups:{id}:permissions").as_bytes(),
-            format!("admin:groups:{id}:members").as_bytes(),
-        ])?;
+        c.del(&[permissions_key(id).as_bytes(), members_key(id).as_bytes()])?;
         Ok(())
     })?;
     Ok(StatusCode::NO_CONTENT)
@@ -65,7 +66,7 @@ pub async fn delete_group(Path(id): Path<i64>) -> Result<StatusCode, StatusCode>
 pub async fn get_group_permissions(
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let key = format!("admin:groups:{id}:permissions");
+    let key = permissions_key(id);
     let raw = with_kevy(move |c| c.smembers(key.as_bytes()).map_err(std::io::Error::from))?;
     let perms: Vec<String> = raw
         .into_iter()
@@ -83,7 +84,7 @@ pub async fn set_group_permissions(
     Path(id): Path<i64>,
     Json(req): Json<SetGroupPermissionsRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    let key = format!("admin:groups:{id}:permissions");
+    let key = permissions_key(id);
     with_kevy(move |c| {
         c.del(&[key.as_bytes()])?;
         let refs: Vec<&[u8]> = req.permissions.iter().map(|s| s.as_bytes()).collect();
@@ -98,7 +99,7 @@ pub async fn set_group_permissions(
 pub async fn list_group_members(
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let key = format!("admin:groups:{id}:members");
+    let key = members_key(id);
     let raw = with_kevy(move |c| c.smembers(key.as_bytes()).map_err(std::io::Error::from))?;
     let members: Vec<String> = raw
         .into_iter()
@@ -116,7 +117,7 @@ pub async fn add_group_member(
     Path(id): Path<i64>,
     Json(req): Json<AddGroupMemberRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    let key = format!("admin:groups:{id}:members");
+    let key = members_key(id);
     let addr = req.address;
     with_kevy(move |c| {
         c.sadd(key.as_bytes(), &[addr.as_bytes()])?;
@@ -128,7 +129,7 @@ pub async fn add_group_member(
 pub async fn remove_group_member(
     Path((id, address)): Path<(i64, String)>,
 ) -> Result<StatusCode, StatusCode> {
-    let key = format!("admin:groups:{id}:members");
+    let key = members_key(id);
     with_kevy(move |c| {
         c.srem(key.as_bytes(), &[address.as_bytes()])?;
         Ok(())
@@ -177,11 +178,6 @@ pub struct CreateEmailGroupRequest {
     /// `POST /admin/email-groups/{id}/members`.
     #[serde(default)]
     pub members: Vec<String>,
-}
-
-/// The one place an email group's members are stored.
-pub(crate) fn email_group_members_key(id: impl std::fmt::Display) -> String {
-    format!("admin:email-group:{id}:members")
 }
 
 pub async fn create_email_group(

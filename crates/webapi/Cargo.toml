@@ -22,6 +22,8 @@ mailrs-core-api = { path = "../core-api", features = ["client"] }
 mailrs-core-sidestate = { path = "../core-sidestate" }
 mailrs-mock = { path = "../mock", features = ["schema"] }
 mailrs-mail-builder = { path = "../mail-builder", version = "1" }
+# the receiver's built-in message size limit, the ceiling for the setting
+mailrs-smtp-proto = { path = "../smtp-proto", version = "1" }
 # Phase 3 §14-16 — the writing-assistance prompts and sanitising, shared
 # with the monolith lane so the two cannot drift. The provider is
 # constructed here only when MAILRS_AI_ANALYSIS_ENABLED is set; otherwise
@@ -81,3 +83,8 @@ tempfile = "3"
 # Router exercising: `oneshot` on the built router, so the assist routes
 # are asserted to exist rather than assumed.
 tower = { version = "0.5", features = ["util"] }
+# authorization end to end: webapi's permission checks against a real
+# fastcore that reads the permission groups webapi writes
+mailrs-fastcore = { path = "../fastcore" }
+mailrs-mailbox-kevy = { path = "../mailbox-kevy" }
+kevy-embedded = { workspace = true }

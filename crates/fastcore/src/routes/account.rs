@@ -32,23 +32,6 @@ pub(crate) async fn get_account_with_hash(
     }
 }
 
-/// `GET /v1/admin/accounts/{address}/effective-permissions`.
-pub(crate) async fn effective_permissions(
-    State(state): State<Arc<FastcoreState>>,
-    Path(address): Path<String>,
-) -> Result<axum::response::Response, axum::http::StatusCode> {
-    use axum::http::StatusCode;
-    use axum::response::IntoResponse;
-    match state.mailbox.get_permissions_blob(&address) {
-        Ok(Some(json)) => Ok(([("content-type", "application/json")], json).into_response()),
-        Ok(None) => Err(StatusCode::NOT_FOUND),
-        Err(e) => {
-            tracing::warn!(error = %e, %address, "get_permissions_blob failed");
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
-}
-
 /// `GET /v1/admin/accounts` — walk kevy account index + return
 /// AccountListResponse. Zero spg.
 pub(crate) async fn list_accounts(
