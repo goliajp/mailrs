@@ -15,7 +15,9 @@ use crate::WebState;
 use crate::handlers::conversations::AuthedUser;
 
 mod report;
+mod signer;
 use report::{DomainCheckReport, Lookup, Lookups, build_report};
+use signer::DkimSigning;
 
 fn from_result<T>(
     r: Result<T, hickory_resolver::net::NetError>,
@@ -48,13 +50,19 @@ pub async fn check_domain_dns(
     let resolver = hickory_resolver::TokioResolver::builder_tokio()
         .and_then(|b| b.build())
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    // the selector the sender signs with; webapi needs it set as well
-    let dkim_selector = std::env::var("MAILRS_DKIM_SELECTOR")
-        .ok()
-        .filter(|s| !s.is_empty());
-    let dkim = match &dkim_selector {
-        Some(s) => txt(&resolver, &format!("{s}._domainkey.{name}")).await,
-        None => Lookup::NotAsked("MAILRS_DKIM_SELECTOR is not set on webapi".into()),
+    let dkim_signer = DkimSigning::from_env().map(|s| s.signer_for(&name));
+    let dkim = match &dkim_signer {
+        Some(s) if s.aligns_with(&name) => {
+            txt(
+                &resolver,
+                &format!("{}._domainkey.{}", s.selector, s.domain),
+            )
+            .await
+        }
+        Some(s) => Lookup::NotAsked(format!("{name} is signed as {}", s.domain)),
+        None => Lookup::NotAsked(
+            "MAILRS_DKIM_DOMAIN or MAILRS_DKIM_SELECTOR is not set on webapi".into(),
+        ),
     };
     let mx = from_result(resolver.mx_lookup(&name).await, |l| {
         l.answers()
@@ -72,7 +80,7 @@ pub async fn check_domain_dns(
     let lookups = Lookups {
         mx,
         spf: txt(&resolver, &name).await,
-        dkim_selector,
+        dkim_signer,
         dkim,
         dmarc: txt(&resolver, &format!("_dmarc.{name}")).await,
     };

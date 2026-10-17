@@ -186,7 +186,6 @@ impl DomainStore {
         Ok(())
     }
 
-    #[cfg(feature = "core-rpc")]
     /// Source-keyed delete — companion to [`Self::upsert_alias_by_source`].
     pub async fn remove_alias_by_source(&self, source: &str) -> Result<bool> {
         if let Some(store) = self.alias_store.clone() {

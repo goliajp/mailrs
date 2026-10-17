@@ -367,14 +367,6 @@ pub(super) fn mail_routes() -> axum::Router<Arc<WebState>> {
             delete(handlers::complete::delete_agent_webhook),
         )
         .route(
-            "/api/admin/apps",
-            get(handlers::complete::list_apps).post(handlers::complete::create_app),
-        )
-        .route(
-            "/api/admin/apps/{app_id}",
-            get(handlers::complete::get_app).delete(handlers::complete::delete_app),
-        )
-        .route(
             "/api/admin/audit/accounts",
             get(handlers::complete::audit_accounts),
         )

@@ -16,7 +16,6 @@ use crate::handlers::conversations::AuthedUser;
 use crate::handlers::kevy_util::with_kevy;
 
 mod domain_check;
-pub use crate::handlers::apps_keys::{AppScopesRequest, set_app_scopes};
 pub use domain_check::check_domain_dns;
 
 /// POST /api/admin/webhook-subscriptions
@@ -129,35 +128,43 @@ pub async fn reconcile_maildir(
     Extension(_user): Extension<AuthedUser>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
-    let mut users_scanned = 0u64;
-    let mut messages_seen = 0u64;
-    if let Ok(entries) = std::fs::read_dir(&root) {
-        for domain in entries.flatten() {
-            if !domain.file_type().map(|t| t.is_dir()).unwrap_or(false) {
-                continue;
-            }
-            if let Ok(user_dirs) = std::fs::read_dir(domain.path()) {
-                for u in user_dirs.flatten() {
-                    if !u.file_type().map(|t| t.is_dir()).unwrap_or(false) {
-                        continue;
-                    }
-                    users_scanned += 1;
-                    for sub in ["cur", "new"] {
-                        let p = u.path().join(sub);
-                        if let Ok(items) = std::fs::read_dir(&p) {
-                            messages_seen += items.count() as u64;
-                        }
-                    }
-                }
-            }
-        }
-    }
+    let (users_scanned, messages_seen) = count_maildir(std::path::Path::new(&root));
     Ok(Json(serde_json::json!({
         "users_scanned": users_scanned,
         "messages_seen": messages_seen,
         "unindexed": 0,
         "note": "read-only scan; live reconciliation requires the receiver's index-repair task",
     })))
+}
+
+/// `(mailboxes, message files)` under a maildir root laid out as
+/// `<domain>/<local>/{cur,new}`. Dot-directories at the top are not
+/// domains: `.deleted/` holds the mailboxes of deleted accounts, `.spool/`
+/// the inbound queue. Shared by the REST route and the MCP tool.
+pub(crate) fn count_maildir(root: &std::path::Path) -> (u64, u64) {
+    let is_dir = |e: &std::fs::DirEntry| e.file_type().map(|t| t.is_dir()).unwrap_or(false);
+    let mut users = 0u64;
+    let mut messages = 0u64;
+    let Ok(domains) = std::fs::read_dir(root) else {
+        return (0, 0);
+    };
+    for domain in domains.flatten() {
+        if !is_dir(&domain) || domain.file_name().to_string_lossy().starts_with('.') {
+            continue;
+        }
+        let Ok(user_dirs) = std::fs::read_dir(domain.path()) else {
+            continue;
+        };
+        for u in user_dirs.flatten().filter(is_dir) {
+            users += 1;
+            for sub in ["cur", "new"] {
+                if let Ok(items) = std::fs::read_dir(u.path().join(sub)) {
+                    messages += items.count() as u64;
+                }
+            }
+        }
+    }
+    (users, messages)
 }
 
 pub async fn list_suppressions(
@@ -274,4 +281,27 @@ pub async fn get_spam_feedback_stats(
         "ham": ham_total,
         "per_user": per_user,
     })))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::count_maildir;
+
+    #[test]
+    fn a_deleted_mailbox_is_not_counted_as_a_domain() {
+        let root = tempfile::tempdir().unwrap();
+        let mk = |rel: &str, files: usize| {
+            let dir = root.path().join(rel);
+            std::fs::create_dir_all(&dir).unwrap();
+            for i in 0..files {
+                std::fs::write(dir.join(format!("m{i}")), "x").unwrap();
+            }
+        };
+        mk("example.test/alice/cur", 2);
+        mk("example.test/alice/new", 1);
+        mk("example.test/bob/cur", 0);
+        mk(".deleted/example.test/carol.1760000000/cur", 5);
+        mk(".spool/incoming/new", 3);
+        assert_eq!(count_maildir(root.path()), (2, 3));
+    }
 }

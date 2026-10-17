@@ -40,9 +40,9 @@ const KIND_LABELS: Record<GreylistLocalKind, string> = {
 }
 const LIST_LABELS: Record<GreylistLocalListName, string> = { black: 'Black', white: 'White' }
 
-// the receiver builds the greylist stage, and with it these lists, only when this is set
-const ENABLE_NOTE =
-  'The receiver reads these lists only while greylisting is on (MAILRS_GREYLIST_ENABLED=1); with it off, the default, no entry has any effect'
+// the receiver applies the lists in their own stage; greylisting is a separate switch
+const RULES_NOTE =
+  'A white domain or email counts only when SPF or DKIM proves the mail comes from that domain; a white CIDR needs no proof and also skips the connection rate limit and DNSBL. Fraud quarantine still applies to white senders. These lists apply whether or not greylisting is on, and greylisting is off unless MAILRS_GREYLIST_ENABLED=1'
 
 export function AdminGreylist() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -149,14 +149,16 @@ export function AdminGreylist() {
   const renderBody = () => {
     if (isPending) return <AdminTableSkeleton cols={HEADERS.length} headers={HEADERS} rows={5} />
     if (error) {
-      return <AdminErrorState error={error} onRetry={() => refetch()} what="the greylist entries" />
+      return (
+        <AdminErrorState error={error} onRetry={() => refetch()} what="the sender list entries" />
+      )
     }
     if (entries.length === 0 && !adding) {
       return (
         <AdminEmptyState
-          description={`Add a sender's domain, address or network here to let it skip greylisting (white) or to refuse its mail (black). ${ENABLE_NOTE}`}
+          description={`Add a sender's domain, address or network here to deliver its mail to the inbox (white) or to refuse it (black). ${RULES_NOTE}`}
           icon={<Shield className="h-10 w-10" />}
-          title="No greylist entries yet"
+          title="No sender list entries yet"
         />
       )
     }
@@ -168,7 +170,7 @@ export function AdminGreylist() {
     return (
       <AdminTable
         columns={columns}
-        label="Greylist entries"
+        label="Sender list entries"
         rowKey={(e) => String(e.id)}
         rows={filtered}
       />
@@ -188,8 +190,8 @@ export function AdminGreylist() {
           </button>
         )
       }
-      subtitle={`White entries skip greylisting, black entries are refused with SMTP 550 5.7.1, and black wins when a sender matches both. ${ENABLE_NOTE}`}
-      title="Greylist"
+      subtitle={`White entries go to the inbox past the spam checks, black entries are refused with SMTP 550 5.7.1, and black wins when a sender matches both. ${RULES_NOTE}`}
+      title="Sender lists"
     >
       <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
         <select
@@ -260,11 +262,11 @@ function busyLabel(busy: boolean, idle: string, working: string): string {
 
 function deleteConsequence(entry: GreylistRow): string {
   const reload =
-    'The entry is deleted, and the receiver drops it at its next reload, within a minute. This only matters while greylisting is on (MAILRS_GREYLIST_ENABLED=1)'
+    'The entry is deleted, and the receiver drops it at its next reload, within a minute'
   if (entry.list === 'black') {
     return `Mail from ${entry.value} is no longer refused by this entry. ${reload}`
   }
-  return `Mail from ${entry.value} no longer skips greylisting through this entry and is greylisted like anyone else's. ${reload}`
+  return `Mail from ${entry.value} no longer goes to the inbox through this entry and is checked for spam like anyone else's. ${reload}`
 }
 
 function formatCreated(unix: number): string {

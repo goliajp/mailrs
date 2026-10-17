@@ -17,7 +17,6 @@ import jp.golia.mailrs.wire.addEmailGroupMember
 import jp.golia.mailrs.wire.addToSenderList
 import jp.golia.mailrs.wire.agentKeys
 import jp.golia.mailrs.wire.aliases
-import jp.golia.mailrs.wire.apps
 import jp.golia.mailrs.wire.auditLog
 import jp.golia.mailrs.wire.deleteAgentKey
 import jp.golia.mailrs.wire.deleteAlias
@@ -117,10 +116,6 @@ fun MailViewModel.openAdmin(section: AdminSection) {
             }
             AdminSection.EmailGroups -> when (val r = client.emailGroups()) {
                 is MailrsClient.Outcome.Ok -> it.copy(busy = false, emailGroups = r.value)
-                is MailrsClient.Outcome.Err -> it.copy(busy = false, error = r.message)
-            }
-            AdminSection.Apps -> when (val r = client.apps()) {
-                is MailrsClient.Outcome.Ok -> it.copy(busy = false, apps = r.value)
                 is MailrsClient.Outcome.Err -> it.copy(busy = false, error = r.message)
             }
         }
@@ -376,8 +371,7 @@ fun MailViewModel.deleteAdminRow(section: AdminSection, row: jp.golia.mailrs.ui.
             AdminSection.Blocked -> client.removeFromSenderList(allowed = false, address = row.key)
             AdminSection.Accounts, AdminSection.Queue, AdminSection.Dmarc,
             AdminSection.Audit, AdminSection.Suppressed,
-            AdminSection.Groups, AdminSection.EmailGroups,
-            AdminSection.Apps -> return@launch
+            AdminSection.Groups, AdminSection.EmailGroups -> return@launch
         }
         if (r is MailrsClient.Outcome.Err) {
             _state.update { it.copy(error = r.message) }

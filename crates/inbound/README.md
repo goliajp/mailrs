@@ -195,6 +195,7 @@ let input = PipelineInput {
     // strangers. Empty disables the rule rather than matching
     // everything.
     local_domains: std::collections::HashSet::new(),
+    sender_allowed: false,
 };
 
 let decision = make_delivery_decision(&input);

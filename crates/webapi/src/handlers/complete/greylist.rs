@@ -5,9 +5,10 @@
 //!
 //! The stored vocabulary is the admin page's: `kind` email / domain /
 //! cidr, `list` white / black. Two older shapes are still in the hash and
-//! are normalised on read: the not-junk path's `{id: 0, address_or_domain,
-//! list_type}` keyed `not-junk:{addr}`, and MCP's `address` / `whitelist`
-//! / `blacklist` words.
+//! are normalised on read: `{id: 0, address_or_domain, list_type}` keyed
+//! `not-junk:{addr}`, which "not junk" wrote until it was limited to the
+//! user's own whitelist, and MCP's `address` / `whitelist` / `blacklist`
+//! words.
 
 use axum::{
     Json,
@@ -149,35 +150,6 @@ pub(crate) fn list_entries(
     Ok(items)
 }
 
-/// Add `addr` to the white list unless a white entry for it exists
-/// already, in either stored shape. Returns whether it wrote.
-pub(crate) fn ensure_white_entry(
-    c: &mut kevy_client::Connection,
-    addr: &str,
-    created_by: &str,
-) -> std::io::Result<bool> {
-    let present = list_entries(c)?.iter().any(|r| {
-        r["list"] == "white"
-            && r["value"]
-                .as_str()
-                .is_some_and(|v| v.eq_ignore_ascii_case(addr))
-    });
-    if present {
-        return Ok(false);
-    }
-    insert_entry(
-        c,
-        &NewGreylistEntry {
-            kind: kind_of_value(addr),
-            list: "white",
-            value: addr,
-            note: Some("marked not junk"),
-            created_by,
-        },
-    )?;
-    Ok(true)
-}
-
 pub async fn list_greylist_local() -> Result<Json<serde_json::Value>, StatusCode> {
     let items = with_kevy(list_entries)?;
     Ok(Json(serde_json::json!({ "items": items })))
@@ -259,28 +231,6 @@ mod tests {
             (rows[1]["kind"].as_str(), rows[1]["list"].as_str()),
             (Some("email"), Some("white"))
         );
-    }
-
-    #[test]
-    fn ensure_white_writes_the_current_shape_once_and_sees_old_rows() {
-        let mut c = conn("gl-ensure");
-        assert!(ensure_white_entry(&mut c, "new@b.c", "u@b.c").unwrap());
-        assert!(!ensure_white_entry(&mut c, "NEW@b.c", "u@b.c").unwrap());
-        let legacy =
-            br#"{"id":0,"address_or_domain":"old@b.c","list_type":"white","created_at":1}"#;
-        c.hset(
-            GL_KEY.as_bytes(),
-            &[(b"not-junk:old@b.c" as &[u8], legacy.as_slice())],
-        )
-        .unwrap();
-        assert!(!ensure_white_entry(&mut c, "old@b.c", "u@b.c").unwrap());
-        let rows = list_entries(&mut c).unwrap();
-        assert_eq!(rows.len(), 2);
-        let new = rows.iter().find(|r| r["value"] == "new@b.c").unwrap();
-        assert!(new["id"].is_i64());
-        assert_eq!(new["kind"], "email");
-        assert_eq!(new["list"], "white");
-        assert_eq!(new["created_by"], "u@b.c");
     }
 
     #[test]

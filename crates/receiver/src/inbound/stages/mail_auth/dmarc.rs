@@ -65,6 +65,10 @@ impl MailAuthStage {
                         "DMARC reject"
                     );
 
+                    // an allowed sender is accepted all the same, by the final decision
+                    if ctx.sender_allowed {
+                        return StageOutcome::Continue;
+                    }
                     return StageOutcome::Decide(DeliveryDecision::Reject {
                         code: 550,
                         message: format!("5.7.1 DMARC policy reject for domain {mail_from_domain}"),

@@ -189,8 +189,8 @@ pub(super) async fn load_envelope(
 /// via crash-test harness 2026-07-12): sender-side terminal
 /// transitions must mirror on the v2 job hash so Phase 7 read
 /// cutover (which reads state from `mailrs:outbound:job:{id}`) sees
-/// a consistent view. `dual_write_terminal` sets state=delivered,
-/// LPUSHes done-idx, and EXPIREs the job hash to 24 h.
+/// a consistent view. `dual_write_terminal` sets state=delivered and
+/// EXPIREs the job hash to 24 h.
 pub(super) async fn drop_blob(cfg: Cfg, id: String) -> std::io::Result<()> {
     let id_c = id.clone();
     spawn_blocking(move || {
@@ -232,7 +232,6 @@ pub(super) fn dual_write_terminal(
             now.as_bytes(),
         ]);
         p.cmd(&[b"HDEL", job_k.as_bytes(), b"claimed_at"]);
-        p.cmd(&[b"LPUSH", b"mailrs:outbound:done-idx", id.as_bytes()]);
         p.cmd(&[b"EXPIRE", job_k.as_bytes(), b"86400"]);
     });
     Ok(())

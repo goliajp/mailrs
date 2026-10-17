@@ -216,13 +216,6 @@ WEBHOOKS = {"lihao@golia.jp": [
      "event_type": "message.received", "signing_secret": "whsec_x", "active": True,
      "created_at": 1754400000},
 ]}
-# Applications holding credentials against this server.
-APPS = [
-    {"id": 1, "app_id": "app_reporting", "name": "Reporting", "description": "",
-     "owner_address": "lihao@golia.jp", "scopes": ["mail.read"], "active": True,
-     "created_at": 1754400000},
-]
-
 # Per-user sender allow/block, as `spam_lists.rs` answers them:
 # `{"entries": [...]}`, not `{"items": [...]}` like the admin lists.
 # A client that reached for the wrong key would decode an empty list
@@ -820,9 +813,6 @@ class H(BaseHTTPRequestHandler):
             else:
                 self._send({"items": WEBHOOKS.get(who, [])})
             return
-        if self.path.split("?")[0] == "/api/admin/apps":
-            self._send({"items": APPS})
-            return
         if self.path.split("?")[0] == "/api/admin/suppressions":
             self._send({"items": SUPPRESSED})
             return
@@ -1055,9 +1045,6 @@ class H(BaseHTTPRequestHandler):
                 self._send({"script": SIEVE.get(who, "")})
             else:
                 self._send({"items": WEBHOOKS.get(who, [])})
-            return
-        if self.path.split("?")[0] == "/api/admin/apps":
-            self._send({"items": APPS})
             return
         if self.path.split("?")[0] == "/api/admin/suppressions":
             SUPPRESSED.clear()

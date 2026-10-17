@@ -245,11 +245,6 @@ abstract class MailrsUiTest : GrantsNotifications() {
 
 
 
-    /** Apps say who owns them and what they may do. */
-
-
-
-
     /** The launcher's Search shortcut opens the search, not the inbox. */
 
 

@@ -10,8 +10,8 @@ pub use mailrs_inbound::{
 
 use super::stages::mail_auth::{DmarcReportSink, MailAuthResolvers};
 use super::stages::{
-    AiScoringStage, BayesStage, ClamavStage, ContentScanStage, GreylistStage, MailAuthStage,
-    PtrStage,
+    AiScoringStage, BayesStage, ClamavStage, ContentScanStage, GreylistStage, LocalListsStage,
+    MailAuthStage, PtrStage,
 };
 use mailrs_intelligence::spam::SpamCache;
 use mailrs_shield::greylist::{GreylistConfig, GreylistDb};
@@ -25,16 +25,17 @@ use crate::inbound::stages::quota::QuotaStage;
 /// Build the inbound `mailrs_inbound::Pipeline` from the optional backends
 /// configured at server startup. Each backend, when present, contributes its
 /// corresponding `Stage` to the pipeline in fixed evaluation order:
-/// `greylist → ptr → mail_auth → clamav → content_scan → ai_scoring`.
+/// `local_lists → greylist → quota → ptr → mail_auth → clamav →
+/// content_scan → ai_scoring → bayes`.
 ///
-/// `content_scan` always runs (no external dependency); the others are
-/// gated on `Some(_)` of the matching backend.
+/// `local_lists`, `quota`, `content_scan` and `bayes` always run; the
+/// others are gated on `Some(_)` of the matching backend.
 #[allow(clippy::too_many_arguments)]
 pub fn build_inbound_pipeline(
     greylist_db: Option<Arc<GreylistDb>>,
     greylist_config: GreylistConfig,
     greylist_whitelist: GreylistListsHandle,
-    greylist_local: GreylistLocalHandle,
+    local_lists: GreylistLocalHandle,
     greylist_contacts: Option<Arc<crate::kevy_net::KevyNetClient>>,
     quota_client: Option<Arc<crate::kevy_net::KevyNetClient>>,
     bayes_client: Option<Arc<crate::kevy_net::KevyNetClient>>,
@@ -46,14 +47,15 @@ pub fn build_inbound_pipeline(
     spam_cache: Option<Arc<dyn SpamCache>>,
     spam_score_threshold: f64,
 ) -> mailrs_inbound::Pipeline {
-    let mut builder = mailrs_inbound::Pipeline::builder().spam_threshold(spam_score_threshold);
+    let mut builder = mailrs_inbound::Pipeline::builder()
+        .spam_threshold(spam_score_threshold)
+        .add(LocalListsStage::new(local_lists));
 
     if let Some(db) = greylist_db {
         builder = builder.add(GreylistStage::new(
             db,
             greylist_config,
             greylist_whitelist,
-            greylist_local,
             greylist_contacts,
         ));
     }
@@ -118,6 +120,7 @@ mod tests {
             recipient_whitelist: std::collections::HashSet::new(),
             recipient_blacklist: std::collections::HashSet::new(),
             local_domains: std::collections::HashSet::new(),
+            sender_allowed: false,
         }
     }
 

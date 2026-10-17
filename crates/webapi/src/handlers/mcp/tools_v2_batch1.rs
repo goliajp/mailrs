@@ -40,16 +40,6 @@ impl MailrsMcpService {
         )]))
     }
 
-    #[tool(description = "List every registered OAuth-style admin app (admin-gated).")]
-    async fn list_apps(&self) -> Result<CallToolResult, McpError> {
-        let user = self.require_user()?.to_string();
-        self.require_admin(&user).await?;
-        let items = admin_read_hash(b"admin:apps")?;
-        Ok(CallToolResult::success(vec![Content::text(
-            serde_json::json!({ "items": items }).to_string(),
-        )]))
-    }
-
     #[tool(description = "List every email distribution group (admin-gated).")]
     async fn list_email_groups(&self) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
@@ -75,12 +65,16 @@ impl MailrsMcpService {
     }
 
     #[tool(
-        description = "List every alias (admin-gated). Complements the v1 add/remove_alias tools with a read-side."
+        description = "List every alias (admin-gated): `id` (the source address), `source_address`, `target_address`, `domain`. The same rows as the admin Aliases page."
     )]
     async fn list_aliases_admin(&self) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
         self.require_admin(&user).await?;
-        let items = admin_read_hash(b"admin:aliases")?;
+        let items = crate::handlers::admin_directory::alias_rows(&self.state)
+            .await
+            .map_err(|code| {
+                McpError::internal_error(format!("list_aliases_admin: {code}"), None)
+            })?;
         Ok(CallToolResult::success(vec![Content::text(
             serde_json::json!({ "items": items }).to_string(),
         )]))

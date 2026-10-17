@@ -130,6 +130,7 @@ pub fn unexamined() -> PipelineInput {
         recipient_whitelist: std::collections::HashSet::new(),
         recipient_blacklist: std::collections::HashSet::new(),
         local_domains: std::collections::HashSet::new(),
+        sender_allowed: false,
     }
 }
 
@@ -150,6 +151,8 @@ pub fn assess(input: &PipelineInput) -> FraudVerdict {
     FraudVerdict {
         rules_version: RULES_VERSION.to_string(),
         score,
+        // judged on the message alone: an allow-listed sender whose account
+        // was taken over still authenticates
         quarantined: holds(&input.fraud),
         layers,
     }
@@ -310,6 +313,7 @@ mod tests {
             recipient_whitelist: std::collections::HashSet::new(),
             recipient_blacklist: std::collections::HashSet::new(),
             local_domains: std::collections::HashSet::new(),
+            sender_allowed: false,
         }
     }
 

@@ -40,18 +40,6 @@ pub const PATH_REMOVE_ALIAS: &str = "/v1/admin/aliases/{id}";
 
 pub const PATH_RESOLVE_RECIPIENT: &str = "/v1/admin/aliases:resolve-recipient";
 
-pub const PATH_LIST_APPS: &str = "/v1/admin/apps";
-
-pub const PATH_CREATE_APP: &str = "/v1/admin/apps";
-
-pub const PATH_GET_APP: &str = "/v1/admin/apps/{app_id}";
-
-pub const PATH_GET_APP_BY_ID: &str = "/v1/admin/apps/by-id/{id}";
-
-pub const PATH_REMOVE_APP: &str = "/v1/admin/apps/{app_id}";
-
-pub const PATH_UPDATE_APP_SCOPES: &str = "/v1/admin/apps/{app_id}/scopes";
-
 pub const PATH_LOG_AUDIT: &str = "/v1/admin/audit-log";
 
 pub const PATH_LIST_AUDIT_LOG: &str = "/v1/admin/audit-log";

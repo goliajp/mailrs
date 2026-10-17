@@ -22,6 +22,8 @@ mailrs-core-api = { path = "../core-api", features = ["client"] }
 mailrs-core-sidestate = { path = "../core-sidestate" }
 mailrs-mock = { path = "../mock", features = ["schema"] }
 mailrs-mail-builder = { path = "../mail-builder", version = "1" }
+# which key the sender signs a domain with, read the way the sender reads it
+mailrs-dkim = { path = "../dkim", version = "3", default-features = false }
 # the receiver's built-in message size limit, the ceiling for the setting
 mailrs-smtp-proto = { path = "../smtp-proto", version = "1" }
 # Phase 3 §14-16 — the writing-assistance prompts and sanitising, shared
