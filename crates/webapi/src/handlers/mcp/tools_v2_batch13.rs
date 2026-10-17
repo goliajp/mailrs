@@ -49,45 +49,40 @@ fn unwrap_key_result(v: serde_json::Value) -> Result<CallToolResult, McpError> {
 #[tool_router(router = tool_router_v2_batch13, vis = "pub")]
 impl MailrsMcpService {
     #[tool(
-        description = "Add a local greylist rule. `whitelist` entries bypass the greylist triplet check; `blacklist` entries are rejected. Admin-gated."
+        description = "Add a local greylist rule. `white` entries bypass the greylist triplet check; `black` entries are rejected (`whitelist` / `blacklist` are accepted too). Admin-gated."
     )]
     async fn greylist_local_add(
         &self,
         Parameters(params): Parameters<GreylistLocalAddParams>,
     ) -> Result<CallToolResult, McpError> {
+        use crate::handlers::complete::{
+            NewGreylistEntry, insert_entry, kind_of_value, normalise_list,
+        };
         let user = self.require_user()?.to_string();
         self.require_admin(&user).await?;
-        if params.list_type != "whitelist" && params.list_type != "blacklist" {
+        let Some(list) = normalise_list(&params.list_type) else {
             return Err(McpError::invalid_params(
-                "list_type must be 'whitelist' or 'blacklist'",
+                "list_type must be 'white' or 'black'",
                 None,
             ));
-        }
-        // The tool's parameter names are a contract with the agents that
-        // call it and do not change; they map onto the stored shape here.
-        // `kind` has no parameter — it is what `address_or_domain` already
-        // says, so it is derived: an '@' makes it an address, otherwise a
-        // domain. Same rule the admin UI's radio button offers.
-        let kind = if params.address_or_domain.contains('@') {
-            "address"
-        } else {
-            "domain"
         };
-        let req = crate::handlers::complete::CreateGreylistRequest {
-            kind: kind.to_string(),
-            list: params.list_type.clone(),
-            value: params.address_or_domain.clone(),
-            note: None,
-        };
-        let Json(entry) = crate::handlers::complete::create_greylist_entry(Json(req))
-            .await
-            .map_err(|c| map_status(c, "greylist_local_add"))?;
-        crate::handlers::audit::record(
-            &user,
-            "greylist.add",
-            &params.address_or_domain,
-            &params.list_type,
-        );
+        // the parameter names are a contract with the agents that call the
+        // tool; the stored words are the admin page's, so both read alike
+        let value = params.address_or_domain.trim();
+        let entry = with_kevy(|c| {
+            insert_entry(
+                c,
+                &NewGreylistEntry {
+                    kind: kind_of_value(value),
+                    list,
+                    value,
+                    note: None,
+                    created_by: &user,
+                },
+            )
+        })
+        .map_err(|c| map_status(c, "greylist_local_add"))?;
+        crate::handlers::audit::record(&user, "greylist.add", value, list);
         Ok(CallToolResult::success(vec![Content::text(
             entry.to_string(),
         )]))
@@ -100,7 +95,7 @@ impl MailrsMcpService {
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
         self.require_admin(&user).await?;
-        crate::handlers::complete::delete_greylist_entry(Path(params.id))
+        crate::handlers::complete::delete_greylist_entry(Path(params.id.to_string()))
             .await
             .map_err(|c| map_status(c, "greylist_local_remove"))?;
         crate::handlers::audit::record(&user, "greylist.remove", &params.id.to_string(), "via mcp");

@@ -13,68 +13,59 @@ import { MobileModal } from '@/components/mobile-modal'
 import { ScrollableTable } from '@/components/scrollable-table'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
 import { adminKeys } from '@/lib/query-keys'
-import { adminDelete, adminListGet, adminPost, adminPut } from '@/wire/endpoints/admin'
+import {
+  adminDelete,
+  adminListGet,
+  adminPost,
+  adminPut,
+  adminStringListGet,
+} from '@/wire/endpoints/admin'
 
-type ApiResult = {
-  success: boolean
-}
-
+// Backend: crates/webapi/src/handlers/apps_keys/apps.rs — fn list_apps
 type AppInfo = {
-  active: boolean
   app_id: string
-  created_at: string
-  description: string
+  created_at: number
   id: number
   name: string
-  owner_address: string
-  scopes: string
+  scopes: string[]
 }
 
-type CreateAppResponse = {
-  api_key: CreatedKey
+// Backend: crates/webapi/src/handlers/apps_keys/apps.rs — fn create_app
+type CreatedApp = {
   app_id: string
-  name: string
-  scopes: string
+  id: number
+  secret: string
 }
 
-type CreatedKey = {
-  id: string
-  key: string
-  prefix: string
-}
+const HEADERS = ['Name', 'Scopes', 'App ID', 'Created', 'Actions']
+const EMPTY_APPS: AppInfo[] = []
+const EMPTY_PERMISSIONS: string[] = []
 
-const HEADERS = ['Name', 'Scopes', 'Owner', 'App ID', 'Actions']
+const PRIMARY_BUTTON = 'bg-fg text-bg rounded-md px-3 py-1.5 text-sm disabled:opacity-50'
+const CANCEL_BUTTON =
+  'text-fg-secondary hover:bg-bg-secondary rounded-md px-3 py-1.5 text-sm transition-colors'
 
 export function AdminApps() {
-  const {
-    data: appsData,
-    error,
-    isPending,
-    refetch,
-  } = useQuery({
+  const apps = useQuery({
     queryKey: adminKeys.apps(),
     queryFn: ({ signal }) => adminListGet<AppInfo>('/admin/apps', signal),
   })
-  const apps = appsData ?? []
-
-  const { data: permissionsData } = useQuery({
+  const permissionsQuery = useQuery({
     queryKey: adminKeys.permissions(),
-    queryFn: ({ signal }) => adminListGet<string>('/admin/permissions', signal),
+    queryFn: ({ signal }) => adminStringListGet('/admin/permissions', signal),
   })
-  const permissions = permissionsData ?? []
+  const permissions = permissionsQuery.data ?? EMPTY_PERMISSIONS
 
   const [adding, setAdding] = useState(false)
-  const [form, setForm] = useState({ description: '', name: '' })
-  const [selectedScopes, setSelectedScopes] = useState<Set<string>>(new Set())
-  const [createdKey, setCreatedKey] = useState<CreatedKey | null>(null)
+  const [name, setName] = useState('')
+  const [selectedScopes, setSelectedScopes] = useState<string[]>([])
+  const [created, setCreated] = useState<CreatedApp | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<null | string>(null)
-  const [expandedAppId, setExpandedAppId] = useState<null | string>(null)
-  const [editScopes, setEditScopes] = useState<Set<string>>(new Set())
 
   const addApp = useAdminMutation({
     invalidateKey: adminKeys.apps(),
-    mutationFn: (vars: { description: string; name: string; scopes: string }) =>
-      adminPost<CreateAppResponse>('/admin/apps', vars),
+    mutationFn: (vars: { name: string; scopes: string[] }) =>
+      adminPost<CreatedApp>('/admin/apps', vars),
     successMsg: (vars) => `App "${vars.name}" created`,
   })
 
@@ -84,69 +75,64 @@ export function AdminApps() {
     mutationFn: (appId: string) => adminDelete(`/admin/apps/${appId}`),
   })
 
-  const saveScopes = useAdminMutation({
-    invalidateKey: adminKeys.apps(),
-    successMsg: 'Scopes updated',
-    mutationFn: (vars: { appId: string; scopes: string }) =>
-      adminPut<ApiResult>(`/admin/apps/${vars.appId}/scopes`, { scopes: vars.scopes }),
-  })
-
-  const savingScopes = saveScopes.isPending
+  const closeForm = () => {
+    setName('')
+    setSelectedScopes([])
+    setAdding(false)
+  }
 
   const handleAdd = () => {
-    if (!form.name.trim()) return
+    if (!name.trim()) return
     addApp.mutate(
-      {
-        description: form.description.trim(),
-        name: form.name.trim(),
-        scopes: Array.from(selectedScopes).join(','),
-      },
+      { name: name.trim(), scopes: selectedScopes },
       {
         onSuccess: (result) => {
-          setCreatedKey(result.api_key)
-          setForm({ description: '', name: '' })
-          setSelectedScopes(new Set())
-          setAdding(false)
+          setCreated(result)
+          closeForm()
         },
       }
     )
   }
 
-  const handleDelete = (appId: string) => {
-    deleteApp.mutate(appId, { onSettled: () => setDeleteTarget(null) })
-  }
-
-  const handleSaveScopes = (appId: string) => {
-    saveScopes.mutate(
-      { appId, scopes: Array.from(editScopes).join(',') },
-      { onSuccess: () => setExpandedAppId(null) }
+  const renderBody = () => {
+    if (apps.isPending) return <AdminTableSkeleton cols={5} headers={HEADERS} rows={4} />
+    if (apps.error) return <AdminErrorState error={apps.error} onRetry={() => apps.refetch()} />
+    const rows = apps.data ?? EMPTY_APPS
+    if (rows.length === 0) {
+      if (adding) return null
+      return (
+        <AdminEmptyState
+          description="An app has a name, a scope list and a secret shown once when it is created"
+          icon={<Boxes className="h-10 w-10" />}
+          title="No apps configured"
+        />
+      )
+    }
+    return (
+      <ScrollableTable>
+        <table className="w-full text-left text-sm">
+          <thead className="border-border bg-bg-secondary border-b">
+            <tr>
+              {HEADERS.map((h) => (
+                <th className="px-4 py-2.5 font-medium" key={h}>
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((app) => (
+              <AppRow
+                app={app}
+                key={app.app_id}
+                onDelete={() => setDeleteTarget(app.app_id)}
+                permissions={permissions}
+              />
+            ))}
+          </tbody>
+        </table>
+      </ScrollableTable>
     )
-  }
-
-  const toggleScope = (scope: string, set: Set<string>, setter: (s: Set<string>) => void) => {
-    const next = new Set(set)
-    if (next.has(scope)) {
-      next.delete(scope)
-    } else {
-      next.add(scope)
-    }
-    setter(next)
-  }
-
-  const handleExpand = (app: AppInfo) => {
-    if (expandedAppId === app.app_id) {
-      setExpandedAppId(null)
-      return
-    }
-    setExpandedAppId(app.app_id)
-    const currentScopes = app.scopes ? app.scopes.split(',').filter(Boolean) : []
-    setEditScopes(new Set(currentScopes))
-  }
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text).then(() => {
-      toast.success('Copied to clipboard')
-    })
   }
 
   return (
@@ -163,229 +149,213 @@ export function AdminApps() {
       }
       title="Apps"
     >
-      {createdKey && (
-        <div className="border-warning bg-warning/10 mb-4 rounded-lg border p-4" role="status">
-          <p className="mb-2 text-sm font-semibold">API Key Created</p>
-          <p className="text-fg-secondary mb-2 text-xs">
-            Copy this key now. It will not be shown again.
-          </p>
-          <div className="flex items-center gap-2">
-            <code className="bg-bg-secondary flex-1 rounded px-3 py-1.5 font-mono text-sm">
-              {createdKey.key}
-            </code>
-            <button
-              className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:opacity-90"
-              onClick={() => copyToClipboard(createdKey.key)}
-            >
-              Copy
-            </button>
-          </div>
-          <button
-            className="text-fg-secondary mt-2 text-xs transition-colors hover:opacity-70"
-            onClick={() => setCreatedKey(null)}
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
+      {created && <CreatedSecret app={created} onDismiss={() => setCreated(null)} />}
 
       {adding && (
         <div className="border-border mb-4 space-y-2 rounded-lg border p-4">
-          <div className="flex gap-2">
-            <input
-              aria-label="App name"
-              autoFocus
-              className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder="App name"
-              value={form.name}
-            />
-            <input
-              aria-label="Description"
-              className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-              placeholder="Description"
-              value={form.description}
-            />
-          </div>
-          {permissions.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {permissions.map((perm) => (
-                <label className="flex items-center gap-1.5 text-sm" key={perm}>
-                  <input
-                    checked={selectedScopes.has(perm)}
-                    onChange={() => toggleScope(perm, selectedScopes, setSelectedScopes)}
-                    type="checkbox"
-                  />
-                  {perm}
-                </label>
-              ))}
-            </div>
-          )}
+          <input
+            aria-label="App name"
+            autoFocus
+            className="border-border bg-bg-secondary w-full rounded-md border px-3 py-1.5 text-sm"
+            onChange={(e) => setName(e.target.value)}
+            placeholder="App name"
+            value={name}
+          />
+          <ScopeChecklist
+            onChange={setSelectedScopes}
+            permissions={permissions}
+            selected={selectedScopes}
+          />
           <div className="flex gap-2">
             <button
-              className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm disabled:opacity-50"
-              disabled={!form.name.trim() || addApp.isPending}
+              className={PRIMARY_BUTTON}
+              disabled={!name.trim() || addApp.isPending}
               onClick={handleAdd}
             >
-              {addApp.isPending ? 'Saving...' : 'Save'}
+              {busyLabel(addApp.isPending, 'Save', 'Saving...')}
             </button>
-            <button
-              className="text-fg-secondary hover:bg-bg-secondary rounded-md px-3 py-1.5 text-sm transition-colors"
-              onClick={() => {
-                setForm({ description: '', name: '' })
-                setSelectedScopes(new Set())
-                setAdding(false)
-              }}
-            >
+            <button className={CANCEL_BUTTON} onClick={closeForm}>
               Cancel
             </button>
           </div>
         </div>
       )}
 
-      {isPending ? (
-        <AdminTableSkeleton cols={5} headers={HEADERS} rows={4} />
-      ) : error ? (
-        <AdminErrorState error={error} onRetry={() => refetch()} />
-      ) : apps.length === 0 && !adding ? (
-        <AdminEmptyState
-          description="Apps hold API keys that grant scoped access to the mailrs API."
-          icon={<Boxes className="h-10 w-10" />}
-          title="No apps configured"
-        />
-      ) : (
-        <ScrollableTable>
-          <table className="w-full text-left text-sm">
-            <thead className="border-border bg-bg-secondary border-b">
-              <tr>
-                <th className="px-4 py-2.5 font-medium">Name</th>
-                <th className="px-4 py-2.5 font-medium">Scopes</th>
-                <th className="px-4 py-2.5 font-medium">Owner</th>
-                <th className="px-4 py-2.5 font-medium">App ID</th>
-                <th className="px-4 py-2.5 text-right font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {apps.map((app) => (
-                <Fragment key={app.app_id}>
-                  <tr className="border-border border-b last:border-0">
-                    <td className="px-4 py-3 font-medium">{app.name}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1">
-                        {app.scopes
-                          ? app.scopes
-                              .split(',')
-                              .filter(Boolean)
-                              .map((scope) => (
-                                <span
-                                  className={
-                                    scope === 'internal.rpc'
-                                      ? 'bg-success/10 text-success inline-block rounded px-2 py-0.5 text-xs font-medium'
-                                      : 'bg-surface text-fg-secondary inline-block rounded px-2 py-0.5 text-xs font-medium'
-                                  }
-                                  key={scope}
-                                >
-                                  {scope}
-                                </span>
-                              ))
-                          : null}
-                      </div>
-                    </td>
-                    <td className="text-fg-secondary px-4 py-3">{app.owner_address}</td>
-                    <td className="px-4 py-3">
-                      <span
-                        className="text-fg-muted max-w-[120px] truncate font-mono text-xs"
-                        title={app.app_id}
-                      >
-                        {app.app_id}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-3">
-                        <button
-                          className="text-accent text-xs transition-colors hover:opacity-70"
-                          onClick={() => handleExpand(app)}
-                        >
-                          {expandedAppId === app.app_id ? 'Collapse' : 'Scopes'}
-                        </button>
-                        <button
-                          className="text-danger text-xs transition-colors hover:opacity-70"
-                          onClick={() => setDeleteTarget(app.app_id)}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                  {expandedAppId === app.app_id && (
-                    <tr className="border-border border-b last:border-0">
-                      <td className="px-4 py-3" colSpan={5}>
-                        <div className="border-border space-y-2 rounded-lg border p-3">
-                          <p className="text-fg-secondary text-xs font-medium">Edit Scopes</p>
-                          <div className="flex flex-wrap gap-2">
-                            {permissions.map((perm) => (
-                              <label className="flex items-center gap-1.5 text-sm" key={perm}>
-                                <input
-                                  checked={editScopes.has(perm)}
-                                  onChange={() => toggleScope(perm, editScopes, setEditScopes)}
-                                  type="checkbox"
-                                />
-                                {perm}
-                              </label>
-                            ))}
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm disabled:opacity-50"
-                              disabled={savingScopes}
-                              onClick={() => handleSaveScopes(app.app_id)}
-                            >
-                              {savingScopes ? 'Saving...' : 'Save'}
-                            </button>
-                            <button
-                              className="text-fg-secondary hover:bg-bg-secondary rounded-md px-3 py-1.5 text-sm transition-colors"
-                              onClick={() => setExpandedAppId(null)}
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </Fragment>
-              ))}
-            </tbody>
-          </table>
-        </ScrollableTable>
-      )}
+      {renderBody()}
 
       {deleteTarget && (
         <MobileModal onClose={() => setDeleteTarget(null)} open>
           <div className="bg-surface w-full max-w-sm rounded-lg p-6 shadow-lg">
             <h3 className="mb-2 text-sm font-semibold">Confirm Deletion</h3>
-            <p className="text-fg-muted mb-4 text-sm">
-              Are you sure you want to delete this app? This action cannot be undone.
-            </p>
+            <p className="text-fg-muted mb-4 text-sm">Delete this app? This cannot be undone</p>
             <div className="flex justify-end gap-2">
-              <button
-                className="text-fg-secondary hover:bg-bg-secondary rounded-md px-3 py-1.5 text-sm transition-colors"
-                onClick={() => setDeleteTarget(null)}
-              >
+              <button className={CANCEL_BUTTON} onClick={() => setDeleteTarget(null)}>
                 Cancel
               </button>
               <button
                 className="bg-danger rounded-md px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
                 disabled={deleteApp.isPending}
-                onClick={() => handleDelete(deleteTarget)}
+                onClick={() =>
+                  deleteApp.mutate(deleteTarget, { onSettled: () => setDeleteTarget(null) })
+                }
               >
-                {deleteApp.isPending ? 'Deleting...' : 'Delete'}
+                {busyLabel(deleteApp.isPending, 'Delete', 'Deleting...')}
               </button>
             </div>
           </div>
         </MobileModal>
       )}
     </AdminPageShell>
+  )
+}
+
+function AppRow({
+  app,
+  onDelete,
+  permissions,
+}: {
+  app: AppInfo
+  onDelete: () => void
+  permissions: string[]
+}) {
+  const [editing, setEditing] = useState<null | string[]>(null)
+  const saveScopes = useAdminMutation({
+    invalidateKey: adminKeys.apps(),
+    successMsg: 'Scopes updated',
+    mutationFn: (scopes: string[]) => adminPut(`/admin/apps/${app.app_id}/scopes`, { scopes }),
+  })
+
+  const toggleEditing = () => {
+    if (editing) {
+      setEditing(null)
+      return
+    }
+    setEditing(app.scopes)
+  }
+
+  let toggleLabel = 'Scopes'
+  if (editing) toggleLabel = 'Collapse'
+
+  return (
+    <Fragment>
+      <tr className="border-border border-b last:border-0">
+        <td className="px-4 py-3 font-medium">{app.name}</td>
+        <td className="px-4 py-3">
+          <div className="flex flex-wrap gap-1">
+            {app.scopes.map((scope) => (
+              <span
+                className="bg-surface text-fg-secondary inline-block rounded px-2 py-0.5 text-xs font-medium"
+                key={scope}
+              >
+                {scope}
+              </span>
+            ))}
+          </div>
+        </td>
+        <td className="text-fg-muted px-4 py-3 font-mono text-xs">{app.app_id}</td>
+        <td className="text-fg-secondary px-4 py-3 text-xs">
+          {new Date(app.created_at * 1000).toLocaleDateString()}
+        </td>
+        <td className="px-4 py-3 text-right">
+          <div className="flex items-center justify-end gap-3">
+            <button
+              className="text-accent text-xs transition-colors hover:opacity-70"
+              onClick={toggleEditing}
+            >
+              {toggleLabel}
+            </button>
+            <button
+              className="text-danger text-xs transition-colors hover:opacity-70"
+              onClick={onDelete}
+            >
+              Delete
+            </button>
+          </div>
+        </td>
+      </tr>
+      {editing && (
+        <tr className="border-border border-b last:border-0">
+          <td className="px-4 py-3" colSpan={HEADERS.length}>
+            <div className="border-border space-y-2 rounded-lg border p-3">
+              <p className="text-fg-secondary text-xs font-medium">Edit Scopes</p>
+              <ScopeChecklist onChange={setEditing} permissions={permissions} selected={editing} />
+              <div className="flex gap-2">
+                <button
+                  className={PRIMARY_BUTTON}
+                  disabled={saveScopes.isPending}
+                  onClick={() => saveScopes.mutate(editing, { onSuccess: () => setEditing(null) })}
+                >
+                  {busyLabel(saveScopes.isPending, 'Save', 'Saving...')}
+                </button>
+                <button className={CANCEL_BUTTON} onClick={() => setEditing(null)}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
+    </Fragment>
+  )
+}
+
+function busyLabel(busy: boolean, idle: string, working: string): string {
+  if (busy) return working
+  return idle
+}
+
+function CreatedSecret({ app, onDismiss }: { app: CreatedApp; onDismiss: () => void }) {
+  const copy = () => {
+    navigator.clipboard.writeText(app.secret).then(() => toast.success('Copied to clipboard'))
+  }
+  return (
+    <div className="border-warning bg-warning/10 mb-4 rounded-lg border p-4" role="status">
+      <p className="mb-2 text-sm font-semibold">Secret for {app.app_id}</p>
+      <p className="text-fg-secondary mb-2 text-xs">
+        Shown once. Only its hash is stored, so copy it now
+      </p>
+      <div className="flex items-center gap-2">
+        <code className="bg-bg-secondary flex-1 rounded px-3 py-1.5 font-mono text-sm break-all">
+          {app.secret}
+        </code>
+        <button className={PRIMARY_BUTTON} onClick={copy}>
+          Copy
+        </button>
+      </div>
+      <button
+        className="text-fg-secondary mt-2 text-xs transition-colors hover:opacity-70"
+        onClick={onDismiss}
+      >
+        Dismiss
+      </button>
+    </div>
+  )
+}
+
+function ScopeChecklist({
+  onChange,
+  permissions,
+  selected,
+}: {
+  onChange: (next: string[]) => void
+  permissions: string[]
+  selected: string[]
+}) {
+  const toggle = (perm: string) => {
+    if (selected.includes(perm)) {
+      onChange(selected.filter((s) => s !== perm))
+      return
+    }
+    onChange([...selected, perm])
+  }
+  return (
+    <div className="flex flex-wrap gap-2">
+      {permissions.map((perm) => (
+        <label className="flex items-center gap-1.5 text-sm" key={perm}>
+          <input checked={selected.includes(perm)} onChange={() => toggle(perm)} type="checkbox" />
+          {perm}
+        </label>
+      ))}
+    </div>
   )
 }

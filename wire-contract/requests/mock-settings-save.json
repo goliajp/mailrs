@@ -1,0 +1,8 @@
+{
+  "create": "admins-only",
+  "enabled": true,
+  "max_messages": 200,
+  "max_namespaces_per_user": 5,
+  "max_total_mb": 1024,
+  "retention_days": 7
+}

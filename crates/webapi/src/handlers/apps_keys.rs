@@ -10,87 +10,8 @@ use crate::handlers::complete::*;
 use crate::handlers::conversations::AuthedUser;
 use crate::handlers::kevy_util::with_kevy;
 
-pub async fn list_apps() -> Result<Json<serde_json::Value>, StatusCode> {
-    let vals = with_kevy(|c| hgetall_values(c, APPS_KEY))?;
-    let items: Vec<serde_json::Value> = vals
-        .into_iter()
-        .filter_map(|v| serde_json::from_slice(&v).ok())
-        .collect();
-    Ok(Json(serde_json::json!({ "items": items })))
-}
-
-#[derive(Debug, serde::Deserialize)]
-pub struct CreateAppRequest {
-    #[serde(default)]
-    pub name: String,
-    #[serde(default)]
-    pub scopes: Vec<String>,
-}
-
-pub async fn create_app(
-    Json(req): Json<CreateAppRequest>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
-    use sha2::{Digest, Sha256};
-    let id = with_kevy(|c| next_id(c, APPS_CTR))?;
-    let app_id = format!("app_{id}");
-    let secret = random_hex(32);
-    // Store the sha256 of the secret so /oauth/token can verify
-    // what an app presents without persisting the plaintext (matches
-    // how the monolith stored api_keys).
-    let secret_sha = format!("{:x}", Sha256::digest(secret.as_bytes()));
-    let blob = serde_json::json!({
-        "id": id,
-        "app_id": app_id,
-        "name": req.name,
-        "scopes": req.scopes,
-        "created_at": now_secs(),
-        "secret_sha256": secret_sha,
-    });
-    let payload = serde_json::to_vec(&blob).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    with_kevy(move |c| {
-        c.hset(
-            APPS_KEY.as_bytes(),
-            &[(id.to_string().as_bytes(), payload.as_slice())],
-        )?;
-        Ok(())
-    })?;
-    // Secret is returned once — the caller is responsible for storing
-    // it; subsequent GETs only see the sha256.
-    Ok(Json(serde_json::json!({
-        "id": id,
-        "app_id": app_id,
-        "secret": secret,
-    })))
-}
-
-pub async fn get_app(Path(app_id): Path<String>) -> Result<Json<serde_json::Value>, StatusCode> {
-    let vals = with_kevy(|c| hgetall_values(c, APPS_KEY))?;
-    for v in vals {
-        if let Ok(app) = serde_json::from_slice::<serde_json::Value>(&v)
-            && app.get("app_id").and_then(|v| v.as_str()) == Some(app_id.as_str())
-        {
-            return Ok(Json(app));
-        }
-    }
-    Err(StatusCode::NOT_FOUND)
-}
-
-pub async fn delete_app(Path(app_id): Path<String>) -> Result<StatusCode, StatusCode> {
-    let vals = with_kevy(|c| hgetall_values(c, APPS_KEY))?;
-    for v in vals {
-        if let Ok(app) = serde_json::from_slice::<serde_json::Value>(&v)
-            && app.get("app_id").and_then(|v| v.as_str()) == Some(app_id.as_str())
-            && let Some(id) = app.get("id").and_then(|v| v.as_i64())
-        {
-            with_kevy(move |c| {
-                c.hdel(APPS_KEY.as_bytes(), &[id.to_string().as_bytes()])?;
-                Ok(())
-            })?;
-            return Ok(StatusCode::NO_CONTENT);
-        }
-    }
-    Err(StatusCode::NOT_FOUND)
-}
+mod apps;
+pub use apps::*;
 
 pub async fn list_agent_keys(
     Extension(AuthedUser(user)): Extension<AuthedUser>,

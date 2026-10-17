@@ -55,7 +55,8 @@ fn namespaces_are_global_capped_per_user_and_validated() {
         create_namespace(&mut c, "a@x.test", "abuse"),
         Err(MockError::BadName(_))
     ));
-    for i in 1..MAX_NAMESPACES_PER_USER {
+    let defaults = Settings::default();
+    for i in 1..defaults.max_namespaces_per_user {
         create_namespace(&mut c, "a@x.test", &format!("alpha{i}")).unwrap();
     }
     assert!(matches!(
@@ -101,20 +102,37 @@ fn mail_for_a_missing_namespace_is_not_stored() {
 fn the_oldest_are_dropped_past_the_cap_and_counted() {
     let tmp = tempfile::tempdir().unwrap();
     let mut c = conn("cap");
+    // a saved setting applies at once, with no restart
+    let cap = 12;
+    let limits = Settings {
+        max_messages: cap,
+        ..Settings::default()
+    };
+    assert!(matches!(
+        save_settings(
+            &mut c,
+            &Settings {
+                max_messages: 3,
+                ..limits
+            }
+        ),
+        Err(MockError::BadSetting(_))
+    ));
+    save_settings(&mut c, &limits).unwrap();
     create_namespace(&mut c, "a@x.test", "capped").unwrap();
-    for i in 0..MAX_MESSAGES + 3 {
+    for i in 0..cap + 3 {
         let m = meta("capped", &format!("id{i:04}"), "t", "s");
         store_message(&mut c, tmp.path(), m, b"0123456789").unwrap();
     }
     let kept = ids(&mut c, "capped");
-    assert_eq!(kept.len(), MAX_MESSAGES);
+    assert_eq!(kept.len(), cap);
     assert!(!kept.contains(&"id0000".to_string()));
     assert!(!kept.contains(&"id0002".to_string()));
     assert!(kept.contains(&"id0003".to_string()));
-    assert_eq!(files(tmp.path(), "capped"), MAX_MESSAGES);
-    assert_eq!(total_bytes(&mut c).unwrap(), 10 * MAX_MESSAGES as i64);
+    assert_eq!(files(tmp.path(), "capped"), cap);
+    assert_eq!(total_bytes(&mut c).unwrap(), 10 * cap as i64);
     let ns = get_namespace(&mut c, "capped").unwrap().unwrap();
-    assert_eq!((ns.messages, ns.dropped), (MAX_MESSAGES, 3));
+    assert_eq!((ns.messages, ns.dropped), (cap, 3));
 }
 
 #[test]
@@ -204,7 +222,7 @@ fn a_sweep_expires_old_mail_and_then_rests() {
     let quiet = sweep(&mut c, tmp.path(), now).unwrap();
     assert!(!quiet.changed_anything(), "{quiet:?}");
 
-    let later = now + RETENTION.as_millis() as i64 + 1;
+    let later = now + Settings::default().retention().as_millis() as i64 + 1;
     let report = sweep(&mut c, tmp.path(), later).unwrap();
     assert_eq!(report.expired, 2);
     assert!(ids(&mut c, "sweep").is_empty());
@@ -300,4 +318,43 @@ fn new_mail_queues_one_webhook_delivery_and_deleting_the_namespace_ends_it() {
             .unwrap()
             .is_empty()
     );
+}
+
+#[test]
+fn turned_off_refuses_new_mail_and_namespaces_but_keeps_what_is_stored() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut c = conn("off");
+    create_namespace(&mut c, "a@x.test", "offline").unwrap();
+    store_message(&mut c, tmp.path(), meta("offline", "o1", "t", "s"), b"x").unwrap();
+    let off = Settings {
+        enabled: false,
+        ..Settings::default()
+    };
+    save_settings(&mut c, &off).unwrap();
+    assert_eq!(settings(&mut c).unwrap(), off);
+    let got = store_message(&mut c, tmp.path(), meta("offline", "o2", "t", "s"), b"x").unwrap();
+    assert_eq!(got, Stored::Disabled);
+    assert!(matches!(
+        create_namespace(&mut c, "a@x.test", "another"),
+        Err(MockError::Disabled)
+    ));
+    assert!(get_message(&mut c, "offline", "o1").unwrap().is_some());
+}
+
+#[test]
+fn a_shorter_retention_expires_older_mail_on_the_next_sweep() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut c = conn("retention");
+    create_namespace(&mut c, "a@x.test", "short").unwrap();
+    store_message(&mut c, tmp.path(), meta("short", "r1", "t", "s"), b"x").unwrap();
+    save_settings(
+        &mut c,
+        &Settings {
+            retention_days: 1,
+            ..Settings::default()
+        },
+    )
+    .unwrap();
+    let two_days = now_ms() + 2 * 86_400_000;
+    assert_eq!(sweep(&mut c, tmp.path(), two_days).unwrap().expired, 1);
 }

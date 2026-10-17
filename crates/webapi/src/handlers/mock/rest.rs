@@ -8,7 +8,7 @@ use axum::Json;
 use axum::extract::{Extension, Path, Query, State};
 use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
-use mailrs_core_sidestate::families::mock::{Filter, MAX_MESSAGES};
+use mailrs_core_sidestate::families::mock::{Filter, MAX_LISTING};
 use serde::Deserialize;
 
 use super::messages;
@@ -42,10 +42,11 @@ pub struct CreateNamespace {
 }
 
 pub async fn create_namespace(
+    State(state): State<Arc<WebState>>,
     (Extension(AuthedUser(user)), Extension(scopes)): Auth,
     Json(body): Json<CreateNamespace>,
 ) -> Result<impl IntoResponse, MockApiError> {
-    let created = service::create_namespace(&caller(user, &scopes), &body.name).await?;
+    let created = service::create_namespace(&state, &caller(user, &scopes), &body.name).await?;
     Ok((StatusCode::CREATED, Json(created)))
 }
 
@@ -113,7 +114,7 @@ impl MessageQuery {
             from: self.from.clone(),
             subject: self.subject.clone(),
             since: self.since,
-            limit: self.limit.unwrap_or(50).clamp(1, MAX_MESSAGES),
+            limit: self.limit.unwrap_or(50).clamp(1, MAX_LISTING),
         }
     }
 }

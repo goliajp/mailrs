@@ -74,6 +74,19 @@ pub(crate) async fn add_account_route(
         Argon2,
         password_hash::{PasswordHasher, SaltString, rand_core::OsRng as ArgonRng},
     };
+    if req.password.is_empty() {
+        return axum::http::StatusCode::BAD_REQUEST.into_response();
+    }
+    // creating over an existing address used to rewrite the whole blob,
+    // resetting quota and recovery email; password changes have their own route
+    match state.mailbox.get_account_blob(&req.address) {
+        Ok(None) => {}
+        Ok(Some(_)) => return axum::http::StatusCode::CONFLICT.into_response(),
+        Err(e) => {
+            tracing::error!(err = %e, addr = %req.address, "get_account_blob failed");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    }
     let salt = SaltString::generate(&mut ArgonRng);
     let hash = match Argon2::default().hash_password(req.password.as_bytes(), &salt) {
         Ok(h) => h.to_string(),

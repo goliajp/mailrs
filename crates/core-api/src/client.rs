@@ -42,10 +42,18 @@ impl Client {
     ) -> ApiResult<T> {
         let status = resp.status().as_u16();
         match status {
-            200..=299 => resp
-                .json::<T>()
-                .await
-                .map_err(|e| CoreApiError::Internal(format!("{context} decode: {e}"))),
+            // an empty body is read as `null`, which is what `()` and
+            // `Option<_>` decode from: a core answering 204 to a write
+            // otherwise reported the write as failed after it landed
+            200..=299 => {
+                let body = resp
+                    .bytes()
+                    .await
+                    .map_err(|e| CoreApiError::Internal(format!("{context} read: {e}")))?;
+                let body: &[u8] = if body.is_empty() { b"null" } else { &body };
+                serde_json::from_slice::<T>(body)
+                    .map_err(|e| CoreApiError::Internal(format!("{context} decode: {e}")))
+            }
             401 => Err(CoreApiError::Unauthorized),
             403 => Err(CoreApiError::Forbidden),
             404 => Err(CoreApiError::NotFound(context.into())),

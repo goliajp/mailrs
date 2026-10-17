@@ -86,6 +86,10 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
     let mut app = unauth
         .merge(authenticated)
         .merge(mcp)
+        // an unknown API path is a 404, not the web app's index.html with a
+        // 200: a client calling a wrong path otherwise parses HTML and the
+        // error it reports names neither the path nor the cause
+        .route("/api/{*rest}", axum::routing::any(api_not_found))
         .layer(axum::extract::DefaultBodyLimit::max(MAX_MULTIPART_BODY))
         .layer(
             tower_http::trace::TraceLayer::new_for_http()
@@ -130,4 +134,11 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         );
     }
     app
+}
+
+async fn api_not_found(uri: axum::http::Uri) -> impl axum::response::IntoResponse {
+    (
+        axum::http::StatusCode::NOT_FOUND,
+        axum::Json(serde_json::json!({ "error": format!("no API route {}", uri.path()) })),
+    )
 }

@@ -1,5 +1,6 @@
 //! The audit **read** surface: reading another account's mail with the
-//! access recorded. Every route here is behind `admin.impersonate`.
+//! access recorded. Every route here sits under `/api/admin/`, so the
+//! admin middleware (`require_admin`) is the only gate.
 //!
 //! Distinct from `audit.rs`, which is the recorder these call into. The
 //! two were nearly merged by a careless split on 2026-08-02 — the reader
@@ -16,7 +17,6 @@ use axum::{
 
 use crate::WebState;
 use crate::handlers::conversations::AuthedUser;
-use crate::handlers::kevy_util::with_kevy;
 
 /// GET /api/admin/audit/accounts — return the registered accounts
 /// shaped for the audit panel.
@@ -52,8 +52,12 @@ pub async fn audit_accounts(
     Ok(Json(serde_json::json!({ "items": items })))
 }
 
+/// Which account an audit read is about. `user` is the original name and
+/// `target_user` the one the admin page and the MCP tools send; both work
+/// so links already handed around keep resolving.
 #[derive(Debug, serde::Deserialize)]
 pub struct AuditConversationsQuery {
+    #[serde(alias = "target_user")]
     pub user: Option<String>,
     #[serde(default = "default_audit_conv_limit")]
     pub limit: u32,
@@ -63,12 +67,16 @@ pub(crate) fn default_audit_conv_limit() -> u32 {
     100
 }
 
+fn core_status(e: mailrs_core_api::error::CoreApiError) -> StatusCode {
+    StatusCode::from_u16(e.status_code()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
+}
+
 /// GET /api/admin/audit/conversations?user=&limit= — list threads
 /// for the target user via fastcore RPC. Same shape as normal
-/// `/api/conversations` but scoped to any user (admin impersonation).
+/// `/api/conversations` but scoped to any user.
 pub async fn audit_conversations(
     State(state): State<Arc<WebState>>,
-    Extension(_user): Extension<AuthedUser>,
+    Extension(AuthedUser(actor)): Extension<AuthedUser>,
     axum::extract::Query(q): axum::extract::Query<AuditConversationsQuery>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let Some(target) = q.user else {
@@ -84,72 +92,62 @@ pub async fn audit_conversations(
         .core
         .list_conversations(&target, &req)
         .await
-        .map_err(|e| {
-            StatusCode::from_u16(e.status_code()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
-        })?;
-    let items: Vec<serde_json::Value> = resp
-        .items
-        .into_iter()
-        .map(|c| {
-            serde_json::json!({
-                "thread_id": c.thread_id,
-                "subject": c.subject,
-                "participants": c.participants,
-                "message_count": c.message_count,
-                "last_date": c.last_date,
-            })
-        })
-        .collect();
+        .map_err(core_status)?;
+    crate::handlers::audit::record(&actor, "audit.list_conversations", &target, "via web");
+    let items: Vec<serde_json::Value> = resp.items.into_iter().map(summary_json).collect();
     Ok(Json(serde_json::json!({
         "user": target,
         "items": items,
     })))
 }
 
-/// GET /api/admin/audit/conversations/{thread_id} — thread summary
-/// for admin audit. Returns thread aggregate fields (subject,
-/// participants, count) but NOT the message list — use
-/// `.../messages` for that.
-pub async fn audit_conversation_detail(
-    State(_state): State<Arc<WebState>>,
-    Extension(_user): Extension<AuthedUser>,
-    Path(thread_id): Path<String>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
-    // Best we can do without a user context: read thread aggregate
-    // directly from network kevy. Fastcore's per-user RPCs need a user.
-    let key = format!("mailrs:thread:{thread_id}");
-    let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::from))?;
-    if flat.is_empty() {
-        return Ok(Json(
-            serde_json::json!({ "thread_id": thread_id, "found": false }),
-        ));
-    }
-    let mut obj = serde_json::Map::new();
-    let mut i = 0;
-    while i + 1 < flat.len() {
-        let k = String::from_utf8_lossy(&flat[i]).to_string();
-        let v = String::from_utf8_lossy(&flat[i + 1]).to_string();
-        obj.insert(k, serde_json::Value::String(v));
-        i += 2;
-    }
-    obj.insert(
-        "thread_id".into(),
-        serde_json::Value::String(thread_id.clone()),
-    );
-    obj.insert("found".into(), serde_json::Value::Bool(true));
-    Ok(Json(serde_json::Value::Object(obj)))
+fn summary_json(c: mailrs_core_api::types::ConversationSummaryWire) -> serde_json::Value {
+    serde_json::json!({
+        "thread_id": c.thread_id,
+        "subject": c.subject,
+        "participants": c.participants,
+        "message_count": c.message_count,
+        "last_date": c.last_date,
+        "snippet": c.snippet,
+    })
 }
 
 #[derive(Debug, serde::Deserialize)]
 pub struct AuditConvMessagesQuery {
+    #[serde(alias = "target_user")]
     pub user: String,
 }
 
+/// GET /api/admin/audit/conversations/{thread_id}?user= — the thread's
+/// summary row as the target user sees it, read through the core like
+/// the list. The message list is `.../messages`.
+pub async fn audit_conversation_detail(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(actor)): Extension<AuthedUser>,
+    Path(thread_id): Path<String>,
+    axum::extract::Query(q): axum::extract::Query<AuditConvMessagesQuery>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let req = mailrs_core_api::method::conversation::ConversationsByIdsRequest {
+        thread_ids: vec![thread_id.clone()],
+        folder: None,
+    };
+    let resp = state
+        .core
+        .conversations_by_thread_ids(&q.user, &req)
+        .await
+        .map_err(core_status)?;
+    let summary = resp.items.into_iter().next().ok_or(StatusCode::NOT_FOUND)?;
+    crate::handlers::audit::record(&actor, "audit.read_thread", &q.user, &thread_id);
+    Ok(Json(summary_json(summary)))
+}
+
 /// GET /api/admin/audit/conversations/{thread_id}/messages?user=
-/// — the message list for a thread scoped to a target user.
+/// — the thread's messages as the target user has them, bodies and
+/// attachment metadata included (the same enrichment the MCP
+/// `audit_read_thread` tool returns).
 pub async fn audit_conversation_messages(
     State(state): State<Arc<WebState>>,
-    Extension(_user): Extension<AuthedUser>,
+    Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Path(thread_id): Path<String>,
     axum::extract::Query(q): axum::extract::Query<AuditConvMessagesQuery>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
@@ -157,21 +155,34 @@ pub async fn audit_conversation_messages(
         .core
         .list_thread_messages(&q.user, &thread_id)
         .await
-        .map_err(|e| {
-            StatusCode::from_u16(e.status_code()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
-        })?;
+        .map_err(core_status)?;
+    crate::handlers::audit::record(&actor, "audit.read_thread", &q.user, &thread_id);
+    let maildir_root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
+    let store = mailrs_message_store::MaildirStore;
+    let mut items = Vec::with_capacity(resp.items.len());
+    for w in resp.items {
+        items.push(
+            crate::handlers::conversations::enrich_with_body_public(
+                &store,
+                &maildir_root,
+                &q.user,
+                w,
+            )
+            .await,
+        );
+    }
     Ok(Json(serde_json::json!({
         "thread_id": thread_id,
         "user": q.user,
-        "items": resp.items,
+        "items": items,
     })))
 }
 
 /// GET /api/admin/audit/messages/{uid}/raw?user= — fetch raw envelope
-/// bytes for a message under an impersonated user. Reads maildir.
+/// bytes for a message under the target user. Reads maildir.
 pub async fn audit_message_raw(
     State(state): State<Arc<WebState>>,
-    Extension(_user): Extension<AuthedUser>,
+    Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Path(uid): Path<u32>,
     axum::extract::Query(q): axum::extract::Query<AuditConvMessagesQuery>,
 ) -> Result<axum::response::Response, StatusCode> {
@@ -181,19 +192,45 @@ pub async fn audit_message_raw(
         .await
         .map_err(|e| StatusCode::from_u16(e.status_code()).unwrap_or(StatusCode::NOT_FOUND))?;
     let maildir_root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
-    let Some((local, domain)) = q.user.split_once('@') else {
-        return Err(StatusCode::BAD_REQUEST);
+    let Some((path, id)) =
+        crate::handlers::messages::blob_ref_location(&maildir_root, &q.user, &wire.blob_ref)
+    else {
+        return Err(StatusCode::NOT_FOUND);
     };
-    let path = format!("{maildir_root}/{domain}/{local}");
-    let store = mailrs_message_store::MaildirStore;
     use mailrs_message_store::MessageStore;
-    let id = mailrs_message_store::MessageId(wire.blob_ref);
-    match store.fetch(&path, &id).await {
-        Ok(Some(bytes)) => axum::response::Response::builder()
-            .status(StatusCode::OK)
-            .header("content-type", "message/rfc822")
-            .body(axum::body::Body::from(bytes))
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR),
+    match mailrs_message_store::MaildirStore.fetch(&path, &id).await {
+        Ok(Some(bytes)) => {
+            crate::handlers::audit::record(&actor, "audit.read_raw", &q.user, &uid.to_string());
+            axum::response::Response::builder()
+                .status(StatusCode::OK)
+                .header("content-type", "message/rfc822")
+                .body(axum::body::Body::from(bytes))
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+        }
         _ => Err(StatusCode::NOT_FOUND),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn query<T: serde::de::DeserializeOwned>(qs: &str) -> T {
+        let uri: axum::http::Uri = format!("/x?{qs}").parse().unwrap();
+        axum::extract::Query::<T>::try_from_uri(&uri).unwrap().0
+    }
+
+    #[test]
+    fn audit_queries_accept_user_and_target_user() {
+        let by_user: AuditConversationsQuery = query("user=a%40b.c&limit=5");
+        let by_target: AuditConversationsQuery = query("target_user=a%40b.c");
+        assert_eq!(by_user.user.as_deref(), Some("a@b.c"));
+        assert_eq!(by_user.limit, 5);
+        assert_eq!(by_target.user.as_deref(), Some("a@b.c"));
+        assert_eq!(by_target.limit, 100);
+        let m: AuditConvMessagesQuery = query("target_user=x%40y.z");
+        assert_eq!(m.user, "x@y.z");
+        let m: AuditConvMessagesQuery = query("user=x%40y.z");
+        assert_eq!(m.user, "x@y.z");
     }
 }

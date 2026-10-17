@@ -395,10 +395,6 @@ pub(super) fn mail_routes() -> axum::Router<Arc<WebState>> {
             get(handlers::complete::audit_message_raw),
         )
         .route(
-            "/api/admin/config/smtp",
-            get(handlers::complete::get_smtp_config).post(handlers::complete::set_smtp_config),
-        )
-        .route(
             "/api/admin/system-config",
             get(handlers::complete::get_system_config),
         )
@@ -407,8 +403,8 @@ pub(super) fn mail_routes() -> axum::Router<Arc<WebState>> {
             // monolith serves. This lane had POST only, so editing or
             // resetting a setting answered 405.
             "/api/admin/system-config/{key}",
-            put(handlers::complete::set_system_config_key)
-                .post(handlers::complete::set_system_config_key)
+            put(handlers::complete::put_system_config_key)
+                .post(handlers::complete::put_system_config_key)
                 .delete(handlers::complete::delete_system_config_key),
         )
         .route(

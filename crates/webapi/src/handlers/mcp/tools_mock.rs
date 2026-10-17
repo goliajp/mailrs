@@ -5,7 +5,7 @@
 
 use std::time::Duration;
 
-use mailrs_core_sidestate::families::mock::{Filter, MAX_MESSAGES};
+use mailrs_core_sidestate::families::mock::{Filter, MAX_LISTING};
 use mailrs_mock::tool_params::{
     MockCreateNamespaceParams, MockDeleteMessagesParams, MockListMessagesParams,
     MockListNamespacesParams, MockNamespaceParams, MockNewAddressParams, MockReadMessageParams,
@@ -59,7 +59,7 @@ impl MailrsMcpService {
     ) -> Result<CallToolResult, McpError> {
         let caller = self.mock_caller()?;
         json(
-            service::create_namespace(&caller, &p.name)
+            service::create_namespace(&self.state, &caller, &p.name)
                 .await
                 .map_err(failed)?,
         )
@@ -120,7 +120,7 @@ impl MailrsMcpService {
             from: p.from,
             subject: p.subject,
             since: p.since,
-            limit: p.limit.unwrap_or(20).clamp(1, MAX_MESSAGES as u32) as usize,
+            limit: p.limit.unwrap_or(20).clamp(1, MAX_LISTING as u32) as usize,
         };
         json(
             messages::list_messages(&self.state, &caller, &p.namespace, filter)

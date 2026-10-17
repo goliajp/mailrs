@@ -12,21 +12,18 @@ export function PasswordCell({ account }: { account: AccountInfo }) {
 
   const updatePassword = useAdminMutation({
     invalidateKey: adminKeys.accounts(),
+    // its own route: re-posting the account to create one rewrote the
+    // whole account, resetting quota and recovery email
     mutationFn: (newPassword: string) =>
-      // `domain` is not sent: `AddAccountRequest` does not name it and the
-      // address already carries it, so it was dropped on arrival.
-      adminPost('/admin/accounts', {
-        address: account.address,
-        display_name: account.display_name,
+      adminPost(`/admin/accounts/${encodeURIComponent(account.address)}/password`, {
         password: newPassword,
       }),
     successMsg: () => `Password updated for "${account.address}"`,
   })
 
   const handleSave = () => {
-    const trimmed = password.trim()
-    if (!trimmed) return
-    updatePassword.mutate(trimmed, {
+    if (!password) return
+    updatePassword.mutate(password, {
       onSuccess: () => {
         setPassword('')
         setEditing(false)
@@ -64,7 +61,7 @@ export function PasswordCell({ account }: { account: AccountInfo }) {
       />
       <button
         className="text-success text-xs hover:opacity-80 disabled:opacity-50"
-        disabled={updatePassword.isPending || !password.trim()}
+        disabled={updatePassword.isPending || !password}
         onClick={handleSave}
       >
         {updatePassword.isPending ? '...' : 'Save'}

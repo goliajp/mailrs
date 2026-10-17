@@ -167,3 +167,28 @@ pub async fn admin_export(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(response)
 }
+
+#[cfg(test)]
+mod tests {
+    use mailrs_core_api::method::admin::AuditRowWire;
+
+    use crate::handlers::audit::AuditFact;
+
+    /// the row this crate's recorder writes must be one its reader keeps
+    #[test]
+    fn a_recorded_fact_reads_back_as_an_audit_row() {
+        let fact = AuditFact {
+            id: 12,
+            occurred_at: 1_790_000_000,
+            recorded_at: 1_790_000_000,
+            actor: "admin@example.com".into(),
+            action: "domain.create".into(),
+            target: "example.org".into(),
+            detail: String::new(),
+        };
+        let bytes = serde_json::to_vec(&fact).unwrap();
+        let row: AuditRowWire = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(row.timestamp, 1_790_000_000);
+        assert_eq!(row.action, "domain.create");
+    }
+}

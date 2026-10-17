@@ -1,12 +1,16 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
+import { createStore, Provider as JotaiProvider } from 'jotai'
 import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { authAtom } from '@/store/auth'
 
 import { MockMail } from '../mock'
 
 const NAMESPACE = {
   address: 'insight.test@mock.golia.jp',
+  bytes: 0,
   created_at: 1_792_195_000_000,
   dropped: 0,
   messages: 2,
@@ -32,14 +36,24 @@ const META = {
   uid: 1,
 }
 
-function renderAt(url: string) {
+function renderAt(url: string, permissions: string[] = []) {
   const client = new QueryClient({ defaultOptions: { queries: { gcTime: 0, retry: false } } })
+  const store = createStore()
+  store.set(authAtom, {
+    accessible_domains: [],
+    address: 'lihao@golia.jp',
+    display_name: 'L',
+    permissions,
+    token: 't',
+  })
   return render(
-    <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[url]}>
-        <MockMail />
-      </MemoryRouter>
-    </QueryClientProvider>
+    <JotaiProvider store={store}>
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={[url]}>
+          <MockMail />
+        </MemoryRouter>
+      </QueryClientProvider>
+    </JotaiProvider>
   )
 }
 
@@ -106,6 +120,28 @@ describe('<MockMail />', () => {
     expect(screen.getByText('captured-out')).toBeInTheDocument()
     expect(screen.getByText('in')).toBeInTheDocument()
     expect(screen.getByText('insight.test@mock.golia.jp')).toBeInTheDocument()
-    expect(screen.getByText('2 messages · 0 dropped')).toBeInTheDocument()
+    expect(screen.getByText('2 messages, 0 B, 0 dropped')).toBeInTheDocument()
+  })
+
+  it('lets an admin list everyone’s namespaces, with their owners', async () => {
+    const fetchMock = stubFetch({
+      '/api/mock/namespaces': [200, { namespaces: [{ ...NAMESPACE, owner: 'ann@golia.jp' }] }],
+    })
+    renderAt('/mock?scope=all', ['admin.accounts'])
+    expect(await screen.findByText('ann@golia.jp')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Everyone’s' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+    expect(String(fetchMock.mock.calls[0][0])).toContain('all=true')
+    expect(screen.queryByLabelText('New namespace name')).toBeNull()
+  })
+
+  it('ignores the scope for someone who is not an admin', async () => {
+    const fetchMock = stubFetch({ '/api/mock/namespaces': [200, { namespaces: [NAMESPACE] }] })
+    renderAt('/mock?scope=all')
+    expect(await screen.findByText('insight')).toBeInTheDocument()
+    expect(String(fetchMock.mock.calls[0][0])).not.toContain('all=true')
+    expect(screen.queryByRole('group', { name: 'Whose namespaces' })).toBeNull()
   })
 })

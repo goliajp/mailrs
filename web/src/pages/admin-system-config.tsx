@@ -9,16 +9,17 @@ import { useAdminMutation } from '@/hooks/use-admin-mutations'
 import { adminKeys } from '@/lib/query-keys'
 import { adminDelete, adminObjectGet, adminPut } from '@/wire/endpoints/admin'
 
+// Backend: crates/webapi/src/handlers/system_config.rs — fn get_system_config
 type ConfigEntry = {
   default_value: string
   description: string
   group: string
   key: string
   source: string
-  updated_at?: string
+  /** unix seconds; only on a value saved from this page or the MCP tool */
+  updated_at?: number
   updated_by?: string
   value: string
-  value_type: string
 }
 
 type GroupedEntries = Record<string, ConfigEntry[]>
@@ -30,10 +31,10 @@ type SystemConfigResponse = {
 }
 
 const GROUP_LABELS: Record<string, string> = {
-  ai: 'AI',
-  antispam: 'Anti-Spam',
+  custom: 'Custom',
+  imap: 'IMAP',
   security: 'Security',
-  webhook: 'Webhook',
+  smtp: 'SMTP',
 }
 
 const SOURCE_STYLES: Record<string, string> = {
@@ -59,19 +60,14 @@ export function AdminSystemConfig() {
     queryFn: ({ signal }) => adminObjectGet<SystemConfigResponse>('/admin/system-config', signal),
   })
 
-  const entries: ConfigEntry[] = response && response.success ? (response.entries ?? []) : []
-  const error: Error | null =
-    queryError instanceof Error
-      ? queryError
-      : response && !response.success
-        ? new Error(response.message ?? 'Failed to load configuration')
-        : null
+  const entries = response?.entries ?? EMPTY_ENTRIES
+  const error = loadError(queryError, response)
 
   const saveConfig = useAdminMutation({
     invalidateKey: adminKeys.systemConfig(),
     mutationFn: (vars: { key: string; value: string }) =>
       adminPut(`/admin/system-config/${encodeURIComponent(vars.key)}`, { value: vars.value }),
-    successMsg: (vars) => `"${vars.key}" updated`,
+    successMsg: (vars) => `"${vars.key}" saved`,
   })
 
   const resetConfig = useAdminMutation({
@@ -96,112 +92,47 @@ export function AdminSystemConfig() {
   }
   const sortedGroups = Object.keys(grouped).sort()
 
-  return (
-    <AdminPageShell
-      subtitle="Runtime server settings. Changes to database-sourced values take effect immediately."
-      title="System Configuration"
-    >
-      {isPending ? (
-        <PanelGroupSkeleton />
-      ) : error ? (
-        <AdminErrorState error={error} onRetry={() => refetch()} />
-      ) : entries.length === 0 ? (
+  const renderBody = () => {
+    if (isPending) return <PanelGroupSkeleton />
+    if (error) return <AdminErrorState error={error} onRetry={() => refetch()} />
+    if (entries.length === 0) {
+      return (
         <AdminEmptyState
-          description="The server didn't return any configurable settings."
+          description="The server returned no settings"
           icon={<Settings2 className="h-10 w-10" />}
           title="No configuration entries"
         />
-      ) : (
-        <div className="flex flex-col gap-4">
-          {sortedGroups.map((group) => (
-            <GroupCard group={group} key={group}>
-              {grouped[group].map((entry) => (
-                <ConfigField
-                  entry={entry}
-                  key={entry.key}
-                  onReset={handleReset}
-                  onSave={handleSave}
-                />
-              ))}
-            </GroupCard>
-          ))}
-        </div>
-      )}
+      )
+    }
+    return (
+      <div className="flex flex-col gap-4">
+        {sortedGroups.map((group) => (
+          <GroupCard group={group} key={group}>
+            {grouped[group].map((entry) => (
+              <ConfigField
+                entry={entry}
+                key={entry.key}
+                onReset={handleReset}
+                onSave={handleSave}
+              />
+            ))}
+          </GroupCard>
+        ))}
+      </div>
+    )
+  }
+
+  return (
+    <AdminPageShell
+      subtitle="Server settings and where each value comes from"
+      title="System Configuration"
+    >
+      {renderBody()}
     </AdminPageShell>
   )
 }
 
-// render the appropriate form control based on value_type
-function ConfigControl({
-  onChange,
-  value,
-  valueType,
-}: {
-  onChange: (v: string) => void
-  value: string
-  valueType: string
-}) {
-  if (valueType === 'bool') {
-    const checked = value === 'true'
-    return (
-      <button
-        aria-checked={checked}
-        aria-label="Toggle value"
-        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors ${
-          checked ? 'bg-accent' : 'bg-gray-300 dark:bg-gray-600'
-        }`}
-        onClick={() => onChange(checked ? 'false' : 'true')}
-        role="switch"
-        type="button"
-      >
-        <span
-          className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
-            checked ? 'translate-x-6' : 'translate-x-1'
-          }`}
-        />
-      </button>
-    )
-  }
-
-  if (valueType === 'f64') {
-    return (
-      <input
-        className="border-border bg-bg-secondary w-full max-w-xs rounded-md border px-3 py-1.5 text-sm"
-        onChange={(e) => onChange(e.target.value)}
-        step="any"
-        type="number"
-        value={value}
-      />
-    )
-  }
-
-  if (valueType.startsWith('enum:')) {
-    const options = valueType.slice(5).split(',')
-    return (
-      <select
-        className="border-border bg-bg-secondary rounded-md border px-3 py-1.5 text-sm"
-        onChange={(e) => onChange(e.target.value)}
-        value={value}
-      >
-        {options.map((opt) => (
-          <option key={opt} value={opt}>
-            {opt}
-          </option>
-        ))}
-      </select>
-    )
-  }
-
-  // default: string input
-  return (
-    <input
-      className="border-border bg-bg-secondary w-full max-w-md rounded-md border px-3 py-1.5 text-sm"
-      onChange={(e) => onChange(e.target.value)}
-      type="text"
-      value={value}
-    />
-  )
-}
+const EMPTY_ENTRIES: ConfigEntry[] = []
 
 function ConfigField({
   entry,
@@ -222,6 +153,7 @@ function ConfigField({
   }, [entry.value])
 
   const dirty = localValue !== entry.value
+  const saved = savedBy(entry)
 
   const handleSave = async () => {
     setSaving(true)
@@ -246,23 +178,25 @@ function ConfigField({
       <div className="mb-1.5 flex flex-wrap items-center gap-2">
         <code className="text-fg text-sm font-medium">{entry.key}</code>
         <SourceBadge source={entry.source} />
-        {entry.updated_by && (
-          <span className="text-fg-muted text-xs">
-            by {entry.updated_by}
-            {entry.updated_at ? ` on ${new Date(entry.updated_at).toLocaleDateString()}` : ''}
-          </span>
-        )}
+        {saved && <span className="text-fg-muted text-xs">{saved}</span>}
       </div>
       {entry.description && <p className="text-fg-secondary mb-2 text-xs">{entry.description}</p>}
       <div className="flex flex-wrap items-center gap-2">
-        <ConfigControl onChange={setLocalValue} value={localValue} valueType={entry.value_type} />
+        <input
+          aria-label={entry.key}
+          className="border-border bg-bg-secondary w-full max-w-md rounded-md border px-3 py-1.5 text-sm"
+          onChange={(e) => setLocalValue(e.target.value)}
+          type="text"
+          value={localValue}
+        />
         <button
           className="bg-fg text-bg inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors hover:opacity-90 disabled:opacity-50"
           disabled={!dirty || saving}
           onClick={handleSave}
         >
           <Save className="h-3 w-3" />
-          {saving ? 'Saving...' : 'Save'}
+          {saving && 'Saving...'}
+          {!saving && 'Save'}
         </button>
         {entry.source === 'database' && (
           <button
@@ -271,7 +205,8 @@ function ConfigField({
             onClick={handleReset}
           >
             <RotateCcw className="h-3 w-3" />
-            {resetting ? 'Resetting...' : 'Reset to default'}
+            {resetting && 'Resetting...'}
+            {!resetting && 'Reset to default'}
           </button>
         )}
       </div>
@@ -289,6 +224,14 @@ function GroupCard({ children, group }: { children: ReactNode; group: string }) 
       {children}
     </div>
   )
+}
+
+function loadError(queryError: unknown, response: SystemConfigResponse | undefined): Error | null {
+  if (queryError instanceof Error) return queryError
+  if (response && !response.success) {
+    return new Error(response.message ?? 'Failed to load configuration')
+  }
+  return null
 }
 
 function PanelGroupSkeleton() {
@@ -309,6 +252,13 @@ function PanelGroupSkeleton() {
       ))}
     </div>
   )
+}
+
+function savedBy(entry: ConfigEntry): null | string {
+  if (entry.updated_at === undefined) return null
+  const on = new Date(entry.updated_at * 1000).toLocaleString()
+  if (entry.updated_by) return `Saved by ${entry.updated_by} on ${on}`
+  return `Saved on ${on}`
 }
 
 function SourceBadge({ source }: { source: string }) {

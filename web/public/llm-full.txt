@@ -1086,7 +1086,14 @@ curl https://mail.golia.ai/api/admin/apps \
 curl -X POST https://mail.golia.ai/api/admin/apps \
   -H "Authorization: Bearer mlrs_..." \
   -H "Content-Type: application/json" \
-  -d '{"name": "My Integration", "scopes": "mail.send,mail.read"}'
+  -d '{"name": "My Integration", "scopes": ["mail.send", "mail.read"]}'
+# -> {"id": 1, "app_id": "app_1", "secret": "..."}; the secret is returned only here
+
+# replace an app's scopes (204)
+curl -X PUT https://mail.golia.ai/api/admin/apps/{app_id}/scopes \
+  -H "Authorization: Bearer mlrs_..." \
+  -H "Content-Type: application/json" \
+  -d '{"scopes": ["mail.read"]}'
 
 # get app details
 curl https://mail.golia.ai/api/admin/apps/{app_id} \
@@ -1094,10 +1101,6 @@ curl https://mail.golia.ai/api/admin/apps/{app_id} \
 
 # delete app
 curl -X DELETE https://mail.golia.ai/api/admin/apps/{app_id} \
-  -H "Authorization: Bearer mlrs_..."
-
-# rotate app API key
-curl -X POST https://mail.golia.ai/api/admin/apps/{app_id}/rotate-key \
   -H "Authorization: Bearer mlrs_..."
 ```
 
@@ -1126,8 +1129,8 @@ curl https://mail.golia.ai/api/health
 # readiness check (no auth)
 curl https://mail.golia.ai/api/readiness
 
-# SMTP config summary
-curl https://mail.golia.ai/api/admin/config/smtp \
+# where mail is in the server right now (admin)
+curl https://mail.golia.ai/api/admin/flow \
   -H "Authorization: Bearer mlrs_..."
 ```
 
@@ -1264,9 +1267,11 @@ Revocation is immediate. Cached credentials are evicted from Valkey.
 
 ### App API Keys
 
-App keys are created when registering an app via `POST /api/admin/apps` or the MCP `create_app` tool. They have explicit scopes (comma-separated permission names) rather than inheriting from a user account.
+An app's secret is created when registering it via `POST /api/admin/apps` or the MCP `create_app` tool, and returned only in that response. Apps carry an explicit scope list rather than inheriting from a user account.
 
-Scopes use the same permission names as the RBAC system (e.g., `mail.send,mail.read,admin.aliases`).
+Scopes use the same permission names as the RBAC system (e.g., `["mail.send", "mail.read", "admin.aliases"]`).
+
+No API endpoint accepts an app secret as a credential yet; machine callers authenticate with agent keys (`mk_...`, `POST /api/agent/keys`).
 
 ### internal.rpc
 

@@ -58,7 +58,7 @@ function adminWrites(): string[] {
         if (e.name !== '__tests__') walk(p)
       } else if (/\.tsx?$/.test(e.name) && !/\.test\.tsx?$/.test(e.name)) {
         const src = readFileSync(p, 'utf8')
-        for (const m of src.matchAll(/admin(?:Post|Put|Patch)\(\s*[`']([^`']+)[`']/g)) {
+        for (const m of src.matchAll(/admin(?:Post|Put|Patch)(?:<[^(]*>)?\(\s*[`']([^`']+)[`']/g)) {
           // Strip template holes so `/admin/accounts/${x}/sieve` and a
           // literal path collapse to one entry.
           out.add(normalisePath(m[1]))
@@ -100,7 +100,7 @@ function covered(): Set<string> {
 function coveredAdminPaths(): Set<string> {
   const src = readFileSync(join(import.meta.dirname, 'request-contract.test.ts'), 'utf8')
   const out = new Set<string>()
-  for (const m of src.matchAll(/admin(?:Post|Put|Patch)\(\s*[`']([^`']+)[`']/g)) {
+  for (const m of src.matchAll(/admin(?:Post|Put|Patch)(?:<[^(]*>)?\(\s*[`']([^`']+)[`']/g)) {
     out.add(normalisePath(m[1]))
   }
   return out
@@ -121,10 +121,11 @@ function normalisePath(p: string): string {
  * Admin paths whose body nothing checks, with why.
  *
  * Same contract as UNCOVERED: a name here is debt, and the reason has to
- * say what it is waiting on. All four remaining send no body at all — the
- * state is in the path — so there is no shape to pin.
+ * say what it is waiting on. Most send no body at all — the state is in
+ * the path — so there is no shape to pin.
  */
 const ADMIN_UNCOVERED: Record<string, string> = {
+  '/admin/domains/{}/check': 'DNS check; sends no body, the domain is the path',
   '/conversations/{}/read{}': 'mark-read; sends no body, the state is the path',
   '/conversations/{}/star': 'star toggle; sends no body, the state is the path',
   '/conversations/{}/unread{}': 'mark-unread; sends no body, the state is the path',
