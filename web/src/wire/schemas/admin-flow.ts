@@ -8,7 +8,9 @@
 import { z } from 'zod'
 
 export const adminFlowSchema = z.object({
-  mock: z.object({ bytes: z.number(), max_bytes: z.number(), received: z.number() }).nullable(),
+  mock: z
+    .object({ bytes: z.number(), max_bytes: z.number(), received: z.number(), stored: z.number() })
+    .nullable(),
   outbound: z
     .object({
       failed: z.number(),

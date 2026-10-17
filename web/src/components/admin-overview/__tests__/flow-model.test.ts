@@ -7,7 +7,7 @@ import { attentionItems, bytes, lanesOf } from '../flow-model'
 const OUT = { failed: 0, queued: 2, retrying: 1, scheduled: 0 }
 
 const FLOW: AdminFlow = {
-  mock: { bytes: 877, max_bytes: 2_147_483_648, received: 5 },
+  mock: { bytes: 877, max_bytes: 2_147_483_648, received: 5, stored: 2 },
   outbound: OUT,
   receiving: { active_connections: 1, connections: 126, spooled: 10, uptime_secs: 11_060 },
   spool_backlog: 0,

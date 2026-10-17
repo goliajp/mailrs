@@ -306,37 +306,7 @@ impl KevyMailboxStore {
         let msgs_zset = keys::thread_messages(thread_id);
         let store = self.store();
 
-        // Enumerate messages OUTSIDE the atomic block: AtomicCtx has no
-        // `zrange`, and every blob is a plain `get` — one round trip
-        // per message on a typical thread (< 20 hops).
-        let members = store.zrange(msgs_zset.as_bytes(), 0, -1)?;
-        let mut per_msg: Vec<(String, Option<u32>, Option<String>)> =
-            Vec::with_capacity(members.len());
-        for (mid_bytes, _score) in &members {
-            let Ok(mid) = std::str::from_utf8(mid_bytes) else {
-                continue;
-            };
-            let blob = store.get(keys::message_blob(mid).as_bytes())?;
-            let (uid, blob_ref) = match blob.as_deref() {
-                Some(bytes) => {
-                    let v: serde_json::Value =
-                        serde_json::from_slice(bytes).unwrap_or(serde_json::Value::Null);
-                    let uid = v
-                        .get("uid")
-                        .and_then(|x| x.as_u64())
-                        .filter(|u| *u > 0)
-                        .map(|u| u as u32);
-                    let blob_ref = v
-                        .get("blob_ref")
-                        .and_then(|x| x.as_str())
-                        .filter(|s| !s.is_empty())
-                        .map(String::from);
-                    (uid, blob_ref)
-                }
-                None => (None, None),
-            };
-            per_msg.push((mid.to_string(), uid, blob_ref));
-        }
+        let per_msg = self.thread_message_files(user, thread_id)?;
         let blob_refs: Vec<String> = per_msg.iter().filter_map(|(_, _, br)| br.clone()).collect();
 
         // No "hclear" in kevy 3.17; keep the explicit field list. Single
