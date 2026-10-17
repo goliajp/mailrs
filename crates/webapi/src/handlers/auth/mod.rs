@@ -13,9 +13,11 @@ use crate::WebState;
 use crate::handlers::conversations::{AuthedDisplayName, AuthedUser};
 
 mod credentials;
+mod revoke;
 mod session;
 
 pub use credentials::*;
+pub use revoke::*;
 pub use session::*;
 
 fn map_err(e: mailrs_core_api::error::CoreApiError) -> StatusCode {

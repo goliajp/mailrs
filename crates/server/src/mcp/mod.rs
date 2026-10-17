@@ -174,8 +174,6 @@ impl MailMcpService {
 
     // --- greylist local lists (Phase 2) ---
 
-    // --- app management ---
-
     // --- webhook management ---
 
     // --- mail operations ---

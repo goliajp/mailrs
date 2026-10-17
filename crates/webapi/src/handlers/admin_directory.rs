@@ -78,13 +78,9 @@ async fn stored_aliases(state: &WebState) -> Result<Vec<(String, String)>, Statu
         .collect())
 }
 
-/// GET /api/admin/aliases — read from fastcore's alias store, the one
-/// inbound delivery resolves against.
-pub async fn list_aliases(
-    State(state): State<Arc<WebState>>,
-    Extension(_user): Extension<AuthedUser>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
-    let items: Vec<AliasRow> = stored_aliases(&state)
+/// Every alias as the admin list reports it. Shared by REST and MCP.
+pub(crate) async fn alias_rows(state: &WebState) -> Result<Vec<AliasRow>, StatusCode> {
+    Ok(stored_aliases(state)
         .await?
         .into_iter()
         .map(|(source, target)| AliasRow {
@@ -93,7 +89,54 @@ pub async fn list_aliases(
             source_address: source,
             target_address: target,
         })
-        .collect();
+        .collect())
+}
+
+/// Write `source → target` to fastcore's alias store. Shared by REST and MCP.
+pub(crate) async fn store_alias(
+    state: &WebState,
+    source: &str,
+    target: &str,
+) -> Result<(), StatusCode> {
+    state
+        .core
+        .upsert_local_alias(source, target)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    // a new source domain is added to the domain index, which the admin
+    // dropdowns read; the alias is already written, so a failure only warns
+    if let Some((_, domain)) = source.split_once('@')
+        && let Err(e) = state.core.add_domain(domain).await
+    {
+        tracing::warn!(err = %e, %domain, "add_domain self-heal from add_alias failed");
+    }
+    Ok(())
+}
+
+/// Delete the alias whose source is `source`; 404 when the store holds
+/// none. Shared by REST and MCP.
+pub(crate) async fn delete_alias(state: &WebState, source: &str) -> Result<(), StatusCode> {
+    if !stored_aliases(state)
+        .await?
+        .iter()
+        .any(|(s, _)| s == source)
+    {
+        return Err(StatusCode::NOT_FOUND);
+    }
+    state
+        .core
+        .delete_local_alias(source)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+}
+
+/// GET /api/admin/aliases — read from fastcore's alias store, the one
+/// inbound delivery resolves against.
+pub async fn list_aliases(
+    State(state): State<Arc<WebState>>,
+    Extension(_user): Extension<AuthedUser>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let items = alias_rows(&state).await?;
     Ok(Json(serde_json::json!({ "items": items })))
 }
 
@@ -112,18 +155,7 @@ pub async fn add_alias(
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Json(req): Json<AddAliasRequest>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    state
-        .core
-        .upsert_local_alias(&req.source_address, &req.target_address)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    // a new source domain is added to the domain index, which the admin
-    // dropdowns read; the alias is already written, so a failure only warns
-    if let Some((_, domain)) = req.source_address.split_once('@')
-        && let Err(e) = state.core.add_domain(domain).await
-    {
-        tracing::warn!(err = %e, %domain, "add_domain self-heal from add_alias failed");
-    }
+    store_alias(&state, &req.source_address, &req.target_address).await?;
     super::audit::record(
         &actor,
         "alias.create",
@@ -140,18 +172,7 @@ pub async fn remove_alias(
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Path(source): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
-    if !stored_aliases(&state)
-        .await?
-        .iter()
-        .any(|(s, _)| *s == source)
-    {
-        return Err(StatusCode::NOT_FOUND);
-    }
-    state
-        .core
-        .delete_local_alias(&source)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    delete_alias(&state, &source).await?;
     super::audit::record(&actor, "alias.delete", &source, "");
     Ok(StatusCode::NO_CONTENT)
 }

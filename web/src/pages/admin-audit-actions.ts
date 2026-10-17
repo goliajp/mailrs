@@ -12,7 +12,6 @@ export const ACTION_GROUPS: { label: string; prefixes: string[]; value: string }
   { label: 'Aliases', prefixes: ['alias.'], value: 'alias' },
   { label: 'Permission groups', prefixes: ['group.'], value: 'group' },
   { label: 'Email groups', prefixes: ['email_group.'], value: 'email_group' },
-  { label: 'Apps', prefixes: ['app.'], value: 'app' },
   { label: 'Webhooks', prefixes: ['webhook.'], value: 'webhook' },
   { label: 'Sieve filters', prefixes: ['sieve.'], value: 'sieve' },
   { label: 'Delivery failures and bounces', prefixes: ['mail.'], value: 'mail' },

@@ -6,11 +6,9 @@ use std::sync::Arc;
 
 use mailrs_core::spool::SpoolEnvelope;
 
-use super::deliver::{
-    canonical_recipient, deliver, enqueue_outbound, enqueue_redirect, has_maildir,
-    provision_if_account,
-};
+use super::deliver::{deliver, enqueue_outbound, enqueue_redirect, ensure_maildir};
 use super::reported_to;
+use super::route::{Route, local_mailbox, route};
 use crate::FastcoreState;
 
 /// The spooled message being delivered.
@@ -22,37 +20,88 @@ pub(super) struct Inbound<'a> {
     pub env: &'a SpoolEnvelope,
 }
 
-/// The local mailbox `fwd` delivers to: its own maildir, an account that
-/// gets its maildir now, or the alias target that has either.
+/// The local mailbox `fwd` delivers to, its maildir made if it is an
+/// account that has none. A lookup error counts as no mailbox here: a
+/// group member that cannot be looked up is left unresolved.
 pub(super) fn resolve_local(
     state: &Arc<FastcoreState>,
     maildir_root: &str,
     fwd: &str,
 ) -> Option<String> {
-    own_mailbox(state, maildir_root, fwd).or_else(|| aliased(state, maildir_root, fwd))
+    let mailbox = local_mailbox(state, maildir_root, fwd)
+        .inspect_err(|e| tracing::warn!(%fwd, error = %e, "recipient lookup failed"))
+        .ok()
+        .flatten()?;
+    ensure_maildir(maildir_root, &mailbox).then_some(mailbox)
 }
 
-/// `fwd` itself, when it has a maildir or is an account.
-pub(super) fn own_mailbox(
-    state: &Arc<FastcoreState>,
-    maildir_root: &str,
-    fwd: &str,
-) -> Option<String> {
-    // an account that was never provisioned a maildir (fresh add_account)
-    // gets the skeleton so its very first mail lands
-    (has_maildir(maildir_root, fwd) || provision_if_account(state, maildir_root, fwd))
-        .then(|| fwd.to_string())
+/// How many copies of the message were consumed, and the addresses left
+/// unresolved.
+pub(super) struct Copies {
+    pub delivered: usize,
+    pub unresolved: Vec<String>,
 }
 
-/// The alias target of `fwd`, a domain catch-all included, when that
-/// target has a mailbox.
-pub(super) fn aliased(state: &Arc<FastcoreState>, maildir_root: &str, fwd: &str) -> Option<String> {
-    let a = canonical_recipient(&state.alias_store.resolve(fwd).ok().flatten()?);
-    if has_maildir(maildir_root, &a) || provision_if_account(state, maildir_root, &a) {
-        tracing::info!(orig = %fwd, aliased = %a, "spool alias resolved");
-        Some(a)
-    } else {
-        None
+impl Copies {
+    pub(super) fn none() -> Self {
+        Self {
+            delivered: 0,
+            unresolved: Vec::new(),
+        }
+    }
+
+    fn done() -> Self {
+        Self {
+            delivered: 1,
+            unresolved: Vec::new(),
+        }
+    }
+
+    fn missed(addr: &str) -> Self {
+        Self {
+            delivered: 0,
+            unresolved: vec![addr.to_string()],
+        }
+    }
+}
+
+impl Inbound<'_> {
+    /// One envelope recipient's copy. `raw` is the recipient as received,
+    /// `fwd` its canonical form.
+    pub(super) fn deliver_to(&self, raw: &str, fwd: &str) -> Copies {
+        let found = match route(self.state, self.maildir_root, raw, fwd) {
+            Ok(found) => found,
+            Err(e) => {
+                tracing::warn!(%fwd, error = %e, "recipient lookup failed; retried next tick");
+                return Copies::missed(fwd);
+            }
+        };
+        let mailbox = match found {
+            // never delivered locally: relayed back to whoever we forwarded for
+            Route::Srs(original) => {
+                return match enqueue_outbound(&original, "", self.body) {
+                    Ok(()) => {
+                        tracing::info!(srs = %raw, %original, "SRS bounce relayed");
+                        Copies::done()
+                    }
+                    Err(e) => {
+                        tracing::warn!(srs = %raw, error = %e, "SRS relay failed");
+                        Copies::none()
+                    }
+                };
+            }
+            Route::Group(group) => return self.deliver_to_group(fwd, &group),
+            Route::Nobody => return Copies::missed(fwd),
+            Route::Own => fwd.to_string(),
+            Route::Alias(target) => {
+                tracing::info!(orig = %fwd, aliased = %target, "spool alias resolved");
+                target
+            }
+        };
+        match ensure_maildir(self.maildir_root, &mailbox) && self.deliver_resolved(fwd, &mailbox) {
+            true => Copies::done(),
+            false => Copies::missed(&mailbox),
+        }
     }
 }
 

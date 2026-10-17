@@ -4352,6 +4352,7 @@ dependencies = [
  "mailrs-clean",
  "mailrs-core-api",
  "mailrs-core-sidestate",
+ "mailrs-dkim",
  "mailrs-fastcore",
  "mailrs-ical",
  "mailrs-intelligence",

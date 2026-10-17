@@ -194,6 +194,14 @@ impl Client {
         Self::map_status_unit(resp, "upsert_local_alias").await
     }
 
+    /// GET /v1/admin/recipients/{address}/deliverable
+    pub async fn recipient_deliverable(&self, address: &str) -> ApiResult<bool> {
+        let path = format!("/v1/admin/recipients/{}/deliverable", Self::enc(address));
+        let resp: method::admin::RecipientDeliverableResponse =
+            self.get_authed(path, "recipient_deliverable").await?;
+        Ok(resp.deliverable)
+    }
+
     /// DELETE /v1/admin/aliases:local/{source}
     pub async fn delete_local_alias(&self, source: &str) -> ApiResult<()> {
         let path = format!("/v1/admin/aliases:local/{}", Self::enc(source));

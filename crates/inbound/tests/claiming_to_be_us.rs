@@ -76,6 +76,7 @@ fn it_reaches_junk_and_says_why() {
         recipient_whitelist: std::collections::HashSet::new(),
         recipient_blacklist: std::collections::HashSet::new(),
         local_domains: std::collections::HashSet::new(),
+        sender_allowed: false,
     };
 
     // Authentication alone lets it straight through — this is the part
@@ -165,6 +166,7 @@ fn an_unknown_persona_is_still_caught_by_the_mailer() {
         recipient_whitelist: std::collections::HashSet::new(),
         recipient_blacklist: std::collections::HashSet::new(),
         local_domains: std::collections::HashSet::new(),
+        sender_allowed: false,
     };
     assert!(
         matches!(

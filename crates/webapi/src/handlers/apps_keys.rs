@@ -1,4 +1,4 @@
-//! Apps, agent keys and agent webhooks — the machine-to-machine surface.
+//! Agent keys and agent webhooks — the machine-to-machine surface.
 
 use axum::{
     Json,
@@ -9,9 +9,6 @@ use axum::{
 use crate::handlers::complete::*;
 use crate::handlers::conversations::AuthedUser;
 use crate::handlers::kevy_util::with_kevy;
-
-mod apps;
-pub use apps::*;
 
 pub async fn list_agent_keys(
     Extension(AuthedUser(user)): Extension<AuthedUser>,

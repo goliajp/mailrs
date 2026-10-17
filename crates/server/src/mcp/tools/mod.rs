@@ -79,10 +79,6 @@ pub(crate) struct ListConversationsParams {
 
 // --- admin / user management parameter structs ---
 
-fn default_alias_type() -> String {
-    "alias".into()
-}
-
 fn default_event_type() -> String {
     "new_message".into()
 }
@@ -366,29 +362,35 @@ mod tests {
         let _params: ListAliasesAdminParams = serde_json::from_str(json).unwrap();
     }
 
-    #[test]
-    fn add_alias_params_schema() {
-        let schema = schema_for!(AddAliasParams);
-        let json = serde_json::to_string_pretty(&schema).unwrap();
-        assert!(json.contains("source_address"));
-        assert!(json.contains("target_address"));
-        assert!(json.contains("domain"));
-        assert!(json.contains("alias_type"));
+    fn properties(schema: schemars::Schema) -> Vec<String> {
+        let v = serde_json::to_value(schema).unwrap();
+        let mut keys: Vec<String> = v["properties"]
+            .as_object()
+            .unwrap()
+            .keys()
+            .cloned()
+            .collect();
+        keys.sort();
+        keys
     }
 
+    // the fastcore lane's shape: the REST routes take a source and a target,
+    // and delete by source
     #[test]
-    fn add_alias_params_default_type() {
-        let json =
-            r#"{"source_address": "a@b.com", "target_address": "c@b.com", "domain": "b.com"}"#;
-        let params: AddAliasParams = serde_json::from_str(json).unwrap();
-        assert_eq!(params.alias_type, "alias");
+    fn add_alias_params_schema() {
+        assert_eq!(
+            properties(schema_for!(AddAliasParams)),
+            ["source_address", "target_address"]
+        );
     }
 
     #[test]
     fn remove_alias_params_schema() {
-        let schema = schema_for!(RemoveAliasParams);
-        let json = serde_json::to_string_pretty(&schema).unwrap();
-        assert!(json.contains("id"));
+        assert_eq!(
+            properties(schema_for!(RemoveAliasParams)),
+            ["source_address"]
+        );
+        assert!(serde_json::from_str::<RemoveAliasParams>(r#"{"id":3}"#).is_err());
     }
 
     #[test]
@@ -426,34 +428,6 @@ mod tests {
         let schema = schema_for!(GreylistLocalRemoveParams);
         let json = serde_json::to_string_pretty(&schema).unwrap();
         assert!(json.contains("id"));
-    }
-
-    #[test]
-    fn list_apps_params_empty() {
-        let json = r#"{}"#;
-        let _params: ListAppsParams = serde_json::from_str(json).unwrap();
-    }
-
-    #[test]
-    fn create_app_params_schema() {
-        let schema = schema_for!(CreateAppParams);
-        let json = serde_json::to_string_pretty(&schema).unwrap();
-        assert!(json.contains("name"));
-        assert!(json.contains("scopes"));
-    }
-
-    #[test]
-    fn create_app_params_default_description() {
-        let json = r#"{"name": "My App", "scopes": "read,write"}"#;
-        let params: CreateAppParams = serde_json::from_str(json).unwrap();
-        assert_eq!(params.description, "");
-    }
-
-    #[test]
-    fn delete_app_params_schema() {
-        let schema = schema_for!(DeleteAppParams);
-        let json = serde_json::to_string_pretty(&schema).unwrap();
-        assert!(json.contains("app_id"));
     }
 
     #[test]

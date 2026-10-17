@@ -258,15 +258,9 @@ pub async fn mark_not_junk(
                     // don't whitelist the owner's own address
                     continue;
                 }
+                // this user's list only: the admin's sender lists apply to
+                // every recipient, and one person's "not junk" is not theirs
                 let _ = c.sadd(wl_key.as_bytes(), &[addr.as_bytes()]);
-
-                // Also exempt the sender from greylisting. Marking
-                // not-junk says "I want this mail"; greylisting then
-                // defers their next message until the sender retries,
-                // which reads as the mail arriving late. Delivery and
-                // receipt outrank protection, and the user has already
-                // made the call for this address.
-                let _ = crate::handlers::complete::ensure_white_entry(c, &addr, &user_lc);
             }
             Ok(())
         });

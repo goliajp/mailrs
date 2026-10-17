@@ -20,9 +20,6 @@
 //! left in the spool with a warn log so a human can look.
 
 use std::path::PathBuf;
-use std::sync::Arc;
-
-use crate::FastcoreState;
 
 /// Deliver one file to one recipient. `subfolder` is empty for INBOX
 /// or `.Maildir++Folder` (produced by sieve_apply::maildir_subfolder)
@@ -65,19 +62,13 @@ pub(crate) fn deliver(
     Ok(true)
 }
 
-/// A kevy account with no maildir gets one created on first delivery.
-/// Returns true when the address is a known account and the skeleton
-/// now exists. New-account provisioning (add_account RPC) never made
-/// the maildir, so a fresh account's first inbound mail sat unresolved
-/// in the spool forever.
-pub(crate) fn provision_if_account(
-    state: &Arc<FastcoreState>,
-    maildir_root: &str,
-    addr: &str,
-) -> bool {
-    let Ok(Some(_)) = state.mailbox.get_account_blob(addr) else {
-        return false;
-    };
+/// Make sure `addr` has a maildir: an account gets its skeleton on first
+/// delivery, because add_account never made one and a fresh account's first
+/// mail would otherwise sit in the spool for good.
+pub(crate) fn ensure_maildir(maildir_root: &str, addr: &str) -> bool {
+    if has_maildir(maildir_root, addr) {
+        return true;
+    }
     let Some((local, domain)) = addr.split_once('@') else {
         return false;
     };

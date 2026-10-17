@@ -69,9 +69,6 @@ suspend fun MailrsClient.groupPermissions(id: Long): MailrsClient.Outcome<List<S
     one(get("/api/admin/groups/$id/permissions"), Admin.PermissionList.serializer())
         .map { it.permissions }
 
-suspend fun MailrsClient.apps(): MailrsClient.Outcome<List<Admin.App>> =
-    one(get("/api/admin/apps"), Admin.AppList.serializer()).map { it.items }
-
 suspend fun MailrsClient.accountQuota(address: String): MailrsClient.Outcome<Long?> =
     one(get("/api/admin/accounts/" + enc(address) + "/quota"), Admin.Quota.serializer())
         .map { it.quotaBytes }

@@ -3,15 +3,18 @@
 //! These four checks share intermediate state (DKIM signature outputs feed
 //! the DMARC alignment evaluator, SPF result + From-domain together gate
 //! DMARC policy) so they run as a single stage rather than four. Writes
-//! every field of `ctx.auth_results` and, on DMARC policy=reject,
-//! short-circuits with a 550 reject.
+//! every field of `ctx.auth_results`, decides whether a white-listed
+//! address is authenticated, and, on DMARC policy=reject, short-circuits
+//! with a 550 reject unless the sender is allowed.
 
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use hickory_resolver::TokioResolver;
 use mailrs_dmarc::DmarcResultRecord;
-use mailrs_inbound::{ReceiveContext, Stage, StageOutcome};
+use mailrs_inbound::{AllowListMatch, ReceiveContext, Stage, StageOutcome};
+
+use super::local_lists::settle_address_match;
 
 mod arc;
 mod dkim;
@@ -125,15 +128,30 @@ impl Stage for MailAuthStage {
         // 3. ARC — chain extract + full crypto verify (RFC 8617).
         ctx.auth_results.arc = run_arc(self.resolvers.arc.as_ref(), &ctx.message).await;
 
-        // 4. DMARC — From-domain extract, _dmarc TXT lookup, alignment +
-        //    evaluation against SPF/DKIM verdicts above. apply_dmarc_policy
-        //    enforces p=reject / p=quarantine, records aggregate row.
         let mail_from_domain = ctx
             .sender
             .rsplit_once('@')
             .map(|(_, d)| d.to_string())
             .unwrap_or_else(|| ctx.ehlo_domain.clone());
 
+        // a white-listed address counts only once SPF or DKIM proves it
+        if matches!(ctx.allow_list, AllowListMatch::Address(_)) {
+            let vouched: Vec<&str> = (spf_result == mailrs_spf::SpfResult::Pass)
+                .then_some(mail_from_domain.as_str())
+                .into_iter()
+                .chain(
+                    dkim_outputs
+                        .iter()
+                        .filter(|o| o.is_pass())
+                        .map(|o| o.domain()),
+                )
+                .collect();
+            settle_address_match(ctx, &vouched);
+        }
+
+        // 4. DMARC — From-domain extract, _dmarc TXT lookup, alignment +
+        //    evaluation against SPF/DKIM verdicts above. apply_dmarc_policy
+        //    enforces p=reject / p=quarantine, records aggregate row.
         let from_dom = mailrs_rfc5322::Message::new(&ctx.message)
             .header_str("From")
             .and_then(from_domain);

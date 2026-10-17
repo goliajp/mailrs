@@ -11,6 +11,7 @@
 //! list issues), `reads` (lists, search, counts, contents).
 
 mod account;
+mod account_delete;
 pub(crate) mod message_ops;
 mod permissions;
 mod quarantine;
@@ -18,6 +19,7 @@ mod reads;
 pub(crate) mod thread_actions;
 
 pub(crate) use account::*;
+pub(crate) use account_delete::*;
 pub(crate) use message_ops::*;
 pub(crate) use permissions::*;
 pub(crate) use quarantine::*;

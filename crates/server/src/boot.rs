@@ -288,6 +288,7 @@ pub(crate) async fn run_with_roles(roles: Roles) {
             .clone()
             .map(|d| d as Arc<dyn mailrs_receiver::AccountStore>),
         credential_store: None,
+        recipient_check: None,
         queue_notifier: kevy_embedded_store.as_ref().map(|s| {
             Arc::new(mailrs_outbound_queue::KevyNotifier::new(s.as_ref().clone()))
                 as Arc<dyn mailrs_outbound_queue::Notifier>
@@ -295,11 +296,9 @@ pub(crate) async fn run_with_roles(roles: Roles) {
         srs_secret: cfg.srs_secret.clone(),
         ldap_config: ldap_config.clone(),
         inbound_pipeline,
-        // v2.4.1 Phase 3 (RFC-B §3.3): monolith has no shared kevy
-        // sidecar handle to hand out — spam whitelist / blacklist
-        // lookups are a fastcore-topology feature. `None` here means
-        // the pipeline receives empty sets, identical to pre-Phase-3
-        // behavior.
+        // no shared kevy sidecar in the monolith: spam whitelist / blacklist
+        // lookups are a fastcore-topology feature, and `None` gives the
+        // pipeline empty sets
         spam_lists_client: None,
         delivery_executor: mailrs_delivery_executor::DeliveryExecutor::spawn(),
         process_tx,

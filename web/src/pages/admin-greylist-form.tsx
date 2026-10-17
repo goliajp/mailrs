@@ -46,9 +46,12 @@ export function GreylistAddForm({
   return (
     <div className="border-border mb-4 space-y-2 rounded-lg border p-4">
       <p className="text-fg-secondary text-xs">
-        <strong className="text-fg">White</strong> skips greylisting.{' '}
-        <strong className="text-fg">Black</strong> refuses the mail with SMTP 550 5.7.1. A value on
-        both lists is treated as black. A domain also covers its subdomains
+        <strong className="text-fg">White</strong> delivers to the inbox past the spam checks; a
+        domain or email counts only when SPF or DKIM proves the mail comes from that domain, a CIDR
+        needs no proof and also skips the connection rate limit and DNSBL. Fraud quarantine and
+        virus rejection still apply. <strong className="text-fg">Black</strong> refuses the mail
+        with SMTP 550 5.7.1; a black CIDR is refused with 554 before the greeting. A value on both
+        lists is treated as black. A domain also covers its subdomains
       </p>
       <div className="flex flex-wrap gap-2">
         <select

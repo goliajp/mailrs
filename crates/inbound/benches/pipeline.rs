@@ -48,6 +48,7 @@ fn default_input() -> PipelineInput {
         recipient_whitelist: std::collections::HashSet::new(),
         recipient_blacklist: std::collections::HashSet::new(),
         local_domains: std::collections::HashSet::new(),
+        sender_allowed: false,
     }
 }
 

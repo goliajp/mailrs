@@ -28,6 +28,18 @@
 # Project name MUST stay `mailrs` so the existing mailrs_mailrs-data
 # volume and mailrs_default network line up.
 
+# who signs outbound mail: fastcore-sender signs with it, and webapi-fc's
+# domain check reports the selector each domain is signed with. one
+# definition so the check cannot drift from the signer.
+x-dkim-identity: &dkim-identity
+  MAILRS_DKIM_DOMAIN: golia.jp
+  MAILRS_DKIM_SELECTOR: mail
+  # Per-domain signing keys. Without this every hosted domain signs
+  # d=golia.jp, which only stays aligned while SPF covers the hop —
+  # any forward breaks DMARC. All seven domains publish the same
+  # public key, so one file serves them all.
+  MAILRS_DKIM_KEYS: ${MAILRS_DKIM_KEYS:-}
+
 services:
   receiver:
     container_name: mailrs-receiver
@@ -204,9 +216,8 @@ services:
       MAILRS_MAILDIR: /data/maildir
       MAILRS_MOCK_DOMAIN: mock.golia.jp
       MAILRS_HOSTNAME: mail.golia.ai
-      # the domain page's DKIM check looks up <selector>._domainkey; same
-      # value as fastcore-sender signs with
-      MAILRS_DKIM_SELECTOR: mail
+      # the domain check reads only domain and selector, never the key files
+      <<: *dkim-identity
       RUST_LOG: info
     volumes:
       - mailrs-data:/data
@@ -247,14 +258,8 @@ services:
       # policy it was written before.
       MAILRS_SENDER_POLL_MS: "500"
       MAILRS_SENDER_RETRY_MIN_SECS: "60"
-      MAILRS_DKIM_DOMAIN: golia.jp
-      MAILRS_DKIM_SELECTOR: mail
+      <<: *dkim-identity
       MAILRS_DKIM_PRIVATE_KEY: /dkim/golia.jp.key
-      # Per-domain signing keys. Without this every hosted domain signs
-      # d=golia.jp, which only stays aligned while SPF covers the hop —
-      # any forward breaks DMARC. All seven domains publish the same
-      # public key, so one file serves them all.
-      MAILRS_DKIM_KEYS: ${MAILRS_DKIM_KEYS:-}
       # mail to the mock domain is stored under /data/mock, never sent
       MAILRS_MOCK_DOMAIN: mock.golia.jp
       RUST_LOG: info

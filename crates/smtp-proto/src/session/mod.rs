@@ -6,11 +6,13 @@
 //! the resulting [`Event`] (write a reply, open DATA, start TLS, etc.).
 
 use crate::auth::{decode_login_response, decode_plain};
-use crate::command::{AuthMechanism, Command, ForwardPath};
+use crate::command::{AuthMechanism, Command};
 use crate::response::Response;
 
+mod rcpt;
 mod state;
 
+use rcpt::forward_path_to_string;
 pub use state::*;
 
 /// Default message size limit in bytes (50 MB). Override via
@@ -20,13 +22,6 @@ pub const MAX_MESSAGE_SIZE: u64 = 52_428_800;
 /// Default per-message recipient limit (RFC 5321 minimum is 100). Override
 /// via [`SessionConfig::max_recipients`].
 pub const MAX_RECIPIENTS: usize = 100;
-
-fn forward_path_to_string(path: &ForwardPath) -> String {
-    match path {
-        ForwardPath::Postmaster => "Postmaster".to_string(),
-        ForwardPath::Path(p) => p.to_string(),
-    }
-}
 
 /// Per-session policy knobs. Construct with [`SessionConfig::default()`] and
 /// override fields as needed.

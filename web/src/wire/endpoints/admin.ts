@@ -2,7 +2,7 @@
  * Admin resource wire endpoints — v2.1 §10.3 (2026-07-08).
  *
  * Uniform CRUD helpers over permissive schemas. Every admin resource
- * (accounts / aliases / apps / domains / email-groups / groups /
+ * (accounts / aliases / domains / email-groups / groups /
  * greylist / permissions / config / audit-log / mail-audit / overview
  * / queue) uses `adminListGet` / `adminPost` / `adminPatch` /
  * `adminPut` / `adminDelete` — no per-resource typing at the wire

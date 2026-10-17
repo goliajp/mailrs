@@ -2,15 +2,13 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use futures_util::{SinkExt, StreamExt};
+use futures_util::SinkExt;
 use hickory_resolver::TokioResolver;
-use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
 use tokio_util::codec::Framed;
 
-use mailrs_smtp_proto::parse_command;
-use mailrs_smtp_proto::response::{Response, format_ehlo_response};
-use mailrs_smtp_proto::session::{Event, MAX_MESSAGE_SIZE, MAX_RECIPIENTS, Session, SessionConfig};
+use mailrs_smtp_proto::response::Response;
+use mailrs_smtp_proto::session::{MAX_MESSAGE_SIZE, MAX_RECIPIENTS, Session, SessionConfig};
 
 /// connection idle timeout: close if no command received within this duration
 const CONNECTION_TIMEOUT: Duration = Duration::from_secs(300);
@@ -19,7 +17,7 @@ const CONNECTION_TIMEOUT: Duration = Duration::from_secs(300);
 const DATA_TIMEOUT: Duration = Duration::from_secs(600);
 
 use mailrs_core::event_bus::{EventBus, SmtpEvent, next_connection_id};
-use mailrs_smtp_codec::{SmtpCodec, SmtpInput, SmuggleProtection};
+use mailrs_smtp_codec::{SmtpCodec, SmuggleProtection};
 
 use crate::AccountStore;
 use crate::ConnectionMetrics;
@@ -75,6 +73,8 @@ pub struct ConnectionContext {
     /// Account password hashes held by the core, for submission auth in
     /// the split topology. `None` in the monolith, which has `account_store`.
     pub credential_store: Option<Arc<dyn crate::CredentialStore>>,
+    /// Asked at RCPT whether a local recipient exists; `None` accepts all.
+    pub recipient_check: Option<crate::RecipientCheck>,
     /// Wakes the outbound delivery worker after the receiving path
     /// enqueues relay / sieve-redirect / vacation mail. Abstracted as a
     /// trait so the receiver doesn't bind the in-process kevy store —
@@ -138,10 +138,12 @@ impl ConnectionContext {
 }
 
 mod address;
+mod admission;
 mod auth;
 pub(crate) mod credentials;
 pub mod delivered;
 pub mod delivery;
+mod drive;
 mod events;
 pub mod headers;
 pub mod spool_sink;
@@ -150,7 +152,7 @@ mod srs;
 pub use delivered::{DeliveredMessage, ProcessTx};
 pub use spool_sink::SpoolSink;
 
-use events::handle_event;
+use drive::drive_session;
 
 /// handle a plain-text SMTP connection (port 25/587), may upgrade via STARTTLS
 #[tracing::instrument(name = "smtp.conn", skip(stream, ctx), fields(peer = %addr, tls = false))]
@@ -168,36 +170,12 @@ pub async fn handle_plain_connection(
         tls: false,
     });
 
-    // rate limit check
-    if !ctx.rate_limiter.check(&addr.ip().to_string()).await {
+    if let Some(refusal) = admission::ConnectChecks::of(&ctx).refusal(addr.ip()).await {
         let mut framed = Framed::new(stream, codec(&ctx, MAX_MESSAGE_SIZE));
-        let _ = framed.send(Response::rate_limited().format()).await;
+        let _ = framed.send(refusal.reply).await;
         ctx.event_bus.emit(SmtpEvent::SpamRejected {
             id: conn_id,
-            reason: "rate limited".into(),
-        });
-        ctx.metrics.on_disconnect();
-        ctx.event_bus
-            .emit(SmtpEvent::ConnectionClosed { id: conn_id });
-        return;
-    }
-
-    // DNSBL check
-    if ctx.dnsbl_enabled
-        && !ctx.dnsbl_zones.is_empty()
-        && let Some(ref resolver) = ctx.resolver
-        && let Some((zone, result)) =
-            mailrs_shield::dnsbl::check_dnsbl(resolver, addr.ip(), &ctx.dnsbl_zones).await
-    {
-        let mut framed = Framed::new(stream, codec(&ctx, MAX_MESSAGE_SIZE));
-        let msg = format!(
-            "554 5.7.1 Service unavailable; client [{0}] blocked using {zone} ({result:?})",
-            addr.ip()
-        );
-        let _ = framed.send(msg).await;
-        ctx.event_bus.emit(SmtpEvent::SpamRejected {
-            id: conn_id,
-            reason: format!("DNSBL: {zone} ({result:?})"),
+            reason: refusal.reason,
         });
         ctx.metrics.on_disconnect();
         ctx.event_bus
@@ -384,76 +362,4 @@ enum SessionAction {
     Continue,
     Close,
     UpgradeTls,
-}
-
-/// process one command from the stream, return what to do next
-async fn drive_session<S>(
-    framed: &mut Framed<S, SmtpCodec>,
-    session: &mut Session,
-    addr: SocketAddr,
-    ctx: &ConnectionContext,
-    conn_id: u64,
-) -> SessionAction
-where
-    S: AsyncRead + AsyncWrite + Unpin,
-{
-    let result = match tokio::time::timeout(CONNECTION_TIMEOUT, framed.next()).await {
-        Ok(Some(result)) => result,
-        Ok(None) => return SessionAction::Close,
-        Err(_) => {
-            let _ = framed
-                .send(Response::new(421, None, "Idle timeout, closing connection").format())
-                .await;
-            return SessionAction::Close;
-        }
-    };
-    let input = match result {
-        Ok(input) => input,
-        Err(_) => return SessionAction::Close,
-    };
-
-    match input {
-        SmtpInput::Command(line) => {
-            ctx.event_bus.emit(SmtpEvent::CommandReceived {
-                id: conn_id,
-                command: line.clone(),
-                state_before: format!("{:?}", session.state),
-            });
-
-            match parse_command(&line) {
-                Ok(cmd) => {
-                    let is_ehlo = matches!(
-                        cmd,
-                        mailrs_smtp_proto::Command::Ehlo(_) | mailrs_smtp_proto::Command::Helo(_)
-                    );
-                    let event = session.handle_command(&cmd);
-
-                    // EHLO/HELO with 250 → multiline response
-                    if is_ehlo && matches!(event, Event::Reply(ref r) if r.code == 250) {
-                        let caps = session.capabilities();
-                        let resp = format_ehlo_response(&session.hostname, &caps);
-                        ctx.event_bus.emit(SmtpEvent::ResponseSent {
-                            id: conn_id,
-                            response: resp.clone(),
-                            state_after: format!("{:?}", session.state),
-                        });
-                        if framed.send(resp).await.is_err() {
-                            return SessionAction::Close;
-                        }
-                        return SessionAction::Continue;
-                    }
-
-                    handle_event(framed, session, event, addr, ctx, conn_id).await
-                }
-                Err(_) => {
-                    let resp = Response::syntax_error();
-                    if framed.send(resp.format()).await.is_err() {
-                        return SessionAction::Close;
-                    }
-                    SessionAction::Continue
-                }
-            }
-        }
-        SmtpInput::Data(_) | SmtpInput::DataRejected => SessionAction::Close,
-    }
 }

@@ -58,8 +58,9 @@ fn parse_entries(flat: &[Vec<u8>]) -> GreylistLocalLists {
         };
         // Two shapes are stored under this key, and both are real.
         //
-        // The not-junk path in webapi writes `{address_or_domain,
-        // list_type}` — all 22 entries in production are these. The admin
+        // The not-junk path in webapi wrote `{address_or_domain,
+        // list_type}` until it stopped writing here — 22 such entries were
+        // in production. The admin
         // API writes `{value, list}`, which is the contract its UI was
         // built against and reads back. This loader looked only for the
         // first pair, so `get()` missed twice, `classify` saw two empty

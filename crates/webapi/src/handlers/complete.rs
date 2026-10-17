@@ -218,11 +218,6 @@ pub async fn calendar_conflicts(
     Json(serde_json::json!({ "conflicts": [] }))
 }
 
-// ── Admin: apps ────────────────────────────────────────────────────
-
-pub(crate) const APPS_KEY: &str = "admin:apps";
-pub(crate) const APPS_CTR: &str = "admin:apps:counter";
-
 // ── Admin: audit-log messages/raw + audit/accounts + audit/conversations ────
 
 // ── Admin: system-config ─────────────────────────────

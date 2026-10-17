@@ -1,21 +1,10 @@
-//! Local white/black greylist lists — the pure, spg-free half (S5.3).
+//! The admin's local sender lists (black and white) — the pure half.
 //!
 //! This module owns the in-memory snapshot type, the (sender, client_ip)
 //! matching logic, and the admin-input normalization/validation. The
-//! PG-backed loaders that fill the snapshot (`reload` / `load_from_pg` /
-//! `spawn_reload_task`) stay in the server crate's `greylist_local`
-//! module — they bind the spg `BackendPool` and are server-side
-//! infrastructure. The server module re-exports everything here so the
-//! `crate::greylist_local::*` call sites stay unchanged.
-//!
-//! Pipeline precedence (see `inbound::stages::greylist`):
-//!
-//! ```text
-//! local-black hit  → Reject 550 5.7.1
-//! local-white hit  → skip greylist (skip triplet + skip remote whitelist)
-//! remote-white hit → skip greylist (Phase 1)
-//! triplet check    → Defer / TooEarly / Accept
-//! ```
+//! receiver fills the snapshot from the network kevy
+//! (`greylist_local_sync`); the name is historical, the lists apply
+//! whether or not greylisting is on (`inbound::stages::local_lists`).
 //!
 //! Schema mutex `UNIQUE (kind, value)` (no `list`) prevents the same key
 //! from being on both lists at the database layer; black-before-white code
@@ -94,6 +83,17 @@ impl GreylistLocalLists {
             &self.white_cidrs,
         )
     }
+
+    /// Whether the client IP is in a white-listed network.
+    pub fn white_network(&self, client_ip: IpAddr) -> bool {
+        self.white_cidrs.iter().any(|n| n.contains(&client_ip))
+    }
+
+    /// Whether `addr` is a white-listed address or at a white-listed
+    /// domain (or a subdomain of one).
+    pub fn white_address(&self, addr: &str) -> bool {
+        match_address(addr, &self.white_emails, &self.white_domains).is_some()
+    }
 }
 
 fn match_any(
@@ -102,6 +102,20 @@ fn match_any(
     emails: &HashSet<String>,
     domains: &HashSet<String>,
     cidrs: &[IpNet],
+) -> Option<&'static str> {
+    if let Some(kind) = match_address(sender, emails, domains) {
+        return Some(kind);
+    }
+    if !cidrs.is_empty() && cidrs.iter().any(|n| n.contains(&client_ip)) {
+        return Some("cidr");
+    }
+    None
+}
+
+fn match_address(
+    sender: &str,
+    emails: &HashSet<String>,
+    domains: &HashSet<String>,
 ) -> Option<&'static str> {
     let lower = sender.to_lowercase();
     if !emails.is_empty() && !lower.is_empty() && emails.contains(&lower) {
@@ -121,9 +135,6 @@ fn match_any(
                 return Some("domain");
             }
         }
-    }
-    if !cidrs.is_empty() && cidrs.iter().any(|n| n.contains(&client_ip)) {
-        return Some("cidr");
     }
     None
 }
