@@ -8,6 +8,7 @@ pub(super) fn mock_routes() -> axum::Router<Arc<WebState>> {
     use axum::routing::{delete, get, post, put};
 
     axum::Router::new()
+        .route("/api/admin/flow", get(crate::handlers::admin_flow::flow))
         .route(
             "/api/admin/mock",
             get(crate::handlers::mock::admin::overview),

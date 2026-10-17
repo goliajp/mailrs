@@ -6,12 +6,8 @@
  * domain vocabulary.
  */
 
-import { z } from 'zod'
-
 import {
   asThreadId,
-  asUid,
-  type Attachment,
   canonicaliseFilter,
   type Category,
   type ConversationFilter,
@@ -21,18 +17,12 @@ import {
   type ImportanceLevel,
   type Message,
   type Participant,
-  type Thread,
   type ThreadSummary,
 } from '@/domain'
 import { decodeMimeHeader } from '@/lib/avatar'
 
 import { wireFetch } from '../client'
-import {
-  type WireMessage,
-  wireThreadDetailResponseSchema,
-  wireThreadListResponseSchema,
-  type WireThreadSummary,
-} from '../schemas/conversation'
+import { wireThreadListResponseSchema, type WireThreadSummary } from '../schemas/conversation'
 
 // ── list endpoint ────────────────────────────────────────────────────
 
@@ -88,40 +78,6 @@ export async function fetchConversationList(
 
 // ── detail endpoint ─────────────────────────────────────────────────
 
-/**
- * `GET /api/conversations/{threadId}/messages`
- * The single-thread read used by the reader pane.
- */
-export async function fetchThread(threadId: string, signal?: AbortSignal): Promise<Thread> {
-  const raw = await wireFetch(wireThreadDetailResponseSchema, {
-    path: `/conversations/${encodeURIComponent(threadId)}/messages`,
-    signal,
-  })
-  const messages = raw.items.map((m) => wireMessageToDomain(m, threadId))
-  const first = messages[0]
-  return {
-    messages,
-    summary: {
-      category: 'inbox',
-      folder: 'INBOX',
-      importance: 'low',
-      lastDate: messages.at(-1)?.internalDate ?? 0,
-      messageCount: messages.length,
-      participants: first ? [first.sender] : [],
-      pinned: false,
-      requiresAction: false,
-      snippet: '',
-      snoozedUntil: null,
-      starred: false,
-      subject: first?.subject ?? '(no subject)',
-      threadId: asThreadId(threadId),
-      unreadCount: 0,
-      version: 0,
-    },
-    threadId: asThreadId(threadId),
-  }
-}
-
 // ── adapters ────────────────────────────────────────────────────────
 
 export function messageIsFlagged(m: Pick<Message, 'flags'>): boolean {
@@ -131,17 +87,6 @@ export function messageIsFlagged(m: Pick<Message, 'flags'>): boolean {
 /** Deriving `unreadCount` uses this bit-check so tests can pin it. */
 export function messageIsSeen(m: Pick<Message, 'flags'>): boolean {
   return (m.flags & FLAG_SEEN) !== 0
-}
-
-function attachmentFromWire(
-  w: z.infer<typeof import('../schemas/conversation').wireAttachmentSchema>
-): Attachment {
-  return {
-    contentType: w.content_type,
-    filename: decodeMimeHeader(w.filename),
-    partIndex: w.index,
-    sizeBytes: w.size,
-  }
 }
 
 function normaliseCategory(raw: string): Category {
@@ -173,39 +118,6 @@ function participantFromWire(raw: string): Participant {
   }
   const trimmed = decoded.trim()
   return { address: trimmed.toLowerCase(), displayName: trimmed }
-}
-
-function splitAddressList(raw: null | string): string[] {
-  if (!raw) return []
-  return raw
-    .split(/[,;]/)
-    .map((s) => s.trim())
-    .filter(Boolean)
-}
-
-/**
- * v2.1 §7 (2026-07-08): backend now sends `recipients` / `cc` /
- * `bcc` as comma-separated strings, not arrays (matches Rust
- * `ThreadMessageResponse` field types). `thread_id` isn't on the
- * wire — it's URL-scoped in the request path. The caller passes
- * the request path's thread_id explicitly.
- */
-function wireMessageToDomain(w: WireMessage, threadId: string): Message {
-  return {
-    attachments: w.attachments.map(attachmentFromWire),
-    bcc: splitAddressList(null).map(participantFromWire),
-    cc: splitAddressList(w.cc ?? null).map(participantFromWire),
-    flags: w.flags,
-    htmlBody: w.html_body ?? null,
-    internalDate: w.internal_date,
-    messageId: w.message_id,
-    recipients: splitAddressList(w.recipients).map(participantFromWire),
-    sender: participantFromWire(w.sender),
-    subject: decodeMimeHeader(w.subject),
-    textBody: w.text_body ?? '',
-    threadId: asThreadId(threadId),
-    uid: asUid(w.uid),
-  }
 }
 
 function wireSummaryToDomain(w: WireThreadSummary, requestFolder?: Folder): ThreadSummary {
