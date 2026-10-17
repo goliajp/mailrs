@@ -41,7 +41,8 @@ pub struct ConnectionContext {
     /// the whole spg/kevy-bound `WebState`.
     pub metrics: Arc<dyn ConnectionMetrics>,
     pub rate_limiter: Arc<dyn RateLimitStore>,
-    pub local_domains: Vec<String>,
+    /// Local domains and the message size limit, read again while running.
+    pub runtime: crate::runtime_settings::RuntimeSettings,
     /// What this organisation calls itself; see `config::Config`.
     pub org_names: Vec<String>,
     /// Domains allowed to carry that name.
@@ -123,9 +124,9 @@ pub struct DeliveryDeps<'a> {
 
 impl ConnectionContext {
     /// Borrow the delivery-relevant fields for the resolve/sieve/relay helpers.
-    pub fn delivery_deps(&self) -> DeliveryDeps<'_> {
+    pub fn delivery_deps<'a>(&'a self, local_domains: &'a [String]) -> DeliveryDeps<'a> {
         DeliveryDeps {
-            local_domains: &self.local_domains,
+            local_domains,
             account_store: &self.account_store,
             outbound_enqueue: &self.outbound_enqueue,
             queue_notifier: &self.queue_notifier,
@@ -169,12 +170,7 @@ pub async fn handle_plain_connection(
 
     // rate limit check
     if !ctx.rate_limiter.check(&addr.ip().to_string()).await {
-        let mut framed = Framed::new(
-            stream,
-            SmtpCodec::new()
-                .with_smuggle_protection(ctx.smuggle_protection)
-                .with_max_message_size(mailrs_smtp_proto::MAX_MESSAGE_SIZE as usize),
-        );
+        let mut framed = Framed::new(stream, codec(&ctx, MAX_MESSAGE_SIZE));
         let _ = framed.send(Response::rate_limited().format()).await;
         ctx.event_bus.emit(SmtpEvent::SpamRejected {
             id: conn_id,
@@ -193,12 +189,7 @@ pub async fn handle_plain_connection(
         && let Some((zone, result)) =
             mailrs_shield::dnsbl::check_dnsbl(resolver, addr.ip(), &ctx.dnsbl_zones).await
     {
-        let mut framed = Framed::new(
-            stream,
-            SmtpCodec::new()
-                .with_smuggle_protection(ctx.smuggle_protection)
-                .with_max_message_size(mailrs_smtp_proto::MAX_MESSAGE_SIZE as usize),
-        );
+        let mut framed = Framed::new(stream, codec(&ctx, MAX_MESSAGE_SIZE));
         let msg = format!(
             "554 5.7.1 Service unavailable; client [{0}] blocked using {zone} ({result:?})",
             addr.ip()
@@ -215,20 +206,16 @@ pub async fn handle_plain_connection(
     }
 
     let tls_available = ctx.tls_state.is_some();
+    let max_size = ctx.runtime.max_message_size.current().await;
     let config = SessionConfig {
         tls_available,
         tls_active: false,
         require_tls_for_auth: tls_available,
-        max_size: MAX_MESSAGE_SIZE,
+        max_size,
         max_recipients: MAX_RECIPIENTS,
     };
     let mut session = Session::new(&ctx.hostname, config);
-    let mut framed = Framed::new(
-        stream,
-        SmtpCodec::new()
-            .with_smuggle_protection(ctx.smuggle_protection)
-            .with_max_message_size(mailrs_smtp_proto::MAX_MESSAGE_SIZE as usize),
-    );
+    let mut framed = Framed::new(stream, codec(&ctx, max_size));
 
     let greeting = Response::greeting(&ctx.hostname).format_greeting();
     // The banner is the first line of every SMTP conversation. It was
@@ -286,12 +273,7 @@ pub async fn handle_plain_connection(
 
                 session.reset_after_tls();
                 ctx.event_bus.emit(SmtpEvent::TlsUpgraded { id: conn_id });
-                let mut tls_framed = Framed::new(
-                    tls_stream,
-                    SmtpCodec::new()
-                        .with_smuggle_protection(ctx.smuggle_protection)
-                        .with_max_message_size(mailrs_smtp_proto::MAX_MESSAGE_SIZE as usize),
-                );
+                let mut tls_framed = Framed::new(tls_stream, codec(&ctx, max_size));
 
                 loop {
                     let action =
@@ -351,20 +333,16 @@ pub async fn handle_tls_connection(
         }
     };
 
+    let max_size = ctx.runtime.max_message_size.current().await;
     let config = SessionConfig {
         tls_available: true,
         tls_active: true,
         require_tls_for_auth: false,
-        max_size: MAX_MESSAGE_SIZE,
+        max_size,
         max_recipients: MAX_RECIPIENTS,
     };
     let mut session = Session::new(&ctx.hostname, config);
-    let mut framed = Framed::new(
-        tls_stream,
-        SmtpCodec::new()
-            .with_smuggle_protection(ctx.smuggle_protection)
-            .with_max_message_size(mailrs_smtp_proto::MAX_MESSAGE_SIZE as usize),
-    );
+    let mut framed = Framed::new(tls_stream, codec(&ctx, max_size));
 
     let greeting = Response::greeting(&ctx.hostname).format_greeting();
     // The banner is the first line of every SMTP conversation. It was
@@ -394,6 +372,12 @@ pub async fn handle_tls_connection(
             }
         }
     }
+}
+
+fn codec(ctx: &ConnectionContext, max_size: u64) -> SmtpCodec {
+    SmtpCodec::new()
+        .with_smuggle_protection(ctx.smuggle_protection)
+        .with_max_message_size(max_size as usize)
 }
 
 enum SessionAction {

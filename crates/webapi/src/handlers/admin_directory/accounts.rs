@@ -8,6 +8,7 @@ use axum::{
     http::StatusCode,
 };
 use mailrs_core_api::method::admin as wire;
+use mailrs_core_sidestate::families::permission_groups;
 
 use crate::WebState;
 use crate::handlers::admin::map_err;
@@ -182,19 +183,17 @@ pub async fn set_account_quota(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// GET /api/admin/accounts/{address}/groups — the account's own
-/// membership set `admin:account:<addr>:groups`.
+/// GET /api/admin/accounts/{address}/groups — names of the permission
+/// groups whose member set holds the account.
 pub async fn list_account_groups(
     State(_state): State<Arc<WebState>>,
     Extension(_user): Extension<AuthedUser>,
     Path(address): Path<String>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let key = format!("admin:account:{address}:groups");
-    let members = with_kevy(move |c| c.smembers(key.as_bytes()).map_err(std::io::Error::from))?;
-    let groups: Vec<String> = members
-        .into_iter()
-        .filter_map(|v| String::from_utf8(v).ok())
-        .collect();
+    let held = with_kevy(move |c| {
+        permission_groups::groups_of(c, &address).map_err(std::io::Error::from)
+    })?;
+    let groups: Vec<String> = held.into_iter().map(|g| g.name).collect();
     Ok(Json(serde_json::json!({ "groups": groups })))
 }
 

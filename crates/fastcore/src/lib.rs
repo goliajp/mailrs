@@ -1,13 +1,6 @@
 //! `mailrs-fastcore` — Kevy-backed implementation of the
 //! `mailrs-core-api` server surface. Phase 8.
 //!
-//! Today this binary mounts a small subset:
-//! - `/v1/healthz` + `/v1/readyz` (open) — proves the role works
-//! - `POST /v1/users/{user}/conversations:list` — Rock 1 read path
-//!
-//! The rest of the 87-route surface fills in as `mailbox-kevy` grows
-//! method coverage, alongside or instead of the monolith core.
-//!
 //! Environment:
 //! - `MAILRS_FASTCORE_BIND` — listen address (default `0.0.0.0:3301`,
 //!   one above the monolith's core-rpc :3300 so both can coexist)
@@ -120,6 +113,8 @@ pub struct FastcoreState {
     /// serve them identically. `None` in tests / when unset: side-state
     /// routes return empty results rather than erroring.
     pub net_url: Option<String>,
+    /// What the spool drain treats as our domains; see `spool_drain::relay`.
+    pub local_domains: spool_drain::relay::LocalDomainsCache,
 }
 
 impl FastcoreState {
@@ -150,6 +145,7 @@ impl FastcoreState {
             notify,
             net_url,
             boot_intact: true,
+            local_domains: Default::default(),
         }
     }
 

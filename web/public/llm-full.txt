@@ -147,7 +147,7 @@ Config for Claude Code or any MCP client:
 |------|-----------|-------------|
 | get_info | any authenticated | Get mailrs version, hostname, configured ports, and feature flags |
 | get_system_config | admin.accounts | Read all system-config key/value pairs |
-| set_system_config | admin.accounts | Set a system-config key to a JSON value (typed; rejects invalid types) |
+| set_system_config | admin.accounts | Set max_message_size_bytes, the one key a running process reads; settings read at start (hostname, ports, TLS) and unknown keys are refused |
 | reset_system_config | admin.accounts | Reset a system-config key to its compile-time default |
 
 ### Scheduled Send

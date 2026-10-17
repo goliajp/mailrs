@@ -2381,7 +2381,7 @@ export interface paths {
         get?: never;
         /**
          * Update admin system config
-         * @description Stub — full schema TBD.
+         * @description Stores a setting that a running process reads; today only max_message_size_bytes (1 to 52428800 bytes). Settings read at process start (hostname, ports, TLS), local_domains, and unknown keys answer 400 with {"error"} saying where they are set.
          */
         put: {
             parameters: {

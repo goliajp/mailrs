@@ -31,42 +31,9 @@ use crate::kevy_notify::{
 use crate::smtp_session::spool_sink::MaildirSpoolSink;
 use crate::smtp_session::{ConnectionContext, handle_plain_connection, handle_tls_connection};
 use crate::stats::{ReceiverCounters, SharedCounters};
+use receiver_metrics::ReceiverMetrics;
 
-/// Connection / inbound-verdict metrics for the receiver. Emits prometheus
-/// counters via the global `metrics` recorder (a no-op if none is installed),
-/// and keeps the same three numbers in process-local atomics — prometheus is
-/// a scrape endpoint, and the live monitor wants the current values pushed
-/// to it over a socket.
-struct ReceiverMetrics {
-    counters: SharedCounters,
-}
-
-impl ConnectionMetrics for ReceiverMetrics {
-    fn on_connect(&self) {
-        self.counters.on_connect();
-        metrics::counter!("mailrs_receiver_connections_total").increment(1);
-    }
-    fn on_disconnect(&self) {
-        self.counters.on_disconnect();
-        metrics::counter!("mailrs_receiver_disconnects_total").increment(1);
-    }
-    fn on_message_delivered(&self) {
-        self.counters.on_message();
-        metrics::counter!("mailrs_receiver_spooled_total").increment(1);
-    }
-    fn inbound_accept(&self) {
-        metrics::counter!("mailrs_receiver_inbound_total", "verdict" => "accept").increment(1);
-    }
-    fn inbound_reject(&self) {
-        metrics::counter!("mailrs_receiver_inbound_total", "verdict" => "reject").increment(1);
-    }
-    fn inbound_defer(&self) {
-        metrics::counter!("mailrs_receiver_inbound_total", "verdict" => "defer").increment(1);
-    }
-    fn inbound_junk(&self) {
-        metrics::counter!("mailrs_receiver_inbound_total", "verdict" => "junk").increment(1);
-    }
-}
+mod receiver_metrics;
 
 /// Run the receiver process: build the narrow context, bind the SMTP
 /// listeners, and block until a shutdown signal.
@@ -261,11 +228,26 @@ pub async fn run() {
         _ => {
             tracing::warn!(
                 "MAILRS_CORE_RPC_BASE / MAILRS_CORE_API_SECRET not both set: \
-                 submission auth accepts users.toml entries only"
+                 submission auth accepts users.toml entries only, and the local \
+                 domains are MAILRS_LOCAL_DOMAINS alone"
             );
             None
         }
     };
+    let runtime = crate::runtime_settings::RuntimeSettings {
+        local_domains: crate::runtime_settings::LocalDomains::new(cfg.local_domains.clone()),
+        max_message_size: crate::runtime_settings::MessageSizeLimit::new(Some(kevy_client.clone())),
+    };
+    if let (Some(base), Some(secret)) = (&cfg.core_rpc_base, &cfg.core_api_secret) {
+        let core = mailrs_core_api::client::Client::new(base.clone(), secret.clone());
+        crate::runtime_settings::refresh_and_log(&runtime.local_domains, &core).await;
+        let every = std::time::Duration::from_secs(60);
+        crate::runtime_settings::spawn_local_domains_refresh(
+            runtime.local_domains.clone(),
+            core,
+            every,
+        );
+    }
 
     // event bus that publishes cross-process events (SpoolDelivered) to the
     // shared kevy-server. The receiver only publishes — the core runs the
@@ -306,7 +288,7 @@ pub async fn run() {
             counters: counters.clone(),
         }) as Arc<dyn ConnectionMetrics>,
         rate_limiter,
-        local_domains: cfg.local_domains.clone(),
+        runtime,
         org_names: cfg.org_names.clone(),
         org_name_allowed_domains: cfg.org_name_allowed_domains.clone(),
         outbound_enqueue: None,

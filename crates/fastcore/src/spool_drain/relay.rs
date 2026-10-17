@@ -5,9 +5,14 @@
 //! recipients we host are delivered by the drain, and the rest are put on
 //! the outbound queue here for `mailrs-fastcore-sender` to sign and send.
 
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock, Mutex};
+use std::time::{Duration, Instant};
 
-static LOCAL_DOMAINS: LazyLock<Vec<String>> = LazyLock::new(|| {
+use mailrs_mailbox_kevy::KevyMailboxStore;
+
+use crate::FastcoreState;
+
+static ENV_DOMAINS: LazyLock<Vec<String>> = LazyLock::new(|| {
     let domains: Vec<String> = std::env::var("MAILRS_LOCAL_DOMAINS")
         .unwrap_or_default()
         .split(',')
@@ -16,15 +21,58 @@ static LOCAL_DOMAINS: LazyLock<Vec<String>> = LazyLock::new(|| {
         .collect();
     if domains.is_empty() {
         tracing::warn!(
-            "MAILRS_LOCAL_DOMAINS is empty: every recipient of an authenticated \
-             submission is treated as remote and relayed outward"
+            "MAILRS_LOCAL_DOMAINS is empty: only the domains on the admin Domains page \
+             count as ours, and an authenticated submission to any other is relayed"
         );
     }
     domains
 });
 
-pub(super) fn local_domains() -> &'static [String] {
-    &LOCAL_DOMAINS
+const CACHE_TTL: Duration = Duration::from_secs(30);
+
+/// `MAILRS_LOCAL_DOMAINS` together with the domain store the admin
+/// Domains page writes, read from the store at most every 30 seconds.
+#[derive(Default)]
+pub struct LocalDomainsCache {
+    cached: Mutex<Option<(Instant, Arc<Vec<String>>)>>,
+}
+
+impl LocalDomainsCache {
+    fn get(&self, mailbox: &KevyMailboxStore) -> Arc<Vec<String>> {
+        let mut cached = self.cached.lock().expect("local domains cache lock");
+        if let Some((at, domains)) = cached.as_ref()
+            && at.elapsed() < CACHE_TTL
+        {
+            return domains.clone();
+        }
+        let domains = match mailbox.list_domains() {
+            Ok(rows) => Arc::new(union(&ENV_DOMAINS, rows.into_iter().map(|(name, _)| name))),
+            Err(e) => {
+                tracing::warn!(error = %e, "domain store read failed; keeping the previous local domains");
+                match cached.as_ref() {
+                    Some((_, previous)) => previous.clone(),
+                    None => Arc::new(ENV_DOMAINS.clone()),
+                }
+            }
+        };
+        *cached = Some((Instant::now(), domains.clone()));
+        domains
+    }
+}
+
+fn union(env: &[String], store: impl Iterator<Item = String>) -> Vec<String> {
+    let mut out = env.to_vec();
+    for d in store {
+        let d = d.trim().to_ascii_lowercase();
+        if !d.is_empty() && !out.contains(&d) {
+            out.push(d);
+        }
+    }
+    out
+}
+
+pub(super) fn local_domains(state: &FastcoreState) -> Arc<Vec<String>> {
+    state.local_domains.get(&state.mailbox)
 }
 
 /// Whether `rcpt` (already lowercased) leaves through the outbound queue

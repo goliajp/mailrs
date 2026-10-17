@@ -9,7 +9,9 @@ use axum::{
 
 use crate::handlers::conversations::AuthedUser;
 
+mod catalog;
 mod store;
+use catalog::{CATALOG, Kind, editable_default, find, refusal, restart_note};
 use store::{CONFIG_KEY, CONFIG_META_KEY, ConfigMeta, pairs, remove, store, with_meta};
 
 use crate::handlers::kevy_util::with_kevy;
@@ -47,16 +49,12 @@ pub async fn oidc_config() -> Json<serde_json::Value> {
 
 /// GET /api/admin/system-config
 ///
-/// Returns the `{success, entries}` envelope the admin UI expects.
-/// Each entry describes a single tunable — its current value, where
-/// the value came from (env / database / default), and enough metadata
-/// for the UI to render an editor.
-///
-/// The fastcore lane treats runtime tuning as a small collection of
-/// well-known keys rather than a fully-dynamic catalog. If the operator
-/// has overridden a key via `POST /api/admin/system-config/{k}`, it's
-/// read from kevy; otherwise the `source: "env"` reading (or the built-
-/// in default) wins. UI renders "Environment" pill next to the value.
+/// Returns the `{success, entries}` envelope the admin UI expects. Each
+/// entry says where its value comes from and whether it can be changed
+/// here (`editable`). Settings read once at process start are shown with
+/// the variable and compose service that set them; their `value` is what
+/// webapi's own environment says, `null` when it cannot see it. Overrides
+/// stored under keys nothing reads are listed too, so they can be reset.
 pub async fn get_system_config() -> Result<Json<serde_json::Value>, StatusCode> {
     let (flat, meta_flat) =
         with_kevy(|c| Ok((c.hgetall(CONFIG_KEY)?, c.hgetall(CONFIG_META_KEY)?)))?;
@@ -65,101 +63,61 @@ pub async fn get_system_config() -> Result<Json<serde_json::Value>, StatusCode> 
         .into_iter()
         .filter_map(|(k, v)| Some((k, serde_json::from_str(&v).ok()?)))
         .collect();
-    // The catalog is the union of what the operator has already
-    // overridden and a small built-in list of tunables the UI wants to
-    // surface even on a fresh install. Keeps the page useful when
-    // kevy has no override rows yet.
-    const CATALOG: &[(&str, &str, &str, &str, &str)] = &[
-        // (key, group, description, env_var, default)
-        (
-            "hostname",
-            "smtp",
-            "Public SMTP hostname (HELO / greeting)",
-            "MAILRS_HOSTNAME",
-            "",
-        ),
-        (
-            "smtp_port",
-            "smtp",
-            "Inbound SMTP port on the receiver process",
-            "MAILRS_SMTP_PORT",
-            "25",
-        ),
-        (
-            "submission_port",
-            "smtp",
-            "Authenticated submission port",
-            "MAILRS_SUBMISSION_PORT",
-            "587",
-        ),
-        (
-            "imap_port",
-            "imap",
-            "IMAP port on the fastcore process",
-            "MAILRS_IMAP_PORT",
-            "143",
-        ),
-        (
-            "local_domains",
-            "smtp",
-            "Comma-separated list of accepted local domains",
-            "MAILRS_LOCAL_DOMAINS",
-            "",
-        ),
-        (
-            "tls_enabled",
-            "security",
-            "Serve STARTTLS / IMAPS with certificates",
-            "MAILRS_TLS_ENABLED",
-            "true",
-        ),
-        (
-            "max_message_size_bytes",
-            "smtp",
-            "Reject inbound mail larger than this (bytes)",
-            "MAILRS_MAX_MESSAGE_SIZE_BYTES",
-            "",
-        ),
-    ];
-    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
     let mut entries: Vec<serde_json::Value> = Vec::new();
-    for (key, group, description, env_var, default) in CATALOG {
-        seen.insert(key.to_string());
-        let (value, source) = if let Some(v) = overrides.get(*key) {
-            (v.clone(), "database")
-        } else if let Ok(v) = std::env::var(env_var) {
-            (v, "env")
-        } else {
-            (default.to_string(), "default")
-        };
+    for setting in CATALOG {
         let mut entry = serde_json::json!({
-            "key": key,
-            "value": value,
-            "default_value": default,
-            "description": description,
-            "group": group,
-            "source": source,
+            "key": setting.key,
+            "description": setting.description,
+            "group": setting.group,
             "value_type": "string",
         });
-        if source == "database" {
-            with_meta(&mut entry, meta.get(*key));
+        match setting.kind {
+            Kind::Boot {
+                env_var,
+                service,
+                default,
+            } => {
+                let (value, source) = match (default, std::env::var(env_var)) {
+                    (None, _) => (None, "unknown"),
+                    (Some(_), Ok(v)) => (Some(v), "env"),
+                    (Some(d), Err(_)) => (Some(d.to_string()), "default"),
+                };
+                entry["value"] = serde_json::json!(value);
+                entry["default_value"] = serde_json::json!(default);
+                entry["source"] = serde_json::json!(source);
+                entry["editable"] = serde_json::json!(false);
+                entry["env_var"] = serde_json::json!(env_var);
+                entry["note"] = serde_json::json!(restart_note(env_var, service));
+            }
+            Kind::Editable => {
+                let default = editable_default(setting.key);
+                let stored = overrides.get(setting.key);
+                entry["value"] = serde_json::json!(stored.unwrap_or(&default));
+                entry["default_value"] = serde_json::json!(default);
+                entry["source"] = serde_json::json!(match stored {
+                    Some(_) => "database",
+                    None => "default",
+                });
+                entry["editable"] = serde_json::json!(true);
+                with_meta(&mut entry, meta.get(setting.key));
+            }
         }
         entries.push(entry);
     }
-    // Any operator override that isn't in the built-in catalog still
-    // gets surfaced so the UI can show / edit / remove it.
     for (k, v) in &overrides {
-        if seen.contains(k) {
+        if find(k).is_some() {
             continue;
         }
         let mut entry = serde_json::json!({
             "key": k,
             "value": v,
-            "default_value": "",
-            "description": "Operator-defined key (no built-in metadata).",
+            "default_value": null,
+            "description": "Stored here earlier, but no process reads this key.",
             "group": "custom",
             "source": "database",
             "value_type": "string",
+            "editable": false,
+            "note": refusal(k, v),
         });
         with_meta(&mut entry, meta.get(k));
         entries.push(entry);
@@ -185,24 +143,44 @@ pub struct SetSystemConfigRequest {
     pub value: String,
 }
 
+/// A refused write: the status and `{"error": why}`.
+pub type Refused = (StatusCode, Json<serde_json::Value>);
+
+fn save(key: String, value: String, actor: Option<String>) -> Result<StatusCode, Refused> {
+    if let Some(why) = refusal(&key, &value) {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": why })),
+        ));
+    }
+    store(key, value.trim().to_string(), actor).map_err(|c| {
+        (
+            c,
+            Json(serde_json::json!({ "error": "could not save the setting" })),
+        )
+    })?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 /// The MCP tool's entry point; the tool writes its own audit row.
 pub async fn set_system_config_key(
     Path(k): Path<String>,
     Json(req): Json<SetSystemConfigRequest>,
-) -> Result<StatusCode, StatusCode> {
-    store(k, req.value, None)?;
-    Ok(StatusCode::NO_CONTENT)
+) -> Result<StatusCode, Refused> {
+    save(k, req.value, None)
 }
 
-/// `PUT /api/admin/system-config/{key}` from the admin page.
+/// `PUT /api/admin/system-config/{key}` from the admin page. Only an
+/// editable key is stored; a setting read at process start answers 400
+/// with where it is set instead.
 pub async fn put_system_config_key(
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Path(k): Path<String>,
     Json(req): Json<SetSystemConfigRequest>,
-) -> Result<StatusCode, StatusCode> {
-    store(k.clone(), req.value.clone(), Some(actor.clone()))?;
+) -> Result<StatusCode, Refused> {
+    let status = save(k.clone(), req.value.clone(), Some(actor.clone()))?;
     crate::handlers::audit::record(&actor, "system_config.set", &k, &req.value);
-    Ok(StatusCode::NO_CONTENT)
+    Ok(status)
 }
 
 /// `DELETE /api/admin/system-config/{key}` — back to the built-in default.

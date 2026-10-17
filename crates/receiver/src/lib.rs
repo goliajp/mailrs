@@ -36,6 +36,7 @@ pub mod inbound;
 pub mod kevy_net;
 pub mod kevy_notify;
 pub mod listeners;
+pub mod runtime_settings;
 pub mod smtp_session;
 pub mod spam_lists;
 pub mod stats;

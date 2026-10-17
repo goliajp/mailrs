@@ -30,3 +30,25 @@ where
     }
     SessionAction::Continue
 }
+
+pub(super) fn code(class: u8, subject: u16, detail: u16) -> mailrs_smtp_proto::EnhancedCode {
+    mailrs_smtp_proto::EnhancedCode {
+        class,
+        subject,
+        detail,
+    }
+}
+
+/// Write `resp` without the trace event `handle_reply` emits.
+pub(super) async fn send_reply<S>(
+    framed: &mut Framed<S, SmtpCodec>,
+    resp: Response,
+) -> SessionAction
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
+    if framed.send(resp.format()).await.is_err() {
+        return SessionAction::Close;
+    }
+    SessionAction::Continue
+}

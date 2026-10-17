@@ -48,7 +48,7 @@ where
     // Coarse open-relay guard: an unauthenticated session with any forward-path
     // outside our local domains is a relay attempt — reject the whole
     // transaction (matches the monolith's RelayDenied on enqueue_remote_rcpts).
-    if !is_authenticated && has_remote_rcpt(forward_paths, &ctx.local_domains) {
+    if !is_authenticated && has_remote_rcpt(forward_paths, &ctx.runtime.local_domains.current()) {
         let resp = Response::new(
             550,
             Some(EnhancedCode {
