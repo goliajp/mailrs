@@ -59,6 +59,11 @@ pub struct SpoolEnvelope {
     /// retried.
     #[serde(default)]
     pub fraud_verdict: Option<String>,
+    /// Set when the session logged in as a mock namespace's sandbox: every
+    /// recipient's copy is kept in that namespace and none is delivered or
+    /// relayed. `#[serde(default)]` for the same reason as `fraud_verdict`.
+    #[serde(default)]
+    pub sandbox_ns: Option<String>,
     /// schema version for forward-compat.
     pub schema_version: u32,
 }
@@ -139,6 +144,7 @@ mod tests {
             target_folder: "INBOX".into(),
             received_at: 1_781_500_000,
             fraud_verdict: None,
+            sandbox_ns: None,
             schema_version: SPOOL_SCHEMA_VERSION,
         }
     }

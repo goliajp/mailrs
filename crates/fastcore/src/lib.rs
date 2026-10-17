@@ -24,7 +24,6 @@ mod backfill_decode;
 mod bayes_train;
 pub mod boot;
 pub use boot::run;
-
 pub mod bounce;
 mod calendar_sync;
 pub mod dmarc_ingest;
@@ -43,6 +42,7 @@ pub mod live_sync;
 mod maildir_scan;
 mod maintenance;
 mod managesieve;
+mod mock_sweep;
 mod pop3;
 mod push;
 mod router;
@@ -69,7 +69,7 @@ pub async fn self_heal_once(state: &std::sync::Arc<FastcoreState>, user: &str) -
 use routes::*;
 pub mod sender_sts;
 mod sieve_apply;
-mod spool_drain;
+pub mod spool_drain;
 mod tls;
 pub mod tlsrpt;
 pub mod tlsrpt_ingest;

@@ -36,6 +36,7 @@ pub mod mcp;
 pub mod messages;
 pub mod metrics;
 pub mod misc;
+pub mod mock;
 pub mod oidc;
 pub mod prefs;
 pub mod prefs_misc;

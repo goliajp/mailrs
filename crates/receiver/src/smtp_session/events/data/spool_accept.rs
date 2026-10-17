@@ -33,6 +33,7 @@ pub(super) async fn handle_spool_mode<S>(
     conn_id: u64,
     target_folder: &str,
     fraud_verdict: Option<String>,
+    sandbox_ns: Option<String>,
     full_message: &[u8],
     ctx: &ConnectionContext,
 ) -> SessionAction
@@ -75,6 +76,7 @@ where
         target_folder: target_folder.to_string(),
         received_at,
         fraud_verdict,
+        sandbox_ns,
         schema_version: SPOOL_SCHEMA_VERSION,
     };
     let blob = encode_spool_blob(&env, full_message);

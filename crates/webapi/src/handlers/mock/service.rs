@@ -1,0 +1,222 @@
+use std::sync::Arc;
+
+use axum::http::StatusCode;
+use mailrs_core_sidestate::families::mock::{self, MockError, Namespace};
+use serde::Serialize;
+
+use crate::WebState;
+use crate::handlers::kevy_util::{require_admin, with_kevy};
+
+/// Who is asking, as far as mock mail is concerned.
+#[derive(Debug, Clone)]
+pub struct MockCaller {
+    pub user: String,
+    /// a key with `mock:{ns}` scopes reaches only those namespaces
+    pub only_namespaces: Option<Vec<String>>,
+}
+
+#[derive(Debug)]
+pub struct MockApiError {
+    pub status: StatusCode,
+    pub message: String,
+}
+
+impl MockApiError {
+    pub(super) fn new(status: StatusCode, message: impl Into<String>) -> Self {
+        Self {
+            status,
+            message: message.into(),
+        }
+    }
+}
+
+impl From<StatusCode> for MockApiError {
+    fn from(status: StatusCode) -> Self {
+        let message = status.canonical_reason().unwrap_or("error").to_string();
+        Self { status, message }
+    }
+}
+
+impl From<MockError> for MockApiError {
+    fn from(e: MockError) -> Self {
+        let status = match e {
+            MockError::BadName(_) => StatusCode::BAD_REQUEST,
+            MockError::Exists => StatusCode::CONFLICT,
+            MockError::NotFound => StatusCode::NOT_FOUND,
+            MockError::TooManyNamespaces => StatusCode::FORBIDDEN,
+            MockError::StoreFull => StatusCode::INSUFFICIENT_STORAGE,
+            MockError::Kevy(_) | MockError::Io(_) => StatusCode::INTERNAL_SERVER_ERROR,
+        };
+        Self::new(status, e.to_string())
+    }
+}
+
+pub type MockApiResult<T> = Result<T, MockApiError>;
+
+pub(super) fn store<T>(
+    f: impl FnOnce(&mut kevy_client::Connection) -> mock::MockResult<T>,
+) -> MockApiResult<T> {
+    let mut inner = None;
+    with_kevy(|conn| {
+        inner = Some(f(conn));
+        Ok(())
+    })?;
+    inner.expect("the closure ran").map_err(Into::into)
+}
+
+fn enabled() -> MockApiResult<&'static str> {
+    match mock::domain() {
+        "" => Err(MockApiError::new(
+            StatusCode::NOT_FOUND,
+            "mock mail is not enabled on this deployment",
+        )),
+        d => Ok(d),
+    }
+}
+
+async fn is_admin(state: &Arc<WebState>, user: &str) -> bool {
+    require_admin(state, user).await.is_ok()
+}
+
+/// The namespace, when `caller` may read and change it. A namespace the
+/// caller may not see answers as missing.
+pub(super) async fn authorize(
+    state: &Arc<WebState>,
+    caller: &MockCaller,
+    ns: &str,
+) -> MockApiResult<Namespace> {
+    enabled()?;
+    let missing = || MockApiError::new(StatusCode::NOT_FOUND, "no such namespace");
+    if caller
+        .only_namespaces
+        .as_ref()
+        .is_some_and(|only| !only.iter().any(|n| n == ns))
+    {
+        return Err(missing());
+    }
+    let ns_name = ns.to_string();
+    let found = store(move |c| mock::get_namespace(c, &ns_name))?.ok_or_else(missing)?;
+    if found.owner.eq_ignore_ascii_case(&caller.user) || is_admin(state, &caller.user).await {
+        return Ok(found);
+    }
+    Err(missing())
+}
+
+#[derive(Debug, Serialize)]
+pub struct NamespaceView {
+    #[serde(flatten)]
+    pub namespace: Namespace,
+    /// an example address; any tag works
+    pub address: String,
+}
+
+fn view(namespace: Namespace) -> NamespaceView {
+    let address = format!("{}.test@{}", namespace.name, mock::domain());
+    NamespaceView { namespace, address }
+}
+
+pub async fn create_namespace(caller: &MockCaller, name: &str) -> MockApiResult<NamespaceView> {
+    enabled()?;
+    if caller.only_namespaces.is_some() {
+        return Err(MockApiError::new(
+            StatusCode::FORBIDDEN,
+            "a key scoped to namespaces cannot create namespaces",
+        ));
+    }
+    let (user, name) = (caller.user.clone(), name.trim().to_ascii_lowercase());
+    Ok(view(store(move |c| {
+        mock::create_namespace(c, &user, &name)
+    })?))
+}
+
+/// The caller's namespaces; every namespace when an admin asks for `all`.
+pub async fn list_namespaces(
+    state: &Arc<WebState>,
+    caller: &MockCaller,
+    all: bool,
+) -> MockApiResult<Vec<NamespaceView>> {
+    enabled()?;
+    if let Some(only) = &caller.only_namespaces {
+        let mut out = Vec::new();
+        for ns in only {
+            if let Ok(found) = authorize(state, caller, ns).await {
+                out.push(view(found));
+            }
+        }
+        return Ok(out);
+    }
+    let owner = match all && is_admin(state, &caller.user).await {
+        true => None,
+        false => Some(caller.user.clone()),
+    };
+    let list = store(move |c| mock::list_namespaces(c, owner.as_deref()))?;
+    Ok(list.into_iter().map(view).collect())
+}
+
+pub async fn delete_namespace(
+    state: &Arc<WebState>,
+    caller: &MockCaller,
+    ns: &str,
+) -> MockApiResult<()> {
+    if caller.only_namespaces.is_some() {
+        return Err(MockApiError::new(
+            StatusCode::FORBIDDEN,
+            "a key scoped to namespaces cannot delete them",
+        ));
+    }
+    authorize(state, caller, ns).await?;
+    let ns = ns.to_string();
+    store(move |c| mock::delete_namespace(c, mock::root(), &ns))
+}
+
+#[derive(Debug, Serialize)]
+pub struct MintedAddress {
+    pub address: String,
+    pub namespace: String,
+    pub tag: String,
+    pub minted_at: i64,
+}
+
+pub async fn new_address(
+    state: &Arc<WebState>,
+    caller: &MockCaller,
+    ns: &str,
+    tag: Option<&str>,
+) -> MockApiResult<MintedAddress> {
+    authorize(state, caller, ns).await?;
+    let tag = match tag
+        .map(|t| t.trim().to_ascii_lowercase())
+        .filter(|t| !t.is_empty())
+    {
+        Some(t) if mailrs_mock::address::validate_tag(&t) => t,
+        Some(_) => {
+            return Err(MockApiError::new(
+                StatusCode::BAD_REQUEST,
+                "a tag is up to 31 characters of a-z, 0-9, '.', '_' and '-'",
+            ));
+        }
+        None => random_tag(),
+    };
+    let minted_at = now_ms();
+    let (ns_name, t) = (ns.to_string(), tag.clone());
+    store(move |c| mock::record_minted(c, &ns_name, &t, minted_at))?;
+    Ok(MintedAddress {
+        address: format!("{ns}.{tag}@{}", mock::domain()),
+        namespace: ns.to_string(),
+        tag,
+        minted_at,
+    })
+}
+
+fn random_tag() -> String {
+    let mut bytes = [0u8; 5];
+    rand_core::RngCore::fill_bytes(&mut rand_core::OsRng, &mut bytes);
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+pub(super) fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
+}

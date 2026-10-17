@@ -7,6 +7,7 @@
 
 pub(crate) mod auth;
 pub(crate) mod tools;
+mod tools_mock;
 mod tools_parity1;
 mod tools_parity2;
 mod tools_parity3;
@@ -43,11 +44,9 @@ tokio::task_local! {
     pub(crate) static MCP_AUTH_USER: AuthUser;
 }
 
-/// MCP service that exposes mailrs operations as MCP tools
-///
-/// Each MCP session gets its own `MailMcpService` instance, created by the
-/// factory closure in `setup_mcp`. The `auth_user` field is populated from
-/// request extensions set by `mcp_auth_middleware`.
+/// MCP service that exposes mailrs operations as MCP tools. Each session gets
+/// its own instance from the factory closure in `setup_mcp`; `auth_user` comes
+/// from the request extensions `mcp_auth_middleware` sets.
 #[derive(Clone)]
 pub(crate) struct MailMcpService {
     pub(crate) web_state: Arc<WebState>,
@@ -57,8 +56,7 @@ pub(crate) struct MailMcpService {
 }
 
 impl MailMcpService {
-    /// Combined router: v1 (this file) + the parity batches that bring
-    /// the monolith lane level with fastcore.
+    /// v1 (this file) plus the batches that keep this lane level with fastcore
     fn tool_router() -> ToolRouter<Self> {
         Self::tool_router_v1()
             + Self::tool_router_v1_mail()
@@ -75,6 +73,7 @@ impl MailMcpService {
             + Self::tool_router_parity5()
             + Self::tool_router_parity6()
             + Self::tool_router_parity7()
+            + Self::tool_router_mock()
     }
 }
 

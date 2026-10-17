@@ -28,7 +28,8 @@ pub fn install() {
 pub async fn prometheus_metrics() -> impl IntoResponse {
     match HANDLE.get() {
         Some(h) => {
-            let body = h.render();
+            let mut body = h.render();
+            body.push_str(&mock_metrics());
             (
                 StatusCode::OK,
                 [(
@@ -45,4 +46,34 @@ pub async fn prometheus_metrics() -> impl IntoResponse {
         )
             .into_response(),
     }
+}
+
+// read from the shared store at scrape time: the drain that counts them
+// runs in fastcore, which exports nothing
+fn mock_metrics() -> String {
+    use mailrs_core_sidestate::families::mock;
+    if mock::domain().is_empty() {
+        return String::new();
+    }
+    let mut stats = None;
+    let _ = crate::handlers::kevy_util::with_kevy(|c| {
+        stats = mock::stats(c).ok();
+        Ok(())
+    });
+    let Some(s) = stats else {
+        return String::new();
+    };
+    [
+        ("mock_received_total", "counter", s.received),
+        (
+            "mock_rcpt_rejected_unknown_ns_total",
+            "counter",
+            s.rejected_unknown_ns,
+        ),
+        ("mock_store_bytes", "gauge", s.bytes),
+        ("mock_dropped_total", "gauge", s.dropped),
+    ]
+    .iter()
+    .map(|(name, kind, v)| format!("# TYPE {name} {kind}\n{name} {v}\n"))
+    .collect()
 }

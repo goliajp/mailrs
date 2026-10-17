@@ -16,6 +16,7 @@ use super::super::headers::format_received_header;
 use super::super::{ConnectionContext, DATA_TIMEOUT, SessionAction};
 
 mod antispam;
+mod mock_gate;
 mod spool_accept;
 
 use super::super::delivery::{
@@ -69,7 +70,13 @@ where
 
             let mut target_folder = "INBOX";
             let mut fraud_verdict: Option<String> = None;
-            if !is_authenticated && ctx.antispam_enabled {
+            let sandbox_ns = mock_gate::sandbox_namespace(&session.state);
+            let all_mock = match mock_gate::check(&forward_paths, sandbox_ns.is_some(), ctx).await {
+                mock_gate::MockGate::Mixed => false,
+                mock_gate::MockGate::AllMock => true,
+                mock_gate::MockGate::Refuse(resp) => return reply(framed, resp).await,
+            };
+            if !is_authenticated && !all_mock && ctx.antispam_enabled {
                 match run_antispam(
                     &session.state,
                     addr,
@@ -81,12 +88,7 @@ where
                 )
                 .await
                 {
-                    AntiSpamOutcome::Reject(resp) => {
-                        if framed.send(resp.format()).await.is_err() {
-                            return SessionAction::Close;
-                        }
-                        return SessionAction::Continue;
-                    }
+                    AntiSpamOutcome::Reject(resp) => return reply(framed, resp).await,
                     AntiSpamOutcome::Continue {
                         full_message: new_msg,
                         target_folder: tf,
@@ -113,6 +115,7 @@ where
                     conn_id,
                     target_folder,
                     fraud_verdict,
+                    sandbox_ns,
                     &full_message,
                     ctx,
                 )
@@ -280,19 +283,8 @@ where
                         ok = false;
                     }
                     RemoteEnqueueResult::RelayDenied => {
-                        let resp = Response::new(
-                            550,
-                            Some(mailrs_smtp_proto::EnhancedCode {
-                                class: 5,
-                                subject: 7,
-                                detail: 1,
-                            }),
-                            "Relay access denied",
-                        );
-                        if framed.send(resp.format()).await.is_err() {
-                            return SessionAction::Close;
-                        }
-                        return SessionAction::Continue;
+                        let resp = Response::new(550, Some(code(5, 7, 1)), "Relay access denied");
+                        return reply(framed, resp).await;
                     }
                 }
             }
@@ -310,29 +302,14 @@ where
             let resp = if ok {
                 Response::data_ok()
             } else {
-                Response::new(
-                    451,
-                    Some(mailrs_smtp_proto::EnhancedCode {
-                        class: 4,
-                        subject: 3,
-                        detail: 0,
-                    }),
-                    "Local error in processing",
-                )
+                Response::new(451, Some(code(4, 3, 0)), "Local error in processing")
             };
-            if framed.send(resp.format()).await.is_err() {
-                return SessionAction::Close;
-            }
-            SessionAction::Continue
+            reply(framed, resp).await
         }
         Ok(Some(Ok(SmtpInput::DataRejected))) => {
             let resp = Response::new(
                 550,
-                Some(mailrs_smtp_proto::EnhancedCode {
-                    class: 5,
-                    subject: 7,
-                    detail: 7,
-                }),
+                Some(code(5, 7, 7)),
                 "SMTP smuggling detected, message rejected",
             );
             tracing::warn!(
@@ -341,10 +318,7 @@ where
                 from = %reverse_path,
                 "SMTP smuggling attempt detected"
             );
-            if framed.send(resp.format()).await.is_err() {
-                return SessionAction::Close;
-            }
-            SessionAction::Continue
+            reply(framed, resp).await
         }
         Err(_) => {
             // data transfer timeout
@@ -355,4 +329,22 @@ where
         }
         _ => SessionAction::Close,
     }
+}
+
+fn code(class: u8, subject: u16, detail: u16) -> mailrs_smtp_proto::EnhancedCode {
+    mailrs_smtp_proto::EnhancedCode {
+        class,
+        subject,
+        detail,
+    }
+}
+
+async fn reply<S>(framed: &mut Framed<S, SmtpCodec>, resp: Response) -> SessionAction
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
+    if framed.send(resp.format()).await.is_err() {
+        return SessionAction::Close;
+    }
+    SessionAction::Continue
 }

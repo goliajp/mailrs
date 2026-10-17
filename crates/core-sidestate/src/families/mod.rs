@@ -10,6 +10,7 @@ pub mod contacts;
 pub mod domain_history;
 pub mod groups_admin;
 pub mod identity_link;
+pub mod mock;
 pub mod outbound;
 pub mod prefs;
 pub mod reply_rotation;

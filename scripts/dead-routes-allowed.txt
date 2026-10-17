@@ -77,3 +77,5 @@
 /api/conversations/semantic-search       # DEBT: search moved to kevy's text index on 2026-07-20; this may be the leftover of the vector path. Superseded or unfinished, unverified which.
 /api/bimi/{domain}              # DEBT: a bare BIMI TXT lookup. `/api/icon/{domain}` does its own `bimi_lookup` internally, so this looks superseded.
 /api/proxy/image                # DEBT: html-frame.tsx says in as many words that images are NOT proxied — the Shadow DOM fetches them directly, 5-10x faster. A leftover of the iframe era; delete candidate.
+/api/mock/namespaces/{}/messages/latest   # for test code and agents polling one address; the web page lists instead
+/api/mock/namespaces/{}/messages/wait     # long poll for test code and agents; the MCP tool mock_wait_for_message covers the same need

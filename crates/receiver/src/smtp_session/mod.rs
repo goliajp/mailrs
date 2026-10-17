@@ -138,7 +138,7 @@ impl ConnectionContext {
 
 mod address;
 mod auth;
-mod credentials;
+pub(crate) mod credentials;
 pub mod delivered;
 pub mod delivery;
 mod events;

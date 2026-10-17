@@ -131,6 +131,7 @@ hex = "0.4"
 tempfile = "3"
 rmcp = { version = "1.7", features = ["server", "macros", "transport-streamable-http-server", "schemars"] }
 schemars = "1"
+mailrs-mock = { path = "../mock", features = ["schema"] }
 uuid = { version = "1.23.1", features = ["v4"] }
 totp-rs = { version = "5.7.1", features = ["otpauth"] }
 data-encoding = "2.11.0"
