@@ -3,6 +3,7 @@ import {
   Blocks,
   Eye,
   Filter,
+  FlaskConical,
   Globe,
   LayoutGrid,
   ListOrdered,
@@ -65,6 +66,11 @@ const navItems = [
     icon: <Filter className="h-4 w-4" />,
     label: 'Greylist',
     to: '/admin/greylist',
+  },
+  {
+    icon: <FlaskConical className="h-4 w-4" />,
+    label: 'Mock Mail',
+    to: '/admin/mock',
   },
   {
     icon: <Eye className="h-4 w-4" />,
