@@ -11,7 +11,7 @@ OpenAPI spec: https://mail.golia.ai/openapi.json
 ## MCP (recommended)
 
 Streamable HTTP endpoint: https://mail.golia.ai/mcp
-85 tools auto-discovered, grouped by category (identical on both server lanes):
+94 tools auto-discovered, grouped by category (identical on both server lanes):
 
 ```json
 {"mcpServers":{"mailrs":{"type":"streamable-http","url":"https://mail.golia.ai/mcp","headers":{"Authorization":"Bearer <API_KEY>"}}}}
@@ -30,6 +30,7 @@ Streamable HTTP endpoint: https://mail.golia.ai/mcp
 **Queue & Scheduling:** get_queue, list_admin_queue, retry_queue_message, list_failed_outbound, list_own_scheduled, list_scheduled_outbound, cancel_scheduled, reschedule_scheduled
 **Encryption:** list_own_encryption_keys, get_public_key_of, set_encryption_key, delete_encryption_key
 **Greylist:** list_greylist_local, greylist_local_add, greylist_local_remove
+**Mock mail (disposable test mailboxes):** mock_create_namespace, mock_list_namespaces, mock_delete_namespace, mock_new_address, mock_list_messages, mock_wait_for_message, mock_read_message, mock_delete_messages, mock_send
 **Audit & System:** get_audit_log, audit_list_conversations, audit_read_thread, get_system_config, set_system_config, reset_system_config, get_server_info, reconcile_maildir
 
 ## REST API
@@ -70,8 +71,19 @@ Streamable HTTP endpoint: https://mail.golia.ai/mcp
 - GET/POST /api/admin/greylist/local-lists, DELETE /api/admin/greylist/local-lists/{id} — local greylist white/black CRUD (admin.greylist)
 - POST /api/admin/reconcile-maildir — index maildir files missing from PG; {"dry_run": true} reports only (internal.rpc)
 
+### Mock mail (disposable test mailboxes)
+Addresses `{namespace}.{any-tag}@mock.golia.jp` receive mail that never reaches a real mailbox; nothing is ever sent outward from them. Kept 3 days, 500 messages per namespace. An agent key with scope `mock` (or `mock:{namespace}`) reaches only this.
+- GET/POST /api/mock/namespaces, DELETE /api/mock/namespaces/{ns} — namespaces (10 per user)
+- POST /api/mock/namespaces/{ns}/addresses — hand out an address (`{"tag": "..."}` optional)
+- GET /api/mock/namespaces/{ns}/messages — list (?tag=&tag_prefix=&to=&from=&subject=&since=&limit=), each with extracted `codes` and `links`
+- GET /api/mock/namespaces/{ns}/messages/wait — wait up to 60 s for the next one (?tag=&since=&timeout=), returned whole
+- GET /api/mock/namespaces/{ns}/messages/latest, /messages/{id}, /messages/{id}/raw
+- DELETE /api/mock/namespaces/{ns}/messages/{id}, DELETE /api/mock/namespaces/{ns}/messages?tag=
+- POST /api/mock/namespaces/{ns}/send — send from the namespace; only mock recipients receive it
+- POST /api/mock/namespaces/{ns}/smtp-token — SMTP password for `{ns}@mock.golia.jp` on 587: everything that login sends is kept in the namespace, never delivered
+
 ### Agent
-- POST/GET/DELETE /api/agent/keys — API key management
+- POST/GET/DELETE /api/agent/keys — API key management (scopes: admin, mail:read, mail:write, mock, mock:{namespace}; none = full access)
 - POST/GET/DELETE /api/agent/webhooks — webhook subscriptions
 
 ### Status

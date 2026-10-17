@@ -66,5 +66,6 @@ export function sectionForPath(pathname: string): string {
   if (pathname.startsWith('/protocol')) return 'Monitor'
   if (pathname.startsWith('/settings')) return 'Settings'
   if (pathname.startsWith('/mail')) return 'Mail'
+  if (pathname.startsWith('/mock')) return 'Mock mail'
   return 'Home'
 }

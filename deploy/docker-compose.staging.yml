@@ -104,6 +104,7 @@ services:
       - "172.31.11.182:4190:4190"
     environment:
       MAILRS_FASTCORE_BIND: 0.0.0.0:3301
+      MAILRS_LOCAL_DOMAINS: smk.ai
       MAILRS_KEVY_DATA_DIR: /data/kevy-fastcore
       MAILRS_MAILDIR: /data/maildir
       MAILRS_SRS_SECRET: ${MAILRS_SRS_SECRET:-}

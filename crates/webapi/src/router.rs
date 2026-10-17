@@ -11,9 +11,11 @@ use std::sync::Arc;
 use crate::*;
 
 mod mail;
+mod mock;
 mod rest;
 
 use mail::*;
+use mock::*;
 use rest::*;
 
 /// Build the axum router. Conversation routes wired (Phase 3.5);
@@ -50,6 +52,7 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         .merge(admin_routes)
         .merge(jmap_routes)
         .merge(dav_routes)
+        .merge(mock_routes())
         // admin gate — 403 unless caller has admin.* permission or is_super.
         // Runs after session_auth (below) so authed user is in Extensions.
         .route_layer(axum::middleware::from_fn_with_state(

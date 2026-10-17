@@ -28,16 +28,22 @@ use std::sync::Arc;
 use rmcp::ErrorData as McpError;
 use rmcp::handler::server::ServerHandler;
 use rmcp::handler::server::router::tool::ToolRouter;
+use rmcp::handler::server::tool::ToolCallContext;
 use rmcp::model::{
-    CallToolResult, Content, Implementation, ProtocolVersion, ServerCapabilities, ServerInfo,
+    CallToolRequestParams, CallToolResult, Content, Implementation, ProtocolVersion,
+    ServerCapabilities, ServerInfo,
 };
-use rmcp::tool_handler;
+use rmcp::service::RequestContext;
 use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
 use rmcp::transport::streamable_http_server::{StreamableHttpServerConfig, StreamableHttpService};
+use rmcp::{RoleServer, tool_handler};
 
 use crate::WebState;
+pub use scopes::McpIdentity;
 
 mod params;
+mod scopes;
+mod tools_mock;
 mod tools_v1_read;
 mod tools_v1_write;
 mod tools_v2_batch1;
@@ -60,23 +66,22 @@ tokio::task_local! {
     /// Set by `mcp_auth_middleware`, read by the session factory
     /// closure. When absent (unauthenticated call) the tool returns an
     /// invalid-params error rather than silently running as nobody.
-    pub(crate) static MCP_AUTH_USER: String;
+    pub(crate) static MCP_AUTH_USER: McpIdentity;
 }
 
 /// Per-session MCP service.
 #[derive(Clone)]
 pub struct MailrsMcpService {
     state: Arc<WebState>,
-    user: String,
-    #[allow(dead_code)]
+    identity: McpIdentity,
     tool_router: ToolRouter<Self>,
 }
 
 impl MailrsMcpService {
-    pub fn new(state: Arc<WebState>, user: String) -> Self {
+    pub fn new(state: Arc<WebState>, identity: McpIdentity) -> Self {
         Self {
             state,
-            user,
+            identity,
             tool_router: Self::tool_router(),
         }
     }
@@ -100,6 +105,7 @@ impl MailrsMcpService {
             + Self::tool_router_v2_batch13()
             + Self::tool_router_v2_batch14()
             + Self::tool_router_v2_batch15()
+            + Self::tool_router_mock()
     }
 }
 
@@ -110,8 +116,20 @@ pub(super) fn ok_result() -> CallToolResult {
     )])
 }
 
-#[tool_handler]
+#[tool_handler(router = self.tool_router)]
 impl ServerHandler for MailrsMcpService {
+    /// Every tool call passes the scope gate before the router runs it.
+    async fn call_tool(
+        &self,
+        request: CallToolRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        self.identity
+            .check_tool(&request.name, request.arguments.as_ref())?;
+        let tcc = ToolCallContext::new(self, request, context);
+        self.tool_router.call(tcc).await
+    }
+
     fn get_info(&self) -> ServerInfo {
         ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
             .with_protocol_version(ProtocolVersion::V_2025_03_26)
@@ -137,10 +155,10 @@ impl MailrsMcpService {
     }
 
     pub(super) fn require_user(&self) -> Result<&str, McpError> {
-        if self.user.is_empty() {
+        if self.identity.user.is_empty() {
             return Err(McpError::invalid_params("not authenticated", None));
         }
-        Ok(&self.user)
+        Ok(&self.identity.user)
     }
 }
 
@@ -155,10 +173,8 @@ pub fn mcp_router(state: Arc<WebState>) -> axum::Router<Arc<WebState>> {
     let state_for_factory = state.clone();
     let service = StreamableHttpService::new(
         move || {
-            let user = MCP_AUTH_USER
-                .try_with(|u| u.clone())
-                .unwrap_or_else(|_| String::new());
-            Ok(MailrsMcpService::new(state_for_factory.clone(), user))
+            let identity = MCP_AUTH_USER.try_with(|i| i.clone()).unwrap_or_default();
+            Ok(MailrsMcpService::new(state_for_factory.clone(), identity))
         },
         LocalSessionManager::default().into(),
         config,
@@ -175,8 +191,9 @@ pub async fn mcp_auth_middleware(
     req: axum::http::Request<axum::body::Body>,
     next: axum::middleware::Next,
 ) -> axum::response::Response {
-    let user = crate::session::resolve_user_from_headers(req.headers())
+    let identity = crate::session::resolve_auth_from_headers(req.headers())
         .await
+        .map(|a| McpIdentity::new(a.user, a.scopes))
         .unwrap_or_default();
-    MCP_AUTH_USER.scope(user, next.run(req)).await
+    MCP_AUTH_USER.scope(identity, next.run(req)).await
 }

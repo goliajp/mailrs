@@ -365,8 +365,8 @@ pub(super) fn remove_template_chrome(html: &str) -> (String, bool) {
     (trimmed.to_string(), footer_removed)
 }
 
-/// convert cleaned html to plain text
-pub(super) fn html_to_clean_text(html: &str) -> String {
+/// HTML as plain text, blank-line runs collapsed and trailing ones dropped
+pub fn html_to_clean_text(html: &str) -> String {
     let text = match html2text::from_read(html.as_bytes(), 80) {
         Ok(t) => t,
         Err(_) => return String::new(),

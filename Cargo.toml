@@ -43,6 +43,7 @@ members = [
     "crates/rfc5322",
     "crates/auth-guard",
     "crates/srs",
+    "crates/mock",
     "crates/rfc2231",
     "crates/oauth-client",
     "crates/webhook-signature",

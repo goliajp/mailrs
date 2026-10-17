@@ -380,4 +380,35 @@ describe('request bodies match the shared contract', () => {
     const body = await bodyOf(() => wireForgotPassword('lihao@golia.jp', 'backup@example.com'))
     expect(body).toEqual(fixture('forgot-password'))
   })
+
+  it('mock namespace create', async () => {
+    const { wireCreateMockNamespace } = await import('../endpoints/mock')
+    const body = await bodyOf(() => wireCreateMockNamespace('insight'))
+    expect(body).toEqual(fixture('mock-namespace-create'))
+    expect(capturedRequest().path).toBe('/api/mock/namespaces')
+  })
+
+  it('mock address create', async () => {
+    const { wireMintMockAddress } = await import('../endpoints/mock')
+    const body = await bodyOf(() => wireMintMockAddress('insight', 'signup-0417'))
+    expect(body).toEqual(fixture('mock-address-create'))
+    expect(capturedRequest().path).toBe('/api/mock/namespaces/insight/addresses')
+    // without a tag the server picks one; the body carries no `tag` key at all
+    expect(await bodyOf(() => wireMintMockAddress('insight'))).toEqual({})
+  })
+
+  it('mock send', async () => {
+    const { wireMockSend } = await import('../endpoints/mock')
+    const body = await bodyOf(() =>
+      wireMockSend('insight', {
+        fromTag: 'sender',
+        html: '<p>Your code is 482913</p>',
+        subject: 'Your verification code',
+        text: 'Your code is 482913',
+        to: ['insight.signup-0417@mock.golia.jp', 'someone@example.com'],
+      })
+    )
+    expect(body).toEqual(fixture('mock-send'))
+    expect(capturedRequest().path).toBe('/api/mock/namespaces/insight/send')
+  })
 })

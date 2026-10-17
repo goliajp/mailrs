@@ -151,3 +151,10 @@ export const contactsKeys = {
   all: () => ['contacts'] as const,
   search: (q: string) => [...contactsKeys.all(), 'search', q] as const,
 }
+
+export const mockKeys = {
+  all: () => ['mock'] as const,
+  message: (ns: string, id: string) => [...mockKeys.all(), 'message', ns, id] as const,
+  messages: (ns: string) => [...mockKeys.all(), 'messages', ns] as const,
+  namespaces: () => [...mockKeys.all(), 'namespaces'] as const,
+}
