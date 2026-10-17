@@ -1,68 +1,57 @@
-//! `GET /api/admin/mock`: every namespace on the deployment and the store's
-//! totals, for the admin page. Behind `admin_middleware` like every
-//! `/api/admin` route; deleting reuses the namespace route, which already
-//! lets an admin delete any namespace.
+//! `/api/admin/mock`: the mock store's usage and its settings, for the
+//! admin page. Behind `admin_middleware` like every `/api/admin` route.
+//! Namespaces themselves are managed on `/api/mock`, where an admin can
+//! list (`?all=true`), read and delete anyone's.
 
 use axum::Json;
-use mailrs_core_sidestate::families::mock::{
-    self, MAX_NAMESPACES_PER_USER, MAX_TOTAL_BYTES, Namespace, Stats,
-};
+use mailrs_core_sidestate::families::mock::{self, Settings};
 use serde::Serialize;
 
 use super::service::{MockApiError, store};
 
 #[derive(Debug, Serialize)]
-pub struct AdminNamespace {
-    #[serde(flatten)]
-    pub namespace: Namespace,
-    /// bytes of the namespace's message files
+pub struct Usage {
+    pub namespaces: usize,
+    pub owners: usize,
     pub bytes: i64,
+    pub received: i64,
+    pub rejected_unknown_ns: i64,
+    pub dropped: i64,
 }
 
 #[derive(Debug, Serialize)]
 pub struct AdminOverview {
-    /// the mock domain; empty when the feature is off
+    /// the mock domain; empty when the deployment has none configured
     pub domain: &'static str,
-    pub received: i64,
-    pub rejected_unknown_ns: i64,
-    pub bytes: i64,
-    pub max_bytes: i64,
-    pub dropped: i64,
-    pub max_namespaces_per_user: usize,
-    pub namespaces: Vec<AdminNamespace>,
+    pub usage: Usage,
+    pub settings: Settings,
 }
 
 pub async fn overview() -> Result<Json<AdminOverview>, MockApiError> {
-    let domain = mock::domain();
-    if domain.is_empty() {
-        return Ok(Json(AdminOverview {
-            domain,
-            received: 0,
-            rejected_unknown_ns: 0,
-            bytes: 0,
-            max_bytes: MAX_TOTAL_BYTES,
-            dropped: 0,
-            max_namespaces_per_user: MAX_NAMESPACES_PER_USER,
-            namespaces: Vec::new(),
-        }));
-    }
-    let (stats, all): (Stats, Vec<Namespace>) =
-        store(|c| Ok((mock::stats(c)?, mock::list_namespaces(c, None)?)))?;
-    let namespaces = all
-        .into_iter()
-        .map(|ns| AdminNamespace {
-            bytes: mock::namespace_bytes(mock::root(), &ns.name),
-            namespace: ns,
-        })
-        .collect();
+    let (stats, all, settings) = store(|c| {
+        Ok((
+            mock::stats(c)?,
+            mock::list_namespaces(c, None)?,
+            mock::settings(c)?,
+        ))
+    })?;
+    let owners: std::collections::BTreeSet<&str> = all.iter().map(|n| n.owner.as_str()).collect();
     Ok(Json(AdminOverview {
-        domain,
-        received: stats.received,
-        rejected_unknown_ns: stats.rejected_unknown_ns,
-        bytes: stats.bytes,
-        max_bytes: MAX_TOTAL_BYTES,
-        dropped: stats.dropped,
-        max_namespaces_per_user: MAX_NAMESPACES_PER_USER,
-        namespaces,
+        domain: mock::domain(),
+        usage: Usage {
+            namespaces: all.len(),
+            owners: owners.len(),
+            bytes: stats.bytes,
+            received: stats.received,
+            rejected_unknown_ns: stats.rejected_unknown_ns,
+            dropped: stats.dropped,
+        },
+        settings,
     }))
+}
+
+/// Replace the settings; every process reads them on its next use.
+pub async fn save_settings(Json(body): Json<Settings>) -> Result<Json<Settings>, MockApiError> {
+    store(move |c| mock::save_settings(c, &body))?;
+    Ok(Json(body))
 }

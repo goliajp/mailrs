@@ -28,29 +28,23 @@
 
 mod messages;
 mod namespace;
+mod settings;
 mod stats;
 mod sweep;
 mod webhook;
 
 pub use messages::*;
 pub use namespace::*;
+pub use settings::*;
 pub use stats::*;
 pub use sweep::*;
 pub use webhook::*;
 
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
-use std::time::Duration;
 
-/// How long a message is kept.
-pub const RETENTION: Duration = Duration::from_secs(3 * 86_400);
-/// Messages kept per namespace; the oldest are dropped past it.
-pub const MAX_MESSAGES: usize = 500;
-/// Bytes of message files across every namespace; new mail is refused
-/// past it.
-pub const MAX_TOTAL_BYTES: i64 = 2 * 1024 * 1024 * 1024;
-/// Namespaces one user may own.
-pub const MAX_NAMESPACES_PER_USER: usize = 10;
+/// The most messages a listing returns.
+pub const MAX_LISTING: usize = *MAX_MESSAGES_RANGE.end();
 
 static DOMAIN: LazyLock<String> = LazyLock::new(|| {
     std::env::var("MAILRS_MOCK_DOMAIN")
@@ -134,6 +128,9 @@ pub enum MockError {
     NotFound,
     TooManyNamespaces,
     StoreFull,
+    Disabled,
+    AdminsOnly,
+    BadSetting(String),
 }
 
 impl std::fmt::Display for MockError {
@@ -144,10 +141,10 @@ impl std::fmt::Display for MockError {
             Self::BadName(e) => write!(f, "{e}"),
             Self::Exists => f.write_str("this namespace already exists"),
             Self::NotFound => f.write_str("no such namespace"),
-            Self::TooManyNamespaces => write!(
-                f,
-                "a user may own at most {MAX_NAMESPACES_PER_USER} namespaces"
-            ),
+            Self::TooManyNamespaces => f.write_str("you already own as many namespaces as allowed"),
+            Self::Disabled => f.write_str("mock mail is turned off on this deployment"),
+            Self::AdminsOnly => f.write_str("only admins may create namespaces here"),
+            Self::BadSetting(why) => f.write_str(why),
             Self::StoreFull => f.write_str("the mock store is full"),
         }
     }

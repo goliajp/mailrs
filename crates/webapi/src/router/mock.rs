@@ -13,6 +13,10 @@ pub(super) fn mock_routes() -> axum::Router<Arc<WebState>> {
             get(crate::handlers::mock::admin::overview),
         )
         .route(
+            "/api/admin/mock/settings",
+            put(crate::handlers::mock::admin::save_settings),
+        )
+        .route(
             "/api/mock/namespaces",
             get(mock::list_namespaces).post(mock::create_namespace),
         )

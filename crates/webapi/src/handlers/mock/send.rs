@@ -104,8 +104,10 @@ pub async fn send(
             uid: 0,
             summary: summary.clone(),
         };
-        if mock::store_message(c, mock::root(), captured, &raw)? == Stored::Full {
-            return Err(mock::MockError::StoreFull);
+        match mock::store_message(c, mock::root(), captured, &raw)? {
+            Stored::Full => return Err(mock::MockError::StoreFull),
+            Stored::Disabled => return Err(mock::MockError::Disabled),
+            Stored::Stored | Stored::AlreadyStored | Stored::NoNamespace => {}
         }
         for (i, rcpt) in to_owned.iter().enumerate() {
             if let Some(sim) = mock::simulation(rcpt) {
@@ -162,6 +164,10 @@ pub async fn send(
                 Stored::Full => not_delivered.push(NotDelivered {
                     address: rcpt.clone(),
                     reason: "mock store full",
+                }),
+                Stored::Disabled => not_delivered.push(NotDelivered {
+                    address: rcpt.clone(),
+                    reason: "mock mail is turned off",
                 }),
             }
         }

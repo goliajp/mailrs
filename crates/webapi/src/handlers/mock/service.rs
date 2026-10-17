@@ -43,7 +43,10 @@ impl From<MockError> for MockApiError {
             MockError::BadName(_) => StatusCode::BAD_REQUEST,
             MockError::Exists => StatusCode::CONFLICT,
             MockError::NotFound => StatusCode::NOT_FOUND,
-            MockError::TooManyNamespaces => StatusCode::FORBIDDEN,
+            MockError::TooManyNamespaces | MockError::Disabled | MockError::AdminsOnly => {
+                StatusCode::FORBIDDEN
+            }
+            MockError::BadSetting(_) => StatusCode::BAD_REQUEST,
             MockError::StoreFull => StatusCode::INSUFFICIENT_STORAGE,
             MockError::Kevy(_) | MockError::Io(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };
@@ -108,15 +111,30 @@ pub struct NamespaceView {
     pub namespace: Namespace,
     /// an example address; any tag works
     pub address: String,
+    /// bytes of the namespace's message files
+    pub bytes: i64,
 }
 
 fn view(namespace: Namespace) -> NamespaceView {
     let address = format!("{}.test@{}", namespace.name, mock::domain());
-    NamespaceView { namespace, address }
+    let bytes = mock::namespace_bytes(mock::root(), &namespace.name);
+    NamespaceView {
+        namespace,
+        address,
+        bytes,
+    }
 }
 
-pub async fn create_namespace(caller: &MockCaller, name: &str) -> MockApiResult<NamespaceView> {
+pub async fn create_namespace(
+    state: &Arc<WebState>,
+    caller: &MockCaller,
+    name: &str,
+) -> MockApiResult<NamespaceView> {
     enabled()?;
+    let policy = store(|c| mock::settings(c))?.create;
+    if policy == mock::CreatePolicy::AdminsOnly && !is_admin(state, &caller.user).await {
+        return Err(MockError::AdminsOnly.into());
+    }
     if caller.only_namespaces.is_some() {
         return Err(MockApiError::new(
             StatusCode::FORBIDDEN,

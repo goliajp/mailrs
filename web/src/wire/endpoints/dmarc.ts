@@ -22,7 +22,7 @@ import {
 /** `GET /api/admin/dmarc/reports/{sid}` — one report with its rows. */
 export async function fetchDmarcReport(sid: string, signal?: AbortSignal) {
   return wireFetch(wireDmarcReportDetailSchema, {
-    path: `/api/admin/dmarc/reports/${encodeURIComponent(sid)}`,
+    path: `/admin/dmarc/reports/${encodeURIComponent(sid)}`,
     signal,
   })
 }
@@ -30,7 +30,7 @@ export async function fetchDmarcReport(sid: string, signal?: AbortSignal) {
 /** `GET /api/admin/dmarc/reports` — newest reporting window first. */
 export async function fetchDmarcReports(limit?: number, signal?: AbortSignal) {
   const raw = await wireFetch(wireDmarcReportListSchema, {
-    path: `/api/admin/dmarc/reports${limitQuery(limit)}`,
+    path: `/admin/dmarc/reports${limitQuery(limit)}`,
     signal,
   })
   return raw.items
@@ -43,7 +43,7 @@ export async function fetchDmarcSources(
   signal?: AbortSignal
 ): Promise<DmarcSourceList> {
   return wireFetch(wireDmarcSourceListSchema, {
-    path: `/api/admin/dmarc/sources${sourcesQuery(domain, days)}`,
+    path: `/admin/dmarc/sources${sourcesQuery(domain, days)}`,
     signal,
   })
 }

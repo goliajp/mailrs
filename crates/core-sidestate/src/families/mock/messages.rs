@@ -40,6 +40,8 @@ pub enum Stored {
     AlreadyStored,
     NoNamespace,
     Full,
+    /// mock mail is turned off in the settings
+    Disabled,
 }
 
 /// A message id from the spool file it came in and the recipient's
@@ -73,6 +75,10 @@ pub fn store_message(
     raw: &[u8],
 ) -> MockResult<Stored> {
     let ns = meta.namespace.clone();
+    let limits = settings(conn)?;
+    if !limits.enabled {
+        return Ok(Stored::Disabled);
+    }
     if !namespace_exists(conn, &ns)? {
         return Ok(Stored::NoNamespace);
     }
@@ -80,7 +86,7 @@ pub fn store_message(
     if conn.exists(&[key.as_bytes()])? > 0 {
         return Ok(Stored::AlreadyStored);
     }
-    if total_bytes(conn)? >= MAX_TOTAL_BYTES {
+    if total_bytes(conn)? >= limits.max_total_bytes() {
         return Ok(Stored::Full);
     }
     let path = message_path(root, &ns, &meta.id);
@@ -99,26 +105,26 @@ pub fn store_message(
         key.as_bytes(),
         &[(b"ns".as_slice(), ns.as_bytes()), (b"meta", &json)],
     )?;
-    conn.expire(key.as_bytes(), RETENTION)?;
+    conn.expire(key.as_bytes(), limits.retention())?;
     conn.zadd(
         msgs_key(&ns).as_bytes(),
         &[(meta.received_at as f64, meta.id.as_bytes())],
     )?;
     conn.incr_by(BYTES, raw.len() as i64)?;
     conn.incr(RECEIVED)?;
-    drop_over_cap(conn, root, &ns)?;
+    drop_over_cap(conn, root, &ns, limits.max_messages)?;
     if meta.direction == Direction::In {
         notify(conn, &meta)?;
     }
     Ok(Stored::Stored)
 }
 
-fn drop_over_cap(conn: &mut Connection, root: &Path, ns: &str) -> MockResult<()> {
+fn drop_over_cap(conn: &mut Connection, root: &Path, ns: &str, cap: usize) -> MockResult<()> {
     let count = conn.zcard(msgs_key(ns).as_bytes())?;
-    if count <= MAX_MESSAGES {
+    if count <= cap {
         return Ok(());
     }
-    let excess = count - MAX_MESSAGES;
+    let excess = count - cap;
     let oldest = conn.zrange(msgs_key(ns).as_bytes(), 0, excess as i64 - 1)?;
     for id in oldest {
         remove_message(conn, root, ns, &utf8(id))?;
