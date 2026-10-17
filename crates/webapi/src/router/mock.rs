@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::*;
 
-/// `/api/mock/*`: disposable test mailboxes.
+/// `/api/mock/*`: disposable test mailboxes, and the admin overview's flow.
 pub(super) fn mock_routes() -> axum::Router<Arc<WebState>> {
     use crate::handlers::mock::rest as mock;
     use axum::routing::{delete, get, post, put};

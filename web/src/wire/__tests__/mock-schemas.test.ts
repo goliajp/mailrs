@@ -37,6 +37,7 @@ describe('mock mail schemas', () => {
       namespaces: [
         {
           address: 'devops-check.test@mock.golia.jp',
+          bytes: 0,
           created_at: 1_792_206_288_897,
           dropped: 0,
           messages: 0,
