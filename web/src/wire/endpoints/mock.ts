@@ -11,6 +11,7 @@ import type {
   MockMintedAddress,
   MockNamespace,
   MockSendResult,
+  MockSettings,
   MockSmtpCredentials,
   MockWebhook,
 } from '../schemas/mock'
@@ -27,6 +28,7 @@ import {
   mockNamespaceListSchema,
   mockNamespaceSchema,
   mockSendResultSchema,
+  mockSettingsSchema,
   mockSmtpCredentialsSchema,
   mockWebhookSchema,
 } from '../schemas/mock'
@@ -93,8 +95,11 @@ export function wireListMockMessages(ns: string, signal?: AbortSignal): Promise<
 }
 
 /** `GET /api/mock/namespaces` → the caller's namespaces. 404 when the deployment has no mock domain. */
-export async function wireListMockNamespaces(signal?: AbortSignal): Promise<MockNamespace[]> {
-  const out = await wireFetch(mockNamespaceListSchema, { path: '/mock/namespaces', signal })
+export async function wireListMockNamespaces(
+  signal?: AbortSignal,
+  everyone = false
+): Promise<MockNamespace[]> {
+  const out = await wireFetch(mockNamespaceListSchema, { path: namespacesPath(everyone), signal })
   return out.namespaces
 }
 
@@ -139,6 +144,15 @@ export function wireRotateMockSmtpToken(ns: string): Promise<MockSmtpCredentials
   })
 }
 
+/** `PUT /api/admin/mock/settings` → the saved settings. Admins only. */
+export function wireSaveMockSettings(settings: MockSettings): Promise<MockSettings> {
+  return wireFetch(mockSettingsSchema, {
+    body: settings,
+    method: 'PUT',
+    path: '/admin/mock/settings',
+  })
+}
+
 /** `PUT /api/mock/namespaces/{ns}/webhook` → the URL and its signing secret. */
 export function wireSetMockWebhook(ns: string, url: string): Promise<MockWebhook> {
   return wireFetch(mockWebhookSchema, {
@@ -150,6 +164,11 @@ export function wireSetMockWebhook(ns: string, url: string): Promise<MockWebhook
 
 function messagePath(ns: string, id: string): string {
   return `/mock/namespaces/${encodeURIComponent(ns)}/messages/${encodeURIComponent(id)}`
+}
+
+function namespacesPath(everyone: boolean): string {
+  if (everyone) return '/mock/namespaces?all=true'
+  return '/mock/namespaces'
 }
 
 function nsPath(ns: string): string {
