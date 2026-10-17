@@ -225,14 +225,31 @@ fn unsubscribe_body_matches() {
 }
 
 #[test]
+fn invite_counter_body_matches() {
+    let v: handlers::invites::CounterRequest = parse("invite-counter");
+    assert_eq!(v.start, "2026-10-20T02:00:00.000Z");
+    assert_eq!(v.end, "2026-10-20T03:00:00.000Z");
+}
+
+#[test]
+fn invite_rsvp_body_matches() {
+    let v: handlers::invites::RsvpRequest = parse("invite-rsvp");
+    assert_eq!(v.partstat, "ACCEPTED");
+    assert_eq!(v.recurrence_id.as_deref(), Some("2026-10-20T02:00:00Z"));
+}
+
+#[test]
 fn every_fixture_has_a_test() {
     const CHECKED: &[&str] = &[
         "ai-generate-subject",
         "account-create",
+        "account-password-set",
         "account-sieve-set",
         "account-update",
         "agent-key-create",
         "alias-create",
+        "app-create",
+        "app-scopes-set",
         "domain-create",
         "group-permissions-set",
         "push-register",
@@ -254,7 +271,10 @@ fn every_fixture_has_a_test() {
         "key-upload",
         "mock-address-create",
         "mock-namespace-create",
+        "invite-counter",
+        "invite-rsvp",
         "mock-send",
+        "mock-settings-save",
         "mock-webhook-set",
         "reaction-toggle",
         "recovery-email-set",

@@ -13,6 +13,8 @@ import { ScrollableTable } from '@/components/scrollable-table'
 import { adminKeys } from '@/lib/query-keys'
 import { adminListGet } from '@/wire/endpoints/admin'
 
+import { ACTION_GROUPS, actionColor, matchesActionFilter } from './admin-audit-actions'
+
 type AuditEntry = {
   action: string
   actor: string
@@ -23,42 +25,6 @@ type AuditEntry = {
 }
 
 const HEADERS = ['Time', 'Actor', 'Action', 'Target', 'Detail']
-
-// Group actions by resource prefix for the filter dropdown. Derived from the
-// canonical list in the audit-log retrofit RFC (`<resource>_<verb>` plus
-// the legacy `audit.*` family that wasn't renamed).
-const ACTION_GROUPS = [
-  { label: 'all', value: '' },
-  { label: 'auth (login / password / totp / oidc)', value: 'auth' },
-  { label: 'domain', value: 'domain_' },
-  { label: 'account', value: 'account_' },
-  { label: 'alias', value: 'alias_' },
-  { label: 'group', value: 'group_' },
-  { label: 'email_group', value: 'email_group_' },
-  { label: 'app', value: 'app_' },
-  { label: 'oauth_client', value: 'oauth_client_' },
-  { label: 'sieve', value: 'sieve_' },
-  { label: 'queue / suppression', value: 'queue_or_suppression' },
-  { label: 'cache', value: 'cache_' },
-  { label: 'system_config', value: 'system_config_' },
-  { label: 'greylist', value: 'greylist_local_' },
-  { label: "audit-read (read someone else's mail)", value: 'audit.' },
-]
-
-const AUTH_ACTIONS = new Set([
-  'login',
-  'login_failed',
-  'oidc_login',
-  'password_changed',
-  'password_reset',
-  'password_reset_requested',
-  'recovery_code_used',
-  'recovery_email_updated',
-  'totp_disabled',
-  'totp_enabled',
-  'totp_failed',
-  'totp_setup',
-])
 
 export function AdminAuditLog() {
   const [actionFilter, setActionFilter] = useState('')
@@ -122,61 +88,85 @@ export function AdminAuditLog() {
         </span>
       </div>
 
-      {isPending ? (
-        <AdminTableSkeleton cols={5} headers={HEADERS} rows={6} />
-      ) : error ? (
-        <AdminErrorState error={error} onRetry={() => refetch()} retryDisabled={isFetching} />
-      ) : filtered.length === 0 ? (
-        <AdminEmptyState
-          description={
-            entries.length === 0
-              ? 'Actions taken by admins will appear here.'
-              : 'No entries match the current filters.'
-          }
-          icon={<ScrollText className="h-10 w-10" />}
-          title={entries.length === 0 ? 'No audit log entries' : 'No matches'}
-        />
-      ) : (
-        <ScrollableTable>
-          <table className="w-full text-left text-sm">
-            <thead className="border-border bg-bg-secondary border-b">
-              <tr>
-                {HEADERS.map((h) => (
-                  <th className="px-4 py-2.5 font-medium" key={h}>
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((entry) => (
-                <tr className="border-border border-b last:border-0" key={entry.id}>
-                  <td className="text-fg-secondary px-4 py-3 whitespace-nowrap">
-                    {formatTime(entry.timestamp)}
-                  </td>
-                  <td className="px-4 py-3 font-medium">{entry.actor}</td>
-                  <td className={`px-4 py-3 font-medium ${actionColor(entry.action)}`}>
-                    {entry.action}
-                  </td>
-                  <td className="text-fg-secondary px-4 py-3">{entry.target}</td>
-                  <td className="text-fg-muted max-w-xl px-4 py-3">
-                    <DetailCell detail={entry.detail} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </ScrollableTable>
-      )}
+      <AuditBody
+        entries={entries}
+        error={error}
+        filtered={filtered}
+        isFetching={isFetching}
+        isPending={isPending}
+        onRetry={() => refetch()}
+      />
     </AdminPageShell>
   )
 }
 
-function actionColor(action: string): string {
-  if (action === 'login_failed' || action === 'totp_failed') return 'text-danger'
-  if (action === 'login' || action === 'oidc_login') return 'text-success'
-  if (action.startsWith('audit.')) return 'text-warning'
-  return 'text-fg'
+function AuditBody({
+  entries,
+  error,
+  filtered,
+  isFetching,
+  isPending,
+  onRetry,
+}: {
+  entries: AuditEntry[]
+  error: Error | null
+  filtered: AuditEntry[]
+  isFetching: boolean
+  isPending: boolean
+  onRetry: () => void
+}) {
+  if (isPending) return <AdminTableSkeleton cols={5} headers={HEADERS} rows={6} />
+  if (error) return <AdminErrorState error={error} onRetry={onRetry} retryDisabled={isFetching} />
+  if (entries.length === 0) {
+    return (
+      <AdminEmptyState
+        description="Actions taken by admins will appear here"
+        icon={<ScrollText className="h-10 w-10" />}
+        title="No audit log entries"
+      />
+    )
+  }
+  if (filtered.length === 0) {
+    return (
+      <AdminEmptyState
+        description="No entries match the current filters"
+        icon={<ScrollText className="h-10 w-10" />}
+        title="No matches"
+      />
+    )
+  }
+  return (
+    <ScrollableTable>
+      <table className="w-full text-left text-sm">
+        <thead className="border-border bg-bg-secondary border-b">
+          <tr>
+            {HEADERS.map((h) => (
+              <th className="px-4 py-2.5 font-medium" key={h}>
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {filtered.map((entry) => (
+            <tr className="border-border border-b last:border-0" key={entry.id}>
+              <td className="text-fg-secondary px-4 py-3 whitespace-nowrap">
+                {formatTime(entry.timestamp)}
+              </td>
+              <td className="px-4 py-3 font-medium">{entry.actor}</td>
+              <td className={`px-4 py-3 font-medium ${actionColor(entry.action)}`}>
+                {entry.action}
+              </td>
+              <td className="text-fg-secondary px-4 py-3">{entry.target}</td>
+              <td className="text-fg-muted max-w-xl px-4 py-3">
+                <DetailCell detail={entry.detail} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </ScrollableTable>
+  )
 }
 
 function DetailCell({ detail }: { detail: string }) {
@@ -199,6 +189,8 @@ function DetailCell({ detail }: { detail: string }) {
     return <span className="block truncate">{detail}</span>
   }
 
+  let toggle = '▶ JSON'
+  if (expanded) toggle = '▼ collapse'
   return (
     <div>
       <button
@@ -206,27 +198,17 @@ function DetailCell({ detail }: { detail: string }) {
         onClick={() => setExpanded((s) => !s)}
         type="button"
       >
-        {expanded ? '▼ collapse' : '▶ JSON'} ·{' '}
-        <span className="font-mono">{trimmed.slice(0, 60)}…</span>
+        {toggle} · <span className="font-mono">{trimmed.slice(0, 60)}…</span>
       </button>
-      {expanded ? (
+      {expanded && (
         <pre className="bg-bg-secondary text-fg mt-1 max-w-full overflow-auto rounded-md p-2 font-mono text-xs">
           {pretty}
         </pre>
-      ) : null}
+      )}
     </div>
   )
 }
 
 function formatTime(epoch: number): string {
   return new Date(epoch * 1000).toLocaleString()
-}
-
-function matchesActionFilter(action: string, filter: string): boolean {
-  if (!filter) return true
-  if (filter === 'auth') return AUTH_ACTIONS.has(action)
-  if (filter === 'queue_or_suppression') {
-    return action.startsWith('queue_') || action.startsWith('suppression_')
-  }
-  return action.startsWith(filter)
 }

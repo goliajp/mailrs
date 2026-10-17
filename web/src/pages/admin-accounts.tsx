@@ -69,16 +69,11 @@ export function AdminAccounts() {
 
   const addAccount = useAdminMutation({
     invalidateKey: adminKeys.accounts(),
-    mutationFn: (vars: {
-      address: string
-      displayName: string
-      domain: string
-      password: string
-    }) =>
+    // no `domain`: fastcore derives it from the address
+    mutationFn: (vars: { address: string; displayName: string; password: string }) =>
       adminPost<{ message?: string; success: boolean }>('/admin/accounts', {
         address: vars.address,
         display_name: vars.displayName,
-        domain: vars.domain,
         password: vars.password,
       }),
     successMsg: (vars) => `Account "${vars.address}" added`,
@@ -93,13 +88,11 @@ export function AdminAccounts() {
   const handleAdd = () => {
     const local = form.address.trim().replace(/@.*$/, '')
     const domain = form.domain.trim()
-    if (!local || !domain) return
-    const fullAddress = `${local}@${domain}`
+    if (!local || !domain || !form.password) return
     addAccount.mutate(
       {
-        address: fullAddress,
+        address: `${local}@${domain}`,
         displayName: form.displayName.trim(),
-        domain,
         password: form.password,
       },
       {
@@ -190,7 +183,12 @@ export function AdminAccounts() {
           <div className="flex gap-2">
             <button
               className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm disabled:opacity-50"
-              disabled={!form.address.trim() || !form.domain.trim() || addAccount.isPending}
+              disabled={
+                !form.address.trim() ||
+                !form.domain.trim() ||
+                !form.password ||
+                addAccount.isPending
+              }
               onClick={handleAdd}
             >
               {addAccount.isPending ? 'Saving...' : 'Save'}

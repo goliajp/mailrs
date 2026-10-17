@@ -15,7 +15,6 @@ use axum::{
 
 use crate::WebState;
 use crate::handlers::conversations::AuthedUser;
-use mailrs_core_sidestate::families::outbound::{PENDING_IDX, RETRY_IDX};
 
 // Split by subject on 2026-08-02 — 1,687 lines holding password recovery,
 // TOTP, system config, groups, audit and the agent surface. Re-exported so
@@ -25,6 +24,11 @@ pub(crate) use crate::handlers::audit_read::*;
 pub(crate) use crate::handlers::auth_recovery::*;
 pub(crate) use crate::handlers::groups::*;
 pub(crate) use crate::handlers::system_config::*;
+
+pub(crate) mod greylist;
+mod queue;
+pub use greylist::*;
+pub use queue::*;
 
 pub(crate) fn hgetall_values(
     c: &mut kevy_client::Connection,
@@ -194,20 +198,6 @@ pub async fn get_message_single(
     })))
 }
 
-// ── /api/queue/{id}/retry — outbound queue retry ──────────────────
-
-pub async fn queue_retry(Path(id): Path<i64>) -> Result<StatusCode, StatusCode> {
-    // Set state=pending on the v2 job hash and LPUSH pending-idx —
-    // the same shape sender's own retry path uses. The pre-2.9.38 form
-    // wrote the legacy `mailrs:outbound:pending`, which sender had
-    // stopped consuming, so retries silently no-op'd.
-    let now = now_secs();
-    with_kevy(move |c| {
-        mailrs_core_sidestate::families::outbound::requeue_pending(c, id, now).map(|_| ())
-    })?;
-    Ok(StatusCode::NO_CONTENT)
-}
-
 // ── Calendar (CalDAV placeholder) ──────────────────────────────────
 
 pub async fn calendar_feeds() -> Json<serde_json::Value> {
@@ -235,7 +225,7 @@ pub(crate) const APPS_CTR: &str = "admin:apps:counter";
 
 // ── Admin: audit-log messages/raw + audit/accounts + audit/conversations ────
 
-// ── Admin: config/smtp + system-config ─────────────────────────────
+// ── Admin: system-config ─────────────────────────────
 
 // ── Admin: groups + permissions + group members ────────────────────
 
@@ -246,110 +236,5 @@ pub(crate) const GROUPS_CTR: &str = "admin:groups:counter";
 
 pub(crate) const EG_KEY: &str = "admin:email-groups";
 pub(crate) const EG_CTR: &str = "admin:email-groups:counter";
-
-// ── Admin: greylist local-lists ───────────────────────────────────
-
-pub(crate) const GL_KEY: &str = "admin:greylist:local-lists";
-pub(crate) const GL_CTR: &str = "admin:greylist:local-lists:counter";
-
-pub async fn list_greylist_local() -> Result<Json<serde_json::Value>, StatusCode> {
-    let vals = with_kevy(|c| hgetall_values(c, GL_KEY))?;
-    let items: Vec<serde_json::Value> = vals
-        .into_iter()
-        .filter_map(|v| serde_json::from_slice(&v).ok())
-        .collect();
-    Ok(Json(serde_json::json!({ "items": items })))
-}
-
-/// A local greylist entry as the client sends it.
-///
-/// These four fields are the contract the admin UI was built against and
-/// the one the monolith implements
-/// (`crates/server/src/web/admin/greylist_local.rs`, backed by the
-/// `greylist_local_lists` table). This handler was written with
-/// `{address_or_domain, list_type}` — invented, overlapping neither — so
-/// every create failed with a missing-field 422 and the read side returned
-/// records the UI could not display either.
-#[derive(Debug, serde::Deserialize)]
-pub struct CreateGreylistRequest {
-    /// `domain` or `address` — what `value` is.
-    pub kind: String,
-    /// `whitelist` or `blacklist`.
-    pub list: String,
-    pub value: String,
-    /// Free-text reason. `null` and `""` both mean none; the UI sends
-    /// `null` for an untouched field.
-    #[serde(default)]
-    pub note: Option<String>,
-}
-
-pub async fn create_greylist_entry(
-    Json(req): Json<CreateGreylistRequest>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
-    let id = with_kevy(|c| next_id(c, GL_CTR))?;
-    let g = serde_json::json!({
-        "id": id,
-        "kind": req.kind,
-        "list": req.list,
-        "value": req.value,
-        "note": req.note,
-        "created_at": now_secs(),
-    });
-    let payload = serde_json::to_vec(&g).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    with_kevy(move |c| {
-        c.hset(
-            GL_KEY.as_bytes(),
-            &[(id.to_string().as_bytes(), payload.as_slice())],
-        )?;
-        Ok(())
-    })?;
-    Ok(Json(g))
-}
-
-pub async fn delete_greylist_entry(Path(id): Path<i64>) -> Result<StatusCode, StatusCode> {
-    with_kevy(move |c| {
-        c.hdel(GL_KEY.as_bytes(), &[id.to_string().as_bytes()])?;
-        Ok(())
-    })?;
-    Ok(StatusCode::NO_CONTENT)
-}
-
-pub async fn list_admin_queue() -> Result<Json<serde_json::Value>, StatusCode> {
-    // Up to 100 ids each: queued, waiting between attempts, in flight.
-    let ids = with_kevy(|c| {
-        let pending = c.lrange(PENDING_IDX, 0, 99).unwrap_or_default();
-        let retrying = c.zrange(RETRY_IDX, 0, 99).unwrap_or_default();
-        let inflight = c
-            .lrange(b"mailrs:outbound:inflight", 0, 99)
-            .unwrap_or_default();
-        Ok((pending, retrying, inflight))
-    })?;
-    let mut items = Vec::new();
-    for (label, list) in [
-        ("pending", &ids.0),
-        ("retrying", &ids.1),
-        ("inflight", &ids.2),
-    ] {
-        for b in list {
-            let id_str = String::from_utf8_lossy(b).to_string();
-            let key = format!("mailrs:outbound:job:{id_str}");
-            let key_c = key.clone();
-            let blob = with_kevy(move |c| {
-                c.hget(key_c.as_bytes(), b"blob")
-                    .map_err(std::io::Error::from)
-            })?;
-            if let Some(b) = blob
-                && let Ok(v) = serde_json::from_slice::<serde_json::Value>(&b)
-            {
-                let mut item = v;
-                if let Some(o) = item.as_object_mut() {
-                    o.insert("status".into(), serde_json::Value::String(label.into()));
-                }
-                items.push(item);
-            }
-        }
-    }
-    Ok(Json(serde_json::json!({ "items": items })))
-}
 
 // ── Agent: keys + webhooks (per-user) ─────────────────────────────

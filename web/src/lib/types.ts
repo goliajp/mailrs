@@ -51,8 +51,8 @@ export type CheckResult = {
   status: CheckStatus
 }
 
-// domain health check types
-export type CheckStatus = 'fail' | 'pass' | 'skip' | 'warn'
+// domain health check types — crates/webapi/src/handlers/admin_ops/domain_check.rs
+export type CheckStatus = 'fail' | 'pass' | 'warn'
 
 export type ConnectionInfo = {
   addr: string

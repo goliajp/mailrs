@@ -131,7 +131,7 @@ pub async fn create_namespace(
     name: &str,
 ) -> MockApiResult<NamespaceView> {
     enabled()?;
-    let policy = store(|c| mock::settings(c))?.create;
+    let policy = store(mock::settings)?.create;
     if policy == mock::CreatePolicy::AdminsOnly && !is_admin(state, &caller.user).await {
         return Err(MockError::AdminsOnly.into());
     }

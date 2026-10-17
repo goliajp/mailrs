@@ -15,6 +15,10 @@ use crate::handlers::admin::*;
 use crate::handlers::conversations::AuthedUser;
 use crate::handlers::kevy_util::with_kevy;
 
+mod domain_check;
+pub use crate::handlers::apps_keys::{AppScopesRequest, set_app_scopes};
+pub use domain_check::check_domain_dns;
+
 /// POST /api/admin/webhook-subscriptions
 pub async fn create_webhook(
     State(_state): State<Arc<WebState>>,
@@ -114,60 +118,6 @@ pub async fn delete_account_sieve(
     })?;
     super::audit::record(&actor, "sieve.delete", &address, "");
     Ok(StatusCode::NO_CONTENT)
-}
-
-/// POST /api/admin/domains/{name}/check — run SPF / DKIM / DMARC / MX
-/// lookups on the domain and return a status report.
-pub async fn check_domain_dns(
-    State(_state): State<Arc<WebState>>,
-    Extension(_user): Extension<AuthedUser>,
-    Path(name): Path<String>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
-    let resolver = hickory_resolver::TokioResolver::builder_tokio()
-        .and_then(|b| b.build())
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    async fn txt(r: &hickory_resolver::TokioResolver, n: &str) -> Option<String> {
-        let l = r.txt_lookup(n).await.ok()?;
-        let joined: Vec<String> = l
-            .answers()
-            .iter()
-            .filter_map(|record| match &record.data {
-                hickory_resolver::proto::rr::RData::TXT(txt) => Some(txt.to_string()),
-                _ => None,
-            })
-            .collect();
-        if joined.is_empty() {
-            None
-        } else {
-            Some(joined.join("\n"))
-        }
-    }
-
-    let spf = txt(&resolver, &name).await;
-    let dkim = txt(&resolver, &format!("default._domainkey.{name}")).await;
-    let dmarc = txt(&resolver, &format!("_dmarc.{name}")).await;
-    let mx_hosts: Vec<String> = resolver
-        .mx_lookup(&name)
-        .await
-        .map(|r| {
-            r.answers()
-                .iter()
-                .filter_map(|record| match &record.data {
-                    hickory_resolver::proto::rr::RData::MX(mx) => Some(mx.exchange.to_utf8()),
-                    _ => None,
-                })
-                .collect()
-        })
-        .unwrap_or_default();
-
-    Ok(Json(serde_json::json!({
-        "domain": name,
-        "spf": spf,
-        "dkim": dkim,
-        "dmarc": dmarc,
-        "mx": mx_hosts,
-    })))
 }
 
 /// POST /api/admin/reconcile-maildir — scan `MAILRS_MAILDIR` for
@@ -324,26 +274,4 @@ pub async fn get_spam_feedback_stats(
         "ham": ham_total,
         "per_user": per_user,
     })))
-}
-
-#[derive(Debug, serde::Deserialize)]
-pub struct AppScopesRequest {
-    pub scopes: Vec<String>,
-}
-
-pub async fn set_app_scopes(
-    State(_state): State<Arc<WebState>>,
-    Extension(AuthedUser(actor)): Extension<AuthedUser>,
-    Path(app_id): Path<String>,
-    Json(req): Json<AppScopesRequest>,
-) -> Result<StatusCode, StatusCode> {
-    let key = format!("admin:app:{app_id}:scopes");
-    let joined = req.scopes.join(",");
-    let joined_c = joined.clone();
-    with_kevy(move |c| {
-        c.set(key.as_bytes(), joined_c.as_bytes())?;
-        Ok(())
-    })?;
-    super::audit::record(&actor, "app.scopes_update", &app_id, &joined);
-    Ok(StatusCode::NO_CONTENT)
 }

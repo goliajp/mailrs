@@ -1,6 +1,4 @@
 {
-  "alias_type": "forward",
-  "domain": "golia.jp",
   "source_address": "devops@golia.jp",
   "target_address": "lihao@golia.jp"
 }

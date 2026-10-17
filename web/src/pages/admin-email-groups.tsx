@@ -14,7 +14,7 @@ import { MobileModal } from '@/components/mobile-modal'
 import { ScrollableTable } from '@/components/scrollable-table'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
 import { adminKeys } from '@/lib/query-keys'
-import { adminDelete, adminListGet, adminPost } from '@/wire/endpoints/admin'
+import { adminDelete, adminListGet, adminPost, adminStringListGet } from '@/wire/endpoints/admin'
 
 type EmailGroupInfo = {
   address: string
@@ -262,8 +262,7 @@ function EmailGroupMembers({ group }: { group: EmailGroupInfo }) {
 
   const { data: membersData } = useQuery({
     queryKey: adminKeys.emailGroupMembers(group.id),
-    queryFn: ({ signal }) =>
-      adminListGet<string>(`/admin/email-groups/${group.id}/members`, signal),
+    queryFn: ({ signal }) => adminStringListGet(`/admin/email-groups/${group.id}/members`, signal),
   })
   const members = membersData ?? null
 

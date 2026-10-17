@@ -1,0 +1,4 @@
+{
+  "name": "ci-bot",
+  "scopes": ["mail.read", "mail.send"]
+}
