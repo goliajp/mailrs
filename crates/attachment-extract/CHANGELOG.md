@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- PDF text extraction no longer uses `pdf-extract`. Text comes from an
+  own content-stream interpreter on `lopdf` 0.45: ToUnicode CMaps,
+  predefined CJK CMaps (`UniJIS-UCS2-H`, `90ms-RKSJ-H`, ...),
+  Adobe-Japan1 CIDs, base encodings with `/Differences` through the
+  Adobe Glyph List, and embedded TrueType `cmap` / `post` tables.
+  Pages are separated by `\u{000C}`, so `page_count` is now accurate.
+  Malformed files that used to panic now return what text they have.
+
 ### Added (v3 stones polish, 2026-05-25)
 
 - BUDGETS.md describing the perf-gate methodology

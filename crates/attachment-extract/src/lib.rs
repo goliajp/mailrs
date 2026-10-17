@@ -7,6 +7,8 @@ use std::process::Command;
 
 use serde::Serialize;
 
+mod pdf;
+
 /// Result of an extraction attempt — text content + provenance metadata
 /// (language hint, confidence, page count) suitable for indexing or
 /// embedding generation downstream.
@@ -71,12 +73,12 @@ pub fn extraction_method(content_type: &str) -> ExtractionMethod {
     ExtractionMethod::Unsupported
 }
 
-/// Extract embedded text from a PDF (pure Rust via `pdf-extract`).
+/// Extract embedded text from a PDF (pure Rust, parsed with `lopdf`).
 /// Confidence is `1.0` because embedded text is exact, not OCR'd.
 /// `page_count` is approximated by counting form-feed (`\u{000C}`)
 /// page-break markers; off-by-one is possible for malformed PDFs.
 pub fn extract_pdf_text(data: &[u8]) -> Result<ExtractionResult, String> {
-    let text = pdf_extract::extract_text_from_mem(data).map_err(|e| format!("pdf parse: {e}"))?;
+    let text = pdf::extract_text(data).map_err(|e| format!("pdf parse: {e}"))?;
     let trimmed = text.trim().to_string();
     let page_count = text.matches('\u{000C}').count() as u32 + 1;
     Ok(ExtractionResult {
