@@ -1,3 +1,4 @@
+import type { AccountPanel, OpenPanel } from '@/components/admin-accounts/account-columns'
 import type { AccountInfo } from '@/lib/types'
 
 import { useQuery } from '@tanstack/react-query'
@@ -5,50 +6,36 @@ import { Users } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
 
-import {
-  DisplayNameCell,
-  GroupsCell,
-  PasswordCell,
-  QuotaCell,
-  SieveCell,
-} from '@/components/admin-accounts'
+import { GroupsPanel, SievePanel } from '@/components/admin-accounts'
+import { accountColumns } from '@/components/admin-accounts/account-columns'
+import { AddAccountForm } from '@/components/admin-accounts/add-account-form'
 import {
   AdminEmptyState,
   AdminErrorState,
   AdminPageShell,
+  AdminTable,
   AdminTableSkeleton,
+  ConfirmAction,
 } from '@/components/admin-page'
-import { Copyable } from '@/components/copy-button'
-import { MobileModal } from '@/components/mobile-modal'
-import { ScrollableTable } from '@/components/scrollable-table'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
 import { adminKeys } from '@/lib/query-keys'
-import { activeLabel, stateDotClass } from '@/lib/status-label'
-import { adminDelete, adminListGet, adminPost } from '@/wire/endpoints/admin'
+import { adminDelete, adminListGet } from '@/wire/endpoints/admin'
 
 const PAGE_SIZE = 20
-const HEADERS = ['Address', 'Display Name', 'Domain', 'Quota', 'Status', 'Password', 'Actions']
+const HEADERS = ['Address', 'Display name', 'Domain', 'Quota', 'Status', 'Password', '']
 
 export function AdminAccounts() {
   const [searchParams, setSearchParams] = useSearchParams()
   const filter = searchParams.get('q') ?? ''
   const page = Math.max(0, Number.parseInt(searchParams.get('page') ?? '0', 10) || 0)
+  const deleteTarget = searchParams.get('delete')
 
-  const setFilter = (q: string) => {
+  const setParam = (key: string, value: null | string) => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev)
-      if (q) next.set('q', q)
-      else next.delete('q')
-      next.delete('page')
-      return next
-    })
-  }
-
-  const setPage = (p: number) => {
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev)
-      if (p === 0) next.delete('page')
-      else next.set('page', String(p))
+      if (value) next.set(key, value)
+      else next.delete(key)
+      if (key === 'q') next.delete('page')
       return next
     })
   }
@@ -60,49 +47,13 @@ export function AdminAccounts() {
   const accounts = useMemo(() => data ?? [], [data])
 
   const [adding, setAdding] = useState(false)
-  const [form, setForm] = useState({
-    address: '',
-    displayName: '',
-    domain: '',
-    password: '',
-  })
-
-  const addAccount = useAdminMutation({
-    invalidateKey: adminKeys.accounts(),
-    // no `domain`: fastcore derives it from the address
-    mutationFn: (vars: { address: string; displayName: string; password: string }) =>
-      adminPost<{ message?: string; success: boolean }>('/admin/accounts', {
-        address: vars.address,
-        display_name: vars.displayName,
-        password: vars.password,
-      }),
-    successMsg: (vars) => `Account "${vars.address}" added`,
-  })
+  const [open, setOpen] = useState<OpenPanel>(null)
 
   const deleteAccount = useAdminMutation({
     invalidateKey: adminKeys.accounts(),
     mutationFn: (address: string) => adminDelete(`/admin/accounts/${encodeURIComponent(address)}`),
-    successMsg: (address) => `Account "${address}" removed`,
+    successMsg: (address) => `Account "${address}" deleted`,
   })
-
-  const handleAdd = () => {
-    const local = form.address.trim().replace(/@.*$/, '')
-    const domain = form.domain.trim()
-    if (!local || !domain || !form.password) return
-    addAccount.mutate(
-      {
-        address: `${local}@${domain}`,
-        displayName: form.displayName.trim(),
-        password: form.password,
-      },
-      {
-        onSuccess: () => {
-          setForm({ address: '', displayName: '', domain: '', password: '' })
-          setAdding(false)
-        },
-      }
-    )
-  }
 
   const filtered = useMemo(() => {
     if (!filter) return accounts
@@ -118,7 +69,77 @@ export function AdminAccounts() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const safePage = Math.min(page, totalPages - 1)
   const paged = filtered.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE)
-  const deleteTarget = searchParams.get('delete')
+
+  const toggle = (address: string, panel: AccountPanel) => {
+    if (open?.address === address && open.panel === panel) setOpen(null)
+    else setOpen({ address, panel })
+  }
+
+  const columns = accountColumns({
+    onToggle: toggle,
+    open,
+    onDelete: (address) => setParam('delete', address),
+  })
+
+  const panelOf = (a: AccountInfo) => {
+    if (open?.address !== a.address) return null
+    if (open.panel === 'groups') return <GroupsPanel address={a.address} />
+    return <SievePanel address={a.address} onClose={() => setOpen(null)} />
+  }
+
+  const renderList = () => {
+    if (isPending) return <AdminTableSkeleton cols={7} headers={HEADERS} rows={6} />
+    if (error) {
+      return <AdminErrorState error={error} onRetry={() => refetch()} what="the account list" />
+    }
+    if (accounts.length === 0 && !adding) {
+      return (
+        <AdminEmptyState
+          description="An account is a mailbox someone signs in to, over the web, IMAP or POP3. Add one to start receiving mail at its address"
+          icon={<Users className="h-10 w-10" />}
+          title="No accounts yet"
+        />
+      )
+    }
+    if (filtered.length === 0) {
+      return <AdminEmptyState description={`No accounts match "${filter}"`} title="No matches" />
+    }
+    return (
+      <>
+        <AdminTable
+          columns={columns}
+          detail={panelOf}
+          label="Accounts"
+          rowKey={(a) => a.address}
+          rows={paged}
+        />
+        {totalPages > 1 && (
+          <div className="text-fg-secondary mt-4 flex items-center justify-between text-sm">
+            <span className="tabular-nums">
+              Showing {safePage * PAGE_SIZE + 1}–
+              {Math.min((safePage + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}
+            </span>
+            <div className="flex gap-1">
+              <button
+                className="hover:bg-bg-secondary rounded-md px-2.5 py-1 disabled:opacity-40"
+                disabled={safePage === 0}
+                onClick={() => setParam('page', pageParam(safePage - 1))}
+              >
+                Prev
+              </button>
+              <button
+                className="hover:bg-bg-secondary rounded-md px-2.5 py-1 disabled:opacity-40"
+                disabled={safePage >= totalPages - 1}
+                onClick={() => setParam('page', pageParam(safePage + 1))}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
+      </>
+    )
+  }
 
   return (
     <AdminPageShell
@@ -127,7 +148,7 @@ export function AdminAccounts() {
           <input
             aria-label="Filter accounts"
             className="border-border bg-bg-secondary placeholder:text-fg-muted focus:border-accent w-64 rounded-md border px-3 py-1.5 text-sm outline-none"
-            onChange={(e) => setFilter(e.target.value)}
+            onChange={(e) => setParam('q', e.target.value)}
             placeholder="Filter accounts..."
             value={filter}
           />
@@ -136,237 +157,48 @@ export function AdminAccounts() {
               className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:opacity-90"
               onClick={() => setAdding(true)}
             >
-              Add Account
+              Add account
             </button>
           )}
         </div>
       }
       title="Accounts"
     >
-      {adding && (
-        <div className="border-border mb-4 space-y-2 rounded-lg border p-4">
-          <div className="flex gap-2">
-            <input
-              aria-label="Username"
-              autoFocus
-              className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
-              onChange={(e) => setForm({ ...form, address: e.target.value })}
-              placeholder="username"
-              value={form.address}
-            />
-            <input
-              aria-label="Domain"
-              className="border-border bg-bg-secondary w-40 rounded-md border px-3 py-1.5 text-sm"
-              onChange={(e) => setForm({ ...form, domain: e.target.value })}
-              placeholder="example.com"
-              value={form.domain}
-            />
-          </div>
-          <div className="flex gap-2">
-            <input
-              aria-label="Display name"
-              className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
-              onChange={(e) => setForm({ ...form, displayName: e.target.value })}
-              placeholder="Display Name"
-              value={form.displayName}
-            />
-            <input
-              aria-label="Password"
-              autoComplete="new-password"
-              className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-              placeholder="Password"
-              type="password"
-              value={form.password}
-            />
-          </div>
-          <div className="flex gap-2">
-            <button
-              className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm disabled:opacity-50"
-              disabled={
-                !form.address.trim() ||
-                !form.domain.trim() ||
-                !form.password ||
-                addAccount.isPending
-              }
-              onClick={handleAdd}
-            >
-              {addAccount.isPending ? 'Saving...' : 'Save'}
-            </button>
-            <button
-              className="text-fg-secondary hover:bg-bg-secondary rounded-md px-3 py-1.5 text-sm transition-colors"
-              onClick={() => {
-                setForm({ address: '', displayName: '', domain: '', password: '' })
-                setAdding(false)
-              }}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
+      {adding && <AddAccountForm onDone={() => setAdding(false)} />}
 
-      {isPending ? (
-        <AdminTableSkeleton cols={7} headers={HEADERS} rows={6} />
-      ) : error ? (
-        <AdminErrorState error={error} onRetry={() => refetch()} />
-      ) : accounts.length === 0 && !adding ? (
-        <AdminEmptyState
-          description="Create an account to start delivering mail to a mailbox."
-          icon={<Users className="h-10 w-10" />}
-          title="No accounts configured"
-        />
-      ) : filtered.length === 0 ? (
-        <AdminEmptyState description={`No accounts match "${filter}".`} title="No matches" />
-      ) : (
-        <>
-          <ScrollableTable>
-            <table className="w-full text-left text-sm">
-              <thead className="border-border bg-bg-secondary border-b">
-                <tr>
-                  {HEADERS.slice(0, -1).map((h) => (
-                    <th className="px-4 py-2.5 font-medium" key={h}>
-                      {h}
-                    </th>
-                  ))}
-                  <th className="px-4 py-2.5 text-right font-medium">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paged.map((account) => (
-                  <tr className="border-border border-b last:border-0" key={account.address}>
-                    <td className="px-4 py-3 font-medium">
-                      <Copyable value={account.address}>{account.address}</Copyable>
-                    </td>
-                    <td className="px-4 py-3">
-                      <DisplayNameCell account={account} />
-                    </td>
-                    <td className="text-fg-secondary px-4 py-3">{account.domain}</td>
-                    <td className="px-4 py-3">
-                      <QuotaCell address={account.address} />
-                    </td>
-                    <td className="px-4 py-3">
-                      {/* The dot **and** the word. Green against
-                          neutral grey at 8×8 with a `title` on a
-                          non-focusable span is a mouse-hover-only
-                          answer to "is this account on", and colour is
-                          the only thing carrying it. The rule is
-                          already written down in `status-bar.tsx`:
-                          every dot has a text label right next to
-                          it. */}
-                      <span className="flex items-center gap-1.5">
-                        <span className={stateDotClass(account.active, 'bg-border')} />
-                        <span className="text-fg-secondary text-xs">
-                          {activeLabel(account.active)}
-                        </span>
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <PasswordCell account={account} />
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <GroupsCell address={account.address} />
-                        <SieveCell address={account.address} />
-                        <button
-                          className="text-danger text-xs transition-colors hover:opacity-70"
-                          onClick={() => {
-                            setSearchParams((prev) => {
-                              const next = new URLSearchParams(prev)
-                              next.set('delete', account.address)
-                              return next
-                            })
-                          }}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </ScrollableTable>
-
-          {totalPages > 1 && (
-            <div className="text-fg-secondary mt-4 flex items-center justify-between text-sm">
-              <span>
-                Showing {safePage * PAGE_SIZE + 1}–
-                {Math.min((safePage + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}
-              </span>
-              <div className="flex gap-1">
-                <button
-                  className="hover:bg-bg-secondary rounded-md px-2.5 py-1 disabled:opacity-40"
-                  disabled={safePage === 0}
-                  onClick={() => setPage(safePage - 1)}
-                >
-                  Prev
-                </button>
-                <button
-                  className="hover:bg-bg-secondary rounded-md px-2.5 py-1 disabled:opacity-40"
-                  disabled={safePage >= totalPages - 1}
-                  onClick={() => setPage(safePage + 1)}
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-          )}
-        </>
-      )}
+      {renderList()}
 
       {deleteTarget && (
-        <MobileModal
-          onClose={() =>
-            setSearchParams((prev) => {
-              const next = new URLSearchParams(prev)
-              next.delete('delete')
-              return next
-            })
+        <ConfirmAction
+          confirmLabel={pendingLabel(deleteAccount.isPending, 'Deleting...', 'Delete account')}
+          consequence={accountDeleteConsequence(deleteTarget)}
+          onCancel={() => setParam('delete', null)}
+          onConfirm={() =>
+            deleteAccount.mutate(deleteTarget, { onSettled: () => setParam('delete', null) })
           }
-          open
-        >
-          <div className="bg-surface w-full max-w-sm rounded-lg p-6 shadow-lg">
-            <h3 className="mb-2 text-sm font-semibold">Confirm Deletion</h3>
-            <p className="text-fg-muted mb-4 text-sm">
-              Are you sure you want to delete{' '}
-              <span className="text-fg font-medium">{deleteTarget}</span>? This action cannot be
-              undone.
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                className="text-fg-secondary hover:bg-bg-secondary rounded-md px-3 py-1.5 text-sm transition-colors"
-                onClick={() =>
-                  setSearchParams((prev) => {
-                    const next = new URLSearchParams(prev)
-                    next.delete('delete')
-                    return next
-                  })
-                }
-              >
-                Cancel
-              </button>
-              <button
-                className="bg-danger rounded-md px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
-                disabled={deleteAccount.isPending}
-                onClick={() => {
-                  deleteAccount.mutate(deleteTarget, {
-                    onSettled: () => {
-                      setSearchParams((prev) => {
-                        const next = new URLSearchParams(prev)
-                        next.delete('delete')
-                        return next
-                      })
-                    },
-                  })
-                }}
-              >
-                {deleteAccount.isPending ? 'Deleting...' : 'Delete'}
-              </button>
-            </div>
-          </div>
-        </MobileModal>
+          pending={deleteAccount.isPending}
+          title={`Delete ${deleteTarget}?`}
+        />
       )}
     </AdminPageShell>
   )
+}
+
+/**
+ * Deleting removes the account record and its own permissions only. The
+ * maildir stays, and delivery checks the maildir before the account, so
+ * mail keeps arriving there. Open sessions are not revoked.
+ */
+function accountDeleteConsequence(address: string): string {
+  return `${address} can no longer sign in, though sessions already open are not ended. Its stored mail stays on disk, and new mail to the address is still delivered into that mailbox. Its aliases and group memberships are kept`
+}
+
+function pageParam(p: number): null | string {
+  if (p === 0) return null
+  return String(p)
+}
+
+function pendingLabel(pending: boolean, busy: string, idle: string): string {
+  if (pending) return busy
+  return idle
 }

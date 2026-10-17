@@ -40,16 +40,16 @@ export function GreylistAddForm({
     if (err) return
     onSave(form, () => setForm(EMPTY_FORM))
   }
-  let saveLabel = 'Save'
-  if (saving) saveLabel = 'Saving…'
+  let saveLabel = 'Add entry'
+  if (saving) saveLabel = 'Adding...'
 
   return (
     <div className="border-border mb-4 space-y-2 rounded-lg border p-4">
-      <div className="text-fg-secondary text-xs">
-        <strong className="text-fg">white</strong> = skip greylist (Gmail/Outlook etc. already
-        covered by remote whitelist). <strong className="text-fg">black</strong> = reject with SMTP
-        550 5.7.1. A value can be on either list, never both.
-      </div>
+      <p className="text-fg-secondary text-xs">
+        <strong className="text-fg">White</strong> skips greylisting.{' '}
+        <strong className="text-fg">Black</strong> refuses the mail with SMTP 550 5.7.1. A value on
+        both lists is treated as black. A domain also covers its subdomains
+      </p>
       <div className="flex flex-wrap gap-2">
         <select
           aria-label="Kind"
@@ -57,9 +57,9 @@ export function GreylistAddForm({
           onChange={(e) => setForm({ ...form, kind: e.target.value as GreylistLocalKind })}
           value={form.kind}
         >
-          <option value="domain">domain</option>
-          <option value="email">email</option>
-          <option value="cidr">cidr</option>
+          <option value="domain">Domain</option>
+          <option value="email">Email</option>
+          <option value="cidr">CIDR</option>
         </select>
         <select
           aria-label="List"
@@ -67,8 +67,8 @@ export function GreylistAddForm({
           onChange={(e) => setForm({ ...form, list: e.target.value as GreylistLocalListName })}
           value={form.list}
         >
-          <option value="white">white</option>
-          <option value="black">black</option>
+          <option value="white">White</option>
+          <option value="black">Black</option>
         </select>
         <input
           aria-label="Value"
@@ -86,7 +86,7 @@ export function GreylistAddForm({
         aria-label="Note (optional)"
         className="border-border bg-bg-secondary w-full rounded-md border px-3 py-1.5 text-sm"
         onChange={(e) => setForm({ ...form, note: e.target.value })}
-        placeholder="optional note — why this entry exists"
+        placeholder="Why this entry exists (optional)"
         value={form.note}
       />
       {formError && <p className="text-danger text-xs">{formError}</p>}
@@ -115,17 +115,17 @@ export function GreylistAddForm({
 
 function validateValue(kind: GreylistLocalKind, value: string): null | string {
   const v = value.trim()
-  if (!v) return 'value is required'
+  if (!v) return 'Enter a value'
   if (kind === 'domain') {
     if (!v.includes('.') || v.includes('@') || v.includes(' ')) {
-      return 'invalid domain (need at least one dot, no @, no spaces)'
+      return 'A domain needs at least one dot, and no @ or spaces'
     }
   } else if (kind === 'email') {
     if (!/^[^@\s]+@[^@\s.]+\.[^@\s]+$/.test(v)) {
-      return 'invalid email (need user@host.tld)'
+      return 'An email address looks like user@example.com'
     }
   } else if (kind === 'cidr') {
-    if (!v.includes('/')) return 'cidr needs a /N suffix'
+    if (!v.includes('/')) return 'A CIDR needs a /N prefix length, e.g. 203.0.113.0/24'
   }
   return null
 }

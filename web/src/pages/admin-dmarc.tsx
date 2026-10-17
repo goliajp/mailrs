@@ -1,26 +1,93 @@
+import type { Column } from '@/components/admin-page'
 import type { DmarcReport, DmarcSource } from '@/wire/schemas/dmarc'
 
 import { useQuery } from '@tanstack/react-query'
 import { ShieldCheck } from 'lucide-react'
-import { useState } from 'react'
+import { useSearchParams } from 'react-router'
 
 import {
   AdminEmptyState,
   AdminErrorState,
   AdminPageShell,
+  AdminTable,
   AdminTableSkeleton,
 } from '@/components/admin-page'
-import { ScrollableTable } from '@/components/scrollable-table'
 import { adminKeys } from '@/lib/query-keys'
 import { fetchDmarcReports, fetchDmarcSources } from '@/wire/endpoints/dmarc'
 
 const WINDOW_OPTIONS = [7, 30, 90] as const
+const DEFAULT_DAYS = 30
 
-const SOURCE_HEADERS = ['Source IP', 'Messages', 'Passing', 'Alignment', 'Domains']
-const REPORT_HEADERS = ['Reporter', 'Domain', 'Window', 'Policy', 'Messages', 'Alignment']
+const SOURCE_HEADERS = ['Source IP', 'Messages', 'Passing', 'Pass rate', 'Domains']
+const NO_REPORTS: DmarcReport[] = []
+
+const SUBTITLE =
+  'What mail providers report about mail sent as your domains. Providers send a daily aggregate report to the rua= address in each DMARC record; reports addressed to dmarc@ any domain here are stored as they arrive'
+
+const sourceColumns: Column<DmarcSource>[] = [
+  {
+    header: 'Source IP',
+    key: 'ip',
+    cell: (s) => <span className="font-mono text-xs">{s.sourceIp}</span>,
+  },
+  { align: 'end', header: 'Messages', key: 'total', cell: (s) => s.total },
+  { align: 'end', header: 'Passing', key: 'passing', cell: (s) => s.passing },
+  {
+    align: 'end',
+    header: 'Pass rate',
+    key: 'rate',
+    cell: (s) => <PassRate passing={s.passing} total={s.total} />,
+  },
+  {
+    header: 'Domains',
+    key: 'domains',
+    cell: (s) => <span className="text-fg-muted text-xs">{s.domains.join(', ')}</span>,
+  },
+]
+
+const reportColumns: Column<DmarcReport>[] = [
+  { header: 'Reporter', key: 'org', cell: (r) => r.orgName },
+  {
+    header: 'Domain',
+    key: 'domain',
+    cell: (r) => <span className="text-fg-muted text-xs">{r.policyDomain}</span>,
+  },
+  {
+    align: 'end',
+    header: 'Window',
+    key: 'window',
+    cell: (r) => (
+      <span className="text-fg-muted text-xs whitespace-nowrap">
+        {formatDay(r.begin)} – {formatDay(r.end)}
+      </span>
+    ),
+  },
+  {
+    header: 'Policy',
+    key: 'policy',
+    cell: (r) => <span className="text-fg-muted text-xs">{r.policy}</span>,
+  },
+  { align: 'end', header: 'Messages', key: 'total', cell: (r) => r.total },
+  {
+    align: 'end',
+    header: 'Pass rate',
+    key: 'rate',
+    cell: (r) => <PassRate passing={r.passing} total={r.total} />,
+  },
+]
 
 export function AdminDmarc() {
-  const [days, setDays] = useState<number>(30)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const days = parseDays(searchParams.get('days'))
+
+  const setDays = (next: number) => {
+    setSearchParams((prev) => {
+      const params = new URLSearchParams(prev)
+      if (next === DEFAULT_DAYS) params.delete('days')
+      else params.set('days', String(next))
+      return params
+    })
+  }
 
   const sourcesQuery = useQuery({
     queryKey: adminKeys.dmarcSources(days),
@@ -30,94 +97,103 @@ export function AdminDmarc() {
     queryKey: adminKeys.dmarcReports(),
     queryFn: ({ signal }) => fetchDmarcReports(50, signal),
   })
+  const reports = reportsQuery.data ?? NO_REPORTS
 
   const windowPicker = (
     <div className="flex items-center gap-1">
-      {WINDOW_OPTIONS.map((option) => {
-        const classes = ['rounded px-2 py-1 text-xs']
-        if (option === days) {
-          classes.push('bg-accent text-white')
-        } else {
-          classes.push('text-fg-muted hover:bg-bg-secondary')
-        }
-        return (
-          <button className={classes.join(' ')} key={option} onClick={() => setDays(option)}>
-            {option}d
-          </button>
-        )
-      })}
+      {WINDOW_OPTIONS.map((option) => (
+        <button
+          aria-pressed={option === days}
+          className={windowClass(option === days)}
+          key={option}
+          onClick={() => setDays(option)}
+          type="button"
+        >
+          {option}d
+        </button>
+      ))}
     </div>
   )
 
-  if (sourcesQuery.isError) {
+  const renderSources = () => {
+    if (sourcesQuery.isPending) {
+      return <AdminTableSkeleton cols={SOURCE_HEADERS.length} headers={SOURCE_HEADERS} />
+    }
+    if (sourcesQuery.isError) {
+      return (
+        <AdminErrorState
+          error={sourcesQuery.error}
+          onRetry={() => void sourcesQuery.refetch()}
+          what="the sending sources"
+        />
+      )
+    }
+    const rollup = sourcesQuery.data
     return (
-      <AdminPageShell title="DMARC">
-        <AdminErrorState error={sourcesQuery.error} onRetry={() => void sourcesQuery.refetch()} />
-      </AdminPageShell>
-    )
-  }
-
-  if (sourcesQuery.isPending) {
-    return (
-      <AdminPageShell actions={windowPicker} title="DMARC">
-        <AdminTableSkeleton cols={SOURCE_HEADERS.length} headers={SOURCE_HEADERS} />
-      </AdminPageShell>
-    )
-  }
-
-  const rollup = sourcesQuery.data
-  const reports = reportsQuery.data ?? []
-  const overallRate = alignmentRate(rollup.total, rollup.passing)
-
-  return (
-    <AdminPageShell actions={windowPicker} title="DMARC">
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <SummaryTile label="Messages seen" value={String(rollup.total)} />
-        <SummaryTile label="Aligned" value={String(rollup.passing)} />
-        <SummaryTile label="Alignment rate" value={formatRate(overallRate)} />
-        <SummaryTile label="Reports" value={String(rollup.reports)} />
-      </div>
-
-      <section className="mb-8">
+      <>
+        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <SummaryTile label="Messages reported" value={String(rollup.total)} />
+          <SummaryTile label="Passing DMARC" value={String(rollup.passing)} />
+          <SummaryTile
+            label="Pass rate"
+            value={formatRate(passRate(rollup.total, rollup.passing))}
+          />
+          <SummaryTile label="Reports" value={String(rollup.reports)} />
+        </div>
         <h3 className="text-fg mb-2 text-sm font-medium">Sending sources</h3>
         <p className="text-fg-muted mb-3 text-xs">
-          Every IP that sent mail claiming one of your domains, over the last {days} days. A source
-          at 0% alignment is either a misconfigured sender of yours or someone spoofing the domain.
+          Every IP that providers saw sending mail as one of your domains, in reports whose window
+          began in the last {days} days. A source passing 0% is either a sender of yours whose SPF
+          or DKIM does not align with the domain, or someone spoofing it
         </p>
-        {rollup.items.length === 0 && (
-          <AdminEmptyState
-            description="Aggregate reports arrive daily once receivers see mail from your domains. If you just repointed rua=, allow 24-48 hours."
-            icon={<ShieldCheck className="h-10 w-10" />}
-            title="No sending sources reported yet"
-          />
-        )}
-        {rollup.items.length > 0 && <SourcesTable sources={rollup.items} />}
-      </section>
+        <SourcesBody
+          days={days}
+          olderOnly={reports.length > 0 && rollup.reports === 0}
+          sources={rollup.items}
+        />
+      </>
+    )
+  }
 
+  const renderReports = () => {
+    if (reportsQuery.isPending) return <AdminTableSkeleton cols={reportColumns.length} rows={3} />
+    if (reportsQuery.isError) {
+      return (
+        <AdminErrorState
+          error={reportsQuery.error}
+          onRetry={() => void reportsQuery.refetch()}
+          what="the report list"
+        />
+      )
+    }
+    if (reports.length === 0) {
+      return (
+        <AdminEmptyState
+          description="Set rua=mailto:dmarc@ one of your domains in each domain's DMARC record. Providers usually send their first report within a day or two"
+          icon={<ShieldCheck className="h-10 w-10" />}
+          title="No DMARC reports yet"
+        />
+      )
+    }
+    return (
+      <AdminTable
+        columns={reportColumns}
+        label="DMARC reports"
+        rowKey={(r) => r.sid}
+        rows={reports}
+      />
+    )
+  }
+
+  return (
+    <AdminPageShell actions={windowPicker} subtitle={SUBTITLE} title="DMARC">
+      <section className="mb-8">{renderSources()}</section>
       <section>
         <h3 className="text-fg mb-2 text-sm font-medium">Reports received</h3>
-        {reports.length === 0 && (
-          <AdminEmptyState
-            description="Reports are stored as they arrive at the collector mailbox."
-            icon={<ShieldCheck className="h-10 w-10" />}
-            title="No reports stored yet"
-          />
-        )}
-        {reports.length > 0 && <ReportsTable reports={reports} />}
+        {renderReports()}
       </section>
     </AdminPageShell>
   )
-}
-
-function AlignmentCell({ passing, total }: { passing: number; total: number }) {
-  const rate = alignmentRate(total, passing)
-  return <span className={rateClass(rate)}>{formatRate(rate)}</span>
-}
-
-/** Percentage of `passing` out of `total`, or null when nothing was seen. */
-function alignmentRate(total: number, passing: number): null | number {
-  if (total === 0) return null
-  return (passing / total) * 100
 }
 
 /** Unix seconds to a short local date. */
@@ -129,86 +205,70 @@ function formatDay(unixSeconds: number): string {
   })
 }
 
-/** Format a rate for display. Null renders as an em dash, not "0%". */
+/** Null renders as an em dash, not "0%". */
 function formatRate(rate: null | number): string {
   if (rate === null) return '—'
   return `${rate.toFixed(1)}%`
 }
 
-/**
- * Tailwind text colour for an alignment rate. A source at 100% is
- * almost certainly ours and correctly configured; a source at 0% is
- * either a misconfigured sender of ours or someone spoofing the domain.
- */
+function parseDays(raw: null | string): number {
+  const n = Number(raw)
+  return WINDOW_OPTIONS.find((o) => o === n) ?? DEFAULT_DAYS
+}
+
+function PassRate({ passing, total }: { passing: number; total: number }) {
+  const rate = passRate(total, passing)
+  return <span className={rateClass(rate)}>{formatRate(rate)}</span>
+}
+
+/** Percentage of `passing` out of `total`, or null when nothing was seen. */
+function passRate(total: number, passing: number): null | number {
+  if (total === 0) return null
+  return (passing / total) * 100
+}
+
 function rateClass(rate: null | number): string {
   if (rate === null) return 'text-fg-muted'
-  if (rate >= 95) return 'text-green-600 dark:text-green-400'
-  if (rate >= 50) return 'text-amber-600 dark:text-amber-400'
-  return 'text-red-600 dark:text-red-400'
+  if (rate >= 95) return 'text-success'
+  if (rate >= 50) return 'text-warning'
+  return 'text-danger'
 }
 
-function ReportsTable({ reports }: { reports: DmarcReport[] }) {
+function SourcesBody({
+  days,
+  olderOnly,
+  sources,
+}: {
+  days: number
+  /** reports are stored, but none began inside the window */
+  olderOnly: boolean
+  sources: DmarcSource[]
+}) {
+  if (sources.length > 0) {
+    return (
+      <AdminTable
+        columns={sourceColumns}
+        label="Sending sources"
+        rowKey={(s) => s.sourceIp}
+        rows={sources}
+      />
+    )
+  }
+  if (olderOnly) {
+    return (
+      <AdminEmptyState
+        description="Every stored report began before this window. Choose a longer window to include them"
+        icon={<ShieldCheck className="h-10 w-10" />}
+        title={`No sending sources in the last ${days} days`}
+      />
+    )
+  }
   return (
-    <ScrollableTable>
-      <table className="w-full text-left text-sm">
-        <thead className="border-border bg-bg-secondary border-b">
-          <tr>
-            {REPORT_HEADERS.map((h) => (
-              <th className="text-fg-muted px-4 py-2 text-xs font-medium" key={h}>
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {reports.map((r) => (
-            <tr className="border-border/50 border-b last:border-0" key={r.sid}>
-              <td className="text-fg px-4 py-2">{r.orgName}</td>
-              <td className="text-fg-muted px-4 py-2 text-xs">{r.policyDomain}</td>
-              <td className="text-fg-muted px-4 py-2 text-xs whitespace-nowrap">
-                {formatDay(r.begin)} – {formatDay(r.end)}
-              </td>
-              <td className="text-fg-muted px-4 py-2 text-xs">{r.policy}</td>
-              <td className="text-fg px-4 py-2 tabular-nums">{r.total}</td>
-              <td className="px-4 py-2 tabular-nums">
-                <AlignmentCell passing={r.passing} total={r.total} />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </ScrollableTable>
-  )
-}
-
-function SourcesTable({ sources }: { sources: DmarcSource[] }) {
-  return (
-    <ScrollableTable>
-      <table className="w-full text-left text-sm">
-        <thead className="border-border bg-bg-secondary border-b">
-          <tr>
-            {SOURCE_HEADERS.map((h) => (
-              <th className="text-fg-muted px-4 py-2 text-xs font-medium" key={h}>
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {sources.map((s) => (
-            <tr className="border-border/50 border-b last:border-0" key={s.sourceIp}>
-              <td className="text-fg px-4 py-2 font-mono text-xs">{s.sourceIp}</td>
-              <td className="text-fg px-4 py-2 tabular-nums">{s.total}</td>
-              <td className="text-fg px-4 py-2 tabular-nums">{s.passing}</td>
-              <td className="px-4 py-2 tabular-nums">
-                <AlignmentCell passing={s.passing} total={s.total} />
-              </td>
-              <td className="text-fg-muted px-4 py-2 text-xs">{s.domains.join(', ')}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </ScrollableTable>
+    <AdminEmptyState
+      description="Sources appear once the first aggregate report arrives. Each report lists the IPs that sent mail as your domain and whether that mail passed DMARC"
+      icon={<ShieldCheck className="h-10 w-10" />}
+      title="No sending sources yet"
+    />
   )
 }
 
@@ -219,4 +279,9 @@ function SummaryTile({ label, value }: { label: string; value: string }) {
       <p className="text-fg mt-1 text-lg font-semibold tabular-nums">{value}</p>
     </div>
   )
+}
+
+function windowClass(active: boolean): string {
+  if (active) return 'rounded px-2 py-1 text-xs bg-accent text-white'
+  return 'rounded px-2 py-1 text-xs text-fg-muted hover:bg-bg-secondary'
 }
