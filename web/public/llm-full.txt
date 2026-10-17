@@ -25,7 +25,7 @@ Config for Claude Code or any MCP client:
 }
 ```
 
-85 tools auto-discovered via MCP, grouped by category (the table below is a selection; `tools/list` is the authority, and `scripts/check-mcp-parity.sh` holds the two server lanes to the same set):
+94 tools auto-discovered via MCP, grouped by category (the table below is a selection; `tools/list` is the authority, and `scripts/check-mcp-parity.sh` holds the two server lanes to the same set):
 
 ### Email Operations
 
@@ -173,6 +173,22 @@ Server-wide local white/black overrides on top of the Phase 1 remote sender-doma
 | list_greylist_local | admin.greylist | List local greylist entries; filter by kind (domain/email/cidr) and/or list (white/black) |
 | greylist_local_add | admin.greylist | Add a local greylist entry. White = skip greylist, Black = reject 550 |
 | greylist_local_remove | admin.greylist | Remove a local greylist entry by id |
+
+### Mock Mail (disposable test mailboxes)
+
+See "Mock mail" below for how the addresses work.
+
+| Tool | Permission | Description |
+|------|-----------|-------------|
+| mock_create_namespace | any user (10 each) | Create a namespace; it receives mail for every `{namespace}.{tag}@mock.golia.jp` |
+| mock_list_namespaces | any user | Your namespaces with message and dropped counts (`all` for admins) |
+| mock_delete_namespace | owner / admin | Delete a namespace and its messages |
+| mock_new_address | owner / admin | Hand out an address; omit `tag` for a random one |
+| mock_list_messages | owner / admin | Messages newest first, with `codes`, `links`, attachments |
+| mock_wait_for_message | owner / admin | Wait up to 60 s for the next message and return it whole |
+| mock_read_message | owner / admin | One message whole: text, HTML, codes, links |
+| mock_delete_messages | owner / admin | Delete one message, one tag's messages, or all |
+| mock_send | owner / admin | Send from the namespace; only mock recipients receive it |
 
 ### Parameter Examples
 
@@ -431,6 +447,60 @@ will hear about it.
 Only a `REQUEST` asks for an answer. A `PUBLISH` is a notice and a
 `REPLY` is somebody else's answer arriving; replying to either sends a
 message to a party that did not ask for one.
+
+## Mock mail (disposable test mailboxes)
+
+For development: sign up to a third-party service, test your own
+signup / password-reset mail, or let an agent read a verification code,
+without touching a real mailbox.
+
+- A **namespace** belongs to the user who created it (10 per user).
+  Names are 3–32 of `a-z 0-9 -` and global, so prefix them with
+  something of yours.
+- Every address `{namespace}.{tag}@mock.golia.jp` (or
+  `{namespace}+{tag}@…`) delivers into it. Tags need no registration:
+  up to 31 of `a-z 0-9 . _ -`. Case is folded.
+- Mock mail is never filed into a real mailbox and never runs sieve,
+  vacation, webhooks, push, Bayes or fraud rules. Mail to a namespace
+  that does not exist is refused (550) when every recipient is mock.
+- Kept 3 days; 500 messages per namespace, the oldest dropped past it
+  (`dropped` in every response says how many).
+- **Nothing is ever sent outward** from the mock domain. `mock_send`
+  delivers only to mock recipients and keeps a `captured-out` copy.
+- **SMTP sandbox**: `POST /api/mock/namespaces/{ns}/smtp-token` issues
+  a password for user `{ns}@mock.golia.jp` on port 587 (STARTTLS).
+  Point an application's SMTP settings at it: every message that login
+  sends, to anyone, is kept in the namespace as `captured-out` and none
+  is delivered.
+- An agent key with scope `mock` reaches only mock mail; `mock:{ns}`
+  reaches only that namespace and cannot create or delete namespaces.
+
+Typical agent flow:
+
+```
+mock_new_address {"namespace": "myapp-ci"}
+  → {"address": "myapp-ci.3f9a1c22@mock.golia.jp", "tag": "3f9a1c22", "minted_at": 1792195200123}
+# sign up somewhere with that address
+mock_wait_for_message {"namespace": "myapp-ci", "tag": "3f9a1c22"}
+  → {"status": "received", "subject": "Verify your email", "codes": ["482913"],
+     "links": [{"url": "https://example.com/verify?token=…", "text": "Verify"}], …}
+```
+
+Without `since`, the wait counts mail that arrived after the tag was
+minted, so a message that came in before the wait started is not missed.
+`codes` holds 4–8 digit codes, `123 456` style groups and 6–8 character
+uppercase alphanumeric codes found near words such as "code",
+"verification", 認証コード or 验证码; amounts, dates, phone numbers and
+order numbers are left out. `links` lists verify / confirm / login
+links first.
+
+```bash
+curl -X POST https://mail.golia.ai/api/mock/namespaces \
+  -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{"name": "myapp-ci"}'
+curl "https://mail.golia.ai/api/mock/namespaces/myapp-ci/messages/wait?tag=signup&timeout=60" \
+  -H "Authorization: Bearer $KEY"
+```
 
 ## DMARC aggregate reports (inbound)
 

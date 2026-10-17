@@ -1,4 +1,5 @@
 use mailrs_core::users::UserStore;
+use mailrs_core_sidestate::families::mock;
 
 use super::ConnectionContext;
 
@@ -9,6 +10,10 @@ pub(super) async fn verify_credentials(
     username: &str,
     password: &str,
 ) -> bool {
+    // a mock-domain login is a namespace's sandbox and never an account
+    if mock::is_mock(username) {
+        return verify_namespace_token(ctx, username, password).await;
+    }
     if ctx.users.verify(username, password) {
         return true;
     }
@@ -44,6 +49,29 @@ pub(super) async fn verify_credentials(
         return ldap.authenticate(username, password).await;
     }
     false
+}
+
+/// `{namespace}@{mock domain}` with the namespace's SMTP token.
+async fn verify_namespace_token(ctx: &ConnectionContext, username: &str, token: &str) -> bool {
+    let Some(ns) = sandbox_namespace(username) else {
+        return false;
+    };
+    let Some(client) = ctx.spam_lists_client.clone() else {
+        return false;
+    };
+    let token = token.to_string();
+    tokio::task::spawn_blocking(move || {
+        client.with_conn(|c| mock::verify_smtp_token(c, &ns, &token).map_err(std::io::Error::other))
+    })
+    .await
+    .is_ok_and(|r| r.unwrap_or(false))
+}
+
+/// The namespace a sandbox login names: the bare `{namespace}@{mock domain}`.
+pub(super) fn sandbox_namespace(username: &str) -> Option<String> {
+    mock::parse(username)
+        .filter(|a| a.tag.is_empty())
+        .map(|a| a.namespace)
 }
 
 fn hash_matches(password: &str, hash: &str) -> bool {

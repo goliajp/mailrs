@@ -4683,6 +4683,179 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/mock/namespaces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your mock namespaces (all=true for admins) */
+        get: operations["listMockNamespaces"];
+        put?: never;
+        /** Create a namespace (10 per user) */
+        post: operations["createMockNamespace"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mock/namespaces/{ns}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a namespace and its messages */
+        delete: operations["deleteMockNamespace"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mock/namespaces/{ns}/addresses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Hand out an address; omit tag for a random one */
+        post: operations["newMockAddress"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mock/namespaces/{ns}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Messages, newest first */
+        get: operations["listMockMessages"];
+        put?: never;
+        post?: never;
+        /** Delete every message, or those with tag */
+        delete: operations["deleteMockMessages"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mock/namespaces/{ns}/messages/latest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The newest message matching the filter */
+        get: operations["latestMockMessage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mock/namespaces/{ns}/messages/wait": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Wait up to 60 s for the next message; without since, from when the tag was minted */
+        get: operations["waitMockMessage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mock/namespaces/{ns}/messages/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One message whole */
+        get: operations["readMockMessage"];
+        put?: never;
+        post?: never;
+        /** Delete one message */
+        delete: operations["deleteMockMessage"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mock/namespaces/{ns}/messages/{id}/raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The message as received */
+        get: operations["rawMockMessage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mock/namespaces/{ns}/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send from the namespace; only mock recipients receive it, nothing leaves */
+        post: operations["sendMockMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mock/namespaces/{ns}/smtp-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Issue the SMTP sandbox password for {ns}@<mock domain>, replacing any earlier one */
+        post: operations["rotateMockSmtpToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -5367,6 +5540,49 @@ export interface components {
             status?: number;
             /** @description Transport error, when the request never completed */
             message?: string;
+        };
+        MockNamespace: {
+            name?: string;
+            owner?: string;
+            /** @description ms since the epoch */
+            created_at?: number;
+            messages?: number;
+            /** @description messages dropped to stay under 500 */
+            dropped?: number;
+            smtp_enabled?: boolean;
+            /** @description an example address; any tag works */
+            address?: string;
+        };
+        MockMessage: {
+            id?: string;
+            namespace?: string;
+            tag?: string;
+            /** @enum {string} */
+            direction?: "in" | "captured-out";
+            rcpt?: string;
+            size?: number;
+            received_at?: number;
+            from?: string;
+            to?: string[];
+            cc?: string[];
+            subject?: string;
+            message_id?: string | null;
+            /** @description one-time codes found near words such as code / verification */
+            codes?: string[];
+            links?: {
+                url?: string;
+                text?: string;
+            }[];
+            attachments?: {
+                filename?: string;
+                size?: number;
+                content_type?: string;
+            }[];
+        };
+        MockFullMessage: components["schemas"]["MockMessage"] & {
+            text?: string;
+            html?: string | null;
+            dropped?: number;
         };
     };
     responses: never;
@@ -8604,6 +8820,382 @@ export interface operations {
                         /** Format: int64 */
                         passing?: number;
                         reports?: number;
+                    };
+                };
+            };
+        };
+    };
+    listMockNamespaces: {
+        parameters: {
+            query?: {
+                all?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Namespaces */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        namespaces?: components["schemas"]["MockNamespace"][];
+                    };
+                };
+            };
+        };
+    };
+    createMockNamespace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description 3-32 of a-z 0-9 -, global */
+                    name: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MockNamespace"];
+                };
+            };
+            /** @description Name taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteMockNamespace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ns: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    newMockAddress: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ns: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    tag?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Address */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        address?: string;
+                        namespace?: string;
+                        tag?: string;
+                        minted_at?: number;
+                    };
+                };
+            };
+        };
+    };
+    listMockMessages: {
+        parameters: {
+            query?: {
+                tag?: string;
+                tag_prefix?: string;
+                to?: string;
+                from?: string;
+                subject?: string;
+                /** @description ms since the epoch */
+                since?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                ns: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Messages */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        messages?: components["schemas"]["MockMessage"][];
+                        dropped?: number;
+                    };
+                };
+            };
+        };
+    };
+    deleteMockMessages: {
+        parameters: {
+            query?: {
+                tag?: string;
+            };
+            header?: never;
+            path: {
+                ns: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        deleted?: number;
+                    };
+                };
+            };
+        };
+    };
+    latestMockMessage: {
+        parameters: {
+            query?: {
+                tag?: string;
+                tag_prefix?: string;
+                to?: string;
+                from?: string;
+                subject?: string;
+                /** @description ms since the epoch */
+                since?: number;
+            };
+            header?: never;
+            path: {
+                ns: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Message */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MockFullMessage"];
+                };
+            };
+            /** @description None yet */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    waitMockMessage: {
+        parameters: {
+            query?: {
+                tag?: string;
+                from?: string;
+                subject?: string;
+                since?: number;
+                /** @description seconds, default 30, max 60 */
+                timeout?: number;
+            };
+            header?: never;
+            path: {
+                ns: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description status=received with the message, or status=timeout */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        status?: "received" | "timeout";
+                    };
+                };
+            };
+        };
+    };
+    readMockMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ns: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Message */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MockFullMessage"];
+                };
+            };
+        };
+    };
+    deleteMockMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ns: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        deleted?: number;
+                    };
+                };
+            };
+        };
+    };
+    rawMockMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ns: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description RFC 5322 message */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "message/rfc822": unknown;
+                };
+            };
+        };
+    };
+    sendMockMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ns: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    from_tag?: string;
+                    to: string[];
+                    subject: string;
+                    text?: string;
+                    html?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Sent */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id?: string;
+                        delivered?: string[];
+                        not_delivered?: {
+                            address?: string;
+                            reason?: string;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    rotateMockSmtpToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ns: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Credentials, shown once */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        host?: string;
+                        username?: string;
+                        password?: string;
                     };
                 };
             };

@@ -3390,10 +3390,13 @@ dependencies = [
  "kevy-client",
  "mailrs-core-api",
  "mailrs-fraud",
+ "mailrs-mock",
  "mailrs-rfc5322",
  "rand_core 0.6.4",
  "serde",
  "serde_json",
+ "sha2 0.11.0",
+ "tempfile",
 ]
 
 [[package]]
@@ -3536,6 +3539,7 @@ dependencies = [
  "mailrs-mailbox-kevy",
  "mailrs-maildir",
  "mailrs-mime",
+ "mailrs-mock",
  "mailrs-mta-sts",
  "mailrs-outbound-queue",
  "mailrs-receiver",
@@ -3807,6 +3811,19 @@ version = "0.1.0"
 dependencies = [
  "criterion 0.5.1",
  "mailrs-syscall",
+]
+
+[[package]]
+name = "mailrs-mock"
+version = "0.0.1"
+dependencies = [
+ "mailrs-clean",
+ "mailrs-mime",
+ "mailrs-rfc2047",
+ "mailrs-rfc5322",
+ "proptest",
+ "schemars 1.2.1",
+ "serde",
 ]
 
 [[package]]
@@ -4094,6 +4111,7 @@ dependencies = [
  "mailrs-message-store",
  "mailrs-mime",
  "mailrs-mmalloc",
+ "mailrs-mock",
  "mailrs-outbound-queue",
  "mailrs-postmaster",
  "mailrs-rate-limit",
@@ -4333,8 +4351,10 @@ dependencies = [
  "mailrs-ical",
  "mailrs-intelligence",
  "mailrs-jmap",
+ "mailrs-mail-builder",
  "mailrs-message-store",
  "mailrs-mime",
+ "mailrs-mock",
  "mailrs-oauth-client",
  "mailrs-rfc2047",
  "mailrs-rfc2231",
@@ -4351,6 +4371,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
+ "tempfile",
  "thiserror",
  "tokio",
  "totp-rs",

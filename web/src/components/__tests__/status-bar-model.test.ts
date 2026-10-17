@@ -70,6 +70,7 @@ describe('sectionForPath', () => {
     ['/admin/overview', 'Admin'],
     ['/protocol', 'Monitor'],
     ['/settings', 'Settings'],
+    ['/mock', 'Mock mail'],
     ['/unknown-route', 'Home'],
   ])('%s → %s', (path, expected) => {
     expect(sectionForPath(path)).toBe(expected)

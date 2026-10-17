@@ -1,8 +1,6 @@
 //! Session resolution against the shared kevy-server.
 //!
-//! Phase 3.9 — replaces the temporary `X-Mailrs-User` header stub with
-//! the real `mailrs_session` cookie lookup. The session blob stored by
-//! the monolith webapi (see `crates/server/src/web/mod.rs:124`) is JSON:
+//! The `mailrs_session` blob (same shape the monolith wrote) is JSON:
 //!
 //! ```json
 //! {
@@ -27,6 +25,10 @@ use serde::Deserialize;
 
 use crate::WebState;
 use crate::handlers::conversations::AuthedUser;
+
+mod scopes;
+use scopes::agent_scopes_allow;
+pub use scopes::{AgentScopes, is_known_scope, mock_ns_restriction, validate_agent_scopes};
 
 /// `session:<token>` blob — fields webapi reads. `permissions` is
 /// already serialized by the monolith but we only need the address +
@@ -61,34 +63,18 @@ struct AgentKeyIndex {
 
 /// The scopes stored on the key record. Empty = full owner access
 /// (user decision 2026-07-18: existing keys keep working); a non-empty
-/// list is enforced — see [`agent_scopes_allow`].
+/// list is enforced — see `scopes::agent_scopes_allow`.
 #[derive(Debug, Deserialize)]
 struct AgentKeyRecord {
     #[serde(default)]
     scopes: Vec<String>,
 }
 
-/// An authenticated agent key: owner + its (possibly empty) scope set.
+/// An authenticated caller: owner + its (possibly empty) scope set. A
+/// browser session always carries empty scopes.
 pub struct AgentAuth {
     pub user: String,
     pub scopes: Vec<String>,
-}
-
-/// Scope vocabulary: `admin` (everything), `mail:write` (read + write,
-/// no /api/admin), `mail:read` (GET/HEAD only, no /api/admin). An empty
-/// scope list grants full owner access.
-fn agent_scopes_allow(scopes: &[String], method: &axum::http::Method, path: &str) -> bool {
-    if scopes.is_empty() || scopes.iter().any(|s| s == "admin") {
-        return true;
-    }
-    if path.starts_with("/api/admin") {
-        return false;
-    }
-    let read_only = matches!(*method, axum::http::Method::GET | axum::http::Method::HEAD);
-    if scopes.iter().any(|s| s == "mail:write") {
-        return true;
-    }
-    scopes.iter().any(|s| s == "mail:read") && read_only
 }
 
 /// Resolve an `mk_` bearer key to its owning account + scopes, or
@@ -140,16 +126,16 @@ async fn resolve_agent_key(token: String) -> Option<AgentAuth> {
     .ok()?
 }
 
-/// Extract session token from any of: `mailrs_session` cookie,
-/// `Authorization: Bearer <token>` header, or `?token=<hex>` query.
-/// The query variant is used by browser <img src> / <a href> which
-/// can't set custom headers, e.g. attachment previews.
 /// Resolve the authenticated user address from the incoming headers,
-/// mirroring [`session_auth_middleware`] but returning the result
-/// instead of mutating request extensions. Used by the MCP handler
-/// to populate its per-session task-local. Returns `None` on any
-/// auth failure — the caller decides how to react.
+/// mirroring [`session_auth_middleware`] but returning the result instead
+/// of mutating request extensions. `None` on any auth failure.
 pub async fn resolve_user_from_headers(headers: &HeaderMap) -> Option<String> {
+    resolve_auth_from_headers(headers).await.map(|a| a.user)
+}
+
+/// Same as [`resolve_user_from_headers`], keeping the agent key's scopes;
+/// the MCP handler uses it to populate its per-session task-local.
+pub async fn resolve_auth_from_headers(headers: &HeaderMap) -> Option<AgentAuth> {
     // The pool owns the URL now, so this asks whether one is configured
     // rather than reading it. Same branch, same dev fallback.
     if !crate::kevy_pool::configured() {
@@ -157,17 +143,27 @@ pub async fn resolve_user_from_headers(headers: &HeaderMap) -> Option<String> {
         return headers
             .get("X-Mailrs-User")
             .and_then(|h| h.to_str().ok())
-            .map(|s| s.to_string());
+            .map(|s| AgentAuth {
+                user: s.to_string(),
+                scopes: Vec::new(),
+            });
     }
     let uri = axum::http::Uri::from_static("/mcp");
     let token = extract_token(headers, &uri)?;
     if token.starts_with(AGENT_KEY_PREFIX) {
-        return resolve_agent_key(token).await.map(|a| a.user);
+        return resolve_agent_key(token).await;
     }
     let session = resolve_session(token).await?;
-    Some(session.address)
+    Some(AgentAuth {
+        user: session.address,
+        scopes: Vec::new(),
+    })
 }
 
+/// Extract session token from any of: `mailrs_session` cookie,
+/// `Authorization: Bearer <token>` header, or `?token=<hex>` query.
+/// The query variant is used by browser <img src> / <a href> which
+/// can't set custom headers, e.g. attachment previews.
 fn extract_token(headers: &HeaderMap, uri: &axum::http::Uri) -> Option<String> {
     if let Some(cookie_header) = headers.get(axum::http::header::COOKIE)
         && let Ok(raw) = cookie_header.to_str()
@@ -272,6 +268,7 @@ pub async fn session_auth_middleware(
                 req.extensions_mut()
                     .insert(crate::handlers::conversations::AuthedDisplayName::default());
                 req.extensions_mut().insert(AuthedUser(user));
+                req.extensions_mut().insert(AgentScopes::default());
                 return Ok(next.run(req).await);
             }
             None => return Err(StatusCode::UNAUTHORIZED),
@@ -307,6 +304,7 @@ pub async fn session_auth_middleware(
         req.extensions_mut()
             .insert(crate::handlers::conversations::AuthedDisplayName::default());
         req.extensions_mut().insert(AuthedUser(auth.user));
+        req.extensions_mut().insert(AgentScopes(auth.scopes));
         return Ok(next.run(req).await);
     }
 
@@ -323,6 +321,7 @@ pub async fn session_auth_middleware(
             session.display_name.clone(),
         ));
     req.extensions_mut().insert(AuthedUser(session.address));
+    req.extensions_mut().insert(AgentScopes::default());
     Ok(next.run(req).await)
 }
 
@@ -386,84 +385,6 @@ mod tests {
         // pre user-mapping index stored the bare id — must fail to parse
         // so the middleware treats the key as invalid instead of panicking
         assert!(serde_json::from_slice::<AgentKeyIndex>(b"7").is_err());
-    }
-
-    #[test]
-    fn empty_scopes_grant_full_access() {
-        let m = axum::http::Method::POST;
-        assert!(agent_scopes_allow(&[], &m, "/api/admin/domains"));
-        assert!(agent_scopes_allow(
-            &[],
-            &axum::http::Method::GET,
-            "/api/conversations"
-        ));
-    }
-
-    #[test]
-    fn admin_scope_grants_everything() {
-        let scopes = vec!["admin".to_string()];
-        assert!(agent_scopes_allow(
-            &scopes,
-            &axum::http::Method::DELETE,
-            "/api/admin/aliases/x"
-        ));
-    }
-
-    #[test]
-    fn mail_read_is_get_only_and_never_admin() {
-        let scopes = vec!["mail:read".to_string()];
-        assert!(agent_scopes_allow(
-            &scopes,
-            &axum::http::Method::GET,
-            "/api/conversations"
-        ));
-        assert!(!agent_scopes_allow(
-            &scopes,
-            &axum::http::Method::POST,
-            "/api/mail/send"
-        ));
-        assert!(!agent_scopes_allow(
-            &scopes,
-            &axum::http::Method::GET,
-            "/api/admin/accounts"
-        ));
-    }
-
-    #[test]
-    fn mail_write_allows_writes_but_not_admin() {
-        let scopes = vec!["mail:write".to_string()];
-        assert!(agent_scopes_allow(
-            &scopes,
-            &axum::http::Method::POST,
-            "/api/mail/send"
-        ));
-        assert!(agent_scopes_allow(
-            &scopes,
-            &axum::http::Method::GET,
-            "/api/conversations"
-        ));
-        assert!(!agent_scopes_allow(
-            &scopes,
-            &axum::http::Method::GET,
-            "/api/admin/accounts"
-        ));
-    }
-
-    #[test]
-    fn unknown_scope_denies_writes() {
-        // a key created with scopes: ["read"] (not in the vocabulary)
-        // must not silently gain write access
-        let scopes = vec!["read".to_string()];
-        assert!(!agent_scopes_allow(
-            &scopes,
-            &axum::http::Method::POST,
-            "/api/mail/send"
-        ));
-        assert!(!agent_scopes_allow(
-            &scopes,
-            &axum::http::Method::GET,
-            "/api/conversations"
-        ));
     }
 
     #[test]

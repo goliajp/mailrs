@@ -3,7 +3,18 @@ import type { LucideIcon } from 'lucide-react'
 
 import { cx } from '@goliapkg/gds'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { Activity, Home, Inbox, LogOut, Monitor, Moon, Server, Settings, Sun } from 'lucide-react'
+import {
+  Activity,
+  FlaskConical,
+  Home,
+  Inbox,
+  LogOut,
+  Monitor,
+  Moon,
+  Server,
+  Settings,
+  Sun,
+} from 'lucide-react'
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
 
@@ -50,16 +61,7 @@ export function AppSidebar() {
     navigate('/login')
   }
 
-  // determine active section from current path
-  const section = pathname.startsWith('/admin')
-    ? 'server'
-    : pathname.startsWith('/protocol')
-      ? 'monitor'
-      : pathname.startsWith('/settings')
-        ? 'settings'
-        : pathname.startsWith('/mail')
-          ? 'mail'
-          : 'home'
+  const section = sidebarSection(pathname)
 
   return (
     <>
@@ -115,6 +117,12 @@ export function AppSidebar() {
             href="/protocol"
             icon={Activity}
             label="Monitor"
+          />
+          <SidebarLink
+            active={section === 'mock'}
+            href="/mock"
+            icon={FlaskConical}
+            label="Mock mail"
           />
         </nav>
 
@@ -288,4 +296,14 @@ function SidebarLink({
       )}
     </Link>
   )
+}
+
+/** The active section, from the current path. */
+function sidebarSection(pathname: string): string {
+  if (pathname.startsWith('/admin')) return 'server'
+  if (pathname.startsWith('/protocol')) return 'monitor'
+  if (pathname.startsWith('/settings')) return 'settings'
+  if (pathname.startsWith('/mail')) return 'mail'
+  if (pathname.startsWith('/mock')) return 'mock'
+  return 'home'
 }

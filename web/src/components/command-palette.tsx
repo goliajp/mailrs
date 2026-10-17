@@ -1,5 +1,6 @@
 import { useAtomValue, useSetAtom } from 'jotai'
 import {
+  FlaskConical,
   Home,
   Inbox,
   LogOut,
@@ -289,6 +290,16 @@ function useCommands(query: string, onClose: () => void): Command[] {
         label: 'Go to Protocol Monitor',
         action: () => {
           navigate('/protocol')
+          onClose()
+        },
+      },
+      {
+        category: 'Navigation',
+        icon: <FlaskConical size={16} />,
+        id: 'nav-mock',
+        label: 'Go to Mock Mail',
+        action: () => {
+          navigate('/mock')
           onClose()
         },
       },
