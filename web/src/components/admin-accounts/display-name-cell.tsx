@@ -62,7 +62,7 @@ export function DisplayNameCell({ account }: { account: AccountInfo }) {
         disabled={updateName.isPending}
         onClick={handleSave}
       >
-        {updateName.isPending ? '...' : 'Save'}
+        {saveLabel(updateName.isPending)}
       </button>
       <button
         className="text-fg-muted hover:text-fg-secondary text-xs transition-colors"
@@ -73,4 +73,9 @@ export function DisplayNameCell({ account }: { account: AccountInfo }) {
       </button>
     </div>
   )
+}
+
+function saveLabel(pending: boolean): string {
+  if (pending) return '...'
+  return 'Save'
 }

@@ -2,23 +2,24 @@ import type { DomainCheckReport, DomainInfo } from '@/lib/types'
 
 import { useQuery } from '@tanstack/react-query'
 import { Globe } from 'lucide-react'
-import { Fragment, useState } from 'react'
+import { useState } from 'react'
 
 import {
   AdminEmptyState,
   AdminErrorState,
   AdminPageShell,
+  AdminTable,
   AdminTableSkeleton,
+  type Column,
+  ConfirmAction,
 } from '@/components/admin-page'
 import { Copyable } from '@/components/copy-button'
 import { DomainHealthCard } from '@/components/domain-health-card'
-import { MobileModal } from '@/components/mobile-modal'
-import { ScrollableTable } from '@/components/scrollable-table'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
 import { adminKeys } from '@/lib/query-keys'
 import { adminDelete, adminListGet, adminObjectGet, adminPost } from '@/wire/endpoints/admin'
 
-const HEADERS = ['Domain', 'Created', 'Actions']
+const HEADERS = ['Domain', 'Added', '']
 
 type SystemConfigEntry = { key: string; value: null | string }
 
@@ -97,70 +98,86 @@ export function AdminDomains() {
     }
   }
 
+  const columns: Column<DomainInfo>[] = [
+    {
+      header: 'Domain',
+      key: 'name',
+      cell: (d) => (
+        <Copyable value={d.name}>
+          <span className="font-medium">{d.name}</span>
+        </Copyable>
+      ),
+    },
+    {
+      header: 'Added',
+      key: 'created',
+      cell: (d) => (
+        <span className="text-fg-secondary">
+          {new Date(d.created_at * 1000).toLocaleDateString()}
+        </span>
+      ),
+    },
+    {
+      align: 'end',
+      header: 'Actions',
+      hideHeader: true,
+      key: 'actions',
+      cell: (d) => (
+        <div className="flex justify-end gap-3 text-xs">
+          <button
+            className="text-accent hover:opacity-80 disabled:opacity-50"
+            disabled={checking === d.name}
+            onClick={() => toggleReport(d.name)}
+            type="button"
+          >
+            {checkLabel(checking === d.name, Boolean(reports[d.name]))}
+          </button>
+          <button
+            className="text-danger hover:opacity-70"
+            onClick={() => setDeleteTarget(d.name)}
+            type="button"
+          >
+            Delete
+          </button>
+        </div>
+      ),
+    },
+  ]
+
+  const reportOf = (d: DomainInfo) => {
+    const report = reports[d.name]
+    if (!report) return null
+    return (
+      <DomainHealthCard
+        checking={checking === d.name}
+        onRecheck={() => handleCheck(d.name)}
+        report={report}
+      />
+    )
+  }
+
   const renderList = () => {
     if (isPending) return <AdminTableSkeleton cols={3} headers={HEADERS} rows={5} />
-    if (error) return <AdminErrorState error={error} onRetry={() => refetch()} />
+    if (error) {
+      return <AdminErrorState error={error} onRetry={() => refetch()} what="the domain list" />
+    }
     if (domains.length === 0 && !adding) {
       return (
         <AdminEmptyState
           description={steps}
           icon={<Globe className="h-10 w-10" />}
-          title="No domains configured"
+          title="No domains yet"
         />
       )
     }
     return (
-      <ScrollableTable>
-        <table className="w-full text-left text-sm">
-          <thead className="border-border bg-bg-secondary border-b">
-            <tr>
-              <th className="px-4 py-2.5 font-medium">Domain</th>
-              <th className="px-4 py-2.5 font-medium">Created</th>
-              <th className="px-4 py-2.5 text-right font-medium">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {domains.map((domain) => (
-              <Fragment key={domain.name}>
-                <tr className="border-border border-b last:border-0">
-                  <td className="px-4 py-3 font-medium">
-                    <Copyable value={domain.name}>{domain.name}</Copyable>
-                  </td>
-                  <td className="text-fg-secondary px-4 py-3">
-                    {new Date(domain.created_at * 1000).toLocaleDateString()}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <button
-                      className="text-accent mr-3 text-xs hover:opacity-80 disabled:opacity-50"
-                      disabled={checking === domain.name}
-                      onClick={() => toggleReport(domain.name)}
-                    >
-                      {checkLabel(checking === domain.name, Boolean(reports[domain.name]))}
-                    </button>
-                    <button
-                      className="text-danger text-xs transition-colors hover:opacity-70"
-                      onClick={() => setDeleteTarget(domain.name)}
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-                {reports[domain.name] && (
-                  <tr>
-                    <td className="px-4 pt-1 pb-4" colSpan={3}>
-                      <DomainHealthCard
-                        checking={checking === domain.name}
-                        onRecheck={() => handleCheck(domain.name)}
-                        report={reports[domain.name]}
-                      />
-                    </td>
-                  </tr>
-                )}
-              </Fragment>
-            ))}
-          </tbody>
-        </table>
-      </ScrollableTable>
+      <AdminTable
+        columns={columns}
+        detail={reportOf}
+        label="Domains"
+        rowKey={(d) => d.name}
+        rows={domains}
+      />
     )
   }
 
@@ -172,7 +189,7 @@ export function AdminDomains() {
             className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:opacity-90"
             onClick={() => setAdding(true)}
           >
-            Add Domain
+            Add domain
           </button>
         )
       }
@@ -212,29 +229,14 @@ export function AdminDomains() {
       {renderList()}
 
       {deleteTarget && (
-        <MobileModal onClose={() => setDeleteTarget(null)} open>
-          <div className="bg-surface w-full max-w-sm rounded-lg p-6 shadow-lg">
-            <p className="text-fg-secondary mb-4 text-sm">
-              Delete domain <span className="text-fg font-medium">{deleteTarget}</span>? This will
-              also remove all associated accounts and aliases.
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                className="text-fg-secondary hover:bg-bg-secondary rounded-md px-3 py-1.5 text-sm transition-colors"
-                onClick={() => setDeleteTarget(null)}
-              >
-                Cancel
-              </button>
-              <button
-                className="bg-danger rounded-md px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
-                disabled={deleteDomain.isPending}
-                onClick={() => handleDelete(deleteTarget)}
-              >
-                {pendingLabel(deleteDomain.isPending, 'Deleting...', 'Delete')}
-              </button>
-            </div>
-          </div>
-        </MobileModal>
+        <ConfirmAction
+          confirmLabel={pendingLabel(deleteDomain.isPending, 'Deleting...', 'Delete domain')}
+          consequence={`${deleteTarget} leaves this list. Unless MAILRS_LOCAL_DOMAINS also names it, mail for it is refused within a minute. Its accounts, aliases and stored mail are kept`}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={() => handleDelete(deleteTarget)}
+          pending={deleteDomain.isPending}
+          title={`Delete ${deleteTarget}?`}
+        />
       )}
     </AdminPageShell>
   )

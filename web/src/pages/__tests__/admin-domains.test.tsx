@@ -40,7 +40,7 @@ afterEach(() => {
 describe('<AdminDomains />', () => {
   it('lists the real steps, with the MX target this server answers on', async () => {
     renderPage([], 'mail.golia.ai')
-    expect(await screen.findByText('No domains configured')).toBeInTheDocument()
+    expect(await screen.findByText('No domains yet')).toBeInTheDocument()
     expect(
       await screen.findByText(
         'To receive mail for a domain: add it here, point its MX record at mail.golia.ai, then use Check to verify SPF, DKIM, DMARC and MX'

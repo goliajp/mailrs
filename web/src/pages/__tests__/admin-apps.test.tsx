@@ -78,10 +78,10 @@ describe('<AdminApps />', () => {
     })
     renderPage()
     await screen.findByText('ci-bot')
-    fireEvent.click(screen.getByRole('button', { name: 'Add App' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add app' }))
     fireEvent.change(screen.getByLabelText('App name'), { target: { value: 'deploy-bot' } })
     fireEvent.click(await screen.findByLabelText('admin.domains'))
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add app' }))
     expect(await screen.findByText('f00dcafe')).toBeInTheDocument()
     expect(screen.getByText('Secret for app_2')).toBeInTheDocument()
     expect(screen.getByText(/Shown once/)).toBeInTheDocument()
@@ -98,13 +98,46 @@ describe('<AdminApps />', () => {
     })
     renderPage()
     await screen.findByText('ci-bot')
-    fireEvent.click(screen.getByRole('button', { name: 'Scopes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit scopes' }))
     const send = await screen.findByLabelText('mail.send')
     expect(send).toBeChecked()
     fireEvent.click(send)
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    await vi.waitFor(() => expect(screen.queryByText('Edit Scopes')).toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: 'Save scopes' }))
+    await vi.waitFor(() => expect(screen.queryByLabelText('mail.send')).toBeNull())
     const put = calls.find((c) => c.method === 'PUT')
     expect(put?.body).toEqual({ scopes: ['mail.read'] })
+  })
+  it('says deleting an app removes no access, and deletes it once confirmed', async () => {
+    const calls = stub({
+      'DELETE /api/admin/apps/app_1': { body: null, status: 204 },
+      'GET /api/admin/apps': { body: APPS, status: 200 },
+      'GET /api/admin/permissions': { body: PERMISSIONS, status: 200 },
+    })
+    renderPage()
+    const row = (await screen.findByText('ci-bot')).closest('tr') as HTMLElement
+    fireEvent.click(within(row).getByRole('button', { name: 'Delete' }))
+    const dialog = await screen.findByRole('alertdialog', { name: 'Delete ci-bot?' })
+    expect(
+      within(dialog).getByText(
+        'app_1, its scopes and the hash of its secret are deleted, and the secret cannot be used again. No request signs in with an app secret yet, so nothing loses access'
+      )
+    ).toBeInTheDocument()
+    expect(calls.some((c) => c.method === 'DELETE')).toBe(false)
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete app' }))
+    await vi.waitFor(() =>
+      expect(calls.some((c) => c.method === 'DELETE' && c.path === '/api/admin/apps/app_1')).toBe(
+        true
+      )
+    )
+  })
+
+  it('does not say the secret grants access', async () => {
+    stub({
+      'GET /api/admin/apps': { body: { items: [] }, status: 200 },
+      'GET /api/admin/permissions': { body: PERMISSIONS, status: 200 },
+    })
+    renderPage()
+    expect(await screen.findByText('No apps yet')).toBeInTheDocument()
+    expect(screen.getByText(/No request signs in with an app secret yet/)).toBeInTheDocument()
   })
 })

@@ -1,43 +1,35 @@
+import type { EmailGroupInfo } from '@/components/admin-email-groups/email-group-info'
 import type { DomainInfo } from '@/lib/types'
 
 import { useQuery } from '@tanstack/react-query'
 import { Mailbox } from 'lucide-react'
-import { Fragment, useState } from 'react'
+import { useState } from 'react'
 
+import { EmailGroupMembers } from '@/components/admin-email-groups/email-group-members'
 import {
   AdminEmptyState,
   AdminErrorState,
   AdminPageShell,
+  AdminTable,
   AdminTableSkeleton,
+  type Column,
+  ConfirmAction,
 } from '@/components/admin-page'
-import { MobileModal } from '@/components/mobile-modal'
-import { ScrollableTable } from '@/components/scrollable-table'
+import { Copyable } from '@/components/copy-button'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
 import { adminKeys } from '@/lib/query-keys'
-import { adminDelete, adminListGet, adminPost, adminStringListGet } from '@/wire/endpoints/admin'
+import { adminDelete, adminListGet, adminPost } from '@/wire/endpoints/admin'
 
-type EmailGroupInfo = {
-  address: string
-  created_at: string
-  description: string
-  domain: string
-  id: number
-  name: string
-}
+const HEADERS = ['Address', 'Domain', 'Name', 'Description', '']
 
-const HEADERS = ['Address', 'Domain', 'Name', 'Description', 'Actions']
+const EMPTY_FORM = { address: '', description: '', domain: '', name: '' }
 
 export function AdminEmailGroups() {
-  const {
-    data: groupsData,
-    error,
-    isPending,
-    refetch,
-  } = useQuery({
+  const { data, error, isPending, refetch } = useQuery({
     queryKey: adminKeys.emailGroups(),
     queryFn: ({ signal }) => adminListGet<EmailGroupInfo>('/admin/email-groups', signal),
   })
-  const groups = groupsData ?? []
+  const groups = data ?? []
 
   const { data: domainsData } = useQuery({
     queryKey: adminKeys.domains(),
@@ -47,13 +39,8 @@ export function AdminEmailGroups() {
 
   const [adding, setAdding] = useState(false)
   const [expandedId, setExpandedId] = useState<null | number>(null)
-  const [deleteTarget, setDeleteTarget] = useState<null | number>(null)
-  const [form, setForm] = useState({
-    address: '',
-    description: '',
-    domain: '',
-    name: '',
-  })
+  const [deleteTarget, setDeleteTarget] = useState<EmailGroupInfo | null>(null)
+  const [form, setForm] = useState(EMPTY_FORM)
 
   const addGroup = useAdminMutation({
     invalidateKey: adminKeys.emailGroups(),
@@ -64,7 +51,7 @@ export function AdminEmailGroups() {
         domain: vars.domain,
         name: vars.name.trim(),
       }),
-    successMsg: (vars) => `Email group "${vars.name.trim()}" created`,
+    successMsg: (vars) => `Email group "${vars.name.trim()}" added`,
   })
 
   const deleteGroup = useAdminMutation({
@@ -79,7 +66,7 @@ export function AdminEmailGroups() {
     if (!formValid) return
     addGroup.mutate(form, {
       onSuccess: () => {
-        setForm({ address: '', description: '', domain: '', name: '' })
+        setForm(EMPTY_FORM)
         setAdding(false)
       },
     })
@@ -94,6 +81,92 @@ export function AdminEmailGroups() {
     })
   }
 
+  const toggle = (id: number) => {
+    if (expandedId === id) setExpandedId(null)
+    else setExpandedId(id)
+  }
+
+  const columns: Column<EmailGroupInfo>[] = [
+    {
+      header: 'Address',
+      key: 'address',
+      cell: (g) => (
+        <Copyable value={g.address}>
+          <span className="font-medium">{g.address}</span>
+        </Copyable>
+      ),
+    },
+    {
+      header: 'Domain',
+      key: 'domain',
+      cell: (g) => <span className="text-fg-secondary">{g.domain}</span>,
+    },
+    {
+      header: 'Name',
+      key: 'name',
+      cell: (g) => <span className="text-fg-secondary">{g.name}</span>,
+    },
+    {
+      header: 'Description',
+      key: 'description',
+      cell: (g) => <span className="text-fg-secondary">{g.description}</span>,
+    },
+    {
+      align: 'end',
+      header: 'Actions',
+      hideHeader: true,
+      key: 'actions',
+      cell: (g) => (
+        <div className="flex justify-end gap-3 text-xs">
+          <button
+            className="text-accent hover:opacity-80"
+            onClick={() => toggle(g.id)}
+            type="button"
+          >
+            {membersLabel(expandedId === g.id)}
+          </button>
+          <button
+            className="text-danger hover:opacity-70"
+            onClick={() => setDeleteTarget(g)}
+            type="button"
+          >
+            Delete
+          </button>
+        </div>
+      ),
+    },
+  ]
+
+  const membersOf = (g: EmailGroupInfo) => {
+    if (expandedId !== g.id) return null
+    return <EmailGroupMembers group={g} />
+  }
+
+  const renderList = () => {
+    if (isPending) return <AdminTableSkeleton cols={5} headers={HEADERS} rows={4} />
+    if (error) {
+      return <AdminErrorState error={error} onRetry={() => refetch()} what="the email group list" />
+    }
+    if (groups.length === 0 && !adding) {
+      return (
+        <AdminEmptyState
+          description="An email group is one address that delivers each message to every member, inside or outside this server. Add a group, then add its members"
+          icon={<Mailbox className="h-10 w-10" />}
+          title="No email groups yet"
+        />
+      )
+    }
+    return (
+      <AdminTable
+        columns={columns}
+        detail={membersOf}
+        label="Email groups"
+        rowKey={(g) => String(g.id)}
+        rows={groups}
+      />
+    )
+  }
+
   return (
     <AdminPageShell
       actions={
@@ -102,11 +175,11 @@ export function AdminEmailGroups() {
             className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:opacity-90"
             onClick={() => setAdding(true)}
           >
-            Add Email Group
+            Add email group
           </button>
         )
       }
-      title="Email Groups"
+      title="Email groups"
     >
       {adding && (
         <div className="border-border mb-4 space-y-2 rounded-lg border p-4">
@@ -155,12 +228,12 @@ export function AdminEmailGroups() {
               disabled={!formValid || addGroup.isPending}
               onClick={handleAdd}
             >
-              {addGroup.isPending ? 'Saving...' : 'Save'}
+              {pendingLabel(addGroup.isPending, 'Saving...', 'Save')}
             </button>
             <button
               className="text-fg-secondary hover:bg-bg-secondary rounded-md px-3 py-1.5 text-sm transition-colors"
               onClick={() => {
-                setForm({ address: '', description: '', domain: '', name: '' })
+                setForm(EMPTY_FORM)
                 setAdding(false)
               }}
             >
@@ -170,175 +243,28 @@ export function AdminEmailGroups() {
         </div>
       )}
 
-      {isPending ? (
-        <AdminTableSkeleton cols={5} headers={HEADERS} rows={4} />
-      ) : error ? (
-        <AdminErrorState error={error} onRetry={() => refetch()} />
-      ) : groups.length === 0 && !adding ? (
-        <AdminEmptyState
-          description="Email groups are addresses that fan out to multiple recipients."
-          icon={<Mailbox className="h-10 w-10" />}
-          title="No email groups configured"
-        />
-      ) : (
-        <ScrollableTable>
-          <table className="w-full text-left text-sm">
-            <thead className="border-border bg-bg-secondary border-b">
-              <tr>
-                <th className="px-4 py-2.5 font-medium">Address</th>
-                <th className="px-4 py-2.5 font-medium">Domain</th>
-                <th className="px-4 py-2.5 font-medium">Name</th>
-                <th className="px-4 py-2.5 font-medium">Description</th>
-                <th className="px-4 py-2.5 text-right font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {groups.map((group) => (
-                <Fragment key={group.id}>
-                  <tr className="border-border border-b last:border-0">
-                    <td className="px-4 py-3 font-medium">{group.address}</td>
-                    <td className="text-fg-secondary px-4 py-3">{group.domain}</td>
-                    <td className="text-fg-secondary px-4 py-3">{group.name}</td>
-                    <td className="text-fg-secondary px-4 py-3">{group.description}</td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        className="text-accent mr-3 text-xs hover:opacity-80"
-                        onClick={() => setExpandedId(expandedId === group.id ? null : group.id)}
-                      >
-                        {expandedId === group.id ? 'Hide' : 'Members'}
-                      </button>
-                      <button
-                        className="text-danger text-xs transition-colors hover:opacity-70"
-                        onClick={() => setDeleteTarget(group.id)}
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                  {expandedId === group.id && (
-                    <tr>
-                      <td colSpan={5}>
-                        <EmailGroupMembers group={group} />
-                      </td>
-                    </tr>
-                  )}
-                </Fragment>
-              ))}
-            </tbody>
-          </table>
-        </ScrollableTable>
-      )}
+      {renderList()}
 
-      {deleteTarget !== null && (
-        <MobileModal onClose={() => setDeleteTarget(null)} open>
-          <div className="bg-surface w-full max-w-sm rounded-lg p-6 shadow-lg">
-            <p className="text-fg-secondary mb-4 text-sm">
-              Delete this email group? This cannot be undone.
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                className="text-fg-secondary hover:bg-bg-secondary rounded-md px-3 py-1.5 text-sm transition-colors"
-                onClick={() => setDeleteTarget(null)}
-              >
-                Cancel
-              </button>
-              <button
-                className="bg-danger rounded-md px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
-                disabled={deleteGroup.isPending}
-                onClick={() => handleDelete(deleteTarget)}
-              >
-                {deleteGroup.isPending ? 'Deleting...' : 'Delete'}
-              </button>
-            </div>
-          </div>
-        </MobileModal>
+      {deleteTarget && (
+        <ConfirmAction
+          confirmLabel={pendingLabel(deleteGroup.isPending, 'Deleting...', 'Delete email group')}
+          consequence={`Mail sent to ${deleteTarget.address} stops reaching its members, and the member list is deleted with the group. Mail the members already received is kept`}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={() => handleDelete(deleteTarget.id)}
+          pending={deleteGroup.isPending}
+          title={`Delete ${deleteTarget.address}?`}
+        />
       )}
     </AdminPageShell>
   )
 }
 
-function EmailGroupMembers({ group }: { group: EmailGroupInfo }) {
-  const [newMember, setNewMember] = useState('')
+function membersLabel(open: boolean): string {
+  if (open) return 'Hide'
+  return 'Members'
+}
 
-  const { data: membersData } = useQuery({
-    queryKey: adminKeys.emailGroupMembers(group.id),
-    queryFn: ({ signal }) => adminStringListGet(`/admin/email-groups/${group.id}/members`, signal),
-  })
-  const members = membersData ?? null
-
-  const addMember = useAdminMutation({
-    invalidateKey: adminKeys.emailGroupMembers(group.id),
-    mutationFn: (address: string) =>
-      adminPost(`/admin/email-groups/${group.id}/members`, { address }),
-    successMsg: (address) => `Member "${address}" added`,
-  })
-
-  const removeMember = useAdminMutation({
-    invalidateKey: adminKeys.emailGroupMembers(group.id),
-    mutationFn: (address: string) =>
-      adminDelete(`/admin/email-groups/${group.id}/members/${encodeURIComponent(address)}`),
-    successMsg: (address) => `Member "${address}" removed`,
-  })
-
-  const handleAddMember = () => {
-    const address = newMember.trim()
-    if (!address) return
-    addMember.mutate(address, { onSuccess: () => setNewMember('') })
-  }
-
-  const handleRemoveMember = (address: string) => {
-    if (!window.confirm(`Remove member "${address}" from this email group?`)) return
-    removeMember.mutate(address)
-  }
-
-  if (!members) {
-    return <div className="text-fg-muted px-4 py-3 text-sm">Loading...</div>
-  }
-
-  return (
-    <div className="space-y-4 px-4 pt-1 pb-4">
-      <div>
-        <h4 className="text-fg-secondary mb-2 text-xs font-medium">Members</h4>
-        <div className="mb-2 flex gap-2">
-          <input
-            aria-label="New member address"
-            className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
-            onChange={(e) => setNewMember(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleAddMember()}
-            placeholder="user@example.com"
-            value={newMember}
-          />
-          <button
-            className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm disabled:opacity-50"
-            disabled={!newMember.trim() || addMember.isPending}
-            onClick={handleAddMember}
-          >
-            {addMember.isPending ? 'Adding...' : 'Add'}
-          </button>
-        </div>
-        {members.length > 0 ? (
-          <div className="flex flex-wrap gap-1.5">
-            {members.map((addr) => (
-              <span
-                className="bg-surface text-fg-secondary inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium"
-                key={addr}
-              >
-                {addr}
-                <button
-                  aria-label={`Remove ${addr}`}
-                  className="text-danger hover:opacity-70 disabled:opacity-50"
-                  disabled={removeMember.isPending}
-                  onClick={() => handleRemoveMember(addr)}
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-          </div>
-        ) : (
-          <span className="text-fg-muted text-xs">No members</span>
-        )}
-      </div>
-    </div>
-  )
+function pendingLabel(pending: boolean, busy: string, idle: string): string {
+  if (pending) return busy
+  return idle
 }

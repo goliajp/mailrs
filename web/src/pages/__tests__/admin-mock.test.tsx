@@ -83,7 +83,7 @@ describe('<AdminMock />', () => {
   it('says when no mock domain is configured', async () => {
     stub({ 'GET /api/admin/mock': { ...OVERVIEW, domain: '' } })
     renderPage()
-    expect(await screen.findByText('No mock domain is configured')).toBeInTheDocument()
+    expect(await screen.findByText('No mock domain yet')).toBeInTheDocument()
     expect(screen.queryByRole('form')).toBeNull()
   })
 })

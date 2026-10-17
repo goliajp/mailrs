@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { GroupsCell } from '../groups-cell'
+import { GroupsPanel } from '../groups-panel'
 import { PasswordCell } from '../password-cell'
 import { QuotaCell } from '../quota-cell'
 import { quotaLabel } from '../quota-label'
@@ -87,8 +87,7 @@ describe('admin account cells', () => {
 
   it('lists group names from a {groups} response', async () => {
     stub({ 'GET /api/admin/accounts/qa%40golia.jp/groups': { groups: ['ops'] } })
-    renderIn(<GroupsCell address="qa@golia.jp" />)
-    fireEvent.click(screen.getByRole('button', { name: 'Groups' }))
+    renderIn(<GroupsPanel address="qa@golia.jp" />)
     expect(await screen.findByText('ops')).toBeInTheDocument()
   })
 })

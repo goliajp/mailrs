@@ -112,7 +112,7 @@ pub async fn get_system_config() -> Result<Json<serde_json::Value>, StatusCode> 
             "key": k,
             "value": v,
             "default_value": null,
-            "description": "Stored here earlier, but no process reads this key.",
+            "description": "Stored here earlier, but no process reads this key",
             "group": "custom",
             "source": "database",
             "value_type": "string",

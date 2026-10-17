@@ -7,9 +7,10 @@ import {
   AdminEmptyState,
   AdminErrorState,
   AdminPageShell,
+  AdminTable,
   AdminTableSkeleton,
+  type Column,
 } from '@/components/admin-page'
-import { ScrollableTable } from '@/components/scrollable-table'
 import { adminKeys } from '@/lib/query-keys'
 import { adminListGet } from '@/wire/endpoints/admin'
 
@@ -98,22 +99,17 @@ export function AdminMailAudit() {
 
   return (
     <AdminPageShell
-      subtitle="Select an account to review its mail; every read is written to the audit log"
-      title="Mail Audit"
+      subtitle="Reading another account's mail is recorded: each conversation list, each conversation opened and each .eml download writes a row to the audit log under your address"
+      title="Mail audit"
     >
-      <div className="mb-4 flex items-center gap-2">
-        <div className="relative flex-1">
-          <Search className="text-fg-muted absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
-          <input
-            aria-label="Search accounts"
-            className="border-border bg-bg focus:border-accent w-full rounded-lg border py-2 pr-3 pl-9 text-sm outline-none"
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search accounts…"
-            type="text"
-            value={search}
-          />
-        </div>
-      </div>
+      <input
+        aria-label="Search accounts"
+        className="border-border bg-bg-secondary mb-4 w-64 max-w-full rounded-md border px-3 py-1.5 text-sm"
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Address or name"
+        type="search"
+        value={search}
+      />
       <AccountList
         accounts={accounts}
         error={accountsError}
@@ -145,76 +141,58 @@ function AccountList({
   search: string
 }) {
   if (pending) return <AdminTableSkeleton cols={5} headers={ACCOUNT_HEADERS} rows={6} />
-  if (error) return <AdminErrorState error={error} onRetry={onRetry} />
+  if (error) return <AdminErrorState error={error} onRetry={onRetry} what="the account list" />
   if (accounts.length === 0) {
     return (
       <AdminEmptyState
-        description="No accounts are registered on this server"
+        description="Accounts added on the Accounts page can be reviewed here"
         icon={<Users className="h-10 w-10" />}
-        title="No auditable accounts"
+        title="No accounts yet"
       />
     )
   }
   if (filtered.length === 0) {
     return (
       <AdminEmptyState
-        description={`No accounts match "${search}"`}
+        description="Search matches part of an address or a display name"
         icon={<Search className="h-10 w-10" />}
-        title="No matches"
+        title={`No accounts match "${search}"`}
       />
     )
   }
-  return (
-    <ScrollableTable>
-      <table className="w-full text-left text-sm">
-        <thead className="border-border bg-bg-secondary border-b">
-          <tr>
-            {ACCOUNT_HEADERS.map((h, i) => (
-              <th className="px-4 py-2.5 font-medium" key={i}>
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {filtered.map((a) => (
-            <tr
-              className="border-border hover:bg-bg-secondary border-b last:border-0"
-              key={a.address}
-            >
-              <td className="px-4 py-3 font-medium">{a.address}</td>
-              <td className="text-fg-secondary px-4 py-3">{a.domain}</td>
-              <td className="text-fg-secondary px-4 py-3">{a.display_name || '—'}</td>
-              <td className="px-4 py-3">
-                <ActiveBadge active={a.active} />
-              </td>
-              <td className="px-4 py-3">
-                <button
-                  className="bg-fg text-bg rounded-md px-3 py-1 text-xs font-medium transition-colors hover:opacity-90"
-                  onClick={() => onView(a.address)}
-                >
-                  View Mail
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </ScrollableTable>
-  )
+  const columns: Column<AuditAccount>[] = [
+    {
+      header: 'Account',
+      key: 'address',
+      cell: (a) => <span className="font-medium">{a.address}</span>,
+    },
+    { header: 'Domain', key: 'domain', cell: (a) => <Muted text={a.domain} /> },
+    { header: 'Name', key: 'name', cell: (a) => <Muted text={a.display_name || '—'} /> },
+    { header: 'Status', key: 'status', cell: (a) => <ActiveLabel active={a.active} /> },
+    {
+      align: 'end',
+      header: 'Actions',
+      hideHeader: true,
+      key: 'actions',
+      cell: (a) => (
+        <button
+          className="text-accent text-xs hover:opacity-80"
+          onClick={() => onView(a.address)}
+          type="button"
+        >
+          View mail
+        </button>
+      ),
+    },
+  ]
+  return <AdminTable columns={columns} label="Accounts" rowKey={(a) => a.address} rows={filtered} />
 }
 
-function ActiveBadge({ active }: { active: boolean }) {
-  if (active) {
-    return (
-      <span className="bg-success/10 text-success rounded-full px-2 py-0.5 text-xs font-medium">
-        Active
-      </span>
-    )
-  }
-  return (
-    <span className="bg-bg-secondary text-fg-muted rounded-full px-2 py-0.5 text-xs font-medium">
-      Inactive
-    </span>
-  )
+function ActiveLabel({ active }: { active: boolean }) {
+  if (active) return <span className="text-success text-xs">Active</span>
+  return <span className="text-fg-muted text-xs">Inactive</span>
+}
+
+function Muted({ text }: { text: string }) {
+  return <span className="text-fg-secondary">{text}</span>
 }

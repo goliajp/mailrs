@@ -2,34 +2,32 @@ import type { GroupInfo } from '@/components/admin-groups/group-info'
 
 import { useQuery } from '@tanstack/react-query'
 import { ShieldCheck } from 'lucide-react'
-import { Fragment, useState } from 'react'
+import { useState } from 'react'
 
 import { GroupDetail } from '@/components/admin-groups/group-detail'
 import {
   AdminEmptyState,
   AdminErrorState,
   AdminPageShell,
+  AdminTable,
   AdminTableSkeleton,
+  type Column,
+  ConfirmAction,
 } from '@/components/admin-page'
-import { MobileModal } from '@/components/mobile-modal'
-import { ScrollableTable } from '@/components/scrollable-table'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
 import { adminKeys } from '@/lib/query-keys'
 import { adminDelete, adminListGet, adminPost, adminStringListGet } from '@/wire/endpoints/admin'
 
-const HEADERS = ['Name', 'Builtin', 'Description', 'Actions']
+const HEADERS = ['Name', 'Type', 'Description', '']
+
+const EMPTY_FORM = { description: '', name: '' }
 
 export function AdminGroups() {
-  const {
-    data: groupsData,
-    error,
-    isPending,
-    refetch,
-  } = useQuery({
+  const { data, error, isPending, refetch } = useQuery({
     queryKey: adminKeys.groups(),
     queryFn: ({ signal }) => adminListGet<GroupInfo>('/admin/groups', signal),
   })
-  const groups = groupsData ?? []
+  const groups = data ?? []
 
   const { data: allPermissionsData } = useQuery({
     queryKey: adminKeys.permissions(),
@@ -39,8 +37,8 @@ export function AdminGroups() {
 
   const [adding, setAdding] = useState(false)
   const [expandedId, setExpandedId] = useState<null | number>(null)
-  const [deleteTarget, setDeleteTarget] = useState<null | number>(null)
-  const [form, setForm] = useState({ description: '', name: '' })
+  const [deleteTarget, setDeleteTarget] = useState<GroupInfo | null>(null)
+  const [form, setForm] = useState(EMPTY_FORM)
 
   const addGroup = useAdminMutation({
     invalidateKey: adminKeys.groups(),
@@ -50,7 +48,7 @@ export function AdminGroups() {
 
   const deleteGroup = useAdminMutation({
     invalidateKey: adminKeys.groups(),
-    successMsg: 'Group removed',
+    successMsg: 'Group deleted',
     mutationFn: (id: number) => adminDelete(`/admin/groups/${id}`),
   })
 
@@ -63,7 +61,7 @@ export function AdminGroups() {
       },
       {
         onSuccess: () => {
-          setForm({ description: '', name: '' })
+          setForm(EMPTY_FORM)
           setAdding(false)
         },
       }
@@ -79,6 +77,83 @@ export function AdminGroups() {
     })
   }
 
+  const toggle = (id: number) => {
+    if (expandedId === id) setExpandedId(null)
+    else setExpandedId(id)
+  }
+
+  const columns: Column<GroupInfo>[] = [
+    { header: 'Name', key: 'name', cell: (g) => <span className="font-medium">{g.name}</span> },
+    {
+      header: 'Type',
+      key: 'type',
+      cell: (g) => <span className="text-fg-secondary">{builtinLabel(g)}</span>,
+    },
+    {
+      header: 'Description',
+      key: 'description',
+      cell: (g) => <span className="text-fg-secondary">{g.description}</span>,
+    },
+    {
+      align: 'end',
+      header: 'Actions',
+      hideHeader: true,
+      key: 'actions',
+      cell: (g) => (
+        <div className="flex justify-end gap-3 text-xs">
+          <button
+            className="text-accent hover:opacity-80"
+            onClick={() => toggle(g.id)}
+            type="button"
+          >
+            {manageLabel(expandedId === g.id)}
+          </button>
+          {!g.is_builtin && (
+            <button
+              className="text-danger hover:opacity-70"
+              onClick={() => setDeleteTarget(g)}
+              type="button"
+            >
+              Delete
+            </button>
+          )}
+        </div>
+      ),
+    },
+  ]
+
+  const detailOf = (g: GroupInfo) => {
+    if (expandedId !== g.id) return null
+    return <GroupDetail allPermissions={allPermissions} group={g} />
+  }
+
+  const renderList = () => {
+    if (isPending) return <AdminTableSkeleton cols={4} headers={HEADERS} rows={4} />
+    if (error) {
+      return (
+        <AdminErrorState error={error} onRetry={() => refetch()} what="the permission group list" />
+      )
+    }
+    if (groups.length === 0 && !adding) {
+      return (
+        <AdminEmptyState
+          description="A permission group lets several accounts share a set of permissions. Add a group, tick its permissions, then add its members"
+          icon={<ShieldCheck className="h-10 w-10" />}
+          title="No permission groups yet"
+        />
+      )
+    }
+    return (
+      <AdminTable
+        columns={columns}
+        detail={detailOf}
+        label="Permission groups"
+        rowKey={(g) => String(g.id)}
+        rows={groups}
+      />
+    )
+  }
+
   return (
     <AdminPageShell
       actions={
@@ -87,7 +162,7 @@ export function AdminGroups() {
             className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:opacity-90"
             onClick={() => setAdding(true)}
           >
-            Add Group
+            Add group
           </button>
         )
       }
@@ -96,16 +171,14 @@ export function AdminGroups() {
     >
       {adding && (
         <div className="border-border mb-4 space-y-2 rounded-lg border p-4">
-          <div className="flex gap-2">
-            <input
-              aria-label="Group name"
-              autoFocus
-              className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder="Group name"
-              value={form.name}
-            />
-          </div>
+          <input
+            aria-label="Group name"
+            autoFocus
+            className="border-border bg-bg-secondary w-full rounded-md border px-3 py-1.5 text-sm"
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            placeholder="Group name"
+            value={form.name}
+          />
           <input
             aria-label="Description"
             className="border-border bg-bg-secondary w-full rounded-md border px-3 py-1.5 text-sm"
@@ -119,12 +192,12 @@ export function AdminGroups() {
               disabled={!form.name.trim() || addGroup.isPending}
               onClick={handleAdd}
             >
-              {addGroup.isPending ? 'Saving...' : 'Save'}
+              {pendingLabel(addGroup.isPending, 'Saving...', 'Save')}
             </button>
             <button
               className="text-fg-secondary hover:bg-bg-secondary rounded-md px-3 py-1.5 text-sm transition-colors"
               onClick={() => {
-                setForm({ description: '', name: '' })
+                setForm(EMPTY_FORM)
                 setAdding(false)
               }}
             >
@@ -134,95 +207,33 @@ export function AdminGroups() {
         </div>
       )}
 
-      {isPending ? (
-        <AdminTableSkeleton cols={4} headers={HEADERS} rows={4} />
-      ) : error ? (
-        <AdminErrorState error={error} onRetry={() => refetch()} />
-      ) : groups.length === 0 && !adding ? (
-        <AdminEmptyState
-          description="Groups bundle permissions and members for role-based access."
-          icon={<ShieldCheck className="h-10 w-10" />}
-          title="No groups configured"
-        />
-      ) : (
-        <ScrollableTable>
-          <table className="w-full text-left text-sm">
-            <thead className="border-border bg-bg-secondary border-b">
-              <tr>
-                <th className="px-4 py-2.5 font-medium">Name</th>
-                <th className="px-4 py-2.5 font-medium">Builtin</th>
-                <th className="px-4 py-2.5 font-medium">Description</th>
-                <th className="px-4 py-2.5 text-right font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {groups.map((group) => (
-                <Fragment key={group.id}>
-                  <tr className="border-border border-b last:border-0">
-                    <td className="px-4 py-3 font-medium">{group.name}</td>
-                    <td className="px-4 py-3">
-                      {group.is_builtin && (
-                        <span className="bg-surface text-fg-secondary inline-block rounded px-2 py-0.5 text-xs font-medium">
-                          builtin
-                        </span>
-                      )}
-                    </td>
-                    <td className="text-fg-secondary px-4 py-3">{group.description}</td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        className="text-accent mr-3 text-xs hover:opacity-80"
-                        onClick={() => setExpandedId(expandedId === group.id ? null : group.id)}
-                      >
-                        {expandedId === group.id ? 'Hide' : 'Manage'}
-                      </button>
-                      {!group.is_builtin && (
-                        <button
-                          className="text-danger text-xs transition-colors hover:opacity-70"
-                          onClick={() => setDeleteTarget(group.id)}
-                        >
-                          Delete
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                  {expandedId === group.id && (
-                    <tr>
-                      <td colSpan={5}>
-                        <GroupDetail allPermissions={allPermissions} group={group} />
-                      </td>
-                    </tr>
-                  )}
-                </Fragment>
-              ))}
-            </tbody>
-          </table>
-        </ScrollableTable>
-      )}
+      {renderList()}
 
-      {deleteTarget !== null && (
-        <MobileModal onClose={() => setDeleteTarget(null)} open>
-          <div className="bg-surface w-full max-w-sm rounded-lg p-6 shadow-lg">
-            <p className="text-fg-secondary mb-4 text-sm">
-              Delete this group? This cannot be undone.
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                className="text-fg-secondary hover:bg-bg-secondary rounded-md px-3 py-1.5 text-sm transition-colors"
-                onClick={() => setDeleteTarget(null)}
-              >
-                Cancel
-              </button>
-              <button
-                className="bg-danger rounded-md px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
-                disabled={deleteGroup.isPending}
-                onClick={() => handleDelete(deleteTarget)}
-              >
-                {deleteGroup.isPending ? 'Deleting...' : 'Delete'}
-              </button>
-            </div>
-          </div>
-        </MobileModal>
+      {deleteTarget && (
+        <ConfirmAction
+          confirmLabel={pendingLabel(deleteGroup.isPending, 'Deleting...', 'Delete group')}
+          consequence="The group, its permission list and its member list are deleted. Its members lose the permissions it granted, unless their own account or another group grants them too. The member accounts are kept"
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={() => handleDelete(deleteTarget.id)}
+          pending={deleteGroup.isPending}
+          title={`Delete ${deleteTarget.name}?`}
+        />
       )}
     </AdminPageShell>
   )
+}
+
+function builtinLabel(g: GroupInfo): string {
+  if (g.is_builtin) return 'Built-in'
+  return 'Custom'
+}
+
+function manageLabel(open: boolean): string {
+  if (open) return 'Hide'
+  return 'Manage'
+}
+
+function pendingLabel(pending: boolean, busy: string, idle: string): string {
+  if (pending) return busy
+  return idle
 }
