@@ -39,3 +39,13 @@ fn mock_send_body_matches() {
     assert_eq!(v.text, "Your code is 482913");
     assert_eq!(v.html.as_deref(), Some("<p>Your code is 482913</p>"));
 }
+
+#[test]
+fn mock_settings_save_body_matches() {
+    use mailrs_core_sidestate::families::mock::{CreatePolicy, Settings};
+    let v: Settings = parse("mock-settings-save");
+    assert_eq!(v.create, CreatePolicy::AdminsOnly);
+    assert_eq!((v.retention_days, v.max_messages), (7, 200));
+    assert_eq!((v.max_total_mb, v.max_namespaces_per_user), (1024, 5));
+    assert!(v.enabled && v.invalid().is_none());
+}

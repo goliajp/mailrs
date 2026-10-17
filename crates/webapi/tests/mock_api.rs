@@ -226,7 +226,7 @@ async fn a_namespace_receives_waits_reads_and_stays_its_owners() {
     assert_eq!((overview.usage.namespaces, overview.usage.owners), (2, 2));
     assert!(overview.usage.bytes > 0);
     let listed = service::list_namespaces(&st, &ann, false).await.unwrap();
-    assert_eq!(listed.iter().map(|n| n.bytes).sum::<i64>() > 0, true);
+    assert!(listed.iter().map(|n| n.bytes).sum::<i64>() > 0);
 
     let removed = messages::delete_messages(&st, &ann, "ann-app", None, Some("signup"))
         .await

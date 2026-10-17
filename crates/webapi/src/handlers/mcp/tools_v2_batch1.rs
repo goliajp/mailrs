@@ -62,7 +62,10 @@ impl MailrsMcpService {
     async fn list_greylist_local(&self) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
         self.require_admin(&user).await?;
-        let items = admin_read_hash(b"admin:greylist:local-lists")?;
+        // the page's reader: old not-junk rows and MCP's old words come back
+        // in the vocabulary the page and the delete tool use
+        let items = with_kevy(crate::handlers::complete::greylist::list_entries)
+            .map_err(|_| McpError::internal_error("greylist: kevy read failed", None))?;
         Ok(CallToolResult::success(vec![Content::text(
             serde_json::json!({ "items": items }).to_string(),
         )]))

@@ -66,8 +66,7 @@ export function AdminDomains() {
     setChecking(name)
     try {
       const report = await adminPost<DomainCheckReport>(
-        `/admin/domains/${encodeURIComponent(name)}/check`,
-        {}
+        `/admin/domains/${encodeURIComponent(name)}/check`
       )
       setReports((prev) => ({ ...prev, [name]: report }))
     } catch {
@@ -169,11 +168,7 @@ export function AdminDomains() {
                         disabled={checking === domain.name}
                         onClick={() => toggleReport(domain.name)}
                       >
-                        {checking === domain.name
-                          ? 'Checking...'
-                          : reports[domain.name]
-                            ? 'Hide'
-                            : 'Check'}
+                        {checkLabel(checking === domain.name, Boolean(reports[domain.name]))}
                       </button>
                       <button
                         className="text-danger text-xs transition-colors hover:opacity-70"
@@ -228,4 +223,10 @@ export function AdminDomains() {
       )}
     </AdminPageShell>
   )
+}
+
+function checkLabel(running: boolean, shown: boolean): string {
+  if (running) return 'Checking...'
+  if (shown) return 'Hide'
+  return 'Check'
 }

@@ -204,6 +204,9 @@ services:
       MAILRS_MAILDIR: /data/maildir
       MAILRS_MOCK_DOMAIN: mock.golia.jp
       MAILRS_HOSTNAME: mail.golia.ai
+      # the domain page's DKIM check looks up <selector>._domainkey; same
+      # value as fastcore-sender signs with
+      MAILRS_DKIM_SELECTOR: mail
       RUST_LOG: info
     volumes:
       - mailrs-data:/data

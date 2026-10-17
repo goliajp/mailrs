@@ -8,6 +8,9 @@ use std::sync::Arc;
 
 use crate::*;
 
+#[path = "directory.rs"]
+mod directory;
+
 /// Session-scoped auth: the routes that need a session to already exist.
 pub(super) fn auth_routes() -> axum::Router<Arc<WebState>> {
     use crate::handlers;
@@ -79,31 +82,12 @@ pub(super) fn admin_routes() -> axum::Router<Arc<WebState>> {
     use axum::routing::{delete, get, post, put};
 
     axum::Router::new()
-        .route(
-            "/api/admin/accounts",
-            get(handlers::admin::list_accounts).post(handlers::admin::add_account),
-        )
-        .route(
-            "/api/admin/accounts/{address}",
-            delete(handlers::admin::remove_account).put(handlers::admin::update_account),
-        )
-        .route(
-            "/api/admin/accounts/{address}/quota",
-            get(handlers::admin::get_account_quota).post(handlers::admin::set_account_quota),
-        )
+        .merge(directory::directory_routes())
         .route(
             "/api/admin/accounts/{address}/sieve",
             get(handlers::admin::get_account_sieve)
                 .post(handlers::admin::set_account_sieve)
                 .delete(handlers::admin::delete_account_sieve),
-        )
-        .route(
-            "/api/admin/accounts/{address}/groups",
-            get(handlers::admin::list_account_groups),
-        )
-        .route(
-            "/api/admin/accounts/{address}/overrides",
-            get(handlers::admin::get_account_overrides).put(handlers::admin::set_account_overrides),
         )
         .route(
             "/api/admin/domains/{name}/check",
@@ -116,15 +100,6 @@ pub(super) fn admin_routes() -> axum::Router<Arc<WebState>> {
         .route(
             "/api/admin/suppressions",
             get(handlers::admin::list_suppressions).delete(handlers::admin::clear_suppressions),
-        )
-        .route(
-            "/api/admin/email-groups/{id}/members",
-            get(handlers::admin::list_email_group_members)
-                .post(handlers::admin::add_email_group_member),
-        )
-        .route(
-            "/api/admin/email-groups/{id}/members/{address}",
-            delete(handlers::admin::remove_email_group_member),
         )
         .route(
             "/api/admin/apps/{app_id}/scopes",
@@ -145,14 +120,6 @@ pub(super) fn admin_routes() -> axum::Router<Arc<WebState>> {
         .route(
             "/api/admin/spam-feedback-stats",
             get(handlers::admin::get_spam_feedback_stats),
-        )
-        .route(
-            "/api/admin/aliases",
-            get(handlers::admin::list_aliases).post(handlers::admin::add_alias),
-        )
-        .route(
-            "/api/admin/aliases/{id}",
-            delete(handlers::admin::remove_alias),
         )
         .route(
             "/api/admin/domains",

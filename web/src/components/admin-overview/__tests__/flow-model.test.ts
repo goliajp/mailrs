@@ -66,8 +66,8 @@ describe('attention', () => {
     expect(items).toHaveLength(3)
     expect(items[0]).toContain('kevy')
     expect(items[1]).toContain('4 outbound messages failed')
-    expect(
-      attentionItems({ ...FLOW, outbound: { ...OUT, failed: 1 } }, true)[0].text
-    ).toBe('1 outbound message failed for good')
+    expect(attentionItems({ ...FLOW, outbound: { ...OUT, failed: 1 } }, true)[0].text).toBe(
+      '1 outbound message failed for good'
+    )
   })
 })

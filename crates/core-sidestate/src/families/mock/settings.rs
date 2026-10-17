@@ -115,11 +115,7 @@ pub fn settings(conn: &mut Connection) -> MockResult<Settings> {
             b"max_namespaces_per_user" => {
                 s.max_namespaces_per_user = v.parse().unwrap_or(s.max_namespaces_per_user)
             }
-            b"create" => {
-                if v == "admins-only" {
-                    s.create = CreatePolicy::AdminsOnly;
-                }
-            }
+            b"create" if v == "admins-only" => s.create = CreatePolicy::AdminsOnly,
             _ => {}
         }
     }

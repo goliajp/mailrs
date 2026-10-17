@@ -2073,7 +2073,62 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "description": "Domain DNS health check report with MX, SPF, DKIM, and DMARC results"
+                  "description": "Domain DNS health check report with MX, SPF, DKIM, and DMARC results",
+                  "properties": {
+                    "domain": {
+                      "type": "string"
+                    },
+                    "checked_at": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "unix seconds"
+                    },
+                    "checks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "enum": [
+                              "MX",
+                              "SPF",
+                              "DKIM",
+                              "DMARC"
+                            ]
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "pass",
+                              "warn",
+                              "fail"
+                            ]
+                          },
+                          "message": {
+                            "type": "string"
+                          },
+                          "details": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "status",
+                          "message",
+                          "details"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "domain",
+                    "checked_at",
+                    "checks"
+                  ]
                 }
               }
             }
@@ -2500,7 +2555,7 @@
     "/api/admin/aliases/{id}": {
       "delete": {
         "operationId": "removeAlias",
-        "summary": "Remove an alias",
+        "summary": "Delete an alias; the id is its source address, url-encoded",
         "tags": [
           "Admin Aliases"
         ],
@@ -2977,10 +3032,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/App"
-                  }
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/App"
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
                 }
               }
             }
@@ -3004,8 +3067,8 @@
           }
         },
         "responses": {
-          "201": {
-            "description": "App created with initial API key",
+          "200": {
+            "description": "App created; the secret is in this response only",
             "content": {
               "application/json": {
                 "schema": {
@@ -3108,36 +3171,11 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "Result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResult"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/admin/config/smtp": {
-      "get": {
-        "operationId": "getSmtpConfig",
-        "summary": "Get SMTP server configuration snapshot",
-        "tags": [
-          "Admin Domains"
-        ],
-        "responses": {
-          "200": {
-            "description": "SMTP config",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SmtpConfigSnapshot"
-                }
-              }
-            }
+          "204": {
+            "description": "Scopes replaced"
+          },
+          "404": {
+            "description": "No app with this id"
           }
         }
       }
@@ -7320,7 +7358,7 @@
     "/api/admin/mock": {
       "get": {
         "operationId": "adminMockOverview",
-        "summary": "Every mock namespace and the mock store's totals (admins)",
+        "summary": "Mock mail usage and settings (admins)",
         "tags": [
           "Mock mail"
         ],
@@ -7333,49 +7371,198 @@
                   "type": "object",
                   "properties": {
                     "domain": {
-                      "type": "string",
-                      "description": "empty when the feature is off"
+                      "type": "string"
                     },
-                    "received": {
-                      "type": "integer"
-                    },
-                    "rejected_unknown_ns": {
-                      "type": "integer"
-                    },
-                    "bytes": {
-                      "type": "integer"
-                    },
-                    "max_bytes": {
-                      "type": "integer"
-                    },
-                    "dropped": {
-                      "type": "integer"
-                    },
-                    "max_namespaces_per_user": {
-                      "type": "integer"
-                    },
-                    "namespaces": {
-                      "type": "array",
-                      "items": {
-                        "allOf": [
-                          {
-                            "$ref": "#/components/schemas/MockNamespace"
-                          },
-                          {
-                            "type": "object",
-                            "properties": {
-                              "bytes": {
-                                "type": "integer"
-                              }
-                            }
-                          }
-                        ]
+                    "usage": {
+                      "type": "object",
+                      "properties": {
+                        "namespaces": {
+                          "type": "integer"
+                        },
+                        "owners": {
+                          "type": "integer"
+                        },
+                        "bytes": {
+                          "type": "integer"
+                        },
+                        "received": {
+                          "type": "integer"
+                        },
+                        "rejected_unknown_ns": {
+                          "type": "integer"
+                        },
+                        "dropped": {
+                          "type": "integer"
+                        }
                       }
+                    },
+                    "settings": {
+                      "$ref": "#/components/schemas/MockSettings"
                     }
                   }
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/admin/flow": {
+      "get": {
+        "operationId": "adminFlow",
+        "summary": "Where mail is in the server right now; a stage is null when its owner could not be read",
+        "tags": [
+          "Admin"
+        ],
+        "responses": {
+          "200": {
+            "description": "Flow",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "receiving": {
+                      "type": "object",
+                      "properties": {
+                        "active_connections": {
+                          "type": "integer"
+                        },
+                        "connections": {
+                          "type": "integer"
+                        },
+                        "spooled": {
+                          "type": "integer"
+                        },
+                        "uptime_secs": {
+                          "type": "integer"
+                        }
+                      },
+                      "nullable": true
+                    },
+                    "spool_backlog": {
+                      "type": "integer",
+                      "nullable": true
+                    },
+                    "outbound": {
+                      "type": "object",
+                      "properties": {
+                        "queued": {
+                          "type": "integer"
+                        },
+                        "retrying": {
+                          "type": "integer"
+                        },
+                        "scheduled": {
+                          "type": "integer"
+                        },
+                        "failed": {
+                          "type": "integer"
+                        }
+                      },
+                      "nullable": true
+                    },
+                    "mock": {
+                      "type": "object",
+                      "properties": {
+                        "received": {
+                          "type": "integer"
+                        },
+                        "bytes": {
+                          "type": "integer"
+                        },
+                        "max_bytes": {
+                          "type": "integer"
+                        }
+                      },
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/mock/settings": {
+      "put": {
+        "operationId": "saveMockSettings",
+        "summary": "Replace the mock mail settings; every process applies them on next use",
+        "tags": [
+          "Mock mail"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MockSettings"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MockSettings"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A value outside its bounds"
+          }
+        }
+      }
+    },
+    "/api/admin/accounts/{address}/password": {
+      "post": {
+        "operationId": "setAccountPassword",
+        "summary": "Replace an account's password; nothing else on the account changes",
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "password"
+                ],
+                "properties": {
+                  "password": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Changed"
+          },
+          "400": {
+            "description": "Empty password"
+          },
+          "404": {
+            "description": "No such account"
           }
         }
       }
@@ -8457,31 +8644,23 @@
           "name": {
             "type": "string"
           },
-          "description": {
-            "type": "string"
-          },
-          "owner_address": {
-            "type": "string"
-          },
           "scopes": {
-            "type": "string"
-          },
-          "active": {
-            "type": "boolean"
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           },
           "created_at": {
             "type": "integer",
-            "format": "int64"
+            "format": "int64",
+            "description": "unix seconds"
           }
         },
         "required": [
           "id",
           "app_id",
           "name",
-          "description",
-          "owner_address",
           "scopes",
-          "active",
           "created_at"
         ]
       },
@@ -8756,15 +8935,14 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string",
-            "maxLength": 255
-          },
-          "description": {
             "type": "string"
           },
           "scopes": {
-            "type": "string",
-            "description": "Comma-separated permission scopes"
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Permission scopes"
           }
         },
         "required": [
@@ -8775,49 +8953,33 @@
       "CreateAppResponse": {
         "type": "object",
         "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
           "app_id": {
             "type": "string"
           },
-          "name": {
-            "type": "string"
-          },
-          "scopes": {
-            "type": "string"
-          },
-          "api_key": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "integer",
-                "format": "int64"
-              },
-              "key": {
-                "type": "string"
-              },
-              "prefix": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "id",
-              "key",
-              "prefix"
-            ]
+          "secret": {
+            "type": "string",
+            "description": "Returned only here; only its sha256 is stored"
           }
         },
         "required": [
+          "id",
           "app_id",
-          "name",
-          "scopes",
-          "api_key"
+          "secret"
         ]
       },
       "UpdateAppScopesRequest": {
         "type": "object",
         "properties": {
           "scopes": {
-            "type": "string",
-            "description": "Comma-separated permission scopes"
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Permission scopes; replaces the app's list"
           }
         },
         "required": [
@@ -9642,6 +9804,9 @@
           "webhook_url": {
             "type": "string",
             "nullable": true
+          },
+          "bytes": {
+            "type": "integer"
           }
         }
       },
@@ -9760,6 +9925,41 @@
             }
           }
         ]
+      },
+      "MockSettings": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "retention_days": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 30
+          },
+          "max_messages": {
+            "type": "integer",
+            "minimum": 10,
+            "maximum": 5000
+          },
+          "max_total_mb": {
+            "type": "integer",
+            "minimum": 64,
+            "maximum": 20480
+          },
+          "max_namespaces_per_user": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "create": {
+            "type": "string",
+            "enum": [
+              "all-users",
+              "admins-only"
+            ]
+          }
+        }
       }
     }
   }

@@ -6,6 +6,8 @@
 use schemars::JsonSchema;
 use serde::Deserialize;
 
+pub use super::params_greylist::*;
+
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct ListConversationsParams {
     /// Max threads to return. Defaults to 50, caps at 500.
@@ -298,21 +300,6 @@ pub struct EmailGroupMemberParams {
     pub group_id: String,
     /// Member address to add / remove.
     pub address: String,
-}
-
-#[derive(Debug, Deserialize, JsonSchema)]
-pub struct GreylistLocalAddParams {
-    /// Address or domain the rule matches, e.g. `example.com` or
-    /// `sender@example.com`.
-    pub address_or_domain: String,
-    /// `whitelist` (bypass the greylist) or `blacklist` (reject).
-    pub list_type: String,
-}
-
-#[derive(Debug, Deserialize, JsonSchema)]
-pub struct GreylistLocalRemoveParams {
-    /// Rule id as returned by `list_greylist_local`.
-    pub id: i64,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]

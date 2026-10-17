@@ -70,7 +70,9 @@ Streamable HTTP endpoint: https://mail.golia.ai/mcp
 - GET /api/admin/dmarc/reports/{sid} — one report with its per-source rows (admin.domains)
 - GET /api/admin/dmarc/sources — per-source-IP rollup with alignment rate (?domain=, ?days=) (admin.domains)
 - GET/POST /api/admin/greylist/local-lists, DELETE /api/admin/greylist/local-lists/{id} — local greylist white/black CRUD (admin.greylist)
-- GET /api/admin/mock — every mock namespace (owner, messages, size, SMTP, webhook) and the store's totals; delete any with DELETE /api/mock/namespaces/{ns}
+- GET /api/admin/flow — where mail is right now: receiving, spool backlog, outbound queue (queued / retrying / scheduled / failed), mock mail
+- GET /api/admin/mock, PUT /api/admin/mock/settings — mock mail usage and settings (on/off, retention days, per-namespace and total limits, namespaces per person, who may create); an admin lists everyone's namespaces with GET /api/mock/namespaces?all=true
+- POST /api/admin/accounts/{address}/password — replace a password without touching the rest of the account
 - POST /api/admin/reconcile-maildir — index maildir files missing from PG; {"dry_run": true} reports only (internal.rpc)
 
 ### Mock mail (disposable test mailboxes)

@@ -965,7 +965,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Remove an alias */
+        /** Delete an alias; the id is its source address, url-encoded */
         delete: operations["removeAlias"];
         options?: never;
         head?: never;
@@ -1158,23 +1158,6 @@ export interface paths {
         get?: never;
         /** Update application scopes (permissions) */
         put: operations["updateAppScopes"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/admin/config/smtp": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get SMTP server configuration snapshot */
-        get: operations["getSmtpConfig"];
-        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -4881,10 +4864,61 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Every mock namespace and the mock store's totals (admins) */
+        /** Mock mail usage and settings (admins) */
         get: operations["adminMockOverview"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/flow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Where mail is in the server right now; a stage is null when its owner could not be read */
+        get: operations["adminFlow"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/mock/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Replace the mock mail settings; every process applies them on next use */
+        put: operations["saveMockSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/accounts/{address}/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Replace an account's password; nothing else on the account changes */
+        post: operations["setAccountPassword"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5206,11 +5240,11 @@ export interface components {
             id: number;
             app_id: string;
             name: string;
-            description: string;
-            owner_address: string;
-            scopes: string;
-            active: boolean;
-            /** Format: int64 */
+            scopes: string[];
+            /**
+             * Format: int64
+             * @description unix seconds
+             */
             created_at: number;
         };
         AddDomainRequest: {
@@ -5287,24 +5321,19 @@ export interface components {
         };
         CreateAppRequest: {
             name: string;
-            description?: string;
-            /** @description Comma-separated permission scopes */
-            scopes: string;
+            /** @description Permission scopes */
+            scopes: string[];
         };
         CreateAppResponse: {
+            /** Format: int64 */
+            id: number;
             app_id: string;
-            name: string;
-            scopes: string;
-            api_key: {
-                /** Format: int64 */
-                id: number;
-                key: string;
-                prefix: string;
-            };
+            /** @description Returned only here; only its sha256 is stored */
+            secret: string;
         };
         UpdateAppScopesRequest: {
-            /** @description Comma-separated permission scopes */
-            scopes: string;
+            /** @description Permission scopes; replaces the app's list */
+            scopes: string[];
         };
         SmtpConfigSnapshot: {
             hostname: string;
@@ -5588,6 +5617,7 @@ export interface components {
             /** @description an example address; any tag works */
             address?: string;
             webhook_url?: string | null;
+            bytes?: number;
         };
         MockMessage: {
             id?: string;
@@ -5621,6 +5651,15 @@ export interface components {
             text?: string;
             html?: string | null;
             dropped?: number;
+        };
+        MockSettings: {
+            enabled?: boolean;
+            retention_days?: number;
+            max_messages?: number;
+            max_total_mb?: number;
+            max_namespaces_per_user?: number;
+            /** @enum {string} */
+            create?: "all-users" | "admins-only";
         };
     };
     responses: never;
@@ -7011,7 +7050,22 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        domain: string;
+                        /**
+                         * Format: int64
+                         * @description unix seconds
+                         */
+                        checked_at: number;
+                        checks: {
+                            /** @enum {string} */
+                            name: "MX" | "SPF" | "DKIM" | "DMARC";
+                            /** @enum {string} */
+                            status: "pass" | "warn" | "fail";
+                            message: string;
+                            details: string[];
+                        }[];
+                    };
                 };
             };
         };
@@ -7672,7 +7726,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["App"][];
+                    "application/json": {
+                        items: components["schemas"]["App"][];
+                    };
                 };
             };
         };
@@ -7690,8 +7746,8 @@ export interface operations {
             };
         };
         responses: {
-            /** @description App created with initial API key */
-            201: {
+            /** @description App created; the secret is in this response only */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -7767,34 +7823,19 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Result */
-            200: {
+            /** @description Scopes replaced */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiResult"];
-                };
+                content?: never;
             };
-        };
-    };
-    getSmtpConfig: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description SMTP config */
-            200: {
+            /** @description No app with this id */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["SmtpConfigSnapshot"];
-                };
+                content?: never;
             };
         };
     };
@@ -9313,19 +9354,128 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        /** @description empty when the feature is off */
                         domain?: string;
-                        received?: number;
-                        rejected_unknown_ns?: number;
-                        bytes?: number;
-                        max_bytes?: number;
-                        dropped?: number;
-                        max_namespaces_per_user?: number;
-                        namespaces?: (components["schemas"]["MockNamespace"] & {
+                        usage?: {
+                            namespaces?: number;
+                            owners?: number;
                             bytes?: number;
-                        })[];
+                            received?: number;
+                            rejected_unknown_ns?: number;
+                            dropped?: number;
+                        };
+                        settings?: components["schemas"]["MockSettings"];
                     };
                 };
+            };
+        };
+    };
+    adminFlow: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Flow */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        receiving?: {
+                            active_connections?: number;
+                            connections?: number;
+                            spooled?: number;
+                            uptime_secs?: number;
+                        } | null;
+                        spool_backlog?: number | null;
+                        outbound?: {
+                            queued?: number;
+                            retrying?: number;
+                            scheduled?: number;
+                            failed?: number;
+                        } | null;
+                        mock?: {
+                            received?: number;
+                            bytes?: number;
+                            max_bytes?: number;
+                        } | null;
+                    };
+                };
+            };
+        };
+    };
+    saveMockSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MockSettings"];
+            };
+        };
+        responses: {
+            /** @description Saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MockSettings"];
+                };
+            };
+            /** @description A value outside its bounds */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    setAccountPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                address: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    password: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Changed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Empty password */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such account */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

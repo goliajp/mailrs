@@ -19,6 +19,17 @@ const FLOW = {
   spool_backlog: 0,
 }
 
+function renderPage() {
+  const client = new QueryClient({ defaultOptions: { queries: { gcTime: 0, retry: false } } })
+  return render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter>
+        <AdminOverview />
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+}
+
 function stubFetch(map: Record<string, unknown>): void {
   vi.stubGlobal(
     'fetch',
@@ -33,17 +44,6 @@ function stubFetch(map: Record<string, unknown>): void {
         status: 200,
       })
     })
-  )
-}
-
-function renderPage() {
-  const client = new QueryClient({ defaultOptions: { queries: { gcTime: 0, retry: false } } })
-  return render(
-    <QueryClientProvider client={client}>
-      <MemoryRouter>
-        <AdminOverview />
-      </MemoryRouter>
-    </QueryClientProvider>
   )
 }
 

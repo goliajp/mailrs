@@ -21,13 +21,6 @@ const statusConfig: Record<
     label: 'Pass',
     text: 'text-success',
   },
-  skip: {
-    bg: 'bg-bg-secondary',
-    border: 'border-border',
-    dot: 'bg-fg-muted',
-    label: 'Skip',
-    text: 'text-fg-muted',
-  },
   warn: {
     bg: 'bg-warning/10',
     border: 'border-warning/10',
@@ -36,6 +29,9 @@ const statusConfig: Record<
     text: 'text-warning',
   },
 }
+
+const CURSOR: Record<string, string> = { false: 'cursor-default', true: 'cursor-pointer' }
+const CHEVRON: Record<string, string> = { false: 'rotate-0', true: 'rotate-180' }
 
 type DomainHealthCardProps = {
   readonly checking: boolean
@@ -63,14 +59,9 @@ export function DomainHealthCard({ checking, onRecheck, report }: DomainHealthCa
           disabled={checking}
           onClick={onRecheck}
         >
-          {checking ? (
-            <>
-              <Loader2 className="h-3 w-3 animate-spin" />
-              Running...
-            </>
-          ) : (
-            'Re-check'
-          )}
+          {checking && <Loader2 className="h-3 w-3 animate-spin" />}
+          {checking && 'Running...'}
+          {!checking && 'Re-check'}
         </button>
       </div>
 
@@ -97,7 +88,7 @@ function CheckResultCard({ check }: { check: CheckResult }) {
   return (
     <div className={`rounded-lg border ${config.border} ${config.bg} transition-colors`}>
       <button
-        className={`flex w-full items-center gap-3 px-3 py-2.5 text-left ${hasDetails ? 'cursor-pointer' : 'cursor-default'}`}
+        className={`flex w-full items-center gap-3 px-3 py-2.5 text-left ${CURSOR[String(hasDetails)]}`}
         onClick={() => hasDetails && setExpanded(!expanded)}
       >
         <StatusBadge status={check.status} />
@@ -107,7 +98,7 @@ function CheckResultCard({ check }: { check: CheckResult }) {
         </span>
         {hasDetails && (
           <svg
-            className={`text-fg-muted h-4 w-4 shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`}
+            className={`text-fg-muted h-4 w-4 shrink-0 transition-transform ${CHEVRON[String(expanded)]}`}
             fill="none"
             stroke="currentColor"
             strokeWidth={2}
@@ -163,23 +154,20 @@ function StatusBadge({ status }: { status: CheckStatus }) {
 }
 
 function SummaryBar({ checks }: { checks: CheckResult[] }) {
-  const counts = checks.reduce(
-    (acc, c) => ({ ...acc, [c.status]: (acc[c.status] ?? 0) + 1 }),
-    {} as Record<string, number>
-  )
+  const counts: Record<CheckStatus, number> = { fail: 0, pass: 0, warn: 0 }
+  for (const c of checks) counts[c.status] += 1
   const total = checks.length
 
   return (
     <div className="flex items-center gap-4">
       <div className="bg-surface flex h-2 flex-1 overflow-hidden rounded-full">
-        {(['pass', 'warn', 'fail', 'skip'] as const).map((status) => {
-          const count = counts[status] ?? 0
+        {(['pass', 'warn', 'fail'] as const).map((status) => {
+          const count = counts[status]
           if (count === 0) return null
           const pct = Math.round((count / total) * 100)
           const colors: Record<CheckStatus, string> = {
             fail: 'bg-danger',
             pass: 'bg-success',
-            skip: 'bg-border',
             warn: 'bg-warning',
           }
           return (
@@ -188,10 +176,9 @@ function SummaryBar({ checks }: { checks: CheckResult[] }) {
         })}
       </div>
       <div className="text-fg-secondary flex shrink-0 gap-3 text-xs">
-        {counts.pass ? <span className="text-success">{counts.pass} pass</span> : null}
-        {counts.warn ? <span className="text-warning">{counts.warn} warn</span> : null}
-        {counts.fail ? <span className="text-danger">{counts.fail} fail</span> : null}
-        {counts.skip ? <span className="text-fg-secondary">{counts.skip} skip</span> : null}
+        {counts.pass > 0 && <span className="text-success">{counts.pass} pass</span>}
+        {counts.warn > 0 && <span className="text-warning">{counts.warn} warn</span>}
+        {counts.fail > 0 && <span className="text-danger">{counts.fail} fail</span>}
       </div>
     </div>
   )

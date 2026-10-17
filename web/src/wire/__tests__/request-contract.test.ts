@@ -161,8 +161,6 @@ describe('request bodies match the shared contract', () => {
     const { adminPost } = await import('../endpoints/admin')
     const body = await bodyOf(() =>
       adminPost('/admin/aliases', {
-        alias_type: 'forward',
-        domain: 'golia.jp',
         source_address: 'devops@golia.jp',
         target_address: 'lihao@golia.jp',
       })
@@ -186,6 +184,19 @@ describe('request bodies match the shared contract', () => {
     expect(body).toEqual(fixture('account-create'))
   })
 
+  /**
+   * A password change has its own route. It used to re-post the account to
+   * the create route, which rewrote quota, recovery email and permissions.
+   */
+  it('account password set', async () => {
+    const { adminPost } = await import('../endpoints/admin')
+    const address = encodeURIComponent('qa@golia.jp')
+    const body = await bodyOf(() =>
+      adminPost(`/admin/accounts/${address}/password`, { password: 'not-a-real-password' })
+    )
+    expect(body).toEqual(fixture('account-password-set'))
+  })
+
   it('domain create', async () => {
     const { adminPost } = await import('../endpoints/admin')
     const body = await bodyOf(() => adminPost('/admin/domains', { name: 'golia.jp' }))
@@ -204,6 +215,23 @@ describe('request bodies match the shared contract', () => {
       })
     )
     expect(body).toEqual(fixture('group-permissions-set'))
+  })
+
+  it('app create', async () => {
+    const { adminPost } = await import('../endpoints/admin')
+    const body = await bodyOf(() =>
+      adminPost('/admin/apps', { name: 'ci-bot', scopes: ['mail.read', 'mail.send'] })
+    )
+    expect(body).toEqual(fixture('app-create'))
+  })
+
+  it('app scopes set', async () => {
+    const { adminPut } = await import('../endpoints/admin')
+    const appId = 'app_1'
+    const body = await bodyOf(() =>
+      adminPut(`/admin/apps/${appId}/scopes`, { scopes: ['mail.read'] })
+    )
+    expect(body).toEqual(fixture('app-scopes-set'))
   })
 
   it('login', async () => {
@@ -271,6 +299,7 @@ describe('request bodies match the shared contract', () => {
     const body = await bodyOf(() =>
       adminPost('/admin/groups', {
         description: 'Full administrative access',
+        domain: 'golia.jp',
         name: 'admins',
       })
     )
@@ -417,5 +446,30 @@ describe('request bodies match the shared contract', () => {
     const body = await bodyOf(() => wireSetMockWebhook('insight', 'https://example.com/hooks/mock'))
     expect(body).toEqual(fixture('mock-webhook-set'))
     expect(capturedRequest().path).toBe('/api/mock/namespaces/insight/webhook')
+  })
+
+  it('mock settings save', async () => {
+    const { wireSaveMockSettings } = await import('../endpoints/mock')
+    const settings = fixture('mock-settings-save') as Parameters<typeof wireSaveMockSettings>[0]
+    const body = await bodyOf(() => wireSaveMockSettings(settings))
+    expect(body).toEqual(fixture('mock-settings-save'))
+    expect(capturedRequest().path).toBe('/api/admin/mock/settings')
+  })
+
+  it('invite counter', async () => {
+    const { wireInviteCounter } = await import('../endpoints/invites')
+    const body = await bodyOf(() =>
+      wireInviteCounter(42, { end: '2026-10-20T03:00:00.000Z', start: '2026-10-20T02:00:00.000Z' })
+    )
+    expect(body).toEqual(fixture('invite-counter'))
+    expect(capturedRequest().path).toBe('/api/invites/42/counter')
+  })
+
+  it('invite rsvp', async () => {
+    const { wireInviteRsvp } = await import('../endpoints/invites')
+    const body = await bodyOf(() =>
+      wireInviteRsvp(42, { partstat: 'ACCEPTED', recurrence_id: '2026-10-20T02:00:00Z' })
+    )
+    expect(body).toEqual(fixture('invite-rsvp'))
   })
 })

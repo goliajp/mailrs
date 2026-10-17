@@ -2,13 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { adminKeys } from '@/lib/query-keys'
-import { adminListGet } from '@/wire/endpoints/admin'
-
-type GroupInfo = {
-  description: string
-  id: number
-  name: string
-}
+import { adminStringListGet } from '@/wire/endpoints/admin'
 
 export function GroupsCell({ address }: { address: string }) {
   const [open, setOpen] = useState(false)
@@ -17,7 +11,7 @@ export function GroupsCell({ address }: { address: string }) {
     enabled: open,
     queryKey: [...adminKeys.accounts(), 'groups', address],
     queryFn: ({ signal }) =>
-      adminListGet<GroupInfo>(`/admin/accounts/${encodeURIComponent(address)}/groups`, signal),
+      adminStringListGet(`/admin/accounts/${encodeURIComponent(address)}/groups`, signal),
   })
 
   if (!open) {
@@ -38,12 +32,8 @@ export function GroupsCell({ address }: { address: string }) {
     <div className="flex flex-wrap items-center gap-1">
       {groups.length > 0 ? (
         groups.map((g) => (
-          <span
-            className="bg-accent/10 text-accent rounded-full px-2 py-0.5 text-xs"
-            key={g.id}
-            title={g.description}
-          >
-            {g.name}
+          <span className="bg-accent/10 text-accent rounded-full px-2 py-0.5 text-xs" key={g}>
+            {g}
           </span>
         ))
       ) : (
