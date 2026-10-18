@@ -289,8 +289,7 @@ pub(crate) fn file_mtime_epoch(path: &std::path::Path) -> Option<i64> {
 /// there is one, else the `text/html` part flattened. Returns `None`
 /// when neither exists (a bare attachment, say) so the caller can skip
 /// writing an empty row.
-pub(crate) fn body_text_for_search(raw: &[u8]) -> Option<String> {
-    let root = mailrs_mime::parse(raw);
+pub(crate) fn body_text_for_search(root: &mailrs_mime::Part<'_>) -> Option<String> {
     let mut html: Option<String> = None;
     for part in root.walk() {
         match part.content_type.mime_type().as_str() {

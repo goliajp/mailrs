@@ -189,6 +189,11 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
             "/v1/admin/maintenance:backfill-reply-rotation",
             post(crate::maintenance::backfill_reply_rotation_route),
         )
+        // Queues stored mail carrying a PDF for the text worker.
+        .route(
+            "/v1/admin/maintenance:backfill-attachment-text",
+            post(crate::maintenance::backfill_attachment_text_route),
+        )
         .route(
             "/v1/admin/maintenance:backfill-thread-user",
             post(backfill_thread_user_route),

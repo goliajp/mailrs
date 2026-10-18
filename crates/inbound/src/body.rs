@@ -36,6 +36,25 @@ pub fn offers_the_reader_a_sum(parsed: &mailrs_mime::Part<'_>) -> bool {
     }))
 }
 
+/// [`offers_the_reader_a_sum`], over text extracted from attachments.
+pub fn attachment_offers_the_reader_a_sum(text: &str) -> bool {
+    !text.is_empty() && advance_fee::offers_the_reader_a_sum([Body::Plain(text)])
+}
+
+/// The attachments' texts as the rules read them: joined by blank lines
+/// and cut at [`mailrs_fraud::ATTACHMENT_TEXT_CAP`] on a char boundary.
+pub fn attachment_text_for_rules(texts: &[String]) -> String {
+    let mut out = texts.join("\n\n");
+    if out.len() > mailrs_fraud::ATTACHMENT_TEXT_CAP {
+        let mut end = mailrs_fraud::ATTACHMENT_TEXT_CAP;
+        while !out.is_char_boundary(end) {
+            end -= 1;
+        }
+        out.truncate(end);
+    }
+    out
+}
+
 /// Whether the message carries `List-Unsubscribe` or `List-Id`.
 pub fn is_bulk(raw: &[u8]) -> bool {
     let head = &raw[..raw.len().min(HEAD_LIMIT)];
@@ -102,6 +121,31 @@ Content-Disposition: attachment; filename=story.txt\r\n\
 $5 million, your share is half\r\n\
 --b--\r\n";
         assert!(!offers_the_reader_a_sum(&mailrs_mime::parse(raw)));
+    }
+
+    #[test]
+    fn an_offer_inside_an_attachment_is_read_by_the_attachment_check() {
+        let text = "in the sum of US$10,200,000.00 ... split equally, 50% apiece";
+        assert!(attachment_offers_the_reader_a_sum(text));
+        assert!(!attachment_offers_the_reader_a_sum(
+            "quarterly invoice, total 12,000 yen"
+        ));
+        assert!(!attachment_offers_the_reader_a_sum(""));
+    }
+
+    #[test]
+    fn attachment_text_for_the_rules_stays_under_their_limit() {
+        let texts = vec![
+            "日".repeat(mailrs_fraud::ATTACHMENT_TEXT_CAP),
+            "more".into(),
+        ];
+        let joined = attachment_text_for_rules(&texts);
+        assert!(joined.len() <= mailrs_fraud::ATTACHMENT_TEXT_CAP);
+        assert!(joined.len() > mailrs_fraud::ATTACHMENT_TEXT_CAP - 3);
+        assert_eq!(
+            attachment_text_for_rules(&["a".into(), "b".into()]),
+            "a\n\nb"
+        );
     }
 
     #[test]

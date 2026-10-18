@@ -250,6 +250,7 @@ pub async fn run() {
     crate::mock_sweep::spawn(state.clone());
     snooze_wake::spawn(state.clone());
     crate::fraud_backfill::spawn(state.clone(), &kevy_dir);
+    crate::attachment_text::spawn(state.clone());
     // Say now whether push is on, rather than at the first delivery.
     push::warm();
     aof_compact::spawn(state.clone(), kevy_dir.clone());
@@ -259,9 +260,7 @@ pub async fn run() {
     // and periodically renews the cert to `MAILRS_ACME_DIR`. Receiver
     // + webapi consume the resulting cert files on their own reload
     // cadence — fastcore doesn't serve TLS itself.
-    tokio::spawn(async move {
-        acme_task::spawn().await;
-    });
+    tokio::spawn(acme_task::spawn());
 
     // IMAP + IMAPS + POP3 + POP3S listeners share one certificate from
     // MAILRS_TLS_CERT + MAILRS_TLS_KEY, followed on disk: 993/995 wrap
@@ -279,10 +278,7 @@ pub async fn run() {
     // Webhook delivery — drains the kevy outbox. Until 2026-07-31 a
     // subscription could be created and nothing would ever fire on this
     // lane; there was no queue and no worker.
-    let webhook_state = state.clone();
-    tokio::spawn(async move {
-        webhook_delivery::spawn(webhook_state).await;
-    });
+    tokio::spawn(webhook_delivery::spawn(state.clone()));
     // Calendar feed sync — subscribing to an .ics URL stored a row that
     // nothing read, so no event ever appeared.
     let calendar_state = state.clone();

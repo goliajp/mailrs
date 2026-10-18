@@ -56,10 +56,6 @@ pub const IDX_MESSAGE_TEXT: &[u8] = b"mailrs_message_text";
 /// Indexed field on a `mailrs:msgtext:*` row.
 pub const MESSAGE_TEXT_FIELD: &[u8] = b"body";
 
-/// Companion field: which thread the message belongs to, so a body hit
-/// resolves back to a conversation without a second lookup.
-pub const MESSAGE_TEXT_TID_FIELD: &[u8] = b"tid";
-
 /// Upper bound on indexed body text, in bytes. Mail runs to megabytes
 /// once HTML and quoted history are counted, and indexing all of it
 /// would multiply the AOF for diminishing recall — the terms that
