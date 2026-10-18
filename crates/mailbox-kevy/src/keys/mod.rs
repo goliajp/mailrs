@@ -4,9 +4,11 @@
 //! of writing literal `format!` strings so renames stay local.
 
 mod admin;
+mod attachments;
 mod threads;
 
 pub use admin::*;
+pub use attachments::*;
 pub use threads::*;
 
 /// Per-user uid → message_id index — hash where field=uid, value=message_id.

@@ -65,25 +65,41 @@ pub(crate) fn names_on_disk(
     user: &str,
 ) -> std::collections::HashMap<String, (Vec<mailrs_maildir::Flag>, Vec<char>)> {
     let mut out = std::collections::HashMap::new();
-    for mb in crate::imap::backend::list_mailboxes(state, user) {
-        let md = mailrs_maildir::Maildir::open(&mb.path);
-        let entries = md
-            .scan_new()
-            .unwrap_or_default()
-            .into_iter()
-            .chain(md.scan_cur().unwrap_or_default());
-        for e in entries {
-            // Keywords come off the same name the flags were parsed from,
-            // rather than a second stat: the suffix carries both.
-            let name = e.path.file_name().unwrap_or_default().to_string_lossy();
-            let keywords = match name.find(':') {
-                Some(i) => mailrs_maildir::keywords_of(&name[i..]),
-                None => Vec::new(),
-            };
-            out.insert(e.id.0, (e.flags, keywords));
-        }
+    for e in entries_on_disk(state, user) {
+        // keywords come off the name the flags were parsed from, no stat
+        let name = e.path.file_name().unwrap_or_default().to_string_lossy();
+        let keywords = match name.find(':') {
+            Some(i) => mailrs_maildir::keywords_of(&name[i..]),
+            None => Vec::new(),
+        };
+        out.insert(e.id.0, (e.flags, keywords));
     }
     out
+}
+
+/// [`names_on_disk`]'s single scan, giving each file's path.
+pub(crate) fn paths_on_disk(
+    state: &std::sync::Arc<crate::FastcoreState>,
+    user: &str,
+) -> std::collections::HashMap<String, std::path::PathBuf> {
+    entries_on_disk(state, user)
+        .map(|e| (e.id.0, e.path))
+        .collect()
+}
+
+fn entries_on_disk(
+    state: &std::sync::Arc<crate::FastcoreState>,
+    user: &str,
+) -> impl Iterator<Item = mailrs_maildir::Entry> {
+    crate::imap::backend::list_mailboxes(state, user)
+        .into_iter()
+        .flat_map(|mb| {
+            let md = mailrs_maildir::Maildir::open(&mb.path);
+            md.scan_new()
+                .unwrap_or_default()
+                .into_iter()
+                .chain(md.scan_cur().unwrap_or_default())
+        })
 }
 
 /// The flag-free, folder-free identity a `blob_ref` names — the key

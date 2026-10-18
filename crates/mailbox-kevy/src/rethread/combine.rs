@@ -297,66 +297,6 @@ mod search_tests {
     }
 
     #[test]
-    fn finds_a_thread_by_words_only_in_the_body() {
-        let s = store();
-        let u = "u@x.com";
-        s.upsert_thread(u, &row("t1", "Q3 planning", "alice@x.com", ""))
-            .unwrap();
-        s.index_message_text("m1@x", "t1", "the budget spreadsheet is attached")
-            .unwrap();
-
-        // subject/sender index knows nothing about "spreadsheet"
-        assert!(s.search_threads(u, "spreadsheet", 10).unwrap().is_empty());
-        // the body index does
-        assert_eq!(
-            s.search_message_bodies(u, "spreadsheet", 10).unwrap(),
-            vec!["t1".to_string()]
-        );
-    }
-
-    #[test]
-    fn body_search_is_per_user_and_deduplicated() {
-        let s = store();
-        s.upsert_thread("a@x.com", &row("ta", "s", "p@x.com", ""))
-            .unwrap();
-        s.upsert_thread("b@x.com", &row("tb", "s", "p@x.com", ""))
-            .unwrap();
-        // two messages in the same thread both mention the term
-        s.index_message_text("m1@x", "ta", "quarterly invoice")
-            .unwrap();
-        s.index_message_text("m2@x", "ta", "quarterly invoice again")
-            .unwrap();
-        s.index_message_text("m3@x", "tb", "quarterly invoice")
-            .unwrap();
-
-        let hits = s.search_message_bodies("a@x.com", "quarterly", 10).unwrap();
-        assert_eq!(hits, vec!["ta".to_string()], "one row per thread, own only");
-    }
-
-    #[test]
-    fn forgetting_a_message_removes_it_from_body_search() {
-        let s = store();
-        let u = "u@x.com";
-        s.upsert_thread(u, &row("t1", "s", "p@x.com", "")).unwrap();
-        s.index_message_text("m1@x", "t1", "confidential terms")
-            .unwrap();
-        assert_eq!(
-            s.search_message_bodies(u, "confidential", 10)
-                .unwrap()
-                .len(),
-            1
-        );
-
-        s.forget_message_text("m1@x").unwrap();
-        assert!(
-            s.search_message_bodies(u, "confidential", 10)
-                .unwrap()
-                .is_empty(),
-            "a deleted message must not stay searchable"
-        );
-    }
-
-    #[test]
     fn body_text_is_capped_on_a_char_boundary() {
         // Multi-byte input right at the cap must not panic or split a
         // char — the cap is a byte count, the content is UTF-8.

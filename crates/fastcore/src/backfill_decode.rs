@@ -220,11 +220,11 @@ pub(crate) async fn backfill_decode_headers_route(
                         }
                     }
                 }
-                let text = crate::body_text_for_search(&raw);
+                let text = crate::body_text_for_search(&mailrs_mime::parse(&raw));
                 if let Some(text) = text.as_deref()
                     && state
                         .mailbox
-                        .index_message_text(&w.message_id, tid, text)
+                        .index_message_text(&w.message_id, text)
                         .is_ok()
                 {
                     bodies_indexed += 1;
