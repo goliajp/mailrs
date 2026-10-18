@@ -39,6 +39,7 @@ pub(crate) use decision::*;
 
 mod config;
 mod decision;
+mod facts;
 mod holding;
 
 pub(crate) fn snapshot(state: &FastcoreState) -> std::io::Result<Vec<(String, String)>> {
@@ -154,7 +155,14 @@ pub(crate) async fn rescan(
             }
             continue;
         };
-        let from = mailrs_inbound::from_header(&raw);
+        // What extraction stored from this message's attachments.
+        let attachment_texts = state
+            .mailbox
+            .attachment_texts(&message_id)
+            .unwrap_or_default();
+        let msg = facts::Reading::of(&raw, our_stamp.as_deref(), &attachment_texts);
+        let from = &msg.from;
+        let subject = &msg.subject;
         // The count as it stands, **not** minus this message.
         //
         // It was minus one, reasoning that the sweep re-plays the
@@ -171,87 +179,14 @@ pub(crate) async fn rescan(
         // A threshold with a subtraction under it is a different
         // threshold, and not the one the corpus was measured
         // against.
-        let seen = domain_seen(hist.as_mut(), &from);
-        // The same facts the receive path assembles, from the
-        // same extractors. Two assemblies of one message is how
-        // a folded header came to be visible on one path and not
-        // the other.
-        let host = from
-            .rfind('@')
-            .map(|at| from[at + 1..].trim_end_matches('>').trim().to_string())
-            .unwrap_or_default();
-        let registrable = mailrs_fraud::brand::registrable(&host);
-        let x = mailrs_inbound::x_mailer_header(&raw);
-        // The same reading the receive path takes, from the same
-        // function. Without it the sweep cannot see a display
-        // name that renders as something other than it says —
-        // and that is how the one the user asked about survived
-        // a full re-scan.
-        let deception = mailrs_inbound::deception_in_identity(&raw);
-        let name_deception = mailrs_inbound::deception_in_display_name(&raw);
-        let parsed = mailrs_mime::parse(&raw);
-        let attachments: Vec<&str> = parsed
-            .attachments()
-            .filter_map(|p| p.attachment_filename())
-            .collect();
-        let auth = mailrs_inbound::identity::auth_results_tokens(&raw);
-        let subject = mailrs_inbound::subject_header(&raw);
-        let to_display = mailrs_inbound::identity::to_display_name(&raw);
-        let reply_to = mailrs_inbound::identity::reply_to_address(&raw);
+        let seen = domain_seen(hist.as_mut(), from);
         // Read, not recorded. The sweep walks the same message
         // more than once over its life, and a set does not care
         // — but the live path is the one that owns the writing,
         // and a sweep that also wrote would make "how many
         // domains" depend on how often the sweep had run.
-        let reply_rotation = reading::reply_rotation(&mut hist, &host, &reply_to);
-        let facts = mailrs_fraud::Facts {
-            from: &from,
-            subject: &subject,
-            domain: &host,
-            registrable: &registrable,
-            domain_seen: seen,
-            x_mailer: x.as_deref(),
-            has_zero_width: deception.unjustified_zero_width,
-            has_bidi_override: deception.bidi_override,
-            has_zero_width_in_name: name_deception.unjustified_zero_width,
-            has_executable_attachment: mailrs_fraud::attachment::any_executable(
-                attachments.iter().copied(),
-            ),
-            has_zero_width_inside_a_word: deception.zero_width_inside_a_word,
-            offers_the_reader_a_sum: mailrs_inbound::body::offers_the_reader_a_sum(&parsed),
-            is_bulk: mailrs_inbound::body::is_bulk(&raw),
-            to_display: &to_display,
-            reply_rotation,
-            // against the arrival this deployment stamped, not the
-            // clock: once the claimed date has passed, the clock would
-            // release what the live path held
-            date_ahead: mailrs_inbound::dates::date_ahead_of(
-                &raw,
-                mailrs_inbound::dates::received_epoch(&raw),
-            ),
-            // How this message was submitted, read back off the
-            // message itself: the receiver stamps
-            // `Authentication-Results:` on the inbound path only, and
-            // that path runs only for sessions that did not
-            // authenticate.  Without `MAILRS_HOSTNAME` this process
-            // cannot tell its own stamp from a forwarder's, so it says
-            // "not known" and the rules that need it decline — see the
-            // warning in `policy_from_env`'s neighbour below.
-            unauthenticated: our_stamp.as_deref().is_some_and(|host| {
-                mailrs_inbound::identity::auth_results_authserv(&raw).as_deref() == Some(host)
-            }),
-            // Where it came from and what alignment said, both read
-            // back off what the receiver wrote down: the connection is
-            // gone and the DNS answers of the day are not worth
-            // re-asking.  A message with no `Received:` line to read
-            // is treated as arriving from outside, which is the
-            // conservative direction for the only rule that asks.
-            peer_is_private: mailrs_inbound::identity::first_received_peer_ip(&raw)
-                .is_some_and(mailrs_inbound::identity::address_is_private),
-            spf: &auth.0,
-            dkim: &auth.1,
-            dmarc: &auth.2,
-        };
+        let reply_rotation = reading::reply_rotation(&mut hist, &msg.host, &msg.reply_to);
+        let facts = msg.facts(seen, reply_rotation);
         let scan = match mailrs_fraud_lua::scan(&facts, &policy) {
             Ok(scan) => scan,
             Err(error) => {

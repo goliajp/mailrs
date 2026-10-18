@@ -3,7 +3,6 @@
 //! Sources:
 //! - `crates/mailbox/src/pg/analysis_ops.rs`         — 5 fn
 //! - `crates/mailbox/src/pg/search_ops.rs:258`       — `semantic_search` (Rock 3, pgvector)
-//! - `crates/mailbox/src/pg/attachment_ops.rs:5`     — `get_attachment_texts`
 //!
 //! `semantic_search`: fastcore v1 returns `BackendUnsupported` per checklist 7.7.
 //! Subsequent version connects meili arroy field.
@@ -20,7 +19,6 @@ pub const PATH_LIST_UNANALYZED: &str = "/v1/analysis:unanalyzed";
 pub const PATH_COUNT_UNANALYZED: &str = "/v1/analysis:unanalyzed-count";
 pub const PATH_BOOST_IMPORTANCE: &str = "/v1/analysis/{message_id}/boost-importance";
 pub const PATH_SEMANTIC_SEARCH: &str = "/v1/search/semantic";
-pub const PATH_ATTACHMENT_TEXTS: &str = "/v1/messages/{id}/attachments/texts";
 
 // ── wire types ──────────────────────────────────────────────────────
 
@@ -134,14 +132,6 @@ pub struct SemanticSearchHit {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SemanticSearchResponse {
     pub items: Vec<SemanticSearchHit>,
-}
-
-/// Response body for `GET /v1/messages/{id}/attachments/texts`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AttachmentTextsResponse {
-    /// One string per attachment with non-empty extracted text, ordered by
-    /// attachment_index ASC. May be empty.
-    pub texts: Vec<String>,
 }
 
 #[cfg(test)]

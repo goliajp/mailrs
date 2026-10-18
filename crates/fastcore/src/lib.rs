@@ -12,6 +12,7 @@
 mod acme_task;
 mod aof_compact;
 pub mod arc_seal;
+pub mod attachment_text;
 mod backfill_decode;
 mod bayes_train;
 pub mod boot;
@@ -51,14 +52,7 @@ use maildir_scan::*;
 use maintenance::*;
 pub use router::build_router;
 
-/// Run one full self-heal sweep for one user.
-///
-/// A seam for the integration tests, which drive the real sweep rather
-/// than its four phases: the thing worth pinning about a rebuild is what
-/// the whole of it produces, and the phases share state through the store.
-pub async fn self_heal_once(state: &std::sync::Arc<FastcoreState>, user: &str) -> bool {
-    maildir_scan::healed_from_maildir(state, user, 0).await
-}
+pub use maildir_scan::self_heal_once;
 use routes::*;
 pub mod sender_sts;
 mod sieve_apply;

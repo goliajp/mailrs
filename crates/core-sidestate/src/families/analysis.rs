@@ -2,7 +2,6 @@
 //! the identical analysis rows:
 //!   `mailrs:analysis:{message_id}`      JSON EmailAnalysisWire
 //!   `mailrs:analysis:unanalyzed`        set of message_ids awaiting analysis
-//!   `mailrs:attachments:{message_id}`   list of extracted attachment texts
 //!
 //! `message_id` is the i64 the wire uses; the analyzer worker writes these
 //! keys, both cores read them. `semantic_search` returns 501 on both cores
@@ -15,8 +14,7 @@ use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 
 use mailrs_core_api::method::analysis::{
-    AttachmentTextsResponse, CountUnanalyzedResponse, EmailAnalysisWire, GetAnalysisResponse,
-    ListUnanalyzedQuery,
+    CountUnanalyzedResponse, EmailAnalysisWire, GetAnalysisResponse, ListUnanalyzedQuery,
 };
 
 use crate::NetKevy;
@@ -63,23 +61,6 @@ pub async fn boost_importance<S: NetKevy>(
         }
     }
     StatusCode::NO_CONTENT
-}
-
-pub async fn attachment_texts<S: NetKevy>(
-    State(state): State<Arc<S>>,
-    Path(message_id): Path<i64>,
-) -> Json<AttachmentTextsResponse> {
-    let texts = state
-        .net_conn()
-        .and_then(|mut conn| {
-            conn.lrange(format!("mailrs:attachments:{message_id}").as_bytes(), 0, -1)
-                .ok()
-        })
-        .unwrap_or_default()
-        .into_iter()
-        .map(|v| String::from_utf8_lossy(&v).into_owned())
-        .collect();
-    Json(AttachmentTextsResponse { texts })
 }
 
 /// Semantic search — 501 on both cores (no vector backend on this wire).

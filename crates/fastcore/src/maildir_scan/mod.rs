@@ -40,3 +40,12 @@ pub(crate) async fn healed_from_maildir(
 
     healed_threads > 0 || diff_healed_threads > 0 || rows_healed > 0 || created > 0
 }
+
+/// Run one full self-heal sweep for one user.
+///
+/// A seam for the integration tests, which drive the real sweep rather
+/// than its four phases: the thing worth pinning about a rebuild is what
+/// the whole of it produces, and the phases share state through the store.
+pub async fn self_heal_once(state: &std::sync::Arc<crate::FastcoreState>, user: &str) -> bool {
+    healed_from_maildir(state, user, 0).await
+}
