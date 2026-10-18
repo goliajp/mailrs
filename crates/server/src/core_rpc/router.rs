@@ -279,10 +279,6 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
             post(mailrs_core_sidestate::families::analysis::boost_importance::<CoreRpcState>),
         )
         .route(
-            analysis_paths::PATH_ATTACHMENT_TEXTS,
-            get(mailrs_core_sidestate::families::analysis::attachment_texts::<CoreRpcState>),
-        )
-        .route(
             analysis_paths::PATH_SEMANTIC_SEARCH,
             post(mailrs_core_sidestate::families::analysis::semantic_search),
         )

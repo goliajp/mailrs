@@ -16,6 +16,7 @@ pub(crate) mod message_ops;
 mod permissions;
 mod quarantine;
 mod reads;
+mod search;
 pub(crate) mod thread_actions;
 
 pub(crate) use account::*;
@@ -24,6 +25,7 @@ pub(crate) use message_ops::*;
 pub(crate) use permissions::*;
 pub(crate) use quarantine::*;
 pub(crate) use reads::*;
+pub(crate) use search::*;
 pub(crate) use thread_actions::*;
 
 pub mod mail_admin;

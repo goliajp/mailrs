@@ -10,6 +10,8 @@
 //! directly and the split is invisible at the registration site.
 
 mod backfill_admin;
+mod backfill_attachment_text;
+pub(crate) use backfill_attachment_text::backfill_attachment_text_route;
 mod backfill_messages;
 mod backfill_threading;
 mod census;

@@ -93,7 +93,8 @@ pub(crate) fn ingest_delivered_file(
     // only the outbound send and an importer ever wrote one. The MIME
     // parse below is the same one the search index already pays for,
     // hoisted so both readings come out of it.
-    let body_text = body_text_for_search(body);
+    let parsed = mailrs_mime::parse(body);
+    let body_text = body_text_for_search(&parsed);
     let preview = body_text
         .as_deref()
         .map(|t| mailrs_clean::preview_line(t, 120))
@@ -249,10 +250,12 @@ pub(crate) fn ingest_delivered_file(
     // path that already has the bytes in hand, and it is what makes
     // search cover message contents rather than just headers.
     if let Some(text) = body_text.as_deref()
-        && let Err(e) = state.mailbox.index_message_text(&message_id, &root, text)
+        && let Err(e) = state.mailbox.index_message_text(&message_id, text)
     {
         tracing::warn!(error = %e, %addr, %message_id, "index_message_text failed");
     }
+    // A PDF is only noted here; reading it is the worker's job, off this path.
+    crate::attachment_text::queue_if_it_has_a_pdf(state, addr, &message_id, &parsed);
 }
 
 #[cfg(test)]

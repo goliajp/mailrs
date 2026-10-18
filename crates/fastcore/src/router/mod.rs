@@ -218,10 +218,6 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
                 post(mailrs_core_sidestate::families::analysis::boost_importance::<FastcoreState>),
             )
             .route(
-                an::PATH_ATTACHMENT_TEXTS,
-                get(mailrs_core_sidestate::families::analysis::attachment_texts::<FastcoreState>),
-            )
-            .route(
                 an::PATH_SEMANTIC_SEARCH,
                 post(mailrs_core_sidestate::families::analysis::semantic_search),
             )
