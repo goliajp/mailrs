@@ -504,17 +504,17 @@ if [ "${SKIP_WEB:-0}" != 1 ]; then
     # `markdown-preview` is its own chunk, so pressing Preview in a reply
     # produced "Something went wrong" four times in one hour on 2026-07-30.
     # A printed number nobody compares would not have said so.
-    BEFORE_ASSETS=$(ssh -n "$PROD" "ls -1 /apps/mailrs/web/assets 2>/dev/null | wc -l | tr -d ' '" || echo 0)
-    ssh -n "$PROD" "find /apps/mailrs/web/assets -type f -mtime +30 -delete 2>/dev/null; true"
-    AFTER_ASSETS=$(ssh -n "$PROD" "ls -1 /apps/mailrs/web/assets | wc -l | tr -d ' '" || echo 0)
-    echo "    assets kept: $AFTER_ASSETS (was $BEFORE_ASSETS before the prune)"
-    if [ "$AFTER_ASSETS" -lt "$BEFORE_ASSETS" ]; then
-        DROPPED=$((BEFORE_ASSETS - AFTER_ASSETS))
-        echo "!! $DROPPED asset(s) disappeared. The 30-day prune retires files"
-        echo "!! that old, so a drop right after a deploy that just added"
-        echo "!! chunks means something deleted live ones — check for"
-        echo "!! --delete on the rsync. Tabs open before this deploy will"
-        echo "!! break on their next lazy import."
+    # The check is on this build's own files, not on the count: a prune
+    # that retires month-old chunks lowers the count by design, while the
+    # failure it guards against is a live chunk going missing.
+    PRUNED=$(ssh -n "$PROD" "find /apps/mailrs/web/assets -type f -mtime +30 -print -delete 2>/dev/null | wc -l | tr -d ' '" || echo 0)
+    MISSING=$(ls web/dist/assets | ssh "$PROD" "cd /apps/mailrs/web/assets && while read -r f; do [ -e \"\$f\" ] || echo \"\$f\"; done")
+    echo "    retired $PRUNED asset(s) older than 30 days"
+    if [ -n "$MISSING" ]; then
+        echo "!! this build's assets are missing on prod after the prune:"
+        echo "$MISSING" | sed 's/^/!!   /'
+        echo "!! check for --delete on the rsync; tabs and new visitors will"
+        echo "!! break on their next lazy import"
         exit 1
     fi
 
