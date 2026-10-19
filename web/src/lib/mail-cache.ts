@@ -8,6 +8,7 @@ import { type QueryKey } from '@tanstack/react-query'
 import { getDefaultStore } from 'jotai'
 
 import { belongsTo } from '@/lib/list-membership'
+import { patchCachedList } from '@/lib/patch-cached-list'
 import { queryClient } from '@/lib/query-client'
 import { mailKeys } from '@/lib/query-keys'
 import { conversationKeys } from '@/store/query-keys-v21'
@@ -115,7 +116,7 @@ export function patchConversationFields(
       snapshots.push([key, data])
       if (!data) continue
       const axes = axesOfCacheKey(key)
-      queryClient.setQueryData<InfinitePages>(key, {
+      patchCachedList<InfinitePages>(queryClient, key, {
         ...data,
         pages: data.pages.map((page) =>
           page.map(patch).filter((c) => axes === null || belongsTo(axes, c))
@@ -152,8 +153,10 @@ export function patchConversations(
   const snapshots: Array<[QueryKey, InfinitePages | undefined]> = []
   for (const prefix of [mailKeys.conversations(), conversationKeys.infinites()]) {
     const entries = queryClient.getQueriesData<InfinitePages>({ queryKey: prefix })
-    for (const entry of entries) snapshots.push(entry)
-    queryClient.setQueriesData<InfinitePages>({ queryKey: prefix }, applyPatch)
+    for (const [key, data] of entries) {
+      snapshots.push([key, data])
+      if (data) patchCachedList(queryClient, key, applyPatch(data))
+    }
   }
   return snapshots
 }
@@ -168,7 +171,7 @@ export function removeStickyUnread(threadId: string) {
 }
 
 export function rollbackConversations(snapshots: Array<[QueryKey, InfinitePages | undefined]>) {
-  for (const [key, data] of snapshots) queryClient.setQueryData(key, data)
+  for (const [key, data] of snapshots) patchCachedList(queryClient, key, data)
 }
 
 /**
