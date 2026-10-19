@@ -12,6 +12,7 @@
 import type { ConversationSummary } from '@/lib/types'
 import type { InfiniteData, QueryClient, QueryKey } from '@tanstack/react-query'
 
+import { patchCachedList } from '@/lib/patch-cached-list'
 import { conversationKeys } from '@/store/query-keys-v21'
 
 export type Snapshot = ReadonlyArray<readonly [QueryKey, unknown]>
@@ -38,7 +39,7 @@ export function patchAllInfiniteLists(
   })
   for (const [key, data] of entries) {
     if (!data) continue
-    qc.setQueryData<InfiniteData<ConversationSummary[]>>(key, {
+    patchCachedList<InfiniteData<ConversationSummary[]>>(qc, key, {
       ...data,
       pages: data.pages.map((page) => {
         const next: ConversationSummary[] = []
@@ -66,7 +67,7 @@ export function patchMatching<T>(
   const entries = qc.getQueriesData<T>({ queryKey: keyPrefix })
   for (const [key, data] of entries) {
     if (data === undefined) continue
-    qc.setQueryData<T>(key, updater(data))
+    patchCachedList<T>(qc, key, updater(data))
   }
 }
 
@@ -76,7 +77,7 @@ export function patchMatching<T>(
  */
 export function restoreSnapshot(qc: QueryClient, snapshot: Snapshot): void {
   for (const [key, data] of snapshot) {
-    qc.setQueryData(key, data)
+    patchCachedList(qc, key, data)
   }
 }
 

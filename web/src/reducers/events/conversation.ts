@@ -16,6 +16,7 @@ import type { ConversationSummary, NewMessageEvent } from '@/lib/types'
 import type { InfiniteData, QueryClient } from '@tanstack/react-query'
 
 import { extractEmail } from '@/lib/avatar'
+import { patchCachedList } from '@/lib/patch-cached-list'
 import { mailKeys } from '@/lib/query-keys'
 import { conversationKeys } from '@/store/query-keys-v21'
 
@@ -72,9 +73,7 @@ export function onNewMessage(qc: QueryClient, event: NewMessageEvent): void {
       qc.invalidateQueries({ exact: true, queryKey: key }).catch(() => {})
       continue
     }
-    qc.setQueryData<InfiniteData<ConversationSummary[]>>(key, (old) =>
-      old ? liftAndPatch(old, location, event) : old
-    )
+    patchCachedList(qc, key, liftAndPatch(data, location, event))
   }
 }
 
@@ -156,8 +155,10 @@ function patchListsForThread(
 ): void {
   const prefixes = [mailKeys.conversations(), conversationKeys.infinites()]
   for (const prefix of prefixes) {
-    qc.setQueriesData<InfiniteData<ConversationSummary[]>>({ queryKey: prefix }, (old) => {
-      if (!old) return old
+    for (const [key, old] of qc.getQueriesData<InfiniteData<ConversationSummary[]>>({
+      queryKey: prefix,
+    })) {
+      if (!old) continue
       let touched = false
       const pages = old.pages.map((page) => {
         let pageTouched = false
@@ -169,7 +170,7 @@ function patchListsForThread(
         })
         return pageTouched ? next : page
       })
-      return touched ? { ...old, pages } : old
-    })
+      if (touched) patchCachedList(qc, key, { ...old, pages })
+    }
   }
 }
