@@ -1,0 +1,4 @@
+# OCR models: PP-OCRv6 small (PaddleOCR, Apache-2.0), as RapidAI publishes
+# them in ONNX form. file, url, sha256; tab-separated.
+det.onnx	https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.10.0/onnx/PP-OCRv6/det/PP-OCRv6_det_small.onnx	090f04abcd9d9a7498bc4ebf677e4cb9bdce1fe4197ddb7e529f1ef44e1ff94f
+rec.onnx	https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.10.0/onnx/PP-OCRv6/rec/PP-OCRv6_rec_small.onnx	6f327246b50388f3c176ae304bd95767ea6dc0c9ae92153ef8cbe210b3c14884

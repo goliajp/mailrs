@@ -33,6 +33,10 @@ path = "src/bin/backfill_usage.rs"
 name = "mailrs-fastcore-sender"
 path = "src/bin/sender/main.rs"
 
+[[bin]]
+name = "mailrs-fastcore-ocr"
+path = "src/bin/ocr.rs"
+
 [dependencies]
 mailrs-apns = { path = "../apns", version = "1" }
 mailrs-core-api = { path = "../core-api", features = ["server", "client"] }
@@ -74,6 +78,11 @@ mailrs-inbound = { path = "../inbound", version = "1" }
 mailrs-mime = { path = "../mime", version = "2" }
 # PDF text only; its OCR path shells out to tesseract, which the image lacks
 mailrs-attachment-extract = { path = "../attachment-extract", version = "1" }
+# OCR runs in the mailrs-fastcore-ocr child process, which sets its own
+# resource limits with rustix
+mailrs-ocr = { path = "../ocr" }
+image = { version = "0.25", default-features = false }
+rustix = { version = "1", features = ["process"] }
 mailrs-rfc2047 = { path = "../rfc2047", version = "1" }
 mailrs-srs = { path = "../srs", version = "1" }
 mailrs-mta-sts = { path = "../mta-sts", version = "2" }
@@ -119,3 +128,5 @@ testcontainers = "0.27"
 rcgen = "0.14"
 # builds the PDF attachments the extraction tests deliver
 lopdf = { version = "0.45", default-features = false }
+# encodes the images the OCR test delivers
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
