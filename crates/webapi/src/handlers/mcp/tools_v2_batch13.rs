@@ -14,7 +14,7 @@ use axum::extract::Path;
 use axum::http::StatusCode;
 use rmcp::ErrorData as McpError;
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{tool, tool_router};
 
 use super::params::{
@@ -83,7 +83,7 @@ impl MailrsMcpService {
         })
         .map_err(|c| map_status(c, "greylist_local_add"))?;
         crate::handlers::audit::record(&user, "greylist.add", value, list);
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             entry.to_string(),
         )]))
     }
@@ -148,7 +148,7 @@ impl MailrsMcpService {
         let Json(cfg) = crate::handlers::complete::get_system_config()
             .await
             .map_err(|c| map_status(c, "get_system_config"))?;
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             cfg.to_string(),
         )]))
     }

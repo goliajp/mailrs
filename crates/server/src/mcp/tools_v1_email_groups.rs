@@ -5,7 +5,7 @@ use super::MailMcpService;
 use super::tools::*;
 use rmcp::ErrorData as McpError;
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{tool, tool_router};
 
 #[tool_router(router = tool_router_v1_email_groups, vis = "pub(crate)")]
@@ -35,7 +35,7 @@ impl MailMcpService {
             &format!("address={} domain={}", params.address, params.domain),
         )
         .await;
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({"status": "created", "id": id, "address": params.address})
                 .to_string(),
         )]))

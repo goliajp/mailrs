@@ -35,15 +35,7 @@ export type MailList = {
  * not about the UI — the screen treats all eight the same way.
  */
 export type MailListId =
-  | 'archived'
-  | 'draft'
-  | 'inbox'
-  | 'junk'
-  | 'np'
-  | 'quarantine'
-  | 'send'
-  | 'starred'
-  | 'unread'
+  'archived' | 'draft' | 'inbox' | 'junk' | 'np' | 'quarantine' | 'send' | 'starred' | 'unread'
 
 /**
  * Where a list's rows come from.
@@ -54,9 +46,7 @@ export type MailListId =
  * downstream sees rows.
  */
 export type MailListSource =
-  | { filters: ThreadListAxes; kind: 'threads' }
-  | { kind: 'drafts' }
-  | { kind: 'sends' }
+  { filters: ThreadListAxes; kind: 'threads' } | { kind: 'drafts' } | { kind: 'sends' }
 
 /** The axes of `MailListFilters` a list fixes. The rest are refinements. */
 export type ThreadListAxes = Pick<

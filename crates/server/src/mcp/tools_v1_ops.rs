@@ -8,7 +8,7 @@
 
 use rmcp::ErrorData as McpError;
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{tool, tool_router};
 
 use super::MailMcpService;
@@ -108,7 +108,7 @@ impl MailMcpService {
         match res {
             Ok((id,)) => {
                 crate::greylist_local::reload(&self.web_state.greylist_local, pool).await;
-                Ok(CallToolResult::success(vec![Content::text(
+                Ok(CallToolResult::success(vec![ContentBlock::text(
                     serde_json::json!({
                         "status": "greylist_local_added",
                         "id": id,
@@ -199,7 +199,7 @@ impl MailMcpService {
         .await
         .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
 
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({
                 "id": id, "url": params.url, "event_type": params.event_type,
                 "signing_secret": signing_secret,
@@ -272,7 +272,7 @@ impl MailMcpService {
             .reconcile_maildir(&self.web_state.maildir_root, params.dry_run)
             .await
             .map_err(|e| McpError::internal_error(e, None))?;
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({"dry_run": params.dry_run, "report": report}).to_string(),
         )]))
     }

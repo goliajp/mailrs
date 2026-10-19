@@ -10,7 +10,7 @@
 //! under the 500-line-per-file hard limit.
 
 use rmcp::ErrorData as McpError;
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{tool, tool_router};
 
 use super::MailrsMcpService;
@@ -35,7 +35,7 @@ impl MailrsMcpService {
         let items = admin_read_hash(
             mailrs_core_sidestate::families::permission_groups::GROUPS_KEY.as_bytes(),
         )?;
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({ "items": items }).to_string(),
         )]))
     }
@@ -46,7 +46,7 @@ impl MailrsMcpService {
         self.require_admin(&user).await?;
         let items =
             admin_read_hash(mailrs_core_sidestate::families::email_groups::GROUPS_KEY.as_bytes())?;
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({ "items": items }).to_string(),
         )]))
     }
@@ -59,7 +59,7 @@ impl MailrsMcpService {
         // in the vocabulary the page and the delete tool use
         let items = with_kevy(crate::handlers::complete::greylist::list_entries)
             .map_err(|_| McpError::internal_error("greylist: kevy read failed", None))?;
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({ "items": items }).to_string(),
         )]))
     }
@@ -75,7 +75,7 @@ impl MailrsMcpService {
             .map_err(|code| {
                 McpError::internal_error(format!("list_aliases_admin: {code}"), None)
             })?;
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({ "items": items }).to_string(),
         )]))
     }

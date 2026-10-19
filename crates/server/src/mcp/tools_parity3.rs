@@ -3,7 +3,7 @@
 
 use rmcp::ErrorData as McpError;
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{tool, tool_router};
 use serde::Deserialize;
 
@@ -150,7 +150,7 @@ impl MailMcpService {
             .map_err(|e| McpError::internal_error(format!("save_draft: {e}"), None))?,
         };
 
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({ "id": id }).to_string(),
         )]))
     }

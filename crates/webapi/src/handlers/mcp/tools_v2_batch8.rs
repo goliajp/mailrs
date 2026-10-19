@@ -3,7 +3,7 @@
 
 use rmcp::ErrorData as McpError;
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{tool, tool_router};
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -61,7 +61,7 @@ impl MailrsMcpService {
             .iter()
             .filter(|w| (w.flags & FLAG_SEEN) == 0)
             .count();
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({
                 "thread_id": params.thread_id,
                 "subject": subject,

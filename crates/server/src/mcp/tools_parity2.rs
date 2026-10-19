@@ -3,7 +3,7 @@
 
 use rmcp::ErrorData as McpError;
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{tool, tool_router};
 use serde::Deserialize;
 
@@ -60,7 +60,7 @@ impl MailMcpService {
                 .await
                 .map_err(|e| McpError::internal_error(format!("mark_thread_read: {e}"), None))?;
         }
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({
                 "status": "marked_all_read",
                 "threads": threads.len(),
@@ -110,7 +110,7 @@ impl MailMcpService {
             .snooze_thread(&self.auth_user.address, &params.thread_id, until)
             .await
             .map_err(|e| McpError::internal_error(format!("snooze_thread: {e}"), None))?;
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({
                 "status": "snoozed",
                 "thread_id": params.thread_id,

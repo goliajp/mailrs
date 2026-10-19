@@ -4,7 +4,7 @@
 
 use rmcp::ErrorData as McpError;
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{tool, tool_router};
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -25,7 +25,7 @@ impl MailrsMcpService {
     )]
     async fn get_server_info(&self) -> Result<CallToolResult, McpError> {
         let _ = self.require_user()?;
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({
                 "version": env!("CARGO_PKG_VERSION"),
                 "product": "mailrs",
@@ -66,7 +66,7 @@ impl MailrsMcpService {
             mailrs_core_sidestate::families::outbound::requeue_pending(c, id_i64, now).map(|_| true)
         })
         .unwrap_or(false);
-        Ok(CallToolResult::success(vec![Content::text(if ok {
+        Ok(CallToolResult::success(vec![ContentBlock::text(if ok {
             serde_json::json!({ "ok": true, "id": id, "requeued": "pending" }).to_string()
         } else {
             serde_json::json!({
