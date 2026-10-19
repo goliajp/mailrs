@@ -5,7 +5,7 @@ use super::MailMcpService;
 use super::tools::*;
 use rmcp::ErrorData as McpError;
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{tool, tool_router};
 
 #[tool_router(router = tool_router_v1_ops_audit, vis = "pub(crate)")]
@@ -96,7 +96,7 @@ impl MailMcpService {
             )
             .await
             .map_err(|e| McpError::internal_error(format!("{e}"), None))?;
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({
                 "status": "key_saved",
                 "id": id,
@@ -153,7 +153,7 @@ impl MailMcpService {
             .await
         {
             Ok(Some((_id, public_key, fingerprint))) => {
-                Ok(CallToolResult::success(vec![Content::text(
+                Ok(CallToolResult::success(vec![ContentBlock::text(
                     serde_json::json!({
                         "address": params.address,
                         "key_type": params.key_type,

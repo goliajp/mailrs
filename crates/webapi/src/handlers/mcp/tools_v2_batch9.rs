@@ -4,7 +4,7 @@
 
 use rmcp::ErrorData as McpError;
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{tool, tool_router};
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -44,7 +44,7 @@ impl MailrsMcpService {
             .snooze_thread(user, &params.thread_id, &req)
             .await
             .map_err(|e| McpError::internal_error(format!("snooze_thread: {e}"), None))?;
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({
                 "ok": true,
                 "thread_id": params.thread_id,
@@ -65,7 +65,7 @@ impl MailrsMcpService {
             .unsnooze_thread(user, &params.thread_id)
             .await
             .map_err(|e| McpError::internal_error(format!("unsnooze_thread: {e}"), None))?;
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({ "ok": true, "thread_id": params.thread_id }).to_string(),
         )]))
     }
@@ -82,7 +82,7 @@ impl MailrsMcpService {
             .pin_thread(user, &params.thread_id)
             .await
             .map_err(|e| McpError::internal_error(format!("pin_thread: {e}"), None))?;
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({ "ok": true, "thread_id": params.thread_id }).to_string(),
         )]))
     }
@@ -99,7 +99,7 @@ impl MailrsMcpService {
             .unpin_thread(user, &params.thread_id)
             .await
             .map_err(|e| McpError::internal_error(format!("unpin_thread: {e}"), None))?;
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({ "ok": true, "thread_id": params.thread_id }).to_string(),
         )]))
     }

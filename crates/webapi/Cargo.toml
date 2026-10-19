@@ -67,7 +67,7 @@ mailrs-jmap = { path = "../jmap" }
 mailrs-ical = { path = "../ical", features = ["mime"] }
 async-trait = "0.1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
-rmcp = { version = "1.7", features = ["server", "macros", "transport-streamable-http-server", "schemars"] }
+rmcp = { version = "3.5", features = ["server", "macros", "transport-streamable-http-server", "schemars"] }
 schemars = "1"
 totp-rs = { version = "5.7.1", features = ["otpauth"] }
 hex = "0.4"

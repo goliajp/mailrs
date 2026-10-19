@@ -7,7 +7,7 @@
 
 use rmcp::ErrorData as McpError;
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{tool, tool_router};
 
 use rand_core::RngCore;
@@ -88,7 +88,7 @@ impl MailMcpService {
 
         let body = result.0;
         if body.success {
-            Ok(CallToolResult::success(vec![Content::text(
+            Ok(CallToolResult::success(vec![ContentBlock::text(
                 serde_json::json!({
                     "message_id": message_id,
                     "status": "queued",
@@ -204,7 +204,7 @@ impl MailMcpService {
 
         let body = result.0;
         if body.success {
-            Ok(CallToolResult::success(vec![Content::text(
+            Ok(CallToolResult::success(vec![ContentBlock::text(
                 serde_json::json!({
                     "message_id": message_id,
                     "thread_id": params.thread_id,
@@ -383,7 +383,7 @@ impl MailMcpService {
 
         let body = result.0;
         if body.success {
-            Ok(CallToolResult::success(vec![Content::text(
+            Ok(CallToolResult::success(vec![ContentBlock::text(
                 serde_json::json!({
                     "message_id": message_id,
                     "status": "scheduled",

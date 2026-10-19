@@ -14,7 +14,7 @@
 
 use rmcp::ErrorData as McpError;
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{tool, tool_router};
 
 use super::MailrsMcpService;
@@ -50,7 +50,7 @@ impl MailrsMcpService {
                 })
             })
             .collect();
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({ "items": items }).to_string(),
         )]))
     }
@@ -69,7 +69,9 @@ impl MailrsMcpService {
             .fraud_verdict(&user, &params.message_id)
             .await
             .map_err(|e| McpError::internal_error(format!("get_fraud_verdict: {e}"), None))?;
-        Ok(CallToolResult::success(vec![Content::text(v.to_string())]))
+        Ok(CallToolResult::success(vec![ContentBlock::text(
+            v.to_string(),
+        )]))
     }
 
     #[tool(

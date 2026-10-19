@@ -220,7 +220,9 @@ impl Mcp<'_> {
     }
 
     /// Call a tool. `Ok` carries the tool's JSON text parsed; `Err` the
-    /// JSON-RPC error a failing tool answers with.
+    /// JSON-RPC error a failing tool answers with, or the text of a result
+    /// marked `isError` (how invalid arguments come back since MCP moved
+    /// input validation into the tool result).
     pub async fn tool(
         &mut self,
         name: &str,
@@ -233,6 +235,9 @@ impl Mcp<'_> {
             )
             .await?;
         let text = result["content"][0]["text"].as_str().unwrap_or("null");
+        if result["isError"] == true {
+            return Err(serde_json::json!({ "message": text }));
+        }
         Ok(serde_json::from_str(text).expect("tool text is json"))
     }
 }

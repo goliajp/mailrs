@@ -8,7 +8,7 @@
 
 use rmcp::ErrorData as McpError;
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{tool, tool_router};
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -54,7 +54,7 @@ impl MailrsMcpService {
             }
             i += 2;
         }
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({ "items": out }).to_string(),
         )]))
     }
@@ -71,7 +71,7 @@ impl MailrsMcpService {
         let _ = self.require_user()?;
         let key_type = params.key_type.to_lowercase();
         if key_type != "pgp" && key_type != "smime" {
-            return Ok(CallToolResult::success(vec![Content::text(
+            return Ok(CallToolResult::success(vec![ContentBlock::text(
                 serde_json::json!({ "ok": false, "reason": "key_type must be 'pgp' or 'smime'" })
                     .to_string(),
             )]));
@@ -84,17 +84,17 @@ impl MailrsMcpService {
         })
         .map_err(|_| McpError::internal_error("kevy read", None))?;
         let Some(bytes) = value else {
-            return Ok(CallToolResult::success(vec![Content::text(
+            return Ok(CallToolResult::success(vec![ContentBlock::text(
                 serde_json::json!({ "ok": false, "reason": "no key for that (address, key_type)" })
                     .to_string(),
             )]));
         };
         let Ok(stored) = serde_json::from_slice::<StoredKeyLite>(&bytes) else {
-            return Ok(CallToolResult::success(vec![Content::text(
+            return Ok(CallToolResult::success(vec![ContentBlock::text(
                 serde_json::json!({ "ok": false, "reason": "stored key is malformed" }).to_string(),
             )]));
         };
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({
                 "ok": true,
                 "address": params.address,

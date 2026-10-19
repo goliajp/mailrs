@@ -4,7 +4,7 @@
 
 use rmcp::ErrorData as McpError;
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{tool, tool_router};
 use serde::Deserialize;
 
@@ -31,7 +31,7 @@ impl MailMcpService {
         let pending = queue::count_pending(pool)
             .await
             .map_err(|e| McpError::internal_error(format!("count_pending: {e}"), None))?;
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({ "pending": pending }).to_string(),
         )]))
     }

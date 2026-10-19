@@ -4,7 +4,7 @@
 
 use rmcp::ErrorData as McpError;
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{tool, tool_router};
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -61,15 +61,17 @@ impl MailrsMcpService {
             Ok(true)
         })
         .unwrap_or(false);
-        Ok(CallToolResult::success(vec![Content::text(if removed {
-            serde_json::json!({ "ok": true }).to_string()
-        } else {
-            serde_json::json!({
-                "ok": false,
-                "reason": "id not found or caller is not the sender",
-            })
-            .to_string()
-        })]))
+        Ok(CallToolResult::success(vec![ContentBlock::text(
+            if removed {
+                serde_json::json!({ "ok": true }).to_string()
+            } else {
+                serde_json::json!({
+                    "ok": false,
+                    "reason": "id not found or caller is not the sender",
+                })
+                .to_string()
+            },
+        )]))
     }
 
     #[tool(
@@ -85,7 +87,7 @@ impl MailrsMcpService {
             .map(|d| d.as_secs() as i64)
             .unwrap_or(0);
         if params.scheduled_at <= now {
-            return Ok(CallToolResult::success(vec![Content::text(
+            return Ok(CallToolResult::success(vec![ContentBlock::text(
                 serde_json::json!({ "ok": false, "reason": "scheduled_at must be in the future" })
                     .to_string(),
             )]));
@@ -110,7 +112,7 @@ impl MailrsMcpService {
             Ok(true)
         })
         .unwrap_or(false);
-        Ok(CallToolResult::success(vec![Content::text(if ok {
+        Ok(CallToolResult::success(vec![ContentBlock::text(if ok {
             serde_json::json!({ "ok": true, "scheduled_at": params.scheduled_at }).to_string()
         } else {
             serde_json::json!({

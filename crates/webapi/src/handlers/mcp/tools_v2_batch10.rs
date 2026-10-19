@@ -2,7 +2,7 @@
 //! that agents use for triage: how many unseen do I have.
 
 use rmcp::ErrorData as McpError;
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{tool, tool_router};
 
 use super::MailrsMcpService;
@@ -20,7 +20,7 @@ impl MailrsMcpService {
             .unseen_count(user)
             .await
             .map_err(|e| McpError::internal_error(format!("unseen_count: {e}"), None))?;
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({
                 "user": user,
                 "unseen_count": unseen.count,
