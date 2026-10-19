@@ -54,6 +54,14 @@ export default defineConfig({
     // "this fires exactly once" is unanswerable there — the mark-read
     // assertion read 2 against a dev server and 1 against this one.
     { name: 'mobile', testMatch: /mobile-layout\.spec\.ts/ },
+    // Its own preview port (registry row web-preview-e2e): 4173 is the
+    // vite default and another project's server answering there would be
+    // reused and tested instead of this app.
+    {
+      name: 'live',
+      testMatch: /live-list\.spec\.ts/,
+      use: { baseURL: 'http://localhost:6038' },
+    },
   ],
   webServer: [
     // Port from the shared port registry (this project's row).
@@ -62,6 +70,12 @@ export default defineConfig({
       reuseExistingServer: true,
       timeout: 30_000,
       url: 'http://localhost:6037',
+    },
+    {
+      command: 'bunx vite preview --port 6038 --strictPort',
+      reuseExistingServer: true,
+      timeout: 30_000,
+      url: 'http://localhost:6038',
     },
     ...(useExternal
       ? []
