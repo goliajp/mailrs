@@ -19,12 +19,7 @@ export type Draft = {
 }
 
 export type FeedbackAction =
-  | 'archive'
-  | 'block'
-  | 'mark_important'
-  | 'mark_spam'
-  | 'mark_vip'
-  | 'unblock'
+  'archive' | 'block' | 'mark_important' | 'mark_spam' | 'mark_vip' | 'unblock'
 
 export type SaveDraftRequest = {
   bcc?: string

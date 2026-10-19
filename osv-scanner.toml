@@ -1,0 +1,6 @@
+# Accepted findings for scripts/check-osv.sh. Each entry says why it does
+# not apply here; keep it in step with the matching ignore in deny.toml.
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2023-0071"
+reason = "rsa Marvin attack: RSA is used only for DKIM signing and verification, which expose no per-operation timing to an attacker; no fixed version exists"

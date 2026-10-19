@@ -15,7 +15,7 @@
 
 use rmcp::ErrorData as McpError;
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{tool, tool_router};
 
 use super::MailrsMcpService;
@@ -85,7 +85,7 @@ impl MailrsMcpService {
                 })
             })
             .collect();
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({ "target_user": params.target_user, "items": items }).to_string(),
         )]))
     }
@@ -134,7 +134,7 @@ impl MailrsMcpService {
                 "message_id": msg.message_id,
             }));
         }
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({
                 "target_user": params.target_user,
                 "thread_id": params.thread_id,
@@ -192,7 +192,7 @@ impl MailrsMcpService {
         )
         .await
         .map_err(|e| McpError::internal_error(format!("send: {e}"), None))?;
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({
                 "ok": true,
                 "message_id": message_id,
@@ -242,7 +242,7 @@ impl MailrsMcpService {
         )
         .await
         .map_err(|e| McpError::internal_error(format!("schedule: {e}"), None))?;
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({
                 "ok": true,
                 "message_id": message_id,

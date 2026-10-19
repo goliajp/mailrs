@@ -4,7 +4,7 @@
 
 use rmcp::ErrorData as McpError;
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{tool, tool_router};
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -30,7 +30,7 @@ impl MailrsMcpService {
         let root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
         let (users_scanned, messages_seen) =
             crate::handlers::admin_ops::count_maildir(std::path::Path::new(&root));
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({
                 "users_scanned": users_scanned,
                 "messages_seen": messages_seen,
@@ -62,7 +62,7 @@ impl MailrsMcpService {
             Ok(out)
         })
         .map_err(|_| McpError::internal_error("scheduled zscore read", None))?;
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({ "items": items }).to_string(),
         )]))
     }
@@ -83,7 +83,7 @@ impl MailrsMcpService {
             .into_iter()
             .filter_map(|v| String::from_utf8(v).ok())
             .collect();
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({ "group_id": params.id, "items": items }).to_string(),
         )]))
     }

@@ -5,7 +5,7 @@ use super::MailMcpService;
 use super::tools::*;
 use rmcp::ErrorData as McpError;
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{tool, tool_router};
 
 #[tool_router(router = tool_router_v1_directory_write, vis = "pub(crate)")]
@@ -69,7 +69,7 @@ impl MailMcpService {
                 .await;
         }
 
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({"status": "created", "address": params.address}).to_string(),
         )]))
     }
@@ -100,7 +100,7 @@ impl MailMcpService {
                 "",
             )
             .await;
-            Ok(CallToolResult::success(vec![Content::text(
+            Ok(CallToolResult::success(vec![ContentBlock::text(
                 serde_json::json!({"status": "removed", "address": params.address}).to_string(),
             )]))
         } else {
@@ -148,7 +148,7 @@ impl MailMcpService {
         )
         .await;
 
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({"status": "password_updated", "address": params.address})
                 .to_string(),
         )]))
@@ -180,7 +180,7 @@ impl MailMcpService {
         )
         .await;
 
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({"status": "added", "address": params.address, "group_id": params.group_id}).to_string(),
         )]))
     }
@@ -212,7 +212,7 @@ impl MailMcpService {
                 &format!("address={}", params.address),
             )
             .await;
-            Ok(CallToolResult::success(vec![Content::text(
+            Ok(CallToolResult::success(vec![ContentBlock::text(
                 serde_json::json!({"status": "removed", "address": params.address, "group_id": params.group_id}).to_string(),
             )]))
         } else {
@@ -300,7 +300,7 @@ impl MailMcpService {
             ),
         )
         .await;
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({ "id": params.source_address }).to_string(),
         )]))
     }

@@ -5,7 +5,7 @@ use super::MailMcpService;
 use super::tools::*;
 use rmcp::ErrorData as McpError;
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{tool, tool_router};
 
 #[tool_router(router = tool_router_v1_mail_read, vis = "pub(crate)")]
@@ -51,7 +51,7 @@ impl MailMcpService {
                 "message_id": msg.message_id,
             }));
         }
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({ "thread_id": params.thread_id, "messages": items }).to_string(),
         )]))
     }
@@ -92,7 +92,7 @@ impl MailMcpService {
             })
             .collect();
 
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::to_string(&items).unwrap_or_else(|_| "[]".to_string()),
         )]))
     }
@@ -148,7 +148,7 @@ impl MailMcpService {
             })
             .collect();
 
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::to_string(&items).unwrap_or_else(|_| "[]".to_string()),
         )]))
     }

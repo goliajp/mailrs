@@ -12,7 +12,7 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use rmcp::ErrorData as McpError;
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{tool, tool_router};
 
 use super::params::{CreateEmailGroupParams, EmailGroupIdNumParams, EmailGroupMemberParams};
@@ -58,7 +58,7 @@ impl MailrsMcpService {
             .await
             .map_err(|c| map_status(c, "create_email_group"))?;
         crate::handlers::audit::record(&user, "email_group.create", &params.address, "via mcp");
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             group.to_string(),
         )]))
     }

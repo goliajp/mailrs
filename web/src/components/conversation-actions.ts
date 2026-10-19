@@ -10,9 +10,5 @@ export type BatchAction = 'archive' | 'delete' | 'read' | 'star' | 'unarchive' |
 // v2.9 triage — bucket moves between Inbox / Notifications / Promotions
 // / Junk. Kept out of BatchAction (no matching backend batch handler).
 export type JunkAction =
-  | 'mark-junk'
-  | 'mark-not-junk'
-  | 'mark-notification'
-  | 'mark-promotion'
-  | 'move-to-inbox'
+  'mark-junk' | 'mark-not-junk' | 'mark-notification' | 'mark-promotion' | 'move-to-inbox'
 export type SingleAction = 'pin' | 'snooze' | 'unpin' | 'unsnooze' | BatchAction | JunkAction

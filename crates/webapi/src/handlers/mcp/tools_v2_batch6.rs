@@ -3,7 +3,7 @@
 //! `handlers::complete::list_admin_queue`. Admin-gated read-only.
 
 use rmcp::ErrorData as McpError;
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{tool, tool_router};
 
 use super::MailrsMcpService;
@@ -56,7 +56,7 @@ impl MailrsMcpService {
                 }
             }
         }
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({ "items": items }).to_string(),
         )]))
     }
@@ -76,7 +76,7 @@ impl MailrsMcpService {
             .into_iter()
             .filter_map(|v| String::from_utf8(v).ok())
             .collect();
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({ "items": ids }).to_string(),
         )]))
     }

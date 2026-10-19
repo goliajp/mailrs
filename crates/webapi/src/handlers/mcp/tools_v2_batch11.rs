@@ -11,7 +11,7 @@
 
 use rmcp::ErrorData as McpError;
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{tool, tool_router};
 
 use super::params::{AccountGroupParams, AddressParams, SetAccountPasswordParams};
@@ -72,7 +72,7 @@ impl MailrsMcpService {
             .effective_permissions(&params.address)
             .await
             .map_err(|e| McpError::internal_error(format!("effective_permissions: {e}"), None))?;
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({
                 "address": perms.address,
                 "permissions": perms.permissions,
