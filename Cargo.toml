@@ -68,6 +68,7 @@ members = [
     "crates/imap-codec",
     "crates/imap-format",
     "crates/attachment-extract",
+    "crates/ocr",
     "crates/sieve",
     "crates/sieve-core",
     "crates/delivery-executor",
@@ -296,3 +297,36 @@ debug = 1
 # gets slower as the directory grows. "packed" writes one .dSYM per binary
 # instead, and backtraces keep file and line. Linux behaves the same either way.
 split-debuginfo = "packed"
+
+# OCR inference and image decoding are numeric loops that run 50 to 100
+# times slower unoptimised: one page took 140 s in a debug test against
+# about 1 s in release. Optimise just these in dev builds, so the OCR tests
+# finish in the workspace run without slowing every other crate's build.
+[profile.dev.package.mailrs-ocr]
+opt-level = 3
+[profile.dev.package.rten]
+opt-level = 3
+[profile.dev.package.rten-base]
+opt-level = 3
+[profile.dev.package.rten-gemm]
+opt-level = 3
+[profile.dev.package.rten-simd]
+opt-level = 3
+[profile.dev.package.rten-tensor]
+opt-level = 3
+[profile.dev.package.rten-vecmath]
+opt-level = 3
+[profile.dev.package.image]
+opt-level = 3
+[profile.dev.package.zune-jpeg]
+opt-level = 3
+[profile.dev.package.png]
+opt-level = 3
+[profile.dev.package.vello_cpu]
+opt-level = 3
+[profile.dev.package.vello_common]
+opt-level = 3
+[profile.dev.package.hayro]
+opt-level = 3
+[profile.dev.package.hayro-interpret]
+opt-level = 3

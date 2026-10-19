@@ -12,19 +12,65 @@ use std::io;
 use crate::KevyMailboxStore;
 use crate::keys;
 
-/// What one extraction pass made of a message's PDF attachments.
+/// What one extraction pass made of a message's attachments.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AttachmentTextState {
-    /// PDF attachments the message carries.
+    /// Extractor generation that wrote this. Rows from before the field
+    /// existed read as 1: PDF text only, no OCR.
+    pub version: u32,
+    /// Attachments considered (PDFs and images, in MIME order). Rows are
+    /// numbered by position among these.
+    pub parts: u32,
+    /// Of those, PDFs.
     pub pdfs: u32,
-    /// Of those, how many produced text that was stored.
+    /// Of those, images.
+    pub images: u32,
+    /// Attachments whose text was stored.
     pub stored: u32,
-    /// Extraction failed: unreadable PDF, or the extractor panicked.
+    /// Of the stored, how many were read by OCR.
+    pub ocr: u32,
+    /// Reading failed: unreadable file, a panic, or OCR gave up.
     pub failed: u32,
     /// Skipped without reading, over the size limit.
     pub too_large: u32,
+    /// Images too small to carry text worth reading.
+    pub too_small: u32,
     /// Stored, but cut at [`keys::ATTACHMENT_TEXT_CAP`].
     pub truncated: u32,
+}
+
+impl AttachmentTextState {
+    fn fields(&self) -> [(&'static str, u32); 10] {
+        [
+            ("version", self.version),
+            ("parts", self.parts),
+            ("pdfs", self.pdfs),
+            ("images", self.images),
+            ("stored", self.stored),
+            ("ocr", self.ocr),
+            ("failed", self.failed),
+            ("too_large", self.too_large),
+            ("too_small", self.too_small),
+            ("truncated", self.truncated),
+        ]
+    }
+
+    fn set(&mut self, name: &str, v: u32) {
+        let slot = match name {
+            "version" => &mut self.version,
+            "parts" => &mut self.parts,
+            "pdfs" => &mut self.pdfs,
+            "images" => &mut self.images,
+            "stored" => &mut self.stored,
+            "ocr" => &mut self.ocr,
+            "failed" => &mut self.failed,
+            "too_large" => &mut self.too_large,
+            "too_small" => &mut self.too_small,
+            "truncated" => &mut self.truncated,
+            _ => return,
+        };
+        *slot = v;
+    }
 }
 
 fn member(user: &str, message_id: &str) -> String {
@@ -95,23 +141,17 @@ impl KevyMailboxStore {
                 &[(keys::ATTACHMENT_TEXT_FIELD, text.as_bytes())],
             )?;
         }
-        let (pdfs, stored, failed, too_large, truncated) = (
-            state.pdfs.to_string(),
-            state.stored.to_string(),
-            state.failed.to_string(),
-            state.too_large.to_string(),
-            state.truncated.to_string(),
-        );
-        self.store().hset(
-            keys::attachment_text_state(message_id).as_bytes(),
-            &[
-                (b"pdfs" as &[u8], pdfs.as_bytes()),
-                (b"stored" as &[u8], stored.as_bytes()),
-                (b"failed" as &[u8], failed.as_bytes()),
-                (b"too_large" as &[u8], too_large.as_bytes()),
-                (b"truncated" as &[u8], truncated.as_bytes()),
-            ],
-        )?;
+        let values: Vec<(&str, String)> = state
+            .fields()
+            .iter()
+            .map(|(k, v)| (*k, v.to_string()))
+            .collect();
+        let pairs: Vec<(&[u8], &[u8])> = values
+            .iter()
+            .map(|(k, v)| (k.as_bytes(), v.as_bytes()))
+            .collect();
+        self.store()
+            .hset(keys::attachment_text_state(message_id).as_bytes(), &pairs)?;
         Ok(())
     }
 
@@ -127,19 +167,20 @@ impl KevyMailboxStore {
             return Ok(None);
         }
         let mut out = AttachmentTextState::default();
+        let has = |name: &str| flat.iter().any(|(f, _)| f.as_slice() == name.as_bytes());
+        let (versioned, counted) = (has("version"), has("parts"));
         for (field, value) in &flat {
             let v: u32 = std::str::from_utf8(value)
                 .ok()
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(0);
-            match std::str::from_utf8(field).unwrap_or("") {
-                "pdfs" => out.pdfs = v,
-                "stored" => out.stored = v,
-                "failed" => out.failed = v,
-                "too_large" => out.too_large = v,
-                "truncated" => out.truncated = v,
-                _ => {}
-            }
+            out.set(std::str::from_utf8(field).unwrap_or(""), v);
+        }
+        if !versioned {
+            out.version = 1;
+        }
+        if !counted {
+            out.parts = out.pdfs;
         }
         Ok(Some(out))
     }
@@ -163,7 +204,7 @@ impl KevyMailboxStore {
         let Some(state) = self.attachment_text_state(message_id)? else {
             return Ok(Vec::new());
         };
-        let mut out: Vec<String> = (0..state.pdfs as usize)
+        let mut out: Vec<String> = (0..state.parts as usize)
             .map(|n| keys::attachment_text(message_id, n))
             .collect();
         out.push(keys::attachment_text_state(message_id));
@@ -234,6 +275,8 @@ mod tests {
 
     fn done(pdfs: u32) -> AttachmentTextState {
         AttachmentTextState {
+            version: 2,
+            parts: pdfs,
             pdfs,
             stored: pdfs,
             ..Default::default()
@@ -293,6 +336,34 @@ mod tests {
         s.dequeue_attachment_text("bob@x.com", "m1").unwrap();
         assert!(!s.attachment_text_queued("bob@x.com", "m1").unwrap());
         assert_eq!(s.pending_attachment_texts(10).unwrap().len(), 1);
+    }
+
+    /// A state written before OCR existed has neither `version` nor
+    /// `parts`; it reads as version 1 with one part per PDF, so its rows
+    /// can still be found and replaced.
+    #[test]
+    fn a_state_from_before_ocr_reads_as_version_one() {
+        let s = store();
+        s.store_attachment_texts("m1", &[(0, "a".into()), (1, "b".into())], &done(2))
+            .unwrap();
+        let key = keys::attachment_text_state("m1");
+        s.store()
+            .hdel(key.as_bytes(), &[b"version" as &[u8], b"parts"])
+            .unwrap();
+        let old = s.attachment_text_state("m1").unwrap().unwrap();
+        assert_eq!((old.version, old.parts, old.pdfs), (1, 2, 2));
+        let ocr = AttachmentTextState {
+            version: 2,
+            parts: 1,
+            images: 1,
+            stored: 1,
+            ocr: 1,
+            ..Default::default()
+        };
+        s.store_attachment_texts("m1", &[(0, "c".into())], &ocr)
+            .unwrap();
+        assert_eq!(s.attachment_texts("m1").unwrap(), vec!["c".to_string()]);
+        assert_eq!(s.attachment_text_state("m1").unwrap(), Some(ocr));
     }
 
     #[test]

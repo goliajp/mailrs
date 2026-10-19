@@ -1,8 +1,10 @@
-//! Queue mail that arrived before PDF text extraction existed.
+//! Queue mail whose attachments were never read, or were read by an older
+//! extractor (before OCR).
 //!
 //! Walks every user's stored messages, reads each file, and queues the
-//! copies that carry a PDF and have not been processed; the worker in
-//! `attachment_text` does the reading. Bounded and paused like every sweep
+//! copies that carry a PDF or an image and have no outcome from this
+//! extractor generation; the worker in `attachment_text` does the
+//! reading. Bounded and paused like every sweep
 //! here since the outage on 2026-08-26, and dry by default.
 
 use super::prelude::*;
@@ -58,10 +60,13 @@ fn walk(state: &Arc<FastcoreState>, q: &BackfillQuery) -> std::io::Result<serde_
     let mut walked = 0u64;
     let mut files_read = 0u64;
     let mut no_file = 0u64;
-    let mut with_pdf = 0u64;
+    let mut with_readable = 0u64;
     let mut queued = 0u64;
     let mut already_queued = 0u64;
     let mut already_done = 0u64;
+    // Done by an older extractor; queued again.
+    let mut outdated = 0u64;
+    let version = crate::attachment_text::version_here();
     // What earlier extraction made of the messages this walk found done.
     let mut done_failed = 0u64;
     let mut done_too_large = 0u64;
@@ -110,15 +115,18 @@ fn walk(state: &Arc<FastcoreState>, q: &BackfillQuery) -> std::io::Result<serde_
                     continue;
                 };
                 files_read += 1;
-                if !crate::attachment_text::may_carry_pdf(&raw)
-                    || crate::attachment_text::pdf_parts(&mailrs_mime::parse(&raw))
+                if !crate::attachment_text::may_carry_readable(&raw)
+                    || crate::attachment_text::readable_parts(&mailrs_mime::parse(&raw))
                         .next()
                         .is_none()
                 {
                     continue;
                 }
-                with_pdf += 1;
-                if let Ok(Some(done)) = state.mailbox.attachment_text_state(&mid) {
+                with_readable += 1;
+                let done = state.mailbox.attachment_text_state(&mid).ok().flatten();
+                if let Some(done) = &done
+                    && done.version >= version
+                {
                     already_done += 1;
                     done_failed += u64::from(done.failed);
                     done_too_large += u64::from(done.too_large);
@@ -133,6 +141,7 @@ fn walk(state: &Arc<FastcoreState>, q: &BackfillQuery) -> std::io::Result<serde_
                     already_queued += 1;
                     continue;
                 }
+                outdated += u64::from(done.is_some());
                 if q.dry_run {
                     continue;
                 }
@@ -147,9 +156,10 @@ fn walk(state: &Arc<FastcoreState>, q: &BackfillQuery) -> std::io::Result<serde_
     tracing::info!(
         walked,
         files_read,
-        with_pdf,
+        with_readable,
         queued,
         already_done,
+        outdated,
         dry_run = q.dry_run,
         "backfill-attachment-text"
     );
@@ -163,10 +173,14 @@ fn walk(state: &Arc<FastcoreState>, q: &BackfillQuery) -> std::io::Result<serde_
         // not where this process looks, and every count after it is low.
         "files_read": files_read,
         "no_file": no_file,
-        "with_pdf": with_pdf,
+        "with_readable": with_readable,
         // Zero on a dry run, which says what it would queue as
-        // `with_pdf - already_done - already_queued`.
+        // `with_readable - already_done - already_queued`.
         "queued": queued,
+        // Of the queued (or, on a dry run, the to-be-queued), how many
+        // had an outcome from an older extractor.
+        "outdated": outdated,
+        "version": version,
         "already_queued": already_queued,
         "already_done": already_done,
         "already_done_failed": done_failed,

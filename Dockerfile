@@ -89,9 +89,19 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     && cp /build/target/release/mailrs-fastcore-backfill-contacts /usr/local/bin/mailrs-fastcore-backfill-contacts \
     && cp /build/target/release/mailrs-fastcore-backfill-uid-index /usr/local/bin/mailrs-fastcore-backfill-uid-index \
     && cp /build/target/release/mailrs-fastcore-backfill-usage /usr/local/bin/mailrs-fastcore-backfill-usage \
-    && cp /build/target/release/mailrs-fastcore-sender /usr/local/bin/mailrs-fastcore-sender
+    && cp /build/target/release/mailrs-fastcore-sender /usr/local/bin/mailrs-fastcore-sender \
+    && cp /build/target/release/mailrs-fastcore-ocr /usr/local/bin/mailrs-fastcore-ocr
 
 # stage 2: build frontend
+# OCR models, fetched and checked against the sha256 in the manifest. Its
+# own stage so the download is cached until the manifest changes.
+FROM debian:trixie-slim AS ocr-models
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/*
+COPY crates/ocr/models.tsv /tmp/models.tsv
+COPY scripts/fetch-ocr-models.sh /tmp/fetch-ocr-models.sh
+RUN sh /tmp/fetch-ocr-models.sh /usr/share/mailrs/ocr /tmp/models.tsv
+
 FROM oven/bun:1-debian AS web-builder
 
 ARG VERSION=0.0.0
@@ -151,6 +161,10 @@ COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-sender /usr/local/bin/ma
 # The pg/spg lane's binaries (mailrs-sender, mailrs-pg-dump,
 # mailrs-core-sync) are not in this image: nothing in production runs
 # them, and deploy/Dockerfile.pg-core builds that lane's own image.
+# Reads text in image and scanned-PDF attachments. fastcore starts one per
+# attachment, so a hostile file can only take this process down.
+COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-ocr /usr/local/bin/mailrs-fastcore-ocr
+COPY --from=ocr-models /usr/share/mailrs/ocr /usr/share/mailrs/ocr
 COPY --from=web-builder /build/dist /opt/mailrs/web
 
 # Grant the binary capability to bind privileged ports (< 1024) so it
