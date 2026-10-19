@@ -96,7 +96,11 @@ services:
     # ~330MB. At 1g the replay hit the cgroup limit and the container
     # restart-looped, never binding :3301 (2026-07-16 outage). Headroom
     # also absorbs the slow allocator high-water creep between restarts.
-    mem_limit: 3g
+    # 4g, not 3g: the OCR child (mailrs-fastcore-ocr) counts against the
+    # same limit, up to 540MB measured on one page, while fastcore itself
+    # sits at about 2GB. At the limit the kernel kills the largest process,
+    # which is fastcore, not the child.
+    mem_limit: 4g
     healthcheck:
       disable: true
     ports:

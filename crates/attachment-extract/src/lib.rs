@@ -90,6 +90,13 @@ pub fn extract_pdf_text(data: &[u8]) -> Result<ExtractionResult, String> {
     })
 }
 
+/// Embedded text of each page, in page order, untrimmed: a page without
+/// text is an empty string, so positions line up with page numbers.
+pub fn extract_pdf_pages(data: &[u8]) -> Result<Vec<String>, String> {
+    let text = pdf::extract_text(data).map_err(|e| format!("pdf parse: {e}"))?;
+    Ok(text.split('\u{000C}').map(str::to_string).collect())
+}
+
 /// Check whether the `tesseract` CLI binary is on `PATH`.
 /// Spawns `tesseract --version` and checks for success — no caching.
 /// If you'll call this on a hot path, cache the result yourself.

@@ -1,0 +1,19 @@
+[package]
+name = "mailrs-ocr"
+version = "0.0.0"
+edition = "2024"
+description = "Read printed Chinese, Japanese and English text out of images and scanned PDF pages, in pure Rust: PaddleOCR detection and recognition models run on rten, rendering through hayro."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+authors = ["GOLIA K.K."]
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+hayro = "0.8"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "tiff", "bmp"] }
+rten = "0.27"
+rten-tensor = "0.27"
+serde = { version = "1", features = ["derive"] }
