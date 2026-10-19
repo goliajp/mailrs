@@ -99,9 +99,6 @@ pub(crate) fn ingest_delivered_file(
         .as_deref()
         .map(|t| mailrs_clean::preview_line(t, 120))
         .unwrap_or_default();
-    // Side effect, never a filter — same shape as the FBL and TLS-RPT
-    // hooks in the drain. No-op until MAILRS_APNS_* is configured.
-    crate::push::maybe_notify(addr, &from, &subject, category, is_own);
     // Importance follows the latest INBOUND message, like the thread's
     // display fields — the user's own reply must not restate it.
     if !is_own {
@@ -115,8 +112,6 @@ pub(crate) fn ingest_delivered_file(
     crate::live_sync::adjust_usage_bytes(addr, body.len() as i64);
     let m = crate::imap::backend::bump_modseq(state, addr);
     crate::imap::backend::set_file_modseq(state, addr, bare, m);
-    let _ = state.notify.send(addr.to_string());
-    crate::live_sync::publish_new_mail(addr, &root, &from, &subject, "");
     let uid = state.mailbox.allocate_uid(addr, &message_id).unwrap_or(0);
     // The maildir's copy of the promise. Appended rather than read-checked:
     // delivery is the hot path, the list is append-only by design, and the
@@ -209,6 +204,7 @@ pub(crate) fn ingest_delivered_file(
     // The finding, and the hold it implies. After the arrival, because
     // `set_quarantined` writes the membership row and the arrival is
     // what creates it — held before it exists is held on nothing.
+    let mut held = false;
     if let Some(json) = fraud_verdict {
         if let Err(e) = state.mailbox.set_fraud_verdict(&message_id, json) {
             tracing::warn!(error = %e, %addr, %message_id, "storing the fraud verdict failed");
@@ -226,6 +222,7 @@ pub(crate) fn ingest_delivered_file(
                     // both: the axis column and the per-user rows the
                     // count comes off.
                     crate::routes::thread_actions::mark_thread_read_everywhere(state, addr, &root);
+                    held = true;
                     tracing::info!(
                         %addr, %root, score = v.score, rules = %v.rules_version,
                         "held: suspected fraud"
@@ -257,6 +254,18 @@ pub(crate) fn ingest_delivered_file(
     // A PDF or image is only noted here; reading it is the worker's job,
     // off this path.
     crate::attachment_text::queue_if_it_has_readable_parts(state, addr, &message_id, &parsed);
+
+    // **Tell the clients last.** A client that hears of new mail asks for
+    // its list at once. These went out before the rows above were written,
+    // so the web client fetched the list the message was not in yet, held
+    // that answer as fresh, and showed the mail only after a reload
+    // (reported 2026-10-19). The push went out before the hold as well,
+    // ringing the phone for mail held as fraud.
+    if !held {
+        crate::push::maybe_notify(addr, &wire.sender, &wire.subject, category, is_own);
+    }
+    let _ = state.notify.send(addr.to_string());
+    crate::live_sync::publish_new_mail(addr, &root, &wire.sender, &wire.subject, "");
 }
 
 #[cfg(test)]
