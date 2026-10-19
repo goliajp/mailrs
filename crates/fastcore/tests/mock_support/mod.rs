@@ -107,6 +107,19 @@ pub fn files_under(dir: &Path) -> usize {
     walk(dir).len()
 }
 
+/// Messages in a maildir: files in its `cur/` and `new/`, not the index
+/// files (`mailrs-uidlist` and the like) delivery keeps beside them.
+pub fn mail_files_under(dir: &Path) -> usize {
+    walk(dir)
+        .iter()
+        .filter(|p| {
+            p.parent()
+                .and_then(|d| d.file_name())
+                .is_some_and(|n| n == "cur" || n == "new")
+        })
+        .count()
+}
+
 fn walk(dir: &Path) -> Vec<std::path::PathBuf> {
     let mut out = Vec::new();
     if let Ok(entries) = std::fs::read_dir(dir) {
