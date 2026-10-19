@@ -22,6 +22,7 @@ pub mod bounce_queue;
 mod calendar_sync;
 pub mod dmarc_ingest;
 pub mod fbl;
+mod file_message_id;
 pub mod fraud_backfill;
 mod headers;
 mod idle_backoff;

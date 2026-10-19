@@ -37,12 +37,12 @@ pub(crate) fn ingest_delivered_file(
     fraud_verdict: Option<&str>,
 ) {
     let head = &body[..body.len().min(16 * 1024)];
-    let (message_id, in_reply_to, references, subject, date, from, to) = extract_headers(head);
-    if message_id.is_empty() {
-        // no Message-ID header — leave it to self-heal's filename-based
-        // fallbacks rather than fabricating an id here
-        return;
-    }
+    let (header_id, in_reply_to, references, subject, date, from, to) = extract_headers(head);
+    // Without a Message-ID the file name supplies one. This returned here
+    // until 2026-10-19 on the belief that self-heal would cover it, but the
+    // sweep skipped such files too: 2,835 messages, nearly all monitoring
+    // alerts, were in the maildir and on IMAP and never on the web.
+    let message_id = crate::file_message_id::message_id_or_file_id(header_id, blob_ref);
     let bare = blob_ref.rsplit('/').next().unwrap_or(blob_ref);
     let date = sort_date(date, maildir_filename_epoch(bare)).unwrap_or(0);
     // v2.9.5 threading fix — prefer the thread an ancestor actually
