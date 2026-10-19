@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use kevy_client::Connection;
 use mailrs_core_sidestate::families::mock;
-use mock_support::{Smtp, all, files_under, free_port, keys, spool_files};
+use mock_support::{Smtp, all, files_under, free_port, keys, mail_files_under, spool_files};
 
 const KEVY: &str = "mem://mock-mail-stays-apart";
 const DOMAIN: &str = "mock.example.test";
@@ -133,7 +133,11 @@ async fn mock_mail_arrives_once_and_touches_nothing_real() {
     let blob = mailrs_core::spool::encode_spool_blob(&env, b"Subject: both\r\n\r\nhello");
     std::fs::write(incoming.join("1700000000.M9P9.mixed"), blob).unwrap();
     assert_eq!(drain().0, 1);
-    assert_eq!(files_under(&bob), 1, "the real recipient lost its copy");
+    assert_eq!(
+        mail_files_under(&bob),
+        1,
+        "the real recipient lost its copy"
+    );
     assert!(all(&mut kv, "e2e").iter().any(|m| m.tag == "cc"));
 
     // 5. a sandbox login: everything is captured, nothing is queued outward
@@ -181,7 +185,7 @@ async fn mock_mail_arrives_once_and_touches_nothing_real() {
         msgs.iter()
             .any(|m| m.tag == "inbox" && m.direction == mock::Direction::In)
     );
-    assert_eq!(files_under(&bob), 1);
+    assert_eq!(mail_files_under(&bob), 1);
     assert!(spool_files(&incoming).is_empty());
 
     // 6. a simulation address answers a signed-in sender in their INBOX,
