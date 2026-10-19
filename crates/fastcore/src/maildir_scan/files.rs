@@ -252,10 +252,8 @@ pub(crate) fn user_files_by_message_id(
             continue;
         };
         let head = &bytes[..bytes.len().min(16 * 1024)];
-        let (message_id, ..) = extract_headers(head);
-        if message_id.is_empty() {
-            continue;
-        }
+        let (header_id, ..) = extract_headers(head);
+        let message_id = crate::file_message_id::message_id_or_file_id(header_id, &blob_ref);
         // First wins. A duplicate Message-ID inside one mailbox is the same
         // mail delivered twice; either filename is that user's own copy,
         // which is all this index has to be right about.

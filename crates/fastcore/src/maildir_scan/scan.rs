@@ -151,10 +151,8 @@ pub(crate) fn scan_maildir(user: &str, since: i64) -> Vec<MailFile> {
         };
         let size = bytes.len() as u32;
         let head = &bytes[..bytes.len().min(16 * 1024)];
-        let (message_id, in_reply_to, references, subject, date, from, to) = extract_headers(head);
-        if message_id.is_empty() {
-            continue;
-        }
+        let (header_id, in_reply_to, references, subject, date, from, to) = extract_headers(head);
+        let message_id = crate::file_message_id::message_id_or_file_id(header_id, &blob_ref);
         // If the RFC 5322 `Date:` header was missing or unparseable
         // (some mailers ship malformed dates and many self-injected
         // notifications have none), fall back to the maildir delivery
@@ -182,6 +180,24 @@ pub(crate) fn scan_maildir(user: &str, since: i64) -> Vec<MailFile> {
         });
     }
     parsed
+}
+
+/// The category a rebuilt arrival gets, decided as delivery decides it: a
+/// file in the Junk folder is spam, anything else goes to the triage
+/// classifier. Rebuilt rows were all `inbox` until 2026-10-19, so mail that
+/// only the sweep ever indexed skipped the Notifications and Promotions
+/// sort that every delivered message gets.
+pub(crate) fn arrival_category(
+    state: &Arc<FastcoreState>,
+    user: &str,
+    m: &MailFile,
+) -> &'static str {
+    if m.filename.starts_with(".Junk/") {
+        return "spam";
+    }
+    crate::maildir_scan::read_maildir_file(user, &m.filename)
+        .and_then(|raw| crate::bayes_train::classify_triage(state, &raw))
+        .unwrap_or("inbox")
 }
 
 /// Group parsed files by the thread each one belongs to.
