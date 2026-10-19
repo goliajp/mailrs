@@ -76,7 +76,7 @@ pub(crate) fn heal_membership_rows(
             let mut ordered: Vec<&MailFile> = bucket.to_vec();
             ordered.sort_by_key(|m| m.date);
             for m in &ordered {
-                let category = "inbox";
+                let category = super::scan::arrival_category(state, user, m);
                 let is_own = mailrs_mailbox_kevy::senders_csv_contains_user(&m.from, user);
                 let unread = !m.seen && !is_own;
                 let arrival = mailrs_mailbox_kevy::MessageArrival {
