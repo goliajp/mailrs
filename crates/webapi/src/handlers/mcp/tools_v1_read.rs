@@ -9,7 +9,7 @@
 
 use rmcp::ErrorData as McpError;
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{tool, tool_router};
 
 use super::MailrsMcpService;
@@ -65,7 +65,7 @@ impl MailrsMcpService {
                 })
             })
             .collect();
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({ "conversations": items }).to_string(),
         )]))
     }
@@ -108,7 +108,7 @@ impl MailrsMcpService {
                 "message_id": msg.message_id,
             }));
         }
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({ "thread_id": params.thread_id, "messages": items }).to_string(),
         )]))
     }
@@ -163,7 +163,7 @@ impl MailrsMcpService {
                 })
             })
             .collect();
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({ "matches": matched }).to_string(),
         )]))
     }
@@ -179,7 +179,7 @@ impl MailrsMcpService {
             .mark_thread_read(user, &params.thread_id)
             .await
             .map_err(|e| McpError::internal_error(format!("mark_thread_read: {e}"), None))?;
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({ "ok": true }).to_string(),
         )]))
     }
@@ -216,7 +216,7 @@ impl MailrsMcpService {
         )
         .await
         .map_err(|e| McpError::internal_error(format!("send: {e}"), None))?;
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({ "ok": true, "message_id": message_id }).to_string(),
         )]))
     }
@@ -235,7 +235,7 @@ impl MailrsMcpService {
             .into_iter()
             .map(|m| serde_json::json!({ "id": m.id, "name": m.name, "uidnext": m.uidnext }))
             .collect();
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({ "mailboxes": items }).to_string(),
         )]))
     }
@@ -351,7 +351,7 @@ impl MailrsMcpService {
             .into_iter()
             .map(|c| serde_json::json!({ "category": c.category, "count": c.count }))
             .collect();
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({ "categories": items }).to_string(),
         )]))
     }
@@ -384,7 +384,7 @@ impl MailrsMcpService {
                 }
             }
         }
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({ "contacts": items }).to_string(),
         )]))
     }
@@ -402,7 +402,7 @@ impl MailrsMcpService {
             .filter_map(|p| p.get(1))
             .filter_map(|v| serde_json::from_slice(v).ok())
             .collect();
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({ "signatures": items }).to_string(),
         )]))
     }
@@ -414,7 +414,7 @@ impl MailrsMcpService {
             c.llen(PENDING_IDX).map_err(std::io::Error::from)
         })
         .map_err(|_| McpError::internal_error("queue read failed", None))?;
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({ "pending": pending }).to_string(),
         )]))
     }
@@ -429,7 +429,7 @@ impl MailrsMcpService {
             .list_accounts()
             .await
             .map_err(|e| McpError::internal_error(format!("list_accounts: {e}"), None))?;
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::to_string(&resp).unwrap_or_default(),
         )]))
     }

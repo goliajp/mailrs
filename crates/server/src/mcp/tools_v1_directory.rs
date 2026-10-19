@@ -8,7 +8,7 @@
 
 use rmcp::ErrorData as McpError;
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{tool, tool_router};
 
 use super::MailMcpService;
@@ -47,7 +47,7 @@ impl MailMcpService {
             })
             .collect();
 
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::to_string(&items).unwrap_or_else(|_| "[]".into()),
         )]))
     }
@@ -84,7 +84,7 @@ impl MailMcpService {
             })
             .collect();
 
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::to_string(&items).unwrap_or_else(|_| "[]".into()),
         )]))
     }
@@ -117,7 +117,7 @@ impl MailMcpService {
             .map(|g| serde_json::json!({"id": g.id, "name": g.name, "domain": g.domain}))
             .collect();
 
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({
                 "address": params.address,
                 "groups": group_items,
@@ -168,7 +168,7 @@ impl MailMcpService {
                 })
             })
             .collect();
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({ "items": items }).to_string(),
         )]))
     }

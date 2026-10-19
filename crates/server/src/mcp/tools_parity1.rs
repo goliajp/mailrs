@@ -3,7 +3,7 @@
 
 use rmcp::ErrorData as McpError;
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{tool, tool_router};
 use serde::Deserialize;
 
@@ -34,7 +34,7 @@ impl MailMcpService {
         &self,
         Parameters(_params): Parameters<GetMyPermissionsParams>,
     ) -> Result<CallToolResult, McpError> {
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({
                 "user": self.auth_user.address,
                 "permissions": self.auth_user.permissions.as_ref(),
@@ -50,7 +50,7 @@ impl MailMcpService {
         &self,
         Parameters(_params): Parameters<GetServerInfoParams>,
     ) -> Result<CallToolResult, McpError> {
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({
                 "version": env!("CARGO_PKG_VERSION"),
                 "product": "mailrs",
@@ -72,7 +72,7 @@ impl MailMcpService {
             .count_unseen(&self.auth_user.address)
             .await
             .map_err(|e| McpError::internal_error(format!("count_unseen: {e}"), None))?;
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({
                 "user": self.auth_user.address,
                 "unseen_count": unseen,
@@ -108,7 +108,7 @@ impl MailMcpService {
             .iter()
             .filter(|m| (m.flags & FLAG_SEEN) == 0)
             .count();
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({
                 "thread_id": params.thread_id,
                 "subject": subject,

@@ -29,11 +29,11 @@ use rmcp::ErrorData as McpError;
 use rmcp::handler::server::ServerHandler;
 use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::model::{
-    CallToolResult, Content, Implementation, ProtocolVersion, ServerCapabilities, ServerInfo,
+    CallToolResult, ContentBlock, Implementation, ProtocolVersion, ServerCapabilities, ServerConfig,
 };
+use rmcp::tool_handler;
 use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
 use rmcp::transport::streamable_http_server::{StreamableHttpServerConfig, StreamableHttpService};
-use rmcp::{tool_handler, tool_router};
 
 use base64::Engine;
 
@@ -56,10 +56,9 @@ pub(crate) struct MailMcpService {
 }
 
 impl MailMcpService {
-    /// v1 (this file) plus the batches that keep this lane level with fastcore
+    /// The per-file routers, which keep this lane level with fastcore
     fn tool_router() -> ToolRouter<Self> {
-        Self::tool_router_v1()
-            + Self::tool_router_v1_mail()
+        Self::tool_router_v1_mail()
             + Self::tool_router_v1_directory()
             + Self::tool_router_v1_ops()
             + Self::tool_router_v1_mail_read()
@@ -77,7 +76,6 @@ impl MailMcpService {
     }
 }
 
-#[tool_router(router = tool_router_v1, vis = "pub(crate)")]
 impl MailMcpService {
     pub(crate) fn new(web_state: Arc<WebState>, auth_user: AuthUser) -> Self {
         Self {
@@ -127,13 +125,13 @@ impl MailMcpService {
     }
 
     fn json_result(&self, items: &[serde_json::Value]) -> Result<CallToolResult, McpError> {
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::to_string(items).unwrap_or_else(|_| "[]".into()),
         )]))
     }
 
     fn ok_result(&self, status: &str, detail: &str) -> Result<CallToolResult, McpError> {
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({"status": status, "detail": detail}).to_string(),
         )]))
     }
@@ -193,8 +191,8 @@ impl MailMcpService {
 
 #[tool_handler]
 impl ServerHandler for MailMcpService {
-    fn get_info(&self) -> ServerInfo {
-        ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
+    fn get_info(&self) -> ServerConfig {
+        ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
             .with_protocol_version(ProtocolVersion::V_2025_03_26)
             .with_server_info(Implementation::new("mailrs", env!("CARGO_PKG_VERSION")))
             .with_instructions(

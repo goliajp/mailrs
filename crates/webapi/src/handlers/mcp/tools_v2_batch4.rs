@@ -3,7 +3,7 @@
 //! without needing admin gates.
 
 use rmcp::ErrorData as McpError;
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{tool, tool_router};
 
 use super::MailrsMcpService;
@@ -26,7 +26,7 @@ impl MailrsMcpService {
         // effective_permissions returns the wire struct; serialize it
         // and return alongside the resolved user so the agent has a
         // whole answer without a follow-up whoami call.
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({
                 "user": user,
                 "permissions": perms,
@@ -71,7 +71,7 @@ impl MailrsMcpService {
             Ok(out)
         })
         .map_err(|_| McpError::internal_error("scheduled zset filter", None))?;
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({ "items": items }).to_string(),
         )]))
     }

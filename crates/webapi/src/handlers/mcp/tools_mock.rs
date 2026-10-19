@@ -13,7 +13,7 @@ use mailrs_mock::tool_params::{
 };
 use rmcp::ErrorData as McpError;
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{tool, tool_router};
 
 use super::MailrsMcpService;
@@ -24,7 +24,7 @@ use crate::handlers::mock::service::{self, MockApiError, MockCaller};
 fn json(value: impl serde::Serialize) -> Result<CallToolResult, McpError> {
     let text = serde_json::to_string(&value)
         .map_err(|e| McpError::internal_error(format!("encode: {e}"), None))?;
-    Ok(CallToolResult::success(vec![Content::text(text)]))
+    Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
 }
 
 fn failed(e: MockApiError) -> McpError {

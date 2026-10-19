@@ -12,7 +12,7 @@
 
 use rmcp::ErrorData as McpError;
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{tool, tool_router};
 
 use super::MailrsMcpService;
@@ -36,7 +36,7 @@ impl MailrsMcpService {
             .filter_map(|p| p.get(1))
             .filter_map(|v| serde_json::from_slice(v).ok())
             .collect();
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({ "domains": items }).to_string(),
         )]))
     }
@@ -103,7 +103,7 @@ impl MailrsMcpService {
             &params.source_address,
             &format!("-> {} via mcp", params.target_address),
         );
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({ "id": params.source_address }).to_string(),
         )]))
     }
@@ -190,7 +190,7 @@ impl MailrsMcpService {
             &format!("id={}", resp.id),
             &params.name,
         );
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::to_string(&resp).unwrap_or_default(),
         )]))
     }
@@ -232,7 +232,7 @@ impl MailrsMcpService {
             .list_webhooks(&params.address)
             .await
             .map_err(|e| McpError::internal_error(format!("list_webhooks: {e}"), None))?;
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::to_string(&resp).unwrap_or_default(),
         )]))
     }
@@ -267,7 +267,7 @@ impl MailrsMcpService {
             &params.account_address,
             &format!("url={} event={}", params.url, params.event_type),
         );
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::to_string(&resp).unwrap_or_default(),
         )]))
     }
@@ -308,7 +308,7 @@ impl MailrsMcpService {
         if let Some(limit) = params.limit {
             resp.items.truncate(limit as usize);
         }
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::to_string(&resp).unwrap_or_default(),
         )]))
     }
@@ -342,7 +342,7 @@ impl MailrsMcpService {
             &format!("id={}", resp.id),
             &params.subject,
         );
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::to_string(&resp).unwrap_or_default(),
         )]))
     }
@@ -376,7 +376,7 @@ impl MailrsMcpService {
             .list_templates(&user)
             .await
             .map_err(|e| McpError::internal_error(format!("list_templates: {e}"), None))?;
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::to_string(&resp).unwrap_or_default(),
         )]))
     }
@@ -409,7 +409,7 @@ impl MailrsMcpService {
             &format!("id={}", resp.id),
             &params.name,
         );
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::to_string(&resp).unwrap_or_default(),
         )]))
     }
@@ -451,7 +451,7 @@ impl MailrsMcpService {
             .into_iter()
             .filter_map(|v| serde_json::from_slice(&v).ok())
             .collect();
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({ "entries": items }).to_string(),
         )]))
     }

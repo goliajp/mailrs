@@ -5,7 +5,7 @@
 
 use rmcp::ErrorData as McpError;
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{tool, tool_router};
 use serde::Deserialize;
 
@@ -117,7 +117,7 @@ impl MailMcpService {
         let cancelled = queue::cancel_pending(pool, params.id)
             .await
             .map_err(|e| McpError::internal_error(format!("cancel_pending: {e}"), None))?;
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             match cancelled {
                 true => serde_json::json!({ "ok": true, "id": params.id }).to_string(),
                 false => serde_json::json!({
@@ -138,7 +138,7 @@ impl MailMcpService {
     ) -> Result<CallToolResult, McpError> {
         let now = now_epoch();
         if params.scheduled_at <= now {
-            return Ok(CallToolResult::success(vec![Content::text(
+            return Ok(CallToolResult::success(vec![ContentBlock::text(
                 serde_json::json!({
                     "ok": false,
                     "reason": "scheduled_at must be in the future",
@@ -159,24 +159,26 @@ impl MailMcpService {
         let moved = queue::reschedule_pending(pool, params.id, params.scheduled_at, now)
             .await
             .map_err(|e| McpError::internal_error(format!("reschedule_pending: {e}"), None))?;
-        Ok(CallToolResult::success(vec![Content::text(match moved {
-            true => serde_json::json!({
-                "ok": true,
-                "id": params.id,
-                "scheduled_at": params.scheduled_at,
-            })
-            .to_string(),
-            false => serde_json::json!({
-                "ok": false,
-                "reason": "message is no longer pending",
-            })
-            .to_string(),
-        })]))
+        Ok(CallToolResult::success(vec![ContentBlock::text(
+            match moved {
+                true => serde_json::json!({
+                    "ok": true,
+                    "id": params.id,
+                    "scheduled_at": params.scheduled_at,
+                })
+                .to_string(),
+                false => serde_json::json!({
+                    "ok": false,
+                    "reason": "message is no longer pending",
+                })
+                .to_string(),
+            },
+        )]))
     }
 }
 
 fn not_owned() -> CallToolResult {
-    CallToolResult::success(vec![Content::text(
+    CallToolResult::success(vec![ContentBlock::text(
         serde_json::json!({
             "ok": false,
             "reason": "id not found or caller is not the sender",

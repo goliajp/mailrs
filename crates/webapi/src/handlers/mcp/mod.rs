@@ -30,8 +30,8 @@ use rmcp::handler::server::ServerHandler;
 use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::tool::ToolCallContext;
 use rmcp::model::{
-    CallToolRequestParams, CallToolResult, Content, Implementation, ProtocolVersion,
-    ServerCapabilities, ServerInfo,
+    CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, Implementation,
+    ProtocolVersion, ServerCapabilities, ServerConfig,
 };
 use rmcp::service::RequestContext;
 use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
@@ -112,7 +112,7 @@ impl MailrsMcpService {
 
 /// Shared `{ "ok": true }` success body for mutation tools.
 pub(super) fn ok_result() -> CallToolResult {
-    CallToolResult::success(vec![Content::text(
+    CallToolResult::success(vec![ContentBlock::text(
         serde_json::json!({ "ok": true }).to_string(),
     )])
 }
@@ -124,15 +124,15 @@ impl ServerHandler for MailrsMcpService {
         &self,
         request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
-    ) -> Result<CallToolResult, McpError> {
+    ) -> Result<CallToolResponse, McpError> {
         self.identity
             .check_tool(&request.name, request.arguments.as_ref())?;
         let tcc = ToolCallContext::new(self, request, context);
         self.tool_router.call(tcc).await
     }
 
-    fn get_info(&self) -> ServerInfo {
-        ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
+    fn get_info(&self) -> ServerConfig {
+        ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
             .with_protocol_version(ProtocolVersion::V_2025_03_26)
             .with_server_info(Implementation::new("mailrs", env!("CARGO_PKG_VERSION")))
             .with_instructions(

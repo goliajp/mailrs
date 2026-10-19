@@ -55,11 +55,7 @@ export function Chat() {
       const urlThread = searchParams.get('thread')
       const urlMsg = searchParams.get('msg')
       const urlView = searchParams.get('view') as
-        | 'conversation'
-        | 'list'
-        | 'reply'
-        | 'thread'
-        | null
+        'conversation' | 'list' | 'reply' | 'thread' | null
       const urlCat = searchParams.get('cat')
       const restored = listFromParams(searchParams)
       if (restored) selectList(restored)
