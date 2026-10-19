@@ -9,9 +9,10 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
-/// A child still running after this long is killed. Twenty dense pages at
-/// one thread take a few minutes on the production host.
-const WALL_LIMIT: Duration = Duration::from_secs(900);
+/// A child still running after this long is killed. A dense page took up
+/// to 70 s on one arm64 core in measurement; twenty of them, on the
+/// child's two threads, stay well inside this.
+const WALL_LIMIT: Duration = Duration::from_secs(1800);
 const POLL: Duration = Duration::from_millis(100);
 const DEFAULT_MODELS: &str = "/usr/share/mailrs/ocr";
 

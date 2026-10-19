@@ -19,7 +19,8 @@ use rustix::process::{Resource, Rlimit, setpriority_process, setrlimit};
 /// images was 540MB; address space runs higher than resident memory.
 #[cfg(target_os = "linux")]
 const MEMORY_LIMIT: u64 = 1536 * 1024 * 1024;
-const CPU_SECONDS: u64 = 600;
+/// Two threads for the parent's 30-minute wall-clock limit.
+const CPU_SECONDS: u64 = 3600;
 /// Images smaller than this many pixels carry logos and icons, not text
 /// worth reading.
 const MIN_PIXELS: u64 = 300 * 300;
@@ -96,8 +97,13 @@ fn fail(msg: &str) -> ! {
     std::process::exit(1);
 }
 
+/// Inference threads. The child runs at the lowest priority, so these take
+/// only CPU nothing else wants; two of the production host's four cores
+/// halve a scan's time without crowding anything out.
+const THREADS: usize = 2;
+
 fn engine(models: &std::path::Path) -> Result<mailrs_ocr::Engine, mailrs_ocr::OcrError> {
-    mailrs_ocr::Engine::load(models, 1)
+    mailrs_ocr::Engine::load(models, THREADS)
 }
 
 fn image(models: &std::path::Path, bytes: &[u8]) -> Result<Answer, mailrs_ocr::OcrError> {
