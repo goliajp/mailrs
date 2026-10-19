@@ -266,6 +266,9 @@ async fn a_word_inside_a_pdf_finds_the_conversation() {
         std::env::set_var("MAILRS_SMTPS_PORT", free_port().to_string());
         std::env::set_var("MAILRS_HOSTNAME", "mx.example.test");
         std::env::set_var("MAILRS_FRAUD_RULES_FILE", &rules);
+        // OCR off, so the corrupt PDF fails here rather than going to a
+        // renderer; the OCR path has its own test
+        std::env::set_var("MAILRS_OCR_BIN", "/nonexistent/mailrs-fastcore-ocr");
     }
     tokio::spawn(mailrs_receiver::run());
 
@@ -367,7 +370,7 @@ async fn a_word_inside_a_pdf_finds_the_conversation() {
     let dry = backfill(&state, true).await;
     assert_eq!(dry["messages_walked"], 4, "{dry}");
     assert_eq!(dry["files_read"], 4, "{dry}");
-    assert_eq!(dry["with_pdf"], 3, "{dry}");
+    assert_eq!(dry["with_readable"], 3, "{dry}");
     assert_eq!(dry["already_done"], 2, "{dry}");
     assert_eq!(dry["already_done_failed"], 1, "{dry}");
     assert_eq!(dry["queued"], 0, "{dry}");

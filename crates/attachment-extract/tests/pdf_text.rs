@@ -182,3 +182,16 @@ fn pages_are_separated_by_form_feeds() {
     assert_eq!(r.text, "one\u{000C}two\u{000C}three");
     assert_eq!(r.page_count, Some(3));
 }
+
+/// A page without text keeps its place, even at the start where the
+/// joined text would trim it away.
+#[test]
+fn per_page_text_keeps_empty_pages_in_place() {
+    let mut b = Builder::new();
+    let font = helvetica(&mut b);
+    b.page_with_font(font, b"");
+    b.page_with_font(font, b"BT /F1 12 Tf 72 700 Td (two) Tj ET");
+    b.page_with_font(font, b"");
+    let pages = mailrs_attachment_extract::extract_pdf_pages(&b.finish()).expect("extract");
+    assert_eq!(pages, vec!["", "two", ""]);
+}

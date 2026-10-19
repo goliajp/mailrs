@@ -254,8 +254,9 @@ pub(crate) fn ingest_delivered_file(
     {
         tracing::warn!(error = %e, %addr, %message_id, "index_message_text failed");
     }
-    // A PDF is only noted here; reading it is the worker's job, off this path.
-    crate::attachment_text::queue_if_it_has_a_pdf(state, addr, &message_id, &parsed);
+    // A PDF or image is only noted here; reading it is the worker's job,
+    // off this path.
+    crate::attachment_text::queue_if_it_has_readable_parts(state, addr, &message_id, &parsed);
 }
 
 #[cfg(test)]

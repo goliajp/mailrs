@@ -68,6 +68,9 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo check -p mailrs-server --features core-rpc,spg --all-targets
 cargo check -p mailrs-server --features core-rpc --all-targets
 
+# The OCR tests read real models; kept in target/, which survives syncs.
+sh scripts/fetch-ocr-models.sh
+
 # --no-fail-fast: cargo stops at the first failing test binary, which
 # hides every red behind it. Three separate failures were found this
 # way on 2026-07-29, each only after the previous one was fixed.
