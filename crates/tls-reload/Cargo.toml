@@ -26,5 +26,6 @@ tracing = "0.1"
 [dev-dependencies]
 criterion = { workspace = true }
 rcgen = "0.13"
+tempfile = "3"
 # tls tests need rustls's "ring" provider to actually build a ServerConfig
 rustls = { version = "0.23", features = ["ring"] }
