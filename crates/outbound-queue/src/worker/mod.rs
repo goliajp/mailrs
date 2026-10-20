@@ -133,8 +133,9 @@ impl DeliveryWorker {
             tokio::select! {
                 _ = tokio::time::sleep(std::time::Duration::from_secs(self.config.poll_interval_secs)) => {}
                 _ = wait_for_notify(&mut notify_rx) => {}
-                _ = shutdown.changed() => {
-                    if *shutdown.borrow() {
+                // Err: the sender is gone; it stays ready, so looping on would spin
+                changed = shutdown.changed() => {
+                    if changed.is_err() || *shutdown.borrow() {
                         tracing::info!("delivery worker shutting down");
                         return;
                     }
