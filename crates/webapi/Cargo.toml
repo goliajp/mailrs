@@ -90,3 +90,5 @@ tower = { version = "0.5", features = ["util"] }
 mailrs-fastcore = { path = "../fastcore" }
 mailrs-mailbox-kevy = { path = "../mailbox-kevy" }
 kevy-embedded = { workspace = true }
+# a WebSocket client for /api/events
+tokio-tungstenite = "0.28"
