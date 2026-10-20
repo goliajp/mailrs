@@ -37,8 +37,9 @@ impl WebhookWorker {
                 _ = tokio::time::sleep(self.poll_interval) => {
                     self.poll_and_deliver().await;
                 }
-                _ = shutdown.changed() => {
-                    if *shutdown.borrow() {
+                // Err: the sender is gone; it stays ready, so looping on would spin
+                changed = shutdown.changed() => {
+                    if changed.is_err() || *shutdown.borrow() {
                         return;
                     }
                 }
