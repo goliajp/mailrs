@@ -14,6 +14,59 @@ use std::sync::Arc;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::watch;
 
+use crate::config::ReceiverConfig;
+use crate::smtp_session::{ConnectionContext, handle_plain_connection, handle_tls_connection};
+
+/// The receiver's bound listeners. They stop accepting when this is
+/// stopped or dropped.
+pub struct Receiver {
+    pub smtp: SocketAddr,
+    pub submission: SocketAddr,
+    /// `None` when no certificate is configured.
+    pub smtps: Option<SocketAddr>,
+    shutdown: watch::Sender<bool>,
+}
+
+impl Receiver {
+    pub fn stop(self) {
+        let _ = self.shutdown.send(true);
+    }
+}
+
+/// SMTP and submission, plain with STARTTLS when TLS is configured, and
+/// SMTPS (implicit TLS) only when a certificate is.
+pub(crate) async fn listen(ctx: Arc<ConnectionContext>, cfg: &ReceiverConfig) -> Receiver {
+    let (shutdown, rx) = watch::channel(false);
+    let plain = |ctx: Arc<ConnectionContext>| {
+        move |stream, addr| handle_plain_connection(stream, addr, ctx.clone())
+    };
+    let smtp = spawn_plain(
+        format!("0.0.0.0:{}", cfg.smtp_port),
+        "smtp",
+        rx.clone(),
+        plain(ctx.clone()),
+    )
+    .await;
+    let submission = spawn_plain(
+        format!("0.0.0.0:{}", cfg.submission_port),
+        "submission",
+        rx.clone(),
+        plain(ctx.clone()),
+    )
+    .await;
+    let mut smtps = None;
+    if ctx.tls_state.is_some() {
+        let tls = move |stream, addr| handle_tls_connection(stream, addr, ctx.clone());
+        smtps = Some(spawn_plain(format!("0.0.0.0:{}", cfg.smtps_port), "smtps", rx, tls).await);
+    }
+    Receiver {
+        smtp,
+        submission,
+        smtps,
+        shutdown,
+    }
+}
+
 /// Bind a TCP listener at `addr`, log "listening" with the supplied
 /// `label`, and spawn an accept loop that calls `handler` for every
 /// connection. Each connection runs on its own `tokio::spawn` task.
@@ -50,14 +103,16 @@ pub async fn spawn_plain<F, Fut>(
     label: &'static str,
     mut shutdown: watch::Receiver<bool>,
     handler: F,
-) where
+) -> SocketAddr
+where
     F: Fn(TcpStream, SocketAddr) -> Fut + Send + Sync + 'static,
     Fut: Future<Output = ()> + Send + 'static,
 {
     let listener = TcpListener::bind(&addr)
         .await
         .unwrap_or_else(|e| panic!("failed to bind {label} on {addr}: {e}"));
-    tracing::info!(addr = addr.as_str(), label, "listening");
+    let bound = listener.local_addr().expect("bound address");
+    tracing::info!(addr = %bound, label, "listening");
     let handler = Arc::new(handler);
     tokio::spawn(async move {
         loop {
@@ -84,6 +139,7 @@ pub async fn spawn_plain<F, Fut>(
             }
         }
     });
+    bound
 }
 
 #[cfg(test)]

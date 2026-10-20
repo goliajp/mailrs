@@ -26,17 +26,19 @@ use crate::kevy_net::KevyNetClient;
 use crate::kevy_notify::{
     KevyEventPublisher, KevyTracePublisher, NOTIFY_CHANNEL, process_origin, publish_stats,
 };
+use crate::listeners::Receiver;
+use crate::smtp_session::ConnectionContext;
 use crate::smtp_session::spool_sink::MaildirSpoolSink;
-use crate::smtp_session::{ConnectionContext, handle_plain_connection, handle_tls_connection};
 use crate::stats::{ReceiverCounters, SharedCounters};
 use receiver_metrics::ReceiverMetrics;
 
 mod greylisting;
 mod receiver_metrics;
 
-/// Run the receiver process: build the narrow context, bind the SMTP
-/// listeners, and block until a shutdown signal.
-pub async fn run() {
+/// Build the narrow context and bind the SMTP listeners. They keep
+/// accepting until the returned [`Receiver`] is stopped or dropped; a port
+/// of 0 binds whatever the system picks, which the `Receiver` reports.
+pub async fn start() -> Receiver {
     let cfg = ReceiverConfig::from_env();
     if cfg.kevy_url.is_empty() {
         panic!(
@@ -256,51 +258,15 @@ pub async fn run() {
         spool_sink,
     });
 
-    let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
+    crate::listeners::listen(ctx, &cfg).await
+}
 
-    let tls_available = ctx.tls_state.is_some();
-
-    // SMTP (25) + submission (587) — plain, STARTTLS upgrades if TLS configured.
-    let ctx_smtp = ctx.clone();
-    crate::listeners::spawn_plain(
-        format!("0.0.0.0:{}", cfg.smtp_port),
-        "smtp",
-        shutdown_rx.clone(),
-        move |stream, addr| {
-            let ctx = ctx_smtp.clone();
-            async move { handle_plain_connection(stream, addr, ctx).await }
-        },
-    )
-    .await;
-    let ctx_sub = ctx.clone();
-    crate::listeners::spawn_plain(
-        format!("0.0.0.0:{}", cfg.submission_port),
-        "submission",
-        shutdown_rx.clone(),
-        move |stream, addr| {
-            let ctx = ctx_sub.clone();
-            async move { handle_plain_connection(stream, addr, ctx).await }
-        },
-    )
-    .await;
-    // SMTPS (465) — implicit TLS, only if a cert is configured.
-    if tls_available {
-        let ctx_tls = ctx.clone();
-        crate::listeners::spawn_plain(
-            format!("0.0.0.0:{}", cfg.smtps_port),
-            "smtps",
-            shutdown_rx.clone(),
-            move |stream, addr| {
-                let ctx = ctx_tls.clone();
-                async move { handle_tls_connection(stream, addr, ctx).await }
-            },
-        )
-        .await;
-    }
-
+/// Run the receiver process: [`start`] it and block until a shutdown signal.
+pub async fn run() {
+    let receiver = start().await;
     tracing::info!("mailrs-receiver listening; awaiting shutdown signal");
     wait_for_shutdown().await;
-    let _ = shutdown_tx.send(true);
+    receiver.stop();
     tracing::info!("mailrs-receiver shutting down");
 }
 

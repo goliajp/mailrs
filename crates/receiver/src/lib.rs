@@ -23,10 +23,11 @@ mod run;
 pub use account_store::{AccountStore, AccountStoreError};
 pub use conn_metrics::ConnectionMetrics;
 pub use credential_store::{CoreCredentialStore, CredentialStore};
+pub use listeners::Receiver;
 pub use quota_store::QuotaStore;
 pub use recipient::ResolvedRecipient;
 pub use recipient_check::RecipientCheck;
-pub use run::run;
+pub use run::{run, start};
 
 // The inbound receiving pipeline + anti subsystems + greylist snapshot
 // loaders (S5.3). The spg-bound PG loader half of greylist_local and the
