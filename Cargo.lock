@@ -4620,6 +4620,7 @@ dependencies = [
  "rcgen 0.13.2",
  "rustls",
  "rustls-pki-types",
+ "tempfile",
  "tokio",
  "tokio-rustls",
  "tracing",
