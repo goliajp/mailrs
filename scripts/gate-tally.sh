@@ -1,19 +1,15 @@
 #!/usr/bin/env bash
-# Sum the test results in a cargo test log, and name any test binary that
-# started but printed no result line. Its exit status still decides pass or
-# fail; a binary without a result line otherwise only shows up as a total
-# one or two short of the last run (5536 against 5537, 2026-10-21), with
-# nothing to say which.
+# Sum the test results in the remote gate's log. Pass or fail is decided by
+# exit status; this total is what the deploy prints.
+#
+# The log merges cargo's stderr (its "Running ..." lines) with the test
+# binaries' stdout, and the two interleave mid-line: a result line can sit
+# behind half of another line, so it is matched anywhere, not at the start.
+# Counting from the start once came out 5536 for a run of 5537 passes. For
+# the same reason the merged log cannot say which binary a result belongs to.
 #
 #   scripts/gate-tally.sh <log>
 set -euo pipefail
 
-awk '
-    /^     Running |^   Doc-tests / { if (name != "" && !seen) silent[++n] = name; name = $0; sub(/^ +/, "", name); seen = 0 }
-    /^test result: / { p += $4; f += $6; seen = 1; results++ }
-    END {
-        if (name != "" && !seen) silent[++n] = name
-        printf "    remote gate green: %d passed, %d failed (%d binaries, %d results)\n", p, f, results + n, results
-        for (i = 1; i <= n; i++) printf "    !! no result line from: %s\n", silent[i]
-    }
-' "$1"
+grep -oE 'test result: [A-Za-z]+\. [0-9]+ passed; [0-9]+ failed' "$1" \
+    | awk '{p += $4; f += $6} END {printf "    remote gate green: %d passed, %d failed\n", p, f}'
