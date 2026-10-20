@@ -5,12 +5,17 @@ use tokio::net::{TcpListener, TcpStream};
 pub async fn start_server() -> u16 {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
+    // owned by the accept loop, so it goes when the test's runtime does
+    let maildir = tempfile::tempdir().unwrap();
+    let maildir_root = maildir.path().to_string_lossy().to_string();
 
     tokio::spawn(async move {
+        let _maildir = maildir;
         loop {
             let (stream, _addr) = listener.accept().await.unwrap();
+            let root = maildir_root.clone();
             tokio::spawn(async move {
-                handle_test_connection(stream).await;
+                handle_test_connection(stream, root).await;
             });
         }
     });
@@ -19,7 +24,7 @@ pub async fn start_server() -> u16 {
 }
 
 /// minimal SMTP session handler for testing
-async fn handle_test_connection(stream: TcpStream) {
+async fn handle_test_connection(stream: TcpStream, maildir_root: String) {
     use bytes::{Buf, BytesMut};
     use futures_util::{SinkExt, StreamExt};
     use mailrs_maildir::Maildir;
@@ -80,10 +85,6 @@ async fn handle_test_connection(stream: TcpStream) {
     }
 
     let hostname = "mx.test.local";
-    let maildir_root = std::env::temp_dir()
-        .join(format!("mailrs-e2e-{}", std::process::id()))
-        .to_string_lossy()
-        .to_string();
     let config = SessionConfig::default();
     let mut session = Session::new(hostname, config);
     let mut framed = Framed::new(stream, Codec::new());
