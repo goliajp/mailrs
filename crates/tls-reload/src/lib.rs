@@ -207,11 +207,11 @@ mod tests {
     }
 
     /// Generate a fresh self-signed cert + key, written as PEM to two
-    /// temp files. Returns (cert_path, key_path).
+    /// files in `dir`. Returns (cert_path, key_path).
     ///
-    /// Uses an `AtomicU64` counter for the temp filename so concurrent
-    /// tests don't race on the same path.
-    fn make_self_signed_pem_files() -> (std::path::PathBuf, std::path::PathBuf) {
+    /// Uses an `AtomicU64` counter for the filename so a test can make
+    /// several pairs in one directory.
+    fn make_self_signed_pem_files(dir: &Path) -> (std::path::PathBuf, std::path::PathBuf) {
         use std::sync::atomic::{AtomicU64, Ordering};
         static COUNTER: AtomicU64 = AtomicU64::new(0);
         let nonce = COUNTER.fetch_add(1, Ordering::Relaxed);
@@ -220,11 +220,8 @@ mod tests {
             .expect("rcgen self-signed");
         let cert_pem = cert.cert.pem();
         let key_pem = cert.key_pair.serialize_pem();
-        let pid = std::process::id();
-        let cert_path =
-            std::env::temp_dir().join(format!("mailrs-tls-reload-{pid}-{nonce}-cert.pem"));
-        let key_path =
-            std::env::temp_dir().join(format!("mailrs-tls-reload-{pid}-{nonce}-key.pem"));
+        let cert_path = dir.join(format!("{nonce}-cert.pem"));
+        let key_path = dir.join(format!("{nonce}-key.pem"));
         std::fs::write(&cert_path, cert_pem).unwrap();
         std::fs::write(&key_path, key_pem).unwrap();
         (cert_path, key_path)
@@ -237,8 +234,9 @@ mod tests {
 
     #[test]
     fn a_watcher_swaps_only_when_the_files_change() {
+        let dir = tempfile::tempdir().unwrap();
         install_crypto_provider();
-        let (cert_path, key_path) = make_self_signed_pem_files();
+        let (cert_path, key_path) = make_self_signed_pem_files(dir.path());
         let state = TlsState::new((*load_tls_config(&cert_path, &key_path).unwrap()).clone());
         let mut watcher = CertWatcher::new(&cert_path, &key_path).unwrap();
         let before = state.current();
@@ -259,8 +257,9 @@ mod tests {
     /// in service, and the next check after the key lands must swap.
     #[test]
     fn a_half_replaced_pair_keeps_the_old_one_until_the_key_lands() {
+        let dir = tempfile::tempdir().unwrap();
         install_crypto_provider();
-        let (cert_path, key_path) = make_self_signed_pem_files();
+        let (cert_path, key_path) = make_self_signed_pem_files(dir.path());
         let state = TlsState::new((*load_tls_config(&cert_path, &key_path).unwrap()).clone());
         let mut watcher = CertWatcher::new(&cert_path, &key_path).unwrap();
         let before = state.current();
@@ -277,8 +276,9 @@ mod tests {
 
     #[test]
     fn load_tls_config_succeeds_with_valid_self_signed() {
+        let dir = tempfile::tempdir().unwrap();
         install_crypto_provider();
-        let (cert_path, key_path) = make_self_signed_pem_files();
+        let (cert_path, key_path) = make_self_signed_pem_files(dir.path());
         let _cfg = load_tls_config(&cert_path, &key_path).expect("valid PEMs should load");
         // Successful load is the assertion. ServerConfig doesn't expose
         // its inner cert chain via a public API we can introspect here;
@@ -288,8 +288,9 @@ mod tests {
 
     #[test]
     fn tls_state_new_returns_acceptor() {
+        let dir = tempfile::tempdir().unwrap();
         install_crypto_provider();
-        let (cert_path, key_path) = make_self_signed_pem_files();
+        let (cert_path, key_path) = make_self_signed_pem_files(dir.path());
         let cfg = load_tls_config(&cert_path, &key_path).unwrap();
         let state = TlsState::new((*cfg).clone());
         let _acceptor = state.acceptor();
@@ -300,13 +301,14 @@ mod tests {
 
     #[test]
     fn tls_state_swap_changes_current_pointer() {
+        let dir = tempfile::tempdir().unwrap();
         install_crypto_provider();
-        let (cert_path, key_path) = make_self_signed_pem_files();
+        let (cert_path, key_path) = make_self_signed_pem_files(dir.path());
         let cfg_a = load_tls_config(&cert_path, &key_path).unwrap();
         let state = TlsState::new((*cfg_a).clone());
         let before = state.current();
         // Fresh cert → different Arc identity
-        let (cert_path_b, key_path_b) = make_self_signed_pem_files();
+        let (cert_path_b, key_path_b) = make_self_signed_pem_files(dir.path());
         let cfg_b = load_tls_config(&cert_path_b, &key_path_b).unwrap();
         state.swap((*cfg_b).clone());
         let after = state.current();
@@ -318,13 +320,14 @@ mod tests {
 
     #[test]
     fn tls_state_acceptor_snapshots_at_call_time() {
+        let dir = tempfile::tempdir().unwrap();
         install_crypto_provider();
-        let (cert_path, key_path) = make_self_signed_pem_files();
+        let (cert_path, key_path) = make_self_signed_pem_files(dir.path());
         let cfg = load_tls_config(&cert_path, &key_path).unwrap();
         let state = TlsState::new((*cfg).clone());
         let _acc1 = state.acceptor();
         // Swap mid-flight:
-        let (cert_path_b, key_path_b) = make_self_signed_pem_files();
+        let (cert_path_b, key_path_b) = make_self_signed_pem_files(dir.path());
         let cfg_b = load_tls_config(&cert_path_b, &key_path_b).unwrap();
         state.swap((*cfg_b).clone());
         // _acc1 was snapshotted before the swap, but TlsAcceptor doesn't
@@ -336,8 +339,9 @@ mod tests {
 
     #[test]
     fn tls_state_current_returns_arc() {
+        let dir = tempfile::tempdir().unwrap();
         install_crypto_provider();
-        let (cert_path, key_path) = make_self_signed_pem_files();
+        let (cert_path, key_path) = make_self_signed_pem_files(dir.path());
         let cfg = load_tls_config(&cert_path, &key_path).unwrap();
         let state = TlsState::new((*cfg).clone());
         let a = state.current();
@@ -349,14 +353,15 @@ mod tests {
 
     #[test]
     fn tls_state_clone_shares_inner() {
+        let dir = tempfile::tempdir().unwrap();
         install_crypto_provider();
-        let (cert_path, key_path) = make_self_signed_pem_files();
+        let (cert_path, key_path) = make_self_signed_pem_files(dir.path());
         let cfg = load_tls_config(&cert_path, &key_path).unwrap();
         let state1 = TlsState::new((*cfg).clone());
         let state2 = state1.clone();
         // After clone, both share the same inner ArcSwap, so a swap
         // through one is visible via the other.
-        let (cert_path_b, key_path_b) = make_self_signed_pem_files();
+        let (cert_path_b, key_path_b) = make_self_signed_pem_files(dir.path());
         let cfg_b = load_tls_config(&cert_path_b, &key_path_b).unwrap();
         let before = state2.current();
         state1.swap((*cfg_b).clone());
@@ -380,9 +385,10 @@ mod tests {
 
     #[test]
     fn load_tls_config_rejects_invalid_pem() {
+        let dir = tempfile::tempdir().unwrap();
         // Write invalid PEM data to a temp file
-        let cert_temp = tempfile_for("not_a_cert.pem", b"definitely not a PEM file");
-        let key_temp = tempfile_for("not_a_key.pem", b"also not a PEM file");
+        let cert_temp = tempfile_for(dir.path(), "not_a_cert.pem", b"definitely not a PEM file");
+        let key_temp = tempfile_for(dir.path(), "not_a_key.pem", b"also not a PEM file");
         let r = load_tls_config(&cert_temp, &key_temp);
         assert!(r.is_err());
         let e = r.unwrap_err();
@@ -391,18 +397,16 @@ mod tests {
 
     #[test]
     fn load_tls_config_rejects_empty_cert_file() {
-        let cert_temp = tempfile_for("empty_cert.pem", b"");
-        let key_temp = tempfile_for("empty_key.pem", b"");
+        let dir = tempfile::tempdir().unwrap();
+        let cert_temp = tempfile_for(dir.path(), "empty_cert.pem", b"");
+        let key_temp = tempfile_for(dir.path(), "empty_key.pem", b"");
         let r = load_tls_config(&cert_temp, &key_temp);
         assert!(r.is_err());
     }
 
-    /// Helper: write `data` to a uniquely-named temp file, return the path.
-    /// The file lives until process exit (test cleanup is OS's problem;
-    /// `/tmp` gets reaped).
-    fn tempfile_for(name: &str, data: &[u8]) -> std::path::PathBuf {
-        let mut path = std::env::temp_dir();
-        path.push(format!("mailrs-tls-reload-{}-{name}", std::process::id()));
+    /// Helper: write `data` to `dir/name`, return the path.
+    fn tempfile_for(dir: &Path, name: &str, data: &[u8]) -> std::path::PathBuf {
+        let path = dir.join(name);
         let mut f = std::fs::File::create(&path).expect("create temp");
         f.write_all(data).expect("write temp");
         path
@@ -410,7 +414,8 @@ mod tests {
 
     #[test]
     fn tempfile_helper_works() {
-        let p = tempfile_for("smoke.txt", b"hi");
+        let dir = tempfile::tempdir().unwrap();
+        let p = tempfile_for(dir.path(), "smoke.txt", b"hi");
         assert_eq!(std::fs::read(&p).unwrap(), b"hi");
     }
 }
