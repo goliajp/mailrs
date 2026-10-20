@@ -16,8 +16,9 @@
 //! mid-frame, and there is nothing to amortize — the connect happens once.
 //!
 //! Fan-out: one feed_read loop per kevy shard (see
-//! `spawn_kevy_feed_consumers`); each WS client gets its own tokio
-//! mpsc to the shared broadcast bus. Clean up on disconnect.
+//! `spawn_kevy_feed_consumers`); each WS client gets its own receiver on
+//! the shared broadcast bus, and is sent only the events addressed to the
+//! session's own user. Clean up on disconnect.
 
 use std::sync::Arc;
 
@@ -57,27 +58,53 @@ pub async fn ws_events(
     let kevy_url =
         std::env::var("MAILRS_KEVY_URL").map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let key = format!("session:{token}");
-    let has_session = tokio::task::spawn_blocking(move || -> std::io::Result<bool> {
+    let session = tokio::task::spawn_blocking(move || -> std::io::Result<Option<Vec<u8>>> {
         let mut c = kevy_client::Connection::connect(&kevy_url)?;
-        Ok(c.get(key.as_bytes())?.is_some())
+        Ok(c.get(key.as_bytes())?)
     })
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    if !has_session {
-        return Err(StatusCode::UNAUTHORIZED);
-    }
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .ok_or(StatusCode::UNAUTHORIZED)?;
+    let user = session_address(&session).ok_or(StatusCode::UNAUTHORIZED)?;
     let bus = get_or_init_bus(state.clone()).await;
-    Ok(ws.on_upgrade(move |socket| handle_ws(socket, bus)))
+    Ok(ws.on_upgrade(move |socket| handle_ws(socket, bus, user)))
 }
 
-async fn handle_ws(socket: WebSocket, bus: EventBus) {
+/// The address a stored session belongs to.
+fn session_address(raw: &[u8]) -> Option<String> {
+    let v: serde_json::Value = serde_json::from_slice(raw).ok()?;
+    let address = v.get("address")?.as_str()?.trim();
+    (!address.is_empty()).then(|| address.to_ascii_lowercase())
+}
+
+/// Whether an event on the bus is addressed to `user` (lowercased).
+///
+/// The bus carries every user's events, and it was forwarded whole to
+/// every socket: each signed-in browser received the sender and subject
+/// of everybody's new mail and dropped what was not its own. An event
+/// with no recipient goes to nobody.
+fn addressed_to(event: &str, user: &str) -> bool {
+    serde_json::from_str::<serde_json::Value>(event)
+        .ok()
+        .and_then(|v| {
+            v.get("user")?
+                .as_str()
+                .map(|u| u.trim().eq_ignore_ascii_case(user))
+        })
+        .unwrap_or(false)
+}
+
+async fn handle_ws(socket: WebSocket, bus: EventBus, user: String) {
     let (mut sender, mut receiver) = socket.split();
     let mut rx = bus.subscribe();
 
-    // forward events → WS
+    // forward this user's events → WS
     let send_task = tokio::spawn(async move {
         while let Ok(text) = rx.recv().await {
+            if !addressed_to(&text, &user) {
+                continue;
+            }
             if sender.send(Message::Text(text.into())).await.is_err() {
                 break;
             }
@@ -204,5 +231,32 @@ fn feed_consumer_loop(kevy_url: &str, shard: usize, tx: EventBus) {
                 let _ = tx.send(msg.to_string());
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_event_reaches_only_its_own_user() {
+        let ev = r#"{"type":"NewMessage","user":"Bob@Golia.jp","subject":"s"}"#;
+        assert!(addressed_to(ev, "bob@golia.jp"));
+        assert!(!addressed_to(ev, "alice@golia.jp"));
+        assert!(!addressed_to(
+            r#"{"type":"NewMessage","subject":"s"}"#,
+            "bob@golia.jp"
+        ));
+        assert!(!addressed_to("not json", "bob@golia.jp"));
+    }
+
+    #[test]
+    fn a_session_names_its_user() {
+        assert_eq!(
+            session_address(br#"{"address":"Bob@Golia.jp","display_name":"B"}"#).as_deref(),
+            Some("bob@golia.jp")
+        );
+        assert_eq!(session_address(br#"{"address":""}"#), None);
+        assert_eq!(session_address(b"garbage"), None);
     }
 }
