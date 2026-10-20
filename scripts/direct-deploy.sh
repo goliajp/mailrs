@@ -232,8 +232,7 @@ if [ -n "${REMOTE_PID:-}" ]; then
         tail -40 "$REMOTE_LOG"
         exit 1
     fi
-    grep -E '^test result: ' "$REMOTE_LOG" \
-        | awk '{p+=$4; f+=$6} END {print "    remote gate green: " p " passed, " f " failed"}'
+    ./scripts/gate-tally.sh "$REMOTE_LOG"
     rm -f "$REMOTE_LOG"
 fi
 
