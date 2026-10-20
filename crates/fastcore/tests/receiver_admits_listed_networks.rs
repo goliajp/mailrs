@@ -18,14 +18,6 @@ use tokio::net::TcpStream;
 
 const KEVY: &str = "mem://receiver-admits-listed-networks";
 
-fn free_port() -> u16 {
-    std::net::TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap()
-        .port()
-}
-
 /// The first line the receiver sends, or `None` while it is not listening.
 async fn greeting(port: u16) -> Option<String> {
     let stream = TcpStream::connect(("127.0.0.1", port)).await.ok()?;
@@ -39,7 +31,6 @@ async fn greeting(port: u16) -> Option<String> {
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_white_network_is_greeted_past_the_rate_limit() {
     let tmp = tempfile::tempdir().unwrap();
-    let smtp_port = free_port();
 
     let mailbox = mailrs_mailbox_kevy::KevyMailboxStore::new(Arc::new(
         kevy_embedded::Store::open(kevy_embedded::Config::default()).unwrap(),
@@ -72,16 +63,19 @@ async fn a_white_network_is_greeted_past_the_rate_limit() {
         std::env::set_var("MAILRS_ANTISPAM_ENABLED", "false");
         std::env::set_var("MAILRS_RATE_LIMIT_CAPACITY", "0");
         std::env::set_var("MAILRS_RATE_LIMIT_REFILL", "0");
-        std::env::set_var("MAILRS_PORT", smtp_port.to_string());
-        std::env::set_var("MAILRS_SUBMISSION_PORT", free_port().to_string());
-        std::env::set_var("MAILRS_SMTPS_PORT", free_port().to_string());
+        std::env::set_var("MAILRS_PORT", "0");
+        std::env::set_var("MAILRS_SUBMISSION_PORT", "0");
+        std::env::set_var("MAILRS_SMTPS_PORT", "0");
         std::env::set_var("MAILRS_HOSTNAME", "mx.example.test");
     }
-    tokio::spawn(mailrs_receiver::run());
+    // Hold the in-process kevy open before the receiver opens it: its first
+    // opens race, and two racing opens of one mem:// name can each get a store.
+    let _kevy = kevy_client::Connection::connect(KEVY).unwrap();
+    let receiver = mailrs_receiver::start().await;
 
     let mut seen = Vec::new();
     for _ in 0..200 {
-        match greeting(smtp_port).await {
+        match greeting(receiver.smtp.port()).await {
             Some(g) if g.starts_with("220") => break,
             Some(g) => {
                 assert!(g.starts_with("421"), "neither greeted nor limited: {g}");
@@ -97,7 +91,7 @@ async fn a_white_network_is_greeted_past_the_rate_limit() {
         seen.last()
     );
     for _ in 0..5 {
-        let g = greeting(smtp_port).await.expect("listening");
+        let g = greeting(receiver.smtp.port()).await.expect("listening");
         assert!(g.starts_with("220"), "{g}");
     }
 }

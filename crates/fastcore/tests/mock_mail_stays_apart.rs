@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use kevy_client::Connection;
 use mailrs_core_sidestate::families::mock;
-use mock_support::{Smtp, all, files_under, free_port, keys, mail_files_under, spool_files};
+use mock_support::{Smtp, all, files_under, keys, mail_files_under, spool_files};
 
 const KEVY: &str = "mem://mock-mail-stays-apart";
 const DOMAIN: &str = "mock.example.test";
@@ -25,7 +25,6 @@ Your verification code is 482913. It expires in 15 minutes.";
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn mock_mail_arrives_once_and_touches_nothing_real() {
     let tmp = tempfile::tempdir().unwrap();
-    let (smtp_port, submission_port) = (free_port(), free_port());
     let spool = tmp.path().join("spool");
     let maildir = tmp.path().join("maildir");
     let mock_root = tmp.path().join("mock");
@@ -40,15 +39,17 @@ async fn mock_mail_arrives_once_and_touches_nothing_real() {
             "MAILRS_LOCAL_DOMAINS",
             format!("golia.example.test,{DOMAIN}"),
         );
-        std::env::set_var("MAILRS_PORT", smtp_port.to_string());
-        std::env::set_var("MAILRS_SUBMISSION_PORT", submission_port.to_string());
-        std::env::set_var("MAILRS_SMTPS_PORT", free_port().to_string());
+        std::env::set_var("MAILRS_PORT", "0");
+        std::env::set_var("MAILRS_SUBMISSION_PORT", "0");
+        std::env::set_var("MAILRS_SMTPS_PORT", "0");
         std::env::set_var("MAILRS_GREYLIST_ENABLED", "1");
         std::env::set_var("MAILRS_HOSTNAME", "mx.example.test");
     }
-    tokio::spawn(mailrs_receiver::run());
-
+    // Open the in-process kevy before the receiver does: its first opens
+    // race, and two racing opens of one mem:// name can each get a store.
     let mut kv = Connection::connect(KEVY).unwrap();
+    let receiver = mailrs_receiver::start().await;
+
     mock::create_namespace(&mut kv, "dev@golia.example.test", "e2e").unwrap();
     let bob = maildir.join("golia.example.test/bob");
     for sub in ["cur", "new", "tmp"] {
@@ -66,7 +67,7 @@ async fn mock_mail_arrives_once_and_touches_nothing_real() {
         || mailrs_fastcore::spool_drain::drain_once(&incoming, maildir.to_str().unwrap(), &state);
 
     // 1. a signup code to a mock address
-    let mut smtp = Smtp::connect(smtp_port).await;
+    let mut smtp = Smtp::connect(receiver.smtp.port()).await;
     smtp.cmd("EHLO sender.example.org").await;
     let before = keys(&mut kv);
     let r = smtp
@@ -142,7 +143,7 @@ async fn mock_mail_arrives_once_and_touches_nothing_real() {
 
     // 5. a sandbox login: everything is captured, nothing is queued outward
     let token = mock::rotate_smtp_token(&mut kv, "e2e").unwrap();
-    let mut sub = Smtp::connect(submission_port).await;
+    let mut sub = Smtp::connect(receiver.submission.port()).await;
     sub.cmd("EHLO app.example.org").await;
     let plain = {
         use base64::Engine as _;
