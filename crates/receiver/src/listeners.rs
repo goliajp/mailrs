@@ -65,9 +65,11 @@ pub async fn spawn_plain<F, Fut>(
                 // Stop accepting new connections once shutdown fires.
                 // In-flight tasks already spawned via `tokio::spawn` below
                 // continue to completion — the runtime drains them at its
-                // own shutdown.
-                _ = shutdown.changed() => {
-                    if *shutdown.borrow() {
+                // own shutdown. An Err means the sender is gone (`run`
+                // returned or panicked); it stays ready, so looping on would
+                // spin a core.
+                changed = shutdown.changed() => {
+                    if changed.is_err() || *shutdown.borrow() {
                         tracing::info!(label, "shutdown signalled, stopping accept loop");
                         break;
                     }
@@ -82,4 +84,28 @@ pub async fn spawn_plain<F, Fut>(
             }
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    #[tokio::test]
+    async fn the_accept_loop_ends_when_the_shutdown_sender_is_dropped() {
+        let addr = {
+            let probe = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+            probe.local_addr().unwrap()
+        };
+        let (tx, rx) = tokio::sync::watch::channel(false);
+        super::spawn_plain(addr.to_string(), "test", rx, |_, _| async {}).await;
+        assert!(tokio::net::TcpStream::connect(addr).await.is_ok());
+        drop(tx);
+        for _ in 0..100 {
+            if tokio::net::TcpStream::connect(addr).await.is_err() {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        panic!("still accepting after the sender was dropped");
+    }
 }
