@@ -15,14 +15,6 @@ use tokio::net::TcpStream;
 
 const KEVY: &str = "mem://receiver-refuses-unknown-local-recipients";
 
-fn free_port() -> u16 {
-    std::net::TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap()
-        .port()
-}
-
 struct Smtp {
     reader: BufReader<tokio::net::tcp::OwnedReadHalf>,
     writer: tokio::net::tcp::OwnedWriteHalf,
@@ -77,8 +69,6 @@ impl Smtp {
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn unknown_local_recipients_are_refused_at_rcpt() {
     let tmp = tempfile::tempdir().unwrap();
-    let smtp_port = free_port();
-    let submission_port = free_port();
 
     let mailbox = mailrs_mailbox_kevy::KevyMailboxStore::new(Arc::new(
         kevy_embedded::Store::open(kevy_embedded::Config::default()).unwrap(),
@@ -114,14 +104,17 @@ async fn unknown_local_recipients_are_refused_at_rcpt() {
         std::env::set_var("MAILRS_MAILDIR", tmp.path().join("maildir"));
         std::env::set_var("MAILRS_LOCAL_DOMAINS", "golia.example");
         std::env::set_var("MAILRS_ANTISPAM_ENABLED", "false");
-        std::env::set_var("MAILRS_PORT", smtp_port.to_string());
-        std::env::set_var("MAILRS_SUBMISSION_PORT", submission_port.to_string());
-        std::env::set_var("MAILRS_SMTPS_PORT", free_port().to_string());
+        std::env::set_var("MAILRS_PORT", "0");
+        std::env::set_var("MAILRS_SUBMISSION_PORT", "0");
+        std::env::set_var("MAILRS_SMTPS_PORT", "0");
         std::env::set_var("MAILRS_HOSTNAME", "mx.example.test");
     }
-    tokio::spawn(mailrs_receiver::run());
+    // Hold the in-process kevy open before the receiver opens it: its first
+    // opens race, and two racing opens of one mem:// name can each get a store.
+    let _kevy = kevy_client::Connection::connect(KEVY).unwrap();
+    let receiver = mailrs_receiver::start().await;
 
-    let mut smtp = Smtp::connect(smtp_port).await;
+    let mut smtp = Smtp::connect(receiver.smtp.port()).await;
     let r = smtp.rcpt("nobody@golia.example").await;
     assert_eq!(r, "550 5.1.1 <nobody@golia.example>: no such user");
     let r = smtp.rcpt("bob@golia.example").await;
@@ -166,7 +159,7 @@ async fn unknown_local_recipients_are_refused_at_rcpt() {
     assert!(r.starts_with("550 5.7.1"), "{r}");
 
     // a signed-in sender gets the same answer for a local address
-    let mut sub = Smtp::connect(submission_port).await;
+    let mut sub = Smtp::connect(receiver.submission.port()).await;
     let plain = base64::engine::general_purpose::STANDARD.encode(b"\0bob@golia.example\0pw");
     let r = sub.last(&format!("AUTH PLAIN {plain}")).await;
     assert!(r.starts_with("235"), "{r}");

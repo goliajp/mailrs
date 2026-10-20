@@ -23,14 +23,6 @@ const WORD: &str = "zebrafinch";
 const PROBE: &str = "probe-attachment-offer";
 const OFFER: &str = "the sum of US$10,200,000.00 split equally, 50% apiece";
 
-fn free_port() -> u16 {
-    std::net::TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap()
-        .port()
-}
-
 /// A one-page PDF whose only text is `text`, in Helvetica.
 fn pdf(text: &str) -> Vec<u8> {
     let mut doc = Document::with_version("1.5");
@@ -220,7 +212,6 @@ async fn a_word_inside_a_pdf_finds_the_conversation() {
     let tmp = tempfile::tempdir().unwrap();
     let maildir = tmp.path().join("maildir");
     let incoming = tmp.path().join("spool/incoming/new");
-    let smtp_port = free_port();
 
     let mailbox = mailrs_mailbox_kevy::KevyMailboxStore::new(Arc::new(
         kevy_embedded::Store::open(kevy_embedded::Config::default()).unwrap(),
@@ -261,19 +252,22 @@ async fn a_word_inside_a_pdf_finds_the_conversation() {
         std::env::set_var("MAILRS_MAILDIR", &maildir);
         std::env::set_var("MAILRS_LOCAL_DOMAINS", "golia.example");
         std::env::set_var("MAILRS_ANTISPAM_ENABLED", "false");
-        std::env::set_var("MAILRS_PORT", smtp_port.to_string());
-        std::env::set_var("MAILRS_SUBMISSION_PORT", free_port().to_string());
-        std::env::set_var("MAILRS_SMTPS_PORT", free_port().to_string());
+        std::env::set_var("MAILRS_PORT", "0");
+        std::env::set_var("MAILRS_SUBMISSION_PORT", "0");
+        std::env::set_var("MAILRS_SMTPS_PORT", "0");
         std::env::set_var("MAILRS_HOSTNAME", "mx.example.test");
         std::env::set_var("MAILRS_FRAUD_RULES_FILE", &rules);
         // OCR off, so the corrupt PDF fails here rather than going to a
         // renderer; the OCR path has its own test
         std::env::set_var("MAILRS_OCR_BIN", "/nonexistent/mailrs-fastcore-ocr");
     }
-    tokio::spawn(mailrs_receiver::run());
+    // Hold the in-process kevy open before the receiver opens it: its first
+    // opens race, and two racing opens of one mem:// name can each get a store.
+    let _kevy = kevy_client::Connection::connect(KEVY).unwrap();
+    let receiver = mailrs_receiver::start().await;
 
     let good = pdf(&format!("contract {WORD}: {OFFER}"));
-    let mut smtp = Smtp::connect(smtp_port).await;
+    let mut smtp = Smtp::connect(receiver.smtp.port()).await;
     assert!(smtp.cmd("EHLO sender.example.org").await.starts_with("250"));
     smtp.send(
         BOB,

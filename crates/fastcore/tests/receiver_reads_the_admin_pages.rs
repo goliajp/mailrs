@@ -15,14 +15,6 @@ use tokio::net::TcpStream;
 const KEVY: &str = "mem://receiver-reads-the-admin-pages";
 const LIMIT: usize = 2048;
 
-fn free_port() -> u16 {
-    std::net::TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap()
-        .port()
-}
-
 struct Smtp {
     reader: BufReader<tokio::net::tcp::OwnedReadHalf>,
     writer: tokio::net::tcp::OwnedWriteHalf,
@@ -91,7 +83,6 @@ impl Smtp {
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn the_receiver_takes_store_domains_and_the_stored_size_limit() {
     let tmp = tempfile::tempdir().unwrap();
-    let smtp_port = free_port();
 
     let mailbox = mailrs_mailbox_kevy::KevyMailboxStore::new(Arc::new(
         kevy_embedded::Store::open(kevy_embedded::Config::default()).unwrap(),
@@ -123,14 +114,17 @@ async fn the_receiver_takes_store_domains_and_the_stored_size_limit() {
         std::env::set_var("MAILRS_MAILDIR", tmp.path().join("maildir"));
         std::env::set_var("MAILRS_LOCAL_DOMAINS", "golia.example");
         std::env::set_var("MAILRS_ANTISPAM_ENABLED", "false");
-        std::env::set_var("MAILRS_PORT", smtp_port.to_string());
-        std::env::set_var("MAILRS_SUBMISSION_PORT", free_port().to_string());
-        std::env::set_var("MAILRS_SMTPS_PORT", free_port().to_string());
+        std::env::set_var("MAILRS_PORT", "0");
+        std::env::set_var("MAILRS_SUBMISSION_PORT", "0");
+        std::env::set_var("MAILRS_SMTPS_PORT", "0");
         std::env::set_var("MAILRS_HOSTNAME", "mx.example.test");
     }
-    tokio::spawn(mailrs_receiver::run());
+    // Hold the in-process kevy open before the receiver opens it: its first
+    // opens race, and two racing opens of one mem:// name can each get a store.
+    let _kevy = kevy_client::Connection::connect(KEVY).unwrap();
+    let receiver = mailrs_receiver::start().await;
 
-    let mut smtp = Smtp::connect(smtp_port).await;
+    let mut smtp = Smtp::connect(receiver.smtp.port()).await;
     let ehlo = smtp.cmd("EHLO sender.example.org").await;
     assert!(
         ehlo.iter().any(|l| l.ends_with(&format!("SIZE {LIMIT}"))),
