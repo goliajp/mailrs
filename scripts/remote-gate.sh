@@ -33,10 +33,18 @@ git archive --format=tar "$SHA" | gzip -1 | ssh "$HOST" "set -e
   rsync -rlpD --checksum --delete --exclude /target/ '$DIR.stage/' '$DIR/'
   rm -rf '$DIR.stage'"
 
-ssh "$HOST" bash -s <<EOF
+# Two time limits, because nothing else ends a hung run: on 2026-10-18 a
+# test binary spun for two and a half days, and its run outlived the ssh
+# session that started it. Each test binary gets 10 minutes (the slowest
+# took 26 s on a busy runner, 2026-10-21); the whole gate gets 90, enough
+# for a cold build of the workspace. timeout kills its process group, so
+# cargo and the tests it started go with it.
+ssh "$HOST" timeout --kill-after=30 90m bash -s <<EOF
 set -euo pipefail
 cd '$DIR'
 source ~/.cargo/env
+triple=\$(rustc -vV | sed -n 's/^host: //p' | tr 'a-z-' 'A-Z_')
+export "CARGO_TARGET_\${triple}_RUNNER=timeout --kill-after=30 10m"
 
 # testcontainers goes through bollard, which does not pick up the
 # credentials the Docker CLI has, so a cold pull fails with

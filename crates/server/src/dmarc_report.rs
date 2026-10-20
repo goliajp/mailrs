@@ -120,8 +120,9 @@ pub fn spawn_daily_report_task(
                     }
                     let _ = store.cleanup_old(90).await;
                 }
-                _ = shutdown.changed() => {
-                    if *shutdown.borrow() {
+                // Err: the sender is gone; it stays ready, so looping on would spin
+                changed = shutdown.changed() => {
+                    if changed.is_err() || *shutdown.borrow() {
                         return;
                     }
                 }

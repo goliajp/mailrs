@@ -379,8 +379,9 @@ pub async fn reload_task(store: Arc<SystemConfigStore>, mut shutdown: watch::Rec
                     tracing::warn!("system config reload failed: {e}");
                 }
             }
-            _ = shutdown.changed() => {
-                if *shutdown.borrow() {
+            // Err: the sender is gone; it stays ready, so looping on would spin
+            changed = shutdown.changed() => {
+                if changed.is_err() || *shutdown.borrow() {
                     break;
                 }
             }
