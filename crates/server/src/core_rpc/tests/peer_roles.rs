@@ -11,7 +11,9 @@
 //!   binding :25 is one bind error and one silent winner; two draining the
 //!   outbound queue is a message going out twice.
 //!
-//! Both are properties of `boot.rs`'s text, so that is what this reads.
+//! Both are properties of the boot sequence's text, so that is what this
+//! reads: `boot.rs` and every file under `boot/`. A file added there must be
+//! added to [`BOOT_RS`] too, or a spawn moved into it goes unseen.
 //! `CARGO_MANIFEST_DIR`, not a path relative to this file: the predecessor of
 //! this test `include_str!`'d `../../../fastcore/src/lib.rs`, which resolved
 //! to a directory that has never existed, and it went unnoticed because the
@@ -19,7 +21,22 @@
 
 #![cfg(feature = "core-rpc")]
 
-const BOOT_RS: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/boot.rs"));
+const BOOT_RS: &str = concat!(
+    include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/boot.rs")),
+    include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/boot/background.rs"
+    )),
+    include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/boot/context.rs")),
+    include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/boot/startup.rs")),
+);
+
+#[test]
+fn every_boot_file_is_read() {
+    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/src/boot");
+    let files = std::fs::read_dir(dir).expect("boot/").count();
+    assert_eq!(files, 3, "a file was added to boot/; add it to BOOT_RS");
+}
 
 /// The spawns the peer must not perform, each with the process that owns it.
 const OWNED_ELSEWHERE: &[(&str, &str)] = &[
