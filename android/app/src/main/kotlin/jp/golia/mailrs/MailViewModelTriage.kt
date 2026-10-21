@@ -170,6 +170,30 @@ fun MailViewModel.toggleStar(conversation: Wire.Conversation) {
 }
 
 /**
+ * Mark the thread being read unread and go back to the list.
+ *
+ * Not a triage: the thread stays in the list it was opened from, now
+ * unread, so it changes in place and the server is told at once, as a
+ * star is. Filed with the triage verbs it left the inbox until the next
+ * refresh, which reads as the mail having been archived.
+ */
+fun MailViewModel.markOpenThreadUnread() {
+    val conversation = _state.value.open ?: return
+    closeThread()
+    fun withUnread(state: UiState, unread: Int) = state.copy(
+        conversations = state.conversations.map {
+            if (it.threadId == conversation.threadId) it.copy(unreadCount = unread) else it
+        },
+    )
+    _state.update { withUnread(it, maxOf(1, conversation.unreadCount)) }
+    viewModelScope.launch {
+        if (client.batch(MailrsClient.Verb.Unread, listOf(conversation.threadId)) is MailrsClient.Outcome.Err) {
+            _state.update { withUnread(it, conversation.unreadCount) }
+        }
+    }
+}
+
+/**
  * File the thread being read and go back to the list.
  *
  * The same deferred triage a swipe uses, so the undo snackbar on the
