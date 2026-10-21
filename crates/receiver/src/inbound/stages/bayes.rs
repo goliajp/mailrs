@@ -18,9 +18,7 @@ use mailrs_inbound::{ReceiveContext, Stage, StageOutcome};
 
 use crate::kevy_net::KevyNetClient;
 
-const K_SPAM: &[u8] = b"bayes:tokens:spam";
-const K_HAM: &[u8] = b"bayes:tokens:ham";
-const K_META: &[u8] = b"bayes:meta";
+use mailrs_triage::spam::{HAM_TOKENS as K_HAM, META as K_META, SPAM_TOKENS as K_SPAM};
 
 /// Bayesian classifier stage. Holds a network-kevy client to read the
 /// token corpus. If no client is wired (kevy URL unset), the stage is

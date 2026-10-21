@@ -17,47 +17,7 @@ use mailrs_intelligence::importance::{self, ContactFacts, MessageFacts};
 
 use crate::FastcoreState;
 
-/// Strip a display-name wrapper down to the bare address, lowercased.
-fn bare_address(token: &str) -> String {
-    let t = token.trim();
-    let bare = match (t.rfind('<'), t.rfind('>')) {
-        (Some(open), Some(close)) if close > open + 1 => &t[open + 1..close],
-        _ => t,
-    };
-    bare.trim().to_lowercase()
-}
-
-/// First bare email address in a `senders_csv` value, lowercased.
-///
-/// The csv carries display-name forms (`Alice <a@x.com>, b@y.com`); the
-/// contact hashes are keyed by the bare address.
-fn first_address(senders_csv: &str) -> String {
-    bare_address(senders_csv.split(',').next().unwrap_or(""))
-}
-
-/// Every bare address in a csv field, lowercased, empties dropped.
-fn all_addresses(csv: &str) -> Vec<String> {
-    csv.split(',')
-        .map(bare_address)
-        .filter(|a| !a.is_empty() && a.contains('@'))
-        .collect()
-}
-
-/// First address in a participant union that is not the user.
-///
-/// `senders_csv` is a participant **union**, not "latest sender" — once
-/// the user replies, their own address is in it, and on a thread the
-/// user started theirs is first. Engagement has to be attributed to the
-/// correspondent, so picking `[0]` blindly would credit the user's own
-/// address on exactly the threads that matter most (the ones they
-/// replied to).
-fn first_other_address(senders_csv: &str, user: &str) -> String {
-    let me = user.trim().to_lowercase();
-    all_addresses(senders_csv)
-        .into_iter()
-        .find(|a| *a != me)
-        .unwrap_or_default()
-}
+use mailrs_core_sidestate::families::correspondent::{all_addresses, first_address};
 
 /// Message-shape signals, all from `mailrs-clean` pure helpers.
 ///
@@ -310,20 +270,16 @@ pub(crate) fn record_engagement(
     let Ok(Some(row)) = state.mailbox.get_thread(thread_id) else {
         return;
     };
-    // Attribute to the correspondent, never to the user themselves — a
-    // thread the user started has their own address first in the union.
-    // An all-self thread yields nothing and is skipped.
-    let sender = first_other_address(&row.senders_csv, user);
-    if sender.is_empty() {
-        return;
-    }
     let Some(mut conn) = state.net_conn() else {
         return;
     };
-    if let Err(e) = mailrs_core_sidestate::families::contacts::record_engagement(
-        &mut conn, user, &sender, event,
+    if let Err(e) = mailrs_core_sidestate::families::correspondent::record_thread_engagement(
+        &mut conn,
+        user,
+        &row.senders_csv,
+        event,
     ) {
-        tracing::warn!(error = %e, %user, %sender, "engagement not recorded");
+        tracing::warn!(error = %e, %user, %thread_id, "engagement not recorded");
     }
 }
 
@@ -474,52 +430,6 @@ mod tests {
                  suffix a read message carries"
             );
         }
-    }
-
-    #[test]
-    fn engagement_attributes_to_the_correspondent_not_the_user() {
-        let me = "lihao@golia.jp";
-        // Thread the user started: their address comes first in the
-        // union, but the signal belongs to the other party.
-        assert_eq!(
-            first_other_address("lihao@golia.jp, Alice <alice@x.com>", me),
-            "alice@x.com"
-        );
-        // Thread someone else started and the user replied to.
-        assert_eq!(
-            first_other_address("Alice <alice@x.com>, lihao@golia.jp", me),
-            "alice@x.com"
-        );
-        // Case-insensitive on the user's own address.
-        assert_eq!(
-            first_other_address("LIHAO@GOLIA.JP, bob@y.com", me),
-            "bob@y.com"
-        );
-        // Nothing but the user → no correspondent to credit.
-        assert_eq!(first_other_address("lihao@golia.jp", me), "");
-        assert_eq!(first_other_address("", me), "");
-    }
-
-    #[test]
-    fn all_addresses_splits_and_normalises() {
-        assert_eq!(
-            all_addresses("Alice <A@X.com>, bob@y.com"),
-            vec!["a@x.com".to_string(), "bob@y.com".to_string()]
-        );
-        // Junk tokens without an '@' must not become contact keys.
-        assert_eq!(
-            all_addresses("undisclosed-recipients:;"),
-            Vec::<String>::new()
-        );
-        assert_eq!(all_addresses(""), Vec::<String>::new());
-    }
-
-    #[test]
-    fn extracts_bare_address_from_display_form() {
-        assert_eq!(first_address("Alice <A@X.com>"), "a@x.com");
-        assert_eq!(first_address("b@y.com"), "b@y.com");
-        assert_eq!(first_address("Alice <a@x.com>, bob@y.com"), "a@x.com");
-        assert_eq!(first_address(""), "");
     }
 
     #[test]

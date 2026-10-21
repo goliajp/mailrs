@@ -18,9 +18,7 @@ use std::sync::Arc;
 
 use crate::FastcoreState;
 
-const K_SPAM: &[u8] = b"bayes:tokens:spam";
-const K_HAM: &[u8] = b"bayes:tokens:ham";
-const K_META: &[u8] = b"bayes:meta";
+use mailrs_triage::spam::META as K_META;
 
 /// "Every row", for the declared queries that take a limit.
 ///
@@ -29,16 +27,6 @@ const K_META: &[u8] = b"bayes:meta";
 /// silent cap here would seed the corpus from an arbitrary slice while
 /// reporting the count it happened to reach.
 const ALL: usize = usize::MAX;
-const TRAINED_TTL_SECS: i64 = 90 * 24 * 3600;
-
-// v2.8.1 spam-corpus reservoir: permanent per-thread membership sets,
-// keyed by training direction. Unlike the Junk *folder* zset (which the
-// 30-day junk_ttl sweep expunges), these are never TTL'd — they are the
-// durable roster of the training corpus, so a future full retrain (after
-// a tokenizer change) or a cold-start rebuild always has the source
-// thread list. `user` is folded in so a per-user retrain is possible.
-const K_CORPUS_SPAM: &[u8] = b"bayes:corpus:spam";
-const K_CORPUS_HAM: &[u8] = b"bayes:corpus:ham";
 
 /// Train the classifier on one thread. `is_spam=true` learns it as
 /// spam, `false` as ham. Idempotent + reversible: if the thread was
@@ -52,65 +40,11 @@ pub fn train_thread(state: &Arc<FastcoreState>, user: &str, thread_id: &str, is_
     if raws.is_empty() {
         return;
     }
-    // Union of tokens across the thread's messages — one training
-    // sample per thread (a thread is one spam/ham decision, not N).
-    let mut tokens: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
-    for raw in &raws {
-        tokens.extend(mailrs_bayes::tokenize(raw));
-    }
-    if tokens.is_empty() {
-        return;
-    }
-
     let Some(mut conn) = state.net_conn() else {
         tracing::warn!("bayes train: no network kevy connection");
         return;
     };
-    let trained_key = format!("bayes:trained:{thread_id}");
-
-    // Reconcile prior training direction: read the last-trained marker.
-    let prior = conn
-        .get(trained_key.as_bytes())
-        .ok()
-        .flatten()
-        .and_then(|v| String::from_utf8(v).ok());
-    let now_dir = if is_spam { "spam" } else { "ham" };
-    if prior.as_deref() == Some(now_dir) {
-        // Already trained this way — refresh TTL and return.
-        set_trained_marker(&mut conn, thread_id, now_dir);
-        return;
-    }
-
-    let token_list: Vec<&str> = tokens.iter().map(String::as_str).collect();
-
-    // Unlearn the opposite direction if this thread was trained before.
-    if let Some(prev) = prior.as_deref() {
-        let prev_spam = prev == "spam";
-        adjust_tokens(&mut conn, &token_list, prev_spam, -1);
-        adjust_meta(&mut conn, prev_spam, -1);
-        // Move the thread out of the old reservoir set.
-        let old_set = if prev_spam {
-            K_CORPUS_SPAM
-        } else {
-            K_CORPUS_HAM
-        };
-        let _ = conn.srem(old_set, &[thread_id.as_bytes()]);
-    }
-
-    // Learn the new direction.
-    adjust_tokens(&mut conn, &token_list, is_spam, 1);
-    adjust_meta(&mut conn, is_spam, 1);
-    let new_set = if is_spam { K_CORPUS_SPAM } else { K_CORPUS_HAM };
-    let _ = conn.sadd(new_set, &[thread_id.as_bytes()]);
-    set_trained_marker(&mut conn, thread_id, now_dir);
-
-    tracing::info!(
-        %user,
-        %thread_id,
-        is_spam,
-        tokens = token_list.len(),
-        "bayes: trained thread"
-    );
+    mailrs_triage::spam::train(&mut conn, thread_id, &raws, is_spam);
 }
 
 /// v2.9 triage — train the shared multi-class triage corpus on a
@@ -126,18 +60,10 @@ pub fn train_triage(state: &Arc<FastcoreState>, user: &str, thread_id: &str, cla
     if raws.is_empty() {
         return;
     }
-    let mut tokens: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
-    for raw in &raws {
-        tokens.extend(mailrs_bayes::tokenize(raw));
-    }
-    if tokens.is_empty() {
-        return;
-    }
     let Some(mut conn) = state.net_conn() else {
         return;
     };
-    let toks: Vec<String> = tokens.into_iter().collect();
-    mailrs_triage::train(&mut conn, &toks, class, thread_id);
+    mailrs_triage::spam::train_class(&mut conn, thread_id, &raws, class);
 }
 
 /// v2.9 triage — classify a raw message into a triage bucket category
@@ -303,37 +229,6 @@ pub fn backfill_triage(state: &Arc<FastcoreState>, user: &str) -> (u64, u64, u64
     }
     tracing::info!(%user, n_inbox, n_notif, n_promo, "triage backfill complete");
     (n_inbox, n_notif, n_promo)
-}
-
-/// HINCRBY every token in the given corpus hash by `delta` (+1 learn,
-/// -1 unlearn). Clamps to >= 0 is NOT applied here — kevy has no
-/// atomic clamp; a stray negative is harmless (classify treats counts
-/// as u32 via saturating parse) and self-corrects on the next learn.
-fn adjust_tokens(conn: &mut kevy_client::Connection, tokens: &[&str], spam: bool, delta: i64) {
-    let key = if spam { K_SPAM } else { K_HAM };
-    let delta_s = delta.to_string();
-    let _ = conn.pipeline(|p| {
-        for t in tokens {
-            p.cmd(&[b"HINCRBY", key, t.as_bytes(), delta_s.as_bytes()]);
-        }
-    });
-}
-
-fn adjust_meta(conn: &mut kevy_client::Connection, spam: bool, delta: i64) {
-    let field: &[u8] = if spam { b"spam_msgs" } else { b"ham_msgs" };
-    let delta_s = delta.to_string();
-    let _ = conn.pipeline(|p| {
-        p.cmd(&[b"HINCRBY", K_META, field, delta_s.as_bytes()]);
-    });
-}
-
-fn set_trained_marker(conn: &mut kevy_client::Connection, thread_id: &str, dir: &str) {
-    let key = format!("bayes:trained:{thread_id}");
-    let _ = conn.set(key.as_bytes(), dir.as_bytes());
-    let _ = conn.expire(
-        key.as_bytes(),
-        std::time::Duration::from_secs(TRAINED_TTL_SECS as u64),
-    );
 }
 
 /// Read every raw message file backing a thread. Resolves each
