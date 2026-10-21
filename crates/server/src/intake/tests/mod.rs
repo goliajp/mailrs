@@ -36,6 +36,11 @@ pub(super) struct Fixture {
 
 impl Fixture {
     pub async fn new() -> Self {
+        Self::with_net(None).await
+    }
+
+    /// A fixture whose core reaches the network kevy at `net`.
+    pub async fn with_net(net: Option<&str>) -> Self {
         let pool = spg_sqlx::SpgPool::connect_in_memory()
             .await
             .expect("open in-memory spg");
@@ -53,7 +58,7 @@ impl Fixture {
             crate::health::HealthState::new(),
         ));
         let core = Arc::new(PgCore {
-            dir: PgDirectory::new(domain, root, None),
+            dir: PgDirectory::new(domain, root, net.map(str::to_string)),
             mailbox,
             event_bus,
         });

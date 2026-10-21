@@ -49,14 +49,7 @@ fn deliverable(state: &Arc<FastcoreState>, maildir_root: &str, raw: &str) -> io:
         return Ok(true);
     }
     Ok(!matches!(
-        route(
-            &Fastcore {
-                state,
-                maildir_root
-            },
-            raw,
-            &fwd
-        )?,
+        route(&Fastcore::new(state, maildir_root), raw, &fwd)?,
         Route::Nobody
     ))
 }

@@ -9,14 +9,23 @@ use mailrs_intake::route::Directory;
 
 use crate::FastcoreState;
 
-pub(crate) struct Fastcore<'a> {
-    pub state: &'a Arc<FastcoreState>,
-    pub maildir_root: &'a str,
+pub(crate) struct Fastcore {
+    pub state: Arc<FastcoreState>,
+    pub maildir_root: String,
 }
 
-impl Directory for Fastcore<'_> {
+impl Fastcore {
+    pub fn new(state: &Arc<FastcoreState>, maildir_root: &str) -> Self {
+        Self {
+            state: state.clone(),
+            maildir_root: maildir_root.to_string(),
+        }
+    }
+}
+
+impl Directory for Fastcore {
     fn maildir_root(&self) -> &str {
-        self.maildir_root
+        &self.maildir_root
     }
 
     fn is_account(&self, addr: &str) -> io::Result<bool> {
@@ -38,6 +47,6 @@ impl Directory for Fastcore<'_> {
     }
 
     fn local_domains(&self) -> Arc<Vec<String>> {
-        super::relay::local_domains(self.state)
+        super::relay::local_domains(&self.state)
     }
 }

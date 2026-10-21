@@ -92,9 +92,13 @@ fn spawn_spool_drain(
     // the drain queues webhooks for arriving mail on the network kevy; this
     // core sends them, as the kevy core does
     if let Some(url) = core.dir.net_url.clone() {
+        let net = url.clone();
         tokio::spawn(mailrs_intake::webhook_delivery::run(Arc::new(move || {
-            kevy_client::Connection::connect(&url).ok()
+            kevy_client::Connection::connect(&net).ok()
         })));
+        // DSNs from the sender and simulated replies for local senders are
+        // handed over on the network kevy; this core delivers them
+        mailrs_intake::notice::spawn_drain(core.clone(), url);
     }
     crate::intake::spawn_drain(
         core,

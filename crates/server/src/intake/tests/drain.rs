@@ -58,3 +58,27 @@ async fn an_undecodable_file_is_kept() {
     assert_eq!(f.tick().await, 0);
     assert!(file.exists());
 }
+
+/// A message handed over on the bounce queue — a DSN from the sender, a
+/// simulated reply — lands in the local sender's INBOX here too.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_queued_bounce_reaches_the_senders_inbox() {
+    const NET: &str = "mem://pg-intake-bounce-queue";
+    let mut keep = kevy_client::Connection::connect(NET).expect("kevy");
+    let f = Fixture::with_net(Some(NET)).await;
+    f.account("alice@example.com").await;
+    let dsn = b"From: Mail Delivery System <MAILER-DAEMON@example.com>\r\n\
+To: <alice@example.com>\r\n\
+Subject: Undelivered Mail Returned to Sender\r\n\
+Message-ID: <dsn-1@example.com>\r\n\
+\r\n\
+gone@remote.example could not be reached\r\n";
+    mailrs_intake::notice::enqueue_notice(&mut keep, "alice@example.com", dsn).expect("queue");
+
+    let core = f.core.clone();
+    tokio::task::spawn_blocking(move || mailrs_intake::notice::drain_one(&*core, NET))
+        .await
+        .expect("drain");
+    let subject = "Undelivered Mail Returned to Sender";
+    assert!(f.row("alice@example.com", subject).await.is_some());
+}
