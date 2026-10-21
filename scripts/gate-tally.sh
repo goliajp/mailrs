@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
-# Sum the test results in the remote gate's log, and check the sum against
-# the tests the binaries said they were running. Pass or fail is decided by
-# exit status; this is what the deploy prints.
+# Sum the test results in the remote gate's output, and check the sum
+# against the tests the binaries said they were running. Pass or fail is
+# decided by exit status; this is what the deploy prints.
 #
-# The log merges cargo's stderr with the test binaries' stdout, and libtest
-# writes a result line in pieces, so cargo's "Running ..." line can land in
-# the middle of one:
+# Give it the gate's stdout alone. Merged with stderr, cargo's "Running ..."
+# lines land in the middle of result lines, which libtest writes in pieces:
 #
 #   test result: ok     Running tests/request_contract_admin.rs (...)
 #   . 13 passed; 0 failed; ...
 #
-# Those status lines are taken out before matching, which puts the result
-# line back together. Counting without that once came out 13 short.
+# Status lines found mid-line are still taken out before matching, for a
+# merged log read by hand, but that does not catch every split; it was 2
+# short again on 2026-10-21, which the check below reported.
 #
-#   scripts/gate-tally.sh <log>
+#   scripts/gate-tally.sh <stdout-log>
 set -euo pipefail
 
 perl -0pe 's/ {3,}(?:Running|Doc-tests) [^\n]*\n//g' "$1" | perl -ne '
