@@ -192,9 +192,6 @@ pub(crate) async fn deliver_message(
         return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
 
-    // Side sink so contacts autocomplete stays live on webapi-
-    // driven deliveries (mirror-send, forward-into-thread, etc.).
-    let _ = state.notify.send(user.clone());
     crate::live_sync::publish_new_mail(
         &user,
         &thread_id,

@@ -97,6 +97,13 @@ pub enum SmtpEvent {
     },
 }
 
+/// The kevy pub/sub channel the events that [cross processes] are
+/// published on, each wrapped as `{"origin": .., "event": ..}`. The
+/// receiver publishes; fastcore's spool drain wakes on `SpoolDelivered`.
+///
+/// [cross processes]: SmtpEvent::crosses_process
+pub const NOTIFY_CHANNEL: &[u8] = b"notify:new-mail";
+
 impl SmtpEvent {
     /// Whether this event is worth publishing to a shared kevy-server
     /// for cross-process delivery (receiver-split topology). Only the
