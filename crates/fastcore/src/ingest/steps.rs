@@ -3,60 +3,6 @@
 use std::sync::Arc;
 
 use crate::FastcoreState;
-use crate::headers::resolve_thread_by_ancestry;
-
-/// The conversation this message belongs to.
-pub(super) fn thread_root(
-    state: &Arc<FastcoreState>,
-    addr: &str,
-    message_id: &str,
-    in_reply_to: &str,
-    references: &[String],
-    subject: &str,
-) -> String {
-    // v2.9.5 threading fix — prefer the thread an ancestor actually
-    // landed in (msgid index) over deriving one from raw headers.
-    // References[0] is NOT a stable conversation root (each hop can
-    // rewrite it), which is how conversations fragmented.
-    match resolve_thread_by_ancestry(state, addr, message_id, in_reply_to, references, subject) {
-        Some(tid) => tid,
-        None => {
-            if let Some(first) = references.first() {
-                first.clone()
-            } else if !in_reply_to.is_empty() {
-                in_reply_to.to_string()
-            } else {
-                message_id.to_string()
-            }
-        }
-    }
-}
-
-/// The per-thread category the arrival is filed under.
-pub(super) fn arrival_category(
-    state: &Arc<FastcoreState>,
-    target_folder: &str,
-    body: &[u8],
-) -> &'static str {
-    // v2.4.0 Phase 2 (RFC-A) — plumb the SMTP-level target_folder
-    // decision (from `crates/receiver/src/smtp_session/events/data/antispam.rs`
-    // where DeliveryDecision::Junk yields target_folder="Junk") into the
-    // per-thread category. mailbox-kevy's `upsert_thread` reads
-    // `category ∈ {"spam", "scam"}` as the Junk-zset trigger, so
-    // stamping "spam" here makes the antispam verdict actually route
-    // to the Junk folder on the read side. Any sieve fileinto target
-    // that maps to "Junk" is treated the same. Everything else
-    // (INBOX / custom sieve folders) keeps category="inbox".
-    // v2.9 triage — non-junk mail is further sorted into
-    // inbox/notification/promotion by the multi-class Bayes classifier
-    // (`bucket_of` then routes it to the matching folder zset).
-    // Cold-start / low-confidence → "inbox".
-    if target_folder.eq_ignore_ascii_case("junk") {
-        "spam"
-    } else {
-        crate::bayes_train::classify_triage(state, body).unwrap_or("inbox")
-    }
-}
 
 /// Bump the mailbox modseq, then allocate and record this message's UID.
 pub(super) fn assign_uid(

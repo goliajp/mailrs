@@ -1,9 +1,7 @@
-//! The webhook delivery loop.
+//! Webhooks for arriving mail: queued at ingest, POSTed by this loop.
 //!
-//! A user could create a subscription and nothing would ever fire: the
-//! monolith had a worker over 316 lines of SQL and the lane production runs
-//! had neither queue nor worker. The queue is
-//! `core_sidestate::families::webhook_outbox`; this drains it.
+//! The queue is `core_sidestate::families::webhook_outbox` on the network
+//! kevy, so whichever core is running drains it.
 //!
 //! Claiming is exclusive (a `zrem` that either removes the member or does
 //! not), so running more than one of these does not double-POST. The loop
@@ -14,8 +12,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use mailrs_core_sidestate::families::{webhook_outbox, webhooks};
-
-use crate::FastcoreState;
 
 /// Delivery attempts running at once.
 const CONCURRENCY: usize = 8;
@@ -33,8 +29,50 @@ fn now_secs() -> i64 {
         .unwrap_or(0)
 }
 
+/// A way to reach the network kevy; `None` when it is not configured or
+/// cannot be reached.
+pub type NetConn = Arc<dyn Fn() -> Option<kevy_client::Connection> + Send + Sync>;
+
+/// Queue a delivery for every subscription that admits this message.
+///
+/// Best-effort by design: a webhook that cannot be queued must not fail the
+/// delivery of the mail itself. Failures are logged rather than swallowed.
+pub fn enqueue_for_arrival(
+    net: Option<kevy_client::Connection>,
+    user: &str,
+    thread_id: &str,
+    sender: &str,
+    subject: &str,
+) {
+    let Some(mut conn) = net else {
+        return;
+    };
+    let subs = match webhooks::matching(&mut conn, user, sender, thread_id) {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::warn!(err = %e, %user, "webhook: could not read subscriptions");
+            return;
+        }
+    };
+    if subs.is_empty() {
+        return;
+    }
+    let now = now_secs();
+    let timestamp = chrono::DateTime::from_timestamp(now, 0)
+        .map(|t| t.to_rfc3339())
+        .unwrap_or_default();
+    let payload =
+        webhooks::new_message_payload(user, thread_id, sender, subject, "", &timestamp).to_string();
+    for sub in subs {
+        match webhook_outbox::enqueue(&mut conn, sub.id, user, &payload, now) {
+            Ok(id) => tracing::info!(entry = id, subscription = sub.id, "webhook queued"),
+            Err(e) => tracing::warn!(err = %e, subscription = sub.id, "webhook: enqueue failed"),
+        }
+    }
+}
+
 /// Poll and deliver until the process ends.
-pub async fn spawn(state: Arc<FastcoreState>) {
+pub async fn run(net: NetConn) {
     let client = match reqwest::Client::builder()
         .timeout(Duration::from_secs(10))
         .connect_timeout(Duration::from_secs(5))
@@ -53,7 +91,7 @@ pub async fn spawn(state: Arc<FastcoreState>) {
     tracing::info!("webhook delivery started");
     let mut idle_rounds = 0u32;
     loop {
-        let delivered = drain_once(&state, &client).await;
+        let delivered = drain_once(&net, &client).await;
         idle_rounds = match delivered {
             0 => idle_rounds.saturating_add(1),
             _ => 0,
@@ -66,8 +104,8 @@ pub async fn spawn(state: Arc<FastcoreState>) {
 }
 
 /// One pass. Returns how many entries were attempted.
-async fn drain_once(state: &Arc<FastcoreState>, client: &reqwest::Client) -> usize {
-    let Some(mut conn) = state.net_conn() else {
+async fn drain_once(net: &NetConn, client: &reqwest::Client) -> usize {
+    let Some(mut conn) = net() else {
         return 0;
     };
     let now = now_secs();
@@ -87,11 +125,11 @@ async fn drain_once(state: &Arc<FastcoreState>, client: &reqwest::Client) -> usi
     let mut handles = Vec::new();
     for entry in entries {
         let permit = semaphore.clone().acquire_owned().await;
-        let state = state.clone();
+        let net = net.clone();
         let client = client.clone();
         handles.push(tokio::spawn(async move {
             let _permit = permit;
-            deliver_one(&state, &client, entry).await;
+            deliver_one(&net, &client, entry).await;
         }));
     }
     for h in handles {
@@ -102,12 +140,8 @@ async fn drain_once(state: &Arc<FastcoreState>, client: &reqwest::Client) -> usi
 }
 
 /// Look up the subscription, sign, POST, and record what happened.
-async fn deliver_one(
-    state: &Arc<FastcoreState>,
-    client: &reqwest::Client,
-    entry: webhook_outbox::OutboxEntry,
-) {
-    let Some(mut conn) = state.net_conn() else {
+async fn deliver_one(net: &NetConn, client: &reqwest::Client, entry: webhook_outbox::OutboxEntry) {
+    let Some(mut conn) = net() else {
         return;
     };
     let subs = webhooks::list(&mut conn, &entry.account_address).unwrap_or_default();

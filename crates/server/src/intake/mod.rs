@@ -13,6 +13,8 @@ use mailrs_intake::spool::SpoolDirs;
 
 mod core;
 mod directory;
+mod ingest;
+mod store;
 
 pub(crate) use core::{Delivery, PgCore};
 pub(crate) use directory::PgDirectory;

@@ -1,18 +1,17 @@
-//! Taking mail from the ingest source into the store, and the header
-//! parsing every path through here shares.
+//! Taking mail from the ingest source into the store.
 //!
-//! Split out of `lib.rs` on 2026-08-02. `extract_headers` and
-//! `resolve_thread_by_ancestry` are the two the maildir sweep also calls —
-//! a second copy of either would thread the sweep's repairs differently
-//! from the arrivals they repair, which is the kind of divergence that
-//! only shows up as "these two messages should be one conversation".
+//! What a message says about itself (its id, date, thread, preview, whether
+//! the user wrote it, its category) and what every arrival tells the rest
+//! of the system come from `mailrs_intake`, shared with the SQL core; the
+//! writes to this store are here.
 
 use std::sync::Arc;
 
-use crate::headers::{
-    body_text_for_search, extract_headers, extract_sender_trust, maildir_filename_epoch, sort_date,
-};
-use crate::{FastcoreState, enqueue_webhooks_for_arrival};
+use mailrs_intake::arrival::{Arrival, derive};
+use mailrs_intake::effects;
+
+use crate::FastcoreState;
+use crate::headers::Threads;
 
 mod steps;
 use steps::*;
@@ -24,7 +23,7 @@ use steps::*;
 /// Before this existed the drain wrote ONLY maildir and relied on the
 /// periodic self-heal to surface the message — but self-heal handles
 /// just two shapes (thread hash missing / messages zset empty), so a
-/// reply landing in an EXISTING thread never became visible (G14).
+/// reply landing in an EXISTING thread never became visible.
 /// Self-heal remains the crash-recovery backstop; this is the primary
 /// path.
 pub(crate) fn ingest_delivered_file(
@@ -38,56 +37,41 @@ pub(crate) fn ingest_delivered_file(
     // bounce were never examined, and an absent verdict says so.
     fraud_verdict: Option<&str>,
 ) {
-    let head = &body[..body.len().min(16 * 1024)];
-    let (header_id, in_reply_to, references, subject, date, from, to) = extract_headers(head);
-    // Without a Message-ID the file name supplies one. This returned here
-    // until 2026-10-19 on the belief that self-heal would cover it, but the
-    // sweep skipped such files too: 2,835 messages, nearly all monitoring
-    // alerts, were in the maildir and on IMAP and never on the web.
-    let message_id = crate::file_message_id::message_id_or_file_id(header_id, blob_ref);
-    let bare = blob_ref.rsplit('/').next().unwrap_or(blob_ref);
-    let date = sort_date(date, maildir_filename_epoch(bare)).unwrap_or(0);
-    let root = thread_root(
-        state,
+    let a = derive(
+        &Threads(state),
+        state.net_conn(),
         addr,
-        &message_id,
-        &in_reply_to,
-        &references,
-        &subject,
+        blob_ref,
+        body,
+        target_folder,
     );
-    let is_own = mailrs_mailbox_kevy::senders_csv_contains_user(&from, addr);
-    let unread = !is_own;
-    let category = arrival_category(state, target_folder, body);
-    // The line under the subject in every row of the list. Passed as ""
-    // until 2026-08-09, so every *received* thread showed nothing —
-    // only the outbound send and an importer ever wrote one. The MIME
-    // parse below is the same one the search index already pays for,
-    // hoisted so both readings come out of it.
-    let parsed = mailrs_mime::parse(body);
-    let body_text = body_text_for_search(&parsed);
-    let preview = body_text
-        .as_deref()
-        .map(|t| mailrs_clean::preview_line(t, 120))
-        .unwrap_or_default();
     // Importance follows the latest INBOUND message, like the thread's
     // display fields — the user's own reply must not restate it.
-    if !is_own {
-        crate::importance::score_inbound(state, addr, &root, &from, head, body);
+    if !a.is_own {
+        crate::importance::score_inbound(state, addr, &a.thread_id, &a.from, a.head, body);
     }
-    // Webhook subscriptions filtered to this sender / conversation. The
-    // monolith enqueued here off its event bus; this lane had no
-    // subscriber, so a user's webhook never fired at all.
-    enqueue_webhooks_for_arrival(state, addr, &root, &from, &subject);
-    crate::live_sync::upsert_contacts(addr, &from);
-    crate::live_sync::adjust_usage_bytes(addr, body.len() as i64);
-    let uid = assign_uid(state, addr, bare, &message_id, blob_ref);
+    effects::before_store(state.net_conn(), addr, &a, body.len());
+    let held = store_arrival(state, addr, blob_ref, body, &a, fraud_verdict);
+    effects::after_store(addr, &a, held);
+}
+
+/// The writes to this store. Returns whether the thread was held as fraud.
+fn store_arrival(
+    state: &Arc<FastcoreState>,
+    addr: &str,
+    blob_ref: &str,
+    body: &[u8],
+    a: &Arrival<'_>,
+    fraud_verdict: Option<&str>,
+) -> bool {
+    let bare = blob_ref.rsplit('/').next().unwrap_or(blob_ref);
+    let unread = !a.is_own;
+    let uid = assign_uid(state, addr, bare, &a.message_id, blob_ref);
     // The invitation, if this is one. Read from the whole body rather
-    // than the 16 KB header window above: a calendar part routinely
-    // sits past it, and a window-only extractor finds nothing on
-    // exactly the invites that matter.
+    // than the 16 KB header window: a calendar part routinely sits past it.
     let invite = crate::invites::find(body);
     if let Some(found) = &invite {
-        crate::invites::store(state, &message_id, found);
+        crate::invites::store(state, &a.message_id, found);
         crate::invites::file_event(state, addr, found);
     }
     let wire = mailrs_core_api::method::message::MessageWire {
@@ -95,70 +79,61 @@ pub(crate) fn ingest_delivered_file(
         mailbox_id: 0,
         uid,
         blob_ref: blob_ref.to_string(),
-        sender: from,
-        recipients: to,
-        subject,
-        date,
-        internal_date: date,
+        sender: a.from.clone(),
+        recipients: a.to.clone(),
+        subject: a.subject.clone(),
+        date: a.date,
+        internal_date: a.date,
         size: body.len() as u32,
         flags: if unread { 0 } else { 1 },
-        message_id: message_id.clone(),
-        in_reply_to,
-        sender_trust: extract_sender_trust(body),
+        message_id: a.message_id.clone(),
+        in_reply_to: a.in_reply_to.clone(),
+        sender_trust: a.sender_trust.clone(),
         invite_method: invite
             .as_ref()
             .map(|i| i.method.clone())
             .unwrap_or_default(),
-        thread_id: root.clone(),
+        thread_id: a.thread_id.clone(),
         modseq: 0,
         user_address: addr.to_string(),
     };
-    write_message_row(state, addr, &root, &message_id, date, blob_ref, &wire);
+    let root = &a.thread_id;
+    write_message_row(state, addr, root, &a.message_id, a.date, blob_ref, &wire);
 
-    // **The message row first, the arrival second** — the same ordering
-    // `deliver_message` documents, and which this path did not have.
-    //
-    // Two of the membership row's declared columns, `is_sender` and
-    // `sent_only`, are derived from the aggregate index over the message
-    // rows of the thread. Recording the arrival before writing this
-    // message's row asks that index a question about a message it cannot
-    // see yet, so every message arriving through the spool — which is
-    // every message — was counted without itself. A reply the user sent
-    // landed in its thread, showed the right sender, and never reached
-    // the Sent list, because the column the Sent axis reads still said
-    // the user had not written here.
+    // **The message row first, the arrival second.** Two of the membership
+    // row's declared columns, `is_sender` and `sent_only`, are derived from
+    // the aggregate index over the message rows of the thread; recording
+    // the arrival before writing this message's row would count every
+    // message without itself, and a reply the user sent would never reach
+    // the Sent list.
     let arrival = mailrs_mailbox_kevy::MessageArrival {
-        thread_id: &root,
+        thread_id: root,
         user: addr,
         subject: &wire.subject,
         senders_csv: &wire.sender,
-        latest_date: date,
-        latest_preview: &preview,
-        category,
+        latest_date: a.date,
+        latest_preview: &a.preview,
+        category: a.category,
         unread,
-        is_own,
+        is_own: a.is_own,
     };
     if let Err(e) = state.mailbox.record_message_arrival(&arrival) {
         tracing::warn!(error = %e, %addr, %root, "drain ingest: record_message_arrival failed");
     }
-    let held = hold_if_fraud(state, addr, &root, &message_id, fraud_verdict);
+    let held = hold_if_fraud(state, addr, root, &a.message_id, fraud_verdict);
     // register this message's id → thread so future replies that cite it
     // (In-Reply-To / References) resolve into the same conversation.
     let _ = state
         .mailbox
-        .set_thread_for_message_id(addr, &message_id, &root);
-    index_contents(state, addr, &message_id, body_text.as_deref(), &parsed);
-
-    // **Tell the clients last.** A client that hears of new mail asks for
-    // its list at once. These went out before the rows above were written,
-    // so the web client fetched the list the message was not in yet, held
-    // that answer as fresh, and showed the mail only after a reload
-    // (reported 2026-10-19). The push went out before the hold as well,
-    // ringing the phone for mail held as fraud.
-    if !held {
-        crate::push::maybe_notify(addr, &wire.sender, &wire.subject, category, is_own);
-    }
-    crate::live_sync::publish_new_mail(addr, &root, &wire.sender, &wire.subject, "");
+        .set_thread_for_message_id(addr, &a.message_id, root);
+    index_contents(
+        state,
+        addr,
+        &a.message_id,
+        a.body_text.as_deref(),
+        &a.parsed,
+    );
+    held
 }
 
 #[cfg(test)]

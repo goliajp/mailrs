@@ -5,10 +5,10 @@ use std::sync::Arc;
 use mailrs_core_sidestate::families::email_groups::Group;
 use mailrs_intake::route::Directory;
 use mailrs_intake::{Core, Inbound};
+use mailrs_mailbox::PgMailboxStore;
 use mailrs_outbound_queue::{Notifier, QueueStore};
 use mailrs_receiver::AccountStore;
 use mailrs_receiver::smtp_session::DeliveryDeps;
-use mailrs_receiver::smtp_session::delivered::{DeliveredMessage, ProcessTx};
 use mailrs_receiver::smtp_session::delivery::apply_sieve_actions;
 
 use super::PgDirectory;
@@ -16,8 +16,6 @@ use crate::event_bus::EventBus;
 
 /// What delivering into this store needs beside the directory.
 pub(crate) struct Delivery {
-    /// the post-delivery consumer that indexes each delivered file
-    pub process_tx: ProcessTx,
     pub account_store: Option<Arc<dyn AccountStore>>,
     pub outbound_enqueue: Option<Arc<dyn QueueStore>>,
     pub queue_notifier: Option<Arc<dyn Notifier>>,
@@ -28,6 +26,7 @@ pub(crate) struct Delivery {
 
 pub(crate) struct PgCore {
     pub dir: PgDirectory,
+    pub mailbox: Arc<PgMailboxStore>,
     pub delivery: Delivery,
 }
 
@@ -76,8 +75,17 @@ impl Core for PgCore {
         if skip {
             return true;
         }
-        match mailrs_intake::maildir::deliver(self.maildir_root(), addr, "", msg.filename, msg.body)
-        {
+        let subfolder = match rcpt_folder.as_str() {
+            "INBOX" | "Junk" => String::new(),
+            other => mailrs_intake::maildir::maildir_subfolder(other),
+        };
+        match mailrs_intake::maildir::deliver(
+            self.maildir_root(),
+            addr,
+            &subfolder,
+            msg.filename,
+            msg.body,
+        ) {
             Ok(true) => {}
             Ok(false) => return false,
             Err(e) => {
@@ -85,18 +93,16 @@ impl Core for PgCore {
                 return false;
             }
         }
-        let full_message = Arc::new(msg.body.to_vec());
-        let delivered = DeliveredMessage {
-            maildir_id: msg.filename.to_string(),
-            user: addr.to_string(),
-            rcpt: addr.to_string(),
-            rcpt_folder,
-            reverse_path: msg.env.reverse_path.clone(),
-            msg_message_id: mailrs_mailbox::threading::extract_message_id(&full_message),
-            msg_in_reply_to: mailrs_mailbox::threading::extract_in_reply_to(&full_message),
-            msg_size: full_message.len(),
-            full_message,
+        let blob_ref = match subfolder.is_empty() {
+            true => msg.filename.to_string(),
+            false => format!("{subfolder}/{}", msg.filename),
         };
-        d.process_tx.blocking_send(delivered).is_ok()
+        self.ingest(
+            addr,
+            &blob_ref,
+            msg.body,
+            &rcpt_folder,
+            msg.env.fraud_verdict.as_deref(),
+        )
     }
 }

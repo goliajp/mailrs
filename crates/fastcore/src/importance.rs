@@ -13,52 +13,18 @@
 
 use std::sync::Arc;
 
+use mailrs_intake::importance::{message_facts, read_relationship};
 use mailrs_intelligence::importance::{self, ContactFacts, MessageFacts};
 
 use crate::FastcoreState;
 
 use mailrs_core_sidestate::families::correspondent::{all_addresses, first_address};
 
-/// Message-shape signals, all from `mailrs-clean` pure helpers.
-///
-/// `head` is the header region, `raw` the whole message: the HTML
-/// signals need the body, and a message with no HTML part contributes
-/// no tracking-pixel / template / link evidence at all (matching the
-/// monolith, which passes the plain-text branch through untouched).
-///
-/// `sender` must be the **bare** address: `is_automated_sender` matches
-/// the local part exactly (`noreply`, `postmaster`, ...), so handing it
-/// a `From:` header line silently never matches.
-fn message_facts(sender: &str, head: &[u8], raw: &[u8]) -> MessageFacts {
-    let headers = String::from_utf8_lossy(head);
-
-    let mut facts = MessageFacts {
-        is_bulk_sender: mailrs_clean::detect_bulk_sender(&headers),
-        is_automated: mailrs_clean::is_automated_sender(sender),
-        ..MessageFacts::default()
-    };
-
-    let root = mailrs_mime::parse(raw);
-    let html = root
-        .walk()
-        .find(|p| p.content_type.mime_type().as_str() == "text/html")
-        .and_then(|p| p.body_text());
-    if let Some(html) = html {
-        let cleaned = mailrs_clean::clean_email_html(&html);
-        facts.has_tracking_pixel = cleaned.has_tracking_pixel;
-        facts.is_template_heavy = cleaned.is_template_heavy;
-        facts.link_count = cleaned.link_count;
-    }
-    facts
-}
-
 /// Score an inbound message and store the verdict on its thread row.
 ///
-/// Best-effort: a missing network-kevy connection degrades to "no
-/// relationship known" rather than skipping scoring, because the
-/// message-shape signals alone still separate bulk mail from ordinary
-/// mail. A store error is logged and swallowed — importance is a
-/// derivation, and failing to write it must never fail delivery.
+/// The score is the shared one (`mailrs_intake::importance`); a store
+/// error is logged and swallowed — importance is a derivation, and failing
+/// to write it must never fail delivery.
 ///
 /// Call only for inbound messages. The user's own reply must not
 /// restate the thread's importance, mirroring the display-field rule in
@@ -71,59 +37,11 @@ pub(crate) fn score_inbound(
     head: &[u8],
     raw: &[u8],
 ) {
-    let sender = first_address(senders_csv);
-    if sender.is_empty() {
-        return;
+    if let Some((level, score)) =
+        mailrs_intake::importance::score_inbound(state.net_conn(), user, senders_csv, head, raw)
+    {
+        record_verdict(state, user, thread_id, level, score);
     }
-
-    let facts = message_facts(&sender, head, raw);
-
-    let (contact, is_reply_to_my_email) = match state.net_conn() {
-        Some(mut conn) => {
-            use mailrs_core_sidestate::families::contacts as ct;
-            // Read the relationship BEFORE recording this message, so a
-            // message never counts itself as evidence of a relationship.
-            let rel = read_relationship(&mut conn, user, &sender);
-
-            // Capture the inbound fact. Until this landed, nothing in
-            // this lane ever wrote the scoring hash, so is_mutual /
-            // has_sent_to were permanently false (RFC §"prod 实测").
-            if let Err(e) = ct::record_inbound(
-                &mut conn,
-                user,
-                &sender,
-                "",
-                facts.is_bulk_sender,
-                facts.is_automated,
-            ) {
-                tracing::warn!(error = %e, %user, %sender, "importance: inbound contact fact not recorded");
-            }
-            rel
-        }
-        None => (None, false),
-    };
-
-    store_verdict(state, user, thread_id, facts, contact, is_reply_to_my_email);
-}
-
-/// Read the sender relationship without mutating it.
-fn read_relationship(
-    conn: &mut kevy_client::Connection,
-    user: &str,
-    sender: &str,
-) -> (Option<ContactFacts>, bool) {
-    use mailrs_core_sidestate::families::contacts as ct;
-    let s = ct::scoring_for(conn, user, sender);
-    let replied = ct::has_sent_to_addr(conn, user, sender);
-    (
-        Some(ContactFacts {
-            is_mutual: s.is_mutual,
-            is_vip: s.is_vip,
-            is_mailing_list: s.is_mailing_list,
-            importance_bias: s.importance_bias,
-        }),
-        replied,
-    )
 }
 
 /// Fold the signals and persist the verdict on the thread row.
@@ -137,7 +55,17 @@ fn store_verdict(
 ) {
     let signals = importance::signals_for_inbound(facts, contact, is_reply_to_my_email);
     let (level, score) = importance::calculate_importance(&signals);
+    record_verdict(state, user, thread_id, level, score);
+}
 
+/// Persist a verdict on the thread row.
+fn record_verdict(
+    state: &Arc<FastcoreState>,
+    user: &str,
+    thread_id: &str,
+    level: importance::ImportanceLevel,
+    score: f32,
+) {
     if let Err(e) =
         state
             .mailbox
