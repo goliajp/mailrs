@@ -142,7 +142,7 @@ impl DkimSignConfig {
     /// Sign a message, prepending the DKIM-Signature header.
     ///
     /// Parses the message's `From:` header to determine the signing
-    /// domain via [`key_for_from_domain`](Self::key_for_from_domain).
+    /// domain via `key_for_from_domain`.
     /// If no `From:` header is present (or it's malformed enough that
     /// no domain can be extracted), falls back to the default
     /// `domain`/`selector`/`key` on this config.

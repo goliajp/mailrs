@@ -29,7 +29,8 @@
 //! ## Adding one
 //!
 //! A module with the check and its tests, a field on [`Findings`], a
-//! check in `checks.rs` (which [`scan`] runs) and a line in [`score`]. The aggregate is what keeps
+//! check in `checks.rs` (which [`scan`] runs) and a line in
+//! [`score`](Findings::score). The aggregate is what keeps
 //! callers from growing a boolean per signal — `mailrs-inbound` carries
 //! one `Findings` and does not change shape when this crate learns
 //! something new.

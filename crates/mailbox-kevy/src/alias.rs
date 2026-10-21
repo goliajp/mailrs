@@ -33,7 +33,7 @@ fn now_secs() -> i64 {
 impl KevyMailboxStore {
     /// Resolve `address` through the alias chain. Returns the terminal
     /// address (`Ok(Some(_))`) or `Ok(None)` when no alias is set.
-    /// Cycles are broken by [`MAX_HOPS`]; the last non-loop address is
+    /// Cycles are broken by `MAX_HOPS`; the last non-loop address is
     /// returned in that case.
     pub fn resolve_alias(&self, address: &str) -> io::Result<Option<String>> {
         let mut current = address.to_string();

@@ -40,7 +40,7 @@ impl KevyMailboxStore {
     /// Every thread this user has a membership row for.
     ///
     /// The declared replacement for enumerating `user_threads_by_activity`,
-    /// which is legacy: it is in [`keys::all_user_thread_zsets`], the set
+    /// which is legacy: it is in [`keys::all_user_thread_zsets`](crate::keys::all_user_thread_zsets), the set
     /// `drop-legacy-zsets` deletes, and nothing writes it any more. Measured
     /// on prod 2026-07-31 it held 168 rows across 13 accounts against 30,562
     /// declared ones, so every sweep that enumerated it had quietly stopped

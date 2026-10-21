@@ -19,7 +19,7 @@ impl KevyMailboxStore {
     /// column existed, so the index cannot see any of them and the engine
     /// counts short for every thread. This is what closes that.
     ///
-    /// **`own` comes from [`crate::messages::own_from_payload`]**, the same
+    /// **`own` comes from `crate::messages::own_from_payload`**, the same
     /// function `upsert_user_message` calls. A backfill that decided
     /// ownership its own way would converge the shadow onto a number that
     /// is wrong in a new way, and nothing downstream could tell.

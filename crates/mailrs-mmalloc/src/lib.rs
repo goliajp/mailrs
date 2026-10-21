@@ -10,6 +10,8 @@
     clippy::large_const_arrays,
     clippy::deref_addrof
 )]
+// the crate docs link the allocator layers, which exist only on linux
+#![cfg_attr(not(target_os = "linux"), allow(rustdoc::broken_intra_doc_links))]
 
 //! mailrs-mmalloc — mmap-backed allocator for `mailrs-server`.
 //!
@@ -36,7 +38,7 @@
 //!    allocated via mmap; sub-allocations bump-allocate from it
 //!    until full, then a new page is requested. Fastest path for
 //!    small temporaries; no per-allocation header.
-//! 2. **Size-class free list** (`size_class::SizeClassPool`) —
+//! 2. **Size-class free list** ([`size_class::Allocator`]) —
 //!    one LIFO free-list per power-of-two bucket
 //!    (16/32/64/128/256/512/1024/2048/4096). Recycles freed blocks.
 //! 3. **Direct mmap fallback** (`large::large_alloc`) — for

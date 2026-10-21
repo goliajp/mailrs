@@ -228,7 +228,7 @@ pub struct Deception {
     /// That one is one production message in forty and holds nothing
     /// on its own. This one is **51 of 36,318, and the 52nd is the
     /// only legitimate message that carries an insertion at all** —
-    /// see [`enough_to_convict`] for the count that separates them.
+    /// see `enough_to_convict` for the count that separates them.
     ///
     /// Two things make it precise. The neighbours: Duolingo puts a
     /// zero-width character in 22 subjects and none is between two

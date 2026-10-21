@@ -4,7 +4,10 @@
 //! embed into the outgoing HTML.
 //!
 //! Keys:
-//!   inline:<uuid>          hash  { content_type: <mt>, body: <bytes> }
+//!
+//! ```text
+//! inline:<uuid>          hash  { content_type: <mt>, body: <bytes> }
+//! ```
 //!
 //! `body` is stored raw (not base64) since kevy is byte-safe.
 

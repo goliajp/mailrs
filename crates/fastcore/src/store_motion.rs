@@ -73,7 +73,7 @@ pub(crate) fn with_motion(
     body
 }
 
-/// Drive [`begin`] / [`finish`] around `during`, for tests that need a
+/// Drive `begin` / `finish` around `during`, for tests that need a
 /// write to land between the two cursor reads.
 ///
 /// A test seam, and deliberately the same pair the routes call: a probe

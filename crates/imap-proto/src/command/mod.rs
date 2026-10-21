@@ -1,9 +1,9 @@
 //! IMAP4rev1 command AST + parser entry points.
 //!
 //! Public surface:
-//! - [`parse_command`] — single-line IMAP command parser (in [`parse`])
+//! - [`parse_command`] — single-line IMAP command parser (in `parse`)
 //! - [`ImapCommand`] / [`TaggedCommand`] / [`ParseError`] — command AST + errors
-//! - [`SearchKey`] / [`parse_search_criteria`] — SEARCH criteria parser (in [`search`])
+//! - [`SearchKey`] / [`parse_search_criteria`] — SEARCH criteria parser (in `search`)
 
 mod parse;
 mod search;
