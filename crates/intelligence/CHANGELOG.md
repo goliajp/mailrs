@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-08-04
+
+### Added
+- `assist` module: request/response types and prompt builders for
+  writing assistance — `polish` / `polish_prompt` (`PolishRequest`,
+  `PolishResult`), `reply_suggest` / `reply_suggest_prompt` /
+  `parse_suggestions` (`ReplySuggestRequest`, `ReplySuggestResult`) and
+  `generate_subject` / `subject_prompt` (`SubjectGenerateRequest`,
+  `SubjectGenerateResult`), plus `AssistUnavailable` for the
+  "no model configured" case. Input is sanitised before it reaches a
+  prompt: unknown tones are rejected, language hints are validated and
+  control characters are stripped (newlines kept).
+- `importance::signals_for_inbound`, with the input structs
+  `ContactFacts` and `MessageFacts`: builds `ImportanceSignals` for an
+  inbound message, including the fallback that treats an unknown sender
+  with bulk headers as a mailing list.
+
 ## [3.0.0] - 2026-06-03
 
 ### Changed (BREAKING)
@@ -14,7 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `KevySpamCache::new(store: kevy_embedded::Store)`. The cache now runs
   directly against the in-process kevy `Store` — no RESP wire, no
   network hop. `Store: Clone` so callers typically pass a clone of the
-  shared cement-owned store.
+  shared store owned by the application.
 - Feature `kevy-cache` now pulls `kevy-embedded` instead of `redis`. No
   more `redis` transitive dependency.
 

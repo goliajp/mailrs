@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.2] - 2026-08-04
+
+### Fixed
+
+- RFC 2231 parameter continuations (`filename*0*`, `filename*1*`, ...)
+  are reassembled in index order and decoded once, so `filename()`
+  finds names split across segments.
+- RFC 2047 encoded-words inside a parameter value (as in
+  `name="=?UTF-8?B?...?= =?UTF-8?Q?=2Epdf?="`, which RFC 2047 §5 forbids
+  but senders write) are decoded. A value that only contains a literal
+  `=?` is left alone.
+
+## [2.0.1] - 2026-05-29
+
+2.0.0 was not published to crates.io; its changes are included here.
+
+### Changed
+
+- **Breaking:** `Part` borrows from the input: `Part<'a>` with
+  `body: Cow<'a, [u8]>` and `children: Vec<Part<'a>>`. `parse(raw)`
+  returns `Part<'_>`, and `Walker` gains a lifetime (`Walker<'p, 'a>`).
+- **Breaking:** `ContentType::type_` / `subtype` and `Disposition::kind`
+  are `CompactString` instead of `String`.
+- **Breaking:** `TransferEncoding::decode` returns `Cow<'_, [u8]>` and
+  borrows the input when no decoding is needed.
+- Faster parsing: a single pass collects MIME headers, the multipart
+  boundary scan uses `memchr`, and clean base64 payloads skip an
+  intermediate allocation.
+- New dependencies: `memchr` 2, `compact_str` 0.9.
+
 ## [1.0.3] - 2026-05-23
 
 ### Changed
@@ -105,7 +135,7 @@ No lib code change.
 ### Out of scope (1.0)
 
 - RFC 2047 encoded-word decode for header field VALUES — separate
-  stone (`mailrs-rfc2047`). Use it on `From:` / `Subject:` /
+  crate (`mailrs-rfc2047`). Use it on `From:` / `Subject:` /
   display names after extracting via `mailrs-rfc5322`.
 - Outbound MIME building — this crate is read-only.
 - Mojibake / charset autodetection — we trust the on-wire charset.

@@ -27,11 +27,11 @@ overflow boundary so it includes refill cost; this is the
 
 | Op | p95 measured | Budget (5×) | Notes |
 |---|---|---|---|
-| `alloc(16) + free` | 240 ns | **1.5 µs** | M6 baseline |
-| `alloc(64) + free` | 240 ns | **1.5 µs** | M6 baseline |
-| `alloc(256) + free` | 250 ns | **1.5 µs** | M6 baseline |
-| `alloc(1024) + free` | 254 ns | **1.5 µs** | M6 baseline |
-| `alloc(4096) + free` | 259 ns | **1.5 µs** | M6 baseline |
+| `alloc(16) + free` | 240 ns | **1.5 µs** | measured |
+| `alloc(64) + free` | 240 ns | **1.5 µs** | measured |
+| `alloc(256) + free` | 250 ns | **1.5 µs** | measured |
+| `alloc(1024) + free` | 254 ns | **1.5 µs** | measured |
+| `alloc(4096) + free` | 259 ns | **1.5 µs** | measured |
 
 ## Large path — direct mmap
 
@@ -41,15 +41,15 @@ not on data).
 
 | Op | p95 measured | Budget (5×) | Notes |
 |---|---|---|---|
-| `alloc(8K) + free` | 2.8 µs | **15 µs** | M6 baseline |
-| `alloc(64K) + free` | TBD | **15 µs** | M7b: measure |
-| `alloc(1M) + free` | TBD | **30 µs** | M7b: measure |
+| `alloc(8K) + free` | 2.8 µs | **15 µs** | measured |
+| `alloc(64K) + free` | TBD | **15 µs** | not yet measured |
+| `alloc(1M) + free` | TBD | **30 µs** | not yet measured |
 
 ## Realloc growth
 
 | Op | p95 measured | Budget (5×) | Notes |
 |---|---|---|---|
-| `realloc 64 → 1M doubling chain` | TBD | **100 µs** | M7b: measure |
+| `realloc 64 → 1M doubling chain` | TBD | **100 µs** | not yet measured |
 
 ## Steady-state churn (hold N live, churn the next)
 
@@ -59,9 +59,9 @@ single-thread alloc/free baseline (cache-warm).
 
 | Op | p95 measured | Budget (5×) | Notes |
 |---|---|---|---|
-| Churn with `live=8` | TBD | **1.5 µs** | M7b: measure |
-| Churn with `live=64` | TBD | **1.5 µs** | M7b: measure |
-| Churn with `live=512` | TBD | **2 µs** | M7b: measure |
+| Churn with `live=8` | TBD | **1.5 µs** | not yet measured |
+| Churn with `live=64` | TBD | **1.5 µs** | not yet measured |
+| Churn with `live=512` | TBD | **2 µs** | not yet measured |
 
 ## Concurrent (8-thread)
 
@@ -74,24 +74,22 @@ single-thread alloc/free baseline (cache-warm).
 | N=16 × 50K random (`#[ignore]`) | 0.82 s | **5 s** | runs `--include-ignored --release` |
 | `aba_stress` N=8 × 100K | 0.43 s | **5 s** | runs `--release` |
 
-## Comparison axes (M7b — follow-up)
+## Not yet measured
 
-The plan's M7 acceptance criterion mentioned comparing against
-**mimalloc** ("mmalloc within 2× of mimalloc on at least 3 of 4
-microbenchmarks"). Skipped from this M7 to avoid adding a C
-build-dep (`mimalloc-sys`) to a stone that was deliberately
-0-dep beyond `mailrs-syscall`. Track as **M7b**:
+There is no comparison against **mimalloc** yet. Adding it would mean a
+C build dependency (`mimalloc-sys`), and this crate has no dependencies
+beyond `mailrs-syscall`. If added, it would be:
 
-- Add `mimalloc` as an optional `[dev-dependencies]` behind a
-  feature flag (`bench-mimalloc`); compile only when set.
-- Extend `benches/alloc.rs` with parameterised allocator backend
-  via a small `BackendAlloc` trait wrapping `GlobalAlloc`.
-- Report `mmalloc / mimalloc` ratio per row in this file.
+- `mimalloc` as an optional dev-dependency behind a `bench-mimalloc`
+  feature;
+- `benches/alloc.rs` parameterised over the allocator through a small
+  wrapper around `GlobalAlloc`;
+- an `mmalloc / mimalloc` ratio per row in this file.
 
-A first measurement against `std::alloc::System` (glibc on Linux,
-already in tree, no dep) is a cheap step toward M7b — log:
+A comparison against `std::alloc::System` (glibc on Linux) needs no new
+dependency and is also still open:
 
-| Op | mmalloc | glibc System | Ratio | Notes |
-|---|---|---|---|---|
-| `alloc(16) + free` | 240 ns | TBD | TBD | M7b |
-| `alloc(8K) + free` | 2.8 µs | TBD | TBD | M7b |
+| Op | mmalloc | glibc System | Ratio |
+|---|---|---|---|
+| `alloc(16) + free` | 240 ns | TBD | TBD |
+| `alloc(8K) + free` | 2.8 µs | TBD | TBD |

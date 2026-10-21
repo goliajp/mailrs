@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-08-04
+
+### Fixed
+
+- `encode_param` escapes `"` and `\` in the plain quoted form. Before, a
+  value such as `a"; evil="x.pdf` closed the parameter early and the rest
+  was read as further parameters by the receiving client.
+
 ## [1.0.0] - 2026-05-22
 
 ### Added

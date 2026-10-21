@@ -11,6 +11,15 @@ authors = ["GOLIA K.K."]
 keywords = ["email", "mailbox", "imap", "postgres", "storage"]
 categories = ["email", "database"]
 readme = "README.md"
+# these need Docker, the in-repo test helper crate and the repository's
+# schema file, none of which ships with the crate
+exclude = [
+    "tests/common",
+    "tests/multi_owner.rs",
+    "tests/smoke.rs",
+    "tests/snooze_reachable.rs",
+    "tests/spg_sql_shapes.rs",
+]
 
 [lints]
 workspace = true

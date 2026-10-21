@@ -3,7 +3,7 @@
 RFC 8617 — **Authenticated Received Chain (ARC)** header parsing,
 chain extraction, and structural verification.
 
-Part of the [mailrs](https://github.com/goliajp/mailrs) "stones" family.
+Part of the [mailrs](https://github.com/goliajp/mailrs) project.
 Pairs with [`mailrs-dkim`](https://crates.io/crates/mailrs-dkim) for
 canonicalization + RSA verify and with
 [`mailrs-spf`](https://crates.io/crates/mailrs-spf) /

@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Dependencies: `quick-xml` 0.41 → 0.42, `zip` 8.6 → 9.0.
+
+## [2.1.0] - 2026-08-04
+
+### Added
+
+- `ingest` module for inbound aggregate reports (RFC 7489 §7.2):
+  `extract_report_payloads(raw)` pulls the XML out of a report email
+  (plain, gzip or zip attachment), and
+  `parse_aggregate_report(xml)` returns an `AggregateReport`
+  (`ReportMetadata`, `PolicyPublished`, `ReportRecord` rows with
+  `Row`, `Identifiers` and `AuthResults`), with `total_count()` /
+  `passing_count()` helpers. Inputs are bounded by `MAX_PAYLOAD_BYTES`
+  and `MAX_RECORDS`; failures are reported as `IngestError`.
+- `spg` feature: builds `PgDmarcStore` on spg-embedded instead of
+  PostgreSQL. `BackendPool` names the pool type of the active backend.
+
+### Changed
+
+- `PgDmarcStore::new` takes `BackendPool` (equal to `sqlx::PgPool`
+  unless the `spg` feature is enabled).
+- XML report generation writes into one buffer with `write!` and is
+  roughly 1.7-1.9 times faster. Output is unchanged.
+- New dependencies: `mailrs-mime`, `quick-xml`, `serde`, `zip`.
+
+## [2.0.0] - 2026-05-29
+
+### Changed (breaking)
+
+- `DkimSignatureResult::d_domain`, `SpfResult::domain`,
+  `DmarcInput::from_domain` and `DmarcInput::policy_domain` are
+  `compact_str::CompactString` instead of `String`. Build them with
+  `.into()` from a `&str`.
+
+### Changed
+
+- `format_report_email` builds the report message with
+  `mailrs-mail-builder` instead of a hand-written template. The gzipped
+  XML is still a base64 attachment; the MIME boundary is now random per
+  call.
+- New dependencies: `compact_str`, `mailrs-mail-builder`.
+
 ## [1.1.0] - 2026-05-23
 
 ### Added

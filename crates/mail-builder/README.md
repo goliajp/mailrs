@@ -1,8 +1,7 @@
 # mailrs-mail-builder
 
 RFC 5322 / 2046 / 2047 / 2231 outbound mail builder — the inverse
-of the `mailrs-rfc5322` + `mailrs-rfc2047` + `mailrs-mime` parse
-stones.
+of the `mailrs-rfc5322` + `mailrs-rfc2047` + `mailrs-mime` parsers.
 
 ## Why
 
@@ -15,11 +14,13 @@ rather than reject — the failure mode is "we got banned without
 ever seeing a 5xx". A canonical builder closes that whole class of
 bug at the source.
 
-## Scope (0.1)
+## Scope
 
 - Plain-text single-part messages.
 - `multipart/alternative` (text + html).
 - `multipart/mixed` (body + attachments).
+- `multipart/report` (RFC 6522 / 3464 / 7489) via `report_type`.
+- `build_strict()` / `lint(raw)` invariant checks on the output.
 - Encoded-word (RFC 2047) for non-ASCII header values.
 - Soft-fold (RFC 5322 §2.2.3) at 78 chars.
 - CTE auto-selection: `7bit` / `quoted-printable` / `base64`.
@@ -45,14 +46,11 @@ let msg = MessageBuilder::new()
 ## Out of scope
 
 - DKIM signing — use `mailrs-dkim`.
-- DSN formatting — use `mailrs-outbound-queue::dsn` (will be
-  migrated onto this builder in a later release).
 - Calendar invites — use `mailrs-ical`.
 - S/MIME, OpenPGP/MIME — out of project scope.
 
 ## Status
 
-0.1 is the initial MVP — the API is intentionally narrow to match
-mailrs's three internal use cases (DSN, DMARC report, future
-TLS-RPT). Wider API surface lands in 1.0 after the deliverability
-hardening pass.
+Stable since 1.0. The API covers the uses it was built for (DSNs,
+DMARC aggregate reports, general outbound mail); it is intentionally
+narrow.

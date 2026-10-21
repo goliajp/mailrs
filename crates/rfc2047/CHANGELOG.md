@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.3] - 2026-08-04
+
+### Changed
+
+- `encode` finds a literal `=?` in ASCII input with `memchr` (new
+  dependency) instead of a byte-window scan. Output is unchanged.
+
 ## [1.1.2] - 2026-05-23
 
 ### Fixed

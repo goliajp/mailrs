@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `build` and `ReportSpec`: write an RFC 5965 feedback report, the inverse of `parse`.
 
+## [1.0.1] - 2026-08-04
+
+### Changed
+
+- Faster detection of `feedback-report` content via memchr's `memmem`.
+  Parsing results are unchanged. New dependency: `memchr`.
+
 ## [1.0.0] - 2026-05-25
 
 ### Added
@@ -29,13 +36,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   non-ARF early-exit path.
 - `tests/perf_gate.rs` regression budgets (30 µs parse, 5 µs early
   exit; release < 2 µs / < 200 ns).
-- `#![deny(missing_docs)]` gate, zero dependencies.
+- `#![deny(missing_docs)]`, no runtime dependencies.
 
 ### Context
 
-Carved out from `crates/server/src/fbl.rs` during Server Refactor v2
-checkpoint v0.2 (cement 2nd-pass audit). The original 37-LOC
-in-server helper was rebuilt with a full `Report` struct shape, all
+Extracted from the feedback-loop handling in the mailrs server. The
+original 37-line helper was rebuilt with a full `Report` struct shape, all
 11 RFC 5965 §3.2 fields, header-folding correctness, and lowercase
 normalization for downstream suppression-list lookup keys.
 

@@ -84,11 +84,10 @@ in mailrs's inbound pipeline. The shape works but:
 - The combined surface is heavy for the SPF use case alone
 - We can't measure its perf cleanly against `mailrs-rfc5322` (the
   underlying message-parsing layer)
-- Owning SPF + DKIM + DMARC as separate, focused stones lets us
-  tune each per the dep-audit doc
+- Keeping SPF, DKIM and DMARC as separate, focused crates lets each
+  be tuned and measured on its own
 
-`mailrs-dmarc` already exists. This crate carves the SPF half;
-`mailrs-dkim` will follow.
+SPF lives here; DKIM and DMARC are `mailrs-dkim` and `mailrs-dmarc`.
 
 ## Performance
 

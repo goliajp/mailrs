@@ -114,7 +114,7 @@ Measured (criterion, M-series Mac, release, 100-sample median):
 | `should_give_up` | **<1 ns** |
 
 Reproduce: `cargo bench -p mailrs-backoff --bench backoff`. Workspace
-[PERFORMANCE.md](../../PERFORMANCE.md) carries the same table.
+[PERFORMANCE.md](https://github.com/goliajp/mailrs/blob/develop/PERFORMANCE.md) carries the same table.
 
 ## License
 

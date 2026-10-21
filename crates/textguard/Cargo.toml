@@ -10,6 +10,7 @@ documentation = "https://docs.rs/mailrs-textguard"
 authors = ["GOLIA K.K."]
 keywords = ["email", "phishing", "unicode", "bidi", "security"]
 categories = ["email", "text-processing"]
+readme = "README.md"
 
 [dependencies]
 
