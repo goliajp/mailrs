@@ -1,6 +1,6 @@
 # Lua fraud rules on Luna
 
-The receiver and historical fraud rescan run all 18 predicates through
+The receiver and historical fraud rescan run the 20 predicates in `rules/` through
 `luna-jit = 3.0.0` from **goliajp/luna**. JIT is disabled for these bounded
 scripts because native loops bypass Luna's interpreter instruction budget.
 The existing Rust rule functions remain a migration oracle; neither production

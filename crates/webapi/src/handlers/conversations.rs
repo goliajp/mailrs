@@ -1,9 +1,5 @@
 //! `/api/conversations*` REST handlers — thin shims that delegate to the
 //! core RPC client.
-//!
-//! Phase 3.5 — replaces the monolith's direct `state.mailbox_store.X()`
-//! calls (REST agent inventory in `docs/CURRENT_STATE_FROZEN.md` §0.2)
-//! with `state.core_client.X()` RPC calls.
 
 use std::sync::Arc;
 

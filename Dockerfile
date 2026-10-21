@@ -80,15 +80,11 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     cargo build --release -p mailrs-fraud-lua --bins \
     && cargo build --release -p mailrs-receiver --bins \
     && cargo build --release -p mailrs-webapi --bins \
-    && cargo build --release -p mailrs-fastcore --bins \
+    && cargo build --release -p mailrs-fastcore --bin mailrs-fastcore --bin mailrs-fastcore-sender --bin mailrs-fastcore-ocr \
     && cp /build/target/release/mailrs-fraud-check /usr/local/bin/mailrs-fraud-check \
     && cp /build/target/release/mailrs-receiver /usr/local/bin/mailrs-receiver \
     && cp /build/target/release/mailrs-webapi /usr/local/bin/mailrs-webapi \
     && cp /build/target/release/mailrs-fastcore /usr/local/bin/mailrs-fastcore \
-    && cp /build/target/release/mailrs-fastcore-migrate /usr/local/bin/mailrs-fastcore-migrate \
-    && cp /build/target/release/mailrs-fastcore-backfill-contacts /usr/local/bin/mailrs-fastcore-backfill-contacts \
-    && cp /build/target/release/mailrs-fastcore-backfill-uid-index /usr/local/bin/mailrs-fastcore-backfill-uid-index \
-    && cp /build/target/release/mailrs-fastcore-backfill-usage /usr/local/bin/mailrs-fastcore-backfill-usage \
     && cp /build/target/release/mailrs-fastcore-sender /usr/local/bin/mailrs-fastcore-sender \
     && cp /build/target/release/mailrs-fastcore-ocr /usr/local/bin/mailrs-fastcore-ocr
 
@@ -148,12 +144,10 @@ COPY --from=rust-builder /usr/local/bin/mailrs-webapi /usr/local/bin/mailrs-weba
 # Phase 8 (fastcore): kevy-backed core RPC. Idle until entrypoint is
 # overridden to `mailrs-fastcore`. Listens on :3301 when started.
 COPY --from=rust-builder /usr/local/bin/mailrs-fastcore /usr/local/bin/mailrs-fastcore
-# Phase 10 (fastcore migration): NDJSON → kevy importer.
-# Run via `docker exec -i mailrs-fastcore-migrate`.
-COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-migrate /usr/local/bin/mailrs-fastcore-migrate
-COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-backfill-contacts /usr/local/bin/mailrs-fastcore-backfill-contacts
-COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-backfill-uid-index /usr/local/bin/mailrs-fastcore-backfill-uid-index
-COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-backfill-usage /usr/local/bin/mailrs-fastcore-backfill-usage
+# The importer and backfill bins (mailrs-fastcore-migrate, -backfill-*)
+# are not shipped: each opens its own embedded kevy beside the running
+# fastcore's, which ran it out of memory. Maintenance runs through
+# fastcore's own routes instead.
 # Fastcore-native outbound SMTP sender. Drains mailrs:outbound:pending
 # and delivers via MX + STARTTLS. Idle unless entrypoint is overridden
 # to `mailrs-fastcore-sender`.

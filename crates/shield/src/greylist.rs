@@ -74,21 +74,22 @@ pub fn triplet_key(client_ip: &str, sender: &str, recipient: &str) -> String {
 }
 
 #[cfg(feature = "kevy-store")]
-pub use kevy_impl::{EmbeddedGreylistBackend, GreylistBackend, GreylistDb};
+pub use store_impl::EmbeddedGreylistBackend;
+#[cfg(feature = "store")]
+pub use store_impl::{GreylistBackend, GreylistDb};
 
-#[cfg(feature = "kevy-store")]
-mod kevy_impl {
+#[cfg(feature = "store")]
+mod store_impl {
     use std::sync::Arc;
     use std::time::Duration;
 
     use async_trait::async_trait;
-    use kevy_embedded::Store;
 
     use super::{GreylistConfig, GreylistDecision, evaluate_triplet};
 
     /// Connection pool of the active SQL backend (PostgreSQL by
     /// default, spg-embedded behind the `spg` feature).
-    #[cfg(not(feature = "spg"))]
+    #[cfg(all(feature = "pg", not(feature = "spg")))]
     pub type BackendPool = sqlx::PgPool;
     /// Connection pool of the active SQL backend (PostgreSQL by
     /// default, spg-embedded behind the `spg` feature).
@@ -98,10 +99,9 @@ mod kevy_impl {
     /// The KV operations greylisting needs from its first-seen store.
     ///
     /// Abstracted so the same policy runs over the in-process kevy
-    /// [`Store`] (the default, [`EmbeddedGreylistBackend`]) or a shared
-    /// network kevy-server once the receiver is split out — the latter
-    /// impl lives in the server (cement), keeping this stone free of a
-    /// network-client dependency. Errors are folded into the fail-open
+    /// `Store` ([`EmbeddedGreylistBackend`], feature `kevy-store`) or a
+    /// shared network kevy-server, whose impl lives with the caller so this
+    /// crate needs no network client. Errors are folded into the fail-open
     /// shape the policy already assumes: a read failure reads as "not
     /// seen", a write failure is dropped.
     #[async_trait]
@@ -117,10 +117,12 @@ mod kevy_impl {
     /// In-process [`GreylistBackend`] over a [`kevy_embedded::Store`].
     /// `Store` is `Clone` and its ops are synchronous sub-µs calls, so
     /// the async methods just delegate and resolve immediately.
+    #[cfg(feature = "kevy-store")]
     pub struct EmbeddedGreylistBackend {
-        kevy: Store,
+        kevy: kevy_embedded::Store,
     }
 
+    #[cfg(feature = "kevy-store")]
     #[async_trait]
     impl GreylistBackend for EmbeddedGreylistBackend {
         async fn get(&self, key: &[u8]) -> Option<Vec<u8>> {
@@ -134,35 +136,40 @@ mod kevy_impl {
         }
     }
 
-    /// Greylisting store with an optional Postgres cold-backup.
+    /// Greylisting store with an optional Postgres cold-backup (feature
+    /// `pg`).
     ///
     /// First-seen timestamps live in the [`GreylistBackend`] with a TTL
     /// equal to `pass_ttl_secs`; the optional PG pool is written best-effort
     /// for durability across restarts.
     pub struct GreylistDb {
         backend: Arc<dyn GreylistBackend>,
+        #[cfg(feature = "pg")]
         pg: Option<BackendPool>,
     }
 
     impl GreylistDb {
         /// Construct a kevy-only greylisting store from an in-process
         /// [`kevy_embedded::Store`] handle. `Store` is `Clone`, so callers
-        /// typically pass a clone of the shared cement-owned store.
-        pub fn new(kevy: Store) -> Self {
+        /// typically pass a clone of the shared store.
+        #[cfg(feature = "kevy-store")]
+        pub fn new(kevy: kevy_embedded::Store) -> Self {
+            Self::with_backend(Arc::new(EmbeddedGreylistBackend { kevy }))
+        }
+
+        /// Construct over an arbitrary [`GreylistBackend`], such as a
+        /// shared network kevy-server.
+        pub fn with_backend(backend: Arc<dyn GreylistBackend>) -> Self {
             Self {
-                backend: Arc::new(EmbeddedGreylistBackend { kevy }),
+                backend,
+                #[cfg(feature = "pg")]
                 pg: None,
             }
         }
 
-        /// Construct over an arbitrary [`GreylistBackend`] — used by the
-        /// server to plug in a shared network kevy-server backend.
-        pub fn with_backend(backend: Arc<dyn GreylistBackend>) -> Self {
-            Self { backend, pg: None }
-        }
-
         /// Attach a Postgres pool for best-effort durability across kevy
         /// restarts (writes are best-effort; failures don't propagate).
+        #[cfg(feature = "pg")]
         pub fn with_pg(mut self, pool: BackendPool) -> Self {
             self.pg = Some(pool);
             self
@@ -171,15 +178,13 @@ mod kevy_impl {
         /// Look up the triplet `key`, update its first-seen entry as needed,
         /// and return the resulting [`GreylistDecision`].
         ///
-        /// Read order: kevy (hot, sub-ms) → PG (cold backup, ~5 ms RTT).
-        /// On kevy miss with a PG pool attached we cold-load the
-        /// `first_seen` value from PG and warm the kevy entry, so a single
-        /// PG read suffices to bring a triplet back to hot. This is the
+        /// Read order: kevy (hot, sub-ms), then PG (cold backup, ~5 ms RTT)
+        /// when one is attached. On a kevy miss with a PG pool we cold-load
+        /// the `first_seen` value from PG and warm the kevy entry, so a
+        /// single PG read brings a triplet back to hot. This is the
         /// post-INC-2026-06-03 warmup path: when kevy AOF was reset every
         /// genuine known sender was hitting "first seen → Defer" and the
-        /// system was 451-deferring everyone for ~5 minutes. With cold
-        /// load any sender ever recorded in `greylist_triplets` is
-        /// indistinguishable from a hot-cached one after one query.
+        /// system was 451-deferring everyone for ~5 minutes.
         pub async fn check(
             &self,
             key: &str,
@@ -189,41 +194,16 @@ mod kevy_impl {
             let vk_key = format!("gl:{key}");
             let ttl = Duration::from_secs(config.pass_ttl_secs);
 
-            // 1) hot path — read from kevy
-            let mut first_seen: Option<u64> = self
+            let first_seen: Option<u64> = self
                 .backend
                 .get(vk_key.as_bytes())
                 .await
                 .and_then(|bytes| std::str::from_utf8(&bytes).ok()?.parse().ok());
-
-            // 2) kevy miss + PG configured → cold-load from PG and warm kevy.
-            //    This is best-effort: PG read failures fall through to
-            //    `first_seen = None` (the genuine new-sender path), which
-            //    matches pre-warmup behaviour — never worse than before.
-            if first_seen.is_none()
-                && let Some(ref pool) = self.pg
-            {
-                let row: Option<(i64, i64)> = sqlx::query_as(
-                    "SELECT first_seen, last_seen FROM greylist_triplets WHERE key = $1",
-                )
-                .bind(key)
-                .fetch_optional(pool)
-                .await
-                .ok()
-                .flatten();
-                if let Some((fs, _ls)) = row {
-                    let fs_u64 = fs.max(0) as u64;
-                    first_seen = Some(fs_u64);
-                    // warm kevy so subsequent checks skip the PG round-trip.
-                    // value is the historical first_seen, not `now`, so the
-                    // delay window is computed correctly even right after
-                    // warmup.
-                    let warm_value = fs_u64.to_string();
-                    self.backend
-                        .set_with_ttl(vk_key.as_bytes(), warm_value.as_bytes(), ttl)
-                        .await;
-                }
-            }
+            #[cfg(feature = "pg")]
+            let first_seen = match first_seen {
+                None => self.cold_load(key, &vk_key, ttl).await,
+                hot => hot,
+            };
 
             let decision = evaluate_triplet(first_seen, now, config);
 
@@ -241,22 +221,51 @@ mod kevy_impl {
                 }
             }
 
-            // cold backup to PG (best effort)
-            if let Some(ref pool) = self.pg {
-                let now_i64 = now as i64;
-                let _ = sqlx::query(
-                    "INSERT INTO greylist_triplets (key, first_seen, last_seen)
-                     VALUES ($1, $2, $3)
-                     ON CONFLICT (key) DO UPDATE SET last_seen = $3",
-                )
-                .bind(key)
-                .bind(first_seen.unwrap_or(now) as i64)
-                .bind(now_i64)
-                .execute(pool)
-                .await;
-            }
+            #[cfg(feature = "pg")]
+            self.backup(key, first_seen.unwrap_or(now), now).await;
 
             decision
+        }
+
+        /// The first-seen value from the PG backup, warmed back into kevy.
+        /// A PG read failure reads as "not seen", the genuine new-sender
+        /// path, which is never worse than having no backup.
+        #[cfg(feature = "pg")]
+        async fn cold_load(&self, key: &str, vk_key: &str, ttl: Duration) -> Option<u64> {
+            let pool = self.pg.as_ref()?;
+            let (fs, _ls): (i64, i64) = sqlx::query_as(
+                "SELECT first_seen, last_seen FROM greylist_triplets WHERE key = $1",
+            )
+            .bind(key)
+            .fetch_optional(pool)
+            .await
+            .ok()
+            .flatten()?;
+            let fs = fs.max(0) as u64;
+            // the historical first_seen, not `now`, so the delay window is
+            // right even just after warmup
+            self.backend
+                .set_with_ttl(vk_key.as_bytes(), fs.to_string().as_bytes(), ttl)
+                .await;
+            Some(fs)
+        }
+
+        /// Best-effort cold backup to PG.
+        #[cfg(feature = "pg")]
+        async fn backup(&self, key: &str, first_seen: u64, now: u64) {
+            let Some(pool) = self.pg.as_ref() else {
+                return;
+            };
+            let _ = sqlx::query(
+                "INSERT INTO greylist_triplets (key, first_seen, last_seen)
+                 VALUES ($1, $2, $3)
+                 ON CONFLICT (key) DO UPDATE SET last_seen = $3",
+            )
+            .bind(key)
+            .bind(first_seen as i64)
+            .bind(now as i64)
+            .execute(pool)
+            .await;
         }
     }
 }

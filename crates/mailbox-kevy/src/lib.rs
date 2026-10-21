@@ -1,12 +1,10 @@
-//! `mailrs-mailbox-kevy` — kevy-backed mailbox store (experimental).
-//!
-//! Phase 7 of the 4-process split.
+//! `mailrs-mailbox-kevy` — the mailbox store fastcore runs on.
 //!
 //! ## Design rationale
 //!
-//! The PG-backed cascade (`docs/CURRENT_STATE_FROZEN.md` Rock 1) lives in
-//! `list_conversations` and the related thread-aggregate SQL. This crate
-//! eliminates it structurally by:
+//! On Postgres, listing conversations aggregated every thread's messages
+//! at read time, and that cost grew with the mailbox. This crate removes
+//! it structurally by:
 //!
 //! 1. Storing the **thread** as the source of truth (a hash per thread
 //!    holding pre-aggregated counts, latest_date, senders csv, preview,

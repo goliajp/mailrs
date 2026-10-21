@@ -183,25 +183,6 @@ These will land as additive helpers / new pub fns. The existing trait signatures
 
 The exact XML shape inside `multistatus` may evolve within a minor version as long as it stays compliant with the matching RFC.
 
-<!-- AUDIT-FOOTER:BEGIN -->
-
-## Stone audit (2026-05-25)
-
-| Axis | Status |
-|---|---|
-| **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-dav`) |
-| **test** | line cov: 96.8% (`cargo llvm-cov -p mailrs-dav --summary-only`) |
-| **bench** | ✅ 2 file(s) criterion + ✅ 1 gate(s) `perf_gate.rs` |
-| **size** | release rlib: 596 KB |
-| **fuzz** | ✅ 1 target(s) |
-| **mem**  | no dhat profile yet |
-
-### Competitor comparisons
-
-- Searched crates.io + competing impls: see PERFORMANCE.md or 'first-in-Rust' marker.
-
-<!-- AUDIT-FOOTER:END -->
-
 ## License
 
 Licensed under either [Apache License, Version 2.0](LICENSE-APACHE) or [MIT license](LICENSE-MIT) at your option.

@@ -118,25 +118,6 @@ The verify number is the pure CPU work; actual production `verify`
 is dominated by DNS round-trips (typical 5-50 ms). Reproduce:
 `cargo bench -p mailrs-spf --bench spf`.
 
-<!-- AUDIT-FOOTER:BEGIN -->
-
-## Stone audit (2026-05-25)
-
-| Axis | Status |
-|---|---|
-| **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-spf`) |
-| **test** | line cov: 90.5% (`cargo llvm-cov -p mailrs-spf --summary-only`) |
-| **bench** | ✅ 2 file(s) criterion + ✅ 2 gate(s) `perf_gate.rs` |
-| **size** | release rlib: 2.3 MB |
-| **fuzz** | ✅ 1 target(s) |
-| **mem**  | no dhat profile yet |
-
-### Competitor comparisons (from PERFORMANCE.md)
-
-- `mailrs-spf` vs `mail-auth` 0.9 (SPF half)
-
-<!-- AUDIT-FOOTER:END -->
-
 ## License
 
 Apache-2.0 OR MIT.

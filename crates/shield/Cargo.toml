@@ -16,13 +16,16 @@ readme = "README.md"
 workspace = true
 
 [features]
-default = ["kevy-store"]
-# Enable the kevy-backed greylist store (with optional Postgres
-# pass-through). Disable if you're plugging in your own store.
-kevy-store = ["dep:kevy-embedded", "dep:sqlx", "dep:async-trait"]
-# Swap the greylist cold-backup pool from PostgreSQL (default) to
-# spg-embedded. Type-alias level switch, same pattern as mailrs-mailbox.
-spg = ["dep:spg-sqlx"]
+default = ["kevy-store", "pg"]
+# The greylist store: `GreylistDb` over a pluggable `GreylistBackend`.
+store = ["dep:async-trait"]
+# The in-process kevy backend for it, `EmbeddedGreylistBackend`.
+kevy-store = ["store", "dep:kevy-embedded"]
+# A best-effort PostgreSQL cold backup behind the store (`with_pg`).
+pg = ["store", "dep:sqlx"]
+# Swap that backup's pool from PostgreSQL to spg-embedded. Type-alias
+# level switch, same pattern as mailrs-mailbox.
+spg = ["pg", "dep:spg-sqlx"]
 
 [dependencies]
 mailrs-dnsbl = { path = "../dnsbl", version = "1" }

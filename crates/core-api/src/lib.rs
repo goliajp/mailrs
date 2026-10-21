@@ -1,8 +1,5 @@
 //! Wire contract crate for the mailrs 4-process split.
 //!
-//! See `docs/CURRENT_STATE_FROZEN.md` §0.4 + §0.5 for the full method
-//! surface this crate must cover.
-//!
 //! ## Architecture
 //!
 //! Four binaries communicate via this crate's RPC types:

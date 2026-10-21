@@ -46,8 +46,7 @@ pub struct OidcCallbackQuery {
 /// GET /api/auth/oidc/callback — completes external-IdP login.
 /// Currently returns a static "callback received" page since the
 /// upstream token exchange requires a per-deployment client_secret
-/// and userinfo mapping; those are documented in
-/// `docs/oidc-integration.md`.
+/// and userinfo mapping.
 pub async fn oidc_callback(Query(q): Query<OidcCallbackQuery>) -> impl IntoResponse {
     let body = format!(
         "<html><body><h1>OIDC callback received</h1><p>code = {}</p><p>state = {}</p></body></html>",
