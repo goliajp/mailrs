@@ -21,14 +21,7 @@ enum AliasRule {
     static func isCreatable(source: String, target: String) -> Bool {
         let from = SenderName.extractEmail(source.trimmingCharacters(in: .whitespaces))
         let to = SenderName.extractEmail(target.trimmingCharacters(in: .whitespaces))
-        guard looksLikeAddress(from), looksLikeAddress(to) else { return false }
+        guard MailAddress.looksLike(from), MailAddress.looksLike(to) else { return false }
         return from != to
-    }
-
-    private static func looksLikeAddress(_ address: String) -> Bool {
-        guard let at = address.firstIndex(of: "@") else { return false }
-        let local = address[address.startIndex..<at]
-        let domain = address[address.index(after: at)...]
-        return !local.isEmpty && domain.contains(".") && !domain.hasSuffix(".")
     }
 }

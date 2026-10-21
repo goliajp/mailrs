@@ -1340,6 +1340,13 @@ class H(BaseHTTPRequestHandler):
             self.send_header("Content-Length", "0")
             self.end_headers()
         elif self.path.startswith("/api/auth/login"):
+            length = int(self.headers.get("Content-Length", "0"))
+            body = json.loads(self.rfile.read(length)) if length else {}
+            # The server's own body shape: a client that sends another
+            # field name gets the 422 the server would give it, not a token.
+            if not isinstance(body.get("address"), str) or not isinstance(body.get("password"), str):
+                self._send({"error": "missing field `address` or `password`"}, status=422)
+                return
             self._send({"address": "me@golia.jp", "display_name": "Me",
                         "permissions": [], "token": "stub-token"})
         elif self.path.split("?")[0].startswith("/debug/refuse-verb/"):

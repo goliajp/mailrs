@@ -1810,6 +1810,22 @@
         }
       }
     },
+    "Enter the full address, like name@example.com": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "name@example.com の形で、アドレスを省略せずに入力してください"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请输入完整的邮箱地址，例如 name@example.com"
+          }
+        }
+      }
+    },
     "Enter the server settings myself": {
       "localizations": {
         "ja": {
