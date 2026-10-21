@@ -16,10 +16,7 @@ pub struct ThreadIdParams {
     pub thread_id: String,
 }
 
-// FLAG_SEEN bit shared with mailrs_mailbox — matches the flag u32
-// coming back from the fastcore RPC. Kept in-file (not imported)
-// so this batch file remains self-contained.
-const FLAG_SEEN: u32 = 1 << 5;
+use mailrs_core_api::method::message::FLAG_SEEN;
 
 #[tool_router(router = tool_router_v2_batch8, vis = "pub")]
 impl MailrsMcpService {

@@ -125,11 +125,11 @@ pub async fn get_message_single(
     let maildir_root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
     let mut text_body: Option<String> = None;
     let mut html_body: Option<String> = None;
-    if let Some((local, domain)) = user.split_once('@') {
-        let path = format!("{maildir_root}/{domain}/{local}");
+    if let Some((path, id)) =
+        crate::handlers::messages::blob_ref_location(&maildir_root, &user, &w.blob_ref)
+    {
         use mailrs_message_store::MessageStore;
         let store = mailrs_message_store::MaildirStore;
-        let id = mailrs_message_store::MessageId(w.blob_ref.clone());
         if let Ok(Some(bytes)) = store.fetch(&path, &id).await {
             let root = mailrs_mime::parse(&bytes);
             for part in root.walk() {
