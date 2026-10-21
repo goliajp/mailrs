@@ -2,7 +2,7 @@
 name = "mailrs-alias-store-net"
 version = "0.0.1"
 edition = "2024"
-description = "AliasStore backed by shared network kevy — the sync-across-stacks impl (RFC 20260705 Step 2)."
+description = "AliasStore backed by the shared network kevy-server, so every mailrs process sees the same alias table."
 license = "Apache-2.0 OR MIT"
 publish = false
 

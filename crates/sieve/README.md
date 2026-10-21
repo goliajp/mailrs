@@ -66,25 +66,6 @@ match &actions[0] {
   returned via `SieveAction::Vacation` (same shape, different
   semantics; caller decides whether to actually send).
 
-<!-- AUDIT-FOOTER:BEGIN -->
-
-## Stone audit (2026-05-25)
-
-| Axis | Status |
-|---|---|
-| **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-sieve`) |
-| **test** | line cov: 96.4% (`cargo llvm-cov -p mailrs-sieve --summary-only`) |
-| **bench** | ✅ 1 file(s) criterion + ✅ 2 gate(s) `perf_gate.rs` |
-| **size** | release rlib: 113 KB |
-| **fuzz** | ✅ 1 target(s) |
-| **mem**  | no dhat profile yet |
-
-### Competitor comparisons
-
-- Searched crates.io + competing impls: see PERFORMANCE.md or 'first-in-Rust' marker.
-
-<!-- AUDIT-FOOTER:END -->
-
 ## License
 
 Apache-2.0 OR MIT.

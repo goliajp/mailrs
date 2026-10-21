@@ -55,25 +55,6 @@ See [`examples/parse_invite.rs`](examples/parse_invite.rs) for a walk-through th
 | `vtimezone`  | Inline VTIMEZONE handling with chrono-tz IANA fallback. |
 | `serialize`  | [`ParsedInvite`] → RFC 5545 text (for iTIP REPLY). |
 
-<!-- AUDIT-FOOTER:BEGIN -->
-
-## Stone audit (2026-05-25)
-
-| Axis | Status |
-|---|---|
-| **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-ical`) |
-| **test** | line cov: 91.4% (`cargo llvm-cov -p mailrs-ical --summary-only`) |
-| **bench** | ✅ 2 file(s) criterion + ✅ 2 gate(s) `perf_gate.rs` |
-| **size** | release rlib: 535 KB |
-| **fuzz** | ✅ 2 target(s) |
-| **mem**  | no dhat profile yet |
-
-### Competitor comparisons (from PERFORMANCE.md)
-
-- `mailrs-ical` vs `icalendar` 0.17 (RFC 5545 parse)
-
-<!-- AUDIT-FOOTER:END -->
-
 ## License
 
 Licensed under either of:

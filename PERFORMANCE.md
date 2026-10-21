@@ -11,7 +11,11 @@ Every crate with a bench runs it the same way:
 cargo bench -p mailrs-<crate>
 ```
 
-### Workspace-level
+### Workspace-level (the earlier all-in-one `mailrs-server`, 2026-05)
+
+These were measured on the single-process server that preceded the
+deployed four-process stack; they are kept as the record of those
+changes, not as numbers for the current processes.
 
 | Path | Measurement | Run command |
 |---|---|---|
@@ -888,12 +892,6 @@ Run: `cargo bench -p mailrs-rfc5322 --bench parse`.
 | `sender_heuristics/detect_bulk_sender_yes` | **27 ns** | regex-free byte scan |
 | `sender_heuristics/is_automated_sender_yes` | **31 ns** | same path |
 | `split_quoted_content` | **285 ns** | quote-line walk |
-
-### Server-internal (`mailrs-server`, gated `#[test]` bench)
-
-| Path | Measurement | Run command |
-|---|---|---|
-| `extract_subject_and_from` vs. two `extract_header` calls | Single-pass wins **48-50%** across 1KB/5KB/20KB messages (release). Absolute: saves **2.0 / 3.1 / 6.5 µs** per message respectively. | `MAILRS_BENCH=1 cargo test --release -p mailrs-server bench_two_pass_vs_single_pass -- --nocapture --test-threads=1` |
 
 ### Variance note
 

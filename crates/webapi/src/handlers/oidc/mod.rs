@@ -63,7 +63,7 @@ pub async fn openid_configuration() -> Json<serde_json::Value> {
         "subject_types_supported": ["public"],
         // Opaque bearer tokens; ID token is unsigned per RFC 7519 §7.
         // Clients that require RS256 must be pointed at a proxy that
-        // signs (see docs/oidc-signing.md). Documenting truthfully
+        // signs. Documenting truthfully
         // here avoids Grafana / Home Assistant silently rejecting an
         // alg=none token they were told to expect as RS256.
         "id_token_signing_alg_values_supported": ["none"],
@@ -89,8 +89,7 @@ fn base64_url_encode(bytes: &[u8]) -> String {
 /// Build an unsigned "opaque" ID token — we return a JWS-shaped
 /// (header.payload.signature) blob where the signature is a random
 /// hex, letting clients pass it back for introspection via
-/// `/oauth/userinfo`. Full RS256 signing is documented in
-/// `docs/oidc-signing.md` (requires an on-disk RSA key).
+/// `/oauth/userinfo`. RS256 signing would need an RSA key on disk.
 fn build_id_token_opaque(user: &str, client_id: &str, expires_at: i64) -> String {
     let hdr = base64_url_encode(br#"{"alg":"none","typ":"JWT"}"#);
     let payload = serde_json::json!({

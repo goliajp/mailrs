@@ -1,128 +1,203 @@
 # Architecture
 
-mailrs is a Cargo workspace of **73 crates** — 66 reusable library crates
-(most of them published on [crates.io](https://crates.io/users/golia-jp))
-plus seven binary crates: `mailrs-fastcore` (kevy-backed core RPC +
-IMAP/POP3), `mailrs-webapi` (REST + web UI), `mailrs-receiver` (SMTP
-inbound → spool), `mailrs-sender` (outbound queue + DKIM),
-`mailrs-server` (the dormant pg/spg monolith), and two tools —
-`mailrs-core-sync` and `mailrs-pg-dump`.
+mailrs is a mail server — SMTP in and out, IMAP, POP3, JMAP, ManageSieve,
+CalDAV/CardDAV, a REST and MCP API, and a web client — built as a Cargo
+workspace of 72 crates. Production runs four mailrs processes from one
+image beside a `kevy-server`. There is no SQL database in that stack:
+message metadata lives in an embedded key-value store, mail bodies are
+Maildir files.
 
-Prod runs the 4-process fastcore stack (`receiver` + `fastcore` +
-`webapi-fc` + `fastcore-sender`) against a `kevy-server` container, and
-that is the only topology that ships: the monolith has not been built into
-the image since 2026-07-22. Its code stays in the tree as
-the dormant pg/spg lane of the v2 dual-mode design — `MAILRS_CORE_RPC_BASE`
-still names the switch, but nothing is running behind it.
+## The running system
 
-The split is deliberate: anything that implements an RFC or a self-contained
-concept lives in its own library crate — independently versioned, tested,
-benchmarked, and publishable. The server binary holds only the
-project-specific glue that turns those libraries into a running server.
+```
+                 :25 :465 :587                       :143 :993 :110 :995 :4190
+                       │                                        │
+ internet ──► receiver ──spool files──► fastcore ◄──── IMAP / POP3 / ManageSieve clients
+                 │   "spooled" event ──►   │  ▲
+                 │                         │  │ core-api (HTTP :3301)
+                 │                         │  │
+                 ▼                         ▼  │
+            ┌──────────────── kevy-server ────┴─────────┐         webapi ◄── browser, apps,
+            │ sessions, queues, side state, change feed │◄────────┘          MCP agents (:3100)
+            └───────────────────────────────────────────┘
+                                ▲
+                       fastcore-sender ──► remote MX (DKIM-signed)
+```
 
-## Design principles
+All four mailrs processes are the same image (`Dockerfile`) started with a
+different entrypoint (`deploy/docker-compose.prod.yml`).
 
-- **One crate, one boundary.** Each library crate owns a single RFC or a
-  single well-defined concept (`mailrs-spf` = RFC 7208, `mailrs-rate-limit` =
-  token-bucket). Small surface, easy to reason about, reusable elsewhere.
-- **Parsers do zero I/O.** Protocol and parser crates never touch the network
-  or disk — all async I/O (Tokio) lives in the server binary. This keeps the
-  libraries portable to any Rust project and trivial to unit-test.
-- **Every published crate is self-contained.** README, CHANGELOG, criterion
-  benches, a regression budget (`tests/perf_gate.rs`), `#![deny(missing_docs)]`,
-  and a libFuzzer target wherever it parses untrusted input.
+| process | binary | crate | what it does |
+|---|---|---|---|
+| receiver | `mailrs-receiver` | `crates/receiver` | Accepts SMTP on 25 (STARTTLS), 465 (implicit TLS) and 587 (submission). Runs the inbound pipeline — rate limits, PTR, DNSBL, greylisting, SPF/DKIM/DMARC/ARC, Bayes, scripted fraud rules, content scan — and refuses unknown local recipients at RCPT by asking fastcore. Accepted mail is written to the spool with its envelope; nothing else. |
+| fastcore | `mailrs-fastcore` | `crates/fastcore` | Owns the mailbox. Drains the spool (alias and group resolution, Sieve, delivery into Maildir), threads and indexes every message, serves the core-api to the other processes, and runs IMAP, POP3 and ManageSieve. Also the background work: maildir self-heal, bounce filing, attachment text and OCR, snooze, push notifications, report ingestion, AOF compaction. |
+| webapi | `mailrs-webapi` | `crates/webapi` | The HTTP surface: REST for the web client and the iOS/Android apps, JMAP, CalDAV/CardDAV, OIDC sign-in, the MCP server, and the `/api/events` WebSocket. Serves the web client's static files. Holds no mailbox state of its own; it asks fastcore over core-api. |
+| fastcore-sender | `mailrs-fastcore-sender` | `crates/fastcore` (bin) | Takes outbound jobs off a kevy queue, DKIM-signs, delivers over MX with STARTTLS and MTA-STS, retries with backoff for up to five days, and queues a DSN back for fastcore to file when delivery fails for good. |
+| kevy-server | — | `ghcr.io/goliajp/kevy` | The network key-value store the four share. |
 
-See [PERFORMANCE.md](./PERFORMANCE.md) for the full benchmark ledger.
+fastcore starts `mailrs-fastcore-ocr` as a short-lived child process per
+attachment that needs OCR, with its own memory and CPU limits.
+`mailrs-fraud-check` (from `crates/fraud-lua`) is a command-line tool in
+the same image for validating and comparing fraud rule files before they
+are swapped in.
 
-## Library crates
+## Where state lives
 
-### Protocol parsers & formatters (zero-I/O)
+| state | where | written by |
+|---|---|---|
+| Mail bodies | Maildir files under `MAILRS_MAILDIR`, one directory per mailbox, Maildir++ subfolders for Sent, Drafts, Junk… | fastcore (delivery), webapi (the Sent copy of what a user sends) |
+| Threads, messages, per-user rows, UIDs, flags, the search index | fastcore's embedded kevy store (`MAILRS_KEVY_DATA_DIR`), AOF + snapshots | fastcore only; every other process goes through core-api |
+| Sessions, outbound queue, bounce queue, aliases, Sieve scripts, contacts, calendars and address books, drafts, audit log, Bayes and triage corpora, greylist and rate-limit state, sender lists | `kevy-server` | whichever process owns the feature; most keys more than one process touches are defined in `crates/core-sidestate` |
+| Inbound spool | `MAILRS_SPOOL_ROOT/incoming/` | receiver writes, fastcore drains |
+| Per-mailbox files beside the mail: `dovecot-uidlist`, `dovecot-keywords`, a thread-state log | the mailbox's Maildir directory | fastcore |
 
-| Crate | What it does |
+The two kevy stores are not interchangeable. Mailbox data is in fastcore's
+embedded store and nothing else opens it; a handler that needs it calls
+core-api. The network store is for state several processes share.
+
+## How mail moves
+
+**Inbound.** The receiver runs the pipeline during the SMTP transaction, so
+a rejection is an SMTP reply rather than a bounce. An accepted message is
+written atomically to `incoming/new/` with its envelope (sender, recipients,
+target folder, fraud verdict) in a header, and the receiver publishes a
+`SpoolDelivered` event on kevy-server. fastcore wakes on that event (and on
+a 15-second timer, for when the subscription is down), resolves each
+recipient to a mailbox, an email group's members or an alias target,
+applies the recipient's Sieve script, writes the file into the Maildir,
+and indexes it: thread resolution, the per-user row, the text index,
+importance, attachment text. Only then does it announce the message.
+
+**Realtime.** fastcore writes a `NewMessage` event under
+`mailrs:events:notify:` in kevy-server. webapi reads those keys off kevy's
+change feed and sends each to the WebSocket connections of the user it is
+for, and no others. IMAP IDLE sessions in fastcore watch the embedded
+store's own change feed.
+
+**Outbound.** webapi validates a send, writes a job to the outbound queue in
+kevy-server, writes the Sent copy into the sender's Maildir and asks
+fastcore to index it. fastcore-sender delivers the job. A permanent failure
+becomes a DSN on the bounce queue, which fastcore files into the sender's
+inbox like any other message.
+
+**Reading.** Lists, threads, search and flag changes are core-api calls
+from webapi to fastcore. Search runs on kevy's built-in text index over
+subjects, senders and previews, message bodies (first 8 KiB) and attachment
+text; CJK text is indexed as character bigrams, so Japanese and Chinese
+need no dictionary. webapi reads and parses message bodies from the Maildir
+itself, resolving a message's `blob_ref` (`.Sent/<file>` for a subfolder)
+with `mailrs_message_store::locate`.
+
+## Crates
+
+Libraries own one RFC or one concept each and do no I/O of their own where
+they parse; the process crates own all async I/O and the wiring. Most
+libraries are published on [crates.io](https://crates.io/users/golia-jp).
+
+### Processes and their contract
+
+| crate | role |
 |---|---|
-| `mailrs-smtp-proto` | SMTP protocol parser, formatter, and session state machine (RFC 5321) |
-| `mailrs-smtp-codec` | Tokio Decoder/Encoder for the RFC 5321 SMTP wire format |
-| `mailrs-imap-proto` | IMAP4rev1 protocol parser, response formatter, and sequence-set helpers (RFC 3501/9051) |
-| `mailrs-imap-codec` | Tokio Decoder/Encoder for the RFC 9051 IMAP wire format |
-| `mailrs-imap-format` | IMAP wire-format helpers: FLAGS / INTERNALDATE / quoted strings / `BODY[…]` sections |
-| `mailrs-rfc5322` | Pull-based RFC 5322 message parser — lazy header lookup, zero-alloc borrowed slices |
-| `mailrs-rfc2047` | RFC 2047 MIME encoded-word decoder/encoder |
-| `mailrs-rfc2231` | RFC 2231 MIME parameter encoder + decoder |
-| `mailrs-mime` | RFC 2045/2046 MIME body-tree parser |
-| `mailrs-mail-builder` | RFC 5322 / 2046 / 2047 / 2231 outbound mail builder |
-| `mailrs-ical` | RFC 5545 iCalendar parser, serializer, and iTIP semantics (VTIMEZONE + RRULE); behind `mime`, finding the calendar part of a message |
-| `mailrs-jmap` | JMAP (RFC 8620 + 8621) server-side dispatcher — framework-agnostic, bring-your-own store |
-| `mailrs-dav` | CalDAV (RFC 4791) + CardDAV (RFC 6352) server-side handlers, BYO data layer |
-| `mailrs-sieve-core` | Native RFC 5228 Sieve interpreter — tokenizer + parser + evaluator |
-| `mailrs-sieve` | Delivery-action wrapper over a Sieve engine (RFC 5228 email filtering) |
+| `mailrs-receiver` | The receiver process |
+| `mailrs-fastcore` | fastcore, fastcore-sender, the OCR child and maintenance tools |
+| `mailrs-webapi` | The webapi process |
+| `mailrs-core-api` | The core-api: request and response types, paths, client and server stubs |
+| `mailrs-core-sidestate` | Network-kevy state shared by more than one process — key names and the functions that read and write them |
+| `mailrs-core` | The SMTP event bus and spool envelope shared by the receiver and fastcore |
 
-### Email authentication
+### Mailbox storage
 
-| Crate | What it does |
+| crate | role |
 |---|---|
-| `mailrs-spf` | RFC 7208 Sender Policy Framework verifier |
-| `mailrs-dkim` | RFC 6376 DKIM signature verifier + signer |
-| `mailrs-dmarc` | RFC 7489 DMARC policy evaluation, alignment, and aggregate XML reporting |
-| `mailrs-arc` | RFC 8617 Authenticated Received Chain — header parsing, chain extract, signature verify |
-| `mailrs-srs` | Sender Rewriting Scheme — rewrite envelope From for SPF-aware forwarding, HMAC-keyed |
+| `mailrs-mailbox-kevy` | The mailbox store on embedded kevy: thread table, per-user rows, UIDs, flags, text index |
+| `mailrs-mailbox` | Store-agnostic mailbox types, flag constants and threading helpers; the Postgres store behind its `pg` feature |
+| `mailrs-maildir` (`crates/storage-maildir`) | Maildir primitives: atomic delivery, scans, flags |
+| `mailrs-message-store` | Delivered-mail storage trait with a Maildir implementation, and `blob_ref` resolution |
+| `mailrs-delivery-executor` | Group-commit delivery on top of Maildir batch writes |
+| `mailrs-alias-store`, `mailrs-alias-store-net` | The alias table trait and its kevy-server implementation |
+| `mailrs-uidlist`, `mailrs-keywords`, `mailrs-threadstate` | Dovecot-compatible UID and keyword files, and a per-thread decision log, kept beside the mail so a rebuilt index loses nothing |
 
-### Infrastructure & utilities
+### Inbound pipeline and classification
 
-| Crate | What it does |
+| crate | role |
 |---|---|
-| `mailrs-rate-limit` | Token-bucket rate limiting trait + in-memory reference impl |
-| `mailrs-auth-guard` | Per-IP / per-(IP, user) failed-auth counter with exponential-backoff lockout |
-| `mailrs-dnsbl` | RFC 5782 DNS-based blocklist lookup |
-| `mailrs-clamav` | Async ClamAV (clamd) TCP client |
-| `mailrs-backoff` | Exponential backoff with optional jitter (AWS-style taxonomy) |
-| `mailrs-webhook-signature` | HMAC-SHA256 webhook payload signing + verification |
-| `mailrs-tls-reload` | Hot-reloadable rustls `ServerConfig` via arc-swap |
-| `mailrs-acme` | ACME (RFC 8555 / Let's Encrypt) orchestration — HTTP-01 provisioning + renewal |
-| `mailrs-dns` | Light hickory-resolver wrapper for the 5 DNS query types mail servers use (TXT/A/AAAA/MX/PTR) |
-| `mailrs-mta-sts` | RFC 8461 MTA-STS — policy/record parsers, MX pattern matching, `enforce()` decision |
-| `mailrs-tls-rpt` | RFC 8460 SMTP TLS Reporting — TXT parser, JSON report model, failure taxonomy |
-| `mailrs-arf` | RFC 5965 Abuse Reporting Format (feedback-report) parser |
+| `mailrs-inbound` | Composable receive pipeline: stage trait, early-reject executor, RFC 8601 results |
+| `mailrs-shield` | DNSBL queries, greylisting, PTR/FCrDNS |
+| `mailrs-rate-limit`, `mailrs-auth-guard` | Token-bucket rate limits; failed-login counting with backoff lockout |
+| `mailrs-bayes`, `mailrs-triage` | Bayesian spam classification; inbox / notification / promotion triage over kevy |
+| `mailrs-fraud`, `mailrs-fraud-lua`, `mailrs-textguard` | Fraud signals authentication cannot see; scripted fraud rules in sandboxed Lua; deceptive characters in display names |
+| `mailrs-clamav` | ClamAV (clamd) client |
+| `mailrs-intelligence` | LLM-assisted extraction and scoring behind a provider trait (off unless configured) |
+| `mailrs-clean` | HTML sanitising, tracking-pixel detection, quoted-reply splitting |
+| `mailrs-attachment-extract`, `mailrs-ocr` | Text from PDF attachments; OCR of images and scanned pages (Chinese, Japanese, English) in pure Rust |
+| `mailrs-mock` | Disposable test mailboxes: address grammar and the parsed view of a captured message |
 
-### Server building blocks (opinionated, bring-your-own-store)
+### Protocols and formats
 
-| Crate | What it does |
+| crate | role |
 |---|---|
-| `mailrs-secretbox` | Sealing a credential with a deployment key — XChaCha20-Poly1305, fingerprinted so a rotated key says so rather than failing as corruption |
-| `mailrs-mailprovider` | Where the common providers' mail servers are and how they want to be asked, plus ordered autodiscovery for everything else |
-| `mailrs-imap-client` | Reading somebody else's IMAP mailbox: response parsing and the uid bookkeeping that decides what is new |
-| `mailrs-pop3-client` | Reading a mailbox that only offers POP3 — UIDL-based deduplication, because message numbers renumber per session |
-| `mailrs-jmap-client` | Reading a JMAP mailbox: the session object, `Email/changes`, and blob URLs |
-| `mailrs-smtp-client` | Outbound SMTP client: MX resolution, DANE/STARTTLS, response parsing — async, transport-agnostic |
-| `mailrs-maildir` | Maildir filesystem primitives: atomic delivery, directory scans, flag parsing |
-| `mailrs-mailbox` | Mailbox metadata storage: `MailboxStore` trait + PostgreSQL reference impl |
-| `mailrs-outbound-queue` | Outbound queue: DKIM signing, DSN generation, MTA-STS lookup, retry/backoff, pluggable store |
-| `mailrs-delivery-executor` | Group-commit delivery executor on top of `mailrs-maildir` batch delivery |
-| `mailrs-inbound` | Composable SMTP receive pipeline — Stage trait + early-reject executor + RFC 8601 results |
-| `mailrs-shield` | SMTP anti-spam: DNSBL queries, greylisting (optional in-process kevy), PTR/FCrDNS |
-| `mailrs-fraud` | Fraud signals authentication cannot see: a display name claiming an organisation it is not from, an `X-Mailer` no client writes. Each measured against a real corpus, scored rather than ruled on |
-| `mailrs-postmaster` | Email-domain DNS health checks: MX, SPF, DKIM, DMARC, MTA-STS, TLS-RPT, BIMI, DANE, PTR |
-| `mailrs-intelligence` | LLM-powered email analysis: extraction, importance scoring, spam classification, embeddings |
-| `mailrs-clean` | Email content cleanup: HTML sanitization, tracking-pixel detection, quoted-reply splitting |
-| `mailrs-attachment-extract` | Extract text from email attachments (PDF + image OCR) |
+| `mailrs-smtp-proto`, `mailrs-smtp-codec` | SMTP parser, formatter and session state machine; Tokio codec (RFC 5321) |
+| `mailrs-smtp-client` | Outbound SMTP: MX resolution, DANE/STARTTLS, response parsing |
+| `mailrs-outbound-queue` | Outbound delivery logic: DKIM signing, DSN generation, MTA-STS lookup, the retry schedule, and the queue store trait (its Postgres store behind the `pg` feature) |
+| `mailrs-imap-proto`, `mailrs-imap-codec`, `mailrs-imap-format` | IMAP parser and formatter, Tokio codec, wire-format helpers (RFC 3501/9051) |
+| `mailrs-rfc5322`, `mailrs-rfc2047`, `mailrs-rfc2231`, `mailrs-mime` | Message headers, encoded words, MIME parameters, the MIME body tree |
+| `mailrs-mail-builder` | Outbound message builder |
+| `mailrs-ical` | iCalendar (RFC 5545) and iTIP |
+| `mailrs-jmap` | JMAP (RFC 8620/8621) dispatcher |
+| `mailrs-sieve`, `mailrs-sieve-core` | Sieve (RFC 5228) delivery actions and interpreter |
+| `mailrs-arf` | Abuse Reporting Format (RFC 5965) |
 
-## The server binary (`crates/server/src/`)
+### Mail authentication and transport security
 
-`mailrs-server` owns all async I/O and wires the libraries together:
+| crate | role |
+|---|---|
+| `mailrs-spf`, `mailrs-dkim`, `mailrs-dmarc`, `mailrs-arc` | SPF (RFC 7208), DKIM (RFC 6376), DMARC (RFC 7489) with aggregate reports, ARC (RFC 8617) |
+| `mailrs-srs` | Sender Rewriting Scheme for forwarding |
+| `mailrs-dnsbl` | DNS blocklist lookup (RFC 5782) |
+| `mailrs-mta-sts`, `mailrs-tls-rpt` | MTA-STS (RFC 8461) and SMTP TLS reporting (RFC 8460) |
+| `mailrs-tls-reload`, `mailrs-acme` | Hot-reloaded TLS certificates; ACME (RFC 8555) provisioning |
 
-- **smtp_session / imap_session** — protocol handlers driving the parser crates
-- **inbound/pipeline** — multi-stage acceptance: rate limit → PTR → DNSBL → greylist → SPF/DKIM/DMARC → content scan → Sieve → delivery
-- **web** — REST API + WebSocket endpoints (Axum)
-- **config** — all configuration via `MAILRS_*` environment variables
-- **domain_store** — domain/account/alias resolution (PostgreSQL + in-process kevy `Store` + DashMap cache)
-- **event_bus** — Tokio broadcast channel connecting SMTP / IMAP / web in real time
-- **users** — auth via PostgreSQL accounts (Argon2), with LDAP fallback
-- **acme / tls** — Let's Encrypt automation + hot-reloadable TLS certificates
+### Infrastructure
+
+| crate | role |
+|---|---|
+| `mailrs-backoff` | Exponential backoff with jitter |
+| `mailrs-webhook-signature` | HMAC-SHA256 webhook signing and verification |
+| `mailrs-apns` | Apple push notifications over HTTP/2 |
+| `mailrs-oauth-client` | OAuth 2.0 / OIDC relying-party primitives |
+
+### The Postgres backend (not deployed)
+
+The same core-api can be served by a Postgres-backed core instead of
+fastcore. That backend is kept in the tree, compiled and tested by the
+deploy gate, and not run in production. Its crates:
+
+| crate | role |
+|---|---|
+| `mailrs-server` | The Postgres-backed core and the earlier all-in-one server process |
+| `mailrs-sender` | Outbound worker for that core |
+| `mailrs-core-sync` | Sync between two cores over core-api, for switching between backends |
+| `mailrs-pg-dump` | Export a Postgres catalog for import into fastcore |
+| `mailrs-dav`, `mailrs-postmaster` | CalDAV/CardDAV handlers and domain DNS health checks, used only by `mailrs-server` |
+| `mailrs-mmalloc`, `mailrs-syscall` | An mmap-backed allocator for `mailrs-server` and its raw syscalls |
+
+The Postgres stores in `mailrs-mailbox`, `mailrs-outbound-queue`,
+`mailrs-dmarc` and `mailrs-shield` sit behind features the production
+binaries leave off, so no SQL driver is linked into them.
+
+### Test support
+
+`mailrs-test-docker` serialises container start-up for tests that need
+Postgres or Mailpit; `mailrs-perf-recipes` holds release-mode performance
+budgets for compositions of crates.
 
 ## Conventions
 
-- Workspace dependencies are declared in the root `Cargo.toml` and referenced with `workspace = true`.
-- Crate names are prefixed `mailrs-`; directory names are not (`crates/smtp-proto` → `mailrs-smtp-proto`).
-- Configuration is environment-variable driven (`MAILRS_*`).
-- PostgreSQL is optional — the server starts in degraded mode if unavailable.
-- Full-text search is **served by two kevy `KIND text` indexes**: one over the thread rows' synthesised `search_blob` field (subject + senders + preview), one over per-message body text in `mailrs:msgtext:<message-id>` rows. Bodies are kept out of the thread row because a thread accumulates messages — folding them in would grow a single value without bound and rewrite all of it on every arrival — and are capped at 8 KiB, since prod's median message file is 34 KB and the terms that identify a message sit near its top. Header matches rank ahead of body matches. Both indexes are maintained by kevy's commit hook — the index lives in the same store, in the same write, as the rows it describes. Dictionary-free CJK bigrams, so Japanese and Chinese are searchable without an analyzer. A Meilisearch sidecar previously held this index; it was removed 2026-07-19 after it silently diverged from the rows (three files each carried their own copy of the index-naming rule, two disagreed, and search returned nothing for weeks). The monolith lane answers the same queries from Postgres (`search_vector @@ plainto_tsquery` unioned with ILIKE), which also needs no external service.
-- Kevy runs **in-process via `kevy_embedded::Store`** (v9 Phase C, v1.7.95+). Production also runs one network `kevy-server` container (no valkey / redis): all four fastcore roles connect to it as `kevy://kevy-server:6379` for bayes, spam, greylist, contacts and the change feed, beside fastcore's own embedded store. AOF + snapshot persistence at `MAILRS_KEVY_DATA_DIR` (default `/data/kevy`); `Store::publish` / `Store::subscribe` carry the `queue:notify` pub/sub between cement and the `mailrs-outbound-queue` delivery worker. Stones (`mailrs-shield` / `mailrs-intelligence` / `mailrs-outbound-queue`) all take `kevy_embedded::Store` directly, no RPC.
+- Crate names carry the `mailrs-` prefix; directory names do not
+  (`crates/smtp-proto` is `mailrs-smtp-proto`). Workspace crates depend on
+  each other by `path`.
+- Configuration is environment variables only, all named `MAILRS_*`.
+- The release version lives in git tags. `Cargo.toml` and
+  `web/package.json` stay at `0.0.0` and the build injects the tag.
+- Latency-sensitive crates carry `tests/perf_gate.rs` budgets, derived as
+  described in each crate's `BUDGETS.md`; see [PERFORMANCE.md](./PERFORMANCE.md).

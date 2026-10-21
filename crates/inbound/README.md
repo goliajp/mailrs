@@ -266,25 +266,6 @@ The default policy in `make_delivery_decision` may evolve within `1.x` if
 the precedence rules need tightening; consumers who want to lock it in
 should compute their own final decision from the signals.
 
-<!-- AUDIT-FOOTER:BEGIN -->
-
-## Stone audit (2026-05-25)
-
-| Axis | Status |
-|---|---|
-| **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-inbound`) |
-| **test** | line cov: 97.7% (`cargo llvm-cov -p mailrs-inbound --summary-only`) |
-| **bench** | ✅ 1 file(s) criterion + ✅ 7 gate(s) `perf_gate.rs` |
-| **size** | release rlib: 223 KB |
-| **fuzz** | ❌ none |
-| **mem**  | no dhat profile yet |
-
-### Competitor comparisons
-
-- Searched crates.io + competing impls: see PERFORMANCE.md or 'first-in-Rust' marker.
-
-<!-- AUDIT-FOOTER:END -->
-
 ## License
 
 Licensed under either [Apache License, Version 2.0](LICENSE-APACHE) or

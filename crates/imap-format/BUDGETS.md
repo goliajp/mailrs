@@ -12,8 +12,8 @@ without flaking under cargo-test-workspace parallel CPU contention.
 
 ## Measured (release, M-series Mac)
 
-Numbers populated by `scripts/stone-audit-footer.py` from criterion
-runs — see README.md "Stone audit" footer for current snapshot.
+Run `cargo bench -p mailrs-imap-format` for the current medians; the budgets in
+`tests/perf_gate.rs` are set against them.
 
 ## How to add a new gate
 

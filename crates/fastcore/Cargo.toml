@@ -2,7 +2,7 @@
 name = "mailrs-fastcore"
 version.workspace = true
 edition = "2024"
-description = "Kevy-backed `mailrs-core-api` server. Drop-in for the PG/spg core when the workload fits the cascade-killer KV layout."
+description = "The mailrs core: spool drain, delivery and indexing over embedded kevy, the core-api server, IMAP, POP3 and ManageSieve."
 license = "Apache-2.0 OR MIT"
 publish = false
 

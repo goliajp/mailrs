@@ -2,7 +2,7 @@
 name = "mailrs-pg-dump"
 version = "0.0.1"
 edition = "2024"
-description = "Dump mailrs's PG (or spg) catalog to NDJSON suitable for `mailrs-fastcore-migrate`. Phase 10b — bootstraps kevy mirror from the existing spg source-of-truth."
+description = "Dump a mailrs Postgres (or spg) catalog to NDJSON for import into the kevy-backed core."
 license = "Apache-2.0 OR MIT"
 publish = false
 

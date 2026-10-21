@@ -2,7 +2,7 @@
 name = "mailrs-perf-recipes"
 version = "0.0.0"
 edition = "2024"
-description = "Test-only: release perf budgets for the inbound path's composition of stones."
+description = "Test-only: release-mode performance budgets for the inbound path, which composes several crates."
 license = "Apache-2.0 OR MIT"
 publish = false
 
