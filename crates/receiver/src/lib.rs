@@ -1,14 +1,10 @@
-//! mailrs-receiver — the SMTP receiving path's *ports*.
+//! mailrs-receiver — the SMTP receiving process.
 //!
-//! This crate holds the traits the receiver depends on for the account
-//! layer, quota, and connection metrics, plus the pure
-//! [`ResolvedRecipient`] data type. They are free of spg / kevy so the
-//! receiver can be built (and eventually split into its own process)
-//! without binding the stateful core's storage engines.
-//!
-//! The spg/kevy-backed *adapters* (impls for `DomainStore`,
-//! `PgMailboxStore`, `WebState`) live in the server core — ports here,
-//! adapters there.
+//! It accepts mail, checks each recipient against the core, and writes the
+//! message to the spool; delivery is the spool drain's job in whichever core
+//! runs. The traits it depends on (the account layer, connection metrics)
+//! are free of SQL and kevy-embedded, so the process carries no storage
+//! engine of its own.
 
 mod account_store;
 pub mod config;
