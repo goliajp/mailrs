@@ -83,7 +83,6 @@ mailrs-rfc5322 = { path = "../rfc5322", version = "1" }
 mailrs-rfc2047 = { path = "../rfc2047", version = "1" }
 mailrs-mail-builder = { path = "../mail-builder", version = "1" }
 mailrs-auth-guard = { path = "../auth-guard", version = "2" }
-mailrs-srs = { path = "../srs", version = "1" }
 mailrs-rfc2231 = { path = "../rfc2231", version = "1" }
 mailrs-webhook-signature = { path = "../webhook-signature", version = "1" }
 mailrs-clamav = { path = "../clamav", version = "1" }
@@ -93,7 +92,6 @@ mailrs-acme = { path = "../acme", version = "1" }
 mailrs-spf = { path = "../spf", version = "2" }
 mailrs-dkim = { path = "../dkim", version = "3" }
 mailrs-arc = { path = "../arc", version = "3" }
-mailrs-arf = { path = "../arf", version = "1" }
 mailrs-tls-rpt = { path = "../tls-rpt", version = "1" }
 mailrs-mime = { path = "../mime", version = "2" }
 metrics = "0.24"

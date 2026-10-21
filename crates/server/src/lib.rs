@@ -41,7 +41,6 @@ mod pg;
 #[cfg(feature = "core-rpc")]
 mod pg_core_boot;
 mod pop3_session;
-mod quota_store;
 mod rbl_monitor;
 mod reconcile_task;
 mod reputation;

@@ -15,16 +15,23 @@ use crate::route::{Directory, Route, route};
 use crate::spool::{aging, stuck};
 
 /// A core the drain delivers into: its directory, the network kevy the
-/// side state lives in, and what it does with a copy that reached one of
-/// its mailboxes.
+/// side state lives in, and its store.
 pub trait Core: Directory {
     /// A connection to the shared network kevy; `None` when none is
     /// configured or it cannot be reached.
     fn net_conn(&self) -> Option<kevy_client::Connection>;
-    /// Deliver to `mailbox`, the mailbox `fwd` resolved to. Returns whether
-    /// the message was consumed for this recipient (delivered, filed,
-    /// redirected, or deliberately discarded / rejected by sieve).
-    fn deliver_resolved(&self, msg: &Inbound<'_, Self>, fwd: &str, mailbox: &str) -> bool;
+    /// Index `body`, just written to `addr`'s maildir as `blob_ref` (the
+    /// file name, with its subfolder when filed into `folder`). `folder`
+    /// is where the receiver's verdict or sieve filed it. False when the
+    /// store did not take it; the spool file then stays for another try.
+    fn ingest(
+        &self,
+        addr: &str,
+        blob_ref: &str,
+        body: &[u8],
+        folder: &str,
+        fraud_verdict: Option<&str>,
+    ) -> bool;
 }
 
 /// The spooled message being delivered.
@@ -99,7 +106,7 @@ impl<C: Core + ?Sized> Inbound<'_, C> {
             }
         };
         match ensure_maildir(self.core.maildir_root(), &mailbox)
-            && self.core.deliver_resolved(self, fwd, &mailbox)
+            && self.deliver_resolved(fwd, &mailbox)
         {
             true => Copies::done(),
             false => Copies::missed(&mailbox),

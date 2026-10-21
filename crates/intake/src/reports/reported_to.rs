@@ -11,7 +11,7 @@
 /// maildirs. Nothing recorded that this was load-bearing, and the first
 /// feedback loop registered against an alias — the ordinary way to do
 /// it — would have gone unprocessed with no error anywhere.
-pub(super) fn reported_to<'a>(envelope_rcpt: &'a str, _delivery_target: &'a str) -> &'a str {
+pub fn reported_to<'a>(envelope_rcpt: &'a str, _delivery_target: &'a str) -> &'a str {
     envelope_rcpt
 }
 
@@ -46,18 +46,21 @@ mod addressed_to_tests {
         let delivered_to = "lihao@golia.jp";
 
         assert!(
-            crate::fbl::is_fbl_mailbox_for_test(addressed_to),
+            crate::reports::fbl::is_fbl_mailbox_for_test(addressed_to),
             "the address the complaint was sent to is an FBL mailbox"
         );
         assert!(
-            !crate::fbl::is_fbl_mailbox_for_test(delivered_to),
+            !crate::reports::fbl::is_fbl_mailbox_for_test(delivered_to),
             "premise: the mailbox it lands in is not one, which is why \
              keying on the delivery target loses the report"
         );
 
         // And the rule the call sites go through picks the first.
         assert!(
-            crate::fbl::is_fbl_mailbox_for_test(super::reported_to(addressed_to, delivered_to)),
+            crate::reports::fbl::is_fbl_mailbox_for_test(super::reported_to(
+                addressed_to,
+                delivered_to
+            )),
             "the hooks are being asked about the delivery target again"
         );
     }

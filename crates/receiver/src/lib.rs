@@ -15,8 +15,6 @@ pub mod config;
 mod conn_metrics;
 mod credential_store;
 mod kevy_dmarc;
-mod quota_store;
-mod recipient;
 mod recipient_check;
 mod run;
 
@@ -24,8 +22,6 @@ pub use account_store::{AccountStore, AccountStoreError};
 pub use conn_metrics::ConnectionMetrics;
 pub use credential_store::{CoreCredentialStore, CredentialStore};
 pub use listeners::Receiver;
-pub use quota_store::QuotaStore;
-pub use recipient::ResolvedRecipient;
 pub use recipient_check::RecipientCheck;
 pub use run::{run, start};
 

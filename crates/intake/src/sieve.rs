@@ -156,7 +156,7 @@ fn action_to_decision(actions: &[SieveAction]) -> Decision {
 /// - a reply for (recipient, handle, sender) already went out inside
 ///   the dedup window (network-kevy key with TTL)
 pub fn maybe_vacation_reply(recipient: &str, envelope_from: &str, raw: &[u8], vac: &Vacation) {
-    if crate::bounce::suppress_bounce(envelope_from) {
+    if crate::dsn::suppress_bounce(envelope_from) {
         return;
     }
     let sender = envelope_from
@@ -166,25 +166,25 @@ pub fn maybe_vacation_reply(recipient: &str, envelope_from: &str, raw: &[u8], va
     if sender == recipient.to_lowercase() {
         return;
     }
-    if let Some(auto) = crate::bounce::header_value(raw, "Auto-Submitted")
+    if let Some(auto) = crate::dsn::header_value(raw, "Auto-Submitted")
         && !auto.eq_ignore_ascii_case("no")
     {
         return;
     }
-    if let Some(prec) = crate::bounce::header_value(raw, "Precedence") {
+    if let Some(prec) = crate::dsn::header_value(raw, "Precedence") {
         let p = prec.to_ascii_lowercase();
         if p.contains("bulk") || p.contains("list") || p.contains("junk") {
             return;
         }
     }
-    if crate::bounce::header_value(raw, "List-Id").is_some() {
+    if crate::dsn::header_value(raw, "List-Id").is_some() {
         return;
     }
     // addressed-to-me check (RFC 5230 §4.4)
     let to_cc = format!(
         "{} {}",
-        crate::bounce::header_value(raw, "To").unwrap_or_default(),
-        crate::bounce::header_value(raw, "Cc").unwrap_or_default()
+        crate::dsn::header_value(raw, "To").unwrap_or_default(),
+        crate::dsn::header_value(raw, "Cc").unwrap_or_default()
     )
     .to_lowercase();
     let mut mine = vec![recipient.to_lowercase()];
@@ -215,8 +215,8 @@ pub fn maybe_vacation_reply(recipient: &str, envelope_from: &str, raw: &[u8], va
     );
 
     // compose the reply
-    let orig_subject = crate::bounce::header_value(raw, "Subject").unwrap_or_default();
-    let orig_mid = crate::bounce::header_value(raw, "Message-ID")
+    let orig_subject = crate::dsn::header_value(raw, "Subject").unwrap_or_default();
+    let orig_mid = crate::dsn::header_value(raw, "Message-ID")
         .map(|m| m.trim_matches(|c| c == '<' || c == '>').to_string());
     let subject = vac
         .subject
@@ -292,7 +292,7 @@ fn fetch_script(address: &str) -> Option<String> {
     Some(script)
 }
 
-pub use mailrs_intake::maildir::maildir_subfolder;
+pub use crate::maildir::maildir_subfolder;
 
 #[cfg(test)]
 mod tests {

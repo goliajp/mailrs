@@ -1,11 +1,11 @@
-//! The maildir helpers and outbound enqueues the drain shares with the
-//! SQL core, under the names the rest of this crate uses.
+//! The address form every lookup expects, shared with the SQL core; and
+//! the drain's own tests.
 
-pub(crate) use mailrs_intake::maildir::{canonical_recipient, deliver, has_maildir};
-pub(crate) use mailrs_intake::outbound::{enqueue_outbound, enqueue_redirect};
+pub(crate) use mailrs_intake::maildir::canonical_recipient;
 
 #[cfg(test)]
 mod tests {
+    use super::canonical_recipient;
     use crate::spool_drain::*;
     use kevy_embedded::{Config, Store};
     use mailrs_core::spool::{SPOOL_SCHEMA_VERSION, SpoolEnvelope, encode_spool_blob};

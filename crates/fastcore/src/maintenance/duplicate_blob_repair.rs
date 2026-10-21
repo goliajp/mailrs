@@ -11,9 +11,9 @@
 //!
 //! `both_ids_real: 0` is the reason this may run at all. Every
 //! duplicate pairs one real `Message-ID` against one synthetic
-//! `{now}.{maildir_id}@mailrs.local`, which is minted in exactly one
-//! place — `crates/server/src/smtp_session/process_delivered.rs`, in a
-//! binary that left the image on 2026-07-22. Their dates stop on
+//! `{now}.{maildir_id}@mailrs.local`, which was minted in exactly one
+//! place — the all-in-one server's old delivery path, in a binary that
+//! left the image on 2026-07-22. Their dates stop on
 //! 2026-07-02. A pair of real ids would have meant a live second
 //! writer and a different problem.
 //!

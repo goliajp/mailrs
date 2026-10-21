@@ -61,17 +61,8 @@ serde_json = { workspace = true }
 # surfaces, never the SQL-backed PgQueueStore.
 mailrs-smtp-proto = { path = "../smtp-proto", version = "1" }
 mailrs-smtp-codec = { path = "../smtp-codec", version = "1" }
-mailrs-sieve = { path = "../sieve", version = "2" }
-mailrs-outbound-queue = { path = "../outbound-queue", version = "4", default-features = false }
-mailrs-mail-builder = { path = "../mail-builder", version = "1" }
-mailrs-delivery-executor = { path = "../delivery-executor", version = "1.2" }
-# mailrs-mailbox is pulled without its `pg` feature: the receiver uses only
-# the backend-generic threading helpers (message-id / in-reply-to parsing).
-mailrs-mailbox = { path = "../mailbox", version = "1", default-features = false }
 mailrs-rfc2047 = { path = "../rfc2047", version = "1" }
 mailrs-mime = { path = "../mime", version = "2" }
-mailrs-srs = { path = "../srs", version = "1" }
-mailrs-arf = { path = "../arf", version = "1" }
 
 tokio = { version = "1", features = ["sync", "rt", "rt-multi-thread", "time", "macros", "net", "io-util", "signal"] }
 tokio-util = { version = "0.7", features = ["codec"] }

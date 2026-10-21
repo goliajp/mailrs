@@ -57,7 +57,6 @@ impl DomainStore {
         .fetch_one(pool)
         .await?;
         // invalidate recipient cache for this address
-        self.kevy_del(&format!("rcpt:{address}"));
         Ok(id)
     }
 
@@ -69,9 +68,6 @@ impl DomainStore {
         .bind(id)
         .fetch_optional(pool)
         .await?;
-        if let Some((ref address,)) = addr {
-            self.kevy_del(&format!("rcpt:{address}"));
-        }
         Ok(addr.map(|(a,)| a))
     }
 
@@ -97,14 +93,7 @@ impl DomainStore {
         .bind(member)
         .execute(pool)
         .await?;
-        // invalidate group address cache + member's permissions (send_as)
-        let addr = sqlx::query_as::<_, (String,)>("SELECT address FROM email_groups WHERE id = $1")
-            .bind(group_id)
-            .fetch_optional(pool)
-            .await?;
-        if let Some((ref address,)) = addr {
-            self.kevy_del(&format!("rcpt:{address}"));
-        }
+        // the member's permissions (send_as) follow the group
         self.invalidate_permissions(member).await;
         Ok(())
     }
@@ -118,14 +107,7 @@ impl DomainStore {
         .bind(member)
         .execute(pool)
         .await?;
-        // invalidate caches
-        let addr = sqlx::query_as::<_, (String,)>("SELECT address FROM email_groups WHERE id = $1")
-            .bind(group_id)
-            .fetch_optional(pool)
-            .await?;
-        if let Some((ref address,)) = addr {
-            self.kevy_del(&format!("rcpt:{address}"));
-        }
+        // the member's permissions (send_as) follow the group
         self.invalidate_permissions(member).await;
         Ok(res.rows_affected() > 0)
     }

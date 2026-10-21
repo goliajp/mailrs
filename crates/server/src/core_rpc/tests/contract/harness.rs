@@ -48,6 +48,9 @@ pub(super) struct Cores {
     pub pg_core: Client,
     pub fastcore_hits: Hits,
     pub pg_core_hits: Hits,
+    /// The stores behind each, for driving a core directly (its drain).
+    pub fastcore_state: Arc<mailrs_fastcore::FastcoreState>,
+    pub pg_core_state: Arc<CoreRpcState>,
     // The network kevy each core writes side state to. Held for the whole
     // run: a `mem://` store lives only while something has it open, and a
     // first open racing another can get a store of its own.
@@ -77,18 +80,27 @@ async fn serve(router: axum::Router) -> String {
 }
 
 pub(super) async fn start() -> Cores {
-    let fastcore_kevy = kevy_client::Connection::connect(FASTCORE_KEVY).expect("kevy");
-    let pg_core_kevy = kevy_client::Connection::connect(PG_CORE_KEVY).expect("kevy");
+    start_on(FASTCORE_KEVY, PG_CORE_KEVY).await
+}
+
+/// Both cores, each on the network kevy named, so tests running at once do
+/// not share side state.
+pub(super) async fn start_on(fastcore_url: &str, pg_core_url: &str) -> Cores {
+    let fastcore_kevy = kevy_client::Connection::connect(fastcore_url).expect("kevy");
+    let pg_core_kevy = kevy_client::Connection::connect(pg_core_url).expect("kevy");
     let maildir = tempfile::tempdir().expect("maildir");
 
     let store = Arc::new(kevy_embedded::Store::open(kevy_embedded::Config::default()).unwrap());
     let mut fc =
         mailrs_fastcore::FastcoreState::new(mailrs_mailbox_kevy::KevyMailboxStore::new(store));
-    fc.net_url = Some(FASTCORE_KEVY.to_string());
+    fc.net_url = Some(fastcore_url.to_string());
+    let fastcore_state = Arc::new(fc);
     let fastcore_hits: Hits = Arc::default();
-    let fastcore = serve(mailrs_fastcore::build_router(Arc::new(fc)).route_layer(
-        axum::middleware::from_fn_with_state(fastcore_hits.clone(), record),
-    ))
+    let fastcore = serve(
+        mailrs_fastcore::build_router(fastcore_state.clone()).route_layer(
+            axum::middleware::from_fn_with_state(fastcore_hits.clone(), record),
+        ),
+    )
     .await;
 
     let (db, pool) = database().await;
@@ -101,10 +113,10 @@ pub(super) async fn start() -> Cores {
         )),
         pool,
         maildir_root: maildir.path().to_string_lossy().into_owned(),
-        net_url: Some(PG_CORE_KEVY.to_string()),
+        net_url: Some(pg_core_url.to_string()),
     });
     let pg_core_hits: Hits = Arc::default();
-    let pg_core = serve(build_full_router(state, String::new()).route_layer(
+    let pg_core = serve(build_full_router(state.clone(), String::new()).route_layer(
         axum::middleware::from_fn_with_state(pg_core_hits.clone(), record),
     ))
     .await;
@@ -114,6 +126,8 @@ pub(super) async fn start() -> Cores {
         pg_core: Client::new(pg_core, ""),
         fastcore_hits,
         pg_core_hits,
+        fastcore_state,
+        pg_core_state: state,
         _fastcore_kevy: fastcore_kevy,
         _pg_core_kevy: pg_core_kevy,
         _maildir: maildir,

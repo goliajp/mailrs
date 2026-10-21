@@ -7,7 +7,7 @@ use std::time::Duration;
 use mailrs_core::spool::{SPOOL_SCHEMA_VERSION, SpoolEnvelope, encode_spool_blob};
 use spg_sqlx::SpgPoolExt;
 
-use super::{Delivery, PgCore, PgDirectory};
+use super::{PgCore, PgDirectory};
 use crate::pg::BackendPool;
 
 const SCHEMA_SQL: &str = include_str!(concat!(
@@ -55,14 +55,7 @@ impl Fixture {
         let core = Arc::new(PgCore {
             dir: PgDirectory::new(domain, root, None),
             mailbox,
-            delivery: Delivery {
-                account_store: None,
-                outbound_enqueue: None,
-                queue_notifier: None,
-                event_bus,
-                hostname: "mx.test.local".into(),
-                srs_secret: None,
-            },
+            event_bus,
         });
         Self {
             pool,

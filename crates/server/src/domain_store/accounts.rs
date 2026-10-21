@@ -127,7 +127,6 @@ impl DomainStore {
             },
         );
         self.kevy_del(&format!("acct:{address}"));
-        self.kevy_del(&format!("rcpt:{address}"));
 
         Ok(())
     }
@@ -223,7 +222,6 @@ impl DomainStore {
             .await?;
         self.account_cache.remove(address);
         self.kevy_del(&format!("acct:{address}"));
-        self.kevy_del(&format!("rcpt:{address}"));
         Ok(res.rows_affected() > 0)
     }
 

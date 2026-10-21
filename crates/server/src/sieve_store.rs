@@ -9,7 +9,7 @@
 //! directions. Every live reader looks at the kevy key: the core-api contract's
 //! own GET (`core-sidestate/families/groups_admin.rs`), the web UI's save path
 //! (`webapi/handlers/admin_ops.rs` writes it directly), fastcore's ManageSieve,
-//! and fastcore's delivery-time evaluator (`fastcore/src/sieve_apply.rs`). Only
+//! and the delivery-time evaluator both cores share (`mailrs_intake::sieve`). Only
 //! this crate's three call sites used the table. So with the SQL core serving
 //! ManageSieve and delivery, a script saved in the UI would have filtered no
 //! mail, and one saved over ManageSieve would have been invisible to the UI —
@@ -20,8 +20,7 @@
 //! but nothing should start using it again.
 //!
 //! `MAILRS_KEVY_URL` per call, and a connection per call, because that is what
-//! `fastcore/src/sieve_apply.rs::fetch_script` already does on the lane that
-//! serves production today. Matching it is the point: the two lanes should
+//! `mailrs_intake::sieve::fetch_script` does at delivery. Matching it is the point: the two lanes should
 //! reach this key the same way. If per-message connects turn out to cost, they
 //! cost on both lanes and get fixed on both.
 
@@ -31,16 +30,9 @@ fn conn_at(url: &str) -> Option<Connection> {
     Connection::connect(url).ok()
 }
 
-/// The one place this crate spells the key.
-///
-/// Byte-identical to `mailrs_core_sidestate::sieve_key`, and NOT an import of
-/// it: that crate is an optional dependency here, gated on `core-rpc`, so the
-/// default build cannot see it — and making it unconditional would change the
-/// dependency graph of an artifact that is meant to be unaffected by the
-/// feature. Two spellings of one fact is the defect this module exists to fix,
-/// so `scripts/check-outbound-keys.sh` holds these two to being identical.
+/// The key every reader uses, from the crate that defines it.
 fn key(address: &str) -> String {
-    format!("sieve:{address}")
+    mailrs_core_sidestate::sieve_key(address)
 }
 
 /// The account's script. `Ok(None)` when unset or empty; `Err` when the store
