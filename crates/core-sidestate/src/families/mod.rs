@@ -9,7 +9,6 @@ pub mod calendar_feeds;
 pub mod contact_cards;
 pub mod contacts;
 pub mod correspondent;
-pub mod dav_legacy;
 pub mod dav_store;
 pub mod dkim_signers;
 pub mod domain_history;

@@ -31,8 +31,6 @@ pub(crate) use backfill_reply_rotation::backfill_reply_rotation_route;
 pub(crate) use duplicate_blob_census::duplicate_blob_census_route;
 pub(crate) use duplicate_blob_repair::duplicate_blob_repair_route;
 mod backfill_read_state;
-mod migrate_dav_keys;
-pub(crate) use migrate_dav_keys::migrate_dav_keys_route;
 pub(crate) mod recompute_sender_trust;
 mod reindex;
 mod repair_blob_refs;
