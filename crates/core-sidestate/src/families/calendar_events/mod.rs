@@ -5,6 +5,9 @@
 //!   calendar_event:{user}:{uid}    hash  this row, one field per column
 //! ```
 //!
+//! A row is keyed by its iCalendar `UID` whoever wrote it; the name a
+//! CalDAV client filed it under, when that differs, is in [`names`].
+//!
 //! Until 2026-08-20 the feed sync wrote the whole row into a single
 //! `json` field, the conflicts reader looked for flat fields it never
 //! wrote, and CalDAV `PUT` stored raw iCalendar under a fourth key
@@ -24,6 +27,7 @@ use std::io;
 use serde::{Deserialize, Serialize};
 
 mod ics;
+pub mod names;
 
 pub use ics::{from_ics, to_ics};
 
@@ -151,10 +155,12 @@ pub fn list(conn: &mut kevy_client::Connection, user: &str) -> io::Result<Vec<St
     Ok(out)
 }
 
-/// Remove a row and its index entry. `true` when the row existed.
+/// Remove a row, its index entry and its resource name. `true` when the
+/// row existed.
 pub fn delete(conn: &mut kevy_client::Connection, user: &str, uid: &str) -> io::Result<bool> {
     let removed = conn.del(&[event_key(user, uid).as_bytes()])?;
     conn.zrem(index_key(user).as_bytes(), &[uid.as_bytes()])?;
+    names::forget(conn, user, uid)?;
     Ok(removed > 0)
 }
 
@@ -294,10 +300,12 @@ mod tests {
     }
 
     #[test]
-    fn delete_removes_row_and_index_entry() {
+    fn delete_removes_row_index_entry_and_name() {
         let mut c = conn("delete");
         put(&mut c, "u", &timed("e", "2026-08-20T09:00:00+00:00")).expect("put");
+        names::link(&mut c, "u", "phone-name", "e").expect("link");
         assert!(delete(&mut c, "u", "e").expect("delete"));
+        assert!(names::hrefs(&mut c, "u").expect("hrefs").is_empty());
         assert!(!delete(&mut c, "u", "e").expect("delete again"));
         assert_eq!(get(&mut c, "u", "e").expect("get"), None);
         assert!(list(&mut c, "u").expect("list").is_empty());

@@ -24,6 +24,11 @@ pub fn into_dav_error(e: StoreError) -> DavError {
 }
 
 /// Storage operations for CalDAV calendars + events.
+///
+/// The `uid` an event method takes is the resource name from the URL (see
+/// [`Event::uid`]); a store that keys events by the iCalendar `UID` maps
+/// one to the other, and refuses a PUT whose body's `UID` another resource
+/// already has with [`DavError::UidConflict`].
 #[async_trait]
 pub trait CalendarStore: Send + Sync {
     /// List every calendar owned by `user`.
