@@ -56,6 +56,10 @@ docker pull -q pgvector/pgvector:pg18 >/dev/null
 
 cargo clippy --workspace --all-targets -- -D warnings
 
+# rustdoc, which clippy does not run. Here rather than on the Mac
+# because docs.rs builds on Linux, and some modules exist only there.
+bash scripts/check-docs.sh
+
 # The dormant pg/spg lane, which nothing above reaches: features are off
 # by default, so --workspace --all-targets never sees the code behind
 # spg or core-rpc, and test.yml — the only thing that did build them —
