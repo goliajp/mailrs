@@ -51,6 +51,14 @@ pub fn etag_of(data: &str) -> String {
     hex::encode(&hash[..8])
 }
 
+/// Collection tag (`CS:getctag`) over the member etags: changes whenever a
+/// member is added, removed or modified, which is all a client polls it for.
+pub fn ctag_of<'a>(etags: impl Iterator<Item = &'a str>) -> String {
+    let mut sorted: Vec<&str> = etags.collect();
+    sorted.sort_unstable();
+    etag_of(&sorted.join(","))
+}
+
 /// XML-escape a text-content string for inclusion in an XML body.
 ///
 /// Covers the five entities required by XML 1.0 plus the double quote
@@ -84,15 +92,20 @@ pub fn multistatus(inner: &str) -> DavResponse {
 pub fn options_response() -> DavResponse {
     DavResponse::new(200)
         .with_header("dav", "1, 2, 3, calendar-access, addressbook")
-        .with_header(
-            "allow",
-            "OPTIONS, GET, PUT, DELETE, PROPFIND, REPORT, MKCALENDAR",
-        )
+        .with_header("allow", "OPTIONS, GET, HEAD, PUT, DELETE, PROPFIND, REPORT")
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ctag_ignores_member_order_but_not_content() {
+        let a = ctag_of(["x", "y"].into_iter());
+        assert_eq!(a, ctag_of(["y", "x"].into_iter()));
+        assert_ne!(a, ctag_of(["x", "z"].into_iter()));
+        assert_ne!(a, ctag_of(["x"].into_iter()));
+    }
 
     #[test]
     fn etag_is_deterministic() {

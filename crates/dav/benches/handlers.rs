@@ -297,7 +297,7 @@ fn bench_carddav_handlers(c: &mut Criterion) {
     });
 
     let multiget_body = (0..50)
-        .map(|i| format!("<D:href>/dav/contacts/{TEST_USER}/Friends/ct-{i}.vcf</D:href>"))
+        .map(|i| format!("<D:href>/dav/addressbooks/{TEST_USER}/Friends/ct-{i}.vcf</D:href>"))
         .collect::<String>();
     let report_body = format!(
         "<CR:addressbook-multiget xmlns:CR=\"urn:ietf:params:xml:ns:carddav\">{multiget_body}</CR:addressbook-multiget>"

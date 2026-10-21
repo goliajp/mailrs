@@ -40,7 +40,7 @@ async fn calendar_home_propfind_depth_one_lists_child_calendars_with_metadata() 
     assert!(body.contains(&format!("/dav/calendars/{EXAMPLE_USER}/Work/")));
     assert!(body.contains("<D:displayname>Work</D:displayname>"));
     assert!(body.contains("#ff8800"));
-    assert!(body.contains("<CS:getctag>Work events</CS:getctag>"));
+    assert!(body.contains("<C:calendar-description>Work events</C:calendar-description>"));
     assert!(body.contains("<C:supported-calendar-component-set>"));
     assert!(body.contains("<C:comp name=\"VEVENT\"/>"));
     assert!(body.contains("<D:current-user-privilege-set>"));
@@ -254,4 +254,27 @@ async fn multistatus_envelope_declares_both_caldav_and_carddav_namespaces() {
         header_value(&resp.headers, "content-type"),
         Some("application/xml; charset=utf-8")
     );
+}
+
+#[tokio::test]
+async fn calendar_ctag_changes_when_an_event_does() {
+    async fn ctag(store: &InMemoryCalendarStore) -> String {
+        let resp = calendar_propfind(store, EXAMPLE_USER, "Work", 10, 0)
+            .await
+            .unwrap();
+        let body = body_as_str(resp.body);
+        let start = body.find("<CS:getctag>").expect("ctag") + "<CS:getctag>".len();
+        let end = body[start..].find('<').expect("close");
+        body[start..start + end].to_string()
+    }
+    let before = InMemoryCalendarStore::new()
+        .with_calendar(EXAMPLE_USER, make_calendar(10, "Work"))
+        .with_event(10, make_event("a", "BEGIN:VEVENT\nUID:a\nEND:VEVENT"));
+    let after = InMemoryCalendarStore::new()
+        .with_calendar(EXAMPLE_USER, make_calendar(10, "Work"))
+        .with_event(
+            10,
+            make_event("a", "BEGIN:VEVENT\nUID:a\nSUMMARY:x\nEND:VEVENT"),
+        );
+    assert_ne!(ctag(&before).await, ctag(&after).await);
 }

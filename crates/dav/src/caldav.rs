@@ -3,23 +3,40 @@
 //! Each public fn here takes a `&dyn CalendarStore` and a few request-derived
 //! arguments (path segments, headers, body), runs the protocol logic, and
 //! returns a [`DavResponse`] the server-side wrapper can hand to its
-//! framework.
+//! framework. [`crate::dispatch`] does the path and method routing for a
+//! wrapper that wants it.
 //!
-//! The auth / routing decisions (which user, which URL pattern) belong to the
-//! wrapper; this module assumes those have already been made.
+//! Collection names are passed decoded; hrefs are emitted percent-encoded.
 
 use std::fmt::Write;
 
 use crate::error::DavError;
-use crate::parse::extract_multiget_uids;
-use crate::store::CalendarStore;
-use crate::types::PutResult;
-use crate::xml::{DavResponse, etag_of, multistatus, xml_escape};
+use crate::parse::{encode_segment, multiget_uids};
+use crate::store::{CalendarStore, into_dav_error};
+use crate::types::{Event, PutResult};
+use crate::xml::{DavResponse, ctag_of, etag_of, multistatus, xml_escape};
+
+fn calendar_href(user: &str, calendar: &str) -> String {
+    format!("/dav/calendars/{user}/{}/", encode_segment(calendar))
+}
+
+fn event_href(user: &str, calendar: &str, uid: &str) -> String {
+    format!(
+        "{}{}.ics",
+        calendar_href(user, calendar),
+        encode_segment(uid)
+    )
+}
+
+fn events_ctag(events: &[Event]) -> String {
+    ctag_of(events.iter().map(|e| e.etag.as_str()))
+}
 
 /// PROPFIND on `/dav/calendars/{user}/` — the calendar home collection.
 ///
 /// At `Depth: 0` returns only the collection itself; at `Depth: 1` (or
-/// `infinity`) includes one `<D:response>` per child calendar.
+/// `infinity`) includes one `<D:response>` per child calendar, each with a
+/// `getctag` that changes whenever any event in it does.
 pub async fn calendar_home_propfind(
     store: &dyn CalendarStore,
     user: &str,
@@ -28,7 +45,7 @@ pub async fn calendar_home_propfind(
     store
         .ensure_default_calendar(user)
         .await
-        .map_err(|e| DavError::ServerError(e.to_string()))?;
+        .map_err(into_dav_error)?;
 
     let mut responses = format!(
         "<D:response>\n\
@@ -41,20 +58,17 @@ pub async fn calendar_home_propfind(
     );
 
     if depth >= 1 {
-        let calendars = store
-            .list_calendars(user)
-            .await
-            .map_err(|e| DavError::ServerError(e.to_string()))?;
+        let calendars = store.list_calendars(user).await.map_err(into_dav_error)?;
         for cal in &calendars {
-            let encoded_name = urlencode(&cal.name);
-            let href = format!("/dav/calendars/{user}/{encoded_name}/");
+            let events = store.list_events(cal.id).await.map_err(into_dav_error)?;
             let _ = write!(
                 responses,
                 "<D:response>\n\
-                 <D:href>{href}</D:href>\n\
+                 <D:href>{}</D:href>\n\
                  <D:propstat>\n<D:prop>\n\
                  <D:resourcetype><D:collection/><C:calendar/></D:resourcetype>\n\
                  <D:displayname>{}</D:displayname>\n\
+                 <C:calendar-description>{}</C:calendar-description>\n\
                  <C:supported-calendar-component-set>\
                  <C:comp name=\"VEVENT\"/>\
                  </C:supported-calendar-component-set>\n\
@@ -65,8 +79,10 @@ pub async fn calendar_home_propfind(
                  <apple:calendar-color xmlns:apple=\"http://apple.com/ns/ical/\">{}</apple:calendar-color>\n\
                  </D:prop>\n<D:status>HTTP/1.1 200 OK</D:status>\n</D:propstat>\n\
                  </D:response>\n",
+                xml_escape(&calendar_href(user, &cal.name)),
                 xml_escape(&cal.name),
                 xml_escape(&cal.description),
+                events_ctag(&events),
                 xml_escape(&cal.color),
             );
         }
@@ -86,25 +102,27 @@ pub async fn calendar_propfind(
     calendar_id: i64,
     depth: u32,
 ) -> Result<DavResponse, DavError> {
-    let href = format!("/dav/calendars/{user}/{calendar}/");
+    let events = store
+        .list_events(calendar_id)
+        .await
+        .map_err(into_dav_error)?;
     let mut responses = format!(
         "<D:response>\n\
-         <D:href>{href}</D:href>\n\
+         <D:href>{}</D:href>\n\
          <D:propstat>\n<D:prop>\n\
          <D:resourcetype><D:collection/><C:calendar/></D:resourcetype>\n\
-         <D:displayname>{calendar}</D:displayname>\n\
+         <D:displayname>{}</D:displayname>\n\
          <C:supported-calendar-component-set><C:comp name=\"VEVENT\"/></C:supported-calendar-component-set>\n\
+         <CS:getctag>{}</CS:getctag>\n\
          </D:prop>\n<D:status>HTTP/1.1 200 OK</D:status>\n</D:propstat>\n\
-         </D:response>\n"
+         </D:response>\n",
+        xml_escape(&calendar_href(user, calendar)),
+        xml_escape(calendar),
+        events_ctag(&events),
     );
 
     if depth >= 1 {
-        let events = store
-            .list_events(calendar_id)
-            .await
-            .map_err(|e| DavError::ServerError(e.to_string()))?;
         for ev in &events {
-            let event_href = format!("/dav/calendars/{user}/{calendar}/{}.ics", ev.uid);
             let _ = write!(
                 responses,
                 "<D:response>\n\
@@ -114,7 +132,7 @@ pub async fn calendar_propfind(
                  <D:getcontenttype>text/calendar; charset=utf-8</D:getcontenttype>\n\
                  </D:prop>\n<D:status>HTTP/1.1 200 OK</D:status>\n</D:propstat>\n\
                  </D:response>\n",
-                xml_escape(&event_href),
+                xml_escape(&event_href(user, calendar, &ev.uid)),
                 ev.etag,
             );
         }
@@ -123,43 +141,33 @@ pub async fn calendar_propfind(
     Ok(multistatus(&responses))
 }
 
-/// REPORT on a calendar collection — handles both `calendar-multiget`
-/// (RFC 4791 §7.9) and `calendar-query` (RFC 4791 §7.8).
+/// The `<D:response>` elements a calendar REPORT returns for one calendar.
 ///
-/// `body` is inspected to decide which report; on multiget the requested
-/// UIDs are extracted and filtered against the calendar's events. The
-/// time-range filter side of `calendar-query` is intentionally NOT
-/// implemented — most clients work fine with the "return everything" form.
-pub async fn calendar_report(
+/// `calendar-multiget` (RFC 4791 §7.9) keeps the requested UIDs;
+/// `calendar-query` (§7.8) returns every event — its time-range filter is
+/// intentionally not implemented, clients cope with the full set.
+async fn report_responses(
     store: &dyn CalendarStore,
     user: &str,
     calendar: &str,
     calendar_id: i64,
     body: &str,
-) -> Result<DavResponse, DavError> {
-    let is_multiget = body.contains("calendar-multiget");
-
+) -> Result<String, DavError> {
+    let wanted = match body.contains("calendar-multiget") {
+        true => Some(multiget_uids(body, ".ics")?),
+        false => None,
+    };
     let events = store
         .list_events(calendar_id)
         .await
-        .map_err(|e| DavError::ServerError(e.to_string()))?;
-
-    let filtered: Vec<_> = if is_multiget {
-        let uids = extract_multiget_uids(body, ".ics");
-        if uids.is_empty() {
-            return Ok(multistatus(""));
-        }
-        events
-            .into_iter()
-            .filter(|e| uids.iter().any(|u| u == &e.uid))
-            .collect()
-    } else {
-        events
-    };
-
+        .map_err(into_dav_error)?;
     let mut responses = String::new();
-    for ev in &filtered {
-        let event_href = format!("/dav/calendars/{user}/{calendar}/{}.ics", ev.uid);
+    for ev in &events {
+        if let Some(uids) = &wanted
+            && !uids.contains(&ev.uid)
+        {
+            continue;
+        }
         let _ = write!(
             responses,
             "<D:response>\n\
@@ -169,10 +177,38 @@ pub async fn calendar_report(
              <C:calendar-data>{}</C:calendar-data>\n\
              </D:prop>\n<D:status>HTTP/1.1 200 OK</D:status>\n</D:propstat>\n\
              </D:response>\n",
-            xml_escape(&event_href),
+            xml_escape(&event_href(user, calendar, &ev.uid)),
             ev.etag,
             xml_escape(&ev.icalendar),
         );
+    }
+    Ok(responses)
+}
+
+/// REPORT on a calendar collection — `calendar-multiget` or `calendar-query`.
+pub async fn calendar_report(
+    store: &dyn CalendarStore,
+    user: &str,
+    calendar: &str,
+    calendar_id: i64,
+    body: &str,
+) -> Result<DavResponse, DavError> {
+    let responses = report_responses(store, user, calendar, calendar_id, body).await?;
+    Ok(multistatus(&responses))
+}
+
+/// REPORT on the calendar home: the same report, run over every calendar.
+///
+/// Not in RFC 4791, which scopes reports to a collection, but some clients
+/// send their query to the home and expect every event back.
+pub async fn calendar_home_report(
+    store: &dyn CalendarStore,
+    user: &str,
+    body: &str,
+) -> Result<DavResponse, DavError> {
+    let mut responses = String::new();
+    for cal in store.list_calendars(user).await.map_err(into_dav_error)? {
+        responses.push_str(&report_responses(store, user, &cal.name, cal.id, body).await?);
     }
     Ok(multistatus(&responses))
 }
@@ -186,7 +222,7 @@ pub async fn event_get(
     let event = store
         .get_event(calendar_id, uid)
         .await
-        .map_err(|e| DavError::ServerError(e.to_string()))?;
+        .map_err(into_dav_error)?;
     match event {
         Some(ev) => Ok(DavResponse::new(200)
             .with_header("content-type", "text/calendar; charset=utf-8")
@@ -199,9 +235,9 @@ pub async fn event_get(
 /// PUT on an event resource. Honours `If-Match` (current etag must match)
 /// and `If-None-Match: *` (resource must not already exist).
 ///
-/// On success returns 201 Created + `ETag` header. The body should be valid
-/// RFC 5545 iCalendar; the store is responsible for parsing / structured-
-/// column projection as needed.
+/// 201 on create, 204 on update, `ETag` header either way. The body should
+/// be valid RFC 5545 iCalendar; the store is responsible for parsing /
+/// structured-column projection, and rejects what it cannot store.
 pub async fn event_put(
     store: &dyn CalendarStore,
     calendar_id: i64,
@@ -210,28 +246,12 @@ pub async fn event_put(
     if_none_match: Option<&str>,
     body: &str,
 ) -> Result<DavResponse, DavError> {
-    if let Some(expected_raw) = if_match {
-        let expected = expected_raw.trim_matches('"');
+    if if_match.is_some() || if_none_match.is_some() {
         let current = store
             .event_etag(calendar_id, uid)
             .await
-            .map_err(|e| DavError::ServerError(e.to_string()))?;
-        match current {
-            Some(ref e) if e == expected => {}
-            _ => return Err(DavError::PreconditionFailed),
-        }
-    }
-
-    if let Some(inm) = if_none_match
-        && inm.trim() == "*"
-    {
-        let existing = store
-            .event_etag(calendar_id, uid)
-            .await
-            .map_err(|e| DavError::ServerError(e.to_string()))?;
-        if existing.is_some() {
-            return Err(DavError::PreconditionFailed);
-        }
+            .map_err(into_dav_error)?;
+        crate::precondition::check(current.as_deref(), if_match, if_none_match)?;
     }
 
     let etag = etag_of(body);
@@ -241,15 +261,14 @@ pub async fn event_put(
     } = store
         .put_event(calendar_id, uid, body, &etag)
         .await
-        .map_err(|e| DavError::ServerError(e.to_string()))?;
+        .map_err(into_dav_error)?;
 
     let status = if created { 201 } else { 204 };
     Ok(DavResponse::new(status).with_header("etag", &format!("\"{stored_etag}\"")))
 }
 
 /// DELETE on an event resource. 204 on success, 404 when the event didn't
-/// exist (already-deleted is not an error for idempotent clients, but we
-/// follow the RFC 4791 §5.3.2 mapping and return 404).
+/// exist (RFC 4791 §5.3.2 mapping).
 pub async fn event_delete(
     store: &dyn CalendarStore,
     calendar_id: i64,
@@ -258,30 +277,12 @@ pub async fn event_delete(
     let deleted = store
         .delete_event(calendar_id, uid)
         .await
-        .map_err(|e| DavError::ServerError(e.to_string()))?;
+        .map_err(into_dav_error)?;
     if deleted {
         Ok(DavResponse::new(204))
     } else {
         Err(DavError::NotFound)
     }
-}
-
-/// Local URL-encoder for path segments. Matches what the reference
-/// implementation does via `urlencoding::encode` — we re-implement here so
-/// the crate stays dep-light.
-fn urlencode(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    for b in s.bytes() {
-        match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                out.push(b as char);
-            }
-            _ => {
-                let _ = write!(out, "%{b:02X}");
-            }
-        }
-    }
-    out
 }
 
 #[cfg(test)]
@@ -737,26 +738,5 @@ mod tests {
         assert!(text.contains("/dav/calendars/u/"));
         assert!(!text.contains("/Work/"));
         assert!(!text.contains("/Personal/"));
-    }
-
-    #[test]
-    fn urlencode_alphanumeric_passthrough() {
-        assert_eq!(urlencode("Hello123-_.~"), "Hello123-_.~");
-    }
-
-    #[test]
-    fn urlencode_space_encoded() {
-        assert_eq!(urlencode("a b"), "a%20b");
-    }
-
-    #[test]
-    fn urlencode_special_chars() {
-        assert_eq!(urlencode("a/b?c"), "a%2Fb%3Fc");
-    }
-
-    #[test]
-    fn urlencode_japanese_utf8_each_byte() {
-        // 日 = E6 97 A5 in UTF-8 → "%E6%97%A5"
-        assert_eq!(urlencode("日"), "%E6%97%A5");
     }
 }
