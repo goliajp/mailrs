@@ -31,8 +31,11 @@ pub struct Calendar {
 /// performance and may be re-derived from the raw text by the store.
 #[derive(Debug, Clone)]
 pub struct Event {
-    /// iCalendar `UID` property — globally unique per RFC 5545 §3.8.4.7.
-    /// Doubles as the URL path segment in `/dav/.../events/{uid}.ics`.
+    /// The resource name: the path segment in `/dav/.../{uid}.ics`, which
+    /// the handlers build every href from. Usually the iCalendar `UID`, but
+    /// a client may PUT an event under a name of its own (RFC 4791 §4.1
+    /// only ties the UID to the resource, not to its URL), and the store
+    /// then returns that name here.
     pub uid: String,
     /// Strong validator returned as the `ETag` HTTP header and on
     /// `getetag` PROPFIND queries. Stable for as long as the body bytes are
