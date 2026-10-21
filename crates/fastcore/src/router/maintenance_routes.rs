@@ -1,3 +1,4 @@
+// CARVE-OUT: pure route registration; the builder chain is the table
 //! The maintenance sweeps, kept out of the main route table.
 //!
 //! Twenty-six routes that rebuild, audit or reclaim derived state.

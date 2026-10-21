@@ -1,8 +1,8 @@
+// CARVE-OUT: pure route registration; the builder chain is the table
 //! The route table.
 //!
-//! Split out of `lib.rs` on 2026-08-02 — 479 lines of `.route(...)` in the
-//! middle of the file that also held the handlers, the sweep and the
-//! ingest loop.
+//! Split out of `lib.rs` on 2026-08-02 — 479 lines of `.route(...)` in the middle of the
+//! file that also held the handlers, the sweep and the ingest loop.
 //!
 //! Its own test is the point: a route string that fails to parse panics at
 //! construction, which is process start, in production. 4,483 workspace

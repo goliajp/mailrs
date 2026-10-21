@@ -7,6 +7,7 @@
 //! the orchestrator below is the whole shape of the sweep on one screen.
 
 mod files;
+mod heal_create;
 mod heal_messages;
 mod heal_rows;
 mod scan;
