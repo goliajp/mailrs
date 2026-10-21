@@ -51,10 +51,9 @@ pub(crate) struct Roles {
     /// that owns SMTP is the one that cares.
     pub(crate) rbl_monitor: bool,
     /// Drain the spool the receiver writes to, indexing each arrival into this
-    /// process's backend. `all()` leaves this to `MAILRS_RECEIVER_SPLIT`, which
-    /// is how the monolith has always opted in; the peer sets it outright,
-    /// because a peer that does not drain shows an inbox that stops growing
-    /// and reports nothing wrong.
+    /// process's backend. On in both role sets: the SMTP side only ever
+    /// writes the spool, so a process that takes mail without draining would
+    /// show an inbox that stops growing and report nothing wrong.
     pub(crate) spool_drain: bool,
 }
 
@@ -66,7 +65,7 @@ impl Roles {
             web: true,
             outbound: true,
             rbl_monitor: true,
-            spool_drain: false,
+            spool_drain: true,
         }
     }
 
@@ -182,14 +181,6 @@ pub(crate) async fn run_with_roles(roles: Roles) {
         &kevy_embedded_store,
     );
 
-    let process_tx = background::spawn_post_delivery_consumer(
-        &cfg,
-        &mailbox_store,
-        &event_bus,
-        &outbound_queue,
-        &resolver,
-    );
-
     let ctx = context::build_connection_context(context::ContextInputs {
         cfg: &cfg,
         tls_state: &tls_state,
@@ -197,18 +188,14 @@ pub(crate) async fn run_with_roles(roles: Roles) {
         event_bus: &event_bus,
         web_state: &web_state,
         rate_limiter,
-        outbound_queue: &outbound_queue,
         resolver,
-        mailbox_store: &mailbox_store,
         auth_guard: &auth_guard,
         domain_store: &domain_store,
-        kevy_embedded_store: &kevy_embedded_store,
         ldap_config: &ldap_config,
         inbound_pipeline,
-        process_tx,
     });
 
-    background::start_spool_drain(roles, &ctx, &cfg);
+    background::start_spool_drain(roles, &ctx, &cfg, &domain_store, &mailbox_store);
 
     if roles.smtp {
         spawn_smtp_listeners(&ctx, &cfg, tls_state.is_some(), shutdown_rx.clone()).await;

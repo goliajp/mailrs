@@ -20,8 +20,7 @@ pub use boot::run;
 pub mod bounce;
 pub mod bounce_queue;
 mod calendar_sync;
-pub mod dmarc_ingest;
-pub mod fbl;
+pub use mailrs_intake::reports::{dmarc as dmarc_ingest, fbl, tlsrpt as tlsrpt_ingest};
 mod file_message_id;
 pub mod fraud_backfill;
 mod headers;
@@ -56,12 +55,9 @@ pub use router::build_router;
 pub use maildir_scan::self_heal_once;
 use routes::*;
 pub mod sender_sts;
-mod sieve_apply;
 pub mod spool_drain;
 mod tls;
 pub mod tlsrpt;
-pub mod tlsrpt_ingest;
-mod webhook_delivery;
 
 use kevy_embedded::{Config, Store};
 use mailrs_alias_store::AliasStore;
@@ -180,35 +176,6 @@ impl Handler for FastcoreState {
             ready: self.boot_intact,
         }
     }
-}
-
-fn strip_angle(v: &str) -> String {
-    let t = v.trim();
-    if let Some(inner) = t.strip_prefix('<').and_then(|s| s.strip_suffix('>')) {
-        inner.trim().to_string()
-    } else {
-        t.trim_matches(|c: char| c == '<' || c == '>').to_string()
-    }
-}
-
-/// Very small RFC 5322 date parser: `Wed, 01 Jul 2026 12:34:56 +0000`.
-/// Only accepts `+0000`/`-0000`-style offsets; that covers everything
-/// modern MTAs emit. Full parse coverage lives on `time` crate; we
-/// don't need to pull it in for the fallback.
-/// Parse an RFC 5322 `Date:` header value to unix epoch seconds (UTC).
-///
-/// Delegates to `chrono::DateTime::parse_from_rfc2822`, which handles
-/// every real-world variant we see: `Sat, 13 Jun 2026 06:01:22 +0000`,
-/// `Fri, 3 Jul 2026 02:40:42 +0900` (Gmail), `13 Jun 2026 06:01:22 GMT`
-/// (no day-of-week), and named zones (`GMT`/`UTC`/`EST`/…). Timezones
-/// are correctly normalised to UTC before the epoch conversion — the
-/// previous hand-rolled parser dropped the zone entirely, so an email
-/// stamped in JST landed nine hours off and inbound replies could sort
-/// ahead of the sent copy.
-///
-/// Returns `None` when the header is empty / unparseable.
-fn parse_rfc5322_date(s: &str) -> Option<i64> {
-    mailrs_inbound::dates::parse_date(s)
 }
 
 // ── Account (auth) — Phase 8 ────────────────────────────────────────

@@ -1,0 +1,423 @@
+//! Sieve script application for the spool drain.
+//!
+//! For each spool file whose recipient resolves to a local maildir we
+//! look up the recipient's `sieve:<address>` script in the network
+//! kevy, populated by webapi's `PUT /api/admin/accounts/{addr}/sieve`
+//! (and the ManageSieve session on port 4190 once that comes back).
+//! When one is set, we compile it and evaluate against the raw message
+//! bytes; the resulting actions become a delivery decision.
+//!
+//! Current coverage vs [`SieveAction`]:
+//! - `Keep` → default deliver to INBOX (unchanged)
+//! - `FileInto` → deliver to `<maildir>/.<folder>/new/`
+//! - `Discard` → mark delivered without writing (silent drop)
+//! - `Redirect` → enqueue outbound to the target, drop original
+//! - `Reject` → RFC 3464 DSN (5.7.1) to the envelope sender via the
+//!   outbound queue, message not delivered (G4.1). Backscatter guard:
+//!   only when the receiver's antispam verdict routed to INBOX and the
+//!   envelope sender is a real address — otherwise silently discarded
+//! - `Vacation` → auto-reply with kevy dedup + RFC 3834 suppression,
+//!   orthogonal to the disposition (implicit keep still applies, G4.2)
+
+use kevy_client::Connection;
+use mailrs_sieve::{SieveAction, compile_sieve, evaluate_sieve_with_envelope};
+
+/// The delivery decision the drain applies after consulting sieve.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Decision {
+    /// Deliver to INBOX/{new} — the default when no sieve applies.
+    Keep,
+    /// Deliver into `<maildir>/.<folder>/{new}`. The folder string is
+    /// verbatim from the script; the caller sanitises path separators.
+    FileInto(String),
+    /// Drop the file silently. `Ok(true)` back to the drain loop.
+    Discard,
+    /// Enqueue an outbound relay to the target address before dropping
+    /// the local file.
+    Redirect(String),
+    /// Refuse delivery: DSN the envelope sender (when the backscatter
+    /// guard allows) and drop the message. Reason is the script's text.
+    Reject(String),
+}
+
+/// Full sieve verdict: the disposition plus an orthogonal vacation
+/// action (RFC 5230 — vacation does not cancel the implicit keep).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SieveOutcome {
+    /// What happens to the message itself.
+    pub decision: Decision,
+    /// Auto-reply to generate after successful local delivery.
+    pub vacation: Option<Vacation>,
+}
+
+/// Parsed `vacation` parameters the drain needs to build the reply.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Vacation {
+    /// Reply body.
+    pub reason: String,
+    /// `:subject` override.
+    pub subject: Option<String>,
+    /// `:from` override.
+    pub from: Option<String>,
+    /// `:handle` dedup key.
+    pub handle: Option<String>,
+    /// Dedup window seconds (default 7 days per RFC 5230 §4.1).
+    pub period_secs: u64,
+    /// `:addresses` the script considers "mine".
+    pub addresses: Vec<String>,
+}
+
+/// Load + compile + evaluate the sieve script for `recipient` against
+/// the raw message. Returns `Decision::Keep` when there's no script,
+/// the script fails to compile, or no action fires.
+///
+/// Runs sync — spool_drain is already sync, and network kevy calls
+/// through kevy-client are blocking. Called at most a handful of
+/// times per drain tick, so no need for pooling.
+pub fn decide(recipient: &str, raw_message: &[u8], envelope_from: Option<&str>) -> SieveOutcome {
+    let keep = SieveOutcome {
+        decision: Decision::Keep,
+        vacation: None,
+    };
+    let Some(script) = fetch_script(recipient) else {
+        return keep;
+    };
+    let compiled = match compile_sieve(&script) {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::warn!(recipient, error = %e, "sieve: compile failed; keeping default delivery");
+            return keep;
+        }
+    };
+    let actions =
+        evaluate_sieve_with_envelope(&compiled, raw_message, envelope_from, Some(recipient));
+    let vacation = actions.iter().find_map(|a| match a {
+        SieveAction::Vacation {
+            reason,
+            subject,
+            from,
+            handle,
+            period_secs,
+            addresses,
+            mime: _,
+        } => Some(Vacation {
+            reason: reason.clone(),
+            subject: subject.clone(),
+            from: from.clone(),
+            handle: handle.clone(),
+            period_secs: period_secs.unwrap_or(7 * 86_400),
+            addresses: addresses.clone(),
+        }),
+        _ => None,
+    });
+    SieveOutcome {
+        decision: action_to_decision(&actions),
+        vacation,
+    }
+}
+
+/// Reduce a script's action list to a single delivery decision. Sieve
+/// scripts may emit multiple actions (e.g. `fileinto` + `keep`); we
+/// honor the strongest one in this order:
+/// Discard > Redirect > Reject/Vacation > FileInto > Keep.
+fn action_to_decision(actions: &[SieveAction]) -> Decision {
+    if actions.iter().any(|a| matches!(a, SieveAction::Discard)) {
+        return Decision::Discard;
+    }
+    if let Some(reason) = actions.iter().find_map(|a| match a {
+        SieveAction::Reject(r) => Some(r.clone()),
+        _ => None,
+    }) {
+        return Decision::Reject(reason);
+    }
+    if let Some(target) = actions.iter().find_map(|a| match a {
+        SieveAction::Redirect(t) => Some(t.clone()),
+        _ => None,
+    }) {
+        return Decision::Redirect(target);
+    }
+    if let Some(folder) = actions.iter().find_map(|a| match a {
+        SieveAction::FileInto { mailbox, .. } => Some(mailbox.clone()),
+        _ => None,
+    }) {
+        return Decision::FileInto(folder);
+    }
+    Decision::Keep
+}
+
+/// RFC 5230 / RFC 3834 vacation auto-reply. Called by the drain after
+/// a successful LOCAL delivery. All the "never reply" rules live here:
+///
+/// - envelope sender null / MAILER-DAEMON / postmaster
+/// - sender == recipient (self-mail)
+/// - Auto-Submitted present and != "no" (never answer another robot)
+/// - Precedence: bulk / list / junk, or a List-Id header (mailing lists)
+/// - the recipient (or one of `:addresses`) does not appear in To/Cc
+/// - a reply for (recipient, handle, sender) already went out inside
+///   the dedup window (network-kevy key with TTL)
+pub fn maybe_vacation_reply(recipient: &str, envelope_from: &str, raw: &[u8], vac: &Vacation) {
+    if crate::dsn::suppress_bounce(envelope_from) {
+        return;
+    }
+    let sender = envelope_from
+        .trim()
+        .trim_matches(|c| c == '<' || c == '>')
+        .to_lowercase();
+    if sender == recipient.to_lowercase() {
+        return;
+    }
+    if let Some(auto) = crate::dsn::header_value(raw, "Auto-Submitted")
+        && !auto.eq_ignore_ascii_case("no")
+    {
+        return;
+    }
+    if let Some(prec) = crate::dsn::header_value(raw, "Precedence") {
+        let p = prec.to_ascii_lowercase();
+        if p.contains("bulk") || p.contains("list") || p.contains("junk") {
+            return;
+        }
+    }
+    if crate::dsn::header_value(raw, "List-Id").is_some() {
+        return;
+    }
+    // addressed-to-me check (RFC 5230 §4.4)
+    let to_cc = format!(
+        "{} {}",
+        crate::dsn::header_value(raw, "To").unwrap_or_default(),
+        crate::dsn::header_value(raw, "Cc").unwrap_or_default()
+    )
+    .to_lowercase();
+    let mut mine = vec![recipient.to_lowercase()];
+    mine.extend(vac.addresses.iter().map(|a| a.to_lowercase()));
+    if !mine.iter().any(|a| to_cc.contains(a.as_str())) {
+        tracing::debug!(
+            recipient,
+            "vacation: message not addressed to me — no reply"
+        );
+        return;
+    }
+    // dedup window
+    let Ok(url) = std::env::var("MAILRS_KEVY_URL") else {
+        return;
+    };
+    let Ok(mut conn) = Connection::connect(&url) else {
+        return;
+    };
+    let handle = vac.handle.clone().unwrap_or_else(|| "default".into());
+    let dedup_key = format!("mailrs:vacation:{recipient}:{handle}:{sender}");
+    if conn.get(dedup_key.as_bytes()).ok().flatten().is_some() {
+        return;
+    }
+    let _ = conn.set(dedup_key.as_bytes(), b"1");
+    let _ = conn.expire(
+        dedup_key.as_bytes(),
+        std::time::Duration::from_secs(vac.period_secs),
+    );
+
+    // compose the reply
+    let orig_subject = crate::dsn::header_value(raw, "Subject").unwrap_or_default();
+    let orig_mid = crate::dsn::header_value(raw, "Message-ID")
+        .map(|m| m.trim_matches(|c| c == '<' || c == '>').to_string());
+    let subject = vac
+        .subject
+        .clone()
+        .unwrap_or_else(|| format!("Auto: {orig_subject}"));
+    let from = vac.from.clone().unwrap_or_else(|| recipient.to_string());
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let date = chrono::DateTime::from_timestamp(now as i64, 0)
+        .map(|d| d.to_rfc2822())
+        .unwrap_or_default();
+    let mut msg = String::new();
+    msg.push_str(&format!("From: <{from}>\r\n"));
+    msg.push_str(&format!("To: <{sender}>\r\n"));
+    msg.push_str(&format!("Subject: {subject}\r\n"));
+    msg.push_str(&format!("Date: {date}\r\n"));
+    msg.push_str(&format!(
+        "Message-ID: <vacation-{now}@{from_domain}>\r\n",
+        from_domain = from.split('@').nth(1).unwrap_or("mailrs")
+    ));
+    if let Some(mid) = &orig_mid {
+        msg.push_str(&format!("In-Reply-To: <{mid}>\r\nReferences: <{mid}>\r\n"));
+    }
+    msg.push_str("Auto-Submitted: auto-replied\r\nPrecedence: bulk\r\n");
+    msg.push_str("Content-Type: text/plain; charset=utf-8\r\nMIME-Version: 1.0\r\n\r\n");
+    msg.push_str(&vac.reason);
+    msg.push_str("\r\n");
+
+    match enqueue_vacation_outbound(&mut conn, &sender, msg.as_bytes()) {
+        Ok(()) => tracing::info!(recipient, %sender, "vacation: auto-reply queued"),
+        Err(e) => tracing::warn!(recipient, error = %e, "vacation: enqueue failed"),
+    }
+}
+
+/// Queue the composed vacation reply with a null envelope sender (RFC 3834
+/// §3.3: auto-replies must not bounce), through the shared primitive the
+/// sender's claim reads. A hand-written `mailrs:outbound:pending` push here
+/// had no reader, so every vacation reply was silently never sent.
+fn enqueue_vacation_outbound(conn: &mut Connection, to: &str, body: &[u8]) -> std::io::Result<()> {
+    use base64::Engine as _;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    let b64 = base64::engine::general_purpose::STANDARD.encode(body);
+    mailrs_core_sidestate::families::outbound::write_fresh_pending(
+        conn,
+        &mailrs_core_sidestate::families::outbound::FreshPending {
+            sender: "<>",
+            recipient: to,
+            message_data_base64: &b64,
+            scheduled_at: None,
+            original_sender: None,
+            send_id: None,
+        },
+        now,
+    )?;
+    Ok(())
+}
+
+/// Read `sieve:<address>` from the network kevy. Empty / unset → None.
+fn fetch_script(address: &str) -> Option<String> {
+    let url = std::env::var("MAILRS_KEVY_URL").ok()?;
+    let mut conn = Connection::connect(&url).ok()?;
+    let key = mailrs_core_sidestate::sieve_key(address);
+    let raw = conn.get(key.as_bytes()).ok().flatten()?;
+    let script = String::from_utf8(raw).ok()?;
+    if script.trim().is_empty() {
+        return None;
+    }
+    Some(script)
+}
+
+pub use crate::maildir::maildir_subfolder;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn keep_when_no_actions() {
+        assert_eq!(action_to_decision(&[]), Decision::Keep);
+    }
+
+    #[test]
+    fn discard_beats_all() {
+        let a = [
+            SieveAction::FileInto {
+                mailbox: "Spam".into(),
+                flags: vec![],
+            },
+            SieveAction::Discard,
+        ];
+        assert_eq!(action_to_decision(&a), Decision::Discard);
+    }
+
+    #[test]
+    fn redirect_returns_redirect() {
+        let a = [SieveAction::Redirect("b@y".into())];
+        assert_eq!(action_to_decision(&a), Decision::Redirect("b@y".into()));
+    }
+
+    #[test]
+    fn fileinto_returns_folder() {
+        let a = [SieveAction::FileInto {
+            mailbox: "Work".into(),
+            flags: vec![],
+        }];
+        assert_eq!(action_to_decision(&a), Decision::FileInto("Work".into()));
+    }
+
+    #[test]
+    fn reject_is_a_first_class_decision() {
+        let a = vec![SieveAction::Reject("no thanks".into())];
+        assert_eq!(action_to_decision(&a), Decision::Reject("no thanks".into()));
+    }
+
+    /// The reply has to land where the sender claims from: the job hash
+    /// plus `pending-idx`, with a null envelope sender. Against a real
+    /// kevy-server, because the shared primitive writes with a pipeline.
+    #[tokio::test]
+    async fn a_vacation_reply_is_queued_where_the_sender_reads() {
+        use mailrs_core_sidestate::families::outbound::PENDING_IDX;
+        use testcontainers::core::{IntoContainerPort, WaitFor};
+        use testcontainers::runners::AsyncRunner;
+        use testcontainers::{GenericImage, ImageExt};
+
+        let _startup = mailrs_test_docker::startup_lock().await;
+        let container = GenericImage::new("ghcr.io/goliajp/kevy", "6.4.0")
+            .with_wait_for(WaitFor::message_on_stderr("starting:"))
+            .with_exposed_port(6379.tcp())
+            .with_startup_timeout(mailrs_test_docker::STARTUP_TIMEOUT)
+            .start()
+            .await
+            .expect("start kevy container");
+        let host = container.get_host().await.unwrap().to_string();
+        let url = format!(
+            "kevy://{}:{}",
+            mailrs_test_docker::ipv4_loopback(&host),
+            container.get_host_port_ipv4(6379).await.unwrap()
+        );
+        drop(_startup);
+        let blob = tokio::task::spawn_blocking(move || {
+            let mut conn = (0..50)
+                .find_map(|_| {
+                    let c = Connection::connect(&url).ok();
+                    if c.is_none() {
+                        std::thread::sleep(std::time::Duration::from_millis(100));
+                    }
+                    c
+                })
+                .expect("kevy answers");
+            super::enqueue_vacation_outbound(
+                &mut conn,
+                "asker@example.org",
+                b"Subject: OOO\r\n\r\nx",
+            )
+            .unwrap();
+            assert_eq!(conn.llen(b"mailrs:outbound:pending").unwrap(), 0);
+            let ids = conn.lrange(PENDING_IDX, 0, -1).unwrap();
+            assert_eq!(ids.len(), 1, "nothing on the queue the sender reads");
+            let id = String::from_utf8(ids[0].clone()).unwrap();
+            conn.hget(format!("mailrs:outbound:job:{id}").as_bytes(), b"blob")
+                .unwrap()
+                .unwrap()
+        })
+        .await
+        .unwrap();
+        let job: serde_json::Value = serde_json::from_slice(&blob).unwrap();
+        assert_eq!(job["recipient"], "asker@example.org");
+        assert_eq!(job["sender"], "<>");
+    }
+
+    #[test]
+    fn vacation_falls_back_to_keep() {
+        let a = [SieveAction::Vacation {
+            reason: "OOO".into(),
+            subject: None,
+            from: None,
+            handle: None,
+            period_secs: None,
+            addresses: vec![],
+            mime: false,
+        }];
+        assert_eq!(action_to_decision(&a), Decision::Keep);
+    }
+
+    #[test]
+    fn subfolder_maps_slashes_to_dots() {
+        assert_eq!(maildir_subfolder("Work/Client"), ".Work.Client");
+    }
+
+    #[test]
+    fn subfolder_preserves_leading_dot() {
+        assert_eq!(maildir_subfolder(".Junk"), ".Junk");
+    }
+
+    #[test]
+    fn subfolder_strips_backslash_and_nul() {
+        assert_eq!(maildir_subfolder("Work\\x\0y"), ".Workxy");
+    }
+}

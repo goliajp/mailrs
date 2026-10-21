@@ -1,3 +1,2 @@
 # Being rewritten on their own branches; split there, then retire with --update.
-312 crates/receiver/src/smtp_session/events/data/mod.rs handle_need_data
 210 crates/webapi/src/handlers/send_queue.rs mirror_send_to_sender_view

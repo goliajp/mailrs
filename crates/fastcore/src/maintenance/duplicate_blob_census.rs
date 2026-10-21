@@ -20,9 +20,8 @@
 //!
 //! # The writer is dead, which is why this counts rather than repairs
 //!
-//! The synthetic id is minted only by
-//! `crates/server/src/smtp_session/process_delivered.rs`, in
-//! `mailrs-server` — out of the image since
+//! The synthetic id was minted only by the old delivery path of
+//! `mailrs-server`, which is gone — out of the image since
 //! 2026-07-22. Their dates run
 //! 2026-03-04 to **2026-07-02** and stop there, twenty days before
 //! that removal and two months before today.

@@ -83,17 +83,26 @@ async fn local_domain_names(state: &WebState) -> Vec<String> {
 
 async fn resolve_group_recipients(state: &WebState, all_recipients: &[String]) -> Vec<String> {
     // resolve group emails to individual members
+    // through the route delivery takes, so a group here is a group there; a
+    // lookup that fails sends to the address as written
     let mut resolved_recipients = Vec::new();
+    let dir = state.domain_store.clone().map(|ds| {
+        std::sync::Arc::new(crate::intake::PgDirectory::new(
+            ds,
+            state.maildir_root.clone(),
+            std::env::var("MAILRS_KEVY_URL").ok(),
+        ))
+    });
     for rcpt in all_recipients {
-        if let Some(ref ds) = state.domain_store {
-            match ds.resolve_recipient(rcpt).await {
-                crate::domain_store::ResolvedRecipient::Group(members) => {
-                    resolved_recipients.extend(members);
-                }
-                _ => resolved_recipients.push(rcpt.clone()),
+        let route = match &dir {
+            Some(dir) => dir.clone().route(rcpt.clone()).await.ok(),
+            None => None,
+        };
+        match route {
+            Some(mailrs_intake::route::Route::Group(group)) => {
+                resolved_recipients.extend(group.members);
             }
-        } else {
-            resolved_recipients.push(rcpt.clone());
+            _ => resolved_recipients.push(rcpt.clone()),
         }
     }
 

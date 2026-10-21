@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use crate::{
     FastcoreState, extract_headers, extract_sender_trust, file_mtime_epoch, maildir_filename_epoch,
-    maildir_keyword_bits, maildir_seen_flag, resolve_thread_by_ancestry, sort_date,
+    maildir_keyword_bits, maildir_seen_flag, sort_date, thread_root,
 };
 
 pub(crate) struct MailFile {
@@ -202,7 +202,7 @@ pub(crate) fn arrival_category(
 
 /// Group parsed files by the thread each one belongs to.
 ///
-/// Threading goes through `resolve_thread_by_ancestry`, the same resolver
+/// Threading goes through `thread_root`, the same resolver
 /// the ingest path uses — a second implementation here would drift from it
 /// and put the sweep's repairs in different threads than the arrivals.
 pub(crate) fn group_by_thread<'a>(
@@ -217,25 +217,14 @@ pub(crate) fn group_by_thread<'a>(
     let mut by_root: std::collections::HashMap<String, Vec<&MailFile>> =
         std::collections::HashMap::new();
     for m in parsed {
-        let root = match resolve_thread_by_ancestry(
+        let root = thread_root(
             state,
             user,
             &m.message_id,
             &m.in_reply_to,
             &m.references,
             &m.subject,
-        ) {
-            Some(tid) => tid,
-            None => {
-                if let Some(first) = m.references.first() {
-                    first.clone()
-                } else if !m.in_reply_to.is_empty() {
-                    m.in_reply_to.clone()
-                } else {
-                    m.message_id.clone()
-                }
-            }
-        };
+        );
         by_root.entry(root).or_default().push(m);
     }
 

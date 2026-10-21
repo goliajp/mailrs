@@ -8,10 +8,8 @@ use mailrs_smtp_proto::response::Response;
 use mailrs_smtp_proto::session::{Session, State};
 use mailrs_smtp_proto::unstuff_data;
 
-use mailrs_core::event_bus::SmtpEvent;
 use mailrs_smtp_codec::{SmtpCodec, SmtpInput};
 
-use super::super::delivered::DeliveredMessage;
 use super::super::headers::format_received_header;
 use super::super::{ConnectionContext, DATA_TIMEOUT, SessionAction};
 use super::reply::{code, send_reply};
@@ -20,9 +18,6 @@ mod antispam;
 mod mock_gate;
 mod spool_accept;
 
-use super::super::delivery::{
-    RemoteEnqueueResult, apply_sieve_actions, classify_recipients, enqueue_remote_rcpts,
-};
 use antispam::{AntiSpamOutcome, run_antispam};
 
 pub(super) async fn handle_need_data<S>(
@@ -102,211 +97,19 @@ where
                 }
             }
 
-            // P6 split: in receiver-only mode (spool_sink set), do NOT resolve
-            // recipients / sieve / deliver / relay here — write the
-            // antispam-processed message to the spool and let the core consume
-            // it. The monolith (spool_sink == None) falls through to the inline
-            // delivery path below, unchanged.
-            if ctx.spool_sink.is_some() {
-                return spool_accept::handle_spool_mode(
-                    framed,
-                    &reverse_path,
-                    &forward_paths,
-                    is_authenticated,
-                    conn_id,
-                    target_folder,
-                    fraud_verdict,
-                    sandbox_ns,
-                    &full_message,
-                    ctx,
-                )
-                .await;
-            }
-
-            let msg_size = full_message.len();
-
-            // monolith inline delivery: resolve/sieve/relay run here, against
-            // the session's deps. (In the split, the core consumer runs the
-            // same helpers against its own deps after fetching from spool.)
-            let local_domains = ctx.runtime.local_domains.current();
-            let deps = ctx.delivery_deps(&local_domains);
-            let (local_rcpts, remote_rcpts) = classify_recipients(&forward_paths, &deps).await;
-
-            let mut ok = true;
-
-            // extract threading headers once
-            let msg_message_id = mailrs_mailbox::threading::extract_message_id(&full_message);
-            let msg_in_reply_to = mailrs_mailbox::threading::extract_in_reply_to(&full_message);
-
-            // Hand ownership of the message body to an `Arc<Vec<u8>>` —
-            // every downstream consumer (delivery_executor, AI
-            // post-delivery spawn, content_scan helpers) only needs a
-            // ref-counted handle. Shadowing rather than building a
-            // separate `shared_body` Arc means we don't pay even one
-            // Vec clone for the wrap — the body bytes move into the
-            // Arc directly. Subsequent `&full_message` calls work
-            // through `Arc<Vec<u8>> → Vec<u8> → [u8]` deref coercion.
-            let full_message = std::sync::Arc::new(full_message);
-
-            // deliver to local recipients via maildir
-            for rcpt in &local_rcpts {
-                let (rcpt_folder, skip_delivery) =
-                    apply_sieve_actions(rcpt, target_folder, &reverse_path, &full_message, &deps)
-                        .await;
-                if skip_delivery {
-                    continue;
-                }
-
-                if let Some((local, domain)) = rcpt.split_once('@') {
-                    // check quota before delivery
-                    if let (Some(ds), Some(qs)) = (&ctx.account_store, &ctx.quota_store)
-                        && let Ok(Some(quota)) = ds.quota(rcpt).await
-                        && quota > 0
-                    {
-                        let usage = qs.user_storage_usage(rcpt).await;
-                        if usage + msg_size as u64 > quota as u64 {
-                            tracing::warn!(
-                                event = "smtp_quota_exceeded",
-                                user = %rcpt,
-                                usage_bytes = usage,
-                                quota_bytes = quota,
-                                "delivery rejected: recipient over quota"
-                            );
-                            ok = false;
-                            continue;
-                        }
-                    }
-
-                    let path = format!("{}/{domain}/{local}", ctx.maildir_root);
-                    // Delivery goes through the group-commit
-                    // executor: it accumulates per-path deliveries
-                    // from concurrent SMTP sessions and flushes
-                    // them as a single deliver_batch call to
-                    // mailrs-maildir 1.2. At N=64 batch this is
-                    // ~15× faster than per-message fsync (measured
-                    // microbench, 2026-05-24). Worst-case added
-                    // latency for a single in-flight delivery is
-                    // the executor's max_wait (default 10ms).
-                    match ctx
-                        .delivery_executor
-                        .deliver(path.clone(), full_message.clone())
-                        .await
-                    {
-                        Ok(id) => {
-                            // S1.4 + P5: hand the delivered message to the
-                            // core-side post-delivery consumer so maildir
-                            // write stays on the hot path. Only a plain
-                            // `DeliveredMessage` crosses — the consumer owns
-                            // the spg/kevy-bound deps. On a full channel,
-                            // block on `send` (backpressure to the single
-                            // consumer's rate — never a dropped message);
-                            // if the consumer is gone (shutdown) the message
-                            // is on disk and reconcile will index it. The
-                            // receiver always hands off — the core consumer
-                            // decides whether to process (it owns the deps;
-                            // none = degraded mode, drains and drops).
-                            let msg = DeliveredMessage {
-                                maildir_id: id.to_string(),
-                                user: format!("{local}@{domain}"),
-                                rcpt: rcpt.clone(),
-                                rcpt_folder: rcpt_folder.clone(),
-                                reverse_path: reverse_path.clone(),
-                                full_message: full_message.clone(),
-                                msg_message_id: msg_message_id.clone(),
-                                msg_in_reply_to: msg_in_reply_to.clone(),
-                                msg_size,
-                            };
-                            use tokio::sync::mpsc::error::TrySendError;
-                            match ctx.process_tx.try_send(msg) {
-                                Ok(()) => {}
-                                Err(TrySendError::Full(msg)) => {
-                                    let _ = ctx.process_tx.send(msg).await;
-                                }
-                                Err(TrySendError::Closed(_)) => {
-                                    tracing::error!(
-                                        event = "process_consumer_gone",
-                                        rcpt = %rcpt,
-                                        "post-delivery consumer closed; message on disk, reconcile will index"
-                                    );
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            tracing::error!(
-                                event = "smtp_maildir_deliver_failed",
-                                rcpt = %rcpt,
-                                path = %path,
-                                error = %e,
-                                "maildir delivery returned error"
-                            );
-                            ok = false;
-                        }
-                    }
-                }
-            }
-
-            // FBL: check if this is an ARF complaint report to abuse@
-            if local_rcpts
-                .iter()
-                .any(|r| r.starts_with("abuse@") || r.starts_with("postmaster@"))
-                && let Some(report) = mailrs_arf::parse(&full_message)
-                && let Some(reported_addr) = report.complainant()
-            {
-                tracing::info!(
-                    event = "fbl_complaint_received",
-                    feedback_type = %report.feedback_type,
-                    rcpt = %reported_addr,
-                    "ARF feedback report parsed, adding to suppression list"
-                );
-                if let Some(ref queue) = ctx.outbound_enqueue {
-                    let _ = queue
-                        .add_suppression(
-                            reported_addr,
-                            &format!("FBL complaint: {}", report.feedback_type),
-                            None,
-                        )
-                        .await;
-                }
-            }
-
-            if !remote_rcpts.is_empty() {
-                match enqueue_remote_rcpts(
-                    &remote_rcpts,
-                    &reverse_path,
-                    &full_message,
-                    is_authenticated,
-                    conn_id,
-                    &deps,
-                )
-                .await
-                {
-                    RemoteEnqueueResult::Ok => {}
-                    RemoteEnqueueResult::PartialFailure => {
-                        ok = false;
-                    }
-                    RemoteEnqueueResult::RelayDenied => {
-                        let resp = Response::new(550, Some(code(5, 7, 1)), "Relay access denied");
-                        return send_reply(framed, resp).await;
-                    }
-                }
-            }
-
-            if ok && !local_rcpts.is_empty() {
-                ctx.metrics.on_message_delivered();
-                ctx.event_bus.emit(SmtpEvent::MessageDelivered {
-                    id: conn_id,
-                    from: reverse_path,
-                    to: local_rcpts,
-                    size: msg_size,
-                });
-            }
-
-            let resp = if ok {
-                Response::data_ok()
-            } else {
-                Response::new(451, Some(code(4, 3, 0)), "Local error in processing")
-            };
-            send_reply(framed, resp).await
+            spool_accept::handle_spool_mode(
+                framed,
+                &reverse_path,
+                &forward_paths,
+                is_authenticated,
+                conn_id,
+                target_folder,
+                fraud_verdict,
+                sandbox_ns,
+                &full_message,
+                ctx,
+            )
+            .await
         }
         Ok(Some(Ok(SmtpInput::DataRejected))) => {
             let resp = Response::new(

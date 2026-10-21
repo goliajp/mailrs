@@ -2,7 +2,7 @@
 
 mailrs is a mail server — SMTP in and out, IMAP, POP3, JMAP, ManageSieve,
 CalDAV/CardDAV, a REST and MCP API, and a web client — built as a Cargo
-workspace of 71 crates. Production runs four mailrs processes from one
+workspace of 72 crates. Production runs four mailrs processes from one
 image beside a `kevy-server`. There is no SQL database in that stack:
 message metadata lives in an embedded key-value store, mail bodies are
 Maildir files.
@@ -67,6 +67,8 @@ recipient to a mailbox, an email group's members or an alias target,
 applies the recipient's Sieve script, writes the file into the Maildir,
 and indexes it: thread resolution, the per-user row, the text index,
 importance, attachment text. Only then does it announce the message.
+Everything in that sequence except the writes to the store is
+`mailrs-intake`, which the Postgres-backed core runs as well.
 
 **Realtime.** fastcore writes a `NewMessage` event under
 `mailrs:events:notify:` in kevy-server. webapi reads those keys off kevy's
@@ -104,6 +106,7 @@ libraries are published on [crates.io](https://crates.io/users/golia-jp).
 | `mailrs-core-api` | The core-api: request and response types, paths, client and server stubs |
 | `mailrs-core-sidestate` | Network-kevy state shared by more than one process — key names and the functions that read and write them |
 | `mailrs-core` | The SMTP event bus and spool envelope shared by the receiver and fastcore |
+| `mailrs-intake` | The spool drain both cores run: recipient routing, groups, mock addresses, Sieve, report ingestion, what a message says about itself, and the network-kevy side effects of an arrival; each core supplies its directory and its store writes |
 
 ### Mailbox storage
 

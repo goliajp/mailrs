@@ -13,6 +13,7 @@
 mod accounts;
 mod coverage;
 mod harness;
+mod intake;
 mod mail;
 mod side;
 mod threads;

@@ -60,8 +60,8 @@ pub(crate) async fn build(
     };
 
     // domain store (PG + Kevy + process cache); attach the alias_store
-    // seam so its `resolve_recipient` alias steps + CRUD go through the
-    // trait when a network backend is configured.
+    // seam so recipient routing's alias step and the alias CRUD go through
+    // the trait when a network backend is configured.
     let domain_store = if pg_pool.is_some() {
         let mut ds = domain_store::DomainStore::new(
             pg_pool.clone(),

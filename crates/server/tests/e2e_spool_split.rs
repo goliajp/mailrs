@@ -1,13 +1,10 @@
 //! End-to-end split-delivery test (PG axis only).
 //!
-//! Drives a real SMTP DATA delivery against a **receiver-mode**
-//! `ConnectionContext` (spool_sink set) wired by
-//! `test_support::spawn_split_receiving_server`, which also runs the core
-//! spool consumer subscribing to the same event bus. So the message flows
-//! SMTP → spool file → SpoolDelivered → consume → deliver → index — the full
-//! receiver/core split — and we assert the **same** final state the monolith
-//! `e2e_receiving` asserts: a `messages` row + a `NewMessage` event. This
-//! proves the split delivers identically to the inline path.
+//! Drives a real SMTP DATA delivery against a `ConnectionContext` wired by
+//! `test_support::spawn_receiving_server`, which also runs this core's spool
+//! drain. So the message flows SMTP → spool file → drain → deliver → index,
+//! and we assert a `messages` row + a `NewMessage` event, with the spool and
+//! the maildir in separate directories as production has them.
 #![cfg(not(feature = "spg"))]
 
 mod common;
@@ -130,12 +127,9 @@ async fn split_delivery_spools_then_core_consumes_and_indexes() {
     let maildir_root = maildir_tmp.path().to_str().unwrap().to_string();
     let spool_root = spool_tmp.path().to_str().unwrap().to_string();
 
-    let (port, bus) = mailrs_server::test_support::spawn_split_receiving_server(
-        pool.clone(),
-        maildir_root,
-        spool_root,
-    )
-    .await;
+    let (port, bus) =
+        mailrs_server::test_support::spawn_receiving_server(pool.clone(), maildir_root, spool_root)
+            .await;
     let mut rx = bus.subscribe();
 
     let msg = b"From: Bob Sender <bob@external.com>\r\n\
