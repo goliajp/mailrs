@@ -38,6 +38,8 @@ use axum::response::IntoResponse;
 
 use crate::FastcoreState;
 
+mod thread;
+
 /// How many threads between pauses. Small enough that a reader waiting
 /// on the store lock is not held for long.
 const PAUSE_EVERY: u64 = 25;
@@ -64,6 +66,26 @@ fn default_pause_ms() -> u64 {
     50
 }
 
+/// What a call changed, and what it walked to get there.
+#[derive(Default)]
+struct Counts {
+    rows_decoded: u64,
+    blobs_added: u64,
+    bodies_indexed: u64,
+    trust_stamped: u64,
+    previews_filled: u64,
+    // What it walked, not only what it changed. `previews_filled: 0`
+    // alone cannot tell "every row already had one" from "there were
+    // no rows" — and a number that cannot come out zero for a good
+    // reason is not a verification.
+    threads_walked: u64,
+    // Rows that already carried a preview. Without it, `previews_filled:
+    // 0` cannot distinguish "they all had one" from "the fill never
+    // fires", and 31,763 bodies were walked for a zero nobody could
+    // read.
+    previews_present: u64,
+}
+
 pub(crate) async fn backfill_decode_headers_route(
     State(state): State<Arc<FastcoreState>>,
     Query(args): Query<SweepArgs>,
@@ -75,21 +97,7 @@ pub(crate) async fn backfill_decode_headers_route(
             return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
-    let mut rows_decoded = 0u64;
-    let mut blobs_added = 0u64;
-    let mut bodies_indexed = 0u64;
-    let mut trust_stamped = 0u64;
-    let mut previews_filled = 0u64;
-    // What it walked, not only what it changed. `previews_filled: 0`
-    // alone cannot tell "every row already had one" from "there were
-    // no rows" — and a number that cannot come out zero for a good
-    // reason is not a verification.
-    let mut threads_walked = 0u64;
-    // Rows that already carried a preview. Without it, `previews_filled:
-    // 0` cannot distinguish "they all had one" from "the fill never
-    // fires", and 31,763 bodies were walked for a zero nobody could
-    // read.
-    let mut previews_present = 0u64;
+    let mut c = Counts::default();
     // Position in the whole walk, counted whether or not the thread was
     // worked on — it is what `skip` is measured in.
     let mut seen = 0u64;
@@ -105,156 +113,18 @@ pub(crate) async fn backfill_decode_headers_route(
             if seen <= args.skip {
                 continue;
             }
-            if threads_walked >= args.limit {
+            if c.threads_walked >= args.limit {
                 stopped_early = true;
                 break 'walk;
             }
-            threads_walked += 1;
-            if threads_walked.is_multiple_of(PAUSE_EVERY) {
+            c.threads_walked += 1;
+            if c.threads_walked.is_multiple_of(PAUSE_EVERY) {
                 // Deliberately standing aside: the point is to let
                 // readers have the store lock, which yielding to the
                 // scheduler alone does not do.
                 tokio::time::sleep(Duration::from_millis(args.pause_ms)).await;
             }
-            let tid = tid.as_str();
-            let Ok(Some(mut row)) = state.mailbox.get_thread(tid) else {
-                continue;
-            };
-            let mut newest: Option<(i64, String)> = None;
-            let senders = mailrs_rfc2047::decode(row.senders_csv.as_bytes()).into_owned();
-            let subject = mailrs_rfc2047::decode(row.subject.as_bytes()).into_owned();
-            // Re-run through `preview_line`, not only decoded: rows
-            // written before it learned about rule lines carry the bar
-            // a plain-text mail draws across the page —
-            // `Hello HAO, ------------------------------ …` opened
-            // nearly every row on a phone. Re-running over the stored
-            // string is enough, because the dashes are still in it as
-            // dashes; the line only gets shorter, never wrong.
-            let preview = mailrs_clean::preview_line(
-                &mailrs_rfc2047::decode(row.latest_preview.as_bytes()),
-                120,
-            );
-            // Rows written before the text index existed carry no
-            // `search_blob`, so they are invisible to search until
-            // something rewrites them. upsert_thread synthesises the
-            // field, so re-writing such a row is all it takes.
-            let needs_blob = !state
-                .mailbox
-                .store_ref()
-                .hexists(
-                    mailrs_mailbox_kevy::keys::thread(tid).as_bytes(),
-                    mailrs_mailbox_kevy::keys::THREAD_SEARCH_FIELD,
-                )
-                .unwrap_or(false);
-            let dirty = needs_blob
-                || senders != row.senders_csv
-                || subject != row.subject
-                || preview != row.latest_preview;
-            if dirty {
-                row.senders_csv = senders;
-                row.subject = subject;
-                row.latest_preview = preview;
-                if let Err(e) = state.mailbox.upsert_thread(user, &row) {
-                    tracing::warn!(err = %e, %user, %tid, "decode backfill: upsert failed");
-                    continue;
-                }
-                if needs_blob {
-                    blobs_added += 1;
-                }
-                rows_decoded += 1;
-                crate::live_sync::upsert_contacts(user, &row.senders_csv);
-            }
-            // Body text for the message-level search index. Reads each
-            // message's maildir file once — the heaviest part of this
-            // sweep, and the reason it is an explicit admin action
-            // rather than something the ingest path retrofits.
-            for blob in state
-                .mailbox
-                .thread_messages_for_maintenance(tid)
-                .unwrap_or_default()
-            {
-                let Ok(mut w) =
-                    serde_json::from_slice::<mailrs_core_api::method::message::MessageWire>(&blob)
-                else {
-                    continue;
-                };
-                if w.message_id.is_empty() {
-                    continue;
-                }
-                // This user's own filename. The shared blob's names
-                // whichever owner wrote last, and reading through it looks
-                // in the wrong maildir for anyone else on the thread.
-                let blob_ref = state
-                    .mailbox
-                    .user_message_facts(user, &w.message_id)
-                    .ok()
-                    .flatten()
-                    .map(|f| f.blob_ref)
-                    .unwrap_or_else(|| w.blob_ref.clone());
-                let Some(raw) = crate::read_maildir_file(user, &blob_ref) else {
-                    continue;
-                };
-                // Stamp the sender-auth verdict on rows ingested before
-                // the field existed, so browsing old mail shows the same
-                // badge new mail does. Rewrite the wire only when it
-                // actually gains a verdict.
-                if w.sender_trust.is_empty() {
-                    let trust = crate::extract_sender_trust(&raw);
-                    if !trust.is_empty() {
-                        w.sender_trust = trust;
-                        if let Ok(payload) = serde_json::to_vec(&w) {
-                            let _ = state.mailbox.upsert_user_message(
-                                user,
-                                tid,
-                                &w.message_id,
-                                w.internal_date,
-                                &payload,
-                                &mailrs_mailbox_kevy::UserMessageFacts {
-                                    blob_ref: &w.blob_ref,
-                                    uid: w.uid,
-                                    flags: w.flags,
-                                    modseq: w.modseq,
-                                },
-                            );
-                            trust_stamped += 1;
-                        }
-                    }
-                }
-                let text = crate::body_text_for_search(&mailrs_mime::parse(&raw));
-                if let Some(text) = text.as_deref()
-                    && state
-                        .mailbox
-                        .index_message_text(&w.message_id, text)
-                        .is_ok()
-                {
-                    bodies_indexed += 1;
-                }
-                // The newest message's opening line is the row's
-                // preview. Tracked by date rather than by position:
-                // `thread_messages_for_maintenance` promises no order,
-                // and the last one read is not the last one sent.
-                if let Some(text) = text.as_deref()
-                    && newest.as_ref().is_none_or(|(d, _)| w.internal_date >= *d)
-                {
-                    newest = Some((w.internal_date, mailrs_clean::preview_line(text, 120)));
-                }
-            }
-            // Only when there is nothing there. Every received thread
-            // written before 2026-08-09 has an empty one — the drain
-            // passed "" — and a thread that already has a line does not
-            // need this sweep's opinion of it.
-            if !row.latest_preview.is_empty() {
-                previews_present += 1;
-            }
-            if row.latest_preview.is_empty()
-                && let Some((_, preview)) = newest
-                && !preview.is_empty()
-            {
-                row.latest_preview = preview;
-                if state.mailbox.upsert_thread(user, &row).is_ok() {
-                    previews_filled += 1;
-                }
-            }
+            thread::repair_thread(&state, user, tid.as_str(), &mut c);
         }
     }
     // Only on the pass that reaches the end: it walks every contact
@@ -266,26 +136,26 @@ pub(crate) async fn backfill_decode_headers_route(
         scrub_contact_hashes(&users)
     };
     tracing::info!(
-        threads_walked,
-        previews_present,
-        rows_decoded,
-        blobs_added,
-        bodies_indexed,
-        previews_filled,
-        trust_stamped,
+        threads_walked = c.threads_walked,
+        previews_present = c.previews_present,
+        rows_decoded = c.rows_decoded,
+        blobs_added = c.blobs_added,
+        bodies_indexed = c.bodies_indexed,
+        previews_filled = c.previews_filled,
+        trust_stamped = c.trust_stamped,
         contacts_repaired,
         "backfill-decode-headers complete"
     );
     Json(serde_json::json!({
         "done": !stopped_early,
-        "next_skip": args.skip + threads_walked,
-        "threads_walked": threads_walked,
-        "previews_present": previews_present,
-        "rows_decoded": rows_decoded,
-        "search_blobs_added": blobs_added,
-        "bodies_indexed": bodies_indexed,
-        "previews_filled": previews_filled,
-        "trust_stamped": trust_stamped,
+        "next_skip": args.skip + c.threads_walked,
+        "threads_walked": c.threads_walked,
+        "previews_present": c.previews_present,
+        "rows_decoded": c.rows_decoded,
+        "search_blobs_added": c.blobs_added,
+        "bodies_indexed": c.bodies_indexed,
+        "previews_filled": c.previews_filled,
+        "trust_stamped": c.trust_stamped,
         "contacts_repaired": contacts_repaired,
     }))
     .into_response()

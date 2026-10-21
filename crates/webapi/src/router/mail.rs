@@ -1,8 +1,8 @@
+// CARVE-OUT: pure route registration; the builder chain is the table
 //! Conversation and mail routes.
 //!
-//! Split out of the 789-line `build_router` on 2026-08-02. The table is
-//! built at process start, so a path string that fails to parse panics
-//! there rather than on the first request.
+//! Split out of the 789-line `build_router` on 2026-08-02. The table is built at process
+//! start, so a path string that fails to parse panics there rather than on the first request.
 
 use crate::*;
 /// Conversation list, threads, and the per-thread verbs.
