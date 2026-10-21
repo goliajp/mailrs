@@ -1,8 +1,12 @@
 //! Delivering one message: MX resolution, the SMTP conversation, ARC and
 //! DKIM, and what to record about how it went.
 
+use std::borrow::Cow;
+
 use super::config::*;
 use super::*;
+
+mod attempt;
 
 /// ARC-seal `message` when this delivery is a forward, else `None`.
 ///
@@ -90,48 +94,9 @@ pub(super) async fn try_deliver(
 ) -> Outcome {
     let recipient = extract_addr_spec(recipient_raw);
     let sender = extract_addr_spec(sender);
-
-    // ARC-seal first, so the DKIM signature covers a message that
-    // already carries its ARC set.
-    //
-    // A forward is where the envelope sender differs from the original
-    // sender — the SRS rewrite in enqueue_redirect produces exactly
-    // that. Ordinary sends have the two equal, and system mail has both
-    // as the null sender, so neither gets sealed.
-    let sealed_msg;
-    let message: &[u8] = match arc_seal_target(cfg, sender, original_sender, message) {
-        Some(bytes) => {
-            sealed_msg = bytes;
-            &sealed_msg
-        }
-        None => message,
-    };
-
-    // DKIM sign if a signing key is configured. Fatal signing errors
-    // are permanent (won't heal on retry): message data is malformed
-    // or the private key is broken.
-    let signed;
-    let payload: &[u8] = match cfg.dkim.as_ref() {
-        Some(dkim) => match dkim.sign(message) {
-            Ok(bytes) => {
-                signed = bytes;
-                // Log the d= we actually signed with. Alignment failures
-                // are invisible from this side — the message leaves
-                // fine and only fails at the far end, on a forward,
-                // weeks later. Recording the tag makes the question
-                // "did this domain sign as itself?" answerable from
-                // logs instead of from a round trip through a third
-                // party's inbox.
-                if let Some(d) = signed_d_tag(&signed) {
-                    tracing::info!(dkim_d = %d, %sender, "signed");
-                }
-                &signed
-            }
-            Err(e) => {
-                return Outcome::Permanent(format!("dkim sign: {e}"));
-            }
-        },
-        None => message,
+    let payload = match sealed_and_signed(cfg, sender, original_sender, message) {
+        Ok(payload) => payload,
+        Err(outcome) => return outcome,
     };
     let Some(domain) = recipient.split('@').nth(1) else {
         return Outcome::Permanent(format!("invalid recipient: {recipient_raw}"));
@@ -153,21 +118,10 @@ pub(super) async fn try_deliver(
         return Outcome::Permanent(format!("recipient on suppression list: {recipient}"));
     }
 
-    let resolver = match TokioResolver::builder_tokio() {
-        Ok(b) => match b.build() {
-            Ok(r) => r,
-            Err(e) => return Outcome::Transient(format!("resolver build: {e}")),
-        },
-        Err(e) => return Outcome::Transient(format!("resolver builder: {e}")),
+    let (resolver, mx_records) = match resolve_mx_hosts(domain).await {
+        Ok(found) => found,
+        Err(outcome) => return outcome,
     };
-
-    let mx_records = match resolve_mx(&resolver, domain).await {
-        Ok(v) => v,
-        Err(e) => return Outcome::Transient(format!("mx lookup: {e}")),
-    };
-    if mx_records.is_empty() {
-        return Outcome::Transient(format!("no MX for {domain}"));
-    }
 
     // MTA-STS policy (G8): enforce mode forbids plaintext downgrade and
     // restricts delivery to the policy's mx: set. testing/none/absent =
@@ -179,219 +133,89 @@ pub(super) async fn try_deliver(
         .unwrap_or(false);
 
     let timeouts = TimeoutConfig::default();
+    let attempt = attempt::Attempt {
+        cfg,
+        resolver: &resolver,
+        domain,
+        sender,
+        recipient,
+        payload: &payload,
+        sts_policy: sts_policy.as_ref(),
+        sts_enforce,
+        timeouts: &timeouts,
+    };
     let mut last_err = String::from("no MX host attempted");
-
     for mx in &mx_records {
-        // enforce: skip MX not covered by the policy's mx: patterns
-        if let Some(policy) = &sts_policy
-            && sts_enforce
-            && mailrs_fastcore::sender_sts::mx_decision(policy, &mx.exchange)
-                == mailrs_mta_sts::Decision::Deny
-        {
-            last_err = format!("mta-sts enforce: {} not in policy mx:", mx.exchange);
-            tracing::warn!(err = %last_err, "MX excluded by STS policy, next MX");
-            mailrs_fastcore::tlsrpt::record(
-                &cfg.kevy_url,
-                &mailrs_fastcore::tlsrpt::TlsEvent {
-                    domain: domain.to_string(),
-                    mx: mx.exchange.to_string(),
-                    success: false,
-                    failure_type: Some("mx-mismatch".into()),
-                    detail: Some(last_err.clone()),
-                },
-            );
-            continue;
+        if let Some(outcome) = attempt.mx(mx, &mut last_err).await {
+            return outcome;
         }
-        tracing::info!(mx = %mx.exchange, priority = mx.priority, %recipient, "attempt");
-        let conn = match SmtpConnection::connect_with_timeout(&mx.exchange, 25, &timeouts).await {
-            Ok(c) => c,
-            Err(e) => {
-                last_err = format!("connect {}: {e}", mx.exchange);
-                tracing::warn!(err = %last_err, "connect failed, next MX");
-                continue;
-            }
-        };
-
-        // First EHLO (plain).
-        let mut conn = conn;
-        let mut tls_used = false;
-        if let Err(e) = conn.ehlo(&cfg.helo).await {
-            last_err = format!("ehlo {}: {e}", mx.exchange);
-            tracing::warn!(err = %last_err, "ehlo failed, next MX");
-            continue;
-        }
-
-        // Opportunistic STARTTLS with plaintext downgrade on failure.
-        //
-        // - Success: upgrade + re-EHLO
-        // - Rejected (server refused STARTTLS): stay on the same plaintext conn
-        // - HandshakeFailed (peer cert expired / SNI mismatch / etc.):
-        //   the TCP session is dead, so open a fresh plaintext session
-        //   and continue there. This matches how Gmail/O365/Postfix
-        //   handle opportunistic-TLS failures — SPF/DKIM/DMARC (not TLS)
-        //   are the real integrity guarantees for interpersonal mail.
-        // DANE (RFC 7672 / G8.2): if the MX publishes DNSSEC-anchored
-        // TLSA records, TLS is mandatory and the cert is verified
-        // against them — a missing/failed handshake must NOT downgrade.
-        let tlsa = mailrs_smtp_client::resolve_tlsa(&resolver, &mx.exchange).await;
-        let dane_active = !tlsa.is_empty();
-        let starttls = if dane_active {
-            let cfg = mailrs_smtp_client::dane_tls_config(tlsa);
-            conn.try_starttls_with_config(&mx.exchange, cfg).await
-        } else {
-            conn.try_starttls(&mx.exchange).await
-        };
-        let conn = match starttls {
-            mailrs_smtp_client::StarttlsResult::Success(c) => {
-                let mut c = c;
-                if let Err(e) = c.ehlo(&cfg.helo).await {
-                    last_err = format!("ehlo-after-starttls {}: {e}", mx.exchange);
-                    tracing::warn!(err = %last_err, "post-tls ehlo failed, next MX");
-                    continue;
-                }
-                tls_used = true;
-                c
-            }
-            mailrs_smtp_client::StarttlsResult::Rejected {
-                conn,
-                code,
-                message: msg,
-            } => {
-                if sts_enforce || dane_active {
-                    last_err = format!("mta-sts enforce: {} refused STARTTLS", mx.exchange);
-                    tracing::warn!(err = %last_err, "STARTTLS refused under STS enforce, next MX");
-                    mailrs_fastcore::tlsrpt::record(
-                        &cfg.kevy_url,
-                        &mailrs_fastcore::tlsrpt::TlsEvent {
-                            domain: domain.to_string(),
-                            mx: mx.exchange.to_string(),
-                            success: false,
-                            failure_type: Some("starttls-not-supported".into()),
-                            detail: Some(last_err.clone()),
-                        },
-                    );
-                    let mut c = conn;
-                    let _ = c.quit().await;
-                    continue;
-                }
-                tracing::info!(code, %msg, "STARTTLS rejected, continuing plaintext");
-                conn
-            }
-            mailrs_smtp_client::StarttlsResult::HandshakeFailed { outcome, source } => {
-                if sts_enforce || dane_active {
-                    // Say *why*. The stone classifies the failure and
-                    // this arm used to discard both the classification
-                    // and the error, so the log and the bounce both read
-                    // "TLS handshake failed" and nothing else — while
-                    // the branch one line down, the one that does not
-                    // stop delivery, logged the source.
-                    //
-                    // 2026-08-17: every message to every Microsoft 365
-                    // tenant was dying here, and the sentence that would
-                    // have said so in one line —
-                    // `CertificateNotTrusted("UnknownIssuer")` — was
-                    // computed and thrown away. It cost a bounce report,
-                    // a packet capture and an afternoon to recover a
-                    // string the process already had.
-                    last_err = format!(
-                        "mta-sts enforce: {} TLS handshake failed: {}: {}",
-                        mx.exchange,
-                        outcome.as_str(),
-                        outcome.detail()
-                    );
-                    tracing::warn!(err = %last_err, "TLS handshake failed under STS enforce, next MX");
-                    // TLS-RPT exists for exactly this class, and the
-                    // sibling arm records one while this did not — so a
-                    // domain whose STARTTLS is refused was reported and
-                    // a domain whose certificate we cannot verify was
-                    // not, which is backwards. `source` is unused now
-                    // that `outcome` carries both the class and the
-                    // detail; it is the same string.
-                    mailrs_fastcore::tlsrpt::record(
-                        &cfg.kevy_url,
-                        &mailrs_fastcore::tlsrpt::TlsEvent {
-                            domain: domain.to_string(),
-                            mx: mx.exchange.to_string(),
-                            success: false,
-                            // The stone already classified this in RFC
-                            // 8460's own vocabulary — `as_str()` returns
-                            // `certificate-not-trusted`,
-                            // `certificate-host-mismatch` and the rest.
-                            // Writing a constant here would discard the
-                            // classification a second time, one layer up
-                            // from where it was discarded the first.
-                            failure_type: Some(outcome.as_str().to_string()),
-                            detail: Some(last_err.clone()),
-                        },
-                    );
-                    continue;
-                }
-                tracing::warn!(
-                    err = %source,
-                    mx = %mx.exchange,
-                    "STARTTLS handshake failed, downgrading to plaintext"
-                );
-                let mut plain = match SmtpConnection::connect_with_timeout(
-                    &mx.exchange,
-                    25,
-                    &timeouts,
-                )
-                .await
-                {
-                    Ok(c) => c,
-                    Err(e) => {
-                        last_err = format!("plaintext reconnect {}: {e}", mx.exchange);
-                        tracing::warn!(err = %last_err, "reconnect after TLS failure failed, next MX");
-                        continue;
-                    }
-                };
-                if let Err(e) = plain.ehlo(&cfg.helo).await {
-                    last_err = format!("plaintext ehlo {}: {e}", mx.exchange);
-                    tracing::warn!(err = %last_err, "plaintext ehlo after TLS failure failed, next MX");
-                    continue;
-                }
-                plain
-            }
-        };
-
-        let mut conn = conn;
-        let resp = match conn.deliver(sender, &[recipient], payload).await {
-            Ok(r) => r,
-            Err(e) => {
-                last_err = format!("deliver {}: {e}", mx.exchange);
-                tracing::warn!(err = %last_err, "deliver io error, next MX");
-                let _ = conn.quit().await;
-                continue;
-            }
-        };
-
-        let _ = conn.quit().await;
-
-        if resp.is_positive() {
-            tracing::info!(mx = %mx.exchange, code = resp.code, msg = %resp.message(), "delivered");
-            // TLS-RPT success event (G8.3): tls_used tracks whether the
-            // final connection upgraded — set at STARTTLS resolution.
-            mailrs_fastcore::tlsrpt::record(
-                &cfg.kevy_url,
-                &mailrs_fastcore::tlsrpt::TlsEvent {
-                    domain: domain.to_string(),
-                    mx: mx.exchange.to_string(),
-                    success: tls_used,
-                    failure_type: (!tls_used).then(|| "starttls-not-supported".to_string()),
-                    detail: None,
-                },
-            );
-            return Outcome::Delivered;
-        }
-        if resp.is_permanent_error() {
-            let msg = format!("{} {} {}", mx.exchange, resp.code, resp.message());
-            tracing::warn!(err = %msg, "permanent rejection");
-            return Outcome::Permanent(msg);
-        }
-        // Transient (4xx): try next MX before giving up on this attempt.
-        last_err = format!("{} {} {}", mx.exchange, resp.code, resp.message());
-        tracing::warn!(err = %last_err, "transient rejection, next MX");
     }
 
     Outcome::Transient(last_err)
+}
+
+/// The bytes that go on the wire: ARC-sealed when this is a forward,
+/// then DKIM-signed when a key is configured.
+fn sealed_and_signed<'a>(
+    cfg: &Cfg,
+    sender: &str,
+    original_sender: &str,
+    message: &'a [u8],
+) -> Result<Cow<'a, [u8]>, Outcome> {
+    // ARC-seal first, so the DKIM signature covers a message that
+    // already carries its ARC set.
+    //
+    // A forward is where the envelope sender differs from the original
+    // sender — the SRS rewrite in enqueue_redirect produces exactly
+    // that. Ordinary sends have the two equal, and system mail has both
+    // as the null sender, so neither gets sealed.
+    let message: Cow<'a, [u8]> = match arc_seal_target(cfg, sender, original_sender, message) {
+        Some(bytes) => Cow::Owned(bytes),
+        None => Cow::Borrowed(message),
+    };
+
+    // DKIM sign if a signing key is configured. Fatal signing errors
+    // are permanent (won't heal on retry): message data is malformed
+    // or the private key is broken.
+    match cfg.dkim.as_ref() {
+        Some(dkim) => match dkim.sign(&message) {
+            Ok(signed) => {
+                // Log the d= we actually signed with. Alignment failures
+                // are invisible from this side — the message leaves
+                // fine and only fails at the far end, on a forward,
+                // weeks later. Recording the tag makes the question
+                // "did this domain sign as itself?" answerable from
+                // logs instead of from a round trip through a third
+                // party's inbox.
+                if let Some(d) = signed_d_tag(&signed) {
+                    tracing::info!(dkim_d = %d, %sender, "signed");
+                }
+                Ok(Cow::Owned(signed))
+            }
+            Err(e) => Err(Outcome::Permanent(format!("dkim sign: {e}"))),
+        },
+        None => Ok(message),
+    }
+}
+
+/// A resolver, and the domain's MX hosts in priority order.
+async fn resolve_mx_hosts(
+    domain: &str,
+) -> Result<(TokioResolver, Vec<mailrs_smtp_client::MxRecord>), Outcome> {
+    let resolver = match TokioResolver::builder_tokio() {
+        Ok(b) => match b.build() {
+            Ok(r) => r,
+            Err(e) => return Err(Outcome::Transient(format!("resolver build: {e}"))),
+        },
+        Err(e) => return Err(Outcome::Transient(format!("resolver builder: {e}"))),
+    };
+
+    let mx_records = match resolve_mx(&resolver, domain).await {
+        Ok(v) => v,
+        Err(e) => return Err(Outcome::Transient(format!("mx lookup: {e}"))),
+    };
+    if mx_records.is_empty() {
+        return Err(Outcome::Transient(format!("no MX for {domain}")));
+    }
+    Ok((resolver, mx_records))
 }
