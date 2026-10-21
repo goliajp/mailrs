@@ -179,11 +179,11 @@ if [ "${SKIP_GATE:-0}" != 1 ] && [ "${WEB_ONLY_SKIPS_RUST_GATE:-0}" != 1 ]; then
     # remote-gate.sh says why. The perf budgets below and the image build
     # after them share this machine in turn, while the runner works.
     REMOTE_LOG=$(mktemp -t mailrs-remote-gate)
-    echo "    remote gate started; log: $REMOTE_LOG"
-    ./scripts/remote-gate.sh "$HEAD_AT_START" > "$REMOTE_LOG" 2>&1 &
+    echo "    remote gate started; log: $REMOTE_LOG.{out,err}"
+    # test results apart from cargo's status lines, which split them mid-line
+    ./scripts/remote-gate.sh "$HEAD_AT_START" > "$REMOTE_LOG.out" 2> "$REMOTE_LOG.err" &
     REMOTE_PID=$!
-    # A failure here or in the build exits the script; the runner's lane
-    # must not outlive it.
+    # the runner's lane must not outlive a failure here or in the build
     trap 'kill "$REMOTE_PID" 2>/dev/null || true' EXIT
 
     # Release-profile budgets, ~23s once target/release is warm; the
@@ -228,12 +228,12 @@ if [ -n "${REMOTE_PID:-}" ]; then
     wait "$REMOTE_PID" || REMOTE_RC=$?
     trap - EXIT
     if [ "$REMOTE_RC" != 0 ]; then
-        echo "!! remote gate failed — nothing was published. Last lines of $REMOTE_LOG:"
-        tail -40 "$REMOTE_LOG"
+        echo "!! remote gate failed — nothing was published. Last lines of $REMOTE_LOG.{err,out}:"
+        tail -25 "$REMOTE_LOG.err"; tail -25 "$REMOTE_LOG.out"
         exit 1
     fi
-    ./scripts/gate-tally.sh "$REMOTE_LOG"
-    rm -f "$REMOTE_LOG"
+    ./scripts/gate-tally.sh "$REMOTE_LOG.out"
+    rm -f "$REMOTE_LOG" "$REMOTE_LOG.out" "$REMOTE_LOG.err"
 fi
 
 # The gate and the image build take minutes, and `docker buildx build .`
