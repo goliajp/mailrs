@@ -7,7 +7,7 @@ static STUCK_REPORTED: std::sync::LazyLock<std::sync::Mutex<std::collections::Ha
 /// `true` the first time `filename` is seen as stuck. Also drops names
 /// that have since left the spool, so a file that is fixed and then
 /// breaks again is reported afresh.
-pub(super) fn stuck_is_new(filename: &str) -> bool {
+pub(crate) fn is_new(filename: &str) -> bool {
     match STUCK_REPORTED.lock() {
         Ok(mut set) => set.insert(filename.to_string()),
         // A poisoned mutex must not silence the warning.
@@ -16,7 +16,7 @@ pub(super) fn stuck_is_new(filename: &str) -> bool {
 }
 
 /// Forget any reported name no longer present in the spool.
-pub(super) fn forget_departed(present: &std::collections::HashSet<String>) {
+pub(crate) fn forget_departed(present: &std::collections::HashSet<String>) {
     if let Ok(mut set) = STUCK_REPORTED.lock() {
         set.retain(|name| present.contains(name));
     }

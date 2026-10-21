@@ -1,121 +1,24 @@
-//! One resolved local recipient of a spooled message: report side
-//! effects, sieve, and the maildir write plus ingest. Shared by the
-//! envelope's own recipients and by the members of an email group.
+//! A copy that reached one of this core's mailboxes: report side effects,
+//! sieve, and the maildir write plus ingest.
 
-use std::sync::Arc;
+use mailrs_intake::{Core, Inbound};
 
-use mailrs_core::spool::SpoolEnvelope;
-
-use super::deliver::{deliver, enqueue_outbound, enqueue_redirect, ensure_maildir};
+use super::core::Fastcore;
+use super::deliver::{deliver, enqueue_outbound, enqueue_redirect};
 use super::reported_to;
-use super::route::{Route, local_mailbox, route};
-use crate::FastcoreState;
 
-/// The spooled message being delivered.
-pub(super) struct Inbound<'a> {
-    pub state: &'a Arc<FastcoreState>,
-    pub maildir_root: &'a str,
-    pub filename: &'a str,
-    pub body: &'a [u8],
-    pub env: &'a SpoolEnvelope,
-}
-
-/// The local mailbox `fwd` delivers to, its maildir made if it is an
-/// account that has none. A lookup error counts as no mailbox here: a
-/// group member that cannot be looked up is left unresolved.
-pub(super) fn resolve_local(
-    state: &Arc<FastcoreState>,
-    maildir_root: &str,
-    fwd: &str,
-) -> Option<String> {
-    let mailbox = local_mailbox(state, maildir_root, fwd)
-        .inspect_err(|e| tracing::warn!(%fwd, error = %e, "recipient lookup failed"))
-        .ok()
-        .flatten()?;
-    ensure_maildir(maildir_root, &mailbox).then_some(mailbox)
-}
-
-/// How many copies of the message were consumed, and the addresses left
-/// unresolved.
-pub(super) struct Copies {
-    pub delivered: usize,
-    pub unresolved: Vec<String>,
-}
-
-impl Copies {
-    pub(super) fn none() -> Self {
-        Self {
-            delivered: 0,
-            unresolved: Vec::new(),
-        }
+impl Core for Fastcore<'_> {
+    fn net_conn(&self) -> Option<kevy_client::Connection> {
+        self.state.net_conn()
     }
 
-    fn done() -> Self {
-        Self {
-            delivered: 1,
-            unresolved: Vec::new(),
-        }
-    }
-
-    fn missed(addr: &str) -> Self {
-        Self {
-            delivered: 0,
-            unresolved: vec![addr.to_string()],
-        }
-    }
-}
-
-impl Inbound<'_> {
-    /// One envelope recipient's copy. `raw` is the recipient as received,
-    /// `fwd` its canonical form.
-    pub(super) fn deliver_to(&self, raw: &str, fwd: &str) -> Copies {
-        let found = match route(self.state, self.maildir_root, raw, fwd) {
-            Ok(found) => found,
-            Err(e) => {
-                tracing::warn!(%fwd, error = %e, "recipient lookup failed; retried next tick");
-                return Copies::missed(fwd);
-            }
-        };
-        let mailbox = match found {
-            // never delivered locally: relayed back to whoever we forwarded for
-            Route::Srs(original) => {
-                return match enqueue_outbound(&original, "", self.body) {
-                    Ok(()) => {
-                        tracing::info!(srs = %raw, %original, "SRS bounce relayed");
-                        Copies::done()
-                    }
-                    Err(e) => {
-                        tracing::warn!(srs = %raw, error = %e, "SRS relay failed");
-                        Copies::none()
-                    }
-                };
-            }
-            Route::Group(group) => return self.deliver_to_group(fwd, &group),
-            Route::Nobody => return Copies::missed(fwd),
-            Route::Own => fwd.to_string(),
-            Route::Alias(target) => {
-                tracing::info!(orig = %fwd, aliased = %target, "spool alias resolved");
-                target
-            }
-        };
-        match ensure_maildir(self.maildir_root, &mailbox) && self.deliver_resolved(fwd, &mailbox) {
-            true => Copies::done(),
-            false => Copies::missed(&mailbox),
-        }
-    }
-}
-
-impl Inbound<'_> {
-    /// Deliver to `addr`, the mailbox `fwd` resolved to. Returns whether
-    /// the message was consumed for this recipient (delivered, filed,
-    /// redirected, or deliberately discarded / rejected by sieve).
-    pub(super) fn deliver_resolved(&self, fwd: &str, addr: &str) -> bool {
+    fn deliver_resolved(&self, msg: &Inbound<'_, Self>, fwd: &str, addr: &str) -> bool {
         let (state, maildir_root, filename, body, env) = (
             self.state,
             self.maildir_root,
-            self.filename,
-            self.body,
-            self.env,
+            msg.filename,
+            msg.body,
+            msg.env,
         );
         // DMARC aggregate reports, feedback-loop complaints and TLS-RPT
         // reports to their collector mailboxes are parsed here as a side
@@ -152,7 +55,7 @@ impl Inbound<'_> {
                 (true, false)
             }
             crate::sieve_apply::Decision::Reject(reason) => {
-                self.reject_dsn(addr, &reason);
+                reject_dsn(msg, addr, &reason);
                 (true, false)
             }
             crate::sieve_apply::Decision::Redirect(target) => {
@@ -195,33 +98,33 @@ impl Inbound<'_> {
         }
         consumed
     }
+}
 
-    /// Backscatter guard: a DSN only when the receiver's antispam verdict
-    /// routed to INBOX (auth-scored OK proxy — the envelope carries no raw
-    /// SPF/DKIM result) AND the sender is a real address. Anything else is
-    /// silently consumed.
-    fn reject_dsn(&self, addr: &str, reason: &str) {
-        let env = self.env;
-        let allow = env.target_folder.eq_ignore_ascii_case("INBOX")
-            && !crate::bounce::suppress_bounce(&env.reverse_path);
-        if !allow {
-            tracing::info!(recipient = %addr, "sieve: reject suppressed (backscatter guard)");
-            return;
-        }
-        let (reporting_mta, from_domain) = crate::bounce::dsn_identity();
-        let dsn = crate::bounce::compose_dsn(
-            &reporting_mta,
-            &from_domain,
-            &env.reverse_path,
-            addr,
-            "5.7.1",
-            &format!("550 5.7.1 {reason}"),
-            self.body,
-        );
-        match enqueue_outbound(&env.reverse_path, "", &dsn) {
-            Ok(()) => tracing::info!(recipient = %addr, "sieve: reject DSN queued"),
-            Err(e) => tracing::warn!(recipient = %addr, error = %e,
-                "sieve: reject DSN enqueue failed; message discarded"),
-        }
+/// Backscatter guard: a DSN only when the receiver's antispam verdict
+/// routed to INBOX (auth-scored OK proxy — the envelope carries no raw
+/// SPF/DKIM result) AND the sender is a real address. Anything else is
+/// silently consumed.
+fn reject_dsn(msg: &Inbound<'_, Fastcore<'_>>, addr: &str, reason: &str) {
+    let env = msg.env;
+    let allow = env.target_folder.eq_ignore_ascii_case("INBOX")
+        && !crate::bounce::suppress_bounce(&env.reverse_path);
+    if !allow {
+        tracing::info!(recipient = %addr, "sieve: reject suppressed (backscatter guard)");
+        return;
+    }
+    let (reporting_mta, from_domain) = crate::bounce::dsn_identity();
+    let dsn = crate::bounce::compose_dsn(
+        &reporting_mta,
+        &from_domain,
+        &env.reverse_path,
+        addr,
+        "5.7.1",
+        &format!("550 5.7.1 {reason}"),
+        msg.body,
+    );
+    match enqueue_outbound(&env.reverse_path, "", &dsn) {
+        Ok(()) => tracing::info!(recipient = %addr, "sieve: reject DSN queued"),
+        Err(e) => tracing::warn!(recipient = %addr, error = %e,
+            "sieve: reject DSN enqueue failed; message discarded"),
     }
 }

@@ -145,24 +145,29 @@ pub async fn spawn_split_receiving_server(
     }));
     let process_tx = crate::smtp_session::spawn_process_consumer(process_deps);
 
-    let spool_deps = Arc::new(crate::smtp_session::SpoolConsumeDeps {
-        spool_incoming_path: format!("{spool_root}/incoming"),
-        spool_store: crate::message_store::default_store(),
-        delivery_executor: mailrs_delivery_executor::DeliveryExecutor::spawn(),
-        process_tx,
-        account_store: None,
-        quota_store: None,
-        outbound_enqueue: None,
-        queue_notifier: None,
-        event_bus: event_bus.clone(),
-        hostname: "mx.test.local".to_string(),
-        srs_secret: None,
-        local_domains: Vec::new(),
-        maildir_root,
-        in_flight: Arc::new(dashmap::DashMap::new()),
+    let domain = Arc::new(crate::domain_store::DomainStore::new(
+        Some(mailbox_store.pool().clone()),
+        None,
+        crate::health::HealthState::new(),
+    ));
+    let core = Arc::new(crate::intake::PgCore {
+        dir: crate::intake::PgDirectory::new(domain, maildir_root, None),
+        delivery: crate::intake::Delivery {
+            process_tx,
+            account_store: None,
+            outbound_enqueue: None,
+            queue_notifier: None,
+            event_bus: event_bus.clone(),
+            hostname: "mx.test.local".to_string(),
+            srs_secret: None,
+        },
     });
-    // fast reconcile backstop (1s) so a missed notify still drains promptly.
-    crate::smtp_session::spawn_spool_consumer(spool_deps, event_bus.clone(), 1);
+    // a fast interval so a test sees its message promptly
+    crate::intake::spawn_drain(
+        core,
+        std::path::Path::new(&spool_root),
+        std::time::Duration::from_secs(1),
+    );
 
     // receiver-mode context: writes to spool instead of inline delivery.
     let spool_sink: Option<Arc<dyn SpoolSink>> = Some(Arc::new(

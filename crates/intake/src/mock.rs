@@ -2,20 +2,24 @@
 //! a real mailbox runs: no maildir, alias, report hooks, sieve, vacation or
 //! ingest.
 
+use mailrs_core::spool::SpoolEnvelope;
 use mailrs_core_sidestate::families::mock::{self, Direction, MessageMeta, Stored};
 use mailrs_mock::Simulation;
+
+use crate::drain::Core;
+use crate::maildir::canonical_recipient;
 
 /// Who handed the message in: a local account that signed in, a mock
 /// namespace's sandbox login, or an outside server.
 #[derive(Clone, Copy)]
-pub(super) enum Sender<'a> {
+pub enum Sender<'a> {
     Account(&'a str),
     Sandbox(&'a str),
     Outside,
 }
 
 impl<'a> Sender<'a> {
-    pub(super) fn of(env: &'a mailrs_core::spool::SpoolEnvelope) -> Self {
+    pub fn of(env: &'a SpoolEnvelope) -> Self {
         match env.is_authenticated {
             true => Self::Account(&env.reverse_path),
             false => Self::Outside,
@@ -23,7 +27,7 @@ impl<'a> Sender<'a> {
     }
 }
 
-pub(super) enum Diverted {
+pub enum Diverted {
     /// not a mock address
     No,
     /// stored, or dropped for good (no such namespace, store full)
@@ -39,8 +43,8 @@ pub(super) enum Diverted {
 /// A simulation address answers a signed-in local sender in their own
 /// INBOX; from anyone else the message is dropped, so the deployment never
 /// sends a bounce or an auto-reply to an outside address.
-pub(super) fn divert(
-    state: &crate::FastcoreState,
+pub fn divert<C: Core + ?Sized>(
+    core: &C,
     from: Sender<'_>,
     rcpt: &str,
     rcpt_index: usize,
@@ -51,13 +55,13 @@ pub(super) fn divert(
         return Diverted::No;
     }
     if let Some(sim) = mock::simulation(rcpt) {
-        return simulate(state, from, sim, rcpt, body);
+        return simulate(core, from, sim, rcpt, body);
     }
     let Some(addr) = mock::parse(rcpt) else {
         tracing::info!(%rcpt, "mock: address outside the grammar; dropped");
         return Diverted::Done;
     };
-    let Some(mut conn) = state.net_conn() else {
+    let Some(mut conn) = core.net_conn() else {
         return Diverted::Retry;
     };
     let meta = MessageMeta {
@@ -99,29 +103,29 @@ pub(super) fn divert(
 
 /// A sandbox login's spool file, whoever it is addressed to: `None` when
 /// the file is not one, else whether it was stored and removed.
-pub(super) fn drain_sandbox(
-    state: &crate::FastcoreState,
-    env: &mailrs_core::spool::SpoolEnvelope,
+pub fn drain_sandbox<C: Core + ?Sized>(
+    core: &C,
+    env: &SpoolEnvelope,
     spool_file: &str,
     path: &std::path::Path,
     body: &[u8],
 ) -> Option<bool> {
     let ns = env.sandbox_ns.as_deref()?;
-    let captured = capture_sandbox(state, ns, spool_file, &env.forward_paths, body);
+    let captured = capture_sandbox(core, ns, spool_file, &env.forward_paths, body);
     Some(matches!(captured, Diverted::Done) && std::fs::remove_file(path).is_ok())
 }
 
 /// A message from a namespace's sandbox SMTP login: one captured copy in
 /// that namespace, plus the usual copy for each mock recipient. Nothing
 /// is delivered to a mailbox or relayed.
-fn capture_sandbox(
-    state: &crate::FastcoreState,
+fn capture_sandbox<C: Core + ?Sized>(
+    core: &C,
     ns: &str,
     spool_file: &str,
     forward_paths: &[String],
     body: &[u8],
 ) -> Diverted {
-    let Some(mut conn) = state.net_conn() else {
+    let Some(mut conn) = core.net_conn() else {
         return Diverted::Retry;
     };
     let meta = MessageMeta {
@@ -143,16 +147,16 @@ fn capture_sandbox(
         }
     }
     for (i, raw) in forward_paths.iter().enumerate() {
-        let rcpt = super::canonical_recipient(raw);
-        if let Diverted::Retry = divert(state, Sender::Sandbox(ns), &rcpt, i, spool_file, body) {
+        let rcpt = canonical_recipient(raw);
+        if let Diverted::Retry = divert(core, Sender::Sandbox(ns), &rcpt, i, spool_file, body) {
             return Diverted::Retry;
         }
     }
     Diverted::Done
 }
 
-fn simulate(
-    state: &crate::FastcoreState,
+fn simulate<C: Core + ?Sized>(
+    core: &C,
     from: Sender<'_>,
     sim: Simulation,
     rcpt: &str,
@@ -162,7 +166,7 @@ fn simulate(
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0);
-    let Some(mut conn) = state.net_conn() else {
+    let Some(mut conn) = core.net_conn() else {
         return Diverted::Retry;
     };
     let answered = match from {
@@ -173,8 +177,7 @@ fn simulate(
         Sender::Account(sender) => {
             let reply =
                 mailrs_mock::simulation::reply(sim, mock::domain(), sender, rcpt, body, now);
-            crate::bounce_queue::enqueue_notice(&mut conn, sender, &reply)
-                .map_err(|e| e.to_string())
+            crate::notice::enqueue_notice(&mut conn, sender, &reply).map_err(|e| e.to_string())
         }
         Sender::Sandbox(ns) => {
             let sender = format!("{ns}@{}", mock::domain());

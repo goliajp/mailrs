@@ -69,9 +69,10 @@ pub(super) fn build_connection_context(inputs: ContextInputs<'_>) -> Arc<Connect
         }),
         smuggle_protection: cfg.smuggle_protection,
         auth_guard: auth_guard.clone(),
-        account_store: domain_store
-            .clone()
-            .map(|d| d as Arc<dyn mailrs_receiver::AccountStore>),
+        account_store: domain_store.clone().map(|d| {
+            Arc::new(crate::account_store::DomainAccounts(d))
+                as Arc<dyn mailrs_receiver::AccountStore>
+        }),
         credential_store: None,
         recipient_check: None,
         queue_notifier: kevy_embedded_store.as_ref().map(|s| {
