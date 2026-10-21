@@ -6,11 +6,15 @@
 //! ONE corpus and agree on every verdict.
 //!
 //! Storage keys (network kevy):
-//!   bayes:triage:tokens:<class>   hash  field=token value=message-count
-//!   bayes:triage:meta             hash  {<class>_msgs}
-//!   bayes:triage:trained:<tid>    string  <class>  (TTL 90d)
-//!     — the last-trained class for a thread, so a re-file unlearns
-//!       the prior class before learning the new one (reversible).
+//!
+//! ```text
+//! bayes:triage:tokens:<class>   hash  field=token value=message-count
+//! bayes:triage:meta             hash  {<class>_msgs}
+//! bayes:triage:trained:<tid>    string  <class>  (TTL 90d)
+//! ```
+//!
+//! The last key holds the class a thread was last trained as, so a re-file
+//! unlearns the prior class before learning the new one.
 
 use kevy_client::Connection;
 use mailrs_bayes::{MultiCorpus, classify_multiclass};
