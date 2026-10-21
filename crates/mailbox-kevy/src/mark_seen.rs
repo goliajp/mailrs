@@ -115,6 +115,34 @@ impl KevyMailboxStore {
         Ok(behind)
     }
 
+    /// Clear `\Seen` on the newest message `user` holds in `thread_id`,
+    /// the row-level half of marking a thread unread: the list's unread
+    /// count is derived from these rows, so setting only the axis column
+    /// left a thread in the unread view showing no unread mail.
+    ///
+    /// Returns the row's `(blob_ref, flags)` when it changed, for the
+    /// caller to rename the file.
+    pub fn mark_newest_message_unseen(
+        &self,
+        user: &str,
+        thread_id: &str,
+    ) -> io::Result<Option<(String, u32)>> {
+        use mailrs_mailbox::types::FLAG_SEEN;
+
+        let Some(newest) = self.user_thread_message_ids(user, thread_id)?.pop() else {
+            return Ok(None);
+        };
+        let Some(facts) = self.user_message_facts(user, &newest)? else {
+            return Ok(None);
+        };
+        if facts.flags & FLAG_SEEN == 0 {
+            return Ok(None);
+        }
+        let flags = facts.flags & !FLAG_SEEN;
+        self.write_flags(user, &newest, &facts, flags)?;
+        Ok(Some((facts.blob_ref, flags)))
+    }
+
     /// Write one row's `flags`, and the group column derived from them.
     ///
     /// **The only way to set `flags` on a per-user message row.** The group
@@ -514,6 +542,43 @@ mod tests {
 
         s.mark_thread_messages_seen(u, "t1").unwrap();
         assert_eq!(per_user(&s), 0, "the rows are what a list counts");
+    }
+
+    /// Marking unread clears the bit on the newest row only, so the
+    /// count a list shows is one, as in the SQL store.
+    #[test]
+    fn marking_unread_clears_seen_on_the_newest_message() {
+        let s = store();
+        let u = "u@x.com";
+        s.record_message_arrival(&arr("t1", u, false)).unwrap();
+        for (mid, date) in [("old", 100), ("new", 200)] {
+            s.upsert_user_message(
+                u,
+                "t1",
+                mid,
+                date,
+                br#"{"sender":"other@z.com"}"#,
+                &crate::UserMessageFacts {
+                    blob_ref: mid,
+                    uid: 1,
+                    flags: mailrs_mailbox::types::FLAG_SEEN,
+                    modseq: 1,
+                },
+            )
+            .unwrap();
+        }
+        let unread = || {
+            s.get_thread_for_user(u, "t1")
+                .unwrap()
+                .unwrap()
+                .unread_count
+        };
+        assert_eq!(unread(), 0, "premise: both read");
+
+        let changed = s.mark_newest_message_unseen(u, "t1").unwrap();
+        assert_eq!(changed, Some(("new".to_string(), 0)));
+        assert_eq!(unread(), 1);
+        assert_eq!(s.mark_newest_message_unseen(u, "t1").unwrap(), None);
     }
 
     #[test]
