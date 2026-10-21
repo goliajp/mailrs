@@ -10,8 +10,6 @@
 //! the coverage check at the end needs to have seen all of them: every path
 //! the client can ask for must have been asked of both cores.
 
-#![cfg(feature = "spg")]
-
 mod accounts;
 mod coverage;
 mod harness;
@@ -62,6 +60,7 @@ async fn the_two_cores_answer_every_client_call_alike() {
 
     let mut report = d.0;
     report.extend(gaps);
+
     assert!(
         report.is_empty(),
         "{} difference(s) between the cores:\n\n{}",

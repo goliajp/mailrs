@@ -11,14 +11,34 @@ use axum::extract::{MatchedPath, Request, State};
 use axum::middleware::Next;
 use axum::response::Response;
 use mailrs_core_api::client::Client;
+#[cfg(feature = "spg")]
 use spg_sqlx::SpgPoolExt;
 
 use crate::core_rpc::{CoreRpcState, build_full_router};
 
-const SCHEMA_SQL: &str = include_str!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../../scripts/init-schema.sql"
-));
+/// The SQL store under the core: spg in memory on the spg axis, a
+/// PostgreSQL container on the other. The handle keeps the container up.
+#[cfg(feature = "spg")]
+async fn database() -> (Box<dyn std::any::Any + Send>, crate::pg::BackendPool) {
+    const SCHEMA_SQL: &str = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../scripts/init-schema.sql"
+    ));
+    let pool = spg_sqlx::SpgPool::connect_in_memory()
+        .await
+        .expect("open in-memory spg");
+    sqlx::raw_sql(SCHEMA_SQL)
+        .execute(&pool)
+        .await
+        .expect("apply init-schema.sql");
+    (Box::new(()), pool)
+}
+
+#[cfg(not(feature = "spg"))]
+async fn database() -> (Box<dyn std::any::Any + Send>, crate::pg::BackendPool) {
+    let (container, pool) = super::super::real_pg_sync::start_pg().await;
+    (Box::new(container), pool)
+}
 
 /// Route templates a core answered, as its router names them.
 pub(super) type Hits = Arc<Mutex<BTreeSet<String>>>;
@@ -34,10 +54,11 @@ pub(super) struct Cores {
     _fastcore_kevy: kevy_client::Connection,
     _pg_core_kevy: kevy_client::Connection,
     _maildir: tempfile::TempDir,
+    _db: Box<dyn std::any::Any + Send>,
 }
 
-const FASTCORE_KEVY: &str = "mem://contract-fastcore-side-state";
-const PG_CORE_KEVY: &str = "mem://contract-pg-core-side-state";
+pub(super) const FASTCORE_KEVY: &str = "mem://contract-fastcore-side-state";
+pub(super) const PG_CORE_KEVY: &str = "mem://contract-pg-core-side-state";
 
 async fn record(State(hits): State<Hits>, req: Request, next: Next) -> Response {
     if let Some(p) = req.extensions().get::<MatchedPath>() {
@@ -70,13 +91,7 @@ pub(super) async fn start() -> Cores {
     ))
     .await;
 
-    let pool = spg_sqlx::SpgPool::connect_in_memory()
-        .await
-        .expect("open in-memory spg");
-    sqlx::raw_sql(SCHEMA_SQL)
-        .execute(&pool)
-        .await
-        .expect("apply init-schema.sql");
+    let (db, pool) = database().await;
     let state = Arc::new(CoreRpcState {
         mailbox: Arc::new(mailrs_mailbox::PgMailboxStore::new(pool.clone())),
         domain: Arc::new(crate::domain_store::DomainStore::new(
@@ -102,6 +117,7 @@ pub(super) async fn start() -> Cores {
         _fastcore_kevy: fastcore_kevy,
         _pg_core_kevy: pg_core_kevy,
         _maildir: maildir,
+        _db: db,
     }
 }
 

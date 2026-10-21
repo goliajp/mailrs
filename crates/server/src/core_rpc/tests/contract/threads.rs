@@ -10,9 +10,18 @@ use mailrs_core_api::types::ConversationFilter;
 use super::ALICE;
 use super::harness::{Cores, Diffs};
 
-/// Ids each store mints, and the change counters each keeps for itself:
-/// a modseq orders changes within one store and means nothing across two.
-const MINTED: &[&str] = &["id", "mailbox_id", "created_at", "modseq", "new_modseq"];
+/// Ids each store mints, and the counters each keeps for itself: a modseq
+/// orders changes within one store and means nothing across two, and an
+/// action's `affected` counts threads on one store and messages on the
+/// other. No client reads either.
+const MINTED: &[&str] = &[
+    "id",
+    "mailbox_id",
+    "created_at",
+    "modseq",
+    "new_modseq",
+    "affected",
+];
 
 /// The views a client switches between.
 fn views() -> Vec<(&'static str, ConversationFilter)> {
@@ -148,10 +157,20 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
             starred: None,
             archived: false,
         };
+        // Which conversations a search finds must agree; their order is each
+        // store's own ranking, and a text index and Postgres rank differently.
+        let by_thread = |r: mailrs_core_api::error::ApiResult<
+            mailrs_core_api::method::conversation::SearchConversationsResponse,
+        >| {
+            r.map(|mut r| {
+                r.items.sort_by(|a, b| a.thread_id.cmp(&b.thread_id));
+                r
+            })
+        };
         d.both(
             &format!("search_conversations {q}"),
-            fc.search_conversations(ALICE, &req).await,
-            pg.search_conversations(ALICE, &req).await,
+            by_thread(fc.search_conversations(ALICE, &req).await),
+            by_thread(pg.search_conversations(ALICE, &req).await),
             MINTED,
         );
     }

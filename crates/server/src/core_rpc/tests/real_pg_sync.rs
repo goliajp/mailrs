@@ -37,7 +37,7 @@ const SCHEMA_SQL: &str = include_str!(concat!(
     "/../../scripts/init-schema.sql"
 ));
 
-async fn start_pg() -> (ContainerAsync<GenericImage>, crate::pg::BackendPool) {
+pub(super) async fn start_pg() -> (ContainerAsync<GenericImage>, crate::pg::BackendPool) {
     // One container start at a time, workspace-wide: `cargo test
     // --workspace` runs every test binary in parallel and six fixtures
     // each start their own, which times out the wait-for-ready and
@@ -77,10 +77,6 @@ async fn start_pg() -> (ContainerAsync<GenericImage>, crate::pg::BackendPool) {
         .execute(&pool)
         .await
         .expect("apply schema");
-    sqlx::query("INSERT INTO domains (name) VALUES ('test') ON CONFLICT DO NOTHING")
-        .execute(&pool)
-        .await
-        .unwrap();
     (container, pool)
 }
 
@@ -163,6 +159,10 @@ async fn thread_ids(
 #[tokio::test]
 async fn real_pg_bidirectional_sync() {
     let (_container, pool) = start_pg().await;
+    sqlx::query("INSERT INTO domains (name) VALUES ('test') ON CONFLICT DO NOTHING")
+        .execute(&pool)
+        .await
+        .unwrap();
     let pg = Client::new(spawn_pg_core(pool), String::new());
     let kevy = Client::new(spawn_fastcore(), String::new());
     let user = "realpg@test";

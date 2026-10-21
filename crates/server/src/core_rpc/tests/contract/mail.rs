@@ -7,8 +7,17 @@ use mailrs_core_api::method::thread::DeliverMessageRequest;
 use super::harness::{Cores, Diffs};
 use super::{ALICE, BOB};
 
-/// Ids each store mints for itself, and the per-store mailbox handle.
-const MINTED: &[&str] = &["id", "mailbox_id", "created_at"];
+/// Ids each store mints for itself, the per-store mailbox handle, and the
+/// IMAP counters each store keeps in its own sequence.
+const MINTED: &[&str] = &[
+    "id",
+    "mailbox_id",
+    "created_at",
+    "modseq",
+    "uidvalidity",
+    "uidnext",
+    "highest_modseq",
+];
 
 /// One coherent arrival: the request carries the time, the subject and
 /// the read state twice (top level and inside the wire payload), and the
