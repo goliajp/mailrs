@@ -11,6 +11,16 @@ authors = ["GOLIA K.K."]
 keywords = ["smtp", "outbound", "dkim", "dsn", "email"]
 categories = ["email", "network-programming", "asynchronous"]
 readme = "README.md"
+# these need Docker, the in-repo test helper crate or the repository's
+# schema file, none of which ships with the crate
+exclude = [
+    "tests/common",
+    "tests/pg_smoke.rs",
+    "tests/pg_store_integration.rs",
+    "tests/the_scheduled_sweep_has_a_plan.rs",
+    "tests/worker_delivery_integration",
+    "tests/worker_integration.rs",
+]
 
 [lints]
 workspace = true
