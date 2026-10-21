@@ -29,8 +29,9 @@ import kotlinx.serialization.Serializable
  */
 object Wire {
 
+    /** Backend: `crates/webapi/src/handlers/auth/session.rs` — `LoginRequest`. */
     @Serializable
-    data class LoginRequest(val username: String, val password: String)
+    data class LoginRequest(val address: String, val password: String)
 
     @Serializable
     data class LoginResponse(val token: String)

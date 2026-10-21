@@ -70,6 +70,11 @@ class MailrsUITestCase: XCTestCase {
         let address = app.textFields["you@example.com"]
         XCTAssertTrue(address.waitForExistence(timeout: 10), "sign-in form never appeared")
         address.tap()
+        // The form remembers who signed in last; typing after that
+        // address makes a second one out of both.
+        if let kept = address.value as? String, !kept.isEmpty, kept != "you@example.com" {
+            address.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: kept.count))
+        }
         address.typeText("me@golia.jp")
         let password = app.secureTextFields["Password"]
         password.tap()
