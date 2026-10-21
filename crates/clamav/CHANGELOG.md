@@ -48,6 +48,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   out of scope.
 - `SCAN` with filesystem path. INSTREAM only — safer for sandboxed
   deployments.
-
-[Unreleased]: https://github.com/goliajp/mailrs/compare/mailrs-clamav-v1.0.0...HEAD
-[1.0.0]: https://github.com/goliajp/mailrs/releases/tag/mailrs-clamav-v1.0.0

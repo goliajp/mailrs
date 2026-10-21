@@ -216,8 +216,3 @@ No public API change.
 
 ### Added
 - Initial release. Outbound mail queue primitives: DKIM signing, DSN generation, MTA-STS lookup, DANE TLSA verification, scheduled send, undo send, bounce processing with suppression list, and retry/backoff — with a pluggable store trait and a PostgreSQL reference implementation.
-
-[Unreleased]: https://github.com/goliajp/mailrs/compare/mailrs-outbound-queue-v1.0.2...HEAD
-[1.0.2]: https://github.com/goliajp/mailrs/compare/mailrs-outbound-queue-v1.0.1...mailrs-outbound-queue-v1.0.2
-[1.0.1]: https://github.com/goliajp/mailrs/compare/mailrs-outbound-queue-v1.0.0...mailrs-outbound-queue-v1.0.1
-[1.0.0]: https://github.com/goliajp/mailrs/releases/tag/mailrs-outbound-queue-v1.0.0

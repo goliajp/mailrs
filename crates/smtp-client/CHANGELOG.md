@@ -86,9 +86,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Initial release. Async outbound SMTP client primitives: MX resolution, DANE/STARTTLS, and response parsing — transport-agnostic for RFC 5321 senders.
-
-[Unreleased]: https://github.com/goliajp/mailrs/compare/mailrs-smtp-client-v1.0.3...HEAD
-[1.0.3]: https://github.com/goliajp/mailrs/compare/mailrs-smtp-client-v1.0.2...mailrs-smtp-client-v1.0.3
-[1.0.2]: https://github.com/goliajp/mailrs/compare/mailrs-smtp-client-v1.0.1...mailrs-smtp-client-v1.0.2
-[1.0.1]: https://github.com/goliajp/mailrs/compare/mailrs-smtp-client-v1.0.0...mailrs-smtp-client-v1.0.1
-[1.0.0]: https://github.com/goliajp/mailrs/releases/tag/mailrs-smtp-client-v1.0.0

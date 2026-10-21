@@ -56,6 +56,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - EAB-protected CA (instant-acme supports it; expose if needed).
 - File watcher for external renewals (one `tls_state.swap` call from
   your own watcher).
-
-[Unreleased]: https://github.com/goliajp/mailrs/compare/mailrs-acme-v1.0.0...HEAD
-[1.0.0]: https://github.com/goliajp/mailrs/releases/tag/mailrs-acme-v1.0.0

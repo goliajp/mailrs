@@ -365,6 +365,3 @@ RFC 8463 specifics:
 
 - `a=ed25519-sha256` (RFC 8463). Deferred to 1.1.
 - Multiple `DKIM-Signature:` headers. First-match only in 1.0.
-
-[Unreleased]: https://github.com/goliajp/mailrs/compare/mailrs-dkim-v1.0.0...HEAD
-[1.0.0]: https://github.com/goliajp/mailrs/releases/tag/mailrs-dkim-v1.0.0

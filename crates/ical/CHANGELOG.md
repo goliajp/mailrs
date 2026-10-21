@@ -93,8 +93,3 @@ No lib code change.
 
 ### Added
 - Initial release. Hand-rolled RFC 5545 iCalendar parser, serializer, and iTIP semantics with `VTIMEZONE` and `RRULE` support. Zero I/O.
-
-[Unreleased]: https://github.com/goliajp/mailrs/compare/mailrs-ical-v1.0.2...HEAD
-[1.0.2]: https://github.com/goliajp/mailrs/compare/mailrs-ical-v1.0.1...mailrs-ical-v1.0.2
-[1.0.1]: https://github.com/goliajp/mailrs/compare/mailrs-ical-v1.0.0...mailrs-ical-v1.0.1
-[1.0.0]: https://github.com/goliajp/mailrs/releases/tag/mailrs-ical-v1.0.0

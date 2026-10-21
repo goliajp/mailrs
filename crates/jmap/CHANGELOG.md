@@ -69,11 +69,3 @@ No lib code change.
 
 ### Added
 - Initial release. Framework-agnostic JMAP (RFC 8620 + RFC 8621) server-side dispatcher and method handlers, with the mail store pluggable via the `MailStore` trait.
-
-[Unreleased]: https://github.com/goliajp/mailrs/compare/mailrs-jmap-v1.1.1...HEAD
-[1.1.1]: https://github.com/goliajp/mailrs/compare/mailrs-jmap-v1.1.0...mailrs-jmap-v1.1.1
-[1.1.0]: https://github.com/goliajp/mailrs/compare/mailrs-jmap-v1.0.3...mailrs-jmap-v1.1.0
-[1.0.3]: https://github.com/goliajp/mailrs/compare/mailrs-jmap-v1.0.2...mailrs-jmap-v1.0.3
-[1.0.2]: https://github.com/goliajp/mailrs/compare/mailrs-jmap-v1.0.1...mailrs-jmap-v1.0.2
-[1.0.1]: https://github.com/goliajp/mailrs/compare/mailrs-jmap-v1.0.0...mailrs-jmap-v1.0.1
-[1.0.0]: https://github.com/goliajp/mailrs/releases/tag/mailrs-jmap-v1.0.0

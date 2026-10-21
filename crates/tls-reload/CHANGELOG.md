@@ -59,6 +59,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - File-watcher integration. Wrap with `notify` yourself.
 - Cert-renewal driver. Use `instant-acme` / `acme-client` / `certbot`
   external to this crate.
-
-[Unreleased]: https://github.com/goliajp/mailrs/compare/mailrs-tls-reload-v1.0.0...HEAD
-[1.0.0]: https://github.com/goliajp/mailrs/releases/tag/mailrs-tls-reload-v1.0.0
