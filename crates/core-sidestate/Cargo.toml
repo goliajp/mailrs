@@ -27,6 +27,12 @@ mailrs-rfc5322 = { path = "../rfc5322", version = "1" }
 base64 = "0.22"
 rand_core = { workspace = true }
 sha2 = "0.11"
+# CalDAV / CardDAV storage over the event and contact rows.
+mailrs-dav = { path = "../dav", version = "1" }
+mailrs-ical = { path = "../ical", version = "2" }
+async-trait = "0.1"
+chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
 
 [dev-dependencies]
 tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt"] }

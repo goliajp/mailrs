@@ -143,6 +143,7 @@ libraries are published on [crates.io](https://crates.io/users/golia-jp).
 | `mailrs-rfc5322`, `mailrs-rfc2047`, `mailrs-rfc2231`, `mailrs-mime` | Message headers, encoded words, MIME parameters, the MIME body tree |
 | `mailrs-mail-builder` | Outbound message builder |
 | `mailrs-ical` | iCalendar (RFC 5545) and iTIP |
+| `mailrs-dav` | CalDAV (RFC 4791) and CardDAV (RFC 6352) handlers and routing; webapi serves them over the calendar and contact rows in `mailrs-core-sidestate` |
 | `mailrs-jmap` | JMAP (RFC 8620/8621) dispatcher |
 | `mailrs-sieve`, `mailrs-sieve-core` | Sieve (RFC 5228) delivery actions and interpreter |
 | `mailrs-arf` | Abuse Reporting Format (RFC 5965) |
@@ -177,7 +178,7 @@ deploy gate, and not run in production. Its crates:
 | `mailrs-server` | The Postgres-backed core and the earlier all-in-one server process |
 | `mailrs-core-sync` | Sync between two cores over core-api, for switching between backends |
 | `mailrs-pg-dump` | Export a Postgres catalog for import into fastcore |
-| `mailrs-dav`, `mailrs-postmaster` | CalDAV/CardDAV handlers and domain DNS health checks, used only by `mailrs-server` |
+| `mailrs-postmaster` | Domain DNS health checks, used only by `mailrs-server` |
 | `mailrs-mmalloc`, `mailrs-syscall` | An mmap-backed allocator for `mailrs-server` and its raw syscalls |
 
 The Postgres stores in `mailrs-mailbox`, `mailrs-outbound-queue`,

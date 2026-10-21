@@ -49,31 +49,14 @@ pub(super) fn jmap_routes() -> axum::Router<Arc<WebState>> {
 /// CalDAV and CardDAV.
 pub(super) fn dav_routes() -> axum::Router<Arc<WebState>> {
     use crate::handlers;
-    use axum::routing::{any, put};
+    use axum::routing::any;
 
+    // one handler for the whole tree: `mailrs_dav::dispatch` routes by path
+    // and method, including PROPFIND and REPORT, which axum cannot name
     axum::Router::new()
-        .route("/dav/", any(handlers::dav::dav_root))
-        .route("/dav/principals/{user}/", any(handlers::dav::dav_principal))
-        .route(
-            "/dav/calendars/{user}/",
-            any(handlers::dav::calendars_collection),
-        )
-        .route(
-            "/dav/addressbooks/{user}/",
-            any(handlers::dav::addressbooks_collection),
-        )
-        .route(
-            "/dav/calendars/{user}/{cal}/{uid}",
-            put(handlers::dav::put_calendar_event)
-                .get(handlers::dav::get_calendar_event)
-                .delete(handlers::dav::delete_calendar_event),
-        )
-        .route(
-            "/dav/addressbooks/{user}/{book}/{uid}",
-            put(handlers::dav::put_contact)
-                .get(handlers::dav::get_contact)
-                .delete(handlers::dav::delete_contact),
-        )
+        .route("/dav", any(handlers::dav::dav))
+        .route("/dav/", any(handlers::dav::dav))
+        .route("/dav/{*path}", any(handlers::dav::dav))
 }
 
 /// The admin surface, behind `admin_middleware`.
