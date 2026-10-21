@@ -91,13 +91,13 @@ jobs:
         # Each *_under_budget test asserts wall-clock under a fixed
         # budget tuned for M-series Mac at idle. GH Actions ubuntu
         # runners are ~3× slower and have variable CPU. Skip the gates
-        # here; they run locally before `scripts/release.sh` ships and
-        # via `cargo bench` for trend tracking.
+        # here; they run in `scripts/perf-gates.sh` before every direct
+        # deploy and via `cargo bench` for trend tracking.
         run: cargo test --workspace --no-fail-fast -- --skip _under_budget
 
       - name: cargo test --workspace (spg embed axis)
-        # Same suite against the in-process spg-embedded backend —
-        # the production shape after the SPG cutover. No containers:
+        # Same suite against the in-process spg-embedded backend, the
+        # dormant Postgres-dialect backend. No containers:
         # every fixture runs on SpgPool::connect_in_memory(), so this
         # axis is fast and docker-independent. The PG axis above stays
         # as the reference-backend gate for the published stones.
