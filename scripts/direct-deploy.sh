@@ -165,12 +165,12 @@ if [ "${SKIP_GATE:-0}" != 1 ] && [ "${WEB_ONLY_SKIPS_RUST_GATE:-0}" != 1 ]; then
     # registered path and method is in it, and nothing else is.
     ./scripts/check-api-drift.sh
 
-    # The 500-line limit, as a ratchet: a new file over it fails, and a
-    # file already on the baseline may only shrink. 51 files were over it
-    # with no gate at all, because the copy of the file-size rule this repo
-    # carried until 2026-08-02 listed *torajs*'s debt table — so mailrs's
-    # own overruns had never been written down.
+    # The 500-line file and 200-line function limits, as ratchets: a new
+    # overrun fails, and one already on a baseline may only shrink. 51 files
+    # were over with no gate at all, because the file-size rule this repo
+    # carried until 2026-08-02 listed *torajs*'s debt table instead.
     ./scripts/check-file-size.sh
+    ./scripts/check-fn-size.sh
 
     cargo fmt --all --check
 
