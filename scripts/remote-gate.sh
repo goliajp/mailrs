@@ -76,6 +76,13 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo check -p mailrs-server --features core-rpc,spg --all-targets
 cargo check -p mailrs-server --features core-rpc --all-targets
 
+# The core-api contract on both SQL engines: every client call made of
+# the kevy core and the SQL core, answers compared. Real PostgreSQL in a
+# container on one axis, in-memory spg on the other; each engine has
+# accepted SQL the other rejects.
+cargo test -p mailrs-server --features core-rpc --lib --no-fail-fast core_rpc::tests
+cargo test -p mailrs-server --features core-rpc,spg --lib --no-fail-fast core_rpc::tests
+
 # The OCR tests read real models; kept in target/, which survives syncs.
 sh scripts/fetch-ocr-models.sh
 

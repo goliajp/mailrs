@@ -19,24 +19,14 @@
 #                        shrink, never grow. Run with --update after
 #                        closing one.
 #
-# What is on the baseline and why, for the entries added since it was
-# written — a list of paths says what is missing and never why:
+# What is on the baseline and why — a list of paths says what is missing
+# and never why:
 #
-#   …/quarantine, …/quarantine/{id}/release, …/fraud-verdict
-#       The fraud hold is a `quarantined` column on kevy's thread_user
-#       table plus a verdict the receive path stores. pg-core has
-#       neither. Mounting the routes there would give three endpoints
-#       that answer confidently about a column that does not exist,
-#       which is worse than a 404. The MCP tools on the dormant lane
-#       take the other option — they exist, and say out loud that this
-#       backend cannot see. Close these when pg/spg grows the column.
+#   POST /v1/admin/backfill-threading
+#       A one-off repair of the kevy store's thread links, run by an
+#       operator. The SQL store threads at insert and never had the
+#       damage it repairs, so there is nothing for it to do there.
 #
-#   GET /v1/admin/recipients/{address}/deliverable
-#       The receiver's RCPT check. Its answer has to come from the same
-#       resolution the core delivers with: on fastcore the spool drain's
-#       `route`, on pg-core `DomainStore::resolve_recipient`, which nothing
-#       on that lane runs today. A stub answering "deliverable" would hide
-#       that; mount the real one when the lane is reactivated.
 #
 # Why a ratchet and not equality: the two sets are genuinely unequal today,
 # and a gate that is red on arrival is a gate nobody reads — the same reason

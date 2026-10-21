@@ -283,7 +283,7 @@ impl PgMailboxStore {
     /// lane's invention — it is what the kevy side does (`set_snoozed` writes
     /// `archived` and `snoozed_until` in one atomic hset) and what the client
     /// expects: *"a thread that is asleep is filed away, so it shows up in
-    /// Archived and nowhere else"*, with a "Snoozed until <date>" badge on the
+    /// Archived and nowhere else"*, with a "Snoozed until `<date>`" badge on the
     /// row so it is not mistaken for an ordinary archived thread.
     ///
     /// This wrote only the `snoozed_conversations` row, so the thread was

@@ -5,8 +5,8 @@
 //! itself they drifted: one listed sent-only threads in Inbox, one sent
 //! `nonjunk` to an empty mailbox-name match, and a store's own list and
 //! search disagreed on whether `nonjunk` held sent-only threads. So the
-//! rules live here once. A store translates a [`Scope`] into its own query,
-//! and [`Scope::admits`] is the row-level statement of the same rule that
+//! rules live here once. A store translates a [`Scope`](crate::scope::Scope) into its own query,
+//! and [`Scope::admits`](crate::scope::Scope::admits) is the row-level statement of the same rule that
 //! a translation is tested against.
 
 /// The triage bucket a thread belongs to. Exactly one holds every thread;

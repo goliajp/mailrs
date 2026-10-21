@@ -32,18 +32,18 @@
 //!
 //! ## Layered structure
 //!
-//! 1. **Page bump** ([`page::PageBump`]) — fixed-size page (16 KB)
+//! 1. **Page bump** (`page::PageBump`) — fixed-size page (16 KB)
 //!    allocated via mmap; sub-allocations bump-allocate from it
 //!    until full, then a new page is requested. Fastest path for
 //!    small temporaries; no per-allocation header.
-//! 2. **Size-class free list** ([`size_class::SizeClassPool`]) —
+//! 2. **Size-class free list** (`size_class::SizeClassPool`) —
 //!    one LIFO free-list per power-of-two bucket
 //!    (16/32/64/128/256/512/1024/2048/4096). Recycles freed blocks.
-//! 3. **Direct mmap fallback** ([`large::large_alloc`]) — for
+//! 3. **Direct mmap fallback** (`large::large_alloc`) — for
 //!    `size > 4096` bytes, mmap a fresh page-aligned region and
 //!    return it. `large_free` munmaps. No pooling; large allocs
 //!    are assumed infrequent.
-//! 4. **TLAB** ([`tlab::TlabCache`]) — thread-local last-freed
+//! 4. **TLAB** (`tlab::TlabCache`) — thread-local last-freed
 //!    block cache, hottest small-alloc path.
 //!
 //! ## `#[global_allocator]` wiring
