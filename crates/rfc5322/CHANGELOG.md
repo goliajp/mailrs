@@ -11,12 +11,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `split_list`: the mailboxes of a comma-separated list, with commas
   inside a quoted display name or an angle-bracketed address left alone.
+- `list_is_only(list, wanted)`: whether every mailbox in the list is
+  `wanted`. An empty list answers `false`.
 
 ### Fixed
 
-- `list_contains` and `list_is_only` no longer split
-  `"Lastname, Firstname" <x@y>` into two entries; `list_is_only` used to
-  answer no for a list holding only such a mailbox.
+- `list_contains` no longer splits `"Lastname, Firstname" <x@y>` into two
+  entries.
+
+## [1.1.0] - 2026-08-04
+
+### Added
+
+- `addr_spec(mailbox)`: the addr-spec inside a mailbox
+  (`Name <a@b.com>` gives `a@b.com`), trimmed and otherwise unchanged.
+- `addr_key(mailbox)`: the addr-spec case-folded, for deciding whether two
+  headers name the same mailbox.
+- `list_contains(list, wanted)`: whether any mailbox in a comma-separated
+  list is `wanted`, compared by `addr_key`.
+
+### Changed
+
+- Header scanning uses `memchr`, the crate's first dependency.
 
 ## [1.0.1] - 2026-05-22
 

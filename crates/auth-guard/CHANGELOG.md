@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-08-04
+
+There is no 2.0.0 release; 2.1.0 follows 1.0.3.
+
+### Added
+
+- `AuthGuardStore` trait (async): `check`, `record_failure`,
+  `record_success` and `cleanup_stale`, so lockout state can live in a
+  shared store and be used by several processes. `AuthGuard` implements
+  it in process.
+- `normalize_ip` is public, so another store can key its records the
+  same way (IPv6 addresses reduced to their /64 prefix).
+
+### Changed (breaking)
+
+- `AuthGuard::check` and `AuthGuard::record_failure` take the current
+  time as `now: u64` (unix seconds) instead of reading a clock.
+- `AuthGuard::cleanup_stale` takes `before: u64` (unix seconds) instead
+  of `Instant`.
+- New dependencies: `async-trait` and `tokio`.
+
 ## [1.0.3] - 2026-05-23
 
 ### Changed

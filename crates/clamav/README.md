@@ -88,7 +88,7 @@ pieces. A localhost `clamd` scan of a 100 KB payload typically completes
 in 10-30 ms; the CPU portion of that is microseconds.
 
 Reproduce: `cargo bench -p mailrs-clamav --bench clamav`. Workspace
-[PERFORMANCE.md](../../PERFORMANCE.md) carries the same table.
+[PERFORMANCE.md](https://github.com/goliajp/mailrs/blob/develop/PERFORMANCE.md) carries the same table.
 
 ## License
 

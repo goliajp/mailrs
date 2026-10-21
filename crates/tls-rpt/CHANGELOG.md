@@ -1,6 +1,19 @@
-# Changelog — mailrs-tls-rpt
+# Changelog
 
-## 1.2.0 — 2026-05-23
+All notable changes to `mailrs-tls-rpt` are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [1.2.1] - 2026-08-04
+
+### Changed
+
+- Source formatting only; no API or behaviour change.
+
+## [1.2.0] - 2026-05-23
 
 ### Added
 
@@ -43,7 +56,7 @@ Restart-safe by construction.
 The trait is `Send + Sync` and object-safe, so callers stash an
 `Arc<dyn Store>` and swap impls without generic plumbing.
 
-## 1.1.0 — 2026-05-23
+## [1.1.0] - 2026-05-23
 
 ### Added
 
@@ -82,7 +95,7 @@ POST via `https:` rua endpoints) are out of scope — both are pure
 caller concerns, since they need access to the caller's outbound
 SMTP queue / HTTP client / DKIM key.
 
-## 1.0.0 — 2026-05-23
+## [1.0.0] - 2026-05-23
 
 Initial stable release. RFC 8460 SMTP TLS Reporting (TLSRPT) record
 parser + JSON report data model + event-fact-aggregating builder.
@@ -146,6 +159,6 @@ Apple M-class silicon, release build, criterion microbenches:
 ### Design
 
 Pure: no SMTP, no HTTPS, no gzip, no DNS. Same shape as the rest of
-the mailrs email-auth stones — the caller does the network. Only
+the mailrs email-authentication crates — the caller does the network. Only
 runtime dependencies are `serde` + `serde_json` (and that's by
 design — TLSRPT IS a JSON format).

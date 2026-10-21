@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Macro expansion for domain-specs (RFC 7208 §7): `include:`, `a:`,
+  `mx:`, `exists:` and `redirect=` targets such as
+  `%{ir}.%{v}._spf.%{d2}` are expanded against the connecting IP,
+  sender and current domain before the DNS lookup. Previously the
+  literal template was looked up. The expander is public as
+  `macros::expand`.
+- `redirect=` (RFC 7208 §6.1) is followed when no mechanism matches; a
+  redirect target without an SPF record is a permerror. A record with
+  two `redirect=` modifiers is rejected.
+
+### Changed
+
+- **Breaking:** `Record` has a new public field
+  `redirect: Option<CompactString>`, so code that builds a `Record`
+  with a struct literal must set it.
+
+## [2.1.0] - 2026-08-04
+
+### Changed
+
+- The record parser is split into internal modules. No change to the
+  public API or to behaviour.
+
+## [2.0.0] - 2026-05-29
+
+### Changed
+
+- **Breaking:** the domain fields of `Mechanism::A`, `Mechanism::Mx`
+  (`Option<CompactString>`), `Mechanism::Include` and
+  `Mechanism::Exists` (`CompactString`) are `compact_str::CompactString`
+  instead of `String`. Most call sites compile unchanged through
+  `Deref<Target = str>`. Typical domains fit inline, so parsing a
+  record with several `include:` mechanisms makes one heap allocation
+  fewer per mechanism.
+- `Record::parse` is a single-pass byte parser with `all` handled
+  inline; the three-mechanism case is about 11% faster.
+- New dependency: `compact_str` 0.9.
+
 ## [1.0.4] - 2026-05-23
 
 ### Changed
