@@ -171,6 +171,7 @@ impl PgMailboxStore {
                 // The dormant pg lane has no per-user snooze column;
                 // snoozing is served by the kevy lane production runs.
                 snoozed_until: 0,
+                quarantined: false,
             })
             .collect())
     }

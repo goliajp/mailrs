@@ -15,6 +15,8 @@
 use kevy_client::Connection;
 use mailrs_bayes::{MultiCorpus, classify_multiclass};
 
+pub mod spam;
+
 /// The triage classes, in a stable order the corpus counts align with.
 pub const CLASSES: [&str; 3] = ["inbox", "notification", "promotion"];
 

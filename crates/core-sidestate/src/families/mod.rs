@@ -7,6 +7,7 @@ pub mod analysis;
 pub mod calendar_events;
 pub mod calendar_feeds;
 pub mod contacts;
+pub mod correspondent;
 pub mod dkim_signers;
 pub mod domain_history;
 pub mod email_groups;

@@ -21,6 +21,7 @@ mod email_groups;
 mod encryption;
 mod groups;
 mod permissions;
+pub(crate) mod recipients;
 mod totp;
 mod vacation;
 
@@ -33,10 +34,8 @@ pub struct DomainStore {
     pub(super) health: HealthState,
     // process-level cache for L3 degradation
     pub(super) account_cache: DashMap<String, CachedAccount>,
-    /// Optional backend-agnostic alias table — RFC 20260705 Step 3.
-    /// When set, `resolve_recipient_inner`'s alias steps and the alias
-    /// CRUD methods delegate to this trait instead of hitting PG. Left
-    /// `None` for existing PG-only deploys.
+    /// Optional backend-agnostic alias table. When set, recipient routing
+    /// and the alias CRUD methods use it instead of the SQL table.
     pub(super) alias_store: Option<std::sync::Arc<dyn mailrs_alias_store::AliasStore>>,
 }
 

@@ -195,6 +195,7 @@ async fn semantic_search_threads(
             last_sender: last.sender.clone(),
             sent_count: 0,
             snoozed_until: 0,
+            quarantined: false,
         });
     }
 

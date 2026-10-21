@@ -179,18 +179,8 @@ async fn copy_message_inner(
 
     let mut tx = pool.begin().await?;
 
-    // lock destination mailbox row
-    let (dst_id, dst_uidnext, dst_modseq) = sqlx::query_as::<_, (i64, i32, i64)>(
-        "SELECT id, uidnext, highest_modseq FROM mailboxes
-         WHERE user_address = $1 AND name = $2 FOR UPDATE",
-    )
-    .bind(user)
-    .bind(dst_mailbox_name)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    let new_uid = dst_uidnext;
-    let new_modseq = dst_modseq + 1;
+    let r = super::uids::reserve(&mut tx, user, dst_mailbox_name, 1).await?;
+    let (dst_id, new_uid, new_modseq) = (r.mailbox_id, r.first_uid, r.base_modseq + 1);
 
     sqlx::query(
         "INSERT INTO messages (mailbox_id, uid, maildir_id, sender, recipients, subject, size, date_epoch, internal_date, flags, message_id, in_reply_to, thread_id, modseq)
@@ -212,13 +202,6 @@ async fn copy_message_inner(
     .bind(new_modseq)
     .execute(&mut *tx)
     .await?;
-
-    sqlx::query("UPDATE mailboxes SET uidnext = $1, highest_modseq = $2 WHERE id = $3")
-        .bind(new_uid + 1)
-        .bind(new_modseq)
-        .bind(dst_id)
-        .execute(&mut *tx)
-        .await?;
 
     tx.commit().await?;
 

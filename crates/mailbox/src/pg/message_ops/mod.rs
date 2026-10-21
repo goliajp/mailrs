@@ -13,6 +13,7 @@
 mod index;
 mod mutate;
 mod read;
+mod uids;
 
 /// A single delivery's metadata as input to [`crate::pg::PgMailboxStore::index_messages_batch`].
 ///

@@ -1,8 +1,6 @@
 //! Alias CRUD + recipient resolution (account → alias
 //! → catch-all → reject). Includes `resolve_recipient`.
 
-use crate::pg::BackendPool;
-
 use super::{Alias, CachedResolution, DomainStore, ResolvedRecipient, Result};
 
 /// Stable i64 id derived from an alias source address. Matches the
@@ -172,16 +170,23 @@ impl DomainStore {
         }
         let pool = self.pg()?;
         let domain = source.rsplit_once('@').map(|(_, d)| d).unwrap_or("");
+        // replaces every row for the source: the table's unique key is
+        // (source, target), so there is no conflict target for "by source"
+        let mut tx = pool.begin().await?;
+        sqlx::query("DELETE FROM aliases WHERE source_address = $1")
+            .bind(source)
+            .execute(&mut *tx)
+            .await?;
         sqlx::query(
             "INSERT INTO aliases (source_address, target_address, domain, alias_type) \
-             VALUES ($1, $2, $3, 'alias') \
-             ON CONFLICT (source_address) DO UPDATE SET target_address = EXCLUDED.target_address",
+             VALUES ($1, $2, $3, 'alias')",
         )
         .bind(source)
         .bind(target)
         .bind(domain)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
+        tx.commit().await?;
         self.kevy_del(&format!("rcpt:{source}"));
         Ok(())
     }
@@ -206,185 +211,41 @@ impl DomainStore {
         Ok(res.rows_affected() > 0)
     }
 
-    /// resolve a recipient address to local account, forward, or reject
-    /// resolution order: exact account → exact alias → catch-all → Reject
+    /// Resolve a recipient for delivery, through the route the RCPT check
+    /// answers from ([`DomainStore::route_recipient`]), so delivery takes
+    /// mail for exactly the addresses the receiver accepted.
+    ///
+    /// A store that cannot be read delivers to the address itself: the
+    /// receiver already accepted the message, and refusing a real recipient
+    /// because the database was briefly away is worse than holding mail for
+    /// an address nobody reads.
     pub async fn resolve_recipient(&self, address: &str) -> ResolvedRecipient {
-        // try kevy cache
         let cache_key = format!("rcpt:{address}");
         if let Some(cached) = self.kevy_get::<CachedResolution>(&cache_key) {
             return cached.into();
         }
-
-        let result = self.resolve_recipient_inner(address).await;
-
-        // cache the result
-        let cacheable: CachedResolution = (&result).into();
-        self.kevy_set(&cache_key, &cacheable, 300);
-
-        result
-    }
-
-    async fn resolve_recipient_inner(&self, address: &str) -> ResolvedRecipient {
-        let pool = match self.pg() {
-            Ok(p) => p,
-            Err(_) => {
-                // L3 fallback: check process cache
-                if self.account_cache.contains_key(address) {
-                    return ResolvedRecipient::Account(address.to_string());
-                }
-                // when uncertain, accept
+        let maildir_root =
+            std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".to_string());
+        let net_url = std::env::var("MAILRS_KEVY_URL").ok();
+        let result = match self
+            .route_recipient(address, &maildir_root, net_url.as_deref())
+            .await
+        {
+            Ok(super::recipients::Route::Own(a) | super::recipients::Route::Alias(a)) => {
+                ResolvedRecipient::Account(a)
+            }
+            Ok(super::recipients::Route::Srs(original)) => {
+                ResolvedRecipient::Forward(vec![original])
+            }
+            Ok(super::recipients::Route::Group(members)) => ResolvedRecipient::Group(members),
+            Ok(super::recipients::Route::Nobody) => ResolvedRecipient::Reject,
+            Err(e) => {
+                tracing::warn!(error = %e, address, "recipient lookup failed; delivering to the address");
                 return ResolvedRecipient::Account(address.to_string());
             }
         };
-
-        // 1. exact account match
-        let has_account = sqlx::query_as::<_, (bool,)>(
-            "SELECT true FROM accounts WHERE address = $1 AND active = true",
-        )
-        .bind(address)
-        .fetch_optional(pool)
-        .await
-        .ok()
-        .flatten()
-        .is_some();
-
-        if has_account {
-            return ResolvedRecipient::Account(address.to_string());
-        }
-
-        // 2. email group match
-        let group_members: Vec<(String,)> = sqlx::query_as(
-            "SELECT m.member_address FROM email_group_members m \
-             JOIN email_groups g ON g.id = m.group_id \
-             WHERE g.address = $1",
-        )
-        .bind(address)
-        .fetch_all(pool)
-        .await
-        .unwrap_or_default();
-
-        if !group_members.is_empty() {
-            let members: Vec<String> = group_members.into_iter().map(|(a,)| a).collect();
-            return ResolvedRecipient::Group(members);
-        }
-
-        // 3. exact alias match — RFC 20260705 Step 3: when an
-        // AliasStore is wired (network kevy), consult it first so the
-        // monolith reads the same alias source of truth as fastcore.
-        // The trait is sync; we run it on a blocking pool.
-        if let Some(target) = self.resolve_alias_via_store(address).await {
-            let targets = vec![(target, "alias".to_string())];
-            return self.resolve_targets(pool, &targets).await;
-        }
-        if self.alias_store.is_none() {
-            // Legacy PG path — only run when no alias_store is attached,
-            // otherwise the AliasStore is authoritative and its miss is
-            // final (matches fastcore's alias-then-reject semantics).
-            let targets: Vec<(String, String)> = sqlx::query_as(
-                "SELECT target_address, alias_type FROM aliases \
-                 WHERE source_address = $1 AND active = true",
-            )
-            .bind(address)
-            .fetch_all(pool)
-            .await
-            .unwrap_or_default();
-
-            if !targets.is_empty() {
-                return self.resolve_targets(pool, &targets).await;
-            }
-        }
-
-        // 4. catch-all (*@domain) — same split as above.
-        if let Some((_, domain)) = address.split_once('@') {
-            let catchall = format!("*@{domain}");
-            if let Some(target) = self.resolve_alias_via_store(&catchall).await {
-                let targets = vec![(target, "alias".to_string())];
-                return self.resolve_targets(pool, &targets).await;
-            }
-            if self.alias_store.is_none() {
-                let targets: Vec<(String, String)> = sqlx::query_as(
-                    "SELECT target_address, alias_type FROM aliases \
-                     WHERE source_address = $1 AND active = true",
-                )
-                .bind(&catchall)
-                .fetch_all(pool)
-                .await
-                .unwrap_or_default();
-
-                if !targets.is_empty() {
-                    return self.resolve_targets(pool, &targets).await;
-                }
-            }
-        }
-
-        ResolvedRecipient::Reject
-    }
-
-    /// If a backend-agnostic `AliasStore` is attached, resolve `source`
-    /// through it on a blocking pool (the trait is sync). Returns
-    /// `None` on miss OR on network error — hot-path callers should
-    /// treat both as "no alias" and fall through. IO errors are
-    /// logged so an oncall can spot a bad network kevy without
-    /// silently rejecting mail.
-    async fn resolve_alias_via_store(&self, source: &str) -> Option<String> {
-        let store = self.alias_store.as_ref()?.clone();
-        let source_owned = source.to_string();
-        match tokio::task::spawn_blocking(move || store.resolve(&source_owned)).await {
-            Ok(Ok(target)) => target,
-            Ok(Err(e)) => {
-                tracing::warn!(
-                    error = %e, source = %source,
-                    "alias_store.resolve returned io error — treating as miss"
-                );
-                None
-            }
-            Err(e) => {
-                tracing::warn!(
-                    error = %e, source = %source,
-                    "alias_store.resolve blocking task panicked — treating as miss"
-                );
-                None
-            }
-        }
-    }
-
-    async fn resolve_targets(
-        &self,
-        pool: &BackendPool,
-        targets: &[(String, String)],
-    ) -> ResolvedRecipient {
-        let mut local_accounts = Vec::new();
-        let mut forwards = Vec::new();
-
-        for (target, alias_type) in targets {
-            if alias_type == "forward" {
-                forwards.push(target.clone());
-            } else {
-                let is_local = sqlx::query_as::<_, (bool,)>(
-                    "SELECT true FROM accounts WHERE address = $1 AND active = true",
-                )
-                .bind(target)
-                .fetch_optional(pool)
-                .await
-                .ok()
-                .flatten()
-                .is_some();
-
-                if is_local {
-                    local_accounts.push(target.clone());
-                } else {
-                    forwards.push(target.clone());
-                }
-            }
-        }
-
-        if !local_accounts.is_empty() && forwards.is_empty() {
-            ResolvedRecipient::Account(local_accounts.into_iter().next().unwrap())
-        } else if !forwards.is_empty() {
-            forwards.extend(local_accounts);
-            ResolvedRecipient::Forward(forwards)
-        } else {
-            ResolvedRecipient::Reject
-        }
+        let cacheable: CachedResolution = (&result).into();
+        self.kevy_set(&cache_key, &cacheable, 300);
+        result
     }
 }

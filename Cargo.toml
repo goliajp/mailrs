@@ -72,7 +72,6 @@ members = [
     "crates/server",
     "crates/core-api",
     "crates/webapi",
-    "crates/sender",
     "crates/mailbox-kevy",
     "crates/fastcore",
     "crates/pg-dump",

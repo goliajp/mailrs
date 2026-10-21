@@ -11,3 +11,6 @@
 
 mod by_ids;
 mod list;
+mod rows;
+
+pub use rows::{Held, ThreadQuery};
