@@ -1,9 +1,9 @@
+// CARVE-OUT: pure route registration; the builder chain is the table
 //! The core-RPC route table.
 //!
-//! Split out of `core_rpc/mod.rs` on 2026-08-02. `route_parity_lock` in
-//! `tests/parity.rs` is what holds this table to the fastcore lane's —
-//! the two cores serve one client, so a path here and not there is a
-//! feature that works or 404s depending on which is deployed.
+//! Split out of `core_rpc/mod.rs` on 2026-08-02. `route_parity_lock` in `tests/parity.rs` is
+//! what holds this table to the fastcore lane's — the two cores serve one client, so a path
+//! here and not there is a feature that works or 404s depending on which is deployed.
 
 use std::sync::Arc;
 

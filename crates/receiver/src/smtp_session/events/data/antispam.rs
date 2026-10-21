@@ -9,10 +9,10 @@ use std::net::SocketAddr;
 use mailrs_smtp_proto::response::Response;
 use mailrs_smtp_proto::session::State;
 
-use crate::inbound::pipeline::DeliveryDecision;
-use mailrs_core::event_bus::SmtpEvent;
-
 use super::super::super::ConnectionContext;
+
+mod evidence;
+mod outcome;
 
 pub(super) enum AntiSpamOutcome {
     /// Pipeline produced a final response (Reject / Greylist). Caller
@@ -42,155 +42,22 @@ pub(super) async fn run_antispam(
     conn_id: u64,
     ctx: &ConnectionContext,
 ) -> AntiSpamOutcome {
-    let ehlo_domain = match session_state {
-        State::Greeted { domain } => domain.as_str(),
-        State::Authenticated { domain, .. } => domain.as_str(),
-        _ => "unknown",
-    };
     let first_rcpt = forward_paths.first().map(|s| s.as_str()).unwrap_or("");
-    // Move `full_message` into ReceiveContext (the pipeline owns it
-    // during run()) and reclaim it with `mem::take` after — saves a
-    // full-body clone on every inbound message. The pipeline does
-    // not retain the body past `run().await` so the take is safe.
-    let mut receive_ctx = mailrs_inbound::ReceiveContext::new(
-        addr.ip(),
-        ehlo_domain,
+    let mut receive_ctx = evidence::receive_context(
+        session_state,
+        addr,
         reverse_path,
         first_rcpt,
         full_message,
-        &ctx.hostname,
-    );
-
-    // v2.4.1 Phase 3 (RFC-B §3.3) — populate the per-user
-    // whitelist / blacklist snapshot for the primary rcpt. Empty on
-    // absent client, kevy error, or missing rcpt — all fail-open
-    // and the pipeline falls back to the score-based path
-    // (identical to pre-Phase-3 behavior). Also lowercase the
-    // envelope MAIL FROM into `from_addr` so the lookup match is
-    // case-insensitive.
-    receive_ctx.from_addr = reverse_path.to_lowercase();
-    if !first_rcpt.is_empty() {
-        let (wl, bl) = crate::spam_lists::load_recipient_lists_async(
-            ctx.spam_lists_client.clone(),
-            first_rcpt,
-        )
-        .await;
-        receive_ctx.recipient_whitelist = wl;
-        receive_ctx.recipient_blacklist = bl;
-    }
-    // A colleague's message is not junk. Mail that really comes from
-    // one of our own domains — proven by SPF or DKIM, never by the
-    // `From:` header alone — takes the same Accept as a whitelisted
-    // sender. Mail our own users *send* never reaches here: this whole
-    // function runs only for unauthenticated sessions.
-    receive_ctx.local_domains = ctx.runtime.local_domains.as_set();
-    // The half of `mailrs_fraud` that needs to know what this
-    // organisation is called. The other half — the mailer fingerprint —
-    // is read from the message by `ReceiveContext::new`, because it
-    // needs no configuration.
-    //
-    // Read from the **decoded** `From:`: the names arrive base64'd
-    // inside `=?UTF-8?B?…?=` in every sample, and a check on the raw
-    // header sees only ASCII.
-    // The facts, assembled once, then one scan. This was three
-    // separate assignments into three separate fields, each with its
-    // own extraction — and the two that read the `From` read it
-    // differently for a while. One `Facts`, one `scan`, and a new
-    // rule needs neither a field nor a line here.
-    let decoded_from = mailrs_inbound::identity::from_header(&receive_ctx.message);
-    let sender_host = decoded_from
-        .rfind('@')
-        .map(|at| {
-            decoded_from[at + 1..]
-                .trim_end_matches('>')
-                .trim()
-                .to_string()
-        })
-        .unwrap_or_default();
-    let registrable = mailrs_fraud::brand::registrable(&sender_host);
-    let domain_seen =
-        crate::spam_lists::domain_seen_async(ctx.spam_lists_client.clone(), &sender_host).await;
-    let x_mailer = mailrs_inbound::identity::x_mailer_header(&receive_ctx.message);
-    let name_deception = mailrs_inbound::deception_in_display_name(&receive_ctx.message);
-    let parsed = mailrs_mime::parse(&receive_ctx.message);
-    let attachment_names: Vec<String> = parsed
-        .attachments()
-        .filter_map(|p| p.attachment_filename())
-        .map(|f| f.to_string())
-        .collect();
-    let subject = mailrs_inbound::subject_header(&receive_ctx.message);
-    let to_display = mailrs_inbound::identity::to_display_name(&receive_ctx.message);
-    let reply_to = mailrs_inbound::identity::reply_to_address(&receive_ctx.message);
-    // Records this sending domain against the reply address, then
-    // counts — so the arrival that reaches the threshold convicts
-    // itself and not only the ones after it.
-    let reply_rotation = crate::spam_lists::reply_rotation_async(
-        ctx.spam_lists_client.clone(),
-        &sender_host,
-        &reply_to,
+        ctx,
     )
     .await;
-    let facts = mailrs_fraud::Facts {
-        from: &decoded_from,
-        subject: &subject,
-        domain: &sender_host,
-        registrable: &registrable,
-        domain_seen,
-        x_mailer: x_mailer.as_deref(),
-        has_zero_width: receive_ctx.deception.unjustified_zero_width,
-        has_bidi_override: receive_ctx.deception.bidi_override,
-        // Narrower than the reading above, and deliberately: that one
-        // folds in the subject, where a zero-width space is
-        // occasionally legitimate. In a display name it never was —
-        // forty in the corpus, forty phishing.
-        has_zero_width_in_name: name_deception.unjustified_zero_width,
-        has_executable_attachment: mailrs_fraud::attachment::any_executable(
-            attachment_names.iter().map(String::as_str),
-        ),
-        has_zero_width_inside_a_word: receive_ctx.deception.zero_width_inside_a_word,
-        offers_the_reader_a_sum: mailrs_inbound::body::offers_the_reader_a_sum(&parsed),
-        is_bulk: mailrs_inbound::body::is_bulk(&receive_ctx.message),
-        to_display: &to_display,
-        reply_rotation,
-        date_ahead: mailrs_inbound::dates::date_ahead_of(
-            &receive_ctx.message,
-            Some(chrono::Utc::now().timestamp()),
-        ),
-        // `run_antispam` is called only when the session did not
-        // authenticate (`!is_authenticated` in `events/data/mod.rs`).
-        // Stated as a fact rather than left to the rules to assume
-        // from which code path they are running on.
-        unauthenticated: true,
-        // This deployment's own services submit to the MX without
-        // SMTP AUTH, from the container bridge.
-        peer_is_private: mailrs_inbound::identity::address_is_private(addr.ip()),
-        // SPF, DKIM and DMARC are not known yet — the stage that
-        // checks them runs below, in the pipeline. The rules that ask
-        // decline here and get their answer from the rescan further
-        // down.
-        ..mailrs_fraud::Facts::default()
-    };
-    let policy = mailrs_fraud::Policy {
-        // From the shared store, published by fastcore at boot — not
-        // from this process's environment, which is where the org
-        // names live and is why half this check was off for a day.
-        account_names: crate::spam_lists::account_names_async(ctx.spam_lists_client.clone()).await,
-        org_names: ctx.org_names.clone(),
-        our_domains: ctx.runtime.local_domains.current().to_vec(),
-        allowed_domains: ctx.org_name_allowed_domains.clone(),
-    };
+    let evidence = evidence::Evidence::gather(&receive_ctx, ctx).await;
+    let facts = evidence.facts(&receive_ctx, addr);
+    let policy = evidence::policy(ctx).await;
     let scan = match mailrs_fraud_lua::scan(&facts, &policy) {
         Ok(scan) => scan,
-        Err(error) => {
-            tracing::error!(%error, "fraud rules unavailable; deferring message");
-            ctx.metrics.inbound_defer();
-            metrics::counter!("mailrs_inbound_verdict_total", "verdict" => "defer").increment(1);
-            return AntiSpamOutcome::Reject(Response::new(
-                451,
-                None,
-                "Temporary classification failure, please retry",
-            ));
-        }
+        Err(error) => return outcome::rules_unavailable(error, ctx),
     };
     receive_ctx.fraud = scan.findings;
     // Which bundle answered, for the verdict below. Both passes run
@@ -199,33 +66,7 @@ pub(super) async fn run_antispam(
 
     let started = std::time::Instant::now();
     let decision = ctx.inbound_pipeline.run(&mut receive_ctx).await;
-    // Scan again, now that alignment is known.
-    //
-    // The scan above cannot see SPF, DKIM or DMARC: the stage that
-    // checks them is in the pipeline that just ran.  A rule that turns
-    // on alignment — `claims-our-domain`, which asks whether a `From`
-    // at one of our own domains was authenticated as ours — therefore
-    // declines on the first pass and answers on this one.  The stored
-    // verdict is what `ingest.rs` holds a conversation by, so this is
-    // the pass that decides it; the accept/junk/reject decision above
-    // is already made and is not revisited, because the two questions
-    // are different ones.
-    let facts = mailrs_fraud::Facts {
-        spf: &receive_ctx.auth_results.spf,
-        dkim: &receive_ctx.auth_results.dkim,
-        dmarc: &receive_ctx.auth_results.dmarc,
-        ..facts
-    };
-    match mailrs_fraud_lua::scan(&facts, &policy) {
-        Ok(rescan) => receive_ctx.fraud = rescan.findings,
-        // The first pass stands, and is already what the context
-        // holds: it ran the same rules on everything but alignment,
-        // and a rule set that went away for a moment is not a reason
-        // to drop what it found.
-        Err(error) => {
-            tracing::warn!(%error, "fraud rules unavailable for the alignment pass; keeping the first verdict");
-        }
-    }
+    rescan_with_alignment(&mut receive_ctx, facts, &policy);
     // Only when something was found. The verdict costs four small
     // string builds, and this runs on every message that reaches the
     // server — but a message nobody suspected has no finding worth
@@ -244,75 +85,39 @@ pub(super) async fn run_antispam(
         msg_size = full_message.len(),
         "stage complete"
     );
+    outcome::from_decision(decision, full_message, fraud_verdict, conn_id, ctx)
+}
 
-    match decision {
-        DeliveryDecision::Reject { code, message } => {
-            ctx.metrics.inbound_reject();
-            metrics::counter!("mailrs_inbound_verdict_total", "verdict" => "reject").increment(1);
-            let class = (code / 100) as u8;
-            let resp = Response::new(
-                code,
-                Some(mailrs_smtp_proto::EnhancedCode {
-                    class,
-                    subject: 7,
-                    detail: 1,
-                }),
-                &message,
-            );
-            ctx.event_bus.emit(SmtpEvent::SpamRejected {
-                id: conn_id,
-                reason: message,
-            });
-            AntiSpamOutcome::Reject(resp)
-        }
-        DeliveryDecision::Greylist => {
-            ctx.metrics.inbound_defer();
-            metrics::counter!("mailrs_inbound_verdict_total", "verdict" => "defer").increment(1);
-            let resp = Response::new(
-                451,
-                Some(mailrs_smtp_proto::EnhancedCode {
-                    class: 4,
-                    subject: 7,
-                    detail: 1,
-                }),
-                "Greylisting in effect, please retry later",
-            );
-            ctx.event_bus.emit(SmtpEvent::SpamRejected {
-                id: conn_id,
-                reason: "greylisted".into(),
-            });
-            AntiSpamOutcome::Reject(resp)
-        }
-        DeliveryDecision::Junk {
-            auth_header,
-            reason,
-        } => {
-            ctx.metrics.inbound_junk();
-            metrics::counter!("mailrs_inbound_verdict_total", "verdict" => "junk").increment(1);
-            tracing::info!(
-                event = "junk",
-                id = conn_id,
-                reason = %reason,
-                "delivering to Junk"
-            );
-            let mut new_msg = auth_header.into_bytes();
-            new_msg.extend_from_slice(&full_message);
-            AntiSpamOutcome::Continue {
-                full_message: new_msg,
-                target_folder: "Junk",
-                fraud_verdict,
-            }
-        }
-        DeliveryDecision::Accept { auth_header } => {
-            ctx.metrics.inbound_accept();
-            metrics::counter!("mailrs_inbound_verdict_total", "verdict" => "accept").increment(1);
-            let mut new_msg = auth_header.into_bytes();
-            new_msg.extend_from_slice(&full_message);
-            AntiSpamOutcome::Continue {
-                full_message: new_msg,
-                target_folder: "INBOX",
-                fraud_verdict,
-            }
+/// Scan again, now that alignment is known.
+///
+/// The first scan cannot see SPF, DKIM or DMARC: the stage that
+/// checks them is in the pipeline that just ran.  A rule that turns
+/// on alignment — `claims-our-domain`, which asks whether a `From`
+/// at one of our own domains was authenticated as ours — therefore
+/// declines on the first pass and answers on this one.  The stored
+/// verdict is what `ingest.rs` holds a conversation by, so this is
+/// the pass that decides it; the accept/junk/reject decision is
+/// already made and is not revisited, because the two questions
+/// are different ones.
+fn rescan_with_alignment(
+    receive_ctx: &mut mailrs_inbound::ReceiveContext,
+    facts: mailrs_fraud::Facts<'_>,
+    policy: &mailrs_fraud::Policy,
+) {
+    let facts = mailrs_fraud::Facts {
+        spf: &receive_ctx.auth_results.spf,
+        dkim: &receive_ctx.auth_results.dkim,
+        dmarc: &receive_ctx.auth_results.dmarc,
+        ..facts
+    };
+    match mailrs_fraud_lua::scan(&facts, policy) {
+        Ok(rescan) => receive_ctx.fraud = rescan.findings,
+        // The first pass stands, and is already what the context
+        // holds: it ran the same rules on everything but alignment,
+        // and a rule set that went away for a moment is not a reason
+        // to drop what it found.
+        Err(error) => {
+            tracing::warn!(%error, "fraud rules unavailable for the alignment pass; keeping the first verdict");
         }
     }
 }

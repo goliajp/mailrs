@@ -17,6 +17,8 @@ use super::super::common::{
 use super::super::{AuthUser, SendResult, WebState};
 use super::{SendMessageRequest, resolve_inline_images};
 
+mod compose;
+
 pub(crate) async fn send_message(
     AuthUser {
         address: user,
@@ -35,38 +37,10 @@ pub(crate) async fn send_message(
         body_len = req.body.len()
     );
 
-    if req.to.is_empty() {
+    if let Some(message) = compose::request_error(&req) {
         return Json(SendResult {
             success: false,
-            message: Some("to is required".into()),
-            message_id: None,
-        });
-    }
-
-    let total_recipients = req.to.len() + req.cc.len() + req.bcc.len();
-    if total_recipients > crate::web::MAX_RECIPIENTS {
-        return Json(SendResult {
-            success: false,
-            message: Some(format!(
-                "too many recipients (max {})",
-                crate::web::MAX_RECIPIENTS
-            )),
-            message_id: None,
-        });
-    }
-
-    if req.body.len() > crate::web::MAX_EMAIL_BODY_LEN {
-        return Json(SendResult {
-            success: false,
-            message: Some("message body too large".into()),
-            message_id: None,
-        });
-    }
-
-    if req.subject.len() > crate::web::MAX_ADMIN_FIELD_LEN {
-        return Json(SendResult {
-            success: false,
-            message: Some("subject too long".into()),
+            message: Some(message),
             message_id: None,
         });
     }
@@ -106,38 +80,7 @@ pub(crate) async fn send_message(
 
     // append quoted text from original message for replies
     let in_reply_to_ref = resolved_in_reply_to.as_deref();
-    let body_with_quote = match (in_reply_to_ref, state.mailbox_store.as_ref()) {
-        (Some(reply_to), Some(mb_store)) if !reply_to.is_empty() => {
-            if let Some(orig) = mb_store
-                .find_message_by_message_id(from, reply_to)
-                .await
-                .ok()
-                .flatten()
-            {
-                if let Some(raw_orig) =
-                    message_util::read_message_raw(&state.maildir_root, from, &orig.maildir_id)
-                        .await
-                {
-                    let (text_body, _, _) = message_util::parse_message(&raw_orig);
-                    if let Some(text) = text_body {
-                        let sender = message_util::decode_header(&orig.sender);
-                        let date = chrono::DateTime::from_timestamp(orig.internal_date, 0)
-                            .map(|dt| dt.format("%a, %d %b %Y %H:%M").to_string())
-                            .unwrap_or_default();
-                        let quoted: String = text.lines().map(|l| format!("> {l}\n")).collect();
-                        format!("{}\n\nOn {date}, {sender} wrote:\n{quoted}", req.body)
-                    } else {
-                        req.body.clone()
-                    }
-                } else {
-                    req.body.clone()
-                }
-            } else {
-                req.body.clone()
-            }
-        }
-        _ => req.body.clone(),
-    };
+    let body_with_quote = compose::body_with_quote(&state, from, in_reply_to_ref, &req.body).await;
 
     // when forwarding, build email from original raw message (full body + all attachments)
     // prefer forward_message_id (globally unique), fall back to uid
@@ -151,31 +94,7 @@ pub(crate) async fn send_message(
             req.forward_attachments_from,
         )
         .await;
-        // prepend user's message before the forwarded content
-        let user_text = req.body.clone();
-        let fwd_text = if let Some(ref text) = orig_text {
-            format!("{user_text}\n\n---------- Forwarded message ----------\n{text}")
-        } else {
-            user_text.clone()
-        };
-        let user_html_fallback = format!("<p>{}</p>", user_text.replace('\n', "<br>"));
-        let user_html_str = req.html_body.as_deref().unwrap_or(&user_html_fallback);
-        let fwd_html = if let Some(ref html) = orig_html {
-            Some(format!(
-                "{user_html_str}<hr style=\"border:none;border-top:1px solid #ccc;margin:16px 0\"><div style=\"color:#555\">{html}</div>"
-            ))
-        } else if let Some(ref text) = orig_text {
-            let escaped = text
-                .replace('&', "&amp;")
-                .replace('<', "&lt;")
-                .replace('>', "&gt;")
-                .replace('\n', "<br>");
-            Some(format!(
-                "{user_html_str}<hr style=\"border:none;border-top:1px solid #ccc;margin:16px 0\"><pre style=\"font-family:sans-serif;white-space:pre-wrap\">{escaped}</pre>"
-            ))
-        } else {
-            req.html_body.clone()
-        };
+        let (fwd_text, fwd_html) = compose::forward_bodies(&req, &orig_text, &orig_html);
         (fwd_text, fwd_html, atts)
     } else {
         (body_with_quote.clone(), req.html_body.clone(), vec![])
