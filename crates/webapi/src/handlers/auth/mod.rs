@@ -13,6 +13,7 @@ use crate::WebState;
 use crate::handlers::conversations::{AuthedDisplayName, AuthedUser};
 
 mod credentials;
+pub(crate) mod password;
 mod revoke;
 mod session;
 

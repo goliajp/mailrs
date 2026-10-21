@@ -22,6 +22,7 @@ pub mod conversation_body;
 pub mod conversation_verbs;
 pub mod conversations;
 pub mod dav;
+pub mod dav_auth;
 pub mod dmarc;
 pub mod events;
 pub mod external_login;
