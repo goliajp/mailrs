@@ -10,10 +10,12 @@
 use std::sync::Arc;
 
 use crate::headers::{
-    body_text_for_search, extract_headers, extract_sender_trust, maildir_filename_epoch,
-    resolve_thread_by_ancestry, sort_date,
+    body_text_for_search, extract_headers, extract_sender_trust, maildir_filename_epoch, sort_date,
 };
 use crate::{FastcoreState, enqueue_webhooks_for_arrival};
+
+mod steps;
+use steps::*;
 
 /// Write-through ingest for a file the spool drain just delivered to
 /// maildir: thread aggregate + message wire + uid + side sinks, all at
@@ -45,49 +47,17 @@ pub(crate) fn ingest_delivered_file(
     let message_id = crate::file_message_id::message_id_or_file_id(header_id, blob_ref);
     let bare = blob_ref.rsplit('/').next().unwrap_or(blob_ref);
     let date = sort_date(date, maildir_filename_epoch(bare)).unwrap_or(0);
-    // v2.9.5 threading fix — prefer the thread an ancestor actually
-    // landed in (msgid index) over deriving one from raw headers.
-    // References[0] is NOT a stable conversation root (each hop can
-    // rewrite it), which is how conversations fragmented.
-    let root = match resolve_thread_by_ancestry(
+    let root = thread_root(
         state,
         addr,
         &message_id,
         &in_reply_to,
         &references,
         &subject,
-    ) {
-        Some(tid) => tid,
-        None => {
-            if let Some(first) = references.first() {
-                first.clone()
-            } else if !in_reply_to.is_empty() {
-                in_reply_to.clone()
-            } else {
-                message_id.clone()
-            }
-        }
-    };
+    );
     let is_own = mailrs_mailbox_kevy::senders_csv_contains_user(&from, addr);
     let unread = !is_own;
-    // v2.4.0 Phase 2 (RFC-A) — plumb the SMTP-level target_folder
-    // decision (from `crates/receiver/src/smtp_session/events/data/antispam.rs`
-    // where DeliveryDecision::Junk yields target_folder="Junk") into the
-    // per-thread category. mailbox-kevy's `upsert_thread` reads
-    // `category ∈ {"spam", "scam"}` as the Junk-zset trigger, so
-    // stamping "spam" here makes the antispam verdict actually route
-    // to the Junk folder on the read side. Any sieve fileinto target
-    // that maps to "Junk" is treated the same. Everything else
-    // (INBOX / custom sieve folders) keeps category="inbox".
-    // v2.9 triage — non-junk mail is further sorted into
-    // inbox/notification/promotion by the multi-class Bayes classifier
-    // (`bucket_of` then routes it to the matching folder zset).
-    // Cold-start / low-confidence → "inbox".
-    let category = if target_folder.eq_ignore_ascii_case("junk") {
-        "spam"
-    } else {
-        crate::bayes_train::classify_triage(state, body).unwrap_or("inbox")
-    };
+    let category = arrival_category(state, target_folder, body);
     // The line under the subject in every row of the list. Passed as ""
     // until 2026-08-09, so every *received* thread showed nothing —
     // only the outbound send and an importer ever wrote one. The MIME
@@ -110,13 +80,7 @@ pub(crate) fn ingest_delivered_file(
     enqueue_webhooks_for_arrival(state, addr, &root, &from, &subject);
     crate::live_sync::upsert_contacts(addr, &from);
     crate::live_sync::adjust_usage_bytes(addr, body.len() as i64);
-    let m = crate::imap::backend::bump_modseq(state, addr);
-    crate::imap::backend::set_file_modseq(state, addr, bare, m);
-    let uid = state.mailbox.allocate_uid(addr, &message_id).unwrap_or(0);
-    // The maildir's copy of the promise. Appended rather than read-checked:
-    // delivery is the hot path, the list is append-only by design, and the
-    // self-heal reads it back before allocating anything.
-    crate::uidlist::record(addr, uid, blob_ref);
+    let uid = assign_uid(state, addr, bare, &message_id, blob_ref);
     // The invitation, if this is one. Read from the whole body rather
     // than the 16 KB header window above: a calendar part routinely
     // sits past it, and a window-only extractor finds nothing on
@@ -149,31 +113,7 @@ pub(crate) fn ingest_delivered_file(
         modseq: 0,
         user_address: addr.to_string(),
     };
-    match serde_json::to_vec(&wire) {
-        Ok(payload) => {
-            // The shared blob plus this user's own row: their maildir
-            // filename, their uid, their flags. A thread can have several
-            // owners and each has a different file on disk, so a single
-            // `blob_ref` on the shared blob is one owner's — 74 messages on
-            // production were served to a user the row did not name.
-            if let Err(e) = state.mailbox.upsert_user_message(
-                addr,
-                &root,
-                &message_id,
-                date,
-                &payload,
-                &mailrs_mailbox_kevy::UserMessageFacts {
-                    blob_ref,
-                    uid: wire.uid,
-                    flags: wire.flags,
-                    modseq: wire.modseq,
-                },
-            ) {
-                tracing::warn!(error = %e, %addr, %root, "drain ingest: upsert_user_message failed");
-            }
-        }
-        Err(e) => tracing::warn!(error = %e, "drain ingest: wire serialize failed"),
-    }
+    write_message_row(state, addr, &root, &message_id, date, blob_ref, &wire);
 
     // **The message row first, the arrival second** — the same ordering
     // `deliver_message` documents, and which this path did not have.
@@ -201,59 +141,13 @@ pub(crate) fn ingest_delivered_file(
     if let Err(e) = state.mailbox.record_message_arrival(&arrival) {
         tracing::warn!(error = %e, %addr, %root, "drain ingest: record_message_arrival failed");
     }
-    // The finding, and the hold it implies. After the arrival, because
-    // `set_quarantined` writes the membership row and the arrival is
-    // what creates it — held before it exists is held on nothing.
-    let mut held = false;
-    if let Some(json) = fraud_verdict {
-        if let Err(e) = state.mailbox.set_fraud_verdict(&message_id, json) {
-            tracing::warn!(error = %e, %addr, %message_id, "storing the fraud verdict failed");
-        }
-        match serde_json::from_str::<mailrs_inbound::FraudVerdict>(json) {
-            Ok(v) if v.quarantined => match state.mailbox.set_quarantined(addr, &root, true) {
-                Ok(true) => {
-                    // Read, at the same moment. A held conversation
-                    // that is also unread is bold, adds to the badge
-                    // and rings the phone — the attempt to defraud
-                    // getting exactly the attention it was sent to
-                    // get, which is what holding exists to remove.
-                    //
-                    // Both halves, through the function that writes
-                    // both: the axis column and the per-user rows the
-                    // count comes off.
-                    crate::routes::thread_actions::mark_thread_read_everywhere(state, addr, &root);
-                    held = true;
-                    tracing::info!(
-                        %addr, %root, score = v.score, rules = %v.rules_version,
-                        "held: suspected fraud"
-                    )
-                }
-                Ok(false) => tracing::warn!(
-                    %addr, %root,
-                    "held nothing: no membership row to hold"
-                ),
-                Err(e) => tracing::warn!(error = %e, %addr, %root, "holding failed"),
-            },
-            Ok(_) => {}
-            Err(e) => tracing::warn!(error = %e, %addr, "the stored verdict did not parse"),
-        }
-    }
+    let held = hold_if_fraud(state, addr, &root, &message_id, fraud_verdict);
     // register this message's id → thread so future replies that cite it
     // (In-Reply-To / References) resolve into the same conversation.
     let _ = state
         .mailbox
         .set_thread_for_message_id(addr, &message_id, &root);
-    // Index the body for full-text search. Costs one MIME parse on a
-    // path that already has the bytes in hand, and it is what makes
-    // search cover message contents rather than just headers.
-    if let Some(text) = body_text.as_deref()
-        && let Err(e) = state.mailbox.index_message_text(&message_id, text)
-    {
-        tracing::warn!(error = %e, %addr, %message_id, "index_message_text failed");
-    }
-    // A PDF or image is only noted here; reading it is the worker's job,
-    // off this path.
-    crate::attachment_text::queue_if_it_has_readable_parts(state, addr, &message_id, &parsed);
+    index_contents(state, addr, &message_id, body_text.as_deref(), &parsed);
 
     // **Tell the clients last.** A client that hears of new mail asks for
     // its list at once. These went out before the rows above were written,

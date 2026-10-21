@@ -25,6 +25,8 @@ use super::post_delivery::post_delivery_process;
 use crate::event_bus::{EventBus, SmtpEvent};
 use crate::pg::BackendPool;
 
+mod invite;
+
 /// The core-side handles [`process_delivered`] needs, cloned once from the
 /// `ConnectionContext` per DATA batch. Decoupled from the full context so
 /// the receiver/core split doesn't have to thread `ConnectionContext`
@@ -152,25 +154,7 @@ async fn process_delivered(msg: DeliveredMessage, deps: &ProcessDeps) {
         "stage complete"
     );
 
-    // v2.9 triage — auto-classify non-junk mail into inbox / notification
-    // / promotion using the SHARED multi-class corpus (core-mode parity
-    // with fastcore's ingest classify). Stamps email_analysis.category
-    // so the read-axis bucket filter routes the thread. Junk-mailbox mail
-    // is left alone (it's already Junk). Cold-start / low confidence /
-    // no kevy → default inbox (no stamp needed). Best-effort.
-    if rcpt_folder != "Junk"
-        && let Some(url) = &deps.kevy_url
-        && let Ok(mut conn) = kevy_client::Connection::connect(url)
-    {
-        let tokens = mailrs_bayes::tokenize(full_message.as_slice());
-        if let Some(category) = mailrs_triage::classify(&mut conn, &tokens)
-            && category != "inbox"
-        {
-            let _ = mb_store
-                .set_thread_bucket(&user, &thread_id, category)
-                .await;
-        }
-    }
+    stamp_triage_bucket(deps, &user, &thread_id, &rcpt_folder, &full_message).await;
 
     // emit NewMessage event
     let snippet = extract_snippet(&full_message);
@@ -182,81 +166,31 @@ async fn process_delivered(msg: DeliveredMessage, deps: &ProcessDeps) {
         snippet,
     });
 
-    // MRS-4: detect iTIP / iMIP invite parts and project the parsed
-    // payload onto messages.invite_payload so the web client / macapp can
-    // render an invite card without re-parsing.
-    if let Some(uid) = indexed_uid
-        && let Some(extracted) = mailrs_ical::mime_part::extract_invite_part(&full_message)
-    {
-        if let Ok(parsed) = mailrs_ical::parse_invite(&extracted.ics_bytes) {
-            if let Ok(payload_json) = serde_json::to_value(&parsed) {
-                let method_str = format!("{:?}", parsed.method).to_uppercase();
-                match mb_store
-                    .update_invite_payload(&user, &rcpt_folder, uid, &payload_json, &method_str)
-                    .await
-                {
-                    Ok(Some(msg_id)) => {
-                        deps.event_bus.emit(SmtpEvent::InviteReceived {
-                            user: user.clone(),
-                            message_id: msg_id,
-                            method: method_str.clone(),
-                            uid: parsed.uid.clone(),
-                        });
-                        // MRS-7: reconcile against the user's own calendar
-                        // (only touches events the user has already RSVP'd).
-                        if let Some(ref pool) = deps.outbound_queue {
-                            let raw_ics = std::str::from_utf8(&extracted.ics_bytes).unwrap_or("");
-                            match crate::calendar::reconcile::reconcile_inbound_invite(
-                                pool, &user, &parsed, raw_ics,
-                            )
-                            .await
-                            {
-                                Ok(outcome) => {
-                                    tracing::info!(
-                                        user = %user,
-                                        uid = %parsed.uid,
-                                        method = %method_str,
-                                        outcome = ?outcome,
-                                        "reconcile",
-                                    );
-                                }
-                                Err(e) => {
-                                    tracing::warn!(
-                                        "reconcile failed for {user}/{}: {e}",
-                                        parsed.uid,
-                                    );
-                                }
-                            }
-                        }
-                    }
-                    Ok(None) => {
-                        tracing::debug!(
-                            "invite detected but message row not found for {user}/{rcpt_folder}/{uid}"
-                        );
-                    }
-                    Err(e) => {
-                        tracing::warn!("update_invite_payload failed: {e}");
-                    }
-                }
-            }
-        } else {
-            tracing::debug!(
-                "text/calendar part found but ical parse failed for {user}/{rcpt_folder}/{uid}"
-            );
-        }
+    if let Some(uid) = indexed_uid {
+        invite::project_invite(deps, &user, &rcpt_folder, uid, &full_message).await;
     }
 
+    spawn_post_delivery_pass(deps, &user, &sender, &maildir_id_str, &full_message);
+}
+
+fn spawn_post_delivery_pass(
+    deps: &ProcessDeps,
+    user: &str,
+    sender: &str,
+    maildir_id_str: &str,
+    full_message: &Arc<Vec<u8>>,
+) {
     // async post-delivery: contact upsert + content extraction + importance scoring
-    let mb_store_bg = Arc::clone(mb_store);
-    let user_bg = user.clone();
-    let sender_bg = sender.clone();
-    let maildir_id_bg = maildir_id_str.clone();
+    let mb_store_bg = Arc::clone(&deps.mailbox_store);
+    let user_bg = user.to_string();
+    let sender_bg = sender.to_string();
+    let maildir_id_bg = maildir_id_str.to_string();
     let maildir_root_bg = deps.maildir_root.clone();
     let raw_headers =
         String::from_utf8_lossy(&full_message[..full_message.len().min(4096)]).to_string();
     // Arc-clone the function-level body (cheap refcount bump) instead of
     // copying its bytes.
-    let full_msg_bg = Arc::clone(&full_message);
+    let full_msg_bg = Arc::clone(full_message);
     let resolver_bg = deps.resolver.clone();
     tokio::spawn(async move {
         post_delivery_process(
@@ -271,4 +205,33 @@ async fn process_delivered(msg: DeliveredMessage, deps: &ProcessDeps) {
         )
         .await;
     });
+}
+
+// v2.9 triage — auto-classify non-junk mail into inbox / notification
+// / promotion using the SHARED multi-class corpus (core-mode parity
+// with fastcore's ingest classify). Stamps email_analysis.category
+// so the read-axis bucket filter routes the thread. Junk-mailbox mail
+// is left alone (it's already Junk). Cold-start / low confidence /
+// no kevy → default inbox (no stamp needed). Best-effort.
+async fn stamp_triage_bucket(
+    deps: &ProcessDeps,
+    user: &str,
+    thread_id: &str,
+    rcpt_folder: &str,
+    full_message: &[u8],
+) {
+    if rcpt_folder != "Junk"
+        && let Some(url) = &deps.kevy_url
+        && let Ok(mut conn) = kevy_client::Connection::connect(url)
+    {
+        let tokens = mailrs_bayes::tokenize(full_message);
+        if let Some(category) = mailrs_triage::classify(&mut conn, &tokens)
+            && category != "inbox"
+        {
+            let _ = deps
+                .mailbox_store
+                .set_thread_bucket(user, thread_id, category)
+                .await;
+        }
+    }
 }

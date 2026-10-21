@@ -10,18 +10,10 @@
 
 use std::sync::Arc;
 
-use mailrs_auth_guard::AuthGuardConfig;
 use mailrs_core::event_bus::EventBus;
-use mailrs_core::users::UserStore;
-use mailrs_shield::greylist::GreylistConfig;
 
 use crate::config::ReceiverConfig;
 use crate::conn_metrics::ConnectionMetrics;
-use crate::inbound::auth_guard::AuthGuardStore;
-use crate::inbound::kevy_backends::{KevyServerAuthGuardStore, KevyServerRateLimitStore};
-use crate::inbound::pipeline::build_inbound_pipeline;
-use crate::inbound::rate_limit::{RateLimitStore, TokenBucketConfig};
-use crate::inbound::stages::mail_auth::MailAuthResolvers;
 use crate::kevy_net::KevyNetClient;
 use crate::kevy_notify::{
     KevyEventPublisher, KevyTracePublisher, NOTIFY_CHANNEL, process_origin, publish_stats,
@@ -32,7 +24,9 @@ use crate::smtp_session::spool_sink::MaildirSpoolSink;
 use crate::stats::{ReceiverCounters, SharedCounters};
 use receiver_metrics::ReceiverMetrics;
 
+mod core_link;
 mod greylisting;
+mod inbound;
 mod receiver_metrics;
 
 /// Build the narrow context and bind the SMTP listeners. They keep
@@ -58,40 +52,11 @@ pub async fn start() -> Receiver {
     let kevy_client = Arc::new(KevyNetClient::new(&cfg.kevy_url));
 
     // anti subsystems, all network-backed (the receiver has no embedded kevy).
-    let rate_limiter: Arc<dyn RateLimitStore> = Arc::new(KevyServerRateLimitStore::new(
-        kevy_client.clone(),
-        TokenBucketConfig {
-            capacity: cfg.rate_limit_capacity,
-            refill_rate: cfg.rate_limit_refill,
-        },
-    ));
-    let auth_guard: Arc<dyn AuthGuardStore> = Arc::new(KevyServerAuthGuardStore::new(
-        kevy_client.clone(),
-        AuthGuardConfig::default(),
-    ));
-    let (greylist_db, greylist_lists) = greylisting::greylisting(&kevy_client);
-    // DNS resolver for PTR + SPF/DKIM/DMARC.
-    let resolver = hickory_resolver::TokioResolver::builder_tokio()
-        .ok()
-        .and_then(|mut b| {
-            b.options_mut().cache_size = 4096;
-            b.build().ok()
-        })
-        .map(Arc::new);
-
-    let mail_auth_resolvers = if cfg.antispam_enabled {
-        resolver.as_ref().map(|r| {
-            let dkim = Arc::new(mailrs_dkim::HickoryDkimResolver::new((**r).clone()));
-            MailAuthResolvers {
-                spf: Arc::new(mailrs_spf::HickoryResolver::new((**r).clone())),
-                dkim: dkim.clone(),
-                arc: dkim,
-                dmarc: r.clone(),
-            }
-        })
-    } else {
-        None
-    };
+    let rate_limiter = inbound::rate_limiter(&cfg, &kevy_client);
+    let auth_guard = inbound::auth_guard(&kevy_client);
+    let greylisting = greylisting::greylisting(&kevy_client);
+    let resolver = inbound::dns_resolver();
+    let mail_auth_resolvers = inbound::mail_auth_resolvers(&cfg, resolver.as_ref());
 
     // The admin's black/white sender lists live in the shared network kevy
     // (admin:greylist:local-lists, written by webapi) and apply with or
@@ -99,121 +64,23 @@ pub async fn start() -> Receiver {
     // admin UI takes effect without a receiver restart.
     let greylist_local = crate::greylist_local::empty();
     crate::greylist_local_sync::spawn_reload_task(greylist_local.clone(), kevy_client.clone(), 60);
-    let inbound_pipeline = build_inbound_pipeline(
-        greylist_db,
-        GreylistConfig {
-            initial_delay_secs: cfg.greylist_delay_secs,
-            ..Default::default()
-        },
-        greylist_lists,
+    let inbound_pipeline = inbound::pipeline(
+        &cfg,
+        &kevy_client,
+        greylisting,
         greylist_local.clone(),
-        Some(kevy_client.clone()), // greylist_contacts
-        Some(kevy_client.clone()), // quota_client
-        Some(kevy_client.clone()), // bayes_client — v2.8.1
         resolver.clone(),
         mail_auth_resolvers,
-        // Record per-message DMARC results into the shared network
-        // kevy so admin tooling (and a future aggregate reporter) can
-        // consume them. Errors are swallowed inside the sink.
-        Some(
-            Arc::new(crate::kevy_dmarc::KevyDmarcSink::new(&cfg.kevy_url))
-                as Arc<dyn crate::inbound::stages::mail_auth::DmarcReportSink>,
-        ),
-        cfg.clamav_addr.clone(),
-        None, // LLM scoring is the core's post-delivery job
-        None, // spam cache is core-side
-        cfg.spam_score_threshold,
     );
 
-    // manual TLS only (ACME stays core-side for phase 1); plain SMTP if unset.
-    // The files are followed afterwards, so a renewed certificate reaches
-    // 465, 587 and STARTTLS on 25 without a restart.
-    let tls_state = match (&cfg.tls_cert, &cfg.tls_key) {
-        (Some(cert), Some(key)) => {
-            let loaded = mailrs_tls_reload::load_tls_config(cert, key)
-                .and_then(|c| Ok((c, mailrs_tls_reload::CertWatcher::new(cert, key)?)));
-            match loaded {
-                Ok((c, watcher)) => {
-                    let state = mailrs_tls_reload::TlsState::new(Arc::unwrap_or_clone(c));
-                    mailrs_tls_reload::spawn_watch(
-                        state.clone(),
-                        watcher,
-                        std::time::Duration::from_secs(60),
-                        "receiver",
-                    );
-                    Some(state)
-                }
-                Err(e) => {
-                    tracing::warn!(error = %e, "failed to load TLS cert/key; starting without TLS");
-                    None
-                }
-            }
-        }
-        _ => None,
-    };
+    let tls_state = core_link::tls_state(&cfg);
+    let users = core_link::users(&cfg);
+    let credential_store = core_link::credential_store(&cfg);
+    let recipient_check = core_link::recipient_check(&cfg);
+    let runtime = core_link::runtime_settings(&cfg, &kevy_client, greylist_local).await;
 
-    let users = Arc::new(match &cfg.users_file {
-        Some(path) => UserStore::load(path).unwrap_or_else(|e| {
-            tracing::warn!(error = %e, "failed to load users file; no submission auth");
-            UserStore::empty()
-        }),
-        None => UserStore::empty(),
-    });
-    let credential_store = match (&cfg.core_rpc_base, &cfg.core_api_secret) {
-        (Some(base), Some(secret)) => Some(Arc::new(crate::CoreCredentialStore::new(
-            base.clone(),
-            secret.clone(),
-        )) as Arc<dyn crate::CredentialStore>),
-        _ => {
-            tracing::warn!(
-                "MAILRS_CORE_RPC_BASE / MAILRS_CORE_API_SECRET not both set: \
-                 submission auth accepts users.toml entries only, and the local \
-                 domains are MAILRS_LOCAL_DOMAINS alone"
-            );
-            None
-        }
-    };
-    let recipient_check = match (&cfg.core_rpc_base, &cfg.core_api_secret) {
-        (Some(base), Some(secret)) => {
-            Some(crate::RecipientCheck::new(base.clone(), secret.clone()))
-        }
-        _ => None,
-    };
-    let runtime = crate::runtime_settings::RuntimeSettings {
-        local_domains: crate::runtime_settings::LocalDomains::new(cfg.local_domains.clone()),
-        max_message_size: crate::runtime_settings::MessageSizeLimit::new(Some(kevy_client.clone())),
-        sender_lists: greylist_local,
-    };
-    if let (Some(base), Some(secret)) = (&cfg.core_rpc_base, &cfg.core_api_secret) {
-        let core = mailrs_core_api::client::Client::new(base.clone(), secret.clone());
-        crate::runtime_settings::refresh_and_log(&runtime.local_domains, &core).await;
-        let every = std::time::Duration::from_secs(60);
-        crate::runtime_settings::spawn_local_domains_refresh(
-            runtime.local_domains.clone(),
-            core,
-            every,
-        );
-    }
-
-    // event bus that publishes cross-process events (SpoolDelivered) to the
-    // shared kevy-server. The receiver only publishes — the core runs the
-    // subscriber bridge.
     let counters: SharedCounters = Arc::new(ReceiverCounters::default());
-    spawn_stats_heartbeat(kevy_client.clone(), counters.clone());
-
-    let publisher = Arc::new(KevyEventPublisher::new(
-        kevy_client.clone(),
-        NOTIFY_CHANNEL.to_vec(),
-        process_origin(),
-    ));
-    // Second channel, same mechanism: the SMTP session trace. Without
-    // this the whole protocol trace stops inside this process — the
-    // monitor page in webapi-fc connects, reports "connected", and shows
-    // nothing for as long as it is left open.
-    let trace_publisher = Arc::new(KevyTracePublisher::new(kevy_client.clone()));
-    let event_bus = EventBus::new(1024)
-        .with_publisher(publisher)
-        .with_trace_publisher(trace_publisher);
+    let event_bus = event_bus(&kevy_client, &counters);
 
     let spool_sink: Option<Arc<dyn crate::smtp_session::SpoolSink>> =
         Some(Arc::new(MaildirSpoolSink::new(&cfg.spool_root)));
@@ -259,6 +126,27 @@ pub async fn start() -> Receiver {
     });
 
     crate::listeners::listen(ctx, &cfg).await
+}
+
+/// event bus that publishes cross-process events (SpoolDelivered) to the
+/// shared kevy-server. The receiver only publishes — the core runs the
+/// subscriber bridge.
+fn event_bus(kevy_client: &Arc<KevyNetClient>, counters: &SharedCounters) -> EventBus {
+    spawn_stats_heartbeat(kevy_client.clone(), counters.clone());
+
+    let publisher = Arc::new(KevyEventPublisher::new(
+        kevy_client.clone(),
+        NOTIFY_CHANNEL.to_vec(),
+        process_origin(),
+    ));
+    // Second channel, same mechanism: the SMTP session trace. Without
+    // this the whole protocol trace stops inside this process — the
+    // monitor page in webapi-fc connects, reports "connected", and shows
+    // nothing for as long as it is left open.
+    let trace_publisher = Arc::new(KevyTracePublisher::new(kevy_client.clone()));
+    EventBus::new(1024)
+        .with_publisher(publisher)
+        .with_trace_publisher(trace_publisher)
 }
 
 /// Run the receiver process: [`start`] it and block until a shutdown signal.
