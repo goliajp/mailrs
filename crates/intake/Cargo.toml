@@ -1,0 +1,26 @@
+[package]
+name = "mailrs-intake"
+version = "0.0.0"
+edition = "2024"
+description = "The receiving half both mailrs cores share: the spool lifecycle and wake-up, recipient routing, email-group expansion and mock-address diversion. Each core supplies its directory and its store writes."
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mailrs-core = { path = "../core" }
+mailrs-core-sidestate = { path = "../core-sidestate" }
+mailrs-mock = { path = "../mock" }
+mailrs-srs = { path = "../srs", version = "1" }
+kevy-client = { workspace = true }
+tokio = { version = "1", features = ["sync", "time", "macros"] }
+tracing = "0.1"
+serde_json = { workspace = true }
+base64 = "0.22"
+rand_core = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1", features = ["sync", "time", "macros", "rt"] }

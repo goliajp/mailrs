@@ -14,8 +14,10 @@ use axum::response::{IntoResponse, Response};
 use mailrs_core_api::method::admin::RecipientDeliverableResponse;
 use mailrs_core_sidestate::families::mock;
 
+use mailrs_intake::route::{Route, route};
+
+use super::core::Fastcore;
 use super::deliver::canonical_recipient;
-use super::route::{Route, route};
 use crate::FastcoreState;
 
 pub(crate) async fn recipient_deliverable_route(
@@ -41,13 +43,20 @@ pub(crate) async fn recipient_deliverable_route(
 
 /// Whether the drain would take mail for `raw`. Mock addresses always
 /// are: the mock store takes them, whatever is behind them.
-fn deliverable(state: &FastcoreState, maildir_root: &str, raw: &str) -> io::Result<bool> {
+fn deliverable(state: &Arc<FastcoreState>, maildir_root: &str, raw: &str) -> io::Result<bool> {
     let fwd = canonical_recipient(raw);
     if mock::is_mock(&fwd) {
         return Ok(true);
     }
     Ok(!matches!(
-        route(state, maildir_root, raw, &fwd)?,
+        route(
+            &Fastcore {
+                state,
+                maildir_root
+            },
+            raw,
+            &fwd
+        )?,
         Route::Nobody
     ))
 }

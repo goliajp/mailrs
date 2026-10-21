@@ -3777,6 +3777,7 @@ dependencies = [
  "mailrs-imap-format",
  "mailrs-imap-proto",
  "mailrs-inbound",
+ "mailrs-intake",
  "mailrs-intelligence",
  "mailrs-keywords",
  "mailrs-mailbox-kevy",
@@ -3896,6 +3897,23 @@ dependencies = [
  "metrics",
  "serde",
  "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "mailrs-intake"
+version = "0.0.0"
+dependencies = [
+ "base64 0.22.1",
+ "kevy-client",
+ "mailrs-core",
+ "mailrs-core-sidestate",
+ "mailrs-mock",
+ "mailrs-srs",
+ "rand_core 0.6.4",
+ "serde_json",
+ "tempfile",
  "tokio",
  "tracing",
 ]
@@ -4304,6 +4322,7 @@ dependencies = [
  "mailrs-imap-format",
  "mailrs-imap-proto",
  "mailrs-inbound",
+ "mailrs-intake",
  "mailrs-intelligence",
  "mailrs-jmap",
  "mailrs-mail-builder",

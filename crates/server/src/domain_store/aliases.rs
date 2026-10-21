@@ -212,14 +212,18 @@ impl DomainStore {
     }
 
     /// Resolve a recipient for delivery, through the route the RCPT check
-    /// answers from ([`DomainStore::route_recipient`]), so delivery takes
-    /// mail for exactly the addresses the receiver accepted.
+    /// answers from (`mailrs_intake::route`), so delivery takes mail for
+    /// exactly the addresses the receiver accepted.
     ///
     /// A store that cannot be read delivers to the address itself: the
     /// receiver already accepted the message, and refusing a real recipient
     /// because the database was briefly away is worse than holding mail for
     /// an address nobody reads.
-    pub async fn resolve_recipient(&self, address: &str) -> ResolvedRecipient {
+    pub async fn resolve_recipient(
+        self: &std::sync::Arc<Self>,
+        address: &str,
+    ) -> ResolvedRecipient {
+        use mailrs_intake::route::Route;
         let cache_key = format!("rcpt:{address}");
         if let Some(cached) = self.kevy_get::<CachedResolution>(&cache_key) {
             return cached.into();
@@ -227,18 +231,18 @@ impl DomainStore {
         let maildir_root =
             std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".to_string());
         let net_url = std::env::var("MAILRS_KEVY_URL").ok();
-        let result = match self
-            .route_recipient(address, &maildir_root, net_url.as_deref())
-            .await
-        {
-            Ok(super::recipients::Route::Own(a) | super::recipients::Route::Alias(a)) => {
-                ResolvedRecipient::Account(a)
-            }
-            Ok(super::recipients::Route::Srs(original)) => {
-                ResolvedRecipient::Forward(vec![original])
-            }
-            Ok(super::recipients::Route::Group(members)) => ResolvedRecipient::Group(members),
-            Ok(super::recipients::Route::Nobody) => ResolvedRecipient::Reject,
+        let dir = std::sync::Arc::new(crate::intake::PgDirectory::new(
+            self.clone(),
+            maildir_root,
+            net_url,
+        ));
+        let fwd = address.trim().to_ascii_lowercase();
+        let result = match dir.route(address.to_string()).await {
+            Ok(Route::Own) => ResolvedRecipient::Account(fwd),
+            Ok(Route::Alias(a)) => ResolvedRecipient::Account(a),
+            Ok(Route::Srs(original)) => ResolvedRecipient::Forward(vec![original]),
+            Ok(Route::Group(group)) => ResolvedRecipient::Group(group.members),
+            Ok(Route::Nobody) => ResolvedRecipient::Reject,
             Err(e) => {
                 tracing::warn!(error = %e, address, "recipient lookup failed; delivering to the address");
                 return ResolvedRecipient::Account(address.to_string());

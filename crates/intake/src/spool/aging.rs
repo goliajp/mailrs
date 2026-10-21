@@ -8,11 +8,11 @@
 use std::path::Path;
 use std::time::{Duration, SystemTime};
 
-pub(super) const STALE: Duration = Duration::from_secs(7 * 24 * 3600);
+pub(crate) const STALE: Duration = Duration::from_secs(7 * 24 * 3600);
 
 /// `dir` is the spool directory being drained (`<spool>/incoming/new` or
 /// `cur`). True when the file was moved out of it.
-pub(super) fn set_aside_if_stale(dir: &Path, path: &Path, filename: &str) -> bool {
+pub(crate) fn set_aside_if_stale(dir: &Path, path: &Path, filename: &str) -> bool {
     let Ok(modified) = std::fs::metadata(path).and_then(|m| m.modified()) else {
         return false;
     };

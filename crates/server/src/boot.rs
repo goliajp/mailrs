@@ -208,7 +208,7 @@ pub(crate) async fn run_with_roles(roles: Roles) {
         process_tx,
     });
 
-    background::start_spool_drain(roles, &ctx, &cfg);
+    background::start_spool_drain(roles, &ctx, &cfg, &domain_store);
 
     if roles.smtp {
         spawn_smtp_listeners(&ctx, &cfg, tls_state.is_some(), shutdown_rx.clone()).await;

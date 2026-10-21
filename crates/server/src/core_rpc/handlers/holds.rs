@@ -94,18 +94,21 @@ pub async fn recipient_deliverable(
     Path(address): Path<String>,
 ) -> Result<Json<mailrs_core_api::method::admin::RecipientDeliverableResponse>, StatusCode> {
     let fwd = address.trim().to_ascii_lowercase();
-    let deliverable = mailrs_core_sidestate::families::mock::is_mock(&fwd)
-        || !matches!(
-            state
-                .domain
-                .route_recipient(&address, &state.maildir_root, state.net_url.as_deref())
-                .await
-                .map_err(|e| {
-                    tracing::warn!(error = %e, "recipient check: a store could not be read");
-                    StatusCode::INTERNAL_SERVER_ERROR
-                })?,
-            crate::domain_store::recipients::Route::Nobody
-        );
+    if mailrs_core_sidestate::families::mock::is_mock(&fwd) {
+        return Ok(Json(
+            mailrs_core_api::method::admin::RecipientDeliverableResponse { deliverable: true },
+        ));
+    }
+    let dir = Arc::new(crate::intake::PgDirectory::new(
+        state.domain.clone(),
+        state.maildir_root.clone(),
+        state.net_url.clone(),
+    ));
+    let route = dir.route(address).await.map_err(|e| {
+        tracing::warn!(error = %e, "recipient check: a store could not be read");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    let deliverable = !matches!(route, mailrs_intake::route::Route::Nobody);
     Ok(Json(
         mailrs_core_api::method::admin::RecipientDeliverableResponse { deliverable },
     ))

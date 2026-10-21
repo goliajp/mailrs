@@ -12,11 +12,7 @@
 
 pub use mailrs_receiver::smtp_session::*;
 
-mod consume_spool;
 mod post_delivery;
 mod process_delivered;
-mod spool_reconcile_task;
 
-pub(crate) use consume_spool::SpoolConsumeDeps;
 pub(crate) use process_delivered::{ProcessDeps, spawn_process_consumer};
-pub(crate) use spool_reconcile_task::spawn_spool_consumer;

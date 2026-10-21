@@ -11,7 +11,7 @@ use std::time::Duration;
 use mailrs_core::event_bus::NOTIFY_CHANNEL;
 use tokio::sync::Notify;
 
-pub(super) fn spawn(kevy_url: String, wake: Arc<Notify>) {
+pub(crate) fn spawn(kevy_url: String, wake: Arc<Notify>) {
     const RECONNECT: Duration = Duration::from_secs(1);
     std::thread::Builder::new()
         .name("spool-wake".into())
@@ -37,7 +37,7 @@ pub(super) fn spawn(kevy_url: String, wake: Arc<Notify>) {
 /// Whether a frame on the channel says a message was spooled. The frame
 /// comes from another process, so anything else, or anything malformed,
 /// is not.
-fn is_spool_delivered(payload: &[u8]) -> bool {
+pub fn is_spool_delivered(payload: &[u8]) -> bool {
     serde_json::from_slice::<serde_json::Value>(payload)
         .ok()
         .and_then(|v| {
