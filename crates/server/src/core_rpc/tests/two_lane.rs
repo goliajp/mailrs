@@ -157,11 +157,7 @@ async fn walk(c: &Client, page_size: u32) -> Vec<String> {
 /// same score, so excluding it only narrowed the comparison. That is the test
 /// doing its job — an exclusion nobody rechecks is how a comparison quietly
 /// stops covering a field.
-const LEGITIMATE_DIFFS: &[(&str, &str)] = &[(
-    "importance_level",
-    "the heuristic scorer only ever ran on the kevy lane — `calculate_importance` \
-         has no caller in the SQL core, so this side reports the default",
-)];
+const LEGITIMATE_DIFFS: &[(&str, &str)] = &[];
 
 /// Every field of the wire row, as `(name, rendered value)`.
 ///
@@ -333,37 +329,7 @@ async fn per_user_state_agrees_after_mutation() {
 
     let (k, p) = (page(&kevy, 100, None).await, page(&pg, 100, None).await);
 
-    // `mark_thread_unread` means two different things, and both are defensible,
-    // so this pins the difference rather than hiding it or changing a lane to
-    // match the other.
-    //
-    //   kevy raises `unread_count` to *at least* 1 — "there is unread here",
-    //   a marker on the denormalised thread row (mutations.rs:154).
-    //   the SQL lane clears `\Seen` on every message in the thread, so the
-    //   aggregate counts them all.
-    //
-    // On a 2-message thread the reader sees "1 unread" on one core and "2
-    // unread" on the other. Aligning the SQL lane to the counter would leave
-    // its own `messages.flags` disagreeing with its thread summary, which is
-    // worse than the difference; aligning kevy is a change to shipped
-    // production behaviour that nobody asked for. So: asserted, both sides, and
-    // this fails the moment either changes.
-    let unread_of = |rows: &[ConversationSummaryWire], tid: &str| {
-        rows.iter()
-            .find(|r| r.thread_id == tid)
-            .map(|r| r.unread_count)
-    };
-    assert_eq!(unread_of(&k, "tl-4@test"), Some(1), "kevy marks the thread");
-    assert_eq!(
-        unread_of(&p, "tl-4@test"),
-        Some(2),
-        "the SQL lane marks each message"
-    );
-
-    let d: Vec<String> = diffs(&k, &p, "after mutations")
-        .into_iter()
-        .filter(|line| !line.contains("tl-4@test .unread_count"))
-        .collect();
+    let d = diffs(&k, &p, "after mutations");
     assert!(
         d.is_empty(),
         "per-user state diverged after identical mutations:\n   {}",
