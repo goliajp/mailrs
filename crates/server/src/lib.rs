@@ -26,6 +26,7 @@ mod ldap_auth {
 mod imap_session;
 pub mod inbound;
 mod inline_image;
+mod intake;
 /// re-export shim: the generic TCP listener template moved to
 /// mailrs-receiver (P6-S5) so the receiver binary can bind its SMTP
 /// listeners. server's imap/pop3/web/managesieve listeners use it via this.
@@ -40,7 +41,6 @@ mod pg;
 #[cfg(feature = "core-rpc")]
 mod pg_core_boot;
 mod pop3_session;
-mod quota_store;
 mod rbl_monitor;
 mod reconcile_task;
 mod reputation;

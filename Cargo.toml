@@ -80,6 +80,7 @@ members = [
     "crates/alias-store",
     "crates/apns",
     "crates/alias-store-net",
+    "crates/intake",
 ]
 
 [workspace.dependencies]

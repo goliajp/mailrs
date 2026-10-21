@@ -22,11 +22,9 @@ spg = [
     "mailrs-shield/spg",
     "mailrs-dmarc/spg",
 ]
-# Experimental: expose the mailrs-core-api wire surface from this monolith
-# so webapi/sender clients can talk to it as if it were the eventual
-# `mailrs-core` binary. Default OFF — production builds (without this
-# feature) are byte-identical to the pre-Phase-2 monolith.
-core-rpc = ["dep:mailrs-core-api", "dep:mailrs-core-sidestate"]
+# Serve the mailrs-core-api contract, so the web tier can use this process
+# in place of mailrs-fastcore (`mailrs-pg-core`). Off by default.
+core-rpc = ["dep:mailrs-core-api"]
 
 [dependencies]
 mailrs-smtp-proto = { path = "../smtp-proto", version = "1" }
@@ -68,7 +66,8 @@ mailrs-alias-store = { path = "../alias-store" }
 mailrs-alias-store-net = { path = "../alias-store-net" }
 # Optional — pulled in by the `core-rpc` feature only.
 mailrs-core-api = { path = "../core-api", optional = true, features = ["server"] }
-mailrs-core-sidestate = { path = "../core-sidestate", optional = true }
+mailrs-core-sidestate = { path = "../core-sidestate" }
+mailrs-intake = { path = "../intake" }
 mailrs-jmap = { path = "../jmap", version = "1" }
 mailrs-dav = { path = "../dav", version = "1" }
 async-trait = "0.1"
@@ -84,7 +83,6 @@ mailrs-rfc5322 = { path = "../rfc5322", version = "1" }
 mailrs-rfc2047 = { path = "../rfc2047", version = "1" }
 mailrs-mail-builder = { path = "../mail-builder", version = "1" }
 mailrs-auth-guard = { path = "../auth-guard", version = "2" }
-mailrs-srs = { path = "../srs", version = "1" }
 mailrs-rfc2231 = { path = "../rfc2231", version = "1" }
 mailrs-webhook-signature = { path = "../webhook-signature", version = "1" }
 mailrs-clamav = { path = "../clamav", version = "1" }
@@ -94,7 +92,6 @@ mailrs-acme = { path = "../acme", version = "1" }
 mailrs-spf = { path = "../spf", version = "2" }
 mailrs-dkim = { path = "../dkim", version = "3" }
 mailrs-arc = { path = "../arc", version = "3" }
-mailrs-arf = { path = "../arf", version = "1" }
 mailrs-tls-rpt = { path = "../tls-rpt", version = "1" }
 mailrs-mime = { path = "../mime", version = "2" }
 metrics = "0.24"

@@ -289,51 +289,6 @@ pub(crate) async fn deliver_message(
     .into_response()
 }
 
-/// Queue a delivery for every subscription that admits this message.
-///
-/// Best-effort by design: a webhook that cannot be queued must not fail the
-/// delivery of the mail itself. Failures are logged rather than swallowed,
-/// which is the difference between this and the class of silence the
-/// 2026-07-30 audit was about.
-pub(crate) fn enqueue_webhooks_for_arrival(
-    state: &Arc<FastcoreState>,
-    user: &str,
-    thread_id: &str,
-    sender: &str,
-    subject: &str,
-) {
-    use mailrs_core_sidestate::families::{webhook_outbox, webhooks};
-
-    let Some(mut conn) = state.net_conn() else {
-        return;
-    };
-    let subs = match webhooks::matching(&mut conn, user, sender, thread_id) {
-        Ok(s) => s,
-        Err(e) => {
-            tracing::warn!(err = %e, %user, "webhook: could not read subscriptions");
-            return;
-        }
-    };
-    if subs.is_empty() {
-        return;
-    }
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0);
-    let timestamp = chrono::DateTime::from_timestamp(now, 0)
-        .map(|t| t.to_rfc3339())
-        .unwrap_or_default();
-    let payload =
-        webhooks::new_message_payload(user, thread_id, sender, subject, "", &timestamp).to_string();
-    for sub in subs {
-        match webhook_outbox::enqueue(&mut conn, sub.id, user, &payload, now) {
-            Ok(id) => tracing::info!(entry = id, subscription = sub.id, "webhook queued"),
-            Err(e) => tracing::warn!(err = %e, subscription = sub.id, "webhook: enqueue failed"),
-        }
-    }
-}
-
 /// `POST /v1/users/{user}/messages/{uid}/flags` — patch the flags
 /// bitmask on a message blob. Also reconciles the thread's `has_unread`
 /// zset via `mark_seen` / `mark_unread` when `\Seen` toggled.

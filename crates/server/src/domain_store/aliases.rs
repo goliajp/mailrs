@@ -1,7 +1,6 @@
-//! Alias CRUD + recipient resolution (account → alias
-//! → catch-all → reject). Includes `resolve_recipient`.
+//! Alias CRUD.
 
-use super::{Alias, CachedResolution, DomainStore, ResolvedRecipient, Result};
+use super::{Alias, DomainStore, Result};
 
 /// Stable i64 id derived from an alias source address. Matches the
 /// `alias_id` helper in `fastcore/src/routes/mail_admin.rs` so
@@ -86,7 +85,6 @@ impl DomainStore {
                 .await
                 .map_err(|_| super::StoreError::Unavailable)?
                 .map_err(|_| super::StoreError::Unavailable)?;
-            self.kevy_del(&format!("rcpt:{source}"));
             let _ = domain;
             let _ = alias_type; // trait has no type; monolith only writes plain aliases
             return Ok(alias_id_of(source));
@@ -104,7 +102,6 @@ impl DomainStore {
         .fetch_one(pool)
         .await?;
         // invalidate recipient cache
-        self.kevy_del(&format!("rcpt:{source}"));
         Ok(row.0)
     }
 
@@ -128,26 +125,14 @@ impl DomainStore {
                 .await
                 .map_err(|_| super::StoreError::Unavailable)?
                 .map_err(|_| super::StoreError::Unavailable)?;
-            self.kevy_del(&format!("rcpt:{source}"));
             return Ok(removed);
         }
 
         let pool = self.pg()?;
-        // get source_address before deleting for cache invalidation
-        let source =
-            sqlx::query_as::<_, (String,)>("SELECT source_address FROM aliases WHERE id = $1")
-                .bind(id)
-                .fetch_optional(pool)
-                .await?;
-
         let res = sqlx::query("DELETE FROM aliases WHERE id = $1")
             .bind(id)
             .execute(pool)
             .await?;
-
-        if let Some((source_addr,)) = source {
-            self.kevy_del(&format!("rcpt:{source_addr}"));
-        }
         Ok(res.rows_affected() > 0)
     }
 
@@ -165,7 +150,6 @@ impl DomainStore {
                 .await
                 .map_err(|_| super::StoreError::Unavailable)?
                 .map_err(|_| super::StoreError::Unavailable)?;
-            self.kevy_del(&format!("rcpt:{source}"));
             return Ok(());
         }
         let pool = self.pg()?;
@@ -187,7 +171,6 @@ impl DomainStore {
         .execute(&mut *tx)
         .await?;
         tx.commit().await?;
-        self.kevy_del(&format!("rcpt:{source}"));
         Ok(())
     }
 
@@ -199,7 +182,6 @@ impl DomainStore {
                 .await
                 .map_err(|_| super::StoreError::Unavailable)?
                 .map_err(|_| super::StoreError::Unavailable)?;
-            self.kevy_del(&format!("rcpt:{source}"));
             return Ok(removed);
         }
         let pool = self.pg()?;
@@ -207,45 +189,6 @@ impl DomainStore {
             .bind(source)
             .execute(pool)
             .await?;
-        self.kevy_del(&format!("rcpt:{source}"));
         Ok(res.rows_affected() > 0)
-    }
-
-    /// Resolve a recipient for delivery, through the route the RCPT check
-    /// answers from ([`DomainStore::route_recipient`]), so delivery takes
-    /// mail for exactly the addresses the receiver accepted.
-    ///
-    /// A store that cannot be read delivers to the address itself: the
-    /// receiver already accepted the message, and refusing a real recipient
-    /// because the database was briefly away is worse than holding mail for
-    /// an address nobody reads.
-    pub async fn resolve_recipient(&self, address: &str) -> ResolvedRecipient {
-        let cache_key = format!("rcpt:{address}");
-        if let Some(cached) = self.kevy_get::<CachedResolution>(&cache_key) {
-            return cached.into();
-        }
-        let maildir_root =
-            std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".to_string());
-        let net_url = std::env::var("MAILRS_KEVY_URL").ok();
-        let result = match self
-            .route_recipient(address, &maildir_root, net_url.as_deref())
-            .await
-        {
-            Ok(super::recipients::Route::Own(a) | super::recipients::Route::Alias(a)) => {
-                ResolvedRecipient::Account(a)
-            }
-            Ok(super::recipients::Route::Srs(original)) => {
-                ResolvedRecipient::Forward(vec![original])
-            }
-            Ok(super::recipients::Route::Group(members)) => ResolvedRecipient::Group(members),
-            Ok(super::recipients::Route::Nobody) => ResolvedRecipient::Reject,
-            Err(e) => {
-                tracing::warn!(error = %e, address, "recipient lookup failed; delivering to the address");
-                return ResolvedRecipient::Account(address.to_string());
-            }
-        };
-        let cacheable: CachedResolution = (&result).into();
-        self.kevy_set(&cache_key, &cacheable, 300);
-        result
     }
 }

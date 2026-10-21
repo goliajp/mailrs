@@ -12,7 +12,6 @@
 pub mod event;
 pub mod feed;
 pub mod feed_worker;
-pub mod reconcile;
 
 pub use event::{
     CalendarEventRow, delete_by_uid, find_by_uid, find_conflicts, upsert_from_parsed_invite,

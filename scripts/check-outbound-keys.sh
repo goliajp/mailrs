@@ -7,12 +7,8 @@
 #   OUTBOUND — every crate that needs these can import them, so spelling one
 #   at all is the error.
 #
-#   SIEVE — `mailrs-core-sidestate` is an OPTIONAL dependency of
-#   `mailrs-server` (gated on `core-rpc`), so the unconditional code there
-#   cannot import from it, and making the dep unconditional would change the
-#   dependency graph of an artifact meant to be unaffected by the feature. Two
-#   definitions are therefore unavoidable — so what is checked is that every
-#   spelling in the tree is byte-identical.
+#   SIEVE — every spelling in the tree must be byte-identical; crates that
+#   can import `mailrs_core_sidestate::sieve_key` do.
 #
 # Both exist because agreement is not the same as having one definition. The
 # outbound half of this script found eight more hand-spelled copies the day it

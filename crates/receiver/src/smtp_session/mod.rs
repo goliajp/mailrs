@@ -21,16 +21,13 @@ use mailrs_smtp_codec::{SmtpCodec, SmuggleProtection};
 
 use crate::AccountStore;
 use crate::ConnectionMetrics;
-use crate::QuotaStore;
 use crate::inbound::auth_guard::AuthGuardStore;
 use crate::inbound::rate_limit::RateLimitStore;
 use mailrs_core::users::UserStore;
-use mailrs_outbound_queue::{Notifier, QueueStore};
 use mailrs_tls_reload::TlsState;
 
 pub struct ConnectionContext {
     pub hostname: String,
-    pub maildir_root: String,
     pub tls_state: Option<TlsState>,
     pub users: Arc<UserStore>,
     pub event_bus: EventBus,
@@ -45,43 +42,24 @@ pub struct ConnectionContext {
     pub org_names: Vec<String>,
     /// Domains allowed to carry that name.
     pub org_name_allowed_domains: Vec<String>,
-    /// Outbound enqueue seam for the receiving path: relay recipients,
-    /// sieve redirect/vacation copies, and FBL suppression. Abstracted as
-    /// [`QueueStore`] so the receiver enqueues without binding the spg
-    /// `BackendPool` — the in-process [`mailrs_outbound_queue::PgQueueStore`]
-    /// today, a network store in the receiver-split topology. `None` when
-    /// no outbound queue is configured (degraded mode / tests).
-    pub outbound_enqueue: Option<Arc<dyn QueueStore>>,
     pub resolver: Option<Arc<TokioResolver>>,
     pub dnsbl_zones: Vec<String>,
     pub dnsbl_enabled: bool,
     /// `true` when the SPF/DKIM/ARC/DMARC + content-scan pipeline
     /// should run on inbound mail. Mirrors `cfg.antispam_enabled`.
     pub antispam_enabled: bool,
-    /// Receiver-facing storage-usage lookup for quota enforcement.
-    /// Abstracted as [`QuotaStore`] so the receiver doesn't bind the
-    /// spg-backed `PgMailboxStore` — the quota *limit* comes from
-    /// [`AccountStore::quota`], this supplies the *usage*.
-    pub quota_store: Option<Arc<dyn QuotaStore>>,
     pub smuggle_protection: SmuggleProtection,
     pub auth_guard: Arc<dyn AuthGuardStore>,
-    /// Receiver-facing account / recipient lookups: resolution, submission
-    /// auth, sieve / vacation / quota. Abstracted as [`AccountStore`] so the
-    /// receiver doesn't bind the spg-backed `DomainStore` — in-process today,
-    /// network-backed in the receiver-split topology.
+    /// Submission auth against the in-process domain store. Abstracted as
+    /// [`AccountStore`] so the receiver doesn't bind the spg-backed
+    /// `DomainStore`. `None` in the receiver binary, which has
+    /// `credential_store`.
     pub account_store: Option<Arc<dyn AccountStore>>,
     /// Account password hashes held by the core, for submission auth in
     /// the split topology. `None` in the monolith, which has `account_store`.
     pub credential_store: Option<Arc<dyn crate::CredentialStore>>,
     /// Asked at RCPT whether a local recipient exists; `None` accepts all.
     pub recipient_check: Option<crate::RecipientCheck>,
-    /// Wakes the outbound delivery worker after the receiving path
-    /// enqueues relay / sieve-redirect / vacation mail. Abstracted as a
-    /// trait so the receiver doesn't bind the in-process kevy store —
-    /// the in-process [`mailrs_outbound_queue::KevyNotifier`] today, a
-    /// network notifier in the receiver-split topology.
-    pub queue_notifier: Option<Arc<dyn Notifier>>,
-    pub srs_secret: Option<String>,
     pub ldap_config: Option<Arc<mailrs_core::ldap_auth::LdapConfig>>,
     pub inbound_pipeline: mailrs_inbound::Pipeline,
     /// Shared kevy sidecar handle for per-recipient whitelist /
@@ -91,65 +69,20 @@ pub struct ConnectionContext {
     /// when a kevy sidecar isn't configured — the pipeline then
     /// sees empty sets and behaves identically to pre-Phase-3.
     pub spam_lists_client: Option<Arc<crate::kevy_net::KevyNetClient>>,
-    /// Group-commit delivery executor. Accumulates per-path
-    /// Maildir deliveries from concurrent SMTP sessions and flushes
-    /// them as a single `deliver_batch` call — see
-    /// [`mailrs_delivery_executor`] for tuning + rationale.
-    pub delivery_executor: mailrs_delivery_executor::DeliveryExecutor,
-    /// Sender to the single post-delivery consumer (S1.4). The DATA handler
-    /// try_sends delivered messages here so maildir write stays synchronous
-    /// while indexing + the post-delivery pass run off the hot path.
-    pub process_tx: delivered::ProcessTx,
-    /// P6 receiver/core split: when set (the receiver binary), the DATA handler
-    /// writes the accepted message to the spool via this sink and emits a
-    /// `SpoolDelivered` notify instead of resolving + delivering inline. `None`
-    /// (the monolith / tests) keeps the inline `process_tx` delivery path.
-    pub spool_sink: Option<Arc<dyn spool_sink::SpoolSink>>,
-}
-
-/// The subset of delivery dependencies the recipient-resolution / sieve /
-/// relay helpers need — borrowed from either a `ConnectionContext` (monolith)
-/// or the core spool consumer (split). Decoupling these helpers from the full
-/// `ConnectionContext` lets the core consume a spool file and run the same
-/// resolve/sieve/relay path the receiver used to run inline (P6-S7).
-pub struct DeliveryDeps<'a> {
-    pub local_domains: &'a [String],
-    pub account_store: &'a Option<Arc<dyn AccountStore>>,
-    pub outbound_enqueue: &'a Option<Arc<dyn QueueStore>>,
-    pub queue_notifier: &'a Option<Arc<dyn Notifier>>,
-    pub event_bus: &'a EventBus,
-    pub hostname: &'a str,
-    pub srs_secret: &'a Option<String>,
-}
-
-impl ConnectionContext {
-    /// Borrow the delivery-relevant fields for the resolve/sieve/relay helpers.
-    pub fn delivery_deps<'a>(&'a self, local_domains: &'a [String]) -> DeliveryDeps<'a> {
-        DeliveryDeps {
-            local_domains,
-            account_store: &self.account_store,
-            outbound_enqueue: &self.outbound_enqueue,
-            queue_notifier: &self.queue_notifier,
-            event_bus: &self.event_bus,
-            hostname: &self.hostname,
-            srs_secret: &self.srs_secret,
-        }
-    }
+    /// Where DATA writes each accepted message, for a core to deliver; the
+    /// receiver resolves and delivers nothing itself.
+    pub spool_sink: Arc<dyn spool_sink::SpoolSink>,
 }
 
 mod address;
 mod admission;
 mod auth;
 pub(crate) mod credentials;
-pub mod delivered;
-pub mod delivery;
 mod drive;
 mod events;
-pub mod headers;
+mod headers;
 pub mod spool_sink;
-mod srs;
 
-pub use delivered::{DeliveredMessage, ProcessTx};
 pub use spool_sink::SpoolSink;
 
 use drive::drive_session;

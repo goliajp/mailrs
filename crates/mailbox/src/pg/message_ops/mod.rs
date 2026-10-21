@@ -1,6 +1,7 @@
 //! Per-message operations on [`crate::pg::PgMailboxStore`].
 //!
 //! Sub-modules:
+//! - [`arrival`] — a delivered message's row and the facts beside it.
 //! - [`index`] — single-message and batch insertion paths
 //!   (`index_message`, `index_messages_batch`, `append_message`).
 //! - [`read`] — lookup/list queries (`list_messages`, `get_message`,
@@ -10,10 +11,13 @@
 //!   `move_message`, `update_message_content`, `update_bimi_logo`,
 //!   `update_invite_payload`).
 
+mod arrival;
 mod index;
 mod mutate;
 mod read;
 mod uids;
+
+pub use arrival::ArrivalFacts;
 
 /// A single delivery's metadata as input to [`crate::pg::PgMailboxStore::index_messages_batch`].
 ///

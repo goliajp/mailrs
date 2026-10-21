@@ -2,17 +2,14 @@
 //!
 //! Drives a real SMTP DATA delivery over TCP against the *production*
 //! `handle_plain_connection` — wired through a genuine `ConnectionContext`
-//! by `mailrs_server::test_support::spawn_receiving_server` — and asserts
-//! the full local-delivery chain that P1–P3 of the receiver decoupling
-//! will refactor:
+//! by `mailrs_server::test_support::spawn_receiving_server`, which spools
+//! accepted mail and runs this core's drain — and asserts the local-delivery
+//! chain:
 //!   * maildir file written,
 //!   * `messages` row indexed (sender / subject / thread / maildir_id),
-//!   * `NewMessage` + `MessageDelivered` events emitted,
-//!   * async `post_delivery` side effects (content extraction) applied,
-//!   * iTIP invite projected onto `invite_payload` + `InviteReceived`.
-//!
-//! This is the "behavior unchanged" guardrail: it must stay green on the
-//! unchanged tree and after every receiver-decouple step.
+//!   * the in-process `NewMessage` event emitted,
+//!   * content extraction applied,
+//!   * iTIP invite projected onto `invite_payload`.
 //!
 //! PG axis only: the spg axis flips `BackendPool` to `SpgPool`, which the
 //! `sqlx::PgPool` testcontainer fixture here does not match. The spg axis
@@ -128,12 +125,12 @@ async fn send_dot_terminated(writer: &mut OwnedWriteHalf, body: &[u8]) {
 }
 
 /// Scan the broadcast stream for the first event matching `pred`,
-/// panicking if none arrives within 5 s.
+/// panicking if none arrives within 10 s (the drain ticks every second).
 async fn wait_for_event<F>(rx: &mut Receiver<Arc<BroadcastEvent>>, pred: F) -> SmtpEvent
 where
     F: Fn(&SmtpEvent) -> bool,
 {
-    let deadline = Instant::now() + Duration::from_secs(5);
+    let deadline = Instant::now() + Duration::from_secs(10);
     loop {
         let remaining = deadline.saturating_duration_since(Instant::now());
         match tokio::time::timeout(remaining, rx.recv()).await {
@@ -178,15 +175,19 @@ async fn deliver(port: u16, mail_from: &str, rcpt: &str, body: &[u8]) {
 }
 
 #[tokio::test]
-async fn receiving_normal_mail_indexes_post_delivery_and_events() {
+async fn receiving_normal_mail_is_indexed_and_announced() {
     let (_container, pool) = setup_pg().await;
     seed_account(&pool, USER).await;
 
     let tmp = tempfile::tempdir().unwrap();
+    let spool = tempfile::tempdir().unwrap();
     let maildir_root = tmp.path().to_str().unwrap().to_string();
-    let (port, bus) =
-        mailrs_server::test_support::spawn_receiving_server(pool.clone(), maildir_root.clone())
-            .await;
+    let (port, bus) = mailrs_server::test_support::spawn_receiving_server(
+        pool.clone(),
+        maildir_root.clone(),
+        spool.path().to_str().unwrap().to_string(),
+    )
+    .await;
     let mut rx = bus.subscribe();
 
     let msg = b"From: Bob Sender <bob@external.com>\r\n\
@@ -198,35 +199,15 @@ hello world from the baseline test\r\n";
     let delivery_started = Instant::now();
     deliver(port, "bob@external.com", USER, msg).await;
 
-    // Post-delivery is async (S1.4): NewMessage comes from the consumer
-    // task while MessageDelivered comes from the DATA handler, so the two
-    // can arrive in either order — gather both without assuming order.
-    let mut new_message: Option<SmtpEvent> = None;
-    let mut new_message_latency: Option<Duration> = None;
-    let mut saw_delivered = false;
-    let deadline = Instant::now() + Duration::from_secs(5);
-    while new_message.is_none() || !saw_delivered {
-        let remaining = deadline.saturating_duration_since(Instant::now());
-        match tokio::time::timeout(remaining, rx.recv()).await {
-            Ok(Ok(ev)) => match &ev.event {
-                SmtpEvent::NewMessage { .. } => {
-                    new_message = Some(ev.event.clone());
-                    new_message_latency = Some(delivery_started.elapsed());
-                }
-                SmtpEvent::MessageDelivered { .. } => saw_delivered = true,
-                _ => {}
-            },
-            Ok(Err(e)) => panic!("event channel error: {e}"),
-            Err(_) => panic!("timed out waiting for NewMessage + MessageDelivered"),
-        }
-    }
+    let new_message = wait_for_event(&mut rx, |e| matches!(e, SmtpEvent::NewMessage { .. })).await;
+    let latency = delivery_started.elapsed();
     let SmtpEvent::NewMessage {
         user,
         subject,
         sender,
         thread_id,
         ..
-    } = new_message.unwrap()
+    } = new_message
     else {
         unreachable!()
     };
@@ -235,9 +216,8 @@ hello world from the baseline test\r\n";
     assert!(sender.contains("bob@external.com"), "sender: {sender}");
     assert!(!thread_id.is_empty(), "thread resolved");
 
-    // S2.3 stall detector: delivery -> NewMessage must arrive even though
-    // post-delivery is async. It catches a wedged consumer or a degraded
-    // backpressure path — **not** micro perf, as the original note said.
+    // Stall detector: delivery -> NewMessage must arrive. It catches a
+    // wedged drain — **not** micro perf.
     //
     // The ceiling was 2 s against an actual of tens of ms, which read as
     // generous until you notice what it is generous *against*. It is a
@@ -250,7 +230,6 @@ hello world from the baseline test\r\n";
     // 10 s is still 300x the observed span, so a stall — which means
     // "never" or "many seconds" — trips it exactly as before, while
     // machine load does not.
-    let latency = new_message_latency.expect("NewMessage observed");
     assert!(
         latency < Duration::from_secs(10),
         "delivery->NewMessage stalled: {latency:?}"
@@ -283,7 +262,7 @@ hello world from the baseline test\r\n";
     let file_count = std::fs::read_dir(&new_dir).map(|d| d.count()).unwrap_or(0);
     assert!(file_count >= 1, "delivered file in {new_dir}");
 
-    // async post_delivery ran: content extraction populated clean_text
+    // content extraction populated clean_text
     let deadline = Instant::now() + Duration::from_secs(10);
     loop {
         let clean: Option<String> = sqlx::query_scalar(
@@ -299,7 +278,7 @@ hello world from the baseline test\r\n";
         }
         assert!(
             Instant::now() < deadline,
-            "post_delivery never populated clean_text"
+            "delivery never populated clean_text"
         );
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
@@ -311,20 +290,24 @@ async fn receiving_itip_request_projects_invite_payload() {
     seed_account(&pool, USER).await;
 
     let tmp = tempfile::tempdir().unwrap();
+    let spool = tempfile::tempdir().unwrap();
     let maildir_root = tmp.path().to_str().unwrap().to_string();
-    let (port, bus) =
-        mailrs_server::test_support::spawn_receiving_server(pool.clone(), maildir_root).await;
+    let (port, bus) = mailrs_server::test_support::spawn_receiving_server(
+        pool.clone(),
+        maildir_root,
+        spool.path().to_str().unwrap().to_string(),
+    )
+    .await;
     let mut rx = bus.subscribe();
 
     // deliver the known-good iTIP REQUEST to alice (envelope-routed)
     deliver(port, "organizer@gmail.com", USER, ITIP_REQUEST).await;
 
-    let invite = wait_for_event(&mut rx, |e| matches!(e, SmtpEvent::InviteReceived { .. })).await;
-    let SmtpEvent::InviteReceived { user, method, .. } = invite else {
+    let arrived = wait_for_event(&mut rx, |e| matches!(e, SmtpEvent::NewMessage { .. })).await;
+    let SmtpEvent::NewMessage { user, .. } = arrived else {
         unreachable!()
     };
     assert_eq!(user, USER);
-    assert_eq!(method, "REQUEST");
 
     // invite projected onto the message row
     let (has_payload, invite_method): (bool, Option<String>) = sqlx::query_as(

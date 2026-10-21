@@ -47,67 +47,64 @@ pub(super) fn start_greylist_whitelist_sync(
     greylist_whitelist
 }
 
-pub(super) fn spawn_post_delivery_consumer(
-    cfg: &ServerConfig,
-    mailbox_store: &Option<Arc<PgMailboxStore>>,
-    event_bus: &EventBus,
-    outbound_queue: &Option<pg::BackendPool>,
-    resolver: &Option<Arc<hickory_resolver::TokioResolver>>,
-) -> smtp_session::ProcessTx {
-    // single post-delivery consumer (S1.4 + P5): DATA handlers hand
-    // delivered messages here so maildir write stays on the hot path. The
-    // core-side deps (mailbox store, event bus, calendar pool, resolver)
-    // live with the consumer, not the receiver — only a plain
-    // `DeliveredMessage` crosses the channel. `None` deps = degraded mode
-    // (no mailbox store): the consumer drains and drops, reconcile indexes.
-    let process_deps = mailbox_store.clone().map(|mb| {
-        Arc::new(crate::smtp_session::ProcessDeps {
-            mailbox_store: mb,
-            event_bus: event_bus.clone(),
-            outbound_queue: outbound_queue.clone(),
-            resolver: resolver.clone(),
-            maildir_root: cfg.maildir_root.clone(),
-            kevy_url: std::env::var("MAILRS_KEVY_URL")
-                .ok()
-                .filter(|s| !s.is_empty()),
-        })
-    });
-    crate::smtp_session::spawn_process_consumer(process_deps)
+/// The spool the SMTP side writes to and the drain reads.
+pub(super) fn spool_root(cfg: &ServerConfig) -> String {
+    std::env::var("MAILRS_SPOOL_ROOT").unwrap_or_else(|_| format!("{}/.spool", cfg.maildir_root))
 }
 
-pub(super) fn start_spool_drain(roles: Roles, ctx: &Arc<ConnectionContext>, cfg: &ServerConfig) {
-    // P6 split: when this core runs as the consumer half
-    // (MAILRS_RECEIVER_SPLIT), also drain the spool the receiver process
-    // writes to — consume spool files (SpoolDelivered notify + reconcile
-    // sweep) and run the same resolve/sieve/deliver/relay path, handing each
-    // local delivery to the existing post-delivery consumer over a cloned
-    // process_tx. Opt-in; the monolith (flag unset) is unchanged.
+pub(super) fn start_spool_drain(
+    roles: Roles,
+    ctx: &Arc<ConnectionContext>,
+    cfg: &ServerConfig,
+    domain_store: &Option<Arc<domain_store::DomainStore>>,
+    mailbox_store: &Option<Arc<PgMailboxStore>>,
+) {
+    // When this core runs as the consumer half (MAILRS_RECEIVER_SPLIT, or
+    // the peer role), drain the spool the receiver process writes to.
     if roles.spool_drain
         || std::env::var("MAILRS_RECEIVER_SPLIT")
             .map(|v| v != "0" && v.to_lowercase() != "false")
             .unwrap_or(false)
     {
-        let spool_root = std::env::var("MAILRS_SPOOL_ROOT")
-            .unwrap_or_else(|_| format!("{}/.spool", cfg.maildir_root));
-        let spool_deps = Arc::new(smtp_session::SpoolConsumeDeps {
-            spool_incoming_path: format!("{spool_root}/incoming"),
-            spool_store: crate::message_store::default_store(),
-            delivery_executor: mailrs_delivery_executor::DeliveryExecutor::spawn(),
-            process_tx: ctx.process_tx.clone(),
-            account_store: ctx.account_store.clone(),
-            quota_store: ctx.quota_store.clone(),
-            outbound_enqueue: ctx.outbound_enqueue.clone(),
-            queue_notifier: ctx.queue_notifier.clone(),
-            event_bus: ctx.event_bus.clone(),
-            hostname: cfg.hostname.clone(),
-            srs_secret: cfg.srs_secret.clone(),
-            local_domains: cfg.local_domains.clone(),
-            maildir_root: cfg.maildir_root.clone(),
-            in_flight: Arc::new(dashmap::DashMap::new()),
-        });
-        smtp_session::spawn_spool_consumer(spool_deps, ctx.event_bus.clone(), 30);
-        tracing::info!("core spool consumer started — arrivals index into this backend");
+        spawn_spool_drain(ctx, cfg, domain_store, mailbox_store);
     }
+}
+
+fn spawn_spool_drain(
+    ctx: &Arc<ConnectionContext>,
+    cfg: &ServerConfig,
+    domain_store: &Option<Arc<domain_store::DomainStore>>,
+    mailbox_store: &Option<Arc<PgMailboxStore>>,
+) {
+    let (Some(domain), Some(mailbox)) = (domain_store.clone(), mailbox_store.clone()) else {
+        tracing::error!("no database: the spool cannot be routed and is not drained");
+        return;
+    };
+    let spool_root = spool_root(cfg);
+    let net_url = std::env::var("MAILRS_KEVY_URL")
+        .ok()
+        .filter(|s| !s.is_empty());
+    let core = Arc::new(crate::intake::PgCore {
+        dir: crate::intake::PgDirectory::new(domain, cfg.maildir_root.clone(), net_url),
+        mailbox,
+        event_bus: ctx.event_bus.clone(),
+    });
+    // the drain queues webhooks for arriving mail on the network kevy; this
+    // core sends them, as the kevy core does
+    if let Some(url) = core.dir.net_url.clone() {
+        let net = url.clone();
+        tokio::spawn(mailrs_intake::webhook_delivery::run(Arc::new(move || {
+            kevy_client::Connection::connect(&net).ok()
+        })));
+        // DSNs from the sender and simulated replies for local senders are
+        // handed over on the network kevy; this core delivers them
+        mailrs_intake::notice::spawn_drain(core.clone(), url);
+    }
+    crate::intake::spawn_drain(
+        core,
+        std::path::Path::new(&spool_root),
+        std::time::Duration::from_secs(15),
+    );
 }
 
 pub(super) fn spawn_snooze_wake(mailbox_store: &Option<Arc<PgMailboxStore>>) {
