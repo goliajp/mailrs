@@ -4,7 +4,7 @@
 //! response via [`DavError::to_dav_response`], so server-side wiring code can
 //! blanket-convert handler errors without inspecting them.
 
-use crate::xml::DavResponse;
+use crate::xml::{DavResponse, xml_escape};
 
 /// Errors a DAV handler can return.
 ///
@@ -23,6 +23,10 @@ pub enum DavError {
     BadRequest(String),
     /// 409 — server-side semantic conflict (e.g. parent collection missing).
     Conflict,
+    /// 403 with the CalDAV `no-uid-conflict` precondition (RFC 4791
+    /// §5.3.2.1): the PUT body's `UID` already belongs to another resource
+    /// in the collection, whose href this carries.
+    UidConflict(String),
     /// 412 — `If-Match` / `If-None-Match` precondition failed.
     PreconditionFailed,
     /// 405 — verb not allowed on this resource.
@@ -39,12 +43,24 @@ impl DavError {
     /// Bodies are short, plain-text, ASCII; suitable as a fallback when the
     /// server-side adapter doesn't want to do custom error formatting.
     pub fn to_dav_response(&self) -> DavResponse {
+        if let DavError::UidConflict(href) = self {
+            let body = format!(
+                "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n\
+                 <D:error xmlns:D=\"DAV:\" xmlns:C=\"urn:ietf:params:xml:ns:caldav\">\
+                 <C:no-uid-conflict><D:href>{}</D:href></C:no-uid-conflict></D:error>\n",
+                xml_escape(href)
+            );
+            return DavResponse::new(403)
+                .with_header("content-type", "application/xml; charset=utf-8")
+                .with_body(body.into_bytes());
+        }
         let (status, body) = match self {
             DavError::Unauthorized => (401, "authentication required"),
             DavError::Forbidden => (403, "forbidden"),
             DavError::NotFound => (404, "not found"),
             DavError::BadRequest(_) => (400, "bad request"),
             DavError::Conflict => (409, "conflict"),
+            DavError::UidConflict(_) => (403, "uid conflict"),
             DavError::PreconditionFailed => (412, "precondition failed"),
             DavError::MethodNotAllowed => (405, "method not allowed"),
             DavError::ServiceUnavailable => (503, "service unavailable"),
@@ -66,6 +82,7 @@ impl std::fmt::Display for DavError {
             DavError::NotFound => write!(f, "not found"),
             DavError::BadRequest(d) => write!(f, "bad request: {d}"),
             DavError::Conflict => write!(f, "conflict"),
+            DavError::UidConflict(href) => write!(f, "uid already used by {href}"),
             DavError::PreconditionFailed => write!(f, "precondition failed"),
             DavError::MethodNotAllowed => write!(f, "method not allowed"),
             DavError::ServiceUnavailable => write!(f, "service unavailable"),
@@ -99,6 +116,20 @@ mod tests {
     #[test]
     fn precondition_failed_maps_to_412() {
         assert_eq!(DavError::PreconditionFailed.to_dav_response().status, 412);
+    }
+
+    #[test]
+    fn uid_conflict_names_the_resource_that_has_the_uid() {
+        let resp =
+            DavError::UidConflict("/dav/calendars/u/default/a&b.ics".into()).to_dav_response();
+        assert_eq!(resp.status, 403);
+        let body = String::from_utf8(resp.body).expect("utf8");
+        assert!(
+            body.contains(
+                "<C:no-uid-conflict><D:href>/dav/calendars/u/default/a&amp;b.ics</D:href>"
+            ),
+            "{body}"
+        );
     }
 
     #[test]
