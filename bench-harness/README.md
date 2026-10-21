@@ -29,8 +29,8 @@ the per-runner harness overhead is constant but non-zero. The goal here
 is "**is mailrs in the same league as the C reference implementation?**",
 not "is mailrs 3% faster than libfoo".
 
-Results published in `results/REPORT.md` with the iteration counts and
-build commands so anyone can reproduce.
+`scripts/run-all.sh` writes its results to `results/REPORT.md` with the
+iteration counts and build commands, so a run can be reproduced.
 
 ## Status
 

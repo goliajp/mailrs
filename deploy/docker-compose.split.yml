@@ -16,8 +16,8 @@
 # the receiver keeps accepting + spooling; restart the core and its
 # reconcile sweep drains the backlog, indexing each message exactly once.
 #
-# Opt-in via MAILRS_RECEIVER_SPLIT=1 on the core. The monolith deploy
-# (deploy/docker-compose.yml) is unchanged and remains the default.
+# Opt-in via MAILRS_RECEIVER_SPLIT=1 on the core. Production runs the
+# fastcore stack in deploy/docker-compose.prod.yml, not this file.
 
 services:
   postgres:
