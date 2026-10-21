@@ -2,7 +2,7 @@
 
 mailrs is a mail server — SMTP in and out, IMAP, POP3, JMAP, ManageSieve,
 CalDAV/CardDAV, a REST and MCP API, and a web client — built as a Cargo
-workspace of 72 crates. Production runs four mailrs processes from one
+workspace of 71 crates. Production runs four mailrs processes from one
 image beside a `kevy-server`. There is no SQL database in that stack:
 message metadata lives in an embedded key-value store, mail bodies are
 Maildir files.
@@ -175,7 +175,6 @@ deploy gate, and not run in production. Its crates:
 | crate | role |
 |---|---|
 | `mailrs-server` | The Postgres-backed core and the earlier all-in-one server process |
-| `mailrs-sender` | Outbound worker for that core |
 | `mailrs-core-sync` | Sync between two cores over core-api, for switching between backends |
 | `mailrs-pg-dump` | Export a Postgres catalog for import into fastcore |
 | `mailrs-dav`, `mailrs-postmaster` | CalDAV/CardDAV handlers and domain DNS health checks, used only by `mailrs-server` |

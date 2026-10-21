@@ -17,25 +17,6 @@ impl Client {
         self.get_authed(path, "effective_permissions").await
     }
 
-    /// GET /v1/admin/api-keys/by-prefix/{prefix}
-    pub async fn api_key_by_prefix(&self, prefix: &str) -> ApiResult<method::admin::ApiKeyWire> {
-        let path = format!("/v1/admin/api-keys/by-prefix/{}", Self::enc(prefix));
-        self.get_authed(path, "api_key_by_prefix").await
-    }
-
-    /// POST /v1/admin/api-keys/{id}/touch
-    pub async fn touch_api_key(&self, id: i64) -> ApiResult<()> {
-        let path = format!("/v1/admin/api-keys/{id}/touch");
-        let resp = self
-            .inner
-            .post(self.url(&path))
-            .bearer_auth(&self.auth_bearer)
-            .send()
-            .await
-            .map_err(|e| CoreApiError::Internal(format!("touch_api_key transport: {e}")))?;
-        Self::map_status_unit(resp, "touch_api_key").await
-    }
-
     /// POST /v1/admin/accounts — create account
     pub async fn add_account(&self, req: &method::admin::AddAccountRequest) -> ApiResult<()> {
         let resp = self
@@ -110,21 +91,6 @@ impl Client {
         Self::map_status_unit(resp, "set_account_password").await
     }
 
-    /// POST /v1/admin/aliases
-    pub async fn add_alias(
-        &self,
-        req: &method::admin::AddAliasRequest,
-    ) -> ApiResult<method::admin::AddAliasResponse> {
-        self.post_authed_json("/v1/admin/aliases".to_string(), req, "add_alias")
-            .await
-    }
-
-    /// DELETE /v1/admin/aliases/{id}
-    pub async fn remove_alias(&self, id: i64) -> ApiResult<()> {
-        let path = format!("/v1/admin/aliases/{id}");
-        self.delete_authed(path, "remove_alias").await
-    }
-
     /// POST /v1/admin/domains
     pub async fn add_domain(&self, name: &str) -> ApiResult<()> {
         let req = method::admin::AddDomainRequest {
@@ -150,12 +116,6 @@ impl Client {
     /// GET /v1/admin/accounts — list all
     pub async fn list_accounts(&self) -> ApiResult<method::admin::AccountListResponse> {
         self.get_authed("/v1/admin/accounts".to_string(), "list_accounts")
-            .await
-    }
-
-    /// GET /v1/admin/aliases — list all
-    pub async fn list_aliases(&self) -> ApiResult<method::admin::AliasListResponse> {
-        self.get_authed("/v1/admin/aliases".to_string(), "list_aliases")
             .await
     }
 
