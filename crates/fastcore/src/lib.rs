@@ -86,11 +86,6 @@ pub struct FastcoreState {
     /// network-kevy backend (RFC 20260705) drops in without touching
     /// call sites. Handlers hold `state.clone()`, so `Arc` is required.
     pub alias_store: std::sync::Arc<dyn AliasStore>,
-    /// In-process delivery fanout: every write path publishes the
-    /// recipient address here; IMAP IDLE sessions subscribe and push
-    /// `* n EXISTS` to their client (RFC 2177). Drain + RPC + IMAP all
-    /// live in this process, so no kevy pub/sub hop is needed.
-    pub notify: tokio::sync::broadcast::Sender<String>,
     /// False when the store's boot report showed a damaged AOF.
     ///
     /// kevy 4.0 turns the boot verdict into data (`Store::open_report`)
@@ -113,7 +108,7 @@ pub struct FastcoreState {
 }
 
 impl FastcoreState {
-    /// Construct state with a fresh notify channel. Reads the network-kevy
+    /// Construct state. Reads the network-kevy
     /// URL from `MAILRS_KEVY_URL` (absent in tests → side-state disabled).
     /// Alias store defaults to the embedded-kevy backend backed by the
     /// same `mailbox` handle; swap in a network-kevy impl at the boot
@@ -130,14 +125,12 @@ impl FastcoreState {
         mailbox: KevyMailboxStore,
         alias_store: std::sync::Arc<dyn AliasStore>,
     ) -> Self {
-        let (notify, _) = tokio::sync::broadcast::channel(256);
         let net_url = std::env::var("MAILRS_KEVY_URL")
             .ok()
             .filter(|s| !s.is_empty());
         Self {
             mailbox,
             alias_store,
-            notify,
             net_url,
             boot_intact: true,
             local_domains: Default::default(),

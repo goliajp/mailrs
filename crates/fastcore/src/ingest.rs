@@ -264,7 +264,6 @@ pub(crate) fn ingest_delivered_file(
     if !held {
         crate::push::maybe_notify(addr, &wire.sender, &wire.subject, category, is_own);
     }
-    let _ = state.notify.send(addr.to_string());
     crate::live_sync::publish_new_mail(addr, &root, &wire.sender, &wire.subject, "");
 }
 

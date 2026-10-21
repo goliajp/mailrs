@@ -26,8 +26,7 @@ use kevy_client::Subscriber;
 use crate::kevy_net::KevyNetClient;
 use mailrs_core::event_bus::{EventBus, SmtpEvent};
 
-/// The default pub/sub channel for mail notifications.
-pub const NOTIFY_CHANNEL: &[u8] = b"notify:new-mail";
+pub use mailrs_core::event_bus::NOTIFY_CHANNEL;
 
 /// The SMTP live monitor's two channels. Defined in `core-sidestate`
 /// because the reader is a different process in a different crate — see

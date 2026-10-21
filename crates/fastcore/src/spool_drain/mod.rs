@@ -8,9 +8,9 @@
 //! pipeline; nothing owned this in the fastcore split — inbound mail
 //! landed in the spool and stayed there. This module closes that gap:
 //! decode the envelope, strip the header, and drop the file into
-//! `{maildir_root}/<domain>/<local>/new/`. Fastcore's periodic
-//! maildir self-heal (see `healed_from_maildir` in `lib.rs`) then
-//! threads and indexes it.
+//! `{maildir_root}/<domain>/<local>/new/`, then thread and index it at
+//! once (`ingest_delivered_file`). The periodic maildir self-heal picks
+//! up any file that delivery wrote and did not index.
 //!
 //! A recipient resolves to its own maildir, a fresh account's, an email
 //! group's members, or an alias target's (`route`). Files with no
@@ -35,6 +35,7 @@ pub mod relay;
 mod reported_to;
 mod route;
 mod stuck;
+mod wake;
 
 pub(crate) use check::recipient_deliverable_route;
 pub(crate) use deliver::*;
@@ -44,7 +45,8 @@ use stuck::{forget_departed, stuck_is_new};
 /// Spawn the drain loop. Env:
 /// - `MAILRS_SPOOL_ROOT` — spool base, default `/data/.spool`
 /// - `MAILRS_MAILDIR`    — maildir root, default `/data/maildir`
-/// - `MAILRS_FASTCORE_SPOOL_INTERVAL_SECS` — poll interval, default 15
+/// - `MAILRS_FASTCORE_SPOOL_INTERVAL_SECS` — poll interval, default 15;
+///   a spooled message wakes it sooner
 ///
 /// If the spool `incoming/` dir doesn't exist yet, the loop still runs
 /// — receiver may not have written its first file. Missing-dir errors
@@ -67,19 +69,15 @@ pub async fn spawn(state: Arc<FastcoreState>) {
         interval_secs,
         "fastcore spool drain started"
     );
-    // No idle backoff here, deliberately — unlike `calendar_sync` and
-    // `webhook_delivery`, which both use `idle_backoff`.
-    //
-    // This interval is not polling overhead, it is the delivery latency
-    // budget: mail sits in the spool until a tick picks it up, so doubling
-    // the wait doubles how long a quiet mailbox takes to show new mail, and
-    // a mailbox is quiet precisely when someone is waiting for the first
-    // message. An empty tick costs two readdirs on two empty directories.
-    //
-    // Checked on 2026-08-01 against the rule that periodic work must
-    // converge: the rule is about loops whose resting state is expensive, and this one's is
-    // not. Written down because this loop looks like the violation
-    // `calendar_sync` actually was.
+    let wake = Arc::new(tokio::sync::Notify::new());
+    if let Some(url) = state.net_url.clone() {
+        wake::spawn(url, wake.clone());
+    }
+    // A tick runs when the receiver says it spooled a message, or when the
+    // interval runs out, whichever is first. The interval is the latency
+    // for mail that arrives while the subscription is down, so it does not
+    // back off when idle: an empty tick costs two readdirs on two empty
+    // directories.
     loop {
         let (delivered_new, seen_new) = drain_once(&incoming_new, &maildir_root, &state);
         let (delivered_cur, seen_cur) = drain_once(&incoming_cur, &maildir_root, &state);
@@ -90,7 +88,10 @@ pub async fn spawn(state: Arc<FastcoreState>) {
         if total > 0 {
             tracing::info!(delivered = total, "fastcore spool drain tick");
         }
-        tokio::time::sleep(Duration::from_secs(interval_secs)).await;
+        tokio::select! {
+            _ = tokio::time::sleep(Duration::from_secs(interval_secs)) => {}
+            _ = wake.notified() => {}
+        }
     }
 }
 
