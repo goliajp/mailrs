@@ -10,7 +10,7 @@ use crate::xml::DavResponse;
 ///
 /// Most variants map 1:1 to HTTP status codes; [`ServerError`](Self::ServerError)
 /// is the catch-all for anything the store impl can't classify.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DavError {
     /// 401 — auth required. Server-side wrapper is expected to add the
     /// `WWW-Authenticate` header.

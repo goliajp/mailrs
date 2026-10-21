@@ -99,6 +99,56 @@ pub fn extract_multiget_uids(body: &str, suffix: &str) -> Vec<String> {
     uids
 }
 
+/// [`extract_multiget_uids`], decoded: the UIDs a multiget asks for, as the
+/// store names them. A malformed escape is the client's error.
+pub fn multiget_uids(body: &str, suffix: &str) -> Result<Vec<String>, crate::error::DavError> {
+    extract_multiget_uids(body, suffix)
+        .iter()
+        .map(|raw| {
+            percent_decode(raw)
+                .ok_or_else(|| crate::error::DavError::BadRequest(format!("href {raw:?}")))
+        })
+        .collect()
+}
+
+/// Percent-encode one URL path segment (RFC 3986 unreserved characters pass
+/// through). Used for collection names and resource UIDs in emitted hrefs.
+pub fn encode_segment(s: &str) -> String {
+    use std::fmt::Write;
+    let mut out = String::with_capacity(s.len());
+    for b in s.bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' | b'@' => {
+                out.push(b as char);
+            }
+            _ => {
+                let _ = write!(out, "%{b:02X}");
+            }
+        }
+    }
+    out
+}
+
+/// Decode one percent-encoded URL path segment. `None` when an escape is
+/// malformed or the decoded bytes are not UTF-8 — the segment came from a
+/// client and cannot name anything.
+pub fn percent_decode(s: &str) -> Option<String> {
+    let bytes = s.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' {
+            let hex = std::str::from_utf8(bytes.get(i + 1..i + 3)?).ok()?;
+            out.push(u8::from_str_radix(hex, 16).ok()?);
+            i += 3;
+        } else {
+            out.push(bytes[i]);
+            i += 1;
+        }
+    }
+    String::from_utf8(out).ok()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -183,7 +233,7 @@ mod tests {
 
     #[test]
     fn multiget_handles_unprefixed_href_tag() {
-        let body = "<href>/dav/contacts/u/b/xyz.vcf</href>";
+        let body = "<href>/dav/addressbooks/u/b/xyz.vcf</href>";
         let uids = extract_multiget_uids(body, ".vcf");
         assert_eq!(uids, vec!["xyz".to_string()]);
     }
@@ -194,5 +244,31 @@ mod tests {
                     <D:href>/dav/calendars/u/c/wrong.vcf</D:href>";
         let uids = extract_multiget_uids(body, ".ics");
         assert_eq!(uids, vec!["abc".to_string()]);
+    }
+
+    #[test]
+    fn segment_encoding_passes_unreserved_and_at_sign() {
+        assert_eq!(encode_segment("Hello123-_.~"), "Hello123-_.~");
+        assert_eq!(encode_segment("alice@example.com"), "alice@example.com");
+    }
+
+    #[test]
+    fn segment_encoding_escapes_the_rest_bytewise() {
+        assert_eq!(encode_segment("a b/c?"), "a%20b%2Fc%3F");
+        assert_eq!(encode_segment("日"), "%E6%97%A5");
+    }
+
+    #[test]
+    fn percent_decode_round_trips_encode_segment() {
+        for s in ["a b", "日本", "x/y?z", "plain"] {
+            assert_eq!(percent_decode(&encode_segment(s)).as_deref(), Some(s));
+        }
+    }
+
+    #[test]
+    fn percent_decode_rejects_malformed_escapes() {
+        assert_eq!(percent_decode("%4"), None);
+        assert_eq!(percent_decode("%zz"), None);
+        assert_eq!(percent_decode("%FF"), None);
     }
 }

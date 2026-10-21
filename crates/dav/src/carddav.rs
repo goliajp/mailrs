@@ -1,17 +1,30 @@
 //! CardDAV (RFC 6352) request handlers.
 //!
 //! Same shape as [`crate::caldav`] — `&dyn AddressBookStore` in, [`DavResponse`]
-//! out, no axum / sqlx leaking through.
+//! out, no axum / sqlx leaking through. Book names are passed decoded; hrefs
+//! are emitted percent-encoded.
 
 use std::fmt::Write;
 
 use crate::error::DavError;
-use crate::parse::extract_multiget_uids;
-use crate::store::AddressBookStore;
-use crate::types::PutResult;
-use crate::xml::{DavResponse, etag_of, multistatus, xml_escape};
+use crate::parse::{encode_segment, multiget_uids};
+use crate::store::{AddressBookStore, into_dav_error};
+use crate::types::{Contact, PutResult};
+use crate::xml::{DavResponse, ctag_of, etag_of, multistatus, xml_escape};
 
-/// PROPFIND on `/dav/contacts/{user}/` — the address-book home collection.
+fn book_href(user: &str, book: &str) -> String {
+    format!("/dav/addressbooks/{user}/{}/", encode_segment(book))
+}
+
+fn contact_href(user: &str, book: &str, uid: &str) -> String {
+    format!("{}{}.vcf", book_href(user, book), encode_segment(uid))
+}
+
+fn contacts_ctag(contacts: &[Contact]) -> String {
+    ctag_of(contacts.iter().map(|c| c.etag.as_str()))
+}
+
+/// PROPFIND on `/dav/addressbooks/{user}/` — the address-book home collection.
 pub async fn addressbook_home_propfind(
     store: &dyn AddressBookStore,
     user: &str,
@@ -20,11 +33,11 @@ pub async fn addressbook_home_propfind(
     store
         .ensure_default_address_book(user)
         .await
-        .map_err(|e| DavError::ServerError(e.to_string()))?;
+        .map_err(into_dav_error)?;
 
     let mut responses = format!(
         "<D:response>\n\
-         <D:href>/dav/contacts/{user}/</D:href>\n\
+         <D:href>/dav/addressbooks/{user}/</D:href>\n\
          <D:propstat>\n<D:prop>\n\
          <D:resourcetype><D:collection/></D:resourcetype>\n\
          <D:displayname>Address Books</D:displayname>\n\
@@ -36,25 +49,27 @@ pub async fn addressbook_home_propfind(
         let books = store
             .list_address_books(user)
             .await
-            .map_err(|e| DavError::ServerError(e.to_string()))?;
+            .map_err(into_dav_error)?;
         for b in &books {
-            let encoded_name = urlencode(&b.name);
-            let href = format!("/dav/contacts/{user}/{encoded_name}/");
+            let contacts = store.list_contacts(b.id).await.map_err(into_dav_error)?;
             let _ = write!(
                 responses,
                 "<D:response>\n\
-                 <D:href>{href}</D:href>\n\
+                 <D:href>{}</D:href>\n\
                  <D:propstat>\n<D:prop>\n\
                  <D:resourcetype><D:collection/><CR:addressbook/></D:resourcetype>\n\
                  <D:displayname>{}</D:displayname>\n\
+                 <CR:addressbook-description>{}</CR:addressbook-description>\n\
                  <D:current-user-privilege-set>\
                  <D:privilege><D:all/></D:privilege>\
                  </D:current-user-privilege-set>\n\
                  <CS:getctag>{}</CS:getctag>\n\
                  </D:prop>\n<D:status>HTTP/1.1 200 OK</D:status>\n</D:propstat>\n\
                  </D:response>\n",
+                xml_escape(&book_href(user, &b.name)),
                 xml_escape(&b.name),
                 xml_escape(&b.description),
+                contacts_ctag(&contacts),
             );
         }
     }
@@ -62,7 +77,7 @@ pub async fn addressbook_home_propfind(
     Ok(multistatus(&responses))
 }
 
-/// PROPFIND on `/dav/contacts/{user}/{book}/` — a single address book.
+/// PROPFIND on `/dav/addressbooks/{user}/{book}/` — a single address book.
 pub async fn addressbook_propfind(
     store: &dyn AddressBookStore,
     user: &str,
@@ -70,24 +85,23 @@ pub async fn addressbook_propfind(
     book_id: i64,
     depth: u32,
 ) -> Result<DavResponse, DavError> {
-    let href = format!("/dav/contacts/{user}/{book}/");
+    let contacts = store.list_contacts(book_id).await.map_err(into_dav_error)?;
     let mut responses = format!(
         "<D:response>\n\
-         <D:href>{href}</D:href>\n\
+         <D:href>{}</D:href>\n\
          <D:propstat>\n<D:prop>\n\
          <D:resourcetype><D:collection/><CR:addressbook/></D:resourcetype>\n\
-         <D:displayname>{book}</D:displayname>\n\
+         <D:displayname>{}</D:displayname>\n\
+         <CS:getctag>{}</CS:getctag>\n\
          </D:prop>\n<D:status>HTTP/1.1 200 OK</D:status>\n</D:propstat>\n\
-         </D:response>\n"
+         </D:response>\n",
+        xml_escape(&book_href(user, book)),
+        xml_escape(book),
+        contacts_ctag(&contacts),
     );
 
     if depth >= 1 {
-        let contacts = store
-            .list_contacts(book_id)
-            .await
-            .map_err(|e| DavError::ServerError(e.to_string()))?;
         for c in &contacts {
-            let contact_href = format!("/dav/contacts/{user}/{book}/{}.vcf", c.uid);
             let _ = write!(
                 responses,
                 "<D:response>\n\
@@ -97,7 +111,7 @@ pub async fn addressbook_propfind(
                  <D:getcontenttype>text/vcard; charset=utf-8</D:getcontenttype>\n\
                  </D:prop>\n<D:status>HTTP/1.1 200 OK</D:status>\n</D:propstat>\n\
                  </D:response>\n",
-                xml_escape(&contact_href),
+                xml_escape(&contact_href(user, book, &c.uid)),
                 c.etag,
             );
         }
@@ -106,38 +120,28 @@ pub async fn addressbook_propfind(
     Ok(multistatus(&responses))
 }
 
-/// REPORT on an address book — both `addressbook-multiget` (RFC 6352 §8.7)
-/// and `addressbook-query` (§8.6, no filter support — returns all).
-pub async fn addressbook_report(
+/// The `<D:response>` elements an address-book REPORT returns for one book:
+/// `addressbook-multiget` (RFC 6352 §8.7) keeps the requested UIDs,
+/// `addressbook-query` (§8.6, no filter support) returns every contact.
+async fn report_responses(
     store: &dyn AddressBookStore,
     user: &str,
     book: &str,
     book_id: i64,
     body: &str,
-) -> Result<DavResponse, DavError> {
-    let is_multiget = body.contains("addressbook-multiget");
-
-    let contacts = store
-        .list_contacts(book_id)
-        .await
-        .map_err(|e| DavError::ServerError(e.to_string()))?;
-
-    let filtered: Vec<_> = if is_multiget {
-        let uids = extract_multiget_uids(body, ".vcf");
-        if uids.is_empty() {
-            return Ok(multistatus(""));
-        }
-        contacts
-            .into_iter()
-            .filter(|c| uids.iter().any(|u| u == &c.uid))
-            .collect()
-    } else {
-        contacts
+) -> Result<String, DavError> {
+    let wanted = match body.contains("addressbook-multiget") {
+        true => Some(multiget_uids(body, ".vcf")?),
+        false => None,
     };
-
+    let contacts = store.list_contacts(book_id).await.map_err(into_dav_error)?;
     let mut responses = String::new();
-    for c in &filtered {
-        let contact_href = format!("/dav/contacts/{user}/{book}/{}.vcf", c.uid);
+    for c in &contacts {
+        if let Some(uids) = &wanted
+            && !uids.contains(&c.uid)
+        {
+            continue;
+        }
         let _ = write!(
             responses,
             "<D:response>\n\
@@ -147,15 +151,45 @@ pub async fn addressbook_report(
              <CR:address-data>{}</CR:address-data>\n\
              </D:prop>\n<D:status>HTTP/1.1 200 OK</D:status>\n</D:propstat>\n\
              </D:response>\n",
-            xml_escape(&contact_href),
+            xml_escape(&contact_href(user, book, &c.uid)),
             c.etag,
             xml_escape(&c.vcard),
         );
     }
+    Ok(responses)
+}
+
+/// REPORT on an address book — `addressbook-multiget` or `addressbook-query`.
+pub async fn addressbook_report(
+    store: &dyn AddressBookStore,
+    user: &str,
+    book: &str,
+    book_id: i64,
+    body: &str,
+) -> Result<DavResponse, DavError> {
+    let responses = report_responses(store, user, book, book_id, body).await?;
     Ok(multistatus(&responses))
 }
 
-/// GET on `/dav/contacts/{user}/{book}/{uid}.vcf`.
+/// REPORT on the address-book home, run over every book (see
+/// [`crate::caldav::calendar_home_report`]).
+pub async fn addressbook_home_report(
+    store: &dyn AddressBookStore,
+    user: &str,
+    body: &str,
+) -> Result<DavResponse, DavError> {
+    let mut responses = String::new();
+    for b in store
+        .list_address_books(user)
+        .await
+        .map_err(into_dav_error)?
+    {
+        responses.push_str(&report_responses(store, user, &b.name, b.id, body).await?);
+    }
+    Ok(multistatus(&responses))
+}
+
+/// GET on `/dav/addressbooks/{user}/{book}/{uid}.vcf`.
 pub async fn contact_get(
     store: &dyn AddressBookStore,
     book_id: i64,
@@ -164,7 +198,7 @@ pub async fn contact_get(
     let contact = store
         .get_contact(book_id, uid)
         .await
-        .map_err(|e| DavError::ServerError(e.to_string()))?;
+        .map_err(into_dav_error)?;
     match contact {
         Some(c) => Ok(DavResponse::new(200)
             .with_header("content-type", "text/vcard; charset=utf-8")
@@ -183,28 +217,12 @@ pub async fn contact_put(
     if_none_match: Option<&str>,
     body: &str,
 ) -> Result<DavResponse, DavError> {
-    if let Some(expected_raw) = if_match {
-        let expected = expected_raw.trim_matches('"');
+    if if_match.is_some() || if_none_match.is_some() {
         let current = store
             .contact_etag(book_id, uid)
             .await
-            .map_err(|e| DavError::ServerError(e.to_string()))?;
-        match current {
-            Some(ref e) if e == expected => {}
-            _ => return Err(DavError::PreconditionFailed),
-        }
-    }
-
-    if let Some(inm) = if_none_match
-        && inm.trim() == "*"
-    {
-        let existing = store
-            .contact_etag(book_id, uid)
-            .await
-            .map_err(|e| DavError::ServerError(e.to_string()))?;
-        if existing.is_some() {
-            return Err(DavError::PreconditionFailed);
-        }
+            .map_err(into_dav_error)?;
+        crate::precondition::check(current.as_deref(), if_match, if_none_match)?;
     }
 
     let etag = etag_of(body);
@@ -214,7 +232,7 @@ pub async fn contact_put(
     } = store
         .put_contact(book_id, uid, body, &etag)
         .await
-        .map_err(|e| DavError::ServerError(e.to_string()))?;
+        .map_err(into_dav_error)?;
 
     let status = if created { 201 } else { 204 };
     Ok(DavResponse::new(status).with_header("etag", &format!("\"{stored_etag}\"")))
@@ -229,27 +247,12 @@ pub async fn contact_delete(
     let deleted = store
         .delete_contact(book_id, uid)
         .await
-        .map_err(|e| DavError::ServerError(e.to_string()))?;
+        .map_err(into_dav_error)?;
     if deleted {
         Ok(DavResponse::new(204))
     } else {
         Err(DavError::NotFound)
     }
-}
-
-fn urlencode(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    for b in s.bytes() {
-        match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                out.push(b as char);
-            }
-            _ => {
-                let _ = write!(out, "%{b:02X}");
-            }
-        }
-    }
-    out
 }
 
 #[cfg(test)]
@@ -438,7 +441,7 @@ mod tests {
         s.add_contact(bid, "a", "BEGIN:VCARD\nUID:a\nEND:VCARD");
         s.add_contact(bid, "b", "BEGIN:VCARD\nUID:b\nEND:VCARD");
         let body = "<CR:addressbook-multiget xmlns:CR=\"urn:ietf:params:xml:ns:carddav\">\
-                    <D:href>/dav/contacts/u/B/a.vcf</D:href></CR:addressbook-multiget>";
+                    <D:href>/dav/addressbooks/u/B/a.vcf</D:href></CR:addressbook-multiget>";
         let r = addressbook_report(&s, "u", "B", bid, body).await.unwrap();
         let text = String::from_utf8(r.body).unwrap();
         assert!(text.contains("/B/a.vcf"));
@@ -563,9 +566,9 @@ mod tests {
         let r = addressbook_home_propfind(&s, "u", 0).await.unwrap();
         let text = String::from_utf8(r.body).unwrap();
         // depth=0 → only the home collection itself, no books listed
-        assert!(text.contains("/dav/contacts/u/"));
+        assert!(text.contains("/dav/addressbooks/u/"));
         // ensure_default created "Default" book, but depth=0 doesn't enumerate
-        assert!(!text.contains("/dav/contacts/u/Default/"));
+        assert!(!text.contains("/dav/addressbooks/u/Default/"));
     }
 
     #[tokio::test]
@@ -575,7 +578,7 @@ mod tests {
         let r = addressbook_home_propfind(&s, "u", 1).await.unwrap();
         let text = String::from_utf8(r.body).unwrap();
         // depth=1 enumerates books under the home
-        assert!(text.contains("/dav/contacts/u/Work/"));
+        assert!(text.contains("/dav/addressbooks/u/Work/"));
     }
 
     #[tokio::test]
@@ -605,7 +608,7 @@ mod tests {
         s.add_contact(bid, "a", "BEGIN:VCARD\nEND:VCARD");
         let r = addressbook_propfind(&s, "u", "B", bid, 1).await.unwrap();
         let text = String::from_utf8(r.body).unwrap();
-        assert!(text.contains("/dav/contacts/u/B/a.vcf"));
+        assert!(text.contains("/dav/addressbooks/u/B/a.vcf"));
     }
 
     #[tokio::test]
@@ -616,7 +619,7 @@ mod tests {
         let r = addressbook_propfind(&s, "u", "B", bid, 0).await.unwrap();
         let text = String::from_utf8(r.body).unwrap();
         // depth=0: only the book itself, no contacts enumerated
-        assert!(text.contains("/dav/contacts/u/B/"));
+        assert!(text.contains("/dav/addressbooks/u/B/"));
         assert!(!text.contains(".vcf"));
     }
 
@@ -653,51 +656,12 @@ mod tests {
         let bid = s.add_book("u", "B");
         s.add_contact(bid, "a", "BEGIN:VCARD\nUID:a\nEND:VCARD");
         let body = "<CR:addressbook-multiget xmlns:CR=\"urn:ietf:params:xml:ns:carddav\">\
-                    <D:href>/dav/contacts/u/B/missing.vcf</D:href>\
-                    <D:href>/dav/contacts/u/B/a.vcf</D:href></CR:addressbook-multiget>";
+                    <D:href>/dav/addressbooks/u/B/missing.vcf</D:href>\
+                    <D:href>/dav/addressbooks/u/B/a.vcf</D:href></CR:addressbook-multiget>";
         let r = addressbook_report(&s, "u", "B", bid, body).await.unwrap();
         let text = String::from_utf8(r.body).unwrap();
         // Only existing UID surfaces
         assert!(text.contains("/B/a.vcf"));
         assert!(!text.contains("/B/missing.vcf"));
-    }
-
-    #[test]
-    fn urlencode_alphanumeric_passthrough() {
-        assert_eq!(urlencode("hello"), "hello");
-        assert_eq!(urlencode("a-b_c.d~e"), "a-b_c.d~e");
-        assert_eq!(urlencode("123"), "123");
-    }
-
-    #[test]
-    fn urlencode_space_encoded() {
-        assert_eq!(urlencode("hello world"), "hello%20world");
-    }
-
-    #[test]
-    fn urlencode_special_chars() {
-        assert_eq!(urlencode("/"), "%2F");
-        assert_eq!(urlencode("?"), "%3F");
-        assert_eq!(urlencode("&"), "%26");
-    }
-
-    #[test]
-    fn urlencode_japanese_utf8_each_byte() {
-        // "日" = E6 97 A5 in UTF-8 → %E6%97%A5
-        assert_eq!(urlencode("日"), "%E6%97%A5");
-    }
-
-    #[tokio::test]
-    async fn ensure_default_address_book_idempotent() {
-        let s = MemAB::default();
-        s.ensure_default_address_book("u").await.unwrap();
-        s.ensure_default_address_book("u").await.unwrap();
-        s.ensure_default_address_book("u").await.unwrap();
-        let books = s.list_address_books("u").await.unwrap();
-        assert_eq!(
-            books.len(),
-            1,
-            "called 3 times; should still only have 1 Default"
-        );
     }
 }

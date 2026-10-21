@@ -13,6 +13,8 @@ use mailrs_webapi::WebState;
 
 pub struct Live {
     pub core: Client,
+    /// fastcore's own address, for its maintenance routes
+    pub core_url: String,
     /// fastcore's own store, for seeding what no REST route writes
     pub mailbox: mailrs_mailbox_kevy::KevyMailboxStore,
     pub base: String,
@@ -41,7 +43,8 @@ pub async fn start(kevy: &str) -> Live {
     });
     let base = serve(mailrs_webapi::build_router(state.clone())).await;
     Live {
-        core: Client::new(core_url, "secret"),
+        core: Client::new(core_url.clone(), "secret"),
+        core_url,
         mailbox,
         base,
         http: reqwest::Client::new(),

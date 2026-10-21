@@ -133,8 +133,10 @@ pub(crate) async fn dav_calendar_collection(
 
     let depth = depth_from_headers(&headers);
     let result = match method.as_str() {
-        "PROPFIND" => caldav::calendar_propfind(&adapter, &user, &calendar, cal.id, depth).await,
-        "REPORT" => caldav::calendar_report(&adapter, &user, &calendar, cal.id, &body).await,
+        "PROPFIND" => {
+            caldav::calendar_propfind(&adapter, &user, &calendar_name, cal.id, depth).await
+        }
+        "REPORT" => caldav::calendar_report(&adapter, &user, &calendar_name, cal.id, &body).await,
         _ => return StatusCode::METHOD_NOT_ALLOWED.into_response(),
     };
     match result {
@@ -198,7 +200,7 @@ pub(crate) async fn dav_event(
     }
 }
 
-// ── contact home (/dav/contacts/{user}/) ─────────────────────────────
+// ── contact home (/dav/addressbooks/{user}/) ─────────────────────────────
 
 pub(crate) async fn dav_contact_home(
     method: Method,
@@ -230,7 +232,7 @@ pub(crate) async fn dav_contact_home(
     }
 }
 
-// ── addressbook collection (/dav/contacts/{user}/{book}/) ────────────
+// ── addressbook collection (/dav/addressbooks/{user}/{book}/) ────────────
 
 pub(crate) async fn dav_contact_collection(
     method: Method,
@@ -267,8 +269,10 @@ pub(crate) async fn dav_contact_collection(
 
     let depth = depth_from_headers(&headers);
     let result = match method.as_str() {
-        "PROPFIND" => carddav::addressbook_propfind(&adapter, &user, &book, ab.id, depth).await,
-        "REPORT" => carddav::addressbook_report(&adapter, &user, &book, ab.id, &body).await,
+        "PROPFIND" => {
+            carddav::addressbook_propfind(&adapter, &user, &book_name, ab.id, depth).await
+        }
+        "REPORT" => carddav::addressbook_report(&adapter, &user, &book_name, ab.id, &body).await,
         _ => return StatusCode::METHOD_NOT_ALLOWED.into_response(),
     };
     match result {
@@ -277,7 +281,7 @@ pub(crate) async fn dav_contact_collection(
     }
 }
 
-// ── contact resource (/dav/contacts/{user}/{book}/{uid}) ─────────────
+// ── contact resource (/dav/addressbooks/{user}/{book}/{uid}) ─────────────
 
 pub(crate) async fn dav_contact(
     method: Method,
