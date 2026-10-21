@@ -9,7 +9,7 @@ homepage = "https://github.com/goliajp/mailrs"
 documentation = "https://docs.rs/mailrs-rfc5322"
 authors = ["GOLIA K.K."]
 keywords = ["email", "rfc5322", "parser", "smtp", "lazy"]
-categories = ["email", "parsing", "no-std::no-alloc"]
+categories = ["email", "parser-implementations"]
 readme = "README.md"
 
 [lints]
