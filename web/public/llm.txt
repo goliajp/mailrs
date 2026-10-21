@@ -71,7 +71,7 @@ Streamable HTTP endpoint: https://mail.golia.ai/mcp
 - GET /api/admin/flow — where mail is right now: receiving, spool backlog, outbound queue (queued / retrying / scheduled / failed), mock mail
 - GET /api/admin/mock, PUT /api/admin/mock/settings — mock mail usage and settings (on/off, retention days, per-namespace and total limits, namespaces per person, who may create); an admin lists everyone's namespaces with GET /api/mock/namespaces?all=true
 - POST /api/admin/accounts/{address}/password — replace a password without touching the rest of the account
-- POST /api/admin/reconcile-maildir — index maildir files missing from PG; {"dry_run": true} reports only (internal.rpc)
+- POST /api/admin/reconcile-maildir — count mailboxes and message files under the maildir root; read-only (admin)
 
 ### Mock mail (disposable test mailboxes)
 Addresses `{namespace}.{any-tag}@mock.golia.jp` receive mail that never reaches a real mailbox; nothing is ever sent outward from them. Kept 3 days, 500 messages per namespace. An agent key with scope `mock` (or `mock:{namespace}`) reaches only this.

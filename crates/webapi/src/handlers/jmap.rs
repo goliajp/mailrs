@@ -235,10 +235,12 @@ impl MailStore for JmapAdapter {
 
     async fn read_message_raw(&self, message: &JmapMessage) -> Option<Vec<u8>> {
         use mailrs_message_store::MessageStore;
-        let (local, domain) = message.user_address.split_once('@')?;
         let root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
-        let path = format!("{root}/{domain}/{local}");
-        let id = mailrs_message_store::MessageId(message.blob_id.clone());
+        let (path, id) = crate::handlers::messages::blob_ref_location(
+            &root,
+            &message.user_address,
+            &message.blob_id,
+        )?;
         mailrs_message_store::MaildirStore
             .fetch(&path, &id)
             .await
