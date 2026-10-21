@@ -6,7 +6,7 @@ use mailrs_intake::Core;
 
 use super::core::Fastcore;
 
-impl Core for Fastcore<'_> {
+impl Core for Fastcore {
     fn net_conn(&self) -> Option<kevy_client::Connection> {
         self.state.net_conn()
     }
@@ -21,7 +21,7 @@ impl Core for Fastcore<'_> {
         folder: &str,
         fraud_verdict: Option<&str>,
     ) -> bool {
-        crate::ingest_delivered_file(self.state, addr, blob_ref, body, folder, fraud_verdict);
+        crate::ingest_delivered_file(&self.state, addr, blob_ref, body, folder, fraud_verdict);
         true
     }
 }

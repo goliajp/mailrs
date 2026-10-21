@@ -17,8 +17,6 @@
 
 use std::sync::Arc;
 
-use base64::Engine as _;
-
 use crate::FastcoreState;
 
 pub use mailrs_intake::dsn::{compose_dsn, dsn_identity, dsn_identity_from, suppress_bounce};
@@ -51,100 +49,14 @@ pub use mailrs_intake::notice::BOUNCE_PENDING;
 ///
 /// A written rule already required this, and already listed this call
 /// site as one of its compliant callers.
-pub fn spawn_bounce_drain(state: Arc<FastcoreState>) -> tokio::task::JoinHandle<()> {
-    tokio::task::spawn_blocking(move || {
-        let Some(url) = crate::live_sync::network_kevy_url() else {
-            tracing::info!("no network kevy — bounce drain disabled");
-            return;
-        };
-        let maildir_root =
-            std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
-        loop {
-            drain_one(&state, &url, &maildir_root);
-        }
-    })
-}
-
-fn drain_one(state: &Arc<FastcoreState>, url: &str, maildir_root: &str) {
-    let Ok(mut conn) = kevy_client::Connection::connect(url) else {
-        return;
+pub fn spawn_bounce_drain(state: Arc<FastcoreState>) -> Option<tokio::task::JoinHandle<()>> {
+    let Some(url) = crate::live_sync::network_kevy_url() else {
+        tracing::info!("no network kevy — bounce drain disabled");
+        return None;
     };
-    // First pop blocks up to 10 s (matches prior wake-up cadence); after
-    // that first hit we drain remaining items with non-blocking RPOPs to
-    // avoid re-arming the blocking timer per item on a bursty queue.
-    let mut first = true;
-    loop {
-        let popped_bytes: Option<Vec<u8>> = if first {
-            first = false;
-            match conn.brpop(&[BOUNCE_PENDING], Some(std::time::Duration::from_secs(10))) {
-                Ok(Some((_key, value))) => Some(value),
-                Ok(None) | Err(_) => None,
-            }
-        } else {
-            conn.rpop(BOUNCE_PENDING, 1)
-                .unwrap_or_default()
-                .into_iter()
-                .next()
-        };
-        let Some(id_bytes) = popped_bytes else {
-            return;
-        };
-        let Ok(id) = String::from_utf8(id_bytes) else {
-            continue;
-        };
-        let key = crate::bounce_queue::entry_key(&id);
-        let recipient = conn
-            .hget(key.as_bytes(), b"recipient")
-            .ok()
-            .flatten()
-            .and_then(|b| String::from_utf8(b).ok())
-            .unwrap_or_default();
-        let blob = conn
-            .hget(key.as_bytes(), b"blob")
-            .ok()
-            .flatten()
-            .and_then(|b| base64::engine::general_purpose::STANDARD.decode(b).ok());
-        let _ = conn.del(&[key.as_bytes()]);
-        let Some(bytes) = blob else { continue };
-        // local-account guard: never forward a DSN outward
-        let known = state
-            .mailbox
-            .get_account_blob(&recipient)
-            .ok()
-            .flatten()
-            .is_some();
-        let Some((local, domain)) = recipient.split_once('@') else {
-            continue;
-        };
-        let base = std::path::PathBuf::from(maildir_root)
-            .join(domain)
-            .join(local);
-        if !known && !base.join("new").is_dir() {
-            tracing::warn!(%recipient, "bounce for unknown local sender dropped");
-            continue;
-        }
-        for leaf in ["cur", "new", "tmp"] {
-            let _ = std::fs::create_dir_all(base.join(leaf));
-        }
-        let filename = format!(
-            "{}.Mdsn{}.bounce",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_secs())
-                .unwrap_or(0),
-            id
-        );
-        let target = base.join("new").join(&filename);
-        if let Err(e) = std::fs::write(&target, &bytes) {
-            tracing::warn!(error = %e, %recipient, "bounce maildir write failed");
-            continue;
-        }
-        // Bounce DSNs are inbound-side notifications to the sender —
-        // always route to INBOX, never Junk (v2.4.0 Phase 2).
-        crate::ingest_delivered_file(state, &recipient, &filename, &bytes, "INBOX", None);
-        crate::live_sync::audit_system("mail.bounce", &recipient, "DSN delivered to sender");
-        tracing::info!(%recipient, %id, "bounce DSN delivered");
-    }
+    let maildir_root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
+    let core = Arc::new(crate::spool_drain::Fastcore::new(&state, &maildir_root));
+    Some(mailrs_intake::notice::spawn_drain(core, url))
 }
 
 #[cfg(test)]

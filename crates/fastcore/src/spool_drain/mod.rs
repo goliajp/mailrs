@@ -19,6 +19,7 @@ use crate::FastcoreState;
 
 mod check;
 mod core;
+pub(crate) use core::Fastcore;
 mod deliver;
 mod recipient;
 pub mod relay;
@@ -51,10 +52,7 @@ pub async fn spawn(state: Arc<FastcoreState>) {
         interval_secs,
         "fastcore spool drain started"
     );
-    let core = core::Fastcore {
-        state: &state,
-        maildir_root: &maildir_root,
-    };
+    let core = core::Fastcore::new(&state, &maildir_root);
     mailrs_intake::spool::run(
         Duration::from_secs(interval_secs),
         state.net_url.clone(),
@@ -74,11 +72,5 @@ pub fn drain_once(
     maildir_root: &str,
     state: &Arc<FastcoreState>,
 ) -> (usize, HashSet<String>) {
-    mailrs_intake::drain_once(
-        dir,
-        &core::Fastcore {
-            state,
-            maildir_root,
-        },
-    )
+    mailrs_intake::drain_once(dir, &core::Fastcore::new(state, maildir_root))
 }
