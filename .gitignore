@@ -27,6 +27,10 @@ dhat-heap.json
 # numbers that survive go into PERFORMANCE.md with their reproduce command;
 # these are the raw samples behind them, and they are machine-specific.
 bench-results/
+# Built and written by bench-harness/scripts/run-all.sh.
+bench-harness/c/ical_libical
+bench-harness/go/rfc5322_netmail/rfc5322_netmail
+bench-harness/results/
 
 # py_compile leaves these beside the gate scripts.
 __pycache__/

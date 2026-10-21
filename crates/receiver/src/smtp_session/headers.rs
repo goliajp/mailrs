@@ -31,9 +31,8 @@ pub(super) fn format_received_header(
 /// `mailrs-rfc5322::Message::header` is `O(header-region-size)` (stops
 /// at the empty-line terminator), and `mailrs-rfc2047::decode` is a
 /// per-token base64/Q-printable decode that's ~25 ns ASCII / ~70 ns B
-/// encoded. The composition is measured **4-16× faster** than the
-/// equivalent mail-parser path on the existing
-/// `bench_two_pass_vs_single_pass_extract` harness (PERFORMANCE.md).
+/// encoded. The composition measured 4-16× faster than the equivalent
+/// mail-parser path when this replaced it (2026-05).
 ///
 /// Returns `(subject, from)`. Either may be `String::new()` if missing.
 pub fn extract_subject_and_from(message: &[u8]) -> (String, String) {

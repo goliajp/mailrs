@@ -6,8 +6,7 @@
 //! - Response body types (`*Response`)
 //! - A `methods!` enumeration the client / server code can iterate
 //!
-//! The path prefix is `/v{API_VERSION}` from the crate root. See
-//! `docs/CURRENT_STATE_FROZEN.md` §0.4 + §0.5 for the source surface.
+//! The path prefix is `/v{API_VERSION}` from the crate root.
 //!
 //! Path skeleton:
 //!

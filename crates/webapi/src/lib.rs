@@ -1,22 +1,11 @@
 //! mailrs-webapi — REST + MCP + JMAP + CalDAV/CardDAV frontend.
 //!
-//! Phase 3 of the 4-process split.
-//!
-//! This crate is currently a scaffold — no routes mounted yet. Subsequent
-//! loops fill in the REST and MCP handlers by copying the existing
-//! `crates/server/src/web/` + `crates/server/src/mcp/` trees and replacing
-//! `state.mailbox.X()` / `state.domain.X()` direct calls with
-//! `state.core.X()` RPC client calls.
-//!
-//! Boot order:
-//! 1. tracing init
-//! 2. config from env (MAILRS_CORE_RPC_BASE / MAILRS_CORE_API_SECRET /
-//!    MAILRS_KEVY_URL / MAILRS_WEB_BIND etc.)
-//! 3. mailrs-core-api client
-//! 4. kevy_net client (for session store + cache bust)
-//! 5. meili client (for search)
-//! 6. axum router + listen
-//! 7. signal handler
+//! Holds no mailbox state: every mailbox read and write is a core-api call
+//! to fastcore (`MAILRS_CORE_RPC_BASE`, `MAILRS_CORE_API_SECRET`).
+//! Sessions, the outbound queue and the other shared state live in the
+//! network kevy-server (`MAILRS_KEVY_URL`); message bodies are read from
+//! the Maildir (`MAILRS_MAILDIR`). Search is fastcore's too, over kevy's
+//! text index.
 
 #![allow(missing_docs)]
 

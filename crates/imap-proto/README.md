@@ -94,25 +94,6 @@ vs `imap-codec` 2.0-alpha (Rust nom-based competitor; same 4 commands,
 
 Re-run locally with `cargo bench -p mailrs-imap-proto`. See [`tests/perf_gate.rs`](tests/perf_gate.rs) for the regression budgets.
 
-<!-- AUDIT-FOOTER:BEGIN -->
-
-## Stone audit (2026-05-25)
-
-| Axis | Status |
-|---|---|
-| **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-imap-proto`) |
-| **test** | line cov: 96.9% (`cargo llvm-cov -p mailrs-imap-proto --summary-only`) |
-| **bench** | ✅ 2 file(s) criterion + ✅ 3 gate(s) `perf_gate.rs` |
-| **size** | release rlib: 308 KB |
-| **fuzz** | ✅ 2 target(s) |
-| **mem**  | no dhat profile yet |
-
-### Competitor comparisons (from PERFORMANCE.md)
-
-- `mailrs-imap-proto` vs `imap-codec` 2.0-alpha (Rust nom-based IMAP codec)
-
-<!-- AUDIT-FOOTER:END -->
-
 ## License
 
 Licensed under either of:

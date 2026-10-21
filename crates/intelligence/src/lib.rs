@@ -59,7 +59,7 @@
 pub mod analyze;
 pub mod assist;
 pub mod importance;
-/// Pluggable LLM provider trait (currently Claude / Ollama implementations).
+/// Pluggable LLM provider trait, with an OpenAI-compatible implementation.
 pub mod provider;
 pub mod spam;
 /// Schema.org JSON-LD extraction from HTML message bodies.

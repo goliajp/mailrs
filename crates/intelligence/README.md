@@ -69,32 +69,13 @@ Disable both default features (`default-features = false`) if you're plugging in
 
 ```toml
 [dependencies]
-mailrs-intelligence = { version = "1", default-features = false }
+mailrs-intelligence = { version = "3", default-features = false }
 async-trait = "0.1"
 ```
 
 ## Why a trait
 
 Production mail servers tend to mix cheap inference (per-message spam classification, hot path) with rarer expensive calls (deep structured extraction, big context). Letting analysis functions take `&dyn LlmProvider` keeps the choice of model **visible at the call site** — you can grep your own code for "which provider does this path hand into `analyze_email`?" without diving into config or environment variables. That visibility is the whole point of carving the trait out instead of shipping the concrete config struct.
-
-<!-- AUDIT-FOOTER:BEGIN -->
-
-## Stone audit (2026-05-25)
-
-| Axis | Status |
-|---|---|
-| **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-intelligence`) |
-| **test** | line cov: 92.2% (`cargo llvm-cov -p mailrs-intelligence --summary-only`) |
-| **bench** | ✅ 1 file(s) criterion + ✅ 2 gate(s) `perf_gate.rs` |
-| **size** | release rlib: 1.4 MB |
-| **fuzz** | ❌ none |
-| **mem**  | no dhat profile yet |
-
-### Competitor comparisons
-
-- Searched crates.io + competing impls: see PERFORMANCE.md or 'first-in-Rust' marker.
-
-<!-- AUDIT-FOOTER:END -->
 
 ## License
 

@@ -9,7 +9,7 @@ binary + fastcore stack, and `web-v<YYYY.MM.DD>-<seq>` for the React
 web UI. Only the Rust stream is enumerated below; web releases are
 tracked separately in the release-web workflow.
 
-## Since v2.0.0 — shipped straight from `develop`, up to **v2.87.0**
+## Since v2.0.0 — shipped straight from `develop`
 
 Per-version enumeration stopped at `v2.0.0` (2026-07-07). Everything
 since has shipped by `scripts/direct-deploy.sh <version>`, which takes
@@ -136,6 +136,8 @@ before, and is not revisited.
 The rule's tests are three real production shapes copied out of the
 maildir: the reported BEC is held, the control plane's own mail is not,
 and neither is the verified public sender at our domain.
+
+## v2.2.0
 
 Rust-side kevy 3.17 network-op adoption + admin-panel data-source
 repair. Sits on top of the shipped `v2.0.0` GA and `web-v2026.07.08-1`

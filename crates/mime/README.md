@@ -120,25 +120,6 @@ fast path that skips the WSP-strip copy on clean payloads.
 
 Reproduce: `cargo bench -p mailrs-mime --bench mime`.
 
-<!-- AUDIT-FOOTER:BEGIN -->
-
-## Stone audit (2026-05-25)
-
-| Axis | Status |
-|---|---|
-| **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-mime`) |
-| **test** | line cov: 96.5% (`cargo llvm-cov -p mailrs-mime --summary-only`) |
-| **bench** | ✅ 1 file(s) criterion + ✅ 3 gate(s) `perf_gate.rs` |
-| **size** | release rlib: 142 KB |
-| **fuzz** | ✅ 1 target(s) |
-| **mem**  | no dhat profile yet |
-
-### Competitor comparisons (from PERFORMANCE.md)
-
-- `mailrs-mime` vs `mail-parser` (MIME body parse)
-
-<!-- AUDIT-FOOTER:END -->
-
 ## License
 
 Apache-2.0 OR MIT.

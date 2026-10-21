@@ -54,12 +54,12 @@ See [`examples/in_memory_queue.rs`](examples/in_memory_queue.rs) for a no-DB exa
 
 | Feature | Default | What it enables |
 |---------|---------|-----------------|
-| `pg`    | on      | `PgQueueStore`, `KevyNotifier`, and the bundled `DeliveryWorker`. Pulls in `sqlx` (Postgres) and `redis`. |
+| `pg`    | on      | `PgQueueStore`, `KevyNotifier`, and the bundled `DeliveryWorker`. Pulls in `sqlx` (Postgres) and in-process `kevy-embedded`. |
 
 Disable `pg` for a trait-only build:
 
 ```toml
-mailrs-outbound-queue = { version = "1", default-features = false }
+mailrs-outbound-queue = { version = "4", default-features = false }
 ```
 
 In that mode you get `QueueStore` + `Notifier` + `InMemoryQueueStore` + `InMemoryNotifier` + the pure primitives (`dkim_sign`, `dsn`, `mta_sts`, `retry`). Write your own worker on top.
@@ -92,25 +92,6 @@ Both are stable for v1.x. The v2 plan is to consolidate around the trait surface
 - No DKIM _verification_ — outbound only (signing). Verification lives in [`mail-auth`].
 - No SPF / DMARC enforcement on inbound. Those belong upstream of this crate.
 - No message storage / threading. See `mailrs-mailbox` / `mailrs-maildir` for those.
-
-<!-- AUDIT-FOOTER:BEGIN -->
-
-## Stone audit (2026-05-25)
-
-| Axis | Status |
-|---|---|
-| **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-outbound-queue`) |
-| **test** | line cov: 68.0% (`cargo llvm-cov -p mailrs-outbound-queue --summary-only`) |
-| **bench** | ✅ 1 file(s) criterion + ✅ 6 gate(s) `perf_gate.rs` |
-| **size** | release rlib: 2.8 MB |
-| **fuzz** | ❌ none |
-| **mem**  | no dhat profile yet |
-
-### Competitor comparisons
-
-- Searched crates.io + competing impls: see PERFORMANCE.md or 'first-in-Rust' marker.
-
-<!-- AUDIT-FOOTER:END -->
 
 ## License
 

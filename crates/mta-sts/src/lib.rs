@@ -25,7 +25,7 @@
 //! This crate is **pure** — no HTTP, no DNS, no clock. The caller
 //! brings:
 //!
-//! - a DNS layer for the TXT lookup (typically `mailrs-dns`),
+//! - a DNS layer for the TXT lookup (typically `hickory-resolver`),
 //! - an HTTPS client for the policy fetch (typically `reqwest`),
 //! - a clock for `max_age` enforcement,
 //! - a [`Cache`] impl for the `id → Policy` mapping. We ship an

@@ -16,7 +16,7 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
-sqlx = { workspace = true }
+sqlx = { workspace = true, optional = true }
 spg-sqlx = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -26,11 +26,15 @@ memchr = "2"
 mailrs-maildir = { path = "../storage-maildir", version = "1" }
 
 [features]
+default = ["pg"]
+# The SQL reference implementation, `PgMailboxStore`. Without it the crate
+# is the trait, the types and the threading helpers, and pulls no SQL.
+pg = ["dep:sqlx"]
 # Swap the storage backend from PostgreSQL (default) to spg-embedded
 # (in-process SQL engine, PG dialect). Type-alias level switch: the
 # public API keeps one pool type (`BackendPool`); which concrete pool
 # it is gets decided at build time.
-spg = ["dep:spg-sqlx"]
+spg = ["pg", "dep:spg-sqlx"]
 
 [dev-dependencies]
 mailrs-test-docker = { path = "../test-docker" }

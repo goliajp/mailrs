@@ -2,7 +2,7 @@
 name = "mailrs-fastcore"
 version.workspace = true
 edition = "2024"
-description = "Kevy-backed `mailrs-core-api` server. Drop-in for the PG/spg core when the workload fits the cascade-killer KV layout."
+description = "The mailrs core: spool drain, delivery and indexing over embedded kevy, the core-api server, IMAP, POP3 and ManageSieve."
 license = "Apache-2.0 OR MIT"
 publish = false
 
@@ -50,7 +50,7 @@ mailrs-triage = { path = "../triage" }
 mailrs-alias-store = { path = "../alias-store" }
 mailrs-alias-store-net = { path = "../alias-store-net" }
 mailrs-smtp-client = { path = "../smtp-client" }
-mailrs-outbound-queue = { path = "../outbound-queue" }
+mailrs-outbound-queue = { path = "../outbound-queue", default-features = false }
 # rustls crypto provider must be installed once per process before any
 # TLS config is built (STARTTLS in the sender daemon). Match the
 # receiver binary's version + feature set.
