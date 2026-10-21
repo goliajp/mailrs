@@ -37,7 +37,10 @@ const EXEMPT_FNS: &[(&str, &str)] = &[
         "compares zset against declared axis",
     ),
     ("shadow_read_route", "compares zset against declared axis"),
-    ("category_axis", "shadow_read_route's per-category comparison"),
+    (
+        "category_axis",
+        "shadow_read_route's per-category comparison",
+    ),
 ];
 
 const LEGACY_KEY_FNS: &[&str] = &[
