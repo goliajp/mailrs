@@ -91,10 +91,7 @@ fun GroupDetailScreen(detail: AdminDetail, vm: MailViewModel) {
                     onValueChange = { address = it },
                     label = { Text("Address", fontSize = 13.sp) },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Email,
-                        imeAction = ImeAction.Done,
-                    ),
+                    keyboardOptions = addressKeyboard(ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { add() }),
                     modifier = Modifier.fillMaxWidth().testTag("field.member"),
                 )

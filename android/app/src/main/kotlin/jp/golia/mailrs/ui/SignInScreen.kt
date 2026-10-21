@@ -32,6 +32,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import jp.golia.mailrs.wire.looksLikeAddress
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -62,9 +63,10 @@ fun SignInScreen(busy: Boolean, error: String?, onSignIn: (String, String, Strin
     // device. Retyping it is the cheaper cost.
     var password by remember { mutableStateOf("") }
 
-    val ready = !busy && username.isNotBlank() && password.isNotBlank()
+    val addressOk = looksLikeAddress(username.trim())
+    val ready = !busy && addressOk && password.isNotBlank()
     fun submit() {
-        if (ready) onSignIn(server, username, password)
+        if (ready) onSignIn(server, username.trim(), password)
     }
 
     Column(
@@ -102,10 +104,7 @@ fun SignInScreen(busy: Boolean, error: String?, onSignIn: (String, String, Strin
             onValueChange = { server = it },
             label = { Text("Server") },
             singleLine = true,
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Uri,
-                imeAction = ImeAction.Next,
-            ),
+            keyboardOptions = addressKeyboard(keyboardType = KeyboardType.Uri),
             modifier = Modifier.fillMaxWidth().testTag("field.server"),
         )
         OutlinedTextField(
@@ -113,10 +112,14 @@ fun SignInScreen(busy: Boolean, error: String?, onSignIn: (String, String, Strin
             onValueChange = { username = it },
             label = { Text("Address") },
             singleLine = true,
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Email,
-                imeAction = ImeAction.Next,
-            ),
+            keyboardOptions = addressKeyboard(),
+            // said once something is typed, not while the field is empty
+            isError = username.isNotBlank() && !addressOk,
+            supportingText = if (username.isNotBlank() && !addressOk) {
+                { Text("Enter the full address, like name@example.com") }
+            } else {
+                null
+            },
             // Named to the autofill service, so a password manager can
             // offer the saved account rather than the reader retyping an
             // address into a phone keyboard.

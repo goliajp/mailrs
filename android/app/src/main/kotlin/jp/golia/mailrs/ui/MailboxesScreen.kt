@@ -98,7 +98,7 @@ fun MailboxesScreen() {
             onValueChange = { draft = draft.copy(address = it) },
             label = { Text("you@example.com") },
             singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+            keyboardOptions = addressKeyboard(androidx.compose.ui.text.input.ImeAction.Done),
             modifier = Modifier.fillMaxWidth().testTag("account.address"),
         )
 
