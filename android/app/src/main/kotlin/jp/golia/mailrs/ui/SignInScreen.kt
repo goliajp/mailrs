@@ -53,7 +53,8 @@ fun SignInScreen(busy: Boolean, error: String?, onSignIn: (String, String, Strin
     val theme = LocalTheme.current
     // **Saveable, so a rotation does not empty the form** — typing an
     // address and turning the phone should not start it again.
-    var server by rememberSaveable { mutableStateOf("mail.golia.jp") }
+    // the host the server's certificate is issued for, as on iOS
+    var server by rememberSaveable { mutableStateOf("mail.golia.ai") }
     var username by rememberSaveable { mutableStateOf("") }
     // **Except the password.** Saved state is a Bundle, and a Bundle
     // goes to disk in the saved instance state; a password that
