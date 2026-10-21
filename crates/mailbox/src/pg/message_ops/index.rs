@@ -86,23 +86,9 @@ impl PgMailboxStore {
             return Ok(existing_uid as u32);
         }
 
-        // plain column references only: spg wire-types arithmetic
-        // RETURNING expressions as TEXT (round-27, 2026-06-13 — every
-        // delivery index failed silently since the cutover). `uid` is
-        // computed client-side from the post-update uidnext; identical
-        // semantics on both engines.
-        let (mailbox_id, next_uid, new_modseq) = sqlx::query_as::<_, (i64, i32, i64)>(
-            "UPDATE mailboxes
-             SET uidnext = uidnext + 1,
-                 highest_modseq = highest_modseq + 1
-             WHERE user_address = $1 AND name = $2
-             RETURNING id, uidnext, highest_modseq",
-        )
-        .bind(user)
-        .bind(mailbox_name)
-        .fetch_one(&self.pool)
-        .await?;
-        let uid = next_uid - 1;
+        let mut conn = self.pool.acquire().await?;
+        let r = super::uids::reserve(&mut conn, user, mailbox_name, 1).await?;
+        let (mailbox_id, uid, new_modseq) = (r.mailbox_id, r.first_uid, r.base_modseq + 1);
 
         sqlx::query(
             "INSERT INTO messages (mailbox_id, uid, maildir_id, sender, recipients, subject,
@@ -123,7 +109,7 @@ impl PgMailboxStore {
         .bind(in_reply_to)
         .bind(thread_id)
         .bind(new_modseq)
-        .execute(&self.pool)
+        .execute(&mut *conn)
         .await?;
 
         Ok(uid as u32)
@@ -175,30 +161,16 @@ impl PgMailboxStore {
 
         let mut tx = self.pool.begin().await?;
 
-        // Reserve uids per mailbox; remember (mailbox_id, base_uid,
-        // base_modseq) and the per-record offset within the mailbox.
-        let mut mailbox_info: HashMap<(&str, &str), (i64, i32, i64)> = HashMap::new();
+        // Reserve uids per mailbox, then place each record at its
+        // offset within the mailbox's block.
         let mut per_record_uid: Vec<i32> = vec![0; records.len()];
         let mut per_record_modseq: Vec<i64> = vec![0; records.len()];
         let mut per_record_mb_id: Vec<i64> = vec![0; records.len()];
 
         for ((user, mailbox_name), indices) in &by_mailbox {
             let n = indices.len() as i32;
-            // plain columns only in RETURNING (round-27: spg types
-            // arithmetic expressions as TEXT); bases computed client-side
-            let (mailbox_id, next_uid, new_modseq): (i64, i32, i64) = sqlx::query_as(
-                "UPDATE mailboxes
-                 SET uidnext = uidnext + $1, highest_modseq = highest_modseq + $1
-                 WHERE user_address = $2 AND name = $3
-                 RETURNING id, uidnext, highest_modseq",
-            )
-            .bind(n)
-            .bind(*user)
-            .bind(*mailbox_name)
-            .fetch_one(&mut *tx)
-            .await?;
-            let (base_uid, base_modseq) = (next_uid - n, new_modseq - i64::from(n));
-            mailbox_info.insert((*user, *mailbox_name), (mailbox_id, base_uid, base_modseq));
+            let r = super::uids::reserve(&mut tx, user, mailbox_name, n).await?;
+            let (mailbox_id, base_uid, base_modseq) = (r.mailbox_id, r.first_uid, r.base_modseq);
 
             for (offset, &record_idx) in indices.iter().enumerate() {
                 per_record_mb_id[record_idx] = mailbox_id;

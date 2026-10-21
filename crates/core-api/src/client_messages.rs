@@ -1,7 +1,7 @@
 //! Message, mailbox and analysis RPCs.
 
 use crate::client::Client;
-use crate::error::{ApiResult, CoreApiError};
+use crate::error::ApiResult;
 use crate::method;
 
 impl Client {
@@ -30,31 +30,6 @@ impl Client {
     ) -> ApiResult<method::mailbox::ListMailboxesResponse> {
         let path = format!("/v1/users/{}/mailboxes", Self::enc(user));
         self.get_authed(path, "list_mailboxes").await
-    }
-
-    /// GET /v1/mailboxes/{id}
-    pub async fn get_mailbox_by_id(&self, id: i64) -> ApiResult<method::mailbox::MailboxWire> {
-        let path = format!("/v1/mailboxes/{id}");
-        self.get_authed(path, "get_mailbox_by_id").await
-    }
-
-    /// GET /v1/mailboxes/{id}/status
-    pub async fn mailbox_status(
-        &self,
-        id: i64,
-    ) -> ApiResult<method::mailbox::MailboxStatusResponse> {
-        let path = format!("/v1/mailboxes/{id}/status");
-        self.get_authed(path, "mailbox_status").await
-    }
-
-    /// GET /v1/mailboxes/{id}/messages/uid/{uid}
-    pub async fn get_message_by_uid(
-        &self,
-        mailbox_id: i64,
-        uid: u32,
-    ) -> ApiResult<method::message::MessageWire> {
-        let path = format!("/v1/mailboxes/{mailbox_id}/messages/uid/{uid}");
-        self.get_authed(path, "get_message_by_uid").await
     }
 
     /// GET /v1/users/{user}/messages/by-uid/{uid} — fastcore-native
@@ -98,51 +73,6 @@ impl Client {
             Self::enc(message_id),
         );
         self.get_authed(path, "find_by_message_id_for_user").await
-    }
-
-    /// GET /v1/mailboxes/{id}/messages/uid/{uid}/raw  → raw RFC 5322 bytes.
-    pub async fn get_message_raw(&self, mailbox_id: i64, uid: u32) -> ApiResult<Vec<u8>> {
-        let path = format!("/v1/mailboxes/{mailbox_id}/messages/uid/{uid}/raw");
-        let resp = self
-            .inner
-            .get(self.url(&path))
-            .bearer_auth(&self.auth_bearer)
-            .send()
-            .await
-            .map_err(|e| CoreApiError::Internal(format!("get_message_raw transport: {e}")))?;
-        let status = resp.status().as_u16();
-        match status {
-            200..=299 => resp
-                .bytes()
-                .await
-                .map(|b| b.to_vec())
-                .map_err(|e| CoreApiError::Internal(format!("get_message_raw read: {e}"))),
-            401 => Err(CoreApiError::Unauthorized),
-            404 => Err(CoreApiError::NotFound("get_message_raw".into())),
-            other => Err(CoreApiError::Internal(format!(
-                "get_message_raw returned {other}"
-            ))),
-        }
-    }
-
-    /// GET /v1/mailboxes/{id}/messages?offset=&limit=
-    pub async fn list_messages(
-        &self,
-        mailbox_id: i64,
-        offset: u32,
-        limit: u32,
-    ) -> ApiResult<method::message::ListMessagesResponse> {
-        let path = format!("/v1/mailboxes/{mailbox_id}/messages?offset={offset}&limit={limit}");
-        self.get_authed(path, "list_messages").await
-    }
-
-    /// GET /v1/analysis/{message_id}
-    pub async fn get_analysis(
-        &self,
-        message_id: i64,
-    ) -> ApiResult<method::analysis::GetAnalysisResponse> {
-        let path = format!("/v1/analysis/{message_id}");
-        self.get_authed(path, "get_analysis").await
     }
 
     /// POST /v1/users/{user}/messages/{uid}/flags — patch a message's

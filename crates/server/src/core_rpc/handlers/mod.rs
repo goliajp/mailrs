@@ -9,6 +9,21 @@
 
 pub mod admin;
 pub mod conversation;
+pub mod deliver;
+pub mod filing;
+pub mod holds;
 pub mod mailbox;
 pub mod message;
 pub mod thread;
+pub mod views;
+
+/// Log a store error for `what` and answer 500.
+pub(crate) fn failed<'a>(
+    what: &'static str,
+    user: &'a str,
+) -> impl FnOnce(sqlx::Error) -> axum::http::StatusCode + 'a {
+    move |e| {
+        tracing::warn!(error = %e, %user, "{what} failed");
+        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+    }
+}

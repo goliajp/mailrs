@@ -119,33 +119,6 @@ impl Client {
         Self::map_status(resp, context).await
     }
 
-    /// POST with JSON body and no expected response body (server returns
-    /// `204 No Content`). Used for fire-and-forget audit writes and
-    /// similar one-way admin actions.
-    pub(crate) async fn post_authed_no_content<R: serde::Serialize>(
-        &self,
-        path: &str,
-        context: &'static str,
-        body: &R,
-    ) -> ApiResult<()> {
-        let resp = self
-            .inner
-            .post(self.url(path))
-            .bearer_auth(&self.auth_bearer)
-            .json(body)
-            .send()
-            .await
-            .map_err(|e| CoreApiError::Internal(format!("{context} transport: {e}")))?;
-        if resp.status().is_success() {
-            Ok(())
-        } else {
-            Err(CoreApiError::Internal(format!(
-                "{context} bad status: {}",
-                resp.status()
-            )))
-        }
-    }
-
     pub(crate) async fn post_authed_no_body<T: serde::de::DeserializeOwned>(
         &self,
         path: String,
@@ -176,26 +149,6 @@ impl Client {
             .await
             .map_err(|e| CoreApiError::Internal(format!("{context} transport: {e}")))?;
         Self::map_status_unit(resp, context).await
-    }
-
-    pub(crate) async fn put_authed_json_returning<
-        R: serde::Serialize,
-        T: serde::de::DeserializeOwned,
-    >(
-        &self,
-        path: String,
-        body: &R,
-        context: &'static str,
-    ) -> ApiResult<T> {
-        let resp = self
-            .inner
-            .put(self.url(&path))
-            .bearer_auth(&self.auth_bearer)
-            .json(body)
-            .send()
-            .await
-            .map_err(|e| CoreApiError::Internal(format!("{context} transport: {e}")))?;
-        Self::map_status(resp, context).await
     }
 
     pub(crate) async fn delete_authed(&self, path: String, context: &'static str) -> ApiResult<()> {

@@ -20,8 +20,11 @@ mod mailbox_ops;
 mod message_ops;
 mod reconcile_ops;
 pub use reconcile_ops::ReconcileReport;
+mod search_ids;
 mod search_ops;
 mod thread_ops;
+
+pub use thread_ops::{Held, ThreadQuery};
 mod trait_impl;
 mod usage_ops;
 

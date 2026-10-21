@@ -41,8 +41,6 @@ mod client_accounts;
 #[cfg(feature = "client")]
 mod client_messages;
 #[cfg(feature = "client")]
-mod client_outbound;
-#[cfg(feature = "client")]
 mod client_sidestate;
 #[cfg(feature = "client")]
 mod client_threads;

@@ -137,29 +137,6 @@ pub(crate) async fn get_unseen_count(
     Json(conv::UnseenCountResponse { count })
 }
 
-/// `GET /v1/users/{user}/threads/{thread_id}/messages` — returns the
-/// thread's messages. mailbox-kevy doesn't store per-message rows yet
-/// (only the aggregate row), so this returns the empty list until
-/// Phase 7.11 lands a per-message layout. Webapi treats empty as
-/// "thread exists but currently rendering, retry shortly" — graceful
-/// fallback that keeps the UI from 404-ing the whole conversation
-/// view while the kevy data shape grows.
-pub(crate) async fn thread_messages(
-    State(state): State<Arc<FastcoreState>>,
-    Path((user, thread_id)): Path<(String, String)>,
-) -> Json<mailrs_core_api::method::thread::ListThreadMessagesResponse> {
-    use mailrs_core_api::method::message::MessageWire;
-    let blobs = state
-        .mailbox
-        .list_thread_messages(&user, &thread_id)
-        .unwrap_or_default();
-    let items = blobs
-        .into_iter()
-        .filter_map(|b| serde_json::from_slice::<MessageWire>(&b).ok())
-        .collect();
-    Json(mailrs_core_api::method::thread::ListThreadMessagesResponse { items })
-}
-
 pub(crate) async fn list_sent_messages(
     State(state): State<Arc<FastcoreState>>,
     Path(user): Path<String>,
@@ -219,54 +196,6 @@ pub(crate) async fn find_thread_by_message_id(
         .thread_for_message_id(&user, &message_id)
         .unwrap_or(None);
     Json(mailrs_core_api::method::thread::FindThreadByMessageIdResponse { thread_id })
-}
-
-/// `GET /v1/users/{user}/messages/by-uid/{uid}` — look up a message by
-/// the user-scoped uid index (populated by `deliver_message` /
-/// `mailrs-fastcore-backfill-uid-index`). Returns the JSON MessageWire.
-pub(crate) async fn get_message_by_uid_for_user(
-    State(state): State<Arc<FastcoreState>>,
-    Path((user, uid)): Path<(String, u32)>,
-) -> Result<axum::response::Response, axum::http::StatusCode> {
-    use axum::http::StatusCode;
-    use axum::response::IntoResponse;
-    match state.mailbox.get_message_by_uid(&user, uid) {
-        Ok(Some(bytes)) => Ok((
-            [("content-type", "application/json")],
-            String::from_utf8(bytes).unwrap_or_default(),
-        )
-            .into_response()),
-        Ok(None) => Err(StatusCode::NOT_FOUND),
-        Err(e) => {
-            tracing::warn!(error = %e, %user, %uid, "get_message_by_uid failed");
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
-}
-
-/// `GET /v1/users/{user}/messages/by-uid/{uid}/invite` — the typed
-/// invitation the message carries, stored at ingest.
-///
-/// 404 when the message carries none, which is nearly all mail. The
-/// row's `invite_method` already told the caller whether to ask, so a
-/// 404 here means the two disagree — worth noticing rather than
-/// answering `null`.
-pub(crate) async fn get_invite(
-    State(state): State<Arc<FastcoreState>>,
-    Path((user, uid)): Path<(String, u32)>,
-) -> Result<axum::response::Response, axum::http::StatusCode> {
-    use axum::http::StatusCode;
-    use axum::response::IntoResponse;
-    let bytes = state
-        .mailbox
-        .get_message_by_uid(&user, uid)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-        .ok_or(StatusCode::NOT_FOUND)?;
-    let wire: mailrs_core_api::method::message::MessageWire =
-        serde_json::from_slice(&bytes).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let payload =
-        crate::invites::payload_json(&state, &wire.message_id).ok_or(StatusCode::NOT_FOUND)?;
-    Ok(([("content-type", "application/json")], payload).into_response())
 }
 
 /// `GET /v1/users/{user}/mailboxes` — returns the INBOX + standard IMAP

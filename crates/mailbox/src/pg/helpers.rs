@@ -393,6 +393,7 @@ mod tests {
             last_sender: "alice".into(),
             sent_count: 0,
             snoozed_until: 0,
+            quarantined: false,
         };
         let cloned = cs.clone();
         assert_eq!(cloned.thread_id, "t1");
@@ -424,6 +425,7 @@ mod tests {
             last_sender: "a".into(),
             sent_count: 0,
             snoozed_until: 0,
+            quarantined: false,
         };
         let debug = format!("{:?}", cs);
         assert!(debug.contains("ConversationSummary"));

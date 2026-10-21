@@ -88,7 +88,7 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
         // on an identical path panic at startup).
         .route(
             th_paths::PATH_LIST_THREAD_MESSAGES,
-            get(handlers::thread::list_thread_messages).post(handlers::thread::deliver_message),
+            get(handlers::thread::list_thread_messages).post(handlers::deliver::deliver_message),
         )
         .route(th_paths::PATH_MARK_READ, post(handlers::thread::mark_read))
         .route(
@@ -126,10 +126,6 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
         .route(
             msg_paths::PATH_FIND_BY_MESSAGE_ID,
             get(handlers::message::find_message_by_message_id),
-        )
-        .route(
-            "/v1/mailboxes/{id}/messages/uid/{uid}/raw",
-            get(handlers::message::get_message_raw),
         )
         .route(
             msg_paths::PATH_SET_FLAGS,
@@ -411,6 +407,7 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
     let authenticated = convo
         .merge(mb)
         .merge(th)
+        .merge(super::router_views::view_routes(state.clone()))
         .merge(msg)
         .merge(adm)
         .merge(anal)

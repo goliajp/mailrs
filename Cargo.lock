@@ -4209,6 +4209,7 @@ dependencies = [
  "mailrs-spf",
  "mailrs-srs",
  "mailrs-tls-reload",
+ "mailrs-triage",
  "memchr",
  "metrics",
  "reqwest",
@@ -4250,22 +4251,6 @@ dependencies = [
  "mail-parser",
  "memchr",
  "proptest",
-]
-
-[[package]]
-name = "mailrs-sender"
-version = "0.0.1"
-dependencies = [
- "base64 0.22.1",
- "hickory-resolver",
- "mailrs-core-api",
- "mailrs-outbound-queue",
- "mailrs-smtp-client",
- "serde",
- "serde_json",
- "tokio",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
