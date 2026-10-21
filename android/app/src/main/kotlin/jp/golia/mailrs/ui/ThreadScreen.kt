@@ -91,6 +91,7 @@ import jp.golia.mailrs.undo
 import androidx.compose.material.icons.filled.MarkEmailUnread
 import androidx.compose.material.icons.filled.StarBorder
 import jp.golia.mailrs.toggleStar
+import jp.golia.mailrs.markOpenThreadUnread
 import jp.golia.mailrs.triageOpenThread
 import jp.golia.mailrs.closeThread
 import jp.golia.mailrs.reportFailure
@@ -196,7 +197,7 @@ fun ThreadScreen(
                         )
                     }
                     IconButton(
-                        onClick = { vm.triageOpenThread(MailrsClient.Verb.Unread) },
+                        onClick = { vm.markOpenThreadUnread() },
                         modifier = Modifier.testTag("button.markUnread"),
                     ) {
                         Icon(
