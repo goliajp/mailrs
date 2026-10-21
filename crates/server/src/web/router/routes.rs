@@ -452,10 +452,13 @@ pub(super) fn dav_routes() -> axum::Router<Arc<WebState>> {
             "/dav/calendars/{user}/{calendar}/{uid}",
             any(dav::dav_event),
         )
-        .route("/dav/contacts/{user}/", any(dav::dav_contact_home))
+        .route("/dav/addressbooks/{user}/", any(dav::dav_contact_home))
         .route(
-            "/dav/contacts/{user}/{book}/",
+            "/dav/addressbooks/{user}/{book}/",
             any(dav::dav_contact_collection),
         )
-        .route("/dav/contacts/{user}/{book}/{uid}", any(dav::dav_contact))
+        .route(
+            "/dav/addressbooks/{user}/{book}/{uid}",
+            any(dav::dav_contact),
+        )
 }

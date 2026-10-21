@@ -15,6 +15,7 @@ This is, at the time of writing, the **only** standalone server-side CalDAV / Ca
 
 - **Framework-free** — no axum / actix / tower / hyper. Each handler returns a `DavResponse { status, headers, body }` your server-side adapter translates into your framework's response type.
 - **Store-free** — implement [`CalendarStore`](https://docs.rs/mailrs-dav/latest/mailrs_dav/store/trait.CalendarStore.html) (8 async methods) and / or [`AddressBookStore`](https://docs.rs/mailrs-dav/latest/mailrs_dav/store/trait.AddressBookStore.html) (8 async methods); every handler works.
+- **Optional routing** — `dispatch::handle` takes the method, path and headers of a request under `/dav/` and calls the right handler, refusing (403) a path that names a user other than the authenticated one.
 - **Preconditions handled** — `If-Match` (etag must equal current) and `If-None-Match: *` (resource must not exist) honored on PUT per [RFC 4791 §5.3.2](https://www.rfc-editor.org/rfc/rfc4791#section-5.3.2) / [RFC 6352 §6.3.2](https://www.rfc-editor.org/rfc/rfc6352#section-6.3.2).
 - **Standard error envelope** — [`DavError`](https://docs.rs/mailrs-dav/latest/mailrs_dav/error/enum.DavError.html) enum with `.to_dav_response()` for a 4xx/5xx fallback your server can emit unchanged.
 - **Pure helpers exposed** — `xml_escape`, `multistatus`, `etag_of`, `options_response`, `extract_ical_field`, `extract_ical_datetime`, `extract_vcard_field`, `extract_multiget_uids`, `parse_depth`. Use the handlers or grab the pieces.

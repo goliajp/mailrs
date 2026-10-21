@@ -109,15 +109,19 @@ where
     // Pooled — see `crate::kevy_pool`. This used to open a connection per
     // call, and the seven copies of this function that other handler modules
     // carried also spawned and joined an OS thread per call.
-    //
-    // block_in_place is only valid inside a multi-thread runtime — it panics
-    // under the current_thread runtime some tests use. There, run directly.
-    let run = || {
+    off_reactor(|| {
         crate::kevy_pool::with_conn(f).map_err(|e| {
             tracing::warn!(err = %e, "with_kevy: kevy op failed");
             StatusCode::INTERNAL_SERVER_ERROR
         })
-    };
+    })
+}
+
+/// Run a blocking closure without stalling the async reactor.
+///
+/// block_in_place is only valid inside a multi-thread runtime — it panics
+/// under the current_thread runtime some tests use. There, run directly.
+pub fn off_reactor<T>(run: impl FnOnce() -> T) -> T {
     match tokio::runtime::Handle::try_current() {
         Ok(handle)
             if matches!(

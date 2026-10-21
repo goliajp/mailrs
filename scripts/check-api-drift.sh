@@ -18,7 +18,7 @@ import glob, json, re, sys
 FILES = ['crates/webapi/src/router.rs'] + sorted(glob.glob('crates/webapi/src/router/*.rs'))
 VERBS = ('get', 'post', 'put', 'delete', 'patch')
 # the catch-all that turns an unknown /api path into a 404
-IGNORED = {'/api/{*rest}'}
+IGNORED = {'/api/{rest}'}
 
 
 def strip_comments(text):
@@ -47,7 +47,9 @@ for path in FILES:
         verbs = set(re.findall(r'\b(get|post|put|delete|patch|any)\s*\(', body))
         if not verbs:
             sys.exit(f'FAIL: no method found for route {m.group(1)} in {path}')
-        routes.setdefault(m.group(1), set()).update(verbs)
+        # OpenAPI has no catch-all segment; `{*path}` is documented as `{path}`
+        route = re.sub(r'\{\*([^}]+)\}', r'{\1}', m.group(1))
+        routes.setdefault(route, set()).update(verbs)
 
 for p in IGNORED:
     routes.pop(p, None)

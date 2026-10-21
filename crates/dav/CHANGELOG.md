@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `dispatch::handle` routes a whole `/dav/` tree by path and method, and
+  answers 403 when the path's user segment is not the authenticated user.
+- `caldav::calendar_home_report` / `carddav::addressbook_home_report`: a
+  REPORT sent to the home runs over every collection.
+- `store::into_dav_error`: a store may return a boxed `DavError` to choose
+  the status (403, 400, ...); any other error is still a 500.
+- `parse::encode_segment`, `parse::percent_decode`, `parse::multiget_uids`
+  and `xml::ctag_of`.
+
+### Changed
+
+- The address-book home is `/dav/addressbooks/{user}/` (was
+  `/dav/contacts/{user}/`).
+- `CS:getctag` is a digest of the member etags, so it changes whenever a
+  member does; it carried the collection description before. The
+  description moved to `C:calendar-description` /
+  `CR:addressbook-description`. Single collections report it at `Depth: 0`.
+- Collection names and UIDs are percent-encoded in hrefs and XML-escaped
+  in display names; the collection-level handlers take the decoded name.
+  Multiget hrefs are decoded before matching.
+- `OPTIONS` no longer advertises `MKCALENDAR`, which nothing implements,
+  and lists `HEAD`.
+- `DavError` implements `PartialEq` / `Eq`.
+
 ## [1.1.2] - 2026-08-04
 
 ### Changed

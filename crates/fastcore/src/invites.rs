@@ -198,27 +198,9 @@ pub(crate) fn file_event(state: &Arc<FastcoreState>, user: &str, found: &FoundIn
         },
         source: format!("mail:{}", found.uid),
         sequence: found.sequence,
+        ics: None,
     };
-    let written = ev::fields(&row);
-    let pairs: Vec<(&[u8], &[u8])> = written
-        .iter()
-        .map(|(k, v)| (k.as_bytes(), v.as_bytes()))
-        .collect();
-    if conn.hset(key.as_bytes(), &pairs).is_err() {
-        return;
-    }
-    // The index is scored by start time, and an all-day event has no
-    // instant to score — it is stored and readable, just not in the
-    // window query. Better than filing it at midnight in a zone nobody
-    // named.
-    if let Some(start) = dtstart.as_deref().and_then(|s| {
-        chrono::DateTime::parse_from_rfc3339(s)
-            .ok()
-            .map(|d| d.timestamp() as f64)
-    }) {
-        let _ = conn.zadd(
-            ev::index_key(user).as_bytes(),
-            &[(start, found.uid.as_bytes())],
-        );
+    if let Err(e) = ev::put(&mut conn, user, &row) {
+        tracing::warn!(err = %e, %user, uid = %found.uid, "invite: cannot file event");
     }
 }

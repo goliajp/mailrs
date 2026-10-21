@@ -254,4 +254,10 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
             "/v1/admin/maintenance:backfill-thread-importance",
             post(backfill_thread_importance_route),
         )
+        // The old CalDAV / CardDAV keys into the rows the web reads.
+        // `?delete_old=true` removes the old keys afterwards.
+        .route(
+            "/v1/admin/maintenance:migrate-dav-keys",
+            post(crate::maintenance::migrate_dav_keys_route),
+        )
 }

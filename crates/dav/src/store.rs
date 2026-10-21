@@ -6,12 +6,22 @@
 
 use async_trait::async_trait;
 
+use crate::error::DavError;
 use crate::types::{AddressBook, Calendar, Contact, Event, PutResult};
 
-/// Opaque store error returned to the dispatcher. Handlers convert it into a
-/// [`DavError::ServerError`](crate::error::DavError::ServerError) carrying the
-/// `Display` value.
+/// Opaque store error returned to the dispatcher. Handlers convert it with
+/// [`into_dav_error`]: a boxed [`DavError`] keeps its status (so a store can
+/// refuse a write with 403 or reject an unparseable body with 400), anything
+/// else becomes [`DavError::ServerError`] carrying the `Display` value.
 pub type StoreError = Box<dyn std::error::Error + Send + Sync>;
+
+/// Map a store error to the DAV error a handler returns.
+pub fn into_dav_error(e: StoreError) -> DavError {
+    match e.downcast::<DavError>() {
+        Ok(dav) => *dav,
+        Err(other) => DavError::ServerError(other.to_string()),
+    }
+}
 
 /// Storage operations for CalDAV calendars + events.
 #[async_trait]
@@ -99,4 +109,21 @@ pub trait AddressBookStore: Send + Sync {
 
     /// Create a "Default" address book for `user` if they have none.
     async fn ensure_default_address_book(&self, user: &str) -> Result<(), StoreError>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_boxed_dav_error_keeps_its_status() {
+        let e: StoreError = Box::new(DavError::Forbidden);
+        assert_eq!(into_dav_error(e), DavError::Forbidden);
+    }
+
+    #[test]
+    fn any_other_error_is_a_server_error_with_its_message() {
+        let e: StoreError = Box::new(std::io::Error::other("kevy down"));
+        assert_eq!(into_dav_error(e), DavError::ServerError("kevy down".into()));
+    }
 }

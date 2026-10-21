@@ -18,7 +18,7 @@ use crate::xml::{DavResponse, multistatus, xml_escape};
 /// everything you've got".
 pub fn principal_propfind(user: &str, request_body: &str) -> Result<DavResponse, DavError> {
     let cal_home = format!("/dav/calendars/{user}/");
-    let card_home = format!("/dav/contacts/{user}/");
+    let card_home = format!("/dav/addressbooks/{user}/");
 
     let wants_current_user_principal = request_body.contains("current-user-principal");
     let wants_resourcetype = request_body.contains("resourcetype");
@@ -78,7 +78,7 @@ mod tests {
         assert!(body.contains("<C:calendar-home-set>"));
         assert!(body.contains("/dav/calendars/alice@example.com/"));
         assert!(body.contains("<CR:addressbook-home-set>"));
-        assert!(body.contains("/dav/contacts/alice@example.com/"));
+        assert!(body.contains("/dav/addressbooks/alice@example.com/"));
     }
 
     #[test]
