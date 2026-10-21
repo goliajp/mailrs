@@ -101,10 +101,9 @@ pub async fn export_mbox(
 ) -> Result<axum::response::Response, StatusCode> {
     use mailrs_message_store::MessageStore;
     let maildir_root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
-    let Some((local, domain)) = user.split_once('@') else {
+    if !user.contains('@') {
         return Err(StatusCode::BAD_REQUEST);
-    };
-    let path = format!("{maildir_root}/{domain}/{local}");
+    }
     let store = mailrs_message_store::MaildirStore;
 
     // Pull the full list of thread_ids via fastcore (single conversation
@@ -135,10 +134,12 @@ pub async fn export_mbox(
         // Every message in each thread — fetch via list_thread_messages RPC.
         if let Ok(resp) = state.core.list_thread_messages(&user, &c.thread_id).await {
             for w in resp.items {
-                if let Ok(Some(bytes)) = store
-                    .fetch(&path, &mailrs_message_store::MessageId(w.blob_ref.clone()))
-                    .await
-                {
+                let Some((path, id)) =
+                    crate::handlers::messages::blob_ref_location(&maildir_root, &user, &w.blob_ref)
+                else {
+                    continue;
+                };
+                if let Ok(Some(bytes)) = store.fetch(&path, &id).await {
                     out.extend_from_slice(b"From MAILER-DAEMON ");
                     let _ = writeln_epoch(&mut out, w.internal_date);
                     out.extend_from_slice(&bytes);

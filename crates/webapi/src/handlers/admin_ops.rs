@@ -119,10 +119,9 @@ pub async fn delete_account_sieve(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// POST /api/admin/reconcile-maildir — scan `MAILRS_MAILDIR` for
-/// message files that are not indexed in fastcore, and report the
-/// count. Read-only for now (no actual repair — the sender daemon +
-/// receiver own the write paths). Returns per-user counts.
+/// POST /api/admin/reconcile-maildir — count the mailboxes and message
+/// files under `MAILRS_MAILDIR`. Read-only, and it does not compare them
+/// with fastcore's index: indexing missed files is fastcore's self-heal.
 pub async fn reconcile_maildir(
     State(_state): State<Arc<WebState>>,
     Extension(_user): Extension<AuthedUser>,
@@ -132,8 +131,6 @@ pub async fn reconcile_maildir(
     Ok(Json(serde_json::json!({
         "users_scanned": users_scanned,
         "messages_seen": messages_seen,
-        "unindexed": 0,
-        "note": "read-only scan; live reconciliation requires the receiver's index-repair task",
     })))
 }
 

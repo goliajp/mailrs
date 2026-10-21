@@ -22,7 +22,7 @@ pub struct EmailGroupIdParams {
 #[tool_router(router = tool_router_v2_batch2, vis = "pub")]
 impl MailrsMcpService {
     #[tool(
-        description = "Scan the maildir tree and count message files per user. Read-only — reports discrepancies vs. the fastcore index, does not repair. Admin-gated."
+        description = "Count the mailboxes and message files in the maildir tree. Read-only; it does not compare them with the index or repair anything. Admin-gated."
     )]
     async fn reconcile_maildir(&self) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();

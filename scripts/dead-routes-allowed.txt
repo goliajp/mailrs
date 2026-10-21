@@ -70,7 +70,7 @@
 /api/admin/spam-feedback-stats  # DEBT: the reader for the above. Cannot report anything but zero while nothing writes.
 /api/admin/rbl-status           # DEBT: reads `admin:rbl:status`, "populated by an out-of-band worker" that does not exist. A reader with no writer.
 /api/admin/reputation           # DEBT: reads `admin:reputation`, "empty until the reputation subsystem writes". Same shape.
-/api/admin/reconcile-maildir    # DEBT: scans for unindexed maildir files and reports counts. No UI surfaces it, so nobody sees the count.
+/api/admin/reconcile-maildir    # DEBT: counts mailboxes and message files under the maildir root. No UI surfaces it; the MCP tool reconcile_maildir gives the same count.
 /api/admin/accounts/{address}/overrides  # DEBT: per-account policy overrides with no admin UI.
 /api/admin/cache/flush-conversations     # DEBT: its own doc says "no-op in the fastcore" topology. A route that does nothing, called by nobody — delete candidate rather than a gap.
 /api/conversations/semantic-search       # DEBT: search moved to kevy's text index on 2026-07-20; this may be the leftover of the vector path. Superseded or unfinished, unverified which.
