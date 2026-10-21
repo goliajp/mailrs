@@ -53,14 +53,17 @@ if [ "${1:-}" = "device" ]; then
     # Paired is not present: devicectl keeps listing a phone that was
     # unplugged an hour ago, and the build then fails at install with a
     # CoreDevice "unable to locate" that reads like a tooling bug. The
-    # tunnel state is what says the phone is actually here.
+    # tunnel state is what says the phone is actually here. Simulators
+    # are listed too, paired and all, so only a physical device counts,
+    # and xcodebuild names it by its hardware UDID.
     DEVICE=$(xcrun devicectl list devices --json-output - 2>/dev/null | python3 -c "
 import json, sys
 devices = json.load(sys.stdin)['result']['devices']
 here = [d for d in devices
-        if 'paired' in d.get('connectionProperties', {}).get('pairingState', '')
+        if d.get('hardwareProperties', {}).get('reality') == 'physical'
+        and 'paired' in d.get('connectionProperties', {}).get('pairingState', '')
         and d.get('connectionProperties', {}).get('tunnelState') != 'unavailable']
-print(here[0]['identifier'] if here else '')
+print(here[0]['hardwareProperties']['udid'] if here else '')
 ")
     if [ -z "$DEVICE" ]; then
         echo "!! no iPhone reachable — paired devices exist but none is connected."
