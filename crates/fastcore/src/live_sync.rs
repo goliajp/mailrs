@@ -119,12 +119,10 @@ pub(crate) fn network_kevy_url() -> Option<String> {
 
 /// Publish the frontend-shaped realtime event AFTER the message is
 /// readable in kevy. The receiver's SpoolDelivered fires at spool-write
-/// time — before the drain ingests — so a webapp refetch triggered by
-/// it finds nothing; worse, its NotifyEnvelope wrapper isn't the
-/// `{type:"NewMessage",...}` shape the webapp matches on, so realtime
-/// sync was dead in the fastcore topology. webapi forwards whatever
-/// crosses `notify:new-mail` verbatim; this payload IS the frontend
-/// contract (web/src/lib/types.ts NewMessageEvent).
+/// time, before the drain ingests, so a client refetching on it would
+/// find nothing; it only wakes the drain. webapi reads these keys off the
+/// change feed and sends each to its user's sockets as they are; this
+/// payload IS the frontend contract (web/src/lib/types.ts NewMessageEvent).
 pub fn publish_new_mail(user: &str, thread_id: &str, sender: &str, subject: &str, snippet: &str) {
     let Some(url) = network_kevy_url() else {
         return;

@@ -1,24 +1,6 @@
 //! What happens to one spooled envelope: alias resolution, delivery,
 //! and the two outbound enqueues.
 
-//! Spool drain — fastcore side of the receiver/core split.
-//!
-//! In split topology the receiver process accepts SMTP and writes
-//! `{spool_root}/incoming/{new,cur}/*` files with an
-//! `X-Mailrs-Spool-Envelope` header prepended (base64 JSON with
-//! reverse_path + forward_paths + verdict). The monolith `core` used to
-//! poll that dir and hand each file to its resolve/sieve/deliver
-//! pipeline; nothing owned this in the fastcore split — inbound mail
-//! landed in the spool and stayed there. This module closes that gap:
-//! decode the envelope, strip the header, and drop the file into
-//! `{maildir_root}/<domain>/<local>/new/`. Fastcore's periodic
-//! maildir self-heal (see `healed_from_maildir` in `lib.rs`) then
-//! threads and indexes it.
-//!
-//! Recipient resolution is direct-mailbox only in v1 — no alias table
-//! yet (that's a follow-up gap). Files with no resolvable recipient are
-//! left in the spool with a warn log so a human can look.
-
 use std::path::PathBuf;
 
 /// Deliver one file to one recipient. `subfolder` is empty for INBOX
