@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# verify-mail-flow.sh — the gate every deploy must pass.
+# verify-mail-flow.sh — an end-to-end mail-flow check to run against prod.
 #
 # Mail flow is the one thing that must never break, so it gets an
 # instrument rather than a spot-check. Three legs:
