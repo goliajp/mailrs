@@ -85,6 +85,3 @@ No behavior change; this is a pure coverage-density bump.
   of any header.
 - `tests/perf_gate.rs` with 4 regression gates.
 - `benches/decode.rs` with comparative numbers vs `mail-parser` 0.11.
-
-[Unreleased]: https://github.com/goliajp/mailrs/compare/mailrs-rfc2047-v1.0.0...HEAD
-[1.0.0]: https://github.com/goliajp/mailrs/releases/tag/mailrs-rfc2047-v1.0.0

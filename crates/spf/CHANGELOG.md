@@ -159,6 +159,3 @@ No code change.
 - `ptr` mechanism (§5.5) — deprecated per RFC; returns `PermError`.
 
 These are intentional v1 scope limits; add as 1.x minors when needed.
-
-[Unreleased]: https://github.com/goliajp/mailrs/compare/mailrs-spf-v1.0.0...HEAD
-[1.0.0]: https://github.com/goliajp/mailrs/releases/tag/mailrs-spf-v1.0.0

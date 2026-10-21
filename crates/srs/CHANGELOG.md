@@ -58,6 +58,3 @@ No behavior change; pure coverage-density bump.
 - SRS1 (forwarding-chain) — only needed for multi-hop forwarding where
   an already-rewritten SRS0= passes through a second forwarder. Most
   deployments don't see this; file an issue if you need it.
-
-[Unreleased]: https://github.com/goliajp/mailrs/compare/mailrs-srs-v1.0.0...HEAD
-[1.0.0]: https://github.com/goliajp/mailrs/releases/tag/mailrs-srs-v1.0.0
