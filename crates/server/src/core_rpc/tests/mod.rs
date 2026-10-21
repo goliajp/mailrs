@@ -16,6 +16,7 @@
 
 #![cfg(test)]
 
+mod contract;
 mod peer_roles;
 mod pg_core;
 mod real_pg_sync;
