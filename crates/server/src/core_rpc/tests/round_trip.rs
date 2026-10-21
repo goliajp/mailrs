@@ -104,30 +104,10 @@ async fn a_switch_and_a_rollback_leave_the_same_differences() {
 }
 
 #[tokio::test]
-async fn a_switch_cannot_carry_read_state_and_this_is_why() {
-    // Asserted rather than wished for, because the limitation is structural and
-    // somebody will otherwise spend an afternoon rediscovering it.
-    //
-    // On the kevy lane "this thread is read" is a THREAD-level fact: `mark_seen`
-    // writes `unread_count = 0` on the thread hash and on the membership row,
-    // and touches no message. Per-message `\Seen` stays whatever arrival left it
-    // — 0 for inbound mail. Probed directly: after `mark_thread_read`, the
-    // source still reports flags [0, 0] for both messages.
-    //
-    // The SQL lane counts unread from those per-message flags, and
-    // `DeliverMessageRequest` carries `unread` per MESSAGE. So there is nowhere
-    // for a thread-level read state to travel: the source does not have it per
-    // message, and the wire has no per-thread field for it.
-    //
-    // Consequence for an operator: after a switch, a mailbox comes back unread.
-    // Not lost, not misfiled — bold. Worth knowing before the switch rather than
-    // from the first person to complain.
-    //
-    // Closing it means either kevy's `mark_seen` also setting `\Seen` on the
-    // thread's messages (a change to the lane production runs, and one that
-    // would additionally make IMAP agree with the web UI about what has been
-    // read), or the contract carrying thread-level read state. Both are real
-    // changes; neither is this test's business.
+async fn a_switch_carries_read_state() {
+    // Read state travels per message: marking a thread read on the kevy core
+    // sets `\Seen` on each of its messages, and the SQL core counts unread
+    // from those flags, so a read thread arrives read.
     let origin = Client::new(spawn_fastcore(), String::new());
     let sql = Client::new(spawn_pg_core().await, String::new());
 
@@ -137,25 +117,13 @@ async fn a_switch_cannot_carry_read_state_and_this_is_why() {
         .await
         .expect("read");
 
-    // The source agrees the thread is read…
-    let before = page(&origin, 100, None).await;
-    let src = before
-        .iter()
-        .find(|r| r.thread_id == "tl-0@test")
-        .expect("thread on the source");
-    assert_eq!(src.unread_count, 0, "read on the source");
-
-    // …and its messages do not carry it.
     let msgs = origin
         .list_thread_messages(USER, "tl-0@test")
         .await
         .expect("source messages");
     assert!(
-        msgs.items.iter().all(|m| m.flags & 1 == 0),
-        "kevy records a thread read on the thread, not on its messages. If this \
-         fails, `mark_seen` has started writing per-message `\\Seen` — which is \
-         the fix for the limitation this test documents, so delete the test and \
-         assert the read state survives instead."
+        msgs.items.iter().all(|m| m.flags & 1 == 1),
+        "every message of a read thread carries \\Seen on the source"
     );
 
     sync(&origin, &sql, &SyncOpts::default())
@@ -167,9 +135,9 @@ async fn a_switch_cannot_carry_read_state_and_this_is_why() {
         .iter()
         .find(|r| r.thread_id == "tl-0@test")
         .expect("thread on the destination");
-    assert_eq!(
-        dst.unread_count, 2,
-        "so it arrives unread, both messages of it. This is the documented \
-         limitation, not a regression — see the note above."
-    );
+    assert_eq!(dst.unread_count, 0, "a read thread arrives read");
+    let unread = after
+        .iter()
+        .find(|r| r.thread_id != "tl-0@test" && r.unread_count > 0);
+    assert!(unread.is_some(), "and an unread one arrives unread");
 }
