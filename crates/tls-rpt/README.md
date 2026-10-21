@@ -11,7 +11,7 @@ event facts and emits an owned daily report ready to serialize, sign,
 and submit.
 
 **Pure: no SMTP, no HTTPS, no gzip.** Same shape as the rest of the
-mailrs email-auth stones (`mailrs-spf`, `mailrs-dkim`, `mailrs-arc`,
+mailrs email-authentication crates (`mailrs-spf`, `mailrs-dkim`, `mailrs-arc`,
 `mailrs-mta-sts`). The caller does the network. We do the bytes.
 
 ## Why

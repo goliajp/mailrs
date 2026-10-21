@@ -7,13 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-08-04
+
+### Changed
+
+- Source formatting only; no API or behaviour change.
+
+## [1.0.1] - 2026-05-22
+
+### Changed
+
+- More unit tests (expired certificates, custom `RenewalConfig`,
+  `ChallengeTokens` handling, byte-exact `save_cert`, garbage input to
+  `build_server_config`). No API or behaviour change.
+
 ## [1.0.0] - 2026-05-23
 
 ### Added
 
-- Initial release. Extracted from `mailrs-server`'s `acme.rs` module
-  (~310 LOC, ran in production for ~1 year) when re-auditing for
-  misclassified cement under the project's aggressive stone lens.
+- Initial release. Extracted from the mailrs server's ACME module
+  (~310 LOC, in production for about a year).
 - `init(email, domains, acme_dir, staging, tokens)` — bootstrap path
   that loads existing valid cert or provisions a new one via HTTP-01.
 - `load_or_create_account(email, staging, acme_dir)` — account flow

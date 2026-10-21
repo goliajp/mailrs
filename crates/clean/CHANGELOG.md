@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `preview_line(text, max)`: the one-line preview shown under a subject
+  in a message list. Whitespace runs (including Unicode spaces) collapse
+  to one space, zero-width padding is removed while the zero-width
+  joiner is kept, rule lines drawn with dashes or box-drawing characters
+  are dropped, `&nbsp;` / `&zwnj;` written into plain text are treated
+  as the characters they name, and a cut is marked with an ellipsis.
+- `parse_unsubscribe(value, post)` and `Unsubscribe`: read
+  `List-Unsubscribe` (RFC 2369) and `List-Unsubscribe-Post` (RFC 8058)
+  for where unsubscribing goes and whether one-click applies.
+- `html_to_clean_text` is public: HTML rendered as paragraph-aware plain
+  text, with nothing removed.
+
+## [1.1.0] - 2026-08-04
+
+### Changed
+
+- Faster HTML cleaning: comments and block tags are stripped in a single
+  pass (about 44% faster on a 5 KB message), and tracking-pixel,
+  bulk-sender and automated-sender detection use ASCII case folding and
+  `memchr` scans. New dependency: `memchr`.
+- Internal split into modules; the public API is unchanged.
+
 ## [1.0.3] - 2026-05-22
 
 ### Added

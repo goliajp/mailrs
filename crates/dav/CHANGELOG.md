@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-08-04
+
+### Changed
+
+- Multistatus responses are built with `write!` instead of
+  `push_str(&format!(..))`, avoiding an allocation per response entry.
+  Output is unchanged.
+- The `fixtures` module is split into submodules and re-exports the same
+  items. No API change.
+
 ## [1.1.1] - 2026-05-23
 
 ### Added

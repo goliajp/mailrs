@@ -7,6 +7,76 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `key_list` module: `parse_key_list` splits a `domain:selector:key_path[,...]`
+  list into `KeyListEntry` values and reports malformed entries as
+  `SkippedEntry` with a `SkipReason`; `entry_for_domain` picks the key
+  for a sender domain, falling back to parent domains (never to a bare
+  TLD).
+
+### Fixed
+
+- Relaxed header canonicalization no longer re-encodes non-ASCII bytes.
+  A header such as `From: Acme® <…>` was hashed as Latin-1, so
+  signatures over UTF-8 headers failed to verify (and signed ones were
+  rejected by receivers). Bare CR / LF bytes that are not part of a fold
+  are kept as they are.
+
+## [3.1.0] - 2026-08-04
+
+### Added
+
+- `CachedDkimResolver<R>`: wraps any `DkimResolver` and caches parsed
+  public keys per (selector, domain) with a TTL (default 5 minutes) and
+  a capacity bound (default 512 entries). `with_ttl_and_capacity` and
+  `invalidate` are provided.
+- `DkimResolver::lookup_public_key`, a provided method (TXT lookup plus
+  key extraction) that the verifier now calls, so existing resolver
+  implementations keep compiling.
+- `headers::collect_signed_headers_borrowed`, a variant of
+  `collect_signed_headers` that returns slices into the input instead
+  of owned strings.
+
+### Changed
+
+- Header scanning uses `memchr`, and relaxed body canonicalization no
+  longer splits the body into a line vector first. Output is unchanged.
+- `collect_signed_headers` is now a wrapper over the borrowed variant.
+- New dependency: `memchr`.
+
+## [3.0.0] - 2026-05-29
+
+2.x was never published; this entry covers everything since 1.5.0.
+
+### Changed (breaking)
+
+- RSA signing and verification use `aws-lc-rs` instead of the `rsa`
+  crate (RSA-2048 signing is several times faster).
+  `DkimSigningKey::Rsa` and `CryptoSigningKey::Rsa` now hold the new
+  `RsaSigningKey` (built with `RsaSigningKey::from_pkcs8_pem` or
+  `from_pkcs8_der`) instead of `rsa::RsaPrivateKey`. 1024-bit RSA keys
+  still verify.
+- `DkimHeader` fields `domain`, `selector`, `identity` and
+  `query_method` are `compact_str::CompactString` instead of `String`.
+  Most call sites compile unchanged through `Deref<Target = str>`.
+- Dependencies: `rsa` removed; `aws-lc-rs`, `rustls-pki-types`,
+  `thiserror` and `compact_str` added.
+
+### Added
+
+- `RsaSigningKey` (re-exported at the crate root), with
+  `public_modulus_len`.
+- `headers::collect_signed_headers(headers_raw, names)`.
+
+### Fixed
+
+- Repeated names in `h=` are consumed bottom-up, one occurrence each
+  (RFC 6376 §5.4.2), and names with no remaining occurrence are skipped.
+  Signatures using the common `h=...:From:...:From` over-signing pattern
+  (OpenDKIM, Gmail, GitHub) failed to verify before; the signer follows
+  the same rule.
+
 ## [1.5.0] - 2026-05-23
 
 ### Added

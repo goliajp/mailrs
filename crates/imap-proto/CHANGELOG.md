@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-08-04
+
+### Changed (breaking)
+
+- `SearchKey` has new variants `Header(String, String)`, `Larger(u32)`,
+  `Smaller(u32)`, `Or(Box<SearchKey>, Box<SearchKey>)`,
+  `Not(Box<SearchKey>)` and `And(Vec<SearchKey>)`. Exhaustive `match`es
+  on `SearchKey` must handle them.
+
+### Added
+
+- SEARCH parsing understands compound criteria: `OR`, `NOT`,
+  parenthesised groups (parsed as `And`), `HEADER`, `LARGER`,
+  `SMALLER`, `NEW` (as `RECENT`), `CC` (matched as a recipient),
+  `SENTSINCE` / `SENTBEFORE` / `SENTON`, and `CHARSET <name>` (accepted
+  and skipped).
+- `special_use_flag(name)`: the RFC 6154 special-use attribute
+  (`\Junk`, `\Sent`, `\Drafts`, `\Trash`, `\Archive`) for a top-level
+  mailbox name, with a leading space, or an empty string.
+
+## [1.0.5] - 2026-05-29
+
+### Changed
+
+- SEARCH keywords and `parse_imap_date` month names are matched without
+  allocating an uppercased copy of each token. Results are unchanged.
+- `command` is split into submodules; `parse_command` and the SEARCH
+  types are re-exported from `command`, so existing paths keep working.
+
 ## [1.0.3] - 2026-05-22
 
 ### Added

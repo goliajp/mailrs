@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.4] - 2026-06-03
 
 ### Changed
-- Documentation-only sync: README + BUDGETS.md refer to the in-house
+- Documentation-only sync: README + BUDGETS.md refer to the
   RESP-compatible KV store kevy (<https://github.com/goliajp/kevy>) in the
   "Bring your own" backend examples, replacing earlier Valkey mentions.
   Redis is preserved as a generic example because RESP-protocol backends

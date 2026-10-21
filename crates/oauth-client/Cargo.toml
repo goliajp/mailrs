@@ -7,6 +7,10 @@ description = "OAuth 2.0 / OIDC relying-party primitives: authorization URLs wit
 repository = "https://github.com/goliajp/mailrs"
 keywords = ["oauth2", "oidc", "pkce", "sso", "login"]
 categories = ["authentication", "web-programming"]
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-oauth-client"
+authors = ["GOLIA K.K."]
+readme = "README.md"
 
 [lints]
 workspace = true

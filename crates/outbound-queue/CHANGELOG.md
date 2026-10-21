@@ -7,13 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `dkim_signers::usable_selectors(&DkimSignConfig)` — the domains a
+  loaded config can actually sign for, with their selectors. Every key is
+  parsed up front, so a domain whose key file holds no valid key is left
+  out instead of looking configured until its first message fails to
+  sign.
+
+### Changed
+
+- `MAILRS_DKIM_KEYS` parsing (`dkim_env::extra_keys_from_env`) and the
+  per-domain key lookup in `DkimSignConfig` now use
+  `mailrs_dkim::key_list`, so the signer and any report on which key
+  signs a domain give the same answer. Requires the `mailrs-dkim` release
+  that adds `key_list`. Skipped entries are logged with their domain and
+  key path instead of the raw entry.
+
+### Fixed
+
+- The Postgres-backed queue lifecycle functions are compiled only with
+  the `pg` feature, so the crate builds with `default-features = false`.
+- `DeliveryWorker::run` stops when the shutdown sender is dropped.
+  Previously a dropped sender left the loop spinning.
+
+## [4.1.0] - 2026-08-04
+
+### Added
+
+- `dkim_env::extra_keys_from_env()` — builds the per-domain DKIM key map
+  for `DkimSignConfig::extra_keys` from `MAILRS_DKIM_KEYS`
+  (`domain:selector:path[,…]`). A malformed entry or unreadable key file
+  skips that entry with a warning instead of disabling signing.
+- `queue::reschedule_pending` — move a still-pending message's delivery
+  time.
+- Feature `spg`: the same store code on an spg-embedded pool instead of
+  PostgreSQL. Implies `pg`.
+- `BackendPool` type alias (`sqlx::PgPool`, or `spg_sqlx::SpgPool` with
+  `spg`).
+
+### Changed
+
+- `PgQueueStore::new`, `PgQueueStore::pool`, the suppression-list
+  functions and `DeliveryWorker::new` take or return `BackendPool`. With
+  the default features this is still `sqlx::PgPool`, so existing callers
+  compile unchanged.
+
 ## [4.0.0] - 2026-06-03
 
 ### Changed (BREAKING)
 - `KevyNotifier::new(url: impl Into<String>)` →
   `KevyNotifier::new(store: kevy_embedded::Store)`. The notifier now drives
   the in-process kevy bus directly — no RESP wire, no network hop. `Store:
-  Clone` so callers typically pass a clone of the shared cement-owned store.
+  Clone` so callers typically pass a clone of the application's shared store.
 - `queue::notify` is now sync and takes `&kevy_embedded::Store` instead of
   `&mut redis::aio::ConnectionManager`.
 - `DeliveryWorker::with_kevy(url: String)` →
@@ -59,6 +105,58 @@ let worker = DeliveryWorker::new(...).with_kevy(store);
   helper `tests/common/redis.rs` → `tests/common/kevy.rs`, function
   `start_redis()` → `start_kevy()`. `testcontainers_modules::redis::Redis`
   remains because that's a third-party API.
+
+## [2.0.0] - 2026-05-29
+
+### Changed (BREAKING)
+
+- Depends on `mailrs-smtp-client` 2. Types from it that appear in this
+  crate's API (`TlsOutcome` in `TlsAttemptOutcome::HandshakeFailed`) are
+  the 2.x types.
+- `DkimSignConfig` has a new public field `parsed_key` (the RSA key is
+  parsed once and cached) and now derives `Default`; struct literals
+  need `..Default::default()`.
+- DKIM signing and ARC sealing use `mailrs-dkim` 3 and `mailrs-arc` 3
+  instead of `mail-auth`. Signatures are equivalent; RSA signing is
+  several times faster.
+- `queue::dequeue`, `queue::mark_bounced` and
+  `queue::cancel_pending_by_message_id` changed signature; the
+  suppression-list functions and `is_hard_bounce` moved to
+  `queue::suppression` (still re-exported from `queue`).
+- `worker` is a directory module. `TlsPolicy`, `try_deliver_via_mx`,
+  `try_deliver_via_mx_with_tls` and `deliver_domain_static` are public;
+  `try_deliver_via_mx_with_tls` takes an optional
+  `rustls::ClientConfig`, so tests can inject their own verifier
+  (`None` in production).
+
+### Added
+
+- `queue::claim_for_delivery` — atomic `FOR UPDATE SKIP LOCKED` claim, so
+  several workers can share one queue.
+- `queue::count_pending`, `queue::count_inflight`.
+- Metrics (`metrics` crate): queue depth and delivery latency.
+- Per-message ARC sealing and DKIM signing run concurrently within a
+  domain batch.
+
+### Changed
+
+- DSNs (`dsn::format_dsn`) are built with `mailrs-mail-builder` as
+  `multipart/report`; the `message/delivery-status` part is sent as 7bit
+  rather than base64, and `To:` is rendered as a bare address.
+
+## [1.2.0] - 2026-05-23
+
+### Added
+
+- `DeliveryEvent::TlsAttempt { domain, mx_host, outcome }`, emitted once
+  per MX connection after the STARTTLS step, with a structured
+  `TlsAttemptOutcome` (`Success { policy }`, `NotAdvertised`,
+  `Rejected { code, message }`, `HandshakeFailed(TlsOutcome)`) suitable
+  for TLS-RPT (RFC 8460) reports.
+
+### Changed
+
+- Requires `mailrs-smtp-client` 1.1.
 
 ## [1.1.1] - 2026-05-23
 

@@ -16,8 +16,8 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
-mailrs-fraud = { path = "../fraud", version = "0" }
-mailrs-textguard = { path = "../textguard", version = "0" }
+mailrs-fraud = { path = "../fraud", version = "0.1" }
+mailrs-textguard = { path = "../textguard", version = "0.1" }
 mailrs-mime = { path = "../mime", version = "2" }
 mailrs-rfc2047 = { path = "../rfc2047", version = "1" }
 async-trait = "0.1"
@@ -29,7 +29,7 @@ metrics = "0.24"
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt"] }
 serde_json = { workspace = true }
-mailrs-fraud = { path = "../fraud", version = "0", features = ["testing"] }
+mailrs-fraud = { path = "../fraud", version = "0.1", features = ["testing"] }
 criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
 
 [[bench]]

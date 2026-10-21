@@ -7,9 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added (v3 stones polish, 2026-05-25)
+## [1.0.1] - 2026-08-04
 
-- BUDGETS.md describing the perf-gate methodology
-- `tests/perf_gate.rs` with at least one regression gate
-- `benches/imap-codec.rs` criterion harness
-- README "Stone audit" footer with cov / size / bench / fuzz status
+### Changed
+
+- Line-mode decoding finds the CRLF with `memchr` (about 10% faster on
+  long lines). Behaviour is unchanged.
+- New dependency: `memchr`.
+
+## [1.0.0] - 2026-05-23
+
+### Added
+
+- Initial release. `ImapCodec`, a `tokio_util::codec` `Decoder` /
+  `Encoder` for IMAP sessions that switches between line mode
+  (CRLF-terminated frames) and literal mode (exactly N raw bytes).
+- `ImapCodec::expect_literal(size)`: after parsing a `{N}` marker, the
+  protocol layer tells the codec to read the next N bytes as a literal.
+- `ImapInput::Line` (lossy UTF-8) and `ImapInput::LiteralData` frames.

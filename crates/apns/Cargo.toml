@@ -8,6 +8,10 @@ repository = "https://github.com/goliajp/mailrs"
 homepage = "https://github.com/goliajp/mailrs"
 documentation = "https://docs.rs/mailrs-apns"
 description = "Token-based APNs client: ES256 provider JWTs (cached and refreshed on Apple's schedule), HTTP/2 delivery via reqwest, and 410/BadDeviceToken surfaced as Unregistered so callers can prune dead tokens."
+authors = ["GOLIA K.K."]
+keywords = ["apns", "push", "notifications", "ios", "jwt"]
+categories = ["network-programming", "web-programming::http-client", "asynchronous"]
+readme = "README.md"
 
 [dependencies]
 # ES256 for the provider token — already the workspace's signing backend
