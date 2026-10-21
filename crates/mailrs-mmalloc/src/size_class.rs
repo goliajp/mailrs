@@ -68,7 +68,7 @@ pub const SIZE_CLASSES: [usize; 32] = [
 /// SPAN_LEN docstring in `span.rs` for the incident.) With 9
 /// classes the upper bound is 18 GB; in practice only a few classes
 /// grow, the rest stay at zero spans. Metadata cost
-/// (Option<Span> ≈ 32 B) is 4096 × 32 × 9 ≈ 1.15 MB static — fine
+/// (`Option<Span>` ≈ 32 B) is 4096 × 32 × 9 ≈ 1.15 MB static — fine
 /// for a static mut.
 pub const PER_CLASS_CAP: usize = 4096;
 
