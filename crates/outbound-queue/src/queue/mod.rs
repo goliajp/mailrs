@@ -4,10 +4,12 @@ use crate::BackendPool;
 use kevy_embedded::Store;
 
 mod admin;
+#[cfg(feature = "pg")]
 mod lifecycle;
 pub mod suppression;
 
 pub use admin::*;
+#[cfg(feature = "pg")]
 pub use lifecycle::*;
 
 /// Lifecycle status of a queued message.
