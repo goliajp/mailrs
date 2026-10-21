@@ -113,25 +113,6 @@ table.
   hand-roll byte comparison — `==` on `&[u8]` is NOT constant-time
   and leaks key material via timing.
 
-<!-- AUDIT-FOOTER:BEGIN -->
-
-## Stone audit (2026-05-25)
-
-| Axis | Status |
-|---|---|
-| **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-webhook-signature`) |
-| **test** | line cov: 99.3% (`cargo llvm-cov -p mailrs-webhook-signature --summary-only`) |
-| **bench** | ✅ 1 file(s) criterion + ✅ 4 gate(s) `perf_gate.rs` |
-| **size** | release rlib: 77 KB |
-| **fuzz** | ✅ 1 target(s) |
-| **mem**  | no dhat profile yet |
-
-### Competitor comparisons
-
-- Searched crates.io + competing impls: see PERFORMANCE.md or 'first-in-Rust' marker.
-
-<!-- AUDIT-FOOTER:END -->
-
 ## License
 
 Apache-2.0 OR MIT.

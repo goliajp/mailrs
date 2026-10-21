@@ -78,25 +78,6 @@ project use.
   that's `mailrs-imap-proto::Session`.
 - No **mailbox storage** — that's `mailrs-mailbox` / `mailrs-maildir`.
 
-<!-- AUDIT-FOOTER:BEGIN -->
-
-## Stone audit (2026-05-25)
-
-| Axis | Status |
-|---|---|
-| **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-imap-format`) |
-| **test** | line cov: 64.5% (`cargo llvm-cov -p mailrs-imap-format --summary-only`) |
-| **bench** | ✅ 1 file(s) criterion + ✅ 2 gate(s) `perf_gate.rs` |
-| **size** | release rlib: 243 KB |
-| **fuzz** | ✅ 1 target(s) |
-| **mem**  | no dhat profile yet |
-
-### Competitor comparisons
-
-- Searched crates.io + competing impls: see PERFORMANCE.md or 'first-in-Rust' marker.
-
-<!-- AUDIT-FOOTER:END -->
-
 ## License
 
 Apache-2.0 OR MIT.

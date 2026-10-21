@@ -25,9 +25,9 @@
 //! ## Two of these exist to watch a property, not a speed
 //!
 //! `backfill_thread_user/converged` measures the periodic sweep in the state
-//! it spends almost all its life in: nothing to repair. `periodic-work-must-
-//! converge` asks that this be *cheap*, not merely idempotent — and the two
-//! are different, which is the whole lesson. It carries an assertion as well
+//! it spends almost all its life in: nothing to repair. A periodic sweep must
+//! be *cheap* at rest, not merely idempotent — and the two are different,
+//! which is the whole lesson. It carries an assertion as well
 //! as a timing, because the sweep's own `written` counter can falsify the
 //! property outright where a duration can only hint at it.
 //!

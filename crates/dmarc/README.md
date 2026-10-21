@@ -98,25 +98,6 @@ impl DmarcStore for FileStore {
 |---|---|---|
 | `pg-store` | yes | `PgDmarcStore` (sqlx + Postgres reference impl) |
 
-<!-- AUDIT-FOOTER:BEGIN -->
-
-## Stone audit (2026-05-25)
-
-| Axis | Status |
-|---|---|
-| **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-dmarc`) |
-| **test** | line cov: 96.0% (`cargo llvm-cov -p mailrs-dmarc --summary-only`) |
-| **bench** | ✅ 1 file(s) criterion + ✅ 2 gate(s) `perf_gate.rs` |
-| **size** | release rlib: 3.2 MB |
-| **fuzz** | ✅ 1 target(s) |
-| **mem**  | no dhat profile yet |
-
-### Competitor comparisons
-
-- Searched crates.io + competing impls: see PERFORMANCE.md or 'first-in-Rust' marker.
-
-<!-- AUDIT-FOOTER:END -->
-
 ## License
 
 Licensed under either of [Apache License 2.0](LICENSE-APACHE) or [MIT license](LICENSE-MIT) at your option.

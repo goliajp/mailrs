@@ -108,26 +108,6 @@ Reproduce with `cargo bench -p mailrs-rfc5322 --bench parse`. Workspace
 [PERFORMANCE.md](../../PERFORMANCE.md) carries the same table; per the
 project's "no fake numbers" rule, every number traces to a measurement.
 
-<!-- AUDIT-FOOTER:BEGIN -->
-
-## Stone audit (2026-05-25)
-
-| Axis | Status |
-|---|---|
-| **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-rfc5322`) |
-| **test** | line cov: 96.7% (`cargo llvm-cov -p mailrs-rfc5322 --summary-only`) |
-| **bench** | ✅ 1 file(s) criterion + ✅ 4 gate(s) `perf_gate.rs` |
-| **size** | release rlib: 43 KB |
-| **fuzz** | ✅ 1 target(s) |
-| **mem**  | no dhat profile yet |
-
-### Competitor comparisons (from PERFORMANCE.md)
-
-- `mailrs-rfc5322` vs `mail-parser` (header lookup, lazy)
-- `mailrs-rfc5322` vs `mail-parser` — comparative bench
-
-<!-- AUDIT-FOOTER:END -->
-
 ## License
 
 Apache-2.0 OR MIT.

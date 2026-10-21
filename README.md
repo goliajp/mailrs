@@ -1,183 +1,126 @@
 # mailrs
 
-An AI-native mail server written in Rust with a React web UI. Handles SMTP
-inbound/outbound, IMAP, JMAP, CalDAV/CardDAV, ManageSieve, POP3, and provides
-a modern conversational email interface.
+A mail server written in Rust, with a React web client and iOS and Android
+apps. It handles SMTP in and out, IMAP, POP3, JMAP, ManageSieve and
+CalDAV/CardDAV, and exposes a REST API and an MCP server for agents.
 
 ## Architecture
 
-mailrs is organized as a Cargo workspace with **61 crates** — 5 binary
-crates (`mailrs-server`, `mailrs-fastcore`, `mailrs-webapi`,
-`mailrs-receiver`, `mailrs-fastcore-sender`) plus **56 reusable library
-crates** (most published on
-[crates.io](https://crates.io/users/golia-jp)).
+Production runs four processes from one image beside a `kevy-server`:
 
-These library crates cover the full email-protocol + auth stack and are
-individually reusable in any Rust project; the server binary wires them
-into a deployable mail server. See [ARCHITECTURE.md](./ARCHITECTURE.md)
-for the crate-by-crate breakdown.
+| process | role |
+|---|---|
+| `mailrs-receiver` | SMTP on 25, 465 and 587; the inbound pipeline (rate limits, DNSBL, greylisting, SPF/DKIM/DMARC/ARC, Bayes, fraud rules); writes accepted mail to a spool |
+| `mailrs-fastcore` | Owns the mailbox: drains the spool, applies Sieve, delivers to Maildir, threads and indexes; IMAP, POP3 and ManageSieve; the core API the others call |
+| `mailrs-webapi` | REST, JMAP, CalDAV/CardDAV, OIDC sign-in, MCP and the realtime WebSocket; serves the web client |
+| `mailrs-fastcore-sender` | Outbound delivery: DKIM signing, MX and STARTTLS, MTA-STS, retries and DSNs |
 
-```
-server (mailrs-server binary)
-│
-├── Protocol parsers (zero-I/O)
-│   ├── smtp-proto / imap-proto         — wire-format command parsers + state machines
-│   ├── rfc5322 / rfc2047 / rfc2231     — RFC 5322 headers, encoded-words, MIME params
-│   ├── mime                            — RFC 2045/2046 MIME body tree
-│   ├── ical                            — RFC 5545 iCalendar + iTIP
-│   ├── jmap / dav                      — JMAP (RFC 8620), CalDAV/CardDAV (RFC 4791/6352)
-│
-├── Email auth (mail-auth full replacement)
-│   ├── spf  / dkim  / dmarc            — RFC 7208 / 6376 / 7489
-│   └── srs                             — Sender Rewriting Scheme for forwarding
-│
-├── Infra primitives
-│   ├── rate-limit / auth-guard         — token bucket / per-IP lockout
-│   ├── dnsbl / clamav                  — anti-spam + AV
-│   ├── backoff / webhook-signature     — retry math + HMAC payload signing
-│   ├── tls-reload / acme               — hot-reload rustls + Let's Encrypt
-│   └── dns                             — minimal hickory wrapper
-│
-└── Server building blocks
-    ├── smtp-client / outbound-queue    — outbound delivery
-    ├── maildir / mailbox               — storage + metadata
-    ├── inbound / shield                — multi-stage acceptance + anti-spam
-    ├── postmaster                      — bounce/DSN + DNS health checks
-    ├── intelligence / clean            — LLM classification + HTML sanitize
-```
+There is no SQL database in that stack. Message metadata lives in an
+embedded [kevy](https://github.com/goliajp/kevy) store inside fastcore,
+state the processes share lives in `kevy-server`, and mail bodies are
+Maildir files.
 
-Protocol crates have **zero I/O** — the server crate owns all async
-networking via Tokio. Every library crate has its own perf budget
-(`tests/perf_gate.rs`), criterion benches, fuzz target where applicable,
-and a CHANGELOG.
+The workspace has 72 crates. Most of them are libraries that each own one
+RFC or one concept — SMTP, IMAP, MIME, SPF, DKIM, DMARC, ARC, Sieve,
+iCalendar, JMAP, MTA-STS and more — published on
+[crates.io](https://crates.io/users/golia-jp) and usable on their own.
+Protocol parsers do no I/O; the process crates own all networking.
 
-### Performance posture (full ledger in [PERFORMANCE.md](./PERFORMANCE.md))
+[ARCHITECTURE.md](./ARCHITECTURE.md) describes the processes, where each
+kind of state lives, how mail moves between them, and every crate.
 
-| Scenario | mailrs | competitor | gap |
+### Performance
+
+Measured head to head against other implementations (full ledger in
+[PERFORMANCE.md](./PERFORMANCE.md), cross-language runners in
+`bench-harness/`):
+
+| scenario | mailrs | other | |
 |---|---:|---:|---|
-| RFC 5322 message scan + Subject + From extract | 46 ns | Go `net/mail`: 1440 ns | **mailrs 31×** |
-| iCalendar parse | 1.76 µs | C `libical` 4.0: 7.03 µs | **mailrs 4×** |
-| SMTP `EHLO` command parse | 18 ns | Rust `smtp-codec`: 126 ns | **mailrs 7×** |
-| DKIM-Signature realistic parse | 405 ns | Rust `mail-auth` 0.9: 423 ns | **mailrs +4%** |
-| Rate-limit hot-key check | 13-16 ns | Rust `governor` 0.10: 14-18 ns | **mailrs / tied** |
+| RFC 5322 message scan + Subject + From | 46 ns | Go `net/mail`: 1440 ns | 31× |
+| iCalendar parse | 1.76 µs | C `libical` 4.0: 7.03 µs | 4× |
+| SMTP `EHLO` parse | 18 ns | Rust `smtp-codec`: 126 ns | 7× |
+| DKIM-Signature parse | 405 ns | Rust `mail-auth` 0.9: 423 ns | +4% |
+| Rate-limit hot-key check | 13–16 ns | Rust `governor` 0.10: 14–18 ns | tied |
 
-Cross-language harness (with C / Go runners): `bench-harness/`.
-
-### Quality posture
-
-- **Tests**: ~4300 across the workspace; every published crate ≥ 30 tests/kloc.
-- **Fuzz**: 33 libFuzzer targets across 24 crates (parsers, codecs, auth, storage — see each crate's `fuzz/`). **~120M iterations run cumulatively, 1 real bug caught + fixed** (`rfc2047::encode` roundtrip on inputs containing `=?`).
-- **Property tests**: 9 proptest cases on rfc2047, rfc2231, srs encoder/decoder roundtrips.
-- **Cross-competitor benches**: 8 head-to-head benches against `mail-auth` (×2), `mail-parser` (×3), `icalendar`, `governor`, `exponential-backoff`, `smtp-codec`, `imap-codec`.
-- **Build hygiene**: `#[deny(warnings)]` + `#[deny(clippy::all)]` workspace-wide; `#![deny(missing_docs)]` on every published crate.
-- **Cargo audit**: clean (637 deps, 0 vulns at last check).
-
-### Inbound Pipeline
-
-Incoming mail passes through a multi-stage acceptance pipeline: rate limiting, PTR check, DNSBL, greylisting, SPF/DKIM/DMARC verification, content scanning, Sieve filtering, and final delivery.
-
-### Web Frontend
-
-React 19 + TypeScript + Vite + Tailwind CSS 4 + Jotai for state management. Real-time updates via WebSocket. Conversation-style thread view with Markdown rendering.
-
-## Tech Stack
-
-| Layer       | Technology                                    |
-|-------------|-----------------------------------------------|
-| Server      | Rust, Tokio, Axum                             |
-| Database    | PostgreSQL 18 (pgvector)                      |
-| Cache       | Kevy / Redis                                |
-| Storage     | Maildir                                       |
-| Frontend    | React 19, Vite 7, Tailwind CSS 4, Bun         |
-| Auth        | PostgreSQL accounts + Argon2, TOTP 2FA, LDAP  |
-| TLS         | Let's Encrypt (ACME) with hot-reloadable certs|
+Latency-sensitive crates carry `tests/perf_gate.rs` budgets that fail the
+test suite on regression. Parsers of untrusted input have libFuzzer
+targets in their `fuzz/` directories.
 
 ## Features
 
-- **SMTP** — Full inbound and outbound with STARTTLS, DKIM signing, SPF/DMARC verification
-- **IMAP** — IMAP server with IDLE support for real-time notifications
-- **POP3** — POP3 server for legacy client support
-- **JMAP** — JMAP protocol support (RFC 8620)
-- **CalDAV/CardDAV** — Calendar and contact sync for Thunderbird, Apple Calendar/Contacts
-- **ManageSieve** — Remote Sieve script management (RFC 5804)
-- **Web UI** — Conversational email interface with real-time WebSocket updates
-- **MCP** — Model Context Protocol server with 60+ tools for AI agent integration (61 on the fastcore lane, 62 on the monolith)
-- **Security** — Greylisting, DNSBL, rate limiting, MTA-STS, TOTP 2FA
-- **Delivery** — Outbound queue with retry logic and DSN (bounce) generation
-- **Sieve** — Server-side mail filtering
-- **ACME** — Automatic TLS certificate provisioning via Let's Encrypt
-- **AI** — Email classification, AI-assisted drafting and reply suggestions (Gemini)
+- **SMTP** — inbound and outbound, STARTTLS and implicit TLS, DKIM signing, SPF/DKIM/DMARC/ARC verification, DSNs; reads incoming DMARC aggregate and TLS-RPT reports and sends TLS-RPT reports
+- **IMAP** — with IDLE, CONDSTORE and Dovecot-compatible UID and keyword files
+- **POP3**, **JMAP** (RFC 8620/8621), **ManageSieve** (RFC 5804), **CalDAV/CardDAV**
+- **Sieve** — server-side filtering
+- **Anti-abuse** — greylisting, DNSBL, rate limits, login lockout, Bayesian spam filtering, inbox/notification/promotion triage, scripted fraud rules that can change without a release
+- **Search** — full text over headers, bodies and attachment text, including OCR of images and scanned PDFs; Chinese and Japanese searchable without a dictionary
+- **Web client** — conversation view with realtime updates; React 19, TypeScript, Vite, Tailwind CSS 4, TanStack Query
+- **Apps** — native iOS and Android clients; new mail is announced through APNs on iOS and by a background check on Android
+- **MCP** — 91 tools for agents to read, triage and send mail
+- **Accounts** — Argon2 passwords, TOTP two-factor sign-in, OIDC
+- **AI assistance** — optional, off unless an OpenAI-compatible endpoint is configured (`MAILRS_AI_ANALYSIS_ENABLED`, `MAILRS_LLM_URL`)
 
-## Quick Start
+## Running it
 
-### Docker Compose (recommended)
+### The reference deployment
 
-```bash
-git clone https://github.com/goliajp/mailrs.git
-cd mailrs
+`deploy/docker-compose.prod.yml` is the deployment mailrs itself runs. It
+starts the four processes and `kevy-server` from
+`ghcr.io/goliajp/mailrs:$MAILRS_VERSION`, and expects on the host:
 
-# configure environment
-export MAILRS_HOSTNAME=mx.example.com
-export MAILRS_LOCAL_DOMAINS=example.com
+- `.env` with `MAILRS_VERSION` and `MAILRS_CORE_API_SECRET` (the shared
+  secret between the processes), plus the DKIM and SRS settings you use;
+- `/apps/mailrs/certs` — the TLS certificate and key for SMTP, IMAP and POP3;
+- `/apps/mailrs/dkim` — DKIM private keys;
+- `/apps/mailrs/secrets` — the APNs key, if iOS push is used;
+- `/apps/mailrs/fraud-rules/active.lua` — the fraud rule set;
+- `/apps/mailrs/web` — the built web client (`cd web && bun run build`);
+- `/apps/mailrs/kevy.toml` — the `kevy-server` configuration (`deploy/kevy.toml`).
 
-# start all services
-docker compose up -d
-```
+Domains, hostnames and DKIM identities in that file are the project's own;
+replace them with yours. The image is built from the root `Dockerfile`.
 
-This starts PostgreSQL (with pgvector), Kevy, and the mailrs server. Ports exposed:
+| port | service |
+|---|---|
+| 25 | SMTP |
+| 465 | SMTPS |
+| 587 | SMTP submission |
+| 143 / 993 | IMAP / IMAPS |
+| 110 / 995 | POP3 / POP3S |
+| 4190 | ManageSieve |
+| 3100 | web client, REST, JMAP, DAV, MCP (put a TLS proxy in front) |
 
-| Port | Service         |
-|------|-----------------|
-| 25   | SMTP            |
-| 110  | POP3            |
-| 143  | IMAP            |
-| 465  | SMTPS           |
-| 587  | SMTP Submission |
-| 993  | IMAPS           |
-| 995  | POP3S           |
-| 3100 | Web UI / API    |
-| 4190 | ManageSieve     |
-
-### Local Development
-
-No external database containers needed: since v1.7.95 the SQL engine
-runs in-process via `spg-embedded` and the KV store runs in-process
-via `kevy-embedded`. `./scripts/dev.sh` bootstraps a fresh SPG
-catalog from `scripts/init-schema.sql` and opens the kevy store at
-the local scratch dir on first run.
+### Development
 
 ```bash
-# run the full dev stack (SMTP + IMAP + Web API + Vite dev server)
-./scripts/dev.sh
-```
+cargo build
+cargo test --workspace --no-fail-fast
 
-Or run components separately:
-
-```bash
-# rust server
-cargo run --bin mailrs-server
-
-# web frontend (requires Bun)
+# the web client (requires Bun)
 cd web && bun install && bun run dev
 ```
 
+`./scripts/local-fastcore-smoke.sh` boots `mailrs-fastcore` against a
+scratch kevy directory, imports a small sample and probes its routes — the
+production shape without Docker.
+
 ## Configuration
 
-All configuration is via `MAILRS_*` environment variables. Key settings:
+Every setting is a `MAILRS_*` environment variable. The ones a deployment
+sets first:
 
-| Variable                | Description                        |
-|-------------------------|------------------------------------|
-| `MAILRS_HOSTNAME`       | Server hostname (MX record)        |
-| `MAILRS_LOCAL_DOMAINS`  | Comma-separated local domains      |
-| `MAILRS_PG_URL`         | PostgreSQL connection URL           |
-| `MAILRS_KEVY_URL`     | Kevy/Redis connection URL         |
-| `MAILRS_MAILDIR`        | Maildir storage path               |
-| `MAILRS_USERS_FILE`     | Path to `users.toml`               |
-| `MAILRS_DKIM_*`         | DKIM signing configuration         |
-| `MAILRS_ACME_*`         | Let's Encrypt ACME settings        |
-| `MAILRS_TLS_CERT/KEY`   | TLS certificate and key paths      |
-
-PostgreSQL and Kevy are optional — the server starts in degraded mode if either is unavailable.
+| variable | meaning |
+|---|---|
+| `MAILRS_HOSTNAME` | The server's hostname (its MX name) |
+| `MAILRS_LOCAL_DOMAINS` | Comma-separated domains this server receives mail for |
+| `MAILRS_KEVY_URL` | The shared `kevy-server`, e.g. `kevy://kevy-server:6379` |
+| `MAILRS_KEVY_DATA_DIR` | fastcore's embedded store |
+| `MAILRS_MAILDIR` | Root of the Maildir tree |
+| `MAILRS_SPOOL_ROOT` | The inbound spool shared by receiver and fastcore |
+| `MAILRS_CORE_RPC_BASE`, `MAILRS_CORE_API_SECRET` | Where the other processes reach fastcore, and the secret they share |
+| `MAILRS_TLS_CERT`, `MAILRS_TLS_KEY` | TLS certificate and key, reloaded when the files change |
+| `MAILRS_DKIM_DOMAIN`, `MAILRS_DKIM_SELECTOR`, `MAILRS_DKIM_KEYS` | Outbound DKIM signing |
 
 ## License
 

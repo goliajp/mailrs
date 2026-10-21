@@ -2,7 +2,7 @@
 name = "mailrs-alias-store"
 version = "0.0.1"
 edition = "2024"
-description = "Backend-agnostic alias table trait. Fastcore / pg-core each mount their own AliasStore impl behind the same core-api contract."
+description = "Backend-agnostic alias table trait, so each mailrs core mounts its own alias store behind the same core-api contract."
 license = "Apache-2.0 OR MIT"
 publish = false
 

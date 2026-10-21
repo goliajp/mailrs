@@ -255,25 +255,6 @@ for the implementation; reproduce numbers with `cargo bench -p mailrs-rate-limit
 The pure-math `evaluate_bucket` algorithm is frozen at 1.x — any
 algorithm change is a major-version bump.
 
-<!-- AUDIT-FOOTER:BEGIN -->
-
-## Stone audit (2026-05-25)
-
-| Axis | Status |
-|---|---|
-| **doc** | ✅ clean (`cargo doc --no-deps -p mailrs-rate-limit`) |
-| **test** | line cov: 98.6% (`cargo llvm-cov -p mailrs-rate-limit --summary-only`) |
-| **bench** | ✅ 2 file(s) criterion + ✅ 3 gate(s) `perf_gate.rs` |
-| **size** | release rlib: 121 KB |
-| **fuzz** | ❌ none |
-| **mem**  | no dhat profile yet |
-
-### Competitor comparisons (from PERFORMANCE.md)
-
-- `mailrs-rate-limit` vs `governor` 0.10 (DashMap-backed)
-
-<!-- AUDIT-FOOTER:END -->
-
 ## License
 
 Licensed under either [Apache License, Version 2.0](LICENSE-APACHE)

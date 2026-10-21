@@ -2,7 +2,7 @@
 name = "mailrs-mailbox-kevy"
 version = "0.0.1"
 edition = "2024"
-description = "Experimental kevy-backed mailbox store — implements the same surface as PgMailboxStore via in-process kevy (no PG/SPG)."
+description = "The mailrs mailbox store on embedded kevy: thread table, per-user message rows, UIDs, flags and the text index."
 license = "Apache-2.0 OR MIT"
 publish = false
 

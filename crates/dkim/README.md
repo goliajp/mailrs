@@ -103,25 +103,6 @@ Production `verify` is dominated by:
 The bench numbers above are the pure CPU pieces. Reproduce:
 `cargo bench -p mailrs-dkim --bench dkim`.
 
-<!-- AUDIT-FOOTER:BEGIN -->
-
-## Stone audit (2026-05-25)
-
-| Axis | Status |
-|---|---|
-| **doc** | ❌ 2 errors, 0 warnings (`cargo doc --no-deps -p mailrs-dkim`) |
-| **test** | line cov: 85.1% (`cargo llvm-cov -p mailrs-dkim --summary-only`) |
-| **bench** | ✅ 2 file(s) criterion + ✅ 5 gate(s) `perf_gate.rs` |
-| **size** | release rlib: 2.5 MB |
-| **fuzz** | ✅ 2 target(s) |
-| **mem**  | no dhat profile yet |
-
-### Competitor comparisons (from PERFORMANCE.md)
-
-- `mailrs-dkim` vs `mail-auth` 0.9 (DKIM-Signature header parse)
-
-<!-- AUDIT-FOOTER:END -->
-
 ## License
 
 Apache-2.0 OR MIT.
