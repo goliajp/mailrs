@@ -36,4 +36,6 @@ pub mod webhook_delivery;
 pub use drain::{Copies, Core, Inbound, drain_once};
 
 #[cfg(test)]
+mod arrival_tests;
+#[cfg(test)]
 mod route_tests;

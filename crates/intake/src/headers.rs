@@ -23,7 +23,7 @@ pub fn parse_rfc5322_date(s: &str) -> Option<i64> {
 ///
 /// `references` is every Message-ID token of the References header,
 /// oldest (root) first. Threading resolves against the msgid→thread
-/// index via `resolve_thread_by_ancestry`; `references[0]` is only the
+/// index via `arrival::thread_root`; `references[0]` is only the
 /// last-resort root guess (it is NOT stable across hops — remote MUAs
 /// rewrite it, which fragmented conversations before v2.9.5).
 /// The sender verdict for one stored message, folded to a stable token.

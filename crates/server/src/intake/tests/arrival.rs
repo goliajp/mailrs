@@ -115,9 +115,10 @@ hello\r\n";
 }
 
 /// A reply joins its conversation through References even when its
-/// In-Reply-To names a message this mailbox never saw.
+/// In-Reply-To names a message this mailbox never saw; one that changes
+/// the subject starts a new conversation.
 #[tokio::test(flavor = "multi_thread")]
-async fn a_reply_threads_by_references() {
+async fn a_reply_threads_by_references_and_a_new_topic_does_not() {
     let f = fixture().await;
     f.spool("new", "1790000000.M1P1Q1.host", &[ALICE], REPORT);
     f.tick().await;
@@ -128,14 +129,23 @@ In-Reply-To: <q2@outside.example>\r\n\
 References: <q1@outside.example> <q2@outside.example>\r\n\
 \r\n\
 following up\r\n";
+    let new_topic = b"From: Carol <carol@outside.example>\r\n\
+Subject: Annual closing\r\n\
+Message-ID: <q4@outside.example>\r\n\
+In-Reply-To: <q1@outside.example>\r\n\
+\r\n\
+another matter\r\n";
     // one at a time, so each finds the one before it
     f.spool("new", "1790000010.M1P1Q1.host", &[ALICE], reply);
+    f.tick().await;
+    f.spool("new", "1790000020.M1P1Q1.host", &[ALICE], new_topic);
     f.tick().await;
     let root = f.indexed(ALICE, "Quarterly report").await.thread_id;
     assert_eq!(
         f.indexed(ALICE, "Re: Quarterly report").await.thread_id,
         root
     );
+    assert_ne!(f.indexed(ALICE, "Annual closing").await.thread_id, root);
 }
 
 /// Mail with no Message-ID goes by an id made from its file name, the one

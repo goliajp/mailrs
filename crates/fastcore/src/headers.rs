@@ -3,7 +3,7 @@
 //! maildir filename conventions this core's sweep needs are here.
 //!
 //! Shared by the ingest path and the maildir sweep on purpose. A second
-//! copy of `resolve_thread_by_ancestry` would thread the sweep's repairs
+//! copy of `thread_root` would thread the sweep's repairs
 //! differently from the arrivals they repair, and the symptom of that is
 //! two messages that should be one conversation and are not.
 
@@ -35,20 +35,20 @@ impl mailrs_intake::arrival::Threads for Threads<'_> {
     }
 }
 
-/// Resolve which existing thread a message belongs to; see
-/// `mailrs_intake::arrival::resolve_thread_by_ancestry`.
-pub(crate) fn resolve_thread_by_ancestry(
+/// The conversation a message belongs to; see
+/// `mailrs_intake::arrival::thread_root`.
+pub(crate) fn thread_root(
     state: &Arc<FastcoreState>,
     user: &str,
-    own_mid: &str,
+    message_id: &str,
     in_reply_to: &str,
     references: &[String],
     subject: &str,
-) -> Option<String> {
-    mailrs_intake::arrival::resolve_thread_by_ancestry(
+) -> String {
+    mailrs_intake::arrival::thread_root(
         &Threads(state),
         user,
-        own_mid,
+        message_id,
         in_reply_to,
         references,
         subject,

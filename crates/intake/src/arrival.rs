@@ -100,9 +100,11 @@ pub fn derive<'a, T: Threads + ?Sized>(
 }
 
 /// The conversation this message belongs to: the thread an ancestor
-/// actually landed in, else the oldest reference, else what it replies to,
-/// else itself. `References[0]` alone is not a stable root (each hop can
-/// rewrite it), which is how conversations fragmented.
+/// actually landed in when the subjects agree, a conversation of its own
+/// when they do not, and with no ancestor known, the oldest reference,
+/// else what it replies to, else itself. `References[0]` alone is not a
+/// stable root (each hop can rewrite it), which is how conversations
+/// fragmented.
 pub fn thread_root<T: Threads + ?Sized>(
     threads: &T,
     addr: &str,
@@ -111,9 +113,13 @@ pub fn thread_root<T: Threads + ?Sized>(
     references: &[String],
     subject: &str,
 ) -> String {
-    match resolve_thread_by_ancestry(threads, addr, message_id, in_reply_to, references, subject) {
-        Some(tid) => tid,
-        None => {
+    match ancestry(threads, addr, message_id, in_reply_to, references, subject) {
+        Ancestry::Joins(tid) => tid,
+        // The fallback below would name the ancestor's thread again: its id
+        // is usually the root message's, which is what In-Reply-To and
+        // References[0] cite.
+        Ancestry::NewTopic => message_id.to_string(),
+        Ancestry::Unknown => {
             if let Some(first) = references.first() {
                 first.clone()
             } else if !in_reply_to.is_empty() {
@@ -125,24 +131,31 @@ pub fn thread_root<T: Threads + ?Sized>(
     }
 }
 
-/// Which existing thread a message belongs to, by its own id first — a
-/// message already ingested (and perhaps moved by a rethread merge) lands
-/// back where it is — then the nearest ancestor: In-Reply-To, then
-/// References newest to oldest.
-pub fn resolve_thread_by_ancestry<T: Threads + ?Sized>(
+enum Ancestry {
+    /// the thread the message, or its nearest ancestor, is in
+    Joins(String),
+    /// an ancestor is known, under another subject
+    NewTopic,
+    Unknown,
+}
+
+/// The message's own id first — a message already ingested (and perhaps
+/// moved by a rethread merge) lands back where it is — then the nearest
+/// ancestor: In-Reply-To, then References newest to oldest.
+fn ancestry<T: Threads + ?Sized>(
     threads: &T,
     user: &str,
     own_mid: &str,
     in_reply_to: &str,
     references: &[String],
     subject: &str,
-) -> Option<String> {
+) -> Ancestry {
     if !own_mid.is_empty()
         && let Some(tid) = threads.thread_for_message_id(user, own_mid)
     {
         // no subject gate: the message is already in that thread, and
         // splitting it here would fight the recorded state
-        return Some(tid);
+        return Ancestry::Joins(tid);
     }
     let mut candidate: Option<String> = None;
     if !in_reply_to.is_empty() {
@@ -157,16 +170,18 @@ pub fn resolve_thread_by_ancestry<T: Threads + ?Sized>(
     // An ancestor's conversation is joined only when the normalized
     // subjects agree: a reply that changes topic starts a new one, or the
     // old thread's row would read as the user's own outbound subject.
-    let tid = candidate?;
+    let Some(tid) = candidate else {
+        return Ancestry::Unknown;
+    };
     let subj_norm = mailrs_mailbox::threading::normalize_subject(subject);
     if subj_norm.is_empty() {
-        return Some(tid);
+        return Ancestry::Joins(tid);
     }
     match threads.thread_subject(user, &tid) {
-        Some(row_subject) => {
-            (mailrs_mailbox::threading::normalize_subject(&row_subject) == subj_norm).then_some(tid)
+        Some(row) if mailrs_mailbox::threading::normalize_subject(&row) != subj_norm => {
+            Ancestry::NewTopic
         }
-        None => Some(tid),
+        _ => Ancestry::Joins(tid),
     }
 }
 
