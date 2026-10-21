@@ -16,6 +16,7 @@ readme = "README.md"
 exclude = [
     "tests/common",
     "tests/multi_owner.rs",
+    "tests/scope_sql.rs",
     "tests/smoke.rs",
     "tests/snooze_reachable.rs",
     "tests/spg_sql_shapes.rs",
