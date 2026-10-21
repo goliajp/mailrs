@@ -102,31 +102,7 @@ pub struct ListThreadsFilter<'a> {
     pub before_ts: Option<i64>,
 }
 
-/// What the filter's `folder` / `category` pair scopes the page to,
-/// after the two have been reconciled.
-#[derive(Debug, Clone, PartialEq)]
-enum Scope {
-    /// No folder and no category — every thread the user has.
-    All,
-    /// Every bucket a user files real mail into — `inbox`,
-    /// `notifications`, `promotions` — and not `junk`.
-    ///
-    /// This is the scope of the cross-cutting views: Unread and
-    /// Starred are attributes of a thread, not locations, so asking
-    /// for them inside one folder answers a question nobody asked.
-    /// Junk stays out per the standing direction that junk mail has
-    /// exactly one surface.
-    NotJunk,
-    /// One folder bucket: `inbox`, `junk`, `notifications`, `promotions`.
-    Bucket(&'static str),
-    /// The merged notifications+promotions view, which is two ranges.
-    Np,
-    /// One category, which implies its bucket and is narrower than it.
-    Category(String),
-    /// A folder and a category that cannot both hold — `junk` with
-    /// `promotion`, say. No thread satisfies it, and that is an answer.
-    Contradiction,
-}
+use mailrs_mailbox::scope::Scope;
 
 impl ListThreadsFilter<'_> {
     /// Every boolean flag the filter has switched on, as the column
@@ -162,51 +138,10 @@ impl ListThreadsFilter<'_> {
         out
     }
 
-    /// Reconcile `folder` and `category` into the one scope the page is
-    /// keyed on.
-    ///
-    /// A category implies its bucket — `bucket_of` maps every category
-    /// onto exactly one — so naming both is either redundant (and the
-    /// category is the narrower of the two) or impossible. Saying which
-    /// here is what keeps the dispatcher total.
+    /// The scope `folder` and `category` reconcile to; the rule is shared
+    /// with every store, see [`mailrs_mailbox::scope::scope`].
     fn scope(&self) -> Scope {
-        let folder_bucket = self.folder.and_then(|f| match f {
-            f if f.eq_ignore_ascii_case("inbox") => Some(keys::Bucket::Inbox),
-            f if f.eq_ignore_ascii_case("junk") => Some(keys::Bucket::Junk),
-            f if f.eq_ignore_ascii_case("notifications") => Some(keys::Bucket::Notifications),
-            f if f.eq_ignore_ascii_case("promotions") => Some(keys::Bucket::Promotions),
-            _ => None,
-        });
-        let is_np = self.folder.is_some_and(|f| f.eq_ignore_ascii_case("np"));
-        // `nonjunk` is not a folder the user can see — it is the scope
-        // the Unread and Starred views ask for, named so the request
-        // says what it means.
-        if self
-            .folder
-            .is_some_and(|f| f.eq_ignore_ascii_case("nonjunk"))
-        {
-            return match self.category {
-                Some(cat) if keys::bucket_of(cat) == keys::Bucket::Junk => Scope::Contradiction,
-                Some(cat) => Scope::Category(cat.to_string()),
-                None => Scope::NotJunk,
-            };
-        }
-
-        match (self.category, folder_bucket, is_np) {
-            (Some(cat), Some(b), _) if keys::bucket_of(cat) != b => Scope::Contradiction,
-            (Some(cat), _, true)
-                if !matches!(
-                    keys::bucket_of(cat),
-                    keys::Bucket::Notifications | keys::Bucket::Promotions
-                ) =>
-            {
-                Scope::Contradiction
-            }
-            (Some(cat), _, _) => Scope::Category(cat.to_string()),
-            (None, Some(b), _) => Scope::Bucket(b.name()),
-            (None, None, true) => Scope::Np,
-            (None, None, false) => Scope::All,
-        }
+        mailrs_mailbox::scope::scope(self.folder, self.category)
     }
 }
 
@@ -318,7 +253,7 @@ impl KevyMailboxStore {
         // they are answered by the account walk and narrowed below,
         // where the rows are in hand.
         let scoped = match &scope {
-            Scope::Bucket(b) => Some(("bucket", (*b).to_string())),
+            Scope::Bucket(b) => Some(("bucket", b.name().to_string())),
             Scope::Category(c) => Some(("category", c.clone())),
             _ => None,
         };
@@ -411,7 +346,9 @@ impl KevyMailboxStore {
         let Some((key_flag, rest)) = flags.split_first() else {
             return match scope {
                 Scope::All => self.list_default_via_table(user, filter, offset, limit),
-                Scope::Bucket(b) => self.list_bucket_via_table(user, b, filter, offset, limit),
+                Scope::Bucket(b) => {
+                    self.list_bucket_via_table(user, b.name(), filter, offset, limit)
+                }
                 Scope::Np => self.list_buckets_via_table(user, &NP_BUCKETS, filter, offset, limit),
                 Scope::NotJunk => {
                     self.list_buckets_via_table(user, &NON_JUNK_BUCKETS, filter, offset, limit)
@@ -438,8 +375,8 @@ impl KevyMailboxStore {
         match scope {
             Scope::All => {}
             Scope::Bucket(b) => {
-                extra.push(("bucket", b.to_string()));
-                if b == "inbox" {
+                extra.push(("bucket", b.name().to_string()));
+                if b == mailrs_mailbox::scope::Bucket::Inbox {
                     // Inbox excludes threads that are nothing but the
                     // user's own messages — the same exclusion the
                     // bucket ORDERPATH carries in its sort prefix.

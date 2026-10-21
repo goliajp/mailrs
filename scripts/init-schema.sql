@@ -15,7 +15,7 @@ CREATE TABLE accounts (
     display_name TEXT NOT NULL DEFAULT '',
     password_hash TEXT NOT NULL DEFAULT '',
     active BOOLEAN NOT NULL DEFAULT true,
-    quota_bytes BIGINT NOT NULL DEFAULT 1073741824,
+    quota_bytes BIGINT NOT NULL DEFAULT 10737418240,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     recovery_email TEXT NOT NULL DEFAULT ''
 );
@@ -75,7 +75,7 @@ CREATE TABLE messages (
     html_body TEXT,
     clean_text TEXT,
     new_content TEXT,
-    importance_level TEXT NOT NULL DEFAULT 'normal',
+    importance_level TEXT NOT NULL DEFAULT '',
     importance_score REAL NOT NULL DEFAULT 0.0,
     is_bulk_sender BOOLEAN NOT NULL DEFAULT false,
     has_tracking_pixel BOOLEAN NOT NULL DEFAULT false,
@@ -85,6 +85,8 @@ CREATE TABLE messages (
     invite_method TEXT,
     rsvp_status TEXT,
     rsvp_at TIMESTAMPTZ,
+    -- the list's preview line, as delivery computed it (migrate-051)
+    snippet TEXT NOT NULL DEFAULT '',
     UNIQUE(mailbox_id, uid),
     -- idempotency key for the receiver-decouple notification + reconcile
     -- design: re-indexing the same delivered maildir file (a re-fired
@@ -264,7 +266,7 @@ CREATE INDEX idx_attachment_content_message
 
 CREATE TABLE email_analysis (
     message_id BIGINT PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,
-    category TEXT NOT NULL DEFAULT 'general',
+    category TEXT NOT NULL DEFAULT 'inbox',
     risk_score SMALLINT NOT NULL DEFAULT 0,
     risk_reason TEXT NOT NULL DEFAULT '',
     summary TEXT NOT NULL DEFAULT '',
@@ -303,6 +305,20 @@ CREATE TABLE IF NOT EXISTS snoozed_conversations (
     PRIMARY KEY (thread_id, account_address)
 );
 CREATE INDEX IF NOT EXISTS idx_snoozed_until ON snoozed_conversations(snoozed_until);
+
+-- migrate-051: fraud verdicts (one per message, written once) and the
+-- conversations held for review, per account.
+CREATE TABLE IF NOT EXISTS fraud_verdicts (
+    message_id  TEXT PRIMARY KEY,
+    verdict     JSONB NOT NULL,
+    recorded_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS quarantine_holds (
+    account_address TEXT NOT NULL,
+    thread_id       TEXT NOT NULL,
+    held_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (account_address, thread_id)
+);
 
 CREATE TABLE IF NOT EXISTS webhook_subscriptions (
     id BIGSERIAL PRIMARY KEY,
