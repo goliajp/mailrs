@@ -2,10 +2,13 @@
 //! training a reader's "junk" / "not junk" feeds it.
 //!
 //! Storage keys (network kevy):
-//!   bayes:tokens:spam, bayes:tokens:ham   hash  field=token value=thread count
-//!   bayes:meta                            hash  {spam_msgs, ham_msgs}
-//!   bayes:corpus:spam, bayes:corpus:ham   set   thread ids, kept for a retrain
-//!   bayes:trained:<tid>                   string  spam|ham  (TTL 90d)
+//!
+//! ```text
+//! bayes:tokens:spam, bayes:tokens:ham   hash  field=token value=thread count
+//! bayes:meta                            hash  {spam_msgs, ham_msgs}
+//! bayes:corpus:spam, bayes:corpus:ham   set   thread ids, kept for a retrain
+//! bayes:trained:<tid>                   string  spam|ham  (TTL 90d)
+//! ```
 //!
 //! A thread is one training sample, its tokens the union across its
 //! messages. Training is reversible: a thread trained the other way is
