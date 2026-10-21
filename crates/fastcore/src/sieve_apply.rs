@@ -292,17 +292,7 @@ fn fetch_script(address: &str) -> Option<String> {
     Some(script)
 }
 
-/// Turn a Maildir++ folder name from `fileinto` into a safe
-/// disk-path segment. Dot-prefixed, and any embedded `/` is replaced
-/// with `.` per the Maildir++ hierarchy convention.
-pub fn maildir_subfolder(folder: &str) -> String {
-    let cleaned = folder.trim().replace('/', ".").replace(['\\', '\0'], "");
-    if cleaned.starts_with('.') {
-        cleaned
-    } else {
-        format!(".{cleaned}")
-    }
-}
+pub use mailrs_intake::maildir::maildir_subfolder;
 
 #[cfg(test)]
 mod tests {

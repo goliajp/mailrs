@@ -134,17 +134,6 @@ pub async fn spawn_split_receiving_server(
     let auth_guard: Arc<dyn AuthGuardStore> = Arc::new(AuthGuard::new(AuthGuardConfig::default()));
     let mailbox_store = Arc::new(mailrs_mailbox::PgMailboxStore::new(pool));
 
-    // core consumer: the real process_tx + post-delivery deps.
-    let process_deps = Some(Arc::new(crate::smtp_session::ProcessDeps {
-        mailbox_store: Arc::clone(&mailbox_store),
-        event_bus: event_bus.clone(),
-        outbound_queue: None,
-        resolver: None,
-        maildir_root: maildir_root.clone(),
-        kevy_url: None,
-    }));
-    let process_tx = crate::smtp_session::spawn_process_consumer(process_deps);
-
     let domain = Arc::new(crate::domain_store::DomainStore::new(
         Some(mailbox_store.pool().clone()),
         None,
@@ -152,8 +141,8 @@ pub async fn spawn_split_receiving_server(
     ));
     let core = Arc::new(crate::intake::PgCore {
         dir: crate::intake::PgDirectory::new(domain, maildir_root, None),
+        mailbox: mailbox_store,
         delivery: crate::intake::Delivery {
-            process_tx,
             account_store: None,
             outbound_enqueue: None,
             queue_notifier: None,

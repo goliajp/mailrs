@@ -71,7 +71,12 @@ pub(super) fn spawn_outbound_feeds(state: &Arc<FastcoreState>) {
     // Webhook delivery — drains the kevy outbox. Until 2026-07-31 a
     // subscription could be created and nothing would ever fire on this
     // lane; there was no queue and no worker.
-    tokio::spawn(webhook_delivery::spawn(state.clone()));
+    {
+        let state = state.clone();
+        tokio::spawn(mailrs_intake::webhook_delivery::run(std::sync::Arc::new(
+            move || state.net_conn(),
+        )));
+    }
     // Calendar feed sync — subscribing to an .ics URL stored a row that
     // nothing read, so no event ever appeared.
     let calendar_state = state.clone();

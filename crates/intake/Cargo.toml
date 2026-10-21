@@ -2,7 +2,7 @@
 name = "mailrs-intake"
 version = "0.0.0"
 edition = "2024"
-description = "The receiving half both mailrs cores share: the spool lifecycle and wake-up, recipient routing, email-group expansion and mock-address diversion. Each core supplies its directory and its store writes."
+description = "The receiving half both mailrs cores share: the spool lifecycle and wake-up, recipient routing, group expansion, mock diversion, what each message says about itself, and the network-kevy side effects of an arrival. Each core supplies its directory and its store writes."
 license = "Apache-2.0 OR MIT"
 publish = false
 
@@ -15,11 +15,27 @@ mailrs-core-sidestate = { path = "../core-sidestate" }
 mailrs-mock = { path = "../mock" }
 mailrs-srs = { path = "../srs", version = "1" }
 kevy-client = { workspace = true }
-tokio = { version = "1", features = ["sync", "time", "macros"] }
+tokio = { version = "1", features = ["sync", "time", "macros", "rt"] }
 tracing = "0.1"
 serde_json = { workspace = true }
 base64 = "0.22"
 rand_core = { workspace = true }
+mailrs-apns = { path = "../apns", version = "1" }
+mailrs-bayes = { path = "../bayes" }
+mailrs-clean = { path = "../clean" }
+mailrs-ical = { path = "../ical", version = "2", features = ["mime"] }
+mailrs-inbound = { path = "../inbound", version = "1" }
+mailrs-intelligence = { path = "../intelligence" }
+# the threading helpers only; the SQL store stays out
+mailrs-mailbox = { path = "../mailbox", default-features = false }
+mailrs-mime = { path = "../mime", version = "2" }
+mailrs-rfc2047 = { path = "../rfc2047", version = "1" }
+mailrs-rfc5322 = { path = "../rfc5322", version = "1" }
+mailrs-triage = { path = "../triage" }
+mailrs-webhook-signature = { path = "../webhook-signature", version = "1" }
+chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
+html2text = "0.17"
+reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
 
 [dev-dependencies]
 tempfile = "3"

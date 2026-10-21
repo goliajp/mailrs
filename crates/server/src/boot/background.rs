@@ -80,6 +80,7 @@ pub(super) fn start_spool_drain(
     ctx: &Arc<ConnectionContext>,
     cfg: &ServerConfig,
     domain_store: &Option<Arc<domain_store::DomainStore>>,
+    mailbox_store: &Option<Arc<PgMailboxStore>>,
 ) {
     // When this core runs as the consumer half (MAILRS_RECEIVER_SPLIT, or
     // the peer role), drain the spool the receiver process writes to.
@@ -88,7 +89,7 @@ pub(super) fn start_spool_drain(
             .map(|v| v != "0" && v.to_lowercase() != "false")
             .unwrap_or(false)
     {
-        spawn_spool_drain(ctx, cfg, domain_store);
+        spawn_spool_drain(ctx, cfg, domain_store, mailbox_store);
     }
 }
 
@@ -96,9 +97,10 @@ fn spawn_spool_drain(
     ctx: &Arc<ConnectionContext>,
     cfg: &ServerConfig,
     domain_store: &Option<Arc<domain_store::DomainStore>>,
+    mailbox_store: &Option<Arc<PgMailboxStore>>,
 ) {
-    let Some(domain) = domain_store.clone() else {
-        tracing::error!("no domain store: the spool cannot be routed and is not drained");
+    let (Some(domain), Some(mailbox)) = (domain_store.clone(), mailbox_store.clone()) else {
+        tracing::error!("no database: the spool cannot be routed and is not drained");
         return;
     };
     let spool_root = std::env::var("MAILRS_SPOOL_ROOT")
@@ -108,8 +110,8 @@ fn spawn_spool_drain(
         .filter(|s| !s.is_empty());
     let core = Arc::new(crate::intake::PgCore {
         dir: crate::intake::PgDirectory::new(domain, cfg.maildir_root.clone(), net_url),
+        mailbox,
         delivery: crate::intake::Delivery {
-            process_tx: ctx.process_tx.clone(),
             account_store: ctx.account_store.clone(),
             outbound_enqueue: ctx.outbound_enqueue.clone(),
             queue_notifier: ctx.queue_notifier.clone(),
@@ -118,6 +120,13 @@ fn spawn_spool_drain(
             srs_secret: cfg.srs_secret.clone(),
         },
     });
+    // the drain queues webhooks for arriving mail on the network kevy; this
+    // core sends them, as the kevy core does
+    if let Some(url) = core.dir.net_url.clone() {
+        tokio::spawn(mailrs_intake::webhook_delivery::run(Arc::new(move || {
+            kevy_client::Connection::connect(&url).ok()
+        })));
+    }
     crate::intake::spawn_drain(
         core,
         std::path::Path::new(&spool_root),

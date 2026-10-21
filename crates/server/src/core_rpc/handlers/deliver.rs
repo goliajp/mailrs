@@ -106,11 +106,6 @@ pub async fn deliver_message(
         thread_id: &thread_id,
         flags,
     };
-    let inserted = state.mailbox.insert_message(input).await.map_err(|e| {
-        tracing::warn!(error = %e, user = %user, thread_id = %thread_id, "deliver_message: insert failed");
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
-
     // The preview line and the category the request carries. A message
     // delivered with no category is inbox mail, as the kevy core files it;
     // the views read a thread's category from its newest classified message,
@@ -119,25 +114,19 @@ pub async fn deliver_message(
         "" => "inbox",
         c => c,
     };
-    let recorded = async {
-        sqlx::query("UPDATE messages SET snippet = $1 WHERE id = $2")
-            .bind(&req.latest_preview)
-            .bind(inserted.id)
-            .execute(&state.pool)
-            .await?;
-        sqlx::query(
-            "INSERT INTO email_analysis (message_id, category) VALUES ($1, $2) \
-             ON CONFLICT (message_id) DO UPDATE SET category = EXCLUDED.category",
-        )
-        .bind(inserted.id)
-        .bind(category)
-        .execute(&state.pool)
-        .await
+    let facts = mailrs_mailbox::pg::ArrivalFacts {
+        snippet: &req.latest_preview,
+        category,
+        sender_trust: &wire.sender_trust,
     };
-    recorded.await.map_err(|e| {
-        tracing::warn!(error = %e, user = %user, thread_id = %thread_id, "deliver_message: preview or category not recorded");
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    state
+        .mailbox
+        .record_arrival(input, facts)
+        .await
+        .map_err(|e| {
+            tracing::warn!(error = %e, user = %user, thread_id = %thread_id, "deliver_message: insert failed");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
     Ok(Json(wire::DeliverMessageResponse {
         thread_id,

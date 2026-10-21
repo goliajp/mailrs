@@ -89,3 +89,15 @@ pub fn has_maildir(maildir_root: &str, addr: &str) -> bool {
         .join("new")
         .is_dir()
 }
+
+/// Turn a Maildir++ folder name from `fileinto` into a safe
+/// disk-path segment. Dot-prefixed, and any embedded `/` is replaced
+/// with `.` per the Maildir++ hierarchy convention.
+pub fn maildir_subfolder(folder: &str) -> String {
+    let cleaned = folder.trim().replace('/', ".").replace(['\\', '\0'], "");
+    if cleaned.starts_with('.') {
+        cleaned
+    } else {
+        format!(".{cleaned}")
+    }
+}

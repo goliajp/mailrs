@@ -15,6 +15,18 @@ const SCHEMA_SQL: &str = include_str!(concat!(
     "/../../scripts/init-schema.sql"
 ));
 
+/// One indexed message, as the views read it.
+#[derive(Debug)]
+pub(super) struct Indexed {
+    pub mailbox: String,
+    pub seen: bool,
+    pub snippet: String,
+    pub thread_id: String,
+    pub date: i64,
+    pub message_id: String,
+    pub category: Option<String>,
+}
+
 pub(super) struct Fixture {
     pub pool: BackendPool,
     pub core: Arc<PgCore>,
@@ -35,16 +47,6 @@ impl Fixture {
         let root = maildir.path().to_string_lossy().into_owned();
         let mailbox = Arc::new(mailrs_mailbox::PgMailboxStore::new(pool.clone()));
         let event_bus = crate::event_bus::EventBus::new(64);
-        let process_tx = crate::smtp_session::spawn_process_consumer(Some(Arc::new(
-            crate::smtp_session::ProcessDeps {
-                mailbox_store: mailbox,
-                event_bus: event_bus.clone(),
-                outbound_queue: None,
-                resolver: None,
-                maildir_root: root.clone(),
-                kevy_url: None,
-            },
-        )));
         let domain = Arc::new(crate::domain_store::DomainStore::new(
             Some(pool.clone()),
             None,
@@ -52,8 +54,8 @@ impl Fixture {
         ));
         let core = Arc::new(PgCore {
             dir: PgDirectory::new(domain, root, None),
+            mailbox,
             delivery: Delivery {
-                process_tx,
                 account_store: None,
                 outbound_enqueue: None,
                 queue_notifier: None,
@@ -98,9 +100,9 @@ impl Fixture {
         .expect("alias");
     }
 
-    /// Spool `body` for `to` into `incoming/<dir>` as `name`.
-    pub fn spool(&self, dir: &str, name: &str, to: &[&str], body: &[u8]) -> PathBuf {
-        let env = SpoolEnvelope {
+    /// The envelope an outside sender's message to `to` arrives with.
+    pub fn envelope(to: &[&str]) -> SpoolEnvelope {
+        SpoolEnvelope {
             reverse_path: "carol@outside.example".into(),
             forward_paths: to.iter().map(|s| s.to_string()).collect(),
             is_authenticated: false,
@@ -110,8 +112,49 @@ impl Fixture {
             fraud_verdict: None,
             sandbox_ns: None,
             schema_version: SPOOL_SCHEMA_VERSION,
-        };
-        self.spool_raw(dir, name, &encode_spool_blob(&env, body))
+        }
+    }
+
+    /// Spool `body` for `to` into `incoming/<dir>` as `name`.
+    pub fn spool(&self, dir: &str, name: &str, to: &[&str], body: &[u8]) -> PathBuf {
+        self.spool_env(dir, name, &Self::envelope(to), body)
+    }
+
+    pub fn spool_env(&self, dir: &str, name: &str, env: &SpoolEnvelope, body: &[u8]) -> PathBuf {
+        self.spool_raw(dir, name, &encode_spool_blob(env, body))
+    }
+
+    /// The indexed row of `subject` for `user`.
+    pub async fn indexed(&self, user: &str, subject: &str) -> Indexed {
+        let (mailbox, flags, snippet, thread_id, date, message_id, category): (
+            String,
+            i32,
+            String,
+            String,
+            i64,
+            String,
+            Option<String>,
+        ) = sqlx::query_as(
+            "SELECT mb.name, m.flags, m.snippet, m.thread_id, m.date_epoch, m.message_id,
+                    ea.category
+               FROM messages m JOIN mailboxes mb ON m.mailbox_id = mb.id
+               LEFT JOIN email_analysis ea ON ea.message_id = m.id
+              WHERE mb.user_address = $1 AND m.subject = $2",
+        )
+        .bind(user)
+        .bind(subject)
+        .fetch_one(&self.pool)
+        .await
+        .expect("the message was indexed");
+        Indexed {
+            mailbox,
+            seen: flags & 1 != 0,
+            snippet,
+            thread_id,
+            date,
+            message_id,
+            category,
+        }
     }
 
     pub fn spool_raw(&self, dir: &str, name: &str, bytes: &[u8]) -> PathBuf {
@@ -161,59 +204,5 @@ fn maildir_file(root: &Path, domain: &str, local: &str, name: &str) -> PathBuf {
     root.join(domain).join(local).join("new").join(name)
 }
 
-const BODY: &[u8] = b"From: Carol <carol@outside.example>\r\n\
-To: alice@example.com\r\n\
-Subject: drained\r\n\
-Message-ID: <drained-1@outside.example>\r\n\
-\r\n\
-hello\r\n";
-
-/// A file in `cur` is drained like one in `new`, and an alias reaches its
-/// target's mailbox.
-#[tokio::test(flavor = "multi_thread")]
-async fn an_alias_in_cur_reaches_its_target() {
-    let f = Fixture::new().await;
-    f.account("alice@example.com").await;
-    f.alias("contact@example.com", "alice@example.com").await;
-    let file = f.spool(
-        "cur",
-        "1790000000.M1P1Q1.host",
-        &["Contact@Example.com"],
-        BODY,
-    );
-
-    assert_eq!(f.tick().await, 1);
-    assert!(!file.exists(), "a delivered file stays in the spool");
-    assert!(f.delivered("alice@example.com", "1790000000.M1P1Q1.host"));
-    assert_eq!(
-        f.row("alice@example.com", "drained").await.as_deref(),
-        Some("1790000000.M1P1Q1.host")
-    );
-}
-
-/// Nobody takes mail at an address with no mailbox, alias or group: the
-/// file stays for a human, and no mailbox is made for it.
-#[tokio::test(flavor = "multi_thread")]
-async fn an_unknown_recipient_leaves_the_file_and_makes_no_mailbox() {
-    let f = Fixture::new().await;
-    f.account("alice@example.com").await;
-    let file = f.spool(
-        "new",
-        "1790000001.M1P1Q1.host",
-        &["ghost@example.com"],
-        BODY,
-    );
-
-    assert_eq!(f.tick().await, 0);
-    assert!(file.exists(), "an undeliverable file was removed");
-    assert!(!f.maildir.path().join("example.com").join("ghost").exists());
-}
-
-/// A file that does not decode is kept, never deleted.
-#[tokio::test(flavor = "multi_thread")]
-async fn an_undecodable_file_is_kept() {
-    let f = Fixture::new().await;
-    let file = f.spool_raw("new", "garbage", b"not a spool envelope");
-    assert_eq!(f.tick().await, 0);
-    assert!(file.exists());
-}
+mod arrival;
+mod drain;
