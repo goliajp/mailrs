@@ -114,7 +114,7 @@ legitimate login goes through it. Two DashMap reads, no allocation,
 ~43 ns flat regardless of map size. Reproduce:
 `cargo bench -p mailrs-auth-guard --bench guard`.
 
-Workspace [PERFORMANCE.md](../../PERFORMANCE.md) carries the same
+Workspace [PERFORMANCE.md](https://github.com/goliajp/mailrs/blob/develop/PERFORMANCE.md) carries the same
 table.
 
 ## License

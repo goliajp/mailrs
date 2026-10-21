@@ -7,12 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-08-04
+
+### Changed
+
+- A fuzz target for header parsing and source formatting; no API or
+  behaviour change.
+
 ## [1.0.0] - 2026-05-22
 
 ### Added
 
-- Initial release. Extracted from `mailrs-server`'s
-  `webhook::signer` module (~75 LOC, ran in production for ~1 year)
+- Initial release. Extracted from the mailrs server's webhook signer
+  (~75 LOC, in production for about a year)
   and extended with header-format helpers + rotation support.
 - `sign(secret, payload)` — HMAC-SHA256, returns 64-char lowercase
   hex.

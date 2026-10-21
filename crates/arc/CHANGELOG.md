@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.1] - 2026-08-04
+
+### Changed
+
+- Faster chain extraction: header unfolding in `ArcChain` extraction is a
+  single memchr-based pass instead of per-line allocations (about 1.6x on
+  two-hop chains). Output is unchanged. New dependency: `memchr`.
+
+## [3.0.0] - 2026-05-29
+
+There is no 2.x release; 3.0.0 follows 1.2.0.
+
+### Changed (breaking)
+
+- Requires `mailrs-dkim` 3. RSA signing and verification now run on
+  aws-lc-rs through `mailrs-dkim`, which makes sealing several times faster.
+- `ArcSigningKey::Rsa` takes `&mailrs_dkim::RsaSigningKey` instead of
+  `&rsa::RsaPrivateKey`. Load the key with `RsaSigningKey::from_pkcs8_pem`.
+  The crate no longer depends on `rsa`.
+- `ArcMessageSignature::{domain, selector}` and `ArcSeal::{domain, selector}`
+  are `compact_str::CompactString` instead of `String`. New dependency:
+  `compact_str`.
+
+### Changed
+
+- Faster `ArcSealCv` and algorithm parsing (byte comparison instead of
+  lowercased string matching).
+
 ## [1.2.0] - 2026-05-23
 
 ### Added
@@ -16,7 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   produce them. mailrs-arc now covers both directions of RFC 8617.
   This is the first standalone Rust ARC implementation with
   sign+verify in a single independent crate (mail-auth bundles the
-  whole email-auth stack; this is the carved-out primitive).
+  whole email-auth stack; this crate covers ARC alone).
 - `ArcSigningKey<'a>::{Rsa(&RsaPrivateKey), Ed25519(&SigningKey)}` —
   algorithm implied by the key variant. Borrows the parsed key so
   forwarders can share one parsed key across many seal calls.

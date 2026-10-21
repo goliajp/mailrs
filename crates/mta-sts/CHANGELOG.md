@@ -1,13 +1,31 @@
-# Changelog — mailrs-mta-sts
+# Changelog
 
-## 2.0.1 — 2026-06-03
+All notable changes to `mailrs-mta-sts` are documented in this file.
 
-Documentation-only sync: README + `Cache` trait doc mention the in-house
-RESP-compatible KV store kevy (<https://github.com/goliajp/kevy>) as the
-default reference, replacing earlier Valkey/Redis examples. No API change;
-this is a patch so the published doc matches the mailrs ecosystem.
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 1.0.0 — 2026-05-23
+## [Unreleased]
+
+## [2.0.1] - 2026-06-03
+
+### Changed
+
+- Documentation only: the README and the `Cache` trait docs use kevy
+  (<https://github.com/goliajp/kevy>), a RESP-compatible key-value store,
+  as the example backend instead of Valkey/Redis. No API change.
+
+## [2.0.0] - 2026-05-29
+
+### Changed
+
+- **Breaking:** `StsRecord::id`, `CachedPolicy::id` and the entries of
+  `Policy::mx` are `compact_str::CompactString` instead of `String`.
+  Hostnames and policy ids fit inline, which removes most allocations
+  when parsing.
+- New dependency: `compact_str` 0.9.
+
+## [1.0.0] - 2026-05-23
 
 Initial stable release. RFC 8461 MTA-STS parsers + decision logic,
 extracted from the [mailrs](https://github.com/goliajp/mailrs) mail
@@ -57,7 +75,8 @@ Apple M-class silicon, release build, criterion microbenches:
 ### Tests
 
 49 inline unit tests + 4 perf-gate integration tests. Two fuzz targets
-(record + policy parsers) ship in `crates/mta-sts/fuzz/`.
+(record + policy parsers) live in the repository under
+`crates/mta-sts/fuzz/`; they are not part of the published crate.
 
 ### Pure-parser design
 

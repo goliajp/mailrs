@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `SmtpConnection::auth_plain(user, secret)` and
+  `SmtpConnection::auth_xoauth2(user, token)` for submission, with the
+  payload builders `auth_plain_payload` and `auth_xoauth2_payload`. Both
+  refuse to send credentials over a plaintext connection. A rejected
+  XOAUTH2 token (`334` plus an error object) is reported as a failure
+  instead of hanging the connection.
+- `pkix_root_store()`: the trust anchors peers are verified against.
+
+### Changed
+
+- PKIX verification (`default_pkix_client_config` and the PKIX part of
+  DANE usages 0 and 1) trusts the platform certificate store
+  (`rustls-native-certs`, new dependency) plus the bundled
+  `webpki-roots` set, plus a compiled-in `DigiCert Global Root CA`.
+  Previously only `webpki-roots` was used, which no longer contains that
+  root, so delivery to Microsoft 365 (`*.mail.protection.outlook.com`)
+  failed with `UnknownIssuer`.
+
+## [2.0.1] - 2026-05-29
+
+2.0.0 was not published.
+
+### Changed (BREAKING)
+
+- `SmtpResponse::lines` is `Vec<CompactString>` (from `compact_str`, new
+  dependency) instead of `Vec<String>`, which removes most allocations
+  when parsing EHLO responses.
+
+### Added
+
+- `SmtpConnection::try_starttls_with_config(hostname, ClientConfig)` to
+  STARTTLS with a caller-supplied rustls configuration (pinned
+  certificates, DANE-only trust, test verifiers).
+- `default_pkix_client_config()`, the configuration `try_starttls` uses.
+
+## [1.1.0] - 2026-05-23
+
+### Added
+
+- `SmtpConnection::try_starttls` and `try_starttls_dane`, returning a
+  `StarttlsResult`: `Success(conn)`, `Rejected { conn, code, message }`
+  (the plaintext connection is handed back) or
+  `HandshakeFailed { outcome, source }`.
+- `TlsOutcome`, a classification of handshake failures (expired,
+  host mismatch, untrusted, DANE failure, invalid name, network error,
+  …) aligned with TLS-RPT (RFC 8460) result types, with `as_str` and
+  `detail`.
+
+### Changed
+
+- `starttls` and `starttls_dane` are now thin wrappers over the `try_*`
+  variants; their signatures are unchanged.
+
 ## [1.0.3] - 2026-05-22
 
 ### Added

@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-04
+
+### Added
+
+- `PostmasterResolver` trait (TXT, MX, A/AAAA, PTR and TLSA lookups) with
+  `MxRecord` and `ResolverError`, so the checks can run on any DNS
+  backend.
+- `HickoryPostmasterResolver`, wrapping a `hickory_resolver::TokioResolver`
+  (feature `hickory`, on by default). Without the feature the crate has
+  no hickory dependency.
+- `MockResolver` with `with_txt` / `with_mx` / `with_ip` / `with_reverse` /
+  `with_tlsa` (and `*_err`) builders, for testing without a network.
+- Pure helpers exported: `parse_mta_sts_policy`, `validate_tlsrpt_record`,
+  `extract_tlsrpt_rua`.
+
+### Changed
+
+- **Breaking:** `check_domain` and `lookup_bimi_logo` take
+  `&impl PostmasterResolver` instead of `&TokioResolver`. Wrap an
+  existing resolver with `HickoryPostmasterResolver::new(resolver)`.
+  This change shipped in a minor release.
+
 ## [1.0.1] - 2026-05-22
 
 ### Added

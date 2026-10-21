@@ -76,7 +76,7 @@ for part in root.walk() {
 - **No body autodetection beyond charset** — if the message lies
   about its charset, we trust the lie. (Real parsers occasionally
   apply heuristics for mojibake recovery; out of v1.0 scope.)
-- **No DKIM / SPF / DMARC** — separate stones
+- **No DKIM / SPF / DMARC** — separate crates
   (`mailrs-dkim`, `mailrs-spf`, `mailrs-dmarc`).
 - **No address-list structured parse** — `From:` returns raw bytes
   via mailrs-rfc5322; building `(name, addr)` from it is downstream.

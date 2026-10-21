@@ -62,7 +62,7 @@ let result = verify(&resolver, raw_message).await;
 ## Why a new crate?
 
 `mail-auth` includes DKIM but bundles it with SPF + DMARC + ARC. We
-want each in a focused stone so:
+want each in a focused crate so:
 - the perf of each step is measurable independently
 - the API shape is tunable per-RFC
 - the crate's transitive deps stay tight per use case
