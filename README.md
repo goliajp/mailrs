@@ -51,7 +51,7 @@ targets in their `fuzz/` directories.
 
 - **SMTP** — inbound and outbound, STARTTLS and implicit TLS, DKIM signing, SPF/DKIM/DMARC/ARC verification, DSNs; reads incoming DMARC aggregate and TLS-RPT reports and sends TLS-RPT reports
 - **IMAP** — with IDLE, CONDSTORE and Dovecot-compatible UID and keyword files
-- **POP3**, **JMAP** (RFC 8620/8621), **ManageSieve** (RFC 5804), **CalDAV/CardDAV**
+- **POP3**, **JMAP** (RFC 8620/8621), **ManageSieve** (RFC 5804), **CalDAV/CardDAV** — calendar and contacts apps connect to `https://<host>/dav/` with the account address and password; events and contacts are the same ones the web client shows
 - **Sieve** — server-side filtering
 - **Anti-abuse** — greylisting, DNSBL, rate limits, login lockout, Bayesian spam filtering, inbox/notification/promotion triage, scripted fraud rules that can change without a release
 - **Search** — full text over headers, bodies and attachment text, including OCR of images and scanned PDFs; Chinese and Japanese searchable without a dictionary
