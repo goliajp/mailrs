@@ -29,7 +29,7 @@ pub fn needs_refresh(expires_at: i64, now: i64) -> bool {
 /// **no refresh token at all**, and the account works for one hour and
 /// then asks to sign in again with nothing in the flow saying why.
 /// Google spells the same thing `access_type=offline`, which
-/// [`authorize_url`] adds for that provider.
+/// [`authorize_url`](crate::authorize_url) adds for that provider.
 pub fn mailbox_scopes(provider_key: &str) -> String {
     match provider_key {
         "google" => "https://mail.google.com/".into(),
@@ -45,7 +45,7 @@ pub fn mailbox_scopes(provider_key: &str) -> String {
 
 /// The body that renews an access token.
 ///
-/// The same shape as [`token_request_body`] with `grant_type` swapped:
+/// The same shape as [`token_request_body`](crate::token_request_body) with `grant_type` swapped:
 /// providers differ on almost everything else and agree on this.
 pub fn refresh_request_body(p: &Provider, refresh_token: &str, client_secret: &str) -> String {
     let mut body = format!(

@@ -18,7 +18,7 @@
 //!    verification. If no match is found, the per-policy `mode`
 //!    decides: `enforce` → don't deliver, `testing` → deliver and
 //!    optionally report, `none` → ignore policy.
-//!    ([`enforce`])
+//!    ([`enforce()`])
 //!
 //! ## Scope (1.0)
 //!

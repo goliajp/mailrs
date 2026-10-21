@@ -41,7 +41,7 @@ impl Attachment {
 ///
 /// Construction is chain-style: `MessageBuilder::new().from(..).to(..).subject(..)`.
 /// Call [`build`](Self::build) for the raw bytes or use the
-/// [`Display`] impl for a UTF-8 string view.
+/// [`Display`](std::fmt::Display) impl for a UTF-8 string view.
 #[derive(Debug, Clone, Default)]
 pub struct MessageBuilder {
     from: Option<Address>,

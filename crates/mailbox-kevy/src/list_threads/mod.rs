@@ -46,7 +46,7 @@ pub struct ListThreadsFilter<'a> {
     pub category: Option<&'a str>,
     /// Match monolith's `folder` query: `inbox`, `junk`, `notifications`,
     /// `promotions`, `np` (the merged notifications+promotions view),
-    /// `nonjunk` (every bucket but Junk — see [`Scope::NotJunk`]) or
+    /// `nonjunk` (every bucket but Junk — see `Scope::NotJunk`) or
     /// `sent`, case-insensitively. Anything else is no scope at all.
     pub folder: Option<&'a str>,
     /// Only threads with `pinned = true`.

@@ -32,7 +32,7 @@
 //! | 1–2 | 20 | **every one a phish** |
 //! | ≥ 3 | 12 | **every one legitimate** |
 //!
-//! That is not a coincidence, and [`impersonation`]'s own notes say
+//! That is not a coincidence, and [`impersonation`](crate::impersonation)'s own notes say
 //! why: *"the domains rotate — `auto360d.com`, `mhsfwf.com`,
 //! `tylfjs.com` — and the local part is fresh random letters each
 //! time."* A domain that rotates is, by construction, a domain this

@@ -5,10 +5,12 @@
 //! `PUT` / `DELETE` on top of `state.mailbox_store` + `pg_pool`. This
 //! port swaps them for kevy-backed reads:
 //!
-//!   caldav:<user>:calendars       hash { cal_id -> JSON CalendarWire }
-//!   caldav:<user>:events:<cal_id> hash { uid -> ics_body }
-//!   carddav:<user>:books          hash { book_id -> JSON AddressBookWire }
-//!   carddav:<user>:contacts:<book_id> hash { uid -> vcard_body }
+//! ```text
+//! caldav:<user>:calendars       hash { cal_id -> JSON CalendarWire }
+//! caldav:<user>:events:<cal_id> hash { uid -> ics_body }
+//! carddav:<user>:books          hash { book_id -> JSON AddressBookWire }
+//! carddav:<user>:contacts:<book_id> hash { uid -> vcard_body }
+//! ```
 //!
 //! For clients that only implement discovery (`.well-known` +
 //! `/dav/principals/`), the base surface here answers correctly; full

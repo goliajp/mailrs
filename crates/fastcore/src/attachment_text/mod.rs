@@ -1,9 +1,9 @@
 //! Text from PDF and image attachments, read after delivery.
 //!
 //! Delivery only queues a message that carries a PDF or an image
-//! ([`queue_if_it_has_readable_parts`]). This worker takes a few queued
+//! (`queue_if_it_has_readable_parts`). This worker takes a few queued
 //! messages at a time, reads each one's file, extracts the text off the
-//! async runtime (OCR in a child process, see [`ocr`]), and stores it where
+//! async runtime (OCR in a child process, see `ocr`), and stores it where
 //! search and the fraud sweep read it. Every item leaves the queue after
 //! one attempt, whatever came of it, and the stored state says what did.
 //!
@@ -203,7 +203,7 @@ pub(crate) fn spawn(state: Arc<FastcoreState>) {
     });
 }
 
-/// The wait [`spawn`] takes after `idle_rounds` empty rounds in a row.
+/// The wait `spawn` takes after `idle_rounds` empty rounds in a row.
 pub fn wait_after(idle_rounds: u32) -> Duration {
     crate::idle_backoff::idle_backoff(BUSY_INTERVAL, IDLE_INTERVAL, idle_rounds)
 }

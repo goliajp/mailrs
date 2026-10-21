@@ -8,7 +8,7 @@
 //!   from another team is refused no matter how valid its signature.
 //! - Tokens must be **reused**: Apple rejects providers that mint one per
 //!   request (`TooManyProviderTokenUpdates`), and refuses tokens older
-//!   than an hour. This client refreshes at [`JWT_REFRESH_SECS`].
+//!   than an hour. This client refreshes at `JWT_REFRESH_SECS`.
 //! - The transport is **HTTP/2 only**. `api.push.apple.com` closes
 //!   HTTP/1.1 connections, which is why reqwest is built with `http2`.
 //!

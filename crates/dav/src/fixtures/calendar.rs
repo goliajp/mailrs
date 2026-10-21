@@ -52,7 +52,7 @@ impl InMemoryCalendarStore {
         }
     }
 
-    /// Append a calendar owned by `owner`. Use [`make_calendar`] for a sane default shape.
+    /// Append a calendar owned by `owner`. Use [`make_calendar`](super::make_calendar) for a sane default shape.
     pub fn with_calendar(self, owner: &str, cal: Calendar) -> Self {
         self.inner
             .write()

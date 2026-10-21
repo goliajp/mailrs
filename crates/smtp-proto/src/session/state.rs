@@ -73,7 +73,7 @@ pub enum AuthStep {
     },
 }
 
-/// Action the caller should take after [`Session::handle_command`] returns.
+/// Action the caller should take after [`Session::handle_command`](crate::Session::handle_command) returns.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Event {
     /// Write `response.format()` to the wire and continue reading commands.
@@ -89,10 +89,10 @@ pub enum Event {
     /// Write the response, then close the connection.
     Shutdown(Response),
     /// Write the response, then upgrade the connection to TLS. After the
-    /// upgrade, call [`Session::reset_after_tls`].
+    /// upgrade, call [`Session::reset_after_tls`](crate::Session::reset_after_tls).
     StartTls(Response),
     /// Verify credentials externally, then call
-    /// [`Session::set_authenticated`] (or write [`Response::auth_failed`]).
+    /// [`Session::set_authenticated`](crate::Session::set_authenticated) (or write [`Response::auth_failed`]).
     NeedAuth {
         /// Username to verify.
         username: String,
@@ -100,7 +100,7 @@ pub enum Event {
         password: String,
     },
     /// Write `response.format()` and read one more line, then call
-    /// [`Session::handle_auth_response`] with `step`.
+    /// [`Session::handle_auth_response`](crate::Session::handle_auth_response) with `step`.
     AuthChallenge {
         /// Challenge response to send to the client.
         response: Response,

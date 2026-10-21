@@ -3,8 +3,10 @@
 //!
 //! Storage layout on network kevy:
 //!
-//!   rsvp:<user>:<message_id>       hash { partstat, comment, recurrence_id, replied_at }
-//!   rsvp_counter:<user>:<message_id> hash { start, end, comment, sent_at }
+//! ```text
+//! rsvp:<user>:<message_id>       hash { partstat, comment, recurrence_id, replied_at }
+//! rsvp_counter:<user>:<message_id> hash { start, end, comment, sent_at }
+//! ```
 //!
 //! **The reply is sent.** Until 2026-08-20 this wrote the choice to
 //! kevy and stopped there — the paragraph here claimed it enqueued a

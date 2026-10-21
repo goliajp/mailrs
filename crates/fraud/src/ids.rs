@@ -7,7 +7,7 @@
 //! column, and they are easier to keep still on their own.
 
 /// A display name that is a company's, from a domain that is not.
-/// See [`brand::brand_is_the_display_name`].
+/// See [`brand::brand_is_the_display_name`](crate::brand::brand_is_the_display_name).
 pub const RULE_BRAND_IS_THE_NAME: &str = "brand-is-the-display-name";
 
 /// Score for a display name that is only a company's name.
@@ -70,7 +70,7 @@ pub const RULE_GREETS_A_STRANGER: &str = "greets-a-stranger";
 pub const GREETS_A_STRANGER_SCORE: f64 = 2.0;
 
 /// Invisible characters wedged inside a word. See
-/// [`mailrs_textguard::Deception::zero_width_inside_a_word`].
+/// `mailrs_textguard::Deception::zero_width_inside_a_word`.
 pub const RULE_ZERO_WIDTH_IN_WORD: &str = "zero-width-inside-a-word";
 
 /// Score for a word split by invisible characters.
@@ -81,7 +81,7 @@ pub const RULE_ZERO_WIDTH_IN_WORD: &str = "zero-width-inside-a-word";
 /// has one, on the seam where a template put the reader's name in
 /// front of an honorific; every phishing message has one inside a
 /// Latin word, or two anywhere. See
-/// [`mailrs_textguard::Deception::zero_width_inside_a_word`].
+/// `mailrs_textguard::Deception::zero_width_inside_a_word`.
 pub const ZERO_WIDTH_IN_WORD_SCORE: f64 = 6.0;
 
 /// A `From:` at one of this deployment's own domains, on a session
@@ -101,7 +101,7 @@ pub const ZERO_WIDTH_IN_WORD_SCORE: f64 = 6.0;
 /// `ギリア株式会社 業務変更`, asking the reader to reply with their
 /// personal LINE QR code, reached the inbox with nothing but a
 /// "Suspicious sender" badge (2026-09-18).  The same campaign appears
-/// in [`minted_address`]'s own examples, from minted domains; this
+/// in [`minted_address`](crate::minted_address)'s own examples, from minted domains; this
 /// one had moved to ours, where `minted-address` cannot fire either
 /// because `golia` is a word somebody chose.
 pub const RULE_CLAIMS_OUR_DOMAIN: &str = "claims-our-domain";
@@ -111,7 +111,7 @@ pub const RULE_CLAIMS_OUR_DOMAIN: &str = "claims-our-domain";
 pub const CLAIMS_OUR_DOMAIN_SCORE: f64 = 6.0;
 
 /// An address whose local part and registered domain both read as
-/// machine-minted. See [`minted_address`].
+/// machine-minted. See [`minted_address`](crate::minted_address).
 pub const RULE_MINTED_ADDRESS: &str = "minted-address";
 
 /// Score for an address generated on both sides of the `@`.
@@ -121,7 +121,7 @@ pub const RULE_MINTED_ADDRESS: &str = "minted-address";
 pub const MINTED_ADDRESS_SCORE: f64 = 6.0;
 
 /// One reply address that many disposable sending domains funnel
-/// into. See [`reply_rotation`].
+/// into. See [`reply_rotation`](crate::reply_rotation).
 pub const RULE_REPLY_DOMAIN_ROTATION: &str = "reply-domain-rotation";
 
 /// Score for reply-address domain rotation.

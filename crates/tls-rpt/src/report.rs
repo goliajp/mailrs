@@ -4,7 +4,7 @@
 //!
 //! The builder is the "data architecture" entry point: each
 //! observation (one TLS attempt to one MX) is recorded as an event
-//! fact via [`ReportBuilder::record_success`] / [`record_failure`],
+//! fact via [`ReportBuilder::record_success`] / [`record_failure`](ReportBuilder::record_failure),
 //! and [`ReportBuilder::build`] aggregates them per
 //! (policy-domain, policy-type) bucket into the JSON shape
 //! receivers expect.

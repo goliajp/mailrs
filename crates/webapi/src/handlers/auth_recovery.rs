@@ -267,10 +267,12 @@ pub async fn set_recovery_email(
 
 /// TOTP enrollment storage layout (network kevy):
 ///
-///   totp:<addr>            hash
-///     secret               base32 secret
-///     enabled              "0" | "1"
-///     recovery_codes       CSV of 8-char hex codes
+/// ```text
+/// totp:<addr>            hash
+///   secret               base32 secret
+///   enabled              "0" | "1"
+///   recovery_codes       CSV of 8-char hex codes
+/// ```
 ///
 /// Mirrors the monolith schema at `domain_store.save_totp_secret` /
 /// `get_totp_secret` / `enable_totp` / `disable_totp` — only the
