@@ -19,9 +19,11 @@ async fn addressbook_home_propfind_depth_zero_returns_only_home_collection() {
     let body = body_as_str(resp.body);
 
     assert_eq!(resp.status, 207);
-    assert!(body.contains(&format!("<D:href>/dav/contacts/{EXAMPLE_USER}/</D:href>")));
+    assert!(body.contains(&format!(
+        "<D:href>/dav/addressbooks/{EXAMPLE_USER}/</D:href>"
+    )));
     assert!(body.contains("<D:displayname>Address Books</D:displayname>"));
-    assert!(!body.contains("/dav/contacts/alice@example.com/Friends/"));
+    assert!(!body.contains("/dav/addressbooks/alice@example.com/Friends/"));
 }
 
 #[tokio::test]
@@ -35,10 +37,12 @@ async fn addressbook_home_propfind_depth_one_lists_child_books() {
         .unwrap();
     let body = body_as_str(resp.body);
 
-    assert!(body.contains(&format!("/dav/contacts/{EXAMPLE_USER}/Friends/")));
+    assert!(body.contains(&format!("/dav/addressbooks/{EXAMPLE_USER}/Friends/")));
     assert!(body.contains("<D:displayname>Friends</D:displayname>"));
     assert!(body.contains("<CR:addressbook/>"));
-    assert!(body.contains("<CS:getctag>Personal contacts</CS:getctag>"));
+    assert!(
+        body.contains("<CR:addressbook-description>Personal contacts</CR:addressbook-description>")
+    );
     assert!(body.contains("<D:current-user-privilege-set>"));
 }
 
@@ -53,7 +57,7 @@ async fn addressbook_home_propfind_auto_creates_default_when_user_has_none() {
 
     // The ensure_default_address_book hook fired, so PROPFIND now sees the
     // auto-created "Default" book at Depth 1.
-    assert!(body.contains("/dav/contacts/alice@example.com/Default/"));
+    assert!(body.contains("/dav/addressbooks/alice@example.com/Default/"));
 }
 
 #[tokio::test]
@@ -67,7 +71,7 @@ async fn addressbook_home_propfind_only_returns_books_for_requested_user() {
         .unwrap();
     let body = body_as_str(resp.body);
 
-    assert!(body.contains(&format!("/dav/contacts/{EXAMPLE_USER}/Mine/")));
+    assert!(body.contains(&format!("/dav/addressbooks/{EXAMPLE_USER}/Mine/")));
     assert!(!body.contains("/Bobs/"));
 }
 
@@ -84,7 +88,7 @@ async fn addressbook_propfind_depth_zero_returns_collection_only() {
         .unwrap();
     let body = body_as_str(resp.body);
 
-    assert!(body.contains(&format!("/dav/contacts/{EXAMPLE_USER}/Friends/")));
+    assert!(body.contains(&format!("/dav/addressbooks/{EXAMPLE_USER}/Friends/")));
     assert!(body.contains("<CR:addressbook/>"));
     assert!(!body.contains("ct-1.vcf"));
 }
@@ -103,7 +107,9 @@ async fn addressbook_propfind_depth_one_lists_contact_etags_without_vcard() {
         .unwrap();
     let body = body_as_str(resp.body);
 
-    assert!(body.contains(&format!("/dav/contacts/{EXAMPLE_USER}/Friends/ct-1.vcf")));
+    assert!(body.contains(&format!(
+        "/dav/addressbooks/{EXAMPLE_USER}/Friends/ct-1.vcf"
+    )));
     assert!(body.contains("<D:getetag>"));
     assert!(body.contains("text/vcard"));
     // contact body NOT included on PROPFIND
@@ -121,7 +127,7 @@ async fn addressbook_report_multiget_filters_by_uid() {
 
     let body = format!(
         "<CR:addressbook-multiget xmlns:CR=\"urn:ietf:params:xml:ns:carddav\">\
-         <D:href>/dav/contacts/{EXAMPLE_USER}/Friends/a.vcf</D:href>\
+         <D:href>/dav/addressbooks/{EXAMPLE_USER}/Friends/a.vcf</D:href>\
          </CR:addressbook-multiget>"
     );
     let resp = addressbook_report(&store, EXAMPLE_USER, "Friends", 20, &body)
@@ -180,7 +186,7 @@ async fn addressbook_report_escapes_vcard_body_for_xml_safety() {
 
     let body = format!(
         "<CR:addressbook-multiget xmlns:CR=\"urn:ietf:params:xml:ns:carddav\">\
-         <D:href>/dav/contacts/{EXAMPLE_USER}/Friends/a.vcf</D:href>\
+         <D:href>/dav/addressbooks/{EXAMPLE_USER}/Friends/a.vcf</D:href>\
          </CR:addressbook-multiget>"
     );
     let resp = addressbook_report(&store, EXAMPLE_USER, "Friends", 20, &body)

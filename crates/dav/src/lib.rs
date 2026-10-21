@@ -19,6 +19,9 @@
 //!   (calendar-multiget / calendar-query), GET / PUT / DELETE on events,
 //!   `If-Match` / `If-None-Match: *` precondition handling.
 //! - **CardDAV** ([`carddav`]) — same shape for address books and contacts.
+//! - **Routing** ([`dispatch`]) — path + method → handler for the whole
+//!   `/dav/` tree, refusing a path whose user segment is not the
+//!   authenticated user.
 //! - **Pure parsing helpers** ([`parse`]) — iCalendar / vCard field
 //!   extraction, `Depth` header, multiget UID extraction.
 //! - **OPTIONS / multistatus / etag** ([`xml`]).
@@ -103,9 +106,11 @@
 
 pub mod caldav;
 pub mod carddav;
+pub mod dispatch;
 pub mod error;
 pub mod fixtures;
 pub mod parse;
+mod precondition;
 pub mod principal;
 pub mod store;
 pub mod types;

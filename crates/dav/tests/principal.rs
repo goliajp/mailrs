@@ -41,7 +41,7 @@ fn principal_always_emits_home_sets_regardless_of_request_props() {
     assert!(body.contains("<C:calendar-home-set>"));
     assert!(body.contains(&format!("/dav/calendars/{EXAMPLE_USER}/")));
     assert!(body.contains("<CR:addressbook-home-set>"));
-    assert!(body.contains(&format!("/dav/contacts/{EXAMPLE_USER}/")));
+    assert!(body.contains(&format!("/dav/addressbooks/{EXAMPLE_USER}/")));
 }
 
 #[test]

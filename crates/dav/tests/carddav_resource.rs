@@ -1,5 +1,5 @@
 //! Integration tests for CardDAV resource endpoints: GET / PUT / DELETE on
-//! `/dav/contacts/{user}/{book}/{uid}.vcf`.
+//! `/dav/addressbooks/{user}/{book}/{uid}.vcf`.
 
 use mailrs_dav::carddav::{contact_delete, contact_get, contact_put};
 use mailrs_dav::error::DavError;
