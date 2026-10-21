@@ -34,12 +34,7 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
     // JMAP endpoints (authenticated).
     let jmap_routes = jmap_routes();
 
-    // DAV endpoints (authenticated). CalDAV / CardDAV clients drive
-    // discovery with OPTIONS / PROPFIND / REPORT — axum's
-    // MethodRouter only routes standard verbs, so collection routes
-    // use `any(...)` so every method (including PROPFIND / REPORT /
-    // MKCALENDAR) lands on the same handler which inspects the
-    // Method header. Leaf item routes stick to PUT/GET/DELETE.
+    // DAV endpoints (authenticated).
     let dav_routes = dav_routes();
 
     let admin_routes = admin_routes();

@@ -232,7 +232,7 @@ fn random_id() -> String {
 pub async fn list_feeds(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
 ) -> Json<serde_json::Value> {
-    let key = format!("calendar_feeds:{user}");
+    let key = mailrs_core_sidestate::families::calendar_feeds::feeds_key(&user);
     let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::from))
         .unwrap_or_default();
     let mut items: Vec<FeedView> = Vec::new();
@@ -268,7 +268,7 @@ pub async fn create_feed(
         basic_auth_user: req.basic_auth_user,
         basic_auth_pass: req.basic_auth_pass,
     };
-    let key = format!("calendar_feeds:{user}");
+    let key = mailrs_core_sidestate::families::calendar_feeds::feeds_key(&user);
     let id_c = feed.id.clone();
     let payload = serde_json::to_vec(&feed).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     with_kevy(move |c| {
@@ -283,7 +283,7 @@ pub async fn delete_feed(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Path(feed_id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
-    let key = format!("calendar_feeds:{user}");
+    let key = mailrs_core_sidestate::families::calendar_feeds::feeds_key(&user);
     with_kevy(move |c| {
         c.hdel(key.as_bytes(), &[feed_id.as_bytes()])?;
         Ok(())

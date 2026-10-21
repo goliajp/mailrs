@@ -107,13 +107,11 @@ async fn tick(state: &Arc<FastcoreState>, client: &reqwest::Client) -> usize {
     synced
 }
 
-fn feeds_key(user: &str) -> String {
-    format!("calendar_feeds:{user}")
-}
-
 fn read_feeds(state: &Arc<FastcoreState>, user: &str) -> Option<Vec<FeedRow>> {
     let mut conn = state.net_conn()?;
-    let flat = conn.hgetall(feeds_key(user).as_bytes()).ok()?;
+    let flat = conn
+        .hgetall(calendar_feeds::feeds_key(user).as_bytes())
+        .ok()?;
     let mut out = Vec::new();
     let mut i = 0;
     while i + 1 < flat.len() {
@@ -133,7 +131,7 @@ fn write_feed(state: &Arc<FastcoreState>, user: &str, row: &FeedRow) {
         return;
     };
     if let Err(e) = conn.hset(
-        feeds_key(user).as_bytes(),
+        calendar_feeds::feeds_key(user).as_bytes(),
         &[(row.id.as_bytes(), json.as_slice())],
     ) {
         tracing::warn!(err = %e, %user, feed = %row.id, "calendar sync: cannot record outcome");
@@ -237,24 +235,9 @@ fn apply(state: &Arc<FastcoreState>, user: &str, feed_id: &str, text: &str) -> u
             // its events and a hand-made event is never mistaken for one.
             source: format!("feed:{feed_id}"),
             sequence: parsed.sequence,
+            ics: None,
         };
-        let written = ev::fields(&row);
-        let pairs: Vec<(&[u8], &[u8])> = written
-            .iter()
-            .map(|(k, v)| (k.as_bytes(), v.as_bytes()))
-            .collect();
-        let key = ev::event_key(user, &parsed.uid);
-        if conn.hset(key.as_bytes(), &pairs).is_err() {
-            continue;
-        }
-        let index = ev::index_key(user);
-        if conn
-            .zadd(
-                index.as_bytes(),
-                &[(dtstart.timestamp() as f64, parsed.uid.as_bytes())],
-            )
-            .is_err()
-        {
+        if ev::put(&mut conn, user, &row).is_err() {
             continue;
         }
         applied += 1;

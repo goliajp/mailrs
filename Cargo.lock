@@ -3635,11 +3635,15 @@ dependencies = [
 name = "mailrs-core-sidestate"
 version = "0.0.1"
 dependencies = [
+ "async-trait",
  "axum",
  "base64 0.22.1",
+ "chrono",
  "kevy-client",
  "mailrs-core-api",
+ "mailrs-dav",
  "mailrs-fraud",
+ "mailrs-ical",
  "mailrs-mock",
  "mailrs-rfc5322",
  "rand_core 0.6.4",
@@ -3647,6 +3651,7 @@ dependencies = [
  "serde_json",
  "sha2 0.11.0",
  "tempfile",
+ "tokio",
 ]
 
 [[package]]
@@ -4551,6 +4556,7 @@ dependencies = [
  "mailrs-clean",
  "mailrs-core-api",
  "mailrs-core-sidestate",
+ "mailrs-dav",
  "mailrs-dkim",
  "mailrs-fastcore",
  "mailrs-ical",

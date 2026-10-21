@@ -5186,236 +5186,6 @@
         }
       }
     },
-    "/dav/": {
-      "delete": {
-        "summary": "Delete dav",
-        "description": "Stub \u2014 full schema TBD.",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "summary": "Get dav",
-        "description": "Stub \u2014 full schema TBD.",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "summary": "Patch dav",
-        "description": "Stub \u2014 full schema TBD.",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/xml": {
-              "schema": {
-                "type": "string",
-                "description": "WebDAV/CalDAV/CardDAV XML body (PROPPATCH/REPORT/MKCALENDAR/MKCOL)"
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "summary": "Create dav",
-        "description": "Stub \u2014 full schema TBD.",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/xml": {
-              "schema": {
-                "type": "string",
-                "description": "WebDAV/CalDAV/CardDAV XML body (PROPPATCH/REPORT/MKCALENDAR/MKCOL)"
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "summary": "Update dav",
-        "description": "Stub \u2014 full schema TBD.",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/xml": {
-              "schema": {
-                "type": "string",
-                "description": "WebDAV resource body"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/dav/calendars/{user}/": {
-      "delete": {
-        "summary": "Delete dav calendars",
-        "description": "Stub \u2014 full schema TBD.",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "summary": "Get dav calendars",
-        "description": "Stub \u2014 full schema TBD.",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "summary": "Patch dav calendars",
-        "description": "Stub \u2014 full schema TBD.",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/xml": {
-              "schema": {
-                "type": "string",
-                "description": "WebDAV/CalDAV/CardDAV XML body (PROPPATCH/REPORT/MKCALENDAR/MKCOL)"
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "summary": "Create dav calendars",
-        "description": "Stub \u2014 full schema TBD.",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/xml": {
-              "schema": {
-                "type": "string",
-                "description": "WebDAV/CalDAV/CardDAV XML body (PROPPATCH/REPORT/MKCALENDAR/MKCOL)"
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "summary": "Update dav calendars",
-        "description": "Stub \u2014 full schema TBD.",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": false,
-          "content": {
-            "text/calendar": {
-              "schema": {
-                "type": "string",
-                "description": "RFC 5545 iCalendar resource (CalDAV PUT)"
-              }
-            }
-          }
-        }
-      }
-    },
     "/jmap/eventsource/": {
       "get": {
         "summary": "Get jmap eventsource",
@@ -8843,696 +8613,6 @@
         }
       }
     },
-    "/dav/principals/{user}/": {
-      "get": {
-        "operationId": "davPrincipalGet",
-        "summary": "DAV principal for the user (GET or any WebDAV method)",
-        "tags": [
-          "DAV"
-        ],
-        "description": "Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. Any other method answers 207 with the principal's calendar-home-set (/dav/calendars/{user}/) and addressbook-home-set (/dav/addressbooks/{user}/). The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.",
-        "parameters": [
-          {
-            "name": "user",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "207": {
-            "description": "Multistatus XML",
-            "content": {
-              "application/xml": {
-                "schema": {
-                  "$ref": "#/components/schemas/DavMultistatus"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "No valid session; empty body"
-          }
-        }
-      },
-      "put": {
-        "operationId": "davPrincipalPut",
-        "summary": "DAV principal for the user (PUT or any WebDAV method)",
-        "tags": [
-          "DAV"
-        ],
-        "description": "Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. Any other method answers 207 with the principal's calendar-home-set (/dav/calendars/{user}/) and addressbook-home-set (/dav/addressbooks/{user}/). The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.",
-        "parameters": [
-          {
-            "name": "user",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "207": {
-            "description": "Multistatus XML",
-            "content": {
-              "application/xml": {
-                "schema": {
-                  "$ref": "#/components/schemas/DavMultistatus"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "No valid session; empty body"
-          }
-        }
-      },
-      "post": {
-        "operationId": "davPrincipalPost",
-        "summary": "DAV principal for the user (POST or any WebDAV method)",
-        "tags": [
-          "DAV"
-        ],
-        "description": "Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. Any other method answers 207 with the principal's calendar-home-set (/dav/calendars/{user}/) and addressbook-home-set (/dav/addressbooks/{user}/). The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.",
-        "parameters": [
-          {
-            "name": "user",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "207": {
-            "description": "Multistatus XML",
-            "content": {
-              "application/xml": {
-                "schema": {
-                  "$ref": "#/components/schemas/DavMultistatus"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "No valid session; empty body"
-          }
-        }
-      },
-      "patch": {
-        "operationId": "davPrincipalPatch",
-        "summary": "DAV principal for the user (PATCH or any WebDAV method)",
-        "tags": [
-          "DAV"
-        ],
-        "description": "Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. Any other method answers 207 with the principal's calendar-home-set (/dav/calendars/{user}/) and addressbook-home-set (/dav/addressbooks/{user}/). The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.",
-        "parameters": [
-          {
-            "name": "user",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "207": {
-            "description": "Multistatus XML",
-            "content": {
-              "application/xml": {
-                "schema": {
-                  "$ref": "#/components/schemas/DavMultistatus"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "No valid session; empty body"
-          }
-        }
-      },
-      "delete": {
-        "operationId": "davPrincipalDelete",
-        "summary": "DAV principal for the user (DELETE or any WebDAV method)",
-        "tags": [
-          "DAV"
-        ],
-        "description": "Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. Any other method answers 207 with the principal's calendar-home-set (/dav/calendars/{user}/) and addressbook-home-set (/dav/addressbooks/{user}/). The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.",
-        "parameters": [
-          {
-            "name": "user",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "207": {
-            "description": "Multistatus XML",
-            "content": {
-              "application/xml": {
-                "schema": {
-                  "$ref": "#/components/schemas/DavMultistatus"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "No valid session; empty body"
-          }
-        }
-      },
-      "options": {
-        "operationId": "davPrincipalOptions",
-        "summary": "DAV principal for the user: DAV capabilities",
-        "tags": [
-          "DAV"
-        ],
-        "parameters": [
-          {
-            "name": "user",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Empty body; `Allow: OPTIONS, GET, HEAD, PROPFIND, REPORT, PUT, DELETE, MKCOL, MKCALENDAR` and `DAV: 1, 2, calendar-access, addressbook` headers"
-          },
-          "401": {
-            "description": "No valid session; empty body"
-          }
-        }
-      }
-    },
-    "/dav/addressbooks/{user}/": {
-      "get": {
-        "operationId": "davAddressbooksGet",
-        "summary": "CardDAV address book collection (GET or any WebDAV method)",
-        "tags": [
-          "DAV"
-        ],
-        "description": "Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. REPORT answers 207 with every vCard in the user's `default` book as address-data (503 with an empty body when kevy is unreachable); any other method answers 207 listing the single `default` address book. The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.",
-        "parameters": [
-          {
-            "name": "user",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "207": {
-            "description": "Multistatus XML",
-            "content": {
-              "application/xml": {
-                "schema": {
-                  "$ref": "#/components/schemas/DavMultistatus"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "No valid session; empty body"
-          }
-        }
-      },
-      "put": {
-        "operationId": "davAddressbooksPut",
-        "summary": "CardDAV address book collection (PUT or any WebDAV method)",
-        "tags": [
-          "DAV"
-        ],
-        "description": "Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. REPORT answers 207 with every vCard in the user's `default` book as address-data (503 with an empty body when kevy is unreachable); any other method answers 207 listing the single `default` address book. The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.",
-        "parameters": [
-          {
-            "name": "user",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "207": {
-            "description": "Multistatus XML",
-            "content": {
-              "application/xml": {
-                "schema": {
-                  "$ref": "#/components/schemas/DavMultistatus"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "No valid session; empty body"
-          }
-        }
-      },
-      "post": {
-        "operationId": "davAddressbooksPost",
-        "summary": "CardDAV address book collection (POST or any WebDAV method)",
-        "tags": [
-          "DAV"
-        ],
-        "description": "Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. REPORT answers 207 with every vCard in the user's `default` book as address-data (503 with an empty body when kevy is unreachable); any other method answers 207 listing the single `default` address book. The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.",
-        "parameters": [
-          {
-            "name": "user",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "207": {
-            "description": "Multistatus XML",
-            "content": {
-              "application/xml": {
-                "schema": {
-                  "$ref": "#/components/schemas/DavMultistatus"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "No valid session; empty body"
-          }
-        }
-      },
-      "patch": {
-        "operationId": "davAddressbooksPatch",
-        "summary": "CardDAV address book collection (PATCH or any WebDAV method)",
-        "tags": [
-          "DAV"
-        ],
-        "description": "Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. REPORT answers 207 with every vCard in the user's `default` book as address-data (503 with an empty body when kevy is unreachable); any other method answers 207 listing the single `default` address book. The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.",
-        "parameters": [
-          {
-            "name": "user",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "207": {
-            "description": "Multistatus XML",
-            "content": {
-              "application/xml": {
-                "schema": {
-                  "$ref": "#/components/schemas/DavMultistatus"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "No valid session; empty body"
-          }
-        }
-      },
-      "delete": {
-        "operationId": "davAddressbooksDelete",
-        "summary": "CardDAV address book collection (DELETE or any WebDAV method)",
-        "tags": [
-          "DAV"
-        ],
-        "description": "Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. REPORT answers 207 with every vCard in the user's `default` book as address-data (503 with an empty body when kevy is unreachable); any other method answers 207 listing the single `default` address book. The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.",
-        "parameters": [
-          {
-            "name": "user",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "207": {
-            "description": "Multistatus XML",
-            "content": {
-              "application/xml": {
-                "schema": {
-                  "$ref": "#/components/schemas/DavMultistatus"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "No valid session; empty body"
-          }
-        }
-      },
-      "options": {
-        "operationId": "davAddressbooksOptions",
-        "summary": "CardDAV address book collection: DAV capabilities",
-        "tags": [
-          "DAV"
-        ],
-        "parameters": [
-          {
-            "name": "user",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Empty body; `Allow: OPTIONS, GET, HEAD, PROPFIND, REPORT, PUT, DELETE, MKCOL, MKCALENDAR` and `DAV: 1, 2, calendar-access, addressbook` headers"
-          },
-          "401": {
-            "description": "No valid session; empty body"
-          }
-        }
-      }
-    },
-    "/dav/calendars/{user}/{cal}/{uid}": {
-      "put": {
-        "operationId": "davCalendarEventPut",
-        "summary": "Store a calendar event",
-        "tags": [
-          "DAV"
-        ],
-        "parameters": [
-          {
-            "name": "user",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Ignored; the authenticated user is used"
-          },
-          {
-            "name": "cal",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "uid",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Last path segment, stored verbatim as the key (including any .ics/.vcf suffix)"
-          }
-        ],
-        "description": "The raw body is stored under the uid without parsing. Always answers 201, also when the write to kevy failed; no ETag is returned.",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "text/calendar": {
-              "schema": {
-                "type": "string"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Accepted (empty body)"
-          },
-          "401": {
-            "description": "No valid session; empty body"
-          }
-        }
-      },
-      "get": {
-        "operationId": "davCalendarEventGet",
-        "summary": "Fetch a calendar event",
-        "tags": [
-          "DAV"
-        ],
-        "parameters": [
-          {
-            "name": "user",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Ignored; the authenticated user is used"
-          },
-          {
-            "name": "cal",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "uid",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Last path segment, stored verbatim as the key (including any .ics/.vcf suffix)"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The stored body, as text/calendar; charset=utf-8",
-            "content": {
-              "text/calendar": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not stored, or kevy unreachable; empty body"
-          },
-          "401": {
-            "description": "No valid session; empty body"
-          }
-        }
-      },
-      "delete": {
-        "operationId": "davCalendarEventDelete",
-        "summary": "Delete a calendar event",
-        "tags": [
-          "DAV"
-        ],
-        "parameters": [
-          {
-            "name": "user",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Ignored; the authenticated user is used"
-          },
-          {
-            "name": "cal",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "uid",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Last path segment, stored verbatim as the key (including any .ics/.vcf suffix)"
-          }
-        ],
-        "description": "Always answers 204, whether or not the uid existed or the kevy call succeeded.",
-        "responses": {
-          "204": {
-            "description": "Deleted"
-          },
-          "401": {
-            "description": "No valid session; empty body"
-          }
-        }
-      }
-    },
-    "/dav/addressbooks/{user}/{book}/{uid}": {
-      "put": {
-        "operationId": "davAddressbookContactPut",
-        "summary": "Store a contact",
-        "tags": [
-          "DAV"
-        ],
-        "parameters": [
-          {
-            "name": "user",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Ignored; the authenticated user is used"
-          },
-          {
-            "name": "book",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "uid",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Last path segment, stored verbatim as the key (including any .ics/.vcf suffix)"
-          }
-        ],
-        "description": "The raw body is stored under the uid without parsing. Always answers 201, also when the write to kevy failed; no ETag is returned.",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "text/vcard": {
-              "schema": {
-                "type": "string"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Accepted (empty body)"
-          },
-          "401": {
-            "description": "No valid session; empty body"
-          }
-        }
-      },
-      "get": {
-        "operationId": "davAddressbookContactGet",
-        "summary": "Fetch a contact",
-        "tags": [
-          "DAV"
-        ],
-        "parameters": [
-          {
-            "name": "user",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Ignored; the authenticated user is used"
-          },
-          {
-            "name": "book",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "uid",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Last path segment, stored verbatim as the key (including any .ics/.vcf suffix)"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The stored body, as text/vcard; charset=utf-8",
-            "content": {
-              "text/vcard": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not stored, or kevy unreachable; empty body"
-          },
-          "401": {
-            "description": "No valid session; empty body"
-          }
-        }
-      },
-      "delete": {
-        "operationId": "davAddressbookContactDelete",
-        "summary": "Delete a contact",
-        "tags": [
-          "DAV"
-        ],
-        "parameters": [
-          {
-            "name": "user",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Ignored; the authenticated user is used"
-          },
-          {
-            "name": "book",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "uid",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Last path segment, stored verbatim as the key (including any .ics/.vcf suffix)"
-          }
-        ],
-        "description": "Always answers 204, whether or not the uid existed or the kevy call succeeded.",
-        "responses": {
-          "204": {
-            "description": "Deleted"
-          },
-          "401": {
-            "description": "No valid session; empty body"
-          }
-        }
-      }
-    },
     "/_health": {
       "get": {
         "operationId": "getHealthShort",
@@ -9627,6 +8707,167 @@
           },
           "400": {
             "description": "emailaddress is not a plain email address; plain-text body"
+          }
+        }
+      }
+    },
+    "/dav/{path}": {
+      "get": {
+        "operationId": "davGet",
+        "summary": "Fetch an event or card",
+        "tags": [
+          "DAV"
+        ],
+        "description": "CalDAV (RFC 4791) and CardDAV (RFC 6352). One handler serves every method on /dav and below, including PROPFIND and REPORT, which OpenAPI cannot name; only GET, PUT and DELETE are listed. Layout: /dav/ and /dav/principals/{user}/ (principal), /dav/calendars/{user}/ (calendar home), /dav/calendars/{user}/{calendar}/ (calendar: `default` holds the user's events, and each subscribed feed is a read-only calendar named after it), /dav/calendars/{user}/{calendar}/{uid}.ics (event), /dav/addressbooks/{user}/ (address-book home), /dav/addressbooks/{user}/default/ (the address book), /dav/addressbooks/{user}/default/{uid}.vcf (card). The {user} segment must be the authenticated user, else 403. Events are the rows the calendar conflicts check reads; a card's addresses are offered by /api/contacts. PUT honours If-Match and If-None-Match: *, answers 201 on create and 204 on update with an ETag, 400 for a body that does not parse, 412 on a failed precondition, 403 for a feed calendar, and 5xx when the store fails.",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Everything after /dav/, percent-encoded"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "iCalendar or vCard text, with an ETag header"
+          },
+          "401": {
+            "description": "No valid session; empty body"
+          },
+          "403": {
+            "description": "The path names another user, or a read-only calendar"
+          },
+          "404": {
+            "description": "No such collection or resource"
+          }
+        }
+      },
+      "put": {
+        "operationId": "davPut",
+        "summary": "Store an event or card",
+        "tags": [
+          "DAV"
+        ],
+        "description": "CalDAV (RFC 4791) and CardDAV (RFC 6352). One handler serves every method on /dav and below, including PROPFIND and REPORT, which OpenAPI cannot name; only GET, PUT and DELETE are listed. Layout: /dav/ and /dav/principals/{user}/ (principal), /dav/calendars/{user}/ (calendar home), /dav/calendars/{user}/{calendar}/ (calendar: `default` holds the user's events, and each subscribed feed is a read-only calendar named after it), /dav/calendars/{user}/{calendar}/{uid}.ics (event), /dav/addressbooks/{user}/ (address-book home), /dav/addressbooks/{user}/default/ (the address book), /dav/addressbooks/{user}/default/{uid}.vcf (card). The {user} segment must be the authenticated user, else 403. Events are the rows the calendar conflicts check reads; a card's addresses are offered by /api/contacts. PUT honours If-Match and If-None-Match: *, answers 201 on create and 204 on update with an ETag, 400 for a body that does not parse, 412 on a failed precondition, 403 for a feed calendar, and 5xx when the store fails.",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Everything after /dav/, percent-encoded"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created; ETag header"
+          },
+          "204": {
+            "description": "Updated; ETag header"
+          },
+          "400": {
+            "description": "Body is not a storable event or card"
+          },
+          "412": {
+            "description": "If-Match / If-None-Match failed"
+          },
+          "401": {
+            "description": "No valid session; empty body"
+          },
+          "403": {
+            "description": "The path names another user, or a read-only calendar"
+          },
+          "404": {
+            "description": "No such collection or resource"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "text/calendar": {
+              "schema": {
+                "type": "string"
+              }
+            },
+            "text/vcard": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "davDelete",
+        "summary": "Delete an event or card",
+        "tags": [
+          "DAV"
+        ],
+        "description": "CalDAV (RFC 4791) and CardDAV (RFC 6352). One handler serves every method on /dav and below, including PROPFIND and REPORT, which OpenAPI cannot name; only GET, PUT and DELETE are listed. Layout: /dav/ and /dav/principals/{user}/ (principal), /dav/calendars/{user}/ (calendar home), /dav/calendars/{user}/{calendar}/ (calendar: `default` holds the user's events, and each subscribed feed is a read-only calendar named after it), /dav/calendars/{user}/{calendar}/{uid}.ics (event), /dav/addressbooks/{user}/ (address-book home), /dav/addressbooks/{user}/default/ (the address book), /dav/addressbooks/{user}/default/{uid}.vcf (card). The {user} segment must be the authenticated user, else 403. Events are the rows the calendar conflicts check reads; a card's addresses are offered by /api/contacts. PUT honours If-Match and If-None-Match: *, answers 201 on create and 204 on update with an ETag, 400 for a body that does not parse, 412 on a failed precondition, 403 for a feed calendar, and 5xx when the store fails.",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Everything after /dav/, percent-encoded"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "401": {
+            "description": "No valid session; empty body"
+          },
+          "403": {
+            "description": "The path names another user, or a read-only calendar"
+          },
+          "404": {
+            "description": "No such collection or resource"
+          }
+        }
+      }
+    },
+    "/dav": {
+      "get": {
+        "operationId": "davRoot",
+        "summary": "DAV principal (every method; see /dav/{path})",
+        "tags": [
+          "DAV"
+        ],
+        "description": "PROPFIND answers 207 with the calendar-home-set (/dav/calendars/{user}/) and addressbook-home-set (/dav/addressbooks/{user}/). OPTIONS answers 200 with Allow and DAV headers.",
+        "responses": {
+          "207": {
+            "description": "Multistatus XML"
+          },
+          "401": {
+            "description": "No valid session; empty body"
+          }
+        }
+      }
+    },
+    "/dav/": {
+      "get": {
+        "operationId": "davRootSlash",
+        "summary": "DAV principal (every method; see /dav/{path})",
+        "tags": [
+          "DAV"
+        ],
+        "description": "PROPFIND answers 207 with the calendar-home-set (/dav/calendars/{user}/) and addressbook-home-set (/dav/addressbooks/{user}/). OPTIONS answers 200 with Allow and DAV headers.",
+        "responses": {
+          "207": {
+            "description": "Multistatus XML"
+          },
+          "401": {
+            "description": "No valid session; empty body"
           }
         }
       }

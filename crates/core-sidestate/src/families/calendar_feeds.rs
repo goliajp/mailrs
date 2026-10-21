@@ -18,6 +18,11 @@
 
 use serde::{Deserialize, Serialize};
 
+/// The hash holding `user`'s subscriptions.
+pub fn feeds_key(user: &str) -> String {
+    format!("calendar_feeds:{user}")
+}
+
 /// A subscribed feed, as stored.
 ///
 /// The sync fields default, so rows written before this existed load and are

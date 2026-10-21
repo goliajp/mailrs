@@ -3269,292 +3269,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/dav/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get dav
-         * @description Stub — full schema TBD.
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": Record<string, never>;
-                    };
-                };
-            };
-        };
-        /**
-         * Update dav
-         * @description Stub — full schema TBD.
-         */
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/xml": string;
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": Record<string, never>;
-                    };
-                };
-            };
-        };
-        /**
-         * Create dav
-         * @description Stub — full schema TBD.
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/xml": string;
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": Record<string, never>;
-                    };
-                };
-            };
-        };
-        /**
-         * Delete dav
-         * @description Stub — full schema TBD.
-         */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": Record<string, never>;
-                    };
-                };
-            };
-        };
-        options?: never;
-        head?: never;
-        /**
-         * Patch dav
-         * @description Stub — full schema TBD.
-         */
-        patch: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/xml": string;
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": Record<string, never>;
-                    };
-                };
-            };
-        };
-        trace?: never;
-    };
-    "/dav/calendars/{user}/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get dav calendars
-         * @description Stub — full schema TBD.
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": Record<string, never>;
-                    };
-                };
-            };
-        };
-        /**
-         * Update dav calendars
-         * @description Stub — full schema TBD.
-         */
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "text/calendar": string;
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": Record<string, never>;
-                    };
-                };
-            };
-        };
-        /**
-         * Create dav calendars
-         * @description Stub — full schema TBD.
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/xml": string;
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": Record<string, never>;
-                    };
-                };
-            };
-        };
-        /**
-         * Delete dav calendars
-         * @description Stub — full schema TBD.
-         */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": Record<string, never>;
-                    };
-                };
-            };
-        };
-        options?: never;
-        head?: never;
-        /**
-         * Patch dav calendars
-         * @description Stub — full schema TBD.
-         */
-        patch: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/xml": string;
-                };
-            };
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": Record<string, never>;
-                    };
-                };
-            };
-        };
-        trace?: never;
-    };
     "/jmap/eventsource/": {
         parameters: {
             query?: never;
@@ -5033,130 +4747,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/dav/principals/{user}/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * DAV principal for the user (GET or any WebDAV method)
-         * @description Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. Any other method answers 207 with the principal's calendar-home-set (/dav/calendars/{user}/) and addressbook-home-set (/dav/addressbooks/{user}/). The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.
-         */
-        get: operations["davPrincipalGet"];
-        /**
-         * DAV principal for the user (PUT or any WebDAV method)
-         * @description Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. Any other method answers 207 with the principal's calendar-home-set (/dav/calendars/{user}/) and addressbook-home-set (/dav/addressbooks/{user}/). The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.
-         */
-        put: operations["davPrincipalPut"];
-        /**
-         * DAV principal for the user (POST or any WebDAV method)
-         * @description Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. Any other method answers 207 with the principal's calendar-home-set (/dav/calendars/{user}/) and addressbook-home-set (/dav/addressbooks/{user}/). The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.
-         */
-        post: operations["davPrincipalPost"];
-        /**
-         * DAV principal for the user (DELETE or any WebDAV method)
-         * @description Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. Any other method answers 207 with the principal's calendar-home-set (/dav/calendars/{user}/) and addressbook-home-set (/dav/addressbooks/{user}/). The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.
-         */
-        delete: operations["davPrincipalDelete"];
-        /** DAV principal for the user: DAV capabilities */
-        options: operations["davPrincipalOptions"];
-        head?: never;
-        /**
-         * DAV principal for the user (PATCH or any WebDAV method)
-         * @description Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. Any other method answers 207 with the principal's calendar-home-set (/dav/calendars/{user}/) and addressbook-home-set (/dav/addressbooks/{user}/). The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.
-         */
-        patch: operations["davPrincipalPatch"];
-        trace?: never;
-    };
-    "/dav/addressbooks/{user}/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * CardDAV address book collection (GET or any WebDAV method)
-         * @description Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. REPORT answers 207 with every vCard in the user's `default` book as address-data (503 with an empty body when kevy is unreachable); any other method answers 207 listing the single `default` address book. The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.
-         */
-        get: operations["davAddressbooksGet"];
-        /**
-         * CardDAV address book collection (PUT or any WebDAV method)
-         * @description Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. REPORT answers 207 with every vCard in the user's `default` book as address-data (503 with an empty body when kevy is unreachable); any other method answers 207 listing the single `default` address book. The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.
-         */
-        put: operations["davAddressbooksPut"];
-        /**
-         * CardDAV address book collection (POST or any WebDAV method)
-         * @description Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. REPORT answers 207 with every vCard in the user's `default` book as address-data (503 with an empty body when kevy is unreachable); any other method answers 207 listing the single `default` address book. The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.
-         */
-        post: operations["davAddressbooksPost"];
-        /**
-         * CardDAV address book collection (DELETE or any WebDAV method)
-         * @description Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. REPORT answers 207 with every vCard in the user's `default` book as address-data (503 with an empty body when kevy is unreachable); any other method answers 207 listing the single `default` address book. The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.
-         */
-        delete: operations["davAddressbooksDelete"];
-        /** CardDAV address book collection: DAV capabilities */
-        options: operations["davAddressbooksOptions"];
-        head?: never;
-        /**
-         * CardDAV address book collection (PATCH or any WebDAV method)
-         * @description Registered with axum `any`, so every HTTP method reaches the same handler; WebDAV verbs (PROPFIND, REPORT, MKCOL, ...) cannot be expressed as OpenAPI methods. OPTIONS answers 200 with `Allow` and `DAV` headers. REPORT answers 207 with every vCard in the user's `default` book as address-data (503 with an empty body when kevy is unreachable); any other method answers 207 listing the single `default` address book. The request body is never read, and the `{user}` path segment is ignored: the authenticated user is used.
-         */
-        patch: operations["davAddressbooksPatch"];
-        trace?: never;
-    };
-    "/dav/calendars/{user}/{cal}/{uid}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Fetch a calendar event */
-        get: operations["davCalendarEventGet"];
-        /**
-         * Store a calendar event
-         * @description The raw body is stored under the uid without parsing. Always answers 201, also when the write to kevy failed; no ETag is returned.
-         */
-        put: operations["davCalendarEventPut"];
-        post?: never;
-        /**
-         * Delete a calendar event
-         * @description Always answers 204, whether or not the uid existed or the kevy call succeeded.
-         */
-        delete: operations["davCalendarEventDelete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/dav/addressbooks/{user}/{book}/{uid}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Fetch a contact */
-        get: operations["davAddressbookContactGet"];
-        /**
-         * Store a contact
-         * @description The raw body is stored under the uid without parsing. Always answers 201, also when the write to kevy failed; no ETag is returned.
-         */
-        put: operations["davAddressbookContactPut"];
-        post?: never;
-        /**
-         * Delete a contact
-         * @description Always answers 204, whether or not the uid existed or the kevy call succeeded.
-         */
-        delete: operations["davAddressbookContactDelete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/_health": {
         parameters: {
             query?: never;
@@ -5189,6 +4779,74 @@ export interface paths {
          * @description Unsigned .mobileconfig plist for an IMAP account (993, SSL) and SMTP (465, SSL) on MAILRS_HOSTNAME. A fresh PayloadUUID is generated per request.
          */
         get: operations["appleMobileconfig"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dav/{path}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Fetch an event or card
+         * @description CalDAV (RFC 4791) and CardDAV (RFC 6352). One handler serves every method on /dav and below, including PROPFIND and REPORT, which OpenAPI cannot name; only GET, PUT and DELETE are listed. Layout: /dav/ and /dav/principals/{user}/ (principal), /dav/calendars/{user}/ (calendar home), /dav/calendars/{user}/{calendar}/ (calendar: `default` holds the user's events, and each subscribed feed is a read-only calendar named after it), /dav/calendars/{user}/{calendar}/{uid}.ics (event), /dav/addressbooks/{user}/ (address-book home), /dav/addressbooks/{user}/default/ (the address book), /dav/addressbooks/{user}/default/{uid}.vcf (card). The {user} segment must be the authenticated user, else 403. Events are the rows the calendar conflicts check reads; a card's addresses are offered by /api/contacts. PUT honours If-Match and If-None-Match: *, answers 201 on create and 204 on update with an ETag, 400 for a body that does not parse, 412 on a failed precondition, 403 for a feed calendar, and 5xx when the store fails.
+         */
+        get: operations["davGet"];
+        /**
+         * Store an event or card
+         * @description CalDAV (RFC 4791) and CardDAV (RFC 6352). One handler serves every method on /dav and below, including PROPFIND and REPORT, which OpenAPI cannot name; only GET, PUT and DELETE are listed. Layout: /dav/ and /dav/principals/{user}/ (principal), /dav/calendars/{user}/ (calendar home), /dav/calendars/{user}/{calendar}/ (calendar: `default` holds the user's events, and each subscribed feed is a read-only calendar named after it), /dav/calendars/{user}/{calendar}/{uid}.ics (event), /dav/addressbooks/{user}/ (address-book home), /dav/addressbooks/{user}/default/ (the address book), /dav/addressbooks/{user}/default/{uid}.vcf (card). The {user} segment must be the authenticated user, else 403. Events are the rows the calendar conflicts check reads; a card's addresses are offered by /api/contacts. PUT honours If-Match and If-None-Match: *, answers 201 on create and 204 on update with an ETag, 400 for a body that does not parse, 412 on a failed precondition, 403 for a feed calendar, and 5xx when the store fails.
+         */
+        put: operations["davPut"];
+        post?: never;
+        /**
+         * Delete an event or card
+         * @description CalDAV (RFC 4791) and CardDAV (RFC 6352). One handler serves every method on /dav and below, including PROPFIND and REPORT, which OpenAPI cannot name; only GET, PUT and DELETE are listed. Layout: /dav/ and /dav/principals/{user}/ (principal), /dav/calendars/{user}/ (calendar home), /dav/calendars/{user}/{calendar}/ (calendar: `default` holds the user's events, and each subscribed feed is a read-only calendar named after it), /dav/calendars/{user}/{calendar}/{uid}.ics (event), /dav/addressbooks/{user}/ (address-book home), /dav/addressbooks/{user}/default/ (the address book), /dav/addressbooks/{user}/default/{uid}.vcf (card). The {user} segment must be the authenticated user, else 403. Events are the rows the calendar conflicts check reads; a card's addresses are offered by /api/contacts. PUT honours If-Match and If-None-Match: *, answers 201 on create and 204 on update with an ETag, 400 for a body that does not parse, 412 on a failed precondition, 403 for a feed calendar, and 5xx when the store fails.
+         */
+        delete: operations["davDelete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dav": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * DAV principal (every method; see /dav/{path})
+         * @description PROPFIND answers 207 with the calendar-home-set (/dav/calendars/{user}/) and addressbook-home-set (/dav/addressbooks/{user}/). OPTIONS answers 200 with Allow and DAV headers.
+         */
+        get: operations["davRoot"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dav/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * DAV principal (every method; see /dav/{path})
+         * @description PROPFIND answers 207 with the calendar-home-set (/dav/calendars/{user}/) and addressbook-home-set (/dav/addressbooks/{user}/). OPTIONS answers 200 with Allow and DAV headers.
+         */
+        get: operations["davRootSlash"];
         put?: never;
         post?: never;
         delete?: never;
@@ -11224,562 +10882,6 @@ export interface operations {
             };
         };
     };
-    davPrincipalGet: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Multistatus XML */
-            207: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/xml": components["schemas"]["DavMultistatus"];
-                };
-            };
-            /** @description No valid session; empty body */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    davPrincipalPut: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Multistatus XML */
-            207: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/xml": components["schemas"]["DavMultistatus"];
-                };
-            };
-            /** @description No valid session; empty body */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    davPrincipalPost: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Multistatus XML */
-            207: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/xml": components["schemas"]["DavMultistatus"];
-                };
-            };
-            /** @description No valid session; empty body */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    davPrincipalDelete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Multistatus XML */
-            207: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/xml": components["schemas"]["DavMultistatus"];
-                };
-            };
-            /** @description No valid session; empty body */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    davPrincipalOptions: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Empty body; `Allow: OPTIONS, GET, HEAD, PROPFIND, REPORT, PUT, DELETE, MKCOL, MKCALENDAR` and `DAV: 1, 2, calendar-access, addressbook` headers */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description No valid session; empty body */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    davPrincipalPatch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Multistatus XML */
-            207: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/xml": components["schemas"]["DavMultistatus"];
-                };
-            };
-            /** @description No valid session; empty body */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    davAddressbooksGet: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Multistatus XML */
-            207: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/xml": components["schemas"]["DavMultistatus"];
-                };
-            };
-            /** @description No valid session; empty body */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    davAddressbooksPut: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Multistatus XML */
-            207: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/xml": components["schemas"]["DavMultistatus"];
-                };
-            };
-            /** @description No valid session; empty body */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    davAddressbooksPost: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Multistatus XML */
-            207: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/xml": components["schemas"]["DavMultistatus"];
-                };
-            };
-            /** @description No valid session; empty body */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    davAddressbooksDelete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Multistatus XML */
-            207: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/xml": components["schemas"]["DavMultistatus"];
-                };
-            };
-            /** @description No valid session; empty body */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    davAddressbooksOptions: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Empty body; `Allow: OPTIONS, GET, HEAD, PROPFIND, REPORT, PUT, DELETE, MKCOL, MKCALENDAR` and `DAV: 1, 2, calendar-access, addressbook` headers */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description No valid session; empty body */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    davAddressbooksPatch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Multistatus XML */
-            207: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/xml": components["schemas"]["DavMultistatus"];
-                };
-            };
-            /** @description No valid session; empty body */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    davCalendarEventGet: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Ignored; the authenticated user is used */
-                user: string;
-                cal: string;
-                /** @description Last path segment, stored verbatim as the key (including any .ics/.vcf suffix) */
-                uid: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The stored body, as text/calendar; charset=utf-8 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/calendar": string;
-                };
-            };
-            /** @description No valid session; empty body */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not stored, or kevy unreachable; empty body */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    davCalendarEventPut: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Ignored; the authenticated user is used */
-                user: string;
-                cal: string;
-                /** @description Last path segment, stored verbatim as the key (including any .ics/.vcf suffix) */
-                uid: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "text/calendar": string;
-            };
-        };
-        responses: {
-            /** @description Accepted (empty body) */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description No valid session; empty body */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    davCalendarEventDelete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Ignored; the authenticated user is used */
-                user: string;
-                cal: string;
-                /** @description Last path segment, stored verbatim as the key (including any .ics/.vcf suffix) */
-                uid: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Deleted */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description No valid session; empty body */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    davAddressbookContactGet: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Ignored; the authenticated user is used */
-                user: string;
-                book: string;
-                /** @description Last path segment, stored verbatim as the key (including any .ics/.vcf suffix) */
-                uid: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The stored body, as text/vcard; charset=utf-8 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/vcard": string;
-                };
-            };
-            /** @description No valid session; empty body */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not stored, or kevy unreachable; empty body */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    davAddressbookContactPut: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Ignored; the authenticated user is used */
-                user: string;
-                book: string;
-                /** @description Last path segment, stored verbatim as the key (including any .ics/.vcf suffix) */
-                uid: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "text/vcard": string;
-            };
-        };
-        responses: {
-            /** @description Accepted (empty body) */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description No valid session; empty body */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    davAddressbookContactDelete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Ignored; the authenticated user is used */
-                user: string;
-                book: string;
-                /** @description Last path segment, stored verbatim as the key (including any .ics/.vcf suffix) */
-                uid: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Deleted */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description No valid session; empty body */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
     getHealthShort: {
         parameters: {
             query?: never;
@@ -11835,6 +10937,208 @@ export interface operations {
             };
             /** @description emailaddress is not a plain email address; plain-text body */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    davGet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Everything after /dav/, percent-encoded */
+                path: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description iCalendar or vCard text, with an ETag header */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No valid session; empty body */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The path names another user, or a read-only calendar */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such collection or resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    davPut: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Everything after /dav/, percent-encoded */
+                path: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "text/calendar": string;
+                "text/vcard": string;
+            };
+        };
+        responses: {
+            /** @description Created; ETag header */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Updated; ETag header */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Body is not a storable event or card */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No valid session; empty body */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The path names another user, or a read-only calendar */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such collection or resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description If-Match / If-None-Match failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    davDelete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Everything after /dav/, percent-encoded */
+                path: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No valid session; empty body */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The path names another user, or a read-only calendar */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such collection or resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    davRoot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Multistatus XML */
+            207: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No valid session; empty body */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    davRootSlash: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Multistatus XML */
+            207: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No valid session; empty body */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
