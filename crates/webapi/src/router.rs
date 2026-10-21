@@ -34,8 +34,12 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
     // JMAP endpoints (authenticated).
     let jmap_routes = jmap_routes();
 
-    // DAV endpoints (authenticated).
-    let dav_routes = dav_routes();
+    // DAV endpoints: a session, a bearer token, or HTTP Basic, which is
+    // the only login calendar clients speak.
+    let dav = dav_routes().route_layer(axum::middleware::from_fn_with_state(
+        state.clone(),
+        handlers::dav_auth::dav_auth_middleware,
+    ));
 
     let admin_routes = admin_routes();
 
@@ -46,7 +50,6 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         .merge(auth_routes)
         .merge(admin_routes)
         .merge(jmap_routes)
-        .merge(dav_routes)
         .merge(mock_routes())
         // admin gate — 403 unless caller has admin.* permission or is_super.
         // Runs after session_auth (below) so authed user is in Extensions.
@@ -80,6 +83,7 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
 
     let mut app = unauth
         .merge(authenticated)
+        .merge(dav)
         .merge(mcp)
         // an unknown API path is a 404, not the web app's index.html with a
         // 200: a client calling a wrong path otherwise parses HTML and the

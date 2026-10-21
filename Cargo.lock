@@ -4553,6 +4553,7 @@ dependencies = [
  "jsonwebtoken",
  "kevy-client",
  "kevy-embedded",
+ "mailrs-auth-guard",
  "mailrs-clean",
  "mailrs-core-api",
  "mailrs-core-sidestate",

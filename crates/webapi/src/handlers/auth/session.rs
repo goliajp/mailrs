@@ -5,14 +5,12 @@
 
 use std::sync::Arc;
 
-use argon2::Argon2;
 use axum::{
     Json,
     extract::State,
     http::{StatusCode, header::SET_COOKIE},
     response::{IntoResponse, Response},
 };
-use password_hash::{PasswordHash, PasswordVerifier};
 use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
 
@@ -50,31 +48,11 @@ pub async fn login(
     headers: axum::http::HeaderMap,
     Json(req): Json<LoginRequest>,
 ) -> Response {
-    // Fastcore-only: kevy-backed account store is the source of truth.
-    let acct = match state.core.get_account_with_hash(&req.address).await {
-        Ok(a) => a,
-        Err(mailrs_core_api::error::CoreApiError::NotFound(_)) => {
-            return StatusCode::UNAUTHORIZED.into_response();
-        }
-        Err(e) => {
-            tracing::warn!(error = %e, "login: get_account_with_hash failed");
-            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-        }
+    let acct = match super::password::verify(&state, &req.address, &req.password).await {
+        Ok(Some(acct)) => acct,
+        Ok(None) => return StatusCode::UNAUTHORIZED.into_response(),
+        Err(status) => return status.into_response(),
     };
-    let hash = match acct.password_hash.as_deref() {
-        Some(h) if !h.is_empty() => h,
-        _ => return StatusCode::UNAUTHORIZED.into_response(),
-    };
-    let parsed = match PasswordHash::new(hash) {
-        Ok(p) => p,
-        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
-    };
-    if Argon2::default()
-        .verify_password(req.password.as_bytes(), &parsed)
-        .is_err()
-    {
-        return StatusCode::UNAUTHORIZED.into_response();
-    }
 
     // TOTP gate — if enrolled, require a 6-digit code (or a
     // recovery code) on the login request; otherwise short-circuit
