@@ -11,7 +11,7 @@ workspace = true
 
 [dependencies]
 kevy-embedded = { workspace = true }
-mailrs-mailbox = { path = "../mailbox" }
+mailrs-mailbox = { path = "../mailbox", default-features = false }
 mailrs-rfc5322 = { path = "../rfc5322", version = "1" }
 mailrs-alias-store = { path = "../alias-store" }
 serde = { workspace = true }

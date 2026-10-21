@@ -32,8 +32,8 @@ tracing = "0.1"
 
 # Re-exported types from mailrs-mailbox — Message, Mailbox, QueryFilter, ...
 # We keep these typed instead of stringly so the client + server agree at
-# compile time. Adds a heavy dep but it's already in the build graph.
-mailrs-mailbox = { path = "../mailbox" }
+# compile time. Without its `pg` feature, so the SQL store stays out.
+mailrs-mailbox = { path = "../mailbox", default-features = false }
 
 # Server-only deps (gated by `server` feature)
 axum = { version = "0.8", optional = true }

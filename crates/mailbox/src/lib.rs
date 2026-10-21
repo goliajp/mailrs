@@ -2,15 +2,20 @@
 // doctests construct a `sqlx::PgPool`, which doesn't typecheck when
 // the `spg` feature swaps `BackendPool` to `SpgPool`. Skip the README
 // doctests on that axis; the crate docs themselves stay identical.
-#![cfg_attr(not(feature = "spg"), doc = include_str!("../README.md"))]
+#![cfg_attr(all(feature = "pg", not(feature = "spg")), doc = include_str!("../README.md"))]
 #![cfg_attr(
     feature = "spg",
     doc = "Mailbox metadata storage over the spg-embedded backend (see README.md)."
+)]
+#![cfg_attr(
+    not(feature = "pg"),
+    doc = "Mailbox metadata storage: the `MailboxStore` trait, its types and the threading helpers (see README.md)."
 )]
 #![deny(missing_docs)]
 #![deny(rustdoc::broken_intra_doc_links)]
 
 pub mod fixtures;
+#[cfg(feature = "pg")]
 pub mod pg;
 /// Portable [`MailboxStore`] trait — the IMAP/JMAP-shaped abstraction
 /// backend implementations must satisfy.
@@ -33,10 +38,12 @@ pub use types::{
 // Public re-exports for the PG reference implementation. Programs that
 // want to stay backend-agnostic should depend on the trait via
 // `&dyn MailboxStore` and avoid touching the PG-specific re-exports below.
+#[cfg(feature = "pg")]
 pub use pg::{EmailAnalysisInput, PgMailboxStore};
 
 /// Back-compat alias for the legacy struct name. Prefer [`PgMailboxStore`]
 /// in new code. Will be removed in 2.0.
+#[cfg(feature = "pg")]
 #[deprecated(
     since = "1.0.0",
     note = "renamed to `PgMailboxStore` to make room for the new `MailboxStore` trait"
