@@ -85,6 +85,3 @@ No behavior change; pure coverage-density bump.
   preservation, success-resets-account semantics.
 - `tests/perf_gate.rs` with 4 regression budgets.
 - `benches/guard.rs` with 6 criterion benchmark functions.
-
-[Unreleased]: https://github.com/goliajp/mailrs/compare/mailrs-auth-guard-v1.0.0...HEAD
-[1.0.0]: https://github.com/goliajp/mailrs/releases/tag/mailrs-auth-guard-v1.0.0

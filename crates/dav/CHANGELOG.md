@@ -65,10 +65,3 @@ No lib code change.
 
 ### Added
 - Initial release. Framework-agnostic CalDAV (RFC 4791) and CardDAV (RFC 6352) server-side handlers, with the data layer pluggable via the `CalendarStore` / `AddressBookStore` traits.
-
-[Unreleased]: https://github.com/goliajp/mailrs/compare/mailrs-dav-v1.1.0...HEAD
-[1.1.0]: https://github.com/goliajp/mailrs/compare/mailrs-dav-v1.0.3...mailrs-dav-v1.1.0
-[1.0.3]: https://github.com/goliajp/mailrs/compare/mailrs-dav-v1.0.2...mailrs-dav-v1.0.3
-[1.0.2]: https://github.com/goliajp/mailrs/compare/mailrs-dav-v1.0.1...mailrs-dav-v1.0.2
-[1.0.1]: https://github.com/goliajp/mailrs/compare/mailrs-dav-v1.0.0...mailrs-dav-v1.0.1
-[1.0.0]: https://github.com/goliajp/mailrs/releases/tag/mailrs-dav-v1.0.0

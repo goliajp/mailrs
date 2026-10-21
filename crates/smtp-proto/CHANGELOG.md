@@ -65,9 +65,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Initial release. Zero-I/O, async-runtime-agnostic SMTP protocol parser, formatter, and session state machine (RFC 5321).
-
-[Unreleased]: https://github.com/goliajp/mailrs/compare/mailrs-smtp-proto-v1.0.3...HEAD
-[1.0.3]: https://github.com/goliajp/mailrs/compare/mailrs-smtp-proto-v1.0.2...mailrs-smtp-proto-v1.0.3
-[1.0.2]: https://github.com/goliajp/mailrs/compare/mailrs-smtp-proto-v1.0.1...mailrs-smtp-proto-v1.0.2
-[1.0.1]: https://github.com/goliajp/mailrs/compare/mailrs-smtp-proto-v1.0.0...mailrs-smtp-proto-v1.0.1
-[1.0.0]: https://github.com/goliajp/mailrs/releases/tag/mailrs-smtp-proto-v1.0.0

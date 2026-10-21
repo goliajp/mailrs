@@ -84,8 +84,3 @@ let cache = KevySpamCache::new(store);
 
 ### Added
 - Initial release. LLM-powered email analysis primitives: structured extraction, importance scoring, spam classification, and embeddings — with a pluggable `LlmProvider` trait and an OpenAI-compatible reference implementation.
-
-[Unreleased]: https://github.com/goliajp/mailrs/compare/mailrs-intelligence-v1.0.2...HEAD
-[1.0.2]: https://github.com/goliajp/mailrs/compare/mailrs-intelligence-v1.0.1...mailrs-intelligence-v1.0.2
-[1.0.1]: https://github.com/goliajp/mailrs/compare/mailrs-intelligence-v1.0.0...mailrs-intelligence-v1.0.1
-[1.0.0]: https://github.com/goliajp/mailrs/releases/tag/mailrs-intelligence-v1.0.0

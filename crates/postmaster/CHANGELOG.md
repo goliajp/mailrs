@@ -43,7 +43,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Initial release. Async email-domain DNS health checks: MX, SPF, DKIM, DMARC, MTA-STS, TLS-RPT, BIMI, DANE, and PTR. Zero I/O outside the resolver.
-
-[Unreleased]: https://github.com/goliajp/mailrs/compare/mailrs-postmaster-v1.0.1...HEAD
-[1.0.1]: https://github.com/goliajp/mailrs/compare/mailrs-postmaster-v1.0.0...mailrs-postmaster-v1.0.1
-[1.0.0]: https://github.com/goliajp/mailrs/releases/tag/mailrs-postmaster-v1.0.0

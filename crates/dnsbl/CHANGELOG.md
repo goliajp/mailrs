@@ -47,6 +47,3 @@ If you were previously importing from `mailrs_shield::dnsbl::*`,
 nothing changes — `mailrs-shield` 1.0.4 re-exports this crate's
 public surface unchanged. You can switch to `mailrs_dnsbl::*` at any
 time; both paths resolve to the same types.
-
-[Unreleased]: https://github.com/goliajp/mailrs/compare/mailrs-dnsbl-v1.0.0...HEAD
-[1.0.0]: https://github.com/goliajp/mailrs/releases/tag/mailrs-dnsbl-v1.0.0

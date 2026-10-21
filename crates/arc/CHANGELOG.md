@@ -235,5 +235,3 @@ Measured (criterion, M-series Mac, release):
 - **1.1.0** — Cryptographic AMS + AS verify, plus ARC sealing
   (adding a new set on outbound forward). The server can drop `mail-auth` from its runtime
   deps once this lands.
-
-[1.0.0]: https://github.com/goliajp/mailrs/releases/tag/mailrs-arc-v1.0.0

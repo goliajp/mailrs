@@ -49,6 +49,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   BLAKE3, write a parallel crate.
 - Timestamp tolerance / replay protection. Embed your own timestamp
   inside the payload before signing if needed.
-
-[Unreleased]: https://github.com/goliajp/mailrs/compare/mailrs-webhook-signature-v1.0.0...HEAD
-[1.0.0]: https://github.com/goliajp/mailrs/releases/tag/mailrs-webhook-signature-v1.0.0

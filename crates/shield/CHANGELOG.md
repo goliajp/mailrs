@@ -120,8 +120,3 @@ let db = GreylistDb::new(store);
 
 ### Added
 - Initial release. SMTP server anti-spam primitives in three modules: DNS blocklist (DNSBL) queries, greylisting policy with an optional Redis store, and PTR / forward-confirmed reverse DNS (FCrDNS) checks.
-
-[Unreleased]: https://github.com/goliajp/mailrs/compare/mailrs-shield-v1.0.2...HEAD
-[1.0.2]: https://github.com/goliajp/mailrs/compare/mailrs-shield-v1.0.1...mailrs-shield-v1.0.2
-[1.0.1]: https://github.com/goliajp/mailrs/compare/mailrs-shield-v1.0.0...mailrs-shield-v1.0.1
-[1.0.0]: https://github.com/goliajp/mailrs/releases/tag/mailrs-shield-v1.0.0

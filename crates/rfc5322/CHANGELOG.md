@@ -75,6 +75,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   body offset, and received-chain walk.
 - Companion `benches/parse.rs` with the comparative numbers vs
   `mail-parser`.
-
-[Unreleased]: https://github.com/goliajp/mailrs/compare/mailrs-rfc5322-v1.0.0...HEAD
-[1.0.0]: https://github.com/goliajp/mailrs/releases/tag/mailrs-rfc5322-v1.0.0

@@ -89,6 +89,3 @@ No lib code change.
   primitive.
 - `mailrs-server` webhook outbox — currently a hardcoded 8-slot
   array. Could switch to `Backoff::webhook`.
-
-[Unreleased]: https://github.com/goliajp/mailrs/compare/mailrs-backoff-v1.0.0...HEAD
-[1.0.0]: https://github.com/goliajp/mailrs/releases/tag/mailrs-backoff-v1.0.0
