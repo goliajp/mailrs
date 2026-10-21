@@ -20,11 +20,14 @@ fn calendar_href(user: &str, calendar: &str) -> String {
     format!("/dav/calendars/{user}/{}/", encode_segment(calendar))
 }
 
-fn event_href(user: &str, calendar: &str, uid: &str) -> String {
+/// The href of the event resource `name` in `user`'s `calendar`, as the
+/// handlers emit it — for a store that names a resource in an error, like
+/// [`DavError::UidConflict`].
+pub fn event_href(user: &str, calendar: &str, name: &str) -> String {
     format!(
         "{}{}.ics",
         calendar_href(user, calendar),
-        encode_segment(uid)
+        encode_segment(name)
     )
 }
 
