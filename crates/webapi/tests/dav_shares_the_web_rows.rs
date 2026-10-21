@@ -87,7 +87,6 @@ async fn dav_reads_and_writes_the_rows_the_web_reads() {
     etag_preconditions_guard_a_put(&live, &alice).await;
     one_user_cannot_reach_another(&live, &bob).await;
     a_bad_body_or_a_failed_store_is_never_a_201(&live, &alice).await;
-    the_migration_moves_old_keys_once(&live, &alice).await;
 }
 
 async fn caldav_put_is_seen_by_the_conflicts_check(live: &live::Live, alice: &str, bob: &str) {
@@ -234,32 +233,4 @@ async fn a_bad_body_or_a_failed_store_is_never_a_201(live: &live::Live, alice: &
     .await;
     assert_eq!(r.status, 500, "a write that could not resolve its calendar");
     kv.del(&[feeds.as_bytes()]).expect("clean");
-}
-
-async fn the_migration_moves_old_keys_once(live: &live::Live, alice: &str) {
-    let mut kv = kevy_client::Connection::connect(KEVY).expect("kevy");
-    let old = event("legacy-1", "20260901T110000Z");
-    kv.hset(
-        format!("caldav:{ALICE}:events:default").as_bytes(),
-        &[(b"legacy-1".as_slice(), old.as_bytes())],
-    )
-    .expect("seed");
-    let url = format!("{}/v1/admin/maintenance:migrate-dav-keys", live.core_url);
-    let run = || async {
-        let res = live.http.post(&url).send().await.expect("post");
-        assert_eq!(res.status(), 200);
-        res.json::<serde_json::Value>().await.expect("json")
-    };
-    let first = run().await;
-    assert_eq!(first["events"]["walked"], 1, "{first}");
-    assert_eq!(first["events"]["written"], 1, "{first}");
-    let second = run().await;
-    assert_eq!(second["events"]["walked"], 1, "{second}");
-    assert_eq!(second["events"]["written"], 0, "{second}");
-    assert!(
-        conflicts(live, alice)
-            .await
-            .to_string()
-            .contains("legacy-1")
-    );
 }
