@@ -100,9 +100,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Initial release. Mailbox metadata storage abstraction for IMAP/JMAP servers: `MailboxStore` trait + PostgreSQL reference implementation + `InMemoryMailboxStore` test fixture. CONDSTORE, threading, flag ops, and change tracking. Introduced via a multi-stage refactor (trait extraction, PG impl, in-memory impl + trait contract tests, README + crate-level docs).
-
-[Unreleased]: https://github.com/goliajp/mailrs/compare/mailrs-mailbox-v1.0.3...HEAD
-[1.0.3]: https://github.com/goliajp/mailrs/compare/mailrs-mailbox-v1.0.2...mailrs-mailbox-v1.0.3
-[1.0.2]: https://github.com/goliajp/mailrs/compare/mailrs-mailbox-v1.0.1...mailrs-mailbox-v1.0.2
-[1.0.1]: https://github.com/goliajp/mailrs/compare/mailrs-mailbox-v1.0.0...mailrs-mailbox-v1.0.1
-[1.0.0]: https://github.com/goliajp/mailrs/releases/tag/mailrs-mailbox-v1.0.0

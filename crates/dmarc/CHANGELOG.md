@@ -120,8 +120,3 @@ modules complete the DMARC half of `stalwart/mail-auth`:
 
 ### Added
 - Initial release. DMARC (RFC 7489) aggregate report generation: result recording, XML report builder, report-mail formatter, and `rua` extraction. Pluggable store trait with a PostgreSQL reference implementation.
-
-[Unreleased]: https://github.com/goliajp/mailrs/compare/mailrs-dmarc-v1.0.2...HEAD
-[1.0.2]: https://github.com/goliajp/mailrs/compare/mailrs-dmarc-v1.0.1...mailrs-dmarc-v1.0.2
-[1.0.1]: https://github.com/goliajp/mailrs/compare/mailrs-dmarc-v1.0.0...mailrs-dmarc-v1.0.1
-[1.0.0]: https://github.com/goliajp/mailrs/releases/tag/mailrs-dmarc-v1.0.0

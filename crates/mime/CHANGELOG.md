@@ -139,7 +139,3 @@ No lib code change.
   display names after extracting via `mailrs-rfc5322`.
 - Outbound MIME building — this crate is read-only.
 - Mojibake / charset autodetection — we trust the on-wire charset.
-
-[Unreleased]: https://github.com/goliajp/mailrs/compare/mailrs-mime-v1.0.0...HEAD
-[1.0.0]: https://github.com/goliajp/mailrs/releases/tag/mailrs-mime-v1.0.0
-

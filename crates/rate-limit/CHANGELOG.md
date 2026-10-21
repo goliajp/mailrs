@@ -96,7 +96,3 @@ burst capacity 10" — mailrs-rate-limit is the right call.
   through the trait.
 - 28 unit tests, 8 trait-contract tests, 4 perf-gate tests.
   Documented latency budgets in `BUDGETS.md`.
-
-[Unreleased]: https://github.com/goliajp/mailrs/compare/mailrs-rate-limit-v1.0.1...HEAD
-[1.0.1]: https://github.com/goliajp/mailrs/compare/mailrs-rate-limit-v1.0.0...mailrs-rate-limit-v1.0.1
-[1.0.0]: https://github.com/goliajp/mailrs/releases/tag/mailrs-rate-limit-v1.0.0

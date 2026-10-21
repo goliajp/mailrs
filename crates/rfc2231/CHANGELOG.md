@@ -50,6 +50,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   charset=utf-8; foo=bar` into `(name, value)` pairs). Out of scope
   per "single focused concept" rule — pair with mailrs-rfc5322 or
   another header parser.
-
-[Unreleased]: https://github.com/goliajp/mailrs/compare/mailrs-rfc2231-v1.0.0...HEAD
-[1.0.0]: https://github.com/goliajp/mailrs/releases/tag/mailrs-rfc2231-v1.0.0
