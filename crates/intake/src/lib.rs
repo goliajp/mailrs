@@ -13,11 +13,13 @@
 //! are, and [`Core`] to say what happens to a copy that reached one of its
 //! mailboxes. Nothing here knows which store is behind either.
 
+mod deliver;
 mod drain;
 mod group;
 
 pub mod arrival;
 pub mod domains;
+pub mod dsn;
 pub mod effects;
 pub mod headers;
 pub mod idle_backoff;
@@ -29,7 +31,9 @@ pub mod mock;
 pub mod notice;
 pub mod outbound;
 pub mod push;
+pub mod reports;
 pub mod route;
+pub mod sieve;
 pub mod spool;
 pub mod webhook_delivery;
 

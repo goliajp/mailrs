@@ -36,7 +36,14 @@ mailrs-webhook-signature = { path = "../webhook-signature", version = "1" }
 chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
 html2text = "0.17"
 reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
+mailrs-arf = { version = "1.0.0", path = "../arf" }
+mailrs-dmarc = { version = "2.0.0", path = "../dmarc", default-features = false }
+mailrs-sieve = { path = "../sieve" }
+mailrs-tls-rpt = { path = "../tls-rpt", version = "1" }
+psl = "2.1.222"
 
 [dev-dependencies]
 tempfile = "3"
+mailrs-test-docker = { path = "../test-docker" }
+testcontainers = "0.27"
 tokio = { version = "1", features = ["sync", "time", "macros", "rt"] }

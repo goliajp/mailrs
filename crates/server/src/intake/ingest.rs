@@ -45,7 +45,7 @@ impl PgCore {
     /// file name, with its subfolder when filed into `folder`). Returns
     /// whether the store took it; when it did not, the spool file stays and
     /// the copy is delivered again on a later tick.
-    pub(super) fn ingest(
+    pub(super) fn index(
         &self,
         addr: &str,
         blob_ref: &str,
@@ -91,7 +91,7 @@ impl PgCore {
 
     /// The in-process event IMAP IDLE and the cache listen for.
     fn announce(&self, addr: &str, a: &Arrival<'_>) {
-        self.delivery.event_bus.emit(SmtpEvent::NewMessage {
+        self.event_bus.emit(SmtpEvent::NewMessage {
             user: addr.to_string(),
             thread_id: a.thread_id.clone(),
             sender: a.from.clone(),

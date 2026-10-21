@@ -1,10 +1,7 @@
-//! Spool-mode DATA acceptance (P6 receiver/core split).
-//!
-//! When `ConnectionContext::spool_sink` is set (the receiver binary), the DATA
-//! handler hands off here right after antispam: the receiver does NOT resolve
-//! recipients / run sieve / deliver / relay — it writes the accepted message
-//! to the spool and emits a `SpoolDelivered` wake-up. The core consumer does
-//! resolve/sieve/deliver/relay later (it owns spg). A coarse relay guard stays
+//! DATA acceptance: right after antispam the DATA handler hands off here.
+//! The receiver does NOT resolve recipients / run sieve / deliver / relay —
+//! it writes the accepted message to the spool and emits a `SpoolDelivered`
+//! wake-up, and a core's drain does the rest. A coarse relay guard stays
 //! here so the receiver never spools open-relay mail; fine-grained
 //! forward/SRS stays in the core.
 
@@ -20,10 +17,10 @@ use mailrs_smtp_proto::response::Response;
 
 use super::super::super::{ConnectionContext, SessionAction};
 
-/// Handle a DATA payload in spool mode: coarse relay guard → encode envelope +
-/// body → write spool → emit `SpoolDelivered` → 250. Returns the next session
+/// Handle a DATA payload: coarse relay guard → encode envelope + body →
+/// write spool → emit `SpoolDelivered` → 250. Returns the next session
 /// action. `full_message` is the antispam-processed body (Received header
-/// already prepended). Only called when `ctx.spool_sink` is `Some`.
+/// already prepended).
 #[allow(clippy::too_many_arguments)]
 pub(super) async fn handle_spool_mode<S>(
     framed: &mut Framed<S, SmtpCodec>,
@@ -40,11 +37,6 @@ pub(super) async fn handle_spool_mode<S>(
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
-    let Some(ref sink) = ctx.spool_sink else {
-        // caller guarantees Some; defensive close otherwise
-        return SessionAction::Close;
-    };
-
     // Coarse open-relay guard: an unauthenticated session with any forward-path
     // outside our local domains is a relay attempt — reject the whole
     // transaction (matches the monolith's RelayDenied on enqueue_remote_rcpts).
@@ -81,7 +73,7 @@ where
     };
     let blob = encode_spool_blob(&env, full_message);
 
-    let resp = match sink.write(&blob).await {
+    let resp = match ctx.spool_sink.write(&blob).await {
         Ok(spool_id) => {
             ctx.event_bus.emit(SmtpEvent::SpoolDelivered {
                 spool_id,
@@ -113,10 +105,8 @@ where
     SessionAction::Continue
 }
 
-/// True if any forward-path resolves to a non-local domain — using the same
-/// [`is_local_domain`] semantics as the delivery classifier (empty
-/// `local_domains` means "accept all as local"), so the receiver's coarse
-/// relay guard never diverges from how the core will classify the recipient.
+/// True if any forward-path is on a non-local domain, by [`is_local_domain`]
+/// (empty `local_domains` means "accept all as local").
 fn has_remote_rcpt(forward_paths: &[String], local_domains: &[String]) -> bool {
     use super::super::super::address::is_local_domain;
     forward_paths.iter().any(|r| {

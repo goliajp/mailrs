@@ -107,7 +107,7 @@ impl<C: Core + ?Sized> Inbound<'_, C> {
         for target in targets(self.core, group) {
             match target {
                 Target::Local { member, mailbox } => {
-                    if self.core.deliver_resolved(self, &member, &mailbox) {
+                    if self.deliver_resolved(&member, &mailbox) {
                         out.delivered += 1;
                     } else {
                         out.unresolved.push(mailbox);

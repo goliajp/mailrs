@@ -72,7 +72,7 @@ pub fn maybe_record_complaint(maildir_root: &str, rcpt: &str, body: &[u8]) {
     // Second guard on the same hazard: never suppress an address we
     // host. A malformed or hostile report must not be able to take one
     // of our own mailboxes off the air.
-    if crate::spool_drain::has_maildir(maildir_root, &complainant) {
+    if crate::maildir::has_maildir(maildir_root, &complainant) {
         tracing::warn!(
             event = "fbl_report_self_target",
             address = %complainant,

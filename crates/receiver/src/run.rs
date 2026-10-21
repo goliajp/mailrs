@@ -82,18 +82,11 @@ pub async fn start() -> Receiver {
     let counters: SharedCounters = Arc::new(ReceiverCounters::default());
     let event_bus = event_bus(&kevy_client, &counters);
 
-    let spool_sink: Option<Arc<dyn crate::smtp_session::SpoolSink>> =
-        Some(Arc::new(MaildirSpoolSink::new(&cfg.spool_root)));
-
-    // process_tx is unused in spool mode (the DATA handler hands off to the
-    // spool sink, never the channel) — a dropped-receiver dummy satisfies the
-    // field without spawning a consumer.
-    let (process_tx, _dead_rx) = tokio::sync::mpsc::channel(1);
+    let spool_sink: Arc<dyn crate::smtp_session::SpoolSink> =
+        Arc::new(MaildirSpoolSink::new(&cfg.spool_root));
 
     let ctx = Arc::new(ConnectionContext {
         hostname: cfg.hostname.clone(),
-        // unused in spool mode (delivery is core-side); the spool sink owns the path.
-        maildir_root: cfg.spool_root.clone(),
         tls_state,
         users,
         event_bus,
@@ -104,24 +97,18 @@ pub async fn start() -> Receiver {
         runtime,
         org_names: cfg.org_names.clone(),
         org_name_allowed_domains: cfg.org_name_allowed_domains.clone(),
-        outbound_enqueue: None,
         resolver,
         dnsbl_zones: cfg.dnsbl_zones.clone(),
         dnsbl_enabled: cfg.dnsbl_enabled,
         antispam_enabled: cfg.antispam_enabled,
-        quota_store: None,
         smuggle_protection: cfg.smuggle_protection,
         auth_guard,
         account_store: None,
         credential_store,
         recipient_check,
-        queue_notifier: None,
-        srs_secret: cfg.srs_secret.clone(),
         ldap_config: None,
         inbound_pipeline,
         spam_lists_client: Some(kevy_client.clone()),
-        delivery_executor: mailrs_delivery_executor::DeliveryExecutor::spawn(),
-        process_tx,
         spool_sink,
     });
 

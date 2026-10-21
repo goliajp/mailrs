@@ -16,7 +16,7 @@ mod directory;
 mod ingest;
 mod store;
 
-pub(crate) use core::{Delivery, PgCore};
+pub(crate) use core::PgCore;
 pub(crate) use directory::PgDirectory;
 
 /// Drain `spool_root` into `core` forever: now, whenever a message is

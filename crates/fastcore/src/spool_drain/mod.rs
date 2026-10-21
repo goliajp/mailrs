@@ -2,11 +2,11 @@
 //!
 //! The receiver accepts SMTP and writes `{spool_root}/incoming/{new,cur}/*`
 //! files with an `X-Mailrs-Spool-Envelope` header prepended. The shared
-//! drain (`mailrs_intake`) reads them, routes each recipient, and hands a
-//! copy that reached one of our mailboxes back here (`recipient`), where it
-//! lands in `{maildir_root}/<domain>/<local>/new/` and is threaded and
-//! indexed at once (`ingest_delivered_file`). The periodic maildir self-heal
-//! picks up any file that delivery wrote and did not index.
+//! drain (`mailrs_intake`) reads them, routes each recipient, runs the
+//! report hooks and sieve, and writes the copy to
+//! `{maildir_root}/<domain>/<local>/new/`; this core then threads and
+//! indexes it at once (`recipient`, `ingest_delivered_file`). The periodic
+//! maildir self-heal picks up any file that delivery wrote and did not index.
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -22,11 +22,8 @@ mod core;
 mod deliver;
 mod recipient;
 pub mod relay;
-mod reported_to;
 
 pub(crate) use check::recipient_deliverable_route;
-pub(crate) use deliver::*;
-use reported_to::reported_to;
 
 /// Spawn the drain loop. Env:
 /// - `MAILRS_SPOOL_ROOT` — spool base, default `/data/.spool`

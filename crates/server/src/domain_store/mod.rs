@@ -23,7 +23,6 @@ mod groups;
 mod permissions;
 pub(crate) mod recipients;
 mod totp;
-mod vacation;
 
 /// cache entries expire after 5 minutes
 pub(super) const CACHE_TTL_SECS: u64 = 300;
@@ -83,11 +82,6 @@ pub struct AuditEntry {
     pub target: String,
     pub detail: String,
 }
-
-// The recipient-resolution result type moved to the `mailrs-receiver`
-// crate (the receiver's account port). Re-exported here so existing
-// `crate::domain_store::ResolvedRecipient` call sites keep resolving.
-pub use mailrs_receiver::ResolvedRecipient;
 
 pub(super) type Result<T> = std::result::Result<T, StoreError>;
 
@@ -219,50 +213,6 @@ pub struct EmailGroup {
     pub name: String,
     pub description: String,
     pub created_at: i64,
-}
-
-// --- cached resolution for kevy ---
-
-#[derive(serde::Serialize, serde::Deserialize, Clone)]
-struct CachedResolution {
-    kind: String,
-    addresses: Vec<String>,
-}
-
-impl From<CachedResolution> for ResolvedRecipient {
-    fn from(c: CachedResolution) -> Self {
-        match c.kind.as_str() {
-            "account" => {
-                ResolvedRecipient::Account(c.addresses.into_iter().next().unwrap_or_default())
-            }
-            "group" => ResolvedRecipient::Group(c.addresses),
-            "forward" => ResolvedRecipient::Forward(c.addresses),
-            _ => ResolvedRecipient::Reject,
-        }
-    }
-}
-
-impl From<&ResolvedRecipient> for CachedResolution {
-    fn from(r: &ResolvedRecipient) -> Self {
-        match r {
-            ResolvedRecipient::Account(a) => CachedResolution {
-                kind: "account".into(),
-                addresses: vec![a.clone()],
-            },
-            ResolvedRecipient::Group(members) => CachedResolution {
-                kind: "group".into(),
-                addresses: members.clone(),
-            },
-            ResolvedRecipient::Forward(addrs) => CachedResolution {
-                kind: "forward".into(),
-                addresses: addrs.clone(),
-            },
-            ResolvedRecipient::Reject => CachedResolution {
-                kind: "reject".into(),
-                addresses: vec![],
-            },
-        }
-    }
 }
 
 // serde for CachedAccount (kevy)
@@ -606,66 +556,5 @@ mod tests {
     #[test]
     fn cache_ttl_is_five_minutes() {
         assert_eq!(CACHE_TTL_SECS, 300);
-    }
-
-    // --- CachedResolution (existing tests below) ---
-
-    #[test]
-    fn cached_resolution_account_roundtrip() {
-        let orig = ResolvedRecipient::Account("alice@example.com".into());
-        let cached = CachedResolution::from(&orig);
-        let back: ResolvedRecipient = cached.into();
-        assert!(matches!(back, ResolvedRecipient::Account(ref a) if a == "alice@example.com"));
-    }
-
-    #[test]
-    fn cached_resolution_forward_roundtrip() {
-        let targets = vec!["bob@example.com".into(), "carol@example.com".into()];
-        let orig = ResolvedRecipient::Forward(targets.clone());
-        let cached = CachedResolution::from(&orig);
-        let back: ResolvedRecipient = cached.into();
-        match back {
-            ResolvedRecipient::Forward(addrs) => assert_eq!(addrs, targets),
-            other => panic!("expected Forward, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn cached_resolution_reject_roundtrip() {
-        let orig = ResolvedRecipient::Reject;
-        let cached = CachedResolution::from(&orig);
-        let back: ResolvedRecipient = cached.into();
-        assert!(matches!(back, ResolvedRecipient::Reject));
-    }
-
-    #[test]
-    fn cached_resolution_unknown_kind_becomes_reject() {
-        let cached = CachedResolution {
-            kind: "garbage".into(),
-            addresses: vec![],
-        };
-        let result: ResolvedRecipient = cached.into();
-        assert!(matches!(result, ResolvedRecipient::Reject));
-    }
-
-    #[test]
-    fn cached_resolution_serde_roundtrip() {
-        let variants = vec![
-            ResolvedRecipient::Account("test@example.com".into()),
-            ResolvedRecipient::Forward(vec!["a@b.com".into(), "c@d.com".into()]),
-            ResolvedRecipient::Reject,
-        ];
-        for orig in &variants {
-            let cached = CachedResolution::from(orig);
-            let json = serde_json::to_string(&cached).unwrap();
-            let deserialized: CachedResolution = serde_json::from_str(&json).unwrap();
-            let back: ResolvedRecipient = deserialized.into();
-            match (orig, &back) {
-                (ResolvedRecipient::Account(a), ResolvedRecipient::Account(b)) => assert_eq!(a, b),
-                (ResolvedRecipient::Forward(a), ResolvedRecipient::Forward(b)) => assert_eq!(a, b),
-                (ResolvedRecipient::Reject, ResolvedRecipient::Reject) => {}
-                _ => panic!("mismatch: {orig:?} vs {back:?}"),
-            }
-        }
     }
 }

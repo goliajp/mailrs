@@ -47,32 +47,9 @@ pub(super) fn start_greylist_whitelist_sync(
     greylist_whitelist
 }
 
-pub(super) fn spawn_post_delivery_consumer(
-    cfg: &ServerConfig,
-    mailbox_store: &Option<Arc<PgMailboxStore>>,
-    event_bus: &EventBus,
-    outbound_queue: &Option<pg::BackendPool>,
-    resolver: &Option<Arc<hickory_resolver::TokioResolver>>,
-) -> smtp_session::ProcessTx {
-    // single post-delivery consumer (S1.4 + P5): DATA handlers hand
-    // delivered messages here so maildir write stays on the hot path. The
-    // core-side deps (mailbox store, event bus, calendar pool, resolver)
-    // live with the consumer, not the receiver — only a plain
-    // `DeliveredMessage` crosses the channel. `None` deps = degraded mode
-    // (no mailbox store): the consumer drains and drops, reconcile indexes.
-    let process_deps = mailbox_store.clone().map(|mb| {
-        Arc::new(crate::smtp_session::ProcessDeps {
-            mailbox_store: mb,
-            event_bus: event_bus.clone(),
-            outbound_queue: outbound_queue.clone(),
-            resolver: resolver.clone(),
-            maildir_root: cfg.maildir_root.clone(),
-            kevy_url: std::env::var("MAILRS_KEVY_URL")
-                .ok()
-                .filter(|s| !s.is_empty()),
-        })
-    });
-    crate::smtp_session::spawn_process_consumer(process_deps)
+/// The spool the SMTP side writes to and the drain reads.
+pub(super) fn spool_root(cfg: &ServerConfig) -> String {
+    std::env::var("MAILRS_SPOOL_ROOT").unwrap_or_else(|_| format!("{}/.spool", cfg.maildir_root))
 }
 
 pub(super) fn start_spool_drain(
@@ -103,22 +80,14 @@ fn spawn_spool_drain(
         tracing::error!("no database: the spool cannot be routed and is not drained");
         return;
     };
-    let spool_root = std::env::var("MAILRS_SPOOL_ROOT")
-        .unwrap_or_else(|_| format!("{}/.spool", cfg.maildir_root));
+    let spool_root = spool_root(cfg);
     let net_url = std::env::var("MAILRS_KEVY_URL")
         .ok()
         .filter(|s| !s.is_empty());
     let core = Arc::new(crate::intake::PgCore {
         dir: crate::intake::PgDirectory::new(domain, cfg.maildir_root.clone(), net_url),
         mailbox,
-        delivery: crate::intake::Delivery {
-            account_store: ctx.account_store.clone(),
-            outbound_enqueue: ctx.outbound_enqueue.clone(),
-            queue_notifier: ctx.queue_notifier.clone(),
-            event_bus: ctx.event_bus.clone(),
-            hostname: cfg.hostname.clone(),
-            srs_secret: cfg.srs_secret.clone(),
-        },
+        event_bus: ctx.event_bus.clone(),
     });
     // the drain queues webhooks for arriving mail on the network kevy; this
     // core sends them, as the kevy core does
