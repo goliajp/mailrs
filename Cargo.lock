@@ -4253,22 +4253,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mailrs-sender"
-version = "0.0.1"
-dependencies = [
- "base64 0.22.1",
- "hickory-resolver",
- "mailrs-core-api",
- "mailrs-outbound-queue",
- "mailrs-smtp-client",
- "serde",
- "serde_json",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "mailrs-server"
 version = "0.0.0"
 dependencies = [

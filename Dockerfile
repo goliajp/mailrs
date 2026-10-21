@@ -152,7 +152,7 @@ COPY --from=rust-builder /usr/local/bin/mailrs-fastcore /usr/local/bin/mailrs-fa
 # and delivers via MX + STARTTLS. Idle unless entrypoint is overridden
 # to `mailrs-fastcore-sender`.
 COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-sender /usr/local/bin/mailrs-fastcore-sender
-# The pg/spg lane's binaries (mailrs-sender, mailrs-pg-dump,
+# The pg/spg lane's binaries (mailrs-pg-core, mailrs-pg-dump,
 # mailrs-core-sync) are not in this image: nothing in production runs
 # them, and deploy/Dockerfile.pg-core builds that lane's own image.
 # Reads text in image and scanned-PDF attachments. fastcore starts one per
