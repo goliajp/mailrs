@@ -36,10 +36,7 @@ data class AccountsDraft(
      * "som" is three answers nobody asked for.
      */
     val addressLooksComplete: Boolean
-        get() {
-            val parts = address.split("@")
-            return parts.size == 2 && parts[1].contains(".")
-        }
+        get() = jp.golia.mailrs.wire.looksLikeAddress(address)
 
     /** What is known about this address, once it is an address. */
     val provider: MailProvider?

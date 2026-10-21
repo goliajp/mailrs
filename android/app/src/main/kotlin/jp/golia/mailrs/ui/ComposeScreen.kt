@@ -385,7 +385,11 @@ private fun CompactField(
             singleLine = true,
             // Next, not Done: every one of these lines has another
             // below it, ending at the message itself.
-            keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = ImeAction.Next),
+            keyboardOptions = if (keyboardType == KeyboardType.Email) {
+                addressKeyboard()
+            } else {
+                KeyboardOptions(keyboardType = keyboardType, imeAction = ImeAction.Next)
+            },
             textStyle = TextStyle(color = theme.fg, fontSize = 15.sp),
             cursorBrush = SolidColor(theme.accent),
             modifier = Modifier.weight(1f).testTag(tag),

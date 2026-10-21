@@ -39,6 +39,10 @@ struct SignInView: View {
         return totpCode
     }
 
+    private var trimmedAddress: String {
+        address.trimmingCharacters(in: .whitespaces)
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -76,6 +80,13 @@ struct SignInView: View {
                         .mailKeyboard()
                         .neverCapitalised()
                         .autocorrectionDisabled()
+                    // said once something is typed, not while it is empty
+                    if !trimmedAddress.isEmpty && !MailAddress.looksLike(trimmedAddress) {
+                        Text("Enter the full address, like name@example.com")
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                            .accessibilityIdentifier("sign-in-address-hint")
+                    }
                     // Hidden while Face ID can stand in for it, and
                     // back the moment it cannot: no stored credential,
                     // one the server refused, or a look that did not
@@ -129,7 +140,7 @@ struct SignInView: View {
                     Button {
                         Task {
                             await session.signIn(
-                                address: address,
+                                address: trimmedAddress,
                                 password: password,
                                 totpCode: submittedTotp
                             )
@@ -149,7 +160,8 @@ struct SignInView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
-                    .disabled(address.isEmpty || password.isEmpty || session.state == .signingIn)
+                    .disabled(!MailAddress.looksLike(trimmedAddress) || password.isEmpty
+                        || session.state == .signingIn)
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
                 }
