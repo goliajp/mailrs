@@ -137,10 +137,7 @@ impl From<&mailrs_mailbox::types::ConversationSummary> for ConversationSummaryWi
             snippet: s.snippet.clone(),
             pinned: s.pinned,
             archived: s.archived,
-            // The mailbox stone has no fraud verdict — the hold is a
-            // fastcore-side column — so anything arriving through it
-            // is unheld, which is what `false` means here.
-            quarantined: false,
+            quarantined: s.quarantined,
             importance_level: s.importance_level.clone(),
             importance_score: s.importance_score,
             requires_action: s.requires_action,

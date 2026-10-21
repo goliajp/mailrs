@@ -270,6 +270,8 @@ pub struct ConversationSummary {
     /// conversation away would have done it for everyone who could
     /// see it — had anything read the field at all.
     pub snoozed_until: i64,
+    /// Held for review: out of every list until the reader releases it.
+    pub quarantined: bool,
 }
 
 /// AI analysis result stored in email_analysis table

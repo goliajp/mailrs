@@ -88,6 +88,8 @@ mod thread_ownership;
 mod thread_row;
 pub use attachment_text::AttachmentTextState;
 pub use list_threads::{ListThreadsFilter, QuarantineScope};
+/// Which conversations a view shows; shared with every store.
+pub use mailrs_mailbox::scope;
 pub use mailrs_mailbox::threading::normalize_subject;
 pub use message_arrival::MessageArrival;
 pub use messages::{OwnedUserMessageFacts, UserMessageFacts};

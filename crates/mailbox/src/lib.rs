@@ -17,6 +17,9 @@
 pub mod fixtures;
 #[cfg(feature = "pg")]
 pub mod pg;
+/// Which conversations a view shows: triage buckets and the scope a
+/// request's folder and category reconcile to, shared by every store.
+pub mod scope;
 /// Portable [`MailboxStore`] trait — the IMAP/JMAP-shaped abstraction
 /// backend implementations must satisfy.
 pub mod store;

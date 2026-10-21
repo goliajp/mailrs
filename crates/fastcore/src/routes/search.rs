@@ -97,11 +97,7 @@ fn in_search_scope(
     row: &mailrs_mailbox_kevy::ThreadRow,
     req: &conv::SearchConversationsRequest,
 ) -> bool {
-    if let Some(c) = &req.category
-        && &row.category != c
-    {
-        return false;
-    }
+    use mailrs_mailbox_kevy::scope::{ThreadFacts, is_sent_folder, scope};
     if row.archived != req.archived {
         return false;
     }
@@ -119,31 +115,13 @@ fn in_search_scope(
     if req.starred == Some(true) && !row.starred {
         return false;
     }
-    let Some(folder) = req.folder.as_deref() else {
-        return true;
-    };
-    let bucket = mailrs_mailbox_kevy::keys::bucket_of(&row.category);
-    let sent_only = row.count > 0 && row.sent_count >= row.count;
-    match folder {
-        f if f.eq_ignore_ascii_case("inbox") => {
-            bucket == mailrs_mailbox_kevy::keys::Bucket::Inbox && !sent_only
-        }
-        f if f.eq_ignore_ascii_case("junk") => bucket == mailrs_mailbox_kevy::keys::Bucket::Junk,
-        f if f.eq_ignore_ascii_case("notifications") => {
-            bucket == mailrs_mailbox_kevy::keys::Bucket::Notifications
-        }
-        f if f.eq_ignore_ascii_case("promotions") => {
-            bucket == mailrs_mailbox_kevy::keys::Bucket::Promotions
-        }
-        f if f.eq_ignore_ascii_case("np") => matches!(
-            bucket,
-            mailrs_mailbox_kevy::keys::Bucket::Notifications
-                | mailrs_mailbox_kevy::keys::Bucket::Promotions
-        ),
-        f if f.eq_ignore_ascii_case("nonjunk") => bucket != mailrs_mailbox_kevy::keys::Bucket::Junk,
-        f if f.eq_ignore_ascii_case("sent") => row.sent_count > 0,
-        // An unknown folder is no scope, the same reading
-        // `ListThreadsFilter::scope` gives it.
-        _ => true,
+    let folder = req.folder.as_deref();
+    if is_sent_folder(folder) && row.sent_count == 0 {
+        return false;
     }
+    // The same scope the list answers for this folder and category.
+    scope(folder, req.category.as_deref()).admits(ThreadFacts {
+        category: &row.category,
+        sent_only: row.count > 0 && row.sent_count >= row.count,
+    })
 }

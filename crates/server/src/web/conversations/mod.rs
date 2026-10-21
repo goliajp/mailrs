@@ -320,6 +320,7 @@ mod tests {
                 .to_string(),
             sent_count: 0,
             snoozed_until: 0,
+            quarantined: false,
         }
     }
 

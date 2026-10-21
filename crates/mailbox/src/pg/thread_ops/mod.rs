@@ -17,6 +17,8 @@ use crate::types::MessageMeta;
 mod mutate;
 mod query;
 
+pub use query::{Held, ThreadQuery};
+
 impl PgMailboxStore {
     /// look up the thread_id of a message by its message_id (across all user's mailboxes)
     pub async fn find_thread_id_by_message_id(

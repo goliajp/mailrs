@@ -6,7 +6,6 @@ use crate::error::ApiResult;
 use crate::method;
 
 impl Client {
-
     /// GET /v1/users/{user}/drafts
     pub async fn list_drafts(&self, user: &str) -> ApiResult<method::admin::DraftListResponse> {
         let path = format!("/v1/users/{}/drafts", Self::enc(user));
@@ -100,5 +99,4 @@ impl Client {
         let path = format!("/v1/users/{}/templates/{id}", Self::enc(user));
         self.delete_authed(path, "delete_template").await
     }
-
 }
