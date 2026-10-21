@@ -26,11 +26,21 @@ pub type StoreError = Box<dyn std::error::Error + Send + Sync>;
 /// Every method is async and object-safe; downstream code can hold
 /// `&dyn MailboxStore` or `Arc<dyn MailboxStore>` and stay backend-agnostic.
 ///
+/// ## What this is and is not
+///
+/// This is the interface the SQL server's own protocol code (IMAP, POP3,
+/// the core-api handlers) uses over its store, implemented by
+/// [`PgMailboxStore`](crate::pg::PgMailboxStore) and an in-memory store for
+/// tests. It is **not** the boundary between interchangeable cores: the kevy
+/// store does not implement it, and the two cores are held to one
+/// behaviour by the core-api (`mailrs-core-api`) they both serve.
+///
 /// ## Contract notes
 ///
 /// - [`insert_message`](Self::insert_message) must allocate `uid` and bump
 ///   `uidnext` + `highest_modseq` atomically — consumers rely on per-mailbox
-///   UID monotonicity.
+///   UID monotonicity. The SQL store also keeps a UID unique across all of a
+///   user's mailboxes, because the core-api names a message by user and UID.
 /// - [`messages_changed_since`](Self::messages_changed_since) must return
 ///   every message whose `modseq` is strictly greater than the parameter,
 ///   in `modseq`-ascending order, so CONDSTORE clients can paginate.
