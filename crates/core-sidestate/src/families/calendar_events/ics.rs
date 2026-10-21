@@ -10,12 +10,12 @@ use mailrs_ical::{EventStatus, parse_invite};
 
 use super::StoredEvent;
 
-/// The row a CalDAV PUT of `ics` to `uid` stores.
+/// The row a CalDAV PUT of `ics` stores, keyed by the text's own `UID`.
 ///
 /// `Err` says why the text cannot be stored: it does not parse, or its
 /// start names a zone nothing resolves, which would leave an event that
 /// cannot be placed on any calendar.
-pub fn from_ics(uid: &str, ics: &str, source: &str) -> Result<StoredEvent, String> {
+pub fn from_ics(ics: &str, source: &str) -> Result<StoredEvent, String> {
     let parsed = parse_invite(ics.as_bytes()).map_err(|e| format!("{e:?}"))?;
     let start = caldatetime_to_utc(&parsed.dtstart, &parsed.vtimezones)
         .ok_or_else(|| "DTSTART names a time zone that cannot be resolved".to_string())?;
@@ -30,7 +30,7 @@ pub fn from_ics(uid: &str, ics: &str, source: &str) -> Result<StoredEvent, Strin
         EventStatus::Cancelled => "CANCELLED",
     });
     Ok(StoredEvent {
-        uid: uid.to_string(),
+        uid: parsed.uid,
         summary: parsed.summary,
         dtstart: Some(start.to_rfc3339()),
         dtend: end.map(|e| e.to_rfc3339()),
@@ -111,7 +111,8 @@ mod tests {
 
     #[test]
     fn a_zoned_start_resolves_and_the_text_is_kept() {
-        let ev = from_ics("e1", ZONED, "caldav").expect("parses");
+        let ev = from_ics(ZONED, "caldav").expect("parses");
+        assert_eq!(ev.uid, "e1", "keyed by the text's own UID");
         assert_eq!(ev.dtstart.as_deref(), Some("2026-08-20T01:00:00+00:00"));
         assert_eq!(ev.dtend.as_deref(), Some("2026-08-20T01:30:00+00:00"));
         assert_eq!(ev.status.as_deref(), Some("CONFIRMED"));
@@ -121,8 +122,8 @@ mod tests {
 
     #[test]
     fn text_that_is_not_an_event_is_refused() {
-        assert!(from_ics("x", "BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n", "caldav").is_err());
-        assert!(from_ics("x", "not ical", "caldav").is_err());
+        assert!(from_ics("BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n", "caldav").is_err());
+        assert!(from_ics("not ical", "caldav").is_err());
     }
 
     /// A row with no stored text gets text from its columns, and that text
@@ -143,7 +144,8 @@ mod tests {
         };
         let text = to_ics(&ev);
         assert_eq!(text, to_ics(&ev));
-        let back = from_ics("m1", &text, "mail:m1").expect("parses");
+        let back = from_ics(&text, "mail:m1").expect("parses");
+        assert_eq!(back.uid, ev.uid);
         assert_eq!(back.summary, ev.summary);
         assert_eq!(back.dtstart, ev.dtstart);
         assert_eq!(back.dtend, ev.dtend);
