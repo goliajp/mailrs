@@ -175,7 +175,7 @@ fn cv_str(cv: ArcSealCv) -> &'static str {
 ///   end-of-headers terminator.
 /// - [`ArcError::ChainTooLong`] when the new instance would exceed
 ///   the RFC 8617 §4.2.1 limit of 50.
-/// - [`ArcError::InvalidKey`] (rare) when the underlying crypto
+/// - [`ArcError::InvalidPublicKey`] (rare) when the underlying crypto
 ///   primitive rejects signing.
 pub fn seal(
     raw_message: &[u8],

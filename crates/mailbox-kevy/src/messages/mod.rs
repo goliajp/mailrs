@@ -2,10 +2,13 @@
 //! + add to the per-thread index zset (score = internal_date).
 //!
 //! Phase 7.11. The kevy layout:
-//!   mailrs:msg:<message_id>           string  — serde-json of any
-//!                                                  type the caller
-//!                                                  passes in
-//!   mailrs:thread:<tid>:messages      zset    — message_id → internal_date
+//!
+//! ```text
+//! mailrs:msg:<message_id>           string  — serde-json of any
+//!                                                type the caller
+//!                                                passes in
+//! mailrs:thread:<tid>:messages      zset    — message_id → internal_date
+//! ```
 //!
 //! The caller picks the JSON shape. `mailrs-fastcore` writes the same
 //! `mailrs_core_api::method::message::MessageWire` rows the monolith

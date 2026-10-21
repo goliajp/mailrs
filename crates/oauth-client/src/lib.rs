@@ -268,7 +268,7 @@ pub struct TokenResponse {
 ///
 /// Signature verification belongs to the caller, which is the one holding the
 /// provider's JWKS. Returning the claims without checking them is only safe
-/// because [`identity_from_id_token`] refuses to build an identity from an
+/// because `identity_from_id_token` refuses to build an identity from an
 /// issuer that does not match the pinned one — but a caller doing anything
 /// else with this must verify first.
 pub fn jwt_claims_unverified(token: &str) -> Result<serde_json::Value, OauthError> {

@@ -3,7 +3,9 @@
 //! The sender records one compact event per delivery attempt into the
 //! network kevy, bucketed by (receiving domain, UTC day):
 //!
-//!   RPUSH mailrs:tlsrpt:<domain>:<yyyymmdd> <json event>
+//! ```text
+//! RPUSH mailrs:tlsrpt:<domain>:<yyyymmdd> <json event>
+//! ```
 //!
 //! Once a day fastcore's submit task walks yesterday's buckets, and for
 //! any domain that published a `_smtp._tls.<domain>` TXT policy with a

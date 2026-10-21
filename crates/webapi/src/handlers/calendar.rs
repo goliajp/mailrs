@@ -2,9 +2,11 @@
 //!
 //! Storage on network kevy:
 //!
-//!   calendar_feeds:<user>          hash { feed_id -> JSON CalendarFeed }
-//!   calendar_events:<user>         zset  score = dtstart_epoch, member = event_uid
-//!   calendar_event:<user>:<uid>    hash  { summary, dtstart, dtend, organizer, status, source }
+//! ```text
+//! calendar_feeds:<user>          hash { feed_id -> JSON CalendarFeed }
+//! calendar_events:<user>         zset  score = dtstart_epoch, member = event_uid
+//! calendar_event:<user>:<uid>    hash  { summary, dtstart, dtend, organizer, status, source }
+//! ```
 //!
 //! Full recurrence expansion (RRULE / EXDATE / RECURRENCE-ID) mirrors
 //! the monolith's `crates/server/src/web/calendar_api.rs`. This port

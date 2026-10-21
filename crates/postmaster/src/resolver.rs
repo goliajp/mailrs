@@ -163,7 +163,7 @@ mod hickory {
 }
 
 /// In-memory [`PostmasterResolver`] for unit tests — returns canned
-/// answers per (verb, qname). Use [`MockResolver::with_*`] to seed
+/// answers per (verb, qname). Use `MockResolver::with_*` to seed
 /// responses; default response is `NotFound`.
 #[derive(Default)]
 pub struct MockResolver {

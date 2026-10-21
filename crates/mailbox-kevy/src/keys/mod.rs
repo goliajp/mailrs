@@ -68,7 +68,7 @@ pub fn user_message(user: &str, message_id: &str) -> String {
 pub const USER_MESSAGE_PREFIX: &[u8] = b"mailrs:usermsg:";
 
 /// Aggregate index over per-user message rows: per-thread counts, grouped
-/// by [`crate::messages::group_key`]'s composite column.
+/// by `crate::messages::group_key`'s composite column.
 ///
 /// It replaces `count` / `unread_count` / `sent_count` maintained by hand on
 /// two rows — and with them every repair path that exists because they

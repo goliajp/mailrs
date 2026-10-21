@@ -72,7 +72,7 @@ impl KevyMailboxStore {
     }
 
     /// Thread ids whose message bodies match `query`, best first and
-    /// de-duplicated, resolved like [`Self::thread_of_message_hit`].
+    /// de-duplicated, resolved like `Self::thread_of_message_hit`.
     pub fn search_message_bodies(
         &self,
         user: &str,

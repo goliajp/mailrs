@@ -12,11 +12,11 @@ use crate::error::DkimError;
 /// Minimal DNS interface — DKIM only needs TXT lookups.
 ///
 /// Implementors map NXDOMAIN to `Ok(vec![])` (the caller maps that
-/// to [`DkimResult::PermError`] per RFC 6376 §6.1.2). Reserve
+/// to [`DkimResult::PermError`](crate::DkimResult::PermError) per RFC 6376 §6.1.2). Reserve
 /// `Err(DkimError::DnsTempError)` for actual lookup failures.
 ///
-/// The trait also provides a default [`lookup_public_key`] method
-/// composed on top of [`lookup_txt`]; cached resolvers (such as
+/// The trait also provides a default [`lookup_public_key`](Self::lookup_public_key) method
+/// composed on top of [`lookup_txt`](Self::lookup_txt); cached resolvers (such as
 /// [`CachedDkimResolver`]) override it to skip the per-call TXT
 /// parsing + base64 decode on cache hits.
 #[async_trait]

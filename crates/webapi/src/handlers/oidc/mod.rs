@@ -4,10 +4,12 @@
 //!
 //! Storage layout on network kevy:
 //!
-//!   oidc:client:<client_id>           hash { redirect_uri, secret, name, scopes }
-//!   oidc:code:<code>                  hash { client_id, user, redirect_uri, code_challenge, nonce, scopes, expires_at }
-//!   oidc:token:<access_token>         hash { user, client_id, scopes, expires_at }
-//!   oidc:refresh:<refresh_token>      hash { user, client_id, scopes }
+//! ```text
+//! oidc:client:<client_id>           hash { redirect_uri, secret, name, scopes }
+//! oidc:code:<code>                  hash { client_id, user, redirect_uri, code_challenge, nonce, scopes, expires_at }
+//! oidc:token:<access_token>         hash { user, client_id, scopes, expires_at }
+//! oidc:refresh:<refresh_token>      hash { user, client_id, scopes }
+//! ```
 //!
 //! Discovery + JWKS are stateless. Bearer tokens are opaque
 //! (32 random hex chars) — no RSA JWT signing yet; clients that
