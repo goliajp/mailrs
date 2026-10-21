@@ -1,6 +1,9 @@
 //! Handlers for `mailrs_core_api::method::conversation`.
 //!
-//! Six endpoints — all `Arc<PgMailboxStore>.method(...)` passes through.
+//! Every view here reads the store's thread rows through one translation of
+//! the request's filter, [`thread_query`], the counterpart of the kevy core's
+//! `threads_filter`, so a list, its unread badge, its category counts and
+//! "mark all of this as read" cannot each select a different set.
 
 use std::sync::Arc;
 
@@ -11,94 +14,139 @@ use axum::{
 };
 
 use mailrs_core_api::method::conversation as wire;
-use mailrs_core_api::types::ConversationSummaryWire;
+use mailrs_core_api::types::{ConversationFilter, ConversationSummaryWire};
+use mailrs_mailbox::pg::{Held, ThreadQuery};
+use mailrs_mailbox::scope::{Scope, is_sent_folder, scope};
 
 use crate::core_rpc::CoreRpcState;
+use crate::core_rpc::handlers::failed;
 
-/// POST /v1/users/{user}/conversations:list  (Rock 1)
+/// The rows a list request asks for.
+///
+/// Archived is a tab, not a predicate inside the folder the client opened
+/// it from, so an archived list drops the folder. Every conversation in
+/// this store belongs to the deployment's own mail, whose account id is
+/// the empty string: an account filter that does not name it selects
+/// nothing.
+pub(crate) fn thread_query<'a>(user: &'a str, f: &'a ConversationFilter) -> ThreadQuery<'a> {
+    let folder = if f.archived {
+        None
+    } else {
+        f.folder.as_deref()
+    };
+    let own_mail_excluded = f
+        .accounts
+        .as_ref()
+        .is_some_and(|ids| !ids.iter().any(String::is_empty));
+    let scope = if own_mail_excluded {
+        Scope::Contradiction
+    } else {
+        scope(folder, f.category.as_deref())
+    };
+    ThreadQuery {
+        scope,
+        sent: is_sent_folder(folder),
+        archived: Some(f.archived),
+        unread: f.unread.unwrap_or(false),
+        starred: f.starred.unwrap_or(false),
+        held: if f.include_quarantined {
+            Held::Include
+        } else {
+            Held::Hide
+        },
+        before_ts: f.before_ts,
+        limit: Some(i64::from(f.limit)),
+        ..ThreadQuery::all(user)
+    }
+}
+
+/// POST /v1/users/{user}/conversations:list
 pub async fn list_conversations(
     State(state): State<Arc<CoreRpcState>>,
     Path(user): Path<String>,
     Json(req): Json<wire::ListConversationsRequest>,
 ) -> Result<Json<wire::ListConversationsResponse>, StatusCode> {
-    let f = &req.filter;
-    let category = f.category.as_deref();
-    let folder = f.folder.as_deref();
-    let section = f.section.as_deref();
-    let domains = f.domains.as_deref();
-
     let rows = state
         .mailbox
-        .list_conversations(
-            &user,
-            f.limit,
-            f.before_ts,
-            category,
-            domains,
-            f.archived,
-            folder,
-            f.unread,
-            f.starred,
-            section,
-        )
+        .thread_rows(&thread_query(&user, &req.filter))
         .await
-        .map_err(|e| {
-            tracing::warn!(error = %e, user = %user, "list_conversations failed");
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-
+        .map_err(failed("list_conversations", &user))?;
     let items: Vec<ConversationSummaryWire> = rows.iter().map(Into::into).collect();
     Ok(Json(wire::ListConversationsResponse { items }))
 }
 
-/// POST /v1/users/{user}/conversations:by-thread-ids
+/// POST /v1/users/{user}/conversations:by-thread-ids — the reader's own
+/// rows for those threads, archived and held included, in the order asked.
 pub async fn conversations_by_thread_ids(
     State(state): State<Arc<CoreRpcState>>,
     Path(user): Path<String>,
     Json(req): Json<wire::ConversationsByIdsRequest>,
 ) -> Result<Json<wire::ConversationsByIdsResponse>, StatusCode> {
-    let rows = state
+    let ids: Vec<String> = req.thread_ids.iter().map(|t| t.to_string()).collect();
+    let q = ThreadQuery {
+        archived: None,
+        held: Held::Include,
+        thread_ids: Some(&ids),
+        ..ThreadQuery::all(&user)
+    };
+    let mut rows = state
         .mailbox
-        .get_conversations_by_thread_ids(&user, &req.thread_ids, None)
+        .thread_rows(&q)
         .await
-        .map_err(|e| {
-            tracing::warn!(error = %e, user = %user, "by_thread_ids failed");
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-
+        .map_err(failed("conversations_by_thread_ids", &user))?;
+    let position = |tid: &str| ids.iter().position(|i| i == tid).unwrap_or(usize::MAX);
+    rows.sort_by_key(|r| position(&r.thread_id));
     let items: Vec<ConversationSummaryWire> = rows.iter().map(Into::into).collect();
     Ok(Json(wire::ConversationsByIdsResponse { items }))
 }
 
-/// GET /v1/users/{user}/conversations/categories
+/// GET /v1/users/{user}/conversations/categories — live conversations per
+/// triage class. Junk mail is not a class: its one surface is the Junk
+/// folder.
 pub async fn conversation_categories(
     State(state): State<Arc<CoreRpcState>>,
     Path(user): Path<String>,
 ) -> Result<Json<wire::ConversationCategoriesResponse>, StatusCode> {
+    let q = ThreadQuery {
+        held: Held::Include,
+        ..ThreadQuery::all(&user)
+    };
     let rows = state
         .mailbox
-        .list_conversation_categories(&user, None)
+        .thread_rows(&q)
         .await
-        .map_err(|e| {
-            tracing::warn!(error = %e, user = %user, "list_categories failed");
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-
-    let categories = rows
+        .map_err(failed("conversation_categories", &user))?;
+    let categories = mailrs_triage::CLASSES
         .into_iter()
-        .map(|(category, count)| wire::CategoryCount { category, count })
+        .map(|class| wire::CategoryCount {
+            category: class.to_string(),
+            count: rows
+                .iter()
+                .filter(|r| r.category.eq_ignore_ascii_case(class))
+                .count() as i64,
+        })
+        .filter(|c| c.count > 0)
         .collect();
     Ok(Json(wire::ConversationCategoriesResponse { categories }))
 }
 
-/// GET /v1/users/{user}/conversations/unseen-count  (Rock 2)
+/// GET /v1/users/{user}/conversations/unseen-count — live conversations
+/// outside Junk with unread mail.
 pub async fn unseen_count(
     State(state): State<Arc<CoreRpcState>>,
     Path(user): Path<String>,
 ) -> Result<Json<wire::UnseenCountResponse>, StatusCode> {
-    let count = state.mailbox.count_unseen(&user).await.map_err(|e| {
-        tracing::warn!(error = %e, user = %user, "unseen_count failed");
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
-    Ok(Json(wire::UnseenCountResponse { count }))
+    let q = ThreadQuery {
+        scope: Scope::NotJunk,
+        unread: true,
+        ..ThreadQuery::all(&user)
+    };
+    let rows = state
+        .mailbox
+        .thread_rows(&q)
+        .await
+        .map_err(failed("unseen_count", &user))?;
+    Ok(Json(wire::UnseenCountResponse {
+        count: rows.len() as i64,
+    }))
 }

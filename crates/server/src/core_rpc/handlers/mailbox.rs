@@ -23,8 +23,19 @@ pub async fn list_mailboxes(
         tracing::warn!(error = %e, user = %user, "list_mailboxes failed");
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
-    let items = rows.iter().map(Into::into).collect();
+    let mut items: Vec<wire::MailboxWire> = rows.iter().map(Into::into).collect();
+    items.sort_by_key(|m| (folder_rank(&m.name), m.name.clone()));
     Ok(Json(wire::ListMailboxesResponse { items }))
+}
+
+/// The default folders first, in the order the kevy core lists them, then
+/// the user's own by name.
+fn folder_rank(name: &str) -> usize {
+    const DEFAULTS: [&str; 5] = ["INBOX", "Sent", "Drafts", "Junk", "Trash"];
+    DEFAULTS
+        .iter()
+        .position(|d| *d == name)
+        .unwrap_or(DEFAULTS.len())
 }
 
 /// GET /v1/users/{user}/mailboxes/{name}

@@ -6,7 +6,7 @@ use mailrs_core_api::method::admin::{
     UpdateRecoveryEmailRequest,
 };
 
-use super::harness::{Cores, Diffs};
+use super::harness::{Cores, Diffs, FASTCORE_KEVY, PG_CORE_KEVY};
 use super::{ALICE, BOB, DOMAIN};
 
 /// Ids and times each store mints for itself.
@@ -114,9 +114,17 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
         MINTED,
     );
 
+    let group = format!("all@{DOMAIN}");
+    for kevy in [FASTCORE_KEVY, PG_CORE_KEVY] {
+        put_email_group(kevy, &group, &[ALICE, BOB]);
+    }
     for address in [
         ALICE,
         source.as_str(),
+        group.as_str(),
+        &format!("postmaster@{DOMAIN}"),
+        &format!("abuse@{DOMAIN}"),
+        &format!("SRS0=abcd=TT=remote.test=someone@{DOMAIN}"),
         &format!("nobody@{DOMAIN}"),
         "someone@remote.test",
     ] {
@@ -175,4 +183,20 @@ pub(super) async fn teardown(c: &Cores, d: &mut Diffs) {
         pg.list_domains().await,
         MINTED,
     );
+}
+
+/// An email group as the admin surface stores it in the network kevy, which
+/// is where both cores read groups from.
+fn put_email_group(kevy: &str, address: &str, members: &[&str]) {
+    use mailrs_core_sidestate::families::email_groups::{GROUPS_KEY, members_key};
+    let mut conn = kevy_client::Connection::connect(kevy).expect("kevy");
+    let row = serde_json::json!({ "id": 1, "address": address, "name": "everyone" });
+    conn.hset(
+        GROUPS_KEY.as_bytes(),
+        &[(b"1".as_slice(), row.to_string().as_bytes())],
+    )
+    .expect("group row");
+    let members: Vec<&[u8]> = members.iter().map(|m| m.as_bytes()).collect();
+    conn.sadd(members_key(1).as_bytes(), &members)
+        .expect("group members");
 }

@@ -35,3 +35,14 @@ UPDATE email_analysis SET category = 'inbox' WHERE category = 'general';
 
 -- 6. One default quota for a new account on either core: 10 GiB.
 ALTER TABLE accounts ALTER COLUMN quota_bytes SET DEFAULT 10737418240;
+
+-- 7. One UID sequence per user across all of the user's mailboxes: the
+-- core-api names a message by (user, uid), so a UID must not repeat between
+-- two mailboxes. Seeded above every UID already handed out.
+CREATE TABLE IF NOT EXISTS user_uids (
+    user_address TEXT PRIMARY KEY,
+    last_uid     INTEGER NOT NULL
+);
+INSERT INTO user_uids (user_address, last_uid)
+SELECT user_address, MAX(uidnext) - 1 FROM mailboxes GROUP BY user_address
+ON CONFLICT (user_address) DO NOTHING;

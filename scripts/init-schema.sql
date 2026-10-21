@@ -48,6 +48,12 @@ CREATE TABLE mailboxes (
     UNIQUE(user_address, name)
 );
 
+-- one UID sequence per user across all of their mailboxes (migrate-051)
+CREATE TABLE user_uids (
+    user_address TEXT PRIMARY KEY,
+    last_uid INTEGER NOT NULL
+);
+
 CREATE TABLE messages (
     id BIGSERIAL PRIMARY KEY,
     mailbox_id BIGINT NOT NULL REFERENCES mailboxes(id) ON DELETE CASCADE,

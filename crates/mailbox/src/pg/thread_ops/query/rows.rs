@@ -23,8 +23,8 @@ pub struct ThreadQuery<'a> {
     pub scope: Scope,
     /// Only threads the user wrote into (the Sent view).
     pub sent: bool,
-    /// Archived threads instead of live ones.
-    pub archived: bool,
+    /// Archived threads (`Some(true)`), live ones (`Some(false)`), or both.
+    pub archived: Option<bool>,
     /// Only threads with unread mail.
     pub unread: bool,
     /// Only starred threads.
@@ -57,7 +57,7 @@ impl<'a> ThreadQuery<'a> {
             user,
             scope: Scope::All,
             sent: false,
-            archived: false,
+            archived: Some(false),
             unread: false,
             starred: false,
             held: Held::Hide,
@@ -238,7 +238,10 @@ impl PgMailboxStore {
         if category.is_some() {
             next += 1;
         }
-        let mut wheres = vec![scope_sql, format!("t.archived = {}", q.archived)];
+        let mut wheres = vec![scope_sql];
+        if let Some(archived) = q.archived {
+            wheres.push(format!("t.archived = {archived}"));
+        }
         match q.held {
             Held::Hide => wheres.push("NOT t.quarantined".into()),
             Held::Only => wheres.push("t.quarantined".into()),
