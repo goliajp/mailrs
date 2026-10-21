@@ -52,7 +52,7 @@ impl InMemoryAddressBookStore {
         }
     }
 
-    /// Append an address book owned by `owner`. Use [`make_book`] for a sane default shape.
+    /// Append an address book owned by `owner`. Use [`make_book`](super::make_book) for a sane default shape.
     pub fn with_book(self, owner: &str, book: AddressBook) -> Self {
         self.inner
             .write()

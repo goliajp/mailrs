@@ -3,8 +3,10 @@
 //! The sender process detects permanent failures but owns no maildir;
 //! fastcore owns delivery. Hand-off is a network-kevy queue:
 //!
-//!   LPUSH mailrs:bounce:pending <id>
-//!   HSET  mailrs:bounce:<id> recipient=<local sender> blob=<b64 DSN>
+//! ```text
+//! LPUSH mailrs:bounce:pending <id>
+//! HSET  mailrs:bounce:<id> recipient=<local sender> blob=<b64 DSN>
+//! ```
 //!
 //! fastcore's bounce drain (`spawn_bounce_drain`) pops ids, writes the
 //! DSN into the recipient's maildir and runs the normal ingest

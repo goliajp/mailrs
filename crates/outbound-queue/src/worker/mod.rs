@@ -2,10 +2,10 @@
 //! delivers to remote MX hosts.
 //!
 //! Sub-modules:
-//! - [`delivery`] — per-domain orchestration (MX resolve, retry/bounce,
+//! - `delivery` — per-domain orchestration (MX resolve, retry/bounce,
 //!   DSN enqueue).
-//! - [`smtp`] — per-MX SMTP delivery with STARTTLS / DANE policy
-//!   handling. [`TlsPolicy`] is re-exported from here.
+//! - `smtp` — per-MX SMTP delivery with STARTTLS / DANE policy
+//!   handling. [`TlsPolicy`](crate::worker::TlsPolicy) is re-exported from here.
 
 use std::collections::HashMap;
 use std::sync::Arc;

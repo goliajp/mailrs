@@ -34,7 +34,7 @@
 //! Out of scope (deliberate): S/MIME, OpenPGP/MIME, calendar
 //! invites (use [`mailrs-ical`]), DKIM signing (use
 //! [`mailrs-dkim`]), DSN formatting (use
-//! [`mailrs-outbound-queue::dsn`] — to be migrated onto this
+//! `mailrs-outbound-queue::dsn` — to be migrated onto this
 //! builder in ckpt 1).
 //!
 //! ## Status

@@ -4,10 +4,12 @@
 //! Data lives in the shared network kevy so the receiver can consult it
 //! without touching fastcore's embedded store:
 //!
-//!   mailrs:quota:<user>:limit_bytes   set by fastcore's set_quota RPC
-//!   mailrs:quota:<user>:used_bytes    maintained by the delivery paths
-//!                                     (spool drain, mirror send, IMAP
-//!                                     APPEND) and the backfill-usage tool
+//! ```text
+//! mailrs:quota:<user>:limit_bytes   set by fastcore's set_quota RPC
+//! mailrs:quota:<user>:used_bytes    maintained by the delivery paths
+//!                                   (spool drain, mirror send, IMAP
+//!                                   APPEND) and the backfill-usage tool
+//! ```
 //!
 //! Enforcement happens HERE and only here: once the receiver answers
 //! 250 the message is accepted and must never be dropped (deliverability

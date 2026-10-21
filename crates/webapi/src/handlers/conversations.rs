@@ -253,7 +253,7 @@ pub async fn get_conversations(
     Ok(Json(resp.items.into_iter().map(Into::into).collect()))
 }
 
-/// GET /api/conversations/categories — return bare Vec<CategoryCount>
+/// GET /api/conversations/categories — return bare `Vec<CategoryCount>`
 /// (monolith shape, not wrapped in `{"categories": [...]}`).
 pub async fn get_categories(
     State(state): State<Arc<WebState>>,
@@ -282,7 +282,7 @@ pub async fn list_sent_messages(
     Ok(Json(resp.items))
 }
 
-/// GET /api/conversations/{thread_id} — return Vec<ThreadMessageResponse>
+/// GET /api/conversations/{thread_id} — return `Vec<ThreadMessageResponse>`
 /// with monolith's exact wire shape (attachments, text_body, ...) so the
 /// React UI can safely reach into arrays without null-guards.
 pub async fn get_thread_messages(

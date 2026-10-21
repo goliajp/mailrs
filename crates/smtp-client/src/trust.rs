@@ -6,7 +6,7 @@
 
 use rustls::ClientConfig;
 
-/// Default PKIX client config used by [`SmtpConnection::try_starttls`]:
+/// Default PKIX client config used by [`SmtpConnection::try_starttls`](crate::SmtpConnection::try_starttls):
 /// `webpki-roots` trust store, no client auth, empty ALPN.
 pub fn default_pkix_client_config() -> ClientConfig {
     let mut config = ClientConfig::builder()

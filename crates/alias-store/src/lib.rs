@@ -1,8 +1,8 @@
 //! Backend-agnostic alias table trait.
 //!
-//! Fastcore uses [`mailrs_mailbox_kevy::KevyMailboxStore`] as an impl backed
+//! Fastcore uses `mailrs_mailbox_kevy::KevyMailboxStore` as an impl backed
 //! by embedded kevy; pg-core / monolith use the PG `aliases` table via
-//! [`mailrs_server::domain_store`]. Both mount the same `/v1/admin/aliases`
+//! `mailrs_server::domain_store`. Both mount the same `/v1/admin/aliases`
 //! contract from `mailrs_core_api::method::admin` so callers don't care.
 //!
 //! The trait is intentionally minimal: 4 methods, all sync `io::Result`.
@@ -17,7 +17,7 @@ use std::io;
 /// SMTP-layer lowercasing happens at the receiver's RCPT parser (that's
 /// where identity is defined); the store just persists what it's told.
 /// Cycle / self-alias handling belongs to the impl (kevy uses a hop cap
-/// + byte-eq self-loop guard, see [`mailrs_mailbox_kevy::KevyMailboxStore`]).
+/// + byte-eq self-loop guard, see `mailrs_mailbox_kevy::KevyMailboxStore`).
 pub trait AliasStore: Send + Sync {
     /// Resolve `address` through the alias chain. `Ok(Some(_))` = the
     /// terminal address; `Ok(None)` = no alias set (deliver to original,

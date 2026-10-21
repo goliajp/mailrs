@@ -49,7 +49,7 @@ const DEFAULT_DAYS: i64 = 30;
 /// Query for [`list_reports`].
 #[derive(Debug, Deserialize)]
 pub struct ListQuery {
-    /// Page size, clamped to [`MAX_LIMIT`].
+    /// Page size, clamped to `MAX_LIMIT`.
     pub limit: Option<usize>,
 }
 
@@ -58,7 +58,7 @@ pub struct ListQuery {
 pub struct SourcesQuery {
     /// Restrict to one policy domain. Omit for all domains.
     pub domain: Option<String>,
-    /// Lookback window in days. Defaults to [`DEFAULT_DAYS`].
+    /// Lookback window in days. Defaults to `DEFAULT_DAYS`.
     pub days: Option<i64>,
 }
 

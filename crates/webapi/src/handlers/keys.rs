@@ -3,9 +3,11 @@
 //!
 //! Storage layout on network kevy:
 //!
-//!   encryption_keys:<addr>       hash
-//!     pgp                        JSON { public_key, fingerprint, created_at }
-//!     smime                      JSON { public_key, fingerprint, created_at }
+//! ```text
+//! encryption_keys:<addr>       hash
+//!   pgp                        JSON { public_key, fingerprint, created_at }
+//!   smime                      JSON { public_key, fingerprint, created_at }
+//! ```
 //!
 //! Matches the monolith surface at `crates/server/src/web/mail/keys.rs`
 //! bit-for-bit — only the storage backend differs.

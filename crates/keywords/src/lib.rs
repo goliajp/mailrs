@@ -11,7 +11,7 @@
 //!
 //! so `1786650987.M1P1.host:2,Sab` is seen, archived and pinned. That is
 //! Dovecot's `dovecot-keywords`, unchanged, for the same reason
-//! [`mailrs_uidlist`] keeps Dovecot's uidlist format: interoperating is
+//! `mailrs_uidlist` keeps Dovecot's uidlist format: interoperating is
 //! free and the format has already met the edge cases.
 //!
 //! # Why these facts are here rather than in the index
@@ -35,7 +35,7 @@ use std::path::{Path, PathBuf};
 
 /// The file's name inside a mailbox directory.
 ///
-/// Not `dovecot-keywords`, for the reason [`mailrs_uidlist`] is not
+/// Not `dovecot-keywords`, for the reason `mailrs_uidlist` is not
 /// `dovecot-uidlist`: the format is Dovecot's, the file is mailrs's.
 pub const FILE_NAME: &str = "mailrs-keywords";
 
