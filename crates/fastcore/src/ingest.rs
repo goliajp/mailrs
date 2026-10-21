@@ -277,6 +277,40 @@ four days on, still blocked\r\n";
         );
     }
 
+    /// A reply that changes the subject is a new conversation, and the old
+    /// one keeps its subject. The fallback after the subject rule used to
+    /// name the ancestor's thread again through In-Reply-To.
+    #[test]
+    fn a_reply_that_changes_the_subject_starts_its_own_conversation() {
+        const NEW_TOPIC: &[u8] = b"From: Alice <alice@example.com>\r\n\
+To: bob@golia.jp\r\n\
+Subject: Annual closing\r\n\
+Message-ID: <m2@example.com>\r\n\
+In-Reply-To: <m1@example.com>\r\n\
+Date: Tue, 5 Aug 2026 10:00:00 +0900\r\n\
+\r\n\
+another matter\r\n";
+        let state = fresh_state();
+        let user = "bob@golia.jp";
+        ingest_delivered_file(&state, user, "m1.eml", MESSAGE, "INBOX", None);
+        ingest_delivered_file(&state, user, "m2.eml", NEW_TOPIC, "INBOX", None);
+
+        let old = state
+            .mailbox
+            .get_thread_for_user(user, "m1@example.com")
+            .expect("thread read")
+            .expect("the first thread exists");
+        assert_eq!(old.subject, "Quarterly report");
+        assert!(
+            state
+                .mailbox
+                .get_thread_for_user(user, "m2@example.com")
+                .expect("thread read")
+                .is_some(),
+            "the new topic did not get a conversation of its own"
+        );
+    }
+
     /// And ordinary mail says nothing about calendars — otherwise the
     /// assertion above passes on a field that is simply always set.
     #[test]
