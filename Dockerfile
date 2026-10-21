@@ -174,22 +174,14 @@ RUN setcap 'cap_net_bind_service=+ep' /usr/local/bin/mailrs-receiver
 RUN mkdir -p /data/maildir /data/acme /certs && chown -R mailrs:mailrs /data
 
 # default env vars
-# NB: MAILRS_KEVY_URL is intentionally NOT set. Phase C (v1.7.95+) runs
-# kevy in-process (MAILRS_KEVY_DATA_DIR); there is no network kevy
-# container. Set MAILRS_KEVY_URL only in the receiver-split topology (P6)
-# when a real shared kevy-server is deployed — and use a kevy://host:port
-# URL, not redis://. Leaving it unset keeps the anti subsystems
-# (greylist / rate / auth-guard) on their correct in-process backends.
+# MAILRS_KEVY_URL is not set here: the compose file gives each process the
+# shared kevy-server (kevy://kevy-server:6379), and a process started
+# without one has no session, queue or side-state store to run against.
 ENV MAILRS_HOSTNAME=mx.mailrs.local \
     MAILRS_MAILDIR=/data/maildir \
     MAILRS_PORT=25 \
     MAILRS_SUBMISSION_PORT=587 \
     MAILRS_SMTPS_PORT=465 \
-    MAILRS_IMAP_PORT=143 \
-    MAILRS_IMAPS_PORT=993 \
-    MAILRS_POP3_PORT=110 \
-    MAILRS_WEB_PORT=3100 \
-    MAILRS_PG_URL=postgres://mailrs:mailrs@postgres:5432/mailrs \
     MAILRS_WEB_STATIC_DIR=/opt/mailrs/web \
     MAILRS_ACME_DIR=/data/acme
 
