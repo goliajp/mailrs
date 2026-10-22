@@ -92,25 +92,22 @@ pub(crate) fn extract_header_value(data: &[u8], name: &str) -> String {
     String::new()
 }
 
-/// read raw message bytes from maildir
+/// The body a row's `maildir_id` names: its blob ref under the user's
+/// maildir, the bare file name in INBOX or `.Name/<file>` in a subfolder.
+/// `None` when the file is gone.
 pub(crate) fn read_raw_from_maildir(
     maildir_root: &str,
     user: &str,
     maildir_id: &str,
-) -> Option<Vec<u8>> {
-    let (local, domain) = user.split_once('@')?;
-    let path = format!("{maildir_root}/{domain}/{local}");
-    let md = mailrs_maildir::Maildir::open(&path);
-
-    let find_in = |entries: Vec<mailrs_maildir::Entry>| -> Option<Vec<u8>> {
-        entries
-            .into_iter()
-            .find(|e| e.id.to_string() == maildir_id)
-            .and_then(|e| std::fs::read(&e.path).ok())
+) -> std::io::Result<Option<Vec<u8>>> {
+    let Some((local, domain)) = user.split_once('@') else {
+        return Ok(None);
     };
-
-    find_in(md.scan_cur().unwrap_or_default())
-        .or_else(|| find_in(md.scan_new().unwrap_or_default()))
+    let root = std::path::Path::new(maildir_root).join(domain).join(local);
+    match mailrs_maildir::locate(root, maildir_id) {
+        Some((dir, id)) => dir.fetch(&id),
+        None => Ok(None),
+    }
 }
 
 #[cfg(test)]

@@ -4,6 +4,7 @@
 
 mod acme;
 mod ai_analyzer;
+mod body;
 mod boot;
 mod bootstrap;
 mod config;

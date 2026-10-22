@@ -71,7 +71,7 @@ impl Client {
 }
 
 /// The words of the response code `code` in `reply`.
-fn code<'a>(reply: &'a str, code: &str) -> Option<Vec<&'a str>> {
+pub(super) fn code<'a>(reply: &'a str, code: &str) -> Option<Vec<&'a str>> {
     let at = reply.find(code)? + code.len();
     let end = reply[at..].find(']')? + at;
     Some(reply[at..end].split(' ').collect())
