@@ -36,17 +36,17 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "logg
 mailrs-core-sidestate = { path = "../core-sidestate" }
 mailrs-fraud = { path = "../fraud", version = "0" }
 mailrs-fraud-lua = { path = "../fraud-lua", version = "0" }
-mailrs-inbound = { path = "../inbound", version = "1" }
+mailrs-inbound = { path = "../inbound", version = "2" }
 mailrs-bayes = { path = "../bayes" }
 # the spam corpus keys the scorer reads, defined where training writes them
 mailrs-triage = { path = "../triage" }
 mailrs-rfc5322 = { path = "../rfc5322", version = "1" }
-mailrs-shield = { path = "../shield", version = "3", default-features = false, features = ["store"] }
+mailrs-shield = { path = "../shield", version = "4", default-features = false, features = ["store"] }
 mailrs-dmarc = { path = "../dmarc", version = "2", default-features = false }
-mailrs-spf = { path = "../spf", version = "2" }
+mailrs-spf = { path = "../spf", version = "3" }
 mailrs-dkim = { path = "../dkim", version = "3" }
 mailrs-arc = { path = "../arc", version = "3" }
-mailrs-intelligence = { path = "../intelligence", version = "3" }
+mailrs-intelligence = { path = "../intelligence", version = "4" }
 mailrs-auth-guard = { path = "../auth-guard", version = "2" }
 mailrs-rate-limit = { path = "../rate-limit", version = "1" }
 mailrs-clamav = { path = "../clamav", version = "1" }

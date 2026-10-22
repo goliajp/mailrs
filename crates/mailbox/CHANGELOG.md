@@ -7,15 +7,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-22
+
+### Changed
+
+- **Breaking:** the deprecated `LegacyMailboxStore` alias is removed.
+  Migration: use `PgMailboxStore`, which it named.
+- **Breaking:** `ConversationSummary` has two new public fields,
+  `snoozed_until` (epoch seconds this reader snoozed the thread until,
+  `0` when not snoozed) and `quarantined` (held for review). Migration:
+  code that builds it with a struct literal sets both (`0`, `false`).
+- **Breaking:** `PgMailboxStore::copy_message` and
+  `PgMailboxStore::move_message` take a sixth argument,
+  `body: Option<&str>`, the copy's own `maildir_id`. Migration: pass
+  `None` to keep the source's, as before.
+- **Breaking:** the conversation-list, search, contact and lookup
+  queries are removed from `PgMailboxStore`: `list_conversations`,
+  `list_conversation_categories`, `get_conversations_by_thread_ids`,
+  `search_conversations`, `semantic_search`, `search_contacts`,
+  `count_action_threads`, `dismiss_thread_action`, `count_messages`,
+  `count_unseen`, `get_message_by_db_id`, `get_message_id_by_maildir`,
+  `get_invite_methods`, `get_email_analysis`, `update_bimi_logo`,
+  `get_thread_references`, `get_thread_message_ids`,
+  `get_thread_maildir_ids`, `get_last_message_id_in_thread`, and the
+  contact operations `upsert_contact_inbound`, `upsert_contact_outbound`,
+  `get_contact_for_scoring`, `has_sent_to`, `mark_contact_mutual`,
+  `record_sender_feedback` with their `ContactInfo` type. Migration:
+  list and page conversations with `thread_rows(&ThreadQuery)`, search
+  with `search_thread_ids`, and read a thread's messages with
+  `thread_raw_messages`; the contact store is no longer part of this
+  crate.
+- **Breaking:** `append_message`, `index_messages_batch` and
+  `IndexRecord` are removed. Migration: deliver with
+  `record_arrival(InsertMessage, ArrivalFacts)`, which also records the
+  preview, sender verdict and category.
+- **Breaking:** `PgMailboxStore` expects the current mailrs schema,
+  which adds the `user_uids`, `fraud_verdicts` and `quarantine_holds`
+  tables (see `scripts/init-schema.sql` in the repository). A UID is now
+  unique across all of a user's mailboxes, not only within one.
+  Migration: apply the schema migrations before upgrading.
+- `PgMailboxStore` and the `sqlx` dependency are behind a new `pg`
+  feature, on by default. With `default-features = false` the crate is
+  the `MailboxStore` trait, its types and the threading helpers, with no
+  SQL driver. `spg` now implies `pg`.
+- Message bodies are found through `mailrs_maildir::locate`, so a row
+  whose `maildir_id` names a subfolder (`.Name/<file>`) reads from that
+  folder.
+
 ### Added
 
-- `pg` feature (on by default) gating `PgMailboxStore` and the `sqlx`
-  dependency. With `default-features = false` the crate is the
-  `MailboxStore` trait, its types and the threading helpers, with no SQL
-  driver. `spg` now implies `pg`.
-- `ConversationSummary::snoozed_until` (epoch seconds, `0` when not
-  snoozed). **Breaking** for code that builds `ConversationSummary` with
-  a struct literal.
+- `scope` module: the triage `Bucket`s (`bucket_of`, `CATEGORY_BUCKETS`,
+  `NON_JUNK`), `Scope` and `scope(folder, category)` for reconciling a
+  view's folder and category, `is_sent_folder`, and `ThreadFacts` with
+  `Scope::admits` — one rule for which conversations a view shows.
+- `participants::union`: a thread's participants in the order their mail
+  arrived, each once.
+- `PgMailboxStore::thread_rows` and `ThreadQuery` / `Held` (how a view
+  treats conversations held for review), `search_thread_ids`,
+  `thread_raw_messages`, `thread_display_subject`, `sent_messages`.
+- `PgMailboxStore::record_arrival` with `ArrivalFacts`.
+- Filing and review: `file_thread(user, thread, Bucket)`,
+  `hold_thread`, `release_thread`, `record_fraud_verdict`,
+  `fraud_verdict`, `mark_rows_read(&ThreadQuery)`, `mark_all_read`.
+- `PgMailboxStore::expunge_uids(mailbox_id, uids)`: deletes those of
+  `uids` that carry `\Deleted` and returns them (IMAP `UID EXPUNGE`).
 - `PgMailboxStore::wake_snoozed()`: un-archives snoozed threads whose
   time has come; returns the number woken.
 

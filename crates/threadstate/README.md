@@ -31,6 +31,21 @@ decides which value wins, not `at`: appends are ordered by construction
 and wall clocks are not. `at` is recorded for people reading the log and
 is never compared.
 
+## Example
+
+```rust,no_run
+use mailrs_threadstate::Record;
+
+let dir = std::path::Path::new("/var/mail/alice");
+let mut record = Record::new("t-0@x", 1786650987);
+record.snoozed_until = Some(1786700000);
+mailrs_threadstate::append(dir, &record)?;
+
+let state = mailrs_threadstate::read(dir)?;
+assert_eq!(state.get("t-0@x").and_then(|r| r.snoozed_until), Some(1786700000));
+# Ok::<(), std::io::Error>(())
+```
+
 ## API
 
 - `Record::new(tid, at)` plus its optional fields.

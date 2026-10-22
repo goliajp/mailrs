@@ -15,12 +15,12 @@
 #![deny(rustdoc::broken_intra_doc_links)]
 
 pub mod fixtures;
-/// Which conversations a view shows: triage buckets and the scope a
-/// request's folder and category reconcile to, shared by every store.
 /// Who a conversation is with, in the order the mail arrived.
 pub mod participants;
 #[cfg(feature = "pg")]
 pub mod pg;
+/// Which conversations a view shows: triage buckets and the scope a
+/// request's folder and category reconcile to, shared by every store.
 pub mod scope;
 /// Portable [`MailboxStore`] trait — the IMAP/JMAP-shaped abstraction
 /// backend implementations must satisfy.
@@ -45,12 +45,3 @@ pub use types::{
 // `&dyn MailboxStore` and avoid touching the PG-specific re-exports below.
 #[cfg(feature = "pg")]
 pub use pg::{EmailAnalysisInput, PgMailboxStore};
-
-/// Back-compat alias for the legacy struct name. Prefer [`PgMailboxStore`]
-/// in new code. Will be removed in 2.0.
-#[cfg(feature = "pg")]
-#[deprecated(
-    since = "1.0.0",
-    note = "renamed to `PgMailboxStore` to make room for the new `MailboxStore` trait"
-)]
-pub type LegacyMailboxStore = PgMailboxStore;

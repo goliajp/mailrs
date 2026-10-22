@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-10-22
+
+### Changed
+
+- **Breaking:** the `kevy-cache` feature now depends on `kevy-embedded`
+  6 (was 4). `KevySpamCache::new` takes a `kevy_embedded::Store` from
+  that version. Migration: depend on `kevy-embedded = "6"` and pass a
+  store opened with it; the method signature is otherwise unchanged.
+
 ## [3.1.0] - 2026-08-04
 
 ### Added

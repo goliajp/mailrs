@@ -24,7 +24,7 @@ mailrs-apns = { path = "../apns", version = "1" }
 mailrs-bayes = { path = "../bayes" }
 mailrs-clean = { path = "../clean" }
 mailrs-ical = { path = "../ical", version = "2", features = ["mime"] }
-mailrs-inbound = { path = "../inbound", version = "1" }
+mailrs-inbound = { path = "../inbound", version = "2" }
 mailrs-intelligence = { path = "../intelligence" }
 # the threading helpers only; the SQL store stays out
 mailrs-mailbox = { path = "../mailbox", default-features = false }

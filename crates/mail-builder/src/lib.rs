@@ -33,16 +33,7 @@
 //!
 //! Out of scope (deliberate): S/MIME, OpenPGP/MIME, calendar
 //! invites (use [`mailrs-ical`]), DKIM signing (use
-//! [`mailrs-dkim`]), DSN formatting (use
-//! `mailrs-outbound-queue::dsn` — to be migrated onto this
-//! builder in ckpt 1).
-//!
-//! ## Status
-//!
-//! 0.1 — initial MVP. The API is intentionally narrow to match
-//! the three internal mailrs use cases (DSN, DMARC report, future
-//! TLS-RPT). Wider API surface lands in 1.0 after the deliverability
-//! hardening pass (ckpt 2 in the v8 RFC).
+//! [`mailrs-dkim`]), DSN formatting (use `mailrs-outbound-queue`).
 //!
 //! [`mailrs-rfc5322`]: https://crates.io/crates/mailrs-rfc5322
 //! [`mailrs-rfc2047`]: https://crates.io/crates/mailrs-rfc2047
