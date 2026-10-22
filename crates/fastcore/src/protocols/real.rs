@@ -77,8 +77,6 @@ impl RealAccount {
 
     pub(crate) fn copy(&self, m: &Message<PathBuf>, to: &FcMailbox) -> Result<Filed> {
         let uid = backend::copy_to(&self.state, &self.user, &to_imap(m), to)?;
-        // COPY duplicates the bytes under the same account
-        crate::live_sync::adjust_usage_bytes(&self.user, m.size as i64);
         Ok(self.filed(to, uid))
     }
 
@@ -91,8 +89,7 @@ impl RealAccount {
         to: &FcMailbox,
     ) -> Result<Filed> {
         let msg = to_imap(m);
-        let uid = backend::copy_to(&self.state, &self.user, &msg, to)?;
-        backend::delete_file(&msg)?;
+        let uid = backend::move_to(&self.state, &self.user, &msg, to)?;
         let ms = backend::bump_modseq(&self.state, &self.user);
         backend::record_vanished(&self.state, &self.user, &from.name, m.uid, ms);
         Ok(self.filed(to, uid))
@@ -101,9 +98,8 @@ impl RealAccount {
     pub(crate) fn expunge(&self, mailbox: &FcMailbox, doomed: &[Message<PathBuf>]) -> Expunged {
         let mut out = Expunged::default();
         for m in doomed {
-            match std::fs::remove_file(&m.key) {
+            match backend::remove_message(&self.user, &to_imap(m)) {
                 Ok(()) => {
-                    crate::live_sync::adjust_usage_bytes(&self.user, -(m.size as i64));
                     let ms = backend::bump_modseq(&self.state, &self.user);
                     backend::record_vanished(&self.state, &self.user, &mailbox.name, m.uid, ms);
                 }
