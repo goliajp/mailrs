@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.0.0] - 2026-10-22
+
+### Removed
+
+- **Breaking:** the PostgreSQL cold backup behind `GreylistDb`:
+  `GreylistDb::with_pg`, `BackendPool`, and the `pg` / `spg` features. The
+  default features are now just `kevy-store`, and the crate no longer
+  depends on `sqlx`. Migration: if you need the first-seen times to
+  survive a lost store, make your `GreylistBackend` durable.
+
+### Added
+
+- `greylist::check_greylist_backend`, an executable contract for
+  `GreylistBackend` implementations.
+- `EmbeddedGreylistBackend::new`.
+
 ## [4.0.0] - 2026-10-22
 
 ### Changed

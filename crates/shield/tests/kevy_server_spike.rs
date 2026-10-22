@@ -28,6 +28,8 @@
 //! in-process store can't be made "unreachable" to exercise it cleanly, so
 //! it belongs with the stage's own tests, not this foundation spike.
 
+#![cfg(feature = "kevy-store")]
+
 use std::time::{Duration, Instant};
 
 use kevy_embedded::{Config, PubsubFrame, Store, Subscription};
