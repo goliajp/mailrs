@@ -8,6 +8,7 @@ mod commands;
 mod fetch;
 mod fetch_items;
 mod flags;
+mod folders;
 mod idle;
 mod mailbox;
 mod query;

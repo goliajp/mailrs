@@ -8,6 +8,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::append::append_flow;
 use super::fetch::fetch_response;
+use super::folders::{fixed, subscription};
 use super::idle::idle_flow;
 use super::mailbox::{close, list_response, select, unselect};
 use super::query::{copy_response, quota_response, search_response, sort_response};
@@ -64,6 +65,15 @@ where
         }
         ImapCommand::List { pattern, .. } => list_response(session, tag, &pattern, "LIST").await,
         ImapCommand::Lsub { pattern, .. } => list_response(session, tag, &pattern, "LSUB").await,
+        ImapCommand::Create { .. } | ImapCommand::Delete { .. } | ImapCommand::Rename { .. } => {
+            fixed(session, tag)
+        }
+        ImapCommand::Subscribe { mailbox } => {
+            subscription(session, tag, &mailbox, "SUBSCRIBE").await
+        }
+        ImapCommand::Unsubscribe { mailbox } => {
+            subscription(session, tag, &mailbox, "UNSUBSCRIBE").await
+        }
         ImapCommand::Status { mailbox, items } => {
             status_response(session, tag, &mailbox, &items).await
         }
