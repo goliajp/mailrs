@@ -112,7 +112,6 @@ pub(super) async fn start_on(fastcore_url: &str, pg_core_url: &str) -> Cores {
         domain: Arc::new(crate::domain_store::DomainStore::new(
             Some(pool.clone()),
             None,
-            crate::health::HealthState::new(),
         )),
         pool,
         maildir_root: maildir.path().to_string_lossy().into_owned(),

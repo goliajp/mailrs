@@ -10,14 +10,13 @@
 //! `scripts/check-core-parity.sh`. It moved out of Rust because every way
 //! it had rotted came from being in Rust behind a feature: it named both
 //! router files by path (both had moved, and one path did not exist at
-//! all), and it only compiled under `--features core-rpc`, which nothing
-//! built after 2026-08-02. The script finds the routers by content and
+//! all), and it only compiled under a cargo feature nothing built after
+//! 2026-08-02. The script finds the routers by content and
 //! runs in the everyday gate.
 
 #![cfg(test)]
 
 mod contract;
-mod peer_roles;
 mod pg_core;
 mod real_pg_sync;
 mod round_trip;

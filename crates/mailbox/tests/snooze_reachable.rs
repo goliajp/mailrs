@@ -23,7 +23,7 @@
 mod common;
 
 use common::{seed_domain_account, seed_mailbox, setup_pg};
-use mailrs_mailbox::pg::PgMailboxStore;
+use mailrs_mailbox::pg::{PgMailboxStore, ThreadQuery};
 
 const USER: &str = "sleeper@snooze.test";
 const AWAKE: &str = "awake-thread";
@@ -52,9 +52,12 @@ async fn deliver(pool: &mailrs_mailbox::pg::BackendPool, mailbox_id: i64, uid: i
 
 async fn thread_ids(store: &PgMailboxStore, archived: bool) -> Vec<String> {
     store
-        .list_conversations(USER, 50, None, None, None, archived, None, None, None, None)
+        .thread_rows(&ThreadQuery {
+            archived: Some(archived),
+            ..ThreadQuery::all(USER)
+        })
         .await
-        .expect("list_conversations")
+        .expect("thread_rows")
         .into_iter()
         .map(|c| c.thread_id)
         .collect()

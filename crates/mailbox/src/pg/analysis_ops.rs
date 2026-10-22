@@ -44,39 +44,6 @@ pub struct EmailAnalysisInput<'a> {
 }
 
 impl PgMailboxStore {
-    /// get analysis result for a message
-    pub async fn get_email_analysis(
-        &self,
-        message_id: i64,
-    ) -> Result<Option<crate::types::EmailAnalysisRow>, sqlx::Error> {
-        let row = sqlx::query_as::<_, (i64, String, i16, String, String, serde_json::Value, serde_json::Value, serde_json::Value, serde_json::Value, String, String, bool, String, Option<String>)>(
-            "SELECT message_id, category, risk_score, risk_reason, summary, people, dates, amounts, action_items, model_version,
-                    COALESCE(clean_text, ''), COALESCE(requires_action, false), COALESCE(sender_intent, 'inform'),
-                    action_deadline::text
-             FROM email_analysis WHERE message_id = $1",
-        )
-        .bind(message_id)
-        .fetch_optional(&self.pool)
-        .await?;
-
-        Ok(row.map(|r| crate::types::EmailAnalysisRow {
-            message_id: r.0,
-            category: r.1,
-            risk_score: r.2,
-            risk_reason: r.3,
-            summary: r.4,
-            people: r.5,
-            dates: r.6,
-            amounts: r.7,
-            action_items: r.8,
-            model_version: r.9,
-            clean_text: r.10,
-            requires_action: r.11,
-            sender_intent: r.12,
-            action_deadline: r.13,
-        }))
-    }
-
     /// Upsert AI analysis result for a message. Takes [`EmailAnalysisInput`]
     /// to keep call sites readable — the underlying table has 16 columns.
     pub async fn upsert_email_analysis(

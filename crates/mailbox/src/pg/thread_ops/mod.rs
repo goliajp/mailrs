@@ -1,8 +1,8 @@
 //! Thread / conversation operations on [`PgMailboxStore`].
 //!
 //! Sub-modules:
-//! - [`query`] — conversation-list SELECTs (`list_conversations`,
-//!   `get_conversations_by_thread_ids`).
+//! - [`query`] — the per-thread rows every conversation view reads
+//!   (`thread_rows`).
 //! - [`mutate`] — flag/state mutations (mark read/unread, star, pin,
 //!   archive, snooze, delete).
 //! - [`filing`] — filing into a bucket, marking many as read, the sent list.
@@ -163,90 +163,5 @@ impl PgMailboxStore {
         let rows = query.fetch_all(&self.pool).await?;
 
         Ok(rows.into_iter().map(row_to_message_meta_from_row).collect())
-    }
-
-    /// get all message-ids in the thread that contains the given message_id,
-    /// ordered by date (for building RFC 5322 References header)
-    pub async fn get_thread_references(
-        &self,
-        user: &str,
-        message_id: &str,
-    ) -> Result<Vec<String>, sqlx::Error> {
-        // first find the thread_id
-        let thread_id_row = sqlx::query_as::<_, (String,)>(
-            "SELECT m.thread_id FROM messages m
-             JOIN mailboxes mb ON m.mailbox_id = mb.id
-             WHERE mb.user_address = $1 AND m.message_id = $2 AND m.thread_id != ''
-             LIMIT 1",
-        )
-        .bind(user)
-        .bind(message_id)
-        .fetch_optional(&self.pool)
-        .await?;
-
-        let thread_id = match thread_id_row {
-            Some(r) => r.0,
-            None => return Ok(vec![message_id.to_string()]),
-        };
-
-        // get all distinct message_ids in this thread, ordered by date
-        let rows = sqlx::query_as::<_, (String,)>(
-            "SELECT DISTINCT m.message_id
-             FROM messages m JOIN mailboxes mb ON m.mailbox_id = mb.id
-             WHERE mb.user_address = $1 AND m.thread_id = $2 AND m.message_id != ''
-             ORDER BY m.message_id",
-        )
-        .bind(user)
-        .bind(&thread_id)
-        .fetch_all(&self.pool)
-        .await?;
-
-        let ids: Vec<String> = rows.into_iter().map(|r| r.0).collect();
-        if ids.is_empty() {
-            Ok(vec![message_id.to_string()])
-        } else {
-            Ok(ids)
-        }
-    }
-
-    /// get the message_id of the last message in a thread (by internal_date)
-    pub async fn get_last_message_id_in_thread(
-        &self,
-        user: &str,
-        thread_id: &str,
-    ) -> Result<Option<String>, sqlx::Error> {
-        let row = sqlx::query_as::<_, (String,)>(
-            "SELECT m.message_id FROM messages m
-             JOIN mailboxes mb ON m.mailbox_id = mb.id
-             WHERE mb.user_address = $1 AND m.thread_id = $2 AND m.message_id != ''
-             ORDER BY m.internal_date DESC
-             LIMIT 1",
-        )
-        .bind(user)
-        .bind(thread_id)
-        .fetch_optional(&self.pool)
-        .await?;
-
-        Ok(row.map(|r| r.0))
-    }
-
-    /// get all message_ids in a thread ordered by date (for References header)
-    pub async fn get_thread_message_ids(
-        &self,
-        user: &str,
-        thread_id: &str,
-    ) -> Result<Vec<String>, sqlx::Error> {
-        let rows = sqlx::query_as::<_, (String,)>(
-            "SELECT DISTINCT m.message_id
-             FROM messages m JOIN mailboxes mb ON m.mailbox_id = mb.id
-             WHERE mb.user_address = $1 AND m.thread_id = $2 AND m.message_id != ''
-             ORDER BY m.message_id",
-        )
-        .bind(user)
-        .bind(thread_id)
-        .fetch_all(&self.pool)
-        .await?;
-
-        Ok(rows.into_iter().map(|r| r.0).collect())
     }
 }

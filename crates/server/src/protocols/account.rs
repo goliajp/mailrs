@@ -16,8 +16,10 @@ use super::PgDirectory;
 use super::watch::BusWatch;
 use crate::domain_store::DomainStore;
 use crate::event_bus::EventBus;
-use crate::message_store::{MessageId, MessageStore};
+use crate::message_store::MessageStore;
 use crate::sieve_store;
+
+mod filing;
 
 /// What a user may store when the account row names no quota.
 const DEFAULT_QUOTA: u64 = 1 << 30;
@@ -37,7 +39,7 @@ fn store<E: std::fmt::Display>(e: E) -> Error {
 }
 
 /// The copy of `m` in `to`; `None` when `m` was gone.
-fn filed(to: &Mailbox, uid: Option<u32>, m: &Message<String>) -> Result<Filed> {
+pub(super) fn filed(to: &Mailbox, uid: Option<u32>, m: &Message<String>) -> Result<Filed> {
     let uid = uid.ok_or_else(|| Error::Store(format!("message {} is gone", m.uid)))?;
     Ok(Filed {
         uidvalidity: to.uidvalidity,
@@ -68,15 +70,6 @@ impl PgAccount {
             maildir_root: dir.maildir_root.clone(),
             net_url: dir.net_url.clone(),
         }
-    }
-
-    /// The user's Maildir, which holds the bodies of every folder.
-    fn maildir(&self) -> Result<String> {
-        let (local, domain) = self
-            .user
-            .split_once('@')
-            .ok_or_else(|| Error::Store(format!("{} is not an address", self.user)))?;
-        Ok(format!("{}/{domain}/{local}", self.maildir_root))
     }
 
     /// INBOX first, then by name, as fastcore lists them.
@@ -148,8 +141,8 @@ impl Account for PgAccount {
     }
 
     async fn read(&self, message: &Message<String>) -> Result<Option<Vec<u8>>> {
-        let id = MessageId(message.key.clone());
-        Ok(self.message_store.fetch(&self.maildir()?, &id).await?)
+        let store = self.message_store.as_ref();
+        Ok(crate::body::read(store, &self.maildir_root, &self.user, &message.key).await?)
     }
 
     async fn store_flags(
@@ -167,37 +160,28 @@ impl Account for PgAccount {
     }
 
     async fn copy(&self, from: &Mailbox, m: &Message<String>, to: &Mailbox) -> Result<Filed> {
-        let copied = self
-            .mailbox
-            .copy_message(&self.user, from.id, m.uid, &to.name)
-            .await
-            .map_err(store)?;
-        filed(to, copied, m)
+        self.file(from, m, to, false).await
     }
 
     async fn move_to(&self, from: &Mailbox, m: &Message<String>, to: &Mailbox) -> Result<Filed> {
-        let moved = self
-            .mailbox
-            .move_message(&self.user, from.id, m.uid, &to.name)
-            .await
-            .map_err(store)?;
-        filed(to, moved, m)
+        self.file(from, m, to, true).await
     }
 
-    /// The rows of `doomed` go, and no others; the bodies stay: a copy
-    /// shares its body file.
+    /// The rows of `doomed` go, and no others, and each takes its body with
+    /// it: every row has a body of its own.
     async fn expunge(&self, mailbox: &Mailbox, doomed: &[Message<String>]) -> Expunged {
         let uids: Vec<u32> = doomed.iter().map(|m| m.uid).collect();
-        match self.mailbox.expunge_uids(mailbox.id, &uids).await {
-            Ok(removed) => Expunged {
-                removed,
-                failed: None,
-            },
-            Err(e) => Expunged {
-                removed: Vec::new(),
-                failed: Some(store(e)),
-            },
-        }
+        let removed = match self.mailbox.expunge_uids(mailbox.id, &uids).await {
+            Ok(removed) => removed,
+            Err(e) => {
+                return Expunged {
+                    removed: Vec::new(),
+                    failed: Some(store(e)),
+                };
+            }
+        };
+        let failed = self.remove_bodies(doomed, &removed).await.err();
+        Expunged { removed, failed }
     }
 
     /// The uid, which a message keeps for as long as it is in INBOX.
@@ -210,26 +194,18 @@ impl Account for PgAccount {
             .add_flags(mailbox.id, m.uid, FLAG_DELETED)
             .await
             .map_err(store)?;
-        self.mailbox
+        let removed = self
+            .mailbox
             .expunge_uids(mailbox.id, &[m.uid])
             .await
             .map_err(store)?;
-        Ok(())
+        self.remove_bodies(std::slice::from_ref(m), &removed).await
     }
 
     async fn append(&self, mailbox: &Mailbox, bytes: Vec<u8>, flags: Vec<Flag>) -> Result<Filed> {
-        let (uid, _) = crate::message_store::deliver_and_index(
-            self.message_store.as_ref(),
-            &self.mailbox,
-            &self.user,
-            &mailbox.name,
-            &self.maildir_root,
-            &bytes,
-            maildir_flags_to_bitmask(&flags),
-            chrono::Utc::now().timestamp(),
-        )
-        .await
-        .map_err(Error::Store)?;
+        let uid = self
+            .deliver(mailbox, &bytes, maildir_flags_to_bitmask(&flags))
+            .await?;
         Ok(Filed {
             uidvalidity: mailbox.uidvalidity,
             uid,

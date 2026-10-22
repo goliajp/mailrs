@@ -15,7 +15,9 @@ cargo bench -p mailrs-<crate>
 
 These were measured on the single-process server that preceded the
 deployed four-process stack; they are kept as the record of those
-changes, not as numbers for the current processes.
+changes, not as numbers for the current processes. That server, its
+`smtp_load` bench and the `release-vanilla` profile have since been
+removed, so the run commands no longer apply.
 
 | Path | Measurement | Run command |
 |---|---|---|
@@ -110,7 +112,6 @@ exists only inside a full MTA/server, not as a consumable library.
 | mailbox | Dovecot lib-storage (monolith) | KDE Akonadi | mox/store; maddy/storage | stdlib + Modoboa/Mailman | — |
 | inbound | **libmilter** (closest analogue) | — | **maddy/msgpipeline** (closest mirror) | **Salmon** | mail-os (monolith) |
 | shield | postgrey (Perl); rspamd (monolith C) | rspamd | maddy/check + mox/junk (bayesian) | — (SpamAssassin is Perl) | — |
-| postmaster | — (checkdmarc / internet.nl as services) | — | mox check (CLI) | — (bespoke) | — |
 | intelligence | — (LLM-era, no precedent) | — | — | — | — |
 | clean | libtidy (partial overlap) | gumbo-parser; KDE messagelib sanitizer | **bluemonday** (canonical Go) | **nh3** (Rust-backed via PyO3) | — |
 | delivery-executor | Postfix/Dovecot deliver (monolith) | Dovecot LDA | mox; maddy/target | Mailman 3 outgoing runner | — |
@@ -174,7 +175,7 @@ which excludes upstream deps unlike `target/release/deps/`).
 |---|---|---:|
 | **Tiny** (≤50 KB, 9 crates) | imap_codec, rfc2231, srs, backoff, webhook_signature, rfc2047, smtp_codec, sieve, rfc5322 | 20–39 KB |
 | **Small** (50–110 KB, 11 crates) | arf, attachment_extract, auth_guard, clamav, shield, maildir, rate_limit, tls_reload, mime (97), delivery_executor, imap_format | 56–108 KB |
-| **Medium** (110–500 KB, 10 crates) | mta_sts, dnsbl, inbound, imap_proto, smtp_proto, postmaster, arc, ical, dav, clean | 117–496 KB |
+| **Medium** (110–500 KB, 9 crates) | mta_sts, dnsbl, inbound, imap_proto, smtp_proto, arc, ical, dav, clean | 117–496 KB |
 | **Large** (≥500 KB, 11 crates) | smtp_client (563), jmap (591), tls_rpt (678), dns (779), spf (930), dkim (1008), intelligence (1014), acme (1163), dmarc (1432), outbound_queue (1579), mailbox (1659) | 563–1659 KB |
 
 Reproduce:
@@ -220,8 +221,9 @@ inbound message, `spf` runs on every accepted MAIL FROM).
 Workspace total (line-coverage, `cargo llvm-cov --workspace --summary-only`):
 **63.67 % region / 67.47 % function / 58.66 % line** (2026-05-26).
 
-The headline number is dragged down by `mailrs-server`'s web/admin/OIDC/RSVP
-handlers — framework wiring that is deliberately not unit-tested.
+The headline number was dragged down by the all-in-one server's
+web/admin/OIDC/RSVP handlers (since removed) — framework wiring that was
+deliberately not unit-tested.
 Published crates look very different — sampled
 from the cov report:
 
@@ -870,14 +872,6 @@ Run: `cargo bench -p mailrs-rfc5322 --bench parse`.
 | `extract_structured_data/short_single_event` | **687 ns** | regex-free byte-scan for event / order patterns in body text |
 | `extract_structured_data/long_with_flight_and_order` | **4.75 µs** | |
 | `calculate_importance` | **2.93 ns** | integer-only score combination |
-
-### `mailrs-postmaster` (criterion, `cargo bench -p mailrs-postmaster`)
-
-3-run medians (M-series Mac, release), measured 2026-06-03:
-
-| Path | Median | Notes |
-|---|---:|---|
-| `extract_bimi_logo_url` | **40 ns** | BIMI TXT-record URL extraction |
 
 ### `mailrs-clean` (criterion, `cargo bench -p mailrs-clean`)
 

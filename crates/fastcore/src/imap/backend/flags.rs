@@ -54,8 +54,27 @@ pub fn set_flags(msg: &ImapMessage, flags: &[Flag]) -> std::io::Result<PathBuf> 
     Ok(msg.path.clone())
 }
 
-/// Move a message file to `dest_mailbox` (COPY / MOVE targets).
-/// Creates the destination Maildir if it doesn't already exist.
+/// Write `bytes` into the Maildir at `dir` as a new file carrying `flags`
+/// in its name. Returns the file's id and path.
+fn deliver_flagged(
+    dir: &Path,
+    bytes: &[u8],
+    flags: &[Flag],
+) -> std::io::Result<(MessageId, PathBuf)> {
+    let maildir = Maildir::create(dir)?;
+    let id = maildir.deliver(bytes)?;
+    if flags.is_empty() {
+        let path = dir.join("new").join(&id.0);
+        return Ok((id, path));
+    }
+    maildir.mark_processed(&id, flags)?;
+    let name = format!("{}{}", id.0, mailrs_maildir::serialize_flags(flags));
+    let path = dir.join("cur").join(name);
+    Ok((id, path))
+}
+
+/// Copy a message file into `dest` (COPY / MOVE targets), with the flags it
+/// has: a message read before it was filed is still read after.
 ///
 /// Indexes the new copy on the way in — same write-through contract as
 /// [`append`]. A COPY that only touched the filesystem left the thread
@@ -69,8 +88,7 @@ pub fn copy_to(
     dest: &MailboxInfo,
 ) -> std::io::Result<u32> {
     let bytes = read_message(msg).ok_or_else(|| std::io::Error::other("source missing"))?;
-    let maildir = Maildir::create(&dest.path)?;
-    let id = maildir.deliver(&bytes)?;
+    let (id, path) = deliver_flagged(&dest.path, &bytes, &msg.flags)?;
     crate::ingest_delivered_file(
         state,
         user,
@@ -79,7 +97,6 @@ pub fn copy_to(
         &dest.name,
         None,
     );
-    let path = dest.path.join("new").join(&id.0);
     Ok(new_file_uid(state, user, &id.0, &path))
 }
 
@@ -144,14 +161,7 @@ pub fn append(
     if crate::live_sync::quota_exceeded(user) {
         return Err(std::io::Error::other("over quota"));
     }
-    let maildir = Maildir::create(&mb.path)?;
-    let id = maildir.deliver(bytes)?;
-    let mut path = mb.path.join("new").join(&id.0);
-    if !flags.is_empty() {
-        maildir.mark_processed(&id, flags)?;
-        let name = format!("{}{}", id.0, mailrs_maildir::serialize_flags(flags));
-        path = mb.path.join("cur").join(name);
-    }
+    let (id, path) = deliver_flagged(&mb.path, bytes, flags)?;
     // Write-through to the thread index, which also counts the bytes
     // against the user's usage, exactly like spool_drain does
     // for inbound mail. Without this an APPEND (a client filing its own
@@ -290,6 +300,40 @@ mod tests {
         assert!(
             tid.is_some(),
             "APPEND must write through to the thread index"
+        );
+    }
+
+    #[test]
+    fn a_copy_keeps_the_flags_the_message_had() {
+        let tmp = tempfile::tempdir().unwrap();
+        let st = state();
+        let inbox = mb(tmp.path());
+        let raw = b"Message-ID: <read@test>\r\nSubject: hi\r\n\r\nbody";
+        let flags = [Flag::Seen, Flag::Flagged];
+        let (uid, path) = append(&st, "u@x.y", &inbox, raw, &flags).unwrap();
+        let trash = MailboxInfo {
+            name: "Trash".into(),
+            path: tmp.path().join(".Trash"),
+        };
+        let msg = ImapMessage {
+            uid,
+            seqno: 1,
+            path,
+            flags: flags.to_vec(),
+            internal_date: 0,
+            size: raw.len() as u64,
+            modseq: 0,
+        };
+
+        copy_to(&st, "u@x.y", &msg, &trash).unwrap();
+
+        let copies = list_messages(&st, "u@x.y", &trash);
+        assert_eq!(copies.len(), 1);
+        let kept = flags.iter().all(|f| copies[0].flags.contains(f));
+        assert!(
+            kept,
+            "a read message copied is still read: {:?}",
+            copies[0].flags
         );
     }
 

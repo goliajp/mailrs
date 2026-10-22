@@ -2,7 +2,7 @@
 
 mailrs is a mail server — SMTP in and out, IMAP, POP3, JMAP, ManageSieve,
 CalDAV/CardDAV, a REST and MCP API, and a web client — built as a Cargo
-workspace of 73 crates. Production runs four mailrs processes from one
+workspace of 70 crates. Production runs four mailrs processes from one
 image beside a `kevy-server`. There is no SQL database in that stack:
 message metadata lives in an embedded key-value store, mail bodies are
 Maildir files.
@@ -68,7 +68,7 @@ applies the recipient's Sieve script, writes the file into the Maildir,
 and indexes it: thread resolution, the per-user row, the text index,
 importance, attachment text. Only then does it announce the message.
 Everything in that sequence except the writes to the store is
-`mailrs-intake`, which the Postgres-backed core runs as well.
+`mailrs-intake`, which the SQL core runs as well.
 
 **Realtime.** fastcore writes a `NewMessage` event under
 `mailrs:events:notify:` in kevy-server. webapi reads those keys off kevy's
@@ -175,19 +175,23 @@ libraries are published on [crates.io](https://crates.io/users/golia-jp).
 | `mailrs-apns` | Apple push notifications over HTTP/2 |
 | `mailrs-oauth-client` | OAuth 2.0 / OIDC relying-party primitives |
 
-### The Postgres backend (not deployed)
+### The SQL core (not deployed)
 
-The same core-api can be served by a Postgres-backed core instead of
-fastcore. That backend is kept in the tree, compiled and tested by the
-deploy gate, and not run in production. Its crates:
+The same core-api can be served by a SQL core instead of fastcore:
+`mailrs-pg-core`, over PostgreSQL or the in-process spg engine. It runs
+in fastcore's place beside the same receiver, webapi and fastcore-sender
+(`deploy/docker-compose.pg-core.yml`): it serves the core-api, drains the
+spool through `mailrs-intake`, and serves IMAP, POP3 and ManageSieve
+through `mailrs-mail-protocols`. It is compiled and tested by the deploy
+gate, with the core-api contract and the protocol conversations compared
+against fastcore on both SQL engines, and not run in production. Its
+crates:
 
 | crate | role |
 |---|---|
-| `mailrs-server` | The Postgres-backed core and the earlier all-in-one server process |
+| `mailrs-server` | The SQL core, `mailrs-pg-core` |
 | `mailrs-core-sync` | Sync between two cores over core-api, for switching between backends |
 | `mailrs-pg-dump` | Export a Postgres catalog for import into fastcore |
-| `mailrs-postmaster` | Domain DNS health checks, used only by `mailrs-server` |
-| `mailrs-mmalloc`, `mailrs-syscall` | An mmap-backed allocator for `mailrs-server` and its raw syscalls |
 
 The Postgres stores in `mailrs-mailbox`, `mailrs-outbound-queue`,
 `mailrs-dmarc` and `mailrs-shield` sit behind features the production

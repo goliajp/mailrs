@@ -213,7 +213,7 @@ impl MailboxStore for PgMailboxStore {
         dst_mailbox: i64,
     ) -> Result<u32, StoreError> {
         let (user, dst_name) = resolve_mailbox_user_and_dst(self, src_mailbox, dst_mailbox).await?;
-        Self::copy_message(self, &user, src_mailbox, uid, &dst_name)
+        Self::copy_message(self, &user, src_mailbox, uid, &dst_name, None)
             .await?
             .ok_or_else(|| "copy_message: source message not found".into())
     }
@@ -225,7 +225,7 @@ impl MailboxStore for PgMailboxStore {
         dst_mailbox: i64,
     ) -> Result<u32, StoreError> {
         let (user, dst_name) = resolve_mailbox_user_and_dst(self, src_mailbox, dst_mailbox).await?;
-        Self::move_message(self, &user, src_mailbox, uid, &dst_name)
+        Self::move_message(self, &user, src_mailbox, uid, &dst_name, None)
             .await?
             .ok_or_else(|| "move_message: source message not found".into())
     }

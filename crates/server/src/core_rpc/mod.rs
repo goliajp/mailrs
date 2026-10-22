@@ -1,29 +1,10 @@
-//! mailrs-core-api HTTP RPC server, hosted inside the monolith.
+//! The mailrs-core-api HTTP server over the SQL stores.
 //!
-//! Phase 2 of the 4-process split.
-//!
-//! This module is compiled ONLY when the `core-rpc` cargo feature is on.
-//! Without that feature the file is `#[cfg]`-skipped and the monolith
-//! produces a byte-identical artifact (ironrule §16 守护点).
-//!
-//! What this module does:
-//!
-//! 1. Wraps `Arc<PgMailboxStore>` + `Arc<DomainStore>` + the rest of
-//!    server's state into a `Handler` impl from `mailrs_core_api::server`.
-//! 2. Mounts the per-method routes onto an `axum::Router`.
-//! 3. Binds on `MAILRS_CORE_RPC_ADDR` (defaults to `0.0.0.0:3300`).
-//! 4. Verifies `Authorization: Bearer <MAILRS_CORE_API_SECRET>` on
-//!    authenticated routes.
-//!
-//! What this module does NOT do (yet):
-//!
-//! - Per-method handler bodies — for now only `/v1/healthz` + `/v1/readyz`
-//!   are implemented. Per-method routes fill in over subsequent loops
-//!   (checklist 2.2).
-//! - Touch any existing pg/spg code path; all reads/writes still go via
-//!   the existing `Arc<PgMailboxStore>` methods.
-
-#![cfg(feature = "core-rpc")]
+//! Wraps `Arc<PgMailboxStore>`, `Arc<DomainStore>` and the rest of this
+//! process's state into a `Handler` impl from `mailrs_core_api::server`,
+//! mounts the per-method routes, binds `MAILRS_CORE_RPC_ADDR` (default
+//! `0.0.0.0:3300`) and checks `Authorization: Bearer <MAILRS_CORE_API_SECRET>`
+//! on authenticated routes.
 
 mod handlers;
 mod router;
@@ -53,7 +34,7 @@ pub struct CoreRpcState {
     /// other admin paths that don't go through DomainStore.
     pub pool: crate::pg::BackendPool,
     /// Maildir root — handlers that serve raw bytes look up the file
-    /// under `{maildir_root}/{user}/cur|new/{maildir_id}`.
+    /// as `crate::body` lays them out.
     pub maildir_root: String,
     /// Network-kevy URL (`MAILRS_KEVY_URL`) for the SHARED side-state
     /// families (drafts/signatures/templates/reactions/webhooks/audit/
@@ -78,8 +59,7 @@ impl Handler for CoreRpcState {
     async fn healthz(&self) -> HealthResponse {
         HealthResponse {
             version: mailrs_core_api::API_VERSION.into(),
-            // Today's monolith is the "core" backend (PG/SPG-backed).
-            // `fastcore` would set this to `Kevy`.
+            // the SQL core; `fastcore` sets this to `Kevy`
             backend: BackendKind::Pg,
             // healthz is a liveness probe — process is up.
             ready: true,
@@ -125,10 +105,7 @@ impl Handler for CoreRpcState {
 ///
 /// Returns immediately — the server runs in a background tokio task, and its
 /// `JoinHandle` comes back so a caller that has to release
-/// something after the last request can wait for the task to end. The
-/// monolith ignores it; `run_pg_core` awaits it, because on the spg backend
-/// the catalog lock is only released when the final pool clone drops and the
-/// server task holds one.
+/// something after the last request can wait for the task to end.
 pub fn spawn_core_rpc(
     state: Arc<CoreRpcState>,
     shutdown_rx: tokio::sync::watch::Receiver<bool>,

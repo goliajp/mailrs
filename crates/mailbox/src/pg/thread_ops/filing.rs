@@ -67,45 +67,26 @@ impl PgMailboxStore {
     }
 
     /// The raw bytes of every message `user` has in `thread_id`, read from
-    /// the maildir under `maildir_root`. A mailbox other than INBOX is the
-    /// Maildir++ subfolder of its name. A file that is gone is left out.
+    /// the maildir under `maildir_root`. A file that is gone is left out.
     pub async fn thread_raw_messages(
         &self,
         user: &str,
         thread_id: &str,
         maildir_root: &str,
     ) -> Result<Vec<Vec<u8>>, sqlx::Error> {
-        let rows: Vec<(String, String)> = sqlx::query_as(
-            "SELECT m.maildir_id, mb.name FROM messages m JOIN mailboxes mb ON m.mailbox_id = mb.id
+        let rows: Vec<(String,)> = sqlx::query_as(
+            "SELECT m.maildir_id FROM messages m JOIN mailboxes mb ON m.mailbox_id = mb.id
               WHERE m.thread_id = $1 AND mb.user_address = $2 AND m.maildir_id != ''",
         )
         .bind(thread_id)
         .bind(user)
         .fetch_all(&self.pool)
         .await?;
-        let Some((local, domain)) = user.split_once('@') else {
-            return Ok(Vec::new());
-        };
-        let base = std::path::Path::new(maildir_root).join(domain).join(local);
         let mut out = Vec::with_capacity(rows.len());
-        for (id, mailbox) in rows {
-            let dir = match mailbox.eq_ignore_ascii_case("INBOX") {
-                true => base.clone(),
-                false => base.join(format!(".{mailbox}")),
-            };
-            let md = mailrs_maildir::Maildir::open(&dir);
-            let entries = md
-                .scan_cur()
-                .unwrap_or_default()
-                .into_iter()
-                .chain(md.scan_new().unwrap_or_default());
-            if let Some(path) = entries
-                .into_iter()
-                .find(|e| e.id.to_string() == id)
-                .map(|e| e.path)
-            {
-                out.push(std::fs::read(path).map_err(sqlx::Error::Io)?);
-            }
+        for (id,) in rows {
+            let raw = crate::pg::helpers::read_raw_from_maildir(maildir_root, user, &id)
+                .map_err(sqlx::Error::Io)?;
+            out.extend(raw);
         }
         Ok(out)
     }

@@ -4,14 +4,10 @@
 //! mailrs-core-sync BOTH directions — the highest-fidelity proof of
 //! the kevy↔pg production switch axis (audit point 5, real Postgres).
 //!
-//! Requires docker; runs on the default (non-spg) axis with
-//! `--features core-rpc`. Serialized via its own container.
+//! Requires docker; runs on the default (non-spg) axis. Serialized via its
+//! own container.
 
-// `cfg` takes one predicate, so two comma-separated ones is malformed and
-// the file never compiled — under any feature combination, since a broken
-// attribute is a parse error rather than a false condition. Nothing noticed
-// because nothing built `--features core-rpc` after 2026-08-02.
-#![cfg(all(feature = "core-rpc", not(feature = "spg")))]
+#![cfg(not(feature = "spg"))]
 
 // Crate-rooted rather than through `super`: this file moved down one level
 // on 2026-08-02, which left `super` pointing at `core_rpc::tests` — a module
@@ -91,7 +87,6 @@ fn spawn_pg_core(pool: crate::pg::BackendPool) -> String {
     let domain = Arc::new(crate::domain_store::DomainStore::new(
         Some(pool.clone()),
         None,
-        crate::health::HealthState::new(),
     ));
     let state = Arc::new(CoreRpcState {
         mailbox,
