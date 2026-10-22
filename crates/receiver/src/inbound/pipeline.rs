@@ -8,7 +8,7 @@ pub use mailrs_inbound::{
     format_auth_results_header, make_delivery_decision,
 };
 
-use super::stages::mail_auth::{DmarcReportSink, MailAuthResolvers};
+use super::stages::mail_auth::MailAuthResolvers;
 use super::stages::{
     AiScoringStage, BayesStage, ClamavStage, ContentScanStage, GreylistStage, LocalListsStage,
     MailAuthStage, PtrStage,
@@ -41,7 +41,6 @@ pub fn build_inbound_pipeline(
     bayes_client: Option<Arc<crate::kevy_net::KevyNetClient>>,
     resolver: Option<Arc<TokioResolver>>,
     mail_auth_resolvers: Option<MailAuthResolvers>,
-    dmarc_sink: Option<Arc<dyn DmarcReportSink>>,
     clamav_addr: Option<String>,
     llm_provider: Option<Arc<dyn mailrs_intelligence::provider::LlmProvider>>,
     spam_cache: Option<Arc<dyn SpamCache>>,
@@ -66,7 +65,7 @@ pub fn build_inbound_pipeline(
         builder = builder.add(PtrStage::new(r));
     }
     if let Some(resolvers) = mail_auth_resolvers {
-        builder = builder.add(MailAuthStage::new(resolvers, dmarc_sink));
+        builder = builder.add(MailAuthStage::new(resolvers));
     }
     if let Some(addr) = clamav_addr {
         builder = builder.add(ClamavStage::new(addr));

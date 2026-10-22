@@ -10,7 +10,6 @@ mod account_store;
 pub mod config;
 mod conn_metrics;
 mod credential_store;
-mod kevy_dmarc;
 mod recipient_check;
 mod run;
 
