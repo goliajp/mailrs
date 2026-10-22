@@ -17,12 +17,7 @@ pub(crate) enum FastcoreAccount {
     Mock(MockAccount),
 }
 
-/// A mailbox as found, with the name the client asked for it by.
-#[derive(Debug, Clone)]
-pub(crate) struct FcMailbox {
-    pub(crate) info: MailboxInfo,
-    pub(crate) asked: String,
-}
+pub(crate) type FcMailbox = MailboxInfo;
 
 pub(crate) const MOCK_READ_ONLY: &str = "[READ-ONLY] mock mailboxes are read-only";
 
@@ -97,7 +92,7 @@ impl Account for FastcoreAccount {
     }
 
     fn mailbox_name<'a>(&self, mailbox: &'a FcMailbox) -> &'a str {
-        &mailbox.info.name
+        &mailbox.name
     }
 
     async fn select(&self, mailbox: &FcMailbox) -> Result<Selected<PathBuf>> {
