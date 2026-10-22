@@ -42,7 +42,7 @@ fn unchangedsince(action: &str, flags: &str) -> (Option<u64>, String, String) {
     }
 }
 
-fn merge(current: &[Flag], action: &str, given: &[Flag]) -> Vec<Flag> {
+pub(super) fn merge(current: &[Flag], action: &str, given: &[Flag]) -> Vec<Flag> {
     let mut merged: Vec<Flag> = match action {
         a if a.starts_with("+FLAGS") => {
             let mut m = current.to_vec();
