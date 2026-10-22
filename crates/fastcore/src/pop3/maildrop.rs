@@ -1,5 +1,5 @@
 //! The TRANSACTION state of RFC 1939 §5: the INBOX of the signed-in
-//! user, numbered by uid, with DELE applied at QUIT.
+//! user, numbered from 1 in uid order, with DELE applied at QUIT.
 
 use std::sync::Arc;
 
@@ -34,13 +34,31 @@ impl Maildrop {
         self.deleted.clear();
     }
 
-    /// QUIT in the TRANSACTION state.
-    pub(super) fn commit(&self) {
-        for &uid in &self.deleted {
-            if let Some(msg) = self.messages.iter().find(|m| m.uid == uid) {
-                let _ = backend::delete_file(msg);
+    /// QUIT in the TRANSACTION state. Stops at the first message that
+    /// cannot be removed.
+    pub(super) fn commit(&self) -> std::io::Result<()> {
+        for &n in &self.deleted {
+            if let Some(msg) = self.get(n) {
+                backend::delete_file(msg)?;
             }
         }
+        Ok(())
+    }
+
+    /// Message `n`, counting from 1, whether or not it is marked deleted.
+    fn get(&self, n: u32) -> Option<&ImapMessage> {
+        let i = usize::try_from(n).ok()?.checked_sub(1)?;
+        self.messages.get(i)
+    }
+
+    fn live(&self, n: u32) -> Option<&ImapMessage> {
+        self.get(n).filter(|_| !self.deleted.contains(&n))
+    }
+
+    fn numbered(&self) -> impl Iterator<Item = (u32, &ImapMessage)> {
+        (1u32..)
+            .zip(&self.messages)
+            .filter(|(n, _)| !self.deleted.contains(n))
     }
 
     /// False when `verb` is not a TRANSACTION command.
@@ -56,56 +74,46 @@ impl Maildrop {
         match verb {
             "STAT" => {
                 let (count, size) = self
-                    .messages
-                    .iter()
-                    .filter(|m| !self.deleted.contains(&m.uid))
-                    .fold((0u32, 0u64), |(c, s), m| (c + 1, s + m.size));
+                    .numbered()
+                    .fold((0u32, 0u64), |(c, s), (_, m)| (c + 1, s + m.size));
                 tx.write_all(format!("+OK {count} {size}\r\n").as_bytes())
                     .await?;
             }
             "LIST" => {
                 if arg.is_empty() {
                     tx.write_all(b"+OK maildrop follows\r\n").await?;
-                    for m in &self.messages {
-                        if !self.deleted.contains(&m.uid) {
-                            tx.write_all(format!("{} {}\r\n", m.uid, m.size).as_bytes())
-                                .await?;
-                        }
+                    for (n, m) in self.numbered() {
+                        tx.write_all(format!("{n} {}\r\n", m.size).as_bytes())
+                            .await?;
                     }
                     tx.write_all(b".\r\n").await?;
                 } else {
                     let idx: u32 = arg.parse().unwrap_or(0);
-                    match self.messages.iter().find(|m| m.uid == idx) {
-                        Some(m) if !self.deleted.contains(&idx) => {
-                            tx.write_all(format!("+OK {} {}\r\n", m.uid, m.size).as_bytes())
+                    match self.live(idx) {
+                        Some(m) => {
+                            tx.write_all(format!("+OK {idx} {}\r\n", m.size).as_bytes())
                                 .await?;
                         }
-                        _ => tx.write_all(b"-ERR no such message\r\n").await?,
+                        None => tx.write_all(b"-ERR no such message\r\n").await?,
                     }
                 }
             }
             "UIDL" => {
                 tx.write_all(b"+OK unique-id listing follows\r\n").await?;
-                for m in &self.messages {
-                    if !self.deleted.contains(&m.uid) {
-                        let uid_str = m
-                            .path
-                            .file_name()
-                            .map(|f| f.to_string_lossy().into_owned())
-                            .unwrap_or_else(|| m.uid.to_string());
-                        tx.write_all(format!("{} {}\r\n", m.uid, uid_str).as_bytes())
-                            .await?;
-                    }
+                for (n, m) in self.numbered() {
+                    let uid_str = m
+                        .path
+                        .file_name()
+                        .map(|f| f.to_string_lossy().into_owned())
+                        .unwrap_or_else(|| m.uid.to_string());
+                    tx.write_all(format!("{n} {uid_str}\r\n").as_bytes())
+                        .await?;
                 }
                 tx.write_all(b".\r\n").await?;
             }
             "RETR" => {
                 let idx: u32 = arg.parse().unwrap_or(0);
-                let Some(msg) = self
-                    .messages
-                    .iter()
-                    .find(|m| m.uid == idx && !self.deleted.contains(&idx))
-                else {
+                let Some(msg) = self.live(idx) else {
                     tx.write_all(b"-ERR no such message\r\n").await?;
                     return Ok(true);
                 };
@@ -123,11 +131,7 @@ impl Maildrop {
                 let mut sub = arg.splitn(2, ' ');
                 let idx: u32 = sub.next().and_then(|s| s.parse().ok()).unwrap_or(0);
                 let n: usize = sub.next().and_then(|s| s.parse().ok()).unwrap_or(0);
-                let Some(msg) = self
-                    .messages
-                    .iter()
-                    .find(|m| m.uid == idx && !self.deleted.contains(&idx))
-                else {
+                let Some(msg) = self.live(idx) else {
                     tx.write_all(b"-ERR no such message\r\n").await?;
                     return Ok(true);
                 };
@@ -143,7 +147,7 @@ impl Maildrop {
             }
             "DELE" => {
                 let idx: u32 = arg.parse().unwrap_or(0);
-                if self.messages.iter().any(|m| m.uid == idx) {
+                if self.get(idx).is_some() {
                     if !self.deleted.contains(&idx) {
                         self.deleted.push(idx);
                     }
@@ -214,6 +218,74 @@ fn trim_to_body_lines(bytes: &[u8], body_lines: usize) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::imap::backend::MailboxInfo;
+
+    fn maildrop(dir: &std::path::Path) -> Maildrop {
+        for leaf in ["cur", "new", "tmp"] {
+            std::fs::create_dir_all(dir.join(leaf)).unwrap();
+        }
+        let state = Arc::new(FastcoreState::new(
+            mailrs_mailbox_kevy::KevyMailboxStore::new(Arc::new(
+                kevy_embedded::Store::open(kevy_embedded::Config::default()).unwrap(),
+            )),
+        ));
+        // uids 1..=3 go to mail elsewhere, so this mailbox's uids start at 4
+        for i in 0..3 {
+            state
+                .mailbox
+                .allocate_uid("u@x.y", &format!("other{i}@test"))
+                .unwrap();
+        }
+        for i in 1..=2 {
+            let raw = format!("Message-ID: <m{i}@test>\r\n\r\nbody {i}\r\n");
+            std::fs::write(dir.join(format!("new/170000000{i}.M{i}P1.h")), raw).unwrap();
+        }
+        let inbox = MailboxInfo {
+            name: "INBOX".into(),
+            path: dir.to_path_buf(),
+        };
+        let messages = backend::list_messages(&state, "u@x.y", &inbox);
+        assert_eq!(messages[0].uid, 4);
+        Maildrop {
+            messages,
+            deleted: Vec::new(),
+        }
+    }
+
+    async fn say(md: &mut Maildrop, verb: &str, arg: &str) -> String {
+        let mut out = Vec::new();
+        assert!(md.handle(verb, arg, &mut out).await.unwrap());
+        String::from_utf8(out).unwrap()
+    }
+
+    #[tokio::test]
+    async fn messages_are_numbered_from_one() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut md = maildrop(tmp.path());
+        let list = say(&mut md, "LIST", "").await;
+        assert!(
+            list.contains("\r\n1 33\r\n") && list.contains("\r\n2 33\r\n"),
+            "{list}"
+        );
+        assert!(say(&mut md, "RETR", "1").await.contains("body 1"));
+        assert!(say(&mut md, "RETR", "4").await.starts_with("-ERR"));
+        assert!(say(&mut md, "DELE", "2").await.starts_with("+OK"));
+        assert_eq!(say(&mut md, "STAT", "").await, "+OK 1 33\r\n");
+        md.commit().unwrap();
+        assert!(!tmp.path().join("new/1700000002.M2P1.h").exists());
+        assert!(tmp.path().join("new/1700000001.M1P1.h").exists());
+    }
+
+    #[tokio::test]
+    async fn a_deletion_that_fails_at_quit_is_reported() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut md = maildrop(tmp.path());
+        let stuck = tmp.path().join("new/1700000001.M1P1.h");
+        std::fs::remove_file(&stuck).unwrap();
+        std::fs::create_dir(&stuck).unwrap();
+        say(&mut md, "DELE", "1").await;
+        assert!(md.commit().is_err());
+    }
 
     #[test]
     fn byte_stuff_prefixes_dot_lines() {
