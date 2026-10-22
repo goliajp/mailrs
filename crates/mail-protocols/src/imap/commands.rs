@@ -80,7 +80,7 @@ where
         ImapCommand::Select { mailbox } => select(session, tag, &mailbox, false, *qresync).await,
         ImapCommand::Examine { mailbox } => select(session, tag, &mailbox, true, *qresync).await,
         ImapCommand::Enable(caps) => enable(tag, &caps, qresync),
-        ImapCommand::Close => close(session, tag),
+        ImapCommand::Close => close(session, tag, *qresync).await,
         ImapCommand::Unselect => unselect(session, tag),
         ImapCommand::Uid { subcommand } => uid(session, tag, *subcommand).await,
         ImapCommand::Expunge => expunge(session, tag, *qresync).await,
