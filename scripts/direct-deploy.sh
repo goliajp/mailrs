@@ -149,12 +149,12 @@ if [ "${SKIP_GATE:-0}" != 1 ] && [ "${WEB_ONLY_SKIPS_RUST_GATE:-0}" != 1 ]; then
     #   inert-fields  — a field written to a thread hash that no reader
     #                   parses. That was `snoozed_until`: snoozing did
     #                   nothing at all, on both clients, for months.
-    #   outbound-keys — a queue key spelled instead of imported. The
-    #                   sender's due-sweep had drifted to a key nothing
-    #                   writes, so no scheduled message ever left.
+    #   shared-keys   — a shared kevy key spelled instead of imported.
+    #                   The sender's due-sweep had drifted to a key
+    #                   nothing writes, so no scheduled message ever left.
     ./scripts/check-dead-routes.sh
     ./scripts/check-inert-fields.sh
-    ./scripts/check-outbound-keys.sh
+    ./scripts/check-shared-keys.sh
     # A fourth of the same family: a blocking BRPOP on a runtime worker.
     # A written rule required the wrapper and listed the one
     # call site that lacked it among its compliant callers — so fastcore
