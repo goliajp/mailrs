@@ -6,8 +6,8 @@ import { splitAddressList } from './recipients'
 
 describe('splitAddressList', () => {
   it('keeps a quoted display name with a comma in one entry', () => {
-    expect(splitAddressList('"Anthropic, PBC" <invoice@mail.anthropic.com>, c@d.com')).toEqual([
-      '"Anthropic, PBC" <invoice@mail.anthropic.com>',
+    expect(splitAddressList('"Example, Inc." <invoice@mail.example.org>, c@d.com')).toEqual([
+      '"Example, Inc." <invoice@mail.example.org>',
       'c@d.com',
     ])
   })

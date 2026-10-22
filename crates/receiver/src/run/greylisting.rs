@@ -25,7 +25,7 @@ pub(super) fn greylisting(
     // Measured on production 2026-08-14, over the ~36 days the triplets
     // live: 504 distinct envelope senders had been deferred, 269 of them
     // eventually arrived, and **235 never did** — among them GMO Aozora
-    // Bank, PyPI, Anthropic and Claude notifications, and a NuGet sign-up
+    // Bank, PyPI and other service notifications, and a NuGet sign-up
     // confirmation that was attempted four times inside seven minutes from
     // four different 40.93.x.x addresses, each attempt a fresh triplet and
     // each one deferred. Delivery and receipt outrank protection here, and
