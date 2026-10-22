@@ -145,7 +145,7 @@ libraries are published on [crates.io](https://crates.io/users/golia-jp).
 |---|---|
 | `mailrs-smtp-proto`, `mailrs-smtp-codec` | SMTP parser, formatter and session state machine; Tokio codec (RFC 5321) |
 | `mailrs-smtp-client` | Outbound SMTP: MX resolution, DANE/STARTTLS, response parsing |
-| `mailrs-outbound-queue` | Outbound delivery logic: DKIM signing, DSN generation, MTA-STS lookup, the retry schedule, and the queue store trait (its Postgres store behind the `pg` feature) |
+| `mailrs-outbound-queue` | Outbound delivery logic: DKIM signing, DSN generation, MTA-STS lookup, the retry schedule, the queue store traits with an in-memory reference store, and a delivery worker over them |
 | `mailrs-imap-proto`, `mailrs-imap-codec`, `mailrs-imap-format` | IMAP parser and formatter, Tokio codec, wire-format helpers (RFC 3501/9051) |
 | `mailrs-mail-protocols` | The IMAP, POP3 and ManageSieve sessions and listeners both cores serve; each core supplies its storage through a trait |
 | `mailrs-rfc5322`, `mailrs-rfc2047`, `mailrs-rfc2231`, `mailrs-mime` | Message headers, encoded words, MIME parameters, the MIME body tree |
@@ -193,9 +193,11 @@ crates:
 | `mailrs-core-sync` | Sync between two cores over core-api, for switching between backends |
 | `mailrs-pg-dump` | Export a Postgres catalog for import into fastcore |
 
-The Postgres stores in `mailrs-mailbox`, `mailrs-outbound-queue`,
-`mailrs-dmarc` and `mailrs-shield` sit behind features the production
-binaries leave off, so no SQL driver is linked into them.
+The Postgres store in `mailrs-mailbox` sits behind a feature the
+production binaries leave off, so no SQL driver is linked into them.
+`mailrs-outbound-queue`, `mailrs-dmarc` and `mailrs-shield` ship only
+their store traits, in-memory or in-process reference implementations,
+and a contract check for other implementations.
 
 ### Test support
 

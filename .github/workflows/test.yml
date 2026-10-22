@@ -66,7 +66,7 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: pre-pull testcontainer images (retry against Docker Hub flake)
-        # Integration tests in mailbox / outbound-queue / mail-builder spin
+        # Integration tests in mailbox / mail-builder spin
         # up real `pgvector/pgvector:pg18` + `axllent/mailpit:latest`
         # containers via testcontainers. Docker Hub registry sporadically
         # times out pulls (e.g. 2026-06-03 04:27 UTC outage killed the
@@ -103,7 +103,7 @@ jobs:
         # as the reference-backend gate for the published stones.
         run: >
           cargo test --workspace --no-fail-fast
-          --features mailrs-server/spg,mailrs-mailbox/spg,mailrs-outbound-queue/spg,mailrs-shield/spg,mailrs-dmarc/spg
+          --features mailrs-server/spg,mailrs-mailbox/spg
           -- --skip _under_budget
 
       - name: cargo build (the binaries both modes ship)
