@@ -206,10 +206,15 @@ where
             "NOOP" => tx.write_all(b"+OK\r\n").await?,
             "CAPA" => tx.write_all(capa(stls).as_bytes()).await?,
             "QUIT" => {
-                if let Some(md) = &maildrop {
-                    md.commit();
+                let committed = maildrop.as_ref().map_or(Ok(()), Maildrop::commit);
+                match committed {
+                    Ok(()) => tx.write_all(b"+OK bye\r\n").await?,
+                    Err(e) => {
+                        tracing::warn!(err = %e, "pop3: QUIT could not remove a message");
+                        tx.write_all(b"-ERR some deleted messages not removed\r\n")
+                            .await?
+                    }
                 }
-                tx.write_all(b"+OK bye\r\n").await?;
                 return Ok(false);
             }
             _ => tx.write_all(b"-ERR unknown command\r\n").await?,
