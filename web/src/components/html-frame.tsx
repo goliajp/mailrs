@@ -3,11 +3,9 @@ import type { AttachmentInfo } from '@/lib/types'
 import DOMPurify from 'dompurify'
 import { useEffect, useMemo, useRef } from 'react'
 
+import { cjkFonts, cjkLang, injectCjkFonts } from '@/lib/cjk-fonts'
 import { fitHeight, fitScale, shouldReflowTable } from '@/lib/fit-to-width'
 import { getToken } from '@/store/auth'
-
-const CJK_FONTS =
-  "'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', 'Meiryo', 'Noto Sans CJK JP', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji'"
 
 // HTML attribute values arrive with entity-encoded specials, e.g. LinkedIn
 // signed CDN URLs come through as src="https://media.licdn.com/…?e=…&amp;v=beta&amp;t=…"
@@ -24,18 +22,6 @@ function decodeHtmlEntities(s: string): string {
     .replace(/&quot;/gi, '"')
     .replace(/&#x27;/gi, "'")
     .replace(/&#39;/gi, "'")
-}
-
-// inject CJK fallback fonts into all font-family declarations so kana
-// renders correctly on non-Japanese locale systems
-function injectCjkFonts(html: string): string {
-  return html.replace(/font-family\s*:\s*([^;}"]+)/gi, (match, fonts: string) => {
-    if (fonts.includes('Hiragino')) return match
-    const trimmed = fonts.trimEnd()
-    const endsWithSemiLike = trimmed.endsWith(',')
-    const base = endsWithSemiLike ? trimmed.slice(0, -1) : trimmed
-    return `font-family: ${base}, ${CJK_FONTS}`
-  })
 }
 
 // Rewrite external link hrefs to route through /api/proxy/link.
@@ -202,10 +188,8 @@ const SHADOW_STYLES = `
     margin: 0 auto;
     padding: 12px;
     box-sizing: border-box;
-    font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans',
-      'Hiragino Kaku Gothic ProN', 'Segoe UI', Roboto, 'Yu Gothic', 'Meiryo',
-      'Noto Sans CJK JP', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji',
-      sans-serif;
+    /* --mail-cjk is the CJK list for the body's own language */
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, var(--mail-cjk), sans-serif;
     font-size: 14px;
     line-height: 1.6;
     color: #1a1a1a;
@@ -279,7 +263,10 @@ export function HtmlFrame({
     const host = hostRef.current
     if (!host) return
     const root = host.shadowRoot ?? host.attachShadow({ mode: 'open' })
-    root.innerHTML = `<style>${SHADOW_STYLES}</style><div class="mail-wrap">${sanitized}</div>`
+    const lang = cjkLang(sanitized)
+    let langAttr = ''
+    if (lang !== null) langAttr = ` lang="${lang}"`
+    root.innerHTML = `<style>${SHADOW_STYLES}</style><div class="mail-wrap"${langAttr} style="--mail-cjk: ${cjkFonts(lang)}">${sanitized}</div>`
     for (const img of root.querySelectorAll<HTMLImageElement>('img')) {
       img.loading = 'lazy'
       img.decoding = 'async'
@@ -413,5 +400,5 @@ function sanitizeEmail(html: string): string {
     ALLOW_UNKNOWN_PROTOCOLS: false,
     FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input'],
   })
-  return proxyLinks(injectCjkFonts(stripTrackingPixels(clean)))
+  return proxyLinks(injectCjkFonts(stripTrackingPixels(clean), cjkLang(clean)))
 }
