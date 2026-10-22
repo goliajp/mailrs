@@ -101,9 +101,7 @@ pub fn corpus_populated(state: &Arc<FastcoreState>) -> bool {
 
 /// One-shot corpus seed from existing classified threads (RFC §5,
 /// revised v2.8.1). Spam source = the `by_category:{spam,scam}` zsets
-/// (the monolith-era AI verdicts — these survive the junk_ttl sweep
-/// that empties the Junk *folder* zset, so ~1300 historic spam threads
-/// are still reachable here even after the folder view was cleared).
+/// (the monolith-era AI verdicts).
 /// Ham = an equal count of the most-recent Inbox threads.
 ///
 /// No per-account guard — the caller gates on [`corpus_populated`]
