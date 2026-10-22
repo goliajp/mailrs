@@ -227,9 +227,9 @@ impl PgMailboxStore {
     /// v2.9 triage — force a thread into a bucket by stamping the
     /// `email_analysis.category` of every message in the thread to
     /// `category` ∈ {"inbox","notification","promotion","spam"}. This is
-    /// the monolith/spg analog of fastcore's `set_bucket` (which mutates
-    /// the kevy folder zsets); here the bucket is derived from the
-    /// category (see `list_conversations` folder filter), so stamping
+    /// the SQL analog of fastcore's `set_bucket` (which mutates the kevy
+    /// folder zsets); here the bucket is derived from the category (see
+    /// `thread_rows`' scope predicate), so stamping
     /// category IS the move. Ingest does not create `email_analysis`
     /// rows, so this UPSERTs. Returns the number of messages affected.
     pub async fn set_thread_bucket(

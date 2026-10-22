@@ -1,8 +1,8 @@
 //! Thread / conversation operations on [`PgMailboxStore`].
 //!
 //! Sub-modules:
-//! - [`query`] — conversation-list SELECTs (`list_conversations`,
-//!   `get_conversations_by_thread_ids`).
+//! - [`query`] — the per-thread rows every conversation view reads
+//!   (`thread_rows`).
 //! - [`mutate`] — flag/state mutations (mark read/unread, star, pin,
 //!   archive, snooze, delete).
 //! - [`filing`] — filing into a bucket, marking many as read, the sent list.

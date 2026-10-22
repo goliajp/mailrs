@@ -1,7 +1,7 @@
 //! Maildir → PG reconciliation (read-repair for split-brain deliveries).
 //!
 //! A delivery writes the maildir file first, then indexes it into PG
-//! (`append_message`). If the PG half fails — degraded database, engine
+//! (`index_delivered`). If the PG half fails — degraded database, engine
 //! incident, crash between the two writes — the message exists on disk
 //! but is invisible to IMAP/JMAP/web. This op walks the maildir tree,
 //! finds files with no `messages.maildir_id` row, and indexes them
