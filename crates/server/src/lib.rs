@@ -40,6 +40,7 @@ mod outbound_tls_rpt;
 mod pg;
 #[cfg(feature = "core-rpc")]
 mod pg_core_boot;
+mod pg_schema;
 mod pop3_session;
 mod rbl_monitor;
 mod reconcile_task;

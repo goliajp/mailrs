@@ -46,3 +46,8 @@ CREATE TABLE IF NOT EXISTS user_uids (
 INSERT INTO user_uids (user_address, last_uid)
 SELECT user_address, MAX(uidnext) - 1 FROM mailboxes GROUP BY user_address
 ON CONFLICT (user_address) DO NOTHING;
+
+-- 8. Which migration the database is at, so the core can bring a database
+-- forward itself from here on.
+CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL);
+INSERT INTO schema_version (version) SELECT 51 WHERE NOT EXISTS (SELECT 1 FROM schema_version);

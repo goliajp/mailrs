@@ -100,10 +100,7 @@ fn env_bool_truthy(name: &str, default: bool) -> bool {
 impl ReceiverConfig {
     pub fn from_env() -> Self {
         let maildir_root = env_str("MAILRS_MAILDIR", "/tmp/mailrs");
-        let spool_root = match env_opt_nonempty("MAILRS_SPOOL_ROOT") {
-            Some(s) => s,
-            None => format!("{maildir_root}/.spool"),
-        };
+        let spool_root = mailrs_core::spool::spool_root(&maildir_root);
         let smuggle_protection = match env_str("MAILRS_SMUGGLE_PROTECTION", "permissive")
             .to_lowercase()
             .as_str()
