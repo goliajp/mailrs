@@ -105,7 +105,6 @@ impl ServerConfig {
         set_parsed("MAILRS_SUBMISSION_PORT", &mut self.submission_port);
         set_parsed("MAILRS_SMTPS_PORT", &mut self.smtps_port);
         set_parsed("MAILRS_WEB_PORT", &mut self.web_port);
-        set_parsed("MAILRS_IMAP_PORT", &mut self.imap_port);
         set_csv_lower("MAILRS_LOCAL_DOMAINS", &mut self.local_domains);
         set_csv_lower(
             "MAILRS_ORG_NAME_ALLOWED_DOMAINS",

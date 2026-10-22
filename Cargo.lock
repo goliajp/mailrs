@@ -4612,6 +4612,7 @@ dependencies = [
  "mailrs-intelligence",
  "mailrs-jmap",
  "mailrs-mail-builder",
+ "mailrs-mail-protocols",
  "mailrs-mailbox-kevy",
  "mailrs-message-store",
  "mailrs-mime",

@@ -10233,7 +10233,6 @@
           "hostname",
           "smtp_port",
           "submission_port",
-          "imap_port",
           "local_domains",
           "tls_enabled"
         ]

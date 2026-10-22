@@ -6,7 +6,25 @@ use axum::response::IntoResponse;
 
 use super::WebState;
 
-pub(super) async fn autodiscover_outlook(State(state): State<Arc<WebState>>) -> impl IntoResponse {
+/// What a mail app is told when no IMAP listener is on.
+fn not_served() -> axum::response::Response {
+    (StatusCode::NOT_FOUND, "IMAP is not served").into_response()
+}
+
+pub(super) async fn autodiscover_outlook(
+    State(state): State<Arc<WebState>>,
+) -> axum::response::Response {
+    // the port the core's listener binds, read from the variables it reads
+    let Some(imap) = mailrs_mail_protocols::listen::imap_for_clients() else {
+        return not_served();
+    };
+    let (port, tls) = match imap.implicit_tls {
+        true => (imap.port, "<SSL>on</SSL>"),
+        false => (
+            imap.port,
+            "<SSL>off</SSL>\n        <Encryption>TLS</Encryption>",
+        ),
+    };
     let hostname = &state.hostname;
     let xml = format!(
         r#"<?xml version="1.0" encoding="utf-8"?>
@@ -18,8 +36,8 @@ pub(super) async fn autodiscover_outlook(State(state): State<Arc<WebState>>) -> 
       <Protocol>
         <Type>IMAP</Type>
         <Server>{hostname}</Server>
-        <Port>993</Port>
-        <SSL>on</SSL>
+        <Port>{port}</Port>
+        {tls}
         <SPA>off</SPA>
         <LoginName>%EMAILADDRESS%</LoginName>
       </Protocol>
@@ -40,9 +58,20 @@ pub(super) async fn autodiscover_outlook(State(state): State<Arc<WebState>>) -> 
         [("content-type", "application/xml; charset=utf-8")],
         xml,
     )
+        .into_response()
 }
 
-pub(super) async fn autoconfig_mozilla(State(state): State<Arc<WebState>>) -> impl IntoResponse {
+pub(super) async fn autoconfig_mozilla(
+    State(state): State<Arc<WebState>>,
+) -> axum::response::Response {
+    // the port the core's listener binds, read from the variables it reads
+    let Some(imap) = mailrs_mail_protocols::listen::imap_for_clients() else {
+        return not_served();
+    };
+    let (port, socket) = match imap.implicit_tls {
+        true => (imap.port, "SSL"),
+        false => (imap.port, "STARTTLS"),
+    };
     let hostname = &state.hostname;
     let xml = format!(
         r#"<?xml version="1.0" encoding="utf-8"?>
@@ -51,8 +80,8 @@ pub(super) async fn autoconfig_mozilla(State(state): State<Arc<WebState>>) -> im
     <domain>%EMAILDOMAIN%</domain>
     <incomingServer type="imap">
       <hostname>{hostname}</hostname>
-      <port>993</port>
-      <socketType>SSL</socketType>
+      <port>{port}</port>
+      <socketType>{socket}</socketType>
       <authentication>password-cleartext</authentication>
       <username>%EMAILADDRESS%</username>
     </incomingServer>
@@ -71,4 +100,5 @@ pub(super) async fn autoconfig_mozilla(State(state): State<Arc<WebState>>) -> im
         [("content-type", "application/xml; charset=utf-8")],
         xml,
     )
+        .into_response()
 }

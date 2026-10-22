@@ -40,6 +40,12 @@ x-dkim-identity: &dkim-identity
   # public key, so one file serves them all.
   MAILRS_DKIM_KEYS: ${MAILRS_DKIM_KEYS:-}
 
+# where fastcore's IMAP listeners bind, and so the ports webapi-fc's
+# autoconfig tells mail apps to use. one definition so they cannot differ.
+x-imap-listeners: &imap-listeners
+  MAILRS_IMAP_BIND: 0.0.0.0:143
+  MAILRS_IMAPS_BIND: 0.0.0.0:993
+
 services:
   receiver:
     container_name: mailrs-receiver
@@ -118,6 +124,7 @@ services:
     stop_grace_period: 60s
     environment:
       MAILRS_FASTCORE_BIND: 0.0.0.0:3301
+      <<: *imap-listeners
       MAILRS_KEVY_DATA_DIR: /data/kevy-fastcore
       # Transparent tiering budget in MB, or `auto` for 70% of the
       # cgroup limit. Unset = off (everything stays in RAM). Cold
@@ -220,7 +227,7 @@ services:
       MAILRS_MOCK_DOMAIN: mock.golia.jp
       MAILRS_HOSTNAME: mail.golia.ai
       # the domain check reads only domain and selector, never the key files
-      <<: *dkim-identity
+      <<: [*dkim-identity, *imap-listeners]
       RUST_LOG: info
     volumes:
       - mailrs-data:/data
