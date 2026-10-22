@@ -84,7 +84,7 @@ pub async fn get_icon(Path(domain): Path<String>) -> Response {
         return build_ok(&ct, body);
     }
     // Mail is often sent from a subdomain that has no icon of its own
-    // (`mail.anthropic.com`, `em.example.com`) while the organisation's
+    // (`mail.example.org`, `em.example.com`) while the organisation's
     // domain has one. The subdomain's miss stays cached; the fallback is
     // its own cached lookup.
     if let Some(org) = organisation(&clean_domain)
@@ -383,17 +383,14 @@ mod tests {
     #[test]
     fn a_sender_subdomain_falls_back_to_its_registrable_domain() {
         assert_eq!(
-            organisation("mail.anthropic.com").as_deref(),
-            Some("anthropic.com")
+            organisation("mail.example.org").as_deref(),
+            Some("example.org")
         );
         assert_eq!(
             organisation("em.news.example.co.jp").as_deref(),
             Some("example.co.jp")
         );
-        assert_eq!(
-            organisation("anthropic.com").as_deref(),
-            Some("anthropic.com")
-        );
+        assert_eq!(organisation("example.org").as_deref(), Some("example.org"));
         // a public suffix alone is not an organisation
         assert_eq!(organisation("co.jp"), None);
     }

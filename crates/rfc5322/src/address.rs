@@ -111,8 +111,8 @@ pub fn list_is_only(list: &str, wanted: &str) -> bool {
 ///
 /// ```
 /// use mailrs_rfc5322::split_list;
-/// let all: Vec<_> = split_list(r#""Anthropic, PBC" <a@b.com>, c@d.com"#).collect();
-/// assert_eq!(all, [r#""Anthropic, PBC" <a@b.com>"#, "c@d.com"]);
+/// let all: Vec<_> = split_list(r#""Example, Inc." <a@b.com>, c@d.com"#).collect();
+/// assert_eq!(all, [r#""Example, Inc." <a@b.com>"#, "c@d.com"]);
 /// ```
 pub fn split_list(list: &str) -> impl Iterator<Item = &str> {
     let mut rest = list;
@@ -237,18 +237,15 @@ mod tests {
         assert!(!list_contains("", "a@x.com"));
     }
 
-    /// prod showed `"Anthropic, PBC" <invoice+statements@mail.anthropic.com>`
-    /// as two participants, `"anthropic` and `PBC" <…>`.
+    /// prod showed `"Example, Inc." <invoice+statements@mail.example.com>`
+    /// as two participants, `"example` and `PBC" <…>`.
     #[test]
     fn a_comma_in_a_quoted_display_name_does_not_split() {
         let all: Vec<_> =
-            split_list(r#""Anthropic, PBC" <invoice@mail.anthropic.com>,c@d.com"#).collect();
+            split_list(r#""Example, Inc." <invoice@mail.example.com>,c@d.com"#).collect();
         assert_eq!(
             all,
-            [
-                r#""Anthropic, PBC" <invoice@mail.anthropic.com>"#,
-                "c@d.com"
-            ]
+            [r#""Example, Inc." <invoice@mail.example.com>"#, "c@d.com"]
         );
     }
 
