@@ -24,10 +24,13 @@
 #   ./scripts/prune-target.sh              # drop artifacts unused for 14 days
 #   ./scripts/prune-target.sh 30           # ... 30 days instead
 #   CEILING_GB=60 ./scripts/prune-target.sh
+#   INCREMENTAL_DAYS=1 ./scripts/prune-target.sh
 #
 set -euo pipefail
 
 DAYS="${1:-14}"
+# Incremental caches get their own, shorter age: see step 3.
+INCREMENTAL_DAYS="${INCREMENTAL_DAYS:-2}"
 
 # Above the working set, not above the fresh-build figure.
 #
@@ -79,11 +82,23 @@ cargo sweep --installed "$ROOT" >/dev/null
 echo "==> dropping artifacts unused for ${DAYS} days"
 cargo sweep --time "$DAYS" "$ROOT" >/dev/null
 
+# 3. Incremental caches. `cargo sweep` judges age by the fingerprints in
+#    `deps/` and never looks in `<profile>/incremental/`, so those were
+#    never reclaimed: on 2026-10-22 they were 147 GB of a 238 GB tree
+#    (7,393 directories, 248 for mailrs_webapi alone), and the sweep
+#    above found 5 GB. Each directory caches one build of one crate under
+#    one hash; a hash that has not been built for two days has been
+#    superseded. Deleting one costs that crate a non-incremental compile
+#    the next time it is built, never a wrong result.
+echo "==> dropping incremental caches unused for ${INCREMENTAL_DAYS} days"
+find target -mindepth 3 -maxdepth 3 -path 'target/*/incremental/*' -type d \
+    -mtime +"$INCREMENTAL_DAYS" -exec rm -rf {} +
+
 after=$(du -sk target | cut -f1)
 after_gb=$((after / 1024 / 1024))
 echo "==> target/ after:  $(gb "$after") GB  (reclaimed $(gb "$((before - after))") GB)"
 
-# 3. Emergency ceiling. Reaching this means the age policy is not
+# 4. Emergency ceiling. Reaching this means the age policy is not
 #    keeping up — say so rather than silently deleting the working set.
 if [ "$after_gb" -gt "$CEILING_GB" ]; then
     echo "!! still ${after_gb} GB, above the ${CEILING_GB} GB ceiling."
