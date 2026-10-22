@@ -50,7 +50,7 @@ mailrs-triage = { path = "../triage" }
 mailrs-alias-store = { path = "../alias-store" }
 mailrs-alias-store-net = { path = "../alias-store-net" }
 mailrs-smtp-client = { path = "../smtp-client" }
-mailrs-outbound-queue = { path = "../outbound-queue", default-features = false }
+mailrs-outbound-queue = { path = "../outbound-queue" }
 # rustls crypto provider must be installed once per process before any
 # TLS config is built (STARTTLS in the sender daemon). Match the
 # receiver binary's version + feature set.
@@ -99,7 +99,7 @@ mailrs-maildir = { path = "../storage-maildir" }
 mailrs-uidlist = { path = "../uidlist", version = "0" }
 mailrs-keywords = { path = "../keywords", version = "0" }
 mailrs-threadstate = { path = "../threadstate", version = "0" }
-mailrs-dmarc = { version = "3", path = "../dmarc", default-features = false }
+mailrs-dmarc = { version = "3", path = "../dmarc" }
 mailrs-arf = { version = "1.0.0", path = "../arf" }
 mailrs-arc = { version = "3.0.0", path = "../arc" }
 mailrs-dkim = { version = "3.0.0", path = "../dkim" }

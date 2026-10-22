@@ -4288,15 +4288,13 @@ dependencies = [
 
 [[package]]
 name = "mailrs-shield"
-version = "4.0.0"
+version = "5.0.0"
 dependencies = [
  "async-trait",
  "criterion",
  "hickory-resolver",
  "kevy-embedded",
  "mailrs-dnsbl",
- "spg-sqlx",
- "sqlx",
  "tempfile",
  "tokio",
 ]
