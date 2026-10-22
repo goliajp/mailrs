@@ -12,6 +12,7 @@ mod folders;
 mod harness;
 mod moves;
 mod script;
+mod seen;
 mod selection;
 mod steps;
 
@@ -86,6 +87,7 @@ fn later() -> Vec<Vec<Step>> {
         folders::status(),
         folders::fixed(),
         selection::close(),
+        seen::seen(),
         moves::moves(),
     ]
 }

@@ -16,11 +16,13 @@ pub(super) fn append(tag: &str, subject: &str, answer: &str) -> Vec<Step> {
     ]
 }
 
-/// INBOX holds uid 1; this leaves it so, with uid 4 in Trash and 5 in Junk.
+/// INBOX holds uids 1, 4 and 5; this leaves uid 1 there and moves 4 to
+/// Trash and 5 to Junk.
+///
+/// The SQL store gives a copy a new uid and the Maildir one keeps the
+/// message's own, so after this the two stores' uids differ.
 pub(super) fn moves() -> Vec<Step> {
     let mut steps = signed_in("m1");
-    steps.extend(append("m2", "four", "OK APPEND completed"));
-    steps.extend(append("m3", "five", "OK APPEND completed"));
     steps.extend([
         step(
             "m4 SELECT INBOX\r\n",
