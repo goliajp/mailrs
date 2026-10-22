@@ -250,7 +250,7 @@ pub(crate) async fn sweep_legacy_admin_keys_route(
     let (_, alias_keys) = store.scan(0, Some(b"mailrs:alias:*"), usize::MAX);
     let alias_keys_scanned = alias_keys.len() as u64;
     for key in alias_keys {
-        if key.starts_with(b"mailrs:alias:v2:") {
+        if key.starts_with(mailrs_mailbox_kevy::keys::ALIAS_V2_PREFIX) {
             continue;
         }
         if store.del(&[key.as_slice()]).unwrap_or(0) > 0 {

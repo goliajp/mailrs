@@ -22,7 +22,7 @@ impl MailrsMcpService {
             let pending = c.lrange(PENDING_IDX, 0, 99).unwrap_or_default();
             let retrying = c.zrange(RETRY_IDX, 0, 99).unwrap_or_default();
             let inflight = c
-                .lrange(b"mailrs:outbound:inflight", 0, 99)
+                .lrange(mailrs_core_sidestate::families::outbound::INFLIGHT, 0, 99)
                 .unwrap_or_default();
             Ok((pending, retrying, inflight))
         })
@@ -35,7 +35,7 @@ impl MailrsMcpService {
         ] {
             for b in ids {
                 let id_str = String::from_utf8_lossy(b).to_string();
-                let key = format!("mailrs:outbound:job:{id_str}");
+                let key = mailrs_core_sidestate::families::outbound::job_key(&id_str);
                 let key_c = key.clone();
                 let blob = match with_kevy(move |c| {
                     c.hget(key_c.as_bytes(), b"blob")
@@ -68,7 +68,7 @@ impl MailrsMcpService {
         let user = self.require_user()?.to_string();
         self.require_admin(&user).await?;
         let raw = with_kevy(|c| {
-            c.smembers(b"mailrs:outbound:failed")
+            c.smembers(mailrs_core_sidestate::families::outbound::FAILED_SET)
                 .map_err(std::io::Error::from)
         })
         .map_err(|_| McpError::internal_error("failed set read", None))?;

@@ -26,15 +26,7 @@ use mailrs_inbound::{DeliveryDecision, ReceiveContext, Stage, StageOutcome};
 
 use crate::kevy_net::KevyNetClient;
 
-/// Key helpers — shared shape with the fastcore-side writers.
-pub fn limit_key(user: &str) -> String {
-    format!("mailrs:quota:{}:limit_bytes", user.to_lowercase())
-}
-
-/// See [`limit_key`].
-pub fn used_key(user: &str) -> String {
-    format!("mailrs:quota:{}:used_bytes", user.to_lowercase())
-}
+pub use mailrs_core_sidestate::keys::quota::{limit_key, used_key};
 
 /// Stage implementation. `None` client (monolith lane) disables the
 /// stage entirely.

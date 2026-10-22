@@ -204,7 +204,7 @@ fn an_address_that_is_nothing_stays_in_the_spool() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn an_outside_member_is_forwarded_through_the_outbound_queue() {
-    use mailrs_core_sidestate::families::outbound::PENDING_IDX;
+    use mailrs_core_sidestate::families::outbound::{PENDING_IDX, job_key};
     use testcontainers::core::{IntoContainerPort, WaitFor};
     use testcontainers::runners::AsyncRunner;
     use testcontainers::{GenericImage, ImageExt};
@@ -249,10 +249,7 @@ async fn an_outside_member_is_forwarded_through_the_outbound_queue() {
         let ids = kv.lrange(PENDING_IDX, 0, -1).unwrap();
         assert_eq!(ids.len(), 1, "the outside member was not queued");
         let id = String::from_utf8(ids[0].clone()).unwrap();
-        let blob = kv
-            .hget(format!("mailrs:outbound:job:{id}").as_bytes(), b"blob")
-            .unwrap()
-            .unwrap();
+        let blob = kv.hget(job_key(id).as_bytes(), b"blob").unwrap().unwrap();
         let job: serde_json::Value = serde_json::from_slice(&blob).unwrap();
         assert_eq!(job["recipient"], "friend@outside.example.org");
     })

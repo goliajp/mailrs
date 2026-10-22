@@ -57,7 +57,7 @@ pub async fn ws_events(
     // middleware reads.
     let kevy_url =
         std::env::var("MAILRS_KEVY_URL").map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let key = format!("session:{token}");
+    let key = mailrs_core_sidestate::keys::session::session_key(token);
     let session = tokio::task::spawn_blocking(move || -> std::io::Result<Option<Vec<u8>>> {
         let mut c = kevy_client::Connection::connect(&kevy_url)?;
         Ok(c.get(key.as_bytes())?)
@@ -164,7 +164,7 @@ fn spawn_kevy_feed_consumers(tx: EventBus) {
 }
 
 fn feed_consumer_loop(kevy_url: &str, shard: usize, tx: EventBus) {
-    const PREFIX: &[u8] = b"mailrs:events:notify:";
+    use mailrs_core_sidestate::keys::events::NOTIFY_PREFIX as PREFIX;
     const IDLE_SLEEP: std::time::Duration = std::time::Duration::from_millis(250);
     const RECONNECT_SLEEP: std::time::Duration = std::time::Duration::from_secs(5);
     'outer: loop {

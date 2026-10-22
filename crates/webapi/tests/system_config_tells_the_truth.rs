@@ -29,7 +29,8 @@ async fn put(key: &str, value: &str) -> Result<StatusCode, system_config::Refuse
 
 fn stored() -> Vec<Vec<u8>> {
     let mut c = kevy_client::Connection::connect(KEVY).unwrap();
-    c.hgetall(b"admin:system-config").unwrap()
+    c.hgetall(mailrs_core_sidestate::keys::admin::SYSTEM_CONFIG)
+        .unwrap()
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

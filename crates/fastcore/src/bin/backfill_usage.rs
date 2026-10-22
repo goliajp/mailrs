@@ -84,7 +84,7 @@ fn main() {
             let local = l.file_name().to_string_lossy().into_owned();
             let user = format!("{local}@{domain}").to_lowercase();
             let bytes = user_bytes(&l.path());
-            let key = format!("mailrs:quota:{user}:used_bytes");
+            let key = mailrs_core_sidestate::keys::quota::used_key(&user);
             conn.set(key.as_bytes(), bytes.to_string().as_bytes())
                 .expect("kevy set");
             eprintln!("  user={user} used_bytes={bytes}");

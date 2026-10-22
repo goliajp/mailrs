@@ -14,8 +14,7 @@ use serde::Serialize;
 
 use crate::handlers::kevy_util::with_kevy;
 
-const AUDIT_KEY: &[u8] = b"admin:audit_log";
-const AUDIT_CTR: &str = "admin:audit_log:counter";
+use mailrs_core_sidestate::keys::admin::{AUDIT_LOG as AUDIT_KEY, AUDIT_LOG_COUNTER as AUDIT_CTR};
 /// Retention cap — ~90 days of typical admin activity.
 const AUDIT_CAP: i64 = 50_000;
 
@@ -68,7 +67,7 @@ fn write(
     let detail = detail.to_string();
     let now = now_secs();
     with_kevy(move |c| {
-        let id = c.incr(AUDIT_CTR.as_bytes())?;
+        let id = c.incr(AUDIT_CTR)?;
         let fact = AuditFact {
             id,
             occurred_at: now,

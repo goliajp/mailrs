@@ -59,7 +59,7 @@ pub fn upsert_contacts(user: &str, senders_csv: &str) {
     let Ok(mut conn) = Connection::connect(&url) else {
         return;
     };
-    let key = format!("mailrs:user:{user}:contacts");
+    let key = mailrs_core_sidestate::families::contact_cards::autocomplete_key(user);
     let pairs: Vec<(Vec<u8>, Vec<u8>)> = parsed
         .into_iter()
         .map(|(email, display)| (email.into_bytes(), display.into_bytes()))
@@ -98,7 +98,9 @@ pub fn audit_system(action: &str, target: &str, detail: &str) {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0);
-    let id = conn.incr(b"admin:audit_log:counter").unwrap_or(0);
+    let id = conn
+        .incr(mailrs_core_sidestate::keys::admin::AUDIT_LOG_COUNTER)
+        .unwrap_or(0);
     let fact = serde_json::json!({
         "id": id,
         "occurred_at": now,
@@ -109,7 +111,10 @@ pub fn audit_system(action: &str, target: &str, detail: &str) {
         "detail": detail,
     });
     if let Ok(bytes) = serde_json::to_vec(&fact) {
-        let _ = conn.lpush(b"admin:audit_log", &[bytes.as_slice()]);
+        let _ = conn.lpush(
+            mailrs_core_sidestate::keys::admin::AUDIT_LOG,
+            &[bytes.as_slice()],
+        );
     }
 }
 
@@ -148,12 +153,11 @@ pub fn publish_new_mail(user: &str, thread_id: &str, sender: &str, subject: &str
     // attached at publish time). SET+EXPIRE 300 keeps the AOF bound
     // — a consumer offline > 5 min misses those events, which is
     // fine because the frontend refetches full state on WS reconnect.
-    let key = format!(
-        "mailrs:events:notify:{}",
+    let key = mailrs_core_sidestate::keys::events::notify_key(
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_nanos())
-            .unwrap_or(0)
+            .unwrap_or(0),
     );
     let _ = conn.pipeline(|p| {
         p.cmd(&[b"SET", key.as_bytes(), bytes.as_slice()]);
@@ -175,7 +179,7 @@ pub fn adjust_usage_bytes(user: &str, delta: i64) {
     let Ok(mut conn) = Connection::connect(&url) else {
         return;
     };
-    let key = format!("mailrs:quota:{}:used_bytes", user.to_lowercase());
+    let key = mailrs_core_sidestate::keys::quota::used_key(user);
     let _ = conn.incr_by(key.as_bytes(), delta);
 }
 
@@ -189,7 +193,7 @@ pub fn mirror_quota_limit(user: &str, limit_bytes: i64) {
     let Ok(mut conn) = Connection::connect(&url) else {
         return;
     };
-    let key = format!("mailrs:quota:{}:limit_bytes", user.to_lowercase());
+    let key = mailrs_core_sidestate::keys::quota::limit_key(user);
     let _ = conn.set(key.as_bytes(), limit_bytes.to_string().as_bytes());
 }
 
@@ -202,8 +206,8 @@ pub fn quota_read(user: &str) -> (i64, i64) {
     let Ok(mut conn) = Connection::connect(&url) else {
         return (0, 0);
     };
-    let lk = format!("mailrs:quota:{}:limit_bytes", user.to_lowercase());
-    let uk = format!("mailrs:quota:{}:used_bytes", user.to_lowercase());
+    let lk = mailrs_core_sidestate::keys::quota::limit_key(user);
+    let uk = mailrs_core_sidestate::keys::quota::used_key(user);
     let parse = |v: Option<Vec<u8>>| {
         v.and_then(|b| String::from_utf8(b).ok())
             .and_then(|s| s.parse::<i64>().ok())

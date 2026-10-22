@@ -98,7 +98,7 @@ pub async fn get_conflicts(
     let Some(end_ts) = parse_iso(&q.end) else {
         return Json(vec![]);
     };
-    let idx_key = format!("calendar_events:{user}");
+    let idx_key = mailrs_core_sidestate::families::calendar_events::index_key(&user);
     let user_c = user.clone();
     let members = with_kevy(move |c| {
         c.zrange(idx_key.as_bytes(), 0, -1)
@@ -113,7 +113,7 @@ pub async fn get_conflicts(
         if Some(uid.as_str()) == q.exclude_uid.as_deref() {
             continue;
         }
-        let key = format!("calendar_event:{user_c}:{uid}");
+        let key = mailrs_core_sidestate::families::calendar_events::event_key(&user_c, &uid);
         let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::from))
             .unwrap_or_default();
         // Through the shared reader, which is also what the writers

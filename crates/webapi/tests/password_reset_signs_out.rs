@@ -34,10 +34,11 @@ async fn a_reset_password_ends_the_old_sessions_only() {
     // an expired session leaves its token behind in the index
     let expired = live.login(ALICE, "pw").await;
     let mut kv = kevy_client::Connection::connect(KEVY).unwrap();
-    kv.del(&[format!("session:{expired}").as_bytes()]).unwrap();
+    kv.del(&[mailrs_core_sidestate::keys::session::session_key(&expired).as_bytes()])
+        .unwrap();
     let next = live.login(ALICE, "pw").await;
     let indexed = |kv: &mut kevy_client::Connection| -> Vec<String> {
-        kv.smembers(format!("session:by_addr:{ALICE}").as_bytes())
+        kv.smembers(mailrs_core_sidestate::keys::session::by_addr_key(ALICE).as_bytes())
             .unwrap()
             .into_iter()
             .map(|m| String::from_utf8(m).unwrap())

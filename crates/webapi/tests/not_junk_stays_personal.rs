@@ -50,7 +50,7 @@ async fn marking_not_junk_leaves_the_admin_sender_lists_alone() {
         "alice's own whitelist: {personal:?}"
     );
     let global = kv
-        .hgetall(b"admin:greylist:local-lists")
+        .hgetall(mailrs_core_sidestate::keys::admin::GREYLIST_LOCAL_LISTS)
         .expect("local lists");
     assert!(
         global.is_empty(),
