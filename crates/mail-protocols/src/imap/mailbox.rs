@@ -1,17 +1,13 @@
-//! Mailbox-level commands: LIST, SELECT / EXAMINE, CLOSE, APPEND, IDLE.
+//! Mailbox-level commands: LIST, SELECT / EXAMINE, CLOSE.
 
-use futures_util::{SinkExt, StreamExt};
-use mailrs_imap_codec::ImapInput;
 use mailrs_imap_proto::{
     format_bad, format_exists, format_flags, format_list, format_no, format_ok, format_recent,
     special_use_flag,
 };
-use tokio::io::{AsyncRead, AsyncWrite};
 
-use super::flags::{flags_to_imap, parse_imap_flags};
-use super::session::{Io, State, no};
-use super::store::refresh;
-use crate::backend::{Account, Selected, Watch};
+use super::flags::flags_to_imap;
+use super::session::{State, no};
+use crate::backend::{Account, Selected};
 
 pub(super) async fn list_response<A: Account>(
     session: &State<A>,
@@ -214,112 +210,6 @@ pub(super) fn close<A: Account>(session: &mut State<A>, tag: &str) -> Vec<String
         account: account.clone(),
     };
     vec![format_ok(tag, "CLOSE completed")]
-}
-
-pub(super) async fn append_flow<A, S>(
-    session: &State<A>,
-    tag: &str,
-    framed: &mut Io<S>,
-    mailbox: &str,
-    flags: Option<&str>,
-    literal_size: u32,
-) -> Vec<String>
-where
-    A: Account,
-    S: AsyncRead + AsyncWrite + Send + Unpin,
-{
-    let Some(account) = session.account().cloned() else {
-        return vec![format_no(tag, "not authenticated")];
-    };
-    let dest = match account.mailbox(mailbox).await {
-        Ok(Some(d)) => d,
-        Ok(None) => return vec![format_no(tag, "no such mailbox")],
-        Err(e) => return vec![no(tag, "APPEND", &e)],
-    };
-    framed.codec_mut().expect_literal(literal_size);
-    if framed
-        .send(b"+ Ready for literal data\r\n".to_vec())
-        .await
-        .is_err()
-    {
-        return vec![format_no(tag, "network error")];
-    }
-    let bytes = match framed.next().await {
-        Some(Ok(ImapInput::LiteralData(bytes))) => bytes,
-        _ => return vec![format_no(tag, "expected literal data")],
-    };
-    let flags = flags.map(parse_imap_flags).unwrap_or_default();
-    if let Err(e) = account.append(&dest, bytes.to_vec(), flags).await {
-        tracing::warn!(err = %e, "imap: APPEND failed");
-        return vec![format_no(tag, &format!("append failed: {e}"))];
-    }
-    vec![format_ok(tag, "APPEND completed")]
-}
-
-/// RFC 2177 IDLE. On a change to the selected mailbox it is listed
-/// again and `* n EXISTS` sent when the count grew. Ends when the client
-/// sends DONE, the connection drops, or the 29-minute inactivity ceiling
-/// passes (clients re-issue IDLE well before that per the RFC). With no
-/// mailbox selected it reports nothing.
-pub(super) async fn idle_flow<A, S>(
-    session: &mut State<A>,
-    tag: &str,
-    framed: &mut Io<S>,
-) -> Vec<String>
-where
-    A: Account,
-    S: AsyncRead + AsyncWrite + Send + Unpin,
-{
-    let mut watched = match &*session {
-        State::NotAuthed => return vec![format_no(tag, "not authenticated")],
-        State::Authed { .. } => None,
-        State::Selected {
-            account,
-            mailbox,
-            messages,
-            ..
-        } => Some((account.clone(), mailbox.clone(), messages.len())),
-    };
-    let mut watch = watched.as_ref().map(|(a, mb, _)| a.watch(mb));
-    if framed.send(b"+ idling\r\n".to_vec()).await.is_err() {
-        return Vec::new();
-    }
-    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(29 * 60);
-    loop {
-        tokio::select! {
-            frame = framed.next() => match frame {
-                Some(Ok(ImapInput::Line(l))) if l.trim().eq_ignore_ascii_case("DONE") => break,
-                Some(Ok(_)) => continue,
-                _ => return Vec::new(),
-            },
-            () = changed(watch.as_mut()) => {
-                let Some((account, mailbox, known)) = watched.as_mut() else { continue };
-                let fresh = match account.messages(mailbox).await {
-                    Ok(m) => m,
-                    Err(e) => return vec![no(tag, "IDLE", &e)],
-                };
-                if fresh.len() > *known {
-                    *known = fresh.len();
-                    if framed.send(format_exists(*known as u32).into_bytes()).await.is_err() {
-                        return Vec::new();
-                    }
-                }
-            }
-            _ = tokio::time::sleep_until(deadline) => break,
-        }
-    }
-    // post-IDLE FETCHes see the new mail
-    if let Err(e) = refresh(session).await {
-        return vec![no(tag, "IDLE", &e)];
-    }
-    vec![format_ok(tag, "IDLE terminated")]
-}
-
-async fn changed<W: Watch>(watch: Option<&mut W>) {
-    match watch {
-        Some(w) => w.changed().await,
-        None => std::future::pending().await,
-    }
 }
 
 #[cfg(test)]
