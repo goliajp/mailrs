@@ -73,7 +73,7 @@ fn main() {
             continue;
         }
         eprintln!("user={user} threads={}", entries.len());
-        let contacts_key = format!("mailrs:user:{user}:contacts");
+        let contacts_key = mailrs_core_sidestate::families::contact_cards::autocomplete_key(user);
         let mut pending: Vec<(String, String)> = Vec::new();
         for tid in &entries {
             let tid = tid.as_str();

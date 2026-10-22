@@ -47,7 +47,7 @@ pub(crate) const ALIAS_KEY: &str = "admin:aliases";
 
 // ── audit log (network kevy list) ──────────────────────────────────
 
-pub(crate) const AUDIT_KEY: &str = "admin:audit_log";
+pub(crate) use mailrs_core_sidestate::keys::admin::AUDIT_LOG as AUDIT_KEY;
 
 // ── account extras: PUT / quota / sieve / groups / overrides ─────
 

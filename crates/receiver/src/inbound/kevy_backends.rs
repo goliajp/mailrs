@@ -306,14 +306,13 @@ mod tests {
         let client = Arc::new(KevyNetClient::new("mem://greylist-backend-test"));
         let backend = KevyServerGreylistBackend::new(client);
 
-        assert_eq!(backend.get(b"gl:triplet").await, None);
+        let key = mailrs_shield::greylist_key::store_key("triplet");
+        let key = key.as_bytes();
+        assert_eq!(backend.get(key).await, None);
         backend
-            .set_with_ttl(b"gl:triplet", b"1700000000", Duration::from_secs(3600))
+            .set_with_ttl(key, b"1700000000", Duration::from_secs(3600))
             .await;
-        assert_eq!(
-            backend.get(b"gl:triplet").await.as_deref(),
-            Some(&b"1700000000"[..])
-        );
+        assert_eq!(backend.get(key).await.as_deref(), Some(&b"1700000000"[..]));
     }
 
     #[tokio::test]

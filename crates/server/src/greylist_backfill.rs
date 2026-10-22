@@ -77,7 +77,7 @@ pub async fn backfill_from_pg(
             continue;
         }
         let remaining = pass_ttl_secs - elapsed;
-        let key = format!("gl:{triplet}");
+        let key = mailrs_shield::greylist_key::store_key(&triplet);
         let value = first_seen_u64.to_string();
         if kevy
             .set_with_ttl(

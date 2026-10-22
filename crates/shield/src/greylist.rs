@@ -191,7 +191,7 @@ mod store_impl {
             now: u64,
             config: &GreylistConfig,
         ) -> GreylistDecision {
-            let vk_key = format!("gl:{key}");
+            let vk_key = crate::greylist_key::store_key(key);
             let ttl = Duration::from_secs(config.pass_ttl_secs);
 
             let first_seen: Option<u64> = self

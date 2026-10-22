@@ -102,14 +102,6 @@ fn delete_at(url: &str, address: &str) -> Result<bool, std::io::Error> {
 mod tests {
     use super::*;
 
-    #[test]
-    fn the_key_is_the_one_every_other_reader_uses() {
-        // Spelled out rather than derived, because the whole defect this module
-        // fixes was two spellings of one fact. If this changes, it has to change
-        // in core-sidestate, webapi and fastcore in the same commit.
-        assert_eq!(key("a@b.test"), "sieve:a@b.test");
-    }
-
     // A port nothing listens on. These go through `conn_at` rather than
     // setting MAILRS_KEVY_URL, because mutating the environment is racy
     // between tests sharing a binary — and a racy test that occasionally

@@ -46,15 +46,15 @@ use crate::NetKevy;
 pub fn remove_inflight_and_del(conn: &mut kevy_client::Connection, id: i64) {
     // kevy_client has no LREM; rebuild the inflight list without `id`.
     let mut kept = Vec::new();
-    while let Some(b) = rpop_one(conn, b"mailrs:outbound:inflight") {
+    while let Some(b) = rpop_one(conn, INFLIGHT) {
         if String::from_utf8_lossy(&b).parse::<i64>().ok() != Some(id) {
             kept.push(b);
         }
     }
     for b in kept {
-        let _ = conn.lpush(b"mailrs:outbound:inflight", &[b.as_slice()]);
+        let _ = conn.lpush(INFLIGHT, &[b.as_slice()]);
     }
-    let _ = conn.del(&[format!("mailrs:outbound:{id}").as_bytes()]);
+    let _ = conn.del(&[legacy_row_key(id).as_bytes()]);
 }
 
 pub async fn mark_delivered<S: NetKevy>(
@@ -65,7 +65,7 @@ pub async fn mark_delivered<S: NetKevy>(
         return StatusCode::SERVICE_UNAVAILABLE;
     };
     remove_inflight_and_del(&mut conn, id);
-    let _ = conn.incr(b"mailrs:outbound:delivered:count");
+    let _ = conn.incr(DELIVERED_COUNT);
     dual_write_terminal(&mut conn, id, b"delivered");
     StatusCode::NO_CONTENT
 }
@@ -89,7 +89,7 @@ pub async fn mark_failed<S: NetKevy>(
     // pull from inflight, push back to pending
     let mut kept = Vec::new();
     let mut found = false;
-    while let Some(b) = rpop_one(&mut conn, b"mailrs:outbound:inflight") {
+    while let Some(b) = rpop_one(&mut conn, INFLIGHT) {
         if String::from_utf8_lossy(&b).parse::<i64>().ok() == Some(id) {
             found = true;
         } else {
@@ -97,12 +97,12 @@ pub async fn mark_failed<S: NetKevy>(
         }
     }
     for b in kept {
-        let _ = conn.lpush(b"mailrs:outbound:inflight", &[b.as_slice()]);
+        let _ = conn.lpush(INFLIGHT, &[b.as_slice()]);
     }
     if found {
-        let _ = conn.lpush(b"mailrs:outbound:pending", &[id.to_string().as_bytes()]);
+        let _ = conn.lpush(LEGACY_PENDING, &[id.to_string().as_bytes()]);
     }
-    let _ = conn.incr(b"mailrs:outbound:failed:count");
+    let _ = conn.incr(FAILED_COUNT);
     // v2.5.1 §P8-B-A dual-write: `mark_failed` is a retry (state back
     // to pending, not terminal). Mirror the new hash + pending-idx.
     let now_str = now_secs().to_string();
@@ -131,11 +131,11 @@ pub async fn mark_bounced<S: NetKevy>(
         return StatusCode::SERVICE_UNAVAILABLE;
     };
     if let Some(row) = read_row(&mut conn, id) {
-        let _ = conn.sadd(b"mailrs:outbound:suppression", &[row.recipient.as_bytes()]);
+        let _ = conn.sadd(SUPPRESSION, &[row.recipient.as_bytes()]);
     }
     let _ = req.error;
     remove_inflight_and_del(&mut conn, id);
-    let _ = conn.incr(b"mailrs:outbound:bounced:count");
+    let _ = conn.incr(BOUNCED_COUNT);
     dual_write_terminal(&mut conn, id, b"bounced");
     StatusCode::NO_CONTENT
 }
@@ -173,8 +173,8 @@ pub async fn recover_stale<S: NetKevy>(
     // move every inflight id back to pending (no per-item timestamp in the
     // kevy model, so recover-stale reclaims the whole inflight list)
     let mut recovered = 0u32;
-    while let Some(id_bytes) = rpop_one(&mut conn, b"mailrs:outbound:inflight") {
-        let _ = conn.lpush(b"mailrs:outbound:pending", &[id_bytes.as_slice()]);
+    while let Some(id_bytes) = rpop_one(&mut conn, INFLIGHT) {
+        let _ = conn.lpush(LEGACY_PENDING, &[id_bytes.as_slice()]);
         recovered += 1;
     }
     Json(RecoverStaleResponse { recovered })

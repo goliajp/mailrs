@@ -17,14 +17,9 @@ use mailrs_alias_store::AliasStore;
 
 const MAX_HOPS: usize = 4;
 
-/// v2.6.0 §P6 dual-write: parallel hash keyspace for the alias table.
-/// Mirrors `mailrs_mailbox_kevy::keys::alias_v2`.
-fn alias_key_v2(address: &str) -> String {
-    format!("mailrs:alias:v2:{address}")
-}
-const ALIAS_V2_PREFIX: &[u8] = b"mailrs:alias:v2:";
-const IDX_ALIASES_BY_DOMAIN: &[u8] = b"aliases_by_domain";
-const IDX_ALIASES_BY_TARGET: &[u8] = b"aliases_by_target";
+use mailrs_alias_store::keys::{
+    ALIAS_V2_PREFIX, IDX_ALIASES_BY_DOMAIN, IDX_ALIASES_BY_TARGET, alias_v2_key as alias_key_v2,
+};
 
 fn now_secs() -> i64 {
     std::time::SystemTime::now()

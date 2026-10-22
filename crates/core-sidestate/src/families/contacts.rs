@@ -19,7 +19,7 @@ use mailrs_core_api::method::contact::{
 
 use crate::NetKevy;
 
-fn contact_key(user: &str, email: &str) -> String {
+pub fn contact_key(user: &str, email: &str) -> String {
     format!("mailrs:contact:{user}:{email}")
 }
 
@@ -49,7 +49,7 @@ pub async fn search_contacts<S: NetKevy>(
         return Json(SearchContactsResponse { items: Vec::new() });
     };
     let flat = conn
-        .hgetall(format!("mailrs:user:{user}:contacts").as_bytes())
+        .hgetall(crate::families::contact_cards::autocomplete_key(&user).as_bytes())
         .unwrap_or_default();
     let needle = q.q.to_lowercase();
     let mut items = Vec::new();
@@ -316,7 +316,15 @@ pub async fn sender_feedback<S: NetKevy>(
 
 #[cfg(test)]
 mod tests {
-    use super::is_self;
+    use super::{contact_key, is_self};
+
+    #[test]
+    fn the_scoring_key_keeps_its_prod_spelling() {
+        assert_eq!(
+            contact_key("a@x.jp", "b@y.jp"),
+            "mailrs:contact:a@x.jp:b@y.jp"
+        );
+    }
 
     #[test]
     fn self_send_is_detected_case_and_space_insensitively() {

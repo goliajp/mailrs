@@ -169,7 +169,7 @@ pub async fn list_suppressions(
     Extension(_user): Extension<AuthedUser>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let ids = with_kevy(|c| {
-        c.smembers(b"mailrs:outbound:suppression")
+        c.smembers(mailrs_core_sidestate::families::outbound::SUPPRESSION)
             .map_err(std::io::Error::from)
     })?;
     let items: Vec<String> = ids
@@ -184,7 +184,7 @@ pub async fn clear_suppressions(
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
 ) -> Result<StatusCode, StatusCode> {
     with_kevy(|c| {
-        c.del(&[b"mailrs:outbound:suppression".as_slice()])?;
+        c.del(&[mailrs_core_sidestate::families::outbound::SUPPRESSION])?;
         Ok(())
     })?;
     super::audit::record(&actor, "suppressions.clear", "", "");

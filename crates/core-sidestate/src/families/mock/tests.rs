@@ -178,7 +178,7 @@ fn filters_and_deletes_keep_hash_zset_and_files_in_step() {
 
     delete_namespace(&mut c, tmp.path(), "filt").unwrap();
     assert!(!namespace_exists(&mut c, "filt").unwrap());
-    assert!(c.get(b"mailrs:mock:msg:a3").unwrap().is_none());
+    assert!(c.get(msg_key("a3").as_bytes()).unwrap().is_none());
     assert!(!tmp.path().join("filt").exists());
     assert_eq!(total_bytes(&mut c).unwrap(), 0);
     assert!(
@@ -237,7 +237,7 @@ fn a_sweep_corrects_the_byte_total_and_removes_unowned_directories() {
     let mut c = conn("bytes");
     create_namespace(&mut c, "a@x.test", "bytes").unwrap();
     store_message(&mut c, tmp.path(), meta("bytes", "b1", "t", "s"), b"abcd").unwrap();
-    c.set(b"mailrs:mock:bytes", b"999").unwrap();
+    c.set(BYTES, b"999").unwrap();
     std::fs::create_dir_all(tmp.path().join("gone")).unwrap();
     std::fs::write(tmp.path().join("gone/x.eml"), b"x").unwrap();
     let report = sweep(&mut c, tmp.path(), now_ms()).unwrap();

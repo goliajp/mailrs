@@ -34,21 +34,10 @@ pub fn account_permissions(address: &str) -> String {
 // dual-write extends the SAME key with `{domain, active, created_at}`
 // derived fields — no `v2:` sibling needed.
 
-/// v2 alias hash key: `mailrs:alias:v2:<address>` — hash
-/// `{target, domain, created_at, active}`.
-pub fn alias_v2(address: &str) -> String {
-    format!("mailrs:alias:v2:{address}")
-}
-
-/// v2 alias index prefix used by the RANGE indexes below.
-pub const ALIAS_V2_PREFIX: &[u8] = b"mailrs:alias:v2:";
-
-/// Range index over `mailrs:alias:v2:*`.domain — one RTT list-by-domain.
-pub const IDX_ALIASES_BY_DOMAIN: &[u8] = b"aliases_by_domain";
-
-/// Range index over `mailrs:alias:v2:*`.target — reverse lookup
-/// (RFC §3.1: "who forwards TO this address?").
-pub const IDX_ALIASES_BY_TARGET: &[u8] = b"aliases_by_target";
+/// The alias layout is shared with the network alias store.
+pub use mailrs_alias_store::keys::{
+    ALIAS_V2_PREFIX, IDX_ALIASES_BY_DOMAIN, IDX_ALIASES_BY_TARGET, alias_v2_key as alias_v2,
+};
 
 /// v2 domain hash key: `mailrs:domain:v2:<name>` — hash `{created_at}`.
 pub fn domain_v2(name: &str) -> String {
@@ -70,20 +59,6 @@ pub const IDX_ACCOUNTS_BY_DOMAIN: &[u8] = b"accounts_by_domain";
 
 /// Range index over `mailrs:account:*`.active — active accounts one RTT.
 pub const IDX_ACCOUNTS_BY_ACTIVE: &[u8] = b"accounts_by_active";
-
-/// Outbound queue row (for sender split).
-pub fn outbound(id: i64) -> String {
-    format!("mailrs:outbound:{id}")
-}
-
-/// Outbound pending queue — sender claims with BRPOPLPUSH.
-pub const OUTBOUND_PENDING: &str = "mailrs:outbound:pending";
-
-/// Outbound inflight list — for stale recovery.
-pub const OUTBOUND_INFLIGHT: &str = "mailrs:outbound:inflight";
-
-/// Suppression set — sender consults before sending.
-pub const OUTBOUND_SUPPRESSION: &str = "mailrs:outbound:suppression";
 
 #[cfg(test)]
 mod prefix_tests {
