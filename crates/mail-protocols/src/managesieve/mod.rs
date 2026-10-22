@@ -147,16 +147,14 @@ where
                     account = Some(signed_in);
                 }
             }
-            // no per-script size limit
-            "HAVESPACE" => tx.write_all(b"OK \"Within limits\"\r\n").await?,
+            "HAVESPACE" => tx.write_all(havespace(arg).as_bytes()).await?,
             "CHECKSCRIPT" => {
-                if let Some((_name, body)) = read_script_literal(arg, reader).await? {
-                    let reply = match mailrs_sieve::compile_sieve(&body) {
-                        Ok(_) => "OK \"Script is valid\"\r\n".to_string(),
-                        Err(e) => format!("NO \"{}\"\r\n", sanitize(&e)),
-                    };
-                    tx.write_all(reply.as_bytes()).await?;
-                }
+                let (_name, body) = read_script_literal(arg, reader).await?;
+                let reply = match mailrs_sieve::compile_sieve(&body) {
+                    Ok(_) => "OK \"Script is valid\"\r\n".to_string(),
+                    Err(e) => format!("NO \"{}\"\r\n", sanitize(&e)),
+                };
+                tx.write_all(reply.as_bytes()).await?;
             }
             "PUTSCRIPT" | "GETSCRIPT" | "LISTSCRIPTS" | "SETACTIVE" | "DELETESCRIPT" => {
                 match &account {
@@ -215,9 +213,7 @@ where
 {
     let reply = match cmd {
         "PUTSCRIPT" => {
-            let Some((_name, body)) = read_script_literal(arg, reader).await? else {
-                return Ok(());
-            };
+            let (_name, body) = read_script_literal(arg, reader).await?;
             match mailrs_sieve::compile_sieve(&body) {
                 Ok(_) => answer(
                     account.put_sieve_script(&body).await,
@@ -248,6 +244,18 @@ where
         _ => answer(account.delete_sieve_script().await, "OK \"Deleted\"\r\n"),
     };
     tx.write_all(reply.as_bytes()).await
+}
+
+/// `HAVESPACE "name" size`: the one limit is the literal a script can
+/// arrive in.
+fn havespace(arg: &str) -> String {
+    let size = arg.rsplit(' ').next().and_then(|n| n.parse::<usize>().ok());
+    match size {
+        Some(n) if n > script::MAX_LITERAL => {
+            "NO (QUOTA/MAXSIZE) \"Script too large\"\r\n".to_string()
+        }
+        _ => "OK \"Within limits\"\r\n".to_string(),
+    }
 }
 
 fn answer(done: Result<(), Error>, ok: &str) -> String {

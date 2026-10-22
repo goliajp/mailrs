@@ -59,10 +59,7 @@ where
     reader.read_line(&mut line).await?;
     let line = line.trim_end_matches(['\r', '\n']).trim();
     let resp = match line.strip_prefix('{').and_then(|l| l.strip_suffix('}')) {
-        Some(len) => match read_literal(len, reader).await? {
-            Some(bytes) => String::from_utf8_lossy(&bytes).into_owned(),
-            None => return Ok(None),
-        },
+        Some(len) => String::from_utf8_lossy(&read_literal(len, reader).await?).into_owned(),
         None => unquote(line).to_string(),
     };
     Ok((resp != "*").then_some(resp))

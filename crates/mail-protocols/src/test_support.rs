@@ -287,6 +287,12 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
         l
     }
 
+    /// Whether the server closed the connection without sending more.
+    pub(crate) async fn eof(&mut self) -> bool {
+        let mut l = String::new();
+        self.io.read_line(&mut l).await.is_ok_and(|n| n == 0)
+    }
+
     /// Lines up to and including the first one starting with `end`.
     pub(crate) async fn until(&mut self, end: &str) -> String {
         let mut out = String::new();
