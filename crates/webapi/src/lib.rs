@@ -86,11 +86,9 @@ impl WebState {
             match ai_enabled {
                 false => None,
                 true => {
+                    // there is no model to fall back to: the operator names one
                     let url = std::env::var("MAILRS_LLM_URL")
-                        // Same default as `Config::default().llm_url` in the
-                        // monolith — a different one here would mean the two
-                        // lanes reach different models on the same env.
-                        .unwrap_or_else(|_| "https://devops.golia.jp/api/llm/complete".into());
+                        .expect("MAILRS_LLM_URL is required when MAILRS_AI_ANALYSIS_ENABLED is on");
                     let api_key = std::env::var("MAILRS_LLM_API_KEY")
                         .ok()
                         .filter(|k| !k.is_empty());

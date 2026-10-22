@@ -210,7 +210,7 @@ impl Default for ServerConfig {
             mta_sts_id: chrono::Utc::now().format("%Y%m%d%H%M%S").to_string(),
             spam_score_threshold: 4.0,
             clamav_addr: None,
-            llm_url: "https://devops.golia.jp/api/llm/complete".into(),
+            llm_url: String::new(),
             llm_api_key: None,
             ai_analysis_enabled: false,
             auth_max_failures_account: 5,
@@ -780,7 +780,7 @@ mod tests {
     fn default_ai_is_disabled() {
         let cfg = ServerConfig::default();
         assert!(!cfg.ai_analysis_enabled);
-        assert_eq!(cfg.llm_url, "https://devops.golia.jp/api/llm/complete");
+        assert_eq!(cfg.llm_url, "");
     }
 
     #[test]
