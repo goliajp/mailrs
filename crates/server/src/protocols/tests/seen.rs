@@ -24,8 +24,8 @@ pub(super) fn seen() -> Vec<Step> {
     let unseen = fetch(2, &[("FLAGS", "()".into())]);
 
     let mut steps = signed_in("s1");
-    steps.extend(append("s2", "six", "OK APPEND completed"));
-    steps.extend(append("s3", "seven", "OK APPEND completed"));
+    steps.extend(append("s2", "six", "OK [APPENDUID * *] APPEND completed"));
+    steps.extend(append("s3", "seven", "OK [APPENDUID * *] APPEND completed"));
     steps.extend([
         opened("s4", "SELECT", 3, 6),
         step(

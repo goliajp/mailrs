@@ -27,6 +27,7 @@ pub(super) fn capabilities(starttls: bool) -> Vec<&'static str> {
         "NAMESPACE",
         "ENABLE",
         "UNSELECT",
+        "UIDPLUS",
         "MOVE",
         "SPECIAL-USE",
         "SORT",

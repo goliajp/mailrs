@@ -42,10 +42,46 @@ where
         Some(Ok(ImapInput::LiteralData(bytes))) => bytes,
         _ => return vec![format_no(tag, "expected literal data")],
     };
-    let flags = flags.map(parse_imap_flags).unwrap_or_default();
-    if let Err(e) = account.append(&dest, bytes.to_vec(), flags).await {
-        tracing::warn!(err = %e, "imap: APPEND failed");
-        return vec![format_no(tag, &format!("append failed: {e}"))];
+    let flags = flags
+        .map(flag_list)
+        .map(parse_imap_flags)
+        .unwrap_or_default();
+    match account.append(&dest, bytes.to_vec(), flags).await {
+        Ok(filed) => vec![format_ok(
+            tag,
+            &format!(
+                "[APPENDUID {} {}] APPEND completed",
+                filed.uidvalidity, filed.uid
+            ),
+        )],
+        Err(e) => {
+            tracing::warn!(err = %e, "imap: APPEND failed");
+            vec![format_no(tag, &format!("append failed: {e}"))]
+        }
     }
-    vec![format_ok(tag, "APPEND completed")]
+}
+
+/// The flag list of what the parser leaves between the mailbox and the
+/// literal, `(\Seen) "22-Oct-2026 10:00:00 +0000"`: the date is not a flag.
+fn flag_list(between: &str) -> &str {
+    let between = between.trim_start();
+    match between.strip_prefix('(') {
+        Some(rest) => rest.split_once(')').map_or(rest, |(list, _)| list),
+        None => "",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::flag_list;
+
+    #[test]
+    fn the_date_after_the_flags_is_not_read_as_flags() {
+        assert_eq!(
+            flag_list("(\\Seen \\Flagged) \"22-Oct-2026 10:00:00 +0000\""),
+            "\\Seen \\Flagged"
+        );
+        assert_eq!(flag_list("(\\Seen)"), "\\Seen");
+        assert_eq!(flag_list("\"22-Oct-2026 10:00:00 +0000\""), "");
+    }
 }

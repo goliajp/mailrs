@@ -4,7 +4,7 @@
 use std::path::PathBuf;
 
 use mailrs_mail_protocols::backend::{
-    Account, Error, Expunged, Flag, Message, Quota, Result, Selected,
+    Account, Error, Expunged, Filed, Flag, Message, Quota, Result, Selected,
 };
 
 use super::mock::MockAccount;
@@ -120,14 +120,19 @@ impl Account for FastcoreAccount {
         }
     }
 
-    async fn copy(&self, _: &FcMailbox, m: &Message<PathBuf>, to: &FcMailbox) -> Result<()> {
+    async fn copy(&self, _: &FcMailbox, m: &Message<PathBuf>, to: &FcMailbox) -> Result<Filed> {
         match self {
             Self::Real(a) => a.copy(m, to),
             Self::Mock(_) => refused(),
         }
     }
 
-    async fn move_to(&self, from: &FcMailbox, m: &Message<PathBuf>, to: &FcMailbox) -> Result<()> {
+    async fn move_to(
+        &self,
+        from: &FcMailbox,
+        m: &Message<PathBuf>,
+        to: &FcMailbox,
+    ) -> Result<Filed> {
         match self {
             Self::Real(a) => a.move_to(from, m, to),
             Self::Mock(_) => refused(),
@@ -158,9 +163,9 @@ impl Account for FastcoreAccount {
         }
     }
 
-    async fn append(&self, mailbox: &FcMailbox, bytes: Vec<u8>, _flags: Vec<Flag>) -> Result<()> {
+    async fn append(&self, mailbox: &FcMailbox, bytes: Vec<u8>, flags: Vec<Flag>) -> Result<Filed> {
         match self {
-            Self::Real(a) => a.append(mailbox, &bytes),
+            Self::Real(a) => a.append(mailbox, &bytes, &flags),
             Self::Mock(_) => refused(),
         }
     }

@@ -8,6 +8,7 @@
 //! One test, run in order: the POP3 and ManageSieve parts read what the
 //! IMAP part left.
 
+mod checks;
 mod folders;
 mod harness;
 mod moves;
@@ -29,9 +30,22 @@ pub(super) struct Step {
 }
 
 /// Mask the numbers each store chooses for itself: the digits after each
-/// of these words.
+/// of these words, the uid APPENDUID gives, and COPYUID's destination
+/// uids. The SQL store numbers a copy anew and the Maildir one keeps the
+/// message's own uid; `checks` reads those back to see they are right.
 fn masked(line: &str) -> String {
     let mut out = line.to_string();
+    for (code, keep) in [("[APPENDUID ", 0), ("[COPYUID ", 1)] {
+        if let Some(at) = out.find(code) {
+            let start = at + code.len();
+            let end = out[start..].find(']').map_or(out.len(), |n| start + n);
+            let words: Vec<&str> = out[start..end].split(' ').collect();
+            let mut shown = vec!["*"];
+            shown.extend(words.iter().skip(1).take(keep));
+            shown.extend(words.iter().skip(1 + keep).map(|_| "*"));
+            out.replace_range(start..end, &shown.join(" "));
+        }
+    }
     for word in ["UIDVALIDITY ", "HIGHESTMODSEQ "] {
         let mut from = 0;
         while let Some(at) = out[from..].find(word) {
@@ -117,6 +131,7 @@ async fn conversations<D: Directory>(dir: Arc<D>) -> Vec<String> {
         tokio::spawn(mailrs_mail_protocols::imap::run(dir.clone(), server));
         diffs.extend(converse(client, "imap", &steps).await);
     }
+    diffs.extend(checks::uidplus(dir.clone()).await);
     diffs
 }
 
@@ -151,5 +166,13 @@ fn the_minted_numbers_are_masked_and_nothing_else() {
     assert_eq!(
         masked("* STATUS INBOX (UIDVALIDITY 17 UIDNEXT 4 HIGHESTMODSEQ 9)\r\n"),
         "* STATUS INBOX (UIDVALIDITY * UIDNEXT 4 HIGHESTMODSEQ *)\r\n"
+    );
+    assert_eq!(
+        masked("a1 OK [APPENDUID 1760000000 9] APPEND completed\r\n"),
+        "a1 OK [APPENDUID * *] APPEND completed\r\n"
+    );
+    assert_eq!(
+        masked("* OK [COPYUID 1760000000 4,5 11,12] Moved\r\n"),
+        "* OK [COPYUID * 4,5 *] Moved\r\n"
     );
 }
