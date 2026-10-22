@@ -1,93 +1,53 @@
 //! RPC method definitions, grouped by domain.
 //!
-//! Each submodule defines:
-//! - HTTP path constants (`pub const PATH_*`)
-//! - Request body types (`*Request`)
-//! - Response body types (`*Response`)
-//! - A `methods!` enumeration the client / server code can iterate
+//! Each submodule defines HTTP path constants (`pub const PATH_*`) and
+//! the request and response bodies. The path prefix is `/v{API_VERSION}`
+//! from the crate root.
 //!
-//! The path prefix is `/v{API_VERSION}` from the crate root.
-//!
-//! Path skeleton:
+//! What the client asks a core for:
 //!
 //! ```text
-//!   /v1/healthz                                   # health
-//!   /v1/readyz                                    # readiness
-//!   /v1/metrics                                   # prom (separate, no auth)
+//!   /v1/healthz, /v1/readyz                       # health
 //!
-//!   /v1/users/{u}/mailboxes                       # mailbox CRUD
-//!   /v1/mailboxes/{id}                            #   ...
-//!   /v1/mailboxes/{id}/status
-//!   /v1/mailboxes/{id}/messages
-//!   /v1/mailboxes/{id}/messages/uid/{uid}
-//!   /v1/mailboxes/{id}/messages/{uid}/flags
-//!   /v1/mailboxes/{id}/expunge
-//!   /v1/mailboxes/{id}/changed-since/{modseq}
-//!
-//!   /v1/messages/{id}                             # message read
-//!   /v1/messages/{id}/raw
-//!   /v1/messages/{id}/attachments/{idx}
-//!   /v1/messages/{id}/attachments/{idx}/text
-//!
-//!   /v1/users/{u}/threads/{tid}/messages          # thread read
-//!   /v1/users/{u}/threads/{tid}/refs
-//!   /v1/users/{u}/threads/{tid}/{action}          # thread mutate
-//!
-//!   /v1/users/{u}/conversations:list              # conversation aggregates
+//!   /v1/users/{u}/conversations:list              # conversation lists
 //!   /v1/users/{u}/conversations:search
+//!   /v1/users/{u}/conversations:by-thread-ids
+//!   /v1/users/{u}/conversations:mark-all-read
+//!   /v1/users/{u}/conversations:mark-list-read
 //!   /v1/users/{u}/conversations/categories
 //!   /v1/users/{u}/conversations/unseen-count
 //!
-//!   /v1/analysis/{message_id}                     # email_analysis
-//!   /v1/search/semantic
+//!   /v1/users/{u}/threads/{tid}                   # one conversation
+//!   /v1/users/{u}/threads/{tid}/messages
+//!   /v1/users/{u}/threads/{tid}/{action}
+//!   /v1/users/{u}/sent                            # file a sent copy
+//!   /v1/users/{u}/sent-messages
+//!   /v1/users/{u}/quarantine
 //!
-//!   /v1/contacts/{user}/score                     # contacts
-//!   /v1/contacts/{user}/feedback
+//!   /v1/users/{u}/mailboxes                       # messages
+//!   /v1/users/{u}/messages/by-uid/{uid}
+//!   /v1/users/{u}/messages/by-message-id/{mid}
+//!   /v1/users/{u}/messages/{uid}/flags
+//!   /v1/users/{u}/messages/{mid}/fraud-verdict
 //!
-//!   /v1/users/{u}/drafts                          # drafts
-//!   /v1/users/{u}/signatures                      # signatures
-//!   /v1/users/{u}/templates                       # templates
+//!   /v1/users/{u}/drafts, signatures, templates   # side state
 //!
-//!   /v1/invites/{message_id}                      # iTIP invite handling
-//!   /v1/threads/{tid}/reactions                   # reactions
-//!
-//!   /v1/admin/accounts                            # domain_store
-//!   /v1/admin/aliases
-//!   /v1/admin/groups
-//!   /v1/admin/email-groups
+//!   /v1/admin/accounts                            # directory
+//!   /v1/admin/aliases:local
 //!   /v1/admin/domains
-//!   /v1/admin/sieve
-//!   /v1/admin/totp
-//!   /v1/admin/oauth-clients
-//!   /v1/admin/oauth-signing-keys
-//!   /v1/admin/system-config
-//!   /v1/admin/audit-log
-//!   /v1/admin/api-keys
-//!   /v1/admin/webhooks
-//!   /v1/admin/encryption-keys
-//!   /v1/admin/reconcile
-//!   /v1/admin/backfill-threading
-//!   /v1/admin/export
-//!   /v1/admin/vacation-dedup
-//!   /v1/admin/effective-permissions/{address}
-//!   /v1/admin/tls-rpt-events
-//!
-//!   /v1/outbound/claim                            # sender ↔ core
-//!   /v1/outbound/recover-stale
-//!   /v1/outbound/stats
-//!   /v1/outbound/{id}/{state}
-//!   /v1/outbound/suppression
-//!   /v1/outbound/enqueue
+//!   /v1/admin/recipients/{address}/deliverable
+//!   /v1/admin/webhook-subscriptions
 //! ```
+//!
+//! fastcore also serves operator routes no client asks for
+//! (`/v1/admin/maintenance:*` and a few one-shot repairs); they are listed
+//! with their purpose in `scripts/core-routes-unasked-allow.txt`.
 
-pub mod health;
-pub mod mailbox;
-// Placeholder modules — to be implemented in subsequent loop iterations
-// as Phase 1 deliverables fill in (checklist 1.5–1.7).
 pub mod admin;
-pub mod analysis;
 pub mod contact;
 pub mod conversation;
+pub mod health;
+pub mod mailbox;
 pub mod message;
 pub mod outbound;
 pub mod sent;

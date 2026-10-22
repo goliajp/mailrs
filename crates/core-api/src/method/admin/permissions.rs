@@ -43,11 +43,6 @@ pub struct GroupWire {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GroupListResponse {
-    pub items: Vec<GroupWire>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AddGroupRequest {
     pub name: String,
     pub domain: Option<String>,
@@ -55,19 +50,8 @@ pub struct AddGroupRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GroupPermissionsResponse {
-    /// Permission strings (e.g. `admin.accounts`, `internal.rpc`).
-    pub permissions: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SetGroupPermissionsRequest {
     pub permissions: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GroupMembersResponse {
-    pub members: Vec<UserAddress>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -108,12 +92,6 @@ pub struct EffectivePermissionsResponse {
 // ════════════════════════════════════════════════════════════════════
 // Wire types — sieve
 // ════════════════════════════════════════════════════════════════════
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SieveScriptResponse {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub script: Option<String>,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SetSieveRequest {

@@ -1,17 +1,5 @@
 //! Aliases and domains.
 
-//! Admin handlers — Phase 2.2 priority subset for webapi split unblock.
-//!
-//! Covers the auth hot-path:
-//! - GET /v1/admin/api-keys/by-prefix/{prefix}     — every API-key authed req
-//! - POST /v1/admin/api-keys/{id}/touch            — async update_last_used
-//! - GET /v1/admin/accounts/{address}/effective-permissions  — every authed req
-//! - GET /v1/admin/accounts/{address}/credentials  — SMTP/IMAP/POP3 AUTH
-//! - GET /v1/admin/accounts                        — list (admin web UI)
-//! - GET /v1/admin/accounts/{address}              — get one (admin web UI)
-//!
-//! Remaining 50+ admin endpoints land in subsequent loops.
-
 use std::sync::Arc;
 
 use axum::{
@@ -23,68 +11,6 @@ use axum::{
 use mailrs_core_api::method::admin as wire;
 
 use crate::core_rpc::CoreRpcState;
-
-/// GET /v1/admin/aliases
-pub async fn list_aliases(
-    State(state): State<Arc<CoreRpcState>>,
-) -> Result<Json<wire::AliasListResponse>, StatusCode> {
-    let rows = state.domain.list_aliases().await.map_err(|e| {
-        tracing::warn!(error = %e, "list_aliases failed");
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
-    let items = rows
-        .into_iter()
-        .map(|a| wire::AliasWire {
-            id: a.id,
-            source_address: a.source_address,
-            target_address: a.target_address,
-            domain: a.domain,
-            alias_type: a.alias_type,
-            active: a.active,
-            created_at: a.created_at,
-        })
-        .collect();
-    Ok(Json(wire::AliasListResponse { items }))
-}
-
-/// POST /v1/admin/aliases
-pub async fn add_alias(
-    State(state): State<Arc<CoreRpcState>>,
-    Json(req): Json<wire::AddAliasRequest>,
-) -> Result<Json<wire::AddAliasResponse>, StatusCode> {
-    let now = chrono::Utc::now().timestamp();
-    let id = state
-        .domain
-        .add_alias(
-            &req.source_address,
-            &req.target_address,
-            &req.domain,
-            &req.alias_type,
-            now,
-        )
-        .await
-        .map_err(|e| {
-            tracing::warn!(error = %e, source = %req.source_address, "add_alias failed");
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-    Ok(Json(wire::AddAliasResponse { id }))
-}
-
-/// DELETE /v1/admin/aliases/{id}
-pub async fn remove_alias(
-    State(state): State<Arc<CoreRpcState>>,
-    Path(id): Path<i64>,
-) -> Result<StatusCode, StatusCode> {
-    let removed = state.domain.remove_alias(id).await.map_err(|e| {
-        tracing::warn!(error = %e, id, "remove_alias failed");
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
-    if removed {
-        Ok(StatusCode::NO_CONTENT)
-    } else {
-        Err(StatusCode::NOT_FOUND)
-    }
-}
 
 // ── source-keyed alias API (v2 switchable-core boundary) ─────────────
 // Both cores serve these identical routes: kevy is natively source-keyed,

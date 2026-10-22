@@ -1,14 +1,5 @@
-//! Admin handlers — Phase 2.2 priority subset for webapi split unblock.
-//!
-//! Covers the auth hot-path:
-//! - GET /v1/admin/api-keys/by-prefix/{prefix}     — every API-key authed req
-//! - POST /v1/admin/api-keys/{id}/touch            — async update_last_used
-//! - GET /v1/admin/accounts/{address}/effective-permissions  — every authed req
-//! - GET /v1/admin/accounts/{address}/credentials  — SMTP/IMAP/POP3 AUTH
-//! - GET /v1/admin/accounts                        — list (admin web UI)
-//! - GET /v1/admin/accounts/{address}              — get one (admin web UI)
-//!
-//! Remaining 50+ admin endpoints land in subsequent loops.
+//! Admin handlers: accounts, their permissions and credentials, local
+//! aliases and domains.
 
 use std::sync::Arc;
 
@@ -124,37 +115,6 @@ pub async fn list_accounts(
         })
         .collect();
     Ok(Json(wire::AccountListResponse { items }))
-}
-
-/// GET /v1/admin/accounts/{address}
-///
-/// Public account info (no hash). Caches via the same DomainStore kevy LRU.
-pub async fn get_account(
-    State(state): State<Arc<CoreRpcState>>,
-    Path(address): Path<String>,
-) -> Result<Json<wire::AccountWire>, StatusCode> {
-    let (account, _) = state
-        .domain
-        .get_account_with_hash(&address)
-        .await
-        .map_err(|e| {
-            tracing::warn!(error = %e, address = %address, "get_account failed");
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?
-        .ok_or(StatusCode::NOT_FOUND)?;
-    Ok(Json(wire::AccountWire {
-        address: account.address,
-        domain: account.domain,
-        display_name: account.display_name,
-        active: account.active,
-        created_at: account.created_at,
-        quota_bytes: account.quota_bytes,
-        recovery_email: if account.recovery_email.is_empty() {
-            None
-        } else {
-            Some(account.recovery_email)
-        },
-    }))
 }
 
 // Silence unused imports under future loops:

@@ -22,10 +22,6 @@ pub(super) fn view_routes(state: Arc<CoreRpcState>) -> Router {
             post(views::search_conversations),
         )
         .route(th::PATH_LIST_SENT_MESSAGES, get(views::list_sent_messages))
-        .route(
-            th::PATH_FIND_THREAD_BY_MESSAGE_ID,
-            get(views::find_thread_by_message_id),
-        )
         .route(th::PATH_MARK_ALL_READ, post(views::mark_all_read))
         .route(th::PATH_MARK_LIST_READ, post(views::mark_list_read))
         .route(th::PATH_MARK_JUNK, post(filing::mark_junk))

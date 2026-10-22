@@ -10,12 +10,6 @@ use crate::types::{MailboxId, UserAddress};
 // ── paths ───────────────────────────────────────────────────────────
 
 pub const PATH_LIST_MAILBOXES: &str = "/v1/users/{user}/mailboxes";
-pub const PATH_GET_MAILBOX: &str = "/v1/users/{user}/mailboxes/{name}";
-pub const PATH_GET_MAILBOX_BY_ID: &str = "/v1/mailboxes/{id}";
-pub const PATH_CREATE_MAILBOX: &str = "/v1/users/{user}/mailboxes";
-pub const PATH_DELETE_MAILBOX: &str = "/v1/users/{user}/mailboxes/{name}";
-pub const PATH_RENAME_MAILBOX: &str = "/v1/users/{user}/mailboxes/{name}/rename";
-pub const PATH_MAILBOX_STATUS: &str = "/v1/mailboxes/{id}/status";
 pub const PATH_ENSURE_DEFAULT: &str = "/v1/users/{user}/mailboxes:ensure-default";
 
 // ── wire types ──────────────────────────────────────────────────────
@@ -86,32 +80,11 @@ pub struct CreateMailboxRequest {
     pub name: String,
 }
 
-/// Response body — the new mailbox.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CreateMailboxResponse {
-    /// The created mailbox row.
-    pub mailbox: MailboxWire,
-}
-
 /// Response body for `GET /v1/users/{user}/mailboxes`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ListMailboxesResponse {
     /// All of the user's mailboxes, ordered by name.
     pub items: Vec<MailboxWire>,
-}
-
-/// Request body for `POST /v1/users/{user}/mailboxes/{name}/rename`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RenameMailboxRequest {
-    /// New mailbox name.
-    pub to: String,
-}
-
-/// Response body for `GET /v1/mailboxes/{id}/status`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MailboxStatusResponse {
-    /// Counts.
-    pub status: MailboxStatusWire,
 }
 
 /// Response body for `POST /v1/users/{user}/mailboxes:ensure-default`.

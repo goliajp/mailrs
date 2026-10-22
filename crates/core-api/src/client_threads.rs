@@ -78,20 +78,6 @@ impl Client {
         self.get_authed(path, "list_sent_messages").await
     }
 
-    /// GET /v1/users/{user}/threads/by-message-id/{message_id}
-    pub async fn find_thread_by_message_id(
-        &self,
-        user: &str,
-        message_id: &str,
-    ) -> ApiResult<method::thread::FindThreadByMessageIdResponse> {
-        let path = format!(
-            "/v1/users/{}/threads/by-message-id/{}",
-            Self::enc(user),
-            Self::enc(message_id)
-        );
-        self.get_authed(path, "find_thread_by_message_id").await
-    }
-
     /// POST /v1/users/{user}/threads/{thread_id}/{action}
     /// — generic helper for mark_read/unread/star/unstar/pin/unpin/etc.
     async fn thread_action(
