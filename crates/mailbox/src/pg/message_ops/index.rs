@@ -113,8 +113,7 @@ impl PgMailboxStore {
     /// Index an already-delivered message: extract headers, resolve
     /// the thread, insert the metadata row, and apply `flags`.
     ///
-    /// This is the index-only half of [`Self::append_message`]. The
-    /// maildir/object write is the caller's responsibility (it has
+    /// The maildir/object write is the caller's responsibility (it has
     /// already happened, yielding `msg_id`) — keeping the storage
     /// write out of the mailbox stone lets the server route it
     /// through the swappable `MessageStore` seam. Returns the UID.
