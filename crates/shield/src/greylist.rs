@@ -181,10 +181,9 @@ mod store_impl {
         /// Read order: kevy (hot, sub-ms), then PG (cold backup, ~5 ms RTT)
         /// when one is attached. On a kevy miss with a PG pool we cold-load
         /// the `first_seen` value from PG and warm the kevy entry, so a
-        /// single PG read brings a triplet back to hot. This is the
-        /// post-INC-2026-06-03 warmup path: when kevy AOF was reset every
-        /// genuine known sender was hitting "first seen → Defer" and the
-        /// system was 451-deferring everyone for ~5 minutes.
+        /// single PG read brings a triplet back to hot. Without it, a kevy
+        /// store that lost its data would treat every known sender as new
+        /// and defer them all with 451.
         pub async fn check(
             &self,
             key: &str,

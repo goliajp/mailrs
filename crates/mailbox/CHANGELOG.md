@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking:** the deprecated `LegacyMailboxStore` alias is removed.
+  Migration: use `PgMailboxStore`, which it named.
 - **Breaking:** `ConversationSummary` has two new public fields,
   `snoozed_until` (epoch seconds this reader snoozed the thread until,
   `0` when not snoozed) and `quarantined` (held for review). Migration:
