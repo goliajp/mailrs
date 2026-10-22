@@ -3,14 +3,15 @@
 
 use std::sync::{Arc, Mutex};
 
-use mailrs_tls_reload::{TlsState, config_from_pem};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
-use tokio_rustls::TlsConnector;
 use tokio_rustls::client::TlsStream;
 
+pub(crate) use crate::test_tls::{Cert, cert};
+
 use crate::backend::{
-    Account, Directory, Error, Expunged, Flag, Message, Protocol, Quota, Result, Selected, Watch,
+    Account, Directory, Error, Expunged, Filed, Flag, Message, Protocol, Quota, Result, Selected,
+    Watch,
 };
 
 pub(crate) const USER: &str = "alice@golia.example.test";
@@ -32,9 +33,17 @@ pub(crate) fn directory() -> Arc<Memory> {
 
 impl Memory {
     pub(crate) fn deliver(&self, raw: &str) {
-        let mut inbox = self.inbox.lock().unwrap();
-        let uid = inbox.last().map_or(0, |m| m.0) + 1;
-        inbox.push((uid, Vec::new(), raw.as_bytes().to_vec()));
+        file(&self.inbox, raw.as_bytes().to_vec(), Vec::new());
+    }
+}
+
+fn file(inbox: &Inbox, bytes: Vec<u8>, flags: Vec<Flag>) -> Filed {
+    let mut inbox = inbox.lock().unwrap();
+    let uid = inbox.last().map_or(0, |m| m.0) + 1;
+    inbox.push((uid, flags, bytes));
+    Filed {
+        uidvalidity: 7,
+        uid,
     }
 }
 
@@ -143,14 +152,17 @@ impl Account for MemoryAccount {
         Ok(())
     }
 
-    async fn copy(&self, _: &(), m: &Message<u32>, _: &()) -> Result<()> {
+    async fn copy(&self, _: &(), m: &Message<u32>, _: &()) -> Result<Filed> {
         let bytes = self.read(m).await?.unwrap_or_default();
-        self.deliver_bytes(bytes);
-        Ok(())
+        Ok(file(&self.inbox, bytes, m.flags.clone()))
     }
 
-    async fn move_to(&self, _: &(), _: &Message<u32>, _: &()) -> Result<()> {
-        Ok(())
+    async fn move_to(&self, _: &(), m: &Message<u32>, _: &()) -> Result<Filed> {
+        let uid = m.uid;
+        Ok(Filed {
+            uidvalidity: 7,
+            uid,
+        })
     }
 
     async fn expunge(&self, _: &(), doomed: &[Message<u32>]) -> Expunged {
@@ -172,9 +184,8 @@ impl Account for MemoryAccount {
         Ok(())
     }
 
-    async fn append(&self, _: &(), bytes: Vec<u8>, _: Vec<Flag>) -> Result<()> {
-        self.deliver_bytes(bytes);
-        Ok(())
+    async fn append(&self, _: &(), bytes: Vec<u8>, flags: Vec<Flag>) -> Result<Filed> {
+        Ok(file(&self.inbox, bytes, flags))
     }
 
     async fn vanished_since(&self, _: &(), _: u64) -> Result<Vec<u32>> {
@@ -201,38 +212,6 @@ impl Account for MemoryAccount {
     async fn delete_sieve_script(&self) -> Result<()> {
         *self.script.lock().unwrap() = None;
         Ok(())
-    }
-}
-
-impl MemoryAccount {
-    fn deliver_bytes(&self, bytes: Vec<u8>) {
-        let mut inbox = self.inbox.lock().unwrap();
-        let uid = inbox.last().map_or(0, |m| m.0) + 1;
-        inbox.push((uid, Vec::new(), bytes));
-    }
-}
-
-pub(crate) struct Cert {
-    pub(crate) server: TlsState,
-    connector: TlsConnector,
-}
-
-pub(crate) fn cert() -> Cert {
-    let _ = rustls::crypto::ring::default_provider().install_default();
-    let ck = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
-    let config = config_from_pem(
-        ck.cert.pem().as_bytes(),
-        ck.signing_key.serialize_pem().as_bytes(),
-    )
-    .unwrap();
-    let mut roots = rustls::RootCertStore::empty();
-    roots.add(ck.cert.der().clone()).unwrap();
-    let client = rustls::ClientConfig::builder()
-        .with_root_certificates(roots)
-        .with_no_client_auth();
-    Cert {
-        server: TlsState::new(Arc::unwrap_or_clone(config)),
-        connector: TlsConnector::from(Arc::new(client)),
     }
 }
 

@@ -5245,7 +5245,7 @@ export interface components {
             hostname: string;
             smtp_port: number;
             submission_port: number;
-            imap_port: number;
+            imap_port?: number;
             local_domains: string[];
             /** Format: int64 */
             max_message_size?: number;

@@ -46,7 +46,7 @@ pub(crate) fn build_web_state(i: WebStateInputs<'_>) -> WebState {
         hostname: i.cfg.hostname.clone(),
         smtp_port: i.cfg.smtp_port,
         submission_port: i.cfg.submission_port,
-        imap_port: i.cfg.imap_port,
+        imap_port: mailrs_mail_protocols::listen::IMAP.port(),
         local_domains: i.cfg.local_domains.clone(),
         max_message_size: None,
         tls_enabled: i.cfg.has_tls() || i.cfg.acme_email.is_some(),

@@ -17,5 +17,7 @@ pub mod managesieve;
 pub mod pop3;
 #[cfg(test)]
 mod test_support;
+#[cfg(test)]
+mod test_tls;
 
 pub use listen::spawn_all;

@@ -8,8 +8,16 @@
 //! One test, run in order: the POP3 and ManageSieve parts read what the
 //! IMAP part left.
 
+mod checks;
+mod folders;
 mod harness;
+mod limits;
+mod moves;
 mod script;
+mod seen;
+mod selection;
+mod steps;
+mod uidl;
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -23,14 +31,30 @@ pub(super) struct Step {
     pub expect: String,
 }
 
-/// Mask the numbers each store chooses for itself.
+/// Mask the numbers each store chooses for itself: the digits after each
+/// of these words, the uid APPENDUID gives, and COPYUID's destination
+/// uids. The SQL store numbers a copy anew and the Maildir one keeps the
+/// message's own uid; `checks` reads those back to see they are right.
 fn masked(line: &str) -> String {
     let mut out = line.to_string();
-    for code in ["[UIDVALIDITY ", "[HIGHESTMODSEQ "] {
+    for (code, keep) in [("[APPENDUID ", 0), ("[COPYUID ", 1)] {
         if let Some(at) = out.find(code) {
             let start = at + code.len();
             let end = out[start..].find(']').map_or(out.len(), |n| start + n);
-            out.replace_range(start..end, "*");
+            let words: Vec<&str> = out[start..end].split(' ').collect();
+            let mut shown = vec!["*"];
+            shown.extend(words.iter().skip(1).take(keep));
+            shown.extend(words.iter().skip(1 + keep).map(|_| "*"));
+            out.replace_range(start..end, &shown.join(" "));
+        }
+    }
+    for word in ["UIDVALIDITY ", "HIGHESTMODSEQ "] {
+        let mut from = 0;
+        while let Some(at) = out[from..].find(word) {
+            let start = from + at + word.len();
+            let digits = out[start..].bytes().take_while(u8::is_ascii_digit).count();
+            out.replace_range(start..start + digits, "*");
+            from = start;
         }
     }
     out
@@ -71,6 +95,19 @@ where
     diffs
 }
 
+/// IMAP conversations on fresh connections, in order, after the first
+/// four: each starts from what the one before left.
+fn later() -> Vec<Vec<Step>> {
+    vec![
+        selection::unselect(),
+        folders::status(),
+        folders::fixed(),
+        selection::close(),
+        seen::seen(),
+        moves::moves(),
+    ]
+}
+
 async fn conversations<D: Directory>(dir: Arc<D>) -> Vec<String> {
     let mut diffs = Vec::new();
     let (client, server) = tokio::io::duplex(1 << 20);
@@ -87,9 +124,29 @@ async fn conversations<D: Directory>(dir: Arc<D>) -> Vec<String> {
     diffs.extend(converse(client, "pop3", &script::pop3()).await);
 
     let (client, server) = tokio::io::duplex(1 << 20);
-    let sieve = mailrs_mail_protocols::managesieve::session(dir, server, None);
+    let sieve = mailrs_mail_protocols::managesieve::session(dir.clone(), server, None);
     tokio::spawn(sieve);
     diffs.extend(converse(client, "managesieve", &script::managesieve()).await);
+
+    for steps in later() {
+        let (client, server) = tokio::io::duplex(1 << 20);
+        tokio::spawn(mailrs_mail_protocols::imap::run(dir.clone(), server));
+        diffs.extend(converse(client, "imap", &steps).await);
+    }
+    diffs.extend(checks::uidplus(dir.clone()).await);
+    diffs.extend(uidl::stable(dir.clone()).await);
+
+    for steps in limits::imap() {
+        let (client, server) = tokio::io::duplex(1 << 20);
+        tokio::spawn(mailrs_mail_protocols::imap::run(dir.clone(), server));
+        diffs.extend(converse(client, "imap", &steps).await);
+    }
+    for steps in limits::pop3() {
+        let (client, server) = tokio::io::duplex(1 << 20);
+        let pop3 = mailrs_mail_protocols::pop3::session(dir.clone(), server, None);
+        tokio::spawn(pop3);
+        diffs.extend(converse(client, "pop3", &steps).await);
+    }
     diffs
 }
 
@@ -120,5 +177,17 @@ fn the_minted_numbers_are_masked_and_nothing_else() {
     assert_eq!(
         masked("* OK [UIDNEXT 4] Predicted next UID\r\n"),
         "* OK [UIDNEXT 4] Predicted next UID\r\n"
+    );
+    assert_eq!(
+        masked("* STATUS INBOX (UIDVALIDITY 17 UIDNEXT 4 HIGHESTMODSEQ 9)\r\n"),
+        "* STATUS INBOX (UIDVALIDITY * UIDNEXT 4 HIGHESTMODSEQ *)\r\n"
+    );
+    assert_eq!(
+        masked("a1 OK [APPENDUID 1760000000 9] APPEND completed\r\n"),
+        "a1 OK [APPENDUID * *] APPEND completed\r\n"
+    );
+    assert_eq!(
+        masked("* OK [COPYUID 1760000000 4,5 11,12] Moved\r\n"),
+        "* OK [COPYUID * 4,5 *] Moved\r\n"
     );
 }

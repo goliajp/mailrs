@@ -11,7 +11,7 @@
 //! - Persist per-message flag updates via Maildir++ filename info
 //!   (`:2,SRF` etc — the storage-maildir crate handles the rename).
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use mailrs_maildir::{Flag, Maildir, MessageId};
@@ -60,12 +60,14 @@ pub fn set_flags(msg: &ImapMessage, flags: &[Flag]) -> std::io::Result<PathBuf> 
 /// Indexes the new copy on the way in — same write-through contract as
 /// [`append`]. A COPY that only touched the filesystem left the thread
 /// index blind to the new file.
+///
+/// Returns the uid the copy has in `dest`.
 pub fn copy_to(
     state: &Arc<FastcoreState>,
     user: &str,
     msg: &ImapMessage,
     dest: &MailboxInfo,
-) -> std::io::Result<()> {
+) -> std::io::Result<u32> {
     let bytes = read_message(msg).ok_or_else(|| std::io::Error::other("source missing"))?;
     let maildir = Maildir::create(&dest.path)?;
     let id = maildir.deliver(&bytes)?;
@@ -77,17 +79,40 @@ pub fn copy_to(
         &dest.name,
         None,
     );
+    let path = dest.path.join("new").join(&id.0);
+    Ok(new_file_uid(state, user, &id.0, &path))
+}
+
+/// The uid of a file just delivered, from the allocator every reader of
+/// the mailbox resolves it with.
+fn new_file_uid(state: &Arc<FastcoreState>, user: &str, base: &str, path: &Path) -> u32 {
+    let empty_cache = std::collections::HashMap::new();
+    let empty_seen = std::collections::HashSet::new();
+    resolve_uid(state, user, &empty_cache, &empty_seen, base, path)
+}
+
+/// Remove a message file and take its size off the user's usage, the one
+/// place a removal is counted. Arrivals are counted where they are
+/// indexed (`ingest_delivered_file`).
+pub fn remove_message(user: &str, msg: &ImapMessage) -> std::io::Result<()> {
+    std::fs::remove_file(&msg.path)?;
+    crate::live_sync::adjust_usage_bytes(user, -(msg.size as i64));
     Ok(())
 }
 
-/// Delete a message file — used by APPEND rollback + MOVE completion +
-/// EXPUNGE.
-pub fn delete_file(msg: &ImapMessage) -> std::io::Result<()> {
-    std::fs::remove_file(&msg.path)
+/// A copy in `dest`, then the source removed: the user's usage ends where
+/// it started. Returns the uid the message has in `dest`.
+pub fn move_to(
+    state: &Arc<FastcoreState>,
+    user: &str,
+    msg: &ImapMessage,
+    dest: &MailboxInfo,
+) -> std::io::Result<u32> {
+    let uid = copy_to(state, user, msg, dest)?;
+    remove_message(user, msg)?;
+    Ok(uid)
 }
 
-/// Append raw bytes to a mailbox as a new message; allocates and
-/// returns the persistent UID for the delivered file.
 /// Build the `blob_ref` that `ingest_delivered_file` (and later
 /// `enrich_with_body`) expects: a bare filename for INBOX, or
 /// `.Folder/<filename>` for a Maildir++ subfolder. Mirrors the
@@ -105,38 +130,39 @@ pub(crate) fn blob_ref_for(mb: &MailboxInfo, filename: &str) -> String {
     }
 }
 
+/// Append raw bytes to a mailbox as a new message, allocating its
+/// persistent uid. `flags` are written into the file name, so the message
+/// arrives carrying them; bringing the index in step is the caller's.
+/// Returns the uid and the file.
 pub fn append(
     state: &Arc<FastcoreState>,
     user: &str,
     mb: &MailboxInfo,
     bytes: &[u8],
-) -> std::io::Result<u32> {
+    flags: &[Flag],
+) -> std::io::Result<(u32, PathBuf)> {
     if crate::live_sync::quota_exceeded(user) {
         return Err(std::io::Error::other("over quota"));
     }
     let maildir = Maildir::create(&mb.path)?;
     let id = maildir.deliver(bytes)?;
-    crate::live_sync::adjust_usage_bytes(user, bytes.len() as i64);
-    // Write-through to the thread index, exactly like spool_drain does
+    let mut path = mb.path.join("new").join(&id.0);
+    if !flags.is_empty() {
+        maildir.mark_processed(&id, flags)?;
+        let name = format!("{}{}", id.0, mailrs_maildir::serialize_flags(flags));
+        path = mb.path.join("cur").join(name);
+    }
+    // Write-through to the thread index, which also counts the bytes
+    // against the user's usage, exactly like spool_drain does
     // for inbound mail. Without this an APPEND (a client filing its own
     // sent copy into .Sent, say) lands on disk but stays invisible to
     // the conversation views until the periodic maildir self-heal
     // notices it — which is precisely why that sweep had to scan every
     // file in the mailbox on every cycle (2026-07-19).
     crate::ingest_delivered_file(state, user, &blob_ref_for(mb, &id.0), bytes, &mb.name, None);
-    let empty_cache = std::collections::HashMap::new();
-    let empty_seen = std::collections::HashSet::new();
-    let path = mb.path.join("new").join(&id.0);
     let m = bump_modseq(state, user);
     set_file_modseq(state, user, &id.0, m);
-    Ok(resolve_uid(
-        state,
-        user,
-        &empty_cache,
-        &empty_seen,
-        &id.0,
-        &path,
-    ))
+    Ok((new_file_uid(state, user, &id.0, &path), path))
 }
 
 /// Record an expunged uid for QRESYNC `VANISHED (EARLIER)` replay
@@ -253,7 +279,7 @@ mod tests {
         let m = mb(tmp.path());
         let raw = b"Message-ID: <appended@test>\r\nFrom: a@x.y\r\nSubject: hi\r\n\r\nbody";
 
-        append(&st, "u@x.y", &m, raw).unwrap();
+        append(&st, "u@x.y", &m, raw, &[]).unwrap();
 
         // the thread index must know about it immediately — no waiting
         // for the periodic maildir self-heal

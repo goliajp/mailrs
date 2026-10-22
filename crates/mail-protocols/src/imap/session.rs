@@ -9,18 +9,16 @@
 use std::sync::Arc;
 
 use futures_util::{SinkExt, StreamExt};
-use mailrs_imap_codec::{ImapCodec, ImapInput};
-use mailrs_imap_proto::{ImapCommand, format_bad, format_bye, format_no, format_ok, parse_command};
+use mailrs_imap_codec::{ImapCodec, ImapInput, TooLong};
+use mailrs_imap_proto::{ImapCommand, format_bad, format_no, format_ok, parse_command};
+use mailrs_smtp_proto::MAX_MESSAGE_SIZE;
 use mailrs_tls_reload::TlsState;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::codec::Framed;
 
 use super::auth;
-use super::fetch::fetch_response;
-use super::mailbox::{append_flow, close, idle_flow, list_response, select};
-use super::query::{copy_response, quota_response, search_response, sort_response};
-use super::store::{expunge, store_response};
-use crate::backend::{Account, Directory, Error, Message, Protocol};
+use super::commands::dispatch;
+use crate::backend::{Account, Directory, Error, Message};
 
 pub(super) type Io<S> = Framed<S, ImapCodec>;
 
@@ -67,7 +65,7 @@ where
     D: Directory,
     S: AsyncRead + AsyncWrite + Send + Unpin + 'static,
 {
-    let mut framed = Framed::new(io, ImapCodec::new());
+    let mut framed = Framed::new(io, codec());
     if greet(&*dir, &mut framed, false).await {
         serve(&*dir, &mut framed, false).await;
     }
@@ -81,17 +79,24 @@ where
     D: Directory,
     S: AsyncRead + AsyncWrite + Send + Unpin + 'static,
 {
-    let mut framed = Framed::new(io, ImapCodec::new());
+    let mut framed = Framed::new(io, codec());
     if !greet(&*dir, &mut framed, true).await || !serve(&*dir, &mut framed, true).await {
         return;
     }
     // into_inner drops whatever the client pipelined after STARTTLS
     match tls.acceptor().accept(framed.into_inner()).await {
         Ok(stream) => {
-            serve(&*dir, &mut Framed::new(stream, ImapCodec::new()), false).await;
+            serve(&*dir, &mut Framed::new(stream, codec()), false).await;
         }
         Err(e) => tracing::debug!(error = %e, "imap: STARTTLS handshake failed"),
     }
+}
+
+/// Lines up to the codec's 64 KiB, before sign-in as after it (RFC 7162
+/// §4 asks for at least 8 KiB), and literals up to the largest message
+/// the receiver takes.
+fn codec() -> ImapCodec {
+    ImapCodec::new().with_max_literal(MAX_MESSAGE_SIZE as u32)
 }
 
 /// Greeting per RFC 3501 §7.5. Sent before the client says anything.
@@ -116,7 +121,17 @@ where
     // ENABLE QRESYNC is connection-scoped (RFC 7162 §3.2.5)
     let mut qresync = false;
     while let Some(frame) = framed.next().await {
-        let Ok(input) = frame else { return false };
+        let input = match frame {
+            Ok(input) => input,
+            Err(e) => {
+                if let Some(what) = e.get_ref().and_then(|e| e.downcast_ref::<TooLong>()) {
+                    // the connection closes whether or not this is read
+                    let bad = format!("* BAD [TOOBIG] {what}, closing\r\n");
+                    drop(framed.send(bad.into_bytes()).await);
+                }
+                return false;
+            }
+        };
         let line = match input {
             ImapInput::Line(s) => s,
             // a literal outside an APPEND
@@ -149,7 +164,8 @@ where
             auth::Early::Closed => return false,
         };
         let is_logout = matches!(command, ImapCommand::Logout);
-        let responses = dispatch(dir, &mut session, &tag, command, framed, &mut qresync).await;
+        let parsed = (command, line);
+        let responses = dispatch(dir, &mut session, &tag, parsed, framed, &mut qresync).await;
         if !send_all(framed, responses).await || is_logout {
             return false;
         }
@@ -167,169 +183,4 @@ where
         }
     }
     true
-}
-
-/// Commands that change mail, which a read-only account refuses whatever
-/// state the session is in.
-fn changes_mail(cmd: &ImapCommand) -> bool {
-    match cmd {
-        ImapCommand::Store { .. }
-        | ImapCommand::Copy { .. }
-        | ImapCommand::Move { .. }
-        | ImapCommand::Append { .. }
-        | ImapCommand::Expunge
-        | ImapCommand::Create { .. }
-        | ImapCommand::Delete { .. }
-        | ImapCommand::Rename { .. } => true,
-        ImapCommand::Uid { subcommand } => matches!(
-            **subcommand,
-            ImapCommand::Store { .. } | ImapCommand::Copy { .. } | ImapCommand::Move { .. }
-        ),
-        _ => false,
-    }
-}
-
-async fn dispatch<D, S>(
-    dir: &D,
-    session: &mut State<D::Account>,
-    tag: &str,
-    cmd: ImapCommand,
-    framed: &mut Io<S>,
-    qresync: &mut bool,
-) -> Vec<String>
-where
-    D: Directory,
-    S: AsyncRead + AsyncWrite + Send + Unpin,
-{
-    if changes_mail(&cmd)
-        && let Some(reason) = session.account().and_then(|a| a.read_only())
-    {
-        return vec![format_no(tag, reason)];
-    }
-    match cmd {
-        ImapCommand::Noop => vec![format_ok(tag, "NOOP completed")],
-        ImapCommand::Logout => vec![
-            format_bye("mailrs logging out"),
-            format_ok(tag, "LOGOUT completed"),
-        ],
-        ImapCommand::Login { username, password } => {
-            login(dir, session, tag, &username, &password).await
-        }
-        ImapCommand::List { pattern, .. } => list_response(session, tag, &pattern).await,
-        ImapCommand::Select { mailbox } => select(session, tag, &mailbox, false, *qresync).await,
-        ImapCommand::Examine { mailbox } => select(session, tag, &mailbox, true, *qresync).await,
-        ImapCommand::Enable(caps) => enable(tag, &caps, qresync),
-        ImapCommand::Close => close(session, tag),
-        ImapCommand::Uid { subcommand } => uid(session, tag, *subcommand).await,
-        ImapCommand::Expunge => expunge(session, tag, *qresync).await,
-        ImapCommand::Append {
-            mailbox,
-            flags,
-            literal_size,
-        } => {
-            append_flow(
-                session,
-                tag,
-                framed,
-                &mailbox,
-                flags.as_deref(),
-                literal_size,
-            )
-            .await
-        }
-        ImapCommand::Idle => idle_flow(session, tag, framed).await,
-        ImapCommand::GetQuota { .. } => quota_response(session, tag).await,
-        ImapCommand::GetQuotaRoot { mailbox } => {
-            let mut out = vec![format!("* QUOTAROOT \"{mailbox}\" \"\"\r\n")];
-            out.extend(quota_response(session, tag).await);
-            out
-        }
-        cmd => sequenced(session, tag, cmd, false).await,
-    }
-}
-
-/// UID FETCH / STORE / SEARCH / SORT / COPY / MOVE.
-async fn uid<A: Account>(session: &mut State<A>, tag: &str, cmd: ImapCommand) -> Vec<String> {
-    match cmd {
-        ImapCommand::Fetch { .. }
-        | ImapCommand::Store { .. }
-        | ImapCommand::Search { .. }
-        | ImapCommand::Sort { .. }
-        | ImapCommand::Copy { .. }
-        | ImapCommand::Move { .. } => sequenced(session, tag, cmd, true).await,
-        _ => vec![format_bad(tag, "UID subcommand not supported")],
-    }
-}
-
-/// The commands that address messages by sequence number or, under UID,
-/// by uid.
-async fn sequenced<A: Account>(
-    session: &mut State<A>,
-    tag: &str,
-    cmd: ImapCommand,
-    by_uid: bool,
-) -> Vec<String> {
-    match cmd {
-        ImapCommand::Fetch {
-            sequence,
-            attributes,
-        } => fetch_response(session, tag, &sequence, &attributes, by_uid).await,
-        ImapCommand::Store {
-            sequence,
-            action,
-            flags,
-        } => store_response(session, tag, &sequence, &action, &flags, by_uid).await,
-        ImapCommand::Search { criteria } => search_response(session, tag, &criteria, by_uid).await,
-        ImapCommand::Sort {
-            criteria,
-            search_criteria,
-            ..
-        } => sort_response(session, tag, &criteria, &search_criteria, by_uid).await,
-        ImapCommand::Copy { sequence, mailbox } => {
-            copy_response(session, tag, &sequence, &mailbox, false, by_uid).await
-        }
-        ImapCommand::Move { sequence, mailbox } => {
-            copy_response(session, tag, &sequence, &mailbox, true, by_uid).await
-        }
-        _ => vec![format_bad(tag, "command not implemented")],
-    }
-}
-
-fn enable(tag: &str, caps: &[String], qresync: &mut bool) -> Vec<String> {
-    let mut enabled = Vec::new();
-    for c in caps {
-        let up = c.to_ascii_uppercase();
-        if up == "QRESYNC" || up == "CONDSTORE" {
-            if up == "QRESYNC" {
-                *qresync = true;
-            }
-            enabled.push(up);
-        }
-    }
-    vec![
-        format!("* ENABLED {}\r\n", enabled.join(" ")),
-        format_ok(tag, "ENABLE completed"),
-    ]
-}
-
-async fn login<D: Directory>(
-    dir: &D,
-    session: &mut State<D::Account>,
-    tag: &str,
-    username: &str,
-    password: &str,
-) -> Vec<String> {
-    if !matches!(session, State::NotAuthed) {
-        return vec![format_bad(tag, "already authenticated")];
-    }
-    match dir.login(username, password, Protocol::Imap).await {
-        Ok(Some(account)) => {
-            *session = State::Authed {
-                account: Arc::new(account),
-            };
-            vec![format_ok(tag, "LOGIN completed")]
-        }
-        Ok(None) => vec![format_no(tag, "invalid credentials")],
-        Err(e) => vec![no(tag, "LOGIN", &e)],
-    }
 }

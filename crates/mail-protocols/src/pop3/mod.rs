@@ -12,7 +12,9 @@ mod tests;
 use std::sync::Arc;
 
 use mailrs_tls_reload::TlsState;
-use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
+use tokio::io::{
+    AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader,
+};
 use tokio::net::TcpListener;
 
 use crate::backend::{Directory, Protocol};
@@ -22,7 +24,7 @@ use maildrop::Maildrop;
 /// Plaintext POP3 on `MAILRS_POP3_BIND` (default `0.0.0.0:110`). Without
 /// a certificate (dev) STLS is not offered and USER / PASS work in clear.
 pub async fn spawn<D: Directory>(dir: Arc<D>, tls: Option<TlsState>) {
-    let Some(listener) = listen::bind("MAILRS_POP3_BIND", "0.0.0.0:110", "pop3").await else {
+    let Some(listener) = listen::bind(listen::POP3).await else {
         return;
     };
     if tls.is_none() {
@@ -47,7 +49,7 @@ pub async fn serve_plain<D: Directory>(listener: TcpListener, dir: Arc<D>, tls: 
 
 /// Implicit-TLS POP3S on `MAILRS_POP3S_BIND` (default `0.0.0.0:995`).
 pub async fn spawn_tls<D: Directory>(dir: Arc<D>, tls: TlsState) {
-    let Some(listener) = listen::bind("MAILRS_POP3S_BIND", "0.0.0.0:995", "pop3s").await else {
+    let Some(listener) = listen::bind(listen::POP3S).await else {
         return;
     };
     tracing::info!("pop3s: listening (implicit TLS)");
@@ -91,6 +93,11 @@ where
         .map(drop)
 }
 
+/// The longest command line read, CRLF included, before sign-in as after
+/// it. RFC 2449 §4 caps a command at 255 octets; this leaves room for a
+/// long password.
+const MAX_LINE: u64 = 8 * 1024;
+
 /// Runs commands until QUIT or EOF (false), or until the client is told
 /// to begin TLS (true, only when `stls`).
 async fn serve<D, R, W>(dir: &D, reader: &mut R, tx: &mut W, stls: bool) -> std::io::Result<bool>
@@ -103,7 +110,12 @@ where
     let mut maildrop: Option<Maildrop<D::Account>> = None;
     loop {
         let mut line = String::new();
-        if reader.read_line(&mut line).await? == 0 {
+        let n = (&mut *reader).take(MAX_LINE).read_line(&mut line).await?;
+        if n == 0 {
+            return Ok(false);
+        }
+        if !line.ends_with('\n') && n as u64 == MAX_LINE {
+            tx.write_all(b"-ERR line too long, closing\r\n").await?;
             return Ok(false);
         }
         let cleaned = line.trim_end_matches(['\r', '\n']);

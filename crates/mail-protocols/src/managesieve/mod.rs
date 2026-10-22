@@ -32,7 +32,7 @@ const SCRIPT_NAME: &str = "mailrs";
 /// `0.0.0.0:4190`). Without a certificate (dev) STARTTLS is not offered
 /// and AUTHENTICATE works in clear.
 pub async fn spawn<D: Directory>(dir: Arc<D>, tls: Option<TlsState>) {
-    let bound = listen::bind("MAILRS_MANAGESIEVE_BIND", "0.0.0.0:4190", "managesieve").await;
+    let bound = listen::bind(listen::MANAGESIEVE).await;
     let Some(listener) = bound else {
         return;
     };
