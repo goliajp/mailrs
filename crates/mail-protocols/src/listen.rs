@@ -30,14 +30,67 @@ pub fn spawn_all<D: Directory>(dir: Arc<D>, tls: Option<TlsState>) {
     }
 }
 
-/// The listener `var` names (default `default`), `None` when it is
-/// turned off or cannot be bound; both are logged.
-pub(crate) async fn bind(var: &str, default: &str, name: &str) -> Option<TcpListener> {
-    let addr = std::env::var(var).unwrap_or_else(|_| default.to_string());
-    if addr.eq_ignore_ascii_case("off") || addr.is_empty() {
+/// One listener: the variable naming its address and the address it
+/// binds when the variable is unset.
+#[derive(Debug, Clone, Copy)]
+pub struct Listener {
+    pub var: &'static str,
+    pub default: &'static str,
+    pub name: &'static str,
+}
+
+pub const IMAP: Listener = Listener {
+    var: "MAILRS_IMAP_BIND",
+    default: "0.0.0.0:143",
+    name: "imap",
+};
+pub const IMAPS: Listener = Listener {
+    var: "MAILRS_IMAPS_BIND",
+    default: "0.0.0.0:993",
+    name: "imaps",
+};
+pub const POP3: Listener = Listener {
+    var: "MAILRS_POP3_BIND",
+    default: "0.0.0.0:110",
+    name: "pop3",
+};
+pub const POP3S: Listener = Listener {
+    var: "MAILRS_POP3S_BIND",
+    default: "0.0.0.0:995",
+    name: "pop3s",
+};
+pub const MANAGESIEVE: Listener = Listener {
+    var: "MAILRS_MANAGESIEVE_BIND",
+    default: "0.0.0.0:4190",
+    name: "managesieve",
+};
+
+impl Listener {
+    /// The address it binds, `None` when it is turned off (`off` or an
+    /// empty value).
+    pub fn address(&self) -> Option<String> {
+        let addr = std::env::var(self.var).unwrap_or_else(|_| self.default.to_string());
+        match addr.is_empty() || addr.eq_ignore_ascii_case("off") {
+            true => None,
+            false => Some(addr),
+        }
+    }
+
+    /// The port of [`address`](Self::address), which is what mail apps
+    /// are told to connect to; `None` when it is off or names no port.
+    pub fn port(&self) -> Option<u16> {
+        self.address()?.rsplit_once(':')?.1.parse().ok()
+    }
+}
+
+/// The listener, `None` when it is turned off or cannot be bound; both
+/// are logged.
+pub(crate) async fn bind(listener: Listener) -> Option<TcpListener> {
+    let (var, name) = (listener.var, listener.name);
+    let Some(addr) = listener.address() else {
         tracing::debug!("{var}=off — skipping {name}");
         return None;
-    }
+    };
     match TcpListener::bind(&addr).await {
         Ok(l) => Some(l),
         Err(e) => {
@@ -88,4 +141,26 @@ pub(crate) async fn accept_tls<F, Fut>(
         }
     })
     .await;
+}
+
+/// The IMAP endpoint a mail app is told to use: the implicit-TLS port
+/// when that listener is on, else the plaintext one, upgraded with
+/// STARTTLS. `None` when neither is on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ImapForClients {
+    pub port: u16,
+    pub implicit_tls: bool,
+}
+
+pub fn imap_for_clients() -> Option<ImapForClients> {
+    if let Some(port) = IMAPS.port() {
+        return Some(ImapForClients {
+            port,
+            implicit_tls: true,
+        });
+    }
+    IMAP.port().map(|port| ImapForClients {
+        port,
+        implicit_tls: false,
+    })
 }

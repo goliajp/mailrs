@@ -13,8 +13,24 @@ fn hostname() -> String {
     std::env::var("MAILRS_HOSTNAME").unwrap_or_else(|_| "mail.golia.jp".into())
 }
 
+/// What a mail app is told when no IMAP listener is on.
+fn not_served() -> axum::response::Response {
+    (StatusCode::NOT_FOUND, "IMAP is not served").into_response()
+}
+
 /// GET /autodiscover/autodiscover.xml + POST alias — Outlook / iOS Mail.
-pub async fn autodiscover_outlook() -> impl IntoResponse {
+pub async fn autodiscover_outlook() -> axum::response::Response {
+    // the port the core's listener binds, read from the variables it reads
+    let Some(imap) = mailrs_mail_protocols::listen::imap_for_clients() else {
+        return not_served();
+    };
+    let (port, tls) = match imap.implicit_tls {
+        true => (imap.port, "<SSL>on</SSL>"),
+        false => (
+            imap.port,
+            "<SSL>off</SSL>\n        <Encryption>TLS</Encryption>",
+        ),
+    };
     let hostname = hostname();
     let xml = format!(
         r#"<?xml version="1.0" encoding="utf-8"?>
@@ -26,8 +42,8 @@ pub async fn autodiscover_outlook() -> impl IntoResponse {
       <Protocol>
         <Type>IMAP</Type>
         <Server>{hostname}</Server>
-        <Port>993</Port>
-        <SSL>on</SSL>
+        <Port>{port}</Port>
+        {tls}
         <SPA>off</SPA>
         <LoginName>%EMAILADDRESS%</LoginName>
       </Protocol>
@@ -51,10 +67,19 @@ pub async fn autodiscover_outlook() -> impl IntoResponse {
         )],
         xml,
     )
+        .into_response()
 }
 
 /// GET /.well-known/autoconfig/mail/config-v1.1.xml — Thunderbird.
-pub async fn autoconfig_mozilla() -> impl IntoResponse {
+pub async fn autoconfig_mozilla() -> axum::response::Response {
+    // the port the core's listener binds, read from the variables it reads
+    let Some(imap) = mailrs_mail_protocols::listen::imap_for_clients() else {
+        return not_served();
+    };
+    let (port, socket) = match imap.implicit_tls {
+        true => (imap.port, "SSL"),
+        false => (imap.port, "STARTTLS"),
+    };
     let hostname = hostname();
     let xml = format!(
         r#"<?xml version="1.0" encoding="utf-8"?>
@@ -63,8 +88,8 @@ pub async fn autoconfig_mozilla() -> impl IntoResponse {
     <domain>%EMAILDOMAIN%</domain>
     <incomingServer type="imap">
       <hostname>{hostname}</hostname>
-      <port>993</port>
-      <socketType>SSL</socketType>
+      <port>{port}</port>
+      <socketType>{socket}</socketType>
       <authentication>password-cleartext</authentication>
       <username>%EMAILADDRESS%</username>
     </incomingServer>
@@ -86,6 +111,7 @@ pub async fn autoconfig_mozilla() -> impl IntoResponse {
         )],
         xml,
     )
+        .into_response()
 }
 
 #[derive(Deserialize)]
@@ -119,7 +145,7 @@ fn is_plain_email(s: &str) -> bool {
     s.len() <= 254 && local_ok && domain_ok
 }
 
-fn render_mobileconfig(email: &str, hostname: &str, uuid: &str) -> String {
+fn render_mobileconfig(email: &str, hostname: &str, imap_port: u16, uuid: &str) -> String {
     let email = quick_xml::escape::escape(email);
     let hostname = quick_xml::escape::escape(hostname);
     let uuid = quick_xml::escape::escape(uuid);
@@ -136,7 +162,7 @@ fn render_mobileconfig(email: &str, hostname: &str, uuid: &str) -> String {
       <key>EmailAddress</key><string>{email}</string>
       <key>IncomingMailServerAuthentication</key><string>EmailAuthPassword</string>
       <key>IncomingMailServerHostName</key><string>{hostname}</string>
-      <key>IncomingMailServerPortNumber</key><integer>993</integer>
+      <key>IncomingMailServerPortNumber</key><integer>{imap_port}</integer>
       <key>IncomingMailServerUseSSL</key><true/>
       <key>IncomingMailServerUsername</key><string>{email}</string>
       <key>OutgoingMailServerAuthentication</key><string>EmailAuthPassword</string>
@@ -164,6 +190,10 @@ fn render_mobileconfig(email: &str, hostname: &str, uuid: &str) -> String {
 /// stub. Returns an unsigned .mobileconfig; downstream ops can sign it.
 /// An `emailaddress` that is not a plain address is refused with 400.
 pub async fn apple_mobileconfig(Query(q): Query<MobileConfigQuery>) -> impl IntoResponse {
+    // the port the core's listener binds, read from the variables it reads
+    let Some(imap) = mailrs_mail_protocols::listen::imap_for_clients() else {
+        return not_served();
+    };
     let email = match q.emailaddress {
         Some(e) if is_plain_email(&e) => e,
         Some(_) => {
@@ -175,7 +205,8 @@ pub async fn apple_mobileconfig(Query(q): Query<MobileConfigQuery>) -> impl Into
         }
         None => "%EMAILADDRESS%".into(),
     };
-    let xml = render_mobileconfig(&email, &hostname(), &uuid::Uuid::new_v4().to_string());
+    let uuid = uuid::Uuid::new_v4().to_string();
+    let xml = render_mobileconfig(&email, &hostname(), imap.port, &uuid);
     (
         StatusCode::OK,
         [(
@@ -285,7 +316,7 @@ mod tests {
         let email = "o'neil&co@golia.jp";
         assert!(is_plain_email(email));
         let hostname = "mail.golia.jp\"</string><key>x</key><string>";
-        let xml = render_mobileconfig(email, hostname, "u<1>");
+        let xml = render_mobileconfig(email, hostname, 993, "u<1>");
         // an unescaped hostname would add a 24th <key>
         assert_eq!(key_count(&xml), 23);
         assert_eq!(

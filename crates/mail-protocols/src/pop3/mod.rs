@@ -24,7 +24,7 @@ use maildrop::Maildrop;
 /// Plaintext POP3 on `MAILRS_POP3_BIND` (default `0.0.0.0:110`). Without
 /// a certificate (dev) STLS is not offered and USER / PASS work in clear.
 pub async fn spawn<D: Directory>(dir: Arc<D>, tls: Option<TlsState>) {
-    let Some(listener) = listen::bind("MAILRS_POP3_BIND", "0.0.0.0:110", "pop3").await else {
+    let Some(listener) = listen::bind(listen::POP3).await else {
         return;
     };
     if tls.is_none() {
@@ -49,7 +49,7 @@ pub async fn serve_plain<D: Directory>(listener: TcpListener, dir: Arc<D>, tls: 
 
 /// Implicit-TLS POP3S on `MAILRS_POP3S_BIND` (default `0.0.0.0:995`).
 pub async fn spawn_tls<D: Directory>(dir: Arc<D>, tls: TlsState) {
-    let Some(listener) = listen::bind("MAILRS_POP3S_BIND", "0.0.0.0:995", "pop3s").await else {
+    let Some(listener) = listen::bind(listen::POP3S).await else {
         return;
     };
     tracing::info!("pop3s: listening (implicit TLS)");

@@ -42,9 +42,6 @@ pub struct ServerConfig {
     pub tls_key: Option<PathBuf>,
     pub users_file: Option<PathBuf>,
     pub web_port: u16,
-    /// The IMAP port the web tier tells clients about. The IMAP, POP3
-    /// and ManageSieve listeners bind `MAILRS_*_BIND`, as fastcore's do.
-    pub imap_port: u16,
     // anti-spam
     pub local_domains: Vec<String>,
     /// What this organisation calls itself, for the display-name
@@ -155,7 +152,6 @@ impl Default for ServerConfig {
             tls_key: None,
             users_file: None,
             web_port: 3100,
-            imap_port: 1143,
             local_domains: vec![],
             org_names: vec![],
             org_name_allowed_domains: vec![],
@@ -735,7 +731,6 @@ mod tests {
         assert_eq!(cfg.smtp_port, 2525);
         assert_eq!(cfg.submission_port, 2587);
         assert_eq!(cfg.smtps_port, 2465);
-        assert_eq!(cfg.imap_port, 1143);
         assert_eq!(cfg.web_port, 3100);
     }
 
@@ -930,16 +925,6 @@ mod tests {
         unsafe { std::env::set_var("MAILRS_WEB_PORT", "8080") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.web_port, 8080);
-        clear_mailrs_env();
-    }
-
-    #[test]
-    fn from_env_imap_port() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        clear_mailrs_env();
-        unsafe { std::env::set_var("MAILRS_IMAP_PORT", "143") };
-        let cfg = ServerConfig::from_env();
-        assert_eq!(cfg.imap_port, 143);
         clear_mailrs_env();
     }
 
@@ -1649,7 +1634,6 @@ mod tests {
         unsafe { std::env::set_var("MAILRS_SUBMISSION_PORT", "587") };
         unsafe { std::env::set_var("MAILRS_SMTPS_PORT", "465") };
         unsafe { std::env::set_var("MAILRS_WEB_PORT", "443") };
-        unsafe { std::env::set_var("MAILRS_IMAP_PORT", "143") };
         unsafe { std::env::set_var("MAILRS_LOCAL_DOMAINS", "prod.com,prod.org") };
         unsafe { std::env::set_var("MAILRS_TLS_CERT", "/ssl/cert.pem") };
         unsafe { std::env::set_var("MAILRS_TLS_KEY", "/ssl/key.pem") };
@@ -1667,7 +1651,6 @@ mod tests {
         assert_eq!(cfg.submission_port, 587);
         assert_eq!(cfg.smtps_port, 465);
         assert_eq!(cfg.web_port, 443);
-        assert_eq!(cfg.imap_port, 143);
         assert_eq!(cfg.local_domains, vec!["prod.com", "prod.org"]);
         assert_eq!(cfg.tls_cert, Some(PathBuf::from("/ssl/cert.pem")));
         assert_eq!(cfg.tls_key, Some(PathBuf::from("/ssl/key.pem")));

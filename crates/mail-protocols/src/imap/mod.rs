@@ -37,7 +37,7 @@ pub use session::{run, run_upgradable};
 /// until it is used. Without one (dev) there is no way to encrypt, so
 /// logins are accepted in clear and nothing advertises STARTTLS.
 pub async fn spawn<D: Directory>(dir: Arc<D>, tls: Option<TlsState>) {
-    let Some(listener) = listen::bind("MAILRS_IMAP_BIND", "0.0.0.0:143", "imap").await else {
+    let Some(listener) = listen::bind(listen::IMAP).await else {
         return;
     };
     if tls.is_none() {
@@ -63,7 +63,7 @@ pub async fn serve_plain<D: Directory>(listener: TcpListener, dir: Arc<D>, tls: 
 
 /// Implicit-TLS IMAPS on `MAILRS_IMAPS_BIND` (default `0.0.0.0:993`).
 pub async fn spawn_tls<D: Directory>(dir: Arc<D>, tls: TlsState) {
-    let Some(listener) = listen::bind("MAILRS_IMAPS_BIND", "0.0.0.0:993", "imaps").await else {
+    let Some(listener) = listen::bind(listen::IMAPS).await else {
         return;
     };
     tracing::info!("imaps: listening (implicit TLS)");
