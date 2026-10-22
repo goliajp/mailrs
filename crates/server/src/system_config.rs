@@ -32,7 +32,7 @@ impl Default for RuntimeConfig {
             webhook_url: None,
             webhook_api_key: None,
             ai_analysis_enabled: false,
-            llm_url: "https://devops.golia.jp/api/llm/complete".into(),
+            llm_url: String::new(),
             llm_api_key: None,
             antispam_enabled: true,
             spam_score_threshold: 5.0,
