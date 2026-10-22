@@ -4,7 +4,6 @@
 //! implies.
 
 use mailrs_intake::arrival::Arrival;
-use mailrs_intake::maildir::maildir_subfolder;
 use mailrs_intelligence::importance::ImportanceLevel;
 use mailrs_mailbox::pg::ArrivalFacts;
 use mailrs_mailbox::{InsertMessage, StoreError};
@@ -25,15 +24,14 @@ impl PgCore {
         importance: Option<(ImportanceLevel, f32)>,
         fraud_verdict: Option<&str>,
     ) -> Result<bool, StoreError> {
-        let maildir_id = blob_ref.rsplit('/').next().unwrap_or(blob_ref);
         let mb = &self.mailbox;
         mb.ensure_default_mailboxes(addr).await?;
         mb.create_mailbox(addr, mailbox).await?;
-        self.file_into(addr, mailbox, blob_ref)?;
+        let maildir_id = self.file_into(addr, mailbox, blob_ref)?;
         let input = InsertMessage {
             user: addr,
             mailbox_name: mailbox,
-            blob_ref: maildir_id,
+            blob_ref: &maildir_id,
             sender: &a.from,
             recipients: &a.to,
             subject: &a.subject,
@@ -65,29 +63,21 @@ impl PgCore {
             .await
     }
 
-    /// Move the file at `blob_ref` into the maildir folder of `mailbox`. The
-    /// drain writes to INBOX or the sieve folder; this store finds a
-    /// message's file in its mailbox's folder.
-    fn file_into(&self, addr: &str, mailbox: &str, blob_ref: &str) -> std::io::Result<()> {
-        let (from_folder, maildir_id) = blob_ref.rsplit_once('/').unwrap_or(("", blob_ref));
-        let Some((local, domain)) = addr.split_once('@') else {
-            return Ok(());
-        };
-        let base = std::path::Path::new(&self.dir.maildir_root)
-            .join(domain)
-            .join(local);
-        let want = match mailbox {
-            "INBOX" => base.clone(),
-            other => base.join(maildir_subfolder(other)),
-        };
-        let at = want.join("new").join(maildir_id);
-        if at.exists() {
-            return Ok(());
+    /// Move the file at `blob_ref` into the maildir folder of `mailbox`, and
+    /// return its blob ref there. The drain writes to INBOX or the sieve
+    /// folder; a message's body is in its mailbox's folder.
+    fn file_into(&self, addr: &str, mailbox: &str, blob_ref: &str) -> std::io::Result<String> {
+        let (from_folder, file) = blob_ref.rsplit_once('/').unwrap_or(("", blob_ref));
+        let base = crate::body::user_root(&self.dir.maildir_root, addr)?;
+        let want = crate::body::folder(&base, mailbox);
+        let at = want.join("new").join(file);
+        if !at.exists() {
+            for leaf in ["cur", "new", "tmp"] {
+                std::fs::create_dir_all(want.join(leaf))?;
+            }
+            std::fs::rename(base.join(from_folder).join("new").join(file), at)?;
         }
-        for leaf in ["cur", "new", "tmp"] {
-            std::fs::create_dir_all(want.join(leaf))?;
-        }
-        std::fs::rename(base.join(from_folder).join("new").join(maildir_id), at)
+        Ok(crate::body::blob_ref(mailbox, file))
     }
 
     /// The text search and the thread view read, and the importance the

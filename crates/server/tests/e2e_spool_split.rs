@@ -142,7 +142,7 @@ hello world from the split test\r\n";
 
     // the core consumer indexes asynchronously after fetching the spool file;
     // wait for the NewMessage it emits (proves spool → consume → deliver →
-    // index ran), tolerating a wider deadline than the monolith path.
+    // index ran), tolerating a wider deadline than an in-process delivery.
     let deadline = Instant::now() + Duration::from_secs(10);
     let mut new_message: Option<SmtpEvent> = None;
     while new_message.is_none() {
@@ -163,7 +163,7 @@ hello world from the split test\r\n";
         assert_eq!(subject, "hello split", "subject carried through the spool");
     }
 
-    // the messages row exists — same final state as the monolith path.
+    // the messages row exists — same final state as an in-process delivery.
     let row: (String, String) = sqlx::query_as(
         "SELECT m.sender, m.subject FROM messages m
          JOIN mailboxes mb ON m.mailbox_id = mb.id

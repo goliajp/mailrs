@@ -1,6 +1,6 @@
 //! Phase 1 of `run()`: the connections every later phase needs — the
 //! Postgres pool, the embedded and network kevy handles, TLS, the user
-//! store, the event bus, the rate limiter, and the outbound queue.
+//! store, and the event bus.
 //!
 //! Lifted out of `lib.rs` verbatim on 2026-08-02.
 
@@ -11,12 +11,8 @@ use crate::*;
 
 pub(crate) struct Connections {
     pub(crate) event_bus: EventBus,
-    pub(crate) health_state: health::HealthState,
     pub(crate) kevy_embedded_store: Option<kevy_store::KevyStore>,
-    pub(crate) kevy_net_client: Option<Arc<kevy_net::KevyNetClient>>,
-    pub(crate) outbound_queue: Option<pg::BackendPool>,
     pub(crate) pg_pool: Option<pg::BackendPool>,
-    pub(crate) rate_limiter: Arc<dyn RateLimitStore>,
     pub(crate) shutdown_rx: tokio::sync::watch::Receiver<bool>,
     pub(crate) shutdown_tx: tokio::sync::watch::Sender<bool>,
     pub(crate) tls_state: Option<crate::tls::TlsState>,
@@ -67,26 +63,15 @@ pub(crate) async fn connect(cfg: &config::ServerConfig) -> Connections {
             }
         };
 
-    // Optional shared network kevy-server for the anti subsystems
-    // (greylist / rate / auth-guard). Set MAILRS_KEVY_URL to point this
-    // process at a kevy-server it shares with the rest of the fleet (the
-    // receiver-split topology); unset keeps every subsystem on the
-    // in-process embedded store. The embedded store always opens anyway
-    // for the message-state hot path.
+    // The network kevy-server this process shares with the rest of the
+    // fleet carries mail events across processes.
     let kevy_net_client: Option<Arc<kevy_net::KevyNetClient>> = cfg.kevy_url.as_ref().map(|url| {
         tracing::info!(
             kevy_url = %url,
-            "anti subsystems will share state via network kevy-server"
+            "mail events cross processes via network kevy-server"
         );
         Arc::new(kevy_net::KevyNetClient::new(url.clone()))
     });
-
-    let health_state = health::HealthState::new();
-    if let (Some(pg), Some(embed)) = (&pg_pool, &kevy_embedded_store) {
-        health::spawn_health_checker(pg.clone(), embed.clone(), health_state.clone());
-        health_state.set_pg(true);
-        health_state.set_kevy(true);
-    }
 
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
 
@@ -123,34 +108,10 @@ pub(crate) async fn connect(cfg: &config::ServerConfig) -> Connections {
         None => EventBus::new(1024),
     };
 
-    spawn_cache_bust_task(&kevy_embedded_store, &event_bus);
-
-    let rate_limit_config = TokenBucketConfig {
-        capacity: cfg.rate_limit_capacity,
-        refill_rate: cfg.rate_limit_refill,
-    };
-    // shared kevy-server → distributed fixed-window counter; else the
-    // in-process GCRA token bucket.
-    let rate_limiter: Arc<dyn RateLimitStore> = match kevy_net_client.as_ref() {
-        Some(client) => Arc::new(
-            crate::inbound::kevy_backends::KevyServerRateLimitStore::new(
-                client.clone(),
-                rate_limit_config,
-            ),
-        ),
-        None => Arc::new(InMemoryRateLimitStore::new(rate_limit_config)),
-    };
-
-    let outbound_queue = pg_pool.clone();
-
     Connections {
         event_bus,
-        health_state,
         kevy_embedded_store,
-        kevy_net_client,
-        outbound_queue,
         pg_pool,
-        rate_limiter,
         shutdown_rx,
         shutdown_tx,
         tls_state,

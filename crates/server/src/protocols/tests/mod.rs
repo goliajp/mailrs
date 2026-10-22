@@ -8,6 +8,7 @@
 //! One test, run in order: the POP3 and ManageSieve parts read what the
 //! IMAP part left.
 
+mod bodies;
 mod checks;
 mod folders;
 mod harness;
@@ -108,7 +109,7 @@ fn later() -> Vec<Vec<Step>> {
     ]
 }
 
-async fn conversations<D: Directory>(dir: Arc<D>) -> Vec<String> {
+async fn conversations<D: Directory>(dir: Arc<D>, home: std::path::PathBuf) -> Vec<String> {
     let mut diffs = Vec::new();
     let (client, server) = tokio::io::duplex(1 << 20);
     tokio::spawn(mailrs_mail_protocols::imap::run(dir.clone(), server));
@@ -147,6 +148,7 @@ async fn conversations<D: Directory>(dir: Arc<D>) -> Vec<String> {
         tokio::spawn(pop3);
         diffs.extend(converse(client, "pop3", &steps).await);
     }
+    diffs.extend(bodies::folders(dir.clone(), home).await);
     diffs
 }
 
@@ -154,10 +156,10 @@ async fn conversations<D: Directory>(dir: Arc<D>) -> Vec<String> {
 async fn both_cores_hold_the_same_mail_conversations() {
     let backends = harness::start().await;
     let mut report = Vec::new();
-    for diff in conversations(backends.fastcore.clone()).await {
+    for diff in conversations(backends.fastcore.clone(), backends.home(0)).await {
         report.push(format!("fastcore: {diff}"));
     }
-    for diff in conversations(backends.pg.clone()).await {
+    for diff in conversations(backends.pg.clone(), backends.home(1)).await {
         report.push(format!("pg-core: {diff}"));
     }
     assert!(

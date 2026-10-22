@@ -88,27 +88,46 @@ impl PgMailboxStore {
         Ok(uids)
     }
 
-    /// copy a message to another mailbox, returns new UID
+    /// Copy a message's row to another mailbox; returns the new uid, `None`
+    /// when the source is gone. `body` is the copy's own `maildir_id`;
+    /// `None` keeps the source's.
     pub async fn copy_message(
         &self,
         user: &str,
         src_mailbox_id: i64,
         uid: u32,
         dst_mailbox_name: &str,
+        body: Option<&str>,
     ) -> Result<Option<u32>, sqlx::Error> {
-        copy_message_inner(&self.pool, user, src_mailbox_id, uid, dst_mailbox_name).await
+        copy_message_inner(
+            &self.pool,
+            user,
+            src_mailbox_id,
+            uid,
+            dst_mailbox_name,
+            body,
+        )
+        .await
     }
 
-    /// move a message: copy to destination + delete from source
+    /// [`Self::copy_message`], then the source row deleted.
     pub async fn move_message(
         &self,
         user: &str,
         src_mailbox_id: i64,
         uid: u32,
         dst_mailbox_name: &str,
+        body: Option<&str>,
     ) -> Result<Option<u32>, sqlx::Error> {
-        let new_uid =
-            copy_message_inner(&self.pool, user, src_mailbox_id, uid, dst_mailbox_name).await?;
+        let new_uid = copy_message_inner(
+            &self.pool,
+            user,
+            src_mailbox_id,
+            uid,
+            dst_mailbox_name,
+            body,
+        )
+        .await?;
         if new_uid.is_some() {
             sqlx::query("DELETE FROM messages WHERE mailbox_id = $1 AND uid = $2")
                 .bind(src_mailbox_id)
@@ -162,20 +181,6 @@ impl PgMailboxStore {
 
         Ok(())
     }
-
-    /// set the BIMI logo URL on a message
-    pub async fn update_bimi_logo(
-        &self,
-        message_id: i64,
-        logo_url: &str,
-    ) -> Result<(), sqlx::Error> {
-        sqlx::query("UPDATE messages SET bimi_logo_url = $2 WHERE id = $1")
-            .bind(message_id)
-            .bind(logo_url)
-            .execute(&self.pool)
-            .await?;
-        Ok(())
-    }
 }
 
 /// copy message logic extracted as a free function so both copy_message and move_message can call it
@@ -185,6 +190,7 @@ async fn copy_message_inner(
     src_mailbox_id: i64,
     uid: u32,
     dst_mailbox_name: &str,
+    body: Option<&str>,
 ) -> Result<Option<u32>, sqlx::Error> {
     // read source message (including flags to preserve on copy)
     let src = sqlx::query_as::<_, (String, String, String, String, i32, i64, i64, i32, String, String, String)>(
@@ -212,7 +218,7 @@ async fn copy_message_inner(
     )
     .bind(dst_id)
     .bind(new_uid)
-    .bind(&src.0)   // maildir_id
+    .bind(body.unwrap_or(&src.0))   // maildir_id
     .bind(&src.1)   // sender
     .bind(&src.2)   // recipients
     .bind(&src.3)   // subject

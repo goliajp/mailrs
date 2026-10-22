@@ -112,7 +112,6 @@ async fn pg(
     let domain = Arc::new(crate::domain_store::DomainStore::new(
         Some(pool.clone()),
         None,
-        crate::health::HealthState::new(),
     ));
     domain.add_domain("example.test", 0).await.unwrap();
     let hash = crate::users::UserStore::hash_password(PASSWORD).unwrap();
@@ -132,6 +131,17 @@ async fn pg(
         net_url: Some(net_url.to_string()),
     };
     (Arc::new(dir), db)
+}
+
+impl Backends {
+    /// The account's maildir on the fastcore side (0) or the SQL side (1).
+    pub(super) fn home(&self, side: usize) -> std::path::PathBuf {
+        let root = match side {
+            0 => self._maildirs.0.path(),
+            _ => self._maildirs.1.path(),
+        };
+        root.join("example.test").join("alice")
+    }
 }
 
 pub(super) async fn start() -> Backends {

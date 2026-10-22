@@ -18,6 +18,48 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### The SQL core keeps a body in its mailbox's folder
+
+The SQL core had two ideas of where a message's file was. Delivered and
+sent mail went into the mailbox's Maildir++ subfolder (`.Sent/…`), while
+IMAP APPEND wrote every message into the user's top folder, COPY and
+MOVE only touched rows (so two rows shared a file, and EXPUNGE left the
+file behind), and the IMAP reader looked only in the top folder. A row's
+`maildir_id` is now the body's blob ref, as fastcore stores it — the
+file name for INBOX, `.Name/<file>` for any other mailbox — so mail
+synced from fastcore and mail written here are read the same way, by
+this core and by webapi. APPEND writes into the mailbox's folder, COPY
+writes a file of its own into the target, MOVE moves the file, EXPUNGE
+removes it, and every reader resolves the blob ref with
+`mailrs_maildir::locate`.
+
+### A message moved to another folder stays read
+
+IMAP COPY and MOVE on fastcore wrote the copy into the target folder's
+`new/` with no flags, so a read message moved to Archive came back
+unread (and unflagged). The copy now carries the source's flags in its
+file name and in the index, as APPEND already did.
+
+### The all-in-one server is gone
+
+`crates/server` used to build two binaries: `mailrs-pg-core`, the SQL core
+that can take fastcore's place, and `mailrs-server`, the single process
+that preceded the four-process stack and was in no image. `mailrs-server`
+is deleted, and with it everything only it ran: its web tier and MCP
+server (production's REST and MCP are `mailrs-webapi`, which serves either
+core), the SMTP listeners, outbound delivery, the RBL monitor, the DMARC
+aggregate builder, the Postgres webhook, calendar-feed, OIDC, TOTP and
+API-key stores, the conversation cache, and the role switch that told the
+two binaries apart. The crates only it linked — `mailrs-mmalloc`,
+`mailrs-syscall` and `mailrs-postmaster` — are removed from the
+workspace, as are the old conversation-list and search queries in
+`mailrs-mailbox` that only its web tier called.
+
+`crates/server` is now the SQL core alone, and `mailrs-pg-core` builds
+without a feature flag: `cargo build -p mailrs-server --bin
+mailrs-pg-core` for PostgreSQL, `--features spg` for the embedded engine.
+`scripts/build-pg-core.sh` takes `--features spg` or nothing.
+
 ### `Hao` — a subject cut from the reader's own address (2.87.0)
 
 A cold-sales campaign sends mail whose subject is one word: a piece of

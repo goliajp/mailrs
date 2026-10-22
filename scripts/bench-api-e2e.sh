@@ -255,22 +255,13 @@ case "$ARM" in
         DISK_DIR="$WORK/spg"
     fi
 
-    # The PEER, plus the web tier — the same two-process shape the kevy arm
-    # runs, because that is what this lane serves.
-    #
-    # This started `mailrs-server`, the all-roles binary, which also binds SMTP
-    # on three ports, runs ACME, the RBL monitor and its own web tier. Summing
-    # memory across processes (which this script does) makes the process COUNT
-    # comparable; it does not make the WORK comparable, and an arm doing four
-    # jobs the other arm does not is not a measurement of the same thing.
-    #
-    # `mailrs-pg-core` plays the peer's roles — the contract, the spool drain,
-    # IMAP/POP3/ManageSieve — and leaves SMTP, the web tier, outbound and the
-    # RBL monitor to the processes that own them, exactly as fastcore does.
+    # The SQL core plus the web tier — the same two-process shape the kevy
+    # arm runs. `mailrs-pg-core` serves the contract, the spool drain and
+    # IMAP/POP3/ManageSieve, exactly as fastcore does.
     echo "== build: mailrs-pg-core + webapi --release ${FEATURES:-} =="
     # shellcheck disable=SC2086 — FEATURES is intentionally word-split
     cargo build --release -p mailrs-server -p mailrs-webapi \
-      --bin mailrs-pg-core --bin mailrs-webapi --features core-rpc $FEATURES 2>&1 | tail -1
+      --bin mailrs-pg-core --bin mailrs-webapi $FEATURES 2>&1 | tail -1
     TARGET="$(cargo metadata --format-version 1 --no-deps \
       | python3 -c "import json,sys; print(json.load(sys.stdin)['target_directory'])")"
 

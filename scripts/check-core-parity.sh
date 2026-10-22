@@ -39,11 +39,11 @@
 # fastcore/), it searched for `"fn build_full_router"` in mod.rs after that
 # string moved to router.rs, and it bounded the function body with the first
 # top-level `}` rather than by brace depth. None of it fired, because it sat
-# behind `--features core-rpc`, which nothing built after 2026-08-02.
+# behind a cargo feature nothing built after 2026-08-02.
 # Two consequences shaped this script:
 #
 #   - it discovers router files BY CONTENT, never by path, so the next file
-#     split cannot blind it (the lesson `check-mcp-parity.sh` carries too);
+#     split cannot blind it;
 #   - it is plain grep, so it runs in the everyday gate instead of only
 #     under a cargo feature. A check that needs a feature nobody builds is
 #     how the lane rotted in the first place.

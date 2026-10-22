@@ -1,9 +1,8 @@
 //! What this store knows about recipients, for the shared routing order in
 //! `mailrs_intake::route` (see `crate::intake::PgDirectory`).
 //!
-//! Email groups are read from the network kevy both cores share when the
-//! core-api is compiled in, because that is where the web tier writes them;
-//! the all-in-one server keeps them in its own tables.
+//! Email groups are read from the network kevy both cores share, because that
+//! is where `mailrs-webapi` writes them.
 
 use mailrs_core_sidestate::families::email_groups::Group;
 
@@ -72,7 +71,6 @@ impl DomainStore {
     /// The group at `fwd`, from the network kevy the web tier writes groups
     /// to: no network kevy configured means no groups, one that cannot be
     /// reached is an error.
-    #[cfg(feature = "core-rpc")]
     pub(crate) async fn email_group(
         &self,
         net_url: Option<&str>,
@@ -89,31 +87,5 @@ impl DomainStore {
         .await
         .map_err(|e| sqlx::Error::Io(std::io::Error::other(e)))?
         .map_err(sqlx::Error::Io)
-    }
-
-    /// The group at `fwd`, from the all-in-one server's own tables, which
-    /// is where that process keeps them.
-    #[cfg(not(feature = "core-rpc"))]
-    pub(crate) async fn email_group(
-        &self,
-        _net_url: Option<&str>,
-        fwd: &str,
-    ) -> Result<Option<Group>> {
-        let rows: Vec<(i64, String)> = sqlx::query_as(
-            "SELECT g.id, m.member_address FROM email_group_members m
-               JOIN email_groups g ON g.id = m.group_id
-              WHERE g.address = $1",
-        )
-        .bind(fwd)
-        .fetch_all(self.pool()?)
-        .await?;
-        let Some(id) = rows.first().map(|(id, _)| *id) else {
-            return Ok(None);
-        };
-        Ok(Some(Group {
-            id,
-            address: fwd.to_string(),
-            members: rows.into_iter().map(|(_, m)| m).collect(),
-        }))
     }
 }

@@ -1,10 +1,5 @@
-//! Single-message and batch insertion paths.
+//! Inserting a delivered message.
 
-use std::collections::HashMap;
-
-use sqlx::QueryBuilder;
-
-use super::IndexRecord;
 use crate::pg::PgMailboxStore;
 use crate::pg::helpers::extract_header_value;
 use crate::threading;
@@ -115,134 +110,10 @@ impl PgMailboxStore {
         Ok(uid as u32)
     }
 
-    /// Batch-index up to N delivered messages in a single explicit
-    /// PG transaction. Designed for a DeliveryExecutor-style caller
-    /// that has already written the maildir files (and computed all
-    /// metadata) for the batch and now needs PG rows in one go.
-    ///
-    /// Wire shape:
-    ///   * One `UPDATE mailboxes … RETURNING base_uid, base_modseq`
-    ///     per unique `(user, mailbox_name)` in the batch, to
-    ///     reserve a contiguous range of uids in that mailbox.
-    ///   * One multi-row `INSERT INTO messages VALUES (...), (...)`
-    ///     for the entire batch.
-    ///   * One COMMIT.
-    ///
-    /// Net cost: K + 2 statements + 1 fsync for N deliveries spread
-    /// across K mailboxes. Compared to per-message `index_message`
-    /// (autocommit, 2N statements + group-commit-coalesced fsyncs),
-    /// this trades single-message latency for batch throughput —
-    /// per-tx fsync amortises across N rows even when the individual
-    /// rows go to different mailboxes.
-    ///
-    /// Returns the assigned uids in input order. The internal modseq
-    /// and uidnext bookkeeping mirrors per-message `index_message`
-    /// exactly (CONDSTORE semantics preserved).
-    ///
-    /// Empty input is a successful no-op.
-    pub async fn index_messages_batch(
-        &self,
-        records: &[IndexRecord<'_>],
-    ) -> Result<Vec<u32>, sqlx::Error> {
-        if records.is_empty() {
-            return Ok(Vec::new());
-        }
-
-        // Group records by (user, mailbox) so we can reserve uids
-        // in one UPDATE per mailbox. Preserve per-record input
-        // order via the inner Vec<usize> of indices into `records`.
-        let mut by_mailbox: HashMap<(&str, &str), Vec<usize>> = HashMap::new();
-        for (i, r) in records.iter().enumerate() {
-            by_mailbox
-                .entry((r.user, r.mailbox_name))
-                .or_default()
-                .push(i);
-        }
-
-        let mut tx = self.pool.begin().await?;
-
-        // Reserve uids per mailbox, then place each record at its
-        // offset within the mailbox's block.
-        let mut per_record_uid: Vec<i32> = vec![0; records.len()];
-        let mut per_record_modseq: Vec<i64> = vec![0; records.len()];
-        let mut per_record_mb_id: Vec<i64> = vec![0; records.len()];
-
-        for ((user, mailbox_name), indices) in &by_mailbox {
-            let n = indices.len() as i32;
-            let r = super::uids::reserve(&mut tx, user, mailbox_name, n).await?;
-            let (mailbox_id, base_uid, base_modseq) = (r.mailbox_id, r.first_uid, r.base_modseq);
-
-            for (offset, &record_idx) in indices.iter().enumerate() {
-                per_record_mb_id[record_idx] = mailbox_id;
-                per_record_uid[record_idx] = base_uid + offset as i32;
-                per_record_modseq[record_idx] = base_modseq + offset as i64 + 1;
-            }
-        }
-
-        // One multi-row INSERT for the whole batch.
-        let mut qb: QueryBuilder<crate::pg::BackendDb> = QueryBuilder::new(
-            "INSERT INTO messages (mailbox_id, uid, maildir_id, sender, recipients, subject, \
-             size, date_epoch, internal_date, message_id, in_reply_to, thread_id, modseq) ",
-        );
-        qb.push_values(records.iter().enumerate(), |mut b, (i, r)| {
-            b.push_bind(per_record_mb_id[i])
-                .push_bind(per_record_uid[i])
-                .push_bind(r.maildir_id)
-                .push_bind(r.sender)
-                .push_bind(r.recipients)
-                .push_bind(r.subject)
-                .push_bind(r.size as i32)
-                .push_bind(r.now)
-                .push_bind(r.now)
-                .push_bind(r.message_id)
-                .push_bind(r.in_reply_to)
-                .push_bind(r.thread_id)
-                .push_bind(per_record_modseq[i]);
-        });
-        qb.build().execute(&mut *tx).await?;
-
-        tx.commit().await?;
-
-        Ok(per_record_uid.into_iter().map(|u| u as u32).collect())
-    }
-
-    /// append a message: write to maildir and index it (with threading)
-    /// returns (uid, maildir_id)
-    pub async fn append_message(
-        &self,
-        user: &str,
-        mailbox_name: &str,
-        maildir_root: &str,
-        data: &[u8],
-        flags: u32,
-        now: i64,
-    ) -> Result<(u32, String), String> {
-        // extract domain from user
-        let (local, domain) = user
-            .split_once('@')
-            .ok_or_else(|| "invalid user address".to_string())?;
-
-        let path = format!("{maildir_root}/{domain}/{local}");
-        let md = mailrs_maildir::Maildir::create(&path)
-            .map_err(|e| format!("failed to create maildir: {e}"))?;
-
-        let msg_id = md
-            .deliver(data)
-            .map_err(|e| format!("failed to deliver: {e}"))?
-            .to_string();
-
-        let uid = self
-            .index_delivered(user, mailbox_name, &msg_id, data, flags, now)
-            .await?;
-
-        Ok((uid, msg_id))
-    }
-
     /// Index an already-delivered message: extract headers, resolve
     /// the thread, insert the metadata row, and apply `flags`.
     ///
-    /// This is the index-only half of [`Self::append_message`]. The
-    /// maildir/object write is the caller's responsibility (it has
+    /// The maildir/object write is the caller's responsibility (it has
     /// already happened, yielding `msg_id`) — keeping the storage
     /// write out of the mailbox stone lets the server route it
     /// through the swappable `MessageStore` seam. Returns the UID.

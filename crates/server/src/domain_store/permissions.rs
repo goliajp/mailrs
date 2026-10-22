@@ -105,23 +105,4 @@ impl DomainStore {
 
         Ok(perms)
     }
-
-    /// invalidate permission cache for an account
-    pub async fn invalidate_permissions(&self, address: &str) {
-        self.kevy_del(&format!("perms:{address}"));
-    }
-
-    /// invalidate permission cache for all members of a group
-    pub async fn invalidate_group_permissions(&self, group_id: i64) {
-        let Ok(pool) = self.pg() else { return };
-        let members: Vec<(String,)> =
-            sqlx::query_as("SELECT account_address FROM account_groups WHERE group_id = $1")
-                .bind(group_id)
-                .fetch_all(pool)
-                .await
-                .unwrap_or_default();
-        for (addr,) in members {
-            self.kevy_del(&format!("perms:{addr}"));
-        }
-    }
 }

@@ -5,24 +5,6 @@ use crate::pg::helpers::row_to_message_meta;
 use crate::types::MessageMeta;
 
 impl PgMailboxStore {
-    /// Batch-fetch `invite_method` for a list of message ids. Caller (the
-    /// conversations API in MRS-18) drops these onto each
-    /// ThreadMessageResponse so the web client can mount invite-card based
-    /// on a server-authoritative signal rather than re-detecting via
-    /// attachments. Skips rows where `invite_method IS NULL`.
-    pub async fn get_invite_methods(&self, ids: &[i64]) -> Result<Vec<(i64, String)>, sqlx::Error> {
-        if ids.is_empty() {
-            return Ok(Vec::new());
-        }
-        sqlx::query_as::<_, (i64, String)>(
-            "SELECT id, invite_method FROM messages
-             WHERE id = ANY($1) AND invite_method IS NOT NULL",
-        )
-        .bind(ids)
-        .fetch_all(&self.pool)
-        .await
-    }
-
     /// List messages in a mailbox ordered by UID, with offset/limit
     /// pagination.
     pub async fn list_messages(
@@ -57,25 +39,6 @@ impl PgMailboxStore {
         )
         .bind(mailbox_id)
         .bind(uid as i32)
-        .fetch_optional(&self.pool)
-        .await?;
-
-        Ok(row.map(row_to_message_meta))
-    }
-
-    /// get a message by its database primary key (for JMAP global emailId)
-    pub async fn get_message_by_db_id(
-        &self,
-        user: &str,
-        id: i64,
-    ) -> Result<Option<MessageMeta>, sqlx::Error> {
-        let row = sqlx::query_as::<_, (i64, i64, i32, String, String, String, String, i64, i32, i32, i64, String, String, String, i64)>(
-            "SELECT m.id, m.mailbox_id, m.uid, m.maildir_id, m.sender, m.recipients, m.subject, m.date_epoch, m.size, m.flags, m.internal_date, m.message_id, m.in_reply_to, m.thread_id, m.modseq
-             FROM messages m JOIN mailboxes mb ON m.mailbox_id = mb.id
-             WHERE m.id = $1 AND mb.user_address = $2",
-        )
-        .bind(id)
-        .bind(user)
         .fetch_optional(&self.pool)
         .await?;
 
@@ -174,82 +137,6 @@ impl PgMailboxStore {
         Ok((ids, total))
     }
 
-    /// total storage used by a user across all mailboxes (in bytes)
-    pub async fn count_messages(&self, user: &str) -> i64 {
-        let row: Result<(i64,), _> = sqlx::query_as(
-            "SELECT COUNT(*) FROM messages m
-             JOIN mailboxes mb ON m.mailbox_id = mb.id WHERE mb.user_address = $1",
-        )
-        .bind(user)
-        .fetch_one(&self.pool)
-        .await;
-
-        row.map(|r| r.0).unwrap_or(0)
-    }
-
-    /// count unread *threads* for the user, mirroring `list_conversations`
-    /// thread-level aggregation so the dashboard tally matches what the
-    /// inbox view shows. a thread counts when:
-    ///   - it has at least one unseen message
-    ///   - none of its messages are archived (matches list HAVING BOOL_OR)
-    ///   - it isn't snoozed, isn't spam/scam, has a non-empty thread_id
-    ///   - the newest message's sender isn't the user (same "don't show
-    ///     my own outbox in All" filter list_conversations applies)
-    ///
-    /// the function name keeps "unseen" for back-compat but the count is
-    /// thread-level — `unread_messages` in the API was always displayed as
-    /// "Unread N" without specifying messages vs threads, and threads are
-    /// what the user actually sees in the list
-    pub async fn count_unseen(&self, user: &str) -> Result<i64, sqlx::Error> {
-        // Both shapes spg 7.30.3 refused now parse — the aggregate `FILTER`
-        // clause and a FROM-clause derived table, measured against 7.37.16 by
-        // `tests/spg_sql_shapes.rs`, which keeps asking so this note cannot go
-        // stale the way its predecessor did.
-        //
-        // `FILTER` is taken back, because `COUNT(CASE WHEN … THEN 1 END)` says
-        // the same thing less clearly. The CTE stays: a derived table is no
-        // improvement on it, and this is the unread badge — its result was once
-        // swallowed to 0 on error and the homepage read zero on full mailboxes
-        // (2026-06-13), so it gets changed for legibility and not for
-        // symmetry with a form nobody prefers.
-        //
-        // `count_unseen_counts_unread_threads` in tests/smoke.rs is the guard,
-        // on both backend axes.
-        let row: Result<(i64,), _> = sqlx::query_as(
-            "WITH unread_threads AS (
-               SELECT m.thread_id
-               FROM messages m
-               JOIN mailboxes mb ON m.mailbox_id = mb.id
-               WHERE mb.user_address = $1
-                 AND m.thread_id != ''
-                 AND NOT EXISTS (
-                   SELECT 1 FROM snoozed_conversations sc
-                   WHERE sc.thread_id = m.thread_id
-                     AND sc.account_address = mb.user_address
-                     AND sc.snoozed_until > NOW()
-                 )
-                 AND NOT EXISTS (
-                   SELECT 1 FROM email_analysis ea
-                   WHERE ea.message_id = m.id AND ea.category IN ('spam', 'scam')
-                 )
-               GROUP BY m.thread_id
-               HAVING BOOL_OR(m.archived) = false
-                  AND COUNT(*) FILTER (WHERE (m.flags & 1) = 0) > 0
-                  AND LOWER(COALESCE((SELECT m_last.sender FROM messages m_last WHERE m_last.thread_id = m.thread_id ORDER BY m_last.internal_date DESC LIMIT 1), '')) NOT LIKE '%' || LOWER($1) || '%'
-             )
-             SELECT COUNT(*) FROM unread_threads",
-        )
-        .bind(user)
-        .fetch_one(&self.pool)
-        .await;
-
-        // propagate the error rather than swallow to 0 (a stone doesn't
-        // log; the caller decides). swallowing here hid an engine
-        // FILTER-clause parse failure for weeks — the homepage showed 0
-        // unread on otherwise-full mailboxes (incident 2026-06-13).
-        row.map(|r| r.0)
-    }
-
     /// find a message by its message_id header (across all user's mailboxes)
     pub async fn find_message_by_message_id(
         &self,
@@ -332,24 +219,5 @@ impl PgMailboxStore {
         .await?;
 
         Ok(row.map(row_to_message_meta))
-    }
-
-    /// get message id by mailbox user and maildir_id
-    pub async fn get_message_id_by_maildir(
-        &self,
-        user: &str,
-        maildir_id: &str,
-    ) -> Result<Option<i64>, sqlx::Error> {
-        let row = sqlx::query_as::<_, (i64,)>(
-            "SELECT m.id FROM messages m
-             JOIN mailboxes mb ON m.mailbox_id = mb.id
-             WHERE mb.user_address = $1 AND m.maildir_id = $2",
-        )
-        .bind(user)
-        .bind(maildir_id)
-        .fetch_optional(&self.pool)
-        .await?;
-
-        Ok(row.map(|r| r.0))
     }
 }

@@ -80,14 +80,8 @@ if [ "${SKIP_GATE:-0}" != 1 ] && [ "${WEB_ONLY_SKIPS_RUST_GATE:-0}" != 1 ]; then
     # contract, and the client spells every path again in a `format!` —
     # a typo on either side is a 404 nothing else catches.
     #
-    # This replaced check-rest-parity.sh, which compared production
-    # against `crates/server`. The monolith is not coming back, so that
-    # gate had become 51 allow-list lines of paperwork for routes that
-    # were never going to exist twice.
-    #
     # Neither check compiles anything, so both run first — a break is
     # cheaper to learn about before a ten-minute test run than after.
-    ./scripts/check-mcp-parity.sh
     ./scripts/check-core-contract.sh
     # The two cores must serve one contract: pg-core ⊆ fastcore hard, and
     # the reverse as a ratchet (that set is the pg-core reactivation debt).

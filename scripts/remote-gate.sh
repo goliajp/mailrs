@@ -6,7 +6,7 @@
 #   GATE_DIR  (default /root/work/mailrs-gate) checkout on that host; its
 #                                             target/ stays there between runs
 #
-# clippy, the two dormant-lane checks and the whole test suite. It runs on
+# clippy, the spg axis of the SQL core and the whole test suite. It runs on
 # Linux because two of its costs exist only on a Mac: every freshly linked
 # test binary is checked by Gatekeeper on its first exec (117 s across 231
 # binaries in one measured run), and container tests go through a VM
@@ -60,32 +60,17 @@ cargo clippy --workspace --all-targets -- -D warnings
 # because docs.rs builds on Linux, and some modules exist only there.
 bash scripts/check-docs.sh
 
-# The dormant pg/spg lane, which nothing above reaches: features are off
-# by default, so --workspace --all-targets never sees the code behind
-# spg or core-rpc, and test.yml — the only thing that did build them —
-# runs on master/release/hotfix, whose tip predates develop by weeks.
-#
-# It had been broken since the 2026-08-02 file split, in 23 places. All
-# of them one root cause: that commit moved these files a directory
-# deeper and nothing that referenced position followed — relative
-# include_str! paths, super::* globs, and a re-export widened past its
-# own visibility. Plus a cfg with two comma-separated predicates, which
-# is malformed, so that file had never compiled at all.
-#
-# --all-targets matters and both axes matter: the lane's two test files
-# sit on opposite sides of the spg switch (the in-memory pg-core suite
-# needs it, the real-Postgres bidirectional sync test needs it off), so
-# a single invocation type-checks exactly one of them. Test-only rot is
-# the kind this lane had.
-cargo check -p mailrs-server --features core-rpc,spg --all-targets
-cargo check -p mailrs-server --features core-rpc --all-targets
+# The SQL core's spg axis, which nothing above reaches: the feature is
+# off by default, so --workspace --all-targets builds the SQL core over
+# real PostgreSQL only. --all-targets matters: the in-memory pg-core
+# suite needs spg, the real-Postgres sync test needs it off, so each
+# axis type-checks a different half of the tests.
+cargo check -p mailrs-server --features spg --all-targets
 
-# The core-api contract on both SQL engines: every client call made of
-# the kevy core and the SQL core, answers compared. Real PostgreSQL in a
-# container on one axis, in-memory spg on the other; each engine has
-# accepted SQL the other rejects.
-cargo test -p mailrs-server --features core-rpc --lib --no-fail-fast core_rpc::tests
-cargo test -p mailrs-server --features core-rpc,spg --lib --no-fail-fast core_rpc::tests
+# The core-api contract and the protocol conversations on in-memory spg.
+# The real-PostgreSQL axis of the same suites runs in the workspace test
+# below; each engine has accepted SQL the other rejects.
+cargo test -p mailrs-server --features spg --lib --no-fail-fast -- core_rpc::tests protocols::tests
 
 # The OCR tests read real models; kept in target/, which survives syncs.
 sh scripts/fetch-ocr-models.sh

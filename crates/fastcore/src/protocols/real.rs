@@ -75,9 +75,18 @@ impl RealAccount {
         }
     }
 
+    /// The copy carries the message's flags, in its file name and, as an
+    /// APPEND's do, in the index.
     pub(crate) fn copy(&self, m: &Message<PathBuf>, to: &FcMailbox) -> Result<Filed> {
         let uid = backend::copy_to(&self.state, &self.user, &to_imap(m), to)?;
+        self.index_flags(uid, &m.flags);
         Ok(self.filed(to, uid))
+    }
+
+    fn index_flags(&self, uid: u32, flags: &[Flag]) {
+        if !flags.is_empty() {
+            sync_index_after_store(&self.state, &self.user, uid, flags);
+        }
     }
 
     /// The source copy goes as an EXPUNGE takes it: logged as vanished,
@@ -90,6 +99,7 @@ impl RealAccount {
     ) -> Result<Filed> {
         let msg = to_imap(m);
         let uid = backend::move_to(&self.state, &self.user, &msg, to)?;
+        self.index_flags(uid, &m.flags);
         let ms = backend::bump_modseq(&self.state, &self.user);
         backend::record_vanished(&self.state, &self.user, &from.name, m.uid, ms);
         Ok(self.filed(to, uid))
@@ -124,9 +134,7 @@ impl RealAccount {
         flags: &[Flag],
     ) -> Result<Filed> {
         let (uid, _) = backend::append(&self.state, &self.user, mailbox, bytes, flags)?;
-        if !flags.is_empty() {
-            sync_index_after_store(&self.state, &self.user, uid, flags);
-        }
+        self.index_flags(uid, flags);
         Ok(self.filed(mailbox, uid))
     }
 

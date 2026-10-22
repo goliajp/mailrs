@@ -13,10 +13,9 @@
 //!   mailboxes`, `UNIQUE(mailbox_id, uid)`), and a mailbox belongs to exactly
 //!   one account. So a thread two accounts received has two disjoint sets of
 //!   rows.
-//! - `list_conversations` reads `FROM messages m JOIN mailboxes mb ON
-//!   m.mailbox_id = mb.id` with `mb.user_address = $N`, then
-//!   `GROUP BY m.thread_id HAVING BOOL_OR(m.archived) = false`. The aggregate
-//!   therefore only ever sees one owner's rows.
+//! - `thread_rows` reads `FROM messages m JOIN mailboxes mb ON
+//!   m.mailbox_id = mb.id` with `mb.user_address = $1` and groups by thread,
+//!   so the aggregate only ever sees one owner's rows.
 //! - the per-user fields land on those rows: `archived` and `pinned` are
 //!   columns, starred is the IMAP `\Flagged` bit (`m.flags & 4`), unread is
 //!   `flags & 1`, and snooze already has `(thread_id, account_address)` as its
@@ -32,7 +31,7 @@
 mod common;
 
 use common::{seed_domain_account, seed_mailbox, setup_pg};
-use mailrs_mailbox::pg::PgMailboxStore;
+use mailrs_mailbox::pg::{PgMailboxStore, ThreadQuery};
 
 const ALICE: &str = "alice@multi.test";
 const BOB: &str = "bob@multi.test";
@@ -71,9 +70,12 @@ async fn deliver(
 
 async fn thread_ids(store: &PgMailboxStore, user: &str, archived: bool) -> Vec<String> {
     store
-        .list_conversations(user, 50, None, None, None, archived, None, None, None, None)
+        .thread_rows(&ThreadQuery {
+            archived: Some(archived),
+            ..ThreadQuery::all(user)
+        })
         .await
-        .expect("list_conversations")
+        .expect("thread_rows")
         .into_iter()
         .map(|c| c.thread_id)
         .collect()
@@ -137,18 +139,10 @@ async fn starring_is_per_reader() {
     let store = PgMailboxStore::new(pool.clone());
     async fn starred(store: &PgMailboxStore, user: &str) -> Vec<String> {
         store
-            .list_conversations(
-                user,
-                50,
-                None,
-                None,
-                None,
-                false,
-                None,
-                None,
-                Some(true),
-                None,
-            )
+            .thread_rows(&ThreadQuery {
+                starred: true,
+                ..ThreadQuery::all(user)
+            })
             .await
             .expect("list starred")
             .into_iter()
@@ -189,25 +183,34 @@ async fn unread_counts_are_per_reader() {
     let store = PgMailboxStore::new(pool.clone());
 
     let a = store
-        .list_conversations(ALICE, 50, None, None, None, false, None, None, None, None)
+        .thread_rows(&ThreadQuery::all(ALICE))
         .await
         .expect("list alice");
     let b = store
-        .list_conversations(BOB, 50, None, None, None, false, None, None, None, None)
+        .thread_rows(&ThreadQuery::all(BOB))
         .await
         .expect("list bob");
+    let unread = |user| {
+        let store = &store;
+        async move {
+            store
+                .thread_rows(&ThreadQuery {
+                    unread: true,
+                    ..ThreadQuery::all(user)
+                })
+                .await
+                .expect("unread rows")
+                .len()
+        }
+    };
 
     assert_eq!(a.len(), 1, "one thread for alice");
     assert_eq!(b.len(), 1, "one thread for bob");
     assert_eq!(a[0].unread_count, 0, "alice read both");
     assert_eq!(b[0].unread_count, 2, "bob read neither");
+    assert_eq!(unread(ALICE).await, 0, "and the badge agrees for alice");
     assert_eq!(
-        store.count_unseen(ALICE).await.unwrap(),
-        0,
-        "and the badge agrees for alice"
-    );
-    assert_eq!(
-        store.count_unseen(BOB).await.unwrap(),
+        unread(BOB).await,
         1,
         "the badge counts threads, not messages, so bob has one"
     );
