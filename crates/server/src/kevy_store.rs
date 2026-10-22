@@ -1,28 +1,9 @@
-//! kevy KV store for this (dormant, monolith) process — the in-process
-//! `kevy_embedded::Store`.
+//! The in-process `kevy_embedded::Store` this process opens beside the SQL
+//! store, for the account and permission caches. Side state both cores share
+//! is on the network kevy-server (`MAILRS_KEVY_URL`), not here.
 //!
-//! This process opens only the embedded store: every subsystem here uses
-//! [`KevyStore`] (= `Arc<kevy_embedded::Store>`) either directly or via
-//! the trait implementations in mailrs-shield / mailrs-intelligence /
-//! mailrs-outbound-queue. That is not true of production: the fastcore
-//! stack runs a `kevy-server` container, and all four roles connect to
-//! it as `kevy://kevy-server:6379` (`MAILRS_KEVY_URL` in
-//! `deploy/docker-compose.prod.yml`) for bayes, spam, greylist, contacts
-//! and the change feed, beside fastcore's own embedded store.
-//!
-//! Embedded mode performance ≈ 10× over the network path (no syscall,
-//! no RESP serialization, no socket round-trip) and AOF + snapshot
-//! persistence comes for free when [`open_store`] is called with a
-//! `data_dir`.
-//!
-//! [`open_store`] wires kevy's push-style metric sink to two outputs:
-//! (1) the existing metrics-rs facade — counters/gauges/histograms named
-//! `mailrs_kevy_*`, which the `/metrics` endpoint already renders via
-//! `WebState.metrics_handle`; (2) a `tracing::info!` event on target
-//! `kevy.metric`, so `docker logs` keeps a grep-able trail in parallel.
-//! Current-state snapshot fields (live keys / used_memory / aof_bytes /
-//! expire_pending / evictions / expired_keys) are read on every
-//! `/metrics` scrape via `Store::info()` — see `web::admin::health`.
+//! [`open_store`] logs kevy's replay and rewrite events on target
+//! `kevy.metric`.
 
 use std::io;
 use std::path::Path;
@@ -43,8 +24,8 @@ const KEVY_SHARDS: usize = 4;
 
 /// Open the in-process kevy embedded store, optionally with AOF +
 /// snapshot persistence at `data_dir`. Wraps the store in an `Arc` so
-/// subsystems can clone cheaply. Also wires kevy's metric sink to
-/// `metrics::*!` + `tracing::info!` — no separate handle needed.
+/// subsystems can clone cheaply, with kevy's metric sink logging through
+/// `tracing`.
 pub fn open_store(data_dir: Option<&Path>) -> io::Result<KevyStore> {
     let cfg = KevyConfig::default()
         .with_metric_sink(emit_kevy_metric)
@@ -59,24 +40,17 @@ pub fn open_store(data_dir: Option<&Path>) -> io::Result<KevyStore> {
 
 /// Sink callback for `KevyMetric` events. Runs synchronously on whichever
 /// thread emits the event (reaper thread for background rewrites, the
-/// opening thread for startup replay), so it stays fast: only updates
-/// counter/gauge/histogram state and emits a single tracing record.
+/// opening thread for startup replay), so it stays fast: a single tracing
+/// record.
 fn emit_kevy_metric(m: KevyMetric) {
     match m {
-        // Replay fires once on startup. Gauges (rather than histograms)
-        // are the right type because the value is point-in-time for the
-        // current process lifetime — Prometheus `rate()` over a single
-        // sample isn't useful, but the absolute "last replay took N ms"
-        // is exactly what we want to watch as AOF grows.
+        // replay fires once on startup
         KevyMetric::Replay {
             commands,
             bytes,
             elapsed_ms,
             ..
         } => {
-            metrics::gauge!("mailrs_kevy_replay_commands").set(commands as f64);
-            metrics::gauge!("mailrs_kevy_replay_bytes").set(bytes as f64);
-            metrics::gauge!("mailrs_kevy_replay_elapsed_ms").set(elapsed_ms as f64);
             tracing::info!(
                 target: "kevy.metric",
                 event = "replay",
@@ -86,9 +60,7 @@ fn emit_kevy_metric(m: KevyMetric) {
                 "kevy AOF replay complete"
             );
         }
-        // Rewrite fires repeatedly (auto 100%/64MiB by default). Counter
-        // for cardinality, histogram for the distribution of each
-        // rewrite's effect.
+        // rewrite fires repeatedly (auto 100%/64MiB by default)
         KevyMetric::Rewrite {
             keys,
             before_bytes,
@@ -96,10 +68,6 @@ fn emit_kevy_metric(m: KevyMetric) {
             elapsed_ms,
         } => {
             let reclaimed = before_bytes.saturating_sub(after_bytes);
-            metrics::counter!("mailrs_kevy_rewrite_total").increment(1);
-            metrics::histogram!("mailrs_kevy_rewrite_elapsed_ms").record(elapsed_ms as f64);
-            metrics::histogram!("mailrs_kevy_rewrite_reclaimed_bytes").record(reclaimed as f64);
-            metrics::gauge!("mailrs_kevy_rewrite_keys").set(keys as f64);
             tracing::info!(
                 target: "kevy.metric",
                 event = "rewrite",

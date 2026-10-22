@@ -112,7 +112,6 @@ async fn pg(
     let domain = Arc::new(crate::domain_store::DomainStore::new(
         Some(pool.clone()),
         None,
-        crate::health::HealthState::new(),
     ));
     domain.add_domain("example.test", 0).await.unwrap();
     let hash = crate::users::UserStore::hash_password(PASSWORD).unwrap();

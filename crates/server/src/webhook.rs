@@ -5,7 +5,6 @@ use serde::Serialize;
 use tokio::sync::{Semaphore, watch};
 
 use crate::event_bus::{EventBus, SmtpEvent};
-use crate::system_config::SystemConfigStore;
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct GlobalWebhookPayload {
@@ -42,10 +41,11 @@ fn build_payload(
     }
 }
 
-/// fire-and-forget global webhook listener (reads URL/key from SystemConfigStore on each event)
+/// fire-and-forget global webhook: a POST to `url` for every arriving message
 pub async fn run(
     event_bus: &EventBus,
-    config_store: Arc<SystemConfigStore>,
+    url: String,
+    api_key: Option<String>,
     mut shutdown: watch::Receiver<bool>,
 ) {
     let client = reqwest::Client::builder()
@@ -63,14 +63,6 @@ pub async fn run(
                 match event {
                     Ok(env) => {
                         if let SmtpEvent::NewMessage { user, sender, subject, snippet, .. } = &env.event {
-                            // read url/key from config store each time (runtime-changeable)
-                            let cfg = config_store.get();
-                            let url = match cfg.webhook_url {
-                                Some(ref u) if !u.is_empty() => u.clone(),
-                                _ => continue, // no webhook configured, skip
-                            };
-                            let api_key = cfg.webhook_api_key.clone();
-
                             let permit = match semaphore.clone().try_acquire_owned() {
                                 Ok(p) => p,
                                 Err(_) => {
@@ -80,6 +72,8 @@ pub async fn run(
                             };
                             let payload = build_payload(user, sender, subject, snippet);
                             let client = client.clone();
+                            let url = url.clone();
+                            let api_key = api_key.clone();
                             tokio::spawn(async move {
                                 send_webhook(&client, &url, api_key.as_deref(), &payload).await;
                                 drop(permit);

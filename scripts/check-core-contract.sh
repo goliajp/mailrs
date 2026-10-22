@@ -2,11 +2,11 @@
 # check-core-contract.sh — everything the core client asks for is served,
 # and nothing a core serves goes unasked.
 #
-# Replaces check-rest-parity.sh, which compared `crates/webapi` against
-# `crates/server/src/web`. The monolith is not coming back, so that
-# comparison measured production against code that will never run: every
-# new production route failed it and needed an allow-list line, and the
-# list had reached 51 entries of paperwork.
+# Replaces check-rest-parity.sh, which compared `crates/webapi` against the
+# old all-in-one server's web tier (since deleted). That comparison measured
+# production against code that would never run: every new production route
+# failed it and needed an allow-list line, and the list had reached 51
+# entries of paperwork.
 #
 # What is actually load-bearing is the core RPC contract, and it is held
 # together by nothing at all today. `crates/core-api` declares its

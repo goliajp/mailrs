@@ -9,14 +9,29 @@
 
 use std::sync::Arc;
 
-use crate::config::SmuggleProtection;
+use mailrs_receiver::inbound::auth_guard::{AuthGuard, AuthGuardConfig, AuthGuardStore};
+use mailrs_receiver::inbound::rate_limit::{
+    InMemoryRateLimitStore, RateLimitStore, TokenBucketConfig,
+};
+use mailrs_receiver::smtp_session::{ConnectionContext, handle_plain_connection};
+use mailrs_smtp_codec::SmuggleProtection;
+
 use crate::event_bus::EventBus;
-use crate::inbound::auth_guard::{AuthGuard, AuthGuardConfig, AuthGuardStore};
-use crate::inbound::rate_limit::{InMemoryRateLimitStore, RateLimitStore, TokenBucketConfig};
 use crate::pg::BackendPool;
-use crate::smtp_session::{ConnectionContext, handle_plain_connection};
 use crate::users::UserStore;
-use crate::web::WebState;
+
+/// The receiver records connection counts; nothing here reads them.
+struct NoMetrics;
+
+impl mailrs_receiver::ConnectionMetrics for NoMetrics {
+    fn on_connect(&self) {}
+    fn on_disconnect(&self) {}
+    fn on_message_delivered(&self) {}
+    fn inbound_accept(&self) {}
+    fn inbound_reject(&self) {}
+    fn inbound_defer(&self) {}
+    fn inbound_junk(&self) {}
+}
 
 /// Wire the receiving path in one process: a `ConnectionContext` whose DATA
 /// writes accepted mail to the spool under `spool_root` and emits
@@ -37,7 +52,6 @@ pub async fn spawn_receiving_server(
     spool_root: String,
 ) -> (u16, EventBus) {
     let event_bus = EventBus::new(1024);
-    let web_state = Arc::new(WebState::new(event_bus.clone()));
     let rate_limiter: Arc<dyn RateLimitStore> =
         Arc::new(InMemoryRateLimitStore::new(TokenBucketConfig {
             capacity: 100_000,
@@ -45,11 +59,7 @@ pub async fn spawn_receiving_server(
         }));
     let auth_guard: Arc<dyn AuthGuardStore> = Arc::new(AuthGuard::new(AuthGuardConfig::default()));
     let mailbox_store = Arc::new(mailrs_mailbox::PgMailboxStore::new(pool.clone()));
-    let domain = Arc::new(crate::domain_store::DomainStore::new(
-        Some(pool),
-        None,
-        crate::health::HealthState::new(),
-    ));
+    let domain = Arc::new(crate::domain_store::DomainStore::new(Some(pool), None));
     let core = Arc::new(crate::intake::PgCore {
         dir: crate::intake::PgDirectory::new(domain, maildir_root, None),
         mailbox: mailbox_store,
@@ -66,7 +76,7 @@ pub async fn spawn_receiving_server(
         tls_state: None,
         users: Arc::new(UserStore::empty()),
         event_bus: event_bus.clone(),
-        metrics: web_state as Arc<dyn mailrs_receiver::ConnectionMetrics>,
+        metrics: Arc::new(NoMetrics),
         rate_limiter,
         runtime: Vec::new().into(),
         org_names: Vec::new(),

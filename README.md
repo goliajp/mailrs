@@ -20,7 +20,7 @@ embedded [kevy](https://github.com/goliajp/kevy) store inside fastcore,
 state the processes share lives in `kevy-server`, and mail bodies are
 Maildir files.
 
-The workspace has 71 crates. Most of them are libraries that each own one
+The workspace has 70 crates. Most of them are libraries that each own one
 RFC or one concept — SMTP, IMAP, MIME, SPF, DKIM, DMARC, ARC, Sieve,
 iCalendar, JMAP, MTA-STS and more — published on
 [crates.io](https://crates.io/users/golia-jp) and usable on their own.

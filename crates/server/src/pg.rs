@@ -2,23 +2,10 @@
 //! `spg` feature. One alias set; everything downstream types against
 //! [`BackendPool`] and stays backend-agnostic.
 //!
-//! **Naming note (v2.3.3 roadmap Phase 1.5 audit):** the `pg` name +
-//! `BackendPool`, `set_pg`, `pg_pool`, `MAILRS_PG_URL`, `"pg"` health
-//! key — is a **deliberate legacy alias**, not a bug. Both feature
-//! branches use the same names because:
-//!
-//! - Prod runs `mailrs-fastcore` (no SQL backend at all). This
-//!   `mod pg` and its callers only compile into the monolith binary,
-//!   which is the spg-dogfood lane; the fastcore-lane `webapi` sets
-//!   `"pg": null` unconditionally (`crates/webapi/src/lib.rs::health_handler`).
-//! - The `spg` feature flips `BackendPool` to `spg_sqlx::SpgPool` under
-//!   the same alias, so "pg" here reads as "SQL backend, whichever one
-//!   this build ships". Renaming symmetrically would ripple through
-//!   ~30 sites in monolith + break the spg dogfood lane deploy without
-//!   any user-visible benefit.
-//! - The `"pg"` JSON key is a public health-endpoint field pinned by
-//!   the current frontend; a rename must go through a deprecation
-//!   window (dual-emit) and is scoped out here.
+//! The `pg` name (`BackendPool`, `pg_pool`, `MAILRS_PG_URL`) is kept on
+//! both feature branches: the `spg` feature flips `BackendPool` to
+//! `spg_sqlx::SpgPool` under the same alias, so "pg" here reads as "the SQL
+//! backend, whichever one this build ships".
 
 /// Connection pool of the active backend.
 #[cfg(not(feature = "spg"))]

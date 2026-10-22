@@ -4,25 +4,17 @@ use crate::pg::BackendPool;
 use dashmap::DashMap;
 use serde::Serialize;
 
-use crate::health::HealthState;
-
 // DomainStore — split across submodules in this directory:
-//   audit, totp, accounts, domains, aliases, sieve, permissions,
-//   groups, email_groups, encryption. Each submodule
+//   accounts, domains, aliases, permissions, recipients. Each submodule
 //   attaches `impl DomainStore` blocks for its entity group;
 //   mod.rs owns the struct + types + constructor + cache + the
 //   pg() / kevy accessor helpers used by every handler.
 
 mod accounts;
 mod aliases;
-mod audit;
 mod domains;
-mod email_groups;
-mod encryption;
-mod groups;
 mod permissions;
 pub(crate) mod recipients;
-mod totp;
 
 /// cache entries expire after 5 minutes
 pub(super) const CACHE_TTL_SECS: u64 = 300;
@@ -30,7 +22,6 @@ pub(super) const CACHE_TTL_SECS: u64 = 300;
 pub struct DomainStore {
     pub(super) pg: Option<BackendPool>,
     pub(super) kevy: Option<crate::kevy_store::KevyStore>,
-    pub(super) health: HealthState,
     // process-level cache for L3 degradation
     pub(super) account_cache: DashMap<String, CachedAccount>,
     /// Optional backend-agnostic alias table. When set, recipient routing
@@ -73,16 +64,6 @@ pub struct Alias {
     pub created_at: i64,
 }
 
-#[derive(Debug, Serialize, Clone)]
-pub struct AuditEntry {
-    pub id: i64,
-    pub timestamp: i64,
-    pub actor: String,
-    pub action: String,
-    pub target: String,
-    pub detail: String,
-}
-
 pub(super) type Result<T> = std::result::Result<T, StoreError>;
 
 #[derive(Debug)]
@@ -107,24 +88,18 @@ impl From<sqlx::Error> for StoreError {
 }
 
 impl DomainStore {
-    pub fn new(
-        pg: Option<BackendPool>,
-        kevy: Option<crate::kevy_store::KevyStore>,
-        health: HealthState,
-    ) -> Self {
+    pub fn new(pg: Option<BackendPool>, kevy: Option<crate::kevy_store::KevyStore>) -> Self {
         Self {
             pg,
             kevy,
-            health,
             account_cache: DashMap::new(),
             alias_store: None,
         }
     }
 
-    /// Attach a backend-agnostic `AliasStore` for RFC 20260705 Step 3.
-    /// When set, alias reads/writes go through this trait — a
-    /// `NetworkKevyAliasStore` here makes monolith and fastcore share
-    /// the same alias source of truth across v2 dual-mode cutover.
+    /// Attach a backend-agnostic `AliasStore`. When set, alias reads and
+    /// writes go through this trait — a `NetworkKevyAliasStore` here makes
+    /// this core and fastcore share one alias source of truth.
     pub fn with_alias_store(
         mut self,
         alias_store: std::sync::Arc<dyn mailrs_alias_store::AliasStore>,
@@ -133,31 +108,9 @@ impl DomainStore {
         self
     }
 
-    /// number of entries in the in-process account cache
-    pub fn cache_size(&self) -> usize {
-        self.account_cache.len()
-    }
-
-    /// evict expired entries from the in-process cache
-    pub fn evict_expired(&self) -> usize {
-        let before = self.account_cache.len();
-        self.account_cache
-            .retain(|_, v| v.cached_at.elapsed().as_secs() < CACHE_TTL_SECS);
-        before - self.account_cache.len()
-    }
-
     pub(super) fn pg(&self) -> Result<&BackendPool> {
-        match (&self.pg, self.health.pg_up()) {
-            (Some(pool), true) => Ok(pool),
-            (Some(pool), false) => {
-                // health check says down but pool might still work
-                Ok(pool)
-            }
-            _ => Err(StoreError::Unavailable),
-        }
+        self.pg.as_ref().ok_or(StoreError::Unavailable)
     }
-
-    // --- TOTP 2FA ---
 
     // --- Kevy cache helpers (in-process embed store) ---
 
@@ -195,24 +148,6 @@ impl DomainStore {
     // --- aliases ---
 
     // --- RBAC: groups & permissions ---
-
-    // --- apps ---
-
-    // --- email groups ---
-
-    // --- encryption keys (PGP / S/MIME) ---
-}
-
-// --- EmailGroup struct ---
-
-#[derive(Debug, Serialize, Clone)]
-pub struct EmailGroup {
-    pub id: i64,
-    pub address: String,
-    pub domain: String,
-    pub name: String,
-    pub description: String,
-    pub created_at: i64,
 }
 
 // serde for CachedAccount (kevy)
@@ -279,7 +214,6 @@ impl<'de> serde::Deserialize<'de> for Account {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Duration;
 
     // helper to build an Account with sensible defaults
     fn make_account(address: &str) -> Account {
@@ -305,7 +239,7 @@ mod tests {
 
     // helper to build a DomainStore without PG/Kevy
     fn make_store() -> DomainStore {
-        DomainStore::new(None, None, HealthState::new())
+        DomainStore::new(None, None)
     }
 
     // --- CachedAccount serde ---
@@ -395,127 +329,6 @@ mod tests {
         assert_eq!(deserialized.active, original.active);
         assert_eq!(deserialized.created_at, original.created_at);
         assert_eq!(deserialized.quota_bytes, original.quota_bytes);
-    }
-
-    // --- DomainStore cache operations (no DB) ---
-
-    #[test]
-    fn store_empty_cache_size() {
-        let store = make_store();
-        assert_eq!(store.cache_size(), 0);
-    }
-
-    #[test]
-    fn store_cache_insert_and_size() {
-        let store = make_store();
-        store
-            .account_cache
-            .insert("a@example.com".into(), make_cached("a@example.com", "h1"));
-        store
-            .account_cache
-            .insert("b@example.com".into(), make_cached("b@example.com", "h2"));
-        assert_eq!(store.cache_size(), 2);
-    }
-
-    #[test]
-    fn store_evict_expired_none_expired() {
-        let store = make_store();
-        store.account_cache.insert(
-            "fresh@example.com".into(),
-            make_cached("fresh@example.com", "h"),
-        );
-        let evicted = store.evict_expired();
-        assert_eq!(evicted, 0);
-        assert_eq!(store.cache_size(), 1);
-    }
-
-    #[test]
-    fn store_evict_expired_with_stale_entry() {
-        let store = make_store();
-
-        // insert a fresh entry
-        store.account_cache.insert(
-            "fresh@example.com".into(),
-            make_cached("fresh@example.com", "h1"),
-        );
-
-        // insert a stale entry with cached_at far in the past
-        let stale = CachedAccount {
-            account: make_account("stale@example.com"),
-            password_hash: "h2".into(),
-            cached_at: Instant::now() - Duration::from_secs(CACHE_TTL_SECS + 10),
-        };
-        store
-            .account_cache
-            .insert("stale@example.com".into(), stale);
-
-        assert_eq!(store.cache_size(), 2);
-        let evicted = store.evict_expired();
-        assert_eq!(evicted, 1);
-        assert_eq!(store.cache_size(), 1);
-        assert!(store.account_cache.contains_key("fresh@example.com"));
-        assert!(!store.account_cache.contains_key("stale@example.com"));
-    }
-
-    #[test]
-    fn store_evict_expired_all_stale() {
-        let store = make_store();
-        for i in 0..5 {
-            let addr = format!("user{i}@example.com");
-            let stale = CachedAccount {
-                account: make_account(&addr),
-                password_hash: "hash".into(),
-                cached_at: Instant::now() - Duration::from_secs(CACHE_TTL_SECS + 1),
-            };
-            store.account_cache.insert(addr, stale);
-        }
-        assert_eq!(store.cache_size(), 5);
-        let evicted = store.evict_expired();
-        assert_eq!(evicted, 5);
-        assert_eq!(store.cache_size(), 0);
-    }
-
-    #[test]
-    fn store_evict_expired_empty_cache() {
-        let store = make_store();
-        let evicted = store.evict_expired();
-        assert_eq!(evicted, 0);
-    }
-
-    // --- TTL boundary check ---
-
-    #[test]
-    fn ttl_boundary_not_yet_expired() {
-        let store = make_store();
-        // entry at exactly TTL - 1 second should survive
-        let entry = CachedAccount {
-            account: make_account("boundary@example.com"),
-            password_hash: "hash".into(),
-            cached_at: Instant::now() - Duration::from_secs(CACHE_TTL_SECS - 1),
-        };
-        store
-            .account_cache
-            .insert("boundary@example.com".into(), entry);
-        let evicted = store.evict_expired();
-        assert_eq!(evicted, 0);
-        assert_eq!(store.cache_size(), 1);
-    }
-
-    #[test]
-    fn ttl_boundary_just_expired() {
-        let store = make_store();
-        // entry at exactly TTL + 1 second should be evicted
-        let entry = CachedAccount {
-            account: make_account("expired@example.com"),
-            password_hash: "hash".into(),
-            cached_at: Instant::now() - Duration::from_secs(CACHE_TTL_SECS + 1),
-        };
-        store
-            .account_cache
-            .insert("expired@example.com".into(), entry);
-        let evicted = store.evict_expired();
-        assert_eq!(evicted, 1);
-        assert_eq!(store.cache_size(), 0);
     }
 
     // --- DomainStore.pg() returns Unavailable without PG ---

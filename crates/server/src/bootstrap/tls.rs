@@ -1,19 +1,8 @@
-#![allow(unused_imports)]
 //! TLS state initialization (ACME / manual cert / disabled).
-
-use std::sync::Arc;
 
 use crate::config;
 use crate::config::TlsMode;
-use crate::domain_store;
-use crate::event_bus::{EventBus, SmtpEvent};
-use crate::inbound::auth_guard::{AuthGuard, AuthGuardConfig};
-use crate::web::WebState;
-use crate::{
-    acme, conversation_cache, dmarc_report, event_bus, health, listeners, oidc_jwt,
-    outbound_tls_rpt, rbl_monitor, smtp_session, system_config, tls, web, webhook,
-};
-use mailrs_mailbox::PgMailboxStore;
+use crate::{acme, tls};
 
 /// Initialize TLS state per config:
 ///

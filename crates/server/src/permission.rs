@@ -52,6 +52,7 @@ pub struct EffectivePermissions {
 
 impl EffectivePermissions {
     /// check if the user has a specific permission
+    #[cfg(test)]
     pub fn has(&self, perm: &str) -> bool {
         self.is_super || self.permissions.contains(perm)
     }
@@ -68,6 +69,7 @@ impl EffectivePermissions {
     }
 
     /// domains the user can access (empty = own domain only)
+    #[cfg(test)]
     pub fn accessible_domains(&self) -> &[String] {
         &self.accessible_domains
     }

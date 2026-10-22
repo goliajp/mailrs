@@ -9,8 +9,6 @@
 //! Flat, so no call site moved — the methods stay on `PgMailboxStore`, which is
 //! what `impl` blocks in sibling modules give you for free.
 
-mod by_ids;
-mod list;
 mod rows;
 
 pub use rows::{Held, ThreadQuery};

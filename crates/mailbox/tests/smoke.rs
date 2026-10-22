@@ -14,8 +14,31 @@ mod common;
 
 use common::{seed_domain_account, seed_mailbox, setup_pg};
 use mailrs_mailbox::PgMailboxStore;
+use mailrs_mailbox::pg::ThreadQuery;
 
 const USER: &str = "alice@example.com";
+
+/// Deliver `data` into the user's INBOX maildir under `root` and index it,
+/// the way a delivery does.
+async fn deliver(store: &PgMailboxStore, root: &str, data: &[u8], now: i64) {
+    let md = mailrs_maildir::Maildir::create(format!("{root}/example.com/alice")).unwrap();
+    let id = md.deliver(data).unwrap().to_string();
+    store
+        .index_delivered(USER, "INBOX", &id, data, 0, now)
+        .await
+        .unwrap();
+}
+
+async fn unread_threads(store: &PgMailboxStore) -> usize {
+    store
+        .thread_rows(&ThreadQuery {
+            unread: true,
+            ..ThreadQuery::all(USER)
+        })
+        .await
+        .unwrap()
+        .len()
+}
 
 #[tokio::test]
 async fn pg_container_starts_and_schema_applies() {
@@ -50,14 +73,20 @@ async fn mailbox_store_new_constructs_from_pool() {
 }
 
 #[tokio::test]
-async fn count_messages_returns_zero_for_user_with_no_data() {
+async fn a_user_with_no_mail_has_no_conversations() {
     let (_container, pool) = setup_pg().await;
     seed_domain_account(&pool, USER).await;
 
     let store = PgMailboxStore::new(pool);
 
-    assert_eq!(store.count_messages(USER).await, 0);
-    assert_eq!(store.count_unseen(USER).await.unwrap(), 0);
+    assert!(
+        store
+            .thread_rows(&ThreadQuery::all(USER))
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(unread_threads(&store).await, 0);
 }
 
 #[tokio::test]
@@ -125,7 +154,7 @@ async fn flag_ops_update_round_trip_via_real_pg() {
 }
 
 #[tokio::test]
-async fn search_conversations_hits_tsvector_and_ilike_branches() {
+async fn search_hits_tsvector_and_substring_branches() {
     let (_container, pool) = setup_pg().await;
     seed_domain_account(&pool, USER).await;
     let mailbox_id = seed_mailbox(&pool, USER, "INBOX").await;
@@ -160,29 +189,19 @@ async fn search_conversations_hits_tsvector_and_ilike_branches() {
     let store = PgMailboxStore::new(pool.clone());
 
     // tsvector branch: "invoice" is a token in subject + body.
-    let hits = store
-        .search_conversations(USER, "invoice", 10, None, None)
-        .await
-        .unwrap();
-    assert_eq!(hits.len(), 1, "one thread matches");
-    assert_eq!(hits[0].thread_id, "th-1");
+    let hits = store.search_thread_ids(USER, "invoice", 10).await.unwrap();
+    assert_eq!(hits, vec!["th-1".to_string()], "one thread matches");
 
     // ILIKE branch: substring that tsvector tokenisation won't match.
-    let hits = store
-        .search_conversations(USER, "uarterly", 10, None, None)
-        .await
-        .unwrap();
+    let hits = store.search_thread_ids(USER, "uarterly", 10).await.unwrap();
     assert_eq!(
-        hits.len(),
-        1,
-        "ILIKE substring match still finds the thread"
+        hits,
+        vec!["th-1".to_string()],
+        "a substring match still finds the thread"
     );
 
     // No match.
-    let hits = store
-        .search_conversations(USER, "zebra", 10, None, None)
-        .await
-        .unwrap();
+    let hits = store.search_thread_ids(USER, "zebra", 10).await.unwrap();
     assert!(hits.is_empty());
 }
 
@@ -198,10 +217,7 @@ async fn reconcile_maildir_repairs_orphan_files() {
 
     // control: one message through the normal indexed path
     let indexed = b"From: a@x.com\r\nTo: alice@example.com\r\nSubject: indexed\r\nMessage-ID: <ctl-1@x.com>\r\n\r\nbody one\r\n";
-    store
-        .append_message(USER, "INBOX", root_path, indexed, 0, 1_700_000_000)
-        .await
-        .unwrap();
+    deliver(&store, root_path, indexed, 1_700_000_000).await;
 
     // orphan: delivered to disk only, never indexed (the split-brain shape)
     let md = mailrs_maildir::Maildir::create(format!("{root_path}/example.com/alice")).unwrap();
@@ -241,12 +257,11 @@ async fn reconcile_maildir_repairs_orphan_files() {
 }
 
 #[tokio::test]
-async fn count_unseen_counts_unread_threads() {
-    // sentinel: count_unseen's unread aggregate must actually count. its
-    // result was once swallowed to 0 on error, hiding that spg couldn't
-    // parse the standard FILTER clause — the homepage unread badge read 0
-    // on full mailboxes (incident 2026-06-13). runs on both axes now via
-    // the TEMP(round-29) CASE form; flips back to FILTER when spg ships it.
+async fn unread_threads_are_counted() {
+    // sentinel: the unread aggregate must actually count. an earlier unread
+    // count was once swallowed to 0 on error, hiding that spg couldn't parse
+    // the standard FILTER clause — the homepage unread badge read 0 on full
+    // mailboxes (incident 2026-06-13).
     let (_container, pool) = setup_pg().await;
     seed_domain_account(&pool, USER).await;
     let store = PgMailboxStore::new(pool.clone());
@@ -257,25 +272,19 @@ async fn count_unseen_counts_unread_threads() {
     // delivered unseen (flags = 0), sender != the user so it isn't a
     // self-sent thread the count excludes
     let msg = b"From: someone@elsewhere.com\r\nTo: alice@example.com\r\nSubject: unread one\r\nMessage-ID: <u-1@elsewhere.com>\r\n\r\nbody\r\n";
-    store
-        .append_message(USER, "INBOX", root_path, msg, 0, 1_700_000_000)
-        .await
-        .unwrap();
+    deliver(&store, root_path, msg, 1_700_000_000).await;
 
     assert_eq!(
-        store.count_unseen(USER).await.unwrap(),
+        unread_threads(&store).await,
         1,
         "one unseen inbound thread must count as unread"
     );
 
     // a second unseen message in the SAME thread is still one unread thread
     let msg2 = b"From: someone@elsewhere.com\r\nTo: alice@example.com\r\nSubject: Re: unread one\r\nMessage-ID: <u-2@elsewhere.com>\r\nIn-Reply-To: <u-1@elsewhere.com>\r\n\r\nbody2\r\n";
-    store
-        .append_message(USER, "INBOX", root_path, msg2, 0, 1_700_000_100)
-        .await
-        .unwrap();
+    deliver(&store, root_path, msg2, 1_700_000_100).await;
     assert_eq!(
-        store.count_unseen(USER).await.unwrap(),
+        unread_threads(&store).await,
         1,
         "thread-level count: two messages in one thread is one unread thread"
     );
@@ -284,7 +293,7 @@ async fn count_unseen_counts_unread_threads() {
 #[tokio::test]
 async fn reconcile_no_message_id_still_gets_thread_and_is_visible() {
     // regression (2026-06-13): an orphan whose Message-ID header didn't
-    // extract got an empty thread_id, and list_conversations'
+    // extract got an empty thread_id, and the conversation list's
     // `WHERE thread_id != ''` then hid it from every view — a real
     // business email silently vanished. orphans must always thread.
     let (_container, pool) = setup_pg().await;
@@ -314,10 +323,7 @@ async fn reconcile_no_message_id_still_gets_thread_and_is_visible() {
     );
 
     // and it is visible in the default conversation list
-    let convos = store
-        .list_conversations(USER, 50, None, None, None, false, None, None, None, None)
-        .await
-        .unwrap();
+    let convos = store.thread_rows(&ThreadQuery::all(USER)).await.unwrap();
     assert!(
         convos.iter().any(|c| c.thread_id == row.0),
         "the recovered message must appear in the default list"
@@ -350,10 +356,7 @@ async fn default_list_shows_spam_categorised_mail() {
         .unwrap();
 
     let store = PgMailboxStore::new(pool.clone());
-    let convos = store
-        .list_conversations(USER, 50, None, None, None, false, None, None, None, None)
-        .await
-        .unwrap();
+    let convos = store.thread_rows(&ThreadQuery::all(USER)).await.unwrap();
     assert!(
         convos.iter().any(|c| c.thread_id == "th-spam"),
         "spam-categorised mail must still show in the default 'all' view"

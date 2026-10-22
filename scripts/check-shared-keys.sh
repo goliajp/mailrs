@@ -44,9 +44,8 @@ bayes:triage:;crates/triage/src/lib.rs
 
 # file ; literal prefix ; why it cannot import
 EXCEPTIONS='
-crates/server/src/greylist_backfill.rs;gl:_backfilled_v1;a marker only the single-process server writes, inside the greylist namespace
 crates/webapi/src/handlers/smtp_monitor.rs;notify:new-mail;a test feeding a channel the monitor must ignore; webapi does not depend on mailrs-core (it pulls ldap3)
-crates/server/tests/kevy_server_spike.rs;notify:new-mail;exercises kevy pub/sub with the real channel name; the test does not link mailrs-core
+crates/shield/tests/kevy_server_spike.rs;notify:new-mail;exercises kevy pub/sub with the real channel name; the test does not link mailrs-core
 '
 
 fail=0

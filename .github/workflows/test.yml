@@ -114,14 +114,7 @@ jobs:
           cargo build --release -p mailrs-receiver
           cargo build --release -p mailrs-webapi
           cargo build --release -p mailrs-fastcore --bin mailrs-fastcore --bin mailrs-fastcore-sender --bin mailrs-fastcore-ocr
-          cargo build --release -p mailrs-server --features spg,core-rpc --bin mailrs-pg-core
-
-      - name: cargo check (default mailrs-server — ironrule guard)
-        # Asserts the prod-default build still produces the same artifact
-        # as develop. Phase 2 `core-rpc` is feature-flagged off here, so
-        # any unexpected pull of mailrs-core-api into the default graph
-        # would be caught.
-        run: cargo check -p mailrs-server
+          cargo build --release -p mailrs-server --features spg --bin mailrs-pg-core
 
   web:
     name: web check + test

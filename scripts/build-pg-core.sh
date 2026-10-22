@@ -4,9 +4,9 @@
 # `deploy/docker-compose.pg-core.yml` runs this image in fastcore's place.
 #
 # Usage:
-#   ./scripts/build-pg-core.sh                           # PostgreSQL (default)
-#   ./scripts/build-pg-core.sh --features core-rpc,spg   # embedded spg
-#   ./scripts/build-pg-core.sh --push               # also push to ghcr
+#   ./scripts/build-pg-core.sh                  # PostgreSQL (default)
+#   ./scripts/build-pg-core.sh --features spg   # embedded spg
+#   ./scripts/build-pg-core.sh --push           # also push to ghcr
 #   ./scripts/build-pg-core.sh --tag v2.47.0
 #
 # Local arm64 build and direct push, matching `direct-deploy.sh` rather than
@@ -15,7 +15,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-FEATURES="core-rpc"
+FEATURES=""
 TAG="latest"
 PUSH=0
 IMAGE="ghcr.io/goliajp/mailrs-pg-core"
@@ -36,10 +36,10 @@ done
 # typo here produces an image whose backend is not the one the operator meant,
 # and both spellings compile.
 case "$FEATURES" in
-    core-rpc|core-rpc,spg) ;;
+    ""|spg) ;;
     *)
-        echo "!! --features must be 'core-rpc' (real PostgreSQL) or"
-        echo "   'core-rpc,spg' (spg-embedded). Got: $FEATURES"
+        echo "!! --features must be absent (real PostgreSQL) or 'spg'"
+        echo "   (spg-embedded). Got: $FEATURES"
         exit 1 ;;
 esac
 
@@ -47,8 +47,8 @@ esac
 # engine they talk to, sharing one tag, is a switch nobody can audit after the
 # fact — `docker inspect` cannot tell you which cargo features built a binary.
 case "$FEATURES" in
-    core-rpc,spg) SUFFIX="-spg" ;;
-    core-rpc)     SUFFIX="-pg" ;;
+    spg) SUFFIX="-spg" ;;
+    "")  SUFFIX="-pg" ;;
 esac
 FULL="${IMAGE}:${TAG}${SUFFIX}"
 # a release tag is the version the binary reports; anything else is a build
@@ -58,7 +58,7 @@ case "$TAG" in
     *) VERSION="0.0.0" ;;
 esac
 
-echo "building $FULL  (features: $FEATURES)"
+echo "building $FULL  (features: ${FEATURES:-none})"
 docker buildx build \
     --platform linux/arm64 \
     --build-arg "FEATURES=$FEATURES" \

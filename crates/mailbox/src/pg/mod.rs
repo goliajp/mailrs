@@ -13,7 +13,6 @@
 
 mod analysis_ops;
 mod attachment_ops;
-mod contact_ops;
 mod flag_ops;
 pub(crate) mod helpers;
 mod mailbox_ops;
@@ -21,7 +20,6 @@ mod message_ops;
 mod reconcile_ops;
 pub use reconcile_ops::ReconcileReport;
 mod search_ids;
-mod search_ops;
 mod thread_ops;
 
 pub use thread_ops::{Held, ThreadQuery};
@@ -76,11 +74,8 @@ impl PgMailboxStore {
     }
 }
 
-// Re-export PG-EXT public types so callers reach them via
-// `mailrs_mailbox::pg::{ContactInfo, EmailAnalysisInput}`.
 pub use crate::pg::analysis_ops::EmailAnalysisInput;
-pub use crate::pg::contact_ops::ContactInfo;
-pub use crate::pg::message_ops::{ArrivalFacts, IndexRecord};
+pub use crate::pg::message_ops::ArrivalFacts;
 
 // NOTE: `impl MailboxStore for PgMailboxStore` is added in stage 2b together
 // with server adaptation. Keeping them in lockstep avoids the complexity of

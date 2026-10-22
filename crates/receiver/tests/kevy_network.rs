@@ -21,12 +21,12 @@ use testcontainers::{
     runners::AsyncRunner,
 };
 
-use mailrs_server::inbound::auth_guard::{AuthCheck, AuthGuardConfig, AuthGuardStore};
-use mailrs_server::inbound::kevy_backends::{KevyServerAuthGuardStore, KevyServerRateLimitStore};
-use mailrs_server::inbound::rate_limit::{RateLimitStore, TokenBucketConfig};
-use mailrs_server::kevy_net::KevyNetClient;
-use mailrs_server::kevy_notify::{KevyEventPublisher, NOTIFY_CHANNEL, spawn_kevy_notify_bridge};
-use mailrs_server::{EventBus, SmtpEvent};
+use mailrs_core::event_bus::{EventBus, SmtpEvent};
+use mailrs_receiver::inbound::auth_guard::{AuthCheck, AuthGuardConfig, AuthGuardStore};
+use mailrs_receiver::inbound::kevy_backends::{KevyServerAuthGuardStore, KevyServerRateLimitStore};
+use mailrs_receiver::inbound::rate_limit::{RateLimitStore, TokenBucketConfig};
+use mailrs_receiver::kevy_net::KevyNetClient;
+use mailrs_receiver::kevy_notify::{KevyEventPublisher, NOTIFY_CHANNEL, spawn_kevy_notify_bridge};
 
 /// Which kevy-server these run against.
 ///

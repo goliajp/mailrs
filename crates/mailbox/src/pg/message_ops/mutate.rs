@@ -162,20 +162,6 @@ impl PgMailboxStore {
 
         Ok(())
     }
-
-    /// set the BIMI logo URL on a message
-    pub async fn update_bimi_logo(
-        &self,
-        message_id: i64,
-        logo_url: &str,
-    ) -> Result<(), sqlx::Error> {
-        sqlx::query("UPDATE messages SET bimi_logo_url = $2 WHERE id = $1")
-            .bind(message_id)
-            .bind(logo_url)
-            .execute(&self.pool)
-            .await?;
-        Ok(())
-    }
 }
 
 /// copy message logic extracted as a free function so both copy_message and move_message can call it
