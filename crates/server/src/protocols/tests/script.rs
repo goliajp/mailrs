@@ -2,40 +2,27 @@
 
 use base64::Engine;
 use mailrs_imap_proto::{
-    format_exists, format_fetch, format_flags, format_list, format_recent, special_use_flag,
+    format_exists, format_flags, format_list, format_recent, special_use_flag,
 };
 
 use super::Step;
 use super::harness::{HOST, PASSWORD, USER};
+use super::steps::{fetch, step};
 
-const MAIL: [(&str, &str); 3] = [("one", "first"), ("two", "second"), ("three", "third")];
+pub(super) const MAIL: [(&str, &str); 3] =
+    [("one", "first"), ("two", "second"), ("three", "third")];
 
-fn message(subject: &str, body: &str) -> String {
+pub(super) fn message(subject: &str, body: &str) -> String {
     format!(
         "From: bob@example.test\r\nTo: {USER}\r\nSubject: {subject}\r\nMessage-ID: <{subject}@example.test>\r\n\r\n{body}\r\n"
     )
 }
 
-fn size(i: usize) -> usize {
+pub(super) fn size(i: usize) -> usize {
     message(MAIL[i].0, MAIL[i].1).len()
 }
 
-fn step(send: &str, expect: &[&str]) -> Step {
-    Step {
-        send: send.to_string(),
-        expect: expect.concat(),
-    }
-}
-
-fn fetch(seq: u32, items: &[(&str, String)]) -> String {
-    let items: Vec<(String, String)> = items
-        .iter()
-        .map(|(k, v)| (k.to_string(), v.clone()))
-        .collect();
-    format_fetch(seq, &items)
-}
-
-const CAPS: &str = "IMAP4rev1 AUTH=PLAIN IDLE NAMESPACE ENABLE UNSELECT MOVE SPECIAL-USE SORT QUOTA CONDSTORE QRESYNC";
+pub(super) const CAPS: &str = "IMAP4rev1 AUTH=PLAIN IDLE NAMESPACE ENABLE UNSELECT MOVE SPECIAL-USE SORT QUOTA CONDSTORE QRESYNC";
 
 fn plain() -> String {
     base64::engine::general_purpose::STANDARD.encode(format!("\0{USER}\0{PASSWORD}"))

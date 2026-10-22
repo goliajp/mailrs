@@ -202,6 +202,17 @@ pub(super) async fn select<A: Account>(
     out
 }
 
+/// RFC 3691: leave the mailbox without expunging anything.
+pub(super) fn unselect<A: Account>(session: &mut State<A>, tag: &str) -> Vec<String> {
+    let State::Selected { account, .. } = session else {
+        return vec![format_bad(tag, "not in SELECTED state")];
+    };
+    *session = State::Authed {
+        account: account.clone(),
+    };
+    vec![format_ok(tag, "UNSELECT completed")]
+}
+
 pub(super) fn close<A: Account>(session: &mut State<A>, tag: &str) -> Vec<String> {
     let State::Selected { account, .. } = session else {
         return vec![format_bad(tag, "not in SELECTED state")];

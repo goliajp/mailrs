@@ -9,7 +9,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use super::append::append_flow;
 use super::fetch::fetch_response;
 use super::idle::idle_flow;
-use super::mailbox::{close, list_response, select};
+use super::mailbox::{close, list_response, select, unselect};
 use super::query::{copy_response, quota_response, search_response, sort_response};
 use super::session::{Io, State, no};
 use super::store::{expunge, store_response};
@@ -66,6 +66,7 @@ where
         ImapCommand::Examine { mailbox } => select(session, tag, &mailbox, true, *qresync).await,
         ImapCommand::Enable(caps) => enable(tag, &caps, qresync),
         ImapCommand::Close => close(session, tag),
+        ImapCommand::Unselect => unselect(session, tag),
         ImapCommand::Uid { subcommand } => uid(session, tag, *subcommand).await,
         ImapCommand::Expunge => expunge(session, tag, *qresync).await,
         ImapCommand::Append {
