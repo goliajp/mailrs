@@ -35,9 +35,21 @@ pub(crate) fn spawn(state: Arc<FastcoreState>, tls: Option<TlsState>) {
     mailrs_mail_protocols::spawn_all(Arc::new(dir), tls);
 }
 
-pub(crate) struct FastcoreDirectory {
+/// The accounts IMAP, POP3 and ManageSieve sign in, over fastcore's
+/// stores.
+pub struct FastcoreDirectory {
     pub(crate) state: Arc<FastcoreState>,
     pub(crate) maildir_root: PathBuf,
+}
+
+impl FastcoreDirectory {
+    /// Mail under `maildir_root` rather than `MAILRS_MAILDIR`.
+    pub fn new(state: Arc<FastcoreState>, maildir_root: PathBuf) -> Self {
+        Self {
+            state,
+            maildir_root,
+        }
+    }
 }
 
 impl Directory for FastcoreDirectory {

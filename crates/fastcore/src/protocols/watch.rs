@@ -13,7 +13,7 @@ use tokio::time::{Interval, MissedTickBehavior};
 
 use crate::FastcoreState;
 
-pub(crate) struct FeedWatch(Option<Feed>);
+pub struct FeedWatch(Option<Feed>);
 
 struct Feed {
     state: Arc<FastcoreState>,

@@ -5,6 +5,8 @@
 //! Maildir, Sieve scripts in the network kevy.
 
 mod account;
+#[cfg(test)]
+mod tests;
 mod watch;
 
 use std::sync::Arc;

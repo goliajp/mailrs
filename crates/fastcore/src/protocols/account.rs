@@ -12,7 +12,7 @@ use super::real::RealAccount;
 use super::watch::FeedWatch;
 use crate::imap::backend::{ImapMessage, MailboxInfo};
 
-pub(crate) enum FastcoreAccount {
+pub enum FastcoreAccount {
     Real(RealAccount),
     Mock(MockAccount),
 }

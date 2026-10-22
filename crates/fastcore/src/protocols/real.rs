@@ -11,7 +11,7 @@ use super::account::{FcMailbox, to_imap, to_message};
 use crate::FastcoreState;
 use crate::imap::backend::{self, ImapMessage};
 
-pub(crate) struct RealAccount {
+pub struct RealAccount {
     pub(crate) state: Arc<FastcoreState>,
     pub(crate) user: String,
     pub(crate) maildir_root: PathBuf,
