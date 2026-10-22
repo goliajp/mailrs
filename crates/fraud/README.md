@@ -8,7 +8,7 @@ Signals that a message is a fraud attempt rather than mail.
 
 SPF, DKIM and DMARC say a message really came from the domain in its
 `From:` header, and a fraudster who registers a domain the day before
-passes all three. Measured on one production server, every one of 25
+passes all three. Measured on one company's mail server, every one of 25
 messages impersonating the company that runs it passed SPF, and 18
 passed DKIM and DMARC as well. What is left is the message itself: who
 it claims to be from, what wrote it, and what it asks for. That is what
@@ -19,6 +19,21 @@ the count is written in its documentation. Signals are scores, not
 rulings, except where the measurement supports a verdict: a generated
 `X-Mailer` matched 29 messages and all 29 were fraud, so it reaches the
 default threshold on its own.
+
+## Example
+
+```rust
+use mailrs_fraud::{Facts, Policy, RULE_GENERATED_MAILER, scan};
+
+let facts = Facts {
+    from: "Billing <ipdxuawesj@example.net>",
+    x_mailer: Some("YBPGKV FPLPI 140.59825.59030.27158"),
+    ..Facts::default()
+};
+let findings = scan(&facts, &Policy::default());
+assert!(findings.has(RULE_GENERATED_MAILER));
+println!("score {}, hold: {}", findings.score(), findings.hold_worthy());
+```
 
 ## API
 

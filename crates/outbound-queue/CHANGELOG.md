@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.0.0] - 2026-10-22
+
+### Changed
+
+- **Breaking:** the `pg` feature now depends on `kevy-embedded` 6 (was
+  4); `KevyNotifier::new`, `DeliveryWorker::with_kevy` and
+  `queue::notify` take a `kevy_embedded::Store` from that version.
+  Migration: depend on `kevy-embedded = "6"` and pass a store opened
+  with it.
+- **Breaking:** depends on `mailrs-smtp-client` 3 (was 2), whose
+  `TlsOutcome` appears in the public `HandshakeFailed` variant.
+  Migration: code that matches on that value uses `mailrs-smtp-client`
+  3 as well.
+- `MAILRS_DKIM_KEYS` parsing (`dkim_env::extra_keys_from_env`) and the
+  per-domain key lookup in `DkimSignConfig` now use
+  `mailrs_dkim::key_list` (requires `mailrs-dkim` 3.2), so the signer and
+  any report on which key signs a domain give the same answer. Skipped
+  entries are logged with their domain and key path instead of the raw
+  entry.
+
 ### Added
 
 - `dkim_signers::usable_selectors(&DkimSignConfig)` — the domains a
@@ -14,15 +34,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   parsed up front, so a domain whose key file holds no valid key is left
   out instead of looking configured until its first message fails to
   sign.
-
-### Changed
-
-- `MAILRS_DKIM_KEYS` parsing (`dkim_env::extra_keys_from_env`) and the
-  per-domain key lookup in `DkimSignConfig` now use
-  `mailrs_dkim::key_list`, so the signer and any report on which key
-  signs a domain give the same answer. Requires the `mailrs-dkim` release
-  that adds `key_list`. Skipped entries are logged with their domain and
-  key path instead of the raw entry.
 
 ### Fixed
 

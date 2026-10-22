@@ -7,28 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed (breaking)
+## [2.0.0] - 2026-10-22
 
-- `fold_sender_trust` takes a fourth argument, the
+### Changed
+
+- **Breaking:** `fold_sender_trust` takes a fourth argument, the
   `mailrs_textguard::Deception` found in the From display name and
   Subject. A bidirectional override there makes the sender
-  `Suspicious` even when DMARC passed.
-- `PipelineInput` has new public fields: `deception`, `fraud`
-  (`mailrs_fraud::Findings`), `header_from_addr`, `local_domains` and
-  `sender_allowed`. Code that builds it with a struct literal must set
-  them (`verdict::unexamined()` returns an input with nothing found).
+  `Suspicious` even when DMARC passed. Migration: pass
+  `mailrs_textguard::Deception::default()` to keep the old result, or
+  the value from `deception_in_identity`.
+- **Breaking:** `PipelineInput` has new public fields: `deception`,
+  `fraud` (`mailrs_fraud::Findings`), `header_from_addr`,
+  `local_domains` and `sender_allowed`. Migration: code that builds it
+  with a struct literal sets them, or starts from
+  `verdict::unexamined()` (an input with nothing found) and overrides
+  what it knows.
+- **Breaking:** `ReceiveContext` has new public fields: `deception`,
+  `fraud`, `header_from_addr`, `local_domains`, `allow_list`
+  (`AllowListMatch`) and `sender_allowed`. Migration: build it with
+  `ReceiveContext::new`, which fills them, and the `with_*` methods.
 - The recipient whitelist now matches the envelope sender or the
   `From:` address and no longer requires SPF or DKIM to pass; it is
   overruled only when DMARC failed under `p=quarantine` (or
   `p=reject`, which rejects first). The blacklist matches either
   address too.
+- `ReceiveContext::new` reads the From display name and Subject for
+  deceptive characters and the `From:` address, and
+  `to_pipeline_input` carries both into the decision.
 
 ### Added
 
 - `verdict` module: `assess(input)` returns a `FraudVerdict` with
   `rules_version` (`RULES_VERSION`), score, whether the message is held
   (`holds`), and one `Layer` per review with an `Outcome` (`Pass`,
-  `Fail`, `NotApplicable`).
+  `Fail`, `NotApplicable`). `unexamined()` returns an input with
+  nothing found.
+- `AllowListMatch` (`None`, `Network`, `Address`): what an operator
+  allow list matched.
 - `identity` module: header readers shared by every caller
   (`from_header`, `from_address`, `reply_to_address`, `subject_header`,
   `to_display_name`, `x_mailer_header`, `first_received_peer_ip`,
@@ -50,9 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `ReceiveContext::with_local_domains`,
   `ReceiveContext::sender_trust_with`, `auth_header::sender_trust_with`.
 - New dependencies: `mailrs-fraud`, `mailrs-textguard`, `mailrs-mime`,
-  `mailrs-rfc2047`, `chrono`, `serde`. `mailrs-fraud` and
-  `mailrs-textguard` are not on crates.io yet and must be published
-  first.
+  `mailrs-rfc2047`, `chrono`, `serde`.
 
 ## [1.2.0] - 2026-08-04
 

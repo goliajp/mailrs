@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-22
+
+### Changed
+
+- **Breaking:** `DavError` has a new variant, `UidConflict(String)`: 403
+  with the CalDAV `no-uid-conflict` precondition (RFC 4791 §5.3.2.1),
+  carrying the href of the resource that already holds the `UID`.
+  `to_dav_response` renders the precondition body. Migration: add an arm
+  for it to exhaustive `match`es on `DavError`.
+- **Breaking:** the address-book home is `/dav/addressbooks/{user}/` (was
+  `/dav/contacts/{user}/`), in the principal's
+  `addressbook-home-set` and every href the CardDAV handlers emit.
+  Migration: route `/dav/addressbooks/` to the CardDAV handlers (or use
+  `dispatch::handle`); clients that discover the home through the
+  principal follow it without change.
+- **Breaking:** `CS:getctag` is a digest of the member etags, so it
+  changes whenever a member does; it carried the collection description
+  before. The description moved to `C:calendar-description` /
+  `CR:addressbook-description`. Single collections report it at
+  `Depth: 0`. Migration: read the description from those properties.
+- `Event::uid` is the resource name from the URL. It is usually the
+  iCalendar `UID`, but a client may PUT an event under a name of its own;
+  a store that keys events by `UID` maps one to the other and refuses a
+  PUT whose `UID` another resource has with `DavError::UidConflict`.
+- Handlers convert store errors with `store::into_dav_error`, so a store
+  that returns a boxed `DavError` keeps its status (403, 400, ...)
+  instead of it becoming a 500.
+- Collection names and UIDs are percent-encoded in hrefs and XML-escaped
+  in display names; the collection-level handlers take the decoded name.
+  Multiget hrefs are decoded before matching.
+- `OPTIONS` no longer advertises `MKCALENDAR`, which nothing implements,
+  and lists `HEAD`.
+- `DavError` implements `PartialEq` / `Eq`.
+
 ### Added
 
 - `dispatch::handle` routes a whole `/dav/` tree by path and method, and
@@ -15,23 +49,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   REPORT sent to the home runs over every collection.
 - `store::into_dav_error`: a store may return a boxed `DavError` to choose
   the status (403, 400, ...); any other error is still a 500.
-- `parse::encode_segment`, `parse::percent_decode`, `parse::multiget_uids`
-  and `xml::ctag_of`.
-
-### Changed
-
-- The address-book home is `/dav/addressbooks/{user}/` (was
-  `/dav/contacts/{user}/`).
-- `CS:getctag` is a digest of the member etags, so it changes whenever a
-  member does; it carried the collection description before. The
-  description moved to `C:calendar-description` /
-  `CR:addressbook-description`. Single collections report it at `Depth: 0`.
-- Collection names and UIDs are percent-encoded in hrefs and XML-escaped
-  in display names; the collection-level handlers take the decoded name.
-  Multiget hrefs are decoded before matching.
-- `OPTIONS` no longer advertises `MKCALENDAR`, which nothing implements,
-  and lists `HEAD`.
-- `DavError` implements `PartialEq` / `Eq`.
+- `caldav::event_href`, `parse::encode_segment`, `parse::percent_decode`,
+  `parse::multiget_uids` and `xml::ctag_of`.
 
 ## [1.1.2] - 2026-08-04
 

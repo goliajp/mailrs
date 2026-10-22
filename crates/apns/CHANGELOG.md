@@ -7,10 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-22
+
 ### Changed
 
 - License changed from `MIT` to `Apache-2.0 OR MIT`; both license texts
   are now shipped with the crate.
+- Documentation: rustdoc builds without broken intra-doc links. No API or
+  behaviour change.
 
 ## [1.0.0] - 2026-08-07
 

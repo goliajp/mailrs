@@ -19,7 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - `ImapCodec::new()` is bounded by those defaults. It held any line and
-  any literal before, however large.
+  any literal before, however large. A caller that needs larger frames
+  raises the limits with `with_max_line` / `with_max_literal`.
 
 ## [1.0.1] - 2026-08-04
 
