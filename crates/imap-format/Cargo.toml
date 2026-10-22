@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-imap-format"
-version = "1.0.1"
+version = "1.1.0"
 edition = "2024"
 description = "IMAP wire-format helpers (RFC 9051): FLAGS / INTERNALDATE / quoted string / address structures / BODY[…] section extraction / BODYSTRUCTURE assembly. Pairs with mailrs-imap-proto (parsing + state machine) and mailrs-imap-codec (line + literal framing). 22 standalone pure functions, no I/O."
 license = "Apache-2.0 OR MIT"
@@ -17,7 +17,7 @@ workspace = true
 
 [dependencies]
 chrono = { workspace = true }
-mailrs-rfc5322 = { path = "../rfc5322", version = "1" }
+mailrs-rfc5322 = { path = "../rfc5322", version = "1.2" }
 # SIMD byte scanner — used in mime.rs for the body/header offset
 # scans (extract_header_section / extract_body_section /
 # find_line_offset). Per-FETCH BODY[HEADER]/BODY[TEXT] hot path.

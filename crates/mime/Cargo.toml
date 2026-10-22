@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-mime"
-version = "2.0.2"
+version = "2.0.3"
 edition = "2024"
 description = "RFC 2045/2046 MIME body parser. Walks the multipart tree, decodes Content-Transfer-Encoding (base64, quoted-printable, 7bit, 8bit, binary), exposes text/HTML extraction + find-by-content-type + attachment iteration. Layered on mailrs-rfc5322 (headers) + mailrs-rfc2231 (parameters) + mailrs-rfc2047 (encoded-words)."
 license = "Apache-2.0 OR MIT"
@@ -17,7 +17,7 @@ workspace = true
 
 [dependencies]
 mailrs-rfc5322 = { path = "../rfc5322", version = "1" }
-mailrs-rfc2047 = { path = "../rfc2047", version = "1" }
+mailrs-rfc2047 = { path = "../rfc2047", version = "1.2" }
 mailrs-rfc2231 = { path = "../rfc2231", version = "1" }
 base64 = "0.22"
 encoding_rs = "0.8"

@@ -14,13 +14,13 @@ name = "mailrs-webapi"
 path = "src/main.rs"
 
 [dependencies]
-mailrs-oauth-client = { path = "../oauth-client", version = "0.1" }
+mailrs-oauth-client = { path = "../oauth-client", version = "0.2" }
 mailrs-core-api = { path = "../core-api", features = ["client"] }
 # webapi enqueues outbound directly against the shared network kevy
 # (v2 job hash + pending-idx); the primitives live in core-sidestate
 # so the stone's RPC handler and webapi write via the same routine.
 mailrs-core-sidestate = { path = "../core-sidestate" }
-mailrs-dav = { path = "../dav", version = "1" }
+mailrs-dav = { path = "../dav", version = "2" }
 mailrs-auth-guard = { path = "../auth-guard" }
 mailrs-mock = { path = "../mock", features = ["schema"] }
 mailrs-mail-builder = { path = "../mail-builder", version = "1" }
@@ -34,7 +34,7 @@ mailrs-mail-protocols = { path = "../mail-protocols" }
 # with the monolith lane so the two cannot drift. The provider is
 # constructed here only when MAILRS_AI_ANALYSIS_ENABLED is set; otherwise
 # the routes answer honestly instead of 405.
-mailrs-intelligence = { path = "../intelligence", version = "3" }
+mailrs-intelligence = { path = "../intelligence", version = "4" }
 # External login: PKCE, token exchange, and the per-provider rules about
 # which parts of an identity can be believed.
 tokio = { version = "1", features = ["full"] }
