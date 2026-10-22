@@ -173,14 +173,20 @@ mod tests {
         // in so the assertion proves normalization.
         client
             .with_conn(|c| {
-                c.sadd(b"spam:u@example.com:whitelist", &[b"Friend@GOLIA.jp"])
-                    .map_err(std::io::Error::from)
+                c.sadd(
+                    whitelist_key("u@example.com").as_bytes(),
+                    &[b"Friend@GOLIA.jp"],
+                )
+                .map_err(std::io::Error::from)
             })
             .expect("sadd whitelist");
         client
             .with_conn(|c| {
-                c.sadd(b"spam:u@example.com:blacklist", &[b"spammer@EVIL.com"])
-                    .map_err(std::io::Error::from)
+                c.sadd(
+                    blacklist_key("u@example.com").as_bytes(),
+                    &[b"spammer@EVIL.com"],
+                )
+                .map_err(std::io::Error::from)
             })
             .expect("sadd blacklist");
 

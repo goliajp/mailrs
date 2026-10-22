@@ -58,7 +58,7 @@ pub fn drop_queued_jobs(conn: &mut kevy_client::Connection, send_id: &str) -> Ve
         match id.filter(|i| job_belongs_to(conn, *i, send_id)) {
             Some(i) => {
                 let _ = conn.del(&[job_key(i).as_bytes()]);
-                let _ = conn.del(&[format!("mailrs:outbound:{i}").as_bytes()]);
+                let _ = conn.del(&[legacy_row_key(i).as_bytes()]);
                 removed.push(i);
             }
             None => kept.push(b),
@@ -76,7 +76,7 @@ pub fn drop_queued_jobs(conn: &mut kevy_client::Connection, send_id: &str) -> Ve
         if let Some(i) = id.filter(|i| job_belongs_to(conn, *i, send_id)) {
             let _ = conn.zrem(RETRY_IDX, &[m.as_slice()]);
             let _ = conn.del(&[job_key(i).as_bytes()]);
-            let _ = conn.del(&[format!("mailrs:outbound:{i}").as_bytes()]);
+            let _ = conn.del(&[legacy_row_key(i).as_bytes()]);
             removed.push(i);
         }
     }

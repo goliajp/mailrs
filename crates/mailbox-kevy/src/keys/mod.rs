@@ -151,23 +151,6 @@ pub fn message_by_maildir(user: &str, mailbox_name: &str, maildir_id: &str) -> S
     format!("mailrs:message:by-maildir:{user}:{mailbox_name}:{maildir_id}")
 }
 
-/// `email_analysis` row sidecar — `mailrs:analysis:<message_id>` hash.
-pub fn analysis(message_id: i64) -> String {
-    format!("mailrs:analysis:{message_id}")
-}
-
-/// Embedding bytes for semantic search — referenced by analysis row, but
-/// the actual vector lives outside the row. Kept as a stable
-/// indirection so the vector store can change without touching layout.
-pub fn analysis_embedding_ref(message_id: i64) -> String {
-    format!("mailrs:analysis:{message_id}:embedding_ref")
-}
-
-/// Contact hash — per user × email.
-pub fn contact(user: &str, email: &str) -> String {
-    format!("mailrs:contact:{user}:{email}")
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -80,9 +80,10 @@ async fn mock_mail_arrives_once_and_touches_nothing_real() {
     assert!(r.starts_with("250"), "{r}");
     let added: Vec<String> = keys(&mut kv).difference(&before).cloned().collect();
     assert!(
-        added
-            .iter()
-            .all(|k| k.starts_with("mailrs:mock:") || k.starts_with("rate")),
+        added.iter().all(
+            |k| k.starts_with(mailrs_core_sidestate::families::mock::KEY_PREFIX)
+                || k.starts_with("rate")
+        ),
         "the receiver wrote antispam state for mock-only mail: {added:?}"
     );
 
@@ -227,7 +228,7 @@ async fn mock_mail_arrives_once_and_touches_nothing_real() {
         .lrange(mailrs_fastcore::bounce::BOUNCE_PENDING, 0, 0)
         .unwrap()
         .remove(0);
-    let key = format!("mailrs:bounce:{}", String::from_utf8(id).unwrap());
+    let key = mailrs_intake::notice::entry_key(&String::from_utf8(id).unwrap());
     assert_eq!(
         kv.hget(key.as_bytes(), b"recipient").unwrap().unwrap(),
         b"bob@golia.example.test"

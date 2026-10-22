@@ -43,7 +43,7 @@ impl MailrsMcpService {
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
         let id = params.id;
-        let hkey = format!("mailrs:outbound:job:{id}");
+        let hkey = mailrs_core_sidestate::families::outbound::job_key(&id);
         let user_c = user.clone();
         let id_c = id.clone();
         let removed = with_kevy(move |c| {
@@ -93,7 +93,7 @@ impl MailrsMcpService {
             )]));
         }
         let id = params.id;
-        let hkey = format!("mailrs:outbound:job:{id}");
+        let hkey = mailrs_core_sidestate::families::outbound::job_key(&id);
         let user_c = user.clone();
         let id_c = id.clone();
         let new_score = params.scheduled_at;

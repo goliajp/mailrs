@@ -49,7 +49,7 @@ impl MailrsMcpService {
                 let Ok(id) = String::from_utf8(m.clone()) else {
                     continue;
                 };
-                let hkey = format!("mailrs:outbound:job:{id}");
+                let hkey = mailrs_core_sidestate::families::outbound::job_key(&id);
                 let Some(blob) = c.hget(hkey.as_bytes(), b"blob")? else {
                     continue;
                 };

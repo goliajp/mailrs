@@ -362,7 +362,7 @@ impl MailrsMcpService {
         Parameters(params): Parameters<SearchContactsParams>,
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
-        let key = format!("mailrs:user:{user}:contacts");
+        let key = mailrs_core_sidestate::families::contact_cards::autocomplete_key(&user);
         let q = params.q.to_lowercase();
         let limit = params.limit as usize;
         let flat = crate::handlers::kevy_util::with_kevy(move |c| {
@@ -392,7 +392,7 @@ impl MailrsMcpService {
     #[tool(description = "List the authenticated user's saved signatures.")]
     async fn list_signatures(&self) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
-        let key = format!("signatures:{user}");
+        let key = mailrs_core_sidestate::families::prefs::signatures_key(&user);
         let flat = crate::handlers::kevy_util::with_kevy(move |c| {
             c.hgetall(key.as_bytes()).map_err(std::io::Error::from)
         })

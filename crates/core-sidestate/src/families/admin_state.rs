@@ -29,6 +29,16 @@ fn now_secs() -> i64 {
 
 // ── reactions ───────────────────────────────────────────────────────
 
+/// One message's reactions: hash emoji → CSV of users.
+pub fn reactions_key(thread_id: &str, uid: i64) -> String {
+    format!("reactions:{thread_id}:{uid}")
+}
+
+/// The uids in a thread that carry at least one reaction.
+pub fn reactions_index_key(thread_id: &str) -> String {
+    format!("reactions_index:{thread_id}")
+}
+
 /// Aggregate one message's reaction hash (emoji → CSV) into rows.
 fn aggregate(
     conn: &mut kevy_client::Connection,
@@ -37,7 +47,7 @@ fn aggregate(
     user: &str,
 ) -> Vec<ReactionAggregateRow> {
     let flat = conn
-        .hgetall(format!("reactions:{thread_id}:{uid}").as_bytes())
+        .hgetall(reactions_key(thread_id, uid).as_bytes())
         .unwrap_or_default();
     let mut rows = Vec::new();
     let mut i = 0;
@@ -66,7 +76,7 @@ pub async fn get_thread_reactions<S: NetKevy>(
         });
     };
     let uids = conn
-        .smembers(format!("reactions_index:{thread_id}").as_bytes())
+        .smembers(reactions_index_key(&thread_id).as_bytes())
         .unwrap_or_default();
     let mut reactions = Vec::new();
     for uid_bytes in uids {
@@ -83,8 +93,8 @@ pub async fn toggle_reaction<S: NetKevy>(
     Json(req): Json<ToggleReactionRequest>,
 ) -> Result<Json<ReactionsResponse>, StatusCode> {
     let mut conn = state.net_conn().ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
-    let key = format!("reactions:{thread_id}:{uid}");
-    let index_key = format!("reactions_index:{thread_id}");
+    let key = reactions_key(&thread_id, uid);
+    let index_key = reactions_index_key(&thread_id);
     let cur = conn
         .hget(key.as_bytes(), req.emoji.as_bytes())
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
@@ -179,7 +189,7 @@ pub async fn list_audit_log<S: NetKevy>(
     };
     let limit = q.limit.max(1) as i64;
     let entries = conn
-        .lrange(b"admin:audit_log", 0, limit - 1)
+        .lrange(crate::keys::admin::AUDIT_LOG, 0, limit - 1)
         .unwrap_or_default();
     let items = entries
         .into_iter()
@@ -195,7 +205,9 @@ pub async fn log_audit<S: NetKevy>(
     let Some(mut conn) = state.net_conn() else {
         return StatusCode::SERVICE_UNAVAILABLE;
     };
-    let id = conn.incr(b"admin:audit_log:counter").unwrap_or(0);
+    let id = conn
+        .incr(crate::keys::admin::AUDIT_LOG_COUNTER)
+        .unwrap_or(0);
     let row = AuditRowWire {
         id,
         timestamp: now_secs(),
@@ -206,7 +218,18 @@ pub async fn log_audit<S: NetKevy>(
     };
     if let Ok(json) = serde_json::to_vec(&row) {
         // newest-first: LPUSH so lrange 0.. returns recent entries first
-        let _ = conn.lpush(b"admin:audit_log", &[json.as_slice()]);
+        let _ = conn.lpush(crate::keys::admin::AUDIT_LOG, &[json.as_slice()]);
     }
     StatusCode::NO_CONTENT
+}
+
+#[cfg(test)]
+mod key_tests {
+    use super::*;
+
+    #[test]
+    fn reaction_keys_keep_their_prod_spelling() {
+        assert_eq!(reactions_key("t1", 7), "reactions:t1:7");
+        assert_eq!(reactions_index_key("t1"), "reactions_index:t1");
+    }
 }

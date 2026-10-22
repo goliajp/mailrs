@@ -11,6 +11,8 @@
 
 use std::io;
 
+pub mod keys;
+
 /// Address-to-address lookup + admin surface for one process's alias table.
 ///
 /// Case semantics: implementations MUST NOT normalize case internally.

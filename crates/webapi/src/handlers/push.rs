@@ -23,9 +23,7 @@ use crate::handlers::kevy_util::with_kevy;
 /// value = metadata. A hash rather than a set so re-registering the same
 /// token (every app launch does) is one overwrite instead of a
 /// read-modify-write.
-pub(crate) fn tokens_key(user: &str) -> String {
-    format!("push:tokens:{user}")
-}
+pub(crate) use mailrs_core_sidestate::keys::push::tokens_key;
 
 #[derive(Debug, Deserialize)]
 pub struct RegisterPushTokenRequest {
@@ -79,14 +77,4 @@ fn now_secs() -> i64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn key_is_per_user() {
-        assert_eq!(tokens_key("a@golia.jp"), "push:tokens:a@golia.jp");
-    }
 }

@@ -81,7 +81,11 @@ pub fn is_mock(addr: &str) -> bool {
     mailrs_mock::is_mock_domain(addr, domain())
 }
 
+/// What every mock-mail key starts with.
+pub const KEY_PREFIX: &str = "mailrs:mock:";
+
 const NS_INDEX: &[u8] = b"mailrs:mock:ns-idx";
+const SETTINGS: &[u8] = b"mailrs:mock:settings";
 const BYTES: &[u8] = b"mailrs:mock:bytes";
 const RECEIVED: &[u8] = b"mailrs:mock:received";
 const REJECTED_UNKNOWN_NS: &[u8] = b"mailrs:mock:rejected-unknown-ns";
@@ -179,3 +183,17 @@ fn utf8(v: Vec<u8>) -> String {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod key_tests {
+    use super::*;
+
+    #[test]
+    fn mock_keys_keep_their_prod_spelling() {
+        assert_eq!(SETTINGS, b"mailrs:mock:settings");
+        assert_eq!(msg_key("a3"), "mailrs:mock:msg:a3");
+        for key in [NS_INDEX, BYTES, RECEIVED, SETTINGS] {
+            assert!(key.starts_with(KEY_PREFIX.as_bytes()));
+        }
+    }
+}

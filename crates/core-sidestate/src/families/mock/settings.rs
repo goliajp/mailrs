@@ -16,8 +16,6 @@ use serde::{Deserialize, Serialize};
 
 use super::*;
 
-const KEY: &[u8] = b"mailrs:mock:settings";
-
 /// Who may create namespaces.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -104,7 +102,7 @@ impl Settings {
 
 pub fn settings(conn: &mut Connection) -> MockResult<Settings> {
     let mut s = Settings::default();
-    let fields = conn.hgetall(KEY)?;
+    let fields = conn.hgetall(SETTINGS)?;
     for pair in fields.chunks_exact(2) {
         let v = utf8(pair[1].clone());
         match pair[0].as_slice() {
@@ -131,7 +129,7 @@ pub fn save_settings(conn: &mut Connection, s: &Settings) -> MockResult<()> {
         CreatePolicy::AdminsOnly => "admins-only",
     };
     conn.hset(
-        KEY,
+        SETTINGS,
         &[
             (b"enabled".as_slice(), s.enabled.to_string().as_bytes()),
             (b"retention_days", s.retention_days.to_string().as_bytes()),

@@ -66,7 +66,7 @@ pub async fn ws_smtp_trace(
     let token = query.token.as_deref().ok_or(StatusCode::UNAUTHORIZED)?;
     let kevy_url =
         std::env::var("MAILRS_KEVY_URL").map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let key = format!("session:{token}");
+    let key = mailrs_core_sidestate::keys::session::session_key(token);
     let has_session = tokio::task::spawn_blocking(move || -> std::io::Result<bool> {
         let mut c = kevy_client::Connection::connect(&kevy_url)?;
         Ok(c.get(key.as_bytes())?.is_some())

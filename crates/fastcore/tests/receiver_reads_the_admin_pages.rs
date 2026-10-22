@@ -100,7 +100,7 @@ async fn the_receiver_takes_store_domains_and_the_stored_size_limit() {
 
     let mut kv = kevy_client::Connection::connect(KEVY).unwrap();
     kv.hset(
-        b"admin:system-config",
+        mailrs_core_sidestate::keys::admin::SYSTEM_CONFIG,
         &[(&b"max_message_size_bytes"[..], LIMIT.to_string().as_bytes())],
     )
     .unwrap();

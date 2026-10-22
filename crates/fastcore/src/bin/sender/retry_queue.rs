@@ -2,7 +2,7 @@
 //! jobs waiting between attempts on `retry-idx`. Both are zsets scored by
 //! the time the job becomes due, released onto `pending-idx` by one sweep.
 
-use mailrs_core_sidestate::families::outbound::RETRY_IDX;
+use mailrs_core_sidestate::families::outbound::{RETRY_IDX, job_key};
 
 use super::config::*;
 use super::*;
@@ -54,7 +54,7 @@ fn schedule_retry_on(
     envelope: &serde_json::Value,
     due_at: i64,
 ) -> std::io::Result<()> {
-    let job_k = format!("mailrs:outbound:job:{id}");
+    let job_k = job_key(id);
     let payload = envelope.to_string();
     let now = now_secs_str();
     c.hset(
@@ -87,9 +87,7 @@ mod tests {
         assert_eq!(c.zrange(RETRY_IDX, 0, -1).unwrap(), vec![b"7".to_vec()]);
         assert_eq!(c.llen(PENDING_IDX_KEY).unwrap(), 0);
         assert_eq!(
-            c.hget(b"mailrs:outbound:job:7", b"state")
-                .unwrap()
-                .as_deref(),
+            c.hget(job_key(7).as_bytes(), b"state").unwrap().as_deref(),
             Some(&b"pending"[..])
         );
     }

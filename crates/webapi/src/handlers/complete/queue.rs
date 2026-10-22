@@ -7,18 +7,12 @@ use axum::{
     extract::{Extension, Path, State},
     http::StatusCode,
 };
-use mailrs_core_sidestate::families::outbound::{PENDING_IDX, RETRY_IDX};
+use mailrs_core_sidestate::families::outbound::{INFLIGHT, PENDING_IDX, RETRY_IDX, job_key};
 
 use super::now_secs;
 use crate::WebState;
 use crate::handlers::conversations::AuthedUser;
 use crate::handlers::kevy_util::{require_admin, with_kevy};
-
-const INFLIGHT: &[u8] = b"mailrs:outbound:inflight";
-
-fn job_key(id: &str) -> String {
-    format!("mailrs:outbound:job:{id}")
-}
 
 /// Up to 100 ids each of queued, waiting between attempts and in flight,
 /// one row per job, without the message body.
