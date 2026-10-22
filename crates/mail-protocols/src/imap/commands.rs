@@ -11,7 +11,8 @@ use super::fetch::fetch_response;
 use super::folders::{fixed, subscription};
 use super::idle::idle_flow;
 use super::mailbox::{close, list_response, select, unselect};
-use super::query::{copy_response, quota_response, search_response, sort_response};
+use super::moves::{copy_response, move_response};
+use super::query::{quota_response, search_response, sort_response};
 use super::session::{Io, State, no};
 use super::status::status_response;
 use super::store::{expunge, store_response};
@@ -82,7 +83,7 @@ where
         ImapCommand::Enable(caps) => enable(tag, &caps, qresync),
         ImapCommand::Close => close(session, tag, *qresync).await,
         ImapCommand::Unselect => unselect(session, tag),
-        ImapCommand::Uid { subcommand } => uid(session, tag, *subcommand).await,
+        ImapCommand::Uid { subcommand } => uid(session, tag, *subcommand, *qresync).await,
         ImapCommand::Expunge => expunge(session, tag, *qresync).await,
         ImapCommand::Append {
             mailbox,
@@ -106,19 +107,24 @@ where
             out.extend(quota_response(session, tag).await);
             out
         }
-        cmd => sequenced(session, tag, cmd, false).await,
+        cmd => sequenced(session, tag, cmd, false, *qresync).await,
     }
 }
 
 /// UID FETCH / STORE / SEARCH / SORT / COPY / MOVE.
-async fn uid<A: Account>(session: &mut State<A>, tag: &str, cmd: ImapCommand) -> Vec<String> {
+async fn uid<A: Account>(
+    session: &mut State<A>,
+    tag: &str,
+    cmd: ImapCommand,
+    qresync: bool,
+) -> Vec<String> {
     match cmd {
         ImapCommand::Fetch { .. }
         | ImapCommand::Store { .. }
         | ImapCommand::Search { .. }
         | ImapCommand::Sort { .. }
         | ImapCommand::Copy { .. }
-        | ImapCommand::Move { .. } => sequenced(session, tag, cmd, true).await,
+        | ImapCommand::Move { .. } => sequenced(session, tag, cmd, true, qresync).await,
         _ => vec![format_bad(tag, "UID subcommand not supported")],
     }
 }
@@ -130,6 +136,7 @@ async fn sequenced<A: Account>(
     tag: &str,
     cmd: ImapCommand,
     by_uid: bool,
+    qresync: bool,
 ) -> Vec<String> {
     match cmd {
         ImapCommand::Fetch {
@@ -148,10 +155,10 @@ async fn sequenced<A: Account>(
             ..
         } => sort_response(session, tag, &criteria, &search_criteria, by_uid).await,
         ImapCommand::Copy { sequence, mailbox } => {
-            copy_response(session, tag, &sequence, &mailbox, false, by_uid).await
+            copy_response(session, tag, &sequence, &mailbox, by_uid).await
         }
         ImapCommand::Move { sequence, mailbox } => {
-            copy_response(session, tag, &sequence, &mailbox, true, by_uid).await
+            move_response(session, tag, &sequence, &mailbox, by_uid, qresync).await
         }
         _ => vec![format_bad(tag, "command not implemented")],
     }

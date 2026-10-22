@@ -11,6 +11,7 @@ mod flags;
 mod folders;
 mod idle;
 mod mailbox;
+mod moves;
 mod query;
 pub mod search_eval;
 mod session;

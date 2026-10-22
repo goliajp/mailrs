@@ -2,6 +2,7 @@
 //! storage can get right or wrong.
 
 mod mock;
+mod moves;
 mod pop3;
 mod sieve;
 mod uidvalidity;
