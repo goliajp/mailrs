@@ -91,15 +91,15 @@ fn parse_accounts(raw: Option<&str>) -> Option<Vec<String>> {
 mod participant_tests {
     use super::ConversationResponse;
 
-    /// prod listed `"Anthropic, PBC" <invoice+statements@mail.anthropic.com>`
-    /// as `"anthropic +1`, with a `"` for an avatar.
+    /// prod listed `"Example, Inc." <invoice+statements@mail.example.com>`
+    /// as `"example +1`, with a `"` for an avatar.
     #[test]
     fn a_quoted_display_name_with_a_comma_is_one_participant() {
         let wire: mailrs_core_api::types::ConversationSummaryWire =
             serde_json::from_value(serde_json::json!({
                 "thread_id": "t1",
                 "subject": "Your receipt",
-                "participants": "\"Anthropic, PBC\" <invoice@mail.anthropic.com>,me@golia.jp",
+                "participants": "\"Example, Inc.\" <invoice@mail.example.com>,me@golia.jp",
                 "message_count": 1,
                 "unread_count": 0,
                 "last_date": 0,
@@ -118,7 +118,7 @@ mod participant_tests {
         assert_eq!(
             resp.participants,
             [
-                "\"Anthropic, PBC\" <invoice@mail.anthropic.com>",
+                "\"Example, Inc.\" <invoice@mail.example.com>",
                 "me@golia.jp"
             ]
         );
