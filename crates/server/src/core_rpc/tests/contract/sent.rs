@@ -93,22 +93,10 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
             ..Default::default()
         },
     };
-    // Compared with participants as a set. The order differs, and not
-    // because of filing: the kevy core lists senders in arrival order, the
-    // SQL core alphabetically (`string_agg(DISTINCT …)`), which shows on any
-    // conversation the user replied into.
-    let unordered = |mut r: mailrs_core_api::method::conversation::ListConversationsResponse| {
-        for row in &mut r.items {
-            let mut p: Vec<&str> = row.participants.split(',').collect();
-            p.sort_unstable();
-            row.participants = p.join(",");
-        }
-        r
-    };
     let rows = d.both(
         "list_conversations [Sent] after file_sent",
-        fc.list_conversations(ALICE, &sent).await.map(unordered),
-        pg.list_conversations(ALICE, &sent).await.map(unordered),
+        fc.list_conversations(ALICE, &sent).await,
+        pg.list_conversations(ALICE, &sent).await,
         MINTED,
     );
     if let Some((rows, _)) = rows {
