@@ -53,8 +53,7 @@ tower-http = { version = "0.6", features = ["cors", "fs", "trace"] }
 dashmap = "6"
 mailrs-smtp-client = { path = "../smtp-client", version = "2" }
 mailrs-smtp-codec = { path = "../smtp-codec", version = "1" }
-mailrs-imap-codec = { path = "../imap-codec", version = "1" }
-mailrs-imap-format = { path = "../imap-format", version = "1" }
+mailrs-mail-protocols = { path = "../mail-protocols" }
 mailrs-attachment-extract = { path = "../attachment-extract", version = "1" }
 mailrs-sieve = { path = "../sieve", version = "2" }
 mailrs-outbound-queue = { path = "../outbound-queue", version = "4" }
