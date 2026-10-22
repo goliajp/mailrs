@@ -205,39 +205,15 @@ pub(crate) async fn run_with_roles(roles: Roles) {
         spawn_web_server(web_state, &cfg, &domain_store, shutdown_rx.clone()).await;
     }
 
-    spawn_imap_listeners(
-        &mailbox_store,
-        &users,
-        &auth_guard,
-        &domain_store,
-        &event_bus,
-        &ldap_config,
-        &tls_state,
-        &cfg,
-        shutdown_rx.clone(),
-    )
-    .await;
-
-    spawn_pop3_listener(
-        &mailbox_store,
-        &users,
-        &auth_guard,
-        &domain_store,
-        &ldap_config,
-        &cfg,
-        shutdown_rx.clone(),
-    )
-    .await;
-
-    spawn_managesieve_listener(
-        &users,
-        &auth_guard,
-        &domain_store,
-        &ldap_config,
-        &cfg,
-        shutdown_rx.clone(),
-    )
-    .await;
+    spawn_mail_protocols(MailProtocols {
+        mailbox_store: &mailbox_store,
+        users: &users,
+        domain_store: &domain_store,
+        event_bus: &event_bus,
+        ldap_config: &ldap_config,
+        tls_state: &tls_state,
+        cfg: &cfg,
+    });
 
     if roles.outbound {
         spawn_outbound_delivery(
