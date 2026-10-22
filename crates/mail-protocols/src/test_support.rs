@@ -3,11 +3,11 @@
 
 use std::sync::{Arc, Mutex};
 
-use mailrs_tls_reload::{TlsState, config_from_pem};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
-use tokio_rustls::TlsConnector;
 use tokio_rustls::client::TlsStream;
+
+pub(crate) use crate::test_tls::{Cert, cert};
 
 use crate::backend::{
     Account, Directory, Error, Expunged, Filed, Flag, Message, Protocol, Quota, Result, Selected,
@@ -33,9 +33,17 @@ pub(crate) fn directory() -> Arc<Memory> {
 
 impl Memory {
     pub(crate) fn deliver(&self, raw: &str) {
-        let mut inbox = self.inbox.lock().unwrap();
-        let uid = inbox.last().map_or(0, |m| m.0) + 1;
-        inbox.push((uid, Vec::new(), raw.as_bytes().to_vec()));
+        file(&self.inbox, raw.as_bytes().to_vec(), Vec::new());
+    }
+}
+
+fn file(inbox: &Inbox, bytes: Vec<u8>, flags: Vec<Flag>) -> Filed {
+    let mut inbox = inbox.lock().unwrap();
+    let uid = inbox.last().map_or(0, |m| m.0) + 1;
+    inbox.push((uid, flags, bytes));
+    Filed {
+        uidvalidity: 7,
+        uid,
     }
 }
 
@@ -146,13 +154,14 @@ impl Account for MemoryAccount {
 
     async fn copy(&self, _: &(), m: &Message<u32>, _: &()) -> Result<Filed> {
         let bytes = self.read(m).await?.unwrap_or_default();
-        Ok(self.deliver_bytes(bytes, m.flags.clone()))
+        Ok(file(&self.inbox, bytes, m.flags.clone()))
     }
 
     async fn move_to(&self, _: &(), m: &Message<u32>, _: &()) -> Result<Filed> {
+        let uid = m.uid;
         Ok(Filed {
             uidvalidity: 7,
-            uid: m.uid,
+            uid,
         })
     }
 
@@ -176,7 +185,7 @@ impl Account for MemoryAccount {
     }
 
     async fn append(&self, _: &(), bytes: Vec<u8>, flags: Vec<Flag>) -> Result<Filed> {
-        Ok(self.deliver_bytes(bytes, flags))
+        Ok(file(&self.inbox, bytes, flags))
     }
 
     async fn vanished_since(&self, _: &(), _: u64) -> Result<Vec<u32>> {
@@ -203,42 +212,6 @@ impl Account for MemoryAccount {
     async fn delete_sieve_script(&self) -> Result<()> {
         *self.script.lock().unwrap() = None;
         Ok(())
-    }
-}
-
-impl MemoryAccount {
-    fn deliver_bytes(&self, bytes: Vec<u8>, flags: Vec<Flag>) -> Filed {
-        let mut inbox = self.inbox.lock().unwrap();
-        let uid = inbox.last().map_or(0, |m| m.0) + 1;
-        inbox.push((uid, flags, bytes));
-        Filed {
-            uidvalidity: 7,
-            uid,
-        }
-    }
-}
-
-pub(crate) struct Cert {
-    pub(crate) server: TlsState,
-    connector: TlsConnector,
-}
-
-pub(crate) fn cert() -> Cert {
-    let _ = rustls::crypto::ring::default_provider().install_default();
-    let ck = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
-    let config = config_from_pem(
-        ck.cert.pem().as_bytes(),
-        ck.signing_key.serialize_pem().as_bytes(),
-    )
-    .unwrap();
-    let mut roots = rustls::RootCertStore::empty();
-    roots.add(ck.cert.der().clone()).unwrap();
-    let client = rustls::ClientConfig::builder()
-        .with_root_certificates(roots)
-        .with_no_client_auth();
-    Cert {
-        server: TlsState::new(Arc::unwrap_or_clone(config)),
-        connector: TlsConnector::from(Arc::new(client)),
     }
 }
 
