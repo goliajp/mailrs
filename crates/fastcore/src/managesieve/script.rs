@@ -5,6 +5,7 @@ use kevy_client::Connection;
 use tokio::io::{AsyncBufRead, AsyncBufReadExt};
 
 use super::SCRIPT_NAME;
+use crate::FastcoreState;
 
 /// Parse the `{n}` / `{n+}` literal that follows PUTSCRIPT/CHECKSCRIPT
 /// and read exactly n bytes. `arg` is `"name" {len+}` or just `{len+}`.
@@ -35,34 +36,32 @@ where
     Ok((name, String::from_utf8_lossy(&buf).into_owned()))
 }
 
-fn kevy() -> Option<Connection> {
-    let url = std::env::var("MAILRS_KEVY_URL").ok()?;
-    Connection::connect(&url).ok()
+fn kevy(state: &FastcoreState) -> std::io::Result<Connection> {
+    state
+        .net_conn()
+        .ok_or_else(|| std::io::Error::other("the script store is unreachable"))
 }
 
-pub(super) fn store_script(user: &str, body: &str) -> bool {
-    let Some(mut c) = kevy() else { return false };
-    c.set(
+pub(super) fn store_script(state: &FastcoreState, user: &str, body: &str) -> std::io::Result<()> {
+    kevy(state)?.set(
         mailrs_core_sidestate::sieve_key(user).as_bytes(),
         body.as_bytes(),
-    )
-    .is_ok()
+    )?;
+    Ok(())
 }
 
-pub(super) fn load_script(user: &str) -> Option<String> {
-    let mut c = kevy()?;
-    let raw = c
-        .get(mailrs_core_sidestate::sieve_key(user).as_bytes())
-        .ok()
-        .flatten()?;
-    let s = String::from_utf8(raw).ok()?;
-    (!s.trim().is_empty()).then_some(s)
+/// `Ok(None)` when the user has no script; an unreachable store is an
+/// error, so it is never reported as a missing script.
+pub(super) fn load_script(state: &FastcoreState, user: &str) -> std::io::Result<Option<String>> {
+    let raw = kevy(state)?.get(mailrs_core_sidestate::sieve_key(user).as_bytes())?;
+    Ok(raw
+        .and_then(|v| String::from_utf8(v).ok())
+        .filter(|s| !s.trim().is_empty()))
 }
 
-pub(super) fn delete_script(user: &str) {
-    if let Some(mut c) = kevy() {
-        let _ = c.del(&[mailrs_core_sidestate::sieve_key(user).as_bytes()]);
-    }
+pub(super) fn delete_script(state: &FastcoreState, user: &str) -> std::io::Result<()> {
+    kevy(state)?.del(&[mailrs_core_sidestate::sieve_key(user).as_bytes()])?;
+    Ok(())
 }
 
 /// ManageSieve response strings are quoted; strip CR/LF/quote so a

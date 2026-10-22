@@ -28,6 +28,8 @@ use script::{delete_script, load_script, read_script_literal, sanitize, store_sc
 mod auth;
 mod script;
 #[cfg(test)]
+mod store_tests;
+#[cfg(test)]
 mod tls_tests;
 
 /// The single script name we present. Real name is irrelevant (one
@@ -190,13 +192,10 @@ where
                 };
                 let (_name, body) = read_script_literal(arg, reader).await?;
                 match mailrs_sieve::compile_sieve(&body) {
-                    Ok(_) => {
-                        if store_script(user, &body) {
-                            tx.write_all(b"OK \"Script stored\"\r\n").await?;
-                        } else {
-                            tx.write_all(b"NO \"Storage error\"\r\n").await?;
-                        }
-                    }
+                    Ok(_) => match store_script(state, user, &body) {
+                        Ok(()) => tx.write_all(b"OK \"Script stored\"\r\n").await?,
+                        Err(e) => tx.write_all(store_error(&e).as_bytes()).await?,
+                    },
                     Err(e) => {
                         tx.write_all(format!("NO \"{}\"\r\n", sanitize(&e)).as_bytes())
                             .await?
@@ -208,14 +207,15 @@ where
                     tx.write_all(b"NO \"Authenticate first\"\r\n").await?;
                     continue;
                 };
-                match load_script(user) {
-                    Some(body) => {
+                match load_script(state, user) {
+                    Ok(Some(body)) => {
                         tx.write_all(format!("{{{}}}\r\n", body.len()).as_bytes())
                             .await?;
                         tx.write_all(body.as_bytes()).await?;
                         tx.write_all(b"\r\nOK\r\n").await?;
                     }
-                    None => tx.write_all(b"NO \"No such script\"\r\n").await?,
+                    Ok(None) => tx.write_all(b"NO \"No such script\"\r\n").await?,
+                    Err(e) => tx.write_all(store_error(&e).as_bytes()).await?,
                 }
             }
             "LISTSCRIPTS" => {
@@ -223,11 +223,16 @@ where
                     tx.write_all(b"NO \"Authenticate first\"\r\n").await?;
                     continue;
                 };
-                if load_script(user).is_some() {
-                    tx.write_all(format!("\"{SCRIPT_NAME}\" ACTIVE\r\n").as_bytes())
-                        .await?;
+                match load_script(state, user) {
+                    Ok(found) => {
+                        if found.is_some() {
+                            tx.write_all(format!("\"{SCRIPT_NAME}\" ACTIVE\r\n").as_bytes())
+                                .await?;
+                        }
+                        tx.write_all(b"OK \"Listscripts completed\"\r\n").await?;
+                    }
+                    Err(e) => tx.write_all(store_error(&e).as_bytes()).await?,
                 }
-                tx.write_all(b"OK \"Listscripts completed\"\r\n").await?;
             }
             "SETACTIVE" => {
                 // one-script model: activating the only script is a
@@ -237,18 +242,24 @@ where
                     continue;
                 };
                 let name = unquote(arg);
-                if name.is_empty() {
-                    delete_script(user);
+                let cleared = match name.is_empty() {
+                    true => delete_script(state, user),
+                    false => Ok(()),
+                };
+                match cleared {
+                    Ok(()) => tx.write_all(b"OK \"Setactive completed\"\r\n").await?,
+                    Err(e) => tx.write_all(store_error(&e).as_bytes()).await?,
                 }
-                tx.write_all(b"OK \"Setactive completed\"\r\n").await?;
             }
             "DELETESCRIPT" => {
                 let Some(user) = &authed_user else {
                     tx.write_all(b"NO \"Authenticate first\"\r\n").await?;
                     continue;
                 };
-                delete_script(user);
-                tx.write_all(b"OK \"Deleted\"\r\n").await?;
+                match delete_script(state, user) {
+                    Ok(()) => tx.write_all(b"OK \"Deleted\"\r\n").await?,
+                    Err(e) => tx.write_all(store_error(&e).as_bytes()).await?,
+                }
             }
             "STARTTLS" => {
                 tx.write_all(b"NO \"STARTTLS not available\"\r\n").await?;
@@ -258,6 +269,11 @@ where
             }
         }
     }
+}
+
+fn store_error(e: &std::io::Error) -> String {
+    tracing::warn!(err = %e, "managesieve: script store failed");
+    format!("NO (TRYLATER) \"{}\"\r\n", sanitize(&e.to_string()))
 }
 
 fn unquote(s: &str) -> &str {
