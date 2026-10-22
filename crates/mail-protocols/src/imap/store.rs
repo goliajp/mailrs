@@ -5,7 +5,7 @@ use mailrs_imap_proto::{format_fetch, format_no, format_ok};
 use super::flags::{flags_to_imap, parse_imap_flags};
 use super::query::expand_sequence;
 use super::session::{State, no};
-use crate::backend::{Account, Error, Flag};
+use crate::backend::{Account, Error, Flag, Message};
 
 /// Re-list the selected mailbox after a change.
 pub(super) async fn refresh<A: Account>(session: &mut State<A>) -> Result<(), Error> {
@@ -135,6 +135,19 @@ pub(super) async fn store_response<A: Account>(
     out
 }
 
+/// The messages marked `\Deleted`, highest seqno first: RFC 3501 has
+/// each `* n EXPUNGE` sent in that order, so the seqnos announced stay
+/// correct.
+pub(super) fn deleted<K: Clone>(messages: &[Message<K>]) -> Vec<Message<K>> {
+    let mut doomed: Vec<_> = messages
+        .iter()
+        .filter(|m| m.flags.contains(&Flag::Trashed))
+        .cloned()
+        .collect();
+    doomed.sort_unstable_by_key(|m| std::cmp::Reverse(m.seqno));
+    doomed
+}
+
 pub(super) async fn expunge<A: Account>(
     session: &mut State<A>,
     tag: &str,
@@ -152,41 +165,38 @@ pub(super) async fn expunge<A: Account>(
     if *read_only {
         return vec![format_no(tag, "mailbox is read-only")];
     }
-    // RFC 3501 requires * EXPUNGE for each deleted message in descending
-    // order, so the seqnos announced stay correct
-    let mut doomed: Vec<_> = messages
-        .iter()
-        .filter(|m| m.flags.contains(&Flag::Trashed))
-        .cloned()
-        .collect();
-    doomed.sort_unstable_by_key(|m| std::cmp::Reverse(m.seqno));
+    let doomed = deleted(messages);
     let gone = account.expunge(mailbox, &doomed).await;
-    let mut out = Vec::new();
-    match qresync {
-        // QRESYNC-enabled sessions get VANISHED instead of seqno EXPUNGE
-        true if !gone.removed.is_empty() => {
-            let mut uids = gone.removed.clone();
-            uids.sort_unstable();
-            let list = uids
-                .iter()
-                .map(u32::to_string)
-                .collect::<Vec<_>>()
-                .join(",");
-            out.push(format!("* VANISHED {list}\r\n"));
-        }
-        true => {}
-        false => {
-            for uid in &gone.removed {
-                if let Some(m) = doomed.iter().find(|m| m.uid == *uid) {
-                    out.push(format!("* {} EXPUNGE\r\n", m.seqno));
-                }
-            }
-        }
-    }
+    let removed: Vec<_> = doomed
+        .into_iter()
+        .filter(|m| gone.removed.contains(&m.uid))
+        .collect();
+    let mut out = announce(&removed, qresync);
     let refreshed = refresh(session).await;
     match (gone.failed, refreshed) {
         (Some(e), _) | (None, Err(e)) => out.push(no(tag, "EXPUNGE", &e)),
         (None, Ok(())) => out.push(format_ok(tag, "EXPUNGE completed")),
     }
     out
+}
+
+/// What tells the client `gone` left the selected mailbox: one
+/// `* n EXPUNGE` each, highest seqno first so every number is right when
+/// it is read, or with QRESYNC enabled one `* VANISHED` (RFC 7162 §3.2.10).
+pub(super) fn announce<K>(gone: &[Message<K>], qresync: bool) -> Vec<String> {
+    if gone.is_empty() {
+        return Vec::new();
+    }
+    if qresync {
+        let mut uids: Vec<u32> = gone.iter().map(|m| m.uid).collect();
+        uids.sort_unstable();
+        let list: Vec<String> = uids.iter().map(u32::to_string).collect();
+        return vec![format!("* VANISHED {}\r\n", list.join(","))];
+    }
+    let mut seqnos: Vec<u32> = gone.iter().map(|m| m.seqno).collect();
+    seqnos.sort_unstable_by(|a, b| b.cmp(a));
+    seqnos
+        .into_iter()
+        .map(|n| format!("* {n} EXPUNGE\r\n"))
+        .collect()
 }

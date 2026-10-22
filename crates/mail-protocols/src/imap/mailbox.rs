@@ -7,6 +7,7 @@ use mailrs_imap_proto::{
 
 use super::flags::flags_to_imap;
 use super::session::{State, no};
+use super::store::{announce, deleted, refresh};
 use crate::backend::{Account, Selected};
 
 /// LIST, or LSUB (`word`): every mailbox counts as subscribed, since
@@ -217,13 +218,42 @@ pub(super) fn unselect<A: Account>(session: &mut State<A>, tag: &str) -> Vec<Str
     vec![format_ok(tag, "UNSELECT completed")]
 }
 
-pub(super) fn close<A: Account>(session: &mut State<A>, tag: &str) -> Vec<String> {
-    let State::Selected { account, .. } = session else {
+/// RFC 3501 §6.4.2: a mailbox opened read-write loses its `\Deleted`
+/// messages, and no `EXPUNGE` is sent for them. When one cannot be
+/// removed the mailbox stays selected.
+pub(super) async fn close<A: Account>(
+    session: &mut State<A>,
+    tag: &str,
+    qresync: bool,
+) -> Vec<String> {
+    let State::Selected {
+        account,
+        mailbox,
+        messages,
+        read_only,
+    } = &*session
+    else {
         return vec![format_bad(tag, "not in SELECTED state")];
     };
-    *session = State::Authed {
-        account: account.clone(),
-    };
+    let account = account.clone();
+    if !*read_only {
+        let doomed = deleted(messages);
+        let gone = account.expunge(mailbox, &doomed).await;
+        if let Some(e) = gone.failed {
+            // still selected, so the client is told what did go
+            let removed: Vec<_> = doomed
+                .into_iter()
+                .filter(|m| gone.removed.contains(&m.uid))
+                .collect();
+            let mut out = announce(&removed, qresync);
+            out.push(match refresh(session).await {
+                Ok(()) => no(tag, "CLOSE", &e),
+                Err(r) => no(tag, "CLOSE", &r),
+            });
+            return out;
+        }
+    }
+    *session = State::Authed { account };
     vec![format_ok(tag, "CLOSE completed")]
 }
 

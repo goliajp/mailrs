@@ -1,4 +1,5 @@
-//! Leaving a mailbox: UNSELECT keeps what is marked `\Deleted`.
+//! Leaving a mailbox: UNSELECT keeps what is marked `\Deleted`, CLOSE
+//! removes it without a word when the mailbox was opened read-write.
 
 use super::Step;
 use super::steps::{fetch, logout, opened, signed_in, step};
@@ -27,6 +28,26 @@ pub(super) fn unselect() -> Vec<Step> {
             ],
         ),
         logout("u9"),
+    ]);
+    steps
+}
+
+/// INBOX holds the same two messages; CLOSE leaves it with the first.
+pub(super) fn close() -> Vec<Step> {
+    let mut steps = signed_in("c1");
+    steps.extend([
+        opened("c2", "SELECT", 2, 4),
+        step(
+            "c3 STORE 2 +FLAGS.SILENT (\\Deleted)\r\n",
+            &["c3 OK STORE completed\r\n"],
+        ),
+        opened("c4", "EXAMINE", 2, 4),
+        step("c5 CLOSE\r\n", &["c5 OK CLOSE completed\r\n"]),
+        opened("c6", "SELECT", 2, 4),
+        step("c7 CLOSE\r\n", &["c7 OK CLOSE completed\r\n"]),
+        step("c8 CLOSE\r\n", &["c8 BAD not in SELECTED state\r\n"]),
+        opened("c9", "SELECT", 1, 4),
+        logout("c10"),
     ]);
     steps
 }
