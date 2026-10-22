@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use base64::Engine;
 
-use crate::tls::test_support::{Client, PASSWORD, USER, cert, listener, state};
+use crate::test_support::{Client, PASSWORD, USER, cert, directory, listener};
 
 fn authenticate(pass: &str) -> String {
     let ir = base64::engine::general_purpose::STANDARD.encode(format!("\0{USER}\0{pass}"));
@@ -16,7 +16,11 @@ fn authenticate(pass: &str) -> String {
 async fn starttls_is_required_before_authenticate_and_resends_the_capabilities() {
     let cert = cert();
     let (l, addr) = listener().await;
-    tokio::spawn(super::serve_plain(l, state(), Some(cert.server.clone())));
+    tokio::spawn(super::serve_plain(
+        l,
+        directory(),
+        Some(cert.server.clone()),
+    ));
 
     let mut c = Client::connect(addr).await;
     let caps = c.until("OK").await;
@@ -55,7 +59,7 @@ async fn starttls_is_required_before_authenticate_and_resends_the_capabilities()
 #[tokio::test]
 async fn without_a_certificate_4190_authenticates_in_clear() {
     let (l, addr) = listener().await;
-    tokio::spawn(super::serve_plain(l, state(), None));
+    tokio::spawn(super::serve_plain(l, directory(), None));
 
     let mut c = Client::connect(addr).await;
     let caps = c.until("OK").await;
@@ -66,4 +70,18 @@ async fn without_a_certificate_4190_authenticates_in_clear() {
     c.send(&authenticate(PASSWORD)).await;
     let r = c.line().await;
     assert!(r.starts_with("OK "), "{r}");
+}
+
+#[test]
+fn unquote_strips_quotes() {
+    assert_eq!(super::unquote("\"PLAIN\""), "PLAIN");
+    assert_eq!(super::unquote("  bare  "), "bare");
+}
+
+#[test]
+fn greeting_advertises_plain_and_version() {
+    let g = super::greeting(false);
+    assert!(g.contains("\"SASL\" \"PLAIN\""));
+    assert!(g.contains("\"VERSION\" \"1.0\""));
+    assert!(g.ends_with("OK\r\n"));
 }

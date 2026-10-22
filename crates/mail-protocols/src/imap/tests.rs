@@ -3,7 +3,7 @@
 
 use base64::Engine;
 
-use crate::tls::test_support::{Client, PASSWORD, USER, cert, listener, state};
+use crate::test_support::{Client, PASSWORD, USER, cert, directory, listener};
 
 fn plain(user: &str, pass: &str) -> String {
     base64::engine::general_purpose::STANDARD.encode(format!("\0{user}\0{pass}"))
@@ -17,7 +17,11 @@ fn tagged(reply: &str) -> &str {
 async fn starttls_is_required_before_login_and_resets_the_capabilities() {
     let cert = cert();
     let (l, addr) = listener().await;
-    tokio::spawn(super::serve_plain(l, state(), Some(cert.server.clone())));
+    tokio::spawn(super::serve_plain(
+        l,
+        directory(),
+        Some(cert.server.clone()),
+    ));
 
     let mut c = Client::connect(addr).await;
     let greeting = c.line().await;
@@ -73,7 +77,7 @@ async fn starttls_is_required_before_login_and_resets_the_capabilities() {
 async fn implicit_tls_offers_no_starttls_and_takes_authenticate_plain() {
     let cert = cert();
     let (l, addr) = listener().await;
-    tokio::spawn(super::serve_tls(l, state(), cert.server.clone()));
+    tokio::spawn(super::serve_tls(l, directory(), cert.server.clone()));
 
     let mut c = Client::connect_tls(addr, &cert).await;
     let greeting = c.line().await;
@@ -108,7 +112,7 @@ async fn implicit_tls_offers_no_starttls_and_takes_authenticate_plain() {
 #[tokio::test]
 async fn without_a_certificate_143_takes_logins_in_clear() {
     let (l, addr) = listener().await;
-    tokio::spawn(super::serve_plain(l, state(), None));
+    tokio::spawn(super::serve_plain(l, directory(), None));
 
     let mut c = Client::connect(addr).await;
     let greeting = c.line().await;

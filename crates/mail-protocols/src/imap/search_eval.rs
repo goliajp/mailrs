@@ -1,49 +1,35 @@
-//! SEARCH / SORT evaluation over the scanned mailbox (G3.4 / G3.5).
+//! SEARCH / SORT evaluation over a selected mailbox.
 //!
-//! Works directly on the maildir files the session already listed:
-//! header keys read the first 16 KB lazily (one read per message per
-//! command, cached), TEXT/BODY read the whole file. Fine at the scale
-//! an IMAP SELECT already tolerates — the scan itself stat()s every
-//! file anyway.
-
-use std::cell::OnceCell;
+//! Header keys look at the first 16 KB of a message, TEXT / BODY at all
+//! of it. The caller reads the bytes once per message per command, and
+//! only when a key or sort criterion looks inside the message.
 
 use mailrs_imap_proto::SearchKey;
-use mailrs_maildir::Flag;
 
-use super::backend::ImapMessage;
+use crate::backend::{Flag, Message};
 
-/// Lazy per-message content cache for one SEARCH/SORT pass.
-pub struct MsgView<'a> {
-    msg: &'a ImapMessage,
-    head: OnceCell<Vec<u8>>,
-    full: OnceCell<Vec<u8>>,
+/// One message and its bytes, for one SEARCH/SORT pass.
+pub struct MsgView<'a, K> {
+    msg: &'a Message<K>,
+    raw: &'a [u8],
 }
 
-impl<'a> MsgView<'a> {
-    /// Wrap a message for evaluation.
-    pub fn new(msg: &'a ImapMessage) -> Self {
-        Self {
-            msg,
-            head: OnceCell::new(),
-            full: OnceCell::new(),
-        }
+impl<'a, K> MsgView<'a, K> {
+    /// `raw` may be empty when no key reads the content.
+    pub fn new(msg: &'a Message<K>, raw: &'a [u8]) -> Self {
+        Self { msg, raw }
+    }
+
+    pub fn msg(&self) -> &'a Message<K> {
+        self.msg
     }
 
     fn head(&self) -> &[u8] {
-        self.head.get_or_init(|| {
-            std::fs::read(&self.msg.path)
-                .map(|b| {
-                    let cut = b.len().min(16 * 1024);
-                    b[..cut].to_vec()
-                })
-                .unwrap_or_default()
-        })
+        &self.raw[..self.raw.len().min(16 * 1024)]
     }
 
     fn full(&self) -> &[u8] {
-        self.full
-            .get_or_init(|| std::fs::read(&self.msg.path).unwrap_or_default())
+        self.raw
     }
 
     /// Case-insensitive unfolded header lookup.
@@ -91,7 +77,7 @@ impl<'a> MsgView<'a> {
 }
 
 /// Evaluate one search key against one message.
-pub fn matches(key: &SearchKey, v: &MsgView<'_>) -> bool {
+pub fn matches<K>(key: &SearchKey, v: &MsgView<'_, K>) -> bool {
     match key {
         SearchKey::All => true,
         SearchKey::Seen => v.has_flag(Flag::Seen),
@@ -144,14 +130,24 @@ pub fn matches(key: &SearchKey, v: &MsgView<'_>) -> bool {
     }
 }
 
-/// Filter messages by an AND-list of search keys.
-pub fn filter<'a>(keys: &[SearchKey], msgs: &'a [ImapMessage]) -> Vec<&'a ImapMessage> {
-    msgs.iter()
-        .filter(|m| {
-            let v = MsgView::new(m);
-            keys.iter().all(|k| matches(k, &v))
-        })
-        .collect()
+/// Whether any of `keys` looks inside the message.
+pub fn reads_content(keys: &[SearchKey]) -> bool {
+    keys.iter().any(reads)
+}
+
+fn reads(key: &SearchKey) -> bool {
+    match key {
+        SearchKey::From(_)
+        | SearchKey::To(_)
+        | SearchKey::Subject(_)
+        | SearchKey::Header(..)
+        | SearchKey::Text(_)
+        | SearchKey::Body(_) => true,
+        SearchKey::Or(a, b) => reads(a) || reads(b),
+        SearchKey::Not(k) => reads(k),
+        SearchKey::And(ks) => reads_content(ks),
+        _ => false,
+    }
 }
 
 /// `1:5,8,*` style uid-set membership (subset of RFC 3501 seq-set —
@@ -239,36 +235,37 @@ fn base_subject(s: &str) -> String {
     t.to_lowercase()
 }
 
+/// Whether ordering by `crits` reads headers.
+pub fn sorts_on_headers(crits: &[SortCrit]) -> bool {
+    crits
+        .iter()
+        .any(|c| matches!(c, SortCrit::Subject | SortCrit::From | SortCrit::To))
+}
+
 /// Sort filtered messages per criteria; ties fall back to uid order.
-pub fn sort<'a>(
-    mut msgs: Vec<&'a ImapMessage>,
+pub fn sort<'a, K>(
+    mut msgs: Vec<MsgView<'a, K>>,
     reverse: bool,
     crits: &[SortCrit],
-) -> Vec<&'a ImapMessage> {
-    msgs.sort_by(|a, b| {
+) -> Vec<MsgView<'a, K>> {
+    msgs.sort_by(|va, vb| {
+        let (a, b) = (va.msg, vb.msg);
         for c in crits {
             let ord = match c {
                 SortCrit::Arrival | SortCrit::Date => a.internal_date.cmp(&b.internal_date),
                 SortCrit::Size => a.size.cmp(&b.size),
-                SortCrit::Subject => {
-                    let (va, vb) = (MsgView::new(a), MsgView::new(b));
-                    base_subject(&va.header("Subject").unwrap_or_default())
-                        .cmp(&base_subject(&vb.header("Subject").unwrap_or_default()))
-                }
-                SortCrit::From => {
-                    let (va, vb) = (MsgView::new(a), MsgView::new(b));
-                    va.header("From")
-                        .unwrap_or_default()
-                        .to_lowercase()
-                        .cmp(&vb.header("From").unwrap_or_default().to_lowercase())
-                }
-                SortCrit::To => {
-                    let (va, vb) = (MsgView::new(a), MsgView::new(b));
-                    va.header("To")
-                        .unwrap_or_default()
-                        .to_lowercase()
-                        .cmp(&vb.header("To").unwrap_or_default().to_lowercase())
-                }
+                SortCrit::Subject => base_subject(&va.header("Subject").unwrap_or_default())
+                    .cmp(&base_subject(&vb.header("Subject").unwrap_or_default())),
+                SortCrit::From => va
+                    .header("From")
+                    .unwrap_or_default()
+                    .to_lowercase()
+                    .cmp(&vb.header("From").unwrap_or_default().to_lowercase()),
+                SortCrit::To => va
+                    .header("To")
+                    .unwrap_or_default()
+                    .to_lowercase()
+                    .cmp(&vb.header("To").unwrap_or_default().to_lowercase()),
             };
             if ord != std::cmp::Ordering::Equal {
                 return ord;
@@ -285,24 +282,17 @@ pub fn sort<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
 
-    fn msg(uid: u32, date: i64, size: u64, path: &str) -> ImapMessage {
-        ImapMessage {
+    fn msg(uid: u32, date: i64, size: u64) -> Message<()> {
+        Message {
             uid,
             seqno: uid,
-            path: PathBuf::from(path),
             flags: vec![],
             internal_date: date,
             size,
             modseq: 1,
+            key: (),
         }
-    }
-
-    fn write_tmp(dir: &std::path::Path, name: &str, body: &str) -> PathBuf {
-        let p = dir.join(name);
-        std::fs::write(&p, body).unwrap();
-        p
     }
 
     #[test]
@@ -317,14 +307,9 @@ mod tests {
 
     #[test]
     fn or_not_and_evaluation() {
-        let tmp = tempfile::tempdir().unwrap();
-        let p = write_tmp(
-            tmp.path(),
-            "m1",
-            "From: alice@x.y\r\nSubject: hello world\r\n\r\nbody text",
-        );
-        let m = msg(1, 1000, 40, p.to_str().unwrap());
-        let v = MsgView::new(&m);
+        let raw = b"From: alice@x.y\r\nSubject: hello world\r\n\r\nbody text";
+        let m = msg(1, 1000, 40);
+        let v = MsgView::new(&m, raw);
         use SearchKey::*;
         assert!(matches(
             &Or(Box::new(From("bob".into())), Box::new(From("alice".into()))),
@@ -345,14 +330,24 @@ mod tests {
     }
 
     #[test]
+    fn only_keys_on_the_content_read_it() {
+        use SearchKey::*;
+        assert!(!reads_content(&[Seen, Uid("1:*".into()), Larger(3)]));
+        assert!(reads_content(&[Not(Box::new(Or(
+            Box::new(Seen),
+            Box::new(Body("x".into()))
+        )))]));
+    }
+
+    #[test]
     fn sort_by_subject_strips_re_prefix() {
-        let tmp = tempfile::tempdir().unwrap();
-        let p1 = write_tmp(tmp.path(), "m1", "Subject: Re: banana\r\n\r\n.");
-        let p2 = write_tmp(tmp.path(), "m2", "Subject: apple\r\n\r\n.");
-        let m1 = msg(1, 10, 1, p1.to_str().unwrap());
-        let m2 = msg(2, 20, 1, p2.to_str().unwrap());
-        let sorted = sort(vec![&m1, &m2], false, &[SortCrit::Subject]);
-        assert_eq!(sorted[0].uid, 2, "apple before (Re:) banana");
+        let (m1, m2) = (msg(1, 10, 1), msg(2, 20, 1));
+        let views = vec![
+            MsgView::new(&m1, b"Subject: Re: banana\r\n\r\n."),
+            MsgView::new(&m2, b"Subject: apple\r\n\r\n."),
+        ];
+        let sorted = sort(views, false, &[SortCrit::Subject]);
+        assert_eq!(sorted[0].msg().uid, 2, "apple before (Re:) banana");
         let (rev, crits) = parse_sort_criteria("REVERSE SUBJECT");
         assert!(rev);
         assert_eq!(crits, vec![SortCrit::Subject]);
