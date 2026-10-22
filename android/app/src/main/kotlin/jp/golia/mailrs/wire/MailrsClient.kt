@@ -406,11 +406,13 @@ class MailrsClient(private val store: TokenStore) {
      * The server's reason for a 401 to a request that carried no token.
      *
      * Such a request has no session to lose: its 401 refuses what was
-     * sent, such as a wrong TOTP code, and the body says which.
+     * sent. A wrong TOTP code comes with a body that says so; a wrong
+     * password comes with none.
      */
     private fun refusal(request: Request, text: String): String? {
         if (request.header("Authorization") != null) return null
-        return runCatching { json.parseToJsonElement(text).jsonObject["error"]?.jsonPrimitive?.content }.getOrNull()
+        val reason = runCatching { json.parseToJsonElement(text).jsonObject["error"]?.jsonPrimitive?.content }.getOrNull()
+        return reason ?: "That address and password did not match."
     }
 
     /**
