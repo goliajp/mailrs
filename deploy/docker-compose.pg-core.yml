@@ -23,12 +23,6 @@ services:
       MAILRS_PG_URL: postgres://mailrs:${MAILRS_PG_PASSWORD:?set MAILRS_PG_PASSWORD in .env}@postgres:5432/mailrs
       # never fastcore's own store: switching back must find it untouched
       MAILRS_KEVY_DATA_DIR: /data/kevy-pg-core
-      # the ports production publishes for fastcore; this core's own
-      # defaults are unprivileged ones
-      MAILRS_IMAP_PORT: "143"
-      MAILRS_IMAPS_PORT: "993"
-      MAILRS_POP3_PORT: "110"
-      MAILRS_MANAGESIEVE_PORT: "4190"
 
   postgres:
     container_name: mailrs-postgres

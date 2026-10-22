@@ -43,6 +43,3 @@ pub(crate) fn from_env() -> Option<TlsState> {
         }
     }
 }
-
-#[cfg(test)]
-pub(crate) mod test_support;

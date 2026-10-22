@@ -52,7 +52,7 @@ pub fn get(address: &str) -> Result<Option<String>, std::io::Error> {
     )
 }
 
-fn get_at(url: &str, address: &str) -> Result<Option<String>, std::io::Error> {
+pub(crate) fn get_at(url: &str, address: &str) -> Result<Option<String>, std::io::Error> {
     let raw = conn_at(url)
         .ok_or_else(unreachable)?
         .get(key(address).as_bytes())?;
@@ -61,7 +61,7 @@ fn get_at(url: &str, address: &str) -> Result<Option<String>, std::io::Error> {
         .filter(|s| !s.trim().is_empty()))
 }
 
-fn unreachable() -> std::io::Error {
+pub(crate) fn unreachable() -> std::io::Error {
     std::io::Error::other("no MAILRS_KEVY_URL, or the network store is unreachable")
 }
 
@@ -84,14 +84,14 @@ pub fn delete(address: &str) -> Result<bool, std::io::Error> {
     )
 }
 
-fn set_at(url: &str, address: &str, script: &str) -> Result<(), std::io::Error> {
+pub(crate) fn set_at(url: &str, address: &str, script: &str) -> Result<(), std::io::Error> {
     conn_at(url)
         .ok_or_else(unreachable)?
         .set(key(address).as_bytes(), script.as_bytes())?;
     Ok(())
 }
 
-fn delete_at(url: &str, address: &str) -> Result<bool, std::io::Error> {
+pub(crate) fn delete_at(url: &str, address: &str) -> Result<bool, std::io::Error> {
     let n = conn_at(url)
         .ok_or_else(unreachable)?
         .del(&[key(address).as_bytes()])?;
