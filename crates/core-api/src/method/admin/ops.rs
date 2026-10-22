@@ -16,14 +16,6 @@ pub struct AuditRowWire {
     pub detail: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LogAuditRequest {
-    pub actor: String,
-    pub action: String,
-    pub target: String,
-    pub detail: String,
-}
-
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct ListAuditQuery {
     #[serde(default = "default_audit_limit")]

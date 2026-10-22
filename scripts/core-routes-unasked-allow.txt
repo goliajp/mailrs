@@ -1,0 +1,57 @@
+# Core routes no core-api client method requests, kept on purpose.
+#
+# Read by scripts/check-core-contract.sh. A route a core registers that the
+# client never asks for, and that is not listed here, fails the gate: it is
+# either dead surface or a client method that was never written. Every
+# entry here is an operator route, run by hand (curl against the core) to
+# repair, backfill or measure the store; none has a client caller by design.
+#
+# METHOD /path | what it is for
+
+POST /v1/admin/backfill-decode-headers | decode RFC 2047 encoded-words left raw in thread rows and contacts by mail ingested before 2.9.18
+POST /v1/admin/backfill-threading | merge conversations fragmented before reply threading, and seed the Message-ID to thread index
+POST /v1/admin/sync/reset-cursors | reset every user's core-sync cursor so the next tick re-diffs all threads from the other core
+POST /v1/admin/threads:split-message | move one message out of its conversation into its own (topic-change replies glued before the subject gate)
+POST /v1/admin/maintenance:allocate-missing-uids | give a UID to every per-user message row that has none, so raw view and attachments resolve
+POST /v1/admin/maintenance:axis-shadow | read-only: the two declared columns that pick a thread's list, against the engine's per-user counts
+POST /v1/admin/maintenance:backfill-attachment-text | queue stored mail carrying a PDF or image for the attachment-text worker
+POST /v1/admin/maintenance:backfill-contact-relationships | rebuild per-sender received/sent counters from history for importance scoring
+POST /v1/admin/maintenance:backfill-domain-seen | record sending-domain familiarity from stored mail for the brand-impersonation check
+POST /v1/admin/maintenance:backfill-invites | read the calendar part out of stored mail that arrived before invitations were parsed
+POST /v1/admin/maintenance:backfill-reply-rotation | record which sending domains funnel into each off-domain reply address, for the rotation fraud rule
+POST /v1/admin/maintenance:backfill-thread-importance | score importance for threads that predate the feature (?all=1 rescores all)
+POST /v1/admin/maintenance:backfill-thread-user | one paged segment of the threaduser membership-row backfill
+POST /v1/admin/maintenance:backfill-triage | seed the triage corpus and re-sort existing Inbox mail into notifications and promotions
+POST /v1/admin/maintenance:backfill-user-messages | give every user their own message rows for the messages they have (per-user projection, stage 2)
+POST /v1/admin/maintenance:backfill-webhook-owners | record the owner of each existing webhook subscription, which delete needs
+POST /v1/admin/maintenance:bayes-bootstrap | seed the Bayes spam corpus from existing Junk and Inbox; refuses when already seeded
+POST /v1/admin/maintenance:drop-empty-threads | remove thread rows a user has no readable message in
+POST /v1/admin/maintenance:drop-legacy-zsets | delete the hand-maintained per-user thread zsets nothing reads any more
+POST /v1/admin/maintenance:drop-stray-usermsg-keys | remove per-user message index keys written under the wrong prefix
+POST /v1/admin/maintenance:duplicate-blob-census | read-only: maildir files registered under two message rows
+POST /v1/admin/maintenance:duplicate-blob-repair | drop the synthetic-id second row of a file registered twice
+POST /v1/admin/maintenance:fraud-rescan | re-judge stored mail with the current fraud rules (dry run by default)
+POST /v1/admin/maintenance:future-dates | re-date stored mail whose Date: header is later than its arrival
+POST /v1/admin/maintenance:group-backfill | write the group column onto membership rows that predate it
+POST /v1/admin/maintenance:idx-advice | read-only: queries running without a declared path, and declared paths nothing queries
+POST /v1/admin/maintenance:legacy-zset-census | read-only: how alive each legacy per-user zset still is
+POST /v1/admin/maintenance:migrate-agent-webhooks | fold webhook subscriptions from the retired agent namespace into the admin one
+POST /v1/admin/maintenance:read-state-backfill | write the maildir's read flags onto the index (?dry_run=true reports first)
+POST /v1/admin/maintenance:read-state-shadow | read-only: maildir flags against the index's read state
+POST /v1/admin/maintenance:recompute-sender-trust | re-derive the stored sender verdict from each message file
+POST /v1/admin/maintenance:reindex | put the maildir's own facts back onto every thread row
+POST /v1/admin/maintenance:repair-blob-refs | give back the file reference to rows listed with an empty blob_ref
+POST /v1/admin/maintenance:rewrite-aof | compact the embedded store's AOF from memory (recovery from a corrupt tail frame)
+POST /v1/admin/maintenance:sent-axis-shadow | read-only: the declared is_sender axis against the legacy sent zset
+POST /v1/admin/maintenance:shadow-read | read-only: the declared ORDERPATH's answer against the zset's, per account
+POST /v1/admin/maintenance:spoof-landing | read-only: where mail forging one of our own domains ended up
+POST /v1/admin/maintenance:strip-shared-per-user-fields | strip one owner's per-user fields off shared message blobs (per-user projection, stage 6)
+POST /v1/admin/maintenance:sweep-legacy-admin-keys | delete the pre-P6 admin keyspace in process
+POST /v1/admin/maintenance:table-verify | read-only: the engine's drift check of each declared index against the rows
+POST /v1/admin/maintenance:thread-date-audit | threads dated later than anything that arrived in them ({"repair": true} fixes)
+POST /v1/admin/maintenance:threadrow-shadow | read-only: the conversation list from membership rows against the shared thread hash
+POST /v1/admin/maintenance:threaduser-census | read-only: which membership rows an index could not encode
+POST /v1/admin/maintenance:tier-info | read-only: what the store holds in RAM versus on disk
+POST /v1/admin/maintenance:uidlist-backfill | write each mailbox's uidlist from the UIDs its index holds
+POST /v1/admin/maintenance:uidlist-compact | compact the append-only uidlist to one record per message
+POST /v1/admin/maintenance:usermsg-shadow | read-only: shared thread index against per-user index (per-user projection, stage 3)

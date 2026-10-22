@@ -198,12 +198,6 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
     );
     for mid in ["m2@partner.test", "m7@example.test", "missing@x"] {
         d.both(
-            &format!("find_thread_by_message_id {mid}"),
-            fc.find_thread_by_message_id(ALICE, mid).await,
-            pg.find_thread_by_message_id(ALICE, mid).await,
-            &[],
-        );
-        d.both(
             &format!("fraud_verdict {mid}"),
             fc.fraud_verdict(ALICE, mid)
                 .await
