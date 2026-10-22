@@ -19,12 +19,10 @@ use super::*;
 /// Empty `secret` disables auth entirely — dev-only mode.
 pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
     use mailrs_core_api::method::admin as adm_paths;
-    use mailrs_core_api::method::analysis as analysis_paths;
-    use mailrs_core_api::method::contact as contact_paths;
     use mailrs_core_api::method::conversation as conv_paths;
     use mailrs_core_api::method::mailbox as mb_paths;
     use mailrs_core_api::method::message as msg_paths;
-    use mailrs_core_api::method::outbound as ob_paths;
+    use mailrs_core_api::method::sent as sent_paths;
     use mailrs_core_api::method::thread as th_paths;
 
     let base = mailrs_core_api::server::base_router(state.clone());
@@ -49,35 +47,11 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
         )
         .with_state(state.clone());
 
-    // ── mailbox CRUD ────────────────────────────────────────────────
+    // ── mailboxes ───────────────────────────────────────────────────
     let mb = Router::new()
         .route(
             mb_paths::PATH_LIST_MAILBOXES,
             get(handlers::mailbox::list_mailboxes),
-        )
-        .route(
-            mb_paths::PATH_GET_MAILBOX,
-            get(handlers::mailbox::get_mailbox),
-        )
-        .route(
-            mb_paths::PATH_GET_MAILBOX_BY_ID,
-            get(handlers::mailbox::get_mailbox_by_id),
-        )
-        .route(
-            mb_paths::PATH_CREATE_MAILBOX,
-            post(handlers::mailbox::create_mailbox),
-        )
-        .route(
-            mb_paths::PATH_DELETE_MAILBOX,
-            delete(handlers::mailbox::delete_mailbox),
-        )
-        .route(
-            mb_paths::PATH_RENAME_MAILBOX,
-            post(handlers::mailbox::rename_mailbox),
-        )
-        .route(
-            mb_paths::PATH_MAILBOX_STATUS,
-            get(handlers::mailbox::mailbox_status),
         )
         .with_state(state.clone());
 
@@ -90,6 +64,7 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
             th_paths::PATH_LIST_THREAD_MESSAGES,
             get(handlers::thread::list_thread_messages).post(handlers::deliver::deliver_message),
         )
+        .route(sent_paths::PATH_FILE_SENT, post(handlers::sent::file_sent))
         .route(th_paths::PATH_MARK_READ, post(handlers::thread::mark_read))
         .route(
             th_paths::PATH_MARK_UNREAD,
@@ -112,54 +87,17 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
     // ── message read ─────────────────────────────────────────────────
     let msg = Router::new()
         .route(
-            msg_paths::PATH_GET_MESSAGE_BY_UID,
-            get(handlers::message::get_message_by_uid),
-        )
-        .route(
             msg_paths::PATH_GET_MESSAGE_BY_UID_USER,
             get(handlers::message::get_message_by_uid_for_user),
-        )
-        .route(
-            msg_paths::PATH_LIST_MESSAGES,
-            get(handlers::message::list_messages),
         )
         .route(
             msg_paths::PATH_FIND_BY_MESSAGE_ID,
             get(handlers::message::find_message_by_message_id),
         )
-        .route(
-            msg_paths::PATH_SET_FLAGS,
-            put(handlers::message::flag_mutation),
-        )
-        .route(
-            msg_paths::PATH_FLAGS_IF_UNCHANGED,
-            post(handlers::message::condstore),
-        )
-        .route(
-            msg_paths::PATH_CHANGED_SINCE,
-            get(handlers::message::changed_since),
-        )
-        .route(msg_paths::PATH_EXPUNGE, post(handlers::message::expunge))
-        .route(
-            msg_paths::PATH_COPY_MESSAGE,
-            post(handlers::message::copy_message),
-        )
-        .route(
-            msg_paths::PATH_MOVE_MESSAGE,
-            post(handlers::message::move_message),
-        )
         .with_state(state.clone());
 
     // ── admin (auth hot path) ─────────────────────────────────────────
     let adm = Router::new()
-        .route(
-            adm_paths::PATH_GET_API_KEY_BY_PREFIX,
-            get(mailrs_core_sidestate::families::groups_admin::get_api_key_by_prefix::<CoreRpcState>),
-        )
-        .route(
-            adm_paths::PATH_TOUCH_API_KEY,
-            post(mailrs_core_sidestate::families::groups_admin::touch_api_key::<CoreRpcState>),
-        )
         .route(
             adm_paths::PATH_EFFECTIVE_PERMISSIONS,
             get(handlers::admin::effective_permissions),
@@ -172,12 +110,9 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
             adm_paths::PATH_LIST_ACCOUNTS,
             get(handlers::admin::list_accounts).post(handlers::admin::add_account),
         )
-        // GET_ACCOUNT / UPDATE_ACCOUNT / REMOVE_ACCOUNT share one URL
         .route(
-            adm_paths::PATH_GET_ACCOUNT,
-            get(handlers::admin::get_account)
-                .put(handlers::admin::update_account)
-                .delete(handlers::admin::remove_account),
+            adm_paths::PATH_UPDATE_ACCOUNT,
+            put(handlers::admin::update_account).delete(handlers::admin::remove_account),
         )
         .route(adm_paths::PATH_SET_QUOTA, post(handlers::admin::set_quota))
         .route(
@@ -191,15 +126,6 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
         .route(
             adm_paths::PATH_SET_MESSAGE_FLAGS,
             post(handlers::admin::set_message_flags),
-        )
-        // aliases (id-based, legacy) + source-keyed (v2 backend-neutral)
-        .route(
-            adm_paths::PATH_LIST_ALIASES,
-            get(handlers::admin::list_aliases).post(handlers::admin::add_alias),
-        )
-        .route(
-            adm_paths::PATH_REMOVE_ALIAS,
-            delete(handlers::admin::remove_alias),
         )
         .route(
             "/v1/admin/aliases:local",
@@ -217,90 +143,6 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
         .route(
             adm_paths::PATH_REMOVE_DOMAIN,
             delete(handlers::admin::remove_domain),
-        )
-        // sieve
-        .route(
-            adm_paths::PATH_GET_SIEVE,
-            // All three verbs from the shared family, so the write lands in
-            // the `sieve:<address>` key this URL's own GET reads. The two
-            // local handlers this replaced wrote PG `sieve_scripts`, which no
-            // reader of this URL — and no delivery path in this topology —
-            // ever consults.
-            get(mailrs_core_sidestate::families::groups_admin::get_sieve::<CoreRpcState>)
-                .post(mailrs_core_sidestate::families::groups_admin::set_sieve::<CoreRpcState>)
-                .delete(
-                    mailrs_core_sidestate::families::groups_admin::delete_sieve::<CoreRpcState>,
-                ),
-        )
-        // audit log
-        .route(
-            adm_paths::PATH_LIST_AUDIT_LOG,
-            get(mailrs_core_sidestate::families::admin_state::list_audit_log::<CoreRpcState>).post(mailrs_core_sidestate::families::admin_state::log_audit::<CoreRpcState>),
-        )
-        // groups + permissions
-        .route(
-            adm_paths::PATH_LIST_GROUPS,
-            get(mailrs_core_sidestate::families::groups_admin::list_groups::<CoreRpcState>),
-        )
-        .route(
-            adm_paths::PATH_GET_GROUP_PERMISSIONS,
-            get(mailrs_core_sidestate::families::groups_admin::get_group_permissions::<CoreRpcState>).put(mailrs_core_sidestate::families::groups_admin::set_group_permissions::<CoreRpcState>),
-        )
-        .route(
-            adm_paths::PATH_LIST_GROUP_MEMBERS,
-            get(mailrs_core_sidestate::families::groups_admin::list_group_members::<CoreRpcState>).post(mailrs_core_sidestate::families::groups_admin::add_account_to_group::<CoreRpcState>),
-        )
-        .route(
-            adm_paths::PATH_REMOVE_ACCOUNT_FROM_GROUP,
-            delete(mailrs_core_sidestate::families::groups_admin::remove_account_from_group::<CoreRpcState>),
-        )
-        .route(
-            adm_paths::PATH_GET_ACCOUNT_GROUPS,
-            get(mailrs_core_sidestate::families::groups_admin::get_account_groups::<CoreRpcState>),
-        )
-        .with_state(state.clone());
-
-    // ── analysis ─────────────────────────────────────────────────────
-    let anal = Router::new()
-        .route(
-            analysis_paths::PATH_GET_ANALYSIS,
-            get(mailrs_core_sidestate::families::analysis::get_analysis::<CoreRpcState>),
-        )
-        .route(
-            analysis_paths::PATH_COUNT_UNANALYZED,
-            get(mailrs_core_sidestate::families::analysis::count_unanalyzed::<CoreRpcState>),
-        )
-        .route(
-            analysis_paths::PATH_BOOST_IMPORTANCE,
-            post(mailrs_core_sidestate::families::analysis::boost_importance::<CoreRpcState>),
-        )
-        .route(
-            analysis_paths::PATH_SEMANTIC_SEARCH,
-            post(mailrs_core_sidestate::families::analysis::semantic_search),
-        )
-        .with_state(state.clone());
-
-    // ── contacts ─────────────────────────────────────────────────────
-    let ct = Router::new()
-        .route(
-            contact_paths::PATH_SEARCH_CONTACTS,
-            get(mailrs_core_sidestate::families::contacts::search_contacts::<CoreRpcState>),
-        )
-        .route(
-            contact_paths::PATH_UPSERT_INBOUND,
-            post(mailrs_core_sidestate::families::contacts::upsert_inbound::<CoreRpcState>),
-        )
-        .route(
-            contact_paths::PATH_CONTACT_SCORING,
-            get(mailrs_core_sidestate::families::contacts::contact_scoring::<CoreRpcState>),
-        )
-        .route(
-            contact_paths::PATH_HAS_SENT_TO,
-            get(mailrs_core_sidestate::families::contacts::has_sent_to::<CoreRpcState>),
-        )
-        .route(
-            contact_paths::PATH_SENDER_FEEDBACK,
-            post(mailrs_core_sidestate::families::contacts::sender_feedback::<CoreRpcState>),
         )
         .with_state(state.clone());
 
@@ -321,8 +163,7 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
     let signatures = Router::new()
         .route(
             adm_paths::PATH_LIST_SIGNATURES,
-            get(mailrs_core_sidestate::families::prefs::list_signatures::<CoreRpcState>)
-                .post(mailrs_core_sidestate::families::prefs::save_signature::<CoreRpcState>),
+            post(mailrs_core_sidestate::families::prefs::save_signature::<CoreRpcState>),
         )
         .route(
             adm_paths::PATH_DELETE_SIGNATURE,
@@ -359,50 +200,6 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
         )
         .with_state(state.clone());
 
-    // ── reactions ────────────────────────────────────────────────────
-    let rx = Router::new()
-        .route(
-            adm_paths::PATH_GET_THREAD_REACTIONS,
-            get(mailrs_core_sidestate::families::admin_state::get_thread_reactions::<CoreRpcState>),
-        )
-        .route(
-            adm_paths::PATH_TOGGLE_REACTION,
-            put(mailrs_core_sidestate::families::admin_state::toggle_reaction::<CoreRpcState>),
-        )
-        .with_state(state.clone());
-
-    // ── outbound (sender ↔ core) ─────────────────────────────────────
-    let ob = Router::new()
-        .route(
-            ob_paths::PATH_ENQUEUE,
-            post(mailrs_core_sidestate::families::outbound::enqueue::<CoreRpcState>),
-        )
-        .route(
-            ob_paths::PATH_CLAIM,
-            post(mailrs_core_sidestate::families::outbound::claim::<CoreRpcState>),
-        )
-        .route(
-            ob_paths::PATH_STATS,
-            get(mailrs_core_sidestate::families::outbound::stats::<CoreRpcState>),
-        )
-        .route(
-            ob_paths::PATH_RECOVER_STALE,
-            post(mailrs_core_sidestate::families::outbound::recover_stale::<CoreRpcState>),
-        )
-        .route(
-            ob_paths::PATH_MARK_DELIVERED,
-            post(mailrs_core_sidestate::families::outbound::mark_delivered::<CoreRpcState>),
-        )
-        .route(
-            ob_paths::PATH_MARK_FAILED,
-            post(mailrs_core_sidestate::families::outbound::mark_failed::<CoreRpcState>),
-        )
-        .route(
-            ob_paths::PATH_MARK_BOUNCED,
-            post(mailrs_core_sidestate::families::outbound::mark_bounced::<CoreRpcState>),
-        )
-        .with_state(state.clone());
-
     // Authenticated subtree = everything except /v1/healthz + /v1/readyz.
     let authenticated = convo
         .merge(mb)
@@ -410,14 +207,10 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
         .merge(super::router_views::view_routes(state.clone()))
         .merge(msg)
         .merge(adm)
-        .merge(anal)
-        .merge(ct)
         .merge(drafts)
         .merge(signatures)
         .merge(templates)
-        .merge(webhooks)
-        .merge(rx)
-        .merge(ob);
+        .merge(webhooks);
     drop(state);
 
     // Auth middleware applies only when a secret was configured. Empty

@@ -90,7 +90,7 @@ impl PgCore {
     }
 
     /// The in-process event IMAP IDLE and the cache listen for.
-    fn announce(&self, addr: &str, a: &Arrival<'_>) {
+    pub(super) fn announce(&self, addr: &str, a: &Arrival<'_>) {
         self.event_bus.emit(SmtpEvent::NewMessage {
             user: addr.to_string(),
             thread_id: a.thread_id.clone(),

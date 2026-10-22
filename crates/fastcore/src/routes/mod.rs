@@ -33,5 +33,4 @@ pub(crate) use thread_actions::*;
 pub(crate) use thread_park::*;
 
 pub mod mail_admin;
-pub mod mailbox;
 pub mod message;

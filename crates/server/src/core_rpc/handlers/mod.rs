@@ -14,6 +14,7 @@ pub mod filing;
 pub mod holds;
 pub mod mailbox;
 pub mod message;
+pub mod sent;
 pub mod thread;
 pub mod views;
 

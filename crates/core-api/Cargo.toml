@@ -28,6 +28,7 @@ client = ["dep:reqwest", "dep:percent-encoding"]
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = "2"
+base64 = "0.22"
 tracing = "0.1"
 
 # Re-exported types from mailrs-mailbox — Message, Mailbox, QueryFilter, ...

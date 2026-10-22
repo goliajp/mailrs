@@ -6,8 +6,7 @@
 //! thing whichever core is serving.
 //!
 //! It used to be PG `sieve_scripts`, and the split was silent in both
-//! directions. Every live reader looks at the kevy key: the core-api contract's
-//! own GET (`core-sidestate/families/groups_admin.rs`), the web UI's save path
+//! directions. Every live reader looks at the kevy key: the web UI's save path
 //! (`webapi/handlers/admin_ops.rs` writes it directly), fastcore's ManageSieve,
 //! and the delivery-time evaluator both cores share (`mailrs_intake::sieve`). Only
 //! this crate's three call sites used the table. So with the SQL core serving

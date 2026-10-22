@@ -42,8 +42,7 @@ pub const CANCELLED_REASON: &str = "cancelled before delivery";
 /// Remove every not-yet-delivered job for `send_id` from the queue.
 ///
 /// Returns the ids it removed. The pending list has no `LREM`, so it is
-/// drained and rebuilt without them — the same shape
-/// `remove_inflight_and_del` already uses, and for the same reason.
+/// drained and rebuilt without them.
 ///
 /// **Only jobs still waiting: on `pending-idx`, or between attempts on
 /// [`RETRY_IDX`].** A job already claimed by

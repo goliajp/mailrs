@@ -12,11 +12,11 @@
 //!
 //! Sending does two writes. `enqueue_outbound_at` is the send: it is
 //! synchronous, it propagates its error, and if it fails the mail is not
-//! sent. `mirror_send_to_sender_view` writes the thread copy the Sent
-//! view reads, and it is best-effort in every branch — a failed maildir
-//! write falls back to a synthetic blob_ref, a failed serialize
-//! `return`s, a failed `deliver_message` logs a warning. It returns
-//! `()`.
+//! sent. The web tier's `mirror_send_to_sender_view` wrote the thread
+//! copy the Sent view reads, and it was best-effort in every branch — a
+//! failed maildir write fell back to a synthetic blob_ref, a failed
+//! `deliver_message` logged a warning. It returned `()`; the core files
+//! that copy now.
 //!
 //! So the fact "I sent this" was recorded by the operation allowed to
 //! fail silently, while the operation that cannot fail was not consulted

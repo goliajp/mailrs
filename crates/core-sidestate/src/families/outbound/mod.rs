@@ -1,45 +1,14 @@
-//! Outbound-queue RPC served from the network kevy — the same
-//! `mailrs:outbound:*` keys the sender drains and webapi enqueues to, so
-//! the queue is identical regardless of which core serves it:
-//!   `mailrs:outbound:{id}`          hash, field `blob` = JSON row
-//!   `mailrs:outbound:pending`       list of ids (LPUSH / RPOP)
-//!   `mailrs:outbound:inflight`      list of claimed ids
-//!   `mailrs:outbound:scheduled`     zset id scored by send-time
-//!   `mailrs:outbound:suppression`   set of bounced recipients
-//!   `mailrs:outbound:counter`       next id
-//!   `mailrs:outbound:{delivered,failed,bounced}:count`  status tallies
-//!
-//! Status/attempts (absent from the loose enqueue blob) are tracked in the
-//! blob + the count keys so `stats` matches the pg-core table counts.
-//!
-//! v2.5.1 §P8-B-A (roadmap Phase 6.2) — introduces a **dual-write** to
-//! the new single-hash job FSM layout:
+//! The outbound queue on the network kevy: the keys every process that
+//! enqueues writes and the sender drains.
 //!
 //!   `mailrs:outbound:job:{id}`      hash {state, attempts, blob,
 //!                                         created_at, updated_at,
 //!                                         claimed_at?, last_error?}
-//!   `mailrs:outbound:pending-idx`   list  (LPUSH on enqueue-pending
-//!                                          / retry; drained parallel
-//!                                          to old pending list on claim)
-//!   `mailrs:outbound:scheduled-idx` zset  (score=scheduled_at)
-//!
-//! Every write path in this file now performs the equivalent op on the
-//! new keys after the existing legacy op — best-effort, `let _ =`
-//! ignored just like the legacy path. Reads still hit the legacy
-//! layout; Phase 6.3 (v2.5.2 read cutover) will swap them.
+//!   `mailrs:outbound:pending-idx`   list, LPUSH on enqueue / retry
+//!   `mailrs:outbound:scheduled-idx` zset, scored by send time
+//!   `mailrs:outbound:counter`       next id
 
-use std::sync::Arc;
-
-use axum::Json;
-use axum::extract::State;
-use axum::http::StatusCode;
-
-use mailrs_core_api::method::outbound::{
-    ClaimRequest, ClaimResponse, EnqueueRequest, EnqueueResponse, OutboundMessageWire,
-    QueueStatsResponse, QueueStatus,
-};
-
-use crate::NetKevy;
+use mailrs_core_api::method::outbound::{OutboundMessageWire, QueueStatus};
 
 mod cancel;
 mod keys;
@@ -61,66 +30,6 @@ fn rpop_one(conn: &mut kevy_client::Connection, key: &[u8]) -> Option<Vec<u8>> {
     conn.rpop(key, 1).ok().and_then(|v| v.into_iter().next())
 }
 
-/// Read `mailrs:outbound:{id}` blob → OutboundMessageWire (loose blob
-/// fields + synthesized status/attempts defaults).
-fn read_row(conn: &mut kevy_client::Connection, id: i64) -> Option<OutboundMessageWire> {
-    let raw = conn
-        .hget(legacy_row_key(id).as_bytes(), b"blob")
-        .ok()
-        .flatten()?;
-    let v: serde_json::Value = serde_json::from_slice(&raw).ok()?;
-    Some(OutboundMessageWire {
-        id,
-        send_id: v.get("send_id").and_then(|x| x.as_str()).map(String::from),
-        sender: v.get("sender")?.as_str()?.to_string(),
-        recipient: v.get("recipient")?.as_str()?.to_string(),
-        original_sender: v
-            .get("original_sender")
-            .and_then(|x| x.as_str())
-            .map(String::from),
-        message_data_base64: v
-            .get("message_data_b64")
-            .and_then(|x| x.as_str())
-            .unwrap_or("")
-            .to_string(),
-        status: match v.get("status").and_then(|x| x.as_str()) {
-            Some("inflight") => QueueStatus::Inflight,
-            Some("delivered") => QueueStatus::Delivered,
-            Some("failed") => QueueStatus::Failed,
-            Some("bounced") => QueueStatus::Bounced,
-            _ => QueueStatus::Pending,
-        },
-        attempts: v.get("attempts").and_then(|x| x.as_u64()).unwrap_or(0) as u32,
-        last_error: v
-            .get("last_error")
-            .and_then(|x| x.as_str())
-            .map(String::from),
-        next_retry: v.get("next_retry").and_then(|x| x.as_i64()),
-        scheduled_at: v.get("scheduled_at").and_then(|x| x.as_i64()),
-        created_at: v.get("created_at").and_then(|x| x.as_i64()).unwrap_or(0),
-        updated_at: v.get("updated_at").and_then(|x| x.as_i64()).unwrap_or(0),
-    })
-}
-
-fn write_row(conn: &mut kevy_client::Connection, row: &OutboundMessageWire) {
-    let blob = row_blob(row);
-    let _ = conn.hset(
-        legacy_row_key(row.id).as_bytes(),
-        &[(b"blob".as_slice(), blob.as_bytes())],
-    );
-}
-
-/// Allocate an id and write a fresh pending job.
-///
-/// Extracted from the axum handler so callers that already own a
-/// `kevy_client::Connection` (the webapi's `/api/mail/send` path)
-/// enqueue through the same primitive as the RPC route. Two writers
-/// hitting the same key layout in different ways is exactly how the
-/// pre-2.9.38 mismatch happened (webapi was writing legacy
-/// `mailrs:outbound:{id}` + `pending`, sender was reading v2
-/// `mailrs:outbound:job:{id}` + `pending-idx`, so no send delivered).
-///
-/// Returns the allocated id.
 /// One outbound job to enqueue.
 ///
 /// Named fields rather than positional arguments because four of them
@@ -144,6 +53,11 @@ pub struct FreshPending<'a> {
     pub send_id: Option<&'a str>,
 }
 
+/// Allocate an id and write a fresh pending job; returns the id.
+///
+/// Every enqueuer goes through this one primitive. Two writers hitting
+/// the same key layout in different ways is how no send delivered before
+/// 2.9.38: webapi wrote one layout and the sender read another.
 pub fn write_fresh_pending(
     conn: &mut kevy_client::Connection,
     job: &FreshPending<'_>,
@@ -236,33 +150,7 @@ pub fn requeue_pending(
     Ok(true)
 }
 
-pub async fn enqueue<S: NetKevy>(
-    State(state): State<Arc<S>>,
-    Json(req): Json<EnqueueRequest>,
-) -> Result<Json<EnqueueResponse>, StatusCode> {
-    let mut conn = state.net_conn().ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
-    let id = write_fresh_pending(
-        &mut conn,
-        &FreshPending {
-            sender: &req.sender,
-            recipient: &req.recipient,
-            message_data_base64: &req.message_data_base64,
-            scheduled_at: req.scheduled_at,
-            original_sender: req.original_sender.as_deref(),
-            // No Send row: this RPC enqueues mail nobody composed in the
-            // UI (tls-rpt, bounces). A missing group is the honest
-            // answer, not an invented one.
-            send_id: None,
-        },
-        now_secs(),
-    )
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    Ok(Json(EnqueueResponse { id }))
-}
-
 /// Serialize a queue row's blob field the way the sender consumes it.
-/// Extracted from `write_row` so both the single-op helper and the
-/// pipeline path can share the shape without diverging.
 fn row_blob(row: &OutboundMessageWire) -> String {
     serde_json::json!({
         "id": row.id, "sender": row.sender, "recipient": row.recipient,
@@ -277,97 +165,4 @@ fn row_blob(row: &OutboundMessageWire) -> String {
         "send_id": row.send_id,
     })
     .to_string()
-}
-
-pub async fn claim<S: NetKevy>(
-    State(state): State<Arc<S>>,
-    Json(req): Json<ClaimRequest>,
-) -> Json<ClaimResponse> {
-    let Some(mut conn) = state.net_conn() else {
-        return Json(ClaimResponse { items: Vec::new() });
-    };
-    let mut items = Vec::new();
-    for _ in 0..req.batch_size {
-        let Some(id_bytes) = rpop_one(&mut conn, LEGACY_PENDING) else {
-            break;
-        };
-        let Ok(id) = String::from_utf8_lossy(&id_bytes).parse::<i64>() else {
-            continue;
-        };
-        let _ = conn.lpush(INFLIGHT, &[id.to_string().as_bytes()]);
-        if let Some(mut row) = read_row(&mut conn, id) {
-            row.status = QueueStatus::Inflight;
-            row.attempts += 1;
-            row.updated_at = now_secs();
-            write_row(&mut conn, &row);
-            items.push(row);
-        }
-        // v2.5.1 §P8-B-A dual-write: mirror state=inflight on the new
-        // job hash + drain a matching entry from pending-idx so the two
-        // indexes stay length-consistent for the Phase 6.3 read cutover.
-        let now_str = now_secs().to_string();
-        let job_k = job_key(id);
-        let _ = conn.pipeline(|p| {
-            p.cmd(&[
-                b"HSET",
-                job_k.as_bytes(),
-                b"state",
-                b"inflight",
-                b"claimed_at",
-                now_str.as_bytes(),
-                b"updated_at",
-                now_str.as_bytes(),
-            ]);
-            p.cmd(&[b"HINCRBY", job_k.as_bytes(), b"attempts", b"1"]);
-        });
-        let _ = rpop_one(&mut conn, PENDING_IDX);
-    }
-    Json(ClaimResponse { items })
-}
-
-pub async fn stats<S: NetKevy>(State(state): State<Arc<S>>) -> Json<QueueStatsResponse> {
-    let Some(mut conn) = state.net_conn() else {
-        return Json(QueueStatsResponse {
-            pending: 0,
-            inflight: 0,
-            delivered: 0,
-            failed: 0,
-            bounced: 0,
-        });
-    };
-    // `pending` counts the queue and the jobs waiting between attempts.
-    // `inflight` would need a job-hash SCAN, too expensive here, so it
-    // is 0. Terminal counters come from the legacy counter keys, which
-    // the webapi mark_* path still INCRs.
-    let replies = conn
-        .pipeline(|p| {
-            p.cmd(&[b"LLEN", PENDING_IDX]);
-            p.cmd(&[b"ZCARD", RETRY_IDX]);
-            p.cmd(&[b"GET", DELIVERED_COUNT]);
-            p.cmd(&[b"GET", FAILED_COUNT]);
-            p.cmd(&[b"GET", BOUNCED_COUNT]);
-        })
-        .unwrap_or_default();
-    fn int_at(replies: &[kevy_client::Reply], i: usize) -> i64 {
-        match replies.get(i) {
-            Some(kevy_client::Reply::Int(n)) => *n,
-            _ => 0,
-        }
-    }
-    fn cnt_at(replies: &[kevy_client::Reply], i: usize) -> i64 {
-        match replies.get(i) {
-            Some(kevy_client::Reply::Bulk(b)) => std::str::from_utf8(b)
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(0),
-            _ => 0,
-        }
-    }
-    Json(QueueStatsResponse {
-        pending: int_at(&replies, 0) + int_at(&replies, 1),
-        inflight: 0,
-        delivered: cnt_at(&replies, 2),
-        failed: cnt_at(&replies, 3),
-        bounced: cnt_at(&replies, 4),
-    })
 }

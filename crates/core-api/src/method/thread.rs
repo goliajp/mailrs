@@ -6,7 +6,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::types::{MessageId, ThreadId, UserAddress};
+use crate::types::{MessageId, UserAddress};
 
 // ── read paths ──────────────────────────────────────────────────────
 
@@ -14,8 +14,6 @@ pub const PATH_LIST_THREAD_MESSAGES: &str = "/v1/users/{user}/threads/{thread_id
 pub const PATH_THREAD_REFS: &str = "/v1/users/{user}/threads/{thread_id}/refs";
 pub const PATH_THREAD_LAST_MESSAGE_ID: &str =
     "/v1/users/{user}/threads/{thread_id}/last-message-id";
-pub const PATH_FIND_THREAD_BY_MESSAGE_ID: &str =
-    "/v1/users/{user}/threads/by-message-id/{message_id}";
 pub const PATH_THREAD_MESSAGE_IDS: &str = "/v1/users/{user}/threads/{thread_id}/message-ids";
 pub const PATH_BACKFILL_THREADING: &str = "/v1/admin/backfill-threading";
 
@@ -113,12 +111,10 @@ pub const PATH_MARK_PROMOTION: &str = "/v1/users/{user}/threads/{thread_id}/mark
 pub const PATH_MOVE_TO_INBOX: &str = "/v1/users/{user}/threads/{thread_id}/move-to-inbox";
 
 /// `POST /v1/users/{user}/threads/{thread_id}/messages` — deliver a
-/// synthesized message (sent copy, saved draft, imported item) into the
-/// user's kevy view. Fires the same `record_message_arrival` +
-/// `upsert_thread` sequence used by inbound delivery so the sent index,
-/// activity zset, and message blob all populate together. This is the
-/// write endpoint the webapi send/save-draft handlers call after
-/// enqueueing outbound / writing maildir.
+/// message whose metadata the caller supplies (an import, a sync from the
+/// other core) into the user's view. Fires the same
+/// `record_message_arrival` + `upsert_thread` sequence inbound delivery
+/// uses. A user's own sent copy goes through `sent::PATH_FILE_SENT`.
 pub const PATH_DELIVER_MESSAGE: &str = "/v1/users/{user}/threads/{thread_id}/messages";
 
 // ── req/resp ────────────────────────────────────────────────────────
@@ -187,15 +183,6 @@ pub struct LastMessageIdResponse {
     /// RFC 5322 `Message-ID:` of the most recent message in the thread.
     /// May be empty string if the thread is empty / has no header.
     pub message_id: String,
-}
-
-/// Response body for `GET .../by-message-id/{message_id}`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FindThreadByMessageIdResponse {
-    /// Resolved thread_id, or `None` if no message with this RFC 5322
-    /// `Message-ID:` exists in the user's mailboxes.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub thread_id: Option<ThreadId>,
 }
 
 /// Response body for `GET .../{thread_id}/message-ids`.
@@ -311,12 +298,5 @@ mod tests {
         let s = serde_json::to_string(&r).unwrap();
         let back: ThreadRefsResponse = serde_json::from_str(&s).unwrap();
         assert_eq!(back.message_ids.len(), 2);
-    }
-
-    #[test]
-    fn find_thread_omits_none() {
-        let r = FindThreadByMessageIdResponse { thread_id: None };
-        let s = serde_json::to_string(&r).unwrap();
-        assert!(!s.contains("thread_id"));
     }
 }

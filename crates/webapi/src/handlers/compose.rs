@@ -313,42 +313,9 @@ pub(crate) struct SendMeta<'a> {
     pub to: &'a [String],
     pub cc: &'a [String],
     /// Maildir blob holding the RFC 5322 bytes — resend re-enqueues
-    /// these, re-edit parses them back. Empty until the mirror has
-    /// written the file, which happens after this call; S2 fills it in.
+    /// these, re-edit parses them back. The core's sent copy.
     pub envelope_ref: &'a str,
     pub resent_from: Option<&'a str>,
-}
-
-/// Take the first ~120 chars of `body` (or html-stripped `html_body`
-/// if body is empty) as the preview shown in conversation lists.
-pub(crate) fn build_preview(parts: &ComposeParts) -> String {
-    let src = if !parts.body.is_empty() {
-        parts.body.clone()
-    } else if !parts.html_body.is_empty() {
-        html2text::from_read(parts.html_body.as_bytes(), 80).unwrap_or_default()
-    } else {
-        String::new()
-    };
-    // The same rule the inbound drain uses. This used to replace CR and
-    // LF with spaces and cut at 120, which on html2text output — blank
-    // lines, non-breaking spaces — could spend the whole line on
-    // whitespace, and left a sent thread reading differently from a
-    // received one in the same list.
-    mailrs_clean::preview_line(&src, 120)
-}
-
-/// Extract the addr-spec (`user@host`) from an RFC 5322 mailbox token.
-/// Mirrors sender.rs's helper — kept here so webapi doesn't depend on
-/// the fastcore-sender bin crate.
-pub(crate) fn extract_addr(raw: &str) -> String {
-    let t = raw.trim();
-    if let Some(start) = t.rfind('<')
-        && let Some(end) = t.rfind('>')
-        && end > start
-    {
-        return t[start + 1..end].trim().to_string();
-    }
-    t.to_string()
 }
 
 /// Return `Ok(())` iff `from` matches the authed user's own address
@@ -395,43 +362,6 @@ mod send_meta_tests {
             attachments: Vec::new(),
             scheduled_at: None,
         }
-    }
-
-    /// A fresh send starts its own conversation, so the thread is its own
-    /// Message-ID — the same derivation `mirror_send_to_sender_view` uses,
-    /// asserted here so the Send row and the thread copy cannot disagree
-    /// about which conversation a send belongs to.
-    #[test]
-    fn a_new_send_threads_on_its_own_message_id() {
-        let parts = parts_for("hello", &["a@y.com"], None);
-        let (message_id, _envelope) = build_rfc5322(&parts, &parts.from);
-        let meta = SendMeta {
-            message_id: &message_id,
-            thread_id: parts.in_reply_to.as_deref().unwrap_or(&message_id),
-            subject: &parts.subject,
-            to: &parts.to,
-            cc: &parts.cc,
-            envelope_ref: "",
-            resent_from: None,
-        };
-        assert_eq!(meta.thread_id, message_id);
-    }
-
-    #[test]
-    fn a_reply_threads_on_its_parent() {
-        let parts = parts_for("re: hello", &["a@y.com"], Some("parent@y.com"));
-        let (message_id, _envelope) = build_rfc5322(&parts, &parts.from);
-        let meta = SendMeta {
-            message_id: &message_id,
-            thread_id: parts.in_reply_to.as_deref().unwrap_or(&message_id),
-            subject: &parts.subject,
-            to: &parts.to,
-            cc: &parts.cc,
-            envelope_ref: "",
-            resent_from: None,
-        };
-        assert_eq!(meta.thread_id, "parent@y.com");
-        assert_ne!(meta.thread_id, message_id);
     }
 
     /// The row a send returns 200 with has to describe every recipient

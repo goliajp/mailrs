@@ -221,10 +221,9 @@ pub(crate) fn newest_referencable(
 /// Fill in `in_reply_to` from the thread when the client did not send one.
 ///
 /// Without a parent Message-ID there is no `In-Reply-To` header, so the
-/// recipient's client files the reply as a new conversation and our own
-/// mirror cannot find the thread either — it falls back to the new
-/// message's own id and the sent copy becomes a thread of one. That is what
-/// happened to a reply on 2026-07-30.
+/// recipient's client files the reply as a new conversation and the core
+/// filing our own copy cannot find the thread either — the sent copy
+/// becomes a thread of one. That is what happened to a reply on 2026-07-30.
 ///
 /// The newest message in the thread is the parent, which is what a reply
 /// means. Best-effort: a lookup failure leaves the send unthreaded rather

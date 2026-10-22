@@ -134,16 +134,6 @@ pub struct AddAliasRequest {
     pub alias_type: String,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct AddAliasResponse {
-    pub id: i64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AliasListResponse {
-    pub items: Vec<AliasWire>,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResolveRecipientRequest {
     /// Incoming SMTP RCPT address.

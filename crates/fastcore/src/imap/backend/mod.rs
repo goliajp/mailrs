@@ -144,14 +144,9 @@ pub fn list_mailboxes_in(root: &std::path::Path, user: &str) -> Vec<MailboxInfo>
     out
 }
 
-/// Look up a mailbox by IMAP name (`INBOX`, `Sent`, `Work.Client`).
-/// Case-insensitive on `INBOX` per RFC 3501; the rest match verbatim.
-pub fn get_mailbox(state: &Arc<FastcoreState>, user: &str, name: &str) -> Option<MailboxInfo> {
-    let _ = state;
-    get_mailbox_in(&maildir_root(), user, name)
-}
-
-/// [`get_mailbox`] under `root` rather than `MAILRS_MAILDIR`.
+/// Look up a mailbox under `root` by IMAP name (`INBOX`, `Sent`,
+/// `Work.Client`). Case-insensitive on `INBOX` per RFC 3501; the rest
+/// match verbatim.
 pub fn get_mailbox_in(root: &std::path::Path, user: &str, name: &str) -> Option<MailboxInfo> {
     let all = list_mailboxes_in(root, user);
     if name.eq_ignore_ascii_case("INBOX") {
