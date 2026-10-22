@@ -3,7 +3,7 @@
 //!
 //! Run with: `cargo run -p mailrs-outbound-queue --example in_memory_queue`
 //!
-//! Walks the lifecycle: enqueue → dequeue → mark inflight → mark delivered.
+//! Walks the lifecycle: enqueue → claim (pending → inflight) → mark delivered.
 //! Also demonstrates the suppression list and the retry primitives without
 //! actually opening any sockets.
 
@@ -44,12 +44,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
     println!("enqueued #{id1}, #{id2}");
 
-    // 2. drain ready work
-    let pending = store.dequeue(now, 50).await?;
-    println!("dequeued {} message(s) ready for delivery", pending.len());
+    // 2. claim ready work: both rows move to inflight atomically
+    let claimed = store.claim_for_delivery(now, 50).await?;
+    println!("claimed {} message(s) for delivery", claimed.len());
 
     // 3. mark first one delivered
-    store.mark_inflight(id1, now).await?;
     store.mark_delivered(id1, now + 1).await?;
 
     // 4. mark second one failed once → goes back to pending with backoff
@@ -69,8 +68,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     store
         .add_suppression("blocked@y.com", "hard bounce", Some(550))
         .await?;
-    assert!(store.is_suppressed("blocked@y.com").await);
-    assert!(!store.is_suppressed("alice@x.org").await);
+    assert!(store.is_suppressed("blocked@y.com").await?);
+    assert!(!store.is_suppressed("alice@x.org").await?);
 
     // 6. inspect: should_bounce returns true once attempts exceed max
     assert!(!should_bounce(1, 8));

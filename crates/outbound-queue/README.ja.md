@@ -8,30 +8,30 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md) | **日本語**
 
-Rust MTA 向け 送信メールキュー基本要素 —— DKIM 署名、DSN 生成、MTA-STS 参照、リトライ/バックオフ、MX/DANE 対応の配送、加えてプラガブルなストア trait と Postgres リファレンス実装。
+Rust MTA 向け 送信メールキュー基本要素 —— DKIM 署名、DSN 生成、MTA-STS 参照、リトライ/バックオフ、MX/DANE 対応の配送 worker。ストアは利用側が接続します。
 
 [mailrs] から切り出されており、どんな Rust MTA プロジェクトでも本当に厄介な部分を再利用できます:転送メールへの ARC 署名、規格準拠の Delivery Status Notification の生成、MTA-STS ポリシーの参照、ジッタ付き指数バックオフの計算、「5xx は諦めるべきか後で再試行すべきか」という長い裾野の判定。
 
 ## 特徴
 
-- **Trait プラガブルなストア** —— [`QueueStore`] + [`Notifier`] が配送状態を特定のバックエンドから切り離す。テスト/パイロット向けに [`InMemoryQueueStore`] が同梱。
-- **Postgres リファレンス** —— [`PgQueueStore`] + [`KevyNotifier`] (デフォルト `pg` feature) が mailrs と同じスキーマを直接ターゲット。コンストラクタ 1 つで本番品質のキューが手に入る。
-- **純粋な基本要素、DB 不要** —— `dkim_sign` / `dsn` / `mta_sts` / `retry` はすべて純ロジック。`pg` feature を切ってもコンパイル・動作する。
-- **転送メール向け ARC 封印** —— `dkim_sign::arc_seal_message` が DKIM と並んで ARC チェーンを付け ([RFC 8617])、下流フィルタが転送ホップを信頼できる。
-- **配送ワーカー同梱** —— [`DeliveryWorker`] が poll-and-deliver ループを実行し、MX レコードを辿って DANE TLSA を強制 ([`mailrs-smtp-client`])。v1.0.0 は PG 専用、trait 上のジェネリックワーカーは v2 で計画中。
-- **実運用で検証済み** —— Rust メールサーバーから切り出し。
+- **ストレージは利用側が用意** —— キューの状態は [`QueueStore`] トレイト、起床通知は [`Notifier`] の背後にあります。crate はデータベース実装を持たず、データベースドライバにも依存しません。
+- **実行できる契約** —— [`store::contract::check_queue_store`] が、worker が前提とする規則（アトミックな取得、再試行とバウンスの状態遷移、クラッシュ復旧、管理操作、抑止リスト）に沿って実装を検査します。テストから一度呼ぶだけです。
+- **配送 worker 同梱** —— [`DeliveryWorker`] は任意の `QueueStore` 上で「取得 → 配送」ループを回します。MX 解決、DANE / MTA-STS に従う STARTTLS（[`mailrs-smtp-client`] 経由）、DKIM 署名、転送メールの ARC シール、バックオフ再試行、DSN、ハードバウンス抑止を含みます。
+- **リファレンス実装** —— [`InMemoryQueueStore`] と [`InMemoryNotifier`] は契約検査を通る完全な実装で、テストや単一プロセス構成に使えます。
+- **純粋なプリミティブ** —— `dkim_sign`、`dsn`、`mta_sts`、`retry` は単体でも使えます。
 
-## クイックスタート (PG バックエンド)
+## クイックスタート
 
 ```rust,no_run
-use mailrs_outbound_queue::{DeliveryWorker, PgQueueStore, QueueStore, WorkerConfig};
 use std::sync::Arc;
+use mailrs_outbound_queue::{
+    DeliveryWorker, InMemoryNotifier, InMemoryQueueStore, Notifier, QueueStore, WorkerConfig,
+};
 
 # async fn run() -> Result<(), Box<dyn std::error::Error>> {
-let pool = sqlx::PgPool::connect(&std::env::var("DATABASE_URL")?).await?;
+let store = Arc::new(InMemoryQueueStore::new());
+let notifier = Arc::new(InMemoryNotifier::new());
 
-// trait 経由でキューに入れる …
-let store = Arc::new(PgQueueStore::new(pool.clone())) as Arc<dyn QueueStore>;
 let id = store
     .enqueue(
         "sender@example.org", "bob@example.com", "example.com",
@@ -39,53 +39,49 @@ let id = store
         chrono::Utc::now().timestamp(), false,
     )
     .await?;
+notifier.notify().await;
 println!("queued message #{id}");
 
-// … または同梱ワーカー (Postgres + Redis) を起動してキューを消費
 let resolver = mailrs_smtp_client::TokioResolver::builder_tokio()?.build()?;
-let worker = DeliveryWorker::new(WorkerConfig::default(), pool, resolver, "smtp.example.org".into());
-let (_tx, rx) = tokio::sync::watch::channel(false);
-worker.run(rx).await;
+let worker = DeliveryWorker::new(
+    WorkerConfig::default(), store, notifier, resolver, "smtp.example.org".into(),
+);
+let (_stop, stopped) = tokio::sync::watch::channel(false);
+worker.run(stopped).await;
 # Ok(()) }
 ```
 
-DB なしで trait API をエンドツーエンドで動かす例は [`examples/in_memory_queue.rs`](examples/in_memory_queue.rs) を参照。
 
-## Feature flag
+ソケットを開かずにストアのライフサイクルだけを追う例は [`examples/in_memory_queue.rs`](examples/in_memory_queue.rs) にあります。
 
-| Feature | デフォルト | 有効になるもの |
-|---------|------------|---------------|
-| `pg`    | on         | `PgQueueStore`, `KevyNotifier`, 同梱の `DeliveryWorker`。`sqlx` (Postgres) と `redis` を引き入れる。 |
+## 独自ストアの接続
 
-trait のみのビルドにする場合:
+1. 自前のバックエンドで [`QueueStore`] を実装します。`claim_for_delivery` はアトミックでなければなりません（同時に二つ取得しても同じ行は返らない）。これで複数の worker が一つのストアを共有できます。SQL なら `UPDATE … WHERE id IN (SELECT … FOR UPDATE SKIP LOCKED) RETURNING …` の一文です。
+2. すべての worker プロセスに届く仕組み（pub/sub チャネル、データベースの `LISTEN`）で [`Notifier`] を実装するか、[`NoopNotifier`] を渡して `WorkerConfig::poll_interval_secs` のポーリングだけに頼ります。
+3. ストアを検査します：
 
-```toml
-mailrs-outbound-queue = { version = "1", default-features = false }
+```rust,ignore
+#[tokio::test(flavor = "multi_thread")]
+async fn my_store_meets_the_contract() {
+    mailrs_outbound_queue::store::contract::check_queue_store(|| async {
+        MyStore::connect_to_an_empty_test_database().await
+    })
+    .await;
+}
 ```
 
-このモードでは `QueueStore` + `Notifier` + `InMemoryQueueStore` + `InMemoryNotifier` + 純粋な基本要素 (`dkim_sign` / `dsn` / `mta_sts` / `retry`) が手に入る。ワーカーは自分で書く。
 
 ## モジュール一覧
 
-| モジュール   | 常に  | 備考 |
-|--------------|-------|------|
-| `store`      | yes   | `QueueStore`, `Notifier`, `InMemoryQueueStore`, `InMemoryNotifier`, `StoreError`。 |
-| `queue`      | yes   | `QueuedMessage`, `QueueStatus`, `is_hard_bounce`。PG 自由関数 (`pg` ゲート)。 |
-| `dkim_sign`  | yes   | RFC 6376 DKIM 署名 + RFC 8617 ARC 封印。 |
-| `dsn`        | yes   | RFC 3464 / 6533 Delivery Status Notification 生成。 |
-| `mta_sts`    | yes   | RFC 8461 MTA-STS ポリシー参照。 |
-| `retry`      | yes   | バックオフスケジュール + bounce 判定。 |
-| `pg_store`   | `pg`  | `PgQueueStore` + `KevyNotifier`。 |
-| `worker`     | `pg`  | `DeliveryWorker` poll-and-deliver ループ。 |
-
-## API は 2 つの経路
-
-同じキューセマンティクスに対して、並行する 2 つの公開サーフェスがある:
-
-- **Trait API** (`QueueStore` / `Notifier`) —— ポータブルなインターフェース。非 PG バックエンドを差し込みたいとき、または配送ループを自分で制御したいときはこちら。
-- **PG 自由関数** (`queue::` モジュール) —— よくあるケース向けの便利通路:すでに `sqlx::PgPool` を持っていて `queue::enqueue(pool, ...)` を呼びたいときに使う。同梱の `DeliveryWorker` と mailrs 本体がこちらを使う。
-
-両方とも v1.x で後方互換性ありで安定。v2 計画は trait サーフェスへの統合 + ジェネリックワーカー、ただし v1 ユーザーコードを壊すつもりはない。
+| モジュール   | 備考 |
+|--------------|------|
+| `store`      | `QueueStore`、`Notifier`、`NoopNotifier`、`InMemoryQueueStore`、`InMemoryNotifier`、`StoreError`、`contract`。 |
+| `queue`      | `QueuedMessage`、`QueueStatus`、`is_hard_bounce`。 |
+| `worker`     | `DeliveryWorker`、`deliver_domain_static`、`try_deliver_via_mx`。 |
+| `dkim_sign`  | RFC 6376 DKIM 署名 + RFC 8617 ARC シール。 |
+| `dsn`        | RFC 3464 / 6533 DSN 生成。 |
+| `mta_sts`    | RFC 8461 MTA-STS ポリシー取得。 |
+| `retry`      | バックオフ計算 + バウンス判定。 |
 
 ## この crate が「やらない」こと
 

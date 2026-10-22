@@ -7,30 +7,30 @@
 
 **English** | [简体中文](README.zh-CN.md) | [日本語](README.ja.md)
 
-Outbound mail queue primitives for Rust MTAs — DKIM signing, DSN generation, MTA-STS lookup, retry/backoff, MX/DANE-aware delivery, plus a pluggable store trait and a Postgres reference implementation.
+Outbound mail queue primitives for Rust MTAs — DKIM signing, DSN generation, MTA-STS lookup, retry/backoff, and an MX/DANE-aware delivery worker over a store you plug in.
 
 Extracted from [mailrs] so any Rust MTA project can reuse the parts that are actually painful to get right: signing forwarded mail with ARC, generating standards-compliant Delivery Status Notifications, looking up MTA-STS policies, computing exponential backoff with jitter, and the long tail of "did this 5xx mean I should give up or try later" logic.
 
 ## Highlights
 
-- **Trait-pluggable store** — [`QueueStore`] + [`Notifier`] decouple delivery state from any particular backend. An [`InMemoryQueueStore`] ships in-box for tests + pilots.
-- **Postgres reference** — [`PgQueueStore`] + [`KevyNotifier`] (behind the default `pg` feature) target the schema mailrs uses, so a real production-grade queue is one constructor call away.
-- **Pure primitives, no DB required** — `dkim_sign`, `dsn`, `mta_sts`, and `retry` are pure logic. Disable the `pg` feature and they all still compile and work.
-- **ARC sealing for forwarded mail** — `dkim_sign::arc_seal_message` adds an ARC chain alongside DKIM so downstream filters can trust the forwarding hop ([RFC 8617]).
-- **Bundled delivery worker** — [`DeliveryWorker`] runs the poll-and-deliver loop over MX records (with DANE TLSA enforcement via [`mailrs-smtp-client`]). PG-only in v1.0.0; a generic worker over the trait surface is planned for v2.
-- **Battle-tested** — extracted from a production Rust mail server.
+- **Bring your own store** — queue state lives behind the [`QueueStore`] trait and wake-ups behind [`Notifier`]. The crate ships no database backend and pulls in no database driver.
+- **A contract you can run** — [`store::contract::check_queue_store`] checks your implementation against every rule the worker relies on (atomic claim, retry and bounce transitions, crash recovery, admin operations, the suppression list). Call it from one test.
+- **Bundled delivery worker** — [`DeliveryWorker`] runs the claim-and-deliver loop over any `QueueStore`: MX resolution, DANE / MTA-STS aware STARTTLS via [`mailrs-smtp-client`], DKIM signing, ARC sealing for forwarded mail, retry with backoff, DSNs and hard-bounce suppression.
+- **Reference implementations** — [`InMemoryQueueStore`] and [`InMemoryNotifier`] are complete, contract-checked implementations for tests and single-process deployments.
+- **Pure primitives** — `dkim_sign`, `dsn`, `mta_sts` and `retry` are usable on their own.
 
-## Quick start (PG-backed)
+## Quick start
 
 ```rust,no_run
-use mailrs_outbound_queue::{DeliveryWorker, PgQueueStore, QueueStore, WorkerConfig};
 use std::sync::Arc;
+use mailrs_outbound_queue::{
+    DeliveryWorker, InMemoryNotifier, InMemoryQueueStore, Notifier, QueueStore, WorkerConfig,
+};
 
 # async fn run() -> Result<(), Box<dyn std::error::Error>> {
-let pool = sqlx::PgPool::connect(&std::env::var("DATABASE_URL")?).await?;
+let store = Arc::new(InMemoryQueueStore::new());
+let notifier = Arc::new(InMemoryNotifier::new());
 
-// enqueue via the trait …
-let store = Arc::new(PgQueueStore::new(pool.clone())) as Arc<dyn QueueStore>;
 let id = store
     .enqueue(
         "sender@example.org", "bob@example.com", "example.com",
@@ -38,53 +38,47 @@ let id = store
         chrono::Utc::now().timestamp(), false,
     )
     .await?;
+notifier.notify().await;
 println!("queued message #{id}");
 
-// … or run the bundled worker (Postgres + Kevy-backed) to drain the queue
 let resolver = mailrs_smtp_client::TokioResolver::builder_tokio()?.build()?;
-let worker = DeliveryWorker::new(WorkerConfig::default(), pool, resolver, "smtp.example.org".into());
-let (_tx, rx) = tokio::sync::watch::channel(false);
-worker.run(rx).await;
+let worker = DeliveryWorker::new(
+    WorkerConfig::default(), store, notifier, resolver, "smtp.example.org".into(),
+);
+let (_stop, stopped) = tokio::sync::watch::channel(false);
+worker.run(stopped).await;
 # Ok(()) }
 ```
 
-See [`examples/in_memory_queue.rs`](examples/in_memory_queue.rs) for a no-DB example that drives the trait surface end-to-end.
+See [`examples/in_memory_queue.rs`](examples/in_memory_queue.rs) for the store lifecycle without opening sockets.
 
-## Feature flags
+## Plugging in your own store
 
-| Feature | Default | What it enables |
-|---------|---------|-----------------|
-| `pg`    | on      | `PgQueueStore`, `KevyNotifier`, and the bundled `DeliveryWorker`. Pulls in `sqlx` (Postgres) and in-process `kevy-embedded`. |
+1. Implement [`QueueStore`] over your backend. `claim_for_delivery` must be atomic — two concurrent claims never return the same row — so several workers can share one store. In SQL that is one `UPDATE … WHERE id IN (SELECT … FOR UPDATE SKIP LOCKED) RETURNING …`.
+2. Implement [`Notifier`] over whatever reaches every worker process (a pub/sub channel, a database `LISTEN`), or pass [`NoopNotifier`] and rely on `WorkerConfig::poll_interval_secs`.
+3. Check the store:
 
-Disable `pg` for a trait-only build:
-
-```toml
-mailrs-outbound-queue = { version = "4", default-features = false }
+```rust,ignore
+#[tokio::test(flavor = "multi_thread")]
+async fn my_store_meets_the_contract() {
+    mailrs_outbound_queue::store::contract::check_queue_store(|| async {
+        MyStore::connect_to_an_empty_test_database().await
+    })
+    .await;
+}
 ```
-
-In that mode you get `QueueStore` + `Notifier` + `InMemoryQueueStore` + `InMemoryNotifier` + the pure primitives (`dkim_sign`, `dsn`, `mta_sts`, `retry`). Write your own worker on top.
 
 ## Module overview
 
-| Module       | Always | Notes |
-|--------------|--------|-------|
-| `store`      | yes    | `QueueStore`, `Notifier`, `InMemoryQueueStore`, `InMemoryNotifier`, `StoreError`. |
-| `queue`      | yes    | `QueuedMessage`, `QueueStatus`, `is_hard_bounce`. PG free fns (gated by `pg`). |
-| `dkim_sign`  | yes    | RFC 6376 DKIM signing + RFC 8617 ARC sealing. |
-| `dsn`        | yes    | RFC 3464 / 6533 Delivery Status Notification generation. |
-| `mta_sts`    | yes    | RFC 8461 MTA-STS policy lookup. |
-| `retry`      | yes    | Backoff schedule + bounce decision. |
-| `pg_store`   | `pg`   | `PgQueueStore` + `KevyNotifier`. |
-| `worker`     | `pg`   | `DeliveryWorker` poll-and-deliver loop. |
-
-## Two paths through the API
-
-The crate exposes two parallel public surfaces over the same queue semantics:
-
-- **Trait API** (`QueueStore`, `Notifier`) — the portable surface. Use it when you want to plug a non-PG backend in, or when you want full control over the delivery loop.
-- **PG free functions** in `queue::` — convenience for the common case where you already hold a `sqlx::PgPool` and just want `queue::enqueue(pool, ...)`. These back the bundled `DeliveryWorker` and are what mailrs itself uses internally.
-
-Both are stable for v1.x. The v2 plan is to consolidate around the trait surface and ship a generic worker, but no v1 user code is expected to break.
+| Module       | Notes |
+|--------------|-------|
+| `store`      | `QueueStore`, `Notifier`, `NoopNotifier`, `InMemoryQueueStore`, `InMemoryNotifier`, `StoreError`, `contract`. |
+| `queue`      | `QueuedMessage`, `QueueStatus`, `is_hard_bounce`. |
+| `worker`     | `DeliveryWorker`, `deliver_domain_static`, `try_deliver_via_mx`. |
+| `dkim_sign`  | RFC 6376 DKIM signing + RFC 8617 ARC sealing. |
+| `dsn`        | RFC 3464 / 6533 Delivery Status Notification generation. |
+| `mta_sts`    | RFC 8461 MTA-STS policy lookup. |
+| `retry`      | Backoff schedule + bounce decision. |
 
 ## What this crate does NOT do
 
