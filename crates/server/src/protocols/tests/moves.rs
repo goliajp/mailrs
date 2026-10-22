@@ -39,7 +39,11 @@ pub(super) fn moves() -> Vec<Step> {
         ),
         step(
             "m5 MOVE 2 Trash\r\n",
-            &["* 2 EXPUNGE\r\n", "m5 OK MOVE completed\r\n"],
+            &[
+                "* OK [COPYUID * 4 *] Moved\r\n",
+                "* 2 EXPUNGE\r\n",
+                "m5 OK MOVE completed\r\n",
+            ],
         ),
         step(
             "m6 FETCH 1:* (UID)\r\n",
@@ -55,7 +59,11 @@ pub(super) fn moves() -> Vec<Step> {
         ),
         step(
             "m8 UID MOVE 5 Junk\r\n",
-            &["* VANISHED 5\r\n", "m8 OK MOVE completed\r\n"],
+            &[
+                "* OK [COPYUID * 5 *] Moved\r\n",
+                "* VANISHED 5\r\n",
+                "m8 OK MOVE completed\r\n",
+            ],
         ),
         step(
             "m9 FETCH 1:* (UID)\r\n",

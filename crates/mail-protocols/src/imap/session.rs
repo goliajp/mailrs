@@ -146,7 +146,8 @@ where
             auth::Early::Closed => return false,
         };
         let is_logout = matches!(command, ImapCommand::Logout);
-        let responses = dispatch(dir, &mut session, &tag, command, framed, &mut qresync).await;
+        let parsed = (command, line);
+        let responses = dispatch(dir, &mut session, &tag, parsed, framed, &mut qresync).await;
         if !send_all(framed, responses).await || is_logout {
             return false;
         }

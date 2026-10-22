@@ -148,10 +148,13 @@ pub(super) fn deleted<K: Clone>(messages: &[Message<K>]) -> Vec<Message<K>> {
     doomed
 }
 
+/// EXPUNGE, or with `only` UID EXPUNGE (RFC 4315 §2.1) of the
+/// `\Deleted` messages in that uid set.
 pub(super) async fn expunge<A: Account>(
     session: &mut State<A>,
     tag: &str,
     qresync: bool,
+    only: Option<&str>,
 ) -> Vec<String> {
     let State::Selected {
         account,
@@ -165,7 +168,14 @@ pub(super) async fn expunge<A: Account>(
     if *read_only {
         return vec![format_no(tag, "mailbox is read-only")];
     }
-    let doomed = deleted(messages);
+    let mut doomed = deleted(messages);
+    if let Some(set) = only {
+        let named: Vec<u32> = expand_sequence(set, messages, true)
+            .iter()
+            .map(|m| m.uid)
+            .collect();
+        doomed.retain(|m| named.contains(&m.uid));
+    }
     let gone = account.expunge(mailbox, &doomed).await;
     let removed: Vec<_> = doomed
         .into_iter()

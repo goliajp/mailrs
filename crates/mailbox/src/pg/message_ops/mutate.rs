@@ -43,6 +43,30 @@ impl PgMailboxStore {
         Ok(row.map(|(id,)| id))
     }
 
+    /// Delete those of `uids` that carry `\Deleted`, and return them. A
+    /// message flagged after the caller listed the mailbox stays.
+    pub async fn expunge_uids(
+        &self,
+        mailbox_id: i64,
+        uids: &[u32],
+    ) -> Result<Vec<u32>, sqlx::Error> {
+        let mut gone = Vec::with_capacity(uids.len());
+        for &uid in uids {
+            let deleted = sqlx::query(
+                "DELETE FROM messages WHERE mailbox_id = $1 AND uid = $2 AND (flags & $3) != 0",
+            )
+            .bind(mailbox_id)
+            .bind(uid as i32)
+            .bind(crate::types::FLAG_DELETED as i32)
+            .execute(&self.pool)
+            .await?;
+            if deleted.rows_affected() > 0 {
+                gone.push(uid);
+            }
+        }
+        Ok(gone)
+    }
+
     /// delete messages with \Deleted flag, return expunged UIDs
     pub async fn expunge(&self, mailbox_id: i64) -> Result<Vec<u32>, sqlx::Error> {
         let uid_rows = sqlx::query_as::<_, (i32,)>(

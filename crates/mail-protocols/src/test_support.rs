@@ -10,7 +10,8 @@ use tokio_rustls::TlsConnector;
 use tokio_rustls::client::TlsStream;
 
 use crate::backend::{
-    Account, Directory, Error, Expunged, Flag, Message, Protocol, Quota, Result, Selected, Watch,
+    Account, Directory, Error, Expunged, Filed, Flag, Message, Protocol, Quota, Result, Selected,
+    Watch,
 };
 
 pub(crate) const USER: &str = "alice@golia.example.test";
@@ -143,14 +144,16 @@ impl Account for MemoryAccount {
         Ok(())
     }
 
-    async fn copy(&self, _: &(), m: &Message<u32>, _: &()) -> Result<()> {
+    async fn copy(&self, _: &(), m: &Message<u32>, _: &()) -> Result<Filed> {
         let bytes = self.read(m).await?.unwrap_or_default();
-        self.deliver_bytes(bytes);
-        Ok(())
+        Ok(self.deliver_bytes(bytes, m.flags.clone()))
     }
 
-    async fn move_to(&self, _: &(), _: &Message<u32>, _: &()) -> Result<()> {
-        Ok(())
+    async fn move_to(&self, _: &(), m: &Message<u32>, _: &()) -> Result<Filed> {
+        Ok(Filed {
+            uidvalidity: 7,
+            uid: m.uid,
+        })
     }
 
     async fn expunge(&self, _: &(), doomed: &[Message<u32>]) -> Expunged {
@@ -172,9 +175,8 @@ impl Account for MemoryAccount {
         Ok(())
     }
 
-    async fn append(&self, _: &(), bytes: Vec<u8>, _: Vec<Flag>) -> Result<()> {
-        self.deliver_bytes(bytes);
-        Ok(())
+    async fn append(&self, _: &(), bytes: Vec<u8>, flags: Vec<Flag>) -> Result<Filed> {
+        Ok(self.deliver_bytes(bytes, flags))
     }
 
     async fn vanished_since(&self, _: &(), _: u64) -> Result<Vec<u32>> {
@@ -205,10 +207,14 @@ impl Account for MemoryAccount {
 }
 
 impl MemoryAccount {
-    fn deliver_bytes(&self, bytes: Vec<u8>) {
+    fn deliver_bytes(&self, bytes: Vec<u8>, flags: Vec<Flag>) -> Filed {
         let mut inbox = self.inbox.lock().unwrap();
         let uid = inbox.last().map_or(0, |m| m.0) + 1;
-        inbox.push((uid, Vec::new(), bytes));
+        inbox.push((uid, flags, bytes));
+        Filed {
+            uidvalidity: 7,
+            uid,
+        }
     }
 }
 

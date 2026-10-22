@@ -32,7 +32,10 @@ fn changes_mail(cmd: &ImapCommand) -> bool {
         | ImapCommand::Rename { .. } => true,
         ImapCommand::Uid { subcommand } => matches!(
             **subcommand,
-            ImapCommand::Store { .. } | ImapCommand::Copy { .. } | ImapCommand::Move { .. }
+            ImapCommand::Store { .. }
+                | ImapCommand::Copy { .. }
+                | ImapCommand::Move { .. }
+                | ImapCommand::Expunge
         ),
         _ => false,
     }
@@ -42,7 +45,7 @@ pub(super) async fn dispatch<D, S>(
     dir: &D,
     session: &mut State<D::Account>,
     tag: &str,
-    cmd: ImapCommand,
+    (cmd, line): (ImapCommand, &str),
     framed: &mut Io<S>,
     qresync: &mut bool,
 ) -> Vec<String>
@@ -83,8 +86,15 @@ where
         ImapCommand::Enable(caps) => enable(tag, &caps, qresync),
         ImapCommand::Close => close(session, tag, *qresync).await,
         ImapCommand::Unselect => unselect(session, tag),
+        // the parser drops the uid set of UID EXPUNGE, so it is read here
+        ImapCommand::Uid { subcommand } if matches!(*subcommand, ImapCommand::Expunge) => {
+            match line.split_whitespace().nth(3) {
+                Some(set) => expunge(session, tag, *qresync, Some(set)).await,
+                None => vec![format_bad(tag, "UID EXPUNGE needs a uid set")],
+            }
+        }
         ImapCommand::Uid { subcommand } => uid(session, tag, *subcommand, *qresync).await,
-        ImapCommand::Expunge => expunge(session, tag, *qresync).await,
+        ImapCommand::Expunge => expunge(session, tag, *qresync, None).await,
         ImapCommand::Append {
             mailbox,
             flags,

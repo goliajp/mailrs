@@ -22,7 +22,7 @@ pub(super) fn size(i: usize) -> usize {
     message(MAIL[i].0, MAIL[i].1).len()
 }
 
-pub(super) const CAPS: &str = "IMAP4rev1 AUTH=PLAIN IDLE NAMESPACE ENABLE UNSELECT MOVE SPECIAL-USE SORT QUOTA CONDSTORE QRESYNC";
+pub(super) const CAPS: &str = "IMAP4rev1 AUTH=PLAIN IDLE NAMESPACE ENABLE UNSELECT UIDPLUS MOVE SPECIAL-USE SORT QUOTA CONDSTORE QRESYNC";
 
 fn plain() -> String {
     base64::engine::general_purpose::STANDARD.encode(format!("\0{USER}\0{PASSWORD}"))
@@ -48,7 +48,7 @@ fn appends() -> Vec<Step> {
         ));
         steps.push(step(
             &format!("{raw}\r\n"),
-            &[&format!("{tag} OK APPEND completed\r\n")],
+            &[&format!("{tag} OK [APPENDUID * *] APPEND completed\r\n")],
         ));
     }
     steps

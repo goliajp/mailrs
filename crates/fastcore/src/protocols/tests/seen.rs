@@ -14,7 +14,7 @@ async fn a_body_read_marks_the_file_and_the_index_read() {
     let dir = directory(state(), tmp.path());
     let mb = backend::get_mailbox_in(tmp.path(), USER, "INBOX").unwrap();
     let raw = b"From: bob@x.test\r\nSubject: hi\r\nMessage-ID: <read@test>\r\n\r\nbody\r\n";
-    let uid = backend::append(&dir.state, USER, &mb, raw).unwrap();
+    let (uid, _) = backend::append(&dir.state, USER, &mb, raw, &[]).unwrap();
     let seen = maildir_flags_to_bitmask(&[Flag::Seen]);
     let index_flags = || {
         let bytes = dir.state.mailbox.get_message_by_uid(USER, uid).unwrap();
