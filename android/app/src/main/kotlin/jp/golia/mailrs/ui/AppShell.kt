@@ -231,7 +231,7 @@ fun MailrsApp(vm: MailViewModel, state: UiState) {
 
                 when (candidate) {
                     Screen.SignIn -> Box(windowModifier) {
-                        SignInScreen(state.busy, state.error) { s, u, p -> vm.signIn(s, u, p) }
+                        SignInScreen(state.busy, state.error, state.needsTotp) { s, u, p, c -> vm.signIn(s, u, p, c) }
                     }
                     Screen.Compose -> Box(peeled) { ComposeScreen(state, vm) }
                     Screen.Thread -> Box(peeled) { ThreadScreen(state, vm) }

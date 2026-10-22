@@ -3,6 +3,8 @@ package jp.golia.mailrs.wire
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.MultipartBody
@@ -86,23 +88,29 @@ class MailrsClient(private val store: TokenStore) {
         store.clear()
     }
 
-    suspend fun login(server: String, username: String, password: String): Outcome<Unit> {
+    /** Where a login stopped: signed in, or waiting for a TOTP code. */
+    enum class LoginStep { SignedIn, NeedsCode }
+
+    suspend fun login(server: String, username: String, password: String, totpCode: String? = null): Outcome<LoginStep> {
         val base = baseUrlOverride ?: normalise(server)
-        val body = json.encodeToString(Wire.LoginRequest.serializer(), Wire.LoginRequest(username, password))
-        return when (val r = post("$base/api/auth/login", body, authorized = false)) {
-            is Outcome.Ok -> runCatching {
-                json.decodeFromString(Wire.LoginResponse.serializer(), r.value)
-            }.fold(
-                onSuccess = {
-                    val s = TokenStore.Session(base, it.token, username)
-                    store.write(s)
-                    session = s
-                    Outcome.Ok(Unit)
-                },
-                onFailure = { Outcome.Err("The server's answer to login was not what this app expects.") },
-            )
-            is Outcome.Err -> r
-        }
+        val request = Wire.LoginRequest(username, password, totpCode)
+        val body = json.encodeToString(Wire.LoginRequest.serializer(), request)
+        val r = post("$base/api/auth/login", body, authorized = false)
+        if (r is Outcome.Err) return r
+        val text = (r as Outcome.Ok).value
+        // The challenge is a 200 with another body, so it is ruled out
+        // before the token decode, or "enter your code" reads as a bad shape.
+        val challenge = runCatching { json.decodeFromString(Wire.TotpChallenge.serializer(), text) }
+        if (challenge.getOrNull()?.requiresTotp == true) return Outcome.Ok(LoginStep.NeedsCode)
+        return runCatching { json.decodeFromString(Wire.LoginResponse.serializer(), text) }.fold(
+            onSuccess = {
+                val s = TokenStore.Session(base, it.token, username)
+                store.write(s)
+                session = s
+                Outcome.Ok(LoginStep.SignedIn)
+            },
+            onFailure = { Outcome.Err("The server's answer to login was not what this app expects.") },
+        )
     }
 
     /**
@@ -374,7 +382,7 @@ class MailrsClient(private val store: TokenStore) {
             val text = response.body.string()
             when {
                 response.isSuccessful -> Outcome.Ok(text)
-                response.code == 401 -> {
+                response.code == 401 -> refusal(request, text)?.let { Outcome.Err(it) } ?: run {
                     rejected()
                     Outcome.Err("Signed out — the server rejected this session.")
                 }
@@ -392,6 +400,19 @@ class MailrsClient(private val store: TokenStore) {
         // the app down rather than showing a message. Found by a test
         // that built a view model with no server set.
         Outcome.Err("That server address is not one this app can use: ${e.message}")
+    }
+
+    /**
+     * The server's reason for a 401 to a request that carried no token.
+     *
+     * Such a request has no session to lose: its 401 refuses what was
+     * sent. A wrong TOTP code comes with a body that says so; a wrong
+     * password comes with none.
+     */
+    private fun refusal(request: Request, text: String): String? {
+        if (request.header("Authorization") != null) return null
+        val reason = runCatching { json.parseToJsonElement(text).jsonObject["error"]?.jsonPrimitive?.content }.getOrNull()
+        return reason ?: "That address and password did not match."
     }
 
     /**
