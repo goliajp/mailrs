@@ -1,13 +1,10 @@
 //! `/api/admin/dmarc/*` — read side for inbound DMARC aggregate reports.
 //!
-//! Reports are written by `mailrs-fastcore`'s `dmarc_ingest` module into
+//! Reports are written by the `mailrs-intake` report ingest into
 //! the shared network kevy. This module only reads them.
 //!
-//! Key layout is duplicated here as constants rather than shared through
-//! a crate boundary, matching the existing convention in
-//! `receiver/src/kevy_dmarc.rs`. The authoritative definition —
-//! including the `<sid>` construction rule — lives in
-//! `crates/fastcore/src/dmarc_ingest.rs`; the two must move together.
+//! The key layout is defined once, in `mailrs_core_sidestate::keys::dmarc`;
+//! the `<sid>` construction rule lives in `crates/intake/src/reports/dmarc.rs`.
 //!
 //! Per-source aggregates are computed on read rather than stored. They
 //! are a derivation, the volume is a few
