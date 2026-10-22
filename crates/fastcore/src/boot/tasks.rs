@@ -55,15 +55,9 @@ pub(super) fn spawn_listeners(state: &Arc<FastcoreState>) {
     // MAILRS_TLS_CERT + MAILRS_TLS_KEY, followed on disk: 993/995 wrap
     // every socket, 143/110 offer STARTTLS / STLS. Set each
     // MAILRS_(IMAP|IMAPS|POP3|POP3S)_BIND=off to disable per-port.
-    let tls = crate::tls::from_env();
-    tokio::spawn(imap::spawn(state.clone(), tls.clone()));
-    tokio::spawn(pop3::spawn(state.clone(), tls.clone()));
-    // ManageSieve (RFC 5804) on :4190 offers STARTTLS from the same certificate.
-    tokio::spawn(managesieve::spawn(state.clone(), tls.clone()));
-    if let Some(tls) = tls {
-        tokio::spawn(imap::spawn_tls(state.clone(), tls.clone()));
-        tokio::spawn(pop3::spawn_tls(state.clone(), tls));
-    }
+    // ManageSieve (RFC 5804) on :4190 offers STARTTLS from the same
+    // certificate.
+    crate::protocols::spawn(state.clone(), crate::tls::from_env());
 }
 
 /// Webhook delivery and calendar feed sync.

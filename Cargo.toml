@@ -62,6 +62,7 @@ members = [
     "crates/smtp-codec",
     "crates/imap-codec",
     "crates/imap-format",
+    "crates/mail-protocols",
     "crates/attachment-extract",
     "crates/ocr",
     "crates/sieve",

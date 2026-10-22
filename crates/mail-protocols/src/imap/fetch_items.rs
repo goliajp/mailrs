@@ -11,13 +11,13 @@ use mailrs_imap_format::{
     extract_header_fields_except, extract_header_section, extract_mime_part,
 };
 
-use super::backend::{self, ImapMessage};
-use super::fetch::{flags_to_imap, format_internal_date};
+use super::flags::{flags_to_imap, format_internal_date};
+use crate::backend::Message;
 
 /// One requested item. `MODSEQ` is answered by the caller, which also
 /// handles the `CHANGEDSINCE` modifier.
 #[derive(Debug, PartialEq, Eq)]
-enum Item {
+pub(super) enum Item {
     Uid,
     Flags,
     InternalDate,
@@ -35,24 +35,34 @@ enum Item {
     },
 }
 
-pub(super) fn fetch_items(msg: &ImapMessage, attrs: &str, by_uid: bool) -> Vec<(String, String)> {
+/// The items `attrs` asks for; a UID FETCH always answers the uid.
+pub(super) fn requested(attrs: &str, by_uid: bool) -> Vec<Item> {
     let mut wanted = parse_items(attrs);
     if by_uid && !wanted.contains(&Item::Uid) {
         wanted.insert(0, Item::Uid);
     }
-    let needs_bytes = wanted.iter().any(|i| {
+    wanted
+}
+
+/// Whether answering `items` takes the message's bytes.
+pub(super) fn needs_bytes(items: &[Item]) -> bool {
+    items.iter().any(|i| {
         matches!(
             i,
             Item::Envelope | Item::BodyStructure | Item::Rfc822(_) | Item::Section { .. }
         )
-    });
-    let bytes = if needs_bytes {
-        backend::read_message(msg)
-    } else {
-        None
-    };
-    let mut out = Vec::with_capacity(wanted.len());
-    for item in wanted {
+    })
+}
+
+/// The answer to `items`; content items are left out when `bytes` is
+/// `None` (the message is gone).
+pub(super) fn answer<K>(
+    msg: &Message<K>,
+    items: Vec<Item>,
+    bytes: Option<&[u8]>,
+) -> Vec<(String, String)> {
+    let mut out = Vec::with_capacity(items.len());
+    for item in items {
         match item {
             Item::Uid => out.push(("UID".into(), msg.uid.to_string())),
             Item::Flags => out.push(("FLAGS".into(), format!("({})", flags_to_imap(&msg.flags)))),
@@ -63,7 +73,7 @@ pub(super) fn fetch_items(msg: &ImapMessage, attrs: &str, by_uid: bool) -> Vec<(
             Item::Size => out.push(("RFC822.SIZE".into(), msg.size.to_string())),
             Item::Modseq => {}
             Item::Envelope | Item::BodyStructure | Item::Rfc822(_) | Item::Section { .. } => {
-                let Some(data) = bytes.as_deref() else {
+                let Some(data) = bytes else {
                     continue;
                 };
                 out.push(content_item(item, data));
@@ -251,27 +261,27 @@ fn split_items(list: &str) -> Vec<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
 
     const RAW: &str = "From: Ann <ann@a.jp>\r\nTo: b@b.jp\r\nSubject: hello world\r\nX-Other: 1\r\n\r\nthe body\r\n";
 
-    fn message(dir: &std::path::Path) -> ImapMessage {
-        let path: PathBuf = dir.join("m1");
-        std::fs::write(&path, RAW).unwrap();
-        ImapMessage {
+    fn message() -> Message<()> {
+        Message {
             uid: 7,
             seqno: 1,
-            path,
             flags: vec![],
             internal_date: 0,
             size: RAW.len() as u64,
             modseq: 1,
+            key: (),
         }
     }
 
+    fn fetch_by(attrs: &str, by_uid: bool) -> Vec<(String, String)> {
+        answer(&message(), requested(attrs, by_uid), Some(RAW.as_bytes()))
+    }
+
     fn fetch(attrs: &str) -> Vec<(String, String)> {
-        let tmp = tempfile::tempdir().unwrap();
-        fetch_items(&message(tmp.path()), attrs, false)
+        fetch_by(attrs, false)
     }
 
     fn keys(items: &[(String, String)]) -> Vec<&str> {
@@ -316,7 +326,9 @@ mod tests {
 
     #[test]
     fn rfc822_size_does_not_send_the_message() {
-        let items = fetch("(RFC822.SIZE)");
+        let items = requested("(RFC822.SIZE)", false);
+        assert!(!needs_bytes(&items));
+        let items = answer(&message(), items, None);
         assert_eq!(items, [("RFC822.SIZE".to_string(), RAW.len().to_string())]);
     }
 
@@ -340,8 +352,7 @@ mod tests {
 
     #[test]
     fn uid_fetch_always_carries_the_uid() {
-        let tmp = tempfile::tempdir().unwrap();
-        let items = fetch_items(&message(tmp.path()), "(FLAGS)", true);
+        let items = fetch_by("(FLAGS)", true);
         assert_eq!(keys(&items), ["UID", "FLAGS"]);
     }
 }

@@ -92,11 +92,20 @@ pub fn verify_password(state: &FastcoreState, user: &str, password: &str) -> boo
 /// alphabetical.
 pub fn list_mailboxes(state: &Arc<FastcoreState>, user: &str) -> Vec<MailboxInfo> {
     let _ = state; // account existence is verified at LOGIN time
+    list_mailboxes_in(&maildir_root(), user)
+}
+
+/// `MAILRS_MAILDIR`, the directory holding every user's maildir.
+pub fn maildir_root() -> PathBuf {
+    PathBuf::from(std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into()))
+}
+
+/// [`list_mailboxes`] under `root` rather than `MAILRS_MAILDIR`.
+pub fn list_mailboxes_in(root: &std::path::Path, user: &str) -> Vec<MailboxInfo> {
     let Some((local, domain)) = user.split_once('@') else {
         return Vec::new();
     };
-    let root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
-    let base = PathBuf::from(&root).join(domain).join(local);
+    let base = root.join(domain).join(local);
     let mut out = vec![MailboxInfo {
         name: "INBOX".into(),
         path: base.clone(),
@@ -138,7 +147,13 @@ pub fn list_mailboxes(state: &Arc<FastcoreState>, user: &str) -> Vec<MailboxInfo
 /// Look up a mailbox by IMAP name (`INBOX`, `Sent`, `Work.Client`).
 /// Case-insensitive on `INBOX` per RFC 3501; the rest match verbatim.
 pub fn get_mailbox(state: &Arc<FastcoreState>, user: &str, name: &str) -> Option<MailboxInfo> {
-    let all = list_mailboxes(state, user);
+    let _ = state;
+    get_mailbox_in(&maildir_root(), user, name)
+}
+
+/// [`get_mailbox`] under `root` rather than `MAILRS_MAILDIR`.
+pub fn get_mailbox_in(root: &std::path::Path, user: &str, name: &str) -> Option<MailboxInfo> {
+    let all = list_mailboxes_in(root, user);
     if name.eq_ignore_ascii_case("INBOX") {
         return all.into_iter().next();
     }

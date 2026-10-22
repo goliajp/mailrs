@@ -6,12 +6,14 @@ use std::sync::Arc;
 use base64::Engine;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
-use crate::FastcoreState;
-use crate::tls::test_support::{PASSWORD, USER, state};
+use super::{PASSWORD, USER, directory, state};
+use crate::protocols::FastcoreDirectory;
 
-async fn conversation(state: Arc<FastcoreState>, lines: &[&str]) -> Vec<String> {
+async fn conversation(dir: Arc<FastcoreDirectory>, lines: &[&str]) -> Vec<String> {
     let (client, server) = tokio::io::duplex(1 << 16);
-    tokio::spawn(super::session(state, server, None));
+    tokio::spawn(mailrs_mail_protocols::managesieve::session(
+        dir, server, None,
+    ));
     let (r, mut w) = tokio::io::split(client);
     let mut r = BufReader::new(r);
     let mut l = String::new();
@@ -30,10 +32,13 @@ async fn conversation(state: Arc<FastcoreState>, lines: &[&str]) -> Vec<String> 
     for line in lines {
         w.write_all(format!("{line}\r\n").as_bytes()).await.unwrap();
         let mut reply = String::new();
-        while !(reply.ends_with("\r\n") && (l.starts_with("OK") || l.starts_with("NO"))) {
+        loop {
             l.clear();
             r.read_line(&mut l).await.unwrap();
             reply.push_str(&l);
+            if l.starts_with("OK") || l.starts_with("NO") {
+                break;
+            }
         }
         out.push(reply);
     }
@@ -42,10 +47,11 @@ async fn conversation(state: Arc<FastcoreState>, lines: &[&str]) -> Vec<String> 
 
 #[tokio::test]
 async fn an_unreachable_store_is_not_an_empty_one() {
-    let st = state();
-    assert!(st.net_url.is_none());
+    let tmp = tempfile::tempdir().unwrap();
+    let mut st = state();
+    st.net_url = None;
     let out = conversation(
-        st,
+        directory(st, tmp.path()),
         &[
             "LISTSCRIPTS",
             "GETSCRIPT \"mailrs\"",
@@ -60,23 +66,30 @@ async fn an_unreachable_store_is_not_an_empty_one() {
 
 #[tokio::test]
 async fn a_reachable_store_keeps_the_script() {
-    let kv = kevy_client::Connection::connect("mem://managesieve-store-tests").unwrap();
-    let mut st = Arc::into_inner(state()).unwrap();
-    st.net_url = Some("mem://managesieve-store-tests".into());
+    let tmp = tempfile::tempdir().unwrap();
+    let url = "mem://fastcore-protocols-sieve";
+    let _kv = kevy_client::Connection::connect(url).unwrap();
+    let mut st = state();
+    st.net_url = Some(url.into());
     let out = conversation(
-        Arc::new(st),
+        directory(st, tmp.path()),
         &[
             "PUTSCRIPT \"mailrs\" {5+}\r\nkeep;",
             "LISTSCRIPTS",
+            "GETSCRIPT \"mailrs\"",
             "DELETESCRIPT \"mailrs\"",
+            "LISTSCRIPTS",
         ],
     )
     .await;
-    assert_eq!(out[0], "OK \"Script stored\"\r\n");
     assert_eq!(
-        out[1],
-        "\"mailrs\" ACTIVE\r\nOK \"Listscripts completed\"\r\n"
+        out,
+        [
+            "OK \"Script stored\"\r\n",
+            "\"mailrs\" ACTIVE\r\nOK \"Listscripts completed\"\r\n",
+            "{5}\r\nkeep;\r\nOK\r\n",
+            "OK \"Deleted\"\r\n",
+            "OK \"Listscripts completed\"\r\n",
+        ]
     );
-    assert_eq!(out[2], "OK \"Deleted\"\r\n");
-    drop(kv);
 }

@@ -10,59 +10,13 @@ use std::time::Duration;
 
 use kevy_client::Connection;
 use mailrs_core_sidestate::families::mock;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, DuplexStream, ReadHalf, WriteHalf};
 
+use super::{Imap, tagged};
 use crate::FastcoreState;
+use crate::protocols::FastcoreDirectory;
 
 const KEVY: &str = "mem://imap-reads-a-mock-namespace";
 const DOMAIN: &str = "mock.example.test";
-
-struct Imap {
-    reader: BufReader<ReadHalf<DuplexStream>>,
-    writer: WriteHalf<DuplexStream>,
-    n: u32,
-}
-
-impl Imap {
-    async fn connect(state: &Arc<FastcoreState>) -> Self {
-        let (client, server) = tokio::io::duplex(1 << 20);
-        tokio::spawn(super::session::run(state.clone(), server));
-        let (r, w) = tokio::io::split(client);
-        let mut imap = Self {
-            reader: BufReader::new(r),
-            writer: w,
-            n: 0,
-        };
-        let mut greeting = String::new();
-        imap.reader.read_line(&mut greeting).await.unwrap();
-        assert!(greeting.starts_with("* OK"), "{greeting}");
-        imap
-    }
-
-    /// Everything the server sent back, the tagged line last.
-    async fn cmd(&mut self, line: &str) -> String {
-        self.n += 1;
-        let tag = format!("a{}", self.n);
-        self.writer
-            .write_all(format!("{tag} {line}\r\n").as_bytes())
-            .await
-            .unwrap();
-        let mut out = String::new();
-        loop {
-            let mut l = String::new();
-            self.reader.read_line(&mut l).await.unwrap();
-            assert!(!l.is_empty(), "connection closed after {line}: {out}");
-            out.push_str(&l);
-            if l.starts_with(&format!("{tag} ")) {
-                return out;
-            }
-        }
-    }
-}
-
-fn tagged(reply: &str) -> &str {
-    reply.lines().last().unwrap_or("")
-}
 
 fn store(kv: &mut Connection, ns: &str, direction: mock::Direction, body: &str) {
     let meta = mock::MessageMeta {
@@ -115,7 +69,10 @@ async fn a_mock_namespace_reads_over_imap_and_an_account_still_signs_in() {
         .unwrap();
     let mut state = FastcoreState::new(mailbox);
     state.net_url = Some(KEVY.to_string());
-    let state = Arc::new(state);
+    let state = Arc::new(FastcoreDirectory {
+        state: Arc::new(state),
+        maildir_root: tmp.path().join("maildir"),
+    });
 
     // 1. only the namespace's token, and only the bare address
     let mut c = Imap::connect(&state).await;

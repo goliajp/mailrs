@@ -1,21 +1,19 @@
-//! AUTHENTICATE PLAIN (RFC 4616) against the account store IMAP and
-//! POP3 use.
+//! AUTHENTICATE PLAIN (RFC 4616).
 
-use std::sync::Arc;
-
+use base64::Engine as _;
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncWrite, AsyncWriteExt};
 
+use super::script::read_literal;
 use super::unquote;
-use crate::FastcoreState;
 
 /// AUTHENTICATE PLAIN: the initial response inline, or sent after an
-/// empty challenge. Returns the authenticated address on success.
-pub(super) async fn handle_authenticate<R, W>(
-    state: &Arc<FastcoreState>,
+/// empty challenge. Returns the credentials it carried; `None` for any
+/// other mechanism, a cancel, or a response that is not PLAIN.
+pub(super) async fn plain_credentials<R, W>(
     arg: &str,
     reader: &mut R,
     tx: &mut W,
-) -> std::io::Result<Option<String>>
+) -> std::io::Result<Option<(String, String)>>
 where
     R: AsyncBufRead + Unpin,
     W: AsyncWrite + Unpin,
@@ -37,7 +35,6 @@ where
             }
         }
     };
-    use base64::Engine as _;
     let Ok(raw) = base64::engine::general_purpose::STANDARD.decode(b64.trim()) else {
         return Ok(None);
     };
@@ -47,9 +44,7 @@ where
     let authcid = fields.next().and_then(|b| std::str::from_utf8(b).ok());
     let passwd = fields.next().and_then(|b| std::str::from_utf8(b).ok());
     match (authcid, passwd) {
-        (Some(user), Some(pass)) if crate::imap::backend::verify_password(state, user, pass) => {
-            Ok(Some(user.to_string()))
-        }
+        (Some(user), Some(pass)) => Ok(Some((user.to_string(), pass.to_string()))),
         _ => Ok(None),
     }
 }
@@ -64,14 +59,10 @@ where
     reader.read_line(&mut line).await?;
     let line = line.trim_end_matches(['\r', '\n']).trim();
     let resp = match line.strip_prefix('{').and_then(|l| l.strip_suffix('}')) {
-        Some(len) => {
-            let len: usize = len.trim_end_matches('+').parse().unwrap_or(0);
-            let mut buf = vec![0u8; len];
-            tokio::io::AsyncReadExt::read_exact(reader, &mut buf).await?;
-            let mut tail = String::new();
-            reader.read_line(&mut tail).await?;
-            String::from_utf8_lossy(&buf).into_owned()
-        }
+        Some(len) => match read_literal(len, reader).await? {
+            Some(bytes) => String::from_utf8_lossy(&bytes).into_owned(),
+            None => return Ok(None),
+        },
         None => unquote(line).to_string(),
     };
     Ok((resp != "*").then_some(resp))
