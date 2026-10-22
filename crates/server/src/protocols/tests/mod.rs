@@ -80,7 +80,7 @@ where
 /// IMAP conversations on fresh connections, in order, after the first
 /// four: each starts from what the one before left.
 fn later() -> Vec<Vec<Step>> {
-    vec![selection::unselect(), folders::status()]
+    vec![selection::unselect(), folders::status(), folders::fixed()]
 }
 
 async fn conversations<D: Directory>(dir: Arc<D>) -> Vec<String> {

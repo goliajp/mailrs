@@ -55,3 +55,40 @@ pub(super) fn status() -> Vec<Step> {
     ]);
     steps
 }
+
+/// The folder set cannot change; subscribing to a folder that exists
+/// succeeds and changes nothing.
+pub(super) fn fixed() -> Vec<Step> {
+    let cannot = "NO [CANNOT] folders cannot be created, deleted or renamed\r\n";
+    let list: Vec<String> = FOLDERS
+        .iter()
+        .map(|n| {
+            format!(
+                "* LIST (\\HasNoChildren{}) \"/\" {n}\r\n",
+                special_use_flag(n)
+            )
+        })
+        .chain(["g8 OK LIST completed\r\n".to_string()])
+        .collect();
+    let mut steps = signed_in("g1");
+    steps.extend([
+        step("g2 CREATE Projects\r\n", &[&format!("g2 {cannot}")]),
+        step("g3 DELETE Sent\r\n", &[&format!("g3 {cannot}")]),
+        step("g4 RENAME Sent Outbox\r\n", &[&format!("g4 {cannot}")]),
+        step("g5 SUBSCRIBE Sent\r\n", &["g5 OK SUBSCRIBE completed\r\n"]),
+        step(
+            "g6 UNSUBSCRIBE \"Trash\"\r\n",
+            &["g6 OK UNSUBSCRIBE completed\r\n"],
+        ),
+        step(
+            "g7 SUBSCRIBE Nowhere\r\n",
+            &["g7 NO [NONEXISTENT] no such mailbox\r\n"],
+        ),
+        step(
+            "g8 LIST \"\" \"*\"\r\n",
+            &list.iter().map(String::as_str).collect::<Vec<_>>(),
+        ),
+        logout("g9"),
+    ]);
+    steps
+}
