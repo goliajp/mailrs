@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-22
+
 ### Added
 
 - `build_envelope(data)` (module `envelope`): the FETCH `ENVELOPE`
@@ -18,8 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- New dependency: `mailrs-rfc5322` (address list splitting for the
-  envelope). This needs a `mailrs-rfc5322` release newer than 1.1.0.
+- New dependency: `mailrs-rfc5322` 1.2 (address list splitting for the
+  envelope).
 
 ## [1.0.1] - 2026-08-04
 

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-10-22
+
+### Changed
+
+- Documentation only: rustdoc builds without broken intra-doc links. No API or
+  behaviour change.
+
 ## [1.2.1] - 2026-08-04
 
 ### Changed

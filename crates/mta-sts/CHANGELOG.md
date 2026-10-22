@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.2] - 2026-10-22
+
+### Changed
+
+- Documentation only: the crate docs name `hickory-resolver` as a typical
+  DNS layer, and rustdoc builds without broken intra-doc links. No API or
+  behaviour change.
+
 ## [2.0.1] - 2026-06-03
 
 ### Changed

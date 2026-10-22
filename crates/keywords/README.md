@@ -22,6 +22,17 @@ A name's index is its identity and the letter is derived from it
 (`0` is `a`). `Keywords::intern` only ever appends, because renumbering
 an existing name would silently re-point every message carrying its bit.
 
+## Example
+
+```rust
+let dir = std::path::Path::new("/var/mail/alice");
+let mut keywords = mailrs_keywords::read(dir)?;
+let bit = keywords.intern("pinned").expect("all 26 keyword bits are taken");
+mailrs_keywords::write(dir, &keywords)?;
+assert_eq!(keywords.name(bit), Some("pinned"));
+# Ok::<(), std::io::Error>(())
+```
+
 ## API
 
 - `Keywords::parse` / `Keywords::render`: the file format.

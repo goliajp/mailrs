@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-22
+
+### Changed
+
+- `Maildir::mark_processed` keeps the keyword bits (lowercase letters)
+  already on the file instead of dropping them when it rewrites the flag
+  suffix. To set or clear keywords, use
+  `Maildir::mark_processed_with_keywords`.
+
 ### Added
 
 - `Maildir::flags_of(id)`: the standard flags currently on a message's
@@ -16,11 +25,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Maildir::keywords_of(id)`, `Maildir::mark_processed_with_keywords`,
   and the free functions `keywords_of(info)` and
   `serialize_flags_and_keywords(flags, keywords)`.
-
-### Changed
-
-- `Maildir::mark_processed` keeps the keyword bits already on the file
-  instead of dropping them when it rewrites the flag suffix.
 
 ## [1.3.0] - 2026-08-04
 

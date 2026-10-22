@@ -25,6 +25,17 @@ filename without the `:2,` flag suffix. Extension fields Dovecot writes
 (`W<size>`, `G<guid>`) are read and ignored, so a Dovecot-written file
 can be adopted as is.
 
+## Example
+
+```rust
+let dir = std::path::Path::new("/var/mail/alice");
+mailrs_uidlist::append(dir, 4214, "1786651002.M3P1.host")?;
+if let Some(list) = mailrs_uidlist::read(dir)? {
+    assert_eq!(list.uid_of("1786651002.M3P1.host"), Some(4214));
+}
+# Ok::<(), std::io::Error>(())
+```
+
 ## API
 
 - `UidList::parse` / `UidList::render`: the file format.
