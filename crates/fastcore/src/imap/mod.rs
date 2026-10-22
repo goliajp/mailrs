@@ -15,6 +15,8 @@ pub mod search_eval;
 mod session;
 #[cfg(test)]
 mod tls_tests;
+#[cfg(test)]
+mod write_error_tests;
 
 use std::sync::Arc;
 
