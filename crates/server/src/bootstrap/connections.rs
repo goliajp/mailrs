@@ -37,6 +37,15 @@ pub(crate) async fn connect(cfg: &config::ServerConfig) -> Connections {
         Some(url) => pg::connect_pool_with_retry(url, std::time::Duration::from_secs(300)).await,
         None => None,
     };
+    // a core on the wrong schema answers every request wrongly; it does not
+    // start instead
+    if let Some(pool) = &pg_pool
+        && let Err(e) = crate::pg_schema::ensure(pool).await
+    {
+        tracing::error!(error = %e, "sql schema");
+        eprintln!("mailrs: sql schema: {e}");
+        std::process::exit(1);
+    }
 
     // kevy embedded store — in-process Arc<Store>, persistent if
     // cfg.kevy_data_dir is set. Health check exercises this path

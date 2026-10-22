@@ -1,13 +1,12 @@
 # The SQL core — fastcore's peer, on either SQL backend.
 #
 # FEATURES picks which:
-#   core-rpc,spg   spg-embedded, no database container (the default, and what
-#                  the reactivated lane runs)
-#   core-rpc       real PostgreSQL via sqlx, needs a postgres service
+#   core-rpc       PostgreSQL via sqlx, needs a postgres service (the default)
+#   core-rpc,spg   embedded spg, no database container
 #
 # Both are the same code over the same `PgMailboxStore`; sqlx is the seam.
 # Build one with:
-#   ./scripts/build-pg-core.sh [--features core-rpc] [--push]
+#   ./scripts/build-pg-core.sh [--features core-rpc,spg] [--push]
 #
 # Reuses cargo-chef so external deps are cached; only the workspace recompiles
 # when the feature set changes.
@@ -29,7 +28,12 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     cargo chef cook --release --recipe-path recipe.json
 COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
 COPY crates/ crates/
-ARG FEATURES=core-rpc,spg
+# the core creates its schema from this file on an empty database
+COPY scripts/init-schema.sql scripts/init-schema.sql
+ARG FEATURES=core-rpc
+# the release version, written where the binary reports it from
+ARG VERSION=0.0.0
+RUN sed -i "0,/^version = \".*\"/s//version = \"$VERSION\"/" Cargo.toml
 # `mailrs-pg-core`, not `mailrs-server`.
 #
 # Same boot sequence either way — the difference is the role set. `run()` turns
