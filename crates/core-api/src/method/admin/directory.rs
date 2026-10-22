@@ -1,11 +1,9 @@
-//! Accounts, aliases, domains, email groups — the directory.
+//! Accounts, aliases, domains — the directory.
 
 use crate::types::UserAddress;
 use serde::{Deserialize, Serialize};
 
 pub const PATH_LIST_TEMPLATES: &str = "/v1/users/{user}/templates";
-
-pub const PATH_SAVE_TEMPLATE: &str = "/v1/users/{user}/templates";
 
 pub const PATH_DELETE_TEMPLATE: &str = "/v1/users/{user}/templates/{id}";
 
@@ -14,20 +12,6 @@ pub const PATH_CREATE_WEBHOOK: &str = "/v1/admin/webhook-subscriptions";
 pub const PATH_LIST_WEBHOOKS: &str = "/v1/admin/accounts/{address}/webhook-subscriptions";
 
 pub const PATH_DELETE_WEBHOOK: &str = "/v1/admin/webhook-subscriptions/{id}";
-
-pub const PATH_LIST_OAUTH_CLIENTS: &str = "/v1/admin/oauth-clients";
-
-pub const PATH_CREATE_OAUTH_CLIENT: &str = "/v1/admin/oauth-clients";
-
-pub const PATH_GET_OAUTH_CLIENT: &str = "/v1/admin/oauth-clients/{client_id}";
-
-pub const PATH_DELETE_OAUTH_CLIENT: &str = "/v1/admin/oauth-clients/{client_id}";
-
-pub const PATH_LIST_SIGNING_KEYS: &str = "/v1/admin/oauth-signing-keys";
-
-pub const PATH_OAUTH_AUTH_CODE: &str = "/v1/admin/oauth-auth-codes";
-
-pub const PATH_OAUTH_REFRESH_TOKEN: &str = "/v1/admin/oauth-refresh-tokens";
 
 // ════════════════════════════════════════════════════════════════════
 // Wire types — accounts
@@ -126,28 +110,6 @@ pub struct AliasWire {
     pub created_at: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AddAliasRequest {
-    pub source_address: String,
-    pub target_address: String,
-    pub domain: String,
-    pub alias_type: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ResolveRecipientRequest {
-    /// Incoming SMTP RCPT address.
-    pub recipient: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ResolveRecipientResponse {
-    /// Final delivery target addresses (alias / group fan-out resolved).
-    pub targets: Vec<String>,
-    /// True if at least one target is a local account.
-    pub local: bool,
-}
-
 /// `GET` — whether mail to `address` would be delivered here, answered
 /// without changing anything. `500` when a store it consults cannot be
 /// read: that is not the same as "no such recipient".
@@ -177,45 +139,3 @@ pub struct AddDomainRequest {
 pub struct DomainListResponse {
     pub items: Vec<DomainWire>,
 }
-
-// ════════════════════════════════════════════════════════════════════
-// Wire types — email groups
-// ════════════════════════════════════════════════════════════════════
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EmailGroupWire {
-    pub id: i64,
-    pub address: String,
-    pub domain: String,
-    pub name: String,
-    pub description: String,
-    pub created_at: i64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CreateEmailGroupRequest {
-    pub address: String,
-    pub domain: String,
-    pub name: String,
-    pub description: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EmailGroupMemberRequest {
-    pub member_address: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EmailGroupListResponse {
-    pub items: Vec<EmailGroupWire>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EmailGroupMembersResponse {
-    /// Member email addresses.
-    pub members: Vec<String>,
-}
-
-// ════════════════════════════════════════════════════════════════════
-// Wire types — encryption keys
-// ════════════════════════════════════════════════════════════════════

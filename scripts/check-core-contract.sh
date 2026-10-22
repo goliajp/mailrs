@@ -9,7 +9,7 @@
 # list had reached 51 entries of paperwork.
 #
 # What is actually load-bearing is the core RPC contract, and it is held
-# together by nothing at all today. `crates/core-api` declares 179
+# together by nothing at all today. `crates/core-api` declares its
 # `PATH_*` constants; fastcore's router registers routes *by constant*,
 # but the client does not use them — every `CoreApiClient` method spells
 # its path again in a `format!`. A typo on either side is a 404 in

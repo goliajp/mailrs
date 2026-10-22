@@ -1,9 +1,8 @@
-//! Admin endpoints — domain_store CRUD + reconcile / export / audit / system_config + api_keys + webhooks + oauth.
+//! Admin endpoints — accounts, aliases, domains, groups and effective
+//! permissions, the audit log, webhook subscriptions, and the per-user
+//! drafts, signatures and templates.
 //!
-//! Source: `crates/server/src/domain_store/*.rs` (57 fn across 12 files) +
-//! `api_key_store.rs` + `webhook/store.rs` + `oidc_store.rs`.
-//!
-//! Split by subject on 2026-08-02 — 95 wire types and the 92 route
+//! Split by subject on 2026-08-02; today 37 wire types and the 20 route
 //! constants that name their endpoints. Re-exported flat: these names
 //! **are** the wire contract, so moving one between files must not move
 //! it in any caller's path.

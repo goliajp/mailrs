@@ -36,20 +36,6 @@ pub enum BackendKind {
 }
 
 // ──────────────────────────────────────────────────────────────────────
-// Pagination
-// ──────────────────────────────────────────────────────────────────────
-
-/// Pagination envelope used by list endpoints.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ListEnvelope<T> {
-    /// Items in this page.
-    pub items: Vec<T>,
-    /// Opaque cursor to pass to the next request (None = end).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub next_cursor: Option<String>,
-}
-
-// ──────────────────────────────────────────────────────────────────────
 // Identifier aliases
 // ──────────────────────────────────────────────────────────────────────
 
@@ -234,16 +220,6 @@ mod tests {
 
         let s2 = serde_json::to_string(&BackendKind::Kevy).unwrap();
         assert_eq!(s2, "\"kevy\"");
-    }
-
-    #[test]
-    fn list_envelope_omits_cursor_when_none() {
-        let env = ListEnvelope::<i32> {
-            items: vec![1, 2, 3],
-            next_cursor: None,
-        };
-        let s = serde_json::to_string(&env).unwrap();
-        assert!(!s.contains("next_cursor"));
     }
 
     #[test]
