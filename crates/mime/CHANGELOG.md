@@ -7,11 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.3] - 2026-10-22
+
 ### Fixed
 
 - `Part::body_text` decodes through `mailrs_rfc2047::decode_charset`, so an
   ISO-2022-JP body that switches charset twice in a row no longer shows
   U+FFFD there.
+
+### Changed
+
+- Requires `mailrs-rfc2047` 1.2.
 
 ## [2.0.2] - 2026-08-04
 

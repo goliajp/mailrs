@@ -7,17 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-10-22
+
 ### Changed
 
-- Features split: `store` (`GreylistDb` over any `GreylistBackend`),
-  `kevy-store` (adds `EmbeddedGreylistBackend` and `GreylistDb::new`),
-  `pg` (the PostgreSQL cold backup, `GreylistDb::with_pg`), `spg`
-  (implies `pg`). The default is `["kevy-store", "pg"]`, which matches
-  what the old default enabled.
-- **Breaking for non-default feature sets:** `kevy-store` no longer pulls
-  in `sqlx`; a build with `default-features = false,
-  features = ["kevy-store"]` that calls `with_pg` must add `pg`.
-  `GreylistDb::with_backend` is available without any kevy dependency.
+- **Breaking:** the `kevy-store` feature now depends on `kevy-embedded`
+  6 (was 4); `GreylistDb::new` and `EmbeddedGreylistBackend` take a
+  `kevy_embedded::Store` from that version. Migration: depend on
+  `kevy-embedded = "6"` and pass a store opened with it.
+- **Breaking for non-default feature sets:** features are split into
+  `store` (`GreylistDb` over any `GreylistBackend`), `kevy-store` (adds
+  `EmbeddedGreylistBackend` and `GreylistDb::new`), `pg` (the PostgreSQL
+  cold backup: `GreylistDb::with_pg` and `BackendPool`) and `spg` (now
+  implies `pg`). `kevy-store` no longer pulls in `sqlx`. Migration: the
+  default is `["kevy-store", "pg"]`, the same surface as before; a build
+  with `default-features = false, features = ["kevy-store"]` that calls
+  `with_pg` adds `pg`.
+
+### Added
+
+- `GreylistDb::with_backend` and the `GreylistBackend` trait are
+  available with only the `store` feature, without any kevy dependency.
+- `greylist_key::store_key(triplet)`: the key a triplet's first-seen
+  time is stored under (`gl:<triplet>`), for callers that warm or read
+  the store themselves.
 
 ## [3.1.0] - 2026-08-04
 

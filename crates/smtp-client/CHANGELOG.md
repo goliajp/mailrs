@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-10-22
+
+### Changed
+
+- **Breaking:** `default_pkix_client_config` is no longer available as
+  `mailrs_smtp_client::connection::default_pkix_client_config`.
+  Migration: import it from the crate root,
+  `mailrs_smtp_client::default_pkix_client_config`, which is unchanged.
+- PKIX verification (`default_pkix_client_config` and the PKIX part of
+  DANE usages 0 and 1) trusts the platform certificate store
+  (`rustls-native-certs`, new dependency) plus the bundled
+  `webpki-roots` set, plus a compiled-in `DigiCert Global Root CA`.
+  Previously only `webpki-roots` was used, which no longer contains that
+  root, so delivery to Microsoft 365 (`*.mail.protection.outlook.com`)
+  failed with `UnknownIssuer`. TLSA usages 0 and 1 in `DaneVerifier`
+  use the same trust anchors.
+
 ### Added
 
 - `SmtpConnection::auth_plain(user, secret)` and
@@ -16,16 +33,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   XOAUTH2 token (`334` plus an error object) is reported as a failure
   instead of hanging the connection.
 - `pkix_root_store()`: the trust anchors peers are verified against.
-
-### Changed
-
-- PKIX verification (`default_pkix_client_config` and the PKIX part of
-  DANE usages 0 and 1) trusts the platform certificate store
-  (`rustls-native-certs`, new dependency) plus the bundled
-  `webpki-roots` set, plus a compiled-in `DigiCert Global Root CA`.
-  Previously only `webpki-roots` was used, which no longer contains that
-  root, so delivery to Microsoft 365 (`*.mail.protection.outlook.com`)
-  failed with `UnknownIssuer`.
 
 ## [2.0.1] - 2026-05-29
 

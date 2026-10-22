@@ -1,4 +1,4 @@
-//! Session state-machine tests, split by subject on 2026-08-02.
+//! Session state-machine tests, one module per subject.
 //!
 //! One 1,326-line file held all eighty-three. The file-size limit excludes a
 //! trailing inline `#[cfg(test)] mod tests` from a prod file's count but

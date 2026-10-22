@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-10-22
+
+### Changed
+
+- **Breaking:** `Record` has a new public field
+  `redirect: Option<CompactString>`. Migration: code that builds a
+  `Record` with a struct literal sets `redirect: None` (or the target);
+  code that only reads records is unaffected.
+- `Record::parse` rejects a record with two `redirect=` modifiers
+  (RFC 7208 §6) instead of ignoring both.
+
 ### Added
 
 - Macro expansion for domain-specs (RFC 7208 §7): `include:`, `a:`,
@@ -16,14 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   literal template was looked up. The expander is public as
   `macros::expand`.
 - `redirect=` (RFC 7208 §6.1) is followed when no mechanism matches; a
-  redirect target without an SPF record is a permerror. A record with
-  two `redirect=` modifiers is rejected.
-
-### Changed
-
-- **Breaking:** `Record` has a new public field
-  `redirect: Option<CompactString>`, so code that builds a `Record`
-  with a struct literal must set it.
+  redirect target without an SPF record is a permerror.
 
 ## [2.1.0] - 2026-08-04
 

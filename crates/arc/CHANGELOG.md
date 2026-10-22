@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.2] - 2026-10-22
+
+### Fixed
+
+- The `seal` docs name the error it actually returns for a key the crypto
+  backend rejects, `ArcError::InvalidPublicKey`; rustdoc builds without
+  broken links. No API or behaviour change.
+
 ## [3.0.1] - 2026-08-04
 
 ### Changed

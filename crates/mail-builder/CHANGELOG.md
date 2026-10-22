@@ -7,9 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-10-22
+
 ### Changed
 
 - `LICENSE-APACHE` and `LICENSE-MIT` are now shipped with the crate.
+- Documentation: rustdoc builds without broken intra-doc links. No API or
+  behaviour change.
 
 ## [1.0.1] - 2026-08-04
 
