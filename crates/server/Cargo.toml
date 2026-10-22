@@ -40,15 +40,15 @@ mailrs-smtp-codec = { path = "../smtp-codec", version = "1" }
 mailrs-mail-protocols = { path = "../mail-protocols" }
 mailrs-attachment-extract = { path = "../attachment-extract", version = "1" }
 mailrs-imap-proto = { path = "../imap-proto", version = "2" }
-mailrs-intelligence = { path = "../intelligence", version = "3" }
-mailrs-mailbox = { path = "../mailbox", version = "1" }
+mailrs-intelligence = { path = "../intelligence", version = "4" }
+mailrs-mailbox = { path = "../mailbox", version = "2" }
 mailrs-alias-store = { path = "../alias-store" }
 mailrs-alias-store-net = { path = "../alias-store-net" }
 mailrs-core-api = { path = "../core-api", features = ["server"] }
 mailrs-core-sidestate = { path = "../core-sidestate" }
 mailrs-intake = { path = "../intake" }
 mailrs-clean = { path = "../clean", version = "1" }
-mailrs-inbound = { path = "../inbound", version = "1" }
+mailrs-inbound = { path = "../inbound", version = "2" }
 # Path, not the published version: `addr_key` (the one address comparison
 # for the whole tree) is newer than what is on crates.io.
 mailrs-rfc5322 = { path = "../rfc5322", version = "1" }

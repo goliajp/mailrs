@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-outbound-queue"
-version = "4.1.0"
+version = "5.0.0"
 edition = "2024"
 description = "Outbound mail queue primitives: DKIM signing, DSN generation, MTA-STS lookup, retry/backoff, with a pluggable store trait and a Postgres reference implementation."
 license = "Apache-2.0 OR MIT"
@@ -53,8 +53,8 @@ rustls-pki-types = { version = "1", features = ["alloc"] }
 # here — the actual crypto provider feature is selected by the binary
 # (mailrs-server enables ring via mailrs-smtp-client).
 rustls = { version = "0.23", default-features = false }
-mailrs-smtp-client = { path = "../smtp-client", version = "2" }
-mailrs-dkim = { path = "../dkim", version = "3" }
+mailrs-smtp-client = { path = "../smtp-client", version = "3" }
+mailrs-dkim = { path = "../dkim", version = "3.2" }
 mailrs-arc = { path = "../arc", version = "3" }
 # Used by DkimSignConfig::sign() to parse the message's From: header
 # and pick the right (d=, selector, key) tuple for multi-domain signing.
