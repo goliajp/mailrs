@@ -164,9 +164,9 @@ struct MessageBodyView: BodyViewRepresentable {
         let text = palette.text
         let link = palette.link
         let rule = palette.rule
-        let quote = palette.quote
+        let quote = palette.quote, lang = CjkLang.of(html)
         return """
-        <!doctype html><html><head><meta charset="utf-8">
+        <!doctype html><html lang="\(lang?.rawValue ?? "")"><head><meta charset="utf-8">
         <meta name="viewport" content="width=device-width,initial-scale=1">
         <style>
           :root { color-scheme: \(scheme); }
@@ -175,7 +175,7 @@ struct MessageBodyView: BodyViewRepresentable {
              insets by 12, so a second inset cost the message 24pt of a
              358pt screen — and a newsletter laid out at 600px pays for
              that twice, once in the fit scale and once in the reading. */
-          body { font: 15px/1.6 -apple-system, 'Hiragino Sans', sans-serif;
+          body { font: 15px/1.6 -apple-system, \((lang ?? .ja).font), sans-serif;
                  word-wrap: break-word; overflow-wrap: break-word; }
           /* `!important`, because senders put the width in an attribute
              (`<img width="600">`) or an inline style, and both beat a
