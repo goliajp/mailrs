@@ -30,7 +30,6 @@ mod importance;
 mod ingest;
 mod ingest_loop;
 pub mod invites;
-mod junk_ttl;
 mod keywords;
 pub mod live_sync;
 mod maildir_scan;

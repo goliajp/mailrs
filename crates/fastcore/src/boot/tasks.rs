@@ -31,8 +31,7 @@ pub(super) fn spawn_workers(state: &Arc<FastcoreState>, kevy_dir: &str) {
     // TLS-RPT daily aggregate submission (G8.3).
     tlsrpt::spawn_submit(state.clone());
 
-    // retention sweeps: Junk past the per-user TTL, mock mail past 3 days
-    junk_ttl::spawn(state.clone());
+    // retention sweep: mock mail past 3 days
     crate::mock_sweep::spawn(state.clone());
     snooze_wake::spawn(state.clone());
     crate::fraud_backfill::spawn(state.clone(), kevy_dir);
