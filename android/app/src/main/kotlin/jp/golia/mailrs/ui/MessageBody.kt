@@ -180,8 +180,9 @@ private fun documentFor(html: String, dark: Boolean, theme: Theme): String {
     // The sender's viewport would fight the one below, which is what
     // makes an email authored at 640px fit a phone at all.
     val body = html.replace(Regex("(?i)<meta[^>]*name=[\"']?viewport[\"']?[^>]*>"), "")
+    val lang = jp.golia.mailrs.wire.CjkLang.of(body).orEmpty()
     return """
-        <!doctype html><html><head>
+        <!doctype html><html lang="$lang"><head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <style>

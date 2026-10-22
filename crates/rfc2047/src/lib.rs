@@ -9,6 +9,9 @@
 
 use std::borrow::Cow;
 
+mod charset;
+pub use charset::decode_charset;
+
 use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
 
 /// Encode a UTF-8 string as an RFC 2047 encoded-word **if and only if**
@@ -286,10 +289,10 @@ fn hex_nibble(b: u8) -> Option<u8> {
 
 /// Convert `bytes` from `charset` to UTF-8, appending to `out`.
 fn convert_to_utf8(out: &mut String, charset: &[u8], bytes: &[u8]) {
-    let encoding = encoding_rs::Encoding::for_label(charset);
-    let encoding = encoding.unwrap_or(encoding_rs::UTF_8);
-    let (cow, _, _) = encoding.decode(bytes);
-    out.push_str(&cow);
+    match decode_charset(charset, bytes) {
+        Some(text) => out.push_str(&text),
+        None => push_lossy(out, bytes),
+    }
 }
 
 /// Append `bytes` to `out` as UTF-8, replacing invalid sequences.

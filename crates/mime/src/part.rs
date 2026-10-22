@@ -66,13 +66,11 @@ impl<'a> Part<'a> {
             return None;
         }
         let charset = self.content_type.charset();
-        if let Some(enc) = encoding_rs::Encoding::for_label(charset.as_bytes()) {
-            let (cow, _, _) = enc.decode(&self.body);
-            Some(cow.into_owned())
-        } else {
-            // Unknown charset → lossy UTF-8.
-            Some(String::from_utf8_lossy(&self.body).into_owned())
-        }
+        // an unknown charset is read as UTF-8, replacing what does not decode
+        Some(
+            mailrs_rfc2047::decode_charset(charset.as_bytes(), &self.body)
+                .unwrap_or_else(|| String::from_utf8_lossy(&self.body).into_owned()),
+        )
     }
 
     /// Iterate over leaf parts marked as attachments. A part is an
