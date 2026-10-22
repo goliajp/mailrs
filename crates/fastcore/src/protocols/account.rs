@@ -149,11 +149,17 @@ impl Account for FastcoreAccount {
         }
     }
 
+    /// The Maildir unique name: the file name without its `:2,` flags,
+    /// which change whenever the message is read or flagged.
     fn unique_id(&self, m: &Message<PathBuf>) -> String {
-        m.key
-            .file_name()
-            .map(|f| f.to_string_lossy().into_owned())
-            .unwrap_or_else(|| m.uid.to_string())
+        let name = m.key.file_name().map(|f| f.to_string_lossy());
+        match name {
+            Some(name) => name
+                .split_once(":2,")
+                .map_or(&*name, |(u, _)| u)
+                .to_string(),
+            None => m.uid.to_string(),
+        }
     }
 
     async fn remove(&self, _: &FcMailbox, m: &Message<PathBuf>) -> Result<()> {

@@ -200,6 +200,7 @@ impl Account for PgAccount {
         }
     }
 
+    /// The uid, which a message keeps for as long as it is in INBOX.
     fn unique_id(&self, m: &Message<String>) -> String {
         m.uid.to_string()
     }
