@@ -2,10 +2,13 @@
 //! SPECIAL-USE, SORT, QUOTA, CONDSTORE and QRESYNC: [`run`] and
 //! [`run_upgradable`] drive one connection.
 
+mod append;
 mod auth;
+mod commands;
 mod fetch;
 mod fetch_items;
 mod flags;
+mod idle;
 mod mailbox;
 mod query;
 pub mod search_eval;
