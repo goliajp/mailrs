@@ -1,69 +1,12 @@
-#![allow(unused_imports)]
-//! Spawn protocol listeners (SMTP / submission / SMTPS / IMAP / IMAPS / POP3 / ManageSieve).
+//! Spawn the IMAP / IMAPS / POP3 / POP3S / ManageSieve listeners.
 
 use std::sync::Arc;
 
 use crate::config;
 use crate::domain_store;
-use crate::event_bus::{EventBus, SmtpEvent};
-use crate::smtp_session::ConnectionContext;
-use crate::web::WebState;
-use crate::{
-    acme, conversation_cache, dmarc_report, event_bus, health, listeners, oidc_jwt,
-    outbound_tls_rpt, rbl_monitor, smtp_session, system_config, tls, web, webhook,
-};
+use crate::event_bus::EventBus;
+use crate::tls;
 use mailrs_mailbox::PgMailboxStore;
-
-/// Spawn the three SMTP-family listeners that all dispatch into
-/// the shared `ConnectionContext`:
-///   - port `smtp_port` (25/2525) — plain SMTP, STARTTLS optional
-///   - port `submission_port` (587/2587) — message submission
-///   - port `smtps_port` (465/2465) — implicit-TLS submission
-///     (skipped if no TLS configured)
-pub(crate) async fn spawn_smtp_listeners(
-    ctx: &Arc<ConnectionContext>,
-    cfg: &config::ServerConfig,
-    tls_configured: bool,
-    shutdown_rx: tokio::sync::watch::Receiver<bool>,
-) {
-    let ctx_smtp = ctx.clone();
-    listeners::spawn_plain(
-        format!("0.0.0.0:{}", cfg.smtp_port),
-        "smtp",
-        shutdown_rx.clone(),
-        move |stream, addr| {
-            let ctx = ctx_smtp.clone();
-            async move { smtp_session::handle_plain_connection(stream, addr, ctx).await }
-        },
-    )
-    .await;
-
-    let ctx_sub = ctx.clone();
-    listeners::spawn_plain(
-        format!("0.0.0.0:{}", cfg.submission_port),
-        "submission",
-        shutdown_rx.clone(),
-        move |stream, addr| {
-            let ctx = ctx_sub.clone();
-            async move { smtp_session::handle_plain_connection(stream, addr, ctx).await }
-        },
-    )
-    .await;
-
-    if tls_configured {
-        let ctx_tls = ctx.clone();
-        listeners::spawn_plain(
-            format!("0.0.0.0:{}", cfg.smtps_port),
-            "smtps",
-            shutdown_rx,
-            move |stream, addr| {
-                let ctx = ctx_tls.clone();
-                async move { smtp_session::handle_tls_connection(stream, addr, ctx).await }
-            },
-        )
-        .await;
-    }
-}
 
 /// What the IMAP, POP3 and ManageSieve listeners serve from.
 pub(crate) struct MailProtocols<'a> {

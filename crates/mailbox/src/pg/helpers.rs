@@ -1,33 +1,6 @@
 use crate::types::MessageMeta;
 use sqlx::Row;
 
-/// build a user_address filter clause and collect bind values
-/// returns (sql_fragment, bind_values) where bind values start at `start_idx`
-pub(crate) fn build_user_filter(
-    user: &str,
-    domains: Option<&[String]>,
-    start_idx: u32,
-) -> (String, Vec<String>) {
-    if let Some(doms) = domains
-        && !doms.is_empty()
-    {
-        let placeholders: Vec<String> = doms
-            .iter()
-            .enumerate()
-            .map(|(i, _)| format!("${}", start_idx + i as u32))
-            .collect();
-        let sql = format!(
-            "mb.user_address IN (SELECT address FROM accounts WHERE domain IN ({}))",
-            placeholders.join(",")
-        );
-        return (sql, doms.to_vec());
-    }
-    (
-        format!("mb.user_address = ${start_idx}"),
-        vec![user.to_string()],
-    )
-}
-
 /// convert a tuple row to MessageMeta
 // the 15-tuple matches the column order in the messages-table SELECT;
 // extracting a named struct just for this helper would duplicate the
@@ -182,61 +155,6 @@ mod tests {
     }
 
     // ---- build_user_filter tests ----
-
-    #[test]
-    fn build_user_filter_no_domains() {
-        let (sql, binds) = build_user_filter("alice@example.com", None, 1);
-        assert_eq!(sql, "mb.user_address = $1");
-        assert_eq!(binds, vec!["alice@example.com"]);
-    }
-
-    #[test]
-    fn build_user_filter_empty_domains() {
-        let (sql, binds) = build_user_filter("alice@example.com", Some(&[]), 1);
-        assert_eq!(sql, "mb.user_address = $1");
-        assert_eq!(binds, vec!["alice@example.com"]);
-    }
-
-    #[test]
-    fn build_user_filter_single_domain() {
-        let domains = vec!["example.com".to_string()];
-        let (sql, binds) = build_user_filter("alice@example.com", Some(&domains), 1);
-        assert_eq!(
-            sql,
-            "mb.user_address IN (SELECT address FROM accounts WHERE domain IN ($1))"
-        );
-        assert_eq!(binds, vec!["example.com"]);
-    }
-
-    #[test]
-    fn build_user_filter_multiple_domains() {
-        let domains = vec![
-            "a.com".to_string(),
-            "b.com".to_string(),
-            "c.com".to_string(),
-        ];
-        let (sql, binds) = build_user_filter("user@a.com", Some(&domains), 1);
-        assert_eq!(
-            sql,
-            "mb.user_address IN (SELECT address FROM accounts WHERE domain IN ($1,$2,$3))"
-        );
-        assert_eq!(binds, vec!["a.com", "b.com", "c.com"]);
-    }
-
-    #[test]
-    fn build_user_filter_custom_start_idx() {
-        let (sql, binds) = build_user_filter("alice@example.com", None, 5);
-        assert_eq!(sql, "mb.user_address = $5");
-        assert_eq!(binds, vec!["alice@example.com"]);
-
-        let domains = vec!["x.com".to_string(), "y.com".to_string()];
-        let (sql2, binds2) = build_user_filter("u@x.com", Some(&domains), 3);
-        assert_eq!(
-            sql2,
-            "mb.user_address IN (SELECT address FROM accounts WHERE domain IN ($3,$4))"
-        );
-        assert_eq!(binds2, vec!["x.com", "y.com"]);
-    }
 
     // ---- row_to_message_meta tests ----
 
@@ -550,44 +468,6 @@ mod tests {
     }
 
     // ===== Additional helpers corner-case tests =====
-
-    #[test]
-    fn build_user_filter_placeholder_indexing_is_dense() {
-        // Domain placeholders are consecutive: $start, $start+1, $start+2, ...
-        let doms = vec![
-            "a".to_string(),
-            "b".to_string(),
-            "c".to_string(),
-            "d".to_string(),
-        ];
-        let (sql, _) = build_user_filter("u@a", Some(&doms), 7);
-        assert!(sql.contains("$7,$8,$9,$10"));
-    }
-
-    #[test]
-    fn build_user_filter_handles_large_start_idx() {
-        // Large start_idx (e.g. 1000) should not produce overflow or weird sql.
-        let (sql, _) = build_user_filter("u@x", None, 1000);
-        assert_eq!(sql, "mb.user_address = $1000");
-    }
-
-    #[test]
-    fn build_user_filter_with_single_domain_yields_single_placeholder() {
-        let doms = vec!["only.com".to_string()];
-        let (sql, _) = build_user_filter("u@only.com", Some(&doms), 2);
-        assert_eq!(
-            sql,
-            "mb.user_address IN (SELECT address FROM accounts WHERE domain IN ($2))"
-        );
-    }
-
-    #[test]
-    fn build_user_filter_with_empty_user_still_includes_user_address() {
-        // The SQL fragment still uses the placeholder; bind value can be empty.
-        let (sql, binds) = build_user_filter("", None, 1);
-        assert_eq!(sql, "mb.user_address = $1");
-        assert_eq!(binds, vec![""]);
-    }
 
     #[test]
     fn extract_header_value_only_continuation_line() {

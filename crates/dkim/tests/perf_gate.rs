@@ -13,8 +13,6 @@
 //! numbers — which would drop real coverage in release too — the file
 //! compiles only when the budgets are meaningful. Run it with
 //! `cargo test -p mailrs-dkim --release`.
-//!
-//! Same treatment as `crates/mailrs-mmalloc/tests/perf_gate.rs`.
 #![cfg(not(debug_assertions))]
 
 use std::time::{Duration, Instant};

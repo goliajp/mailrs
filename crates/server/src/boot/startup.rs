@@ -25,19 +25,11 @@ pub(super) fn log_startup(cfg: &ServerConfig) {
         tracing::warn!(warning, "config warning");
     }
 
-    let domains_str = if cfg.local_domains.is_empty() {
-        "(none)".into()
-    } else {
-        cfg.local_domains.join(", ")
-    };
     tracing::info!(
         version = env!("CARGO_PKG_VERSION"),
         hostname = cfg.hostname.as_str(),
         maildir = cfg.maildir_root.as_str(),
-        domains = domains_str.as_str(),
         tls = ?cfg.tls_mode(),
-        antispam = cfg.antispam_enabled,
-        dkim = cfg.dkim_selector.as_deref().unwrap_or("(disabled)"),
         "mailrs starting"
     );
 }

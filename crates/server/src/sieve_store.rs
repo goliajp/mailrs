@@ -35,22 +35,9 @@ fn key(address: &str) -> String {
 }
 
 /// The account's script. `Ok(None)` when unset or empty; `Err` when the store
-/// could not be reached.
-///
-/// `Result` rather than a bare `Option`, so "there is no filter" and "I could
-/// not find out" stay distinguishable. The delivery path is entitled to treat
-/// them alike — it asks per message and the alternative to not filtering is
-/// refusing the mail — and it already does, at its own call site. ManageSieve
-/// and the admin API are not entitled to: answering GETSCRIPT with "no script"
-/// because the store was down is how someone concludes their filter was
-/// deleted.
-pub fn get(address: &str) -> Result<Option<String>, std::io::Error> {
-    get_at(
-        &std::env::var("MAILRS_KEVY_URL").map_err(|_| unreachable())?,
-        address,
-    )
-}
-
+/// could not be reached, so "there is no filter" and "I could not find out"
+/// stay distinguishable: answering GETSCRIPT with "no script" because the
+/// store was down is how someone concludes their filter was deleted.
 pub(crate) fn get_at(url: &str, address: &str) -> Result<Option<String>, std::io::Error> {
     let raw = conn_at(url)
         .ok_or_else(unreachable)?
@@ -62,25 +49,6 @@ pub(crate) fn get_at(url: &str, address: &str) -> Result<Option<String>, std::io
 
 pub(crate) fn unreachable() -> std::io::Error {
     std::io::Error::other("no MAILRS_KEVY_URL, or the network store is unreachable")
-}
-
-/// Save the script. `Err` when the store is unreachable — a save that silently
-/// did nothing is worse than a visible failure, since the person then believes
-/// their filter is live.
-pub fn set(address: &str, script: &str) -> Result<(), std::io::Error> {
-    set_at(
-        &std::env::var("MAILRS_KEVY_URL").map_err(|_| unreachable())?,
-        address,
-        script,
-    )
-}
-
-/// Delete the script. `Ok(true)` when one was there.
-pub fn delete(address: &str) -> Result<bool, std::io::Error> {
-    delete_at(
-        &std::env::var("MAILRS_KEVY_URL").map_err(|_| unreachable())?,
-        address,
-    )
 }
 
 pub(crate) fn set_at(url: &str, address: &str, script: &str) -> Result<(), std::io::Error> {

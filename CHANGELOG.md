@@ -18,6 +18,26 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### The all-in-one server is gone
+
+`crates/server` used to build two binaries: `mailrs-pg-core`, the SQL core
+that can take fastcore's place, and `mailrs-server`, the single process
+that preceded the four-process stack and was in no image. `mailrs-server`
+is deleted, and with it everything only it ran: its web tier and MCP
+server (production's REST and MCP are `mailrs-webapi`, which serves either
+core), the SMTP listeners, outbound delivery, the RBL monitor, the DMARC
+aggregate builder, the Postgres webhook, calendar-feed, OIDC, TOTP and
+API-key stores, the conversation cache, and the role switch that told the
+two binaries apart. The crates only it linked — `mailrs-mmalloc`,
+`mailrs-syscall` and `mailrs-postmaster` — are removed from the
+workspace, as are the old conversation-list and search queries in
+`mailrs-mailbox` that only its web tier called.
+
+`crates/server` is now the SQL core alone, and `mailrs-pg-core` builds
+without a feature flag: `cargo build -p mailrs-server --bin
+mailrs-pg-core` for PostgreSQL, `--features spg` for the embedded engine.
+`scripts/build-pg-core.sh` takes `--features spg` or nothing.
+
 ### `Hao` — a subject cut from the reader's own address (2.87.0)
 
 A cold-sales campaign sends mail whose subject is one word: a piece of

@@ -42,37 +42,6 @@ pub(crate) async fn read_message_raw(
         .flatten()
 }
 
-/// extract a header value from raw RFC 5322 bytes (handles folded headers)
-pub(crate) fn extract_header_from_raw(data: &[u8], name: &str) -> String {
-    let text = String::from_utf8_lossy(data);
-    let prefix = format!("{name}:");
-    let lines: Vec<&str> = text.lines().collect();
-    let mut i = 0;
-    while i < lines.len() {
-        let line = lines[i];
-        if line.is_empty() {
-            break; // end of headers
-        }
-        if line.len() > prefix.len() && line[..prefix.len()].eq_ignore_ascii_case(&prefix) {
-            let mut value = line[prefix.len()..].trim().to_string();
-            // collect continuation lines (start with space or tab)
-            while i + 1 < lines.len() {
-                let next = lines[i + 1];
-                if next.starts_with(' ') || next.starts_with('\t') {
-                    value.push(' ');
-                    value.push_str(next.trim());
-                    i += 1;
-                } else {
-                    break;
-                }
-            }
-            return value;
-        }
-        i += 1;
-    }
-    String::new()
-}
-
 /// Parse raw message bytes into text body, html body, and attachment list.
 ///
 /// Now backed by `mailrs-mime` (the workspace-owned MIME tree parser).
@@ -149,43 +118,6 @@ pub(crate) fn decode_header(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn extract_header_simple() {
-        let raw = b"From: alice@example.com\r\nTo: bob@example.com\r\n\r\nbody";
-        assert_eq!(extract_header_from_raw(raw, "From"), "alice@example.com");
-        assert_eq!(extract_header_from_raw(raw, "To"), "bob@example.com");
-    }
-
-    #[test]
-    fn extract_header_case_insensitive() {
-        let raw = b"FROM: alice@example.com\r\n\r\n";
-        assert_eq!(extract_header_from_raw(raw, "from"), "alice@example.com");
-    }
-
-    #[test]
-    fn extract_header_folded() {
-        let raw = b"Subject: This is a very long\r\n subject line\r\n\r\nbody";
-        assert_eq!(
-            extract_header_from_raw(raw, "Subject"),
-            "This is a very long subject line"
-        );
-    }
-
-    #[test]
-    fn extract_header_folded_tab() {
-        let raw = b"To: alice@example.com,\r\n\tbob@example.com\r\n\r\n";
-        assert_eq!(
-            extract_header_from_raw(raw, "To"),
-            "alice@example.com, bob@example.com"
-        );
-    }
-
-    #[test]
-    fn extract_header_missing() {
-        let raw = b"From: alice@example.com\r\n\r\n";
-        assert_eq!(extract_header_from_raw(raw, "Subject"), "");
-    }
 
     #[test]
     fn decode_header_plain() {

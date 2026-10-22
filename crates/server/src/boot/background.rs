@@ -4,74 +4,13 @@ use std::sync::Arc;
 
 use crate::*;
 
-use super::Roles;
-
-pub(super) fn spawn_ics_feed_worker(pg_pool: &Option<pg::BackendPool>) {
-    // MRS-10: spawn external ICS feed worker. Cheap when no feeds exist —
-    // the DUE query returns empty and the loop sleeps.
-    if let Some(pool) = pg_pool {
-        calendar::feed_worker::spawn_feed_worker(pool.clone());
-        tracing::info!(event = "subsystem_started", subsystem = "external_ics_feed");
-    }
-}
-
-pub(super) fn start_greylist_whitelist_sync(
-    cfg: &ServerConfig,
-) -> greylist_sync::GreylistListsHandle {
-    // Greylist whitelist sync: fires once immediately, then every
-    // cfg.greylist_sync_interval_secs. Empty URL = disabled, handle stays
-    // empty (no hits, all senders go through the triplet check). The
-    // handle is cloned into the GreylistStage so the sync task and the
-    // stage share a single snapshot via tokio::sync::RwLock.
-    let greylist_whitelist = greylist_sync::empty();
-    if let Some(ref url) = cfg.greylist_whitelist_url {
-        let handle = greylist_whitelist.clone();
-        let url = url.clone();
-        let interval = cfg.greylist_sync_interval_secs;
-        tracing::info!(
-            event = "subsystem_started",
-            subsystem = "greylist_sync",
-            url = %url,
-            interval_secs = interval,
-        );
-        // monolith: no disk cache — its whitelist
-        // behaviour predates the receiver-split hardening and stays as-was
-        greylist_sync::spawn_sync_task(handle, url, interval, None);
-    } else {
-        tracing::info!(
-            event = "subsystem_skipped",
-            subsystem = "greylist_sync",
-            reason = "MAILRS_GREYLIST_WHITELIST_URL not set"
-        );
-    }
-    greylist_whitelist
-}
-
-/// The spool the SMTP side writes to and the drain reads.
-pub(super) fn spool_root(cfg: &ServerConfig) -> String {
+/// The spool the receiver writes to and the drain reads.
+fn spool_root(cfg: &ServerConfig) -> String {
     mailrs_core::spool::spool_root(&cfg.maildir_root)
 }
 
-pub(super) fn start_spool_drain(
-    roles: Roles,
-    ctx: &Arc<ConnectionContext>,
-    cfg: &ServerConfig,
-    domain_store: &Option<Arc<domain_store::DomainStore>>,
-    mailbox_store: &Option<Arc<PgMailboxStore>>,
-) {
-    // When this core runs as the consumer half (MAILRS_RECEIVER_SPLIT, or
-    // the peer role), drain the spool the receiver process writes to.
-    if roles.spool_drain
-        || std::env::var("MAILRS_RECEIVER_SPLIT")
-            .map(|v| v != "0" && v.to_lowercase() != "false")
-            .unwrap_or(false)
-    {
-        spawn_spool_drain(ctx, cfg, domain_store, mailbox_store);
-    }
-}
-
-fn spawn_spool_drain(
-    ctx: &Arc<ConnectionContext>,
+pub(super) fn spawn_spool_drain(
+    event_bus: &EventBus,
     cfg: &ServerConfig,
     domain_store: &Option<Arc<domain_store::DomainStore>>,
     mailbox_store: &Option<Arc<PgMailboxStore>>,
@@ -87,7 +26,7 @@ fn spawn_spool_drain(
     let core = Arc::new(crate::intake::PgCore {
         dir: crate::intake::PgDirectory::new(domain, cfg.maildir_root.clone(), net_url),
         mailbox,
-        event_bus: ctx.event_bus.clone(),
+        event_bus: event_bus.clone(),
     });
     // the drain queues webhooks for arriving mail on the network kevy; this
     // core sends them, as the kevy core does
@@ -141,9 +80,6 @@ pub(super) fn spawn_snooze_wake(mailbox_store: &Option<Arc<PgMailboxStore>>) {
     }
 }
 
-// Phase 2 — optional core RPC server (only compiled with --features core-rpc).
-// Default build excludes this entirely; production artifact is byte-identical.
-#[cfg(feature = "core-rpc")]
 pub(super) fn spawn_core_rpc_server(
     cfg: &ServerConfig,
     mailbox_store: &Option<Arc<PgMailboxStore>>,
@@ -167,9 +103,8 @@ pub(super) fn spawn_core_rpc_server(
                 .filter(|s| !s.is_empty()),
             event_bus: event_bus.clone(),
         });
-        // Detached on purpose. The monolith has no lock to release that this
-        // task holds — its own shutdown path covers that — so the handle is
-        // dropped rather than awaited. `drop` and not `let _ =`: a JoinHandle
+        // Detached on purpose: the task holds no lock the shutdown path has
+        // to release, so the handle is dropped rather than awaited. `drop` and not `let _ =`: a JoinHandle
         // is a future, and `let _ =` on one reads as "ignore the result" while
         // actually detaching it (clippy::let_underscore_future).
         drop(core_rpc::spawn_core_rpc(

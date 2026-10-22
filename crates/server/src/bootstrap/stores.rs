@@ -8,8 +8,6 @@ use std::sync::Arc;
 use crate::*;
 
 pub(crate) struct Stores {
-    pub(crate) alias_store: Option<Arc<dyn mailrs_alias_store::AliasStore>>,
-    pub(crate) dmarc_report_store: Option<Arc<dmarc_report::DmarcReportStore>>,
     pub(crate) domain_store: Option<Arc<domain_store::DomainStore>>,
     pub(crate) mailbox_store: Option<Arc<PgMailboxStore>>,
 }
@@ -18,17 +16,14 @@ pub(crate) async fn build(
     cfg: &ServerConfig,
     pg_pool: &Option<pg::BackendPool>,
     kevy_embedded_store: &Option<kevy_store::KevyStore>,
-    health_state: &health::HealthState,
 ) -> Stores {
     // mailbox store for IMAP (PG-backed)
     let mailbox_store = pg_pool
         .as_ref()
         .map(|pool| Arc::new(PgMailboxStore::new(pool.clone())));
 
-    // AliasStore backend selector — RFC 20260705 Step 3. Constructed
-    // ahead of DomainStore so it can be attached to both the store's
-    // internal alias path AND the WebState top-level field, keeping
-    // both sides on the same Arc. Env `MAILRS_ALIAS_STORE_BACKEND`:
+    // AliasStore backend selector, attached to the DomainStore's alias
+    // path. Env `MAILRS_ALIAS_STORE_BACKEND`:
     // `network` + `MAILRS_KEVY_URL` = shared network kevy (v2 dual-mode
     // sync); anything else = None → legacy PG-backed DomainStore.aliases.
     let alias_store: Option<Arc<dyn mailrs_alias_store::AliasStore>> = match std::env::var(
@@ -40,7 +35,7 @@ pub(crate) async fn build(
             Ok(url) if !url.is_empty() => {
                 tracing::info!(
                     url = %url,
-                    "alias-store backend = network kevy (monolith, RFC 20260705 Step 3)"
+                    "alias-store backend = network kevy"
                 );
                 Some(Arc::new(
                     mailrs_alias_store_net::NetworkKevyAliasStore::new(url),
@@ -63,11 +58,7 @@ pub(crate) async fn build(
     // seam so recipient routing's alias step and the alias CRUD go through
     // the trait when a network backend is configured.
     let domain_store = if pg_pool.is_some() {
-        let mut ds = domain_store::DomainStore::new(
-            pg_pool.clone(),
-            kevy_embedded_store.clone(),
-            health_state.clone(),
-        );
+        let mut ds = domain_store::DomainStore::new(pg_pool.clone(), kevy_embedded_store.clone());
         if let Some(ref store) = alias_store {
             ds = ds.with_alias_store(store.clone());
         }
@@ -78,18 +69,6 @@ pub(crate) async fn build(
     } else {
         None
     };
-
-    // OIDC provider: ensure signing key exists
-    if let Some(pool) = pg_pool
-        && let Err(e) = oidc_jwt::ensure_signing_key(pool).await
-    {
-        tracing::warn!(error = %e, "failed to ensure oidc signing key");
-    }
-
-    // DMARC report store (PG-backed)
-    let dmarc_report_store = pg_pool
-        .as_ref()
-        .map(|pool| Arc::new(dmarc_report::DmarcReportStore::new(pool.clone())));
 
     // backfill threading data for existing messages
     if let Some(ref mb) = mailbox_store {
@@ -107,8 +86,6 @@ pub(crate) async fn build(
     }
 
     Stores {
-        alias_store,
-        dmarc_report_store,
         domain_store,
         mailbox_store,
     }

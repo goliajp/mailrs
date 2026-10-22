@@ -48,7 +48,6 @@ pub(super) async fn spawn_pg_core() -> String {
     let domain = Arc::new(crate::domain_store::DomainStore::new(
         Some(pool.clone()),
         None,
-        crate::health::HealthState::new(),
     ));
     let state = Arc::new(CoreRpcState {
         mailbox,

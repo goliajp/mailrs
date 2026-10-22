@@ -55,7 +55,6 @@ impl Fixture {
         let domain = Arc::new(crate::domain_store::DomainStore::new(
             Some(pool.clone()),
             None,
-            crate::health::HealthState::new(),
         ));
         let core = Arc::new(PgCore {
             dir: PgDirectory::new(domain, root, net.map(str::to_string)),

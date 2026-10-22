@@ -59,8 +59,8 @@ PYEOF
 # must be read by a running process. Every setting there used to be
 # stored and read by nothing — ports and TLS that only a restart can
 # change, and a size limit no listener looked at. An editable key needs
-# a file outside webapi (and outside the dormant monolith) whose code
-# names both the hash and the key as string literals.
+# a file outside webapi whose code names both the hash and the key as
+# string literals.
 python3 <<'PYEOF'
 import glob
 import re
@@ -83,7 +83,7 @@ def code(path):
 
 sources = [
     p for p in glob.glob("crates/*/src/**/*.rs", recursive=True)
-    if not p.startswith(("crates/webapi/", "crates/server/"))
+    if not p.startswith("crates/webapi/")
 ]
 texts = {p: code(p) for p in sources}
 # the key is spelled once, in core-sidestate; a reader names it or imports it
