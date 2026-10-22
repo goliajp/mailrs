@@ -91,10 +91,26 @@ fn new_file_uid(state: &Arc<FastcoreState>, user: &str, base: &str, path: &Path)
     resolve_uid(state, user, &empty_cache, &empty_seen, base, path)
 }
 
-/// Delete a message file — used by APPEND rollback + MOVE completion +
-/// EXPUNGE.
-pub fn delete_file(msg: &ImapMessage) -> std::io::Result<()> {
-    std::fs::remove_file(&msg.path)
+/// Remove a message file and take its size off the user's usage, the one
+/// place a removal is counted. Arrivals are counted where they are
+/// indexed (`ingest_delivered_file`).
+pub fn remove_message(user: &str, msg: &ImapMessage) -> std::io::Result<()> {
+    std::fs::remove_file(&msg.path)?;
+    crate::live_sync::adjust_usage_bytes(user, -(msg.size as i64));
+    Ok(())
+}
+
+/// A copy in `dest`, then the source removed: the user's usage ends where
+/// it started. Returns the uid the message has in `dest`.
+pub fn move_to(
+    state: &Arc<FastcoreState>,
+    user: &str,
+    msg: &ImapMessage,
+    dest: &MailboxInfo,
+) -> std::io::Result<u32> {
+    let uid = copy_to(state, user, msg, dest)?;
+    remove_message(user, msg)?;
+    Ok(uid)
 }
 
 /// Build the `blob_ref` that `ingest_delivered_file` (and later
@@ -136,8 +152,8 @@ pub fn append(
         let name = format!("{}{}", id.0, mailrs_maildir::serialize_flags(flags));
         path = mb.path.join("cur").join(name);
     }
-    crate::live_sync::adjust_usage_bytes(user, bytes.len() as i64);
-    // Write-through to the thread index, exactly like spool_drain does
+    // Write-through to the thread index, which also counts the bytes
+    // against the user's usage, exactly like spool_drain does
     // for inbound mail. Without this an APPEND (a client filing its own
     // sent copy into .Sent, say) lands on disk but stays invisible to
     // the conversation views until the periodic maildir self-heal

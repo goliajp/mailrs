@@ -10,7 +10,7 @@ use mailrs_mail_protocols::backend::{
 use super::mock::MockAccount;
 use super::real::RealAccount;
 use super::watch::FeedWatch;
-use crate::imap::backend::{ImapMessage, MailboxInfo};
+use crate::imap::backend::{self, ImapMessage, MailboxInfo};
 
 pub enum FastcoreAccount {
     Real(RealAccount),
@@ -158,7 +158,7 @@ impl Account for FastcoreAccount {
 
     async fn remove(&self, _: &FcMailbox, m: &Message<PathBuf>) -> Result<()> {
         match self {
-            Self::Real(_) => Ok(std::fs::remove_file(&m.key)?),
+            Self::Real(a) => Ok(backend::remove_message(&a.user, &to_imap(m))?),
             Self::Mock(_) => refused(),
         }
     }
