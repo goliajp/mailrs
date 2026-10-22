@@ -10,14 +10,13 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::BackendPool;
 use hickory_resolver::TokioResolver;
-use kevy_embedded::{PubsubFrame, Store};
 use mailrs_dkim::HickoryDkimResolver;
 
 use crate::DeliveryEventSender;
 use crate::dkim_sign::{self, DkimSignConfig};
-use crate::queue::{self, QueuedMessage};
+use crate::queue::QueuedMessage;
+use crate::store::{Notifier, QueueStore};
 
 mod delivery;
 mod smtp;
@@ -28,7 +27,7 @@ pub use smtp::{TlsPolicy, try_deliver_via_mx, try_deliver_via_mx_with_tls};
 /// Delivery worker configuration.
 #[derive(Debug, Clone)]
 pub struct WorkerConfig {
-    /// Polling cadence when no Kevy notify wakeup is available.
+    /// Polling cadence; a [`Notifier`] wake-up cuts it short.
     pub poll_interval_secs: u64,
     /// Max queue rows fetched per poll tick.
     pub batch_size: u32,
@@ -65,7 +64,8 @@ pub fn group_by_domain(messages: Vec<QueuedMessage>) -> HashMap<String, Vec<Queu
 /// background delivery worker that polls the queue and delivers messages
 pub struct DeliveryWorker {
     config: WorkerConfig,
-    pool: BackendPool,
+    store: Arc<dyn QueueStore>,
+    notifier: Arc<dyn Notifier>,
     resolver: TokioResolver,
     hostname: String,
     dkim: Option<DkimSignConfig>,
@@ -74,14 +74,15 @@ pub struct DeliveryWorker {
     /// expect. Used by ARC sealing for the verify-then-seal flow.
     dkim_resolver: Arc<HickoryDkimResolver>,
     event_sender: Option<DeliveryEventSender>,
-    kevy_store: Option<Store>,
 }
 
 impl DeliveryWorker {
-    /// Construct a delivery worker with the given config + dependencies.
+    /// Construct a delivery worker over `store`, woken early by `notifier`
+    /// (pass [`NoopNotifier`](crate::NoopNotifier) to rely on polling).
     pub fn new(
         config: WorkerConfig,
-        pool: BackendPool,
+        store: Arc<dyn QueueStore>,
+        notifier: Arc<dyn Notifier>,
         resolver: TokioResolver,
         hostname: String,
     ) -> Self {
@@ -89,13 +90,13 @@ impl DeliveryWorker {
 
         Self {
             config,
-            pool,
+            store,
+            notifier,
             resolver,
             hostname,
             dkim: None,
             dkim_resolver,
             event_sender: None,
-            kevy_store: None,
         }
     }
 
@@ -111,14 +112,6 @@ impl DeliveryWorker {
         self
     }
 
-    /// Attach an in-process kevy [`Store`] to subscribe to `queue:notify`
-    /// for fast wakeup. `Store: Clone` so callers typically pass a clone of
-    /// the shared cement-owned store.
-    pub fn with_kevy(mut self, store: Store) -> Self {
-        self.kevy_store = Some(store);
-        self
-    }
-
     /// Run the worker loop until `shutdown` signals.
     pub async fn run(&self, mut shutdown: tokio::sync::watch::Receiver<bool>) {
         tracing::info!(
@@ -126,13 +119,10 @@ impl DeliveryWorker {
             self.config.poll_interval_secs
         );
 
-        // try to subscribe to Kevy queue:notify for fast wakeup
-        let mut notify_rx = self.spawn_kevy_listener();
-
         loop {
             tokio::select! {
                 _ = tokio::time::sleep(std::time::Duration::from_secs(self.config.poll_interval_secs)) => {}
-                _ = wait_for_notify(&mut notify_rx) => {}
+                _ = self.notifier.wait() => {}
                 // Err: the sender is gone; it stays ready, so looping on would spin
                 changed = shutdown.changed() => {
                     if changed.is_err() || *shutdown.borrow() {
@@ -148,56 +138,31 @@ impl DeliveryWorker {
         }
     }
 
-    fn spawn_kevy_listener(&self) -> Option<tokio::sync::mpsc::Receiver<()>> {
-        let store = self.kevy_store.as_ref()?.clone();
-        let (tx, rx) = tokio::sync::mpsc::channel(16);
-        // Dedicated OS thread blocks on the sync `Subscription::recv` for
-        // the worker's lifetime — small + long-lived, so we avoid the
-        // tokio blocking-pool slot.
-        std::thread::spawn(move || {
-            let sub = store.subscribe(&[b"queue:notify"]);
-            tracing::info!("delivery worker subscribed to queue:notify");
-            while let Ok(frame) = sub.recv() {
-                if matches!(
-                    frame,
-                    PubsubFrame::Message { .. } | PubsubFrame::Pmessage { .. }
-                ) {
-                    let _ = tx.blocking_send(());
-                }
-            }
-        });
-        Some(rx)
-    }
-
     async fn poll_and_deliver(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let now = chrono::Utc::now().timestamp();
 
         // recover stale inflight messages (worker crash recovery)
-        let recovered = queue::recover_stale_inflight(&self.pool, now).await?;
+        let recovered = self.store.recover_stale_inflight(now).await?;
         if recovered > 0 {
             tracing::warn!("recovered {recovered} stale inflight messages");
         }
 
-        // Publish queue-depth gauges every poll tick. Cheap: two
-        // count(*) on an indexed `status` column. Lets ops dashboards
-        // alert on a queue that won't drain (delivery wedged) or one
-        // that's growing faster than we can flush.
-        if let Ok(pending) = queue::count_pending(&self.pool).await {
-            metrics::gauge!("mailrs_outbound_queue_depth", "status" => "pending")
-                .set(pending as f64);
-        }
-        if let Ok(inflight) = queue::count_inflight(&self.pool).await {
-            metrics::gauge!("mailrs_outbound_queue_depth", "status" => "inflight")
-                .set(inflight as f64);
+        // queue-depth gauges every tick, so a queue that won't drain or
+        // grows faster than it flushes shows on a dashboard
+        let stats = self.store.queue_stats().await?;
+        for status in ["pending", "inflight"] {
+            let count = stats
+                .iter()
+                .find(|(s, _)| s == status)
+                .map_or(0, |(_, n)| *n);
+            metrics::gauge!("mailrs_outbound_queue_depth", "status" => status).set(count as f64);
         }
 
-        // Atomic SKIP LOCKED claim + inflight transition in one
-        // statement: collapses the previous SELECT + N per-row
-        // UPDATEs (N+1 roundtrips, N+1 WAL fsyncs) into a single
-        // roundtrip and single fsync per batch, and prevents
-        // duplicate delivery in multi-worker setups (each pending
-        // row goes to at most one worker).
-        let messages = queue::claim_for_delivery(&self.pool, now, self.config.batch_size).await?;
+        // atomic claim: each pending row goes to at most one worker
+        let messages = self
+            .store
+            .claim_for_delivery(now, self.config.batch_size)
+            .await?;
 
         if messages.is_empty() {
             return Ok(());
@@ -271,7 +236,6 @@ impl DeliveryWorker {
         };
 
         let groups = group_by_domain(messages);
-        let pool = self.pool.clone();
         let semaphore = Arc::new(tokio::sync::Semaphore::new(
             self.config.max_concurrent_domains,
         ));
@@ -279,7 +243,7 @@ impl DeliveryWorker {
         let mut handles = Vec::new();
         for (domain, domain_messages) in groups {
             let sem = semaphore.clone();
-            let pool = pool.clone();
+            let store = self.store.clone();
             let resolver = self.resolver.clone();
             let hostname = self.hostname.clone();
             let max_per_conn = self.config.max_messages_per_connection;
@@ -292,7 +256,7 @@ impl DeliveryWorker {
                     &hostname,
                     &domain,
                     domain_messages,
-                    &pool,
+                    store.as_ref(),
                     25,
                     max_per_conn,
                     event_sender.as_ref(),
@@ -306,16 +270,6 @@ impl DeliveryWorker {
         }
 
         Ok(())
-    }
-}
-
-/// wait for a Kevy notify signal, or never resolve if no listener
-async fn wait_for_notify(rx: &mut Option<tokio::sync::mpsc::Receiver<()>>) {
-    match rx {
-        Some(r) => {
-            r.recv().await;
-        }
-        None => std::future::pending().await,
     }
 }
 

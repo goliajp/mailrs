@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-shield"
-version = "4.0.0"
+version = "5.0.0"
 edition = "2024"
 description = "SMTP anti-spam primitives: DNS blocklist (DNSBL) queries, greylisting policy with optional in-process kevy store, and PTR / forward-confirmed reverse DNS (FCrDNS) checks."
 license = "Apache-2.0 OR MIT"
@@ -16,16 +16,11 @@ readme = "README.md"
 workspace = true
 
 [features]
-default = ["kevy-store", "pg"]
+default = ["kevy-store"]
 # The greylist store: `GreylistDb` over a pluggable `GreylistBackend`.
 store = ["dep:async-trait"]
 # The in-process kevy backend for it, `EmbeddedGreylistBackend`.
 kevy-store = ["store", "dep:kevy-embedded"]
-# A best-effort PostgreSQL cold backup behind the store (`with_pg`).
-pg = ["store", "dep:sqlx"]
-# Swap that backup's pool from PostgreSQL to spg-embedded. Type-alias
-# level switch, same pattern as mailrs-mailbox.
-spg = ["pg", "dep:spg-sqlx"]
 
 [dependencies]
 mailrs-dnsbl = { path = "../dnsbl", version = "1" }
@@ -33,8 +28,6 @@ hickory-resolver = "0.26"
 
 # kevy-store feature
 kevy-embedded = { workspace = true, optional = true }
-sqlx = { workspace = true, optional = true }
-spg-sqlx = { workspace = true, optional = true }
 async-trait = { workspace = true, optional = true }
 
 [dev-dependencies]

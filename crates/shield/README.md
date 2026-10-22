@@ -43,7 +43,7 @@ assert_eq!(evaluate_triplet(Some(1000), 1100, &cfg), GreylistDecision::TooEarly)
 assert_eq!(evaluate_triplet(Some(1000), 1400, &cfg), GreylistDecision::Accept);
 ```
 
-The optional `kevy-store` feature (on by default) ships a `GreylistDb` that combines kevy (hot in-process cache) + Postgres (cold backup) behind a single `check()` call:
+`GreylistDb` runs the policy over a pluggable `GreylistBackend` behind a single `check()` call. The default `kevy-store` feature ships an in-process kevy backend:
 
 ```rust,no_run
 # #[cfg(feature = "kevy-store")]
@@ -62,7 +62,7 @@ let decision = db.check(&key, now, &cfg).await;
 # }
 ```
 
-Disable the feature to plug in your own store — the trait surface is just "given a key + clock, look up the first-seen timestamp."
+To plug in your own store, implement `GreylistBackend` (`get`, `set_with_ttl`, `expire` — three key-value operations), build the store with `GreylistDb::with_backend`, and check the backend from a test with `greylist::check_greylist_backend(&backend).await`. With `default-features = false, features = ["store"]` the crate has no storage dependency at all.
 
 ### `shield::ptr` — FCrDNS check
 
@@ -96,7 +96,7 @@ Microbenchmarks for the pure helpers (no live resolver hits) live in [`benches/o
 | `ptr::ptr_score_from_names(match)` | ~85 ns | scans the candidate names for the EHLO domain |
 | `ptr::ptr_score_from_names(no match)` | ~200 ns | runs the full FCrDNS scoring fallback |
 
-Live-resolver paths (`check_client_ptr`, `dnsbl::check`, `greylist::GreylistDb::check`) aren't bench-able offline; production latency is dominated by DNS round-trips on the resolver paths. The `GreylistDb` store path now runs in-process against `kevy_embedded::Store`, so the only network hop left on that path is the optional Postgres cold backup.
+Live-resolver paths (`check_client_ptr`, `dnsbl::check`, `greylist::GreylistDb::check`) aren't bench-able offline; production latency is dominated by DNS round-trips on the resolver paths. With the in-process kevy backend the `GreylistDb` store path makes no network call.
 
 Run with `cargo bench -p mailrs-shield`. See [`tests/perf_gate.rs`](tests/perf_gate.rs) for the regression budgets.
 
@@ -104,9 +104,10 @@ Run with `cargo bench -p mailrs-shield`. See [`tests/perf_gate.rs`](tests/perf_g
 
 | Flag | Default | What it enables |
 |------|---------|-----------------|
-| `kevy-store` | yes | `greylist::GreylistDb` (in-process kevy + optional PG cold backup) |
+| `store` | via `kevy-store` | `greylist::GreylistDb`, the `GreylistBackend` trait and `check_greylist_backend` |
+| `kevy-store` | yes | `store` + `greylist::EmbeddedGreylistBackend` (in-process kevy) |
 
-Disable both default features (`default-features = false`) if you're plugging in your own backends.
+Use `default-features = false, features = ["store"]` when you bring your own backend.
 
 ## License
 

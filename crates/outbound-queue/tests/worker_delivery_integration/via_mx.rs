@@ -6,9 +6,8 @@ use std::sync::Arc;
 use common::mock_smtp::{
     Behavior, ensure_crypto_provider, skip_verify_client_config, spawn_mock_smtp,
 };
-use common::pg::start_pg;
-use mailrs_outbound_queue::queue::{self};
 use mailrs_outbound_queue::worker::{TlsPolicy, try_deliver_via_mx, try_deliver_via_mx_with_tls};
+use mailrs_outbound_queue::{InMemoryQueueStore, QueueStore};
 
 use super::common;
 use super::resolver;
@@ -17,21 +16,21 @@ use super::resolver;
 async fn try_deliver_via_mx_happy_path() {
     ensure_crypto_provider();
     let mock = spawn_mock_smtp(Behavior::AcceptNoStarttls).await;
-    let (_c, pool) = start_pg().await;
+    let store = InMemoryQueueStore::new();
 
-    let id = queue::enqueue_ex(
-        &pool,
-        "s@example.com",
-        "r@dest.com",
-        "dest.com",
-        b"Subject: hi\r\n\r\nbody\r\n",
-        None,
-        0,
-        false,
-    )
-    .await
-    .unwrap();
-    let msg = queue::get_message(&pool, id).await.unwrap().unwrap();
+    let id = store
+        .enqueue(
+            "s@example.com",
+            "r@dest.com",
+            "dest.com",
+            b"Subject: hi\r\n\r\nbody\r\n",
+            None,
+            0,
+            false,
+        )
+        .await
+        .unwrap();
+    let msg = store.get_message(id).await.unwrap().unwrap();
 
     let r = resolver();
     let result = try_deliver_via_mx(
@@ -51,21 +50,21 @@ async fn try_deliver_via_mx_happy_path() {
 async fn try_deliver_via_mx_5xx_after_rcpt_returns_err() {
     ensure_crypto_provider();
     let mock = spawn_mock_smtp(Behavior::Reject5xxAfterRcpt).await;
-    let (_c, pool) = start_pg().await;
+    let store = InMemoryQueueStore::new();
 
-    let id = queue::enqueue_ex(
-        &pool,
-        "s@example.com",
-        "r@dest.com",
-        "dest.com",
-        b"body\r\n",
-        None,
-        0,
-        false,
-    )
-    .await
-    .unwrap();
-    let msg = queue::get_message(&pool, id).await.unwrap().unwrap();
+    let id = store
+        .enqueue(
+            "s@example.com",
+            "r@dest.com",
+            "dest.com",
+            b"body\r\n",
+            None,
+            0,
+            false,
+        )
+        .await
+        .unwrap();
+    let msg = store.get_message(id).await.unwrap().unwrap();
 
     let r = resolver();
     let result = try_deliver_via_mx(
@@ -85,21 +84,21 @@ async fn try_deliver_via_mx_5xx_after_rcpt_returns_err() {
 async fn try_deliver_via_mx_close_mid_data_returns_err() {
     ensure_crypto_provider();
     let mock = spawn_mock_smtp(Behavior::CloseMidData).await;
-    let (_c, pool) = start_pg().await;
+    let store = InMemoryQueueStore::new();
 
-    let id = queue::enqueue_ex(
-        &pool,
-        "s@example.com",
-        "r@dest.com",
-        "dest.com",
-        &vec![b'x'; 4096],
-        None,
-        0,
-        false,
-    )
-    .await
-    .unwrap();
-    let msg = queue::get_message(&pool, id).await.unwrap().unwrap();
+    let id = store
+        .enqueue(
+            "s@example.com",
+            "r@dest.com",
+            "dest.com",
+            &vec![b'x'; 4096],
+            None,
+            0,
+            false,
+        )
+        .await
+        .unwrap();
+    let msg = store.get_message(id).await.unwrap().unwrap();
 
     let r = resolver();
     let result = try_deliver_via_mx(
@@ -127,21 +126,21 @@ async fn try_deliver_via_mx_starttls_rejected_falls_back_to_plain() {
     // The StarttlsHandshakeFail behavior triggers the
     // reconnect-in-plain branch of try_deliver_via_mx_with_tls.
     let mock = spawn_mock_smtp(Behavior::StarttlsHandshakeFail).await;
-    let (_c, pool) = start_pg().await;
+    let store = InMemoryQueueStore::new();
 
-    let id = queue::enqueue_ex(
-        &pool,
-        "s@example.com",
-        "r@dest.com",
-        "dest.com",
-        b"body\r\n",
-        None,
-        0,
-        false,
-    )
-    .await
-    .unwrap();
-    let msg = queue::get_message(&pool, id).await.unwrap().unwrap();
+    let id = store
+        .enqueue(
+            "s@example.com",
+            "r@dest.com",
+            "dest.com",
+            b"body\r\n",
+            None,
+            0,
+            false,
+        )
+        .await
+        .unwrap();
+    let msg = store.get_message(id).await.unwrap().unwrap();
 
     let r = resolver();
     // Note: with Opportunistic policy + handshake fail, the worker
@@ -171,21 +170,21 @@ async fn try_deliver_via_mx_starttls_rejected_falls_back_to_plain() {
 async fn try_deliver_via_mx_ehlo_rejected_returns_err() {
     ensure_crypto_provider();
     let mock = spawn_mock_smtp(Behavior::EhloRejected).await;
-    let (_c, pool) = start_pg().await;
+    let store = InMemoryQueueStore::new();
 
-    let id = queue::enqueue_ex(
-        &pool,
-        "s@example.com",
-        "r@dest.com",
-        "dest.com",
-        b"body\r\n",
-        None,
-        0,
-        false,
-    )
-    .await
-    .unwrap();
-    let msg = queue::get_message(&pool, id).await.unwrap().unwrap();
+    let id = store
+        .enqueue(
+            "s@example.com",
+            "r@dest.com",
+            "dest.com",
+            b"body\r\n",
+            None,
+            0,
+            false,
+        )
+        .await
+        .unwrap();
+    let msg = store.get_message(id).await.unwrap().unwrap();
 
     let r = resolver();
     let result = try_deliver_via_mx(
@@ -205,21 +204,21 @@ async fn try_deliver_via_mx_ehlo_rejected_returns_err() {
 async fn try_deliver_via_mx_starttls_rejected_falls_through_to_delivery() {
     ensure_crypto_provider();
     let mock = spawn_mock_smtp(Behavior::StarttlsRejected).await;
-    let (_c, pool) = start_pg().await;
+    let store = InMemoryQueueStore::new();
 
-    let id = queue::enqueue_ex(
-        &pool,
-        "s@example.com",
-        "r@dest.com",
-        "dest.com",
-        b"body\r\n",
-        None,
-        0,
-        false,
-    )
-    .await
-    .unwrap();
-    let msg = queue::get_message(&pool, id).await.unwrap().unwrap();
+    let id = store
+        .enqueue(
+            "s@example.com",
+            "r@dest.com",
+            "dest.com",
+            b"body\r\n",
+            None,
+            0,
+            false,
+        )
+        .await
+        .unwrap();
+    let msg = store.get_message(id).await.unwrap().unwrap();
 
     let r = resolver();
     // mock advertises STARTTLS in EHLO, then 502s the STARTTLS
@@ -246,21 +245,21 @@ async fn try_deliver_via_mx_starttls_rejected_falls_through_to_delivery() {
 async fn try_deliver_via_mx_starttls_success_full_deliver() {
     ensure_crypto_provider();
     let mock = spawn_mock_smtp(Behavior::StarttlsAccept).await;
-    let (_c, pool) = start_pg().await;
+    let store = InMemoryQueueStore::new();
 
-    let id = queue::enqueue_ex(
-        &pool,
-        "s@example.com",
-        "r@dest.com",
-        "dest.com",
-        b"Subject: hi\r\n\r\nbody\r\n",
-        None,
-        0,
-        false,
-    )
-    .await
-    .unwrap();
-    let msg = queue::get_message(&pool, id).await.unwrap().unwrap();
+    let id = store
+        .enqueue(
+            "s@example.com",
+            "r@dest.com",
+            "dest.com",
+            b"Subject: hi\r\n\r\nbody\r\n",
+            None,
+            0,
+            false,
+        )
+        .await
+        .unwrap();
+    let msg = store.get_message(id).await.unwrap().unwrap();
 
     let r = resolver();
     let tls_config = Arc::new(skip_verify_client_config());
@@ -286,21 +285,21 @@ async fn try_deliver_via_mx_starttls_success_full_deliver() {
 async fn try_deliver_via_mx_require_policy_rejected_starttls_returns_err() {
     ensure_crypto_provider();
     let mock = spawn_mock_smtp(Behavior::StarttlsRejected).await;
-    let (_c, pool) = start_pg().await;
+    let store = InMemoryQueueStore::new();
 
-    let id = queue::enqueue_ex(
-        &pool,
-        "s@example.com",
-        "r@dest.com",
-        "dest.com",
-        b"body\r\n",
-        None,
-        0,
-        false,
-    )
-    .await
-    .unwrap();
-    let msg = queue::get_message(&pool, id).await.unwrap().unwrap();
+    let id = store
+        .enqueue(
+            "s@example.com",
+            "r@dest.com",
+            "dest.com",
+            b"body\r\n",
+            None,
+            0,
+            false,
+        )
+        .await
+        .unwrap();
+    let msg = store.get_message(id).await.unwrap().unwrap();
 
     let r = resolver();
     let tls_config = Arc::new(skip_verify_client_config());
@@ -327,21 +326,21 @@ async fn try_deliver_via_mx_require_policy_rejected_starttls_returns_err() {
 async fn try_deliver_via_mx_require_policy_handshake_fail_returns_err() {
     ensure_crypto_provider();
     let mock = spawn_mock_smtp(Behavior::StarttlsHandshakeFail).await;
-    let (_c, pool) = start_pg().await;
+    let store = InMemoryQueueStore::new();
 
-    let id = queue::enqueue_ex(
-        &pool,
-        "s@example.com",
-        "r@dest.com",
-        "dest.com",
-        b"body\r\n",
-        None,
-        0,
-        false,
-    )
-    .await
-    .unwrap();
-    let msg = queue::get_message(&pool, id).await.unwrap().unwrap();
+    let id = store
+        .enqueue(
+            "s@example.com",
+            "r@dest.com",
+            "dest.com",
+            b"body\r\n",
+            None,
+            0,
+            false,
+        )
+        .await
+        .unwrap();
+    let msg = store.get_message(id).await.unwrap().unwrap();
 
     let r = resolver();
     let tls_config = Arc::new(skip_verify_client_config());
@@ -368,21 +367,21 @@ async fn try_deliver_via_mx_require_policy_no_starttls_returns_err() {
     ensure_crypto_provider();
     // AcceptNoStarttls does NOT advertise STARTTLS in EHLO
     let mock = spawn_mock_smtp(Behavior::AcceptNoStarttls).await;
-    let (_c, pool) = start_pg().await;
+    let store = InMemoryQueueStore::new();
 
-    let id = queue::enqueue_ex(
-        &pool,
-        "s@example.com",
-        "r@dest.com",
-        "dest.com",
-        b"body\r\n",
-        None,
-        0,
-        false,
-    )
-    .await
-    .unwrap();
-    let msg = queue::get_message(&pool, id).await.unwrap().unwrap();
+    let id = store
+        .enqueue(
+            "s@example.com",
+            "r@dest.com",
+            "dest.com",
+            b"body\r\n",
+            None,
+            0,
+            false,
+        )
+        .await
+        .unwrap();
+    let msg = store.get_message(id).await.unwrap().unwrap();
 
     let r = resolver();
     let result = try_deliver_via_mx_with_tls(

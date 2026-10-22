@@ -1,7 +1,7 @@
 //! Full-path worker delivery integration tests.
 //!
 //! Wires `deliver_domain_static` / `try_deliver_via_mx` against:
-//! - a real Postgres container (testcontainers)
+//! - `InMemoryQueueStore`, the reference `QueueStore`
 //! - the in-process mock SMTP server (`tests/common/mock_smtp.rs`)
 //! - a real `TokioResolver` (used only for the per-MX TLSA lookup;
 //!   resolving `127.0.0.1` returns NXDOMAIN so `has_dane` stays

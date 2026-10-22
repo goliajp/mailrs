@@ -25,28 +25,23 @@ Extracted from [mailrs] so any Rust SMTP server can produce the daily aggregate 
 ## Quick start
 
 ```rust,no_run
-use std::sync::Arc;
+use chrono::NaiveDate;
 use mailrs_dmarc::{
-    DmarcResultRecord, DmarcStore, PgDmarcStore,
+    DmarcResultRecord, DmarcStore, InMemoryDmarcStore,
     extract_rua_from_dmarc_record, format_report_email, generate_dmarc_report_xml,
 };
 
 # async fn run() -> Result<(), Box<dyn std::error::Error>> {
-let pool = sqlx::PgPool::connect("postgres://localhost/mail").await?;
-let store: Arc<PgDmarcStore> = Arc::new(PgDmarcStore::new(pool));
+let store = InMemoryDmarcStore::new();
+let day = NaiveDate::from_ymd_opt(2026, 5, 19).unwrap();
 
-// Inside your inbound pipeline, per-message:
-store.record_result(&DmarcResultRecord {
-    source_ip: "192.0.2.1".into(),
-    from_domain: "sender.example".into(),
-    spf_result: "pass".into(),
-    dkim_result: "pass".into(),
-    dmarc_result: "pass".into(),
-    disposition: "none".into(),
-}).await?;
+// Inside your inbound pipeline, per message, under the day it arrived:
+store.record_result(day, &DmarcResultRecord::new(
+    "192.0.2.1", "sender.example", "pass", "pass", "pass", "none",
+)).await?;
 
 // Daily aggregate report:
-let results = store.get_results_for_date("2026-05-19").await?;
+let results = store.get_results_for_date(day).await?;
 let xml = generate_dmarc_report_xml(
     "Reporter Org", "postmaster@reporter.example",
     "reporter.example!sender.example!2026-05-19",
@@ -61,16 +56,20 @@ let email = format_report_email(
     "2026-05-19", &xml,
 );
 // `email` is the raw multipart/mixed RFC 5322 message — hand it to your outbound queue.
+
+// Retention: keep 30 days.
+store.cleanup_before(day - chrono::Days::new(30)).await?;
 # Ok(())
 # }
 ```
 
 ## Bring your own store
 
-The `pg-store` feature gives you `PgDmarcStore` (the reference impl). Disable it (`default-features = false`) and implement [`DmarcStore`] yourself:
+The crate ships no database backend. Implement [`DmarcStore`] over what you have — every date comes from the caller, so the store never reads the clock — and check it with [`store::check_dmarc_store`]:
 
 ```rust
 use async_trait::async_trait;
+use chrono::NaiveDate;
 use mailrs_dmarc::{DmarcResultRecord, DmarcStore};
 
 struct FileStore { /* ... */ }
@@ -79,24 +78,23 @@ struct FileStore { /* ... */ }
 impl DmarcStore for FileStore {
     type Error = std::io::Error;
 
-    async fn record_result(&self, r: &DmarcResultRecord) -> Result<(), std::io::Error> {
-        // append-only log, kafka topic, S3 prefix — your call.
-        # let _ = r; Ok(())
+    async fn record_result(&self, day: NaiveDate, r: &DmarcResultRecord) -> Result<(), std::io::Error> {
+        // append-only log, a table keyed by day, an object-store prefix — your call.
+        # let _ = (day, r); Ok(())
     }
-    async fn get_results_for_date(&self, _date: &str) -> Result<Vec<DmarcResultRecord>, std::io::Error> {
+    async fn get_results_for_date(&self, _day: NaiveDate) -> Result<Vec<DmarcResultRecord>, std::io::Error> {
         # Ok(vec![])
     }
-    async fn cleanup_old(&self, _days: i64) -> Result<u64, std::io::Error> {
+    async fn cleanup_before(&self, _cutoff: NaiveDate) -> Result<u64, std::io::Error> {
         # Ok(0)
     }
 }
+
+// in a test, against an empty store:
+// mailrs_dmarc::store::check_dmarc_store(&my_store).await;
 ```
 
-## Feature flags
-
-| Flag | Default | What it enables |
-|---|---|---|
-| `pg-store` | yes | `PgDmarcStore` (sqlx + Postgres reference impl) |
+[`InMemoryDmarcStore`] is the reference implementation, for tests and single-process deployments.
 
 ## License
 
