@@ -33,15 +33,11 @@ impl RealAccount {
     }
 
     pub(crate) fn mailbox(&self, name: &str) -> Option<FcMailbox> {
-        let info = backend::get_mailbox_in(&self.maildir_root, &self.user, name)?;
-        Some(FcMailbox {
-            info,
-            asked: name.to_string(),
-        })
+        backend::get_mailbox_in(&self.maildir_root, &self.user, name)
     }
 
     pub(crate) fn messages(&self, mailbox: &FcMailbox) -> Vec<Message<PathBuf>> {
-        backend::list_messages(&self.state, &self.user, &mailbox.info)
+        backend::list_messages(&self.state, &self.user, mailbox)
             .into_iter()
             .map(to_message)
             .collect()
@@ -50,7 +46,7 @@ impl RealAccount {
     pub(crate) fn select(&self, mailbox: &FcMailbox) -> Selected<PathBuf> {
         let messages = self.messages(mailbox);
         Selected {
-            uidvalidity: backend::uidvalidity(&self.state, &self.user, &mailbox.asked),
+            uidvalidity: backend::uidvalidity(&self.state, &self.user, &mailbox.name),
             uidnext: backend::uid_next(&self.state, &self.user),
             highest_modseq: backend::highest_modseq(&self.state, &self.user),
             // every scan is fresh; no message has been seen by a session
@@ -73,7 +69,7 @@ impl RealAccount {
     }
 
     pub(crate) fn copy(&self, m: &Message<PathBuf>, to: &FcMailbox) -> Result<()> {
-        backend::copy_to(&self.state, &self.user, &to_imap(m), &to.info)?;
+        backend::copy_to(&self.state, &self.user, &to_imap(m), to)?;
         // COPY duplicates the bytes under the same account
         crate::live_sync::adjust_usage_bytes(&self.user, m.size as i64);
         Ok(())
@@ -81,7 +77,7 @@ impl RealAccount {
 
     pub(crate) fn move_to(&self, m: &Message<PathBuf>, to: &FcMailbox) -> Result<()> {
         let msg = to_imap(m);
-        backend::copy_to(&self.state, &self.user, &msg, &to.info)?;
+        backend::copy_to(&self.state, &self.user, &msg, to)?;
         backend::delete_file(&msg)?;
         Ok(())
     }
@@ -93,13 +89,7 @@ impl RealAccount {
                 Ok(()) => {
                     crate::live_sync::adjust_usage_bytes(&self.user, -(m.size as i64));
                     let ms = backend::bump_modseq(&self.state, &self.user);
-                    backend::record_vanished(
-                        &self.state,
-                        &self.user,
-                        &mailbox.info.name,
-                        m.uid,
-                        ms,
-                    );
+                    backend::record_vanished(&self.state, &self.user, &mailbox.name, m.uid, ms);
                 }
                 // removed by someone else in the meantime: gone all the same
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
@@ -114,12 +104,12 @@ impl RealAccount {
     }
 
     pub(crate) fn append(&self, mailbox: &FcMailbox, bytes: &[u8]) -> Result<()> {
-        backend::append(&self.state, &self.user, &mailbox.info, bytes)?;
+        backend::append(&self.state, &self.user, mailbox, bytes)?;
         Ok(())
     }
 
     pub(crate) fn vanished_since(&self, mailbox: &FcMailbox, modseq: u64) -> Vec<u32> {
-        backend::vanished_since(&self.state, &self.user, &mailbox.asked, modseq)
+        backend::vanished_since(&self.state, &self.user, &mailbox.name, modseq)
     }
 }
 

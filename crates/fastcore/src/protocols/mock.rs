@@ -62,12 +62,9 @@ impl MockAccount {
                 "[NONEXISTENT] a mock namespace has only INBOX".into(),
             ));
         }
-        Ok(FcMailbox {
-            info: MailboxInfo {
-                name: "INBOX".into(),
-                path: store::root().join(&self.ns),
-            },
-            asked: name.to_string(),
+        Ok(MailboxInfo {
+            name: "INBOX".into(),
+            path: store::root().join(&self.ns),
         })
     }
 

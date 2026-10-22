@@ -4,6 +4,7 @@
 mod mock;
 mod pop3;
 mod sieve;
+mod uidvalidity;
 mod writes;
 
 use std::path::Path;
