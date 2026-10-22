@@ -18,6 +18,13 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### A message moved to another folder stays read
+
+IMAP COPY and MOVE on fastcore wrote the copy into the target folder's
+`new/` with no flags, so a read message moved to Archive came back
+unread (and unflagged). The copy now carries the source's flags in its
+file name and in the index, as APPEND already did.
+
 ### The all-in-one server is gone
 
 `crates/server` used to build two binaries: `mailrs-pg-core`, the SQL core
