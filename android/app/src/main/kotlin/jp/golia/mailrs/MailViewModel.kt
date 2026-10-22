@@ -160,14 +160,17 @@ class MailViewModel(
         }
     }
 
-    fun signIn(server: String, username: String, password: String) {
+    fun signIn(server: String, username: String, password: String, totpCode: String? = null) {
         _state.update { it.copy(busy = true, error = null) }
         viewModelScope.launch {
-            when (val r = client.login(server, username, password)) {
+            when (val r = client.login(server, username, password, totpCode)) {
+                is MailrsClient.Outcome.Ok if r.value == MailrsClient.LoginStep.NeedsCode ->
+                    _state.update { it.copy(busy = false, needsTotp = true) }
                 is MailrsClient.Outcome.Ok -> {
                     _state.update { it.copy(
                         signedIn = true,
                         busy = false,
+                        needsTotp = false,
                         server = client.session?.server.orEmpty(),
                         myAddress = client.session?.address.orEmpty(),
                     ) }
