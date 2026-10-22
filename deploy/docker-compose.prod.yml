@@ -129,6 +129,7 @@ services:
       # Backup taken and verified immediately before flipping this.
       MAILRS_KEVY_AOF_REWRITE: ${MAILRS_KEVY_AOF_REWRITE:-on}
       MAILRS_MAILDIR: /data/maildir
+      MAILRS_SPOOL_ROOT: /data/.spool
       # The same fraud policy the receiver is given, because the
       # re-scan sweep lives in *this* process and reads it from the
       # environment. It was set only on the receiver until 2026-08-28,
@@ -208,10 +209,8 @@ services:
     ports:
       - "127.0.0.1:3103:3100"
     environment:
-      # THE switch (v2 dual-mode): points at whichever serving core runs.
-      # Default = fastcore(kevy) :3301. To run pg-core mode instead, stand
-      # up the `core` service (deploy/docker-compose.split.yml) and set
-      # MAILRS_CORE_RPC_BASE=http://mailrs:3300 in .env. webapi is agnostic.
+      # whichever core runs answers here: fastcore, or the SQL core when
+      # docker-compose.pg-core.yml is layered on this file
       MAILRS_CORE_RPC_BASE: ${MAILRS_CORE_RPC_BASE:-http://mailrs-fastcore:3301}
       MAILRS_CORE_API_SECRET: ${MAILRS_CORE_API_SECRET}
       MAILRS_KEVY_URL: kevy://kevy-server:6379
