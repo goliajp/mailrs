@@ -86,7 +86,11 @@ sources = [
     if not p.startswith(("crates/webapi/", "crates/server/"))
 ]
 texts = {p: code(p) for p in sources}
-holders = [p for p, t in texts.items() if '"admin:system-config"' in t]
+# the key is spelled once, in core-sidestate; a reader names it or imports it
+holders = [
+    p for p, t in texts.items()
+    if '"admin:system-config"' in t or "keys::admin::SYSTEM_CONFIG" in t
+]
 inert = [k for k in editable if not any(f'"{k}"' in texts[p] for p in holders)]
 if inert:
     print("!! editable on the System Config page, read by no process:")
