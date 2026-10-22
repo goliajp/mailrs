@@ -1,8 +1,8 @@
 [package]
 name = "mailrs-outbound-queue"
-version = "5.0.0"
+version = "6.0.0"
 edition = "2024"
-description = "Outbound mail queue primitives: DKIM signing, DSN generation, MTA-STS lookup, retry/backoff, with a pluggable store trait and a Postgres reference implementation."
+description = "Outbound mail queue primitives: DKIM signing, DSN generation, MTA-STS lookup, retry/backoff, and a delivery worker over a pluggable store trait."
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/goliajp/mailrs"
 homepage = "https://github.com/goliajp/mailrs"
@@ -11,29 +11,9 @@ authors = ["GOLIA K.K."]
 keywords = ["smtp", "outbound", "dkim", "dsn", "email"]
 categories = ["email", "network-programming", "asynchronous"]
 readme = "README.md"
-# these need Docker, the in-repo test helper crate or the repository's
-# schema file, none of which ships with the crate
-exclude = [
-    "tests/common",
-    "tests/pg_smoke.rs",
-    "tests/pg_store_integration.rs",
-    "tests/the_scheduled_sweep_has_a_plan.rs",
-    "tests/worker_delivery_integration",
-    "tests/worker_integration.rs",
-]
 
 [lints]
 workspace = true
-
-[features]
-default = ["pg"]
-# Enable the Postgres + in-process kevy reference implementation of
-# QueueStore / Notifier and the bundled DeliveryWorker that depends on
-# them. Disable this feature if you're plugging in your own store backend.
-pg = ["dep:sqlx", "dep:kevy-embedded"]
-# Swap the store backend from PostgreSQL (default) to spg-embedded.
-# Implies `pg` (same store code, different pool type).
-spg = ["pg", "dep:spg-sqlx"]
 
 [dependencies]
 async-trait = "0.1"
@@ -65,21 +45,9 @@ mailrs-rfc5322 = { path = "../rfc5322", version = "1" }
 # rest of the outbound path.
 mailrs-mail-builder = { path = "../mail-builder", version = "1" }
 
-# pg feature
-sqlx = { workspace = true, optional = true }
-spg-sqlx = { workspace = true, optional = true }
-kevy-embedded = { workspace = true, optional = true }
-
 [dev-dependencies]
-mailrs-test-docker = { path = "../test-docker" }
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
 criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
-# Integration tests spin a real Postgres in a container so the `pg`
-# feature paths (queue.rs SQL, pg_store.rs trait wiring) run against
-# the actual db, not a mock. Required serially — see tests/common/pg.rs.
-testcontainers = "0.27"
-testcontainers-modules = { version = "0.15", features = ["postgres"] }
-sqlx = { workspace = true }
 # Mirrors smtp-client/tests/common/mock_smtp.rs deps so the same mock
 # can serve worker-integration tests end-to-end (worker → smtp-client →
 # mock SMTP). Plain-text fixture deps only; TLS support is unused here

@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.0.0] - 2026-10-22
+
+### Removed
+
+- **Breaking:** the Postgres backend and everything tied to it: the `pg`
+  and `spg` features, `PgQueueStore`, `KevyNotifier`, `BackendPool`, and
+  the SQL free functions in `queue` (`enqueue`, `enqueue_ex`,
+  `enqueue_scheduled`, `claim_for_delivery`, `mark_*`, `queue_stats`,
+  `list_recent`, `cancel_*`, `retry_message`, `reschedule_pending`, the
+  suppression-list functions, `notify`). The crate no longer depends on
+  `sqlx` or `kevy-embedded`. Migration: implement `QueueStore` (and
+  `Notifier`) over your database; the removed SQL is in 5.0.0's
+  `src/queue/` for reference.
+
+### Changed
+
+- **Breaking:** `DeliveryWorker` is built over the traits:
+  `DeliveryWorker::new(config, store: Arc<dyn QueueStore>, notifier:
+  Arc<dyn Notifier>, resolver, hostname)`. `with_kevy` is gone; the worker
+  wakes on `Notifier::wait`. `deliver_domain_static` takes
+  `&dyn QueueStore` instead of a pool.
+- **Breaking:** `QueueStore::dequeue` and `QueueStore::mark_inflight` are
+  replaced by the atomic `claim_for_delivery(now, limit)`, so two workers
+  sharing a store never deliver the same row.
+- **Breaking:** `QueueStore::is_suppressed` returns `Result<bool,
+  StoreError>`; a failing backend is no longer reported as "not
+  suppressed".
+- Store failures inside the worker are logged with the operation and
+  message id instead of being dropped.
+
+### Added
+
+- `QueueStore::reschedule_pending`.
+- `store::contract::check_queue_store`: an executable contract for
+  `QueueStore` implementations, run here against `InMemoryQueueStore`.
+- `store::STALE_INFLIGHT_SECS`, the crash-recovery threshold.
+
 ## [5.0.0] - 2026-10-22
 
 ### Changed

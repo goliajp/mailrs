@@ -2,47 +2,38 @@
 #![deny(rustdoc::broken_intra_doc_links)]
 
 //! Outbound mail queue primitives: DKIM signing, DSN generation, MTA-STS
-//! lookup, retry/backoff, plus a pluggable store trait and a Postgres
-//! reference implementation.
+//! lookup, retry/backoff, and a delivery worker over a pluggable store.
 //!
-//! `mailrs-outbound-queue` extracts the queue + delivery layer from
-//! [mailrs] so it can be reused — or driven by a custom store — in any Rust
-//! MTA. The "pure" pieces ([`dkim_sign`], [`dsn`], [`mta_sts`], [`retry`])
-//! depend only on hashes / DNS / pure arithmetic; the [`QueueStore`] +
-//! [`Notifier`] traits in [`store`] decouple delivery state from any
-//! particular backend.
+//! The "pure" pieces ([`dkim_sign`], [`dsn`], [`mta_sts`], [`retry`])
+//! depend only on hashes / DNS / arithmetic. Queue state lives behind the
+//! [`QueueStore`] trait and wake-ups behind [`Notifier`]; the crate ships
+//! no database backend. Implement the two traits over whatever you store
+//! mail in, check the store with [`store::contract::check_queue_store`],
+//! and hand both to [`DeliveryWorker`]:
 //!
-//! # Feature flags
+//! ```no_run
+//! # async fn run() -> Result<(), Box<dyn std::error::Error>> {
+//! use std::sync::Arc;
+//! use mailrs_outbound_queue::{DeliveryWorker, InMemoryNotifier, InMemoryQueueStore, WorkerConfig};
 //!
-//! | Feature | Default | Includes |
-//! |---------|---------|----------|
-//! | `pg`    | on      | [`PgQueueStore`] + [`KevyNotifier`] + the bundled [`DeliveryWorker`] that consumes them. Pulls in `sqlx` and `kevy-embedded`. |
-//!
-//! Disable the `pg` feature if you want only the traits + pure primitives:
-//!
-//! ```toml
-//! mailrs-outbound-queue = { version = "1", default-features = false }
+//! let store = Arc::new(InMemoryQueueStore::new());
+//! let notifier = Arc::new(InMemoryNotifier::new());
+//! let resolver = mailrs_smtp_client::TokioResolver::builder_tokio()?.build()?;
+//! let worker = DeliveryWorker::new(
+//!     WorkerConfig::default(),
+//!     store,
+//!     notifier,
+//!     resolver,
+//!     "mx.example.com".into(),
+//! );
+//! let (_stop, stopped) = tokio::sync::watch::channel(false);
+//! worker.run(stopped).await;
+//! # Ok(())
+//! # }
 //! ```
 //!
-//! # Two paths
-//!
-//! The crate exposes two parallel APIs against the same underlying queue
-//! semantics:
-//!
-//! - **Trait API** ([`QueueStore`], [`Notifier`]) — the portable surface.
-//!   Use this if you want a non-PG backend, or if you want your own
-//!   delivery loop. An always-available [`InMemoryQueueStore`] is included
-//!   for tests + pilots.
-//! - **PG free functions** in the [`queue`] module — convenience for the
-//!   common case where you already have a `sqlx::PgPool` and just want
-//!   `queue::enqueue(pool, ...)`. These back the bundled
-//!   [`DeliveryWorker`] and are what mailrs itself uses.
-//!
-//! Both APIs are stable for v1.x and back-compatible. The trait API plus a
-//! generic worker is the target for v2.
-//!
-//! [mailrs]: https://github.com/goliajp/mailrs
-//! [`mailrs-smtp-client`]: https://crates.io/crates/mailrs-smtp-client
+//! [`InMemoryQueueStore`] and [`InMemoryNotifier`] are complete reference
+//! implementations, fit for tests and single-process deployments.
 
 use std::sync::Arc;
 
@@ -60,23 +51,10 @@ pub mod mta_sts;
 pub mod queue;
 /// Exponential-backoff retry math + "is it permanent?" classifier.
 pub mod retry;
-/// Pluggable [`QueueStore`] trait + an in-memory reference impl.
+/// Pluggable [`QueueStore`] / [`Notifier`] traits, reference impls and the contract check.
 pub mod store;
 
-/// Postgres-backed [`QueueStore`] implementation (feature-gated).
-#[cfg(feature = "pg")]
-pub mod pg_store;
-
-/// Connection pool of the active SQL backend (PostgreSQL by default,
-/// spg-embedded behind the `spg` feature).
-#[cfg(all(feature = "pg", not(feature = "spg")))]
-pub type BackendPool = sqlx::PgPool;
-/// Connection pool of the active SQL backend (PostgreSQL by default,
-/// spg-embedded behind the `spg` feature).
-#[cfg(feature = "spg")]
-pub type BackendPool = spg_sqlx::SpgPool;
-/// Async delivery worker that drains the queue + dispatches via SMTP (feature-gated).
-#[cfg(feature = "pg")]
+/// Async delivery worker that drains the queue + dispatches via SMTP.
 pub mod worker;
 
 pub use dkim_sign::{DkimDomainKey, DkimSignConfig};
@@ -85,10 +63,6 @@ pub use retry::{retry_delay_secs, retry_delay_secs_jittered, should_bounce};
 pub use store::{
     InMemoryNotifier, InMemoryQueueStore, NoopNotifier, Notifier, QueueStore, StoreError,
 };
-
-#[cfg(feature = "pg")]
-pub use pg_store::{KevyNotifier, PgQueueStore};
-#[cfg(feature = "pg")]
 pub use worker::{DeliveryWorker, WorkerConfig, group_by_domain};
 
 /// Outbound delivery event for external observers (admin UI, audit log,
