@@ -15,10 +15,12 @@
 #![deny(rustdoc::broken_intra_doc_links)]
 
 pub mod fixtures;
-#[cfg(feature = "pg")]
-pub mod pg;
 /// Which conversations a view shows: triage buckets and the scope a
 /// request's folder and category reconcile to, shared by every store.
+/// Who a conversation is with, in the order the mail arrived.
+pub mod participants;
+#[cfg(feature = "pg")]
+pub mod pg;
 pub mod scope;
 /// Portable [`MailboxStore`] trait — the IMAP/JMAP-shaped abstraction
 /// backend implementations must satisfy.
