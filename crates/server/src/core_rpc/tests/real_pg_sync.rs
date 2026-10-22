@@ -99,6 +99,7 @@ fn spawn_pg_core(pool: crate::pg::BackendPool) -> String {
         pool,
         maildir_root: "/tmp/real-pg-core-test".into(),
         net_url: None,
+        event_bus: crate::event_bus::EventBus::new(64),
     });
     let router = build_full_router(state, String::new());
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();

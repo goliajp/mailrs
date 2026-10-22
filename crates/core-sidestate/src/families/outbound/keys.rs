@@ -16,7 +16,7 @@ pub const JOB_PREFIX: &str = "mailrs:outbound:job:";
 /// SCAN pattern over every job hash.
 pub const JOB_PATTERN: &[u8] = b"mailrs:outbound:job:*";
 
-/// The pre-v2.5 row hash, field `blob`; the core RPC still serves it.
+/// The pre-v2.5 row hash, field `blob`; cancelling a send deletes it.
 pub fn legacy_row_key(id: impl std::fmt::Display) -> String {
     format!("mailrs:outbound:{id}")
 }
@@ -53,7 +53,8 @@ pub fn failed_audit_key(id: impl std::fmt::Display) -> String {
     format!("mailrs:outbound:failed:{id}")
 }
 
-/// The pre-v2.5 pending list; only the core RPC `claim` still pops it.
+/// The pre-v2.5 pending list; nothing pops it any more, and the sieve
+/// redirect test asserts nothing is pushed there either.
 pub const LEGACY_PENDING: &[u8] = b"mailrs:outbound:pending";
 
 /// Ids claimed by the pre-v2.5 path and not yet settled.
@@ -64,11 +65,6 @@ pub const SUPPRESSION: &[u8] = b"mailrs:outbound:suppression";
 
 /// Next job id.
 pub const COUNTER: &[u8] = b"mailrs:outbound:counter";
-
-/// Terminal tallies.
-pub const DELIVERED_COUNT: &[u8] = b"mailrs:outbound:delivered:count";
-pub const FAILED_COUNT: &[u8] = b"mailrs:outbound:failed:count";
-pub const BOUNCED_COUNT: &[u8] = b"mailrs:outbound:bounced:count";
 
 #[cfg(test)]
 mod tests {
@@ -91,8 +87,5 @@ mod tests {
         assert_eq!(INFLIGHT, b"mailrs:outbound:inflight");
         assert_eq!(SUPPRESSION, b"mailrs:outbound:suppression");
         assert_eq!(COUNTER, b"mailrs:outbound:counter");
-        assert_eq!(DELIVERED_COUNT, b"mailrs:outbound:delivered:count");
-        assert_eq!(FAILED_COUNT, b"mailrs:outbound:failed:count");
-        assert_eq!(BOUNCED_COUNT, b"mailrs:outbound:bounced:count");
     }
 }

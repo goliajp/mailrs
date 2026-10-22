@@ -149,6 +149,7 @@ pub(super) fn spawn_core_rpc_server(
     mailbox_store: &Option<Arc<PgMailboxStore>>,
     domain_store: &Option<Arc<domain_store::DomainStore>>,
     pg_pool: &Option<pg::BackendPool>,
+    event_bus: &crate::event_bus::EventBus,
     shutdown_rx: &tokio::sync::watch::Receiver<bool>,
 ) {
     if let (Some(mb), Some(ds), Some(pool)) = (
@@ -164,6 +165,7 @@ pub(super) fn spawn_core_rpc_server(
             net_url: std::env::var("MAILRS_KEVY_URL")
                 .ok()
                 .filter(|s| !s.is_empty()),
+            event_bus: event_bus.clone(),
         });
         // Detached on purpose. The monolith has no lock to release that this
         // task holds — its own shutdown path covers that — so the handle is

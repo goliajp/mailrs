@@ -183,21 +183,6 @@ pub(crate) async fn list_sent_messages(
     Json(SentMessagesResponse { items })
 }
 
-/// `GET /v1/users/{user}/threads/by-message-id/{message_id}` — resolve a
-/// RFC 5322 Message-ID to the thread it was indexed under (the msgid →
-/// thread reconciliation index). Callers: webapi mirror_send, so a sent
-/// reply joins the conversation its parent lives in.
-pub(crate) async fn find_thread_by_message_id(
-    State(state): State<Arc<FastcoreState>>,
-    Path((user, message_id)): Path<(String, String)>,
-) -> Json<mailrs_core_api::method::thread::FindThreadByMessageIdResponse> {
-    let thread_id = state
-        .mailbox
-        .thread_for_message_id(&user, &message_id)
-        .unwrap_or(None);
-    Json(mailrs_core_api::method::thread::FindThreadByMessageIdResponse { thread_id })
-}
-
 /// `GET /v1/users/{user}/mailboxes` — returns the INBOX + standard IMAP
 /// folders. Counts derived from kevy zsets so no spg touch.
 /// This is a minimum-viable shape — future phase populates true

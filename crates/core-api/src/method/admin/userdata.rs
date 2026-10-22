@@ -7,8 +7,6 @@ pub const PATH_LIST_ACCOUNTS: &str = "/v1/admin/accounts";
 
 pub const PATH_ADD_ACCOUNT: &str = "/v1/admin/accounts";
 
-pub const PATH_GET_ACCOUNT: &str = "/v1/admin/accounts/{address}";
-
 pub const PATH_UPDATE_ACCOUNT: &str = "/v1/admin/accounts/{address}";
 
 pub const PATH_REMOVE_ACCOUNT: &str = "/v1/admin/accounts/{address}";
@@ -32,17 +30,11 @@ pub const PATH_SET_ACCOUNT_PASSWORD: &str = "/v1/admin/accounts/{address}/passwo
 /// by webapi's update_flags / delete_message handlers.
 pub const PATH_SET_MESSAGE_FLAGS: &str = "/v1/users/{user}/messages/{uid}/flags";
 
-pub const PATH_LIST_ALIASES: &str = "/v1/admin/aliases";
-
 pub const PATH_ADD_ALIAS: &str = "/v1/admin/aliases";
-
-pub const PATH_REMOVE_ALIAS: &str = "/v1/admin/aliases/{id}";
 
 pub const PATH_RESOLVE_RECIPIENT: &str = "/v1/admin/aliases:resolve-recipient";
 
 pub const PATH_LOG_AUDIT: &str = "/v1/admin/audit-log";
-
-pub const PATH_LIST_AUDIT_LOG: &str = "/v1/admin/audit-log";
 
 pub const PATH_CLEANUP_AUDIT: &str = "/v1/admin/audit-log:cleanup";
 
@@ -72,23 +64,13 @@ pub const PATH_DELETE_ENCRYPTION_KEY: &str = "/v1/admin/encryption-keys/{address
 
 pub const PATH_LIST_ENCRYPTION_KEYS: &str = "/v1/admin/encryption-keys/{address}";
 
-pub const PATH_LIST_GROUPS: &str = "/v1/admin/groups";
-
-pub const PATH_GET_GROUP_PERMISSIONS: &str = "/v1/admin/groups/{id}/permissions";
-
 pub const PATH_SET_GROUP_PERMISSIONS: &str = "/v1/admin/groups/{id}/permissions";
 
 pub const PATH_ADD_GROUP: &str = "/v1/admin/groups";
 
 pub const PATH_REMOVE_GROUP: &str = "/v1/admin/groups/{id}";
 
-pub const PATH_LIST_GROUP_MEMBERS: &str = "/v1/admin/groups/{id}/members";
-
 pub const PATH_ADD_ACCOUNT_TO_GROUP: &str = "/v1/admin/groups/{id}/members";
-
-pub const PATH_REMOVE_ACCOUNT_FROM_GROUP: &str = "/v1/admin/groups/{id}/members/{address}";
-
-pub const PATH_GET_ACCOUNT_GROUPS: &str = "/v1/admin/accounts/{address}/groups";
 
 pub const PATH_GET_ACCOUNT_OVERRIDES: &str = "/v1/admin/accounts/{address}/overrides";
 
@@ -97,8 +79,6 @@ pub const PATH_SET_ACCOUNT_OVERRIDES: &str = "/v1/admin/accounts/{address}/overr
 pub const PATH_EFFECTIVE_PERMISSIONS: &str = "/v1/admin/accounts/{address}/effective-permissions";
 
 pub const PATH_INVALIDATE_PERMISSIONS: &str = "/v1/admin/permissions:invalidate";
-
-pub const PATH_GET_SIEVE: &str = "/v1/admin/accounts/{address}/sieve";
 
 pub const PATH_SET_SIEVE: &str = "/v1/admin/accounts/{address}/sieve";
 
@@ -136,10 +116,6 @@ pub const PATH_CREATE_API_KEY: &str = "/v1/admin/api-keys";
 pub const PATH_LIST_API_KEYS: &str = "/v1/admin/accounts/{address}/api-keys";
 
 pub const PATH_REVOKE_API_KEY: &str = "/v1/admin/api-keys/{id}";
-
-pub const PATH_GET_API_KEY_BY_PREFIX: &str = "/v1/admin/api-keys/by-prefix/{prefix}";
-
-pub const PATH_TOUCH_API_KEY: &str = "/v1/admin/api-keys/{id}/touch";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DraftWire {
@@ -229,11 +205,6 @@ pub struct SaveSignatureResponse {
     pub id: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SignatureListResponse {
-    pub items: Vec<SignatureWire>,
-}
-
 pub const PATH_LIST_SIGNATURES: &str = "/v1/users/{user}/signatures";
 
 pub const PATH_SAVE_SIGNATURE: &str = "/v1/users/{user}/signatures";
@@ -257,11 +228,6 @@ pub struct ReactionsResponse {
 pub struct ToggleReactionRequest {
     pub emoji: String,
 }
-
-pub const PATH_GET_THREAD_REACTIONS: &str = "/v1/users/{user}/threads/{thread_id}/reactions";
-
-pub const PATH_TOGGLE_REACTION: &str =
-    "/v1/users/{user}/threads/{thread_id}/messages/{uid}/reactions";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TemplateWire {

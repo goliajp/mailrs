@@ -14,6 +14,7 @@ use mailrs_intake::spool::SpoolDirs;
 mod core;
 mod directory;
 mod ingest;
+mod sent;
 mod store;
 
 pub(crate) use core::PgCore;

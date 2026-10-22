@@ -3,7 +3,6 @@
 
 pub mod account_names;
 pub mod admin_state;
-pub mod analysis;
 pub mod calendar_events;
 pub mod calendar_feeds;
 pub mod contact_cards;
@@ -13,7 +12,6 @@ pub mod dav_store;
 pub mod dkim_signers;
 pub mod domain_history;
 pub mod email_groups;
-pub mod groups_admin;
 pub mod identity_link;
 pub mod mock;
 pub mod outbound;

@@ -12,8 +12,8 @@ use axum::http::StatusCode;
 
 use mailrs_core_api::method::admin::{
     DraftListResponse, DraftWire, SaveDraftRequest, SaveDraftResponse, SaveSignatureRequest,
-    SaveSignatureResponse, SaveTemplateRequest, SaveTemplateResponse, SignatureListResponse,
-    SignatureWire, TemplateListResponse, TemplateWire,
+    SaveSignatureResponse, SaveTemplateRequest, SaveTemplateResponse, SignatureWire,
+    TemplateListResponse, TemplateWire,
 };
 
 use crate::NetKevy;
@@ -150,18 +150,6 @@ pub async fn delete_draft<S: NetKevy>(
 }
 
 // ── signatures ──────────────────────────────────────────────────────
-
-pub async fn list_signatures<S: NetKevy>(
-    State(state): State<Arc<S>>,
-    Path(user): Path<String>,
-) -> Json<SignatureListResponse> {
-    let Some(mut conn) = state.net_conn() else {
-        return Json(SignatureListResponse { items: Vec::new() });
-    };
-    let mut items: Vec<SignatureWire> = hgetall_values(&mut conn, &signatures_key(&user));
-    items.sort_by_key(|s| s.id);
-    Json(SignatureListResponse { items })
-}
 
 pub async fn save_signature<S: NetKevy>(
     State(state): State<Arc<S>>,

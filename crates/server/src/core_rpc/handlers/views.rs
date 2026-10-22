@@ -89,19 +89,6 @@ pub async fn list_sent_messages(
     Ok(Json(wire::SentMessagesResponse { items }))
 }
 
-/// GET /v1/users/{user}/threads/by-message-id/{message_id}
-pub async fn find_thread_by_message_id(
-    State(state): State<Arc<CoreRpcState>>,
-    Path((user, message_id)): Path<(String, String)>,
-) -> Result<Json<wire::FindThreadByMessageIdResponse>, StatusCode> {
-    let thread_id = state
-        .mailbox
-        .find_thread_id_by_message_id(&user, &message_id)
-        .await
-        .map_err(failed("find_thread_by_message_id", &user))?;
-    Ok(Json(wire::FindThreadByMessageIdResponse { thread_id }))
-}
-
 /// POST /v1/users/{user}/conversations:mark-all-read
 pub async fn mark_all_read(
     State(state): State<Arc<CoreRpcState>>,

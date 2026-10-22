@@ -1,6 +1,5 @@
-//! Permission groups in the network kevy. Every reader and writer (the
-//! contract handlers in `groups_admin`, webapi's admin pages and MCP tools,
-//! fastcore's authorization check) uses these keys, so there is one
+//! Permission groups in the network kevy. Every reader and writer
+//! (webapi's admin pages and MCP tools, fastcore's authorization check) uses these keys, so there is one
 //! spelling:
 //!   `admin:groups`                   hash id → group JSON
 //!   `admin:groups:counter`           id counter

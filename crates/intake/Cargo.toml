@@ -28,6 +28,7 @@ mailrs-inbound = { path = "../inbound", version = "1" }
 mailrs-intelligence = { path = "../intelligence" }
 # the threading helpers only; the SQL store stays out
 mailrs-mailbox = { path = "../mailbox", default-features = false }
+mailrs-maildir = { path = "../storage-maildir", version = "1" }
 mailrs-mime = { path = "../mime", version = "2" }
 mailrs-rfc2047 = { path = "../rfc2047", version = "1" }
 mailrs-rfc5322 = { path = "../rfc5322", version = "1" }

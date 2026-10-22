@@ -56,6 +56,7 @@ pub(super) async fn spawn_pg_core() -> String {
         pool,
         maildir_root: "/tmp/pg-core-test".into(),
         net_url: None,
+        event_bus: crate::event_bus::EventBus::new(64),
     });
     let router = build_full_router(state, String::new());
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();

@@ -14,7 +14,6 @@ use crate::types::{MailboxId, MaildirId, MessageId, ThreadId, UserAddress};
 
 pub const PATH_GET_MESSAGE: &str = "/v1/messages/{id}";
 pub const PATH_GET_MESSAGE_RAW: &str = "/v1/messages/{id}/raw";
-pub const PATH_GET_MESSAGE_BY_UID: &str = "/v1/mailboxes/{id}/messages/uid/{uid}";
 /// Fastcore-native by-user variant — resolves the message via the per-user
 /// uid → message_id index instead of a mailbox scan.
 pub const PATH_GET_MESSAGE_BY_UID_USER: &str = "/v1/users/{user}/messages/by-uid/{uid}";
@@ -25,17 +24,9 @@ pub const PATH_GET_MESSAGE_BY_UID_USER: &str = "/v1/users/{user}/messages/by-uid
 /// whether there is one (`MessageWire::invite_method`) — a list can
 /// mark every invite without fetching a single event.
 pub const PATH_GET_INVITE: &str = "/v1/users/{user}/messages/by-uid/{uid}/invite";
-pub const PATH_LIST_MESSAGES: &str = "/v1/mailboxes/{id}/messages";
 pub const PATH_FIND_BY_MESSAGE_ID: &str = "/v1/users/{user}/messages/by-message-id/{message_id}";
 pub const PATH_QUERY_MESSAGES: &str = "/v1/users/{user}/messages:query";
 pub const PATH_INSERT_MESSAGE: &str = "/v1/mailboxes/{id}/messages";
-pub const PATH_EXPUNGE: &str = "/v1/mailboxes/{id}/expunge";
-pub const PATH_COPY_MESSAGE: &str = "/v1/users/{user}/mailboxes/{src_id}/messages/{uid}/copy";
-pub const PATH_MOVE_MESSAGE: &str = "/v1/users/{user}/mailboxes/{src_id}/messages/{uid}/move";
-pub const PATH_SET_FLAGS: &str = "/v1/mailboxes/{id}/messages/{uid}/flags";
-
-pub const PATH_FLAGS_IF_UNCHANGED: &str = "/v1/mailboxes/{id}/messages/{uid}/condstore";
-pub const PATH_CHANGED_SINCE: &str = "/v1/mailboxes/{id}/changed-since/{modseq}";
 pub const PATH_INVITE_PAYLOAD: &str = "/v1/messages/{id}/invite-payload";
 pub const PATH_GET_INVITE_METHODS: &str = "/v1/invites/by-message-ids";
 
@@ -316,12 +307,6 @@ fn default_list_limit() -> u32 {
     50
 }
 
-/// Generic items envelope.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ListMessagesResponse {
-    pub items: Vec<MessageWire>,
-}
-
 /// Request body for `POST /v1/users/{user}/messages:query`.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct QueryMessagesRequest {
@@ -343,54 +328,6 @@ pub struct QueryMessagesRequest {
     /// Page size.
     #[serde(default = "default_list_limit")]
     pub limit: u32,
-}
-
-/// Request body for set/add/remove flags.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct FlagMutationRequest {
-    /// Operation kind.
-    pub op: FlagOpWire,
-    /// Mask to apply.
-    pub flags: u32,
-}
-
-/// Response: new modseq after flag mutation.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-pub struct FlagMutationResponse {
-    /// New `highest_modseq` of the affected mailbox.
-    pub new_modseq: u64,
-}
-
-/// Request body for copy/move — destination mailbox name in the same user.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CopyMoveRequest {
-    /// Destination mailbox name (e.g. `Archive`).
-    pub dst_mailbox_name: String,
-}
-
-/// Response body for copy/move — new UID in the destination mailbox.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-pub struct CopyMoveResponse {
-    /// Allocated UID in the destination mailbox.
-    pub new_uid: u32,
-}
-
-/// Response body for expunge.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExpungeResponse {
-    /// UIDs that were expunged (i.e. flagged `\Deleted` and removed).
-    pub expunged_uids: Vec<u32>,
-}
-
-/// CONDSTORE compare-and-set request.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct CondstoreRequest {
-    /// Operation kind.
-    pub op: FlagOpWire,
-    /// Mask to apply.
-    pub flags: u32,
-    /// Client's last-known modseq for this message.
-    pub unchanged_since: u64,
 }
 
 /// CONDSTORE response — `Ok(new_modseq)` on success, `Err(actual_modseq)` on

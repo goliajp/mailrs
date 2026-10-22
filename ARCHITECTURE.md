@@ -45,7 +45,7 @@ are swapped in.
 
 | state | where | written by |
 |---|---|---|
-| Mail bodies | Maildir files under `MAILRS_MAILDIR`, one directory per mailbox, Maildir++ subfolders for Sent, Drafts, Junk… | fastcore (delivery), webapi (the Sent copy of what a user sends) |
+| Mail bodies | Maildir files under `MAILRS_MAILDIR`, one directory per mailbox, Maildir++ subfolders for Sent, Drafts, Junk… | fastcore: delivery, and the Sent copy of what a user sends |
 | Threads, messages, per-user rows, UIDs, flags, the search index | fastcore's embedded kevy store (`MAILRS_KEVY_DATA_DIR`), AOF + snapshots | fastcore only; every other process goes through core-api |
 | Sessions, outbound queue, bounce queue, aliases, Sieve scripts, contacts, calendars and address books, drafts, audit log, Bayes and triage corpora, greylist and rate-limit state, sender lists | `kevy-server` | whichever process owns the feature; most keys more than one process touches are defined in `crates/core-sidestate` |
 | Inbound spool | `MAILRS_SPOOL_ROOT/incoming/` | receiver writes, fastcore drains |
@@ -76,9 +76,13 @@ change feed and sends each to the WebSocket connections of the user it is
 for, and no others. IMAP IDLE sessions in fastcore watch the embedded
 store's own change feed.
 
-**Outbound.** webapi validates a send, writes a job to the outbound queue in
-kevy-server, writes the Sent copy into the sender's Maildir and asks
-fastcore to index it. fastcore-sender delivers the job. A permanent failure
+**Outbound.** webapi validates a send and hands the bytes to fastcore
+(`POST /v1/users/{user}/sent`), which writes the Sent copy into the
+sender's Maildir and indexes it as the user's own message, the same steps
+an arriving message the user wrote takes, usage and contacts included.
+webapi then writes a job to the outbound queue in kevy-server, and a Send
+row naming the conversation and the file. fastcore-sender delivers the
+job. A permanent failure
 becomes a DSN on the bounce queue, which fastcore files into the sender's
 inbox like any other message.
 
