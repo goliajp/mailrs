@@ -65,14 +65,7 @@ impl KevyMailboxStore {
                     .hget(thread_key.as_bytes(), b"senders_csv")?
                     .and_then(|v| String::from_utf8(v).ok())
                     .unwrap_or_default();
-                let mut out: Vec<String> = Vec::new();
-                for part in existing.split(',').chain(m.senders_csv.split(',')) {
-                    let p = part.trim();
-                    if !p.is_empty() && !out.iter().any(|s| s.eq_ignore_ascii_case(p)) {
-                        out.push(p.to_string());
-                    }
-                }
-                out.join(",").into_bytes()
+                mailrs_mailbox::participants::union([existing.as_str(), m.senders_csv]).into_bytes()
             };
             // The row's display fields + list position follow the last
             // INBOUND message only. The user's own reply must not

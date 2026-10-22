@@ -109,7 +109,7 @@ fn thread_rows_sql(ids_param: Option<usize>) -> String {
     format!(
         "SELECT m.thread_id AS thread_id,
                 COALESCE(MAX(m.subject), '') AS subject,
-                COALESCE(string_agg(DISTINCT m.sender, ','), '') AS participants,
+                COALESCE(string_agg(m.sender, ',' ORDER BY m.internal_date, m.id), '') AS participants,
                 COUNT(DISTINCT {MESSAGE_KEY}) AS message_count,
                 COUNT(DISTINCT CASE WHEN (m.flags & 1) = 0 THEN {MESSAGE_KEY} END) AS unread_count,
                 COALESCE(MAX(CASE WHEN mb.name != 'Sent' THEN m.internal_date END), MAX(m.internal_date)) AS last_date,
@@ -203,7 +203,7 @@ impl From<Row> for ConversationSummary {
         ConversationSummary {
             thread_id: r.thread_id,
             subject: r.subject,
-            participants: r.participants,
+            participants: crate::participants::union([r.participants.as_str()]),
             message_count: r.message_count as u32,
             unread_count: r.unread_count as u32,
             last_date: r.last_date,
