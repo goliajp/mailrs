@@ -10,6 +10,8 @@
 
 mod harness;
 mod script;
+mod selection;
+mod steps;
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -71,6 +73,12 @@ where
     diffs
 }
 
+/// IMAP conversations on fresh connections, in order, after the first
+/// four: each starts from what the one before left.
+fn later() -> Vec<Vec<Step>> {
+    vec![selection::unselect()]
+}
+
 async fn conversations<D: Directory>(dir: Arc<D>) -> Vec<String> {
     let mut diffs = Vec::new();
     let (client, server) = tokio::io::duplex(1 << 20);
@@ -87,9 +95,15 @@ async fn conversations<D: Directory>(dir: Arc<D>) -> Vec<String> {
     diffs.extend(converse(client, "pop3", &script::pop3()).await);
 
     let (client, server) = tokio::io::duplex(1 << 20);
-    let sieve = mailrs_mail_protocols::managesieve::session(dir, server, None);
+    let sieve = mailrs_mail_protocols::managesieve::session(dir.clone(), server, None);
     tokio::spawn(sieve);
     diffs.extend(converse(client, "managesieve", &script::managesieve()).await);
+
+    for steps in later() {
+        let (client, server) = tokio::io::duplex(1 << 20);
+        tokio::spawn(mailrs_mail_protocols::imap::run(dir.clone(), server));
+        diffs.extend(converse(client, "imap", &steps).await);
+    }
     diffs
 }
 
