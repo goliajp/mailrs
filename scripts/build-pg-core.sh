@@ -1,15 +1,11 @@
 #!/usr/bin/env bash
 # Build the SQL core's image — fastcore's peer.
 #
-# This exists because `deploy/docker-compose.split.yml` referenced an image
-# nobody built. The service was written for `mailrs-server`, the fat binary the
-# main image stopped shipping in July, so the switch it describes could not be
-# performed at all: not dormant, undeployable. An image name in a compose file
-# is not a build.
+# `deploy/docker-compose.pg-core.yml` runs this image in fastcore's place.
 #
 # Usage:
-#   ./scripts/build-pg-core.sh                      # spg-embedded (default)
-#   ./scripts/build-pg-core.sh --features core-rpc  # real PostgreSQL
+#   ./scripts/build-pg-core.sh                           # PostgreSQL (default)
+#   ./scripts/build-pg-core.sh --features core-rpc,spg   # embedded spg
 #   ./scripts/build-pg-core.sh --push               # also push to ghcr
 #   ./scripts/build-pg-core.sh --tag v2.47.0
 #
@@ -19,7 +15,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-FEATURES="core-rpc,spg"
+FEATURES="core-rpc"
 TAG="latest"
 PUSH=0
 IMAGE="ghcr.io/goliajp/mailrs-pg-core"
@@ -55,11 +51,18 @@ case "$FEATURES" in
     core-rpc)     SUFFIX="-pg" ;;
 esac
 FULL="${IMAGE}:${TAG}${SUFFIX}"
+# a release tag is the version the binary reports; anything else is a build
+# of no particular release
+case "$TAG" in
+    v[0-9]*.[0-9]*.[0-9]*|[0-9]*.[0-9]*.[0-9]*) VERSION="${TAG#v}" ;;
+    *) VERSION="0.0.0" ;;
+esac
 
 echo "building $FULL  (features: $FEATURES)"
 docker buildx build \
     --platform linux/arm64 \
     --build-arg "FEATURES=$FEATURES" \
+    --build-arg "VERSION=$VERSION" \
     -f deploy/Dockerfile.pg-core \
     -t "$FULL" \
     --load \
@@ -83,5 +86,6 @@ if [ "$PUSH" = 1 ]; then
 fi
 
 echo
-echo "next: set the split compose's image to $FULL, bring it up alongside the"
-echo "running core, and start with 'mailrs-core-sync --dry-run', not with the sync."
+echo "next: MAILRS_PG_CORE_IMAGE=$FULL in .env, then"
+echo "  docker compose -f docker-compose.prod.yml -f docker-compose.pg-core.yml up -d"
+echo "and copy existing mail with 'mailrs-core-sync --dry-run' first."
