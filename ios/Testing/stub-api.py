@@ -7,7 +7,7 @@ that wrapped it in an envelope would let a wrong client model pass.
 
 Fixtures only. It never reaches a real mailbox and holds no credentials:
 any password logs in, because what the tests are about is what the app
-does afterwards.
+does afterwards. One address also asks for a TOTP code: `stub_login.py`.
 
 Port 6039, registered to this project in the shared port registry.
 `scripts/ios-build.sh` starts and stops it around the UI tests — they
@@ -23,6 +23,8 @@ import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, quote, unquote, urlparse
+
+import stub_login
 
 WIDE = ('<table width="760" style="width:760px"><tr><td>'
         '<div style="width:760px;background:#eef;padding:8px">'
@@ -1340,15 +1342,7 @@ class H(BaseHTTPRequestHandler):
             self.send_header("Content-Length", "0")
             self.end_headers()
         elif self.path.startswith("/api/auth/login"):
-            length = int(self.headers.get("Content-Length", "0"))
-            body = json.loads(self.rfile.read(length)) if length else {}
-            # The server's own body shape: a client that sends another
-            # field name gets the 422 the server would give it, not a token.
-            if not isinstance(body.get("address"), str) or not isinstance(body.get("password"), str):
-                self._send({"error": "missing field `address` or `password`"}, status=422)
-                return
-            self._send({"address": "me@golia.jp", "display_name": "Me",
-                        "permissions": [], "token": "stub-token"})
+            stub_login.answer(self)
         elif self.path.split("?")[0].startswith("/debug/refuse-verb/"):
             VERB_REFUSE.add(self.path.rsplit("/", 1)[-1])
             self._send({"ok": True})

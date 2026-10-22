@@ -50,7 +50,12 @@ import androidx.compose.ui.unit.sp
  * keyboard does not cover the thing the reader came to type into.
  */
 @Composable
-fun SignInScreen(busy: Boolean, error: String?, onSignIn: (String, String, String) -> Unit) {
+fun SignInScreen(
+    busy: Boolean,
+    error: String?,
+    needsCode: Boolean,
+    onSignIn: (server: String, address: String, password: String, totpCode: String?) -> Unit,
+) {
     val theme = LocalTheme.current
     // **Saveable, so a rotation does not empty the form** — typing an
     // address and turning the phone should not start it again.
@@ -62,11 +67,16 @@ fun SignInScreen(busy: Boolean, error: String?, onSignIn: (String, String, Strin
     // survives a rotation by being written there is a password on the
     // device. Retyping it is the cheaper cost.
     var password by remember { mutableStateOf("") }
+    // Short-lived and a second factor, so kept like the password.
+    var code by remember { mutableStateOf("") }
 
     val addressOk = looksLikeAddress(username.trim())
-    val ready = !busy && addressOk && password.isNotBlank()
+    val codeOk = code.length == 6 && code.all { it in '0'..'9' }
+    val ready = !busy && addressOk && password.isNotBlank() && (codeOk || !needsCode)
     fun submit() {
-        if (ready) onSignIn(server, username.trim(), password)
+        // Absent rather than empty until the server asks for it: "I have
+        // no code" and "this code" are different claims.
+        if (ready) onSignIn(server, username.trim(), password, code.takeIf { needsCode })
     }
 
     Column(
@@ -148,6 +158,27 @@ fun SignInScreen(busy: Boolean, error: String?, onSignIn: (String, String, Strin
                 .semantics { contentType = ContentType.Password }
                 .testTag("field.password"),
         )
+        if (needsCode) {
+            OutlinedTextField(
+                value = code,
+                onValueChange = { code = it.trim() },
+                label = { Text("Six-digit code") },
+                singleLine = true,
+                isError = code.isNotEmpty() && !codeOk,
+                supportingText = if (code.isNotEmpty() && !codeOk) {
+                    { Text("Enter the six digits from your authenticator app") }
+                } else {
+                    null
+                },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Go),
+                keyboardActions = KeyboardActions(onGo = { submit() }),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp)
+                    .semantics { contentType = ContentType.SmsOtpCode }
+                    .testTag("field.totp"),
+            )
+        }
 
         if (error != null) {
             Text(
