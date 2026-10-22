@@ -168,7 +168,13 @@ pub(super) fn store_response(
         };
         merged.sort_by_key(|f| *f as u32);
         merged.dedup();
-        if backend::set_flags(&msg, &merged).is_ok() {
+        if let Err(e) = backend::set_flags(&msg, &merged) {
+            tracing::warn!(err = %e, user = %user_owned, uid = msg.uid, "STORE: flag write failed");
+            refresh(state, session);
+            out.push(format_no(tag, &format!("STORE failed: {e}")));
+            return out;
+        }
+        {
             let m = backend::bump_modseq(state, &user_owned);
             if let Some(base) = msg
                 .path
@@ -201,16 +207,8 @@ pub(super) fn store_response(
             ));
         }
     }
-    // Refresh session view since paths changed.
-    if let State::Selected {
-        user,
-        mailbox,
-        messages,
-        ..
-    } = session
-    {
-        *messages = backend::list_messages(state, user, mailbox);
-    }
+    // paths changed
+    refresh(state, session);
     if modified.is_empty() {
         out.push(format_ok(tag, "STORE completed"));
     } else {
@@ -255,13 +253,23 @@ pub(super) fn expunge(
         .collect();
     to_delete.sort_unstable_by(|a, b| b.cmp(a));
     let mut vanished_uids: Vec<u32> = Vec::new();
+    let mut failed = None;
     for seqno in &to_delete {
         if let Some(m) = messages.iter().find(|m| m.seqno == *seqno) {
-            if backend::delete_file(m).is_ok() {
-                crate::live_sync::adjust_usage_bytes(user, -(m.size as i64));
-                let ms = backend::bump_modseq(state, user);
-                backend::record_vanished(state, user, &mailbox.name, m.uid, ms);
-                vanished_uids.push(m.uid);
+            match backend::delete_file(m) {
+                Ok(()) => {
+                    crate::live_sync::adjust_usage_bytes(user, -(m.size as i64));
+                    let ms = backend::bump_modseq(state, user);
+                    backend::record_vanished(state, user, &mailbox.name, m.uid, ms);
+                    vanished_uids.push(m.uid);
+                }
+                // removed by someone else in the meantime: gone all the same
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => vanished_uids.push(m.uid),
+                Err(e) => {
+                    tracing::warn!(err = %e, %user, uid = m.uid, "EXPUNGE: delete failed");
+                    failed = Some(e);
+                    break;
+                }
             }
             if !qresync {
                 out.push(format!("* {seqno} EXPUNGE\r\n"));
@@ -279,8 +287,23 @@ pub(super) fn expunge(
         out.push(format!("* VANISHED {list}\r\n"));
     }
     *messages = backend::list_messages(state, user, mailbox);
-    out.push(format_ok(tag, "EXPUNGE completed"));
+    match failed {
+        Some(e) => out.push(format_no(tag, &format!("EXPUNGE failed: {e}"))),
+        None => out.push(format_ok(tag, "EXPUNGE completed")),
+    }
     out
+}
+
+fn refresh(state: &Arc<FastcoreState>, session: &mut State) {
+    if let State::Selected {
+        user,
+        mailbox,
+        messages,
+        ..
+    } = session
+    {
+        *messages = backend::list_messages(state, user, mailbox);
+    }
 }
 
 /// Carry an IMAP `STORE` through to the index, using the same code the

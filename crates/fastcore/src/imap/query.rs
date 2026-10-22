@@ -122,7 +122,11 @@ pub(super) fn copy_response(
             return vec![format_no(tag, "copy failed")];
         }
         if move_op {
-            let _ = backend::delete_file(msg);
+            if let Err(e) = backend::delete_file(msg) {
+                tracing::warn!(err = %e, %user, uid = msg.uid, "MOVE: source delete failed");
+                *messages = backend::list_messages(state, &user, src_mb);
+                return vec![format_no(tag, &format!("MOVE failed: {e}"))];
+            }
         } else {
             // COPY duplicates the bytes under the same account
             crate::live_sync::adjust_usage_bytes(&user, msg.size as i64);
