@@ -72,6 +72,29 @@ async fn without_a_certificate_4190_authenticates_in_clear() {
     assert!(r.starts_with("OK "), "{r}");
 }
 
+#[tokio::test]
+async fn an_oversized_literal_before_sign_in_ends_the_connection_and_nothing_else() {
+    let (l, addr) = listener().await;
+    tokio::spawn(super::serve_plain(l, directory(), None));
+
+    let mut c = Client::connect(addr).await;
+    c.until("OK").await;
+    // 1 TiB, which an overcommitting kernel grants without backing it
+    c.send("CHECKSCRIPT {1099511627776+}\r\n").await;
+    let closed = tokio::time::timeout(Duration::from_secs(5), c.eof()).await;
+    assert!(closed.is_ok_and(|eof| eof), "the connection stayed open");
+
+    // the listener still serves, and says where the limit is
+    let mut c = Client::connect(addr).await;
+    c.until("OK").await;
+    c.send(&authenticate(PASSWORD)).await;
+    assert!(c.line().await.starts_with("OK "));
+    c.send("HAVESPACE \"mailrs\" 1048577\r\nHAVESPACE \"mailrs\" 1048576\r\n")
+        .await;
+    assert!(c.line().await.starts_with("NO (QUOTA/MAXSIZE) "));
+    assert!(c.line().await.starts_with("OK "));
+}
+
 #[test]
 fn unquote_strips_quotes() {
     assert_eq!(super::unquote("\"PLAIN\""), "PLAIN");
