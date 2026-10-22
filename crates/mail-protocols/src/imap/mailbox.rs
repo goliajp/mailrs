@@ -9,17 +9,20 @@ use super::flags::flags_to_imap;
 use super::session::{State, no};
 use crate::backend::{Account, Selected};
 
+/// LIST, or LSUB (`word`): every mailbox counts as subscribed, since
+/// subscriptions are not kept.
 pub(super) async fn list_response<A: Account>(
     session: &State<A>,
     tag: &str,
     pattern: &str,
+    word: &str,
 ) -> Vec<String> {
     let Some(account) = session.account() else {
         return vec![format_no(tag, "not authenticated")];
     };
     let names = match account.mailbox_names().await {
         Ok(n) => n,
-        Err(e) => return vec![no(tag, "LIST", &e)],
+        Err(e) => return vec![no(tag, word, &e)],
     };
     let mut out = Vec::with_capacity(names.len() + 1);
     for name in names {
@@ -27,10 +30,11 @@ pub(super) async fn list_response<A: Account>(
             // RFC 6154 §5.1: the SPECIAL-USE attribute lets MUAs map the
             // folder to their own Junk / Sent / Drafts / Trash / Archive
             let flags = format!("\\HasNoChildren{}", special_use_flag(&name));
-            out.push(format_list(&flags, "/", &name));
+            let line = format_list(&flags, "/", &name);
+            out.push(line.replacen("LIST", word, 1));
         }
     }
-    out.push(format_ok(tag, "LIST completed"));
+    out.push(format_ok(tag, &format!("{word} completed")));
     out
 }
 

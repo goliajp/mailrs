@@ -12,6 +12,7 @@ use super::idle::idle_flow;
 use super::mailbox::{close, list_response, select, unselect};
 use super::query::{copy_response, quota_response, search_response, sort_response};
 use super::session::{Io, State, no};
+use super::status::status_response;
 use super::store::{expunge, store_response};
 use crate::backend::{Account, Directory, Protocol};
 
@@ -61,7 +62,11 @@ where
         ImapCommand::Login { username, password } => {
             login(dir, session, tag, &username, &password).await
         }
-        ImapCommand::List { pattern, .. } => list_response(session, tag, &pattern).await,
+        ImapCommand::List { pattern, .. } => list_response(session, tag, &pattern, "LIST").await,
+        ImapCommand::Lsub { pattern, .. } => list_response(session, tag, &pattern, "LSUB").await,
+        ImapCommand::Status { mailbox, items } => {
+            status_response(session, tag, &mailbox, &items).await
+        }
         ImapCommand::Select { mailbox } => select(session, tag, &mailbox, false, *qresync).await,
         ImapCommand::Examine { mailbox } => select(session, tag, &mailbox, true, *qresync).await,
         ImapCommand::Enable(caps) => enable(tag, &caps, qresync),

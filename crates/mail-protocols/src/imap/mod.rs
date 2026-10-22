@@ -13,6 +13,7 @@ mod mailbox;
 mod query;
 pub mod search_eval;
 mod session;
+mod status;
 mod store;
 #[cfg(test)]
 mod tests;
