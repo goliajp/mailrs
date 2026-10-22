@@ -92,6 +92,16 @@ impl std::fmt::Display for SpoolDecodeError {
 
 impl std::error::Error for SpoolDecodeError {}
 
+/// Where the spool lives: `MAILRS_SPOOL_ROOT`, or `.spool` under the maildir
+/// root. The process that writes it and the one that drains it must agree,
+/// so every process asks here rather than keeping its own default.
+pub fn spool_root(maildir_root: &str) -> String {
+    match std::env::var("MAILRS_SPOOL_ROOT") {
+        Ok(root) if !root.is_empty() => root,
+        _ => format!("{maildir_root}/.spool"),
+    }
+}
+
 /// Encode a spool file: the envelope as a base64 header line, then the raw
 /// message body unchanged.
 pub fn encode_spool_blob(env: &SpoolEnvelope, body: &[u8]) -> Vec<u8> {

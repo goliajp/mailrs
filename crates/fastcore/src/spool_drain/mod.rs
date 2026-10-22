@@ -36,10 +36,9 @@ pub(crate) use check::recipient_deliverable_route;
 /// — receiver may not have written its first file. Missing-dir errors
 /// downgrade to debug.
 pub async fn spawn(state: Arc<FastcoreState>) {
-    let spool_root =
-        std::env::var("MAILRS_SPOOL_ROOT").unwrap_or_else(|_| "/data/.spool".to_string());
     let maildir_root =
         std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".to_string());
+    let spool_root = mailrs_core::spool::spool_root(&maildir_root);
     let interval_secs: u64 = std::env::var("MAILRS_FASTCORE_SPOOL_INTERVAL_SECS")
         .ok()
         .and_then(|s| s.parse().ok())
