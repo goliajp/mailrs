@@ -51,7 +51,13 @@ INCREMENTAL_DAYS="${INCREMENTAL_DAYS:-2}"
 # answering "nothing" — that IS the 3-day working set now (the apns
 # crate brought reqwest/hyper into two more binaries, and the workspace
 # keeps growing). 160 gives headroom without letting real rot hide.
-CEILING_GB="${CEILING_GB:-160}"
+#
+# 2026-10-22: 162 GB right after a deploy, with stale incremental caches
+# already dropped (step 3): debug/deps 82, debug/incremental 70 (two
+# days of builds), release 5. Every `-p` selection unifies dependency
+# features differently and builds its own copy; that is the working set
+# of building one crate at a time, not rot.
+CEILING_GB="${CEILING_GB:-180}"
 
 cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
