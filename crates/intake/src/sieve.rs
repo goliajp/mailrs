@@ -341,7 +341,7 @@ mod tests {
     /// kevy-server, because the shared primitive writes with a pipeline.
     #[tokio::test]
     async fn a_vacation_reply_is_queued_where_the_sender_reads() {
-        use mailrs_core_sidestate::families::outbound::PENDING_IDX;
+        use mailrs_core_sidestate::families::outbound::{LEGACY_PENDING, PENDING_IDX, job_key};
         use testcontainers::core::{IntoContainerPort, WaitFor};
         use testcontainers::runners::AsyncRunner;
         use testcontainers::{GenericImage, ImageExt};
@@ -377,13 +377,11 @@ mod tests {
                 b"Subject: OOO\r\n\r\nx",
             )
             .unwrap();
-            assert_eq!(conn.llen(b"mailrs:outbound:pending").unwrap(), 0);
+            assert_eq!(conn.llen(LEGACY_PENDING).unwrap(), 0);
             let ids = conn.lrange(PENDING_IDX, 0, -1).unwrap();
             assert_eq!(ids.len(), 1, "nothing on the queue the sender reads");
             let id = String::from_utf8(ids[0].clone()).unwrap();
-            conn.hget(format!("mailrs:outbound:job:{id}").as_bytes(), b"blob")
-                .unwrap()
-                .unwrap()
+            conn.hget(job_key(id).as_bytes(), b"blob").unwrap().unwrap()
         })
         .await
         .unwrap();

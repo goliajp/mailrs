@@ -27,12 +27,8 @@
 
 use mailrs_dmarc::ingest::AggregateReport;
 
-/// Key prefix for the per-report metadata hash.
-const REPORT_PREFIX: &str = "mailrs:dmarcrpt:report:";
-/// Key prefix for the per-report row zset.
-const ROWS_PREFIX: &str = "mailrs:dmarcrpt:rows:";
-/// Time-ordered index of every stored report.
-pub const INDEX_KEY: &[u8] = b"mailrs:dmarcrpt:index";
+pub use mailrs_core_sidestate::keys::dmarc::INDEX_KEY;
+use mailrs_core_sidestate::keys::dmarc::{REPORT_PREFIX, ROWS_PREFIX};
 
 /// What happened when a report was offered to the store.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -308,7 +304,8 @@ mod tests {
     #[test]
     fn sanitize_neutralises_key_separators() {
         assert_eq!(sanitize("a:b c/d"), "a_b_c_d");
-        assert_eq!(sanitize("mailrs:dmarcrpt:index"), "mailrs_dmarcrpt_index");
+        let index = std::str::from_utf8(INDEX_KEY).unwrap();
+        assert_eq!(sanitize(index), "mailrs_dmarcrpt_index");
     }
 
     #[test]

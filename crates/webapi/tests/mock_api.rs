@@ -58,7 +58,7 @@ fn arrive(ns: &str, tag: &str, raw: &[u8]) {
 fn audit_rows(action: &str) -> Vec<serde_json::Value> {
     let mut c =
         kevy_client::Connection::connect(&std::env::var("MAILRS_KEVY_URL").unwrap()).unwrap();
-    c.lrange(b"admin:audit_log", 0, -1)
+    c.lrange(mailrs_core_sidestate::keys::admin::AUDIT_LOG, 0, -1)
         .unwrap()
         .iter()
         .map(|r| serde_json::from_slice::<serde_json::Value>(r).unwrap())

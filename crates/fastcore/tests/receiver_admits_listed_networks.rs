@@ -47,7 +47,7 @@ async fn a_white_network_is_greeted_past_the_rate_limit() {
         "note": null, "created_by": "admin@golia.example", "created_at": 1,
     });
     kv.hset(
-        b"admin:greylist:local-lists",
+        mailrs_core_sidestate::keys::admin::GREYLIST_LOCAL_LISTS,
         &[(&b"1"[..], entry.to_string().as_bytes())],
     )
     .unwrap();

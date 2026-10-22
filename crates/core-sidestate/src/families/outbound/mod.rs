@@ -42,11 +42,11 @@ use mailrs_core_api::method::outbound::{
 use crate::NetKevy;
 
 mod cancel;
-mod retry_idx;
+mod keys;
 mod terminal;
 
 pub use cancel::*;
-pub use retry_idx::RETRY_IDX;
+pub use keys::*;
 pub use terminal::*;
 
 fn now_secs() -> i64 {
@@ -61,36 +61,11 @@ fn rpop_one(conn: &mut kevy_client::Connection, key: &[u8]) -> Option<Vec<u8>> {
     conn.rpop(key, 1).ok().and_then(|v| v.into_iter().next())
 }
 
-/// v2.5.1 §P8-B-A dual-write keyspace.
-fn job_key(id: i64) -> String {
-    format!("mailrs:outbound:job:{id}")
-}
-
-/// The queue the sender pops from.
-///
-/// `pub` alongside [`SCHEDULED_IDX`] so the sender names the same
-/// bytes rather than its own copy of the string — see below.
-pub const PENDING_IDX: &[u8] = b"mailrs:outbound:pending-idx";
-
-/// Where a future-dated send waits, scored by its send time.
-///
-/// `pub` because the sender's due-sweep had a second constant of its
-/// own — `mailrs:outbound:scheduled`, without the suffix — and swept
-/// that instead. Nothing has written that key since the queue moved to
-/// the `-idx` names in v2.5.3, so a scheduled message was enqueued
-/// here, never promoted, and never left. Both prod zsets were empty
-/// when this was found, so no mail was lost; the feature had simply
-/// never run. One exported name, and the two cannot drift again.
-pub const SCHEDULED_IDX: &[u8] = b"mailrs:outbound:scheduled-idx";
-
-/// Ids of jobs that failed for good; the sender adds them.
-pub const FAILED_SET: &[u8] = b"mailrs:outbound:failed";
-
 /// Read `mailrs:outbound:{id}` blob → OutboundMessageWire (loose blob
 /// fields + synthesized status/attempts defaults).
 fn read_row(conn: &mut kevy_client::Connection, id: i64) -> Option<OutboundMessageWire> {
     let raw = conn
-        .hget(format!("mailrs:outbound:{id}").as_bytes(), b"blob")
+        .hget(legacy_row_key(id).as_bytes(), b"blob")
         .ok()
         .flatten()?;
     let v: serde_json::Value = serde_json::from_slice(&raw).ok()?;
@@ -130,7 +105,7 @@ fn read_row(conn: &mut kevy_client::Connection, id: i64) -> Option<OutboundMessa
 fn write_row(conn: &mut kevy_client::Connection, row: &OutboundMessageWire) {
     let blob = row_blob(row);
     let _ = conn.hset(
-        format!("mailrs:outbound:{}", row.id).as_bytes(),
+        legacy_row_key(row.id).as_bytes(),
         &[(b"blob".as_slice(), blob.as_bytes())],
     );
 }
@@ -182,7 +157,7 @@ pub fn write_fresh_pending(
         original_sender,
         send_id,
     } = *job;
-    let id = conn.incr(b"mailrs:outbound:counter")?;
+    let id = conn.incr(COUNTER)?;
     let row = OutboundMessageWire {
         id,
         sender: sender.to_string(),
@@ -313,13 +288,13 @@ pub async fn claim<S: NetKevy>(
     };
     let mut items = Vec::new();
     for _ in 0..req.batch_size {
-        let Some(id_bytes) = rpop_one(&mut conn, b"mailrs:outbound:pending") else {
+        let Some(id_bytes) = rpop_one(&mut conn, LEGACY_PENDING) else {
             break;
         };
         let Ok(id) = String::from_utf8_lossy(&id_bytes).parse::<i64>() else {
             continue;
         };
-        let _ = conn.lpush(b"mailrs:outbound:inflight", &[id.to_string().as_bytes()]);
+        let _ = conn.lpush(INFLIGHT, &[id.to_string().as_bytes()]);
         if let Some(mut row) = read_row(&mut conn, id) {
             row.status = QueueStatus::Inflight;
             row.attempts += 1;
@@ -366,11 +341,11 @@ pub async fn stats<S: NetKevy>(State(state): State<Arc<S>>) -> Json<QueueStatsRe
     // the webapi mark_* path still INCRs.
     let replies = conn
         .pipeline(|p| {
-            p.cmd(&[b"LLEN", b"mailrs:outbound:pending-idx"]);
+            p.cmd(&[b"LLEN", PENDING_IDX]);
             p.cmd(&[b"ZCARD", RETRY_IDX]);
-            p.cmd(&[b"GET", b"mailrs:outbound:delivered:count"]);
-            p.cmd(&[b"GET", b"mailrs:outbound:failed:count"]);
-            p.cmd(&[b"GET", b"mailrs:outbound:bounced:count"]);
+            p.cmd(&[b"GET", DELIVERED_COUNT]);
+            p.cmd(&[b"GET", FAILED_COUNT]);
+            p.cmd(&[b"GET", BOUNCED_COUNT]);
         })
         .unwrap_or_default();
     fn int_at(replies: &[kevy_client::Reply], i: usize) -> i64 {
@@ -395,22 +370,4 @@ pub async fn stats<S: NetKevy>(State(state): State<Arc<S>>) -> Json<QueueStatsRe
         failed: cnt_at(&replies, 3),
         bounced: cnt_at(&replies, 4),
     })
-}
-
-#[cfg(test)]
-mod key_tests {
-    use super::*;
-
-    /// The suffix is the whole bug.
-    ///
-    /// The sender's due-sweep carried its own copy of this name without
-    /// the `-idx`, so it walked a zset nothing writes: a scheduled send
-    /// was enqueued here and never promoted. Asserting the bytes is
-    /// weak on its own — what makes it hold is that every reader now
-    /// imports these two constants and no file spells them again.
-    #[test]
-    fn the_queue_names_are_the_ones_every_reader_imports() {
-        assert_eq!(PENDING_IDX, b"mailrs:outbound:pending-idx");
-        assert_eq!(SCHEDULED_IDX, b"mailrs:outbound:scheduled-idx");
-    }
 }

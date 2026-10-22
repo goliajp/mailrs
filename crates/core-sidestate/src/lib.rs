@@ -17,8 +17,7 @@
 /// One spelling, because there were five: this handler family, fastcore's
 /// ManageSieve, fastcore's delivery-time evaluator, webapi's admin save, and
 /// the SQL core's `sieve_store`. All five agreed, which is how the sixth
-/// drifts — the same reason `scripts/check-outbound-keys.sh` exists, and it
-/// found eight more hand-spelled queue keys the day it was written.
+/// drifts — the same reason `scripts/check-shared-keys.sh` exists.
 ///
 /// A key with one definition cannot disagree with itself. Callers in other
 /// crates import this rather than formatting their own.
@@ -34,4 +33,13 @@ pub trait NetKevy: Send + Sync + 'static {
 }
 
 pub mod families;
+pub mod keys;
 pub mod smtp_monitor;
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn the_sieve_key_keeps_its_prod_spelling() {
+        assert_eq!(super::sieve_key("a@b.test"), "sieve:a@b.test");
+    }
+}

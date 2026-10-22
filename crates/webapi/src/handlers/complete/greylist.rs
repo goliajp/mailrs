@@ -20,8 +20,9 @@ use super::{next_id, now_secs};
 use crate::handlers::conversations::AuthedUser;
 use crate::handlers::kevy_util::with_kevy;
 
-pub(crate) const GL_KEY: &str = "admin:greylist:local-lists";
-pub(crate) const GL_CTR: &str = "admin:greylist:local-lists:counter";
+use mailrs_core_sidestate::keys::admin::{
+    GREYLIST_LOCAL_LISTS as GL_KEY, GREYLIST_LOCAL_LISTS_COUNTER as GL_CTR,
+};
 
 /// A local greylist entry as the admin page sends it. The older words
 /// (`address`, `whitelist`, `blacklist`) are accepted and stored as the
@@ -91,10 +92,7 @@ pub(crate) fn insert_entry(
         "created_at": now_secs(),
     });
     let payload = serde_json::to_vec(&row).map_err(std::io::Error::other)?;
-    c.hset(
-        GL_KEY.as_bytes(),
-        &[(id.to_string().as_bytes(), payload.as_slice())],
-    )?;
+    c.hset(GL_KEY, &[(id.to_string().as_bytes(), payload.as_slice())])?;
     Ok(row)
 }
 
@@ -138,7 +136,7 @@ pub(crate) fn normalise_row(field: &[u8], raw: &[u8]) -> Option<serde_json::Valu
 pub(crate) fn list_entries(
     c: &mut kevy_client::Connection,
 ) -> std::io::Result<Vec<serde_json::Value>> {
-    let flat = c.hgetall(GL_KEY.as_bytes())?;
+    let flat = c.hgetall(GL_KEY)?;
     let mut items: Vec<serde_json::Value> = flat
         .chunks(2)
         .filter_map(|pair| match pair {
@@ -182,7 +180,7 @@ pub async fn create_greylist_entry(
 
 /// Remove the entry stored under hash field `id`; false when there was none.
 pub(crate) fn delete_entry(c: &mut kevy_client::Connection, id: &str) -> std::io::Result<bool> {
-    Ok(c.hdel(GL_KEY.as_bytes(), &[id.as_bytes()])? > 0)
+    Ok(c.hdel(GL_KEY, &[id.as_bytes()])? > 0)
 }
 
 /// `id` is the hash field the list returned, numeric or not.
@@ -207,7 +205,7 @@ mod tests {
         let legacy = br#"{"id":0,"address_or_domain":"a@b.c","list_type":"white","created_at":5}"#;
         let mcp = br#"{"id":4,"kind":"address","list":"blacklist","value":"x@y.z","note":null,"created_at":9}"#;
         c.hset(
-            GL_KEY.as_bytes(),
+            GL_KEY,
             &[
                 (b"not-junk:a@b.c" as &[u8], legacy.as_slice()),
                 (b"4", mcp.as_slice()),

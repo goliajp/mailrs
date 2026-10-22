@@ -247,7 +247,7 @@ pub(crate) async fn mirror_send_to_sender_view(
     let blob_ref = match store.deliver_batch(&maildir_path, &[envelope]).await {
         Ok(ids) if !ids.is_empty() => {
             // sent copy counts against the sender's own quota
-            let uk = format!("mailrs:quota:{}:used_bytes", user.to_lowercase());
+            let uk = mailrs_core_sidestate::keys::quota::used_key(user);
             let n = envelope.len() as i64;
             let _ = crate::handlers::kevy_util::with_kevy(move |c| {
                 c.incr_by(uk.as_bytes(), n)?;
@@ -373,11 +373,10 @@ pub(crate) async fn mirror_send_to_sender_view(
         .cloned()
         .collect();
     if !contact_targets.is_empty() {
-        let user_owned = user.to_string();
+        let key = mailrs_core_sidestate::families::contact_cards::autocomplete_key(user);
+        let ts_key = mailrs_core_sidestate::families::contact_cards::autocomplete_ts_key(user);
         let now_ts = now_secs();
         let _ = with_kevy(move |c| {
-            let key = format!("mailrs:user:{user_owned}:contacts");
-            let ts_key = format!("mailrs:user:{user_owned}:contacts:ts");
             for raw in &contact_targets {
                 let addr = extract_addr(raw);
                 if addr.is_empty() {

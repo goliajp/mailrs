@@ -18,9 +18,9 @@ use crate::handlers::kevy_util::with_kevy;
 /// expired: the index has no TTL of its own and would otherwise grow by
 /// one entry per login forever.
 pub fn index_session(c: &mut Connection, address: &str, token: &str) -> std::io::Result<()> {
-    let idx = format!("session:by_addr:{address}");
+    let idx = mailrs_core_sidestate::keys::session::by_addr_key(address);
     for t in c.smembers(idx.as_bytes())? {
-        let key = format!("session:{}", String::from_utf8_lossy(&t));
+        let key = mailrs_core_sidestate::keys::session::session_key(String::from_utf8_lossy(&t));
         if c.exists(&[key.as_bytes()])? == 0 {
             c.srem(idx.as_bytes(), &[t.as_slice()])?;
         }
@@ -32,10 +32,10 @@ pub fn index_session(c: &mut Connection, address: &str, token: &str) -> std::io:
 /// Delete every session `address` holds. Returns how many tokens the
 /// per-address index listed.
 pub fn revoke_sessions(c: &mut Connection, address: &str) -> std::io::Result<usize> {
-    let idx = format!("session:by_addr:{address}");
+    let idx = mailrs_core_sidestate::keys::session::by_addr_key(address);
     let tokens = c.smembers(idx.as_bytes())?;
     for t in &tokens {
-        let key = format!("session:{}", String::from_utf8_lossy(t));
+        let key = mailrs_core_sidestate::keys::session::session_key(String::from_utf8_lossy(t));
         c.del(&[key.as_bytes()])?;
     }
     c.del(&[idx.as_bytes()])?;

@@ -246,6 +246,5 @@ mod tests {
             message_by_message_id("u@x.com", "abc@def.com"),
             "mailrs:message:by-message-id:u@x.com:abc@def.com"
         );
-        assert_eq!(OUTBOUND_PENDING, "mailrs:outbound:pending");
     }
 }

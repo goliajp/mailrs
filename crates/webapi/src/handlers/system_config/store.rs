@@ -17,8 +17,9 @@ pub(super) struct ConfigMeta {
     pub(super) updated_by: Option<String>,
 }
 
-pub(super) const CONFIG_KEY: &[u8] = b"admin:system-config";
-pub(super) const CONFIG_META_KEY: &[u8] = b"admin:system-config:meta";
+pub(super) use mailrs_core_sidestate::keys::admin::{
+    SYSTEM_CONFIG as CONFIG_KEY, SYSTEM_CONFIG_META as CONFIG_META_KEY,
+};
 
 pub(super) fn pairs(flat: Vec<Vec<u8>>) -> std::collections::HashMap<String, String> {
     flat.chunks_exact(2)

@@ -56,7 +56,7 @@ pub async fn list_drafts(
     State(_state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
 ) -> Result<Json<Vec<mailrs_core_api::method::admin::DraftWire>>, StatusCode> {
-    let key = format!("drafts:{user}");
+    let key = mailrs_core_sidestate::families::prefs::drafts_key(&user);
     let out = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::from))?;
     let mut drafts = Vec::new();
     for val in out
@@ -79,8 +79,8 @@ pub async fn save_draft(
     Json(req): Json<mailrs_core_api::method::admin::SaveDraftRequest>,
 ) -> Result<Json<mailrs_core_api::method::admin::SaveDraftResponse>, StatusCode> {
     let now = now_secs();
-    let key = format!("drafts:{user}");
-    let ckey = format!("drafts:{user}:counter");
+    let key = mailrs_core_sidestate::families::prefs::drafts_key(&user);
+    let ckey = mailrs_core_sidestate::families::prefs::drafts_counter_key(&user);
     let ckey_c = ckey.clone();
     // upsert: a client-supplied id reuses the same hash field (in-place
     // update); otherwise allocate a fresh id. hset overwrites either way.
@@ -118,7 +118,7 @@ pub async fn delete_draft(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Path(id): Path<i64>,
 ) -> Result<StatusCode, StatusCode> {
-    let key = format!("drafts:{user}");
+    let key = mailrs_core_sidestate::families::prefs::drafts_key(&user);
     with_kevy(move |c| {
         c.hdel(key.as_bytes(), &[id.to_string().as_bytes()])?;
         Ok(())
@@ -133,7 +133,7 @@ pub async fn list_signatures(
     State(_state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
 ) -> Result<Json<Vec<mailrs_core_api::method::admin::SignatureWire>>, StatusCode> {
-    let key = format!("signatures:{user}");
+    let key = mailrs_core_sidestate::families::prefs::signatures_key(&user);
     let out = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::from))?;
     let mut items = Vec::new();
     for val in out
@@ -157,8 +157,8 @@ pub async fn save_signature(
     Json(req): Json<mailrs_core_api::method::admin::SaveSignatureRequest>,
 ) -> Result<Json<mailrs_core_api::method::admin::SaveSignatureResponse>, StatusCode> {
     let now = now_secs();
-    let key = format!("signatures:{user}");
-    let ckey = format!("signatures:{user}:counter");
+    let key = mailrs_core_sidestate::families::prefs::signatures_key(&user);
+    let ckey = mailrs_core_sidestate::families::prefs::signatures_counter_key(&user);
     let ckey_c = ckey.clone();
     let id = with_kevy(move |c| next_id(c, &ckey_c))?;
     let sig = mailrs_core_api::method::admin::SignatureWire {
@@ -188,7 +188,7 @@ pub async fn delete_signature(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Path(id): Path<i64>,
 ) -> Result<StatusCode, StatusCode> {
-    let key = format!("signatures:{user}");
+    let key = mailrs_core_sidestate::families::prefs::signatures_key(&user);
     with_kevy(move |c| {
         c.hdel(key.as_bytes(), &[id.to_string().as_bytes()])?;
         Ok(())
@@ -203,7 +203,7 @@ pub async fn list_templates(
     State(_state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
 ) -> Result<Json<Vec<mailrs_core_api::method::admin::TemplateWire>>, StatusCode> {
-    let key = format!("templates:{user}");
+    let key = mailrs_core_sidestate::families::prefs::templates_key(&user);
     let out = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::from))?;
     let mut items = Vec::new();
     for val in out
@@ -227,8 +227,8 @@ pub async fn save_template(
     Json(req): Json<mailrs_core_api::method::admin::SaveTemplateRequest>,
 ) -> Result<Json<mailrs_core_api::method::admin::SaveTemplateResponse>, StatusCode> {
     let now = now_secs();
-    let key = format!("templates:{user}");
-    let ckey = format!("templates:{user}:counter");
+    let key = mailrs_core_sidestate::families::prefs::templates_key(&user);
+    let ckey = mailrs_core_sidestate::families::prefs::templates_counter_key(&user);
     let ckey_c = ckey.clone();
     let id = with_kevy(move |c| next_id(c, &ckey_c))?;
     let t = mailrs_core_api::method::admin::TemplateWire {
@@ -261,7 +261,7 @@ pub async fn delete_template(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Path(id): Path<i64>,
 ) -> Result<StatusCode, StatusCode> {
-    let key = format!("templates:{user}");
+    let key = mailrs_core_sidestate::families::prefs::templates_key(&user);
     with_kevy(move |c| {
         c.hdel(key.as_bytes(), &[id.to_string().as_bytes()])?;
         Ok(())

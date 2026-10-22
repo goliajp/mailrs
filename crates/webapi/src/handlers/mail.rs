@@ -129,7 +129,7 @@ pub async fn get_thread_reactions(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Path(thread_id): Path<String>,
 ) -> Result<Json<mailrs_core_api::method::admin::ReactionsResponse>, StatusCode> {
-    let index_key = format!("reactions_index:{thread_id}");
+    let index_key = mailrs_core_sidestate::families::admin_state::reactions_index_key(&thread_id);
     let members = with_kevy(move |c| {
         c.smembers(index_key.as_bytes())
             .map_err(std::io::Error::from)
@@ -140,7 +140,7 @@ pub async fn get_thread_reactions(
         let Ok(uid) = uid_s.parse::<i64>() else {
             continue;
         };
-        let key = format!("reactions:{thread_id}:{uid}");
+        let key = mailrs_core_sidestate::families::admin_state::reactions_key(&thread_id, uid);
         let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::from))?;
         let mut i = 0;
         while i + 1 < flat.len() {
@@ -171,8 +171,8 @@ pub async fn toggle_reaction(
     Path((thread_id, uid)): Path<(String, i64)>,
     Json(req): Json<mailrs_core_api::method::admin::ToggleReactionRequest>,
 ) -> Result<Json<mailrs_core_api::method::admin::ReactionsResponse>, StatusCode> {
-    let key = format!("reactions:{thread_id}:{uid}");
-    let index_key = format!("reactions_index:{thread_id}");
+    let key = mailrs_core_sidestate::families::admin_state::reactions_key(&thread_id, uid);
+    let index_key = mailrs_core_sidestate::families::admin_state::reactions_index_key(&thread_id);
     let emoji = req.emoji.clone();
     let user_c = user.clone();
     let key_c = key.clone();

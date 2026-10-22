@@ -174,7 +174,7 @@ fn scrub_contact_hashes(users: &[String]) -> u64 {
     };
     let mut repaired = 0u64;
     for user in users {
-        let key = format!("mailrs:user:{user}:contacts");
+        let key = mailrs_core_sidestate::families::contact_cards::autocomplete_key(user);
         let flat = conn.hgetall(key.as_bytes()).unwrap_or_default();
         for pair in flat.chunks(2) {
             let [field, value] = pair else { continue };

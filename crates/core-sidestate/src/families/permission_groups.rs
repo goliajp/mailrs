@@ -110,6 +110,14 @@ pub fn membership(conn: &mut Connection, address: &str) -> KevyResult<Membership
 mod tests {
     use super::*;
 
+    #[test]
+    fn group_keys_keep_their_prod_spelling() {
+        assert_eq!(GROUPS_KEY, "admin:groups");
+        assert_eq!(GROUPS_COUNTER, "admin:groups:counter");
+        assert_eq!(permissions_key(9), "admin:groups:9:permissions");
+        assert_eq!(members_key(9), "admin:groups:9:members");
+    }
+
     fn group(conn: &mut Connection, id: i64, perms: &[&str], members: &[&str]) {
         let row = serde_json::json!({ "id": id, "name": format!("g{id}") }).to_string();
         conn.hset(

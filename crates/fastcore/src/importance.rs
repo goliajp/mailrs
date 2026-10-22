@@ -155,7 +155,7 @@ pub(crate) fn backfill_relationships(state: &Arc<FastcoreState>) -> (u64, u64, u
             return (n_users, n_addrs, n_msgs);
         };
         for (addr, t) in &tally {
-            let key = format!("mailrs:contact:{user}:{addr}");
+            let key = mailrs_core_sidestate::families::contacts::contact_key(user, addr);
             let recv = t.received.to_string();
             let sent = t.sent.to_string();
             let pairs: [(&[u8], &[u8]); 2] = [
