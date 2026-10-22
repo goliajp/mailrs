@@ -24,7 +24,7 @@ an existing name would silently re-point every message carrying its bit.
 
 ## Example
 
-```rust
+```rust,no_run
 let dir = std::path::Path::new("/var/mail/alice");
 let mut keywords = mailrs_keywords::read(dir)?;
 let bit = keywords.intern("pinned").expect("all 26 keyword bits are taken");

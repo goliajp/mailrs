@@ -33,7 +33,7 @@ is never compared.
 
 ## Example
 
-```rust
+```rust,no_run
 use mailrs_threadstate::Record;
 
 let dir = std::path::Path::new("/var/mail/alice");
