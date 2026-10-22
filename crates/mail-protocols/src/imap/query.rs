@@ -1,10 +1,9 @@
-//! SEARCH, SORT, COPY, QUOTA, and the sequence-set arithmetic they share.
+//! SEARCH, SORT, QUOTA, and the sequence-set arithmetic they share.
 
 use mailrs_imap_proto::{SearchKey, format_no, format_ok};
 
 use super::search_eval::{self, MsgView};
 use super::session::{State, no};
-use super::store::refresh;
 use crate::backend::{Account, Error, Message};
 
 /// Each message with its bytes, read only when `keys` look inside them.
@@ -122,48 +121,6 @@ pub(super) async fn quota_response<A: Account>(session: &State<A>, tag: &str) ->
         false => "* QUOTA \"\" ()\r\n".to_string(),
     };
     vec![line, format_ok(tag, "GETQUOTA completed")]
-}
-
-pub(super) async fn copy_response<A: Account>(
-    session: &mut State<A>,
-    tag: &str,
-    sequence: &str,
-    mailbox: &str,
-    move_op: bool,
-    by_uid: bool,
-) -> Vec<String> {
-    let State::Selected {
-        account,
-        mailbox: from,
-        messages,
-        ..
-    } = &*session
-    else {
-        return vec![format_no(tag, "not in SELECTED state")];
-    };
-    let verb = if move_op { "MOVE" } else { "COPY" };
-    let dest = match account.mailbox(mailbox).await {
-        Ok(Some(d)) => d,
-        Ok(None) => return vec![format_no(tag, "no such destination")],
-        Err(e) => return vec![no(tag, verb, &e)],
-    };
-    let (account, from) = (account.clone(), from.clone());
-    let mut failed = None;
-    for msg in expand_sequence(sequence, messages, by_uid) {
-        let done = match move_op {
-            true => account.move_to(&from, &msg, &dest).await,
-            false => account.copy(&from, &msg, &dest).await,
-        };
-        if let Err(e) = done {
-            failed = Some(e);
-            break;
-        }
-    }
-    let refreshed = refresh(session).await;
-    match (failed, refreshed) {
-        (Some(e), _) | (None, Err(e)) => vec![no(tag, verb, &e)],
-        (None, Ok(())) => vec![format_ok(tag, &format!("{verb} completed"))],
-    }
 }
 
 /// Expand an IMAP sequence set (`1:5`, `*`, `2,5,8:10`) to matching

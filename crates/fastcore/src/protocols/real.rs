@@ -75,10 +75,19 @@ impl RealAccount {
         Ok(())
     }
 
-    pub(crate) fn move_to(&self, m: &Message<PathBuf>, to: &FcMailbox) -> Result<()> {
+    /// The source copy goes as an EXPUNGE takes it: logged as vanished,
+    /// so a QRESYNC client that was not connected learns of it.
+    pub(crate) fn move_to(
+        &self,
+        from: &FcMailbox,
+        m: &Message<PathBuf>,
+        to: &FcMailbox,
+    ) -> Result<()> {
         let msg = to_imap(m);
         backend::copy_to(&self.state, &self.user, &msg, to)?;
         backend::delete_file(&msg)?;
+        let ms = backend::bump_modseq(&self.state, &self.user);
+        backend::record_vanished(&self.state, &self.user, &from.name, m.uid, ms);
         Ok(())
     }
 

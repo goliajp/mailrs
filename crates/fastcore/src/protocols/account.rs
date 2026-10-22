@@ -127,9 +127,9 @@ impl Account for FastcoreAccount {
         }
     }
 
-    async fn move_to(&self, _: &FcMailbox, m: &Message<PathBuf>, to: &FcMailbox) -> Result<()> {
+    async fn move_to(&self, from: &FcMailbox, m: &Message<PathBuf>, to: &FcMailbox) -> Result<()> {
         match self {
-            Self::Real(a) => a.move_to(m, to),
+            Self::Real(a) => a.move_to(from, m, to),
             Self::Mock(_) => refused(),
         }
     }
