@@ -17,6 +17,7 @@ mod script;
 mod seen;
 mod selection;
 mod steps;
+mod uidl;
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -133,6 +134,7 @@ async fn conversations<D: Directory>(dir: Arc<D>) -> Vec<String> {
         diffs.extend(converse(client, "imap", &steps).await);
     }
     diffs.extend(checks::uidplus(dir.clone()).await);
+    diffs.extend(uidl::stable(dir.clone()).await);
 
     for steps in limits::imap() {
         let (client, server) = tokio::io::duplex(1 << 20);
