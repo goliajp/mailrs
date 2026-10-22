@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-10-22
+
+### Removed
+
+- **Breaking:** `PgDmarcStore`, `BackendPool` and the `pg-store` / `spg`
+  features. The crate no longer depends on `sqlx`. Migration: implement
+  `DmarcStore` over your database (2.x's `PgDmarcStore` is a 60-line
+  reference), or use `InMemoryDmarcStore`.
+
+### Changed
+
+- **Breaking:** `DmarcStore` takes its dates from the caller and never
+  reads the clock: `record_result(report_date: NaiveDate, record)`,
+  `get_results_for_date(date: NaiveDate)`, and `cleanup_old(days)` is
+  replaced by `cleanup_before(cutoff: NaiveDate)` (results on `cutoff`
+  stay). Before, the day a result belonged to was whatever the database
+  used as its default, which a non-SQL store could not reproduce.
+- The trait lives in the new `store` module; `mailrs_dmarc::DmarcStore`
+  still resolves.
+
+### Added
+
+- `InMemoryDmarcStore`, a reference `DmarcStore`.
+- `store::check_dmarc_store`, an executable contract for `DmarcStore`
+  implementations.
+
 ## [2.1.1] - 2026-10-22
 
 ### Changed

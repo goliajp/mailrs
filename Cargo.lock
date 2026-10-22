@@ -3662,7 +3662,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-dmarc"
-version = "2.1.1"
+version = "3.0.0"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -3675,8 +3675,6 @@ dependencies = [
  "psl",
  "quick-xml",
  "serde",
- "spg-sqlx",
- "sqlx",
  "thiserror",
  "tokio",
  "zip",

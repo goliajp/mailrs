@@ -99,7 +99,7 @@ mailrs-maildir = { path = "../storage-maildir" }
 mailrs-uidlist = { path = "../uidlist", version = "0" }
 mailrs-keywords = { path = "../keywords", version = "0" }
 mailrs-threadstate = { path = "../threadstate", version = "0" }
-mailrs-dmarc = { version = "2.0.0", path = "../dmarc", default-features = false }
+mailrs-dmarc = { version = "3", path = "../dmarc", default-features = false }
 mailrs-arf = { version = "1.0.0", path = "../arf" }
 mailrs-arc = { version = "3.0.0", path = "../arc" }
 mailrs-dkim = { version = "3.0.0", path = "../dkim" }

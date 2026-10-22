@@ -42,7 +42,7 @@ mailrs-bayes = { path = "../bayes" }
 mailrs-triage = { path = "../triage" }
 mailrs-rfc5322 = { path = "../rfc5322", version = "1" }
 mailrs-shield = { path = "../shield", version = "4", default-features = false, features = ["store"] }
-mailrs-dmarc = { path = "../dmarc", version = "2", default-features = false }
+mailrs-dmarc = { path = "../dmarc", version = "3", default-features = false }
 mailrs-spf = { path = "../spf", version = "3" }
 mailrs-dkim = { path = "../dkim", version = "3" }
 mailrs-arc = { path = "../arc", version = "3" }
