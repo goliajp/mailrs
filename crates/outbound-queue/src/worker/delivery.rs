@@ -75,51 +75,9 @@ pub async fn deliver_domain_static(
     // distribution of end-to-end delivery latency per outcome.
     let batch_start = std::time::Instant::now();
 
-    // filter out suppressed recipients before delivery
-    let mut messages = messages;
-    let now_check = chrono::Utc::now().timestamp();
-    {
-        let mut suppressed_ids = Vec::new();
-        for msg in &messages {
-            // an unreadable list must not hold mail back: deliver, and say so
-            let suppressed = match store.is_suppressed(&msg.recipient).await {
-                Ok(suppressed) => suppressed,
-                Err(e) => {
-                    tracing::warn!(
-                        "outbound queue: suppression check for msg {} failed: {e}",
-                        msg.id
-                    );
-                    false
-                }
-            };
-            if suppressed {
-                tracing::info!("skipping suppressed recipient: {}", msg.recipient);
-                logged(
-                    "mark bounced",
-                    msg.id,
-                    store
-                        .mark_bounced(
-                            msg.id,
-                            "recipient suppressed (hard bounce history)",
-                            now_check,
-                        )
-                        .await,
-                );
-                if let Some(es) = event_sender {
-                    es(DeliveryEvent::Bounced {
-                        queue_id: msg.id,
-                        sender: msg.sender.clone(),
-                    });
-                }
-                suppressed_ids.push(msg.id);
-            }
-        }
-        if !suppressed_ids.is_empty() {
-            messages.retain(|msg| !suppressed_ids.contains(&msg.id));
-        }
-        if messages.is_empty() {
-            return;
-        }
+    let messages = drop_suppressed(store, messages, event_sender).await;
+    if messages.is_empty() {
+        return;
     }
 
     // resolve MX records
@@ -266,6 +224,46 @@ pub async fn deliver_domain_static(
             }
         }
     }
+}
+
+/// Bounce the messages whose recipient is on the suppression list and
+/// return the rest.
+async fn drop_suppressed(
+    store: &dyn QueueStore,
+    messages: Vec<QueuedMessage>,
+    event_sender: Option<&DeliveryEventSender>,
+) -> Vec<QueuedMessage> {
+    let now = chrono::Utc::now().timestamp();
+    let mut kept = Vec::with_capacity(messages.len());
+    for msg in messages {
+        // an unreadable list must not hold mail back: deliver, and say so
+        let suppressed = match store.is_suppressed(&msg.recipient).await {
+            Ok(suppressed) => suppressed,
+            Err(e) => {
+                tracing::warn!(
+                    "outbound queue: suppression check for msg {} failed: {e}",
+                    msg.id
+                );
+                false
+            }
+        };
+        if !suppressed {
+            kept.push(msg);
+            continue;
+        }
+        tracing::info!("skipping suppressed recipient: {}", msg.recipient);
+        let marked = store
+            .mark_bounced(msg.id, "recipient suppressed (hard bounce history)", now)
+            .await;
+        logged("mark bounced", msg.id, marked);
+        if let Some(es) = event_sender {
+            es(DeliveryEvent::Bounced {
+                queue_id: msg.id,
+                sender: msg.sender.clone(),
+            });
+        }
+    }
+    kept
 }
 
 // a failed store write leaves the row where it was: inflight rows come back
