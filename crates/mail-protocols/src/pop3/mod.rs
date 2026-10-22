@@ -12,7 +12,9 @@ mod tests;
 use std::sync::Arc;
 
 use mailrs_tls_reload::TlsState;
-use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
+use tokio::io::{
+    AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader,
+};
 use tokio::net::TcpListener;
 
 use crate::backend::{Directory, Protocol};
@@ -91,6 +93,11 @@ where
         .map(drop)
 }
 
+/// The longest command line read, CRLF included, before sign-in as after
+/// it. RFC 2449 §4 caps a command at 255 octets; this leaves room for a
+/// long password.
+const MAX_LINE: u64 = 8 * 1024;
+
 /// Runs commands until QUIT or EOF (false), or until the client is told
 /// to begin TLS (true, only when `stls`).
 async fn serve<D, R, W>(dir: &D, reader: &mut R, tx: &mut W, stls: bool) -> std::io::Result<bool>
@@ -103,7 +110,12 @@ where
     let mut maildrop: Option<Maildrop<D::Account>> = None;
     loop {
         let mut line = String::new();
-        if reader.read_line(&mut line).await? == 0 {
+        let n = (&mut *reader).take(MAX_LINE).read_line(&mut line).await?;
+        if n == 0 {
+            return Ok(false);
+        }
+        if !line.ends_with('\n') && n as u64 == MAX_LINE {
+            tx.write_all(b"-ERR line too long, closing\r\n").await?;
             return Ok(false);
         }
         let cleaned = line.trim_end_matches(['\r', '\n']);
