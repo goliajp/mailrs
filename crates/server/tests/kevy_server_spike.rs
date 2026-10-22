@@ -79,7 +79,7 @@ async fn greylist_triplet_lifecycle_via_real_stone() {
     assert_eq!(db.check(&key, t0, &cfg).await, GreylistDecision::Defer);
 
     // the triplet was stored with a TTL on the order of pass_ttl_secs
-    let stored_ttl_ms = store.ttl_ms(format!("gl:{key}").as_bytes());
+    let stored_ttl_ms = store.ttl_ms(mailrs_shield::greylist_key::store_key(&key).as_bytes());
     let pass_ttl_ms = (cfg.pass_ttl_secs as i64) * 1000;
     assert!(
         stored_ttl_ms > pass_ttl_ms - 60_000 && stored_ttl_ms <= pass_ttl_ms,
@@ -190,7 +190,8 @@ fn greylist_first_seen_and_ttl_survive_restart() {
     // auditing this report. If the flake budget ever matters, the honest
     // change is a stated clock-discipline allowance, not a bigger number.
     let dir = tempfile::tempdir().unwrap();
-    let key = b"gl:203.0.113.5|s@ext.example|alice@example.com".as_slice();
+    let key = mailrs_shield::greylist_key::store_key("203.0.113.5|s@ext.example|alice@example.com");
+    let key = key.as_bytes();
     let ttl = Duration::from_secs(36 * 24 * 3600);
 
     {

@@ -1,6 +1,5 @@
-//! Permission groups in the network kevy. Every reader and writer (the
-//! contract handlers in `groups_admin`, webapi's admin pages and MCP tools,
-//! fastcore's authorization check) uses these keys, so there is one
+//! Permission groups in the network kevy. Every reader and writer
+//! (webapi's admin pages and MCP tools, fastcore's authorization check) uses these keys, so there is one
 //! spelling:
 //!   `admin:groups`                   hash id → group JSON
 //!   `admin:groups:counter`           id counter
@@ -109,6 +108,14 @@ pub fn membership(conn: &mut Connection, address: &str) -> KevyResult<Membership
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn group_keys_keep_their_prod_spelling() {
+        assert_eq!(GROUPS_KEY, "admin:groups");
+        assert_eq!(GROUPS_COUNTER, "admin:groups:counter");
+        assert_eq!(permissions_key(9), "admin:groups:9:permissions");
+        assert_eq!(members_key(9), "admin:groups:9:members");
+    }
 
     fn group(conn: &mut Connection, id: i64, perms: &[&str], members: &[&str]) {
         let row = serde_json::json!({ "id": id, "name": format!("g{id}") }).to_string();

@@ -106,11 +106,6 @@ impl ServerConfig {
         set_parsed("MAILRS_SMTPS_PORT", &mut self.smtps_port);
         set_parsed("MAILRS_WEB_PORT", &mut self.web_port);
         set_parsed("MAILRS_IMAP_PORT", &mut self.imap_port);
-        set_parsed("MAILRS_IMAPS_PORT", &mut self.imaps_port);
-        set_bool_truthy("MAILRS_DISABLE_PLAIN_IMAP", &mut self.disable_plain_imap);
-        set_parsed("MAILRS_POP3_PORT", &mut self.pop3_port);
-        set_bool_truthy("MAILRS_DISABLE_PLAIN_POP3", &mut self.disable_plain_pop3);
-        set_parsed("MAILRS_MANAGESIEVE_PORT", &mut self.managesieve_port);
         set_csv_lower("MAILRS_LOCAL_DOMAINS", &mut self.local_domains);
         set_csv_lower(
             "MAILRS_ORG_NAME_ALLOWED_DOMAINS",

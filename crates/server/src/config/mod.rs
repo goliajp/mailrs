@@ -42,22 +42,9 @@ pub struct ServerConfig {
     pub tls_key: Option<PathBuf>,
     pub users_file: Option<PathBuf>,
     pub web_port: u16,
-    // IMAP
+    /// The IMAP port the web tier tells clients about. The IMAP, POP3
+    /// and ManageSieve listeners bind `MAILRS_*_BIND`, as fastcore's do.
     pub imap_port: u16,
-    pub imaps_port: u16,
-    /// Disable the plaintext IMAP listener on `imap_port`. Defaults
-    /// to `false` (listener active) for backwards compat. Per OWASP
-    /// A04 (Insecure Design), production deployments should set this
-    /// to `true` and use the TLS-only `imaps_port` instead — plain
-    /// IMAP transmits credentials in cleartext on the wire.
-    pub disable_plain_imap: bool,
-    // POP3
-    pub pop3_port: u16,
-    /// Disable the plaintext POP3 listener on `pop3_port`. See
-    /// `disable_plain_imap` for rationale — same OWASP A04 reason.
-    pub disable_plain_pop3: bool,
-    // ManageSieve
-    pub managesieve_port: u16,
     // anti-spam
     pub local_domains: Vec<String>,
     /// What this organisation calls itself, for the display-name
@@ -169,11 +156,6 @@ impl Default for ServerConfig {
             users_file: None,
             web_port: 3100,
             imap_port: 1143,
-            imaps_port: 1993,
-            disable_plain_imap: false,
-            pop3_port: 1110,
-            disable_plain_pop3: false,
-            managesieve_port: 4190,
             local_domains: vec![],
             org_names: vec![],
             org_name_allowed_domains: vec![],
@@ -210,7 +192,7 @@ impl Default for ServerConfig {
             mta_sts_id: chrono::Utc::now().format("%Y%m%d%H%M%S").to_string(),
             spam_score_threshold: 4.0,
             clamav_addr: None,
-            llm_url: "https://devops.golia.jp/api/llm/complete".into(),
+            llm_url: String::new(),
             llm_api_key: None,
             ai_analysis_enabled: false,
             auth_max_failures_account: 5,
@@ -754,7 +736,6 @@ mod tests {
         assert_eq!(cfg.submission_port, 2587);
         assert_eq!(cfg.smtps_port, 2465);
         assert_eq!(cfg.imap_port, 1143);
-        assert_eq!(cfg.imaps_port, 1993);
         assert_eq!(cfg.web_port, 3100);
     }
 
@@ -780,7 +761,7 @@ mod tests {
     fn default_ai_is_disabled() {
         let cfg = ServerConfig::default();
         assert!(!cfg.ai_analysis_enabled);
-        assert_eq!(cfg.llm_url, "https://devops.golia.jp/api/llm/complete");
+        assert_eq!(cfg.llm_url, "");
     }
 
     #[test]
@@ -959,16 +940,6 @@ mod tests {
         unsafe { std::env::set_var("MAILRS_IMAP_PORT", "143") };
         let cfg = ServerConfig::from_env();
         assert_eq!(cfg.imap_port, 143);
-        clear_mailrs_env();
-    }
-
-    #[test]
-    fn from_env_imaps_port() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        clear_mailrs_env();
-        unsafe { std::env::set_var("MAILRS_IMAPS_PORT", "993") };
-        let cfg = ServerConfig::from_env();
-        assert_eq!(cfg.imaps_port, 993);
         clear_mailrs_env();
     }
 
@@ -1679,7 +1650,6 @@ mod tests {
         unsafe { std::env::set_var("MAILRS_SMTPS_PORT", "465") };
         unsafe { std::env::set_var("MAILRS_WEB_PORT", "443") };
         unsafe { std::env::set_var("MAILRS_IMAP_PORT", "143") };
-        unsafe { std::env::set_var("MAILRS_IMAPS_PORT", "993") };
         unsafe { std::env::set_var("MAILRS_LOCAL_DOMAINS", "prod.com,prod.org") };
         unsafe { std::env::set_var("MAILRS_TLS_CERT", "/ssl/cert.pem") };
         unsafe { std::env::set_var("MAILRS_TLS_KEY", "/ssl/key.pem") };
@@ -1698,7 +1668,6 @@ mod tests {
         assert_eq!(cfg.smtps_port, 465);
         assert_eq!(cfg.web_port, 443);
         assert_eq!(cfg.imap_port, 143);
-        assert_eq!(cfg.imaps_port, 993);
         assert_eq!(cfg.local_domains, vec!["prod.com", "prod.org"]);
         assert_eq!(cfg.tls_cert, Some(PathBuf::from("/ssl/cert.pem")));
         assert_eq!(cfg.tls_key, Some(PathBuf::from("/ssl/key.pem")));

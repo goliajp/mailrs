@@ -2,7 +2,7 @@
 
 mailrs is a mail server — SMTP in and out, IMAP, POP3, JMAP, ManageSieve,
 CalDAV/CardDAV, a REST and MCP API, and a web client — built as a Cargo
-workspace of 72 crates. Production runs four mailrs processes from one
+workspace of 73 crates. Production runs four mailrs processes from one
 image beside a `kevy-server`. There is no SQL database in that stack:
 message metadata lives in an embedded key-value store, mail bodies are
 Maildir files.
@@ -147,6 +147,7 @@ libraries are published on [crates.io](https://crates.io/users/golia-jp).
 | `mailrs-smtp-client` | Outbound SMTP: MX resolution, DANE/STARTTLS, response parsing |
 | `mailrs-outbound-queue` | Outbound delivery logic: DKIM signing, DSN generation, MTA-STS lookup, the retry schedule, and the queue store trait (its Postgres store behind the `pg` feature) |
 | `mailrs-imap-proto`, `mailrs-imap-codec`, `mailrs-imap-format` | IMAP parser and formatter, Tokio codec, wire-format helpers (RFC 3501/9051) |
+| `mailrs-mail-protocols` | The IMAP, POP3 and ManageSieve sessions and listeners both cores serve; each core supplies its storage through a trait |
 | `mailrs-rfc5322`, `mailrs-rfc2047`, `mailrs-rfc2231`, `mailrs-mime` | Message headers, encoded words, MIME parameters, the MIME body tree |
 | `mailrs-mail-builder` | Outbound message builder |
 | `mailrs-ical` | iCalendar (RFC 5545) and iTIP |

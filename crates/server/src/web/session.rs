@@ -7,11 +7,12 @@ use super::*;
 pub(crate) const SESSION_TTL: Duration = Duration::from_secs(7 * 24 * 3600);
 
 /// kevy key prefix for individual session blobs (`session:<token>`).
-pub(crate) const KEVY_SESSION_PREFIX: &[u8] = b"session:";
+pub(crate) const KEVY_SESSION_PREFIX: &[u8] =
+    mailrs_core_sidestate::keys::session::SESSION_PREFIX.as_bytes();
 
 /// kevy SET key holding every live session token, used to enumerate
 /// sessions at boot for [`SessionStore::restore_from_kevy`].
-pub(crate) const KEVY_SESSION_INDEX: &[u8] = b"session:index";
+pub(crate) use mailrs_core_sidestate::keys::session::SESSION_INDEX as KEVY_SESSION_INDEX;
 
 pub(crate) struct SessionInfo {
     pub(crate) address: String,

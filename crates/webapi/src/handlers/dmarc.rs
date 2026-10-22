@@ -28,13 +28,7 @@ use crate::WebState;
 use crate::handlers::conversations::AuthedUser;
 use crate::handlers::kevy_util::{require_permission, with_kevy};
 
-/// Time-ordered index of stored reports. Mirrors
-/// `fastcore::dmarc_ingest::INDEX_KEY`.
-const INDEX_KEY: &[u8] = b"mailrs:dmarcrpt:index";
-/// Per-report metadata hash prefix.
-const REPORT_PREFIX: &str = "mailrs:dmarcrpt:report:";
-/// Per-report row zset prefix.
-const ROWS_PREFIX: &str = "mailrs:dmarcrpt:rows:";
+use mailrs_core_sidestate::keys::dmarc::{INDEX_KEY, REPORT_PREFIX, ROWS_PREFIX};
 
 /// Permission gating every route here. DMARC posture is domain config.
 const PERMISSION: &str = "admin.domains";

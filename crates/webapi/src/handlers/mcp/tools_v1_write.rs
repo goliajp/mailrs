@@ -443,7 +443,7 @@ impl MailrsMcpService {
         self.require_admin(&user).await?;
         let limit = params.limit as i64;
         let rows = crate::handlers::kevy_util::with_kevy(move |c| {
-            c.lrange(b"admin:audit_log", 0, limit - 1)
+            c.lrange(mailrs_core_sidestate::keys::admin::AUDIT_LOG, 0, limit - 1)
                 .map_err(std::io::Error::from)
         })
         .map_err(|_| McpError::internal_error("audit read failed", None))?;

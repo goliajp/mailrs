@@ -50,7 +50,9 @@ impl GreylistStage {
         if sender.is_empty() || recipient.is_empty() {
             return false;
         }
-        let key = format!("mailrs:user:{}:contacts", recipient.to_lowercase());
+        let key = mailrs_core_sidestate::families::contact_cards::autocomplete_key(
+            &recipient.to_lowercase(),
+        );
         let field = sender.to_lowercase();
         let c = client.clone();
         tokio::task::spawn_blocking(move || {

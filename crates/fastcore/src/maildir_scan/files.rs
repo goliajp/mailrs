@@ -44,7 +44,7 @@ pub(crate) fn read_maildir_file(user: &str, blob_ref: &str) -> Option<Vec<u8>> {
 ///
 /// One definition: this was spelled out in four places — here, and once in
 /// each of the three sidecar modules — which is the shape
-/// `check-outbound-keys.sh` exists to catch for kevy keys. A path built
+/// `check-shared-keys.sh` exists to catch for kevy keys. A path built
 /// two ways is a file found by one caller and not the other, and this repo
 /// has already paid for that once in `locate`.
 pub(crate) fn mailbox_dir(user: &str) -> Option<std::path::PathBuf> {

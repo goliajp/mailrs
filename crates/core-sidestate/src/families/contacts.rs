@@ -4,7 +4,7 @@
 
 use mailrs_core_api::method::contact::ContactScoring;
 
-fn contact_key(user: &str, email: &str) -> String {
+pub fn contact_key(user: &str, email: &str) -> String {
     format!("mailrs:contact:{user}:{email}")
 }
 
@@ -179,7 +179,15 @@ pub fn has_sent_to_addr(conn: &mut kevy_client::Connection, user: &str, email: &
 
 #[cfg(test)]
 mod tests {
-    use super::is_self;
+    use super::{contact_key, is_self};
+
+    #[test]
+    fn the_scoring_key_keeps_its_prod_spelling() {
+        assert_eq!(
+            contact_key("a@x.jp", "b@y.jp"),
+            "mailrs:contact:a@x.jp:b@y.jp"
+        );
+    }
 
     #[test]
     fn self_send_is_detected_case_and_space_insensitively() {

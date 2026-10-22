@@ -72,6 +72,30 @@ fn hdel_id(conn: &mut kevy_client::Connection, key: &str, id: i64) -> StatusCode
     }
 }
 
+pub fn drafts_key(user: &str) -> String {
+    format!("drafts:{user}")
+}
+
+pub fn drafts_counter_key(user: &str) -> String {
+    format!("drafts:{user}:counter")
+}
+
+pub fn signatures_key(user: &str) -> String {
+    format!("signatures:{user}")
+}
+
+pub fn signatures_counter_key(user: &str) -> String {
+    format!("signatures:{user}:counter")
+}
+
+pub fn templates_key(user: &str) -> String {
+    format!("templates:{user}")
+}
+
+pub fn templates_counter_key(user: &str) -> String {
+    format!("templates:{user}:counter")
+}
+
 // ── drafts ──────────────────────────────────────────────────────────
 
 pub async fn list_drafts<S: NetKevy>(
@@ -81,7 +105,7 @@ pub async fn list_drafts<S: NetKevy>(
     let Some(mut conn) = state.net_conn() else {
         return Json(DraftListResponse { items: Vec::new() });
     };
-    let mut items: Vec<DraftWire> = hgetall_values(&mut conn, &format!("drafts:{user}"));
+    let mut items: Vec<DraftWire> = hgetall_values(&mut conn, &drafts_key(&user));
     items.sort_by_key(|d| -d.updated_at);
     Json(DraftListResponse { items })
 }
@@ -96,7 +120,7 @@ pub async fn save_draft<S: NetKevy>(
     // fresh one — so autosave updates one draft instead of spawning many.
     let id = match req.id {
         Some(existing) => existing,
-        None => next_id(&mut conn, &format!("drafts:{user}:counter"))
+        None => next_id(&mut conn, &drafts_counter_key(&user))
             .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?,
     };
     let now = now_secs();
@@ -111,7 +135,7 @@ pub async fn save_draft<S: NetKevy>(
         created_at: now,
         updated_at: now,
     };
-    hset_json(&mut conn, &format!("drafts:{user}"), id, &draft)?;
+    hset_json(&mut conn, &drafts_key(&user), id, &draft)?;
     Ok(Json(SaveDraftResponse { id }))
 }
 
@@ -122,7 +146,7 @@ pub async fn delete_draft<S: NetKevy>(
     let Some(mut conn) = state.net_conn() else {
         return StatusCode::SERVICE_UNAVAILABLE;
     };
-    hdel_id(&mut conn, &format!("drafts:{user}"), id)
+    hdel_id(&mut conn, &drafts_key(&user), id)
 }
 
 // ── signatures ──────────────────────────────────────────────────────
@@ -133,7 +157,7 @@ pub async fn save_signature<S: NetKevy>(
     Json(req): Json<SaveSignatureRequest>,
 ) -> Result<Json<SaveSignatureResponse>, StatusCode> {
     let mut conn = state.net_conn().ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
-    let id = next_id(&mut conn, &format!("signatures:{user}:counter"))
+    let id = next_id(&mut conn, &signatures_counter_key(&user))
         .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
     let sig = SignatureWire {
         id,
@@ -143,7 +167,7 @@ pub async fn save_signature<S: NetKevy>(
         is_default: req.is_default,
         created_at: now_secs().to_string(),
     };
-    hset_json(&mut conn, &format!("signatures:{user}"), id, &sig)?;
+    hset_json(&mut conn, &signatures_key(&user), id, &sig)?;
     Ok(Json(SaveSignatureResponse { id }))
 }
 
@@ -154,7 +178,7 @@ pub async fn delete_signature<S: NetKevy>(
     let Some(mut conn) = state.net_conn() else {
         return StatusCode::SERVICE_UNAVAILABLE;
     };
-    hdel_id(&mut conn, &format!("signatures:{user}"), id)
+    hdel_id(&mut conn, &signatures_key(&user), id)
 }
 
 // ── templates ───────────────────────────────────────────────────────
@@ -166,7 +190,7 @@ pub async fn list_templates<S: NetKevy>(
     let Some(mut conn) = state.net_conn() else {
         return Json(TemplateListResponse { items: Vec::new() });
     };
-    let mut items: Vec<TemplateWire> = hgetall_values(&mut conn, &format!("templates:{user}"));
+    let mut items: Vec<TemplateWire> = hgetall_values(&mut conn, &templates_key(&user));
     items.sort_by_key(|t| t.id);
     Json(TemplateListResponse { items })
 }
@@ -177,7 +201,7 @@ pub async fn save_template<S: NetKevy>(
     Json(req): Json<SaveTemplateRequest>,
 ) -> Result<Json<SaveTemplateResponse>, StatusCode> {
     let mut conn = state.net_conn().ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
-    let id = next_id(&mut conn, &format!("templates:{user}:counter"))
+    let id = next_id(&mut conn, &templates_counter_key(&user))
         .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
     let now = now_secs().to_string();
     let tmpl = TemplateWire {
@@ -191,7 +215,7 @@ pub async fn save_template<S: NetKevy>(
         created_at: now.clone(),
         updated_at: now,
     };
-    hset_json(&mut conn, &format!("templates:{user}"), id, &tmpl)?;
+    hset_json(&mut conn, &templates_key(&user), id, &tmpl)?;
     Ok(Json(SaveTemplateResponse { id }))
 }
 
@@ -202,5 +226,23 @@ pub async fn delete_template<S: NetKevy>(
     let Some(mut conn) = state.net_conn() else {
         return StatusCode::SERVICE_UNAVAILABLE;
     };
-    hdel_id(&mut conn, &format!("templates:{user}"), id)
+    hdel_id(&mut conn, &templates_key(&user), id)
+}
+
+#[cfg(test)]
+mod key_tests {
+    use super::*;
+
+    #[test]
+    fn pref_keys_keep_their_prod_spelling() {
+        assert_eq!(drafts_key("a@x.jp"), "drafts:a@x.jp");
+        assert_eq!(drafts_counter_key("a@x.jp"), "drafts:a@x.jp:counter");
+        assert_eq!(signatures_key("a@x.jp"), "signatures:a@x.jp");
+        assert_eq!(
+            signatures_counter_key("a@x.jp"),
+            "signatures:a@x.jp:counter"
+        );
+        assert_eq!(templates_key("a@x.jp"), "templates:a@x.jp");
+        assert_eq!(templates_counter_key("a@x.jp"), "templates:a@x.jp:counter");
+    }
 }

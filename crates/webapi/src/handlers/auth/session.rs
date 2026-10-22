@@ -259,7 +259,7 @@ pub(crate) async fn issue_session(
         let addr_clone = acct.public.address.clone();
         let _ = tokio::task::spawn_blocking(move || -> std::io::Result<()> {
             let mut c = kevy_client::Connection::connect(&url)?;
-            let key = format!("session:{token_clone}");
+            let key = mailrs_core_sidestate::keys::session::session_key(&token_clone);
             c.set_with_ttl(
                 key.as_bytes(),
                 &blob_bytes,
@@ -311,7 +311,7 @@ pub async fn logout(req: axum::extract::Request) -> Response {
     if let (Some(t), Ok(url)) = (token, std::env::var("MAILRS_KEVY_URL")) {
         let _ = tokio::task::spawn_blocking(move || -> std::io::Result<()> {
             let mut c = kevy_client::Connection::connect(&url)?;
-            let key = format!("session:{t}");
+            let key = mailrs_core_sidestate::keys::session::session_key(&t);
             let _ = c.del(&[key.as_bytes()])?;
             Ok(())
         })

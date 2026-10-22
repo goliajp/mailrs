@@ -261,7 +261,7 @@ pub async fn cancel_pending_send(
                 keep.push(id_bytes);
                 continue;
             };
-            let hkey = format!("mailrs:outbound:job:{id_str}");
+            let hkey = mailrs_core_sidestate::families::outbound::job_key(id_str);
             let blob = c.hget(hkey.as_bytes(), b"blob")?;
             // Strict JSON compare: parse the envelope, match on the
             // sender field AND the Message-ID header extracted from
@@ -311,7 +311,7 @@ pub async fn cancel_pending_send(
                 let Ok(id_str) = std::str::from_utf8(&id_bytes) else {
                     continue;
                 };
-                let hkey = format!("mailrs:outbound:job:{id_str}");
+                let hkey = mailrs_core_sidestate::families::outbound::job_key(id_str);
                 let Some(bytes) = c.hget(hkey.as_bytes(), b"blob")? else {
                     continue;
                 };

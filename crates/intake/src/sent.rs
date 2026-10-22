@@ -94,8 +94,9 @@ pub fn record_recipients(
     user: &str,
     recipients: &[String],
 ) -> io::Result<()> {
-    let key = format!("mailrs:user:{user}:contacts");
-    let ts_key = format!("{key}:ts");
+    use mailrs_core_sidestate::families::contact_cards::{autocomplete_key, autocomplete_ts_key};
+    let key = autocomplete_key(user);
+    let ts_key = autocomplete_ts_key(user);
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())

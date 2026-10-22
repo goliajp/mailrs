@@ -209,6 +209,12 @@ pub fn from_flat(uid: &str, flat: &[Vec<u8>]) -> StoredEvent {
 mod tests {
     use super::*;
 
+    #[test]
+    fn calendar_keys_keep_their_prod_spelling() {
+        assert_eq!(event_key("a@x.jp", "u1"), "calendar_event:a@x.jp:u1");
+        assert_eq!(index_key("a@x.jp"), "calendar_events:a@x.jp");
+    }
+
     fn flat(pairs: &[(&str, &str)]) -> Vec<Vec<u8>> {
         pairs
             .iter()

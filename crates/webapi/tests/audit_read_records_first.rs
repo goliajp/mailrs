@@ -11,7 +11,7 @@ const ALICE: &str = "alice@example.test";
 const TID: &str = "t-1@partner.example";
 
 fn rows(kv: &mut kevy_client::Connection) -> Vec<serde_json::Value> {
-    kv.lrange(b"admin:audit_log", 0, -1)
+    kv.lrange(mailrs_core_sidestate::keys::admin::AUDIT_LOG, 0, -1)
         .expect("audit log")
         .iter()
         .map(|r| serde_json::from_slice(r).expect("row"))

@@ -38,6 +38,16 @@ const SCHEMA_SQL: &str = include_str!(concat!(
 ));
 
 pub(super) async fn start_pg() -> (ContainerAsync<GenericImage>, crate::pg::BackendPool) {
+    let (container, pool) = empty_pg().await;
+    sqlx::raw_sql(SCHEMA_SQL)
+        .execute(&pool)
+        .await
+        .expect("apply schema");
+    (container, pool)
+}
+
+/// A PostgreSQL with nothing in it.
+pub(super) async fn empty_pg() -> (ContainerAsync<GenericImage>, crate::pg::BackendPool) {
     // One container start at a time, workspace-wide: `cargo test
     // --workspace` runs every test binary in parallel and six fixtures
     // each start their own, which times out the wait-for-ready and
@@ -73,10 +83,6 @@ pub(super) async fn start_pg() -> (ContainerAsync<GenericImage>, crate::pg::Back
             }
         }
     };
-    sqlx::raw_sql(SCHEMA_SQL)
-        .execute(&pool)
-        .await
-        .expect("apply schema");
     (container, pool)
 }
 

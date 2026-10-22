@@ -8,6 +8,7 @@ use std::time::Duration;
 
 use super::config::*;
 use super::*;
+use mailrs_core_sidestate::families::outbound as ob;
 
 /// Blocks up to `wait` waiting for the next id to arrive in pending;
 /// returns `Ok(None)` only when the timer expires with the queue still
@@ -57,7 +58,7 @@ pub(super) async fn pop_next(cfg: Cfg, wait: Duration) -> std::io::Result<Option
 /// own it), false if state was non-pending (dup entry or already-
 /// terminal) or the WATCH aborted (another sender beat us).
 pub(super) fn try_claim(c: &mut kevy_client::Connection, id: &str) -> std::io::Result<bool> {
-    let job_k = format!("mailrs:outbound:job:{id}");
+    let job_k = ob::job_key(id);
     c.watch(&[job_k.as_bytes()])?;
     let state = c.hget(job_k.as_bytes(), b"state")?.unwrap_or_default();
     if state != b"pending" {
@@ -97,12 +98,12 @@ pub(super) async fn recover_stale(cfg: Cfg) -> std::io::Result<usize> {
         let mut cursor = 0u64;
         let mut recovered = 0usize;
         loop {
-            let (next, keys) = c.scan(cursor, Some(b"mailrs:outbound:job:*"), Some(SCAN_BATCH))?;
+            let (next, keys) = c.scan(cursor, Some(ob::JOB_PATTERN), Some(SCAN_BATCH))?;
             for key in keys {
                 let Ok(key_str) = std::str::from_utf8(&key) else {
                     continue;
                 };
-                let Some(id) = key_str.strip_prefix("mailrs:outbound:job:") else {
+                let Some(id) = key_str.strip_prefix(ob::JOB_PREFIX) else {
                     continue;
                 };
                 let id_owned = id.to_string();
@@ -172,8 +173,7 @@ pub(super) async fn load_envelope(
 ) -> std::io::Result<Option<serde_json::Value>> {
     spawn_blocking(move || {
         let mut c = kevy(&cfg.kevy_url)?;
-        let key = format!("mailrs:outbound:job:{id}");
-        let blob = c.hget(key.as_bytes(), b"blob")?;
+        let blob = c.hget(ob::job_key(&id).as_bytes(), b"blob")?;
         let Some(bytes) = blob else { return Ok(None) };
         let v: serde_json::Value = serde_json::from_slice(&bytes)
             .map_err(|e| std::io::Error::other(format!("blob json: {e}")))?;
@@ -220,7 +220,7 @@ pub(super) fn dual_write_terminal(
     id: &str,
     state: &[u8],
 ) -> std::io::Result<()> {
-    let job_k = format!("mailrs:outbound:job:{id}");
+    let job_k = ob::job_key(id);
     let now = now_secs_str();
     let _ = c.pipeline(|p| {
         p.cmd(&[
@@ -239,7 +239,7 @@ pub(super) fn dual_write_terminal(
 
 /// v2.5.1 §P8-B-A helper: sender-side retry (state=pending).
 pub(super) fn dual_write_pending(c: &mut kevy_client::Connection, id: &str) -> std::io::Result<()> {
-    let job_k = format!("mailrs:outbound:job:{id}");
+    let job_k = ob::job_key(id);
     let now = now_secs_str();
     let _ = c.pipeline(|p| {
         p.cmd(&[
@@ -273,7 +273,7 @@ pub(super) async fn move_to_failed(
         // view), not part of the v2 job FSM. They stay independent of
         // the P8-B-C cutover.
         c.sadd(FAILED_KEY, &[id_c.as_bytes()])?;
-        let audit_key = format!("mailrs:outbound:failed:{id_c}");
+        let audit_key = ob::failed_audit_key(&id_c);
         c.hset(
             audit_key.as_bytes(),
             &[
@@ -309,7 +309,7 @@ pub(super) async fn requeue(
         // v2.5.3 §P8-B-C: envelope blob now written to the v2 job hash,
         // not the legacy `mailrs:outbound:{id}` hash. `dual_write_pending`
         // handles state=pending + HDEL claimed_at + LPUSH pending-idx.
-        let job_k = format!("mailrs:outbound:job:{id_c}");
+        let job_k = ob::job_key(&id_c);
         let payload = envelope.to_string();
         c.hset(job_k.as_bytes(), &[(b"blob" as &[u8], payload.as_bytes())])?;
         dual_write_pending(&mut c, &id_c)?;

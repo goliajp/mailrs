@@ -23,6 +23,11 @@ pub fn autocomplete_key(user: &str) -> String {
     format!("mailrs:user:{user}:contacts")
 }
 
+/// When each autocomplete entry was last touched by a send.
+pub fn autocomplete_ts_key(user: &str) -> String {
+    format!("mailrs:user:{user}:contacts:ts")
+}
+
 /// The hash holding `user`'s cards.
 pub fn cards_key(user: &str) -> String {
     format!("contact_cards:{user}")
@@ -137,6 +142,16 @@ mod tests {
     const CARD: &str = "BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Ada Love\r\n lace\r\n\
         item1.EMAIL;TYPE=INTERNET:Ada@Example.com\r\nEMAIL:ada@work.example\r\n\
         TEL:+81 3 0000\r\nEND:VCARD\r\n";
+
+    #[test]
+    fn contact_keys_keep_their_prod_spelling() {
+        assert_eq!(autocomplete_key("a@x.jp"), "mailrs:user:a@x.jp:contacts");
+        assert_eq!(
+            autocomplete_ts_key("a@x.jp"),
+            "mailrs:user:a@x.jp:contacts:ts"
+        );
+        assert_eq!(cards_key("a@x.jp"), "contact_cards:a@x.jp");
+    }
 
     #[test]
     fn name_and_every_address_are_read() {

@@ -6,8 +6,7 @@
 //! thing whichever core is serving.
 //!
 //! It used to be PG `sieve_scripts`, and the split was silent in both
-//! directions. Every live reader looks at the kevy key: the core-api contract's
-//! own GET (`core-sidestate/families/groups_admin.rs`), the web UI's save path
+//! directions. Every live reader looks at the kevy key: the web UI's save path
 //! (`webapi/handlers/admin_ops.rs` writes it directly), fastcore's ManageSieve,
 //! and the delivery-time evaluator both cores share (`mailrs_intake::sieve`). Only
 //! this crate's three call sites used the table. So with the SQL core serving
@@ -52,7 +51,7 @@ pub fn get(address: &str) -> Result<Option<String>, std::io::Error> {
     )
 }
 
-fn get_at(url: &str, address: &str) -> Result<Option<String>, std::io::Error> {
+pub(crate) fn get_at(url: &str, address: &str) -> Result<Option<String>, std::io::Error> {
     let raw = conn_at(url)
         .ok_or_else(unreachable)?
         .get(key(address).as_bytes())?;
@@ -61,7 +60,7 @@ fn get_at(url: &str, address: &str) -> Result<Option<String>, std::io::Error> {
         .filter(|s| !s.trim().is_empty()))
 }
 
-fn unreachable() -> std::io::Error {
+pub(crate) fn unreachable() -> std::io::Error {
     std::io::Error::other("no MAILRS_KEVY_URL, or the network store is unreachable")
 }
 
@@ -84,14 +83,14 @@ pub fn delete(address: &str) -> Result<bool, std::io::Error> {
     )
 }
 
-fn set_at(url: &str, address: &str, script: &str) -> Result<(), std::io::Error> {
+pub(crate) fn set_at(url: &str, address: &str, script: &str) -> Result<(), std::io::Error> {
     conn_at(url)
         .ok_or_else(unreachable)?
         .set(key(address).as_bytes(), script.as_bytes())?;
     Ok(())
 }
 
-fn delete_at(url: &str, address: &str) -> Result<bool, std::io::Error> {
+pub(crate) fn delete_at(url: &str, address: &str) -> Result<bool, std::io::Error> {
     let n = conn_at(url)
         .ok_or_else(unreachable)?
         .del(&[key(address).as_bytes()])?;
@@ -101,14 +100,6 @@ fn delete_at(url: &str, address: &str) -> Result<bool, std::io::Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn the_key_is_the_one_every_other_reader_uses() {
-        // Spelled out rather than derived, because the whole defect this module
-        // fixes was two spellings of one fact. If this changes, it has to change
-        // in core-sidestate, webapi and fastcore in the same commit.
-        assert_eq!(key("a@b.test"), "sieve:a@b.test");
-    }
 
     // A port nothing listens on. These go through `conn_at` rather than
     // setting MAILRS_KEVY_URL, because mutating the environment is racy

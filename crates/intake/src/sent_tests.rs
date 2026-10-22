@@ -92,8 +92,9 @@ fn every_envelope_recipient_joins_the_contacts_under_its_address() {
         " ".to_string(),
     ];
     record_recipients(&mut conn, "alice@example.test", &rcpts).expect("recorded");
-    let key = b"mailrs:user:alice@example.test:contacts";
-    let flat = conn.hgetall(key).expect("contacts");
+    let key =
+        mailrs_core_sidestate::families::contact_cards::autocomplete_key("alice@example.test");
+    let flat = conn.hgetall(key.as_bytes()).expect("contacts");
     let mut got: Vec<(Vec<u8>, Vec<u8>)> = flat
         .chunks(2)
         .map(|kv| (kv[0].clone(), kv[1].clone()))
