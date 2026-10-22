@@ -68,7 +68,10 @@ pub struct SmtpConfigSnapshot {
     pub hostname: String,
     pub smtp_port: u16,
     pub submission_port: u16,
-    pub imap_port: u16,
+    /// The port the IMAP listener binds (`MAILRS_IMAP_BIND`); absent when
+    /// it is off.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub imap_port: Option<u16>,
     pub local_domains: Vec<String>,
     pub max_message_size: Option<u64>,
     pub tls_enabled: bool,

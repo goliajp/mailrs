@@ -28,6 +28,8 @@ mailrs-mail-builder = { path = "../mail-builder", version = "1" }
 mailrs-dkim = { path = "../dkim", version = "3", default-features = false }
 # the receiver's built-in message size limit, the ceiling for the setting
 mailrs-smtp-proto = { path = "../smtp-proto", version = "1" }
+# the IMAP ports autoconfig announces, read as the listeners read them
+mailrs-mail-protocols = { path = "../mail-protocols" }
 # Phase 3 §14-16 — the writing-assistance prompts and sanitising, shared
 # with the monolith lane so the two cannot drift. The provider is
 # constructed here only when MAILRS_AI_ANALYSIS_ENABLED is set; otherwise

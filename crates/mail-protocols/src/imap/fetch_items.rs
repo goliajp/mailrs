@@ -28,10 +28,11 @@ pub(super) enum Item {
     /// `RFC822`, `RFC822.HEADER`, `RFC822.TEXT`, answered under their
     /// own name
     Rfc822(&'static str),
-    /// `BODY[section]<partial>` or `BODY.PEEK[…]`
+    /// `BODY[section]<partial>` or, with `peek`, `BODY.PEEK[…]`
     Section {
         section: String,
         partial: Option<(usize, Option<usize>)>,
+        peek: bool,
     },
 }
 
@@ -42,6 +43,16 @@ pub(super) fn requested(attrs: &str, by_uid: bool) -> Vec<Item> {
         wanted.insert(0, Item::Uid);
     }
     wanted
+}
+
+/// Whether answering `items` sets `\Seen` (RFC 3501 §6.4.5): every
+/// `BODY[…]` but `BODY.PEEK[…]`, and `RFC822` and `RFC822.TEXT`.
+pub(super) fn sets_seen(items: &[Item]) -> bool {
+    items.iter().any(|i| match i {
+        Item::Section { peek, .. } => !peek,
+        Item::Rfc822(name) => *name != "RFC822.HEADER",
+        _ => false,
+    })
 }
 
 /// Whether answering `items` takes the message's bytes.
@@ -95,7 +106,9 @@ fn content_item(item: Item, data: &[u8]) -> (String, String) {
             };
             (name.into(), literal(&part))
         }
-        Item::Section { section, partial } => {
+        Item::Section {
+            section, partial, ..
+        } => {
             let part = section_bytes(data, &section);
             let (key, part) = match partial {
                 Some((start, len)) => {
@@ -210,7 +223,12 @@ fn section_item(token: &str, upper: &str) -> Option<Item> {
             };
             Some((start.parse().ok()?, len.and_then(|n| n.parse().ok())))
         });
-    Some(Item::Section { section, partial })
+    let peek = prefix == "BODY.PEEK[";
+    Some(Item::Section {
+        section,
+        partial,
+        peek,
+    })
 }
 
 // index of the `)` that closes a list whose `(` was already consumed
@@ -348,6 +366,28 @@ mod tests {
             ["FLAGS", "INTERNALDATE", "RFC822.SIZE", "ENVELOPE"]
         );
         assert_eq!(keys(&fetch("(FLAGS) (CHANGEDSINCE 42)")), ["FLAGS"]);
+    }
+
+    #[test]
+    fn only_a_body_read_that_does_not_peek_sets_seen() {
+        for attrs in [
+            "BODY[]",
+            "(UID BODY[TEXT])",
+            "RFC822",
+            "RFC822.TEXT",
+            "BODY[1]<0.10>",
+        ] {
+            assert!(sets_seen(&requested(attrs, false)), "{attrs}");
+        }
+        for attrs in [
+            "BODY.PEEK[]",
+            "RFC822.HEADER",
+            "(FLAGS RFC822.SIZE)",
+            "BODY",
+            "ENVELOPE",
+        ] {
+            assert!(!sets_seen(&requested(attrs, false)), "{attrs}");
+        }
     }
 
     #[test]

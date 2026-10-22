@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use mailrs_mail_protocols::backend::{
-    Account, Error, Expunged, Flag, Message, Quota, Result, Selected,
+    Account, Error, Expunged, Filed, Flag, Message, Quota, Result, Selected,
 };
 use mailrs_mailbox::{
     FLAG_DELETED, Mailbox, MessageMeta, PgMailboxStore, bitmask_to_maildir_flags,
@@ -34,6 +34,15 @@ pub(crate) struct PgAccount {
 
 fn store<E: std::fmt::Display>(e: E) -> Error {
     Error::Store(e.to_string())
+}
+
+/// The copy of `m` in `to`; `None` when `m` was gone.
+fn filed(to: &Mailbox, uid: Option<u32>, m: &Message<String>) -> Result<Filed> {
+    let uid = uid.ok_or_else(|| Error::Store(format!("message {} is gone", m.uid)))?;
+    Ok(Filed {
+        uidvalidity: to.uidvalidity,
+        uid,
+    })
 }
 
 fn to_message(seqno: u32, m: MessageMeta) -> Message<String> {
@@ -157,37 +166,31 @@ impl Account for PgAccount {
         Ok(())
     }
 
-    async fn copy(&self, from: &Mailbox, m: &Message<String>, to: &Mailbox) -> Result<()> {
+    async fn copy(&self, from: &Mailbox, m: &Message<String>, to: &Mailbox) -> Result<Filed> {
         let copied = self
             .mailbox
             .copy_message(&self.user, from.id, m.uid, &to.name)
             .await
             .map_err(store)?;
-        copied
-            .map(drop)
-            .ok_or_else(|| Error::Store(format!("message {} is gone", m.uid)))
+        filed(to, copied, m)
     }
 
-    async fn move_to(&self, from: &Mailbox, m: &Message<String>, to: &Mailbox) -> Result<()> {
+    async fn move_to(&self, from: &Mailbox, m: &Message<String>, to: &Mailbox) -> Result<Filed> {
         let moved = self
             .mailbox
             .move_message(&self.user, from.id, m.uid, &to.name)
             .await
             .map_err(store)?;
-        moved
-            .map(drop)
-            .ok_or_else(|| Error::Store(format!("message {} is gone", m.uid)))
+        filed(to, moved, m)
     }
 
-    /// The rows go, the bodies stay: a copy shares its body file.
+    /// The rows of `doomed` go, and no others; the bodies stay: a copy
+    /// shares its body file.
     async fn expunge(&self, mailbox: &Mailbox, doomed: &[Message<String>]) -> Expunged {
-        match self.mailbox.expunge(mailbox.id).await {
-            Ok(gone) => Expunged {
-                removed: doomed
-                    .iter()
-                    .map(|m| m.uid)
-                    .filter(|uid| gone.contains(uid))
-                    .collect(),
+        let uids: Vec<u32> = doomed.iter().map(|m| m.uid).collect();
+        match self.mailbox.expunge_uids(mailbox.id, &uids).await {
+            Ok(removed) => Expunged {
+                removed,
                 failed: None,
             },
             Err(e) => Expunged {
@@ -197,6 +200,7 @@ impl Account for PgAccount {
         }
     }
 
+    /// The uid, which a message keeps for as long as it is in INBOX.
     fn unique_id(&self, m: &Message<String>) -> String {
         m.uid.to_string()
     }
@@ -206,12 +210,15 @@ impl Account for PgAccount {
             .add_flags(mailbox.id, m.uid, FLAG_DELETED)
             .await
             .map_err(store)?;
-        self.mailbox.expunge(mailbox.id).await.map_err(store)?;
+        self.mailbox
+            .expunge_uids(mailbox.id, &[m.uid])
+            .await
+            .map_err(store)?;
         Ok(())
     }
 
-    async fn append(&self, mailbox: &Mailbox, bytes: Vec<u8>, flags: Vec<Flag>) -> Result<()> {
-        crate::message_store::deliver_and_index(
+    async fn append(&self, mailbox: &Mailbox, bytes: Vec<u8>, flags: Vec<Flag>) -> Result<Filed> {
+        let (uid, _) = crate::message_store::deliver_and_index(
             self.message_store.as_ref(),
             &self.mailbox,
             &self.user,
@@ -223,7 +230,10 @@ impl Account for PgAccount {
         )
         .await
         .map_err(Error::Store)?;
-        Ok(())
+        Ok(Filed {
+            uidvalidity: mailbox.uidvalidity,
+            uid,
+        })
     }
 
     /// No log of expunged uids is kept, so QRESYNC never reports any.

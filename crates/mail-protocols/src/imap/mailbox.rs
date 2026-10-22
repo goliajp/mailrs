@@ -1,29 +1,29 @@
-//! Mailbox-level commands: LIST, SELECT / EXAMINE, CLOSE, APPEND, IDLE.
+//! Mailbox-level commands: LIST, SELECT / EXAMINE, CLOSE.
 
-use futures_util::{SinkExt, StreamExt};
-use mailrs_imap_codec::ImapInput;
 use mailrs_imap_proto::{
     format_bad, format_exists, format_flags, format_list, format_no, format_ok, format_recent,
     special_use_flag,
 };
-use tokio::io::{AsyncRead, AsyncWrite};
 
-use super::flags::{flags_to_imap, parse_imap_flags};
-use super::session::{Io, State, no};
-use super::store::refresh;
-use crate::backend::{Account, Selected, Watch};
+use super::flags::flags_to_imap;
+use super::session::{State, no};
+use super::store::{announce, deleted, refresh};
+use crate::backend::{Account, Selected};
 
+/// LIST, or LSUB (`word`): every mailbox counts as subscribed, since
+/// subscriptions are not kept.
 pub(super) async fn list_response<A: Account>(
     session: &State<A>,
     tag: &str,
     pattern: &str,
+    word: &str,
 ) -> Vec<String> {
     let Some(account) = session.account() else {
         return vec![format_no(tag, "not authenticated")];
     };
     let names = match account.mailbox_names().await {
         Ok(n) => n,
-        Err(e) => return vec![no(tag, "LIST", &e)],
+        Err(e) => return vec![no(tag, word, &e)],
     };
     let mut out = Vec::with_capacity(names.len() + 1);
     for name in names {
@@ -31,10 +31,11 @@ pub(super) async fn list_response<A: Account>(
             // RFC 6154 §5.1: the SPECIAL-USE attribute lets MUAs map the
             // folder to their own Junk / Sent / Drafts / Trash / Archive
             let flags = format!("\\HasNoChildren{}", special_use_flag(&name));
-            out.push(format_list(&flags, "/", &name));
+            let line = format_list(&flags, "/", &name);
+            out.push(line.replacen("LIST", word, 1));
         }
     }
-    out.push(format_ok(tag, "LIST completed"));
+    out.push(format_ok(tag, &format!("{word} completed")));
     out
 }
 
@@ -206,120 +207,54 @@ pub(super) async fn select<A: Account>(
     out
 }
 
-pub(super) fn close<A: Account>(session: &mut State<A>, tag: &str) -> Vec<String> {
+/// RFC 3691: leave the mailbox without expunging anything.
+pub(super) fn unselect<A: Account>(session: &mut State<A>, tag: &str) -> Vec<String> {
     let State::Selected { account, .. } = session else {
         return vec![format_bad(tag, "not in SELECTED state")];
     };
     *session = State::Authed {
         account: account.clone(),
     };
-    vec![format_ok(tag, "CLOSE completed")]
+    vec![format_ok(tag, "UNSELECT completed")]
 }
 
-pub(super) async fn append_flow<A, S>(
-    session: &State<A>,
-    tag: &str,
-    framed: &mut Io<S>,
-    mailbox: &str,
-    flags: Option<&str>,
-    literal_size: u32,
-) -> Vec<String>
-where
-    A: Account,
-    S: AsyncRead + AsyncWrite + Send + Unpin,
-{
-    let Some(account) = session.account().cloned() else {
-        return vec![format_no(tag, "not authenticated")];
-    };
-    let dest = match account.mailbox(mailbox).await {
-        Ok(Some(d)) => d,
-        Ok(None) => return vec![format_no(tag, "no such mailbox")],
-        Err(e) => return vec![no(tag, "APPEND", &e)],
-    };
-    framed.codec_mut().expect_literal(literal_size);
-    if framed
-        .send(b"+ Ready for literal data\r\n".to_vec())
-        .await
-        .is_err()
-    {
-        return vec![format_no(tag, "network error")];
-    }
-    let bytes = match framed.next().await {
-        Some(Ok(ImapInput::LiteralData(bytes))) => bytes,
-        _ => return vec![format_no(tag, "expected literal data")],
-    };
-    let flags = flags.map(parse_imap_flags).unwrap_or_default();
-    if let Err(e) = account.append(&dest, bytes.to_vec(), flags).await {
-        tracing::warn!(err = %e, "imap: APPEND failed");
-        return vec![format_no(tag, &format!("append failed: {e}"))];
-    }
-    vec![format_ok(tag, "APPEND completed")]
-}
-
-/// RFC 2177 IDLE. On a change to the selected mailbox it is listed
-/// again and `* n EXISTS` sent when the count grew. Ends when the client
-/// sends DONE, the connection drops, or the 29-minute inactivity ceiling
-/// passes (clients re-issue IDLE well before that per the RFC). With no
-/// mailbox selected it reports nothing.
-pub(super) async fn idle_flow<A, S>(
+/// RFC 3501 §6.4.2: a mailbox opened read-write loses its `\Deleted`
+/// messages, and no `EXPUNGE` is sent for them. When one cannot be
+/// removed the mailbox stays selected.
+pub(super) async fn close<A: Account>(
     session: &mut State<A>,
     tag: &str,
-    framed: &mut Io<S>,
-) -> Vec<String>
-where
-    A: Account,
-    S: AsyncRead + AsyncWrite + Send + Unpin,
-{
-    let mut watched = match &*session {
-        State::NotAuthed => return vec![format_no(tag, "not authenticated")],
-        State::Authed { .. } => None,
-        State::Selected {
-            account,
-            mailbox,
-            messages,
-            ..
-        } => Some((account.clone(), mailbox.clone(), messages.len())),
+    qresync: bool,
+) -> Vec<String> {
+    let State::Selected {
+        account,
+        mailbox,
+        messages,
+        read_only,
+    } = &*session
+    else {
+        return vec![format_bad(tag, "not in SELECTED state")];
     };
-    let mut watch = watched.as_ref().map(|(a, mb, _)| a.watch(mb));
-    if framed.send(b"+ idling\r\n".to_vec()).await.is_err() {
-        return Vec::new();
-    }
-    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(29 * 60);
-    loop {
-        tokio::select! {
-            frame = framed.next() => match frame {
-                Some(Ok(ImapInput::Line(l))) if l.trim().eq_ignore_ascii_case("DONE") => break,
-                Some(Ok(_)) => continue,
-                _ => return Vec::new(),
-            },
-            () = changed(watch.as_mut()) => {
-                let Some((account, mailbox, known)) = watched.as_mut() else { continue };
-                let fresh = match account.messages(mailbox).await {
-                    Ok(m) => m,
-                    Err(e) => return vec![no(tag, "IDLE", &e)],
-                };
-                if fresh.len() > *known {
-                    *known = fresh.len();
-                    if framed.send(format_exists(*known as u32).into_bytes()).await.is_err() {
-                        return Vec::new();
-                    }
-                }
-            }
-            _ = tokio::time::sleep_until(deadline) => break,
+    let account = account.clone();
+    if !*read_only {
+        let doomed = deleted(messages);
+        let gone = account.expunge(mailbox, &doomed).await;
+        if let Some(e) = gone.failed {
+            // still selected, so the client is told what did go
+            let removed: Vec<_> = doomed
+                .into_iter()
+                .filter(|m| gone.removed.contains(&m.uid))
+                .collect();
+            let mut out = announce(&removed, qresync);
+            out.push(match refresh(session).await {
+                Ok(()) => no(tag, "CLOSE", &e),
+                Err(r) => no(tag, "CLOSE", &r),
+            });
+            return out;
         }
     }
-    // post-IDLE FETCHes see the new mail
-    if let Err(e) = refresh(session).await {
-        return vec![no(tag, "IDLE", &e)];
-    }
-    vec![format_ok(tag, "IDLE terminated")]
-}
-
-async fn changed<W: Watch>(watch: Option<&mut W>) {
-    match watch {
-        Some(w) => w.changed().await,
-        None => std::future::pending().await,
-    }
+    *session = State::Authed { account };
+    vec![format_ok(tag, "CLOSE completed")]
 }
 
 #[cfg(test)]

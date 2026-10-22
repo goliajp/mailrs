@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-22
+
+### Added
+
+- Line and literal limits: `ImapCodec::with_max_line` /
+  `with_max_literal` and their getters, and the `TooLong` error a decode
+  over either limit wraps. Defaults are `MAX_LINE` (64 KiB) and
+  `MAX_LITERAL` (50 MiB).
+
+### Changed
+
+- `ImapCodec::new()` is bounded by those defaults. It held any line and
+  any literal before, however large.
+
 ## [1.0.1] - 2026-08-04
 
 ### Changed

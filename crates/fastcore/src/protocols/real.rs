@@ -5,11 +5,11 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use mailrs_mail_protocols::backend::{Expunged, Flag, Message, Result, Selected};
+use mailrs_mail_protocols::backend::{Expunged, Filed, Flag, Message, Result, Selected};
 
 use super::account::{FcMailbox, to_imap, to_message};
 use crate::FastcoreState;
-use crate::imap::backend::{self, ImapMessage};
+use crate::imap::backend;
 
 pub struct RealAccount {
     pub(crate) state: Arc<FastcoreState>,
@@ -64,30 +64,42 @@ impl RealAccount {
         if let Some(base) = base_name(&msg.path) {
             backend::set_file_modseq(&self.state, &self.user, base, modseq);
         }
-        sync_index_after_store(&self.state, &self.user, &msg, flags);
+        sync_index_after_store(&self.state, &self.user, msg.uid, flags);
         Ok(())
     }
 
-    pub(crate) fn copy(&self, m: &Message<PathBuf>, to: &FcMailbox) -> Result<()> {
-        backend::copy_to(&self.state, &self.user, &to_imap(m), to)?;
-        // COPY duplicates the bytes under the same account
-        crate::live_sync::adjust_usage_bytes(&self.user, m.size as i64);
-        Ok(())
+    fn filed(&self, to: &FcMailbox, uid: u32) -> Filed {
+        Filed {
+            uidvalidity: backend::uidvalidity(&self.state, &self.user, &to.name),
+            uid,
+        }
     }
 
-    pub(crate) fn move_to(&self, m: &Message<PathBuf>, to: &FcMailbox) -> Result<()> {
+    pub(crate) fn copy(&self, m: &Message<PathBuf>, to: &FcMailbox) -> Result<Filed> {
+        let uid = backend::copy_to(&self.state, &self.user, &to_imap(m), to)?;
+        Ok(self.filed(to, uid))
+    }
+
+    /// The source copy goes as an EXPUNGE takes it: logged as vanished,
+    /// so a QRESYNC client that was not connected learns of it.
+    pub(crate) fn move_to(
+        &self,
+        from: &FcMailbox,
+        m: &Message<PathBuf>,
+        to: &FcMailbox,
+    ) -> Result<Filed> {
         let msg = to_imap(m);
-        backend::copy_to(&self.state, &self.user, &msg, to)?;
-        backend::delete_file(&msg)?;
-        Ok(())
+        let uid = backend::move_to(&self.state, &self.user, &msg, to)?;
+        let ms = backend::bump_modseq(&self.state, &self.user);
+        backend::record_vanished(&self.state, &self.user, &from.name, m.uid, ms);
+        Ok(self.filed(to, uid))
     }
 
     pub(crate) fn expunge(&self, mailbox: &FcMailbox, doomed: &[Message<PathBuf>]) -> Expunged {
         let mut out = Expunged::default();
         for m in doomed {
-            match std::fs::remove_file(&m.key) {
+            match backend::remove_message(&self.user, &to_imap(m)) {
                 Ok(()) => {
-                    crate::live_sync::adjust_usage_bytes(&self.user, -(m.size as i64));
                     let ms = backend::bump_modseq(&self.state, &self.user);
                     backend::record_vanished(&self.state, &self.user, &mailbox.name, m.uid, ms);
                 }
@@ -103,9 +115,19 @@ impl RealAccount {
         out
     }
 
-    pub(crate) fn append(&self, mailbox: &FcMailbox, bytes: &[u8]) -> Result<()> {
-        backend::append(&self.state, &self.user, mailbox, bytes)?;
-        Ok(())
+    /// The flags reach the file name and, as a STORE carries them, the
+    /// index.
+    pub(crate) fn append(
+        &self,
+        mailbox: &FcMailbox,
+        bytes: &[u8],
+        flags: &[Flag],
+    ) -> Result<Filed> {
+        let (uid, _) = backend::append(&self.state, &self.user, mailbox, bytes, flags)?;
+        if !flags.is_empty() {
+            sync_index_after_store(&self.state, &self.user, uid, flags);
+        }
+        Ok(self.filed(mailbox, uid))
     }
 
     pub(crate) fn vanished_since(&self, mailbox: &FcMailbox, modseq: u64) -> Vec<u32> {
@@ -123,19 +145,14 @@ impl RealAccount {
 /// behind it is the direction a reindex repairs. Failing the command
 /// would tell the client the store did not happen when the file says it
 /// did.
-fn sync_index_after_store(
-    state: &Arc<FastcoreState>,
-    user: &str,
-    msg: &ImapMessage,
-    merged: &[Flag],
-) {
+fn sync_index_after_store(state: &Arc<FastcoreState>, user: &str, uid: u32, merged: &[Flag]) {
     use mailrs_core_api::method::message::{MessageWire, maildir_flags_to_bitmask};
 
-    let Ok(Some(bytes)) = state.mailbox.get_message_by_uid(user, msg.uid) else {
+    let Ok(Some(bytes)) = state.mailbox.get_message_by_uid(user, uid) else {
         return;
     };
     let Ok(mut wire) = serde_json::from_slice::<MessageWire>(&bytes) else {
-        tracing::warn!(%user, uid = msg.uid, "STORE: wire parse failed; index left behind");
+        tracing::warn!(%user, uid, "STORE: wire parse failed; index left behind");
         return;
     };
     let old_flags = wire.flags;
@@ -149,6 +166,6 @@ fn sync_index_after_store(
     if let Err(e) =
         crate::routes::message_ops::sync_index_to_flags(state, user, &wire, &json, old_flags)
     {
-        tracing::warn!(err = %e, %user, uid = msg.uid, "STORE: index sync failed");
+        tracing::warn!(err = %e, %user, uid, "STORE: index sync failed");
     }
 }

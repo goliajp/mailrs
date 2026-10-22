@@ -92,6 +92,14 @@ pub struct Expunged {
     pub failed: Option<Error>,
 }
 
+/// Where a message was filed by APPEND, COPY or MOVE: the destination's
+/// UIDVALIDITY and the uid the message has there (RFC 4315).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Filed {
+    pub uidvalidity: u32,
+    pub uid: u32,
+}
+
 /// Resolves when the watched mailbox may have changed (IMAP IDLE).
 pub trait Watch: Send {
     fn changed(&mut self) -> impl Future<Output = ()> + Send;
@@ -154,14 +162,14 @@ pub trait Account: Send + Sync + 'static {
         from: &Self::Mailbox,
         message: &Message<Self::Key>,
         to: &Self::Mailbox,
-    ) -> impl Future<Output = Result<()>> + Send;
+    ) -> impl Future<Output = Result<Filed>> + Send;
 
     fn move_to(
         &self,
         from: &Self::Mailbox,
         message: &Message<Self::Key>,
         to: &Self::Mailbox,
-    ) -> impl Future<Output = Result<()>> + Send;
+    ) -> impl Future<Output = Result<Filed>> + Send;
 
     /// Remove `doomed`, highest seqno first.
     fn expunge(
@@ -180,12 +188,13 @@ pub trait Account: Send + Sync + 'static {
         message: &Message<Self::Key>,
     ) -> impl Future<Output = Result<()>> + Send;
 
+    /// A new message carrying `flags`.
     fn append(
         &self,
         mailbox: &Self::Mailbox,
         bytes: Vec<u8>,
         flags: Vec<Flag>,
-    ) -> impl Future<Output = Result<()>> + Send;
+    ) -> impl Future<Output = Result<Filed>> + Send;
 
     /// Uids expunged after `modseq`, ascending (QRESYNC).
     fn vanished_since(

@@ -4,13 +4,13 @@
 use std::path::PathBuf;
 
 use mailrs_mail_protocols::backend::{
-    Account, Error, Expunged, Flag, Message, Quota, Result, Selected,
+    Account, Error, Expunged, Filed, Flag, Message, Quota, Result, Selected,
 };
 
 use super::mock::MockAccount;
 use super::real::RealAccount;
 use super::watch::FeedWatch;
-use crate::imap::backend::{ImapMessage, MailboxInfo};
+use crate::imap::backend::{self, ImapMessage, MailboxInfo};
 
 pub enum FastcoreAccount {
     Real(RealAccount),
@@ -120,16 +120,21 @@ impl Account for FastcoreAccount {
         }
     }
 
-    async fn copy(&self, _: &FcMailbox, m: &Message<PathBuf>, to: &FcMailbox) -> Result<()> {
+    async fn copy(&self, _: &FcMailbox, m: &Message<PathBuf>, to: &FcMailbox) -> Result<Filed> {
         match self {
             Self::Real(a) => a.copy(m, to),
             Self::Mock(_) => refused(),
         }
     }
 
-    async fn move_to(&self, _: &FcMailbox, m: &Message<PathBuf>, to: &FcMailbox) -> Result<()> {
+    async fn move_to(
+        &self,
+        from: &FcMailbox,
+        m: &Message<PathBuf>,
+        to: &FcMailbox,
+    ) -> Result<Filed> {
         match self {
-            Self::Real(a) => a.move_to(m, to),
+            Self::Real(a) => a.move_to(from, m, to),
             Self::Mock(_) => refused(),
         }
     }
@@ -144,23 +149,29 @@ impl Account for FastcoreAccount {
         }
     }
 
+    /// The Maildir unique name: the file name without its `:2,` flags,
+    /// which change whenever the message is read or flagged.
     fn unique_id(&self, m: &Message<PathBuf>) -> String {
-        m.key
-            .file_name()
-            .map(|f| f.to_string_lossy().into_owned())
-            .unwrap_or_else(|| m.uid.to_string())
+        let name = m.key.file_name().map(|f| f.to_string_lossy());
+        match name {
+            Some(name) => name
+                .split_once(":2,")
+                .map_or(&*name, |(u, _)| u)
+                .to_string(),
+            None => m.uid.to_string(),
+        }
     }
 
     async fn remove(&self, _: &FcMailbox, m: &Message<PathBuf>) -> Result<()> {
         match self {
-            Self::Real(_) => Ok(std::fs::remove_file(&m.key)?),
+            Self::Real(a) => Ok(backend::remove_message(&a.user, &to_imap(m))?),
             Self::Mock(_) => refused(),
         }
     }
 
-    async fn append(&self, mailbox: &FcMailbox, bytes: Vec<u8>, _flags: Vec<Flag>) -> Result<()> {
+    async fn append(&self, mailbox: &FcMailbox, bytes: Vec<u8>, flags: Vec<Flag>) -> Result<Filed> {
         match self {
-            Self::Real(a) => a.append(mailbox, &bytes),
+            Self::Real(a) => a.append(mailbox, &bytes, &flags),
             Self::Mock(_) => refused(),
         }
     }
