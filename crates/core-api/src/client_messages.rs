@@ -6,9 +6,7 @@ use crate::method;
 
 impl Client {
     /// POST /v1/users/{user}/threads/{thread_id}/messages — deliver a
-    /// synthesized message (sent copy, draft, import) into the user's
-    /// kevy view. Used by the webapi send / save-draft handlers to
-    /// mirror the outbound message so it shows up in Sent / Drafts.
+    /// message whose metadata is given rather than read from its bytes.
     pub async fn deliver_message(
         &self,
         user: &str,
@@ -21,6 +19,19 @@ impl Client {
             Self::enc(thread_id)
         );
         self.post_authed_json(path, req, "deliver_message").await
+    }
+
+    /// POST /v1/users/{user}/sent — file the user's own copy of a message
+    /// just queued for sending.
+    pub async fn file_sent(
+        &self,
+        user: &str,
+        message: &[u8],
+        recipients: &[String],
+    ) -> ApiResult<method::sent::FileSentResponse> {
+        let path = format!("/v1/users/{}/sent", Self::enc(user));
+        let req = method::sent::FileSentRequest::new(message, recipients);
+        self.post_authed_json(path, &req, "file_sent").await
     }
 
     /// GET /v1/users/{user}/mailboxes

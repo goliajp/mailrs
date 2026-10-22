@@ -15,6 +15,7 @@ use axum::Router;
 use axum::routing::{delete, get, post, put};
 
 use crate::*;
+use mailrs_core_api::method::sent;
 
 mod directory_routes;
 mod maintenance_routes;
@@ -51,6 +52,7 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
             )
             .route("/v1/admin/threads:split-message", post(split_message_route))
             .route(th::PATH_DELIVER_MESSAGE, post(deliver_message))
+            .route(sent::PATH_FILE_SENT, post(crate::sent::file_sent))
             .route(th::PATH_MARK_READ, post(mark_read))
             .route(th::PATH_MARK_ALL_READ, post(mark_all_read_route))
             .route(th::PATH_MARK_LIST_READ, post(mark_list_read_route))

@@ -51,8 +51,9 @@ pub struct SendListItem {
 impl SendListItem {
     /// Whether resend and re-edit have bytes to work from.
     ///
-    /// A `kevy:` ref is the synthetic fallback the mirror writes when the
-    /// maildir write failed — there is no file behind it. Offering the
+    /// A `kevy:` ref is what the web tier recorded, before the core filed
+    /// sent copies, when its own maildir write failed — there is no file
+    /// behind it; older rows still carry it. Offering the
     /// buttons anyway would give a control that silently does nothing.
     pub fn can_resend(&self) -> bool {
         !self.envelope_ref.is_empty() && !self.envelope_ref.starts_with("kevy:")

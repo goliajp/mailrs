@@ -3621,6 +3621,7 @@ name = "mailrs-core-api"
 version = "0.0.1"
 dependencies = [
  "axum",
+ "base64 0.22.1",
  "mailrs-mailbox",
  "percent-encoding",
  "reqwest",
@@ -3925,6 +3926,7 @@ dependencies = [
  "mailrs-inbound",
  "mailrs-intelligence",
  "mailrs-mailbox",
+ "mailrs-maildir",
  "mailrs-mime",
  "mailrs-mock",
  "mailrs-rfc2047",

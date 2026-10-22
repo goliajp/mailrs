@@ -113,12 +113,10 @@ pub const PATH_MARK_PROMOTION: &str = "/v1/users/{user}/threads/{thread_id}/mark
 pub const PATH_MOVE_TO_INBOX: &str = "/v1/users/{user}/threads/{thread_id}/move-to-inbox";
 
 /// `POST /v1/users/{user}/threads/{thread_id}/messages` — deliver a
-/// synthesized message (sent copy, saved draft, imported item) into the
-/// user's kevy view. Fires the same `record_message_arrival` +
-/// `upsert_thread` sequence used by inbound delivery so the sent index,
-/// activity zset, and message blob all populate together. This is the
-/// write endpoint the webapi send/save-draft handlers call after
-/// enqueueing outbound / writing maildir.
+/// message whose metadata the caller supplies (an import, a sync from the
+/// other core) into the user's view. Fires the same
+/// `record_message_arrival` + `upsert_thread` sequence inbound delivery
+/// uses. A user's own sent copy goes through `sent::PATH_FILE_SENT`.
 pub const PATH_DELIVER_MESSAGE: &str = "/v1/users/{user}/threads/{thread_id}/messages";
 
 // ── req/resp ────────────────────────────────────────────────────────

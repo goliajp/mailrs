@@ -57,6 +57,7 @@ pub(super) struct Cores {
     _fastcore_kevy: kevy_client::Connection,
     _pg_core_kevy: kevy_client::Connection,
     _maildir: tempfile::TempDir,
+    _fastcore_maildir: tempfile::TempDir,
     _db: Box<dyn std::any::Any + Send>,
 }
 
@@ -94,6 +95,8 @@ pub(super) async fn start_on(fastcore_url: &str, pg_core_url: &str) -> Cores {
     let mut fc =
         mailrs_fastcore::FastcoreState::new(mailrs_mailbox_kevy::KevyMailboxStore::new(store));
     fc.net_url = Some(fastcore_url.to_string());
+    let fastcore_maildir = tempfile::tempdir().expect("maildir");
+    fc.maildir_root = fastcore_maildir.path().to_string_lossy().into_owned();
     let fastcore_state = Arc::new(fc);
     let fastcore_hits: Hits = Arc::default();
     let fastcore = serve(
@@ -114,6 +117,7 @@ pub(super) async fn start_on(fastcore_url: &str, pg_core_url: &str) -> Cores {
         pool,
         maildir_root: maildir.path().to_string_lossy().into_owned(),
         net_url: Some(pg_core_url.to_string()),
+        event_bus: crate::event_bus::EventBus::new(64),
     });
     let pg_core_hits: Hits = Arc::default();
     let pg_core = serve(build_full_router(state.clone(), String::new()).route_layer(
@@ -131,6 +135,7 @@ pub(super) async fn start_on(fastcore_url: &str, pg_core_url: &str) -> Cores {
         _fastcore_kevy: fastcore_kevy,
         _pg_core_kevy: pg_core_kevy,
         _maildir: maildir,
+        _fastcore_maildir: fastcore_maildir,
         _db: db,
     }
 }

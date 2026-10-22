@@ -1,9 +1,5 @@
-//! Putting an outgoing message on the queue, and mirroring it into the
-//! sender's own view.
-//!
-//! `enqueue_outbound_at` is the fallible half the send depends on;
-//! `mirror_send_to_sender_view` is best-effort throughout and returns
-//! `()`.
+//! Putting an outgoing message on the queue, and having the core file the
+//! sender's own copy.
 
 use std::sync::Arc;
 
@@ -56,19 +52,16 @@ pub(crate) fn send_system_mail(
     enqueue_outbound_at(&from, &[to.to_string()], &envelope, None, None)
 }
 
-/// Enqueue outbound. When `scheduled_at` is a future epoch, the id
-/// lands in the `mailrs:outbound:scheduled` zset (scored by send time)
-/// instead of the pending list; the sender's due-sweep promotes it to
-/// pending when the time arrives (G13). Past / None sends immediately.
 /// Enqueue an outbound message and record the send.
+///
+/// When `scheduled_at` is a future epoch, the id lands in the
+/// `mailrs:outbound:scheduled` zset (scored by send time) instead of the
+/// pending list; the sender's due-sweep promotes it when the time arrives.
 ///
 /// `send_meta` carries what the Send view renders. It is written with
 /// `?`, in this fallible step, on purpose: a send that returns 200 must
 /// have its Send row, and a send whose row cannot be written must not be
-/// sent. The alternative is what this replaces —
-/// `mirror_send_to_sender_view`, which records the same fact
-/// best-effort, returns `()`, and left a delivered mail invisible in
-/// Sent for 1m42s on 2026-07-30.
+/// sent.
 pub(crate) fn enqueue_outbound_at(
     sender: &str,
     recipients: &[String],
@@ -188,227 +181,22 @@ pub(crate) fn enqueue_resend(
     )
 }
 
-/// Mirror an outbound send / draft save into the sender's own kevy
-/// view so it shows up in the Sent (or Drafts) tab immediately, into
-/// their maildir so IMAP sees it, and into the contacts hash so
-/// recipient autocomplete stays fresh.
-///
-/// `is_draft = true` marks the wire with `FLAG_DRAFT` and lands the
-/// message under a Draft-flavored kevy thread; `false` marks
-/// `FLAG_SEEN` (the sender always "already read" what they wrote).
-///
-/// This intentionally does one write per persistence layer and
-/// swallows individual failures with a warning instead of failing the
-/// whole request — the primary user-facing operation is the send
-/// itself (kevy outbound queue), and the mirror is a UX nicety that
-/// mustn't take the send down with it.
-pub(crate) async fn mirror_send_to_sender_view(
+/// File the sender's own copy of `envelope` with the core that owns their
+/// mailbox: the maildir file in Sent, the index, usage and contacts are
+/// all its writes. `recipients` is the whole envelope, Bcc included,
+/// since the bytes do not name the Bcc recipients.
+pub(crate) async fn file_sent_copy(
     state: &Arc<WebState>,
     user: &str,
-    parts: &ComposeParts,
     envelope: &[u8],
-    message_id: &str,
-    is_draft: bool,
-) {
-    use mailrs_core_api::method::message::MessageWire;
-    use mailrs_core_api::method::thread::DeliverMessageRequest;
-    use mailrs_message_store::{MaildirStore, MessageStore};
-
-    let now = now_secs();
-    // v2.9.5 threading fix — a reply must join the thread its parent
-    // actually lives in (msgid → thread index via core-api), NOT be
-    // keyed on the parent's raw Message-ID: for any thread deeper than
-    // two messages that id differs from the inbound-path root, so the
-    // sent copy fragmented into its own 1-message conversation.
-    let mut thread_id: Option<String> = None;
-    if let Some(irt) = &parts.in_reply_to
-        && let Ok(resp) = state.core.find_thread_by_message_id(user, irt).await
-    {
-        thread_id = resp.thread_id;
-    }
-    let thread_id = match thread_id {
-        Some(tid) => tid,
-        None => parts
-            .in_reply_to
-            .clone()
-            .unwrap_or_else(|| message_id.to_string()),
-    };
-
-    let (local, domain) = match user.split_once('@') {
-        Some(v) => v,
-        None => {
-            tracing::warn!(%user, "mirror_send: malformed user address, skipping");
-            return;
-        }
-    };
-    let maildir_root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
-    let maildir_path = format!("{maildir_root}/{domain}/{local}");
-    let store = MaildirStore;
-    let blob_ref = match store.deliver_batch(&maildir_path, &[envelope]).await {
-        Ok(ids) if !ids.is_empty() => {
-            // sent copy counts against the sender's own quota
-            let uk = format!("mailrs:quota:{}:used_bytes", user.to_lowercase());
-            let n = envelope.len() as i64;
-            let _ = crate::handlers::kevy_util::with_kevy(move |c| {
-                c.incr_by(uk.as_bytes(), n)?;
-                Ok(())
-            });
-            ids[0].0.clone()
-        }
-        Ok(_) => {
-            // Empty-Ok used to fall through as `blob_ref = ""`, silently.
-            // Prod evidence 2026-07-24: a Jul 2 send hit this branch and
-            // left a phantom row in Sent — no maildir file, size=0,
-            // "(no text content)" in the UI, never enqueued, never
-            // delivered. Treat it as the failure it is: warn AND use
-            // the same synthetic ref the Err branch uses so downstream
-            // has SOMETHING traceable to grep for.
-            tracing::warn!(
-                %user, %message_id,
-                "mirror_send: deliver_batch returned no ids, using synthetic blob_ref"
-            );
-            format!("kevy:{message_id}")
-        }
-        Err(e) => {
-            tracing::warn!(err = %e, %user, "mirror_send: maildir write failed, using synthetic blob_ref");
-            format!("kevy:{message_id}")
-        }
-    };
-
-    // Attach the maildir blob to the Send row, which was written during
-    // the enqueue and could not know this yet: the file is produced here,
-    // afterwards. Resend re-enqueues these bytes and re-edit parses them
-    // back into compose fields, so without this both buttons have nothing
-    // to act on.
-    //
-    // A synthetic `kevy:` ref means the maildir write failed — the bytes
-    // are not on disk, so it is recorded as-is rather than pretending a
-    // file exists. Resend has to refuse on those rather than re-enqueue
-    // an envelope it cannot read.
-    if !is_draft {
-        let user_c = user.to_string();
-        let send_id = message_id.to_string();
-        let blob_c = blob_ref.clone();
-        if let Err(code) = with_kevy(move |c| {
-            mailrs_core_sidestate::families::send::set_envelope_ref(c, &user_c, &send_id, &blob_c)
-        }) {
-            tracing::warn!(
-                %user, %message_id, ?code,
-                "mirror_send: envelope_ref not attached — resend and re-edit \
-                 will be unavailable for this send"
-            );
-        }
-    }
-
-    // Mark as read (sent) or draft in the maildir tag.
-    if !blob_ref.is_empty() && !blob_ref.starts_with("kevy:") {
-        let flag = if is_draft {
-            mailrs_message_store::Flag::Draft
-        } else {
-            mailrs_message_store::Flag::Seen
-        };
-        let id = mailrs_message_store::MessageId(blob_ref.clone());
-        if let Err(e) = store.mark_processed(&maildir_path, &id, &[flag]).await {
-            tracing::debug!(err = %e, "mirror_send: mark_processed failed, continuing");
-        }
-    }
-
-    let recipients_csv = parts.to.join(", ");
-    let flags = if is_draft { 0b0001_0000 } else { 0b0000_0001 };
-    let wire = MessageWire {
-        id: 0,
-        mailbox_id: 0,
-        uid: 0,
-        blob_ref: blob_ref.clone(),
-        sender: user.to_string(),
-        recipients: recipients_csv.clone(),
-        subject: parts.subject.clone(),
-        date: now,
-        internal_date: now,
-        size: envelope.len() as u32,
-        flags,
-        message_id: message_id.to_string(),
-        in_reply_to: parts.in_reply_to.clone().unwrap_or_default(),
-        // the user's own outbound copy — sender authentication is not a
-        // meaningful question for mail we are sending ourselves.
-        sender_trust: String::new(),
-        // Empty until this client can *send* an invitation. When it can,
-        // the copy filed here is the one the sender's own calendar reads
-        // back, so it will have to be filled in the same breath.
-        invite_method: String::new(),
-        thread_id: thread_id.clone(),
-        modseq: 0,
-        user_address: user.to_string(),
-    };
-    let wire_json = match serde_json::to_string(&wire) {
-        Ok(s) => s,
-        Err(e) => {
-            tracing::warn!(err = %e, "mirror_send: wire serialize failed");
-            return;
-        }
-    };
-
-    let req = DeliverMessageRequest {
-        message_id: message_id.to_string(),
-        subject: parts.subject.clone(),
-        senders_csv: user.to_string(),
-        latest_date: now,
-        latest_preview: build_preview(parts),
-        category: "inbox".to_string(),
-        unread: false,
-        uid: 0,
-        payload_wire_json: wire_json,
-    };
-    if let Err(e) = state.core.deliver_message(user, &thread_id, &req).await {
-        tracing::warn!(err = %e, %user, %thread_id, "mirror_send: fastcore deliver_message failed");
-    }
-
-    // Contacts autocomplete refresh — union of to+cc+bcc.
-    let contact_targets: Vec<String> = parts
-        .to
-        .iter()
-        .chain(parts.cc.iter())
-        .chain(parts.bcc.iter())
-        .filter(|s| !s.trim().is_empty() && !mailrs_core_sidestate::families::mock::is_mock(s))
-        .cloned()
-        .collect();
-    if !contact_targets.is_empty() {
-        let user_owned = user.to_string();
-        let now_ts = now_secs();
-        let _ = with_kevy(move |c| {
-            let key = format!("mailrs:user:{user_owned}:contacts");
-            let ts_key = format!("mailrs:user:{user_owned}:contacts:ts");
-            for raw in &contact_targets {
-                let addr = extract_addr(raw);
-                if addr.is_empty() {
-                    continue;
-                }
-                let val = if raw.trim() != addr {
-                    raw.trim().to_string()
-                } else {
-                    addr.clone()
-                };
-                c.hset(key.as_bytes(), &[(addr.as_bytes(), val.as_bytes())])?;
-                // Track last-used ts in a companion zset so we can
-                // evict the least-recently-emailed contacts once the
-                // set grows past a soft cap. Without this the hash
-                // grows unbounded.
-                c.zadd(ts_key.as_bytes(), &[(now_ts as f64, addr.as_bytes())])?;
-            }
-            // Enforce a 2000-entry cap. If the zset exceeds it, drop
-            // the oldest entries from both the hash and the zset.
-            let size = c.zcard(ts_key.as_bytes())?;
-            const CAP: usize = 2000;
-            if size > CAP {
-                let overflow = (size - CAP) as i64;
-                let old = c.zrange(ts_key.as_bytes(), 0, overflow - 1)?;
-                let old_refs: Vec<&[u8]> = old.iter().map(|v| v.as_slice()).collect();
-                if !old_refs.is_empty() {
-                    c.hdel(key.as_bytes(), &old_refs)?;
-                    c.zrem(ts_key.as_bytes(), &old_refs)?;
-                }
-            }
-            Ok(())
-        });
-    }
+    recipients: &[String],
+) -> Result<mailrs_core_api::method::sent::FileSentResponse, StatusCode> {
+    state
+        .core
+        .file_sent(user, envelope, recipients)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, %user, "the core did not file the sent copy");
+            crate::handlers::conversations::map_err(e)
+        })
 }
