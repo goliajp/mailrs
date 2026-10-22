@@ -25,8 +25,9 @@ impl PgMailboxStore {
 
         let mut count = 0u32;
         for (id, maildir_id, user) in &entries {
-            let raw = read_raw_from_maildir(maildir_root, user, maildir_id);
-            let Some(data) = raw else { continue };
+            let Ok(Some(data)) = read_raw_from_maildir(maildir_root, user, maildir_id) else {
+                continue;
+            };
 
             let msg_id = threading::extract_message_id(&data);
             if msg_id.is_empty() {

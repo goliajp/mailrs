@@ -133,6 +133,17 @@ async fn pg(
     (Arc::new(dir), db)
 }
 
+impl Backends {
+    /// The account's maildir on the fastcore side (0) or the SQL side (1).
+    pub(super) fn home(&self, side: usize) -> std::path::PathBuf {
+        let root = match side {
+            0 => self._maildirs.0.path(),
+            _ => self._maildirs.1.path(),
+        };
+        root.join("example.test").join("alice")
+    }
+}
+
 pub(super) async fn start() -> Backends {
     let (fc_url, pg_url) = ("mem://protocols-fastcore", "mem://protocols-pg");
     let kevy = (

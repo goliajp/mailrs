@@ -26,17 +26,8 @@ pub(crate) async fn read_message_raw(
     user: &str,
     maildir_id: &str,
 ) -> Option<Vec<u8>> {
-    let (local, domain) = user.split_once('@')?;
-    let path = format!("{maildir_root}/{domain}/{local}");
-
-    // read through the MessageStore seam: fetch encapsulates the
-    // scan-by-id + read (and runs the blocking maildir work on the
-    // blocking pool), so the backend is swappable here too.
-    crate::message_store::default_store()
-        .fetch(
-            &path,
-            &crate::message_store::MessageId(maildir_id.to_string()),
-        )
+    let store = crate::message_store::default_store();
+    crate::body::read(store.as_ref(), maildir_root, user, maildir_id)
         .await
         .ok()
         .flatten()

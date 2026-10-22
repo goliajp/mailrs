@@ -34,7 +34,7 @@ pub struct CoreRpcState {
     /// other admin paths that don't go through DomainStore.
     pub pool: crate::pg::BackendPool,
     /// Maildir root — handlers that serve raw bytes look up the file
-    /// under `{maildir_root}/{user}/cur|new/{maildir_id}`.
+    /// as `crate::body` lays them out.
     pub maildir_root: String,
     /// Network-kevy URL (`MAILRS_KEVY_URL`) for the SHARED side-state
     /// families (drafts/signatures/templates/reactions/webhooks/audit/

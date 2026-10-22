@@ -18,6 +18,21 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### The SQL core keeps a body in its mailbox's folder
+
+The SQL core had two ideas of where a message's file was. Delivered and
+sent mail went into the mailbox's Maildir++ subfolder (`.Sent/…`), while
+IMAP APPEND wrote every message into the user's top folder, COPY and
+MOVE only touched rows (so two rows shared a file, and EXPUNGE left the
+file behind), and the IMAP reader looked only in the top folder. A row's
+`maildir_id` is now the body's blob ref, as fastcore stores it — the
+file name for INBOX, `.Name/<file>` for any other mailbox — so mail
+synced from fastcore and mail written here are read the same way, by
+this core and by webapi. APPEND writes into the mailbox's folder, COPY
+writes a file of its own into the target, MOVE moves the file, EXPUNGE
+removes it, and every reader resolves the blob ref with
+`mailrs_maildir::locate`.
+
 ### A message moved to another folder stays read
 
 IMAP COPY and MOVE on fastcore wrote the copy into the target folder's
