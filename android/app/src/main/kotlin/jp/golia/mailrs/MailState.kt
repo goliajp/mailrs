@@ -25,6 +25,8 @@ data class UiState(
     val server: String = "",
     val busy: Boolean = false,
     val error: String? = null,
+    /** The server asked for a TOTP code; sign-in shows the field for it. */
+    val needsTotp: Boolean = false,
     val conversations: List<Wire.Conversation> = emptyList(),
     /** The thread being read, or null for the list. */
     val open: Wire.Conversation? = null,

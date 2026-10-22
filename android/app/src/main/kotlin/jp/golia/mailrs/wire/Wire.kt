@@ -31,7 +31,16 @@ object Wire {
 
     /** Backend: `crates/webapi/src/handlers/auth/session.rs` — `LoginRequest`. */
     @Serializable
-    data class LoginRequest(val address: String, val password: String)
+    data class LoginRequest(
+        val address: String,
+        val password: String,
+        /** Absent rather than empty: the server reads an empty code as a wrong one. */
+        @SerialName("totp_code") val totpCode: String? = null,
+    )
+
+    /** The 200 the handler sends instead of a token while a TOTP code is missing. */
+    @Serializable
+    data class TotpChallenge(@SerialName("requires_totp") val requiresTotp: Boolean)
 
     @Serializable
     data class LoginResponse(val token: String)
