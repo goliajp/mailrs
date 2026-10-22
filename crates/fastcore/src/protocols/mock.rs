@@ -19,7 +19,7 @@ use crate::imap::backend::MailboxInfo;
 
 const UNAVAILABLE: &str = "[UNAVAILABLE] mock store unreachable";
 
-pub(crate) struct MockAccount {
+pub struct MockAccount {
     pub(crate) state: Arc<FastcoreState>,
     pub(crate) user: String,
     ns: String,
