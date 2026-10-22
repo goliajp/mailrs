@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `decode_charset(label, bytes)`: decode text in a named charset.
+
+### Fixed
+
+- ISO-2022-JP text that switches charset and switches again before any
+  character (`ESC ( B ESC $ B`, common from Japanese senders) no longer
+  decodes to U+FFFD at that point; encoded words use `decode_charset`.
+
 ## [1.1.3] - 2026-08-04
 
 ### Changed
