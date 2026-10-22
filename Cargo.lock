@@ -3662,7 +3662,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-dmarc"
-version = "2.1.1"
+version = "3.0.0"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -3675,8 +3675,6 @@ dependencies = [
  "psl",
  "quick-xml",
  "serde",
- "spg-sqlx",
- "sqlx",
  "thiserror",
  "tokio",
  "zip",
@@ -4089,29 +4087,23 @@ dependencies = [
 
 [[package]]
 name = "mailrs-outbound-queue"
-version = "5.0.0"
+version = "6.0.0"
 dependencies = [
  "async-trait",
  "chrono",
  "criterion",
  "futures-util",
  "hickory-resolver",
- "kevy-embedded",
  "mailrs-arc",
  "mailrs-backoff",
  "mailrs-dkim",
  "mailrs-mail-builder",
  "mailrs-rfc5322",
  "mailrs-smtp-client",
- "mailrs-test-docker",
  "metrics",
  "rcgen 0.14.8",
  "rustls",
  "rustls-pki-types",
- "spg-sqlx",
- "sqlx",
- "testcontainers",
- "testcontainers-modules",
  "thiserror",
  "tokio",
  "tokio-rustls",
@@ -4296,15 +4288,13 @@ dependencies = [
 
 [[package]]
 name = "mailrs-shield"
-version = "4.0.0"
+version = "5.0.0"
 dependencies = [
  "async-trait",
  "criterion",
  "hickory-resolver",
  "kevy-embedded",
  "mailrs-dnsbl",
- "spg-sqlx",
- "sqlx",
  "tempfile",
  "tokio",
 ]
@@ -7079,15 +7069,6 @@ dependencies = [
  "tokio-stream",
  "tokio-util",
  "url",
-]
-
-[[package]]
-name = "testcontainers-modules"
-version = "0.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e5985fde5befe4ffa77a052e035e16c2da86e8bae301baa9f9904ad3c494d357"
-dependencies = [
- "testcontainers",
 ]
 
 [[package]]

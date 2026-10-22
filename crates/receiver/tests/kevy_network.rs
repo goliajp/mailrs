@@ -23,7 +23,9 @@ use testcontainers::{
 
 use mailrs_core::event_bus::{EventBus, SmtpEvent};
 use mailrs_receiver::inbound::auth_guard::{AuthCheck, AuthGuardConfig, AuthGuardStore};
-use mailrs_receiver::inbound::kevy_backends::{KevyServerAuthGuardStore, KevyServerRateLimitStore};
+use mailrs_receiver::inbound::kevy_backends::{
+    KevyServerAuthGuardStore, KevyServerGreylistBackend, KevyServerRateLimitStore,
+};
 use mailrs_receiver::inbound::rate_limit::{RateLimitStore, TokenBucketConfig};
 use mailrs_receiver::kevy_net::KevyNetClient;
 use mailrs_receiver::kevy_notify::{KevyEventPublisher, NOTIFY_CHANNEL, spawn_kevy_notify_bridge};
@@ -111,6 +113,13 @@ async fn setup_kevy() -> (testcontainers::ContainerAsync<GenericImage>, String) 
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
     (container, url)
+}
+
+#[tokio::test]
+async fn the_greylist_backend_over_tcp_meets_the_contract() {
+    let (_container, url) = setup_kevy().await;
+    let backend = KevyServerGreylistBackend::new(Arc::new(KevyNetClient::new(url)));
+    mailrs_shield::greylist::check_greylist_backend(&backend).await;
 }
 
 #[tokio::test]

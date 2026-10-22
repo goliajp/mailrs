@@ -1,6 +1,5 @@
-//! Where a greylist triplet's first-seen time is stored. The receiver's
-//! greylist stage writes it and the server's Postgres backfill warms it,
-//! so both use this one spelling.
+//! Where a greylist triplet's first-seen time is stored, so every writer
+//! and reader of a shared backend uses this one spelling.
 
 /// The kevy key for one triplet (see [`crate::greylist::triplet_key`]).
 pub fn store_key(triplet: &str) -> String {

@@ -17,8 +17,9 @@
 //! The original 1.0 surface (aggregate reporting, store trait, XML
 //! builder, mailto extraction) is unchanged:
 //!
-//! - **Result recording** — [`DmarcStore`] trait + a Postgres reference
-//!   impl ([`PgDmarcStore`]) behind the default `pg-store` feature.
+//! - **Result recording** — the [`DmarcStore`] trait, an in-memory
+//!   reference impl ([`InMemoryDmarcStore`]) and an executable contract
+//!   ([`store::check_dmarc_store`]) for your own implementation.
 //! - **Aggregate XML report generation** —
 //!   [`generate_dmarc_report_xml`] produces the canonical
 //!   `<feedback>` document a `rua` mailbox expects.
@@ -27,7 +28,7 @@
 //! - **`rua` extraction** — [`extract_rua_from_dmarc_record`] pulls a
 //!   `mailto:` URI out of a `_dmarc.<domain>` TXT record.
 //!
-//! The crate is store-agnostic by default: implement [`DmarcStore`] over
+//! The crate ships no database backend: implement [`DmarcStore`] over
 //! whatever you have (SQLite, Redis, S3 + flat files), feed verified
 //! results in via [`DmarcStore::record_result`], and at report time
 //! pull a day's results with [`DmarcStore::get_results_for_date`] and
@@ -63,16 +64,16 @@
 use std::collections::HashMap;
 use std::io::Write;
 
-use async_trait::async_trait;
-
 pub mod align;
 pub mod eval;
 pub mod ingest;
 pub mod policy;
+pub mod store;
 
 pub use align::{check as align_check, organizational_domain};
 pub use eval::{DkimSignatureResult, DmarcInput, DmarcOutcome, SpfResult, evaluate};
 pub use policy::{Alignment, DmarcParseError, DmarcPolicy, PolicyAction};
+pub use store::{DmarcStore, InMemoryDmarcStore};
 
 /// One verified DMARC result, recorded per inbound message.
 ///
@@ -135,128 +136,6 @@ impl DmarcResultRecord {
             dkim_result: dkim_result.into(),
             dmarc_result: dmarc_result.into(),
             disposition: disposition.into(),
-        }
-    }
-}
-
-/// Pluggable storage for DMARC verification results.
-///
-/// Implementations should be cheap to clone (`Arc<Self>` style) since
-/// callers typically share a single instance across the inbound
-/// pipeline and the daily report task.
-#[async_trait]
-pub trait DmarcStore: Send + Sync {
-    /// Backend-specific error type returned by every trait method.
-    type Error: std::fmt::Debug + Send;
-
-    /// Append a verified result. Called per-message during inbound.
-    async fn record_result(&self, record: &DmarcResultRecord) -> Result<(), Self::Error>;
-
-    /// Fetch all results recorded on `date` (YYYY-MM-DD). Called once
-    /// per day by the report generator.
-    async fn get_results_for_date(&self, date: &str)
-    -> Result<Vec<DmarcResultRecord>, Self::Error>;
-
-    /// Prune results older than `days`. Called periodically.
-    async fn cleanup_old(&self, days: i64) -> Result<u64, Self::Error>;
-}
-
-#[cfg(feature = "pg-store")]
-pub use pg::PgDmarcStore;
-
-#[cfg(feature = "pg-store")]
-mod pg {
-    use async_trait::async_trait;
-
-    use super::{DmarcResultRecord, DmarcStore};
-
-    /// Connection pool of the active SQL backend (PostgreSQL by
-    /// default, spg-embedded behind the `spg` feature).
-    #[cfg(not(feature = "spg"))]
-    pub type BackendPool = sqlx::PgPool;
-    /// Connection pool of the active SQL backend (PostgreSQL by
-    /// default, spg-embedded behind the `spg` feature).
-    #[cfg(feature = "spg")]
-    pub type BackendPool = spg_sqlx::SpgPool;
-
-    /// Postgres-backed [`DmarcStore`]. Expects a table:
-    ///
-    /// ```sql
-    /// CREATE TABLE dmarc_results (
-    ///   source_ip   text NOT NULL,
-    ///   from_domain text NOT NULL,
-    ///   spf_result  text NOT NULL,
-    ///   dkim_result text NOT NULL,
-    ///   dmarc_result text NOT NULL,
-    ///   disposition text NOT NULL,
-    ///   report_date date NOT NULL DEFAULT CURRENT_DATE
-    /// );
-    /// CREATE INDEX dmarc_results_by_date ON dmarc_results(report_date);
-    /// ```
-    pub struct PgDmarcStore {
-        pool: BackendPool,
-    }
-
-    impl PgDmarcStore {
-        /// Construct a [`PgDmarcStore`] from an existing pool. The caller
-        /// owns the pool lifecycle.
-        pub fn new(pool: BackendPool) -> Self {
-            Self { pool }
-        }
-    }
-
-    #[async_trait]
-    impl DmarcStore for PgDmarcStore {
-        type Error = sqlx::Error;
-
-        async fn record_result(&self, record: &DmarcResultRecord) -> Result<(), sqlx::Error> {
-            sqlx::query(
-                "INSERT INTO dmarc_results (source_ip, from_domain, spf_result, dkim_result, dmarc_result, disposition)
-                 VALUES ($1, $2, $3, $4, $5, $6)",
-            )
-            .bind(&record.source_ip)
-            .bind(&record.from_domain)
-            .bind(&record.spf_result)
-            .bind(&record.dkim_result)
-            .bind(&record.dmarc_result)
-            .bind(&record.disposition)
-            .execute(&self.pool)
-            .await?;
-            Ok(())
-        }
-
-        async fn get_results_for_date(
-            &self,
-            date: &str,
-        ) -> Result<Vec<DmarcResultRecord>, sqlx::Error> {
-            let rows: Vec<(String, String, String, String, String, String)> = sqlx::query_as(
-                "SELECT source_ip, from_domain, spf_result, dkim_result, dmarc_result, disposition
-                 FROM dmarc_results WHERE report_date = $1::date",
-            )
-            .bind(date)
-            .fetch_all(&self.pool)
-            .await?;
-            Ok(rows
-                .into_iter()
-                .map(|r| DmarcResultRecord {
-                    source_ip: r.0,
-                    from_domain: r.1,
-                    spf_result: r.2,
-                    dkim_result: r.3,
-                    dmarc_result: r.4,
-                    disposition: r.5,
-                })
-                .collect())
-        }
-
-        async fn cleanup_old(&self, days: i64) -> Result<u64, sqlx::Error> {
-            let cutoff = chrono::Utc::now() - chrono::Duration::days(days);
-            let cutoff_date = cutoff.format("%Y-%m-%d").to_string();
-            let result = sqlx::query("DELETE FROM dmarc_results WHERE report_date < $1::date")
-                .bind(cutoff_date)
-                .execute(&self.pool)
-                .await?;
-            Ok(result.rows_affected())
         }
     }
 }

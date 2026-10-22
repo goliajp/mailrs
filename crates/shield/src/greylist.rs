@@ -76,7 +76,7 @@ pub fn triplet_key(client_ip: &str, sender: &str, recipient: &str) -> String {
 #[cfg(feature = "kevy-store")]
 pub use store_impl::EmbeddedGreylistBackend;
 #[cfg(feature = "store")]
-pub use store_impl::{GreylistBackend, GreylistDb};
+pub use store_impl::{GreylistBackend, GreylistDb, check_greylist_backend};
 
 #[cfg(feature = "store")]
 mod store_impl {
@@ -86,15 +86,6 @@ mod store_impl {
     use async_trait::async_trait;
 
     use super::{GreylistConfig, GreylistDecision, evaluate_triplet};
-
-    /// Connection pool of the active SQL backend (PostgreSQL by
-    /// default, spg-embedded behind the `spg` feature).
-    #[cfg(all(feature = "pg", not(feature = "spg")))]
-    pub type BackendPool = sqlx::PgPool;
-    /// Connection pool of the active SQL backend (PostgreSQL by
-    /// default, spg-embedded behind the `spg` feature).
-    #[cfg(feature = "spg")]
-    pub type BackendPool = spg_sqlx::SpgPool;
 
     /// The KV operations greylisting needs from its first-seen store.
     ///
@@ -123,6 +114,15 @@ mod store_impl {
     }
 
     #[cfg(feature = "kevy-store")]
+    impl EmbeddedGreylistBackend {
+        /// Wrap an in-process store; `Store` is `Clone`, so pass a clone of
+        /// the shared one.
+        pub fn new(kevy: kevy_embedded::Store) -> Self {
+            Self { kevy }
+        }
+    }
+
+    #[cfg(feature = "kevy-store")]
     #[async_trait]
     impl GreylistBackend for EmbeddedGreylistBackend {
         async fn get(&self, key: &[u8]) -> Option<Vec<u8>> {
@@ -136,16 +136,13 @@ mod store_impl {
         }
     }
 
-    /// Greylisting store with an optional Postgres cold-backup (feature
-    /// `pg`).
+    /// Greylisting store over a [`GreylistBackend`].
     ///
-    /// First-seen timestamps live in the [`GreylistBackend`] with a TTL
-    /// equal to `pass_ttl_secs`; the optional PG pool is written best-effort
-    /// for durability across restarts.
+    /// First-seen timestamps live in the backend with a TTL equal to
+    /// `pass_ttl_secs`. Durability is the backend's: one that loses its
+    /// data defers every known sender once more.
     pub struct GreylistDb {
         backend: Arc<dyn GreylistBackend>,
-        #[cfg(feature = "pg")]
-        pg: Option<BackendPool>,
     }
 
     impl GreylistDb {
@@ -154,36 +151,17 @@ mod store_impl {
         /// typically pass a clone of the shared store.
         #[cfg(feature = "kevy-store")]
         pub fn new(kevy: kevy_embedded::Store) -> Self {
-            Self::with_backend(Arc::new(EmbeddedGreylistBackend { kevy }))
+            Self::with_backend(Arc::new(EmbeddedGreylistBackend::new(kevy)))
         }
 
         /// Construct over an arbitrary [`GreylistBackend`], such as a
         /// shared network kevy-server.
         pub fn with_backend(backend: Arc<dyn GreylistBackend>) -> Self {
-            Self {
-                backend,
-                #[cfg(feature = "pg")]
-                pg: None,
-            }
-        }
-
-        /// Attach a Postgres pool for best-effort durability across kevy
-        /// restarts (writes are best-effort; failures don't propagate).
-        #[cfg(feature = "pg")]
-        pub fn with_pg(mut self, pool: BackendPool) -> Self {
-            self.pg = Some(pool);
-            self
+            Self { backend }
         }
 
         /// Look up the triplet `key`, update its first-seen entry as needed,
         /// and return the resulting [`GreylistDecision`].
-        ///
-        /// Read order: kevy (hot, sub-ms), then PG (cold backup, ~5 ms RTT)
-        /// when one is attached. On a kevy miss with a PG pool we cold-load
-        /// the `first_seen` value from PG and warm the kevy entry, so a
-        /// single PG read brings a triplet back to hot. Without it, a kevy
-        /// store that lost its data would treat every known sender as new
-        /// and defer them all with 451.
         pub async fn check(
             &self,
             key: &str,
@@ -198,12 +176,6 @@ mod store_impl {
                 .get(vk_key.as_bytes())
                 .await
                 .and_then(|bytes| std::str::from_utf8(&bytes).ok()?.parse().ok());
-            #[cfg(feature = "pg")]
-            let first_seen = match first_seen {
-                None => self.cold_load(key, &vk_key, ttl).await,
-                hot => hot,
-            };
-
             let decision = evaluate_triplet(first_seen, now, config);
 
             match decision {
@@ -220,52 +192,46 @@ mod store_impl {
                 }
             }
 
-            #[cfg(feature = "pg")]
-            self.backup(key, first_seen.unwrap_or(now), now).await;
-
             decision
         }
+    }
 
-        /// The first-seen value from the PG backup, warmed back into kevy.
-        /// A PG read failure reads as "not seen", the genuine new-sender
-        /// path, which is never worse than having no backup.
-        #[cfg(feature = "pg")]
-        async fn cold_load(&self, key: &str, vk_key: &str, ttl: Duration) -> Option<u64> {
-            let pool = self.pg.as_ref()?;
-            let (fs, _ls): (i64, i64) = sqlx::query_as(
-                "SELECT first_seen, last_seen FROM greylist_triplets WHERE key = $1",
-            )
-            .bind(key)
-            .fetch_optional(pool)
-            .await
-            .ok()
-            .flatten()?;
-            let fs = fs.max(0) as u64;
-            // the historical first_seen, not `now`, so the delay window is
-            // right even just after warmup
-            self.backend
-                .set_with_ttl(vk_key.as_bytes(), fs.to_string().as_bytes(), ttl)
-                .await;
-            Some(fs)
-        }
-
-        /// Best-effort cold backup to PG.
-        #[cfg(feature = "pg")]
-        async fn backup(&self, key: &str, first_seen: u64, now: u64) {
-            let Some(pool) = self.pg.as_ref() else {
-                return;
-            };
-            let _ = sqlx::query(
-                "INSERT INTO greylist_triplets (key, first_seen, last_seen)
-                 VALUES ($1, $2, $3)
-                 ON CONFLICT (key) DO UPDATE SET last_seen = $3",
-            )
-            .bind(key)
-            .bind(first_seen as i64)
-            .bind(now as i64)
-            .execute(pool)
-            .await;
-        }
+    /// Check a [`GreylistBackend`] against the rules [`GreylistDb`] relies
+    /// on; panics naming the first one broken. Uses keys under
+    /// `greylist-contract:`, which must not exist beforehand. Expiry
+    /// timing is not checked: it would make the check as slow as the TTL.
+    pub async fn check_greylist_backend(backend: &dyn GreylistBackend) {
+        let ttl = Duration::from_secs(3600);
+        let key = b"greylist-contract:a";
+        assert_eq!(
+            backend.get(key).await,
+            None,
+            "get: a missing key reads as None"
+        );
+        backend.set_with_ttl(key, b"1000", ttl).await;
+        assert_eq!(
+            backend.get(key).await.as_deref(),
+            Some(&b"1000"[..]),
+            "set_with_ttl: stored"
+        );
+        backend.set_with_ttl(key, b"2000", ttl).await;
+        assert_eq!(
+            backend.get(key).await.as_deref(),
+            Some(&b"2000"[..]),
+            "set_with_ttl: overwrites"
+        );
+        backend.expire(key, ttl).await;
+        assert_eq!(
+            backend.get(key).await.as_deref(),
+            Some(&b"2000"[..]),
+            "expire: keeps the value"
+        );
+        backend.expire(b"greylist-contract:missing", ttl).await;
+        assert_eq!(
+            backend.get(b"greylist-contract:missing").await,
+            None,
+            "expire: does not create a missing key"
+        );
     }
 }
 
@@ -446,6 +412,13 @@ mod tests {
     // GreylistDb::check over the default in-process backend — proves the
     // GreylistBackend trait seam preserves the Defer → TooEarly → Accept
     // state machine end-to-end (not just the pure evaluate_triplet logic).
+    #[cfg(feature = "kevy-store")]
+    #[tokio::test]
+    async fn the_in_process_backend_meets_the_contract() {
+        let store = kevy_embedded::Store::open(kevy_embedded::Config::default()).unwrap();
+        check_greylist_backend(&EmbeddedGreylistBackend::new(store)).await;
+    }
+
     #[cfg(feature = "kevy-store")]
     #[tokio::test]
     async fn check_state_machine_over_in_process_backend() {

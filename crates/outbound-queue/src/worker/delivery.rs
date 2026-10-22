@@ -1,18 +1,18 @@
 //! Per-domain delivery: MX resolution, suppression filtering, retry/bounce
 //! bookkeeping, DSN enqueueing.
 
-use crate::BackendPool;
 use hickory_resolver::TokioResolver;
 
 use super::smtp::try_deliver_via_mx;
 use crate::dsn;
-use crate::queue::{self, QueuedMessage};
+use crate::queue::{QueueStatus, QueuedMessage, is_hard_bounce};
 use crate::retry::{retry_delay_secs, should_bounce};
+use crate::store::{QueueStore, StoreError};
 use crate::{DeliveryEvent, DeliveryEventSender};
 
 /// generate DSN bounce and enqueue it back to the original sender
 pub(super) async fn enqueue_dsn(
-    pool: &BackendPool,
+    store: &dyn QueueStore,
     hostname: &str,
     msg: &QueuedMessage,
     error: &str,
@@ -33,16 +33,18 @@ pub(super) async fn enqueue_dsn(
         .map(|(_, d)| d)
         .unwrap_or("unknown");
     let now = chrono::Utc::now().timestamp();
-    let _ = queue::enqueue(
-        pool,
-        "<>",
-        &msg.sender,
-        sender_domain,
-        dsn_msg.as_bytes(),
-        None,
-        now,
-    )
-    .await;
+    let queued = store
+        .enqueue(
+            "<>",
+            &msg.sender,
+            sender_domain,
+            dsn_msg.as_bytes(),
+            None,
+            now,
+            false,
+        )
+        .await;
+    logged("enqueue DSN", msg.id, queued.map(drop));
 }
 
 /// deliver messages to a single domain (used by concurrent workers)
@@ -53,7 +55,7 @@ pub(super) async fn enqueue_dsn(
 /// → SMTP → mark_* lifecycle without a real MTA on the box.
 #[tracing::instrument(
     name = "outbound.deliver_domain",
-    skip(resolver, hostname, messages, pool, event_sender),
+    skip(resolver, hostname, messages, store, event_sender),
     fields(domain, n_messages = messages.len(), max_per_conn),
 )]
 #[allow(clippy::too_many_arguments)]
@@ -62,7 +64,7 @@ pub async fn deliver_domain_static(
     hostname: &str,
     domain: &str,
     messages: Vec<QueuedMessage>,
-    pool: &BackendPool,
+    store: &dyn QueueStore,
     port: u16,
     max_per_conn: usize,
     event_sender: Option<&DeliveryEventSender>,
@@ -79,15 +81,30 @@ pub async fn deliver_domain_static(
     {
         let mut suppressed_ids = Vec::new();
         for msg in &messages {
-            if queue::is_suppressed(pool, &msg.recipient).await {
+            // an unreadable list must not hold mail back: deliver, and say so
+            let suppressed = match store.is_suppressed(&msg.recipient).await {
+                Ok(suppressed) => suppressed,
+                Err(e) => {
+                    tracing::warn!(
+                        "outbound queue: suppression check for msg {} failed: {e}",
+                        msg.id
+                    );
+                    false
+                }
+            };
+            if suppressed {
                 tracing::info!("skipping suppressed recipient: {}", msg.recipient);
-                let _ = queue::mark_bounced(
-                    pool,
+                logged(
+                    "mark bounced",
                     msg.id,
-                    "recipient suppressed (hard bounce history)",
-                    now_check,
-                )
-                .await;
+                    store
+                        .mark_bounced(
+                            msg.id,
+                            "recipient suppressed (hard bounce history)",
+                            now_check,
+                        )
+                        .await,
+                );
                 if let Some(es) = event_sender {
                     es(DeliveryEvent::Bounced {
                         queue_id: msg.id,
@@ -115,12 +132,17 @@ pub async fn deliver_domain_static(
                 let delay = retry_delay_secs(msg.attempts);
                 if should_bounce(msg.attempts + 1, msg.max_attempts) {
                     let error = format!("MX resolution failed: {e}");
-                    let _ = queue::mark_bounced(pool, msg.id, &error, now).await;
+                    logged(
+                        "mark bounced",
+                        msg.id,
+                        store.mark_bounced(msg.id, &error, now).await,
+                    );
                     // record hard bounce for suppression
-                    if queue::is_hard_bounce(&error) {
-                        let _ = queue::add_suppression(pool, &msg.recipient, &error, None).await;
+                    if is_hard_bounce(&error) {
+                        let added = store.add_suppression(&msg.recipient, &error, None).await;
+                        logged("add suppression", msg.id, added);
                     }
-                    enqueue_dsn(pool, hostname, msg, &error).await;
+                    enqueue_dsn(store, hostname, msg, &error).await;
                     if let Some(es) = event_sender {
                         es(DeliveryEvent::Bounced {
                             queue_id: msg.id,
@@ -128,14 +150,11 @@ pub async fn deliver_domain_static(
                         });
                     }
                 } else {
-                    let _ = queue::mark_failed(
-                        pool,
-                        msg.id,
-                        &format!("MX resolution failed: {e}"),
-                        now + delay as i64,
-                        now,
-                    )
-                    .await;
+                    let error = format!("MX resolution failed: {e}");
+                    let marked = store
+                        .mark_failed(msg.id, &error, now + delay as i64, now)
+                        .await;
+                    logged("mark failed", msg.id, marked);
                     if let Some(es) = event_sender {
                         es(DeliveryEvent::Failed {
                             queue_id: msg.id,
@@ -176,7 +195,11 @@ pub async fn deliver_domain_static(
                             "outcome" => "delivered",
                         )
                         .record(elapsed);
-                        let _ = queue::mark_delivered(pool, msg.id, now).await;
+                        logged(
+                            "mark delivered",
+                            msg.id,
+                            store.mark_delivered(msg.id, now).await,
+                        );
                         if let Some(es) = event_sender {
                             es(DeliveryEvent::Success {
                                 queue_id: msg.id,
@@ -206,21 +229,23 @@ pub async fn deliver_domain_static(
     let now = chrono::Utc::now().timestamp();
     for msg in &messages {
         // skip already delivered messages
-        if let Ok(Some(current)) = queue::get_message(pool, msg.id).await
-            && current.status == crate::queue::QueueStatus::Delivered
+        if let Ok(Some(current)) = store.get_message(msg.id).await
+            && current.status == QueueStatus::Delivered
         {
             continue;
         }
         let delay = retry_delay_secs(msg.attempts);
         if should_bounce(msg.attempts + 1, msg.max_attempts) {
-            let _ = queue::mark_bounced(pool, msg.id, "all MX hosts failed", now).await;
+            let marked = store.mark_bounced(msg.id, "all MX hosts failed", now).await;
+            logged("mark bounced", msg.id, marked);
             // add to suppression if last error was a hard bounce
             if let Some(ref err) = msg.last_error
-                && queue::is_hard_bounce(err)
+                && is_hard_bounce(err)
             {
-                let _ = queue::add_suppression(pool, &msg.recipient, err, None).await;
+                let added = store.add_suppression(&msg.recipient, err, None).await;
+                logged("add suppression", msg.id, added);
             }
-            enqueue_dsn(pool, hostname, msg, "all MX hosts failed").await;
+            enqueue_dsn(store, hostname, msg, "all MX hosts failed").await;
             if let Some(es) = event_sender {
                 es(DeliveryEvent::Bounced {
                     queue_id: msg.id,
@@ -228,9 +253,10 @@ pub async fn deliver_domain_static(
                 });
             }
         } else {
-            let _ =
-                queue::mark_failed(pool, msg.id, "all MX hosts failed", now + delay as i64, now)
-                    .await;
+            let marked = store
+                .mark_failed(msg.id, "all MX hosts failed", now + delay as i64, now)
+                .await;
+            logged("mark failed", msg.id, marked);
             if let Some(es) = event_sender {
                 es(DeliveryEvent::Failed {
                     queue_id: msg.id,
@@ -239,5 +265,13 @@ pub async fn deliver_domain_static(
                 });
             }
         }
+    }
+}
+
+// a failed store write leaves the row where it was: inflight rows come back
+// through `recover_stale_inflight`, so the cost is a repeat attempt
+fn logged(op: &str, id: i64, result: Result<(), StoreError>) {
+    if let Err(e) = result {
+        tracing::warn!("outbound queue: {op} for msg {id} failed: {e}");
     }
 }
