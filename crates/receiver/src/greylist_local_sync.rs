@@ -18,7 +18,7 @@ use ipnet::IpNet;
 use crate::greylist_local::{GreylistLocalHandle, GreylistLocalLists};
 use crate::kevy_net::KevyNetClient;
 
-const GL_KEY: &[u8] = b"admin:greylist:local-lists";
+use mailrs_core_sidestate::keys::admin::GREYLIST_LOCAL_LISTS as GL_KEY;
 
 /// Classify one admin entry value into the right snapshot bucket.
 /// `address_or_domain` is free-form admin input: an email (has `@`),

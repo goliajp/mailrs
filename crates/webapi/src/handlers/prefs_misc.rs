@@ -148,8 +148,12 @@ pub(crate) async fn get_queue_stats(
         // queued plus waiting between attempts
         let pending =
             c.llen(PENDING_IDX).unwrap_or(0) as i64 + c.zcard(RETRY_IDX).unwrap_or(0) as i64;
-        let inflight = c.llen(b"mailrs:outbound:inflight").unwrap_or(0) as i64;
-        let suppression = c.scard(b"mailrs:outbound:suppression").unwrap_or(0) as i64;
+        let inflight = c
+            .llen(mailrs_core_sidestate::families::outbound::INFLIGHT)
+            .unwrap_or(0) as i64;
+        let suppression = c
+            .scard(mailrs_core_sidestate::families::outbound::SUPPRESSION)
+            .unwrap_or(0) as i64;
         Ok(serde_json::json!({
             "pending": pending,
             "inflight": inflight,
@@ -181,7 +185,7 @@ pub(crate) async fn get_contacts(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     axum::extract::Query(q): axum::extract::Query<ContactsQuery>,
 ) -> Result<Json<Vec<String>>, StatusCode> {
-    let key = format!("mailrs:user:{user}:contacts");
+    let key = mailrs_core_sidestate::families::contact_cards::autocomplete_key(&user);
     let query = q.q.to_lowercase();
     let limit = q.limit.max(1) as usize;
     let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::from))?;

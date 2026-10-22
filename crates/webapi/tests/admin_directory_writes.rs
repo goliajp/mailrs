@@ -6,6 +6,7 @@ use std::sync::Arc;
 use axum::body::Body;
 use axum::extract::{Extension, Json, Path, State};
 use axum::http::{Request, StatusCode};
+use mailrs_core_sidestate::families::permission_groups::{GROUPS_KEY, members_key};
 use mailrs_webapi::WebState;
 use mailrs_webapi::handlers::admin_directory as dir;
 use mailrs_webapi::handlers::conversations::AuthedUser;
@@ -109,12 +110,12 @@ async fn groups_store_what_they_are_given_and_deletes_leave_nothing() {
     let mut c = kevy_client::Connection::connect("mem://webapi-admin-directory").unwrap();
     let builtin = serde_json::json!({ "id": 900, "name": "super", "is_builtin": true });
     c.hset(
-        b"admin:groups",
+        GROUPS_KEY.as_bytes(),
         &[(b"900".as_slice(), builtin.to_string().as_bytes())],
     )
     .unwrap();
     c.sadd(
-        b"admin:groups:900:members",
+        members_key(900).as_bytes(),
         &[b"root@example.test".as_slice()],
     )
     .unwrap();
@@ -122,8 +123,8 @@ async fn groups_store_what_they_are_given_and_deletes_leave_nothing() {
         groups::delete_group(Path(900)).await,
         Err(StatusCode::CONFLICT)
     );
-    assert!(c.hget(b"admin:groups", b"900").unwrap().is_some());
-    assert_eq!(c.smembers(b"admin:groups:900:members").unwrap().len(), 1);
+    assert!(c.hget(GROUPS_KEY.as_bytes(), b"900").unwrap().is_some());
+    assert_eq!(c.smembers(members_key(900).as_bytes()).unwrap().len(), 1);
 
     let ordinary = created["id"].as_i64().unwrap();
     assert_eq!(

@@ -1,0 +1,39 @@
+# The SQL core in place of fastcore. Layered on the production file, so the
+# receiver, webapi, sender and kevy-server are exactly production's:
+#
+#   docker compose -f docker-compose.prod.yml -f docker-compose.pg-core.yml up -d
+#
+# Only the `fastcore` service changes: its image runs `mailrs-pg-core`, which
+# serves the same core-api on the same port, so webapi keeps its
+# MAILRS_CORE_RPC_BASE. Build the image with `scripts/build-pg-core.sh` and
+# set MAILRS_PG_CORE_IMAGE to the tag it prints.
+#
+# The core creates the schema on an empty database at its first start. Mail
+# already in fastcore's store is not here: copy it with `mailrs-core-sync`
+# (in the image) before pointing users at it, and keep fastcore's data
+# volume as it is so switching back is removing this file again.
+services:
+  fastcore:
+    image: ${MAILRS_PG_CORE_IMAGE:?set MAILRS_PG_CORE_IMAGE in .env}
+    entrypoint: ["mailrs-pg-core"]
+    depends_on:
+      - postgres
+    environment:
+      MAILRS_CORE_RPC_ADDR: 0.0.0.0:3301
+      MAILRS_PG_URL: postgres://mailrs:${MAILRS_PG_PASSWORD:?set MAILRS_PG_PASSWORD in .env}@postgres:5432/mailrs
+      # never fastcore's own store: switching back must find it untouched
+      MAILRS_KEVY_DATA_DIR: /data/kevy-pg-core
+
+  postgres:
+    container_name: mailrs-postgres
+    image: pgvector/pgvector:0.8.2-pg18-trixie
+    environment:
+      POSTGRES_USER: mailrs
+      POSTGRES_PASSWORD: ${MAILRS_PG_PASSWORD:?set MAILRS_PG_PASSWORD in .env}
+      POSTGRES_DB: mailrs
+    volumes:
+      - pg-data:/var/lib/postgresql
+    restart: unless-stopped
+
+volumes:
+  pg-data:

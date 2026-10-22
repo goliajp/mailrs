@@ -45,7 +45,7 @@ struct SessionBlob {
 const KEVY_URL_ENV: &str = "MAILRS_KEVY_URL";
 
 const SESSION_COOKIE: &str = "mailrs_session";
-const SESSION_KEY_PREFIX: &str = "session:";
+use mailrs_core_sidestate::keys::session::SESSION_PREFIX as SESSION_KEY_PREFIX;
 
 /// Agent API keys (`mk_…`, created via POST /api/agent/keys) are an
 /// alternative bearer credential for machine callers. The secret index

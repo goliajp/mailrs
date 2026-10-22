@@ -24,6 +24,11 @@ pub(crate) async fn build(
 ) -> Services {
     let llm_provider: Option<Arc<dyn mailrs_intelligence::provider::LlmProvider>> =
         if cfg.ai_analysis_enabled {
+            // there is no model to fall back to: the operator names one
+            assert!(
+                !cfg.llm_url.is_empty(),
+                "MAILRS_LLM_URL is required when MAILRS_AI_ANALYSIS_ENABLED is on"
+            );
             let model_id = format!(
                 "qwen3.5-9b/{}",
                 mailrs_intelligence::analyze::PROMPT_VERSION

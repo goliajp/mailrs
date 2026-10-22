@@ -11,11 +11,11 @@
 use mailrs_core_api::method::outbound::{OutboundMessageWire, QueueStatus};
 
 mod cancel;
-mod retry_idx;
+mod keys;
 mod terminal;
 
 pub use cancel::*;
-pub use retry_idx::RETRY_IDX;
+pub use keys::*;
 pub use terminal::*;
 
 fn now_secs() -> i64 {
@@ -29,31 +29,6 @@ fn now_secs() -> i64 {
 fn rpop_one(conn: &mut kevy_client::Connection, key: &[u8]) -> Option<Vec<u8>> {
     conn.rpop(key, 1).ok().and_then(|v| v.into_iter().next())
 }
-
-/// v2.5.1 §P8-B-A dual-write keyspace.
-fn job_key(id: i64) -> String {
-    format!("mailrs:outbound:job:{id}")
-}
-
-/// The queue the sender pops from.
-///
-/// `pub` alongside [`SCHEDULED_IDX`] so the sender names the same
-/// bytes rather than its own copy of the string — see below.
-pub const PENDING_IDX: &[u8] = b"mailrs:outbound:pending-idx";
-
-/// Where a future-dated send waits, scored by its send time.
-///
-/// `pub` because the sender's due-sweep had a second constant of its
-/// own — `mailrs:outbound:scheduled`, without the suffix — and swept
-/// that instead. Nothing has written that key since the queue moved to
-/// the `-idx` names in v2.5.3, so a scheduled message was enqueued
-/// here, never promoted, and never left. Both prod zsets were empty
-/// when this was found, so no mail was lost; the feature had simply
-/// never run. One exported name, and the two cannot drift again.
-pub const SCHEDULED_IDX: &[u8] = b"mailrs:outbound:scheduled-idx";
-
-/// Ids of jobs that failed for good; the sender adds them.
-pub const FAILED_SET: &[u8] = b"mailrs:outbound:failed";
 
 /// One outbound job to enqueue.
 ///
@@ -96,7 +71,7 @@ pub fn write_fresh_pending(
         original_sender,
         send_id,
     } = *job;
-    let id = conn.incr(b"mailrs:outbound:counter")?;
+    let id = conn.incr(COUNTER)?;
     let row = OutboundMessageWire {
         id,
         sender: sender.to_string(),
@@ -190,22 +165,4 @@ fn row_blob(row: &OutboundMessageWire) -> String {
         "send_id": row.send_id,
     })
     .to_string()
-}
-
-#[cfg(test)]
-mod key_tests {
-    use super::*;
-
-    /// The suffix is the whole bug.
-    ///
-    /// The sender's due-sweep carried its own copy of this name without
-    /// the `-idx`, so it walked a zset nothing writes: a scheduled send
-    /// was enqueued here and never promoted. Asserting the bytes is
-    /// weak on its own — what makes it hold is that every reader now
-    /// imports these two constants and no file spells them again.
-    #[test]
-    fn the_queue_names_are_the_ones_every_reader_imports() {
-        assert_eq!(PENDING_IDX, b"mailrs:outbound:pending-idx");
-        assert_eq!(SCHEDULED_IDX, b"mailrs:outbound:scheduled-idx");
-    }
 }

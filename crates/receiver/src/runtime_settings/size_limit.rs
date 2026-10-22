@@ -15,7 +15,7 @@ use mailrs_smtp_proto::MAX_MESSAGE_SIZE;
 
 use crate::kevy_net::KevyNetClient;
 
-pub const CONFIG_KEY: &[u8] = b"admin:system-config";
+pub use mailrs_core_sidestate::keys::admin::SYSTEM_CONFIG as CONFIG_KEY;
 pub const MAX_MESSAGE_SIZE_FIELD: &[u8] = b"max_message_size_bytes";
 
 const TTL: Duration = Duration::from_secs(60);

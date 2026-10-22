@@ -777,3 +777,8 @@ CREATE INDEX idx_messages_text_body_trgm ON messages USING gin (text_body gin_tr
     WHERE text_body IS NOT NULL AND text_body != '';
 CREATE INDEX idx_messages_clean_text_trgm ON messages USING gin (clean_text gin_trgm_ops)
     WHERE clean_text IS NOT NULL AND clean_text != '';
+
+-- The migration this schema is equal to; the core reads it at boot and
+-- applies whatever it carries beyond it.
+CREATE TABLE schema_version (version INTEGER NOT NULL);
+INSERT INTO schema_version (version) VALUES (51);

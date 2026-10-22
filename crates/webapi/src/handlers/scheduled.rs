@@ -8,7 +8,7 @@
 //! the crate that writes it exports. The sender's due-sweep once had
 //! its own copy of that name without the `-idx`, so it walked a zset
 //! nothing writes and no scheduled message was ever promoted —
-//! `scripts/check-outbound-keys.sh` now refuses a second copy.
+//! `scripts/check-shared-keys.sh` now refuses a second copy.
 
 use std::sync::Arc;
 
@@ -30,7 +30,7 @@ pub async fn cancel_scheduled(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Path(id): Path<String>,
 ) -> StatusCode {
-    let hkey = format!("mailrs:outbound:job:{id}");
+    let hkey = mailrs_core_sidestate::families::outbound::job_key(&id);
     let hkey_c = hkey.clone();
     let id_c = id.clone();
     let user_c = user.clone();
@@ -78,7 +78,7 @@ pub async fn reschedule_scheduled(
     if req.scheduled_at <= now {
         return StatusCode::BAD_REQUEST;
     }
-    let hkey = format!("mailrs:outbound:job:{id}");
+    let hkey = mailrs_core_sidestate::families::outbound::job_key(&id);
     let user_c = user.clone();
     let id_c = id.clone();
     let new_score = req.scheduled_at;
@@ -126,7 +126,7 @@ pub async fn list_scheduled(
             let Ok(id) = String::from_utf8(member.clone()) else {
                 continue;
             };
-            let hkey = format!("mailrs:outbound:job:{id}");
+            let hkey = mailrs_core_sidestate::families::outbound::job_key(&id);
             let Some(blob) = c.hget(hkey.as_bytes(), b"blob")? else {
                 continue;
             };

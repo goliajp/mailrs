@@ -68,7 +68,7 @@ async fn the_core_files_the_copy_and_counts_it_once() {
     );
 
     let used = net
-        .get(format!("mailrs:quota:{ALICE}:used_bytes").as_bytes())
+        .get(mailrs_core_sidestate::keys::quota::used_key(ALICE).as_bytes())
         .expect("usage")
         .expect("usage counted");
     assert_eq!(
@@ -78,7 +78,7 @@ async fn the_core_files_the_copy_and_counts_it_once() {
     );
 
     let contacts = net
-        .hgetall(format!("mailrs:user:{ALICE}:contacts").as_bytes())
+        .hgetall(mailrs_core_sidestate::families::contact_cards::autocomplete_key(ALICE).as_bytes())
         .expect("contacts");
     assert!(
         contacts

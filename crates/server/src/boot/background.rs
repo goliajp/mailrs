@@ -49,7 +49,7 @@ pub(super) fn start_greylist_whitelist_sync(
 
 /// The spool the SMTP side writes to and the drain reads.
 pub(super) fn spool_root(cfg: &ServerConfig) -> String {
-    std::env::var("MAILRS_SPOOL_ROOT").unwrap_or_else(|_| format!("{}/.spool", cfg.maildir_root))
+    mailrs_core::spool::spool_root(&cfg.maildir_root)
 }
 
 pub(super) fn start_spool_drain(

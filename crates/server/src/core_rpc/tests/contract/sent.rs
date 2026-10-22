@@ -123,7 +123,9 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
     let contacts = |url: &str| {
         let mut conn = kevy_client::Connection::connect(url).expect("kevy");
         let mut flat = conn
-            .hgetall(format!("mailrs:user:{ALICE}:contacts").as_bytes())
+            .hgetall(
+                mailrs_core_sidestate::families::contact_cards::autocomplete_key(ALICE).as_bytes(),
+            )
             .expect("contacts");
         flat.sort();
         flat

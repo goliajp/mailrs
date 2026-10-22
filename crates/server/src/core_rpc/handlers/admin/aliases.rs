@@ -121,10 +121,3 @@ pub async fn remove_domain(
         Err(StatusCode::NOT_FOUND)
     }
 }
-
-// Sieve read AND write are the shared network-kevy family now — see
-// core-sidestate/families/groups_admin.rs. Nothing sieve-shaped belongs here.
-
-// ── audit log ───────────────────────────────────────────────────────
-
-// ── groups + permissions ────────────────────────────────────────────

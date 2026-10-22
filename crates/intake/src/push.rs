@@ -137,10 +137,7 @@ pub fn maybe_notify(addr: &str, sender: &str, subject: &str, category: &str, is_
     });
 }
 
-/// The same key webapi's registration handler writes.
-fn tokens_key(user: &str) -> String {
-    format!("push:tokens:{user}")
-}
+use mailrs_core_sidestate::keys::push::tokens_key;
 
 fn load_tokens(user: &str) -> std::io::Result<Vec<String>> {
     let url = std::env::var("MAILRS_KEVY_URL")
@@ -177,15 +174,6 @@ fn truncated(text: &str, max_chars: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// Same string as `crates/webapi/src/handlers/push.rs::tokens_key`.
-    /// The two lanes meet only at this key; a drift here is tokens
-    /// written to one hash and read from another, which fails silently
-    /// as "no devices registered".
-    #[test]
-    fn key_matches_the_writer() {
-        assert_eq!(tokens_key("a@golia.jp"), "push:tokens:a@golia.jp");
-    }
 
     #[test]
     fn truncation_counts_characters_not_bytes() {

@@ -29,5 +29,7 @@
 pub mod dnsbl;
 /// RFC 5321-style greylisting: defer-on-first-seen with optional Postgres + Kevy storage.
 pub mod greylist;
+/// The kevy key a greylist triplet is stored under.
+pub mod greylist_key;
 /// Forward-confirmed reverse DNS scoring (FCrDNS) for sender-IP reputation.
 pub mod ptr;
