@@ -8,6 +8,7 @@
 //! One test, run in order: the POP3 and ManageSieve parts read what the
 //! IMAP part left.
 
+mod folders;
 mod harness;
 mod script;
 mod selection;
@@ -25,14 +26,17 @@ pub(super) struct Step {
     pub expect: String,
 }
 
-/// Mask the numbers each store chooses for itself.
+/// Mask the numbers each store chooses for itself: the digits after each
+/// of these words.
 fn masked(line: &str) -> String {
     let mut out = line.to_string();
-    for code in ["[UIDVALIDITY ", "[HIGHESTMODSEQ "] {
-        if let Some(at) = out.find(code) {
-            let start = at + code.len();
-            let end = out[start..].find(']').map_or(out.len(), |n| start + n);
-            out.replace_range(start..end, "*");
+    for word in ["UIDVALIDITY ", "HIGHESTMODSEQ "] {
+        let mut from = 0;
+        while let Some(at) = out[from..].find(word) {
+            let start = from + at + word.len();
+            let digits = out[start..].bytes().take_while(u8::is_ascii_digit).count();
+            out.replace_range(start..start + digits, "*");
+            from = start;
         }
     }
     out
@@ -76,7 +80,7 @@ where
 /// IMAP conversations on fresh connections, in order, after the first
 /// four: each starts from what the one before left.
 fn later() -> Vec<Vec<Step>> {
-    vec![selection::unselect()]
+    vec![selection::unselect(), folders::status()]
 }
 
 async fn conversations<D: Directory>(dir: Arc<D>) -> Vec<String> {
@@ -134,5 +138,9 @@ fn the_minted_numbers_are_masked_and_nothing_else() {
     assert_eq!(
         masked("* OK [UIDNEXT 4] Predicted next UID\r\n"),
         "* OK [UIDNEXT 4] Predicted next UID\r\n"
+    );
+    assert_eq!(
+        masked("* STATUS INBOX (UIDVALIDITY 17 UIDNEXT 4 HIGHESTMODSEQ 9)\r\n"),
+        "* STATUS INBOX (UIDVALIDITY * UIDNEXT 4 HIGHESTMODSEQ *)\r\n"
     );
 }
