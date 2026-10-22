@@ -1,8 +1,9 @@
-//! Sending: the handlers, the queue enqueue, and the sender-side mirror.
+//! Sending: the handlers.
 //!
-//! `mirror_send_to_sender_view` writes the copy the Send view reads and is
-//! best-effort throughout, while `enqueue_outbound_at` is the fallible one
-//! the send actually depends on.
+//! The core files the sender's copy first, and only then is the message
+//! queued: the Send row then names the conversation the copy actually
+//! joined and the file a resend reads, and a send that fails was never
+//! queued, so trying again cannot send it twice.
 
 use std::sync::Arc;
 
@@ -65,21 +66,17 @@ pub(crate) async fn send_message(
     recipients.extend(parts.cc.clone());
     recipients.extend(parts.bcc.clone());
     let (message_id, envelope) = build_rfc5322(&parts, &from);
-    // The Send row lands here, inside the fallible step, so a 200
-    // implies it exists. `thread_id` mirrors what
-    // `mirror_send_to_sender_view` derives for a fresh send: its own
-    // Message-ID when the mail starts a conversation.
-    //
+    let filed = file_sent_copy(&state, &user, &envelope, &recipients).await?;
     // A redraft gets a **new** Message-ID, unlike a resend: the user
     // edited the content, and a Message-ID names a particular message.
     // `resent_from` keeps the chain back to what it repairs.
     let send_meta = SendMeta {
         message_id: &message_id,
-        thread_id: parts.in_reply_to.as_deref().unwrap_or(&message_id),
+        thread_id: &filed.thread_id,
         subject: &parts.subject,
         to: &parts.to,
         cc: &parts.cc,
-        envelope_ref: "",
+        envelope_ref: &filed.blob_ref,
         resent_from: req.redraft_of.as_deref(),
     };
     enqueue_outbound_at(
@@ -89,7 +86,6 @@ pub(crate) async fn send_message(
         parts.scheduled_at,
         Some(send_meta),
     )?;
-    mirror_send_to_sender_view(&state, &user, &parts, &envelope, &message_id, false).await;
     Ok(Json(SendResponse {
         message_id,
         success: true,
@@ -133,15 +129,18 @@ pub(crate) async fn send_email_mcp(
     let mut recipients = parts.to.clone();
     recipients.extend(parts.cc.clone());
     let (message_id, envelope) = build_rfc5322(&parts, from);
+    let filed = file_sent_copy(state, auth_user, &envelope, &recipients)
+        .await
+        .map_err(|c| format!("sent copy not filed ({c})"))?;
     // Same call the REST send handler uses — a future `scheduled_at`
     // lands the id in the scheduled zset instead of pending.
     let send_meta = SendMeta {
         message_id: &message_id,
-        thread_id: parts.in_reply_to.as_deref().unwrap_or(&message_id),
+        thread_id: &filed.thread_id,
         subject: &parts.subject,
         to: &parts.to,
         cc: &parts.cc,
-        envelope_ref: "",
+        envelope_ref: &filed.blob_ref,
         resent_from: None,
     };
     enqueue_outbound_at(
@@ -152,7 +151,6 @@ pub(crate) async fn send_email_mcp(
         Some(send_meta),
     )
     .map_err(|c| format!("enqueue failed ({c})"))?;
-    mirror_send_to_sender_view(state, auth_user, &parts, &envelope, &message_id, false).await;
     Ok(message_id)
 }
 
@@ -259,17 +257,14 @@ pub(crate) async fn send_message_multipart(
     recipients.extend(parts.bcc.clone());
     let from = parts.from.clone();
     let (message_id, envelope) = build_rfc5322(&parts, &from);
-    // The Send row lands here, inside the fallible step, so a 200
-    // implies it exists. `thread_id` mirrors what
-    // `mirror_send_to_sender_view` derives for a fresh send: its own
-    // Message-ID when the mail starts a conversation.
+    let filed = file_sent_copy(&state, &user, &envelope, &recipients).await?;
     let send_meta = SendMeta {
         message_id: &message_id,
-        thread_id: parts.in_reply_to.as_deref().unwrap_or(&message_id),
+        thread_id: &filed.thread_id,
         subject: &parts.subject,
         to: &parts.to,
         cc: &parts.cc,
-        envelope_ref: "",
+        envelope_ref: &filed.blob_ref,
         resent_from: redraft_of.as_deref(),
     };
     enqueue_outbound_at(
@@ -279,7 +274,6 @@ pub(crate) async fn send_message_multipart(
         parts.scheduled_at,
         Some(send_meta),
     )?;
-    mirror_send_to_sender_view(&state, &user, &parts, &envelope, &message_id, false).await;
     Ok(Json(SendResponse {
         message_id,
         success: true,

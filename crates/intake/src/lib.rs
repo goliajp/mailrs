@@ -33,6 +33,7 @@ pub mod outbound;
 pub mod push;
 pub mod reports;
 pub mod route;
+pub mod sent;
 pub mod sieve;
 pub mod spool;
 pub mod webhook_delivery;

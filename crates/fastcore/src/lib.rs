@@ -41,6 +41,7 @@ mod pop3;
 mod push;
 mod router;
 mod routes;
+mod sent;
 mod snooze_wake;
 mod store_motion;
 pub use store_motion::store_motion_probe;
@@ -101,6 +102,8 @@ pub struct FastcoreState {
     pub net_url: Option<String>,
     /// What the spool drain treats as our domains; see `spool_drain::relay`.
     pub local_domains: spool_drain::relay::LocalDomainsCache,
+    /// `MAILRS_MAILDIR`; where the routes that write mail put it.
+    pub maildir_root: String,
 }
 
 impl FastcoreState {
@@ -130,6 +133,8 @@ impl FastcoreState {
             net_url,
             boot_intact: true,
             local_domains: Default::default(),
+            maildir_root: std::env::var("MAILRS_MAILDIR")
+                .unwrap_or_else(|_| "/data/maildir".into()),
         }
     }
 
@@ -177,12 +182,6 @@ impl Handler for FastcoreState {
         }
     }
 }
-
-// ── Account (auth) — Phase 8 ────────────────────────────────────────
-
-// ── Mailboxes (folders) ────────────────────────────────────────────
-
-// ── Thread mutations ───────────────────────────────────────────────
 
 use axum::response::IntoResponse;
 
@@ -268,7 +267,7 @@ mod tests {
     /// A message that has been read lives in `cur/` with a `:2,FLAGS`
     /// suffix, and `read_maildir_file` used to reconstruct the filename by
     /// hand and miss it. That made the threading backfill's References
-    /// edges invisible for every sent copy — `mirror_send` marks those Seen
+    /// edges invisible for every sent copy — `mirror_send` marked those Seen
     /// — so conversations that should have merged did not (2026-07-30).
     #[test]
     fn read_maildir_file_finds_a_flagged_message() {

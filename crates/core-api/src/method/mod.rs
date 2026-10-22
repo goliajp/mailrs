@@ -90,4 +90,5 @@ pub mod contact;
 pub mod conversation;
 pub mod message;
 pub mod outbound;
+pub mod sent;
 pub mod thread;

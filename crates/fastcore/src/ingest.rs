@@ -56,7 +56,7 @@ pub(crate) fn ingest_delivered_file(
 }
 
 /// The writes to this store. Returns whether the thread was held as fraud.
-fn store_arrival(
+pub(crate) fn store_arrival(
     state: &Arc<FastcoreState>,
     addr: &str,
     blob_ref: &str,

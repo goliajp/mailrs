@@ -46,9 +46,6 @@ use mailrs_core_api::types::{BackendKind, HealthResponse};
 /// Cement passes one of these in to `spawn_core_rpc`. The shape mirrors
 /// the future `mailrs-core` binary's state struct.
 ///
-/// Fields are `#[allow(dead_code)]` because checklist 2.1 only mounts
-/// healthz/readyz; per-method handlers (2.2) will read them.
-#[allow(dead_code)]
 pub struct CoreRpcState {
     pub mailbox: Arc<mailrs_mailbox::PgMailboxStore>,
     pub domain: Arc<crate::domain_store::DomainStore>,
@@ -65,6 +62,9 @@ pub struct CoreRpcState {
     /// the two cores' side-state routes are byte-identical. `None` when
     /// unset (side-state routes then serve empty).
     pub net_url: Option<String>,
+    /// The in-process bus IMAP IDLE listens on; a sent copy filed through
+    /// the contract is announced on it, as an arriving message is.
+    pub event_bus: crate::event_bus::EventBus,
 }
 
 impl mailrs_core_sidestate::NetKevy for CoreRpcState {

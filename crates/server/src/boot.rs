@@ -272,7 +272,14 @@ pub(crate) async fn run_with_roles(roles: Roles) {
     background::spawn_snooze_wake(&mailbox_store);
 
     #[cfg(feature = "core-rpc")]
-    background::spawn_core_rpc_server(&cfg, &mailbox_store, &domain_store, &pg_pool, &shutdown_rx);
+    background::spawn_core_rpc_server(
+        &cfg,
+        &mailbox_store,
+        &domain_store,
+        &pg_pool,
+        &event_bus,
+        &shutdown_rx,
+    );
 
     background::wait_for_shutdown_signal().await;
     tracing::info!("shutting down");
