@@ -11,7 +11,6 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use hickory_resolver::TokioResolver;
-use mailrs_dmarc::DmarcResultRecord;
 use mailrs_inbound::{AllowListMatch, ReceiveContext, Stage, StageOutcome};
 
 use super::local_lists::settle_address_match;
@@ -42,18 +41,6 @@ pub struct MailAuthResolvers {
     pub dmarc: Arc<TokioResolver>,
 }
 
-/// Fire-and-forget sink for per-message DMARC results feeding aggregate
-/// reporting. A dyn-compatible narrowing of the stone's `DmarcStore` (which
-/// carries an associated `Error` type and the report-generation methods the
-/// receiver never calls) — the receiver only records; the spg-backed impl
-/// lives in the core. Errors are swallowed: a lost aggregate row must never
-/// block delivery.
-#[async_trait]
-pub trait DmarcReportSink: Send + Sync {
-    /// Record one verified DMARC result for aggregate reporting.
-    async fn record_result(&self, record: &DmarcResultRecord);
-}
-
 /// Stage that performs SPF, DKIM, ARC, and DMARC verification and records
 /// the aggregate result in `ctx.auth_results`. On DMARC policy=reject
 /// returns `Decide(Reject)`; otherwise returns `Continue`.
@@ -62,27 +49,16 @@ pub trait DmarcReportSink: Send + Sync {
 /// `mailrs-dmarc` crates (`mail-auth` removed).
 pub struct MailAuthStage {
     resolvers: MailAuthResolvers,
-    dmarc_sink: Option<Arc<dyn DmarcReportSink>>,
 }
 
 impl MailAuthStage {
-    /// Construct a `MailAuthStage`. The optional [`DmarcReportSink`] records
-    /// per-message DMARC outcomes for aggregate reporting — injected as a
-    /// trait object (the spg-backed impl is built in the core) so this stage
-    /// doesn't bind the report store.
-    pub fn new(resolvers: MailAuthResolvers, dmarc_sink: Option<Arc<dyn DmarcReportSink>>) -> Self {
-        Self {
-            resolvers,
-            dmarc_sink,
-        }
+    /// Construct a `MailAuthStage` over its DNS resolvers.
+    pub fn new(resolvers: MailAuthResolvers) -> Self {
+        Self { resolvers }
     }
 
     pub(super) fn dmarc_resolver(&self) -> &TokioResolver {
         self.resolvers.dmarc.as_ref()
-    }
-
-    pub(super) fn sink(&self) -> Option<&Arc<dyn DmarcReportSink>> {
-        self.dmarc_sink.as_ref()
     }
 }
 
