@@ -30,6 +30,14 @@ where
         Ok(None) => return vec![format_no(tag, "no such mailbox")],
         Err(e) => return vec![no(tag, "APPEND", &e)],
     };
+    let limit = framed.codec().max_literal();
+    if literal_size > limit {
+        // refused before the client is asked to send it
+        return vec![format_no(
+            tag,
+            &format!("[TOOBIG] messages are limited to {limit} bytes"),
+        )];
+    }
     framed.codec_mut().expect_literal(literal_size);
     if framed
         .send(b"+ Ready for literal data\r\n".to_vec())

@@ -14,8 +14,45 @@ use tokio_util::codec::{Decoder, Encoder};
 /// then calls [`expect_literal`](Self::expect_literal) to tell the
 /// codec to read the next N bytes as raw data instead of splitting
 /// on CRLF.
+///
+/// Both modes are bounded: a line longer than [`max_line`](Self::max_line)
+/// and a literal longer than [`max_literal`](Self::max_literal) end the
+/// stream with an error wrapping [`TooLong`], before the bytes are held.
 pub struct ImapCodec {
     literal_remaining: Option<u32>,
+    max_line: usize,
+    max_literal: u32,
+}
+
+/// The default longest line, CRLF excluded: 64 KiB.
+pub const MAX_LINE: usize = 64 * 1024;
+
+/// The default longest literal: 50 MiB.
+pub const MAX_LITERAL: u32 = 50 * 1024 * 1024;
+
+/// What a decode error wraps when a frame is over its limit; find it with
+/// `io::Error::get_ref` and `downcast_ref`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TooLong {
+    /// A line with no CRLF within the line limit.
+    Line,
+    /// A literal announced larger than the literal limit.
+    Literal,
+}
+
+impl std::fmt::Display for TooLong {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TooLong::Line => f.write_str("line too long"),
+            TooLong::Literal => f.write_str("literal too long"),
+        }
+    }
+}
+
+impl std::error::Error for TooLong {}
+
+fn too_long(what: TooLong) -> std::io::Error {
+    std::io::Error::new(std::io::ErrorKind::InvalidData, what)
 }
 
 /// One decoded IMAP-session frame.
@@ -40,11 +77,36 @@ impl Default for ImapCodec {
 }
 
 impl ImapCodec {
-    /// New codec in line mode.
+    /// New codec in line mode, with [`MAX_LINE`] and [`MAX_LITERAL`].
     pub fn new() -> Self {
         Self {
             literal_remaining: None,
+            max_line: MAX_LINE,
+            max_literal: MAX_LITERAL,
         }
+    }
+
+    /// The longest line accepted, CRLF excluded.
+    pub fn with_max_line(mut self, bytes: usize) -> Self {
+        self.max_line = bytes;
+        self
+    }
+
+    /// The largest literal accepted.
+    pub fn with_max_literal(mut self, bytes: u32) -> Self {
+        self.max_literal = bytes;
+        self
+    }
+
+    /// See [`with_max_line`](Self::with_max_line).
+    pub fn max_line(&self) -> usize {
+        self.max_line
+    }
+
+    /// See [`with_max_literal`](Self::with_max_literal). A caller can
+    /// refuse a larger literal before asking the peer to send it.
+    pub fn max_literal(&self) -> u32 {
+        self.max_literal
     }
 
     /// Switch the codec into literal mode for the next decode.
@@ -63,6 +125,9 @@ impl Decoder for ImapCodec {
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         if let Some(remaining) = self.literal_remaining {
+            if remaining > self.max_literal {
+                return Err(too_long(TooLong::Literal));
+            }
             let needed = remaining as usize;
             if src.len() >= needed {
                 let data = src.split_to(needed).to_vec();
@@ -84,6 +149,9 @@ impl Decoder for ImapCodec {
         while let Some(rel) = memchr::memchr(b'\r', &src[search_from..]) {
             let abs = search_from + rel;
             if abs + 1 < src.len() && src[abs + 1] == b'\n' {
+                if abs > self.max_line {
+                    return Err(too_long(TooLong::Line));
+                }
                 let line = src.split_to(abs);
                 src.advance(2);
                 let s = String::from_utf8_lossy(&line).into_owned();
@@ -95,6 +163,10 @@ impl Decoder for ImapCodec {
             if search_from >= src.len() {
                 break;
             }
+        }
+        // the CRLF may yet arrive: one byte of `\r` may be the line's end
+        if src.len() > self.max_line + 1 {
+            return Err(too_long(TooLong::Line));
         }
         Ok(None)
     }
@@ -330,6 +402,58 @@ mod tests {
     fn decode_partial_crlf_at_buffer_end() {
         let mut codec = ImapCodec::new();
         assert!(decode_once(&mut codec, b"A001 NOOP\r").unwrap().is_none());
+    }
+
+    fn too_long_of(e: std::io::Error) -> Option<TooLong> {
+        e.get_ref()?.downcast_ref::<TooLong>().copied()
+    }
+
+    #[test]
+    fn a_line_at_the_limit_is_read_and_one_past_it_is_refused() {
+        let mut codec = ImapCodec::new().with_max_line(8);
+        match codec.decode(&mut BytesMut::from("12345678\r\n")).unwrap() {
+            Some(ImapInput::Line(s)) => assert_eq!(s, "12345678"),
+            other => panic!("expected Line, got {other:?}"),
+        }
+        let err = codec
+            .decode(&mut BytesMut::from("123456789\r\n"))
+            .unwrap_err();
+        assert_eq!(too_long_of(err), Some(TooLong::Line));
+    }
+
+    #[test]
+    fn a_line_without_its_crlf_is_refused_once_past_the_limit() {
+        let mut codec = ImapCodec::new().with_max_line(8);
+        assert!(
+            codec
+                .decode(&mut BytesMut::from("12345678\r"))
+                .unwrap()
+                .is_none()
+        );
+        let err = codec.decode(&mut BytesMut::from("1234567890")).unwrap_err();
+        assert_eq!(too_long_of(err), Some(TooLong::Line));
+    }
+
+    #[test]
+    fn the_default_line_limit_is_64_kib() {
+        let mut codec = ImapCodec::new();
+        let mut long = BytesMut::from(vec![b'a'; MAX_LINE + 2].as_slice());
+        let err = codec.decode(&mut long).unwrap_err();
+        assert_eq!(too_long_of(err), Some(TooLong::Line));
+    }
+
+    #[test]
+    fn a_literal_over_the_limit_is_refused_before_it_is_read() {
+        let mut codec = ImapCodec::new().with_max_literal(4);
+        codec.expect_literal(5);
+        let err = codec.decode(&mut BytesMut::new()).unwrap_err();
+        assert_eq!(too_long_of(err), Some(TooLong::Literal));
+        let mut codec = ImapCodec::new().with_max_literal(4);
+        codec.expect_literal(4);
+        assert!(matches!(
+            codec.decode(&mut BytesMut::from("abcd")).unwrap(),
+            Some(ImapInput::LiteralData(_))
+        ));
     }
 
     #[test]

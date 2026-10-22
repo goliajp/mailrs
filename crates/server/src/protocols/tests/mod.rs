@@ -11,6 +11,7 @@
 mod checks;
 mod folders;
 mod harness;
+mod limits;
 mod moves;
 mod script;
 mod seen;
@@ -132,6 +133,18 @@ async fn conversations<D: Directory>(dir: Arc<D>) -> Vec<String> {
         diffs.extend(converse(client, "imap", &steps).await);
     }
     diffs.extend(checks::uidplus(dir.clone()).await);
+
+    for steps in limits::imap() {
+        let (client, server) = tokio::io::duplex(1 << 20);
+        tokio::spawn(mailrs_mail_protocols::imap::run(dir.clone(), server));
+        diffs.extend(converse(client, "imap", &steps).await);
+    }
+    for steps in limits::pop3() {
+        let (client, server) = tokio::io::duplex(1 << 20);
+        let pop3 = mailrs_mail_protocols::pop3::session(dir.clone(), server, None);
+        tokio::spawn(pop3);
+        diffs.extend(converse(client, "pop3", &steps).await);
+    }
     diffs
 }
 
