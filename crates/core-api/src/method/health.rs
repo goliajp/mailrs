@@ -5,4 +5,3 @@
 
 pub const PATH_HEALTHZ: &str = "/v1/healthz";
 pub const PATH_READYZ: &str = "/v1/readyz";
-pub const PATH_METRICS: &str = "/v1/metrics";

@@ -5,15 +5,9 @@ use serde::{Deserialize, Serialize};
 
 pub const PATH_LIST_ACCOUNTS: &str = "/v1/admin/accounts";
 
-pub const PATH_ADD_ACCOUNT: &str = "/v1/admin/accounts";
-
 pub const PATH_UPDATE_ACCOUNT: &str = "/v1/admin/accounts/{address}";
 
-pub const PATH_REMOVE_ACCOUNT: &str = "/v1/admin/accounts/{address}";
-
 pub const PATH_GET_ACCOUNT_HASH: &str = "/v1/admin/accounts/{address}/credentials";
-
-pub const PATH_GET_QUOTA: &str = "/v1/admin/accounts/{address}/quota";
 
 pub const PATH_SET_QUOTA: &str = "/v1/admin/accounts/{address}/quota";
 
@@ -30,92 +24,11 @@ pub const PATH_SET_ACCOUNT_PASSWORD: &str = "/v1/admin/accounts/{address}/passwo
 /// by webapi's update_flags / delete_message handlers.
 pub const PATH_SET_MESSAGE_FLAGS: &str = "/v1/users/{user}/messages/{uid}/flags";
 
-pub const PATH_ADD_ALIAS: &str = "/v1/admin/aliases";
-
-pub const PATH_RESOLVE_RECIPIENT: &str = "/v1/admin/aliases:resolve-recipient";
-
-pub const PATH_LOG_AUDIT: &str = "/v1/admin/audit-log";
-
-pub const PATH_CLEANUP_AUDIT: &str = "/v1/admin/audit-log:cleanup";
-
 pub const PATH_LIST_DOMAINS: &str = "/v1/admin/domains";
-
-pub const PATH_ADD_DOMAIN: &str = "/v1/admin/domains";
 
 pub const PATH_REMOVE_DOMAIN: &str = "/v1/admin/domains/{name}";
 
-pub const PATH_LIST_EMAIL_GROUPS: &str = "/v1/admin/email-groups";
-
-pub const PATH_CREATE_EMAIL_GROUP: &str = "/v1/admin/email-groups";
-
-pub const PATH_REMOVE_EMAIL_GROUP: &str = "/v1/admin/email-groups/{id}";
-
-pub const PATH_LIST_EMAIL_GROUP_MEMBERS: &str = "/v1/admin/email-groups/{id}/members";
-
-pub const PATH_ADD_EMAIL_GROUP_MEMBER: &str = "/v1/admin/email-groups/{id}/members";
-
-pub const PATH_REMOVE_EMAIL_GROUP_MEMBER: &str = "/v1/admin/email-groups/{id}/members/{address}";
-
-pub const PATH_GET_ENCRYPTION_KEY: &str = "/v1/admin/encryption-keys/{address}/{key_type}";
-
-pub const PATH_SET_ENCRYPTION_KEY: &str = "/v1/admin/encryption-keys/{address}/{key_type}";
-
-pub const PATH_DELETE_ENCRYPTION_KEY: &str = "/v1/admin/encryption-keys/{address}/{key_type}";
-
-pub const PATH_LIST_ENCRYPTION_KEYS: &str = "/v1/admin/encryption-keys/{address}";
-
-pub const PATH_SET_GROUP_PERMISSIONS: &str = "/v1/admin/groups/{id}/permissions";
-
-pub const PATH_ADD_GROUP: &str = "/v1/admin/groups";
-
-pub const PATH_REMOVE_GROUP: &str = "/v1/admin/groups/{id}";
-
-pub const PATH_ADD_ACCOUNT_TO_GROUP: &str = "/v1/admin/groups/{id}/members";
-
-pub const PATH_GET_ACCOUNT_OVERRIDES: &str = "/v1/admin/accounts/{address}/overrides";
-
-pub const PATH_SET_ACCOUNT_OVERRIDES: &str = "/v1/admin/accounts/{address}/overrides";
-
 pub const PATH_EFFECTIVE_PERMISSIONS: &str = "/v1/admin/accounts/{address}/effective-permissions";
-
-pub const PATH_INVALIDATE_PERMISSIONS: &str = "/v1/admin/permissions:invalidate";
-
-pub const PATH_SET_SIEVE: &str = "/v1/admin/accounts/{address}/sieve";
-
-pub const PATH_DELETE_SIEVE: &str = "/v1/admin/accounts/{address}/sieve";
-
-pub const PATH_GET_TOTP: &str = "/v1/admin/accounts/{address}/totp";
-
-pub const PATH_SAVE_TOTP: &str = "/v1/admin/accounts/{address}/totp";
-
-pub const PATH_ENABLE_TOTP: &str = "/v1/admin/accounts/{address}/totp:enable";
-
-pub const PATH_DISABLE_TOTP: &str = "/v1/admin/accounts/{address}/totp";
-
-pub const PATH_CONSUME_RECOVERY_CODE: &str =
-    "/v1/admin/accounts/{address}/totp:consume-recovery-code";
-
-pub const PATH_SHOULD_SEND_VACATION: &str = "/v1/admin/vacation-dedup:should-send";
-
-pub const PATH_RECORD_VACATION_REPLY: &str = "/v1/admin/vacation-dedup";
-
-pub const PATH_LIST_SYSTEM_CONFIG: &str = "/v1/admin/system-config";
-
-pub const PATH_UPDATE_SYSTEM_CONFIG: &str = "/v1/admin/system-config/{key}";
-
-pub const PATH_DELETE_SYSTEM_CONFIG: &str = "/v1/admin/system-config/{key}";
-
-pub const PATH_RECONCILE_MAILDIR: &str = "/v1/admin/reconcile";
-
-pub const PATH_BACKFILL_THREADING: &str = "/v1/admin/backfill-threading";
-
-pub const PATH_EXPORT_MESSAGES: &str = "/v1/admin/export";
-
-pub const PATH_CREATE_API_KEY: &str = "/v1/admin/api-keys";
-
-pub const PATH_LIST_API_KEYS: &str = "/v1/admin/accounts/{address}/api-keys";
-
-pub const PATH_REVOKE_API_KEY: &str = "/v1/admin/api-keys/{id}";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DraftWire {
@@ -175,8 +88,6 @@ pub struct DraftListResponse {
 
 pub const PATH_LIST_DRAFTS: &str = "/v1/users/{user}/drafts";
 
-pub const PATH_SAVE_DRAFT: &str = "/v1/users/{user}/drafts";
-
 pub const PATH_DELETE_DRAFT: &str = "/v1/users/{user}/drafts/{id}";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -206,8 +117,6 @@ pub struct SaveSignatureResponse {
 }
 
 pub const PATH_LIST_SIGNATURES: &str = "/v1/users/{user}/signatures";
-
-pub const PATH_SAVE_SIGNATURE: &str = "/v1/users/{user}/signatures";
 
 pub const PATH_DELETE_SIGNATURE: &str = "/v1/users/{user}/signatures/{id}";
 
