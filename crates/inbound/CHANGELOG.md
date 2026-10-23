@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `body::asks_for_the_readers_line`, the fraud fact of the same name
+  read over the same text parts as `body::offers_the_reader_a_sum`.
+
 ## [2.0.0] - 2026-10-22
 
 ### Changed

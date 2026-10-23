@@ -82,6 +82,7 @@ fn fill(lua: &mut Lua, t: LuaTable, f: &Facts<'_>, p: &Policy) -> Result<(), Str
         ("unauthenticated", f.unauthenticated),
         ("peer_is_private", f.peer_is_private),
         ("offers_the_reader_a_sum", f.offers_the_reader_a_sum),
+        ("asks_for_the_readers_line", f.asks_for_the_readers_line),
         ("is_bulk", f.is_bulk),
         (
             "attachment_offers_the_reader_a_sum",

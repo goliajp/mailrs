@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `line_handoff::asks_for_the_readers_line`: whether a letter asks its
+  reader to send their own LINE QR code, in Japanese or Chinese.
+- **Breaking:** `Facts::asks_for_the_readers_line`. `Facts` is built
+  with struct literals, so callers that do not end with
+  `..Facts::default()` must add the field.
+
 ## [0.1.0] - 2026-10-22
 
 ### Added
