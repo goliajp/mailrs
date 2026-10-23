@@ -103,6 +103,9 @@ pub struct Facts<'a> {
     /// The text offers its reader part of a sum in the millions —
     /// [`crate::advance_fee::offers_the_reader_a_sum`].
     pub offers_the_reader_a_sum: bool,
+    /// The text asks its reader to send their own LINE contact —
+    /// [`crate::line_handoff::asks_for_the_readers_line`].
+    pub asks_for_the_readers_line: bool,
     /// The message carries `List-Unsubscribe` or `List-Id`.
     ///
     /// A newsletter reporting somebody's revenue reads like an offer

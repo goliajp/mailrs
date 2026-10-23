@@ -18,6 +18,26 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### A letter asking for the reader's LINE QR code is held for review
+
+The business-email compromise impersonating this company (`齋藤 真`,
+`富川 貴司`, `西口 征郎`, signing as `GOLIA株式会社` or `ギリア株式会社`)
+reached an inbox again on 2026-10-23, from `ptvmfekd@nogz.cn` with SPF,
+DKIM and DMARC passing. No rule had anything to read: the domain's name
+is four letters, too short for `minted-address`, and the mailer's
+version field was a bare build number the `X-Mailer` rule does not take.
+What every wave keeps is the request — send your personal LINE QR code
+to this address — and the money is asked for later, in the chat.
+
+New rule `asks-for-the-readers-line` (content, 6.0, holds), on the new
+fact `asks_for_the_readers_line` (`mailrs_fraud::line_handoff`): within
+one sentence, a word for the reader then LINE then a QR code, or LINE
+then a QR code then "please send / reply". Measured over 43,838
+production messages: 263 matched, all this campaign, nothing else; 17
+were held by no other rule, and none is released. Shop newsletters that
+print a LINE QR code to scan, and a sender offering their own, ask for
+nothing and are not convicted.
+
 ### The SQL core keeps a body in its mailbox's folder
 
 The SQL core had two ideas of where a message's file was. Delivered and

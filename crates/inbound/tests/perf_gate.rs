@@ -321,3 +321,72 @@ fn offers_the_reader_a_sum_large_html_under_budget() {
         "offers_the_reader_a_sum (300 KiB html) median {median:?} exceeded {budget:?}"
     );
 }
+
+#[cfg(not(debug_assertions))]
+/// The letter reported on 2026-10-23, its paragraph repeated eight times.
+fn line_request_letter() -> Vec<u8> {
+    let mut raw = "From: =?utf-8?B?6b2L6JekIOecnw==?= <ptvmfekd@nogz.cn>\r\n\
+Content-Type: text/html; charset=UTF-8\r\n\
+\r\n\
+<HTML><BODY>"
+        .as_bytes()
+        .to_vec();
+    for _ in 0..8 {
+        raw.extend_from_slice(
+            "<SPAN style='FONT-SIZE: 15px; LINE-HEIGHT: 1.5'>お疲れ様です。メールを受け取った後、\
+今後の業務連絡をより効率的に行うため、</SPAN><BR>"
+                .as_bytes(),
+        );
+    }
+    raw.extend_from_slice(
+        "ご自身の個人LINEのQRコードまでこのメールアドレス宛に返信してください。</BODY></HTML>\r\n"
+            .as_bytes(),
+    );
+    raw
+}
+
+#[cfg(not(debug_assertions))]
+/// The worst text for the request check: one sentence of `line qr`
+/// repeated to the read limit, every word a candidate.
+fn line_qr_flood() -> Vec<u8> {
+    let mut raw =
+        b"From: x <x@example.com>\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n".to_vec();
+    while raw.len() < 300 * 1024 {
+        raw.extend_from_slice("line qr あなた 返信 ".as_bytes());
+    }
+    raw
+}
+
+#[cfg(not(debug_assertions))]
+#[test]
+fn asks_for_the_readers_line_letter_under_budget() {
+    let raw = line_request_letter();
+    let parsed = mailrs_mime::parse(&raw);
+    let median = time_median(|| {
+        std::hint::black_box(mailrs_inbound::body::asks_for_the_readers_line(&parsed));
+    });
+    // Budget: 50 µs, 3× the worst P95 seen on a dev machine (9–16 µs).
+    let budget = Duration::from_micros(50);
+    assert!(
+        median < budget,
+        "asks_for_the_readers_line (letter) median {median:?} exceeded {budget:?}"
+    );
+}
+
+#[cfg(not(debug_assertions))]
+#[test]
+fn asks_for_the_readers_line_flood_under_budget() {
+    let raw = line_qr_flood();
+    let parsed = mailrs_mime::parse(&raw);
+    let median = time_median(|| {
+        std::hint::black_box(mailrs_inbound::body::asks_for_the_readers_line(&parsed));
+    });
+    // Budget: 21 ms, 3× the observed P95 (~6.8 ms). Every word is a
+    // candidate and the read stops at `READ_LIMIT`, so this is the
+    // ceiling for any message.
+    let budget = Duration::from_millis(21);
+    assert!(
+        median < budget,
+        "asks_for_the_readers_line (300 KiB flood) median {median:?} exceeded {budget:?}"
+    );
+}

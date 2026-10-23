@@ -34,3 +34,22 @@ rule('offers-the-reader-a-sum', 'content', 5, false, function(m)
         return 'the text offers the reader a share of a sum in the millions'
     end
 end)
+-- A letter that asks its reader to send over their own LINE QR code.
+-- The business-email compromise aimed at this company asks for nothing
+-- else in the letter; the money is asked for later, in a chat no mail
+-- filter sees.  Persona, company, sending domain and mailer all change
+-- from wave to wave, and this request does not.
+-- `mailrs_fraud::line_handoff` says what counts.
+--
+-- Measured over 43,838 production messages on 2026-10-23: 263 caught,
+-- all this campaign, nothing else.  Eight of them no other rule held:
+-- outlook.com and hotmail.com senders, where no address or domain rule
+-- has anything to read.
+--
+-- **Held.**  The request is the fraud itself, not a hint about the
+-- sender, and a held letter still reaches review.
+rule('asks-for-the-readers-line', 'content', 6, true, function(m)
+    if m.asks_for_the_readers_line then
+        return 'the text asks the reader to send their own LINE QR code'
+    end
+end)

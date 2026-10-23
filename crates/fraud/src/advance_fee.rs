@@ -94,7 +94,7 @@ pub fn offers_the_reader_a_sum<'a>(bodies: impl IntoIterator<Item = Body<'a>>) -
 /// use turned back into characters, lowercased, every run of
 /// whitespace one space — a phrase broken across a `format=flowed`
 /// line is still the phrase.
-fn reading<'a>(bodies: impl IntoIterator<Item = Body<'a>>) -> String {
+pub(crate) fn reading<'a>(bodies: impl IntoIterator<Item = Body<'a>>) -> String {
     let mut out = String::new();
     for body in bodies {
         if out.len() >= READ_LIMIT {

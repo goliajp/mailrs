@@ -72,6 +72,7 @@ pub(super) struct Evidence {
     has_zero_width_in_name: bool,
     attachment_names: Vec<String>,
     offers_the_reader_a_sum: bool,
+    asks_for_the_readers_line: bool,
     subject: String,
     to_display: String,
     reply_rotation: u32,
@@ -114,6 +115,7 @@ impl Evidence {
             .map(|f| f.to_string())
             .collect();
         let offers_the_reader_a_sum = mailrs_inbound::body::offers_the_reader_a_sum(&parsed);
+        let asks_for_the_readers_line = mailrs_inbound::body::asks_for_the_readers_line(&parsed);
         let subject = mailrs_inbound::subject_header(&receive_ctx.message);
         let to_display = mailrs_inbound::identity::to_display_name(&receive_ctx.message);
         let reply_to = mailrs_inbound::identity::reply_to_address(&receive_ctx.message);
@@ -135,6 +137,7 @@ impl Evidence {
             has_zero_width_in_name: name_deception.unjustified_zero_width,
             attachment_names,
             offers_the_reader_a_sum,
+            asks_for_the_readers_line,
             subject,
             to_display,
             reply_rotation,
@@ -165,6 +168,7 @@ impl Evidence {
             ),
             has_zero_width_inside_a_word: receive_ctx.deception.zero_width_inside_a_word,
             offers_the_reader_a_sum: self.offers_the_reader_a_sum,
+            asks_for_the_readers_line: self.asks_for_the_readers_line,
             is_bulk: mailrs_inbound::body::is_bulk(&receive_ctx.message),
             to_display: &self.to_display,
             reply_rotation: self.reply_rotation,
