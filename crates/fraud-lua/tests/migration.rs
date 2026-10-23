@@ -33,18 +33,19 @@ fn all_existing_sender_fixtures_match_compiled_rules() {
         account_names: vec!["LI HAO".into(), "No Reply".into(), "李好".into()],
     };
     let mut rules = Rules::compile(DEFAULT_SOURCE).unwrap();
-    // Sixteen migrated rules plus four written after the migration,
+    // Sixteen migrated rules plus five written after the migration,
     // which have no Rust counterpart to compare against — the oracle
     // below is frozen on purpose.  None can fire here:
     // `claims-our-domain` needs the `unauthenticated` fact, which these
     // Facts leave false, `subject-cut-from-the-address` needs an
     // address in `to_display`, which none of these carries, and
-    // `offers-the-reader-a-sum` needs a body, which these do not have,
-    // and `dated-in-the-future` needs a `date_ahead`, which these leave 0.
+    // `offers-the-reader-a-sum` and `asks-for-the-readers-line` need a
+    // body, which these do not have, and `dated-in-the-future` needs a
+    // `date_ahead`, which these leave 0.
     // Their own tests are in `tests/our_domain.rs`,
-    // `tests/cut_from_address.rs`, `tests/advance_fee.rs` and
-    // `tests/dated_in_the_future.rs`.
-    assert_eq!(rules.rule_count(), 20);
+    // `tests/cut_from_address.rs`, `tests/advance_fee.rs`,
+    // `tests/line_handoff.rs` and `tests/dated_in_the_future.rs`.
+    assert_eq!(rules.rule_count(), 21);
     for from in &senders {
         for (subject, seen, to) in [
             (
