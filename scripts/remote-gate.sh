@@ -5,6 +5,8 @@
 #   GATE_HOST (default lx64)                  ssh host that runs it
 #   GATE_DIR  (default /root/work/mailrs-gate) checkout on that host; its
 #                                             target/ stays there between runs
+#   GATE_TARGET_CEILING_GB (default 150)      target/debug is removed before
+#                                             a run once it grows past this
 #
 # clippy, the spg axis of the SQL core and the whole test suite. It runs on
 # Linux because two of its costs exist only on a Mac: every freshly linked
@@ -45,6 +47,16 @@ cd '$DIR'
 source ~/.cargo/env
 triple=\$(rustc -vV | sed -n 's/^host: //p' | tr 'a-z-' 'A-Z_')
 export "CARGO_TARGET_\${triple}_RUNNER=timeout --kill-after=30 10m"
+
+# cargo never deletes an artifact. A change to Cargo.lock or to the set of
+# workspace members gives every downstream crate and test binary a new
+# hash, and the old set stays: on 2026-10-23 target/debug held 678 GB, a
+# full set left behind by each of the 36 lockfile changes since 10-15. A
+# cold build fits in the 90 minutes, so past the ceiling start over.
+if [ -d target/debug ] && [ "\$(du -s --block-size=1G target/debug | cut -f1)" -gt ${GATE_TARGET_CEILING_GB:-150} ]; then
+    echo "    target/debug over ${GATE_TARGET_CEILING_GB:-150} GB; removing it for a cold build"
+    rm -rf target/debug
+fi
 
 # testcontainers goes through bollard, which does not pick up the
 # credentials the Docker CLI has, so a cold pull fails with
