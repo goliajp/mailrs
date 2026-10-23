@@ -173,6 +173,7 @@ fn compare(baseline: &str, candidate: &str, root: &str, limit: usize) -> Result<
             has_bidi_override: deception.bidi_override,
             has_zero_width_inside_a_word: deception.zero_width_inside_a_word,
             offers_the_reader_a_sum: mailrs_inbound::body::offers_the_reader_a_sum(&parsed),
+            asks_for_the_readers_line: mailrs_inbound::body::asks_for_the_readers_line(&parsed),
             is_bulk: mailrs_inbound::body::is_bulk(&raw),
             has_executable_attachment: mailrs_fraud::attachment::any_executable(
                 parsed.attachments().filter_map(|p| p.attachment_filename()),

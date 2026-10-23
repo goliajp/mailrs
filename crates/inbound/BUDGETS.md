@@ -27,6 +27,8 @@ critical line between the client's `.\r\n` and the 250/451/550 response.
 | `Pipeline::run` (dispatch only, 4 noop stages) | 100 µs | ~3 µs | ~30× | Framework cost of async dispatch + final decision call. Real stages' I/O is not in this budget. |
 | `body::offers_the_reader_a_sum` (3 KB letter) | 150 µs | 10–50 µs | 3× | Release only. Decode + lowercase the text parts; the parse is the caller's |
 | `body::offers_the_reader_a_sum` (300 KiB HTML) | 3.5 ms | ~1.1 ms | 3× | Release only. Ceiling for any size: the read stops at 256 KiB |
+| `body::asks_for_the_readers_line` (letter) | 50 µs | 9–16 µs | 3× | Release only. Decode, lowercase, find the request; the parse is the caller's |
+| `body::asks_for_the_readers_line` (300 KiB flood) | 21 ms | ~6.8 ms | 3× | Release only. One sentence of `line qr あなた 返信` to the read limit: the ceiling for any message |
 
 Real-world `Pipeline::run` cost is dominated by the stage backends (DNS
 resolver, ClamAV TCP, LLM API) which are owned by the downstream

@@ -6,6 +6,7 @@
 //! text" would let one of them see a letter the others cannot.
 
 use mailrs_fraud::advance_fee::{self, Body};
+use mailrs_fraud::line_handoff;
 
 const HEAD_LIMIT: usize = 16 * 1024;
 
@@ -17,7 +18,21 @@ const HEAD_LIMIT: usize = 16 * 1024;
 /// `multipart/alternative` are read; the check asks whether a phrase
 /// is present, so reading the same words twice changes nothing.
 pub fn offers_the_reader_a_sum(parsed: &mailrs_mime::Part<'_>) -> bool {
-    let texts: Vec<(bool, String)> = parsed
+    let texts = texts(parsed);
+    advance_fee::offers_the_reader_a_sum(bodies(&texts))
+}
+
+/// Whether the message's text asks its reader to send their own LINE
+/// contact. The same parts as [`offers_the_reader_a_sum`].
+pub fn asks_for_the_readers_line(parsed: &mailrs_mime::Part<'_>) -> bool {
+    let texts = texts(parsed);
+    line_handoff::asks_for_the_readers_line(bodies(&texts))
+}
+
+/// Every `text/plain` and `text/html` leaf that is not an attachment,
+/// decoded, with whether it is HTML.
+fn texts(parsed: &mailrs_mime::Part<'_>) -> Vec<(bool, String)> {
+    parsed
         .walk()
         .filter(|p| p.children.is_empty() && !p.is_attachment())
         .filter(|p| p.content_type.type_ == "text")
@@ -29,11 +44,14 @@ pub fn offers_the_reader_a_sum(parsed: &mailrs_mime::Part<'_>) -> bool {
             };
             p.body_text().map(|t| (html, t))
         })
-        .collect();
-    advance_fee::offers_the_reader_a_sum(texts.iter().map(|(html, t)| match html {
+        .collect()
+}
+
+fn bodies(texts: &[(bool, String)]) -> impl Iterator<Item = Body<'_>> {
+    texts.iter().map(|(html, t)| match html {
         true => Body::Html(t),
         false => Body::Plain(t),
-    }))
+    })
 }
 
 /// [`offers_the_reader_a_sum`], over text extracted from attachments.
