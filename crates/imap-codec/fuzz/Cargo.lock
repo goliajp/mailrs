@@ -90,9 +90,10 @@ dependencies = [
 
 [[package]]
 name = "mailrs-imap-codec"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "bytes",
+ "memchr",
  "tokio-util",
 ]
 
@@ -105,6 +106,12 @@ dependencies = [
  "mailrs-imap-codec",
  "tokio-util",
 ]
+
+[[package]]
+name = "memchr"
+version = "2.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 
 [[package]]
 name = "pin-project-lite"
@@ -126,9 +133,9 @@ checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
 name = "tokio"
-version = "1.52.3"
+version = "1.54.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8fc7f01b389ac15039e4dc9531aa973a135d7a4135281b12d7c1bc79fd57fffe"
+checksum = "b52fd3255258d26fac7264ab5a76b53c13367136dc011d3d6ad4f8ed070396a3"
 dependencies = [
  "pin-project-lite",
 ]
