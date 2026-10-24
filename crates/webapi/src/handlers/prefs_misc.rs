@@ -87,39 +87,9 @@ pub(crate) async fn get_bimi(
     Ok(Json(out))
 }
 
-/// GET /api/proxy/image?url= — fetch external image bytes, rewrite
-/// content-type. Simple allowlist by scheme (https/http).
 #[derive(Debug, serde::Deserialize)]
 pub(crate) struct ProxyQuery {
     pub url: String,
-}
-
-pub(crate) async fn proxy_image(
-    axum::extract::Query(q): axum::extract::Query<ProxyQuery>,
-) -> Result<axum::response::Response, StatusCode> {
-    if !q.url.starts_with("https://") && !q.url.starts_with("http://") {
-        return Err(StatusCode::BAD_REQUEST);
-    }
-    let resp = reqwest::get(&q.url)
-        .await
-        .map_err(|_| StatusCode::BAD_GATEWAY)?;
-    let ct = resp
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| "application/octet-stream".to_string());
-    let bytes = resp.bytes().await.map_err(|_| StatusCode::BAD_GATEWAY)?;
-    let mut r = axum::response::Response::builder()
-        .status(StatusCode::OK)
-        .header("content-type", ct)
-        .body(axum::body::Body::from(bytes.to_vec()))
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    r.headers_mut().insert(
-        "cache-control",
-        axum::http::HeaderValue::from_static("public, max-age=3600"),
-    );
-    Ok(r)
 }
 
 /// GET /api/proxy/link?url= — 302 redirect to the given URL. Same
