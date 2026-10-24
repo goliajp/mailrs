@@ -18,6 +18,21 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### fastcore's core API asks for its secret; the image proxy is gone
+
+On 2026-10-24 a signed-in client used `GET /api/proxy/image?url=` as a
+way into the host: the handler fetched any `http(s)://` URL from inside
+the webapi container and returned the body, and fastcore's core API on
+`:3301`, reachable from every container, checked no credential. Together
+they let any session read any account's mail through the core API.
+
+- `/api/proxy/image` is removed. The web client stopped using it when
+  mail HTML moved into a Shadow DOM, which loads images directly.
+- fastcore puts every route except `/v1/healthz` and `/v1/readyz` behind
+  `Authorization: Bearer <MAILRS_CORE_API_SECRET>`, as the SQL core
+  already did. webapi and receiver send it; an empty secret leaves the
+  routes open for tests and local runs, with a warning at start.
+
 ### Senders nothing can stand behind are held for review
 
 Two rules in the shipped bundle, both hold-worthy:

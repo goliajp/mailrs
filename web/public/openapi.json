@@ -5150,24 +5150,6 @@
         }
       }
     },
-    "/api/proxy/image": {
-      "get": {
-        "summary": "Get proxy image",
-        "description": "Stub \u2014 full schema TBD.",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/proxy/link": {
       "get": {
         "summary": "Get proxy link",

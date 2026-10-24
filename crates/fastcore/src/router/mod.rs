@@ -20,7 +20,19 @@ use mailrs_core_api::method::sent;
 mod directory_routes;
 mod maintenance_routes;
 
+/// The route table, with the business routes behind the bearer secret
+/// in `MAILRS_CORE_API_SECRET` when one is set.
 pub fn build_router(state: Arc<FastcoreState>) -> Router {
+    let secret = std::env::var(mailrs_core_api::AUTH_SECRET_ENV).unwrap_or_default();
+    build_router_with_secret(state, secret)
+}
+
+/// Everything but `/v1/healthz` and `/v1/readyz` asks for
+/// `Authorization: Bearer <secret>`, as the SQL core's table does. The
+/// port is reachable from every container on the host network, and on
+/// 2026-10-24 a web user reached it through an image proxy in webapi.
+/// An empty secret leaves the routes open, for tests and local runs.
+pub fn build_router_with_secret(state: Arc<FastcoreState>, secret: String) -> Router {
     let base = base_router(state.clone());
     // One Router for all business routes so matchit's trie sees the
     // full set at once. Earlier split into convo + thread Routers
@@ -157,5 +169,15 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
     let business = maintenance_routes::maintenance_routes(business);
     let business = directory_routes::directory_routes(business).with_state(state);
 
-    base.merge(business)
+    if secret.is_empty() {
+        tracing::warn!(
+            event = "core_rpc_no_auth",
+            "MAILRS_CORE_API_SECRET unset — core RPC will accept unauthenticated requests"
+        );
+        return base.merge(business);
+    }
+    base.merge(business.layer(axum::middleware::from_fn_with_state(
+        Arc::new(secret),
+        mailrs_core_api::server::auth_middleware,
+    )))
 }
