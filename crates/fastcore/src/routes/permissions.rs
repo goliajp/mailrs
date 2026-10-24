@@ -39,7 +39,7 @@ pub(crate) async fn effective_permissions(
     if own.is_none() && member.groups.is_empty() {
         return Err(StatusCode::NOT_FOUND);
     }
-    let derived = derived_send_as(&state, &address).await?;
+    let derived = derived_send_as(&state, &address).await;
     let mut perms = own.unwrap_or_else(|| adm::EffectivePermissionsResponse {
         address: address.clone(),
         permissions: Vec::new(),
@@ -91,13 +91,10 @@ struct DerivedSendAs {
 }
 
 /// The aliases pointing at `address` and the email groups it belongs to.
-/// Unlike the permission groups above, an unreadable store is an error:
-/// answering with fewer send-as addresses would turn a kevy blip into
-/// rejected mail, and answering with more is not possible.
-async fn derived_send_as(
-    state: &Arc<FastcoreState>,
-    address: &str,
-) -> Result<DerivedSendAs, StatusCode> {
+/// Degrades like [`group_membership`]: when either store cannot be read
+/// the account keeps the grants in its own blob and loses only these, so
+/// an outage refuses some sends instead of every permission check.
+async fn derived_send_as(state: &Arc<FastcoreState>, address: &str) -> DerivedSendAs {
     let aliases = state.alias_store.clone();
     let url = state.net_url.clone();
     let addr = address.to_string();
@@ -115,15 +112,19 @@ async fn derived_send_as(
         Ok(DerivedSendAs { aliases, groups })
     })
     .await;
+    let empty = DerivedSendAs {
+        aliases: Vec::new(),
+        groups: Vec::new(),
+    };
     match read {
-        Ok(Ok(d)) => Ok(d),
+        Ok(Ok(d)) => d,
         Ok(Err(e)) => {
-            tracing::warn!(error = %e, %address, "send-as aliases or groups unreadable");
-            Err(StatusCode::SERVICE_UNAVAILABLE)
+            tracing::warn!(error = %e, %address, "send-as aliases or groups unreadable; own grants only");
+            empty
         }
         Err(e) => {
-            tracing::warn!(error = %e, %address, "send-as read panicked");
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
+            tracing::warn!(error = %e, %address, "send-as read panicked; own grants only");
+            empty
         }
     }
 }
