@@ -52,6 +52,9 @@ pub(crate) async fn store_send_as(
     req: wire::SendAsList,
 ) -> Result<(), StatusCode> {
     require_permission(state, actor, "admin.accounts").await?;
+    // checked here too: the core client reports the core's 400 as a 500
+    mailrs_core_sidestate::families::send_as::normalize_grants(&req.send_as)
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
     state
         .core
         .set_send_as(address, &req)
