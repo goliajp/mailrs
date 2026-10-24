@@ -41,13 +41,20 @@ pub fn targets(conn: &mut Connection, address: &str) -> std::io::Result<Vec<Stri
 ///
 /// # Errors
 /// The store could not be written.
-pub fn set_targets(conn: &mut Connection, address: &str, targets: &[String]) -> std::io::Result<()> {
+pub fn set_targets(
+    conn: &mut Connection,
+    address: &str,
+    targets: &[String],
+) -> std::io::Result<()> {
     let k = key(address);
     conn.del(&[k.as_bytes()])?;
     if targets.is_empty() {
         return Ok(());
     }
-    let members: Vec<String> = targets.iter().map(|t| t.trim().to_ascii_lowercase()).collect();
+    let members: Vec<String> = targets
+        .iter()
+        .map(|t| t.trim().to_ascii_lowercase())
+        .collect();
     let refs: Vec<&[u8]> = members.iter().map(|m| m.as_bytes()).collect();
     conn.sadd(k.as_bytes(), &refs)?;
     Ok(())
@@ -61,14 +68,21 @@ mod tests {
     fn targets_are_replaced_and_cleared() {
         let mut conn = Connection::connect("mem://local-forward").unwrap();
         assert!(targets(&mut conn, "sentori@x.test").unwrap().is_empty());
-        set_targets(&mut conn, "Sentori@x.test", &["Lihao@x.test".into(), "b@x.test".into()])
-            .unwrap();
+        set_targets(
+            &mut conn,
+            "Sentori@x.test",
+            &["Lihao@x.test".into(), "b@x.test".into()],
+        )
+        .unwrap();
         assert_eq!(
             targets(&mut conn, "sentori@x.test").unwrap(),
             vec!["b@x.test", "lihao@x.test"]
         );
         set_targets(&mut conn, "sentori@x.test", &["lihao@x.test".into()]).unwrap();
-        assert_eq!(targets(&mut conn, "sentori@x.test").unwrap(), vec!["lihao@x.test"]);
+        assert_eq!(
+            targets(&mut conn, "sentori@x.test").unwrap(),
+            vec!["lihao@x.test"]
+        );
         set_targets(&mut conn, "sentori@x.test", &[]).unwrap();
         assert!(targets(&mut conn, "sentori@x.test").unwrap().is_empty());
     }

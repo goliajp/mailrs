@@ -67,10 +67,12 @@ fn account_send_as_body_matches() {
 fn account_forwards_body_matches() {
     let v: handlers::admin_directory::LocalForwards = parse("account-forwards-set");
     assert_eq!(v.forward_to, vec!["lihao@golia.jp"]);
-    assert!(serde_json::from_str::<handlers::admin_directory::LocalForwards>(
-        r#"{"forwardTo":["lihao@golia.jp"]}"#
-    )
-    .is_err());
+    assert!(
+        serde_json::from_str::<handlers::admin_directory::LocalForwards>(
+            r#"{"forwardTo":["lihao@golia.jp"]}"#
+        )
+        .is_err()
+    );
 }
 
 #[test]
