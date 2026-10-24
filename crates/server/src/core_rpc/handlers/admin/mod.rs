@@ -38,14 +38,23 @@ pub async fn effective_permissions(
             tracing::warn!(error = %e, address = %address, "load perms failed");
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
-    let send_as = state
+    // degrades as the kevy core does: an unreadable alias or group store
+    // costs the derived addresses, not the permission check
+    let send_as = match state
         .domain
         .send_as(&address, state.net_url.as_deref())
         .await
-        .map_err(|e| {
-            tracing::warn!(error = %e, address = %address, "send-as unreadable");
-            StatusCode::SERVICE_UNAVAILABLE
-        })?;
+    {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::warn!(error = %e, address = %address, "send-as unreadable; own grants only");
+            state
+                .domain
+                .send_as_grants(&address)
+                .await
+                .unwrap_or_default()
+        }
+    };
 
     Ok(Json(wire::EffectivePermissionsResponse {
         address: address.clone(),
