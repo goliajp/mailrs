@@ -259,7 +259,6 @@ pub(super) fn mail_routes() -> axum::Router<Arc<WebState>> {
         )
         .route("/api/bimi/{domain}", get(handlers::prefs::get_bimi))
         .route("/api/icon/{domain}", get(handlers::icon::get_icon))
-        .route("/api/proxy/image", get(handlers::prefs::proxy_image))
         .route("/api/proxy/link", get(handlers::prefs::proxy_link))
         // Phase 13 — remaining route coverage.
         .route("/api/mail/stats", get(handlers::complete::get_mail_stats))
