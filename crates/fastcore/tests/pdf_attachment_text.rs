@@ -17,6 +17,8 @@ use tokio::net::TcpStream;
 use tower::ServiceExt;
 
 const KEVY: &str = "mem://pdf-attachment-text";
+// the receiver sends it to fastcore, which turns away a call without it
+const SECRET: &str = "secret";
 const BOB: &str = "bob@golia.example";
 const CAROL: &str = "carol@golia.example";
 const WORD: &str = "zebrafinch";
@@ -141,11 +143,12 @@ async fn call(
     uri: &str,
     body: serde_json::Value,
 ) -> serde_json::Value {
-    let res = mailrs_fastcore::build_router(state.clone())
+    let res = mailrs_fastcore::build_router_with_secret(state.clone(), SECRET.into())
         .oneshot(
             Request::builder()
                 .method(Method::POST)
                 .uri(uri)
+                .header("authorization", format!("Bearer {SECRET}"))
                 .header("content-type", "application/json")
                 .body(Body::from(body.to_string()))
                 .unwrap(),
@@ -226,7 +229,7 @@ async fn a_word_inside_a_pdf_finds_the_conversation() {
     let state = Arc::new(mailrs_fastcore::FastcoreState::new(mailbox));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let core = format!("http://{}", listener.local_addr().unwrap());
-    let router = mailrs_fastcore::build_router(state.clone());
+    let router = mailrs_fastcore::build_router_with_secret(state.clone(), SECRET.into());
     tokio::spawn(async move { axum::serve(listener, router).await });
 
     // The shipped rules plus one that reads the new fact and would move the
@@ -247,7 +250,7 @@ async fn a_word_inside_a_pdf_finds_the_conversation() {
     unsafe {
         std::env::set_var("MAILRS_KEVY_URL", KEVY);
         std::env::set_var("MAILRS_CORE_RPC_BASE", &core);
-        std::env::set_var("MAILRS_CORE_API_SECRET", "secret");
+        std::env::set_var("MAILRS_CORE_API_SECRET", SECRET);
         std::env::set_var("MAILRS_SPOOL_ROOT", tmp.path().join("spool"));
         std::env::set_var("MAILRS_MAILDIR", &maildir);
         std::env::set_var("MAILRS_LOCAL_DOMAINS", "golia.example");

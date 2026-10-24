@@ -17,6 +17,8 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
 
 const KEVY: &str = "mem://receiver-admits-listed-networks";
+// the receiver sends it to fastcore, which turns away a call without it
+const SECRET: &str = "secret";
 
 /// The first line the receiver sends, or `None` while it is not listening.
 async fn greeting(port: u16) -> Option<String> {
@@ -35,8 +37,10 @@ async fn a_white_network_is_greeted_past_the_rate_limit() {
     let mailbox = mailrs_mailbox_kevy::KevyMailboxStore::new(Arc::new(
         kevy_embedded::Store::open(kevy_embedded::Config::default()).unwrap(),
     ));
-    let router =
-        mailrs_fastcore::build_router(Arc::new(mailrs_fastcore::FastcoreState::new(mailbox)));
+    let router = mailrs_fastcore::build_router_with_secret(
+        Arc::new(mailrs_fastcore::FastcoreState::new(mailbox)),
+        SECRET.into(),
+    );
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let core = format!("http://{}", listener.local_addr().unwrap());
     tokio::spawn(async move { axum::serve(listener, router).await });
@@ -56,7 +60,7 @@ async fn a_white_network_is_greeted_past_the_rate_limit() {
     unsafe {
         std::env::set_var("MAILRS_KEVY_URL", KEVY);
         std::env::set_var("MAILRS_CORE_RPC_BASE", &core);
-        std::env::set_var("MAILRS_CORE_API_SECRET", "secret");
+        std::env::set_var("MAILRS_CORE_API_SECRET", SECRET);
         std::env::set_var("MAILRS_SPOOL_ROOT", tmp.path().join("spool"));
         std::env::set_var("MAILRS_MAILDIR", tmp.path().join("maildir"));
         std::env::set_var("MAILRS_LOCAL_DOMAINS", "golia.example");
