@@ -95,14 +95,15 @@ impl MailrsMcpService {
         Parameters(params): Parameters<AccountForwardsParams>,
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
-        let list = crate::handlers::admin_directory::load_forwards(&self.state, &user, &params.address)
-            .await
-            .map_err(|code| match code {
-                axum::http::StatusCode::FORBIDDEN => {
-                    McpError::invalid_request("requires admin.accounts", None)
-                }
-                _ => McpError::internal_error(format!("get_account_forwards: {code}"), None),
-            })?;
+        let list =
+            crate::handlers::admin_directory::load_forwards(&self.state, &user, &params.address)
+                .await
+                .map_err(|code| match code {
+                    axum::http::StatusCode::FORBIDDEN => {
+                        McpError::invalid_request("requires admin.accounts", None)
+                    }
+                    _ => McpError::internal_error(format!("get_account_forwards: {code}"), None),
+                })?;
         Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({ "address": params.address, "forward_to": list.forward_to })
                 .to_string(),
