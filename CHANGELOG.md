@@ -18,6 +18,30 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### Senders nothing can stand behind are held for review
+
+Two rules in the shipped bundle, both hold-worthy:
+
+- `reserved-sender-domain` — a `From:` under `.invalid`, `.test`,
+  `.example`, `.localhost` or `example.com/.net/.org`, from outside.
+  Those names cannot receive mail, so nobody who wants an answer writes
+  from them.
+- `nothing-vouches-for-the-sender` — the `From:` domain publishes DMARC,
+  the message carries no DKIM signature at all and SPF says `fail`,
+  `softfail`, `neutral` or `none`. A signature that failed to verify, or
+  an SPF `temperror`, does not count.
+
+Over 43,929 production messages they add 40 holds and release none: loan
+and compensation scams, purchase-order lures, a password-expiry phish,
+brand impersonations, and a tester's probes from
+`probe@nodmarc-probe.invalid` and a forged `ceo@gmail.com`.
+
+`mailrs-fraud-check compare` now reads SPF, DKIM and DMARC off the stored
+`Authentication-Results:`, and whether the receiver's own stamp marks the
+unauthenticated path (with `MAILRS_HOSTNAME`), as the production sweep
+does. Before, it left them empty, so a rule that reads them measured
+zero offline while it held mail in production.
+
 ### A letter asking for the reader's LINE QR code is held for review
 
 The business-email compromise impersonating this company (`齋藤 真`,
