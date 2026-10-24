@@ -14,7 +14,7 @@ describe('agentKeyListSchema', () => {
           created_at: 1784335208,
           id: 2,
           name: 'admin.golia.jp',
-          prefix: 'mk_b04cf',
+          prefix: 'mk_01234',
           scopes: [],
         },
         {
@@ -32,7 +32,7 @@ describe('agentKeyListSchema', () => {
       created_at: '1784335208',
       id: '2',
       name: 'admin.golia.jp',
-      prefix: 'mk_b04cf',
+      prefix: 'mk_01234',
       scopes: [],
     })
   })
@@ -56,7 +56,7 @@ describe('agentKeyListSchema', () => {
 
   it('accepts a bare array response', () => {
     const parsed = agentKeyListSchema.parse([
-      { created_at: 1784335208, id: 2, name: 'k', prefix: 'mk_b04cf', scopes: ['mail.read'] },
+      { created_at: 1784335208, id: 2, name: 'k', prefix: 'mk_01234', scopes: ['mail.read'] },
     ])
     expect(parsed.items).toHaveLength(1)
   })
@@ -66,10 +66,10 @@ describe('createdAgentKeySchema', () => {
   it('maps backend {id, secret} to the UI {id, key, prefix} shape', () => {
     const parsed = createdAgentKeySchema.parse({
       id: 2,
-      secret: 'mk_b04cf846421391acbc0b397a2a5292f6aee2f0bc8abc26d4',
+      secret: 'mk_0123456789abcdef0123456789abcdef0123456789abcdef',
     })
-    expect(parsed.key).toBe('mk_b04cf846421391acbc0b397a2a5292f6aee2f0bc8abc26d4')
-    expect(parsed.prefix).toBe('mk_b04cf')
+    expect(parsed.key).toBe('mk_0123456789abcdef0123456789abcdef0123456789abcdef')
+    expect(parsed.prefix).toBe('mk_01234')
     expect(parsed.id).toBe('2')
   })
 })
