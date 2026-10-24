@@ -127,6 +127,7 @@ fn compare(baseline: &str, candidate: &str, root: &str, limit: usize) -> Result<
             replies.entry(reply).or_default().insert(reg);
         }
     }
+    let our_stamp = std::env::var("MAILRS_HOSTNAME").ok();
     let mut changed = 0;
     let mut added = 0;
     let mut released = 0;
@@ -152,6 +153,15 @@ fn compare(baseline: &str, candidate: &str, root: &str, limit: usize) -> Result<
         let name_deception = mailrs_inbound::deception_in_display_name(&raw);
         let reply = reply_key(host, &mailrs_inbound::identity::reply_to_address(&raw));
         let parsed = mailrs_mime::parse(&raw);
+        let (spf, dkim, dmarc) = mailrs_inbound::identity::auth_results_tokens(&raw);
+        // as the production sweep reads them: the receiver's own stamp
+        // marks the unauthenticated path, and only MAILRS_HOSTNAME says
+        // which stamp is ours
+        let unauthenticated = our_stamp.as_deref().is_some_and(|host| {
+            mailrs_inbound::identity::auth_results_authserv(&raw).as_deref() == Some(host)
+        });
+        let peer_is_private = mailrs_inbound::identity::first_received_peer_ip(&raw)
+            .is_some_and(mailrs_inbound::identity::address_is_private);
         let f = Facts {
             from: &from,
             domain: host,
@@ -182,6 +192,11 @@ fn compare(baseline: &str, candidate: &str, root: &str, limit: usize) -> Result<
                 &raw,
                 mailrs_inbound::dates::received_epoch(&raw),
             ),
+            spf: &spf,
+            dkim: &dkim,
+            dmarc: &dmarc,
+            unauthenticated,
+            peer_is_private,
             ..Facts::default()
         };
         let old = match &mut before {

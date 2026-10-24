@@ -80,6 +80,57 @@ rule('claims-our-domain', 'identity', 6, true, function(m)
     if owns(m.allowed_domains, m.from_domain) then return end
     return 'the From address is at this organisation\'s own domain, from a public address, and DMARC says it is not us'
 end)
+-- A From under a name reserved so that it can never be anybody's mail
+-- domain: `.invalid`, `.test`, `.example`, `.localhost` (RFC 6761) and
+-- `example.com/.net/.org` (RFC 2606).  Nobody can receive a reply there,
+-- so nobody with a reason to be answered writes from there.
+--
+-- Measured over 43,929 production messages on 2026-10-24: 5 new holds,
+-- every one a probe somebody sent to see what the MX does with it
+-- (`probe@nodmarc-probe.invalid`, `probe@example.org`).  Mail our own
+-- containers submit from inside — test fixtures, the outbound mock for
+-- `@example.com` — comes from the bridge and is left alone.
+local reserved_tlds = {'invalid', 'test', 'example', 'localhost'}
+local reserved_domains = {'example.com', 'example.net', 'example.org'}
+rule('reserved-sender-domain', 'identity', 6, true, function(m)
+    if m.peer_is_private or m.from_domain == '' then return end
+    local d = m.from_domain:lower()
+    for _, t in ipairs(reserved_tlds) do
+        if d == t or d:sub(-(#t + 1)) == '.' .. t then
+            return 'the From domain is under `.' .. t .. '`, which is reserved and cannot receive mail'
+        end
+    end
+    for _, e in ipairs(reserved_domains) do
+        if d == e or d:sub(-(#e + 1)) == '.' .. e then
+            return 'the From domain is `' .. e .. '`, which is reserved and cannot receive mail'
+        end
+    end
+end)
+-- The From domain publishes DMARC, and nothing in the message vouches
+-- for it: no DKIM signature at all, and SPF did not pass.  A real sender
+-- with a DMARC record has at least one of the two; a forger borrowing
+-- `gmail.com` or `investing.com` has neither.
+--
+-- `dkim == 'none'`, not `~= 'pass'`.  A signature that failed to verify
+-- is a real sender's mail damaged on the way or a verifier's mistake:
+-- the first version counted it, and with `temperror` counted too it
+-- held 47 more, among them newsletters and one-time passwords
+-- (`epark.jp` through Adobe Campaign, `focusai.com` through Google).  An SPF `temperror` is a DNS outage, not a verdict, so only
+-- the four answers that say "not authorised" count.
+--
+-- Measured over 43,929 production messages on 2026-10-24: 35 new
+-- holds, all fraud or probes — loan-funding and compensation scams,
+-- shipping and purchase-order lures, a password-expiry phish, brand
+-- impersonations the display-name rules already scored, and the
+-- tester's `ceo@gmail.com`.
+local not_authorised = {fail = true, softfail = true, neutral = true, none = true}
+rule('nothing-vouches-for-the-sender', 'identity', 6, true, function(m)
+    if m.peer_is_private or not external(m) then return end
+    if m.dmarc == 'fail' and m.dkim == 'none' and not_authorised[m.spf] then
+        return 'the From domain publishes DMARC, the message carries no DKIM signature, and SPF says `'
+            .. m.spf .. '`'
+    end
+end)
 rule('minted-address', 'identity', 6, true, function(m)
     if minted(m.minted_local) and minted(m.minted_sld) then
         return 'neither the mailbox nor the domain is a word anybody chose'
