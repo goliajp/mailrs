@@ -34,7 +34,7 @@ function decodeHtmlEntities(s: string): string {
 // on it as a filter. Left in place; the claim is what changed. Image URLs are NOT proxied —
 // the Shadow DOM mount sets `referrerpolicy="no-referrer"` on every <img>,
 // the browser fetches the external URL directly in parallel (5-10× faster
-// than serialising through /api/proxy/image), and `stripTrackingPixels`
+// than serialising them through the server), and `stripTrackingPixels`
 // has already deleted 1×1 beacons before this point.
 function proxyLinks(html: string): string {
   const token = getToken()
@@ -221,7 +221,7 @@ const SHADOW_STYLES = `
 // document's viewport, so:
 //   - native lazy-loading works as the user expects
 //   - browsers parallel-fetch external images (5-10× faster than
-//     serialising through /api/proxy/image)
+//     serialising them through the server)
 //   - no measure() / ResizeObserver round-trip — height is just the
 //     content height, free
 //   - first paint is one React commit, not commit-iframe-load-measure-

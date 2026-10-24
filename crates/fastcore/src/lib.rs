@@ -50,7 +50,7 @@ use headers::*;
 use ingest::*;
 use maildir_scan::*;
 use maintenance::*;
-pub use router::build_router;
+pub use router::{build_router, build_router_with_secret};
 
 pub use maildir_scan::self_heal_once;
 use routes::*;
@@ -408,6 +408,29 @@ mod tests {
         assert_eq!(resp.status(), 200);
         let body = body_string(resp).await;
         assert!(body.contains("\"backend\":\"kevy\""), "{body}");
+    }
+
+    /// With a secret set, a business route answers only a caller that
+    /// sends it; the health probes stay open for the orchestrator.
+    #[tokio::test]
+    async fn business_routes_ask_for_the_secret() {
+        let get = |uri: &str, bearer: Option<&str>| {
+            let mut req = Request::builder().uri(uri);
+            if let Some(b) = bearer {
+                req = req.header("authorization", format!("Bearer {b}"));
+            }
+            req.body(Body::empty()).unwrap()
+        };
+        let app = || crate::build_router_with_secret(fresh_state(), "s3cret".into());
+        let path = "/v1/users/u@x.com/conversations/unseen-count";
+        for (bearer, want) in [(None, 401), (Some("wrong"), 401), (Some("s3cret"), 200)] {
+            let resp = app().oneshot(get(path, bearer)).await.unwrap();
+            assert_eq!(resp.status(), want, "bearer {bearer:?}");
+        }
+        for probe in ["/v1/healthz", "/v1/readyz"] {
+            let resp = app().oneshot(get(probe, None)).await.unwrap();
+            assert_eq!(resp.status(), 200, "{probe}");
+        }
     }
 
     #[tokio::test]
