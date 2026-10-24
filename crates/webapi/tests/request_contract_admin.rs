@@ -64,6 +64,16 @@ fn account_send_as_body_matches() {
 }
 
 #[test]
+fn account_forwards_body_matches() {
+    let v: handlers::admin_directory::LocalForwards = parse("account-forwards-set");
+    assert_eq!(v.forward_to, vec!["lihao@golia.jp"]);
+    assert!(serde_json::from_str::<handlers::admin_directory::LocalForwards>(
+        r#"{"forwardTo":["lihao@golia.jp"]}"#
+    )
+    .is_err());
+}
+
+#[test]
 fn domain_create_body_matches() {
     let v: mailrs_core_api::method::admin::AddDomainRequest = parse("domain-create");
     assert_eq!(v.name, "golia.jp");

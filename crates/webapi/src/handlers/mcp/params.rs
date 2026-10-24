@@ -83,6 +83,21 @@ pub struct SetAccountSendAsParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+pub struct AccountForwardsParams {
+    /// The account whose local forwards to read.
+    pub address: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct SetAccountForwardsParams {
+    /// The account whose mail is copied.
+    pub address: String,
+    /// Other accounts here that get a copy of everything delivered to it;
+    /// replaces the previous list. Empty stops forwarding.
+    pub forward_to: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
 pub struct RemoveAliasParams {
     /// Source address of the alias, as `list_aliases_admin` reports it.
     pub source_address: String,

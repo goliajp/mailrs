@@ -11,8 +11,13 @@ impl<C: Core + ?Sized> Inbound<'_, C> {
     /// the message was consumed for this recipient (delivered, filed,
     /// redirected, or deliberately discarded / rejected by sieve).
     pub fn deliver_resolved(&self, fwd: &str, addr: &str) -> bool {
+        crate::reports::ingest(self.core.maildir_root(), fwd, addr, self.body);
+        self.place(addr)
+    }
+
+    /// `addr`'s sieve script, then the maildir write it decides on.
+    pub(crate) fn place(&self, addr: &str) -> bool {
         let (body, env) = (self.body, self.env);
-        crate::reports::ingest(self.core.maildir_root(), fwd, addr, body);
         let outcome = sieve::decide(addr, body, Some(&env.reverse_path));
         // vacation fires only after a successful local delivery
         let (consumed, delivered_locally) = match outcome.decision {

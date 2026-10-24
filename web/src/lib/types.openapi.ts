@@ -4059,6 +4059,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/accounts/{address}/forwards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Other accounts here that get a copy of everything delivered to this account */
+        get: operations["getAccountForwards"];
+        /** Replace an account's local forwards; an empty list stops forwarding */
+        put: operations["setAccountForwards"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/accounts/{address}/send-as": {
         parameters: {
             query?: never;
@@ -9325,6 +9343,84 @@ export interface operations {
             };
             /** @description A value outside its bounds */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getAccountForwards: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                address: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Targets */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        forward_to: string[];
+                    };
+                };
+            };
+            /** @description Requires admin.accounts */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    setAccountForwards: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                address: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    forward_to: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description Replaced */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A target is not another account here */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Requires admin.accounts */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such account */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

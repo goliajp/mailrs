@@ -27,6 +27,10 @@ pub(super) fn directory_routes() -> axum::Router<Arc<WebState>> {
             get(admin::get_account_quota).post(admin::set_account_quota),
         )
         .route(
+            "/api/admin/accounts/{address}/forwards",
+            get(admin::get_account_forwards).put(admin::set_account_forwards),
+        )
+        .route(
             "/api/admin/accounts/{address}/send-as",
             get(admin::get_account_send_as).put(admin::set_account_send_as),
         )

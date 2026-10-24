@@ -6600,6 +6600,105 @@
         }
       }
     },
+    "/api/admin/accounts/{address}/forwards": {
+      "get": {
+        "operationId": "getAccountForwards",
+        "summary": "Other accounts here that get a copy of everything delivered to this account",
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Targets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "forward_to"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "forward_to": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Requires admin.accounts"
+          }
+        }
+      },
+      "put": {
+        "operationId": "setAccountForwards",
+        "summary": "Replace an account's local forwards; an empty list stops forwarding",
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                  "type": "object",
+                  "required": [
+                    "forward_to"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "forward_to": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Replaced"
+          },
+          "400": {
+            "description": "A target is not another account here"
+          },
+          "403": {
+            "description": "Requires admin.accounts"
+          },
+          "404": {
+            "description": "No such account"
+          }
+        }
+      }
+    },
     "/api/admin/accounts/{address}/send-as": {
       "get": {
         "operationId": "getAccountSendAs",

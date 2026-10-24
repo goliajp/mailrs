@@ -25,6 +25,7 @@ mailrs:dmarcrpt:;crates/core-sidestate/src/keys/dmarc.rs
 mailrs:events:notify:;crates/core-sidestate/src/keys/events.rs
 mailrs:bounce:;crates/intake/src/notice.rs
 mailrs:mock:;crates/core-sidestate/src/families/mock/mod.rs
+mailrs:forward:local:;crates/core-sidestate/src/families/local_forward.rs
 mailrs:alias:v2:;crates/alias-store/src/keys.rs
 aliases_by_(domain|target);crates/alias-store/src/keys.rs
 admin:(audit_log|system-config|greylist:local-lists);crates/core-sidestate/src/keys/admin.rs

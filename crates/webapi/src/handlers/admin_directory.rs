@@ -16,8 +16,10 @@ use crate::handlers::conversations::AuthedUser;
 use crate::handlers::kevy_util::with_kevy;
 
 mod accounts;
+mod forwards;
 mod send_as;
 pub use accounts::*;
+pub use forwards::*;
 pub use send_as::*;
 
 /// One-shot boot-time mirror of network-kevy alias entries into the

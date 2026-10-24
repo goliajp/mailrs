@@ -25,7 +25,7 @@ Config for Claude Code or any MCP client:
 }
 ```
 
-93 tools auto-discovered via MCP, grouped by category (the table below is a selection; `tools/list` is the authority, and `scripts/check-mcp-parity.sh` holds the two server lanes to the same set):
+95 tools auto-discovered via MCP, grouped by category (the table below is a selection; `tools/list` is the authority, and `scripts/check-mcp-parity.sh` holds the two server lanes to the same set):
 
 ### Email Operations
 
@@ -64,6 +64,8 @@ Config for Claude Code or any MCP client:
 | remove_account | admin.accounts | Remove account (offboarding). It can no longer sign in, its sessions and agent keys stop working, stored mail is moved aside on disk (kept, not visible), and new mail to the address is refused unless an alias or catch-all takes it. Aliases and group memberships are kept |
 | set_account_password | admin.accounts | Reset an account's password (argon2 hashed) |
 | get_account_send_as | admin.accounts | The addresses an account was granted to send as. Its own address, the aliases pointing at it (not a domain catch-all) and its email groups need no grant and are not listed |
+| get_account_forwards | admin.accounts | The other accounts that get a copy of everything delivered to an account |
+| set_account_forwards | admin.accounts | Replace an account's local forwards. Each copy goes straight into the target's mailbox (no SMTP, the original fraud verdict, never forwarded again); targets must be other accounts here; an empty list stops forwarding |
 | set_account_send_as | admin.accounts | Replace an account's send-as grants; an empty list clears them. The web send and SMTP submission both refuse any other From |
 
 ### Permission Management
@@ -278,6 +280,14 @@ Returns `{"id": "team@golia.jp"}`: an alias is identified by its source address.
 ```json
 {
   "source_address": "team@golia.jp"
+}
+```
+
+#### set_account_forwards
+```json
+{
+  "address": "sentori@golia.jp",
+  "forward_to": ["lihao@golia.jp"]
 }
 ```
 
@@ -882,6 +892,12 @@ curl -X POST https://mail.golia.ai/api/admin/accounts \
   -H "Authorization: Bearer mlrs_..." \
   -H "Content-Type: application/json" \
   -d '{"address": "new@golia.jp", "domain": "golia.jp", "display_name": "New User", "password": "secret"}'
+
+# copy everything delivered to an account into another account's mailbox
+curl -X PUT https://mail.golia.ai/api/admin/accounts/sentori@golia.jp/forwards \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"forward_to": ["lihao@golia.jp"]}'
 
 # grant an account one more From address
 curl -X PUT https://mail.golia.ai/api/admin/accounts/smstransfer@golia.jp/send-as \
