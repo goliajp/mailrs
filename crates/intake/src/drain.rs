@@ -108,7 +108,10 @@ impl<C: Core + ?Sized> Inbound<'_, C> {
         match ensure_maildir(self.core.maildir_root(), &mailbox)
             && self.deliver_resolved(fwd, &mailbox)
         {
-            true => Copies::done(),
+            true => {
+                self.forward_locally(&mailbox);
+                Copies::done()
+            }
             false => Copies::missed(&mailbox),
         }
     }

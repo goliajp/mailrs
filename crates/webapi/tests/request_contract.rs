@@ -243,6 +243,7 @@ fn every_fixture_has_a_test() {
     const CHECKED: &[&str] = &[
         "ai-generate-subject",
         "account-create",
+        "account-forwards-set",
         "account-password-set",
         "account-send-as-set",
         "account-sieve-set",

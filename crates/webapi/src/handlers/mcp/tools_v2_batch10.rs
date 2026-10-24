@@ -1,5 +1,5 @@
-//! v2.0.0 MCP tool batch 10 — dashboard metric readouts, and the send-as
-//! grants of an account.
+//! v2.0.0 MCP tool batch 10 — dashboard metric readouts, and an account's
+//! send-as grants and local forwards.
 
 use rmcp::ErrorData as McpError;
 use rmcp::handler::server::wrapper::Parameters;
@@ -7,7 +7,9 @@ use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{tool, tool_router};
 
 use super::MailrsMcpService;
-use super::params::{AccountSendAsParams, SetAccountSendAsParams};
+use super::params::{
+    AccountForwardsParams, AccountSendAsParams, SetAccountForwardsParams, SetAccountSendAsParams,
+};
 
 #[tool_router(router = tool_router_v2_batch10, vis = "pub")]
 impl MailrsMcpService {
@@ -79,6 +81,60 @@ impl MailrsMcpService {
                     None,
                 ),
                 _ => McpError::internal_error(format!("set_account_send_as: {code}"), None),
+            })?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(
+            serde_json::json!({ "ok": true }).to_string(),
+        )]))
+    }
+
+    #[tool(
+        description = "The other accounts that get a copy of everything delivered to an account (requires admin.accounts)."
+    )]
+    async fn get_account_forwards(
+        &self,
+        Parameters(params): Parameters<AccountForwardsParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?.to_string();
+        let list = crate::handlers::admin_directory::load_forwards(&self.state, &user, &params.address)
+            .await
+            .map_err(|code| match code {
+                axum::http::StatusCode::FORBIDDEN => {
+                    McpError::invalid_request("requires admin.accounts", None)
+                }
+                _ => McpError::internal_error(format!("get_account_forwards: {code}"), None),
+            })?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(
+            serde_json::json!({ "address": params.address, "forward_to": list.forward_to })
+                .to_string(),
+        )]))
+    }
+
+    #[tool(
+        description = "Replace the accounts that get a copy of everything delivered to an account (requires admin.accounts). Each copy is written straight into the target's mailbox: nothing is sent over SMTP, the message keeps its fraud verdict, and a forwarded copy is not forwarded again. Targets must be other accounts here; an empty list stops forwarding."
+    )]
+    async fn set_account_forwards(
+        &self,
+        Parameters(params): Parameters<SetAccountForwardsParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?.to_string();
+        let req = crate::handlers::admin_directory::LocalForwards {
+            forward_to: params.forward_to,
+        };
+        crate::handlers::admin_directory::store_forwards(&self.state, &user, &params.address, req)
+            .await
+            .map_err(|code| match code {
+                axum::http::StatusCode::FORBIDDEN => {
+                    McpError::invalid_request("requires admin.accounts", None)
+                }
+                axum::http::StatusCode::NOT_FOUND => McpError::invalid_params(
+                    format!("set_account_forwards: no account {}", params.address),
+                    None,
+                ),
+                axum::http::StatusCode::BAD_REQUEST => McpError::invalid_params(
+                    "set_account_forwards: every target must be another account here",
+                    None,
+                ),
+                _ => McpError::internal_error(format!("set_account_forwards: {code}"), None),
             })?;
         Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({ "ok": true }).to_string(),
