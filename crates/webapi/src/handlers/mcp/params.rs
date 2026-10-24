@@ -68,6 +68,21 @@ pub struct AddAliasParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+pub struct AccountSendAsParams {
+    /// The account whose send-as grants to read.
+    pub address: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct SetAccountSendAsParams {
+    /// The account to grant.
+    pub address: String,
+    /// Every address it may send as besides its own, its aliases and its
+    /// email groups; replaces the previous grants. Empty clears them.
+    pub send_as: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
 pub struct RemoveAliasParams {
     /// Source address of the alias, as `list_aliases_admin` reports it.
     pub source_address: String,
@@ -418,5 +433,14 @@ mod tests {
         assert_eq!(p.source_address, "sales@example.com");
         // the old numeric id names nothing in the alias store
         assert!(serde_json::from_str::<RemoveAliasParams>(r#"{"id":3}"#).is_err());
+    }
+
+    #[test]
+    fn send_as_params_take_what_the_rest_route_takes() {
+        assert_eq!(properties::<AccountSendAsParams>(), ["address"]);
+        assert_eq!(
+            properties::<SetAccountSendAsParams>(),
+            ["address", "send_as"]
+        );
     }
 }

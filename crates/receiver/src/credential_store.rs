@@ -12,6 +12,15 @@ use crate::AccountStoreError;
 pub trait CredentialStore: Send + Sync {
     /// The argon2 hash for `address`, `None` when there is no such account.
     async fn password_hash(&self, address: &str) -> Result<Option<String>, AccountStoreError>;
+
+    /// What `address` may do, `None` when there is no such account.
+    async fn effective_permissions(
+        &self,
+        address: &str,
+    ) -> Result<
+        Option<mailrs_core_api::method::admin::EffectivePermissionsResponse>,
+        AccountStoreError,
+    >;
 }
 
 /// Reads `GET /v1/admin/accounts/{address}/credentials` from the core.
@@ -32,6 +41,20 @@ impl CredentialStore for CoreCredentialStore {
     async fn password_hash(&self, address: &str) -> Result<Option<String>, AccountStoreError> {
         match self.client.get_account_with_hash(address).await {
             Ok(account) => Ok(account.password_hash),
+            Err(mailrs_core_api::error::CoreApiError::NotFound(_)) => Ok(None),
+            Err(e) => Err(AccountStoreError::Backend(e.to_string())),
+        }
+    }
+
+    async fn effective_permissions(
+        &self,
+        address: &str,
+    ) -> Result<
+        Option<mailrs_core_api::method::admin::EffectivePermissionsResponse>,
+        AccountStoreError,
+    > {
+        match self.client.effective_permissions(address).await {
+            Ok(p) => Ok(Some(p)),
             Err(mailrs_core_api::error::CoreApiError::NotFound(_)) => Ok(None),
             Err(e) => Err(AccountStoreError::Backend(e.to_string())),
         }

@@ -16,6 +16,7 @@ use super::reply::{code, send_reply};
 
 mod antispam;
 mod mock_gate;
+mod sender_gate;
 mod spool_accept;
 
 use antispam::{AntiSpamOutcome, run_antispam};
@@ -55,6 +56,11 @@ where
     match tokio::time::timeout(DATA_TIMEOUT, framed.next()).await {
         Ok(Some(Ok(SmtpInput::Data(raw)))) => {
             let body = unstuff_data(&raw);
+            if let sender_gate::SenderGate::Refuse(resp) =
+                sender_gate::check(&session.state, &reverse_path, &body, addr.ip(), ctx).await
+            {
+                return send_reply(framed, resp).await;
+            }
             let received = format_received_header(
                 &session.hostname,
                 &ctx.hostname,

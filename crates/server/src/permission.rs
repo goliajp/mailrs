@@ -45,9 +45,6 @@ pub struct EffectivePermissions {
     permissions: HashSet<String>,
     is_super: bool,
     accessible_domains: Vec<String>,
-    /// alias addresses this account can send as (reverse alias lookup)
-    #[serde(default)]
-    send_as: Vec<String>,
 }
 
 impl EffectivePermissions {
@@ -72,17 +69,6 @@ impl EffectivePermissions {
     #[cfg(test)]
     pub fn accessible_domains(&self) -> &[String] {
         &self.accessible_domains
-    }
-
-    /// alias addresses this account can send as
-    pub fn send_as(&self) -> &[String] {
-        &self.send_as
-    }
-
-    /// set send_as addresses (called after construction)
-    pub fn with_send_as(mut self, send_as: Vec<String>) -> Self {
-        self.send_as = send_as;
-        self
     }
 
     /// list of permission strings for serialization
@@ -128,7 +114,6 @@ pub fn compute_effective_permissions(
                 permissions: ALL_PERMISSIONS.iter().map(|s| (*s).to_string()).collect(),
                 is_super: true,
                 accessible_domains: all_domains.to_vec(),
-                send_as: Vec::new(),
             };
         }
 
@@ -143,7 +128,6 @@ pub fn compute_effective_permissions(
             permissions,
             is_super: false,
             accessible_domains: all_domains.to_vec(),
-            send_as: Vec::new(),
         };
     }
 
@@ -182,7 +166,6 @@ pub fn compute_effective_permissions(
         permissions,
         is_super: false,
         accessible_domains,
-        send_as: Vec::new(),
     }
 }
 

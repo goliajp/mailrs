@@ -12,6 +12,13 @@ use std::path::PathBuf;
 use mailrs_smtp_codec::SmuggleProtection;
 
 /// Everything the receiver binary reads from the environment.
+/// What signed-in submission does with a From its account may not use.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SubmissionFromCheck {
+    Enforce,
+    Log,
+}
+
 #[derive(Debug, Clone)]
 pub struct ReceiverConfig {
     pub hostname: String,
@@ -43,6 +50,9 @@ pub struct ReceiverConfig {
     pub dnsbl_enabled: bool,
     pub antispam_enabled: bool,
     pub smuggle_protection: SmuggleProtection,
+    /// `MAILRS_SUBMISSION_FROM_CHECK`: `log` only logs a submission whose
+    /// From the account may not use; anything else refuses it.
+    pub submission_from_check: SubmissionFromCheck,
     pub clamav_addr: Option<String>,
     pub greylist_delay_secs: u64,
     pub rate_limit_capacity: u32,
@@ -109,6 +119,13 @@ impl ReceiverConfig {
             "off" => SmuggleProtection::Off,
             _ => SmuggleProtection::Permissive,
         };
+        let submission_from_check = match env_str("MAILRS_SUBMISSION_FROM_CHECK", "enforce")
+            .to_lowercase()
+            .as_str()
+        {
+            "log" => SubmissionFromCheck::Log,
+            _ => SubmissionFromCheck::Enforce,
+        };
         Self {
             hostname: env_str("MAILRS_HOSTNAME", "mx.mailrs.local"),
             spool_root,
@@ -125,6 +142,7 @@ impl ReceiverConfig {
             dnsbl_enabled: env_bool_truthy("MAILRS_DNSBL_ENABLED", false),
             antispam_enabled: env_bool_truthy("MAILRS_ANTISPAM_ENABLED", true),
             smuggle_protection,
+            submission_from_check,
             clamav_addr: env_opt_nonempty("MAILRS_CLAMAV_ADDR"),
             greylist_delay_secs: env_parsed("MAILRS_GREYLIST_DELAY", 60),
             rate_limit_capacity: env_parsed("MAILRS_RATE_LIMIT_CAPACITY", 100),

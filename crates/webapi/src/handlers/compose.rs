@@ -318,8 +318,9 @@ pub(crate) struct SendMeta<'a> {
     pub resent_from: Option<&'a str>,
 }
 
-/// Return `Ok(())` iff `from` matches the authed user's own address
-/// or any entry in their effective_permissions.send_as list.
+/// Return `Ok(())` iff the authed user may send as `from`
+/// (`EffectivePermissionsResponse::may_send_as`, which SMTP submission
+/// also asks).
 /// Otherwise `Err(FORBIDDEN)` — this stops any authenticated user
 /// from spoofing arbitrary From: (in particular, arbitrary domains).
 pub(crate) async fn ensure_from_allowed(
@@ -327,7 +328,7 @@ pub(crate) async fn ensure_from_allowed(
     user: &str,
     from: &str,
 ) -> Result<(), StatusCode> {
-    if from == user {
+    if from.trim().eq_ignore_ascii_case(user) {
         return Ok(());
     }
     let perms = state
@@ -335,7 +336,7 @@ pub(crate) async fn ensure_from_allowed(
         .effective_permissions(user)
         .await
         .map_err(|_| StatusCode::FORBIDDEN)?;
-    if perms.is_super || perms.send_as.iter().any(|s| s == from) {
+    if perms.may_send_as(from) {
         return Ok(());
     }
     tracing::warn!(%user, %from, "send blocked: from not in send_as allowlist");
