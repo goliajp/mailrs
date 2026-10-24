@@ -31,6 +31,14 @@ CREATE TABLE aliases (
     UNIQUE(source_address, target_address)
 );
 CREATE INDEX idx_aliases_source ON aliases(source_address) WHERE active = true;
+CREATE INDEX idx_aliases_target ON aliases(target_address) WHERE active = true;
+
+-- addresses an administrator granted an account to send as (migrate-052)
+CREATE TABLE account_send_as (
+    account_address TEXT NOT NULL,
+    address         TEXT NOT NULL,
+    PRIMARY KEY (account_address, address)
+);
 
 CREATE TABLE sieve_scripts (
     address TEXT PRIMARY KEY REFERENCES accounts(address) ON DELETE CASCADE,
@@ -781,4 +789,4 @@ CREATE INDEX idx_messages_clean_text_trgm ON messages USING gin (clean_text gin_
 -- The migration this schema is equal to; the core reads it at boot and
 -- applies whatever it carries beyond it.
 CREATE TABLE schema_version (version INTEGER NOT NULL);
-INSERT INTO schema_version (version) VALUES (51);
+INSERT INTO schema_version (version) VALUES (52);
