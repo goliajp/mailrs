@@ -8,7 +8,7 @@ fn checker_compares_raw_mail_and_refuses_an_incomplete_corpus() {
     for (i, from) in [
         "ChatGPT <admin@heavenerandassociates.com>",
         "OpenAI <noreply@tm.openai.com>",
-        "Alice <a@example.com>",
+        "Alice <a@alice-shop.jp>",
     ]
     .iter()
     .enumerate()
