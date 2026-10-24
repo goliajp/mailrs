@@ -90,8 +90,11 @@ pub(super) async fn check(
     }
 }
 
+/// The signed-in account. By the time DATA is answered the session has
+/// already moved back to `Authenticated`, so that is the state this sees.
 fn username(state: &State) -> Option<&str> {
     match state {
+        State::Authenticated { username, .. } => Some(username),
         State::MailFrom { username, .. } | State::RcptTo { username, .. } => username.as_deref(),
         _ => None,
     }
@@ -163,6 +166,31 @@ mod tests {
     }
 
     const ME: &str = "xiaxi@golia.jp";
+
+    /// The state the DATA handler is called in, taken from the session
+    /// itself rather than assumed: a gate that reads the wrong variant
+    /// waves every submission through.
+    #[test]
+    fn the_login_is_found_in_the_state_data_is_handled_in() {
+        use mailrs_smtp_proto::session::{Event, Session, SessionConfig};
+        let mut session = Session::new("mx.test", SessionConfig::default());
+        let ehlo = mailrs_smtp_proto::parse_command("EHLO client.test").unwrap();
+        session.handle_command(&ehlo);
+        session.set_authenticated(ME.into());
+        for line in [
+            "MAIL FROM:<lihao@golia.jp>",
+            "RCPT TO:<a@example.com>",
+            "DATA",
+        ] {
+            let cmd = mailrs_smtp_proto::parse_command(line).unwrap();
+            let ev = session.handle_command(&cmd);
+            if line == "DATA" {
+                assert!(matches!(ev, Event::NeedData { .. }));
+            }
+        }
+        assert_eq!(username(&session.state), Some(ME));
+        assert_eq!(username(&State::Connected), None);
+    }
 
     #[test]
     fn an_account_sends_as_itself_and_its_grants() {
