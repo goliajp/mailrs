@@ -6600,6 +6600,105 @@
         }
       }
     },
+    "/api/admin/accounts/{address}/send-as": {
+      "get": {
+        "operationId": "getAccountSendAs",
+        "summary": "The addresses an account was granted to send as, besides its own, its aliases and its email groups",
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Grants",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "send_as"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "send_as": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Requires admin.accounts"
+          }
+        }
+      },
+      "put": {
+        "operationId": "setAccountSendAs",
+        "summary": "Replace an account's send-as grants; an empty list clears them",
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                  "type": "object",
+                  "required": [
+                    "send_as"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "send_as": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Replaced"
+          },
+          "400": {
+            "description": "An entry is not an address"
+          },
+          "403": {
+            "description": "Requires admin.accounts"
+          },
+          "404": {
+            "description": "No such account"
+          }
+        }
+      }
+    },
     "/api/admin/accounts/{address}/password": {
       "post": {
         "operationId": "setAccountPassword",

@@ -2,7 +2,7 @@
 //! receiver call.
 
 use mailrs_core_api::method::admin::{
-    AddAccountRequest, SetPasswordRequest, SetQuotaRequest, UpdateAccountRequest,
+    AddAccountRequest, SendAsList, SetPasswordRequest, SetQuotaRequest, UpdateAccountRequest,
     UpdateRecoveryEmailRequest,
 };
 
@@ -135,6 +135,7 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
             &[],
         );
     }
+    send_as(c, d, &source, &group).await;
     d.both(
         "delete_local_alias",
         fc.delete_local_alias(&source).await,
@@ -146,6 +147,86 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
         fc.list_local_aliases().await,
         pg.list_local_aliases().await,
         MINTED,
+    );
+}
+
+/// What ALICE may send as, with `alias` pointing at her and `group` holding
+/// her: both cores must count the alias and the group, keep a catch-all
+/// out, and add what an administrator granted.
+async fn send_as(c: &Cores, d: &mut Diffs, alias: &str, group: &str) {
+    let (fc, pg) = (&c.fastcore, &c.pg_core);
+    let catch_all = format!("@{DOMAIN}");
+    d.both(
+        "upsert_local_alias catch-all",
+        fc.upsert_local_alias(&catch_all, ALICE).await,
+        pg.upsert_local_alias(&catch_all, ALICE).await,
+        &[],
+    );
+    let derived = fc
+        .effective_permissions(ALICE)
+        .await
+        .expect("fastcore perms");
+    assert_eq!(
+        derived.send_as,
+        vec![group.to_string(), alias.to_string()],
+        "an alias and a group, never the catch-all"
+    );
+    d.both(
+        "effective_permissions with alias and group",
+        fc.effective_permissions(ALICE).await,
+        pg.effective_permissions(ALICE).await,
+        &[],
+    );
+    let grant = SendAsList {
+        send_as: vec![format!(" noreply@{DOMAIN} "), format!("noreply@{DOMAIN}")],
+    };
+    for (label, address) in [
+        ("set_send_as", ALICE),
+        ("set_send_as unknown", "ghost@nowhere.test"),
+    ] {
+        d.both(
+            label,
+            fc.set_send_as(address, &grant).await,
+            pg.set_send_as(address, &grant).await,
+            &[],
+        );
+    }
+    let bad = SendAsList {
+        send_as: vec!["not-an-address".into()],
+    };
+    d.both(
+        "set_send_as not an address",
+        fc.set_send_as(ALICE, &bad).await,
+        pg.set_send_as(ALICE, &bad).await,
+        &[],
+    );
+    d.both(
+        "get_send_as",
+        fc.get_send_as(ALICE).await,
+        pg.get_send_as(ALICE).await,
+        &[],
+    );
+    assert_eq!(
+        fc.get_send_as(ALICE).await.expect("grants").send_as,
+        vec![format!("noreply@{DOMAIN}")]
+    );
+    d.both(
+        "effective_permissions with a grant",
+        fc.effective_permissions(ALICE).await,
+        pg.effective_permissions(ALICE).await,
+        &[],
+    );
+    d.both(
+        "set_send_as cleared",
+        fc.set_send_as(ALICE, &SendAsList::default()).await,
+        pg.set_send_as(ALICE, &SendAsList::default()).await,
+        &[],
+    );
+    d.both(
+        "delete_local_alias catch-all",
+        fc.delete_local_alias(&catch_all).await,
+        pg.delete_local_alias(&catch_all).await,
+        &[],
     );
 }
 

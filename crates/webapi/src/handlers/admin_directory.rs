@@ -16,7 +16,9 @@ use crate::handlers::conversations::AuthedUser;
 use crate::handlers::kevy_util::with_kevy;
 
 mod accounts;
+mod send_as;
 pub use accounts::*;
+pub use send_as::*;
 
 /// One-shot boot-time mirror of network-kevy alias entries into the
 /// fastcore-embedded alias table. Reads every `admin:aliases` hash row,

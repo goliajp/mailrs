@@ -25,7 +25,7 @@ Config for Claude Code or any MCP client:
 }
 ```
 
-91 tools auto-discovered via MCP, grouped by category (the table below is a selection; `tools/list` is the authority, and `scripts/check-mcp-parity.sh` holds the two server lanes to the same set):
+93 tools auto-discovered via MCP, grouped by category (the table below is a selection; `tools/list` is the authority, and `scripts/check-mcp-parity.sh` holds the two server lanes to the same set):
 
 ### Email Operations
 
@@ -63,6 +63,8 @@ Config for Claude Code or any MCP client:
 | create_account | admin.accounts | Create account (onboarding). Auto-joins domain's default user group |
 | remove_account | admin.accounts | Remove account (offboarding). It can no longer sign in, its sessions and agent keys stop working, stored mail is moved aside on disk (kept, not visible), and new mail to the address is refused unless an alias or catch-all takes it. Aliases and group memberships are kept |
 | set_account_password | admin.accounts | Reset an account's password (argon2 hashed) |
+| get_account_send_as | admin.accounts | The addresses an account was granted to send as. Its own address, the aliases pointing at it (not a domain catch-all) and its email groups need no grant and are not listed |
+| set_account_send_as | admin.accounts | Replace an account's send-as grants; an empty list clears them. The web send and SMTP submission both refuse any other From |
 
 ### Permission Management
 
@@ -276,6 +278,14 @@ Returns `{"id": "team@golia.jp"}`: an alias is identified by its source address.
 ```json
 {
   "source_address": "team@golia.jp"
+}
+```
+
+#### set_account_send_as
+```json
+{
+  "address": "smstransfer@golia.jp",
+  "send_as": ["noreply@golia.jp"]
 }
 ```
 
@@ -872,6 +882,12 @@ curl -X POST https://mail.golia.ai/api/admin/accounts \
   -H "Authorization: Bearer mlrs_..." \
   -H "Content-Type: application/json" \
   -d '{"address": "new@golia.jp", "domain": "golia.jp", "display_name": "New User", "password": "secret"}'
+
+# grant an account one more From address
+curl -X PUT https://mail.golia.ai/api/admin/accounts/smstransfer@golia.jp/send-as \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"send_as": ["noreply@golia.jp"]}'
 
 # count mailboxes and message files
 curl -X POST https://mail.golia.ai/api/admin/reconcile-maildir \

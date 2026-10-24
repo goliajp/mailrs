@@ -1,11 +1,13 @@
-//! v2.0.0 MCP tool batch 10 — dashboard metric readouts. Small tools
-//! that agents use for triage: how many unseen do I have.
+//! v2.0.0 MCP tool batch 10 — dashboard metric readouts, and the send-as
+//! grants of an account.
 
 use rmcp::ErrorData as McpError;
+use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{tool, tool_router};
 
 use super::MailrsMcpService;
+use super::params::{AccountSendAsParams, SetAccountSendAsParams};
 
 #[tool_router(router = tool_router_v2_batch10, vis = "pub")]
 impl MailrsMcpService {
@@ -26,6 +28,60 @@ impl MailrsMcpService {
                 "unseen_count": unseen.count,
             })
             .to_string(),
+        )]))
+    }
+
+    #[tool(
+        description = "The addresses an account was granted to send as (requires admin.accounts). Its own address, the aliases pointing at it and its email groups need no grant and are not listed; get_my_permissions shows the union for the caller."
+    )]
+    async fn get_account_send_as(
+        &self,
+        Parameters(params): Parameters<AccountSendAsParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?.to_string();
+        crate::handlers::kevy_util::require_permission(&self.state, &user, "admin.accounts")
+            .await
+            .map_err(|_| McpError::invalid_request("requires admin.accounts", None))?;
+        let list = self
+            .state
+            .core
+            .get_send_as(&params.address)
+            .await
+            .map_err(|e| McpError::internal_error(format!("get_send_as: {e}"), None))?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(
+            serde_json::json!({ "address": params.address, "send_as": list.send_as }).to_string(),
+        )]))
+    }
+
+    #[tool(
+        description = "Replace the addresses an account may send as besides its own, its aliases and its email groups (requires admin.accounts). An empty list clears the grants. Fails for an address that is not an account or an entry that is not an address."
+    )]
+    async fn set_account_send_as(
+        &self,
+        Parameters(params): Parameters<SetAccountSendAsParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?.to_string();
+        let req = mailrs_core_api::method::admin::SendAsList {
+            send_as: params.send_as,
+        };
+        crate::handlers::admin_directory::store_send_as(&self.state, &user, &params.address, req)
+            .await
+            .map_err(|code| match code {
+                axum::http::StatusCode::FORBIDDEN => {
+                    McpError::invalid_request("requires admin.accounts", None)
+                }
+                axum::http::StatusCode::NOT_FOUND => McpError::invalid_params(
+                    format!("set_account_send_as: no account {}", params.address),
+                    None,
+                ),
+                axum::http::StatusCode::BAD_REQUEST => McpError::invalid_params(
+                    "set_account_send_as: an entry is not an address",
+                    None,
+                ),
+                _ => McpError::internal_error(format!("set_account_send_as: {code}"), None),
+            })?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(
+            serde_json::json!({ "ok": true }).to_string(),
         )]))
     }
 }

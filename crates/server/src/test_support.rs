@@ -86,6 +86,7 @@ pub async fn spawn_receiving_server(
         dnsbl_enabled: false,
         antispam_enabled: false,
         smuggle_protection: SmuggleProtection::Off,
+        submission_from_check: mailrs_receiver::config::SubmissionFromCheck::Enforce,
         auth_guard,
         account_store: None,
         credential_store: None,

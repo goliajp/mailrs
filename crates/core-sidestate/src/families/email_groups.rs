@@ -55,6 +55,35 @@ pub fn find_by_address(conn: &mut Connection, addr: &str) -> std::io::Result<Opt
     }))
 }
 
+/// The addresses of every group `member` belongs to (member compared ASCII
+/// case-insensitively), sorted.
+pub fn addresses_with_member(conn: &mut Connection, member: &str) -> std::io::Result<Vec<String>> {
+    let flat = conn.hgetall(GROUPS_KEY.as_bytes())?;
+    let mut out = Vec::new();
+    for row in flat
+        .iter()
+        .skip(1)
+        .step_by(2)
+        .filter_map(|v| serde_json::from_slice::<serde_json::Value>(v).ok())
+    {
+        let (Some(id), Some(address)) = (
+            row.get("id").and_then(|x| x.as_i64()),
+            row.get("address").and_then(|a| a.as_str()),
+        ) else {
+            continue;
+        };
+        let members = conn.smembers(members_key(id).as_bytes())?;
+        if members
+            .iter()
+            .any(|m| std::str::from_utf8(m).is_ok_and(|m| m.trim().eq_ignore_ascii_case(member)))
+        {
+            out.push(address.trim().to_string());
+        }
+    }
+    out.sort();
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -71,6 +100,23 @@ mod tests {
         if !refs.is_empty() {
             conn.sadd(members_key(id).as_bytes(), &refs).unwrap();
         }
+    }
+
+    #[test]
+    fn lists_the_groups_a_member_belongs_to() {
+        let mut conn = Connection::connect("mem://email-groups-member").unwrap();
+        put(&mut conn, 1, "all@x.test", &["a@x.test", "b@x.test"]);
+        put(&mut conn, 2, "ops@x.test", &["A@X.test"]);
+        put(&mut conn, 3, "sales@x.test", &["b@x.test"]);
+        assert_eq!(
+            addresses_with_member(&mut conn, "a@x.test").unwrap(),
+            vec!["all@x.test", "ops@x.test"]
+        );
+        assert!(
+            addresses_with_member(&mut conn, "c@x.test")
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[test]

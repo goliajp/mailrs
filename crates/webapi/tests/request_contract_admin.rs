@@ -51,6 +51,19 @@ fn account_password_body_matches() {
 }
 
 #[test]
+fn account_send_as_body_matches() {
+    let v: mailrs_core_api::method::admin::SendAsList = parse("account-send-as-set");
+    assert_eq!(v.send_as, vec!["noreply@golia.jp"]);
+    // a misspelt field is refused, not read as "no grants"
+    assert!(
+        serde_json::from_str::<mailrs_core_api::method::admin::SendAsList>(
+            r#"{"sendAs":["noreply@golia.jp"]}"#
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn domain_create_body_matches() {
     let v: mailrs_core_api::method::admin::AddDomainRequest = parse("domain-create");
     assert_eq!(v.name, "golia.jp");

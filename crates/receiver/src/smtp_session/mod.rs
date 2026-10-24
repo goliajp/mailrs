@@ -49,6 +49,7 @@ pub struct ConnectionContext {
     /// should run on inbound mail. Mirrors `cfg.antispam_enabled`.
     pub antispam_enabled: bool,
     pub smuggle_protection: SmuggleProtection,
+    pub submission_from_check: crate::config::SubmissionFromCheck,
     pub auth_guard: Arc<dyn AuthGuardStore>,
     /// Submission auth against the in-process domain store. Abstracted as
     /// [`AccountStore`] so the receiver doesn't bind the spg-backed
