@@ -18,6 +18,28 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### Local forwards: an account's mail copied into another account here
+
+An account that exists only so a service can sign in with it (sentori@,
+insight@) still receives replies and bounces, which went unseen once the
+address stopped falling through to the catch-all. A local forward copies
+everything delivered to the account into other accounts' mailboxes.
+
+- The copy is written straight into each target's maildir by the spool
+  drain, through the target's own sieve, under the fraud verdict the
+  message already has. Nothing is queued, sent over SMTP or rewritten
+  with SRS, as a sieve `redirect` would be.
+- One hop: a forwarded copy is not forwarded again, so two accounts that
+  forward to each other cannot loop. A target that is not a mailbox here
+  is skipped and logged; the account's own copy is never lost to a
+  forward that fails.
+- Copies to email-group members are forwarded the same way.
+- `GET` / `PUT /api/admin/accounts/{address}/forwards` and the MCP tools
+  `get_account_forwards` / `set_account_forwards` (`admin.accounts`,
+  audited as `account.forwards`); targets must be other accounts. Stored
+  in the network kevy (`mailrs:forward:local:{address}`), so both cores
+  deliver alike.
+
 ### Submission checks the sender; accounts can be granted send-as addresses
 
 Signed-in SMTP submission (465 / 587) used to accept any `MAIL FROM` and
