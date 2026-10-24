@@ -11,6 +11,9 @@ pub const PATH_GET_ACCOUNT_HASH: &str = "/v1/admin/accounts/{address}/credential
 
 pub const PATH_SET_QUOTA: &str = "/v1/admin/accounts/{address}/quota";
 
+/// `GET` / `PUT` — the send-as addresses granted to an account.
+pub const PATH_SEND_AS: &str = "/v1/admin/accounts/{address}/send-as";
+
 pub const PATH_UPDATE_RECOVERY_EMAIL: &str = "/v1/admin/accounts/{address}/recovery-email";
 
 /// `POST /v1/admin/accounts/{address}/password` — re-hash & set the

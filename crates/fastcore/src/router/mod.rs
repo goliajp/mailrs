@@ -83,6 +83,7 @@ pub fn build_router_with_secret(state: Arc<FastcoreState>, secret: String) -> Ro
         .route(th::PATH_DELETE_THREAD, delete(delete_thread))
         .route(adm::PATH_GET_ACCOUNT_HASH, get(get_account_with_hash))
         .route(adm::PATH_EFFECTIVE_PERMISSIONS, get(effective_permissions))
+        .route(adm::PATH_SEND_AS, get(get_send_as).put(set_send_as))
         .route(
             adm::PATH_LIST_ACCOUNTS,
             get(list_accounts).post(add_account_route),

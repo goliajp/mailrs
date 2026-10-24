@@ -244,6 +244,7 @@ fn every_fixture_has_a_test() {
         "ai-generate-subject",
         "account-create",
         "account-password-set",
+        "account-send-as-set",
         "account-sieve-set",
         "account-update",
         "agent-key-create",

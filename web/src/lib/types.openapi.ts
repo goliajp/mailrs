@@ -4059,6 +4059,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/accounts/{address}/send-as": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The addresses an account was granted to send as, besides its own, its aliases and its email groups */
+        get: operations["getAccountSendAs"];
+        /** Replace an account's send-as grants; an empty list clears them */
+        put: operations["setAccountSendAs"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/accounts/{address}/password": {
         parameters: {
             query?: never;
@@ -9307,6 +9325,84 @@ export interface operations {
             };
             /** @description A value outside its bounds */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getAccountSendAs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                address: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Grants */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        send_as: string[];
+                    };
+                };
+            };
+            /** @description Requires admin.accounts */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    setAccountSendAs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                address: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    send_as: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description Replaced */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description An entry is not an address */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Requires admin.accounts */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such account */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

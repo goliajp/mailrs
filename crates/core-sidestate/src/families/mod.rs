@@ -19,6 +19,7 @@ pub mod permission_groups;
 pub mod prefs;
 pub mod reply_rotation;
 pub mod send;
+pub mod send_as;
 pub mod send_read;
 pub mod sender_lists;
 pub mod suppression;

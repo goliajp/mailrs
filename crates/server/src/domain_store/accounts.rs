@@ -220,6 +220,10 @@ impl DomainStore {
             .bind(address)
             .execute(pool)
             .await?;
+        sqlx::query("DELETE FROM account_send_as WHERE account_address = $1")
+            .bind(address)
+            .execute(pool)
+            .await?;
         self.account_cache.remove(address);
         self.kevy_del(&format!("acct:{address}"));
         Ok(res.rows_affected() > 0)

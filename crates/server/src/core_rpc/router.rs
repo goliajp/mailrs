@@ -103,6 +103,10 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
             get(handlers::admin::effective_permissions),
         )
         .route(
+            adm_paths::PATH_SEND_AS,
+            get(handlers::admin::get_send_as).put(handlers::admin::set_send_as),
+        )
+        .route(
             adm_paths::PATH_GET_ACCOUNT_HASH,
             get(handlers::admin::get_account_with_hash),
         )

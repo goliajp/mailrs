@@ -18,6 +18,35 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### Submission checks the sender; accounts can be granted send-as addresses
+
+Signed-in SMTP submission (465 / 587) used to accept any `MAIL FROM` and
+any `From:`: one guessed password was enough to send as any address from
+this server. It now applies the rule the web send always had.
+
+- A signed-in account may send as its own address, the aliases pointing
+  at it (a domain catch-all does not count), the email groups it belongs
+  to, and the addresses an administrator granted it; a super-admin as
+  anyone. The envelope sender and the `From:` header are both checked
+  once the message is in; an empty `MAIL FROM:<>` passes. Anything else
+  is refused with `550 5.7.1`, and `451 4.3.0` when the account's
+  permissions cannot be read.
+- Every decision is logged as `event="submission_sender"` with the
+  account, both addresses, the client address and, for a refusal, which
+  of the two failed. `MAILRS_SUBMISSION_FROM_CHECK=log` keeps logging
+  without refusing; unset or anything else refuses.
+- A namespace's sandbox login may only use its own namespace's
+  addresses; a login known only to `MAILRS_USERS_FILE` only its own.
+- `GET` / `PUT /api/admin/accounts/{address}/send-as` and the MCP tools
+  `get_account_send_as` / `set_account_send_as` read and replace an
+  account's grants (`admin.accounts`, audited as `account.send_as`).
+- The kevy core now counts aliases and email groups in `send_as`, as the
+  SQL core did; before, only a super-admin could send from an alias in
+  the web UI. The SQL core reads email groups from the network kevy, as
+  delivery does, and no longer caches `send_as` for five minutes, so an
+  alias change applies at once. Its grants are in `account_send_as`
+  (`migrate-052`, which also indexes `aliases(target_address)`).
+
 ### fastcore's core API asks for its secret; the image proxy is gone
 
 On 2026-10-24 a signed-in client used `GET /api/proxy/image?url=` as a

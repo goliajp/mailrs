@@ -31,3 +31,50 @@ pub struct EffectivePermissionsResponse {
     /// Addresses the user may "send as" (via alias + email_group fanout).
     pub send_as: Vec<String>,
 }
+
+impl EffectivePermissionsResponse {
+    /// Whether this account may put `from` in a message it sends: its own
+    /// address, any address in [`send_as`](Self::send_as), or anything at
+    /// all for a super-admin. Compared ASCII case-insensitively. The web
+    /// send and SMTP submission both decide with this, so the two cannot
+    /// disagree about who may send as whom.
+    pub fn may_send_as(&self, from: &str) -> bool {
+        let from = from.trim();
+        self.is_super
+            || from.eq_ignore_ascii_case(self.address.trim())
+            || self
+                .send_as
+                .iter()
+                .any(|s| s.trim().eq_ignore_ascii_case(from))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn perms(is_super: bool, send_as: &[&str]) -> EffectivePermissionsResponse {
+        EffectivePermissionsResponse {
+            address: "alice@x.test".into(),
+            permissions: Vec::new(),
+            groups: Vec::new(),
+            is_super,
+            send_as: send_as.iter().map(|s| s.to_string()).collect(),
+        }
+    }
+
+    #[test]
+    fn an_account_sends_as_itself_and_what_it_was_granted() {
+        let p = perms(false, &["team@x.test"]);
+        assert!(p.may_send_as("alice@x.test"));
+        assert!(p.may_send_as("Alice@X.test"));
+        assert!(p.may_send_as("TEAM@x.test"));
+        assert!(!p.may_send_as("bob@x.test"));
+        assert!(!p.may_send_as(""));
+    }
+
+    #[test]
+    fn a_super_admin_sends_as_anyone() {
+        assert!(perms(true, &[]).may_send_as("anyone@else.test"));
+    }
+}

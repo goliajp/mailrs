@@ -65,6 +65,18 @@ pub struct SetQuotaRequest {
     pub quota_bytes: i64,
 }
 
+/// Body of `GET` and `PUT /v1/admin/accounts/{address}/send-as`: the
+/// addresses an administrator has granted this account to send as. The
+/// account's own address, the aliases that point at it and the email
+/// groups it belongs to are allowed without being listed here;
+/// [`EffectivePermissionsResponse::send_as`](super::EffectivePermissionsResponse)
+/// is the union of all of them.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SendAsList {
+    pub send_as: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateRecoveryEmailRequest {
     pub recovery_email: String,

@@ -56,6 +56,22 @@ impl Client {
         self.post_authed_json(path, req, "set_quota").await
     }
 
+    /// GET /v1/admin/accounts/{address}/send-as
+    pub async fn get_send_as(&self, address: &str) -> ApiResult<method::admin::SendAsList> {
+        let path = format!("/v1/admin/accounts/{}/send-as", Self::enc(address));
+        self.get_authed(path, "get_send_as").await
+    }
+
+    /// PUT /v1/admin/accounts/{address}/send-as — replace the granted list.
+    pub async fn set_send_as(
+        &self,
+        address: &str,
+        req: &method::admin::SendAsList,
+    ) -> ApiResult<()> {
+        let path = format!("/v1/admin/accounts/{}/send-as", Self::enc(address));
+        self.put_authed_json(path, req, "set_send_as").await
+    }
+
     /// POST /v1/admin/accounts/{address}/recovery-email
     pub async fn set_recovery_email(
         &self,

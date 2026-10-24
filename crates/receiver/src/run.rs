@@ -102,6 +102,7 @@ pub async fn start() -> Receiver {
         dnsbl_enabled: cfg.dnsbl_enabled,
         antispam_enabled: cfg.antispam_enabled,
         smuggle_protection: cfg.smuggle_protection,
+        submission_from_check: cfg.submission_from_check,
         auth_guard,
         account_store: None,
         credential_store,

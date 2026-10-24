@@ -38,6 +38,14 @@ pub async fn effective_permissions(
             tracing::warn!(error = %e, address = %address, "load perms failed");
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
+    let send_as = state
+        .domain
+        .send_as(&address, state.net_url.as_deref())
+        .await
+        .map_err(|e| {
+            tracing::warn!(error = %e, address = %address, "send-as unreadable");
+            StatusCode::SERVICE_UNAVAILABLE
+        })?;
 
     Ok(Json(wire::EffectivePermissionsResponse {
         address: address.clone(),
@@ -47,8 +55,45 @@ pub async fn effective_permissions(
         // needs the group list (rarely; not part of the auth-me hot path).
         groups: Vec::new(),
         is_super: perms.is_super(),
-        send_as: perms.send_as().to_vec(),
+        send_as,
     }))
+}
+
+/// GET /v1/admin/accounts/{address}/send-as
+pub async fn get_send_as(
+    State(state): State<Arc<CoreRpcState>>,
+    Path(address): Path<String>,
+) -> Result<Json<wire::SendAsList>, StatusCode> {
+    let send_as = state
+        .domain
+        .send_as_grants(&address)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(wire::SendAsList { send_as }))
+}
+
+/// PUT /v1/admin/accounts/{address}/send-as
+pub async fn set_send_as(
+    State(state): State<Arc<CoreRpcState>>,
+    Path(address): Path<String>,
+    Json(req): Json<wire::SendAsList>,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    let grants = match mailrs_core_sidestate::families::send_as::normalize_grants(&req.send_as) {
+        Ok(g) => g,
+        Err(bad) => {
+            return (StatusCode::BAD_REQUEST, format!("not an address: {bad}")).into_response();
+        }
+    };
+    match state.domain.get_account_with_hash(&address).await {
+        Ok(Some(_)) => {}
+        Ok(None) => return StatusCode::NOT_FOUND.into_response(),
+        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
+    match state.domain.set_send_as_grants(&address, &grants).await {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
 }
 
 // ── accounts (read) ─────────────────────────────────────────────────

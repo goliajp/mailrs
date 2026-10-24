@@ -18,6 +18,7 @@
 /api/admin/webhook-subscriptions            # the same `families::webhooks` store `/api/agent/webhooks` serves, addressed by account instead of by caller. No operator UI has been asked for; the self-service one is wired.
 /api/admin/webhook-subscriptions/{id}       # as above
 /api/admin/accounts/{address}/webhook-subscriptions  # as above
+/api/admin/accounts/{address}/send-as        # grants for service accounts, set by an operator through the MCP tools `get_account_send_as` / `set_account_send_as` or this route. No admin page has been asked for.
 
 # ---- served, but by a different shape of the same data ----
 
