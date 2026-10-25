@@ -426,3 +426,24 @@ fn starttls_then_regreet_flow() {
     assert!(matches!(ev, Event::Reply(ref r) if r.code == 250));
     assert!(matches!(s.state, State::Greeted { .. }));
 }
+
+#[test]
+fn login_with_the_username_on_the_auth_line_asks_only_for_the_password() {
+    let mut s = session_tls();
+    greeted(&mut s);
+    // "AUTH LOGIN dXNlcg==": the username "user" given up front
+    let ev = s.handle_command(&Command::Auth {
+        mechanism: AuthMechanism::Login,
+        initial_response: Some("dXNlcg=="),
+    });
+    let Event::AuthChallenge { step, .. } = ev else {
+        panic!("expected the password prompt");
+    };
+    assert!(
+        matches!(step, crate::session::AuthStep::WaitPassword { ref username } if username == "user")
+    );
+    let ev = s.handle_auth_response("cGFzcw==", &step);
+    assert!(
+        matches!(ev, Event::NeedAuth { ref username, ref password } if username == "user" && password == "pass")
+    );
+}

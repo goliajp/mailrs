@@ -23,6 +23,7 @@ mailrs-core-sidestate = { path = "../core-sidestate" }
 mailrs-dav = { path = "../dav", version = "2" }
 mailrs-auth-guard = { path = "../auth-guard", features = ["kevy"] }
 ipnet = { workspace = true }
+mailrs-egress = { path = "../egress" }
 mailrs-mock = { path = "../mock", features = ["schema"] }
 mailrs-mail-builder = { path = "../mail-builder", version = "1" }
 # which key the sender signs a domain with, read the way the sender reads it
@@ -86,6 +87,7 @@ metrics-exporter-prometheus = { version = "0.18", default-features = false }
 metrics = "0.24"
 
 [dev-dependencies]
+aws-lc-rs = "1"
 tempfile = "3"
 # Router exercising: `oneshot` on the built router, so the assist routes
 # are asserted to exist rather than assumed.

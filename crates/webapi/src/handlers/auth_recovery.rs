@@ -174,6 +174,10 @@ pub async fn reset_password(
         Argon2,
         password_hash::{PasswordHasher, SaltString, rand_core::OsRng as ArgonRng},
     };
+    // before the token is looked at, so a refused password leaves it usable
+    if !crate::handlers::auth::password::acceptable_new(&req.new_password) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
     let token = req.token.clone();
     let addr_bytes = with_kevy(move |c| {
         c.hget(format!("pwreset:{token}").as_bytes(), b"address")
@@ -310,7 +314,7 @@ pub async fn totp_setup(
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let secret = crate::handlers::totp_util::generate_secret();
     let recovery_codes = crate::handlers::totp_util::generate_recovery_codes();
-    let recovery_str = recovery_codes.join(",");
+    let recovery_str = crate::handlers::totp_util::hash_recovery_codes(&recovery_codes);
     let otpauth_url = crate::handlers::totp_util::get_otpauth_url(&secret, &address, "mailrs");
 
     let key = format!("totp:{address}");
@@ -322,7 +326,7 @@ pub async fn totp_setup(
             &[
                 (b"secret" as &[u8], s.as_bytes()),
                 (b"enabled", b"0"),
-                (b"recovery_codes", r.as_bytes()),
+                (crate::handlers::totp_util::RECOVERY_HASHES, r.as_bytes()),
             ],
         )?;
         Ok(())

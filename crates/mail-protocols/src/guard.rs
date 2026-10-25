@@ -63,14 +63,14 @@ impl<D: Directory> Directory for Guarded<D> {
         let source = peer();
         let verdict = self.guard.check(source, user).await;
         if let Verdict::Locked { .. } = verdict {
-            tracing::warn!(event = "auth", channel = ?protocol, %source, account = user, result = "locked");
+            tracing::warn!(event = "auth", channel = ?protocol, %source, account = %mailrs_auth_guard::login::loggable_account(user), result = "locked");
             return Err(Error::Refused(locked_text(protocol, verdict)));
         }
         let signed_in = self.dir.login(user, password, protocol).await;
         match &signed_in {
             Ok(Some(_)) => self.guard.succeeded(source, user).await,
             Ok(None) => {
-                tracing::warn!(event = "auth", channel = ?protocol, %source, account = user, result = "bad-password");
+                tracing::warn!(event = "auth", channel = ?protocol, %source, account = %mailrs_auth_guard::login::loggable_account(user), result = "bad-password");
                 self.guard.failed(source, user).await
             }
             Err(_) => {}

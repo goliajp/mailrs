@@ -36,7 +36,7 @@ mailrs-triage = { path = "../triage" }
 mailrs-webhook-signature = { path = "../webhook-signature", version = "1" }
 chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
 html2text = "0.17"
-reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
+mailrs-egress = { path = "../egress" }
 mailrs-arf = { version = "1.0.0", path = "../arf" }
 mailrs-dmarc = { version = "3", path = "../dmarc" }
 mailrs-sieve = { path = "../sieve" }

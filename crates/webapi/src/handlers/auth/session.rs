@@ -54,13 +54,13 @@ pub async fn login(
     let guard = &*crate::login_guard::GUARD;
     let verdict = guard.check(source, &req.address).await;
     if let Verdict::Locked { .. } = verdict {
-        tracing::warn!(event = "auth", channel = "web", %source, account = %req.address, result = "locked");
+        tracing::warn!(event = "auth", channel = "web", %source, account = %mailrs_auth_guard::login::loggable_account(&req.address), result = "locked");
         return crate::login_guard::locked_response(verdict);
     }
     let acct = match super::password::verify(&state, &req.address, &req.password).await {
         Ok(Some(acct)) => acct,
         Ok(None) => {
-            tracing::warn!(event = "auth", channel = "web", %source, account = %req.address, result = "bad-password");
+            tracing::warn!(event = "auth", channel = "web", %source, account = %mailrs_auth_guard::login::loggable_account(&req.address), result = "bad-password");
             guard.failed(source, &req.address).await;
             return StatusCode::UNAUTHORIZED.into_response();
         }
@@ -101,40 +101,18 @@ pub async fn login(
         };
         let ok_code = crate::handlers::totp_util::verify_code(&secret, code);
         let ok_recovery = if !ok_code {
-            // v2 Stage B.1: read-then-write on the SAME kevy connection
-            // — halves the TCP round-trip cost and (more importantly)
-            // shrinks the race window between two concurrent logins
-            // consuming the same recovery code from ms (two round-trips)
-            // to µs (back-to-back ops on one open conn). Full atomicity
-            // would require WATCH+MULTI; deferred to a follow-up as the
-            // window is now short enough that in-practice collision is
-            // vanishing.
+            // one-shot: a code that matches is removed in the same call
             let rc_key = totp_key.clone();
             let code_owned = code.to_string();
             crate::handlers::kevy_util::with_kevy(move |c| {
-                let recovery_str = c
-                    .hget(rc_key.as_bytes(), b"recovery_codes")?
-                    .and_then(|v| String::from_utf8(v).ok())
-                    .unwrap_or_default();
-                let mut codes: Vec<&str> =
-                    recovery_str.split(',').filter(|s| !s.is_empty()).collect();
-                let Some(idx) = codes.iter().position(|c| *c == code_owned.as_str()) else {
-                    return Ok(false);
-                };
-                codes.remove(idx);
-                let joined = codes.join(",");
-                c.hset(
-                    rc_key.as_bytes(),
-                    &[(b"recovery_codes" as &[u8], joined.as_bytes())],
-                )?;
-                Ok(true)
+                crate::handlers::totp_util::consume_recovery_code(c, &rc_key, &code_owned)
             })
             .unwrap_or(false)
         } else {
             false
         };
         if !ok_code && !ok_recovery {
-            tracing::warn!(event = "auth", channel = "web", %source, account = %req.address, result = "mfa-failed");
+            tracing::warn!(event = "auth", channel = "web", %source, account = %mailrs_auth_guard::login::loggable_account(&req.address), result = "mfa-failed");
             guard.failed(source, &req.address).await;
             return (
                 StatusCode::UNAUTHORIZED,
