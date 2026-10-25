@@ -50,6 +50,8 @@ function describe(err: unknown): string {
         return 'Request was cancelled.'
       case 'auth':
         return 'Your session expired. Please sign in again.'
+      case 'disabled':
+        return err.detail.message
       case 'forbidden':
         return "You don't have permission to see this."
       case 'network':
