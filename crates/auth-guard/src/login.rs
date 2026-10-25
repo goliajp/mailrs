@@ -128,6 +128,15 @@ pub trait LoginGuard: Send + Sync {
     /// The credentials were right. Clears this source's count against
     /// this account and makes the source familiar to it.
     async fn succeeded(&self, source: IpAddr, account: &str);
+
+    /// Keep the fact of an attempt, and log it.
+    async fn record(&self, event: crate::events::LoginEvent);
+
+    /// The facts kept, newest first.
+    async fn events(
+        &self,
+        query: crate::events::Query,
+    ) -> io::Result<Vec<crate::events::LoginEvent>>;
 }
 
 /// The storage primitives the policy needs. Every key carries its own

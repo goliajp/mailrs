@@ -4,7 +4,7 @@
 //! the MCP tool JSON schema and become the AI-visible spec.
 
 use schemars::JsonSchema;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 pub use super::params_greylist::*;
 
@@ -65,6 +65,33 @@ pub struct AddAliasParams {
     pub source_address: String,
     /// Address mail to the source is delivered to.
     pub target_address: String,
+}
+
+#[derive(Debug, Default, Deserialize, Serialize, JsonSchema)]
+pub struct AuthEventsParams {
+    /// Only attempts naming this account.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub account: Option<String>,
+    /// Only attempts from this client address.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
+    /// Only this outcome: ok, bad-password, no-account, locked,
+    /// mfa-required, mfa-failed, denied-by-allowlist, disabled.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub result: Option<String>,
+    /// Only this way in: web, verify, imap, pop3, smtp, managesieve, dav,
+    /// api-key, oidc.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub channel: Option<String>,
+    /// Unix seconds, inclusive.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub since: Option<u64>,
+    /// Unix seconds, inclusive.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub until: Option<u64>,
+    /// At most this many (100 by default, 1000 at most).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit: Option<usize>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]

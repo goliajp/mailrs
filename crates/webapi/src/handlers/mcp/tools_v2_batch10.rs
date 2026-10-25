@@ -1,5 +1,5 @@
-//! v2.0.0 MCP tool batch 10 — dashboard metric readouts, and an account's
-//! send-as grants and local forwards.
+//! v2.0.0 MCP tool batch 10 — dashboard metric readouts, an account's
+//! send-as grants and local forwards, and the login facts.
 
 use rmcp::ErrorData as McpError;
 use rmcp::handler::server::wrapper::Parameters;
@@ -8,7 +8,8 @@ use rmcp::{tool, tool_router};
 
 use super::MailrsMcpService;
 use super::params::{
-    AccountForwardsParams, AccountSendAsParams, SetAccountForwardsParams, SetAccountSendAsParams,
+    AccountForwardsParams, AccountSendAsParams, AuthEventsParams, SetAccountForwardsParams,
+    SetAccountSendAsParams,
 };
 
 #[tool_router(router = tool_router_v2_batch10, vis = "pub")]
@@ -139,6 +140,30 @@ impl MailrsMcpService {
             })?;
         Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({ "ok": true }).to_string(),
+        )]))
+    }
+
+    #[tool(
+        description = "Sign-in attempts on every way in (web, verify, IMAP, POP3, SMTP, ManageSieve, DAV, API keys), newest first, filtered by account, source address, outcome, channel and time (requires admin.accounts). Each fact has occurred_at, account, source_ip, channel, credential, result and, for keys, key_id."
+    )]
+    async fn list_auth_events(
+        &self,
+        Parameters(params): Parameters<AuthEventsParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?.to_string();
+        let query: mailrs_auth_guard::events::Query = serde_json::to_value(&params)
+            .and_then(serde_json::from_value)
+            .map_err(|e| McpError::invalid_params(format!("list_auth_events: {e}"), None))?;
+        let items = crate::handlers::admin_auth_events::auth_events(&self.state, &user, query)
+            .await
+            .map_err(|code| match code {
+                axum::http::StatusCode::FORBIDDEN => {
+                    McpError::invalid_request("requires admin.accounts", None)
+                }
+                _ => McpError::internal_error(format!("list_auth_events: {code}"), None),
+            })?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(
+            serde_json::json!({ "items": items }).to_string(),
         )]))
     }
 }

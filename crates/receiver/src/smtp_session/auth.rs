@@ -7,6 +7,7 @@ use tokio_util::codec::Framed;
 use mailrs_smtp_proto::response::Response;
 use mailrs_smtp_proto::session::{AuthStep, Event, Session};
 
+use mailrs_auth_guard::events::{Channel, Credential, LoginEvent, Outcome};
 use mailrs_auth_guard::login::Verdict;
 use mailrs_core::event_bus::SmtpEvent;
 use mailrs_smtp_codec::{SmtpCodec, SmtpInput};
@@ -120,9 +121,18 @@ where
     S: AsyncRead + AsyncWrite + Unpin,
 {
     let source = addr.ip().to_canonical();
+    let event = |result| {
+        LoginEvent::new(
+            Channel::Smtp,
+            Credential::Password,
+            source,
+            &username,
+            result,
+        )
+    };
     let verdict = ctx.auth_guard.check(source, &username).await;
     let resp = if let Verdict::Locked { .. } = verdict {
-        tracing::warn!(event = "auth", channel = "smtp", %source, account = %mailrs_auth_guard::login::loggable_account(&username), result = "locked");
+        ctx.auth_guard.record(event(Outcome::Locked)).await;
         Response::new(
             421,
             Some(mailrs_smtp_proto::EnhancedCode {
@@ -137,6 +147,7 @@ where
         )
     } else if verify_credentials(ctx, &username, &password).await {
         ctx.auth_guard.succeeded(source, &username).await;
+        ctx.auth_guard.record(event(Outcome::Ok)).await;
         session.set_authenticated(username.clone());
         ctx.event_bus.emit(SmtpEvent::Authenticated {
             id: conn_id,
@@ -144,8 +155,8 @@ where
         });
         Response::auth_ok()
     } else {
-        tracing::warn!(event = "auth", channel = "smtp", %source, account = %mailrs_auth_guard::login::loggable_account(&username), result = "bad-password");
         ctx.auth_guard.failed(source, &username).await;
+        ctx.auth_guard.record(event(Outcome::BadPassword)).await;
         Response::auth_failed()
     };
     if framed.send(resp.format()).await.is_err() {

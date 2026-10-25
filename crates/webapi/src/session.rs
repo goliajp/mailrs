@@ -266,10 +266,34 @@ pub async fn session_auth_middleware(
 
     // agent API key (mk_…) — machine callers with no browser session
     if token.starts_with(AGENT_KEY_PREFIX) {
+        use mailrs_auth_guard::events::{Channel, Credential, LoginEvent, Outcome};
+        let crate::login_guard::ClientIp(source) =
+            crate::login_guard::ClientIp::of(req.headers(), req.extensions());
+        // the prefix the key list shows, never the key
+        let key_id: String = token.chars().take(8).collect();
+        let guard = &*crate::login_guard::GUARD;
         let auth = match resolve_agent_key(token).await {
             Some(a) => a,
-            None => return Err(StatusCode::UNAUTHORIZED),
+            None => {
+                let event = LoginEvent::new(
+                    Channel::ApiKey,
+                    Credential::ApiKey,
+                    source,
+                    "",
+                    Outcome::BadPassword,
+                );
+                guard.record(event.with_key(&key_id)).await;
+                return Err(StatusCode::UNAUTHORIZED);
+            }
         };
+        let event = LoginEvent::new(
+            Channel::ApiKey,
+            Credential::ApiKey,
+            source,
+            &auth.user,
+            Outcome::Ok,
+        );
+        guard.record(event.with_key(&key_id)).await;
         if !agent_scopes_allow(&auth.scopes, req.method(), req.uri().path()) {
             tracing::debug!(
                 reason = "agent_key_scope",
