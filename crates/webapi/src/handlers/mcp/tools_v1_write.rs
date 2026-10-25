@@ -452,6 +452,10 @@ impl MailrsMcpService {
         let items: Vec<serde_json::Value> = rows
             .into_iter()
             .filter_map(|v| serde_json::from_slice(&v).ok())
+            .map(|mut row| {
+                crate::handlers::admin_audit::mask_json_row(&mut row);
+                row
+            })
             .collect();
         Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::json!({ "entries": items }).to_string(),
