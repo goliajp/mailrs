@@ -167,7 +167,10 @@ pub async fn start(Path(key): Path<String>) -> impl IntoResponse {
     // The verifier stays here. What goes to the browser is the state, which
     // names it — an authorization code intercepted in the redirect is
     // useless without the verifier this row holds.
-    let stored = serde_json::json!({ "provider": key, "verifier": pkce.verifier });
+    // The nonce comes back inside the id_token, which is what ties the token
+    // to this sign-in rather than to any other made with the same client.
+    let nonce = random_hex(16);
+    let stored = serde_json::json!({ "provider": key, "verifier": pkce.verifier, "nonce": nonce });
     let state_key = format!("oidc:flow:{state_tok}");
     let payload = stored.to_string();
     if with_kevy(move |c| {
@@ -179,10 +182,12 @@ pub async fn start(Path(key): Path<String>) -> impl IntoResponse {
         return StatusCode::SERVICE_UNAVAILABLE.into_response();
     }
 
-    Redirect::to(&mailrs_oauth_client::authorize_url(
-        &provider, &state_tok, &pkce,
-    ))
-    .into_response()
+    let mut url = mailrs_oauth_client::authorize_url(&provider, &state_tok, &pkce);
+    if matches!(provider.source, IdentitySource::IdToken) {
+        url.push_str("&nonce=");
+        url.push_str(&nonce);
+    }
+    Redirect::to(&url).into_response()
 }
 
 #[derive(Debug, Deserialize)]
@@ -229,11 +234,12 @@ pub async fn callback(
     };
     let key = flow["provider"].as_str().unwrap_or_default().to_string();
     let verifier = flow["verifier"].as_str().unwrap_or_default().to_string();
+    let nonce = flow["nonce"].as_str().unwrap_or_default().to_string();
     let Some((provider, secret)) = provider_by_key(&key) else {
         return login_redirect("unavailable");
     };
 
-    let identity = match exchange(&provider, &secret, &code, &verifier).await {
+    let identity = match exchange(&provider, &secret, &code, &verifier, &nonce).await {
         Ok(i) => i,
         Err(e) => {
             tracing::warn!(provider = %key, err = %e, "external login: no identity");
@@ -324,6 +330,7 @@ async fn exchange(
     secret: &str,
     code: &str,
     verifier: &str,
+    nonce: &str,
 ) -> Result<ExternalIdentity, String> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(15))
@@ -350,8 +357,7 @@ async fn exchange(
     match provider.source {
         IdentitySource::IdToken => {
             let id_token = tokens.id_token.ok_or("no id_token")?;
-            let claims =
-                mailrs_oauth_client::jwt_claims_unverified(&id_token).map_err(|e| e.to_string())?;
+            let claims = super::id_token::verify(provider, &id_token, nonce).await?;
             mailrs_oauth_client::identity_from_claims(provider, &claims).map_err(|e| e.to_string())
         }
         IdentitySource::UserinfoThenEmails => {

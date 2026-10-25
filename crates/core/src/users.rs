@@ -15,21 +15,15 @@ struct UsersFile {
 
 #[derive(Debug, Clone, Deserialize)]
 struct UserEntry {
-    // new format: argon2 hash
     password_hash: Option<String>,
-    // legacy format: plaintext
+    /// A plaintext password. Refused: the entry is skipped and logged.
     password: Option<String>,
 }
 
 #[derive(Debug, Clone)]
-enum StoredPassword {
-    Hash(String),
-    Plain(String),
-}
-
-#[derive(Debug, Clone)]
 pub struct UserStore {
-    users: HashMap<String, StoredPassword>,
+    /// Name → argon2 hash.
+    users: HashMap<String, String>,
 }
 
 impl UserStore {
@@ -46,37 +40,40 @@ impl UserStore {
     pub fn from_plain_passwords(pairs: Vec<(String, String)>) -> Self {
         let users = pairs
             .into_iter()
-            .map(|(k, v)| (k, StoredPassword::Plain(v)))
+            .map(|(k, v)| (k, Self::hash_password(&v).expect("hash a password")))
             .collect();
         Self { users }
     }
 
     pub fn load(path: &Path) -> io::Result<Self> {
         let content = std::fs::read_to_string(path)?;
-        let file: UsersFile =
-            toml::from_str(&content).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        Self::parse(&content, &path.display().to_string())
+    }
 
+    /// The users in a users file's `content`; `origin` names it in the log.
+    /// An entry with a plaintext `password` and no `password_hash` is
+    /// skipped: a password is never compared as stored text.
+    fn parse(content: &str, origin: &str) -> io::Result<Self> {
+        let file: UsersFile =
+            toml::from_str(content).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
         let users = file
             .users
             .into_iter()
-            .filter_map(|(k, v)| {
-                let stored = if let Some(hash) = v.password_hash {
-                    StoredPassword::Hash(hash)
-                } else {
-                    let plain = v.password?;
-                    StoredPassword::Plain(plain)
-                };
-                Some((k, stored))
+            .filter_map(|(name, entry)| match (entry.password_hash, entry.password) {
+                (Some(hash), _) => Some((name, hash)),
+                (None, Some(_)) => {
+                    tracing::error!(user = %name, file = origin, "users file: plaintext password refused, entry skipped; set password_hash");
+                    None
+                }
+                (None, None) => None,
             })
             .collect();
-
         Ok(Self { users })
     }
 
     pub fn verify(&self, username: &str, password: &str) -> bool {
         match self.users.get(username) {
-            Some(StoredPassword::Hash(hash)) => verify_argon2(password, hash),
-            Some(StoredPassword::Plain(plain)) => plain == password,
+            Some(hash) => verify_argon2(password, hash),
             None => false,
         }
     }
@@ -147,23 +144,31 @@ mod tests {
     use super::*;
     use std::io::Write;
 
-    /// helper: build a UserStore from a TOML string, mirroring UserStore::load logic
     fn store_from_toml(content: &str) -> Result<UserStore, String> {
-        let file: UsersFile = toml::from_str(content).map_err(|e| e.to_string())?;
-        let users = file
-            .users
-            .into_iter()
-            .filter_map(|(k, v)| {
-                let stored = if let Some(hash) = v.password_hash {
-                    StoredPassword::Hash(hash)
-                } else {
-                    let plain = v.password?;
-                    StoredPassword::Plain(plain)
-                };
-                Some((k, stored))
+        UserStore::parse(content, "test").map_err(|e| e.to_string())
+    }
+
+    /// `content` with each `password = "x"` line turned into the
+    /// `password_hash` line for `x`.
+    fn hashed(content: &str) -> String {
+        content
+            .lines()
+            .map(|l| match l.trim().strip_prefix("password = ") {
+                Some(quoted) => {
+                    let pw: String = toml::from_str::<toml::Value>(&format!("v = {quoted}"))
+                        .unwrap()["v"]
+                        .as_str()
+                        .unwrap()
+                        .to_string();
+                    format!(
+                        "password_hash = \"{}\"",
+                        UserStore::hash_password(&pw).unwrap()
+                    )
+                }
+                None => l.to_string(),
             })
-            .collect();
-        Ok(UserStore { users })
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 
     // ── UserStore::empty ──
@@ -294,11 +299,9 @@ mod tests {
     // ── UserStore::verify with plain passwords ──
 
     #[test]
-    fn verify_plain_legacy() {
-        let mut users = HashMap::new();
-        users.insert("alice".into(), StoredPassword::Plain("secret".into()));
-        let store = UserStore { users };
-        assert!(store.verify("alice", "secret"));
+    fn plaintext_entries_are_refused() {
+        let store = store_from_toml("[users.alice]\npassword = \"secret\"\n").unwrap();
+        assert!(!store.verify("alice", "secret"));
         assert!(!store.verify("alice", "wrong"));
     }
 
@@ -324,7 +327,7 @@ mod tests {
     fn verify_wrong_password() {
         let hash = UserStore::hash_password("correct").unwrap();
         let mut users = HashMap::new();
-        users.insert("bob".into(), StoredPassword::Hash(hash));
+        users.insert("bob".into(), hash);
         let store = UserStore { users };
         assert!(store.verify("bob", "correct"));
         assert!(!store.verify("bob", "incorrect"));
@@ -334,7 +337,7 @@ mod tests {
     fn verify_hash_user_not_found() {
         let hash = UserStore::hash_password("pw").unwrap();
         let mut users = HashMap::new();
-        users.insert("exists".into(), StoredPassword::Hash(hash));
+        users.insert("exists".into(), hash);
         let store = UserStore { users };
         assert!(!store.verify("missing", "pw"));
     }
@@ -363,8 +366,7 @@ mod tests {
 password = "plaintext_secret"
 "#;
         let store = store_from_toml(toml_str).unwrap();
-        assert!(store.verify("alice", "plaintext_secret"));
-        assert!(!store.verify("alice", "wrong"));
+        assert!(!store.verify("alice", "plaintext_secret"), "refused");
     }
 
     #[test]
@@ -394,7 +396,7 @@ password_hash = "{hash}"
 "#
         );
         let store = store_from_toml(&toml_str).unwrap();
-        assert!(store.verify("plain_user", "my_plain_pw"));
+        assert!(!store.verify("plain_user", "my_plain_pw"), "refused");
         assert!(store.verify("hash_user", "hash_pw"));
         assert!(!store.verify("plain_user", "hash_pw"));
         assert!(!store.verify("hash_user", "my_plain_pw"));
@@ -461,7 +463,7 @@ email = "alice@example.com"
 display_name = "Alice"
 "#;
         // serde should ignore unknown fields by default with deny_unknown_fields absent
-        let store = store_from_toml(toml_str).unwrap();
+        let store = store_from_toml(&hashed(toml_str)).unwrap();
         assert!(store.verify("alice", "pw"));
     }
 
@@ -483,7 +485,7 @@ password = "pw4"
 [users.user5]
 password = "pw5"
 "#;
-        let store = store_from_toml(toml_str).unwrap();
+        let store = store_from_toml(&hashed(toml_str)).unwrap();
         for i in 1..=5 {
             let name = format!("user{i}");
             let pw = format!("pw{i}");
@@ -508,7 +510,7 @@ password = "dashpw"
 [users."user.with.dots"]
 password = "dotpw"
 "#;
-        let store = store_from_toml(toml_str).unwrap();
+        let store = store_from_toml(&hashed(toml_str)).unwrap();
         assert!(store.verify("user@domain.com", "emailpw"));
         assert!(store.verify("user-with-dashes", "dashpw"));
         assert!(store.verify("user.with.dots", "dotpw"));
@@ -520,7 +522,7 @@ password = "dotpw"
 [users.intl]
 password = "密码パスワード🔐"
 "#;
-        let store = store_from_toml(toml_str).unwrap();
+        let store = store_from_toml(&hashed(toml_str)).unwrap();
         assert!(store.verify("intl", "密码パスワード🔐"));
         assert!(!store.verify("intl", "密码パスワード"));
     }
@@ -531,7 +533,7 @@ password = "密码パスワード🔐"
 [users.blank]
 password = ""
 "#;
-        let store = store_from_toml(toml_str).unwrap();
+        let store = store_from_toml(&hashed(toml_str)).unwrap();
         assert!(store.verify("blank", ""));
         assert!(!store.verify("blank", "notempty"));
     }
@@ -546,10 +548,13 @@ password = ""
         let mut f = std::fs::File::create(&path).unwrap();
         writeln!(
             f,
-            r#"
+            "{}",
+            hashed(
+                r#"
 [users.fileuser]
 password = "filepw"
 "#
+            )
         )
         .unwrap();
 
@@ -620,16 +625,14 @@ password_hash = "{hash}"
     // ── multi-user scenarios ──
 
     #[test]
-    fn mixed_store_plain_and_hash() {
+    fn mixed_file_keeps_only_the_hashed_entries() {
         let hash = UserStore::hash_password("hpw").unwrap();
-        let mut users = HashMap::new();
-        users.insert("plain".into(), StoredPassword::Plain("ppw".into()));
-        users.insert("hashed".into(), StoredPassword::Hash(hash));
-        let store = UserStore { users };
-
-        assert!(store.verify("plain", "ppw"));
+        let store = store_from_toml(&format!(
+            "[users.plain]\npassword = \"ppw\"\n\n[users.hashed]\npassword_hash = \"{hash}\"\n"
+        ))
+        .unwrap();
+        assert!(!store.verify("plain", "ppw"));
         assert!(store.verify("hashed", "hpw"));
-        assert!(!store.verify("plain", "hpw"));
         assert!(!store.verify("hashed", "ppw"));
         assert!(!store.verify("unknown", "ppw"));
     }

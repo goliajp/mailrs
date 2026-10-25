@@ -312,9 +312,15 @@ impl Session {
                     step: AuthStep::WaitPlainResponse,
                 },
             },
-            AuthMechanism::Login => Event::AuthChallenge {
-                response: Response::auth_challenge("VXNlcm5hbWU6"),
-                step: AuthStep::WaitUsername,
+            // RFC 4954 §4 lets the client put the username on the AUTH
+            // line itself; the next line is then the password, and asking
+            // for the username again would read the password as one
+            AuthMechanism::Login => match initial_response {
+                Some(data) => self.handle_auth_response(data, &AuthStep::WaitUsername),
+                None => Event::AuthChallenge {
+                    response: Response::auth_challenge("VXNlcm5hbWU6"),
+                    step: AuthStep::WaitUsername,
+                },
             },
         }
     }

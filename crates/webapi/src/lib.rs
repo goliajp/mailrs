@@ -18,11 +18,6 @@ pub mod session;
 
 use std::sync::Arc;
 
-use axum::extract::Request;
-use axum::http::StatusCode;
-use axum::middleware::Next;
-use axum::response::Response;
-
 /// Shared state injected into every web handler.
 ///
 /// Distinct from the old `crate::server::web::WebState` — fewer fields
@@ -201,22 +196,6 @@ async fn status_handler(
         "receiver_uptime_secs": stats.map(|s| s.uptime_secs),
         "queue": serde_json::Value::Null,
     }))
-}
-
-/// Phase 3 stub auth middleware — extracts user from `X-Mailrs-User`
-/// header. Real session/JWT/api-key resolution lands in checklist 3.9.
-async fn stub_auth_middleware(mut req: Request, next: Next) -> Result<Response, StatusCode> {
-    let user = req
-        .headers()
-        .get("X-Mailrs-User")
-        .and_then(|h| h.to_str().ok())
-        .map(|s| s.to_string())
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-    req.extensions_mut()
-        .insert(handlers::conversations::AuthedDisplayName::default());
-    req.extensions_mut()
-        .insert(handlers::conversations::AuthedUser(user));
-    Ok(next.run(req).await)
 }
 
 /// Main entry — boots state, builds router, listens, handles shutdown.

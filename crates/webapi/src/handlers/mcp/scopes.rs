@@ -128,8 +128,8 @@ pub(crate) fn tool_category(name: &str) -> Option<ToolCategory> {
         .map(|(_, c)| *c)
 }
 
-/// Who an MCP session acts as. `scopes: None` = unrestricted (browser
-/// session, or an agent key created without scopes).
+/// Who an MCP session acts as. `scopes: None` = a browser session; an
+/// agent key always has scopes, one without is refused before it gets here.
 #[derive(Debug, Clone, Default)]
 pub struct McpIdentity {
     pub user: String,

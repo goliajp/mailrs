@@ -28,6 +28,7 @@ pub mod events;
 pub mod external_login;
 pub mod groups;
 pub mod icon;
+pub mod id_token;
 pub mod inline;
 pub mod invites;
 pub mod jmap;

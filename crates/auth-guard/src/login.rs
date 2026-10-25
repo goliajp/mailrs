@@ -157,9 +157,6 @@ pub trait Ops {
 const BUCKETS: u64 = 10;
 /// How long a run of consecutive locks is remembered.
 const STRIKE_MEMORY_SECS: u64 = 24 * 3600;
-/// Longest account name kept in a key; anything longer is a probe, and
-/// the prefix still separates it from real accounts.
-const MAX_ACCOUNT_LEN: usize = 320;
 
 /// The four counted scopes of one attempt.
 struct Scopes {
@@ -191,11 +188,42 @@ pub use memory::{MemoryLoginGuard, MemoryOps};
 
 const GLOBAL: &str = "g";
 
+/// How an account name is kept in a key. Something that is not an address
+/// is often a password typed into the wrong field, so only its hash is kept.
 fn normalize_account(account: &str) -> String {
     let a = account.trim().to_lowercase();
-    match a.char_indices().nth(MAX_ACCOUNT_LEN) {
-        Some((cut, _)) => a[..cut].to_string(),
-        None => a,
+    if !looks_like_address(&a) {
+        use sha2::Digest as _;
+        let digest = sha2::Sha256::digest(a.as_bytes());
+        let hex: String = digest[..16].iter().map(|b| format!("{b:02x}")).collect();
+        return format!("~{hex}");
+    }
+    a
+}
+
+/// `local@domain.tld` with nothing odd in it.
+pub fn looks_like_address(name: &str) -> bool {
+    let name = name.trim();
+    match name.split_once('@') {
+        Some((local, domain)) => {
+            !local.is_empty()
+                && domain.contains('.')
+                && !domain.starts_with('.')
+                && !domain.ends_with('.')
+                && !domain.contains('@')
+                && name.len() <= 254
+                && name.chars().all(|c| c.is_ascii_graphic() || !c.is_ascii())
+        }
+        None => false,
+    }
+}
+
+/// An account name as logs may show it: as typed when it is an address,
+/// otherwise only its length, since it may well be a password.
+pub fn loggable_account(name: &str) -> String {
+    match looks_like_address(name) {
+        true => name.trim().to_string(),
+        false => format!("<{} chars, not an address>", name.chars().count()),
     }
 }
 
@@ -329,6 +357,7 @@ pub fn record_failure<O: Ops>(
             let secs = lock_secs(limits, u32::try_from(strikes - 1).unwrap_or(u32::MAX));
             ops.set(&lock_key(scope), now + secs, secs)?;
             ops.del(&window_keys(scope, limits.window_secs, now))?;
+            let account = loggable_account(account);
             tracing::warn!(event = "auth_lockout", scope = name, %source, account, lock_secs = secs);
         }
     }
@@ -428,9 +457,43 @@ mod tests {
     }
 
     #[test]
-    fn long_account_names_are_cut() {
-        let long = "a".repeat(5000);
-        assert_eq!(normalize_account(&long).len(), MAX_ACCOUNT_LEN);
+    fn overlong_names_are_kept_as_a_hash() {
+        let long = format!("{}@x.test", "a".repeat(5000));
+        let kept = normalize_account(&long);
+        assert!(kept.starts_with('~') && kept.len() == 33, "{kept}");
+    }
+
+    #[test]
+    fn names_that_are_not_addresses_are_neither_kept_nor_logged() {
+        assert!(looks_like_address("Alice@X.test"));
+        for not in [
+            "hunter2",
+            "alice",
+            "alice@",
+            "@x.test",
+            "alice@localhost",
+            "a b@x.test",
+            "a@x.test.",
+            "",
+        ] {
+            assert!(!looks_like_address(not), "{not}");
+        }
+        let kept = normalize_account("Tr0ub4dor&3");
+        assert!(
+            kept.starts_with('~') && !kept.contains("tr0ub4dor"),
+            "{kept}"
+        );
+        assert_eq!(
+            normalize_account("Tr0ub4dor&3"),
+            kept,
+            "the same input, the same key"
+        );
+        assert_eq!(normalize_account(" Alice@X.test "), "alice@x.test");
+        assert_eq!(
+            loggable_account("Tr0ub4dor&3"),
+            "<11 chars, not an address>"
+        );
+        assert_eq!(loggable_account("alice@x.test"), "alice@x.test");
     }
 
     #[tokio::test]

@@ -55,3 +55,120 @@ pub fn generate_recovery_codes() -> Vec<String> {
         })
         .collect()
 }
+
+/// Field of `totp:{address}` holding the recovery codes' argon2 hashes,
+/// one per line (a PHC string has commas in it).
+pub const RECOVERY_HASHES: &[u8] = b"recovery_hashes";
+/// Where codes were once kept in plaintext; read only to convert them.
+const RECOVERY_PLAIN: &[u8] = b"recovery_codes";
+
+fn hash(code: &str) -> Result<String, password_hash::Error> {
+    use argon2::password_hash::{PasswordHasher, SaltString};
+    let salt = SaltString::generate(&mut OsRng);
+    Ok(argon2::Argon2::default()
+        .hash_password(code.as_bytes(), &salt)?
+        .to_string())
+}
+
+fn matches(code: &str, stored: &str) -> bool {
+    use password_hash::{PasswordHash, PasswordVerifier};
+    PasswordHash::new(stored).is_ok_and(|h| {
+        argon2::Argon2::default()
+            .verify_password(code.as_bytes(), &h)
+            .is_ok()
+    })
+}
+
+/// The stored form of `codes`.
+pub fn hash_recovery_codes(codes: &[String]) -> String {
+    codes
+        .iter()
+        .filter_map(|c| hash(c).ok())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Use up `code` if it is one of `key`'s recovery codes. Codes still kept
+/// in plaintext are hashed and the plaintext dropped on the way, whether
+/// or not `code` matches.
+pub fn consume_recovery_code(
+    c: &mut kevy_client::Connection,
+    key: &str,
+    code: &str,
+) -> std::io::Result<bool> {
+    let read = |c: &mut kevy_client::Connection, field: &[u8]| -> std::io::Result<String> {
+        Ok(c.hget(key.as_bytes(), field)?
+            .and_then(|v| String::from_utf8(v).ok())
+            .unwrap_or_default())
+    };
+    let mut hashes: Vec<String> = read(c, RECOVERY_HASHES)?
+        .lines()
+        .filter(|l| !l.is_empty())
+        .map(str::to_string)
+        .collect();
+    let plain = read(c, RECOVERY_PLAIN)?;
+    let legacy: Vec<String> = plain
+        .split(',')
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+        .collect();
+    let converted = !legacy.is_empty();
+    hashes.extend(hash_recovery_codes(&legacy).lines().map(str::to_string));
+    let code = code.trim();
+    let hit = (!code.is_empty())
+        .then(|| hashes.iter().position(|h| matches(code, h)))
+        .flatten();
+    if let Some(i) = hit {
+        hashes.remove(i);
+    }
+    if converted || hit.is_some() {
+        c.hset(
+            key.as_bytes(),
+            &[(RECOVERY_HASHES, hashes.join("\n").as_bytes())],
+        )?;
+    }
+    if converted {
+        c.hdel(key.as_bytes(), &[RECOVERY_PLAIN])?;
+    }
+    Ok(hit.is_some())
+}
+
+#[cfg(test)]
+mod recovery_tests {
+    use super::*;
+
+    #[test]
+    fn a_code_works_once_and_plaintext_codes_are_converted() {
+        let mut c = kevy_client::Connection::connect("mem://recovery-codes").unwrap();
+        let key = "totp:alice@x.test";
+        c.hset(key.as_bytes(), &[(RECOVERY_PLAIN, b"aaaa1111,bbbb2222")])
+            .unwrap();
+        assert!(!consume_recovery_code(&mut c, key, "nope").unwrap());
+        assert_eq!(
+            c.hget(key.as_bytes(), RECOVERY_PLAIN).unwrap(),
+            None,
+            "plaintext dropped"
+        );
+        let stored =
+            String::from_utf8(c.hget(key.as_bytes(), RECOVERY_HASHES).unwrap().unwrap()).unwrap();
+        assert_eq!(stored.lines().count(), 2);
+        assert!(!stored.contains("aaaa1111"));
+        assert!(consume_recovery_code(&mut c, key, "aaaa1111").unwrap());
+        assert!(
+            !consume_recovery_code(&mut c, key, "aaaa1111").unwrap(),
+            "used up"
+        );
+        assert!(consume_recovery_code(&mut c, key, " bbbb2222 ").unwrap());
+        assert!(!consume_recovery_code(&mut c, key, "").unwrap());
+    }
+
+    #[test]
+    fn new_codes_are_stored_hashed() {
+        let codes = generate_recovery_codes();
+        let stored = hash_recovery_codes(&codes);
+        assert_eq!(stored.lines().count(), 8);
+        for code in &codes {
+            assert!(!stored.contains(code.as_str()));
+        }
+    }
+}

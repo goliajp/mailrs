@@ -82,7 +82,7 @@ pub async fn verify_credentials(
     let guard = &*crate::login_guard::GUARD;
     let verdict = guard.check(source, &req.address).await;
     if let Verdict::Locked { .. } = verdict {
-        tracing::warn!(event = "auth", channel = "verify", %caller, %source, account = %req.address, result = "locked");
+        tracing::warn!(event = "auth", channel = "verify", %caller, %source, account = %mailrs_auth_guard::login::loggable_account(&req.address), result = "locked");
         return crate::login_guard::locked_response(verdict);
     }
     // an unknown account and a wrong password answer alike, so the
@@ -90,7 +90,7 @@ pub async fn verify_credentials(
     let acct = match super::password::verify(&state, &req.address, &req.password).await {
         Ok(Some(acct)) => acct,
         Ok(None) => {
-            tracing::warn!(event = "auth", channel = "verify", %caller, %source, account = %req.address, result = "bad-password");
+            tracing::warn!(event = "auth", channel = "verify", %caller, %source, account = %mailrs_auth_guard::login::loggable_account(&req.address), result = "bad-password");
             guard.failed(source, &req.address).await;
             return (
                 StatusCode::OK,
@@ -154,7 +154,7 @@ pub async fn verify_totp(
     let guard = &*crate::login_guard::GUARD;
     let verdict = guard.check(source, &req.address).await;
     if let Verdict::Locked { .. } = verdict {
-        tracing::warn!(event = "auth", channel = "verify", %caller, %source, account = %req.address, result = "locked");
+        tracing::warn!(event = "auth", channel = "verify", %caller, %source, account = %mailrs_auth_guard::login::loggable_account(&req.address), result = "locked");
         return crate::login_guard::locked_response(verdict);
     }
     let key = format!("totp:{}", req.address);
@@ -190,28 +190,11 @@ pub async fn verify_totp(
     }
     let code_valid = crate::handlers::totp_util::verify_code(&secret, &req.code);
     let recovery_valid = if !code_valid {
-        // v2 Stage B.1: recovery codes are one-shot — consolidate the
-        // hget + conditional hset onto a single kevy connection so the
-        // read + write happen back-to-back (µs window instead of two
-        // TCP round-trips).
+        // one-shot: a code that matches is removed in the same call
         let rc_key = key.clone();
         let code_owned = req.code.clone();
         crate::handlers::kevy_util::with_kevy(move |c| {
-            let recovery_str = c
-                .hget(rc_key.as_bytes(), b"recovery_codes")?
-                .and_then(|v| String::from_utf8(v).ok())
-                .unwrap_or_default();
-            let mut codes: Vec<&str> = recovery_str.split(',').filter(|s| !s.is_empty()).collect();
-            let Some(idx) = codes.iter().position(|c| *c == code_owned.as_str()) else {
-                return Ok(false);
-            };
-            codes.remove(idx);
-            let joined = codes.join(",");
-            c.hset(
-                rc_key.as_bytes(),
-                &[(b"recovery_codes" as &[u8], joined.as_bytes())],
-            )?;
-            Ok(true)
+            crate::handlers::totp_util::consume_recovery_code(c, &rc_key, &code_owned)
         })
         .unwrap_or(false)
     } else {
@@ -220,7 +203,7 @@ pub async fn verify_totp(
     if code_valid || recovery_valid {
         (StatusCode::OK, Json(serde_json::json!({"valid": true}))).into_response()
     } else {
-        tracing::warn!(event = "auth", channel = "verify", %caller, %source, account = %req.address, result = "mfa-failed");
+        tracing::warn!(event = "auth", channel = "verify", %caller, %source, account = %mailrs_auth_guard::login::loggable_account(&req.address), result = "mfa-failed");
         guard.failed(source, &req.address).await;
         (
             StatusCode::OK,
@@ -247,10 +230,10 @@ pub async fn change_password(
         )
             .into_response();
     }
-    if req.new_password.len() < 8 {
+    if !super::password::acceptable_new(&req.new_password) {
         return (
             StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({"error": "new password must be at least 8 characters"})),
+            Json(serde_json::json!({"error": "new password must be 8 to 1024 characters"})),
         )
             .into_response();
     }

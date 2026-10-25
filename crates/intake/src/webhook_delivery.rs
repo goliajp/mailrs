@@ -73,17 +73,9 @@ pub fn enqueue_for_arrival(
 
 /// Poll and deliver until the process ends.
 pub async fn run(net: NetConn) {
-    let client = match reqwest::Client::builder()
-        .timeout(Duration::from_secs(10))
-        .connect_timeout(Duration::from_secs(5))
-        .build()
-    {
-        Ok(c) => c,
-        Err(e) => {
-            tracing::error!(err = %e, "webhook delivery: no http client, loop not started");
-            return;
-        }
-    };
+    // a subscriber names the URL, so every delivery goes through the
+    // egress check
+    let client = mailrs_egress::Egress::new("mailrs-webhook/1.0", Duration::from_secs(10));
 
     // Said once at boot, because the loop is otherwise silent while the
     // queue is empty — indistinguishable from one that never started, which
@@ -104,7 +96,7 @@ pub async fn run(net: NetConn) {
 }
 
 /// One pass. Returns how many entries were attempted.
-async fn drain_once(net: &NetConn, client: &reqwest::Client) -> usize {
+async fn drain_once(net: &NetConn, client: &mailrs_egress::Egress) -> usize {
     let Some(mut conn) = net() else {
         return 0;
     };
@@ -140,7 +132,11 @@ async fn drain_once(net: &NetConn, client: &reqwest::Client) -> usize {
 }
 
 /// Look up the subscription, sign, POST, and record what happened.
-async fn deliver_one(net: &NetConn, client: &reqwest::Client, entry: webhook_outbox::OutboxEntry) {
+async fn deliver_one(
+    net: &NetConn,
+    client: &mailrs_egress::Egress,
+    entry: webhook_outbox::OutboxEntry,
+) {
     let Some(mut conn) = net() else {
         return;
     };
@@ -165,17 +161,19 @@ async fn deliver_one(net: &NetConn, client: &reqwest::Client, entry: webhook_out
         .and_then(|v| v.get("event").and_then(|e| e.as_str()).map(str::to_string))
         .unwrap_or_else(|| "unknown".into());
 
+    // no redirects: the signature is for the URL the subscriber registered
     let result = client
-        .post(&sub.url)
-        .header("Content-Type", "application/json")
-        .header(
-            "X-Mailrs-Signature",
-            mailrs_webhook_signature::format_header(&signature),
-        )
-        .header("X-Mailrs-Event", &event)
-        .header("X-Mailrs-Delivery", entry.id.to_string())
-        .body(entry.payload.clone())
-        .send()
+        .send(&sub.url, 0, |c, url| {
+            c.post(url)
+                .header("Content-Type", "application/json")
+                .header(
+                    "X-Mailrs-Signature",
+                    mailrs_webhook_signature::format_header(&signature),
+                )
+                .header("X-Mailrs-Event", &event)
+                .header("X-Mailrs-Delivery", entry.id.to_string())
+                .body(entry.payload.clone())
+        })
         .await;
 
     let now = now_secs();
