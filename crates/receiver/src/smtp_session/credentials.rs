@@ -77,9 +77,8 @@ pub(super) fn sandbox_namespace(username: &str) -> Option<String> {
 fn hash_matches(password: &str, hash: &str) -> bool {
     if hash.is_empty() {
         false
-    } else if hash.starts_with("$argon2") {
-        UserStore::verify_hash(password, hash)
     } else {
-        hash == password
+        // argon2 only; a stored value that is not a hash is never compared
+        hash.starts_with("$argon2") && UserStore::verify_hash(password, hash)
     }
 }

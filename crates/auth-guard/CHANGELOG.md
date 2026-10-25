@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `login`: the login guard shared by every way in. Four sliding-window
+  counts (source and account, source, account, everything), familiar
+  sources that only the first applies to, locks that record when they end
+  so the caller's clock decides. The policy is written once against
+  `login::Ops`; `MemoryLoginGuard` keeps state in memory and
+  `login::contract::check_ops` is what any other store must pass.
+- `kevy` feature: `kevy::KevyLoginGuard` over a shared kevy server, and
+  `kevy::guard_for` to pick it or the in-memory guard. An unreachable
+  server lets attempts through and logs an error.
+
 ## [2.1.0] - 2026-08-04
 
 There is no 2.0.0 release; 2.1.0 follows 1.0.3.

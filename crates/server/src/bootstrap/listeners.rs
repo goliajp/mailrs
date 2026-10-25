@@ -40,5 +40,7 @@ pub(crate) fn spawn_mail_protocols(p: MailProtocols<'_>) {
             .ok()
             .filter(|s| !s.is_empty()),
     };
-    mailrs_mail_protocols::spawn_all(Arc::new(dir), p.tls_state.clone());
+    let guard = mailrs_auth_guard::kevy::guard_for(dir.net_url.as_deref());
+    let guarded = mailrs_mail_protocols::Guarded::new(Arc::new(dir), guard);
+    mailrs_mail_protocols::spawn_all(Arc::new(guarded), p.tls_state.clone());
 }

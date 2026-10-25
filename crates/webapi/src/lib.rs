@@ -13,6 +13,7 @@ pub mod handlers;
 mod router;
 pub use router::build_router;
 pub mod kevy_pool;
+pub mod login_guard;
 pub mod session;
 
 use std::sync::Arc;
@@ -277,7 +278,11 @@ pub async fn run() {
     tracing::info!(addr = %bind, "webapi listening");
 
     let (_shutdown_tx, mut shutdown_rx) = tokio::sync::watch::channel(false);
-    let server = axum::serve(listener, router).with_graceful_shutdown(async move {
+    let server = axum::serve(
+        listener,
+        router.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .with_graceful_shutdown(async move {
         let _ = shutdown_rx.changed().await;
     });
 

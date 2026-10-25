@@ -22,9 +22,8 @@ use testcontainers::{
 };
 
 use mailrs_core::event_bus::{EventBus, SmtpEvent};
-use mailrs_receiver::inbound::auth_guard::{AuthCheck, AuthGuardConfig, AuthGuardStore};
 use mailrs_receiver::inbound::kevy_backends::{
-    KevyServerAuthGuardStore, KevyServerGreylistBackend, KevyServerRateLimitStore,
+    KevyServerGreylistBackend, KevyServerRateLimitStore,
 };
 use mailrs_receiver::inbound::rate_limit::{RateLimitStore, TokenBucketConfig};
 use mailrs_receiver::kevy_net::KevyNetClient;
@@ -140,40 +139,23 @@ async fn rate_limit_over_tcp_allows_to_capacity_then_rejects() {
     assert!(store.check("10.0.0.2").await, "distinct key unaffected");
 }
 
+/// The login guard's policy over a real kevy-server: the same scenarios
+/// the in-process store passes.
 #[tokio::test]
-async fn auth_guard_over_tcp_locks_then_success_clears() {
+async fn login_guard_over_tcp_meets_the_contract() {
     let (_container, url) = setup_kevy().await;
-    let client = Arc::new(KevyNetClient::new(url));
-    let store = KevyServerAuthGuardStore::new(
-        client,
-        AuthGuardConfig {
-            max_failures_account: 2,
-            account_window_secs: 900,
-            base_lockout_secs: 60,
-            max_failures_ip: 1000,
-            ip_window_secs: 3600,
-            ip_base_lockout_secs: 3600,
-            backoff_multiplier: 2.0,
-            max_lockout_secs: 86400,
-        },
-    );
-    let ip = "203.0.113.20".parse().unwrap();
-
-    assert!(matches!(
-        store.check(ip, "erin", 1_000).await,
-        AuthCheck::Allowed
-    ));
-    store.record_failure(ip, "erin", 1_000).await;
-    store.record_failure(ip, "erin", 1_000).await; // threshold → lockout
-    assert!(matches!(
-        store.check(ip, "erin", 1_000).await,
-        AuthCheck::LockedOut { remaining_secs } if remaining_secs > 0
-    ));
-    store.record_success(ip, "erin").await;
-    assert!(matches!(
-        store.check(ip, "erin", 1_000).await,
-        AuthCheck::Allowed
-    ));
+    tokio::task::spawn_blocking(move || {
+        mailrs_auth_guard::login::contract::check_ops(
+            || {
+                let mut c = kevy_client::Connection::connect(&url).expect("kevy");
+                c.flushall().expect("flushall");
+                c
+            },
+            |_, _| {},
+        );
+    })
+    .await
+    .expect("contract");
 }
 
 #[tokio::test]

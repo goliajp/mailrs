@@ -9,7 +9,7 @@
 
 use std::sync::Arc;
 
-use mailrs_receiver::inbound::auth_guard::{AuthGuard, AuthGuardConfig, AuthGuardStore};
+use mailrs_auth_guard::login::{LoginGuard, MemoryLoginGuard};
 use mailrs_receiver::inbound::rate_limit::{
     InMemoryRateLimitStore, RateLimitStore, TokenBucketConfig,
 };
@@ -57,7 +57,7 @@ pub async fn spawn_receiving_server(
             capacity: 100_000,
             refill_rate: 100_000.0,
         }));
-    let auth_guard: Arc<dyn AuthGuardStore> = Arc::new(AuthGuard::new(AuthGuardConfig::default()));
+    let auth_guard: Arc<dyn LoginGuard> = Arc::new(MemoryLoginGuard::default());
     let mailbox_store = Arc::new(mailrs_mailbox::PgMailboxStore::new(pool.clone()));
     let domain = Arc::new(crate::domain_store::DomainStore::new(Some(pool), None));
     let core = Arc::new(crate::intake::PgCore {

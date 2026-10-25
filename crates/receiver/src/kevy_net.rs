@@ -1,7 +1,7 @@
 //! Network kevy client for the receiver-split topology.
 //!
 //! When `MAILRS_KEVY_URL` points at a shared kevy-server, the anti
-//! subsystems (greylist / rate / auth-guard) read+write their state
+//! subsystems (greylist / rate) read+write their state
 //! over RESP instead of the in-process embedded `Store`. This is the
 //! "shared layer" of the core/edge architecture: only state that *must*
 //! cross processes lives here; the in-process embedded kevy stays the

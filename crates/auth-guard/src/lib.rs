@@ -8,6 +8,10 @@ use std::time::Duration;
 use async_trait::async_trait;
 use dashmap::DashMap;
 
+#[cfg(feature = "kevy")]
+pub mod kevy;
+pub mod login;
+
 /// Tunable thresholds for the auth-guard's lockout policy.
 ///
 /// Defaults are tuned for an SMTP/IMAP submission server:

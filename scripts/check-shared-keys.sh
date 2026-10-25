@@ -38,6 +38,7 @@ session:;crates/core-sidestate/src/keys/session.rs
 spam:[^"]*:(whitelist|blacklist);crates/core-sidestate/src/families/sender_lists.rs
 sieve:;crates/core-sidestate/src/lib.rs
 gl:;crates/shield/src/greylist_key.rs
+ag:;crates/auth-guard/src/login.rs
 notify:new-mail;crates/core/src/event_bus.rs
 bayes:(tokens|meta|corpus|trained);crates/triage/src/spam.rs
 bayes:triage:;crates/triage/src/lib.rs
