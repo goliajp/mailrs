@@ -4,14 +4,13 @@
 use std::sync::Arc;
 
 use hickory_resolver::TokioResolver;
-use mailrs_auth_guard::AuthGuardConfig;
+use mailrs_auth_guard::login::LoginGuard;
 use mailrs_shield::greylist::{GreylistConfig, GreylistDb};
 
 use crate::config::ReceiverConfig;
 use crate::greylist_local::GreylistLocalHandle;
 use crate::greylist_sync::GreylistListsHandle;
-use crate::inbound::auth_guard::AuthGuardStore;
-use crate::inbound::kevy_backends::{KevyServerAuthGuardStore, KevyServerRateLimitStore};
+use crate::inbound::kevy_backends::KevyServerRateLimitStore;
 use crate::inbound::pipeline::build_inbound_pipeline;
 use crate::inbound::rate_limit::{RateLimitStore, TokenBucketConfig};
 use crate::inbound::stages::mail_auth::MailAuthResolvers;
@@ -30,11 +29,9 @@ pub(super) fn rate_limiter(
     ))
 }
 
-pub(super) fn auth_guard(kevy_client: &Arc<KevyNetClient>) -> Arc<dyn AuthGuardStore> {
-    Arc::new(KevyServerAuthGuardStore::new(
-        kevy_client.clone(),
-        AuthGuardConfig::default(),
-    ))
+/// SMTP submission counts failed logins with every other way in.
+pub(super) fn auth_guard(kevy_client: &Arc<KevyNetClient>) -> Arc<dyn LoginGuard> {
+    mailrs_auth_guard::kevy::guard_for(Some(kevy_client.url()))
 }
 
 /// DNS resolver for PTR + SPF/DKIM/DMARC.

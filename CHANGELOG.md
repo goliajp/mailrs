@@ -18,6 +18,54 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### One login guard for every way in
+
+Failed logins were counted only on SMTP submission and DAV, per source
+and account, each in its own store; changing source started the count
+again, and IMAP, POP3, ManageSieve, the web login and `/api/auth/verify`
+counted nothing.
+
+- Web login (password and TOTP step), `/api/auth/verify`,
+  `/api/auth/verify-totp`, DAV, IMAP, POP3, ManageSieve and SMTP
+  submission all ask one guard before the password is checked, and report
+  the outcome after. State is in the network kevy (`ag:` keys), so a
+  failure on one protocol counts on all of them, in every process.
+- Four counts, each a sliding window: source and account (5 in 15
+  minutes, locks 30 minutes, doubling), source (IPv4 address or IPv6 /64;
+  20 in an hour, locks an hour, doubling), account from any source (10
+  in an hour, locks 15 minutes, doubling up to 2 hours), and everything
+  (100 in 10 minutes, closes the door while the window stays full).
+- A source the account signed in from within 30 days (IPv4 /24, IPv6
+  /64, the 20 most recent) is familiar and only the source-and-account
+  count applies to it, so guessing at an account from elsewhere does not
+  lock its owner out.
+- A locked attempt is refused without verifying the password: `429` with
+  `Retry-After` on HTTP, `NO [UNAVAILABLE]` on IMAP, `-ERR [SYS/TEMP]` on
+  POP3, `NO (TRYLATER)` on ManageSieve, `421 4.7.0` on SMTP, each saying
+  how many minutes to wait and not which count tripped.
+- When the store cannot be reached the attempt is let through and an
+  error is logged (`event="auth_guard_unavailable"`).
+- The web client address is the last `X-Forwarded-For` hop only when the
+  connection comes from `MAILRS_TRUSTED_PROXIES` (CIDRs; loopback when
+  unset); otherwise it is the connection's own address.
+- `/api/auth/verify` answers `{"valid":false,"reason":"invalid_credentials"}`
+  for an unknown account and a wrong password alike, never compares a
+  stored value that is not an argon2 hash, and takes an optional
+  `client_ip` so the calling service can have the person counted rather
+  than itself. `/api/auth/verify-totp` takes the same field. SMTP
+  submission no longer compares a stored non-hash either.
+- `POST /api/auth/logout` ends a session sent as `Authorization: Bearer`
+  as well as the cookie one, and drops it from the owner's index.
+- Agent keys: no key, of any scope, can list, create or revoke keys
+  (`/api/agent/keys`); that takes a signed-in session. A new key must
+  name at least one scope; the web form's "Full access" now sends
+  `admin` and the form starts on "Mail read + write". Keys made earlier
+  with no scope keep working.
+- Sending: the send-as check compares the address inside `Name <addr>`,
+  so a display name is allowed on any address the account may send as,
+  and the name is written quoted (or RFC 2047 encoded) into the From
+  header. A `from` containing a line break is refused with `400`.
+
 ### Local forwards: an account's mail copied into another account here
 
 An account that exists only so a service can sign in with it (sentori@,

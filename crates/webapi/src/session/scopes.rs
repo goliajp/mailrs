@@ -3,8 +3,10 @@
 //! Vocabulary: `admin` (everything), `mail:write` (read + write, no
 //! /api/admin), `mail:read` (GET/HEAD only, no /api/admin), `mock` (only
 //! /api/mock/…), `mock:{ns}` (only that one mock namespace, cannot create
-//! or delete it). An empty scope list grants full owner access. A key with
-//! several scopes gets the union of what each one allows.
+//! or delete it). An empty scope list grants full owner access; only keys
+//! made before scopes were required have one, and no new key may. A key
+//! with several scopes gets the union of what each one allows. No key, of
+//! any scope, can create or revoke keys: that takes a signed-in session.
 
 use axum::http::{Method, StatusCode};
 
@@ -34,9 +36,10 @@ pub fn is_known_scope(scope: &str) -> bool {
     }
 }
 
-/// 400 unless every scope is in the vocabulary.
+/// 400 unless there is at least one scope and every scope is in the
+/// vocabulary: a new key names what it may do.
 pub fn validate_agent_scopes(scopes: &[String]) -> Result<(), StatusCode> {
-    match scopes.iter().all(|s| is_known_scope(s)) {
+    match !scopes.is_empty() && scopes.iter().all(|s| is_known_scope(s)) {
         true => Ok(()),
         false => Err(StatusCode::BAD_REQUEST),
     }
@@ -64,7 +67,13 @@ pub fn mock_ns_restriction(scopes: &[String]) -> Option<Vec<String>> {
     )
 }
 
+/// Where keys are made and revoked.
+const AGENT_KEYS: &str = "/api/agent/keys";
+
 pub(super) fn agent_scopes_allow(scopes: &[String], method: &Method, path: &str) -> bool {
+    if under(path, AGENT_KEYS) {
+        return false;
+    }
     scopes.is_empty() || scopes.iter().any(|s| scope_allows(s, method, path))
 }
 
@@ -114,6 +123,32 @@ mod tests {
     fn empty_scopes_grant_full_access() {
         assert!(agent_scopes_allow(&[], &Method::POST, "/api/admin/domains"));
         assert!(agent_scopes_allow(&[], &Method::GET, "/api/conversations"));
+    }
+
+    #[test]
+    fn no_key_manages_keys() {
+        for scopes in [s(&[]), s(&["admin"]), s(&["mail:write"]), s(&["mail:read"])] {
+            assert!(!agent_scopes_allow(
+                &scopes,
+                &Method::POST,
+                "/api/agent/keys"
+            ));
+            assert!(!agent_scopes_allow(
+                &scopes,
+                &Method::GET,
+                "/api/agent/keys"
+            ));
+            assert!(!agent_scopes_allow(
+                &scopes,
+                &Method::DELETE,
+                "/api/agent/keys/3"
+            ));
+        }
+        assert!(agent_scopes_allow(
+            &s(&["mail:write"]),
+            &Method::GET,
+            "/api/agent/keysmith"
+        ));
     }
 
     #[test]
@@ -277,7 +312,7 @@ mod tests {
             validate_agent_scopes(&s(&["mock", "bogus"])),
             Err(StatusCode::BAD_REQUEST)
         );
-        assert_eq!(validate_agent_scopes(&[]), Ok(()));
+        assert_eq!(validate_agent_scopes(&[]), Err(StatusCode::BAD_REQUEST));
     }
 
     #[test]

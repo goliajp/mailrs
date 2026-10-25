@@ -7,7 +7,7 @@ use tokio_util::codec::Framed;
 use mailrs_smtp_proto::response::Response;
 use mailrs_smtp_proto::session::{AuthStep, Event, Session};
 
-use crate::inbound::auth_guard::{AuthCheck, unix_now};
+use mailrs_auth_guard::login::Verdict;
 use mailrs_core::event_bus::SmtpEvent;
 use mailrs_smtp_codec::{SmtpCodec, SmtpInput};
 
@@ -26,42 +26,7 @@ pub(super) async fn handle_need_auth<S>(
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
-    if let AuthCheck::LockedOut { remaining_secs } =
-        ctx.auth_guard.check(addr.ip(), &username, unix_now()).await
-    {
-        let resp = Response::new(
-            421,
-            Some(mailrs_smtp_proto::EnhancedCode {
-                class: 4,
-                subject: 7,
-                detail: 0,
-            }),
-            format!("Too many auth failures, try again in {remaining_secs}s"),
-        );
-        if framed.send(resp.format()).await.is_err() {
-            return SessionAction::Close;
-        }
-        return SessionAction::Continue;
-    }
-    let ok = verify_credentials(ctx, &username, &password).await;
-    let resp = if ok {
-        ctx.auth_guard.record_success(addr.ip(), &username).await;
-        session.set_authenticated(username.clone());
-        ctx.event_bus.emit(SmtpEvent::Authenticated {
-            id: conn_id,
-            username,
-        });
-        Response::auth_ok()
-    } else {
-        ctx.auth_guard
-            .record_failure(addr.ip(), &username, unix_now())
-            .await;
-        Response::auth_failed()
-    };
-    if framed.send(resp.format()).await.is_err() {
-        return SessionAction::Close;
-    }
-    SessionAction::Continue
+    sign_in(framed, session, username, password, addr, ctx, conn_id).await
 }
 
 pub(super) async fn handle_auth_challenge<S>(
@@ -113,42 +78,7 @@ where
             let event = session.handle_auth_response(&line, &step);
             match event {
                 Event::NeedAuth { username, password } => {
-                    if let AuthCheck::LockedOut { remaining_secs } =
-                        ctx.auth_guard.check(addr.ip(), &username, unix_now()).await
-                    {
-                        let resp = Response::new(
-                            421,
-                            Some(mailrs_smtp_proto::EnhancedCode {
-                                class: 4,
-                                subject: 7,
-                                detail: 0,
-                            }),
-                            format!("Too many auth failures, try again in {remaining_secs}s"),
-                        );
-                        if framed.send(resp.format()).await.is_err() {
-                            return SessionAction::Close;
-                        }
-                        return SessionAction::Continue;
-                    }
-                    let ok = verify_credentials(ctx, &username, &password).await;
-                    let resp = if ok {
-                        ctx.auth_guard.record_success(addr.ip(), &username).await;
-                        session.set_authenticated(username.clone());
-                        ctx.event_bus.emit(SmtpEvent::Authenticated {
-                            id: conn_id,
-                            username,
-                        });
-                        Response::auth_ok()
-                    } else {
-                        ctx.auth_guard
-                            .record_failure(addr.ip(), &username, unix_now())
-                            .await;
-                        Response::auth_failed()
-                    };
-                    if framed.send(resp.format()).await.is_err() {
-                        return SessionAction::Close;
-                    }
-                    SessionAction::Continue
+                    sign_in(framed, session, username, password, addr, ctx, conn_id).await
                 }
                 Event::AuthChallenge {
                     response,
@@ -173,4 +103,53 @@ where
         }
         _ => SessionAction::Close,
     }
+}
+
+/// Verify the credentials unless the login guard has locked this source
+/// or account; a locked attempt never reaches the password check.
+async fn sign_in<S>(
+    framed: &mut Framed<S, SmtpCodec>,
+    session: &mut Session,
+    username: String,
+    password: String,
+    addr: SocketAddr,
+    ctx: &ConnectionContext,
+    conn_id: u64,
+) -> SessionAction
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
+    let source = addr.ip().to_canonical();
+    let verdict = ctx.auth_guard.check(source, &username).await;
+    let resp = if let Verdict::Locked { .. } = verdict {
+        tracing::warn!(event = "auth", channel = "smtp", %source, account = %username, result = "locked");
+        Response::new(
+            421,
+            Some(mailrs_smtp_proto::EnhancedCode {
+                class: 4,
+                subject: 7,
+                detail: 0,
+            }),
+            format!(
+                "Too many failed sign-in attempts, try again in {} minutes",
+                verdict.retry_after_minutes()
+            ),
+        )
+    } else if verify_credentials(ctx, &username, &password).await {
+        ctx.auth_guard.succeeded(source, &username).await;
+        session.set_authenticated(username.clone());
+        ctx.event_bus.emit(SmtpEvent::Authenticated {
+            id: conn_id,
+            username,
+        });
+        Response::auth_ok()
+    } else {
+        tracing::warn!(event = "auth", channel = "smtp", %source, account = %username, result = "bad-password");
+        ctx.auth_guard.failed(source, &username).await;
+        Response::auth_failed()
+    };
+    if framed.send(resp.format()).await.is_err() {
+        return SessionAction::Close;
+    }
+    SessionAction::Continue
 }

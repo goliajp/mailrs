@@ -2,14 +2,15 @@
  * Agent-key scope vocabulary.
  *
  * Backend: `crates/webapi/src/session/scopes.rs — agent_scopes_allow`.
- *   - empty list      → full owner access (every route the account can reach)
- *   - `admin`         → same as empty
+ *   - `admin`         → full owner access (every route the account can reach)
+ *   - empty list      → the same; only old keys have one, new ones must name a scope
  *   - `mail:write`    → everything except `/api/admin/*`
  *   - `mail:read`     → GET/HEAD only, and never `/api/admin/*`
  *   - `mock`          → only `/api/mock/*` and the `mock_*` MCP tools
  *   - `mock:{ns}`     → only that one mock namespace; cannot create or delete it
  *
- * `create_agent_key` (complete.rs:1320) accepts `{name, scopes}`. It has
+ * `create_agent_key` accepts `{name, scopes}` and refuses an empty list. No
+ * key can reach `/api/agent/keys`; keys are made from a signed-in session. It has
  * never accepted an expiry — the old "expires in days" input was silently
  * discarded by the server, so it is gone.
  */
@@ -51,7 +52,7 @@ export function describeScopes(scopes: readonly string[]): { label: string; tone
 export function presetToScopes(preset: ScopePreset): string[] {
   switch (preset) {
     case 'full':
-      return []
+      return ['admin']
     case 'mail:read':
       return ['mail:read']
     case 'mail:write':

@@ -52,7 +52,7 @@ use mailrs_core_sidestate::keys::session::SESSION_PREFIX as SESSION_KEY_PREFIX;
 /// `agent:key:secret:<key>` stores `{"user":…,"id":…}`; the key is live
 /// only while its record still exists in the `agent:keys:<user>` hash,
 /// so deletion revokes immediately even though the index lingers.
-const AGENT_KEY_PREFIX: &str = "mk_";
+pub(crate) const AGENT_KEY_PREFIX: &str = "mk_";
 const AGENT_KEY_INDEX_PREFIX: &str = "agent:key:secret:";
 
 #[derive(Debug, Deserialize)]
