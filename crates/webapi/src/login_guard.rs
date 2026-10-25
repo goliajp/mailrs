@@ -121,6 +121,77 @@ pub fn locked_response(verdict: Verdict) -> Response {
     resp
 }
 
+/// Where the guard's alerts go: `MAILRS_SECURITY_ALERT_TO` (comma-separated
+/// addresses), sent from `MAILRS_SECURITY_ALERT_FROM`. Unset, nothing is
+/// sent and the queue empties itself after a day.
+pub const ALERT_TO: &str = "MAILRS_SECURITY_ALERT_TO";
+pub const ALERT_FROM: &str = "MAILRS_SECURITY_ALERT_FROM";
+/// One digest at most this often, whatever happens.
+const ALERT_EVERY: std::time::Duration = std::time::Duration::from_secs(300);
+/// Alerts one digest lists; the rest wait for the next.
+const ALERTS_PER_MAIL: usize = 100;
+
+/// Mail the guard's queued alerts to the operators, one digest per
+/// [`ALERT_EVERY`] when there are any. Only this process sends them; every
+/// process that accepts logins queues them.
+pub fn spawn_alert_mailer() {
+    let Some((from, to)) = alert_addresses() else {
+        return;
+    };
+    tracing::info!(%from, to = %to.join(","), "security alerts are mailed");
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(ALERT_EVERY).await;
+            mail_alerts(&from, &to).await;
+        }
+    });
+}
+
+fn alert_addresses() -> Option<(String, Vec<String>)> {
+    use mailrs_auth_guard::login::looks_like_address;
+    let to: Vec<String> = std::env::var(ALERT_TO)
+        .ok()?
+        .split(',')
+        .map(|a| a.trim().to_string())
+        .filter(|a| !a.is_empty())
+        .collect();
+    let from = std::env::var(ALERT_FROM).unwrap_or_default();
+    if to.is_empty() || !to.iter().all(|a| looks_like_address(a)) || !looks_like_address(&from) {
+        tracing::error!(
+            "{ALERT_TO} and {ALERT_FROM} must both be addresses; security alerts are not mailed"
+        );
+        return None;
+    }
+    Some((from, to))
+}
+
+async fn mail_alerts(from: &str, to: &[String]) {
+    let alerts = match GUARD.take_alerts(ALERTS_PER_MAIL).await {
+        Ok(a) if a.is_empty() => return,
+        Ok(a) => a,
+        Err(e) => {
+            tracing::error!(error = %e, "security alerts: queue unreadable");
+            return;
+        }
+    };
+    let host = std::env::var("MAILRS_HOSTNAME").unwrap_or_else(|_| "mailrs".into());
+    let (subject, body) = mailrs_auth_guard::alerts::digest(&alerts, &host);
+    let parts = crate::handlers::compose::ComposeParts {
+        from: from.to_string(),
+        to: to.to_vec(),
+        subject,
+        body,
+        ..Default::default()
+    };
+    let (_, message) = crate::handlers::compose::build_rfc5322(&parts, from);
+    match crate::handlers::send_queue::enqueue_outbound_at(from, to, &message, None, None) {
+        Ok(()) => tracing::info!(alerts = alerts.len(), "security alerts mailed"),
+        Err(code) => {
+            tracing::error!(%code, alerts = alerts.len(), "security alerts could not be queued; they are lost")
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

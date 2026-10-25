@@ -249,6 +249,8 @@ pub async fn run() {
         });
     }
 
+    login_guard::spawn_alert_mailer();
+
     let bind = state.bind_addr.clone();
     let router = build_router(state);
     let listener = tokio::net::TcpListener::bind(&bind)

@@ -30,14 +30,14 @@ pub async fn add_account(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Json(req): Json<wire::AddAccountRequest>,
-) -> Result<StatusCode, StatusCode> {
-    // checked here too: the core client reports fastcore's 400 as a 500
-    if req.password.is_empty() {
-        return Err(StatusCode::BAD_REQUEST);
+) -> Result<axum::response::Response, StatusCode> {
+    use axum::response::IntoResponse;
+    if let Err(weak) = mailrs_auth_guard::password::check_new(&req.password, &req.address) {
+        return Ok(crate::handlers::auth::password::refused(weak));
     }
     state.core.add_account(&req).await.map_err(map_err)?;
     crate::handlers::audit::record(&actor, "account.create", &req.address, "");
-    Ok(StatusCode::NO_CONTENT)
+    Ok(StatusCode::NO_CONTENT.into_response())
 }
 
 /// DELETE /api/admin/accounts/{address} — remove the account in fastcore,
@@ -66,13 +66,14 @@ pub async fn set_account_password(
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Path(address): Path<String>,
     Json(req): Json<SetAccountPasswordRequest>,
-) -> Result<StatusCode, StatusCode> {
+) -> Result<axum::response::Response, StatusCode> {
     use argon2::{
         Argon2,
         password_hash::{PasswordHasher, SaltString, rand_core::OsRng as ArgonRng},
     };
-    if req.password.is_empty() {
-        return Err(StatusCode::BAD_REQUEST);
+    use axum::response::IntoResponse;
+    if let Err(weak) = mailrs_auth_guard::password::check_new(&req.password, &address) {
+        return Ok(crate::handlers::auth::password::refused(weak));
     }
     let salt = SaltString::generate(&mut ArgonRng);
     let password_hash = Argon2::default()
@@ -91,7 +92,7 @@ pub async fn set_account_password(
         crate::handlers::auth::revoke_sessions(c, &addr)
     })?;
     crate::handlers::audit::record(&actor, "account.password_reset", &address, "");
-    Ok(StatusCode::NO_CONTENT)
+    Ok(StatusCode::NO_CONTENT.into_response())
 }
 
 #[derive(Debug, serde::Deserialize)]
