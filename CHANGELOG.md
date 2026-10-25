@@ -18,6 +18,47 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### Requests to user-supplied addresses, and five credential fixes
+
+- New crate `mailrs-egress`: every request the server makes to an address
+  a user or a message supplied goes through it — calendar subscriptions,
+  webhook deliveries, one-click unsubscribes, icon fetches, and the
+  external-login key fetch. Only `http`/`https` without credentials; every
+  address the name resolves to must be public (private, loopback,
+  link-local and metadata, `100.64.0.0/10`, documentation, benchmark,
+  multicast and reserved ranges are refused; IPv6 only global unicast), and
+  the connection is pinned to those addresses; no system proxy; redirects
+  only where they were followed before (icons 5, feeds 5, unsubscribe 1,
+  webhooks none), each hop checked again and never from `https` to
+  `http`; bodies read up to a limit (icons 256 KiB, feeds 16 MiB).
+- External login verifies the `id_token`: the signature against the keys
+  the issuer publishes (discovery `jwks_uri`, RS256/ES256/PS256 only),
+  `iss`, `aud` (this deployment's client id), `exp`, and a `nonce` sent
+  when the sign-in started and kept with the flow.
+- TOTP recovery codes are stored as argon2 hashes (`recovery_hashes`, one
+  per line); codes stored in plaintext before are hashed and the plaintext
+  dropped the first time the account's codes are read.
+- `POST /api/auth/reset-password` refuses a new password shorter than 8 or
+  longer than 1024 characters with `400`, before the reset token is used;
+  `change-password` applies the same range.
+- Without `MAILRS_KEVY_URL` webapi authenticates nobody; the
+  `X-Mailrs-User` header that named a user in that case is gone.
+- A users file entry with a plaintext `password` and no `password_hash` is
+  skipped and logged instead of compared.
+- An agent key with no scope is refused on every route, REST and MCP
+  alike; full access is the `admin` scope, named. (Keys made before scopes
+  were required were the only ones without.)
+- SMTP `AUTH LOGIN` accepts the username on the `AUTH` line (RFC 4954
+  §4). It used to ask for the username again and read the password as
+  one, so such clients failed to sign in.
+- A sign-in name that is not an address is never logged or stored: logs
+  show only its length and the login guard keys on its hash. A password
+  typed into the user field had been written to the logs as the account.
+- `MAILRS_TRUSTED_PROXIES` in production is the docker gateway that
+  docker-proxy connects from (`172.18.0.1/32`), not every private range;
+  webapi logs an error once per address when a private address it does not
+  trust sends `X-Forwarded-For`.
+
 ### One login guard for every way in
 
 Failed logins were counted only on SMTP submission and DAV, per source

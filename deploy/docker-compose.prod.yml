@@ -221,9 +221,11 @@ services:
       MAILRS_CORE_RPC_BASE: ${MAILRS_CORE_RPC_BASE:-http://mailrs-fastcore:3301}
       MAILRS_CORE_API_SECRET: ${MAILRS_CORE_API_SECRET}
       MAILRS_KEVY_URL: kevy://kevy-server:6379
-      # Caddy on the host reaches the published port through the docker
-      # gateway; its X-Forwarded-For names the client the login guard counts
-      MAILRS_TRUSTED_PROXIES: 172.16.0.0/12,127.0.0.1/32
+      # Caddy on the host reaches the published port through docker-proxy,
+      # which connects from the network's gateway; only that address may
+      # name the client in X-Forwarded-For. webapi logs an error if another
+      # private address starts forwarding (a recreated network moves it)
+      MAILRS_TRUSTED_PROXIES: 172.18.0.1/32
       MAILRS_WEB_BIND: 0.0.0.0:3100
       MAILRS_WEB_STATIC_DIR: /opt/mailrs/web
       MAILRS_MAILDIR: /data/maildir

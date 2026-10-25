@@ -47,17 +47,16 @@ const MISS_TTL: Duration = Duration::from_secs(24 * 60 * 60);
 /// generous — real favicons are ~5 KiB.
 const MAX_BYTES: usize = 256 * 1024;
 
-/// Client for fetching external icon URLs. Short timeout — if a
-/// provider is slow, we'd rather render the letter avatar than block
-/// the UI. Follows redirects because favicon services 301 by design.
-fn http_client() -> reqwest::Client {
-    reqwest::Client::builder()
-        .user_agent("mailrs-icon-fetch/1.0")
-        .timeout(Duration::from_secs(4))
-        .redirect(reqwest::redirect::Policy::limited(5))
-        .build()
-        .expect("reqwest client build")
+/// Icon URLs come from a sender's DNS (BIMI) and domain, so they go
+/// through the egress check. Short timeout — if a provider is slow, we'd
+/// rather render the letter avatar than block the UI. Follows redirects
+/// because favicon services 301 by design.
+fn egress() -> mailrs_egress::Egress {
+    mailrs_egress::Egress::new("mailrs-icon-fetch/1.0", Duration::from_secs(4))
 }
+
+/// Redirects an icon fetch may follow.
+const MAX_REDIRECTS: u8 = 5;
 
 /// `GET /api/icon/{domain}` — cached brand-icon cascade.
 ///
@@ -122,10 +121,10 @@ async fn resolve(clean_domain: &str) -> Option<(String, Vec<u8>)> {
     }
 
     // 3. Cascade upstreams. First one to return a real icon wins.
-    let client = http_client();
+    let egress = egress();
     let upstream_urls = build_upstream_urls(clean_domain).await;
     for url in upstream_urls {
-        match client.get(&url).send().await {
+        match egress.send(&url, MAX_REDIRECTS, |c, u| c.get(u)).await {
             Ok(resp) if resp.status().is_success() => {
                 let ct = resp
                     .headers()
@@ -134,11 +133,11 @@ async fn resolve(clean_domain: &str) -> Option<(String, Vec<u8>)> {
                     .filter(|s| s.starts_with("image/"))
                     .unwrap_or("image/png")
                     .to_string();
-                let bytes = match resp.bytes().await {
+                let bytes = match mailrs_egress::read_capped(resp, MAX_BYTES).await {
                     Ok(b) => b,
                     Err(_) => continue,
                 };
-                if bytes.is_empty() || bytes.len() > MAX_BYTES {
+                if bytes.is_empty() {
                     continue;
                 }
                 // A provider that has no icon does not always say so
@@ -154,9 +153,8 @@ async fn resolve(clean_domain: &str) -> Option<(String, Vec<u8>)> {
                 if !usable_icon(&ct, &bytes) {
                     continue;
                 }
-                let vec = bytes.to_vec();
-                store_hit(clean_domain, &ct, &vec).await;
-                return Some((ct, vec));
+                store_hit(clean_domain, &ct, &bytes).await;
+                return Some((ct, bytes));
             }
             _ => continue,
         }

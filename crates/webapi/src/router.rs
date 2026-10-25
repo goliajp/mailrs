@@ -21,8 +21,6 @@ use rest::*;
 /// Build the axum router. Conversation routes wired (Phase 3.5);
 /// auth + rest fill in next loops.
 pub fn build_router(state: Arc<WebState>) -> axum::Router {
-    let _ = stub_auth_middleware; // kept for tests / dev mode reference
-
     let convo = conversation_routes();
 
     // Phase 12b — all /api/mail/* + BIMI + proxy routes are now
@@ -43,8 +41,8 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
 
     let admin_routes = admin_routes();
 
-    // Phase 3.9 — real session auth via kevy when MAILRS_KEVY_URL is set;
-    // falls back to the X-Mailrs-User header in dev (no kevy) mode.
+    // session, bearer or agent key, resolved against the network kevy;
+    // without one configured nothing authenticates
     let authenticated = convo
         .merge(mail)
         .merge(auth_routes)

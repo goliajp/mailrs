@@ -27,7 +27,7 @@ pub(super) async fn verify_credentials(
             }
             Ok(None) => mailrs_core::users::dummy_verify(password),
             Err(e) => {
-                tracing::warn!(error = %e, user = %username, "submission auth: core lookup failed");
+                tracing::warn!(error = %e, user = %mailrs_auth_guard::login::loggable_account(username), "submission auth: core lookup failed");
             }
         }
     }
