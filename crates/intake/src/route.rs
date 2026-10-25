@@ -35,7 +35,8 @@ pub enum Route {
     /// a bounce to an SRS address we wrote, for the original sender
     Srs(String),
     Group(Group),
-    /// the alias or domain catch-all target, a mailbox here
+    /// the mailbox the address's base, an alias or the domain catch-all
+    /// leads to
     Alias(String),
     Nobody,
 }
@@ -49,6 +50,16 @@ pub fn route<D: Directory + ?Sized>(dir: &D, raw: &str, fwd: &str) -> io::Result
     if let Some(original) = srs_original(raw) {
         return Ok(Route::Srs(original));
     }
+    // `local+tag@domain` goes where `local@domain` goes, decided before the
+    // catch-all can claim it; only a base that reaches nobody falls back to
+    // the tagged address as written
+    if let Some(base) = base_address(fwd) {
+        match route(dir, &base, &base)? {
+            Route::Nobody => {}
+            Route::Own => return Ok(Route::Alias(base)),
+            found => return Ok(found),
+        }
+    }
     // before the alias table: a domain catch-all answers for every address
     // without a mailbox and would take the group's mail
     if let Some(group) = dir.group(fwd)? {
@@ -61,6 +72,14 @@ pub fn route<D: Directory + ?Sized>(dir: &D, raw: &str, fwd: &str) -> io::Result
         Some(target) => Route::Alias(target),
         None => Route::Nobody,
     })
+}
+
+/// `local@domain` for `local+tag@domain`; `None` when there is no tag to
+/// strip.
+pub fn base_address(addr: &str) -> Option<String> {
+    let (local, domain) = addr.rsplit_once('@')?;
+    let (base, _tag) = local.split_once('+')?;
+    (!base.is_empty()).then(|| format!("{base}@{domain}"))
 }
 
 /// Every domain must take mail for postmaster (RFC 5321 §4.5.1), and abuse
