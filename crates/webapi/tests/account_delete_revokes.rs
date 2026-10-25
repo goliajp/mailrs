@@ -30,7 +30,7 @@ async fn a_deleted_account_keeps_no_session_and_no_agent_key() {
             Method::POST,
             "/api/agent/keys",
             &alice,
-            Some(serde_json::json!({ "name": "ci", "scopes": [] })),
+            Some(serde_json::json!({ "name": "ci", "scopes": ["mail:read"] })),
         )
         .await;
     assert_eq!(status, 200);
@@ -40,7 +40,7 @@ async fn a_deleted_account_keeps_no_session_and_no_agent_key() {
             Method::POST,
             "/api/agent/keys",
             &bob,
-            Some(serde_json::json!({ "name": "ci", "scopes": [] })),
+            Some(serde_json::json!({ "name": "ci", "scopes": ["mail:read"] })),
         )
         .await;
     let bob_key = created["secret"].as_str().expect("secret").to_string();
