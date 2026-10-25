@@ -97,15 +97,27 @@ pub async fn export_audit_log(
     Ok(Json(wire::AuditListResponse { items }))
 }
 
-/// Actions whose row names someone else's correspondent. The stored row
-/// keeps the full address for diagnosis on the host; readers of the log
-/// see only the domain.
-const MASKED_ACTIONS: &[&str] = &["mail.send_failed"];
+/// Rows that name someone else's correspondent are shown with that part
+/// hidden: a failed send keeps only the recipient's domain, and a thread
+/// read shows a hash of the thread's Message-ID, which would otherwise
+/// tell who writes to that mailbox. The stored row keeps the full value
+/// for diagnosis on the host; only readers of the log see the hidden form.
+fn shown(action: &str, field: &str, value: &str) -> Option<String> {
+    match (action, field) {
+        ("mail.send_failed", "target" | "detail") => Some(mask_addresses(value)),
+        ("audit.read_thread", "detail") => Some(thread_hash(value)),
+        _ => None,
+    }
+}
+
+const MASKED_FIELDS: [&str; 2] = ["target", "detail"];
 
 fn masked(mut row: wire::AuditRowWire) -> wire::AuditRowWire {
-    if MASKED_ACTIONS.contains(&row.action.as_str()) {
-        row.target = mask_addresses(&row.target);
-        row.detail = mask_addresses(&row.detail);
+    if let Some(v) = shown(&row.action, "target", &row.target) {
+        row.target = v;
+    }
+    if let Some(v) = shown(&row.action, "detail", &row.detail) {
+        row.detail = v;
     }
     row
 }
@@ -113,15 +125,25 @@ fn masked(mut row: wire::AuditRowWire) -> wire::AuditRowWire {
 /// The same masking over a row read as loose JSON, for callers that pass
 /// the stored fields through unchanged.
 pub(crate) fn mask_json_row(row: &mut serde_json::Value) {
-    let action = row.get("action").and_then(|a| a.as_str()).unwrap_or("");
-    if !MASKED_ACTIONS.contains(&action) {
-        return;
-    }
-    for field in ["target", "detail"] {
-        if let Some(serde_json::Value::String(v)) = row.get_mut(field) {
-            *v = mask_addresses(v);
+    let action = row
+        .get("action")
+        .and_then(|a| a.as_str())
+        .unwrap_or("")
+        .to_string();
+    for field in MASKED_FIELDS {
+        if let Some(serde_json::Value::String(v)) = row.get_mut(field)
+            && let Some(hidden) = shown(&action, field, v)
+        {
+            *v = hidden;
         }
     }
+}
+
+/// `message-id sha256:` and the first 16 hex digits of the id's SHA-256.
+fn thread_hash(id: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let digest = hex::encode(Sha256::digest(id.as_bytes()));
+    format!("message-id sha256:{}", &digest[..16])
 }
 
 /// Every `local@domain.tld` in `text` becomes `*@domain.tld`.
@@ -274,6 +296,20 @@ mod tests {
             mask_addresses("a @ b, x@localhost, @y.z, q@"),
             "a @ b, x@localhost, @y.z, q@"
         );
+    }
+
+    #[test]
+    fn a_thread_read_shows_a_labelled_hash_of_the_message_id() {
+        let id = "20260918024741.9705133@mailap06.ib.mizuhobank.co.jp";
+        let got = masked(row("audit.read_thread", "lihao@golia.jp", id));
+        // sha256 of the id above, first 16 hex digits
+        assert_eq!(got.detail, "message-id sha256:ff13553dfad8236b");
+        assert_eq!(got.target, "lihao@golia.jp", "the mailbox read stays named");
+        let mut v = serde_json::json!({"action": "audit.read_thread", "target": "a@b.example", "detail": id});
+        mask_json_row(&mut v);
+        assert_eq!(v["detail"], got.detail);
+        let raw = masked(row("audit.read_raw", "lihao@golia.jp", "10069"));
+        assert_eq!(raw.detail, "10069");
     }
 
     #[test]
