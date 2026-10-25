@@ -140,7 +140,7 @@ fn networks_and_sources<O: Ops + crate::events::EventOps>(
     for i in 0..20 {
         record_failure(
             &mut o,
-            &p,
+            p,
             ip(&format!("2001:db8:1:2::{i:x}")),
             &format!("v{i}@x.test"),
             t,
@@ -248,7 +248,7 @@ fn successes_and_familiar_sources<O: Ops + crate::events::EventOps>(
     for i in 0..=p.familiar_max {
         record_success(
             &mut o,
-            &p,
+            p,
             ip(&format!("198.18.{i}.1")),
             "jo@x.test",
             t + i as u64,
