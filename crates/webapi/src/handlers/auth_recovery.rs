@@ -169,15 +169,12 @@ pub struct ResetPasswordRequest {
 pub async fn reset_password(
     State(state): State<Arc<WebState>>,
     Json(req): Json<ResetPasswordRequest>,
-) -> Result<StatusCode, StatusCode> {
+) -> Result<axum::response::Response, StatusCode> {
     use argon2::{
         Argon2,
         password_hash::{PasswordHasher, SaltString, rand_core::OsRng as ArgonRng},
     };
-    // before the token is looked at, so a refused password leaves it usable
-    if !crate::handlers::auth::password::acceptable_new(&req.new_password) {
-        return Err(StatusCode::BAD_REQUEST);
-    }
+    use axum::response::IntoResponse;
     let token = req.token.clone();
     let addr_bytes = with_kevy(move |c| {
         c.hget(format!("pwreset:{token}").as_bytes(), b"address")
@@ -187,6 +184,11 @@ pub async fn reset_password(
         return Err(StatusCode::UNAUTHORIZED);
     };
     let address = String::from_utf8_lossy(&addr_bytes).to_string();
+    // reading the token's address does not use it up: a refused password
+    // leaves the link working
+    if let Err(weak) = mailrs_auth_guard::password::check_new(&req.new_password, &address) {
+        return Ok(crate::handlers::auth::password::refused(weak));
+    }
     let salt = SaltString::generate(&mut ArgonRng);
     let hash = Argon2::default()
         .hash_password(req.new_password.as_bytes(), &salt)
@@ -210,7 +212,7 @@ pub async fn reset_password(
         c.del(&[format!("pwreset:{tok}").as_bytes()])?;
         Ok(())
     })?;
-    Ok(StatusCode::NO_CONTENT)
+    Ok(StatusCode::NO_CONTENT.into_response())
 }
 
 /// GET /api/auth/recovery-email — returns the account's recovery

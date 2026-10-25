@@ -134,6 +134,14 @@ impl crate::events::EventOps for Connection {
     fn bump(&mut self, key: &str, ttl_secs: u64) -> io::Result<()> {
         Ops::incr(self, key, ttl_secs).map(|_| ())
     }
+
+    fn pop_oldest(&mut self, key: &str) -> io::Result<Option<Vec<u8>>> {
+        Ok(self
+            .rpop(key.as_bytes(), 1)
+            .map_err(io::Error::from)?
+            .into_iter()
+            .next())
+    }
 }
 
 const POOL_SIZE: usize = 4;
@@ -229,6 +237,13 @@ impl LoginGuard for Arc<KevyLoginGuard> {
         if stored != Some(false) {
             line.log();
         }
+    }
+
+    async fn take_alerts(&self, max: usize) -> io::Result<Vec<crate::alerts::Alert>> {
+        let me = self.clone();
+        tokio::task::spawn_blocking(move || me.with_ops(|o, _, _| crate::alerts::take(o, max)))
+            .await
+            .map_err(io::Error::other)?
     }
 
     async fn events(

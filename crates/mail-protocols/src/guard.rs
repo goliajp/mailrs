@@ -35,7 +35,32 @@ pub struct Guarded<D> {
 
 impl<D> Guarded<D> {
     pub fn new(dir: Arc<D>, guard: Arc<dyn LoginGuard>) -> Self {
+        let _ = DENIED.set(guard.clone());
         Self { dir, guard }
+    }
+}
+
+/// Where connections an allowlist turns away are recorded: the accept
+/// loops run before any session, so they reach the process's guard here.
+static DENIED: std::sync::OnceLock<Arc<dyn LoginGuard>> = std::sync::OnceLock::new();
+
+/// Record a connection from `peer` that `listener`'s allowlist refused.
+pub(crate) async fn denied(peer: IpAddr, listener: &'static str) {
+    let channel = match listener {
+        "pop3" | "pop3s" => Channel::Pop3,
+        "managesieve" => Channel::Managesieve,
+        _ => Channel::Imap,
+    };
+    let event = LoginEvent::new(
+        channel,
+        Credential::Password,
+        peer,
+        "",
+        Outcome::DeniedByAllowlist,
+    );
+    match DENIED.get() {
+        Some(guard) => guard.record(event).await,
+        None => event.log(),
     }
 }
 

@@ -285,12 +285,8 @@ pub async fn change_password(
         )
             .into_response();
     }
-    if !super::password::acceptable_new(&req.new_password) {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({"error": "new password must be 8 to 1024 characters"})),
-        )
-            .into_response();
+    if let Err(weak) = mailrs_auth_guard::password::check_new(&req.new_password, &address) {
+        return super::password::refused(weak);
     }
 
     // Verify current password via fastcore RPC (same shape as login).

@@ -3,6 +3,8 @@
 
 use std::net::IpAddr;
 
+use crate::alerts::{self, Kind};
+
 use super::{
     LoginPolicy, Ops, Scopes, Verdict, check, is_familiar, record_failure, record_success,
 };
@@ -15,7 +17,10 @@ fn ip(s: &str) -> IpAddr {
 /// called with the new clock whenever a scenario moves time; a store
 /// that reads a real clock may ignore it only if the scenarios'
 /// clocks are real.
-pub fn check_ops<O: Ops>(mut fresh: impl FnMut() -> O, mut advance: impl FnMut(&mut O, u64)) {
+pub fn check_ops<O: Ops + crate::events::EventOps>(
+    mut fresh: impl FnMut() -> O,
+    mut advance: impl FnMut(&mut O, u64),
+) {
     let p = LoginPolicy::default();
     let t = 10_000_000;
 
@@ -40,6 +45,10 @@ pub fn check_ops<O: Ops>(mut fresh: impl FnMut() -> O, mut advance: impl FnMut(&
         check(&mut o, &p, ip("198.51.100.8"), "alice@x.test", t).unwrap(),
         Verdict::Allowed
     );
+    assert!(
+        alerts::take(&mut o, 100).unwrap().is_empty(),
+        "one source against one account raises no alert"
+    );
 
     // account scope: ten sources, one failure each, lock the account
     // for unfamiliar sources but not for a familiar one
@@ -62,6 +71,33 @@ pub fn check_ops<O: Ops>(mut fresh: impl FnMut() -> O, mut advance: impl FnMut(&
         check(&mut o, &p, ip("192.0.2.200"), "carol@x.test", t).unwrap(),
         Verdict::Allowed,
         "other accounts"
+    );
+    let raised: Vec<(Kind, String)> = alerts::take(&mut o, 100)
+        .unwrap()
+        .into_iter()
+        .map(|a| (a.kind, a.subject))
+        .collect();
+    assert!(
+        raised.contains(&(Kind::AccountLocked, "bob@x.test".into())),
+        "the account lock raised an alert: {raised:?}"
+    );
+
+    // one account signing in from three networks in a few minutes
+    let mut o = fresh();
+    advance(&mut o, t);
+    for net in ["198.51.100.1", "203.0.113.1", "192.0.2.1"] {
+        record_success(&mut o, &p, ip(net), "kim@x.test", t).unwrap();
+    }
+    let raised: Vec<Kind> = alerts::take(&mut o, 100)
+        .unwrap()
+        .into_iter()
+        .map(|a| a.kind)
+        .collect();
+    assert_eq!(raised, vec![Kind::ManyNetworks]);
+    record_success(&mut o, &p, ip("198.18.0.1"), "kim@x.test", t).unwrap();
+    assert!(
+        alerts::take(&mut o, 100).unwrap().is_empty(),
+        "once an hour"
     );
 
     // source scope: twenty accounts from one address lock the address,

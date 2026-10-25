@@ -35,9 +35,8 @@ impl MailrsMcpService {
         };
         let user = self.require_user()?.to_string();
         self.require_admin(&user).await?;
-        if params.password.is_empty() {
-            return Err(McpError::invalid_params("password is required", None));
-        }
+        mailrs_auth_guard::password::check_new(&params.password, &params.address)
+            .map_err(|weak| McpError::invalid_params(weak.to_string(), None))?;
         let salt = SaltString::generate(&mut ArgonRng);
         let hash = Argon2::default()
             .hash_password(params.password.as_bytes(), &salt)

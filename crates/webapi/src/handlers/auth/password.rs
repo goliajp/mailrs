@@ -39,26 +39,12 @@ pub(crate) async fn verify(
     Ok(Some(acct))
 }
 
-/// Shortest new password a person may set.
-pub(crate) const MIN_NEW_LEN: usize = 8;
-/// Longest, so a request cannot make the hash work arbitrarily long.
-pub(crate) const MAX_NEW_LEN: usize = 1024;
-
-/// Whether `password` may be set as a new password.
-pub(crate) fn acceptable_new(password: &str) -> bool {
-    (MIN_NEW_LEN..=MAX_NEW_LEN).contains(&password.chars().count())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn new_passwords_have_a_length_range() {
-        assert!(!acceptable_new(""));
-        assert!(!acceptable_new("1234567"));
-        assert!(acceptable_new("12345678"));
-        assert!(acceptable_new("パスワード漢字八字"));
-        assert!(!acceptable_new(&"x".repeat(MAX_NEW_LEN + 1)));
-    }
+/// A new password refused, as the answer to give: `400` with the reason.
+pub(crate) fn refused(weak: mailrs_auth_guard::password::Weak) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    (
+        StatusCode::BAD_REQUEST,
+        axum::Json(serde_json::json!({ "error": weak.to_string() })),
+    )
+        .into_response()
 }

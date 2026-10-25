@@ -48,6 +48,8 @@ impl MailrsMcpService {
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
         self.require_admin(&user).await?;
+        mailrs_auth_guard::password::check_new(&params.password, &params.address)
+            .map_err(|weak| McpError::invalid_params(weak.to_string(), None))?;
         let req = mailrs_core_api::method::admin::AddAccountRequest {
             address: params.address.clone(),
             display_name: params.display_name,

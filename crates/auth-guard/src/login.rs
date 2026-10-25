@@ -31,6 +31,9 @@ use std::net::IpAddr;
 
 use async_trait::async_trait;
 
+use crate::alerts::{self, Alert, Kind};
+use crate::events::EventOps;
+
 /// One counted scope's threshold and lock.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Limits {
@@ -137,6 +140,9 @@ pub trait LoginGuard: Send + Sync {
         &self,
         query: crate::events::Query,
     ) -> io::Result<Vec<crate::events::LoginEvent>>;
+
+    /// Up to `max` queued alerts, oldest first, taken off the queue.
+    async fn take_alerts(&self, max: usize) -> io::Result<Vec<Alert>>;
 }
 
 /// The storage primitives the policy needs. Every key carries its own
@@ -347,7 +353,7 @@ fn is_familiar<O: Ops>(
 
 /// Record a failed attempt in all four scopes, locking any that crossed
 /// its threshold.
-pub fn record_failure<O: Ops>(
+pub fn record_failure<O: Ops + EventOps>(
     ops: &mut O,
     policy: &LoginPolicy,
     source: IpAddr,
@@ -368,17 +374,50 @@ pub fn record_failure<O: Ops>(
             ops.del(&window_keys(scope, limits.window_secs, now))?;
             let account = loggable_account(account);
             tracing::warn!(event = "auth_lockout", scope = name, %source, account, lock_secs = secs);
+            // one source against one account is most often the owner
+            // mistyping or an old device retrying, so it raises nothing
+            let (kind, subject) = match name {
+                "source" => (Kind::SourceLocked, source.to_string()),
+                "account" => (Kind::AccountLocked, account.clone()),
+                _ => continue,
+            };
+            let detail = format!(
+                "{} failed sign-ins within {} minutes (the last from {source}, as {account}); locked for {} minutes",
+                limits.max_failures,
+                limits.window_secs / 60,
+                secs / 60
+            );
+            alerts::raise(
+                ops,
+                &Alert {
+                    kind,
+                    subject,
+                    at: now,
+                    detail,
+                },
+            )?;
         }
     }
     let total = count_failure(ops, GLOBAL, policy.global_window_secs, now)?;
     if total == u64::from(policy.global_max_failures) {
         tracing::warn!(event = "auth_lockout", scope = "global", failures = total);
+        let detail = format!(
+            "{total} failed sign-ins server-wide within {} minutes; sources that never signed in to the account they try are refused until the count drops",
+            policy.global_window_secs / 60
+        );
+        let alert = Alert {
+            kind: Kind::GlobalLocked,
+            subject: "*".into(),
+            at: now,
+            detail,
+        };
+        alerts::raise(ops, &alert)?;
     }
     Ok(())
 }
 
 /// Record a successful sign-in.
-pub fn record_success<O: Ops>(
+pub fn record_success<O: Ops + EventOps>(
     ops: &mut O,
     policy: &LoginPolicy,
     source: IpAddr,
@@ -407,6 +446,46 @@ pub fn record_success<O: Ops>(
         .collect();
     if !stale.is_empty() {
         ops.hdel(&s.familiar_key, &stale)?;
+    }
+    many_networks(ops, &s, account, now)
+}
+
+/// Networks seen signing in to one account within this long...
+const RECENT_SECS: u64 = 600;
+/// ...that make an alert.
+const RECENT_NETWORKS: usize = 3;
+
+/// Raise [`Kind::ManyNetworks`] when this sign-in makes
+/// [`RECENT_NETWORKS`] networks within [`RECENT_SECS`].
+fn many_networks<O: Ops + EventOps>(
+    ops: &mut O,
+    s: &Scopes,
+    account: &str,
+    now: u64,
+) -> io::Result<()> {
+    let key = format!("ag:r:{}", s.account);
+    ops.hset(&key, &s.familiar_field, now, RECENT_SECS)?;
+    let recent: Vec<String> = ops
+        .hgetall(&key)?
+        .into_iter()
+        .filter(|(_, at)| at.saturating_add(RECENT_SECS) > now)
+        .map(|(net, _)| net)
+        .collect();
+    if recent.len() >= RECENT_NETWORKS {
+        let account = loggable_account(account);
+        let detail = format!(
+            "signed in successfully from {} networks within {} minutes: {}",
+            recent.len(),
+            RECENT_SECS / 60,
+            recent.join(", ")
+        );
+        let alert = Alert {
+            kind: Kind::ManyNetworks,
+            subject: account,
+            at: now,
+            detail,
+        };
+        alerts::raise(ops, &alert)?;
     }
     Ok(())
 }
