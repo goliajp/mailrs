@@ -13,6 +13,7 @@ export type WireError =
   | { readonly issues: readonly z.ZodIssue[]; readonly kind: 'validation' }
   | { readonly kind: 'aborted' }
   | { readonly kind: 'auth' }
+  | { readonly kind: 'disabled'; readonly message: string }
   | { readonly kind: 'forbidden' }
   | { readonly kind: 'network' }
   | { readonly kind: 'not-found' }
@@ -38,6 +39,8 @@ export class WireErrorException extends Error {
         return 'Request aborted'
       case 'auth':
         return 'Authentication required'
+      case 'disabled':
+        return detail.message
       case 'forbidden':
         return 'Not authorised'
       case 'network':
