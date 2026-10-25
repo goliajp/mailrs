@@ -25,7 +25,7 @@ Config for Claude Code or any MCP client:
 }
 ```
 
-95 tools auto-discovered via MCP, grouped by category (the table below is a selection; `tools/list` is the authority, and `scripts/check-mcp-parity.sh` holds the two server lanes to the same set):
+96 tools auto-discovered via MCP, grouped by category (the table below is a selection; `tools/list` is the authority, and `scripts/check-mcp-parity.sh` holds the two server lanes to the same set):
 
 ### Email Operations
 
@@ -134,6 +134,7 @@ Config for Claude Code or any MCP client:
 | Tool | Permission | Description |
 |------|-----------|-------------|
 | get_audit_log | admin.accounts | Retrieve recent audit log entries with optional limit |
+| list_auth_events | admin.accounts | Sign-in attempts on every way in, newest first, filtered by account, source, result (ok, bad-password, locked, mfa-required, mfa-failed, …), channel (web, verify, imap, pop3, smtp, managesieve, dav, api-key) and time; kept 90 days |
 | audit_list_conversations | admin.accounts | List conversations for any account (admin read across user mailboxes) |
 | audit_read_thread | admin.accounts | Read messages of a specific thread for any account (admin override) |
 
@@ -288,6 +289,16 @@ Returns `{"id": "team@golia.jp"}`: an alias is identified by its source address.
 {
   "address": "sentori@golia.jp",
   "forward_to": ["lihao@golia.jp"]
+}
+```
+
+#### list_auth_events
+```json
+{
+  "account": "lihao@golia.jp",
+  "result": "bad-password",
+  "since": 1792800000,
+  "limit": 50
 }
 ```
 
@@ -904,6 +915,10 @@ curl -X PUT https://mail.golia.ai/api/admin/accounts/smstransfer@golia.jp/send-a
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"send_as": ["noreply@golia.jp"]}'
+
+# who tried to sign in to an account, from where, how
+curl "https://mail.golia.ai/api/admin/auth-events?account=lihao@golia.jp&result=bad-password&limit=50" \
+  -H "Authorization: Bearer $TOKEN"
 
 # count mailboxes and message files
 curl -X POST https://mail.golia.ai/api/admin/reconcile-maildir \

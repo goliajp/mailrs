@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::WebState;
 use crate::login_guard::ClientIp;
+use mailrs_auth_guard::events::{Channel, Credential, LoginEvent, Outcome};
 use mailrs_auth_guard::login::Verdict;
 
 #[derive(Debug, Deserialize)]
@@ -52,16 +53,28 @@ pub async fn login(
     Json(req): Json<LoginRequest>,
 ) -> Response {
     let guard = &*crate::login_guard::GUARD;
+    let user_agent = headers
+        .get(axum::http::header::USER_AGENT)
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_string);
+    let event = |credential, result| {
+        LoginEvent::new(Channel::Web, credential, source, &req.address, result)
+            .with_user_agent(user_agent.as_deref())
+    };
     let verdict = guard.check(source, &req.address).await;
     if let Verdict::Locked { .. } = verdict {
-        tracing::warn!(event = "auth", channel = "web", %source, account = %mailrs_auth_guard::login::loggable_account(&req.address), result = "locked");
+        guard
+            .record(event(Credential::Password, Outcome::Locked))
+            .await;
         return crate::login_guard::locked_response(verdict);
     }
     let acct = match super::password::verify(&state, &req.address, &req.password).await {
         Ok(Some(acct)) => acct,
         Ok(None) => {
-            tracing::warn!(event = "auth", channel = "web", %source, account = %mailrs_auth_guard::login::loggable_account(&req.address), result = "bad-password");
             guard.failed(source, &req.address).await;
+            guard
+                .record(event(Credential::Password, Outcome::BadPassword))
+                .await;
             return StatusCode::UNAUTHORIZED.into_response();
         }
         Err(status) => return status.into_response(),
@@ -93,6 +106,9 @@ pub async fn login(
     {
         let secret = String::from_utf8(secret_bytes).unwrap_or_default();
         let Some(code) = req.totp_code.as_ref() else {
+            guard
+                .record(event(Credential::Password, Outcome::MfaRequired))
+                .await;
             return (
                 StatusCode::OK,
                 Json(serde_json::json!({ "requires_totp": true })),
@@ -112,8 +128,10 @@ pub async fn login(
             false
         };
         if !ok_code && !ok_recovery {
-            tracing::warn!(event = "auth", channel = "web", %source, account = %mailrs_auth_guard::login::loggable_account(&req.address), result = "mfa-failed");
             guard.failed(source, &req.address).await;
+            guard
+                .record(event(Credential::Totp, Outcome::MfaFailed))
+                .await;
             return (
                 StatusCode::UNAUTHORIZED,
                 Json(serde_json::json!({ "error": "invalid TOTP code" })),
@@ -131,6 +149,7 @@ pub async fn login(
     // never read from the request body: a caller naming somebody else's
     // address must not be able to attach their own Google account to it.
     guard.succeeded(source, &req.address).await;
+    guard.record(event(Credential::Password, Outcome::Ok)).await;
     claim_pending_link(&headers, &acct.public.address).await;
     issue_session(&state, &acct).await
 }

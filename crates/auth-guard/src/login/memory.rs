@@ -10,10 +10,13 @@ use async_trait::async_trait;
 use super::{
     LoginGuard, LoginPolicy, Ops, Verdict, check, record_failure, record_success, unix_now,
 };
+use crate::events::{LoginEvent, Query};
 
 enum Value {
     Counter(u64),
     Hash(HashMap<String, u64>),
+    List(Vec<Vec<u8>>),
+    Set(std::collections::HashSet<String>),
 }
 
 /// In-process storage for [`MemoryLoginGuard`] and for tests.
@@ -164,5 +167,71 @@ impl LoginGuard for MemoryLoginGuard {
             let now = ops.now;
             record_success(ops, p, source, account, now)
         });
+    }
+
+    async fn record(&self, event: LoginEvent) {
+        if !matches!(
+            self.run(|ops, _| crate::events::store(ops, &event)),
+            Ok(false)
+        ) {
+            event.log();
+        }
+    }
+
+    async fn events(&self, query: Query) -> io::Result<Vec<LoginEvent>> {
+        self.run(|ops, _| {
+            let now = ops.now;
+            crate::events::query(ops, &query, now)
+        })
+    }
+}
+
+impl crate::events::EventOps for MemoryOps {
+    fn len(&mut self, key: &str) -> io::Result<u64> {
+        Ok(match self.entries.get(key) {
+            Some((Value::List(l), _)) => l.len() as u64,
+            _ => 0,
+        })
+    }
+
+    fn push(&mut self, key: &str, value: &[u8], ttl_secs: u64) -> io::Result<()> {
+        let until = self.now + ttl_secs;
+        let entry = self
+            .entries
+            .entry(key.to_string())
+            .or_insert_with(|| (Value::List(Vec::new()), until));
+        let Value::List(l) = &mut entry.0 else {
+            return Err(io::Error::other("not a list"));
+        };
+        l.insert(0, value.to_vec());
+        Ok(())
+    }
+
+    fn range(&mut self, key: &str, start: u64, stop: u64) -> io::Result<Vec<Vec<u8>>> {
+        Ok(match self.entries.get(key) {
+            Some((Value::List(l), _)) => l
+                .iter()
+                .skip(start as usize)
+                .take((stop.saturating_sub(start) + 1) as usize)
+                .cloned()
+                .collect(),
+            _ => Vec::new(),
+        })
+    }
+
+    fn add_member(&mut self, key: &str, member: &str, ttl_secs: u64) -> io::Result<bool> {
+        let until = self.now + ttl_secs;
+        let entry = self
+            .entries
+            .entry(key.to_string())
+            .or_insert_with(|| (Value::Set(Default::default()), until));
+        let Value::Set(set) = &mut entry.0 else {
+            return Err(io::Error::other("not a set"));
+        };
+        Ok(set.insert(member.to_string()))
+    }
+
+    fn bump(&mut self, key: &str, ttl_secs: u64) -> io::Result<()> {
+        Ops::incr(self, key, ttl_secs).map(|_| ())
     }
 }

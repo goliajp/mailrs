@@ -3,6 +3,7 @@
 
 pub mod admin;
 pub mod admin_audit;
+pub mod admin_auth_events;
 pub mod admin_directory;
 pub mod admin_flow;
 pub mod admin_ops;

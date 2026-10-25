@@ -4367,6 +4367,138 @@
         }
       }
     },
+    "/api/admin/auth-events": {
+      "get": {
+        "summary": "List sign-in attempts",
+        "description": "Login facts from every way in, newest first, kept 90 days. Requires admin.accounts.",
+        "parameters": [
+          {
+            "name": "account",
+            "in": "query",
+            "required": false,
+            "description": "Only attempts naming this account",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "description": "Only attempts from this client address",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "result",
+            "in": "query",
+            "required": false,
+            "description": "ok, bad-password, no-account, locked, mfa-required, mfa-failed, denied-by-allowlist or disabled",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "channel",
+            "in": "query",
+            "required": false,
+            "description": "web, verify, imap, pop3, smtp, managesieve, dav, api-key or oidc",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "description": "Unix seconds, inclusive",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "required": false,
+            "description": "Unix seconds, inclusive",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "At most this many; 100 by default, 1000 at most",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "occurred_at": {
+                            "type": "integer"
+                          },
+                          "product": {
+                            "type": "string"
+                          },
+                          "account": {
+                            "type": "string"
+                          },
+                          "source_ip": {
+                            "type": "string"
+                          },
+                          "channel": {
+                            "type": "string"
+                          },
+                          "credential": {
+                            "type": "string"
+                          },
+                          "result": {
+                            "type": "string"
+                          },
+                          "user_agent": {
+                            "type": "string"
+                          },
+                          "key_id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "occurred_at",
+                          "product",
+                          "account",
+                          "source_ip",
+                          "channel",
+                          "credential",
+                          "result"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing admin.accounts"
+          }
+        }
+      }
+    },
     "/api/admin/audit/accounts": {
       "get": {
         "summary": "Get admin audit accounts",
