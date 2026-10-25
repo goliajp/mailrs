@@ -73,6 +73,16 @@ mod tests {
         assert!(!p.may_send_as(""));
     }
 
+    // mail to a tagged address reaches its base mailbox, but sending
+    // stays exact: a tag never turns someone else's address into yours
+    #[test]
+    fn a_tagged_address_is_not_the_account_itself() {
+        let p = perms(false, &["team@x.test"]);
+        assert!(!p.may_send_as("alice+tag@x.test"));
+        assert!(!p.may_send_as("team+tag@x.test"));
+        assert!(!p.may_send_as("bob+alice@x.test"));
+    }
+
     #[test]
     fn a_super_admin_sends_as_anyone() {
         assert!(perms(true, &[]).may_send_as("anyone@else.test"));

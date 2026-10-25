@@ -8,7 +8,7 @@ use std::sync::Arc;
 use mailrs_core_sidestate::families::email_groups::Group;
 
 use crate::group::{Target, targets};
-use crate::route::{Directory, Route, route};
+use crate::route::{Directory, Route, base_address, route};
 
 #[derive(Default)]
 struct Dir {
@@ -30,8 +30,14 @@ impl Directory for Dir {
         }
         Ok(self.accounts.contains(&addr))
     }
+    // an `@domain` key is that domain's catch-all, as both cores store it
     fn alias(&self, addr: &str) -> io::Result<Option<String>> {
-        Ok(self.aliases.get(addr).map(|t| t.to_string()))
+        let domain = addr.rsplit_once('@').map(|(_, d)| format!("@{d}"));
+        Ok(self
+            .aliases
+            .get(addr)
+            .or_else(|| domain.and_then(|d| self.aliases.get(d.as_str())))
+            .map(|t| t.to_string()))
     }
     fn group(&self, addr: &str) -> io::Result<Option<Group>> {
         Ok(self.groups.iter().find(|g| g.address == addr).cloned())
@@ -156,4 +162,44 @@ fn a_group_expands_to_local_outside_and_nested_members() {
             "unresolved ghost@golia.jp",
         ]
     );
+}
+
+fn routed(d: &Dir, addr: &str) -> String {
+    match route(d, addr, addr).unwrap() {
+        Route::Own => "own".into(),
+        Route::Alias(t) => format!("alias {t}"),
+        Route::Group(g) => format!("group {}", g.address),
+        Route::Srs(o) => format!("srs {o}"),
+        Route::Nobody => "nobody".into(),
+    }
+}
+
+#[test]
+fn a_tagged_address_reaches_its_base_before_the_catch_all() {
+    let mut d = dir();
+    d.accounts.push("lihao@golia.jp");
+    d.aliases.insert("@golia.jp", "lihao@golia.jp");
+    d.aliases.insert("sales@golia.jp", "bob@golia.jp");
+    d.groups.push(group("team@golia.jp", &["bob@golia.jp"]));
+    assert_eq!(routed(&d, "bob+qip18@golia.jp"), "alias bob@golia.jp");
+    assert_eq!(routed(&d, "bob+a+b@golia.jp"), "alias bob@golia.jp");
+    assert_eq!(routed(&d, "sales+x@golia.jp"), "alias bob@golia.jp");
+    assert_eq!(routed(&d, "team+x@golia.jp"), "group team@golia.jp");
+    // an unknown base still goes where the unknown address would
+    assert_eq!(routed(&d, "ghost+x@golia.jp"), "alias lihao@golia.jp");
+}
+
+#[test]
+fn a_tag_on_an_unknown_base_without_catch_all_is_nobody() {
+    let d = dir();
+    assert_eq!(routed(&d, "ghost+x@golia.jp"), "nobody");
+    assert_eq!(routed(&d, "+x@golia.jp"), "nobody");
+}
+
+#[test]
+fn only_the_first_plus_splits_the_tag() {
+    assert_eq!(base_address("a+b+c@x.jp").as_deref(), Some("a@x.jp"));
+    assert_eq!(base_address("a@x.jp"), None);
+    assert_eq!(base_address("+b@x.jp"), None);
+    assert_eq!(base_address("not-an-address"), None);
 }

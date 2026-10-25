@@ -18,6 +18,27 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### Sub-addressing (2.128.0)
+
+- Mail to `local+tag@domain` is delivered where `local@domain` would be:
+  its mailbox, its alias target or its email group. The base address is
+  resolved before the domain catch-all, so a tagged address of an
+  existing account no longer lands in the catch-all mailbox. A tag on an
+  address that does not exist still goes wherever that address would.
+  The SMTP RCPT check answers the same way.
+- Sending is unchanged and stays exact: `alice+tag@` is not `alice@` for
+  the send-as check, and signing in with a tagged address does not match
+  the account.
+
+### Audit log shows less of other people's mail (2.126.0, 2.127.0)
+
+- `GET /api/admin/audit-log`, its export and the `get_audit_log` MCP tool
+  show the recipient of a failed send as `*@domain`, and a thread read as
+  `message-id sha256:<16 hex>`. Stored rows keep the full values.
+- An endpoint switched off answers 403 `{"error": "temporarily_disabled",
+  "detail": ...}`; the web client shows the reason as a notice instead of
+  an error with a retry.
+
 ### Listener allowlists, security alerts, and new-password rules
 
 - Listener source allowlists, off unless configured:
