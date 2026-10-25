@@ -71,8 +71,8 @@ export function AccountSection() {
       toast.error('New passwords do not match')
       return
     }
-    if (pw.next.length < 8) {
-      toast.error('Password must be at least 8 characters')
+    if (pw.next.length < 12) {
+      toast.error('Password must be at least 12 characters')
       return
     }
     setSaving(true)

@@ -13,6 +13,8 @@ use std::sync::Arc;
 use mailrs_tls_reload::TlsState;
 use tokio::net::{TcpListener, TcpStream};
 
+use mailrs_auth_guard::allowlist::{Allowlist, DenialLog};
+
 use crate::backend::Directory;
 
 /// Start IMAP (143, STARTTLS), POP3 (110, STLS) and ManageSieve (4190,
@@ -21,12 +23,32 @@ use crate::backend::Directory;
 /// Without a certificate the plaintext ports accept logins in clear and
 /// offer no upgrade.
 pub fn spawn_all<D: Directory>(dir: Arc<D>, tls: Option<TlsState>) {
+    check_allowlists();
     tokio::spawn(crate::imap::spawn(dir.clone(), tls.clone()));
     tokio::spawn(crate::pop3::spawn(dir.clone(), tls.clone()));
     tokio::spawn(crate::managesieve::spawn(dir.clone(), tls.clone()));
     if let Some(tls) = tls {
         tokio::spawn(crate::imap::spawn_tls(dir.clone(), tls.clone()));
         tokio::spawn(crate::pop3::spawn_tls(dir, tls));
+    }
+}
+
+/// The variable holding a listener's source allowlist:
+/// `MAILRS_IMAPS_ALLOW` for `imaps`.
+fn allow_var(name: &str) -> String {
+    format!("MAILRS_{}_ALLOW", name.to_ascii_uppercase())
+}
+
+/// Every listener's allowlist, read before any listener starts, so a
+/// malformed one stops the process instead of one silent task.
+pub fn check_allowlists() {
+    for l in [IMAP, IMAPS, POP3, POP3S, MANAGESIEVE] {
+        let var = allow_var(l.name);
+        match Allowlist::from_env(&var) {
+            Ok(Some(_)) => tracing::info!("{var} set: {} accepts only the listed sources", l.name),
+            Ok(None) => {}
+            Err(e) => panic!("{e}"),
+        }
     }
 }
 
@@ -106,6 +128,8 @@ where
     F: Fn(TcpStream, SocketAddr) -> Fut,
     Fut: Future<Output = ()> + Send + 'static,
 {
+    let allow = Allowlist::from_env(&allow_var(name)).unwrap_or_else(|e| panic!("{e}"));
+    let denials = DenialLog::default();
     loop {
         let (sock, peer) = match listener.accept().await {
             Ok(pair) => pair,
@@ -114,6 +138,19 @@ where
                 continue;
             }
         };
+        if let Some(allow) = &allow
+            && !allow.allows(peer.ip())
+        {
+            // closed before the greeting, and before any TLS handshake
+            drop(sock);
+            if denials.first(
+                peer.ip().to_canonical(),
+                mailrs_auth_guard::login::unix_now(),
+            ) {
+                tokio::spawn(crate::guard::denied(peer.ip(), name));
+            }
+            continue;
+        }
         tracing::debug!(%peer, "{name}: connection open");
         tokio::spawn(crate::guard::serving(peer.ip(), handle(sock, peer)));
     }
@@ -163,4 +200,45 @@ pub fn imap_for_clients() -> Option<ImapForClients> {
         port,
         implicit_tls: false,
     })
+}
+
+#[cfg(test)]
+mod allowlist_tests {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    /// A listener under `name` that greets every connection it keeps.
+    async fn greeter(name: &'static str) -> std::net::SocketAddr {
+        let (l, addr) = crate::test_support::listener().await;
+        tokio::spawn(super::accept(
+            l,
+            name,
+            |mut sock: tokio::net::TcpStream, _| async move {
+                let _ = sock.write_all(b"hello\r\n").await;
+            },
+        ));
+        addr
+    }
+
+    async fn first_bytes(addr: std::net::SocketAddr) -> Vec<u8> {
+        let mut c = tokio::net::TcpStream::connect(addr).await.unwrap();
+        let mut buf = Vec::new();
+        let _ = c.read_to_end(&mut buf).await;
+        buf
+    }
+
+    #[tokio::test]
+    async fn a_source_off_the_list_is_closed_before_a_word_is_said() {
+        // SAFETY: these names are read by no other test
+        unsafe {
+            std::env::set_var("MAILRS_ALLOWTESTA_ALLOW", "10.0.0.0/8");
+            std::env::set_var("MAILRS_ALLOWTESTB_ALLOW", "10.0.0.0/8, 127.0.0.1");
+        }
+        assert_eq!(first_bytes(greeter("allowtesta").await).await, b"");
+        assert_eq!(first_bytes(greeter("allowtestb").await).await, b"hello\r\n");
+        assert_eq!(
+            first_bytes(greeter("allowtestc").await).await,
+            b"hello\r\n",
+            "unset lets everyone in"
+        );
+    }
 }

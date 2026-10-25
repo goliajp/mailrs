@@ -142,7 +142,7 @@ async fn groups_store_what_they_are_given_and_deletes_leave_nothing() {
 }
 
 #[tokio::test]
-async fn an_empty_password_is_refused_before_the_core_is_asked() {
+async fn a_weak_password_is_refused_before_the_core_is_asked() {
     let st = state();
     let changed = dir::set_account_password(
         State(st.clone()),
@@ -152,8 +152,9 @@ async fn an_empty_password_is_refused_before_the_core_is_asked() {
             password: String::new(),
         }),
     )
-    .await;
-    assert_eq!(changed, Err(StatusCode::BAD_REQUEST));
+    .await
+    .expect("an answer");
+    assert_eq!(changed.status(), StatusCode::BAD_REQUEST);
 
     let created = dir::add_account(
         State(st),
@@ -161,11 +162,16 @@ async fn an_empty_password_is_refused_before_the_core_is_asked() {
         Json(mailrs_core_api::method::admin::AddAccountRequest {
             address: "qa@example.test".into(),
             display_name: "QA".into(),
-            password: String::new(),
+            password: "an-example-passphrase".into(),
         }),
     )
-    .await;
-    assert_eq!(created, Err(StatusCode::BAD_REQUEST));
+    .await
+    .expect("an answer");
+    assert_eq!(
+        created.status(),
+        StatusCode::BAD_REQUEST,
+        "contains the account name"
+    );
 }
 
 #[tokio::test]

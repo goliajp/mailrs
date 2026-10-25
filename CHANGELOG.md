@@ -18,6 +18,34 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### Listener allowlists, security alerts, and new-password rules
+
+- Listener source allowlists, off unless configured:
+  `MAILRS_IMAP_ALLOW`, `MAILRS_IMAPS_ALLOW`, `MAILRS_POP3_ALLOW`,
+  `MAILRS_POP3S_ALLOW`, `MAILRS_MANAGESIEVE_ALLOW` and, in the receiver,
+  `MAILRS_SUBMISSION_ALLOW` (587 and 465; never 25). Comma-separated
+  addresses or CIDRs; a connection from anywhere else is closed before the
+  greeting and any TLS handshake, and recorded as a `denied-by-allowlist`
+  login event once per source per 10 minutes. Set but empty, or holding
+  something that is not an address, stops the process at start. Production
+  sets none: every port stays open to everyone.
+- Security alerts, mailed only to `MAILRS_SECURITY_ALERT_TO` from
+  `MAILRS_SECURITY_ALERT_FROM` (both unset: nothing is sent). Raised when an
+  account is locked for unfamiliar sources (10 failures from any sources in
+  an hour), a source is locked (20 failures in an hour), the server-wide
+  count closes the door to unfamiliar sources (100 in 10 minutes), or one
+  account signs in from 3 or more networks within 10 minutes. A source
+  locked against a single account raises nothing. The same kind about the
+  same account or source is raised at most once an hour; webapi mails
+  what is queued as one digest at most every 5 minutes, at most 100 per
+  mail. Queued alerts expire after a day.
+- New passwords — set by the owner, by a reset, or by an administrator
+  over REST or MCP — must have 12 to 1024 characters, must not be one of
+  the 10,000 most common passwords (SecLists, MIT), and must not contain
+  the account name or a domain label of three or more characters. Existing
+  passwords are not checked: they keep working, sign-in is unchanged, and
+  nobody is asked to change one. The web forms ask for 12 characters too.
+
 ### Login events: every sign-in attempt on record
 
 - Every way in records one fact per attempt in the format all products

@@ -8,10 +8,13 @@ use std::time::Duration;
 use async_trait::async_trait;
 use dashmap::DashMap;
 
+pub mod alerts;
+pub mod allowlist;
 pub mod events;
 #[cfg(feature = "kevy")]
 pub mod kevy;
 pub mod login;
+pub mod password;
 
 /// Tunable thresholds for the auth-guard's lockout policy.
 ///
