@@ -254,6 +254,11 @@ pub fn familiar_prefix(source: IpAddr) -> String {
     }
 }
 
+/// Networks an account signed in from in the last few minutes.
+fn recent_key(account_scope: &str) -> String {
+    format!("ag:r:{account_scope}")
+}
+
 fn lock_key(scope: &str) -> String {
     format!("ag:l:{scope}")
 }
