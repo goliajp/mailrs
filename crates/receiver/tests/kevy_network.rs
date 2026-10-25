@@ -158,6 +158,52 @@ async fn login_guard_over_tcp_meets_the_contract() {
     .expect("contract");
 }
 
+/// Login facts go out and come back through a real kevy-server, including
+/// the once-a-day rule for per-request successes.
+#[tokio::test]
+async fn login_events_over_tcp_are_kept_and_read_back() {
+    use mailrs_auth_guard::events::{
+        Channel, Credential, LoginEvent, Outcome, Query, query, store,
+    };
+    let (_container, url) = setup_kevy().await;
+    tokio::task::spawn_blocking(move || {
+        let mut c = kevy_client::Connection::connect(&url).expect("kevy");
+        let ip = "198.51.100.9".parse().unwrap();
+        let ok = LoginEvent::new(
+            Channel::Dav,
+            Credential::Password,
+            ip,
+            "a@x.test",
+            Outcome::Ok,
+        );
+        let bad = LoginEvent::new(
+            Channel::Smtp,
+            Credential::Password,
+            ip,
+            "a@x.test",
+            Outcome::BadPassword,
+        );
+        assert!(store(&mut c, &ok).unwrap());
+        assert!(
+            !store(&mut c, &ok).unwrap(),
+            "the same success, same day, same source"
+        );
+        assert!(store(&mut c, &bad).unwrap());
+        let now = mailrs_auth_guard::login::unix_now();
+        assert_eq!(
+            query(&mut c, &Query::default(), now).unwrap(),
+            vec![bad.clone(), ok]
+        );
+        let q = Query {
+            result: Some(Outcome::BadPassword),
+            ..Default::default()
+        };
+        assert_eq!(query(&mut c, &q, now).unwrap(), vec![bad]);
+    })
+    .await
+    .expect("events");
+}
+
 #[tokio::test]
 async fn notify_bridge_delivers_over_tcp() {
     let (_container, url) = setup_kevy().await;

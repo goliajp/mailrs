@@ -99,6 +99,43 @@ impl Ops for Connection {
     }
 }
 
+impl crate::events::EventOps for Connection {
+    fn len(&mut self, key: &str) -> io::Result<u64> {
+        Ok(self.llen(key.as_bytes()).map_err(io::Error::from)? as u64)
+    }
+
+    fn push(&mut self, key: &str, value: &[u8], ttl_secs: u64) -> io::Result<()> {
+        let len = self
+            .lpush(key.as_bytes(), &[value])
+            .map_err(io::Error::from)?;
+        if len == 1 {
+            self.expire(key.as_bytes(), Duration::from_secs(ttl_secs))
+                .map_err(io::Error::from)?;
+        }
+        Ok(())
+    }
+
+    fn range(&mut self, key: &str, start: u64, stop: u64) -> io::Result<Vec<Vec<u8>>> {
+        self.lrange(key.as_bytes(), start as i64, stop as i64)
+            .map_err(io::Error::from)
+    }
+
+    fn add_member(&mut self, key: &str, member: &str, ttl_secs: u64) -> io::Result<bool> {
+        let added = self
+            .sadd(key.as_bytes(), &[member.as_bytes()])
+            .map_err(io::Error::from)?;
+        if added == 1 && self.scard(key.as_bytes()).map_err(io::Error::from)? == 1 {
+            self.expire(key.as_bytes(), Duration::from_secs(ttl_secs))
+                .map_err(io::Error::from)?;
+        }
+        Ok(added == 1)
+    }
+
+    fn bump(&mut self, key: &str, ttl_secs: u64) -> io::Result<()> {
+        Ops::incr(self, key, ttl_secs).map(|_| ())
+    }
+}
+
 const POOL_SIZE: usize = 4;
 
 /// The guard every process shares through one kevy server. Connections
@@ -184,6 +221,27 @@ impl LoginGuard for Arc<KevyLoginGuard> {
         })
         .await;
     }
+    async fn record(&self, event: crate::events::LoginEvent) {
+        let line = event.clone();
+        let stored = self
+            .run("record", move |o, _, _| crate::events::store(o, &event))
+            .await;
+        if stored != Some(false) {
+            line.log();
+        }
+    }
+
+    async fn events(
+        &self,
+        query: crate::events::Query,
+    ) -> io::Result<Vec<crate::events::LoginEvent>> {
+        let me = self.clone();
+        tokio::task::spawn_blocking(move || {
+            me.with_ops(|o, _, now| crate::events::query(o, &query, now))
+        })
+        .await
+        .map_err(io::Error::other)?
+    }
 }
 
 /// The guard for a process: over the kevy server at `url` when there is
@@ -214,6 +272,42 @@ mod tests {
             },
             |_, _| {},
         );
+    }
+
+    #[test]
+    fn events_are_stored_and_read_back_over_kevy() {
+        use crate::events::{Channel, Credential, LoginEvent, Outcome, Query, query, store};
+        let mut c = Connection::connect("mem://login-events").expect("mem");
+        let ip: IpAddr = "192.0.2.1".parse().unwrap();
+        let ok = LoginEvent::new(
+            Channel::ApiKey,
+            Credential::ApiKey,
+            ip,
+            "a@x.test",
+            Outcome::Ok,
+        )
+        .with_key("mk_06fa1");
+        let bad = LoginEvent::new(
+            Channel::Imap,
+            Credential::Password,
+            ip,
+            "a@x.test",
+            Outcome::BadPassword,
+        );
+        for e in [&ok, &ok, &bad] {
+            store(&mut c, e).unwrap();
+        }
+        let got = query(&mut c, &Query::default(), unix_now()).unwrap();
+        assert_eq!(
+            got,
+            vec![bad.clone(), ok.clone()],
+            "the repeated key success is kept once"
+        );
+        let q = Query {
+            channel: Some(Channel::Imap),
+            ..Default::default()
+        };
+        assert_eq!(query(&mut c, &q, unix_now()).unwrap(), vec![bad]);
     }
 
     #[tokio::test]

@@ -17,6 +17,9 @@ const AdminAliases = lazy(() =>
 const AdminAuditLog = lazy(() =>
   import('@/pages/admin-audit-log').then((m) => ({ default: m.AdminAuditLog }))
 )
+const AdminSignIns = lazy(() =>
+  import('@/pages/admin-sign-ins').then((m) => ({ default: m.AdminSignIns }))
+)
 const AdminDmarc = lazy(() =>
   import('@/pages/admin-dmarc').then((m) => ({ default: m.AdminDmarc }))
 )
@@ -64,6 +67,7 @@ export function Admin() {
             <Route element={<AdminGreylist />} path="greylist" />
             <Route element={<AdminMock />} path="mock" />
             <Route element={<AdminAuditLog />} path="audit-log" />
+            <Route element={<AdminSignIns />} path="sign-ins" />
             <Route element={<AdminMailAudit />} path="mail-audit" />
             <Route element={<AdminSystemConfig />} path="system-config" />
             <Route element={<Navigate replace to="overview" />} path="*" />

@@ -11,7 +11,7 @@ OpenAPI spec: https://mail.golia.ai/openapi.json
 ## MCP (recommended)
 
 Streamable HTTP endpoint: https://mail.golia.ai/mcp
-95 tools auto-discovered, grouped by category (identical on both server lanes):
+96 tools auto-discovered, grouped by category (identical on both server lanes):
 
 ```json
 {"mcpServers":{"mailrs":{"type":"streamable-http","url":"https://mail.golia.ai/mcp","headers":{"Authorization":"Bearer <API_KEY>"}}}}
@@ -31,7 +31,7 @@ Streamable HTTP endpoint: https://mail.golia.ai/mcp
 **Encryption:** list_own_encryption_keys, get_public_key_of, set_encryption_key, delete_encryption_key
 **Greylist:** list_greylist_local, greylist_local_add, greylist_local_remove
 **Mock mail (disposable test mailboxes):** mock_create_namespace, mock_list_namespaces, mock_delete_namespace, mock_new_address, mock_list_messages, mock_wait_for_message, mock_read_message, mock_delete_messages, mock_send
-**Audit & System:** get_audit_log, audit_list_conversations, audit_read_thread, get_system_config, set_system_config, reset_system_config, get_server_info, reconcile_maildir
+**Audit & System:** get_audit_log, list_auth_events, audit_list_conversations, audit_read_thread, get_system_config, set_system_config, reset_system_config, get_server_info, reconcile_maildir
 
 ## REST API
 
@@ -73,6 +73,7 @@ Streamable HTTP endpoint: https://mail.golia.ai/mcp
 - POST /api/admin/accounts/{address}/password — replace a password without touching the rest of the account
 - GET/PUT /api/admin/accounts/{address}/forwards — other accounts here that get a copy of everything delivered to an account, written straight into their mailboxes (admin.accounts)
 - GET/PUT /api/admin/accounts/{address}/send-as — the addresses an account was granted to send as, besides its own, its aliases and its email groups (admin.accounts)
+- GET /api/admin/auth-events — sign-in attempts on every way in (web, verify, IMAP, POP3, SMTP, ManageSieve, DAV, API keys), newest first; filter with account, source, result, channel, since, until, limit (admin.accounts)
 - POST /api/admin/reconcile-maildir — count mailboxes and message files under the maildir root; read-only (admin)
 
 ### Mock mail (disposable test mailboxes)
