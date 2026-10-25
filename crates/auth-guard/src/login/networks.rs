@@ -20,7 +20,7 @@ pub(super) fn many_networks<O: Ops + EventOps>(
     account: &str,
     now: u64,
 ) -> io::Result<()> {
-    let key = format!("ag:r:{}", s.account);
+    let key = super::recent_key(&s.account);
     ops.hset(&key, &s.familiar_field, now, RECENT_SECS)?;
     let recent: Vec<String> = ops
         .hgetall(&key)?
