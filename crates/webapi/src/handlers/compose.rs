@@ -185,6 +185,27 @@ pub(crate) fn base64_wrap(input: &[u8]) -> String {
     out
 }
 
+/// `from` as a From header value: a bare address as is, and a display
+/// name quoted, or encoded when it is not ASCII.
+fn from_header(from: &str) -> String {
+    let address = mailrs_rfc5322::addr_spec(from);
+    let name = from
+        .trim()
+        .rfind('<')
+        .map(|open| from.trim()[..open].trim().trim_matches('"').trim())
+        .unwrap_or("");
+    if name.is_empty() || address == from.trim() {
+        return address.to_string();
+    }
+    match mailrs_rfc2047::encode(name) {
+        std::borrow::Cow::Borrowed(ascii) => {
+            let quoted = ascii.replace('\\', "\\\\").replace('"', "\\\"");
+            format!("\"{quoted}\" <{address}>")
+        }
+        std::borrow::Cow::Owned(encoded) => format!("{encoded} <{address}>"),
+    }
+}
+
 /// Build a complete RFC 5322 envelope from parsed compose parts.
 ///
 /// Transport-safe by construction:
@@ -196,7 +217,10 @@ pub(crate) fn base64_wrap(input: &[u8]) -> String {
 /// - attachment payload: base64 with 76-column line wrapping
 pub(crate) fn build_rfc5322(parts: &ComposeParts, from: &str) -> (String, Vec<u8>) {
     let mid_local = random_hex(8);
-    let mid_host = from.split('@').nth(1).unwrap_or("localhost");
+    let mid_host = mailrs_rfc5322::addr_spec(from)
+        .split('@')
+        .nth(1)
+        .unwrap_or("localhost");
     let message_id = format!("{mid_local}@{mid_host}");
     let date = rfc5322_date(now_secs());
 
@@ -208,7 +232,7 @@ pub(crate) fn build_rfc5322(parts: &ComposeParts, from: &str) -> (String, Vec<u8
 
     let mut out = String::new();
     out.push_str(&format!("Date: {date}\r\n"));
-    out.push_str(&format!("From: {from}\r\n"));
+    out.push_str(&format!("From: {}\r\n", from_header(from)));
     if !parts.to.is_empty() {
         out.push_str(&format!("To: {}\r\n", parts.to.join(", ")));
     }
@@ -328,7 +352,13 @@ pub(crate) async fn ensure_from_allowed(
     user: &str,
     from: &str,
 ) -> Result<(), StatusCode> {
-    if from.trim().eq_ignore_ascii_case(user) {
+    // the value becomes a header line as it is
+    if from.contains(['\r', '\n']) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    // a display name is the sender's to choose; the address is what is checked
+    let from = mailrs_rfc5322::addr_spec(from);
+    if from.eq_ignore_ascii_case(user) {
         return Ok(());
     }
     let perms = state
@@ -341,6 +371,30 @@ pub(crate) async fn ensure_from_allowed(
     }
     tracing::warn!(%user, %from, "send blocked: from not in send_as allowlist");
     Err(StatusCode::FORBIDDEN)
+}
+
+#[cfg(test)]
+mod from_header_tests {
+    use super::from_header;
+
+    #[test]
+    fn display_names_are_quoted_or_encoded() {
+        assert_eq!(from_header("lihao@golia.jp"), "lihao@golia.jp");
+        assert_eq!(from_header(" lihao@golia.jp "), "lihao@golia.jp");
+        assert_eq!(
+            from_header("LI HAO <lihao@golia.jp>"),
+            "\"LI HAO\" <lihao@golia.jp>"
+        );
+        assert_eq!(
+            from_header("\"Li, Hao\" <lihao@golia.jp>"),
+            "\"Li, Hao\" <lihao@golia.jp>"
+        );
+        assert_eq!(
+            from_header("李浩 <lihao@golia.jp>"),
+            "=?UTF-8?B?5p2O5rWp?= <lihao@golia.jp>"
+        );
+        assert_eq!(from_header("<lihao@golia.jp>"), "lihao@golia.jp");
+    }
 }
 
 #[cfg(test)]

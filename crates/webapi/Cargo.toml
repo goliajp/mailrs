@@ -21,7 +21,8 @@ mailrs-core-api = { path = "../core-api", features = ["client"] }
 # so the stone's RPC handler and webapi write via the same routine.
 mailrs-core-sidestate = { path = "../core-sidestate" }
 mailrs-dav = { path = "../dav", version = "2" }
-mailrs-auth-guard = { path = "../auth-guard" }
+mailrs-auth-guard = { path = "../auth-guard", features = ["kevy"] }
+ipnet = { workspace = true }
 mailrs-mock = { path = "../mock", features = ["schema"] }
 mailrs-mail-builder = { path = "../mail-builder", version = "1" }
 # which key the sender signs a domain with, read the way the sender reads it

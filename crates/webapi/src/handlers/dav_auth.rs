@@ -9,23 +9,19 @@
 //! Like IMAP, a Basic login is the account password alone: an account with
 //! a second factor enrolled is not asked for it here.
 
-use std::net::{IpAddr, Ipv4Addr};
-use std::sync::{Arc, LazyLock};
+use std::sync::Arc;
 
 use axum::extract::{Request, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use base64::Engine as _;
-use mailrs_auth_guard::{AuthCheck, AuthGuard, AuthGuardConfig};
+use mailrs_auth_guard::login::Verdict;
 
 use crate::WebState;
 use crate::handlers::conversations::{AuthedDisplayName, AuthedUser};
+use crate::login_guard::ClientIp;
 use crate::session::AgentScopes;
-
-/// Failed logins per client and per (client, account), with the same
-/// thresholds as SMTP submission.
-static GUARD: LazyLock<AuthGuard> = LazyLock::new(|| AuthGuard::new(AuthGuardConfig::default()));
 
 const CHALLENGE: &str = "Basic realm=\"mailrs\", charset=\"UTF-8\"";
 
@@ -44,25 +40,24 @@ pub async fn dav_auth_middleware(
     let Some((address, password)) = credentials else {
         return challenge();
     };
-    let ip = client_ip(req.headers());
-    let now = unix_now();
-    if let AuthCheck::LockedOut { remaining_secs } = GUARD.check(ip, &address, now) {
-        return (
-            StatusCode::TOO_MANY_REQUESTS,
-            [(header::RETRY_AFTER, remaining_secs.to_string())],
-        )
-            .into_response();
+    let ClientIp(source) = ClientIp::of(req.headers(), req.extensions());
+    let guard = &*crate::login_guard::GUARD;
+    let verdict = guard.check(source, &address).await;
+    if let Verdict::Locked { .. } = verdict {
+        tracing::warn!(event = "auth", channel = "dav", %source, account = %address, result = "locked");
+        return crate::login_guard::locked_response(verdict);
     }
     match crate::handlers::auth::password::verify(&state, &address, &password).await {
         Ok(Some(acct)) => {
-            GUARD.record_success(ip, &address);
+            guard.succeeded(source, &address).await;
             req.extensions_mut().insert(AuthedDisplayName::default());
             req.extensions_mut().insert(AuthedUser(acct.public.address));
             req.extensions_mut().insert(AgentScopes::default());
             next.run(req).await
         }
         Ok(None) => {
-            GUARD.record_failure(ip, &address, now);
+            tracing::warn!(event = "auth", channel = "dav", %source, account = %address, result = "bad-password");
+            guard.failed(source, &address).await;
             challenge()
         }
         Err(status) => status.into_response(),
@@ -93,27 +88,6 @@ fn basic_credentials(headers: &HeaderMap) -> Option<Option<(String, String)>> {
     }))
 }
 
-/// The client as the reverse proxy in front of this process saw it: the
-/// last `X-Forwarded-For` entry is the one the proxy appended, and this
-/// process listens only behind it. A request without the header did not
-/// come through the proxy (a test, a local run), and all such requests
-/// share one key.
-fn client_ip(headers: &HeaderMap) -> IpAddr {
-    headers
-        .get("x-forwarded-for")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.rsplit(',').next())
-        .and_then(|ip| ip.trim().parse().ok())
-        .unwrap_or(IpAddr::V4(Ipv4Addr::UNSPECIFIED))
-}
-
-fn unix_now() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .expect("clock after 1970")
-        .as_secs()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -135,15 +109,5 @@ mod tests {
         assert_eq!(basic_credentials(&with_auth("Basic !!!")), Some(None));
         assert_eq!(basic_credentials(&with_auth("Bearer abc")), None);
         assert_eq!(basic_credentials(&HeaderMap::new()), None);
-    }
-
-    #[test]
-    fn the_proxy_appended_entry_is_the_client() {
-        let mut h = HeaderMap::new();
-        h.insert(
-            "x-forwarded-for",
-            HeaderValue::from_static("6.6.6.6, 203.0.113.9"),
-        );
-        assert_eq!(client_ip(&h), "203.0.113.9".parse::<IpAddr>().unwrap());
     }
 }

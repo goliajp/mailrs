@@ -57,6 +57,7 @@ mailrs-outbound-queue = { path = "../outbound-queue" }
 rustls = { version = "0.23", default-features = false, features = ["ring", "logging", "tls12", "std"] }
 kevy-embedded = { workspace = true }
 kevy-client = { workspace = true }
+mailrs-auth-guard = { path = "../auth-guard", version = "2", features = ["kevy"] }
 mailrs-core-sidestate = { path = "../core-sidestate" }
 mailrs-intake = { path = "../intake" }
 mailrs-mock = { path = "../mock" }

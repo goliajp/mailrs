@@ -11,6 +11,7 @@
 //! test client.
 
 pub mod backend;
+pub mod guard;
 pub mod imap;
 pub mod listen;
 pub mod managesieve;
@@ -20,4 +21,5 @@ mod test_support;
 #[cfg(test)]
 mod test_tls;
 
+pub use guard::Guarded;
 pub use listen::spawn_all;

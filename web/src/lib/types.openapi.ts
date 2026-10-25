@@ -5388,10 +5388,14 @@ export interface components {
         VerifyRequest: {
             address: string;
             password: string;
+            /** @description Address of the person signing in to the calling service; the login guard counts it instead of the caller. */
+            client_ip?: string;
         };
         VerifyTotpRequest: {
             address: string;
             code: string;
+            /** @description Address of the person signing in to the calling service; the login guard counts it instead of the caller. */
+            client_ip?: string;
         };
         ChangePasswordRequest: {
             current_password: string;

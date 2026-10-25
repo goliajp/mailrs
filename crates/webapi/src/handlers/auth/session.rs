@@ -15,6 +15,8 @@ use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
 
 use crate::WebState;
+use crate::login_guard::ClientIp;
+use mailrs_auth_guard::login::Verdict;
 
 #[derive(Debug, Deserialize)]
 pub struct LoginRequest {
@@ -45,12 +47,23 @@ pub struct LoginResponse {
 /// - Return 200 with `Set-Cookie: mailrs_session=<token>; HttpOnly; ...`
 pub async fn login(
     State(state): State<Arc<WebState>>,
+    ClientIp(source): ClientIp,
     headers: axum::http::HeaderMap,
     Json(req): Json<LoginRequest>,
 ) -> Response {
+    let guard = &*crate::login_guard::GUARD;
+    let verdict = guard.check(source, &req.address).await;
+    if let Verdict::Locked { .. } = verdict {
+        tracing::warn!(event = "auth", channel = "web", %source, account = %req.address, result = "locked");
+        return crate::login_guard::locked_response(verdict);
+    }
     let acct = match super::password::verify(&state, &req.address, &req.password).await {
         Ok(Some(acct)) => acct,
-        Ok(None) => return StatusCode::UNAUTHORIZED.into_response(),
+        Ok(None) => {
+            tracing::warn!(event = "auth", channel = "web", %source, account = %req.address, result = "bad-password");
+            guard.failed(source, &req.address).await;
+            return StatusCode::UNAUTHORIZED.into_response();
+        }
         Err(status) => return status.into_response(),
     };
 
@@ -121,6 +134,8 @@ pub async fn login(
             false
         };
         if !ok_code && !ok_recovery {
+            tracing::warn!(event = "auth", channel = "web", %source, account = %req.address, result = "mfa-failed");
+            guard.failed(source, &req.address).await;
             return (
                 StatusCode::UNAUTHORIZED,
                 Json(serde_json::json!({ "error": "invalid TOTP code" })),
@@ -137,6 +152,7 @@ pub async fn login(
     // The account comes from `acct`, which is what just authenticated. It is
     // never read from the request body: a caller naming somebody else's
     // address must not be able to attach their own Google account to it.
+    guard.succeeded(source, &req.address).await;
     claim_pending_link(&headers, &acct.public.address).await;
     issue_session(&state, &acct).await
 }
@@ -297,25 +313,22 @@ pub(crate) async fn issue_session(
 /// Deletes the kevy `session:<token>` blob. The cookie is also cleared
 /// via `Set-Cookie: mailrs_session=; Max-Age=0`.
 pub async fn logout(req: axum::extract::Request) -> Response {
-    let token = req
-        .headers()
-        .get(axum::http::header::COOKIE)
-        .and_then(|h| h.to_str().ok())
-        .and_then(|raw| {
-            raw.split(';').find_map(|c| {
-                let c = c.trim();
-                c.strip_prefix("mailrs_session=").map(|s| s.to_string())
-            })
-        });
+    // the cookie for the browser, the bearer header for the apps and for
+    // scripts; an agent key is not a session and is revoked on its own page
+    let token = cookie_value(req.headers(), "mailrs_session").or_else(|| {
+        req.headers()
+            .get(axum::http::header::AUTHORIZATION)
+            .and_then(|h| h.to_str().ok())
+            .and_then(|raw| raw.strip_prefix("Bearer "))
+            .map(|t| t.trim().to_string())
+            .filter(|t| !t.is_empty() && !t.starts_with(crate::session::AGENT_KEY_PREFIX))
+    });
 
-    if let (Some(t), Ok(url)) = (token, std::env::var("MAILRS_KEVY_URL")) {
-        let _ = tokio::task::spawn_blocking(move || -> std::io::Result<()> {
-            let mut c = kevy_client::Connection::connect(&url)?;
-            let key = mailrs_core_sidestate::keys::session::session_key(&t);
-            let _ = c.del(&[key.as_bytes()])?;
-            Ok(())
-        })
-        .await;
+    if let Some(t) = token {
+        let ended = crate::handlers::kevy_util::with_kevy(move |c| end_session(c, &t));
+        if ended.is_err() {
+            return StatusCode::SERVICE_UNAVAILABLE.into_response();
+        }
     }
 
     let cookie = "mailrs_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0";
@@ -324,4 +337,19 @@ pub async fn logout(req: axum::extract::Request) -> Response {
         resp.headers_mut().insert(SET_COOKIE, v);
     }
     resp
+}
+
+/// Delete one session and its entry in the owner's index.
+fn end_session(c: &mut kevy_client::Connection, token: &str) -> std::io::Result<()> {
+    let key = mailrs_core_sidestate::keys::session::session_key(token);
+    let owner = c
+        .get(key.as_bytes())?
+        .and_then(|raw| serde_json::from_slice::<serde_json::Value>(&raw).ok())
+        .and_then(|v| v.get("address").and_then(|a| a.as_str()).map(String::from));
+    c.del(&[key.as_bytes()])?;
+    if let Some(owner) = owner {
+        let idx = mailrs_core_sidestate::keys::session::by_addr_key(&owner);
+        c.srem(idx.as_bytes(), &[token.as_bytes()])?;
+    }
+    Ok(())
 }
