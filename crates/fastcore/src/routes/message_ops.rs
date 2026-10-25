@@ -74,48 +74,38 @@ pub(crate) fn sent_thread_ids(state: &Arc<FastcoreState>, user: &str) -> Vec<Str
 }
 
 /// Remove the maildir file at `blob_ref` — the disk counterpart of
-/// `KevyMailboxStore::delete_thread`. Tries both `cur/` and `new/`
-/// because a message hops between them as its `\Seen` flag flips.
+/// `KevyMailboxStore::delete_thread`. The file is found the way
+/// `read_maildir_file` finds it: in `new/` or `cur/`, whatever `:2,`
+/// flags its name has gained since delivery.
 ///
 /// Best-effort: an fs error (permission, race, already gone) logs a
 /// warning but must not fail the surrounding delete — the point of
 /// this helper is to prevent self-heal from resurrecting the row on
 /// its next tick, and a missing file already satisfies that. Returns
-/// true if any file was actually unlinked (helpful for the caller's
+/// true if a file was actually unlinked (helpful for the caller's
 /// log line).
 pub(crate) fn unlink_maildir_file(user: &str, blob_ref: &str) -> bool {
-    if blob_ref.is_empty() {
-        return false;
+    match crate::maildir_scan::mailbox_dir(user) {
+        Some(base) => unlink_in(&base, blob_ref),
+        None => false,
     }
-    let Some((local, domain)) = user.split_once('@') else {
+}
+
+fn unlink_in(base: &std::path::Path, blob_ref: &str) -> bool {
+    let Some((dir, id)) = mailrs_maildir::locate(base, blob_ref) else {
         return false;
     };
-    let root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
-    let base = std::path::PathBuf::from(root).join(domain).join(local);
-    let (sub, name) = match blob_ref.split_once('/') {
-        Some((s, n)) => (Some(s), n),
-        None => (None, blob_ref),
-    };
-    let mut removed = false;
-    for leaf in ["cur", "new"] {
-        let path = match sub {
-            Some(s) => base.join(s).join(leaf).join(name),
-            None => base.join(leaf).join(name),
-        };
-        match std::fs::remove_file(&path) {
-            Ok(()) => {
-                removed = true;
-            }
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-            Err(e) => {
-                tracing::warn!(
-                    error = %e, path = %path.display(),
-                    "delete_thread: could not unlink maildir file"
-                );
-            }
+    match dir.delete(&id) {
+        Ok(()) => true,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => false,
+        Err(e) => {
+            tracing::warn!(
+                error = %e, dir = %dir.path().display(), %blob_ref,
+                "delete_thread: could not unlink maildir file"
+            );
+            false
         }
     }
-    removed
 }
 
 /// `POST /v1/admin/threads:split-message` `{user, message_id}` — move a
@@ -431,5 +421,34 @@ pub(crate) fn row_to_wire(r: ThreadRow) -> ConversationSummaryWire {
         // row a client draws, and a zero here would mean no client
         // could ever say a thread is asleep.
         snoozed_until: r.snoozed_until,
+    }
+}
+
+#[cfg(test)]
+mod unlink_tests {
+    use super::unlink_in;
+
+    fn file(base: &std::path::Path, rel: &str) -> std::path::PathBuf {
+        let p = base.join(rel);
+        std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+        std::fs::write(&p, b"Subject: x\r\n\r\nbody").unwrap();
+        p
+    }
+
+    #[test]
+    fn a_read_message_is_unlinked_under_its_flagged_name() {
+        let tmp = tempfile::tempdir().unwrap();
+        let read = file(tmp.path(), "cur/1792943149.M9611P1Q43.host:2,S");
+        let fresh = file(tmp.path(), "new/1792945998.M8P1Q45.host");
+        let sent = file(tmp.path(), ".Sent/cur/1792945998.M7P1Q11.host:2,S");
+        assert!(unlink_in(tmp.path(), "1792943149.M9611P1Q43.host"));
+        assert!(unlink_in(tmp.path(), "1792945998.M8P1Q45.host"));
+        assert!(unlink_in(tmp.path(), ".Sent/1792945998.M7P1Q11.host"));
+        assert!(!read.exists() && !fresh.exists() && !sent.exists());
+        assert!(
+            !unlink_in(tmp.path(), "1792943149.M9611P1Q43.host"),
+            "already gone"
+        );
+        assert!(!unlink_in(tmp.path(), ""));
     }
 }
