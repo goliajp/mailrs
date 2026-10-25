@@ -18,6 +18,13 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### Deleting a read message removes its file (2.129.0)
+
+- Deleting a conversation now also removes the maildir files of messages
+  that had been read. The file was looked up under the name it had at
+  delivery, which a read message no longer has, so its file stayed on
+  disk after the conversation disappeared.
+
 ### Sub-addressing (2.128.0)
 
 - Mail to `local+tag@domain` is delivered where `local@domain` would be:
