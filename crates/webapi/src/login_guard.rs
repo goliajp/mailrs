@@ -131,8 +131,8 @@ const ALERT_EVERY: std::time::Duration = std::time::Duration::from_secs(300);
 /// Alerts one digest lists; the rest wait for the next.
 const ALERTS_PER_MAIL: usize = 100;
 
-/// Mail the guard's queued alerts to the operators, one digest per
-/// [`ALERT_EVERY`] when there are any. Only this process sends them; every
+/// Mail the guard's queued alerts to the operators, at most one digest
+/// every five minutes and none when there are none. Only this process sends them; every
 /// process that accepts logins queues them.
 pub fn spawn_alert_mailer() {
     let Some((from, to)) = alert_addresses() else {
