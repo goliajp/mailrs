@@ -122,7 +122,7 @@ where
     let source = addr.ip().to_canonical();
     let verdict = ctx.auth_guard.check(source, &username).await;
     let resp = if let Verdict::Locked { .. } = verdict {
-        tracing::warn!(event = "auth", channel = "smtp", %source, account = %username, result = "locked");
+        tracing::warn!(event = "auth", channel = "smtp", %source, account = %mailrs_auth_guard::login::loggable_account(&username), result = "locked");
         Response::new(
             421,
             Some(mailrs_smtp_proto::EnhancedCode {
@@ -144,7 +144,7 @@ where
         });
         Response::auth_ok()
     } else {
-        tracing::warn!(event = "auth", channel = "smtp", %source, account = %username, result = "bad-password");
+        tracing::warn!(event = "auth", channel = "smtp", %source, account = %mailrs_auth_guard::login::loggable_account(&username), result = "bad-password");
         ctx.auth_guard.failed(source, &username).await;
         Response::auth_failed()
     };

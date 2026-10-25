@@ -37,16 +37,9 @@ fn now_secs() -> i64 {
 
 /// Poll subscribed feeds until the process ends.
 pub async fn spawn(state: Arc<FastcoreState>) {
-    let client = match reqwest::Client::builder()
-        .timeout(Duration::from_secs(30))
-        .build()
-    {
-        Ok(c) => c,
-        Err(e) => {
-            tracing::error!(err = %e, "calendar sync: no http client, loop not started");
-            return;
-        }
-    };
+    // feed URLs are the subscriber's to choose, so they go through the
+    // egress check
+    let client = mailrs_egress::Egress::new("mailrs-calendar-sync/1.0", Duration::from_secs(30));
     tracing::info!("calendar feed sync started");
     let mut idle_rounds = 0u32;
     loop {
@@ -67,7 +60,7 @@ pub async fn spawn(state: Arc<FastcoreState>) {
 
 /// One pass. Returns how many feeds were fetched, which is what tells the
 /// loop whether this round accomplished anything.
-async fn tick(state: &Arc<FastcoreState>, client: &reqwest::Client) -> usize {
+async fn tick(state: &Arc<FastcoreState>, client: &mailrs_egress::Egress) -> usize {
     let users = match state.mailbox.list_account_addresses() {
         Ok(u) => u,
         Err(e) => {
@@ -138,26 +131,35 @@ fn write_feed(state: &Arc<FastcoreState>, user: &str, row: &FeedRow) {
     }
 }
 
+/// Redirects a feed fetch may follow; each hop is checked again.
+const MAX_REDIRECTS: u8 = 5;
+/// Largest feed read. A calendar of years of events is a few megabytes.
+const MAX_FEED_BYTES: usize = 16 * 1024 * 1024;
+
 /// Fetch one feed and file what it holds. Returns the row to store.
 async fn sync_one(
-    client: &reqwest::Client,
+    client: &mailrs_egress::Egress,
     state: &Arc<FastcoreState>,
     user: &str,
     feed: FeedRow,
 ) -> FeedRow {
     let now = now_secs();
-    let mut req = client.get(&feed.url);
-    if let (Some(u), Some(p)) = (&feed.basic_auth_user, &feed.basic_auth_pass) {
-        req = req.basic_auth(u, Some(p));
-    }
-    if let Some(ref etag) = feed.etag {
-        req = req.header("if-none-match", etag);
-    }
-    if let Some(ref lm) = feed.last_modified {
-        req = req.header("if-modified-since", lm);
-    }
-
-    let resp = match req.send().await {
+    let sent = client
+        .send(&feed.url, MAX_REDIRECTS, |c, url| {
+            let mut req = c.get(url);
+            if let (Some(u), Some(p)) = (&feed.basic_auth_user, &feed.basic_auth_pass) {
+                req = req.basic_auth(u, Some(p));
+            }
+            if let Some(ref etag) = feed.etag {
+                req = req.header("if-none-match", etag);
+            }
+            if let Some(ref lm) = feed.last_modified {
+                req = req.header("if-modified-since", lm);
+            }
+            req
+        })
+        .await;
+    let resp = match sent {
         Ok(r) => r,
         Err(e) => return calendar_feeds::with_failure(feed, now, &format!("request: {e}")),
     };
@@ -176,7 +178,7 @@ async fn sync_one(
 
     let etag = header(&resp, reqwest::header::ETAG);
     let last_modified = header(&resp, reqwest::header::LAST_MODIFIED);
-    let body = match resp.bytes().await {
+    let body = match mailrs_egress::read_capped(resp, MAX_FEED_BYTES).await {
         Ok(b) => b,
         Err(e) => return calendar_feeds::with_failure(feed, now, &format!("body read: {e}")),
     };

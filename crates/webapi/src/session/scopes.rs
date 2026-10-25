@@ -3,10 +3,10 @@
 //! Vocabulary: `admin` (everything), `mail:write` (read + write, no
 //! /api/admin), `mail:read` (GET/HEAD only, no /api/admin), `mock` (only
 //! /api/mock/…), `mock:{ns}` (only that one mock namespace, cannot create
-//! or delete it). An empty scope list grants full owner access; only keys
-//! made before scopes were required have one, and no new key may. A key
-//! with several scopes gets the union of what each one allows. No key, of
-//! any scope, can create or revoke keys: that takes a signed-in session.
+//! or delete it). A key with no scope is refused everywhere; full owner
+//! access is the `admin` scope, named. A key with several scopes gets the
+//! union of what each one allows. No key, of any scope, can create or
+//! revoke keys: that takes a signed-in session.
 
 use axum::http::{Method, StatusCode};
 
@@ -74,7 +74,7 @@ pub(super) fn agent_scopes_allow(scopes: &[String], method: &Method, path: &str)
     if under(path, AGENT_KEYS) {
         return false;
     }
-    scopes.is_empty() || scopes.iter().any(|s| scope_allows(s, method, path))
+    scopes.iter().any(|s| scope_allows(s, method, path))
 }
 
 fn scope_allows(scope: &str, method: &Method, path: &str) -> bool {
@@ -120,9 +120,13 @@ mod tests {
     }
 
     #[test]
-    fn empty_scopes_grant_full_access() {
-        assert!(agent_scopes_allow(&[], &Method::POST, "/api/admin/domains"));
-        assert!(agent_scopes_allow(&[], &Method::GET, "/api/conversations"));
+    fn a_key_with_no_scope_reaches_nothing() {
+        assert!(!agent_scopes_allow(
+            &[],
+            &Method::POST,
+            "/api/admin/domains"
+        ));
+        assert!(!agent_scopes_allow(&[], &Method::GET, "/api/conversations"));
     }
 
     #[test]

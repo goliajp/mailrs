@@ -1,0 +1,19 @@
+[package]
+name = "mailrs-egress"
+version = "0.0.0"
+edition = "2024"
+description = "Requests the server makes to addresses users supplied: public destinations only, resolved once and pinned, redirects checked hop by hop, bounded size"
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
+tokio = { workspace = true }
+thiserror = "2"
+tracing = "0.1"
+
+[dev-dependencies]
+tokio = { workspace = true }

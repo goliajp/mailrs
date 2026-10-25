@@ -3,7 +3,7 @@
  *
  * Backend: `crates/webapi/src/session/scopes.rs — agent_scopes_allow`.
  *   - `admin`         → full owner access (every route the account can reach)
- *   - empty list      → the same; only old keys have one, new ones must name a scope
+ *   - empty list      → refused everywhere; only keys made before scopes were required have one
  *   - `mail:write`    → everything except `/api/admin/*`
  *   - `mail:read`     → GET/HEAD only, and never `/api/admin/*`
  *   - `mock`          → only `/api/mock/*` and the `mock_*` MCP tools
@@ -44,7 +44,7 @@ export const SCOPE_PRESETS: { description: string; label: string; value: ScopePr
 
 /** Label + tone for the scope cell. Empty scopes are the loudest case. */
 export function describeScopes(scopes: readonly string[]): { label: string; tone: ScopeTone } {
-  if (scopes.length === 0) return { label: 'Full access', tone: 'elevated' }
+  if (scopes.length === 0) return { label: 'No scope · refused', tone: 'elevated' }
   if (scopes.includes('admin')) return { label: 'Full access · admin', tone: 'elevated' }
   return { label: scopes.join(' · '), tone: 'normal' }
 }

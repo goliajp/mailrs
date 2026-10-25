@@ -41,18 +41,17 @@ pub struct UnsubscribeResult {
 
 /// Short, and not retried. An unsubscribe that fails is a link the
 /// reader can still open; an unsubscribe that hangs is a spinner with
-/// nothing behind it.
-fn http_client() -> Result<reqwest::Client, StatusCode> {
-    reqwest::Client::builder()
-        .user_agent("mailrs-unsubscribe/1.0")
-        .timeout(Duration::from_secs(10))
-        // One hop. RFC 8058 endpoints redirect to a confirmation page
-        // often enough that refusing entirely would fail live senders,
-        // but a chain is a chain.
-        .redirect(reqwest::redirect::Policy::limited(1))
-        .build()
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+/// nothing behind it. The URL is the sender's, so it goes through the
+/// egress check: a message must not be able to point this server at its
+/// own network.
+fn egress() -> mailrs_egress::Egress {
+    mailrs_egress::Egress::new("mailrs-unsubscribe/1.0", Duration::from_secs(10))
 }
+
+/// One hop. RFC 8058 endpoints redirect to a confirmation page often
+/// enough that refusing entirely would fail live senders, but a chain is a
+/// chain.
+const MAX_REDIRECTS: u8 = 1;
 
 /// `POST /api/mail/unsubscribe`
 ///
@@ -68,12 +67,13 @@ pub(crate) async fn unsubscribe(
 ) -> Result<Json<UnsubscribeResult>, StatusCode> {
     let url = one_click_url_for(&state, &user, &req).await?;
 
-    let response = http_client()?
-        .post(&url)
-        // RFC 8058 §3.1: exactly this body, and this content type.
-        .header("Content-Type", "application/x-www-form-urlencoded")
-        .body("List-Unsubscribe=One-Click")
-        .send()
+    let response = egress()
+        .send(&url, MAX_REDIRECTS, |c, u| {
+            c.post(u)
+                // RFC 8058 §3.1: exactly this body, and this content type.
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .body("List-Unsubscribe=One-Click")
+        })
         .await;
 
     match response {

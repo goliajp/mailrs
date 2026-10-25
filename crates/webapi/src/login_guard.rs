@@ -59,9 +59,26 @@ pub fn client_ip(headers: &HeaderMap, peer: Option<IpAddr>, trusted: &[IpNet]) -
     };
     match peer.map(|p| p.to_canonical()) {
         Some(p) if trusted.iter().any(|n| n.contains(&p)) => forwarded().unwrap_or(p),
-        Some(p) => p,
+        Some(p) => {
+            if forwarded().is_some() && !mailrs_egress::public_ip(p) {
+                untrusted_forwarder(p);
+            }
+            p
+        }
         // no connection info: a router driven in-process, as tests do
         None => forwarded().unwrap_or(IpAddr::V4(Ipv4Addr::UNSPECIFIED)),
+    }
+}
+
+/// A private address sending `X-Forwarded-For` without being trusted is
+/// most likely the proxy itself at a new address (a recreated network), and
+/// then every client is being counted as that one address. Said once per
+/// address, loudly.
+fn untrusted_forwarder(peer: IpAddr) {
+    static SEEN: LazyLock<std::sync::Mutex<std::collections::HashSet<IpAddr>>> =
+        LazyLock::new(Default::default);
+    if SEEN.lock().unwrap_or_else(|e| e.into_inner()).insert(peer) {
+        tracing::error!(%peer, "a private address forwards for clients but is not in MAILRS_TRUSTED_PROXIES; every client it forwards is counted as {peer}");
     }
 }
 

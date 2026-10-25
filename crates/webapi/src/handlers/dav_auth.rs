@@ -44,7 +44,7 @@ pub async fn dav_auth_middleware(
     let guard = &*crate::login_guard::GUARD;
     let verdict = guard.check(source, &address).await;
     if let Verdict::Locked { .. } = verdict {
-        tracing::warn!(event = "auth", channel = "dav", %source, account = %address, result = "locked");
+        tracing::warn!(event = "auth", channel = "dav", %source, account = %mailrs_auth_guard::login::loggable_account(&address), result = "locked");
         return crate::login_guard::locked_response(verdict);
     }
     match crate::handlers::auth::password::verify(&state, &address, &password).await {
@@ -56,7 +56,7 @@ pub async fn dav_auth_middleware(
             next.run(req).await
         }
         Ok(None) => {
-            tracing::warn!(event = "auth", channel = "dav", %source, account = %address, result = "bad-password");
+            tracing::warn!(event = "auth", channel = "dav", %source, account = %mailrs_auth_guard::login::loggable_account(&address), result = "bad-password");
             guard.failed(source, &address).await;
             challenge()
         }

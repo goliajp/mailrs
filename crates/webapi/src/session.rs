@@ -115,6 +115,13 @@ async fn resolve_agent_key(token: String) -> Option<AgentAuth> {
             let scopes = serde_json::from_slice::<AgentKeyRecord>(&record)
                 .map(|r| r.scopes)
                 .unwrap_or_default();
+            // a key must say what it may do; one with no scope (made before
+            // scopes were required) authenticates nobody, here or over MCP,
+            // where no scope would otherwise read as a browser session
+            if scopes.is_empty() {
+                tracing::warn!(reason = "agent_key_unscoped", user = %index.user, id = index.id, "agent key rejected");
+                return Ok(None);
+            }
             Ok(Some(AgentAuth {
                 user: index.user,
                 scopes,
@@ -136,18 +143,6 @@ pub async fn resolve_user_from_headers(headers: &HeaderMap) -> Option<String> {
 /// Same as [`resolve_user_from_headers`], keeping the agent key's scopes;
 /// the MCP handler uses it to populate its per-session task-local.
 pub async fn resolve_auth_from_headers(headers: &HeaderMap) -> Option<AgentAuth> {
-    // The pool owns the URL now, so this asks whether one is configured
-    // rather than reading it. Same branch, same dev fallback.
-    if !crate::kevy_pool::configured() {
-        // Dev fallback matches session_auth_middleware.
-        return headers
-            .get("X-Mailrs-User")
-            .and_then(|h| h.to_str().ok())
-            .map(|s| AgentAuth {
-                user: s.to_string(),
-                scopes: Vec::new(),
-            });
-    }
     let uri = axum::http::Uri::from_static("/mcp");
     let token = extract_token(headers, &uri)?;
     if token.starts_with(AGENT_KEY_PREFIX) {
@@ -248,31 +243,16 @@ async fn resolve_session(token: String) -> Option<SessionBlob> {
 }
 
 /// Axum middleware — extracts the session token from cookie, hits kevy,
-/// inserts `AuthedUser` extension. Falls back to the legacy
-/// `X-Mailrs-User` header in dev mode (when `MAILRS_KEVY_URL` is unset).
+/// inserts `AuthedUser` extension. Without a network kevy configured every
+/// request is refused; there is no header that names a user.
 pub async fn session_auth_middleware(
     axum::extract::State(state): axum::extract::State<Arc<WebState>>,
     mut req: Request,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    // Dev fallback — header-based auth when no kevy is wired up.
-    let kevy_url = std::env::var(KEVY_URL_ENV).ok();
-    if kevy_url.is_none() {
-        let user_opt = req
-            .headers()
-            .get("X-Mailrs-User")
-            .and_then(|h| h.to_str().ok())
-            .map(|s| s.to_string());
-        match user_opt {
-            Some(user) => {
-                req.extensions_mut()
-                    .insert(crate::handlers::conversations::AuthedDisplayName::default());
-                req.extensions_mut().insert(AuthedUser(user));
-                req.extensions_mut().insert(AgentScopes::default());
-                return Ok(next.run(req).await);
-            }
-            None => return Err(StatusCode::UNAUTHORIZED),
-        }
+    // no store to resolve a session or key against: nobody is signed in
+    if std::env::var(KEVY_URL_ENV).is_err() {
+        return Err(StatusCode::UNAUTHORIZED);
     }
     let _ = &state; // reserved for future enrichment via core_client
 

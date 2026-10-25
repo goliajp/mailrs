@@ -72,8 +72,8 @@ fn pool() -> Option<&'static Pool> {
 
 /// Whether this process has a network kevy configured at all.
 ///
-/// Callers that have a dev fallback (the session middleware's
-/// `X-Mailrs-User` path) branch on this rather than on an error.
+/// Callers that answer differently without one branch on this rather than
+/// on an error.
 pub fn configured() -> bool {
     pool().is_some()
 }
