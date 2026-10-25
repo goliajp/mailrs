@@ -65,6 +65,7 @@ pub async fn list_audit_log(
         .filter(|row| q.since.is_none_or(|s| row.timestamp >= s))
         .filter(|row| q.until.is_none_or(|u| row.timestamp < u))
         .take(limit)
+        .map(masked)
         .collect();
     Ok(Json(wire::AuditListResponse { items }))
 }
@@ -91,8 +92,71 @@ pub async fn export_audit_log(
         })
         .filter(|row| q.since.is_none_or(|s| row.timestamp >= s))
         .filter(|row| q.until.is_none_or(|u| row.timestamp < u))
+        .map(masked)
         .collect();
     Ok(Json(wire::AuditListResponse { items }))
+}
+
+/// Actions whose row names someone else's correspondent. The stored row
+/// keeps the full address for diagnosis on the host; readers of the log
+/// see only the domain.
+const MASKED_ACTIONS: &[&str] = &["mail.send_failed"];
+
+fn masked(mut row: wire::AuditRowWire) -> wire::AuditRowWire {
+    if MASKED_ACTIONS.contains(&row.action.as_str()) {
+        row.target = mask_addresses(&row.target);
+        row.detail = mask_addresses(&row.detail);
+    }
+    row
+}
+
+/// The same masking over a row read as loose JSON, for callers that pass
+/// the stored fields through unchanged.
+pub(crate) fn mask_json_row(row: &mut serde_json::Value) {
+    let action = row.get("action").and_then(|a| a.as_str()).unwrap_or("");
+    if !MASKED_ACTIONS.contains(&action) {
+        return;
+    }
+    for field in ["target", "detail"] {
+        if let Some(serde_json::Value::String(v)) = row.get_mut(field) {
+            *v = mask_addresses(v);
+        }
+    }
+}
+
+/// Every `local@domain.tld` in `text` becomes `*@domain.tld`.
+pub(crate) fn mask_addresses(text: &str) -> String {
+    let local_char = |c: char| c.is_ascii_alphanumeric() || "._%+-'".contains(c);
+    let domain_char = |c: char| c.is_ascii_alphanumeric() || c == '.' || c == '-';
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(at) = rest.find('@') {
+        let (before, after) = rest.split_at(at);
+        let after = &after[1..];
+        let local_start = before
+            .char_indices()
+            .rev()
+            .take_while(|&(_, c)| local_char(c))
+            .last()
+            .map(|(i, _)| i);
+        let domain_len = after.find(|c: char| !domain_char(c)).unwrap_or(after.len());
+        let domain = after[..domain_len].trim_end_matches(['.', '-']);
+        match local_start {
+            Some(start) if domain.contains('.') => {
+                out.push_str(&before[..start]);
+                out.push_str("*@");
+                out.push_str(domain);
+                rest = &after[domain.len()..];
+            }
+            _ => {
+                out.push_str(before);
+                out.push('@');
+                rest = after;
+            }
+        }
+    }
+    out.push_str(rest);
+    out
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -169,7 +233,62 @@ pub async fn admin_export(
 mod tests {
     use mailrs_core_api::method::admin::AuditRowWire;
 
+    use super::{mask_addresses, mask_json_row, masked};
     use crate::handlers::audit::AuditFact;
+
+    fn row(action: &str, target: &str, detail: &str) -> AuditRowWire {
+        AuditRowWire {
+            id: 1,
+            timestamp: 1_790_000_000,
+            actor: "system".into(),
+            action: action.into(),
+            target: target.into(),
+            detail: detail.into(),
+        }
+    }
+
+    #[test]
+    fn a_failed_send_shows_only_the_correspondents_domain() {
+        let got = masked(row(
+            "mail.send_failed",
+            "someone.else+tag@hotmail.com",
+            "550 5.1.1 <someone.else+tag@hotmail.com>: unknown; reported by postmaster@mx.outlook.com. Contact abuse@outlook.com.",
+        ));
+        assert_eq!(got.target, "*@hotmail.com");
+        assert_eq!(
+            got.detail,
+            "550 5.1.1 <*@hotmail.com>: unknown; reported by *@mx.outlook.com. Contact *@outlook.com."
+        );
+    }
+
+    #[test]
+    fn other_rows_and_non_addresses_are_left_alone() {
+        let alias = masked(row(
+            "alias.create",
+            "research@golia.jp",
+            "-> lihao@golia.jp",
+        ));
+        assert_eq!(alias.target, "research@golia.jp");
+        assert_eq!(alias.detail, "-> lihao@golia.jp");
+        assert_eq!(
+            mask_addresses("a @ b, x@localhost, @y.z, q@"),
+            "a @ b, x@localhost, @y.z, q@"
+        );
+    }
+
+    #[test]
+    fn loose_json_rows_are_masked_the_same_way() {
+        let mut v = serde_json::json!({
+            "action": "mail.send_failed",
+            "occurred_at": 1,
+            "target": "a@b.example",
+            "detail": "to a@b.example failed",
+        });
+        mask_json_row(&mut v);
+        assert_eq!(v["target"], "*@b.example");
+        assert_eq!(v["detail"], "to *@b.example failed");
+        assert_eq!(v["occurred_at"], 1, "other fields pass through");
+    }
 
     /// the row this crate's recorder writes must be one its reader keeps
     #[test]
