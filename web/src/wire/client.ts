@@ -80,6 +80,20 @@ export async function wireFetch<T>(schema: z.ZodType<T>, req: WireRequest): Prom
   return handleResponse(schema, res, Boolean(req.allowEmpty))
 }
 
+// a feature switched off for everyone answers 403 with
+// `{"error": "temporarily_disabled", "detail": ...}`; that is not a
+// missing permission, so the reason is shown instead
+async function forbidden(res: Response): Promise<WireErrorException> {
+  const body: unknown = await res.json().catch(() => undefined)
+  if (body && typeof body === 'object') {
+    const { detail, error } = body as Record<string, unknown>
+    if (error === 'temporarily_disabled' && typeof detail === 'string') {
+      return new WireErrorException({ kind: 'disabled', message: detail })
+    }
+  }
+  return new WireErrorException({ kind: 'forbidden' })
+}
+
 async function handleResponse<T>(
   schema: z.ZodType<T>,
   res: Response,
@@ -93,7 +107,7 @@ async function handleResponse<T>(
     redirectToLogin()
     throw new WireErrorException({ kind: 'auth' })
   }
-  if (res.status === 403) throw new WireErrorException({ kind: 'forbidden' })
+  if (res.status === 403) throw await forbidden(res)
   if (res.status === 404) throw new WireErrorException({ kind: 'not-found' })
 
   if (!res.ok) {

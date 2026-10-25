@@ -83,6 +83,18 @@ describe('wireFetch', () => {
     )
   })
 
+  it('maps a 403 temporarily_disabled body to WireError.kind=disabled', async () => {
+    const body = { detail: 'Closed for security', error: 'temporarily_disabled' }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify(body), { status: 403 }))
+    )
+    await expect(wireFetch(SCHEMA, { path: '/hi' })).rejects.toSatisfy(
+      (err: unknown) =>
+        isWireError(err) && err.detail.kind === 'disabled' && err.message === 'Closed for security'
+    )
+  })
+
   it('maps 404 to WireError.kind=not-found', async () => {
     vi.stubGlobal(
       'fetch',
