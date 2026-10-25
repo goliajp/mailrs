@@ -18,6 +18,7 @@ use serde::Deserialize;
 use crate::WebState;
 use crate::handlers::conversations::AuthedUser;
 use crate::login_guard::ClientIp;
+use mailrs_auth_guard::events::{Channel, Credential, LoginEvent, Outcome};
 use mailrs_auth_guard::login::Verdict;
 
 #[derive(Debug, Deserialize)]
@@ -82,7 +83,15 @@ pub async fn verify_credentials(
     let guard = &*crate::login_guard::GUARD;
     let verdict = guard.check(source, &req.address).await;
     if let Verdict::Locked { .. } = verdict {
-        tracing::warn!(event = "auth", channel = "verify", %caller, %source, account = %mailrs_auth_guard::login::loggable_account(&req.address), result = "locked");
+        guard
+            .record(LoginEvent::new(
+                Channel::Verify,
+                Credential::Password,
+                source,
+                &req.address,
+                Outcome::Locked,
+            ))
+            .await;
         return crate::login_guard::locked_response(verdict);
     }
     // an unknown account and a wrong password answer alike, so the
@@ -90,8 +99,16 @@ pub async fn verify_credentials(
     let acct = match super::password::verify(&state, &req.address, &req.password).await {
         Ok(Some(acct)) => acct,
         Ok(None) => {
-            tracing::warn!(event = "auth", channel = "verify", %caller, %source, account = %mailrs_auth_guard::login::loggable_account(&req.address), result = "bad-password");
             guard.failed(source, &req.address).await;
+            guard
+                .record(LoginEvent::new(
+                    Channel::Verify,
+                    Credential::Password,
+                    source,
+                    &req.address,
+                    Outcome::BadPassword,
+                ))
+                .await;
             return (
                 StatusCode::OK,
                 Json(serde_json::json!({"valid": false, "reason": "invalid_credentials"})),
@@ -101,6 +118,15 @@ pub async fn verify_credentials(
         Err(status) => return status.into_response(),
     };
     guard.succeeded(source, &req.address).await;
+    guard
+        .record(LoginEvent::new(
+            Channel::Verify,
+            Credential::Password,
+            source,
+            &req.address,
+            Outcome::Ok,
+        ))
+        .await;
     let totp_key = format!("totp:{}", req.address);
     let totp_required = crate::handlers::kevy_util::with_kevy(move |c| {
         c.hget(totp_key.as_bytes(), b"enabled")
@@ -154,7 +180,15 @@ pub async fn verify_totp(
     let guard = &*crate::login_guard::GUARD;
     let verdict = guard.check(source, &req.address).await;
     if let Verdict::Locked { .. } = verdict {
-        tracing::warn!(event = "auth", channel = "verify", %caller, %source, account = %mailrs_auth_guard::login::loggable_account(&req.address), result = "locked");
+        guard
+            .record(LoginEvent::new(
+                Channel::Verify,
+                Credential::Totp,
+                source,
+                &req.address,
+                Outcome::Locked,
+            ))
+            .await;
         return crate::login_guard::locked_response(verdict);
     }
     let key = format!("totp:{}", req.address);
@@ -200,11 +234,32 @@ pub async fn verify_totp(
     } else {
         false
     };
+    let credential = match (code_valid, recovery_valid) {
+        (false, true) => Credential::RecoveryCode,
+        _ => Credential::Totp,
+    };
     if code_valid || recovery_valid {
+        guard
+            .record(LoginEvent::new(
+                Channel::Verify,
+                credential,
+                source,
+                &req.address,
+                Outcome::Ok,
+            ))
+            .await;
         (StatusCode::OK, Json(serde_json::json!({"valid": true}))).into_response()
     } else {
-        tracing::warn!(event = "auth", channel = "verify", %caller, %source, account = %mailrs_auth_guard::login::loggable_account(&req.address), result = "mfa-failed");
         guard.failed(source, &req.address).await;
+        guard
+            .record(LoginEvent::new(
+                Channel::Verify,
+                credential,
+                source,
+                &req.address,
+                Outcome::MfaFailed,
+            ))
+            .await;
         (
             StatusCode::OK,
             Json(serde_json::json!({"valid": false, "reason": "invalid_code"})),

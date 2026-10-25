@@ -60,6 +60,7 @@ const TOOL_CATEGORIES: &[(&str, ToolCategory)] = &[
     ("list_accounts", Admin),
     ("list_admin_queue", Admin),
     ("list_aliases_admin", Admin),
+    ("list_auth_events", Admin),
     ("list_conversations", Read),
     ("list_domains", Admin),
     ("list_drafts", Read),

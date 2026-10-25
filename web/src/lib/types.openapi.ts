@@ -1789,6 +1789,79 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/auth-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List sign-in attempts
+         * @description Login facts from every way in, newest first, kept 90 days. Requires admin.accounts.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Only attempts naming this account */
+                    account?: string;
+                    /** @description Only attempts from this client address */
+                    source?: string;
+                    /** @description ok, bad-password, no-account, locked, mfa-required, mfa-failed, denied-by-allowlist or disabled */
+                    result?: string;
+                    /** @description web, verify, imap, pop3, smtp, managesieve, dav, api-key or oidc */
+                    channel?: string;
+                    /** @description Unix seconds, inclusive */
+                    since?: number;
+                    /** @description Unix seconds, inclusive */
+                    until?: number;
+                    /** @description At most this many; 100 by default, 1000 at most */
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items?: {
+                                occurred_at: number;
+                                product: string;
+                                account: string;
+                                source_ip: string;
+                                channel: string;
+                                credential: string;
+                                result: string;
+                                user_agent?: string;
+                                key_id?: string;
+                            }[];
+                        };
+                    };
+                };
+                /** @description Missing admin.accounts */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/audit/accounts": {
         parameters: {
             query?: never;

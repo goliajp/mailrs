@@ -18,6 +18,26 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### Login events: every sign-in attempt on record
+
+- Every way in records one fact per attempt in the format all products
+  share: `occurred_at`, `product`, `account` (as typed when it is an
+  address, otherwise only its length), `source_ip`, `channel` (web,
+  verify, imap, pop3, smtp, managesieve, dav, api-key), `credential`
+  (password, totp, recovery-code, api-key), `result` (ok, bad-password,
+  locked, mfa-required, mfa-failed), `user_agent` on the web, `key_id`
+  (the key's prefix, never the key) for agent keys. Each fact is also a
+  structured log line (`event="auth"`).
+- Stored in the network kevy per UTC day (`auth:events:YYYYMMDD`, newest
+  first) for 90 days, at most 200,000 a day; past that attempts are only
+  counted (`auth:events:YYYYMMDD:dropped`). DAV and agent keys, which
+  authenticate on every request, record every failure and the first
+  success per account or key and source each day.
+- `GET /api/admin/auth-events` (`admin.accounts`) and the MCP tool
+  `list_auth_events` read them back newest first, filtered by account,
+  source, result, channel and time. The web admin has a Sign-ins page
+  under Oversight with the same filters.
+
 ### Requests to user-supplied addresses, and five credential fixes
 
 - New crate `mailrs-egress`: every request the server makes to an address

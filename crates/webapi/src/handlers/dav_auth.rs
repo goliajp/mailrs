@@ -16,6 +16,7 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use base64::Engine as _;
+use mailrs_auth_guard::events::{Channel, Credential, LoginEvent, Outcome};
 use mailrs_auth_guard::login::Verdict;
 
 use crate::WebState;
@@ -44,20 +45,45 @@ pub async fn dav_auth_middleware(
     let guard = &*crate::login_guard::GUARD;
     let verdict = guard.check(source, &address).await;
     if let Verdict::Locked { .. } = verdict {
-        tracing::warn!(event = "auth", channel = "dav", %source, account = %mailrs_auth_guard::login::loggable_account(&address), result = "locked");
+        guard
+            .record(LoginEvent::new(
+                Channel::Dav,
+                Credential::Password,
+                source,
+                &address,
+                Outcome::Locked,
+            ))
+            .await;
         return crate::login_guard::locked_response(verdict);
     }
     match crate::handlers::auth::password::verify(&state, &address, &password).await {
         Ok(Some(acct)) => {
             guard.succeeded(source, &address).await;
+            guard
+                .record(LoginEvent::new(
+                    Channel::Dav,
+                    Credential::Password,
+                    source,
+                    &address,
+                    Outcome::Ok,
+                ))
+                .await;
             req.extensions_mut().insert(AuthedDisplayName::default());
             req.extensions_mut().insert(AuthedUser(acct.public.address));
             req.extensions_mut().insert(AgentScopes::default());
             next.run(req).await
         }
         Ok(None) => {
-            tracing::warn!(event = "auth", channel = "dav", %source, account = %mailrs_auth_guard::login::loggable_account(&address), result = "bad-password");
             guard.failed(source, &address).await;
+            guard
+                .record(LoginEvent::new(
+                    Channel::Dav,
+                    Credential::Password,
+                    source,
+                    &address,
+                    Outcome::BadPassword,
+                ))
+                .await;
             challenge()
         }
         Err(status) => status.into_response(),

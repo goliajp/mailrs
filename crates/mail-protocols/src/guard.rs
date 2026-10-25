@@ -4,6 +4,7 @@
 use std::net::{IpAddr, Ipv4Addr};
 use std::sync::Arc;
 
+use mailrs_auth_guard::events::{Channel, Credential, LoginEvent, Outcome};
 use mailrs_auth_guard::login::{LoginGuard, Verdict};
 
 use crate::backend::{Directory, Error, Protocol, Result};
@@ -38,6 +39,14 @@ impl<D> Guarded<D> {
     }
 }
 
+fn channel(protocol: Protocol) -> Channel {
+    match protocol {
+        Protocol::Imap => Channel::Imap,
+        Protocol::Pop3 => Channel::Pop3,
+        Protocol::ManageSieve => Channel::Managesieve,
+    }
+}
+
 fn locked_text(protocol: Protocol, verdict: Verdict) -> String {
     let minutes = verdict.retry_after_minutes();
     let text = format!("Too many failed sign-in attempts, try again in {minutes} minutes");
@@ -61,17 +70,29 @@ impl<D: Directory> Directory for Guarded<D> {
         protocol: Protocol,
     ) -> Result<Option<Self::Account>> {
         let source = peer();
+        let event = |result| {
+            LoginEvent::new(
+                channel(protocol),
+                Credential::Password,
+                source,
+                user,
+                result,
+            )
+        };
         let verdict = self.guard.check(source, user).await;
         if let Verdict::Locked { .. } = verdict {
-            tracing::warn!(event = "auth", channel = ?protocol, %source, account = %mailrs_auth_guard::login::loggable_account(user), result = "locked");
+            self.guard.record(event(Outcome::Locked)).await;
             return Err(Error::Refused(locked_text(protocol, verdict)));
         }
         let signed_in = self.dir.login(user, password, protocol).await;
         match &signed_in {
-            Ok(Some(_)) => self.guard.succeeded(source, user).await,
+            Ok(Some(_)) => {
+                self.guard.succeeded(source, user).await;
+                self.guard.record(event(Outcome::Ok)).await;
+            }
             Ok(None) => {
-                tracing::warn!(event = "auth", channel = ?protocol, %source, account = %mailrs_auth_guard::login::loggable_account(user), result = "bad-password");
-                self.guard.failed(source, user).await
+                self.guard.failed(source, user).await;
+                self.guard.record(event(Outcome::BadPassword)).await;
             }
             Err(_) => {}
         }
@@ -105,7 +126,7 @@ mod tests {
         use crate::test_support::{Client, PASSWORD, USER, directory, listener};
         let guard: Arc<dyn LoginGuard> =
             Arc::new(mailrs_auth_guard::login::MemoryLoginGuard::default());
-        let dir = Arc::new(Guarded::new(directory(), guard));
+        let dir = Arc::new(Guarded::new(directory(), guard.clone()));
         let (imap, imap_addr) = listener().await;
         tokio::spawn(crate::imap::serve_plain(imap, dir.clone(), None));
         let (pop3, pop3_addr) = listener().await;

@@ -130,6 +130,10 @@ pub(super) fn admin_routes() -> axum::Router<Arc<WebState>> {
         )
         .route("/api/admin/audit-log", get(handlers::admin::list_audit_log))
         .route(
+            "/api/admin/auth-events",
+            get(handlers::admin_auth_events::list_auth_events),
+        )
+        .route(
             "/api/admin/audit-log/export",
             get(handlers::admin::export_audit_log),
         )
