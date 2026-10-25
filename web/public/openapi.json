@@ -10820,6 +10820,10 @@
           },
           "password": {
             "type": "string"
+          },
+          "client_ip": {
+            "type": "string",
+            "description": "Address of the person signing in to the calling service; the login guard counts it instead of the caller."
           }
         },
         "required": [
@@ -10835,6 +10839,10 @@
           },
           "code": {
             "type": "string"
+          },
+          "client_ip": {
+            "type": "string",
+            "description": "Address of the person signing in to the calling service; the login guard counts it instead of the caller."
           }
         },
         "required": [

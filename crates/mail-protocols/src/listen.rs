@@ -115,7 +115,7 @@ where
             }
         };
         tracing::debug!(%peer, "{name}: connection open");
-        tokio::spawn(handle(sock, peer));
+        tokio::spawn(crate::guard::serving(peer.ip(), handle(sock, peer)));
     }
 }
 

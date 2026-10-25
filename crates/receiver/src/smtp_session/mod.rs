@@ -21,8 +21,8 @@ use mailrs_smtp_codec::{SmtpCodec, SmuggleProtection};
 
 use crate::AccountStore;
 use crate::ConnectionMetrics;
-use crate::inbound::auth_guard::AuthGuardStore;
 use crate::inbound::rate_limit::RateLimitStore;
+use mailrs_auth_guard::login::LoginGuard;
 use mailrs_core::users::UserStore;
 use mailrs_tls_reload::TlsState;
 
@@ -50,7 +50,7 @@ pub struct ConnectionContext {
     pub antispam_enabled: bool,
     pub smuggle_protection: SmuggleProtection,
     pub submission_from_check: crate::config::SubmissionFromCheck,
-    pub auth_guard: Arc<dyn AuthGuardStore>,
+    pub auth_guard: Arc<dyn LoginGuard>,
     /// Submission auth against the in-process domain store. Abstracted as
     /// [`AccountStore`] so the receiver doesn't bind the spg-backed
     /// `DomainStore`. `None` in the receiver binary, which has

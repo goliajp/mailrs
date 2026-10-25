@@ -21,7 +21,7 @@ export function CreateKeyForm({
   onCreate: (values: { name: string; preset: ScopePreset }) => void
 }) {
   const [name, setName] = useState('')
-  const [preset, setPreset] = useState<ScopePreset>('full')
+  const [preset, setPreset] = useState<ScopePreset>('mail:write')
 
   const canSubmit = name.trim().length > 0 && !busy
 

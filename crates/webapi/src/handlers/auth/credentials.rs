@@ -17,6 +17,8 @@ use serde::Deserialize;
 
 use crate::WebState;
 use crate::handlers::conversations::AuthedUser;
+use crate::login_guard::ClientIp;
+use mailrs_auth_guard::login::Verdict;
 
 #[derive(Debug, Deserialize)]
 pub struct ChangePasswordRequest {
@@ -28,12 +30,20 @@ pub struct ChangePasswordRequest {
 pub struct VerifyRequest {
     pub address: String,
     pub password: String,
+    /// The address of the person signing in to the calling service, so
+    /// the login guard counts them rather than the service. Without it
+    /// the service's own address is counted.
+    #[serde(default)]
+    pub client_ip: Option<std::net::IpAddr>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct VerifyTotpRequest {
     pub address: String,
     pub code: String,
+    /// As in [`VerifyRequest`].
+    #[serde(default)]
+    pub client_ip: Option<std::net::IpAddr>,
 }
 
 fn perm_check_internal_rpc(perms: &[String]) -> bool {
@@ -44,6 +54,7 @@ fn perm_check_internal_rpc(perms: &[String]) -> bool {
 /// creation (internal RPC only). Same wire shape as monolith.
 pub async fn verify_credentials(
     State(state): State<Arc<WebState>>,
+    ClientIp(caller_ip): ClientIp,
     Extension(AuthedUser(caller)): Extension<AuthedUser>,
     Json(req): Json<VerifyRequest>,
 ) -> Response {
@@ -67,33 +78,29 @@ pub async fn verify_credentials(
         )
             .into_response();
     }
-    let acct = match state.core.get_account_with_hash(&req.address).await {
-        Ok(a) => a,
-        Err(_) => {
+    let source = req.client_ip.unwrap_or(caller_ip);
+    let guard = &*crate::login_guard::GUARD;
+    let verdict = guard.check(source, &req.address).await;
+    if let Verdict::Locked { .. } = verdict {
+        tracing::warn!(event = "auth", channel = "verify", %caller, %source, account = %req.address, result = "locked");
+        return crate::login_guard::locked_response(verdict);
+    }
+    // an unknown account and a wrong password answer alike, so the
+    // endpoint cannot be used to find out which accounts exist
+    let acct = match super::password::verify(&state, &req.address, &req.password).await {
+        Ok(Some(acct)) => acct,
+        Ok(None) => {
+            tracing::warn!(event = "auth", channel = "verify", %caller, %source, account = %req.address, result = "bad-password");
+            guard.failed(source, &req.address).await;
             return (
                 StatusCode::OK,
-                Json(serde_json::json!({"valid": false, "reason": "account_not_found"})),
+                Json(serde_json::json!({"valid": false, "reason": "invalid_credentials"})),
             )
                 .into_response();
         }
+        Err(status) => return status.into_response(),
     };
-    let hash = acct.password_hash.as_deref().unwrap_or("");
-    let valid = if hash.is_empty() {
-        false
-    } else if let Ok(parsed) = PasswordHash::new(hash) {
-        Argon2::default()
-            .verify_password(req.password.as_bytes(), &parsed)
-            .is_ok()
-    } else {
-        hash == req.password
-    };
-    if !valid {
-        return (
-            StatusCode::OK,
-            Json(serde_json::json!({"valid": false, "reason": "invalid_password"})),
-        )
-            .into_response();
-    }
+    guard.succeeded(source, &req.address).await;
     let totp_key = format!("totp:{}", req.address);
     let totp_required = crate::handlers::kevy_util::with_kevy(move |c| {
         c.hget(totp_key.as_bytes(), b"enabled")
@@ -119,6 +126,7 @@ pub async fn verify_credentials(
 /// external IdP integrations to defer 2FA to mailrs).
 pub async fn verify_totp(
     State(state): State<Arc<WebState>>,
+    ClientIp(caller_ip): ClientIp,
     Extension(AuthedUser(caller)): Extension<AuthedUser>,
     Json(req): Json<VerifyTotpRequest>,
 ) -> Response {
@@ -141,6 +149,13 @@ pub async fn verify_totp(
             Json(serde_json::json!({"error": "invalid input length"})),
         )
             .into_response();
+    }
+    let source = req.client_ip.unwrap_or(caller_ip);
+    let guard = &*crate::login_guard::GUARD;
+    let verdict = guard.check(source, &req.address).await;
+    if let Verdict::Locked { .. } = verdict {
+        tracing::warn!(event = "auth", channel = "verify", %caller, %source, account = %req.address, result = "locked");
+        return crate::login_guard::locked_response(verdict);
     }
     let key = format!("totp:{}", req.address);
     let key_r = key.clone();
@@ -205,6 +220,8 @@ pub async fn verify_totp(
     if code_valid || recovery_valid {
         (StatusCode::OK, Json(serde_json::json!({"valid": true}))).into_response()
     } else {
+        tracing::warn!(event = "auth", channel = "verify", %caller, %source, account = %req.address, result = "mfa-failed");
+        guard.failed(source, &req.address).await;
         (
             StatusCode::OK,
             Json(serde_json::json!({"valid": false, "reason": "invalid_code"})),
