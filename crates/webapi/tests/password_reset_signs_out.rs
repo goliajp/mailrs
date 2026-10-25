@@ -56,7 +56,7 @@ async fn a_reset_password_ends_the_old_sessions_only() {
             Method::POST,
             "/api/admin/accounts/alice%40example.test/password",
             &admin,
-            Some(serde_json::json!({ "password": "new-pw" })),
+            Some(serde_json::json!({ "password": "a much longer new passphrase" })),
         )
         .await;
     assert_eq!(status, 204);
@@ -73,6 +73,6 @@ async fn a_reset_password_ends_the_old_sessions_only() {
     assert_eq!(me(key.clone()).await, 200, "agent keys are separate");
     assert_eq!(me(admin.clone()).await, 200);
 
-    let fresh = live.login(ALICE, "new-pw").await;
+    let fresh = live.login(ALICE, "a much longer new passphrase").await;
     assert_eq!(indexed(&mut kv), [fresh]);
 }

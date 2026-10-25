@@ -14,6 +14,9 @@ use std::sync::Arc;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::watch;
 
+use mailrs_auth_guard::allowlist::{Allowlist, DenialLog};
+use mailrs_auth_guard::events::{Channel, Credential, LoginEvent, Outcome};
+
 use crate::config::ReceiverConfig;
 use crate::smtp_session::{ConnectionContext, handle_plain_connection, handle_tls_connection};
 
@@ -36,6 +39,15 @@ impl Receiver {
 /// SMTP and submission, plain with STARTTLS when TLS is configured, and
 /// SMTPS (implicit TLS) only when a certificate is.
 pub(crate) async fn listen(ctx: Arc<ConnectionContext>, cfg: &ReceiverConfig) -> Receiver {
+    // submission (587) and SMTPS (465) only: port 25 takes mail from the
+    // whole internet by definition
+    let allow = Allowlist::from_env(SUBMISSION_ALLOW)
+        .unwrap_or_else(|e| panic!("{e}"))
+        .map(Arc::new);
+    if allow.is_some() {
+        tracing::info!("{SUBMISSION_ALLOW} set: submission accepts only the listed sources");
+    }
+    let denials = Arc::new(DenialLog::default());
     let (shutdown, rx) = watch::channel(false);
     let plain = |ctx: Arc<ConnectionContext>| {
         move |stream, addr| handle_plain_connection(stream, addr, ctx.clone())
@@ -51,12 +63,19 @@ pub(crate) async fn listen(ctx: Arc<ConnectionContext>, cfg: &ReceiverConfig) ->
         format!("0.0.0.0:{}", cfg.submission_port),
         "submission",
         rx.clone(),
-        plain(ctx.clone()),
+        only_from(
+            allow.clone(),
+            denials.clone(),
+            ctx.clone(),
+            plain(ctx.clone()),
+        ),
     )
     .await;
     let mut smtps = None;
     if ctx.tls_state.is_some() {
-        let tls = move |stream, addr| handle_tls_connection(stream, addr, ctx.clone());
+        let c = ctx.clone();
+        let tls = move |stream, addr| handle_tls_connection(stream, addr, c.clone());
+        let tls = only_from(allow, denials, ctx.clone(), tls);
         smtps = Some(spawn_plain(format!("0.0.0.0:{}", cfg.smtps_port), "smtps", rx, tls).await);
     }
     Receiver {
@@ -64,6 +83,51 @@ pub(crate) async fn listen(ctx: Arc<ConnectionContext>, cfg: &ReceiverConfig) ->
         submission,
         smtps,
         shutdown,
+    }
+}
+
+/// The submission ports' source allowlist; unset accepts everyone.
+pub const SUBMISSION_ALLOW: &str = "MAILRS_SUBMISSION_ALLOW";
+
+/// `handler`, for sources `allow` names only. Anyone else is disconnected
+/// before the greeting or the TLS handshake, and recorded once per source
+/// per window.
+fn only_from<F, Fut>(
+    allow: Option<Arc<Allowlist>>,
+    denials: Arc<DenialLog>,
+    ctx: Arc<ConnectionContext>,
+    handler: F,
+) -> impl Fn(TcpStream, SocketAddr) -> std::pin::Pin<Box<dyn Future<Output = ()> + Send>>
++ Send
++ Sync
++ 'static
+where
+    F: Fn(TcpStream, SocketAddr) -> Fut + Send + Sync + 'static,
+    Fut: Future<Output = ()> + Send + 'static,
+{
+    move |stream, addr| {
+        let refused = allow.as_ref().is_some_and(|a| !a.allows(addr.ip()));
+        if !refused {
+            return Box::pin(handler(stream, addr));
+        }
+        drop(stream);
+        let first = denials.first(
+            addr.ip().to_canonical(),
+            mailrs_auth_guard::login::unix_now(),
+        );
+        let guard = ctx.auth_guard.clone();
+        Box::pin(async move {
+            if first {
+                let event = LoginEvent::new(
+                    Channel::Smtp,
+                    Credential::Password,
+                    addr.ip(),
+                    "",
+                    Outcome::DeniedByAllowlist,
+                );
+                guard.record(event).await;
+            }
+        })
     }
 }
 

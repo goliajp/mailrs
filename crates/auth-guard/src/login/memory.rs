@@ -178,6 +178,10 @@ impl LoginGuard for MemoryLoginGuard {
         }
     }
 
+    async fn take_alerts(&self, max: usize) -> io::Result<Vec<crate::alerts::Alert>> {
+        self.run(|ops, _| crate::alerts::take(ops, max))
+    }
+
     async fn events(&self, query: Query) -> io::Result<Vec<LoginEvent>> {
         self.run(|ops, _| {
             let now = ops.now;
@@ -233,5 +237,12 @@ impl crate::events::EventOps for MemoryOps {
 
     fn bump(&mut self, key: &str, ttl_secs: u64) -> io::Result<()> {
         Ops::incr(self, key, ttl_secs).map(|_| ())
+    }
+
+    fn pop_oldest(&mut self, key: &str) -> io::Result<Option<Vec<u8>>> {
+        Ok(match self.entries.get_mut(key) {
+            Some((Value::List(l), _)) => l.pop(),
+            _ => None,
+        })
     }
 }

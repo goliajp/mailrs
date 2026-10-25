@@ -245,6 +245,8 @@ pub trait EventOps {
     fn add_member(&mut self, key: &str, member: &str, ttl_secs: u64) -> io::Result<bool>;
     /// Add one to the counter `key`.
     fn bump(&mut self, key: &str, ttl_secs: u64) -> io::Result<()>;
+    /// Remove and return the oldest item (the tail) of the list `key`.
+    fn pop_oldest(&mut self, key: &str) -> io::Result<Option<Vec<u8>>>;
 }
 
 /// `YYYYMMDD` (UTC) of the day `unix` falls in.

@@ -23,6 +23,7 @@ async-trait = "0.1"
 sha2 = "0.10"
 serde = { workspace = true }
 serde_json = { workspace = true }
+ipnet = { workspace = true }
 kevy-client = { workspace = true, optional = true }
 tokio = { version = "1", features = ["rt"], optional = true }
 
