@@ -26,7 +26,7 @@ async fn a_reset_password_ends_the_old_sessions_only() {
             Method::POST,
             "/api/agent/keys",
             &old,
-            Some(serde_json::json!({ "name": "ci", "scopes": [] })),
+            Some(serde_json::json!({ "name": "ci", "scopes": ["mail:read"] })),
         )
         .await;
     let key = created["secret"].as_str().expect("secret").to_string();
