@@ -396,6 +396,16 @@ ssh "$PROD" "docker stop -t 60 mailrs-fastcore >/dev/null 2>&1 || true
   docker logs --tail 12 mailrs-fastcore 2>&1 \
     | grep -iE 'SIGTERM|SIGINT|shutdown|exiting|flush' | sed 's/^/      /' \
     || echo '      !! no shutdown lines — the process did not run its handler'"
+# The receiver's logs are the only record of SMTP sessions and they go
+# with the container. Save them here, right before it is recreated:
+# saved at the start of the deploy, the gate's 10-20 minutes in between
+# were lost every time. fastcore is already stopped at this point, so a
+# failed save is reported and the roll goes on.
+ssh "$PROD" "umask 077 && mkdir -p /apps/mailrs/receiver-logs \
+  && f=/apps/mailrs/receiver-logs/receiver-\$(date -u +%Y%m%dT%H%M%SZ)-pre-$VERSION.log \
+  && docker logs mailrs-receiver >\$f 2>&1 \
+  && echo \"    receiver logs saved: \$f (\$(wc -l <\$f) lines)\"" \
+  || echo "    !! receiver logs NOT saved — they are lost with this roll"
 ssh "$PROD" "cd /apps/mailrs \
   && sed -i 's/^MAILRS_VERSION=.*/MAILRS_VERSION=$VERSION/' .env \
   && docker compose up -d --pull never --no-deps receiver fastcore webapi-fc fastcore-sender"
