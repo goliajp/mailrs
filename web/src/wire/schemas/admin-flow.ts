@@ -14,6 +14,7 @@ export const adminFlowSchema = z.object({
   outbound: z
     .object({
       failed: z.number(),
+      failed_recent: z.number(),
       queued: z.number(),
       retrying: z.number(),
       scheduled: z.number(),

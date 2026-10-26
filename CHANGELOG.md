@@ -18,6 +18,21 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### Failed outbound mail is listed, and the overview marks only recent failures
+
+- The sender records who sent a failed job to whom along with when and
+  why (`record_failure` in the outbound family); the job itself is still
+  dropped.
+- `GET /api/admin/queues` lists the 100 newest failed jobs as
+  `status: "failed"` with `failed_at` and the reason in `last_error`. Old
+  records have no sender or recipient unless the job was kept.
+- `GET /api/admin/flow` adds `outbound.failed_recent`, failures in the last
+  7 days. The overview's Failed stage shows that count, marked only when
+  it is not zero, with the all-time total beside it; Needs attention
+  lists recent failures only. Both link to the queue's Failed tab.
+- The queue page has a Failed tab and a Since column (queued at, or failed
+  at).
+
 ### Deleting a conversation removes every copy, and only the deleter's
 
 - One Message-ID can sit in a mailbox several times: the Sent copy and the

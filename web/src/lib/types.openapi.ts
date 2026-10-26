@@ -4805,8 +4805,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List outbound jobs that are queued, waiting to retry, or in flight
-         * @description Up to 100 job ids from each of the pending list, the retry set and the in-flight list, de-duplicated, one row per job whose record still exists. Each row is the job's stored envelope with `message_data_b64` removed and `status` overwritten with the list it was found in. Envelope fields are whatever the writer stored, so extra fields (e.g. `last_attempt_at`) can appear.
+         * List outbound jobs that are queued, waiting to retry, in flight, or failed for good
+         * @description Up to 100 job ids from each of the pending list, the retry set and the in-flight list, de-duplicated, one row per job whose record still exists; then the 100 newest jobs that failed for good, newest first. Each row is the job's stored envelope with `message_data_b64` removed and `status` overwritten with the list it was found in. Envelope fields are whatever the writer stored, so extra fields (e.g. `last_attempt_at`) can appear. A failed row is the failure record instead: `id`, `status: "failed"`, `sender` and `recipient` (empty when the record predates them and the job is gone), `last_error` (the reason) and `failed_at`.
          */
         get: operations["listAdminQueue"];
         put?: never;
@@ -9384,7 +9384,10 @@ export interface operations {
                             queued?: number;
                             retrying?: number;
                             scheduled?: number;
+                            /** @description Jobs that failed for good, since records began */
                             failed?: number;
+                            /** @description Of those, the ones that failed in the last 7 days */
+                            failed_recent?: number;
                         } | null;
                         mock?: {
                             received?: number;
@@ -11066,7 +11069,7 @@ export interface operations {
                             recipient?: string;
                             original_sender?: string | null;
                             /** @enum {string} */
-                            status: "pending" | "retrying" | "inflight";
+                            status: "pending" | "retrying" | "inflight" | "failed";
                             attempts?: number;
                             last_error?: string | null;
                             /** Format: int64 */
@@ -11083,6 +11086,11 @@ export interface operations {
                              * @description Set by the sender after an attempt
                              */
                             last_attempt_at?: number;
+                            /**
+                             * Format: int64
+                             * @description Failed rows only: when the job failed for good, unix seconds
+                             */
+                            failed_at?: number;
                         } & {
                             [key: string]: unknown;
                         })[];

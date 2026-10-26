@@ -7,15 +7,17 @@ use axum::{
     extract::{Extension, Path, State},
     http::StatusCode,
 };
-use mailrs_core_sidestate::families::outbound::{INFLIGHT, PENDING_IDX, RETRY_IDX, job_key};
+use mailrs_core_sidestate::families::outbound::{
+    INFLIGHT, PENDING_IDX, RETRY_IDX, failures, job_key,
+};
 
 use super::now_secs;
 use crate::WebState;
 use crate::handlers::conversations::AuthedUser;
 use crate::handlers::kevy_util::{require_admin, with_kevy};
 
-/// Up to 100 ids each of queued, waiting between attempts and in flight,
-/// one row per job, without the message body.
+/// Up to 100 ids each of queued, waiting between attempts, in flight and
+/// failed for good, one row per job, without the message body.
 pub(crate) fn queue_rows(
     c: &mut kevy_client::Connection,
 ) -> std::io::Result<Vec<serde_json::Value>> {
@@ -43,7 +45,47 @@ pub(crate) fn queue_rows(
             items.push(serde_json::Value::Object(row));
         }
     }
+    items.extend(failed_rows(c)?);
     Ok(items)
+}
+
+/// The 100 newest jobs that failed for good. The job is usually gone, so
+/// the row is the failure record; a job still kept fills in the sender
+/// and recipient an old record lacks.
+fn failed_rows(c: &mut kevy_client::Connection) -> std::io::Result<Vec<serde_json::Value>> {
+    let mut rows = Vec::new();
+    for f in failures(c)?.into_iter().take(100) {
+        let Ok(id) = f.id.parse::<i64>() else {
+            continue;
+        };
+        let (mut sender, mut recipient) = (f.sender, f.recipient);
+        if (sender.is_empty() || recipient.is_empty())
+            && let Some(blob) = c.hget(job_key(&f.id).as_bytes(), b"blob")?
+            && let Ok(job) = serde_json::from_slice::<serde_json::Value>(&blob)
+        {
+            let field = |k: &str| {
+                job.get(k)
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string()
+            };
+            if sender.is_empty() {
+                sender = field("sender");
+            }
+            if recipient.is_empty() {
+                recipient = field("recipient");
+            }
+        }
+        rows.push(serde_json::json!({
+            "id": id,
+            "status": "failed",
+            "sender": sender,
+            "recipient": recipient,
+            "last_error": f.reason,
+            "failed_at": f.failed_at,
+        }));
+    }
+    Ok(rows)
 }
 
 pub async fn list_admin_queue() -> Result<Json<serde_json::Value>, StatusCode> {
@@ -174,5 +216,52 @@ mod tests {
         let env: serde_json::Value = serde_json::from_slice(&blob).unwrap();
         assert!(env.get("last_attempt_at").is_none());
         assert_eq!(env["attempts"], 2);
+    }
+
+    #[test]
+    fn failed_jobs_are_listed_with_who_sent_them_to_whom() {
+        use mailrs_core_sidestate::families::outbound::{
+            FAILED_SET, Failure, failed_audit_key, record_failure,
+        };
+        let mut c = conn("queue-failed");
+        record_failure(
+            &mut c,
+            &Failure {
+                id: "7".into(),
+                failed_at: 300,
+                reason: "550 no such user".into(),
+                sender: "a@x.test".into(),
+                recipient: "b@y.test".into(),
+            },
+        )
+        .unwrap();
+        // an old record without sender and recipient, its job still kept
+        c.sadd(FAILED_SET, &[b"5"]).unwrap();
+        c.hset(
+            failed_audit_key("5").as_bytes(),
+            &[
+                (b"failed_at" as &[u8], b"100"),
+                (b"reason", b"malformed envelope"),
+            ],
+        )
+        .unwrap();
+        put_job(
+            &mut c,
+            "5",
+            r#"{"id":5,"sender":"c@x.test","recipient":"d@z.test"}"#,
+        );
+
+        let rows = queue_rows(&mut c).unwrap();
+        let failed: Vec<_> = rows.iter().filter(|r| r["status"] == "failed").collect();
+        assert_eq!(failed.len(), 2);
+        assert_eq!(failed[0]["id"], 7, "newest first");
+        assert_eq!(failed[0]["recipient"], "b@y.test");
+        assert_eq!(failed[0]["last_error"], "550 no such user");
+        assert_eq!(failed[0]["failed_at"], 300);
+        assert_eq!(
+            failed[1]["sender"], "c@x.test",
+            "filled in from the kept job"
+        );
+        assert_eq!(failed[1]["recipient"], "d@z.test");
     }
 }

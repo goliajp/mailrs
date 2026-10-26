@@ -14,7 +14,7 @@ import { AdminOverview } from '../admin-overview'
 /** `GET /api/admin/flow` as `Flow` serializes (handlers/admin_flow.rs). */
 const FLOW = {
   mock: { bytes: 877, max_bytes: 2_147_483_648, received: 5, stored: 2 },
-  outbound: { failed: 0, queued: 2, retrying: 1, scheduled: 0 },
+  outbound: { failed: 0, failed_recent: 0, queued: 2, retrying: 1, scheduled: 0 },
   receiving: { active_connections: 1, connections: 126, spooled: 10, uptime_secs: 11_060 },
   spool_backlog: 0,
 }
@@ -75,7 +75,11 @@ describe('<AdminOverview />', () => {
   it('shows a dash for a stage nobody measured, and says what needs a person', async () => {
     stubFetch({
       '/admin/audit-log': { items: [] },
-      '/admin/flow': { ...FLOW, outbound: { ...FLOW.outbound, failed: 4 }, receiving: null },
+      '/admin/flow': {
+        ...FLOW,
+        outbound: { ...FLOW.outbound, failed: 4, failed_recent: 4 },
+        receiving: null,
+      },
       '/health': { status: 'ok' },
     })
     renderPage()
