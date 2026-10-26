@@ -11,10 +11,12 @@
 use mailrs_core_api::method::outbound::{OutboundMessageWire, QueueStatus};
 
 mod cancel;
+mod failed;
 mod keys;
 mod terminal;
 
 pub use cancel::*;
+pub use failed::*;
 pub use keys::*;
 pub use terminal::*;
 

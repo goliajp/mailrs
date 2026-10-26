@@ -53,7 +53,6 @@ use retry_queue::*;
 use mailrs_core_sidestate::families::outbound::{PENDING_IDX, SCHEDULED_IDX};
 
 const PENDING_IDX_KEY: &[u8] = PENDING_IDX;
-use mailrs_core_sidestate::families::outbound::FAILED_SET as FAILED_KEY;
 
 impl Cfg {
     fn from_env() -> Self {
@@ -174,7 +173,7 @@ async fn process_one(cfg: Cfg, id: String) {
 
     if sender.is_empty() || recipient.is_empty() || message_bytes.is_empty() {
         tracing::error!(%id, "envelope malformed (missing sender/recipient/message_data)");
-        let _ = move_to_failed(cfg, id, "malformed envelope".into(), true).await;
+        let _ = move_to_failed(cfg, id, "malformed envelope".into(), sender, recipient).await;
         return;
     }
 
@@ -232,7 +231,7 @@ async fn process_one(cfg: Cfg, id: String) {
             record_suppression(&cfg, &recipient, &reason);
             mailrs_fastcore::live_sync::audit_system("mail.send_failed", &recipient, &reason);
             enqueue_bounce_dsn(&cfg, &sender, &recipient, &reason, &message_bytes).await;
-            if let Err(e) = move_to_failed(cfg, id.clone(), reason, true).await {
+            if let Err(e) = move_to_failed(cfg, id.clone(), reason, sender, recipient).await {
                 tracing::error!(%id, err = %e, "move_to_failed after permanent failed");
             }
         }
@@ -253,7 +252,7 @@ async fn process_one(cfg: Cfg, id: String) {
                     "queue lifetime reached — moving to failed"
                 );
                 enqueue_bounce_dsn(&cfg, &sender, &recipient, &reason, &message_bytes).await;
-                let _ = move_to_failed(cfg, id, reason, true).await;
+                let _ = move_to_failed(cfg, id, reason, sender, recipient).await;
                 return;
             }
             let mut env = envelope;

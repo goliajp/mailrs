@@ -18,12 +18,13 @@ import {
 import { QueuePager, QueueStatusFilter } from '@/components/admin-queues/queue-controls'
 import { ALL_STATUSES, statusStyles } from '@/components/admin-queues/queue-row'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
+import { formatDate } from '@/lib/format'
 import { adminKeys } from '@/lib/query-keys'
 import { adminListGet, adminPost } from '@/wire/endpoints/admin'
 
 const PAGE_SIZE = 20
 
-const HEADERS = ['From', 'To', 'Domain', 'Status', 'Attempts', 'Last error', '']
+const HEADERS = ['From', 'To', 'Domain', 'Status', 'Since', 'Attempts', 'Last error', '']
 
 export function AdminQueues() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -76,9 +77,9 @@ export function AdminQueues() {
     {
       header: 'From',
       key: 'from',
-      cell: (q) => <span className="font-medium">{q.sender}</span>,
+      cell: (q) => <span className="font-medium">{q.sender || '—'}</span>,
     },
-    { header: 'To', key: 'to', cell: (q) => q.recipient },
+    { header: 'To', key: 'to', cell: (q) => q.recipient || '—' },
     {
       header: 'Domain',
       key: 'domain',
@@ -93,7 +94,12 @@ export function AdminQueues() {
         </span>
       ),
     },
-    { align: 'end', header: 'Attempts', key: 'attempts', cell: (q) => q.attempts ?? 0 },
+    {
+      header: 'Since',
+      key: 'since',
+      cell: (q) => <span className="text-fg-secondary text-xs tabular-nums">{since(q)}</span>,
+    },
+    { align: 'end', header: 'Attempts', key: 'attempts', cell: (q) => attempts(q) },
     {
       header: 'Last error',
       key: 'error',
@@ -113,7 +119,7 @@ export function AdminQueues() {
   ]
 
   const renderBody = () => {
-    if (isPending) return <AdminTableSkeleton cols={7} headers={HEADERS} rows={6} />
+    if (isPending) return <AdminTableSkeleton cols={8} headers={HEADERS} rows={6} />
     if (error) {
       return (
         <AdminErrorState
@@ -168,7 +174,7 @@ export function AdminQueues() {
           Refresh
         </Button>
       }
-      subtitle="Mail waiting to leave this server, up to 100 jobs per state. Delivered mail leaves the list, and so does mail that failed for good"
+      subtitle="Mail waiting to leave this server, up to 100 jobs per state. Delivered mail leaves the list; mail that failed for good stays under Failed"
       title="Outbound queue"
     >
       <QueueStatusFilter onChange={setStatusFilter} queue={queue} value={statusFilter} />
@@ -189,6 +195,12 @@ export function AdminQueues() {
       )}
     </AdminPageShell>
   )
+}
+
+// a failed job keeps no attempt count, only why it stopped
+function attempts(q: QueueRow): number | string {
+  if (q.status === 'failed') return '—'
+  return q.attempts ?? 0
 }
 
 function domainOf(address: string): string {
@@ -225,4 +237,12 @@ function RetryButton({ onRetry, row }: { onRetry: () => void; row: QueueRow }) {
 
 function retryConsequence(row: QueueRow): string {
   return `The message to ${row.recipient} stops waiting out its backoff and joins the send queue now. It still counts as an attempt: a temporary failure parks it again with a longer wait, a permanent one moves it to failed and sends ${row.sender} a bounce notice`
+}
+
+// when the job failed for good, or when it was queued
+function since(q: QueueRow): string {
+  let at = q.created_at
+  if (q.status === 'failed') at = q.failed_at
+  if (!at) return '—'
+  return formatDate(at)
 }

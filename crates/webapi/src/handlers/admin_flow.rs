@@ -11,6 +11,7 @@ use mailrs_core_sidestate::families::{mock, outbound};
 use serde::Serialize;
 
 use crate::WebState;
+use crate::handlers::complete::now_secs;
 use crate::handlers::kevy_util::with_kevy;
 
 #[derive(Debug, Serialize)]
@@ -27,9 +28,15 @@ pub struct Outbound {
     pub queued: u64,
     pub retrying: u64,
     pub scheduled: u64,
-    /// failed for good and kept for a look
+    /// failed for good and kept for a look, since records began
     pub failed: u64,
+    /// of those, the ones in the last [`RECENT_FAILURE_SECS`]: what may
+    /// still need someone, where the total is history
+    pub failed_recent: u64,
 }
+
+/// How far back a failure counts as recent on the overview.
+pub const RECENT_FAILURE_SECS: i64 = 7 * 24 * 3600;
 
 #[derive(Debug, Serialize)]
 pub struct MockFlow {
@@ -59,12 +66,15 @@ pub async fn flow(State(state): State<Arc<WebState>>) -> Json<Flow> {
     });
     let spool = std::env::var("MAILRS_SPOOL_ROOT").unwrap_or_else(|_| "/data/.spool".into());
     let spool_backlog = spool_files(Path::new(&spool));
+    let since = now_secs() - RECENT_FAILURE_SECS;
     let outbound = with_kevy(|c| {
+        let failed = outbound::failures(c)?;
         Ok(Outbound {
             queued: c.llen(outbound::PENDING_IDX)? as u64,
             retrying: c.zcard(outbound::RETRY_IDX)? as u64,
             scheduled: c.zcard(outbound::SCHEDULED_IDX)? as u64,
-            failed: c.scard(outbound::FAILED_SET)? as u64,
+            failed_recent: failed.iter().filter(|f| f.failed_at >= since).count() as u64,
+            failed: failed.len() as u64,
         })
     })
     .ok();
