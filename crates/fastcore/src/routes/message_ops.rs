@@ -84,28 +84,24 @@ pub(crate) fn sent_thread_ids(state: &Arc<FastcoreState>, user: &str) -> Vec<Str
 /// its next tick, and a missing file already satisfies that. Returns
 /// true if a file was actually unlinked (helpful for the caller's
 /// log line).
-pub(crate) fn unlink_maildir_file(user: &str, blob_ref: &str) -> bool {
-    match crate::maildir_scan::mailbox_dir(user) {
-        Some(base) => unlink_in(&base, blob_ref),
+pub(crate) fn unlink_maildir_file(maildir_root: &str, user: &str, blob_ref: &str) -> bool {
+    match user.split_once('@') {
+        Some((local, domain)) => unlink_in(
+            &std::path::Path::new(maildir_root).join(domain).join(local),
+            blob_ref,
+        ),
         None => false,
     }
 }
 
 fn unlink_in(base: &std::path::Path, blob_ref: &str) -> bool {
-    let Some((dir, id)) = mailrs_maildir::locate(base, blob_ref) else {
-        return false;
-    };
-    match dir.delete(&id) {
-        Ok(()) => true,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => false,
-        Err(e) => {
-            tracing::warn!(
-                error = %e, dir = %dir.path().display(), %blob_ref,
-                "delete_thread: could not unlink maildir file"
-            );
-            false
-        }
-    }
+    mailrs_maildir::remove(base, blob_ref).unwrap_or_else(|e| {
+        tracing::warn!(
+            error = %e, base = %base.display(), %blob_ref,
+            "delete_thread: could not unlink maildir file"
+        );
+        false
+    })
 }
 
 /// `POST /v1/admin/threads:split-message` `{user, message_id}` — move a

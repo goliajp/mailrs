@@ -127,6 +127,21 @@ pub fn locate(user_root: impl AsRef<Path>, blob_ref: &str) -> Option<(Maildir, M
     }
 }
 
+/// Unlink the file `blob_ref` names under `user_root`, found the way
+/// [`locate`] finds it: in `new/` or `cur/`, whatever `:2,` flags its name
+/// has gained. `Ok(false)` when there is no such file — a name that is
+/// already gone is not an error to someone deleting it.
+pub fn remove(user_root: impl AsRef<Path>, blob_ref: &str) -> io::Result<bool> {
+    let Some((dir, id)) = locate(user_root, blob_ref) else {
+        return Ok(false);
+    };
+    match dir.delete(&id) {
+        Ok(()) => Ok(true),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(e) => Err(e),
+    }
+}
+
 /// One scanned message entry from `new/` or `cur/`.
 #[derive(Debug)]
 pub struct Entry {

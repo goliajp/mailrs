@@ -18,6 +18,25 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### Deleting a conversation removes every copy, and only the deleter's
+
+- One Message-ID can sit in a mailbox several times: the Sent copy and the
+  inbox copy of mail you sent yourself, or one inbox copy per alias a
+  message came through. A delete now removes every file of the deleter's
+  copies, not only the one the message row names. Left on disk, the others
+  brought the conversation back on the next self-heal pass.
+- Deleting no longer removes what other owners of the conversation still
+  hold. The thread record, its message index and each message's shared
+  record go with the last owner only, read from a new range index over the
+  per-user message rows by thread.
+- The SQL core unlinks the files of a deleted conversation too; it listed
+  them and dropped the list.
+- `POST /v1/admin/maintenance:backfill-message-files[?user=&dry_run=true]`
+  records the copies mail already has. It reports `walked`, `added`,
+  `already`, `no_row`, `messages_with_several_files` and
+  `rows_without_tid`; a second run adds 0. Files with no row are counted,
+  not touched.
+
 ### Deleting a read message removes its file (2.129.0)
 
 - Deleting a conversation now also removes the maildir files of messages
