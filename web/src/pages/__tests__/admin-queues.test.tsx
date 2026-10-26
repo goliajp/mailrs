@@ -106,6 +106,25 @@ describe('<AdminQueues />', () => {
     expect(screen.queryByText('b@two.example')).toBeNull()
   })
 
+  it('lists mail that failed for good under Failed, with why and no retry', async () => {
+    const failed = {
+      failed_at: 1_792_871_464,
+      id: 348,
+      last_error: '550 5.1.1 no such user',
+      recipient: '',
+      sender: '',
+      status: 'failed',
+    }
+    stub({ 'GET /api/admin/queues': { items: [...QUEUE.items, failed] } })
+    renderAt('/?status=failed')
+    const reason = await screen.findByText('550 5.1.1 no such user')
+    const row = reason.closest('tr') as HTMLElement
+    expect(screen.queryByText('a@one.example')).toBeNull()
+    expect(within(row).getAllByText('—').length).toBeGreaterThanOrEqual(2)
+    expect(within(row).queryByRole('button', { name: 'Retry now' })).toBeNull()
+    expect(screen.getByRole('button', { name: /failed \(1\)/i })).toBeInTheDocument()
+  })
+
   it('names what failed to load', async () => {
     stub({})
     renderAt()
