@@ -10,6 +10,15 @@ use serde::{Deserialize, Serialize};
 /// `POST /v1/users/{user}/sent`
 pub const PATH_FILE_SENT: &str = "/v1/users/{user}/sent";
 
+/// The largest message a sent copy may be: the SMTP size limit, so any
+/// message the web tier can queue can also be filed.
+pub const MAX_MESSAGE_BYTES: usize = 50 * 1024 * 1024;
+
+/// The request body limit the core sets on [`PATH_FILE_SENT`]: the
+/// largest message in base64, plus room for the recipients. Without it
+/// axum's 2 MiB default turns away any copy with a sizeable attachment.
+pub const MAX_REQUEST_BYTES: usize = MAX_MESSAGE_BYTES.div_ceil(3) * 4 + 1024 * 1024;
+
 /// The message as queued, and its envelope recipients.
 ///
 /// JSON with the bytes in base64 rather than a raw body, because the Bcc

@@ -689,6 +689,46 @@
                 }
               }
             }
+          },
+          "413": {
+            "description": "The form is larger than the 25 MiB limit; nothing was sent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "limit_bytes"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "limit_bytes": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The sent copy could not be filed; nothing was sent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
