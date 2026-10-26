@@ -28,10 +28,11 @@ export function attentionItems(flow: AdminFlow, kevyUp: boolean | null): Item[] 
   if (kevyUp === false) {
     items.push({ text: 'kevy is not answering: sessions, queues and settings are unavailable' })
   }
-  if (flow.outbound !== null && flow.outbound.failed > 0) {
+  // older failures are history: their bounces went out long ago
+  if (flow.outbound !== null && flow.outbound.failed_recent > 0) {
     items.push({
-      text: `${plural(flow.outbound.failed, 'outbound message')} failed for good`,
-      to: '/admin/queues',
+      text: `${plural(flow.outbound.failed_recent, 'outbound message')} failed for good in the last 7 days`,
+      to: '/admin/queues?status=failed',
     })
   }
   if (flow.spool_backlog !== null && flow.spool_backlog >= SPOOL_WARN) {
@@ -132,12 +133,15 @@ function outboundStages(flow: AdminFlow): Stage[] {
       value: nullable(out, (x) => x.retrying),
     },
     {
-      caption: 'failed for good',
-      details: ['Each one sent a bounce to its sender'],
+      caption: 'failed for good in the last 7 days',
+      details: [
+        `${count(nullable(out, (x) => x.failed))} in all`,
+        'Each one sent a bounce to its sender',
+      ],
       name: 'Failed',
-      to: '/admin/queues',
-      tone: failedTone(nullable(out, (x) => x.failed)),
-      value: nullable(out, (x) => x.failed),
+      to: '/admin/queues?status=failed',
+      tone: failedTone(nullable(out, (x) => x.failed_recent)),
+      value: nullable(out, (x) => x.failed_recent),
     },
   ]
 }

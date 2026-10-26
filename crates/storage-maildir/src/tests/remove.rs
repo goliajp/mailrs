@@ -20,7 +20,15 @@ fn remove_finds_a_file_whatever_flags_it_gained() {
 
     assert!(remove(tmp.path(), &id.0).unwrap(), "the read inbox copy");
     assert!(remove(tmp.path(), &format!(".Sent/{}", copy.0)).unwrap());
-    assert!(!remove(tmp.path(), &id.0).unwrap(), "already gone is not an error");
+    assert!(
+        !remove(tmp.path(), &id.0).unwrap(),
+        "already gone is not an error"
+    );
     assert!(!remove(tmp.path(), "").unwrap());
-    assert!(std::fs::read_dir(tmp.path().join("cur")).unwrap().next().is_none());
+    assert!(
+        std::fs::read_dir(tmp.path().join("cur"))
+            .unwrap()
+            .next()
+            .is_none()
+    );
 }

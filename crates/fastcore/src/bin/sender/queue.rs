@@ -256,36 +256,29 @@ pub(super) fn dual_write_pending(c: &mut kevy_client::Connection, id: &str) -> s
     Ok(())
 }
 
-/// Move the id into `mailrs:outbound:failed` (SET) and drop the blob.
-/// Blob is retained for operator inspection only when `keep_blob=true`.
+/// Record the job as failed for good — with who sent it to whom, since
+/// the job itself is dropped and the admin queue page has nothing else to
+/// show — and settle its state.
 pub(super) async fn move_to_failed(
     cfg: Cfg,
     id: String,
     reason: String,
-    keep_blob: bool,
+    sender: String,
+    recipient: String,
 ) -> std::io::Result<()> {
-    let id_c = id.clone();
-    let reason_c = reason.clone();
     spawn_blocking(move || {
         let mut c = kevy(&cfg.kevy_url)?;
-        // These two — the FAILED set + per-id `failed:{id}` audit hash
-        // — are operator-inspection surfaces (webapi's failed queue
-        // view), not part of the v2 job FSM. They stay independent of
-        // the P8-B-C cutover.
-        c.sadd(FAILED_KEY, &[id_c.as_bytes()])?;
-        let audit_key = ob::failed_audit_key(&id_c);
-        c.hset(
-            audit_key.as_bytes(),
-            &[
-                (b"failed_at" as &[u8], now_secs().to_string().as_bytes()),
-                (b"reason", reason_c.as_bytes()),
-            ],
+        ob::record_failure(
+            &mut c,
+            &ob::Failure {
+                id: id.clone(),
+                failed_at: now_secs(),
+                reason,
+                sender,
+                recipient,
+            },
         )?;
-        // v2.5.3 §P8-B-C: legacy `mailrs:outbound:{id}` blob DEL removed.
-        // `keep_blob` parameter is now moot; caller passes it for
-        // backward-source-compat but the value has no effect.
-        let _ = keep_blob;
-        dual_write_terminal(&mut c, &id_c, b"failed")?;
+        dual_write_terminal(&mut c, &id, b"failed")?;
         Ok(())
     })
     .await
