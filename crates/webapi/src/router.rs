@@ -65,12 +65,6 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
     // (no session yet) can establish one.
     let unauth = unauth_routes();
 
-    // Match monolith's 25 MiB multipart cap. Axum's default is 2 MiB,
-    // which trips /api/mail/send-multipart on any attached file bigger
-    // than that — the UI just shows "Send failed" with no server-side
-    // trace. See crates/server/src/web/mod.rs:MAX_MULTIPART_BODY.
-    const MAX_MULTIPART_BODY: usize = 25 * 1024 * 1024;
-
     // MCP Streamable HTTP surface at /mcp. Runs its own auth
     // middleware (task-local user) so rmcp's session factory sees
     // the caller. Mounted OUTSIDE the REST auth stack because rmcp
@@ -87,7 +81,9 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         // 200: a client calling a wrong path otherwise parses HTML and the
         // error it reports names neither the path nor the cause
         .route("/api/{*rest}", axum::routing::any(api_not_found))
-        .layer(axum::extract::DefaultBodyLimit::max(MAX_MULTIPART_BODY))
+        .layer(axum::extract::DefaultBodyLimit::max(
+            crate::handlers::send_error::MAX_MULTIPART_BODY,
+        ))
         .layer(
             tower_http::trace::TraceLayer::new_for_http()
                 // the path only: browsers can only send a WebSocket's or an

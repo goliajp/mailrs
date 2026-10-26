@@ -15,6 +15,7 @@ use crate::WebState;
 use crate::handlers::compose::*;
 use crate::handlers::compose_attach::*;
 use crate::handlers::conversations::AuthedUser;
+use crate::handlers::send_error::SendError;
 use crate::handlers::send_queue::*;
 
 /// POST /api/mail/send — JSON compose form, no attachments.
@@ -162,7 +163,7 @@ pub(crate) async fn send_message_multipart(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     mut multipart: axum::extract::Multipart,
-) -> Result<Json<SendResponse>, StatusCode> {
+) -> Result<Json<SendResponse>, SendError> {
     let mut parts = ComposeParts {
         from: user.clone(),
         ..Default::default()
@@ -172,11 +173,7 @@ pub(crate) async fn send_message_multipart(
     // attachment, an empty list keeps none. A form that dropped the
     // distinction would silently re-attach files the user removed.
     let mut redraft_keep: Option<Vec<usize>> = None;
-    while let Some(field) = multipart
-        .next_field()
-        .await
-        .map_err(|_| StatusCode::BAD_REQUEST)?
-    {
+    while let Some(field) = multipart.next_field().await.map_err(SendError::form)? {
         let name = field.name().unwrap_or("").to_string();
         match name.as_str() {
             "from" => parts.from = field.text().await.unwrap_or_default(),
@@ -225,7 +222,7 @@ pub(crate) async fn send_message_multipart(
                     .content_type()
                     .unwrap_or("application/octet-stream")
                     .to_string();
-                let bytes = field.bytes().await.map_err(|_| StatusCode::BAD_REQUEST)?;
+                let bytes = field.bytes().await.map_err(SendError::form)?;
                 parts.attachments.push(Attachment {
                     filename,
                     content_type,
@@ -257,7 +254,14 @@ pub(crate) async fn send_message_multipart(
     recipients.extend(parts.bcc.clone());
     let from = parts.from.clone();
     let (message_id, envelope) = build_rfc5322(&parts, &from);
-    let filed = file_sent_copy(&state, &user, &envelope, &recipients).await?;
+    let filed = file_sent_copy(&state, &user, &envelope, &recipients)
+        .await
+        .map_err(|status| {
+            SendError::new(
+                status,
+                "the sent copy could not be filed, so the message was not sent",
+            )
+        })?;
     let send_meta = SendMeta {
         message_id: &message_id,
         thread_id: &filed.thread_id,
