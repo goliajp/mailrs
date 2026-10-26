@@ -1,17 +1,24 @@
 import type { MockAdminOverview } from '@/wire/schemas/mock'
 
+import { Button } from '@goliapkg/gds'
 import { useQuery } from '@tanstack/react-query'
 import { FlaskConical } from 'lucide-react'
-import { Link } from 'react-router'
+import { useNavigate } from 'react-router'
 
 import { bytes } from '@/components/admin-overview/flow-model'
-import { AdminEmptyState, AdminErrorState, AdminPageShell } from '@/components/admin-page'
+import {
+  AdminEmptyState,
+  AdminErrorState,
+  AdminPageShell,
+  AdminSection,
+} from '@/components/admin-page'
 import { MockSettingsForm } from '@/components/mock/settings-form'
 import { adminKeys } from '@/lib/query-keys'
 import { wireAdminMockOverview } from '@/wire/endpoints/mock'
 
 /** How much mock mail the server holds, and the rules it keeps it by. */
 export function AdminMock() {
+  const navigate = useNavigate()
   const overview = useQuery({
     queryKey: adminKeys.mock(),
     refetchInterval: 30_000,
@@ -20,9 +27,9 @@ export function AdminMock() {
   return (
     <AdminPageShell
       actions={
-        <Link className="text-fg-secondary hover:text-fg text-sm" to="/mock?scope=all">
+        <Button onClick={() => navigate('/mock?scope=all')} size="sm" variant="secondary">
           Open namespaces
-        </Link>
+        </Button>
       }
       subtitle="Usage and settings for disposable test mailboxes. To create or read namespaces, use Open namespaces"
       title="Mock mail"
@@ -59,9 +66,15 @@ function Body({
     )
   }
   return (
-    <div className="space-y-8">
-      <Usage data={data} />
-      <MockSettingsForm saved={data.settings} />
+    <div className="space-y-6">
+      <AdminSection title="Usage">
+        <Usage data={data} />
+      </AdminSection>
+      <AdminSection title="Settings">
+        <div className="px-4 py-4">
+          <MockSettingsForm saved={data.settings} />
+        </div>
+      </AdminSection>
     </div>
   )
 }
@@ -87,7 +100,7 @@ function Usage({ data }: { data: MockAdminOverview }) {
   const share = Math.min(1, data.usage.bytes / max)
   const u = data.usage
   return (
-    <section aria-label="Usage" className="space-y-4">
+    <div className="space-y-4 px-4 py-4">
       <div>
         <div className="flex items-baseline justify-between text-sm">
           <span className="text-fg">
@@ -118,6 +131,6 @@ function Usage({ data }: { data: MockAdminOverview }) {
         <Figure label="Dropped at the per-namespace limit" value={`${u.dropped}`} />
         <Figure label="Refused, no such namespace" value={`${u.rejected_unknown_ns}`} />
       </dl>
-    </section>
+    </div>
   )
 }

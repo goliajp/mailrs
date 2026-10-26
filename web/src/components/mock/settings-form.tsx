@@ -74,7 +74,6 @@ export function MockSettingsForm({ saved }: { saved: MockSettings }) {
 
   return (
     <form aria-label="Mock mail settings" className="max-w-xl space-y-5" onSubmit={submit}>
-      <h3 className="text-fg text-sm font-medium">Settings</h3>
       <div className="flex items-start gap-3">
         <input
           aria-describedby={`${enabledId}-help`}
