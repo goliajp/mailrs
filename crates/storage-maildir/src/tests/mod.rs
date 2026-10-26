@@ -5,6 +5,7 @@ mod flags;
 mod ids;
 mod layout;
 mod pure;
+mod remove;
 mod scan;
 
 fn tmpdir() -> tempfile::TempDir {

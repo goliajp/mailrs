@@ -125,9 +125,14 @@ impl KevyMailboxStore {
         // either: `user_message_view` is the one decision, and it answers
         // "no copy" rather than handing back another owner's.
         let shared_payload = strip_per_user_fields(payload);
+        let files_key = keys::user_message_files(user, message_id);
+        let file = crate::thread_ownership::file_base(blob_ref);
         self.store()
             .atomic(|ctx| {
                 ctx.set(blob_key.as_bytes(), &shared_payload);
+                if !file.is_empty() {
+                    ctx.sadd(files_key.as_bytes(), &[file.as_bytes()])?;
+                }
                 ctx.zadd(
                     zset.as_bytes(),
                     &[(internal_date as f64, message_id.as_bytes())],

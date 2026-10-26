@@ -174,7 +174,7 @@ pub async fn delete_thread(
     State(state): State<Arc<CoreRpcState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> Result<StatusCode, StatusCode> {
-    state
+    let files = state
         .mailbox
         .delete_thread(&user, &thread_id)
         .await
@@ -182,5 +182,24 @@ pub async fn delete_thread(
             tracing::warn!(error = %e, user = %user, thread_id = %thread_id, "delete_thread failed");
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
+    // Every copy's file goes too: one left on disk is a message the user
+    // deleted and still has, and the self-heal of either core files it
+    // again.
+    let mut unlinked = 0usize;
+    if let Some((local, domain)) = user.split_once('@') {
+        let root = std::path::Path::new(&state.maildir_root)
+            .join(domain)
+            .join(local);
+        for file in &files {
+            match mailrs_maildir::remove(&root, file) {
+                Ok(true) => unlinked += 1,
+                Ok(false) => {}
+                Err(e) => {
+                    tracing::warn!(error = %e, %user, %file, "delete_thread: could not unlink")
+                }
+            }
+        }
+    }
+    tracing::info!(%user, %thread_id, files = files.len(), unlinked, "delete_thread");
     Ok(StatusCode::NO_CONTENT)
 }

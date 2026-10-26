@@ -201,7 +201,7 @@ impl UnionFind {
 pub(crate) fn user_files_by_message_id(
     maildir_root: &str,
     user: &str,
-) -> std::collections::HashMap<String, String> {
+) -> std::collections::HashMap<String, Vec<String>> {
     let mut out = std::collections::HashMap::new();
     let Some((local, domain)) = user.split_once('@') else {
         return out;
@@ -248,16 +248,24 @@ pub(crate) fn user_files_by_message_id(
             true => bare,
             false => format!("{subfolder}/{bare}"),
         };
-        let Ok(bytes) = std::fs::read(&path) else {
+        // the headers are all that is read, not the attachments behind them
+        let mut head = Vec::with_capacity(16 * 1024);
+        let Ok(file) = std::fs::File::open(&path) else {
             continue;
         };
-        let head = &bytes[..bytes.len().min(16 * 1024)];
-        let (header_id, ..) = extract_headers(head);
+        if std::io::Read::read_to_end(&mut std::io::Read::take(file, 16 * 1024), &mut head).is_err()
+        {
+            continue;
+        }
+        let (header_id, ..) = extract_headers(&head);
         let message_id = crate::file_message_id::message_id_or_file_id(header_id, &blob_ref);
-        // First wins. A duplicate Message-ID inside one mailbox is the same
-        // mail delivered twice; either filename is that user's own copy,
-        // which is all this index has to be right about.
-        out.entry(message_id).or_insert(blob_ref);
+        // Every file, not the first: one Message-ID can sit in a mailbox
+        // several times (Sent and INBOX, or INBOX once per alias), and a
+        // delete that knows one of them leaves the rest behind.
+        out.entry(message_id).or_default().push(blob_ref);
+    }
+    for files in out.values_mut() {
+        files.sort();
     }
     out
 }
