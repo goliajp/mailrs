@@ -64,7 +64,12 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
             th_paths::PATH_LIST_THREAD_MESSAGES,
             get(handlers::thread::list_thread_messages).post(handlers::deliver::deliver_message),
         )
-        .route(sent_paths::PATH_FILE_SENT, post(handlers::sent::file_sent))
+        .route(
+            sent_paths::PATH_FILE_SENT,
+            post(handlers::sent::file_sent).layer(axum::extract::DefaultBodyLimit::max(
+                sent_paths::MAX_REQUEST_BYTES,
+            )),
+        )
         .route(th_paths::PATH_MARK_READ, post(handlers::thread::mark_read))
         .route(
             th_paths::PATH_MARK_UNREAD,

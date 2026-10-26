@@ -59,7 +59,12 @@ pub fn build_router_with_secret(state: Arc<FastcoreState>, secret: String) -> Ro
         )
         .route("/v1/admin/threads:split-message", post(split_message_route))
         .route(th::PATH_DELIVER_MESSAGE, post(deliver_message))
-        .route(sent::PATH_FILE_SENT, post(crate::sent::file_sent))
+        .route(
+            sent::PATH_FILE_SENT,
+            post(crate::sent::file_sent).layer(axum::extract::DefaultBodyLimit::max(
+                sent::MAX_REQUEST_BYTES,
+            )),
+        )
         .route(th::PATH_MARK_READ, post(mark_read))
         .route(th::PATH_MARK_ALL_READ, post(mark_all_read_route))
         .route(th::PATH_MARK_LIST_READ, post(mark_list_read_route))

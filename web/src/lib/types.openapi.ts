@@ -6072,6 +6072,29 @@ export interface operations {
                     "application/json": components["schemas"]["ApiResult"];
                 };
             };
+            /** @description The form is larger than the 25 MiB limit; nothing was sent */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: string;
+                        limit_bytes: number;
+                    };
+                };
+            };
+            /** @description The sent copy could not be filed; nothing was sent */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: string;
+                    };
+                };
+            };
         };
     };
     uploadInlineImage: {
