@@ -124,4 +124,23 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
         a.iter().any(|v| v.as_slice() == b"dave@partner.test"),
         "the Bcc recipient is not a contact"
     );
+
+    // larger than axum's 2 MiB default, which each core's route kept
+    // until a sent copy with a few megabytes attached was turned away
+    let mut large = b"Date: Tue, 14 Nov 2023 23:00:00 +0000\r\n\
+From: Alice <alice@example.test>\r\n\
+To: Carol <carol@partner.test>\r\n\
+Subject: Report\r\n\
+Message-ID: <sent-large@example.test>\r\n\
+\r\n"
+        .to_vec();
+    large.extend(std::iter::repeat_n(b"QUFBQUFBQUFB\r\n".as_slice(), 300_000).flatten());
+    let carol = ["carol@partner.test".to_string()];
+    let filed = d.both(
+        "file_sent a message larger than 2 MiB",
+        fc.file_sent(ALICE, &large, &carol).await,
+        pg.file_sent(ALICE, &large, &carol).await,
+        &["blob_ref"],
+    );
+    assert!(filed.is_some(), "a core refused a 4 MB sent copy");
 }
