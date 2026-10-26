@@ -333,7 +333,11 @@ impl Sweep<'_> {
             Action::Delete => match state.mailbox.delete_thread(user, tid) {
                 Ok((_, blobs)) => {
                     for b in &blobs {
-                        crate::routes::message_ops::unlink_maildir_file(user, b);
+                        crate::routes::message_ops::unlink_maildir_file(
+                            &state.maildir_root,
+                            user,
+                            b,
+                        );
                     }
                     t.deleted += 1;
                 }

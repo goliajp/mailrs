@@ -43,6 +43,66 @@ impl KevyMailboxStore {
         }
         Ok(false)
     }
+
+    /// Every account's message rows in `tid`, as `(user, message_id)`,
+    /// read from the declared `tid` index rather than by walking accounts.
+    /// A delete reads it to learn what other owners still hold.
+    pub fn thread_message_owners(&self, tid: &str) -> io::Result<Vec<(String, String)>> {
+        use kevy_embedded::IndexValue;
+        let at = IndexValue::Str(tid.as_bytes().to_vec());
+        let mut out = Vec::new();
+        let mut cursor = None;
+        loop {
+            let (rows, next) = self.store().idx_query(
+                keys::IDX_USERMSG_BY_TID,
+                &at,
+                &at,
+                cursor.as_ref(),
+                10_000,
+            )?;
+            out.extend(rows.iter().filter_map(|(key, _)| row_owner(key)));
+            match next {
+                Some(c) => cursor = Some(c),
+                None => return Ok(out),
+            }
+        }
+    }
+
+    /// Whether `file` is recorded as one of `user`'s copies of `message_id`.
+    pub fn has_message_file(&self, user: &str, message_id: &str, file: &str) -> io::Result<bool> {
+        let key = keys::user_message_files(user, message_id);
+        Ok(self
+            .store()
+            .sismember(key.as_bytes(), file_base(file).as_bytes())?)
+    }
+
+    /// Record `file` as one of `user`'s copies of `message_id`; whether it
+    /// was new. For the backfill — new copies are recorded by
+    /// `upsert_user_message`.
+    pub fn add_message_file(&self, user: &str, message_id: &str, file: &str) -> io::Result<bool> {
+        let key = keys::user_message_files(user, message_id);
+        Ok(self
+            .store()
+            .sadd(key.as_bytes(), &[file_base(file).as_bytes()])?
+            > 0)
+    }
+}
+
+/// `(user, message_id)` from a `mailrs:usermsg:{user}:{message_id}` key.
+/// An address has no `:`, so the first one after the prefix ends it; a
+/// Message-ID may contain more.
+fn row_owner(key: &[u8]) -> Option<(String, String)> {
+    let rest = std::str::from_utf8(key.strip_prefix(keys::USER_MESSAGE_PREFIX)?).ok()?;
+    let (user, mid) = rest.split_once(':')?;
+    Some((user.to_string(), mid.to_string()))
+}
+
+/// A `blob_ref` without its `:2,FLAGS`: the name stays true when the
+/// message is read and its file renamed.
+pub(crate) fn file_base(blob_ref: &str) -> &str {
+    blob_ref
+        .split_once(":2,")
+        .map_or(blob_ref, |(base, _)| base)
 }
 
 #[cfg(test)]

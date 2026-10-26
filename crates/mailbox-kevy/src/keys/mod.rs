@@ -78,6 +78,23 @@ pub const IDX_USERMSG_COUNTS: &[u8] = b"mailrs_usermsg_counts";
 /// The column [`IDX_USERMSG_COUNTS`] groups by.
 pub const USER_MESSAGE_GROUP_FIELD: &[u8] = b"g";
 
+/// Range index over per-user message rows by `tid`: every user's rows in
+/// one thread, which is who still owns it. Read when deleting, so shared
+/// records outlive one owner's delete.
+pub const IDX_USERMSG_BY_TID: &[u8] = b"mailrs_usermsg_by_tid";
+
+/// Every file name a user's copy of a message has had — SET of `blob_ref`
+/// without the `:2,` flags. One Message-ID can sit in a mailbox several
+/// times (Sent and INBOX, or INBOX once per alias it came through) while
+/// the row names one file; a delete removes them all from this set.
+///
+/// A superset by design: a name that is gone unlinks as a no-op, so a move
+/// only ever adds. `mailrs:usermsg-files:` does not start with
+/// [`USER_MESSAGE_PREFIX`], so the row indexes never see these keys.
+pub fn user_message_files(user: &str, message_id: &str) -> String {
+    format!("mailrs:usermsg-files:{user}:{message_id}")
+}
+
 /// The messages one user has in one thread — zset, score = internal_date,
 /// member = message_id (RFC string).
 ///
@@ -173,5 +190,10 @@ mod tests {
         // And state the near-miss outright, so dropping the colon fails here
         // rather than in a count nobody can explain.
         assert!(zset.starts_with("mailrs:usermsg"));
+        let files = user_message_files("u@x.com", "m1");
+        assert!(
+            !files.starts_with(p),
+            "{files} must not be indexed as a row"
+        );
     }
 }

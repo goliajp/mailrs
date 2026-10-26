@@ -78,7 +78,7 @@ pub(crate) async fn backfill_user_messages_route(
                 // matching is only one way of answering it.
                 let own = match read_maildir_file(user, &w.blob_ref).is_some() {
                     true => Some(w.blob_ref.clone()),
-                    false => by_mid.get(&w.message_id).cloned(),
+                    false => by_mid.get(&w.message_id).and_then(|f| f.first()).cloned(),
                 };
                 let Some(blob_ref) = own else {
                     // Neither resolves: they have no copy of this message,

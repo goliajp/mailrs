@@ -1,9 +1,11 @@
 //! Deleting a conversation and everything keyed by its messages.
 
+use std::collections::HashSet;
 use std::io;
 
 use super::KevyMailboxStore;
 use super::keys;
+use crate::thread_ownership::file_base;
 
 impl KevyMailboxStore {
     /// Hard-delete `thread_id` for `user`. Removes the row hash + drops
@@ -26,16 +28,16 @@ impl KevyMailboxStore {
         let store = self.store();
 
         let per_msg = self.thread_message_files(user, thread_id)?;
-        let blob_refs: Vec<String> = per_msg.iter().filter_map(|(_, _, br)| br.clone()).collect();
         // The indexed text goes with the blobs — the body and whatever was
         // extracted from attachments — so a search cannot find a
         // conversation through a message that is no longer there. The
         // extraction state goes too, so a backfill can queue the message
         // again for a recipient who still has a copy.
-        let mut text_keys: Vec<String> = Vec::new();
+        let mut text_keys: Vec<(String, Vec<String>)> = Vec::new();
         for (mid, _, _) in &per_msg {
-            text_keys.push(keys::message_text(mid));
-            text_keys.extend(self.attachment_text_keys(mid)?);
+            let mut keys_for = vec![keys::message_text(mid)];
+            keys_for.extend(self.attachment_text_keys(mid)?);
+            text_keys.push((mid.clone(), keys_for));
         }
 
         // No "hclear" in kevy 3.17; keep the explicit field list. Single
@@ -45,6 +47,23 @@ impl KevyMailboxStore {
         let msg_by_uid_key = keys::user_msg_by_uid(user);
         let uid_by_mid_key = keys::user_uid_by_mid(user);
 
+        // Who else holds this thread, and which of its messages. The shared
+        // records — the thread hash, its message index, each message's blob
+        // and text — are theirs too, so they go only with the last owner.
+        // Deleting them for everyone left the other owners a thread
+        // self-heal had to rebuild, and handed the deleter's leftover files
+        // the same rebuild. Read from the declared `tid` index, before the
+        // transaction: the atomic context has no index query.
+        let mut others: HashSet<String> = HashSet::new();
+        let mut held_by_others: HashSet<String> = HashSet::new();
+        for (owner, mid) in self.thread_message_owners(thread_id)? {
+            if owner != user {
+                others.insert(owner);
+                held_by_others.insert(mid);
+            }
+        }
+
+        let mut files: Vec<String> = Vec::new();
         let existed = store.atomic(|ctx| {
             // The category used to pick which per-category zset to
             // clean; all this asks now is whether the thread is
@@ -53,13 +72,21 @@ impl KevyMailboxStore {
                 return Ok(false);
             }
 
-            // Per-message cleanup — msg blob, RFC Message-ID → thread
-            // pointer, and both directions of the uid ↔ message-id map.
-            // Any of these left behind kept the message reachable via
-            // find_by_message_id / by_uid lookups even after the row
-            // vanished from the thread aggregate.
-            for (mid, uid, _blob_ref) in &per_msg {
-                ctx.del(&[keys::message_blob(mid).as_bytes()]);
+            for (mid, uid, blob_ref) in &per_msg {
+                // Every file this user's copy has had, not only the one the
+                // row names: the same Message-ID can sit in Sent and INBOX,
+                // or in INBOX once per alias it arrived through, and any
+                // copy left on disk brings the conversation back.
+                let files_key = keys::user_message_files(user, mid);
+                for name in ctx.smembers(files_key.as_bytes())? {
+                    if let Ok(name) = String::from_utf8(name) {
+                        files.push(name);
+                    }
+                }
+                if let Some(b) = blob_ref {
+                    files.push(file_base(b).to_string());
+                }
+                ctx.del(&[files_key.as_bytes()]);
                 ctx.del(&[keys::message_by_message_id(user, mid).as_bytes()]);
                 // This user's own row about the message. It was missing
                 // from this list and nothing complained, because nothing
@@ -74,17 +101,28 @@ impl KevyMailboxStore {
                     ctx.hdel(msg_by_uid_key.as_bytes(), &[uid_s.as_bytes()])?;
                 }
                 ctx.hdel(uid_by_mid_key.as_bytes(), &[mid.as_bytes()])?;
+                if held_by_others.contains(mid) {
+                    continue;
+                }
+                ctx.del(&[keys::message_blob(mid).as_bytes()]);
+                ctx.zrem(msgs_zset.as_bytes(), &[mid.as_bytes()])?;
             }
 
-            for key in &text_keys {
-                ctx.del(&[key.as_bytes()]);
+            for (mid, keys_for) in &text_keys {
+                if held_by_others.contains(mid) {
+                    continue;
+                }
+                for key in keys_for {
+                    ctx.del(&[key.as_bytes()]);
+                }
             }
 
-            // The thread's own message-index zset.
-            ctx.del(&[msgs_zset.as_bytes()]);
-
-            // Thread aggregate fields.
-            ctx.hdel(thread_key.as_bytes(), fields)?;
+            if others.is_empty() {
+                // The thread's own message-index zset.
+                ctx.del(&[msgs_zset.as_bytes()]);
+                // Thread aggregate fields.
+                ctx.hdel(thread_key.as_bytes(), fields)?;
+            }
 
             // The membership row is the thread's presence on every
             // axis the table serves, so deleting the thread has to
@@ -107,6 +145,8 @@ impl KevyMailboxStore {
             ctx.del(&[keys::thread_user_messages(user, thread_id).as_bytes()]);
             Ok(true)
         })?;
-        Ok((existed, blob_refs))
+        files.sort();
+        files.dedup();
+        Ok((existed, files))
     }
 }

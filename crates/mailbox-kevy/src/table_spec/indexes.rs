@@ -68,6 +68,13 @@ impl KevyMailboxStore {
             keys::USER_MESSAGE_GROUP_FIELD,
         );
         let _ = s.idx_create(
+            keys::IDX_USERMSG_BY_TID,
+            keys::USER_MESSAGE_PREFIX,
+            b"tid",
+            IndexValType::Str,
+            IndexKind::Range,
+        );
+        let _ = s.idx_create(
             keys::IDX_ALIASES_BY_DOMAIN,
             keys::ALIAS_V2_PREFIX,
             b"domain",
