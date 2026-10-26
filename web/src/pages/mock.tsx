@@ -83,9 +83,7 @@ export function MockMail() {
           />
         </div>
         {selected === null && (
-          <p className="text-fg-muted py-12 text-center text-sm">
-            {pickPrompt(namespaces.length, query.isPending)}
-          </p>
+          <NothingOpen count={namespaces.length} everyone={everyone} pending={query.isPending} />
         )}
         {selected !== null && (
           <NamespaceView
@@ -190,15 +188,47 @@ function NamespaceView({
   )
 }
 
+/** The right-hand side before a namespace is open. */
+function NothingOpen({
+  count,
+  everyone,
+  pending,
+}: {
+  count: number
+  everyone: boolean
+  pending: boolean
+}) {
+  if (pending) return <div aria-busy className="bg-surface h-40 animate-pulse rounded-lg" />
+  if (count > 0) {
+    return (
+      <AdminEmptyState
+        description="Its test addresses, the mail they received and the sandbox tools show here"
+        icon={<FlaskConical className="h-10 w-10" />}
+        title="Pick a namespace"
+      />
+    )
+  }
+  if (everyone) {
+    return (
+      <AdminEmptyState
+        description="Namespaces anyone creates are listed here"
+        icon={<FlaskConical className="h-10 w-10" />}
+        title="Nobody has created a namespace yet"
+      />
+    )
+  }
+  return (
+    <AdminEmptyState
+      description="Name one on the left; every address under it is a test mailbox you can read here"
+      icon={<FlaskConical className="h-10 w-10" />}
+      title="Create a namespace to get test addresses"
+    />
+  )
+}
+
 function parseTool(raw: null | string): null | Tool {
   if (raw === 'send' || raw === 'smtp' || raw === 'webhook') return raw
   return null
-}
-
-function pickPrompt(count: number, pending: boolean): string {
-  if (pending) return 'Loading…'
-  if (count === 0) return 'Create a namespace to get test addresses'
-  return 'Pick a namespace'
 }
 
 function ScopeButton({
