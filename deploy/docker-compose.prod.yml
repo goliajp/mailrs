@@ -331,3 +331,15 @@ services:
 volumes:
   mailrs-data:
   kevy-server-data:
+
+
+# The address webapi trusts to forward client addresses
+# (MAILRS_TRUSTED_PROXIES) is this network's gateway, so the network is
+# pinned to the subnet it was first created with: a recreated network
+# must not come back with another gateway.
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.18.0.0/16
+          gateway: 172.18.0.1
