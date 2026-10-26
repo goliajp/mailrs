@@ -41,6 +41,7 @@ POST /v1/admin/maintenance:read-state-shadow | read-only: maildir flags against 
 POST /v1/admin/maintenance:recompute-sender-trust | re-derive the stored sender verdict from each message file
 POST /v1/admin/maintenance:reindex | put the maildir's own facts back onto every thread row
 POST /v1/admin/maintenance:repair-blob-refs | give back the file reference to rows listed with an empty blob_ref
+POST /v1/admin/maintenance:backfill-message-files | record every file each copy of a message has, so a delete removes them all
 POST /v1/admin/maintenance:rewrite-aof | compact the embedded store's AOF from memory (recovery from a corrupt tail frame)
 POST /v1/admin/maintenance:sent-axis-shadow | read-only: the declared is_sender axis against the legacy sent zset
 POST /v1/admin/maintenance:shadow-read | read-only: the declared ORDERPATH's answer against the zset's, per account

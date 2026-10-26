@@ -344,12 +344,13 @@ pub(crate) async fn delete_thread(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> axum::response::Response {
-    // The kevy side of the delete returns the maildir blob_refs it saw
-    // before wiping the message rows. Without unlinking those files
-    // here, self-heal's next tick re-imports every one of them and the
-    // "deleted" thread re-appears — confirmed on prod 2026-07-24 with
-    // two ghost FYI threads that survived multiple UI deletes.
-    let (existed, blob_refs) = match state.mailbox.delete_thread(&user, &thread_id) {
+    // The kevy side of the delete returns every file the user's copies
+    // have had — a Message-ID can sit in Sent and INBOX, or in INBOX once
+    // per alias it came through. Any file left on disk is re-imported by
+    // self-heal and the "deleted" thread re-appears (prod 2026-07-24, two
+    // ghost FYI threads; 2026-10-25, a self-sent message back in minutes
+    // from its Sent copy).
+    let (existed, files) = match state.mailbox.delete_thread(&user, &thread_id) {
         Ok(pair) => pair,
         Err(e) => {
             tracing::warn!(error = %e, %user, %thread_id, "delete_thread kevy failed");
@@ -357,14 +358,14 @@ pub(crate) async fn delete_thread(
         }
     };
     let mut unlinked = 0u32;
-    for blob_ref in &blob_refs {
-        if unlink_maildir_file(&user, blob_ref) {
+    for file in &files {
+        if unlink_maildir_file(&state.maildir_root, &user, file) {
             unlinked += 1;
         }
     }
     if existed {
         tracing::info!(
-            %user, %thread_id, messages = blob_refs.len(), unlinked,
+            %user, %thread_id, files = files.len(), unlinked,
             "delete_thread: cleared thread + unlinked maildir files"
         );
     }

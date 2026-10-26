@@ -66,6 +66,8 @@ mod alias;
 mod attachment_text;
 mod count_shadow;
 mod delete_thread;
+#[cfg(test)]
+mod delete_thread_tests;
 mod deliver;
 mod domain;
 mod fraud_verdict;

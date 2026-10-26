@@ -110,6 +110,12 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
             "/v1/admin/maintenance:repair-blob-refs",
             post(repair_blob_refs_route),
         )
+        // Every file each copy of a message already has, so a delete takes
+        // all of them. `?dry_run=true` counts first; a second run adds 0.
+        .route(
+            "/v1/admin/maintenance:backfill-message-files",
+            post(crate::maintenance::backfill_message_files_route),
+        )
         // Ops endpoint — where mail forging one of our own domains
         // actually ended up.
         .route(

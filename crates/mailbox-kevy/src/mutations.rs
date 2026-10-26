@@ -711,13 +711,15 @@ mod tests {
 
         let (existed, blob_refs) = s.delete_thread(u, "t1").unwrap();
         assert!(existed);
+        // base names: the unlink resolves them whatever flags the file
+        // has gained since
         let mut br = blob_refs;
         br.sort();
         assert_eq!(
             br,
             vec![
-                "1784.M0P1Q0.host:2,S".to_string(),
-                ".Sent/1785.M0P1Q1.host:2,S".to_string(),
+                "1784.M0P1Q0.host".to_string(),
+                ".Sent/1785.M0P1Q1.host".to_string(),
             ]
             .into_iter()
             .collect::<std::collections::BTreeSet<_>>()

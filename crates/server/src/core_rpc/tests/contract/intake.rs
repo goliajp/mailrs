@@ -16,7 +16,7 @@ use super::{ALICE, accounts};
 /// Ids and counters each store keeps for itself.
 const MINTED: &[&str] = &["id", "mailbox_id", "created_at", "modseq"];
 
-fn envelope(verdict: Option<String>) -> SpoolEnvelope {
+pub(super) fn envelope(verdict: Option<String>) -> SpoolEnvelope {
     SpoolEnvelope {
         reverse_path: "carol@outside.example".into(),
         forward_paths: vec![ALICE.into()],
@@ -76,16 +76,17 @@ fn held() -> Option<String> {
     )
 }
 
-/// Both cores' spools, and how each is drained.
-struct Spools {
+/// Both cores' spools, and how each is drained. Each drains into the
+/// maildir root its core serves from, so mail spooled here is the mail the
+/// core's other calls see on disk.
+pub(super) struct Spools {
     fastcore: tempfile::TempDir,
-    fastcore_maildir: tempfile::TempDir,
     pg_core: tempfile::TempDir,
     pg: Arc<crate::intake::PgCore>,
 }
 
 impl Spools {
-    fn new(c: &Cores) -> Self {
+    pub(super) fn new(c: &Cores) -> Self {
         let s = &c.pg_core_state;
         let pg = Arc::new(crate::intake::PgCore {
             dir: crate::intake::PgDirectory::new(
@@ -98,7 +99,6 @@ impl Spools {
         });
         Self {
             fastcore: tempfile::tempdir().expect("spool"),
-            fastcore_maildir: tempfile::tempdir().expect("maildir"),
             pg_core: tempfile::tempdir().expect("spool"),
             pg,
         }
@@ -106,7 +106,7 @@ impl Spools {
 
     /// Spool `body` as the receiver does, once for each core, and drain
     /// both. One message at a time, so each finds the one before it.
-    async fn arrive(&self, c: &Cores, env: &SpoolEnvelope, body: &[u8]) {
+    pub(super) async fn arrive(&self, c: &Cores, env: &SpoolEnvelope, body: &[u8]) {
         let blob = encode_spool_blob(env, body);
         for root in [self.fastcore.path(), self.pg_core.path()] {
             MaildirSpoolSink::new(&root.to_string_lossy())
@@ -115,8 +115,8 @@ impl Spools {
                 .expect("spool write");
         }
         let state = c.fastcore_state.clone();
-        let (dir, maildir) = (incoming(self.fastcore.path()), self.fastcore_maildir.path());
-        let maildir = maildir.to_string_lossy().into_owned();
+        let dir = incoming(self.fastcore.path());
+        let maildir = c.fastcore_state.maildir_root.clone();
         let fc = tokio::task::spawn_blocking(move || {
             mailrs_fastcore::spool_drain::drain_once(&dir, &maildir, &state).0
         });

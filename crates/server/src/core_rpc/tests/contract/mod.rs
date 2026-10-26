@@ -12,6 +12,7 @@
 
 mod accounts;
 mod coverage;
+mod deletes;
 mod harness;
 mod intake;
 mod mail;

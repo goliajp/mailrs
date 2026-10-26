@@ -88,7 +88,7 @@ pub(crate) async fn repair_blob_refs_route(
                 }
                 missing_ref += 1;
 
-                let Some(found) = by_mid.get(&mid) else {
+                let Some(found) = by_mid.get(&mid).and_then(|f| f.first()) else {
                     // No file on disk states this Message-ID. The body is
                     // gone, not merely unreferenced, and this route cannot
                     // invent it — the row is reported rather than touched.
