@@ -9,6 +9,7 @@ import {
   AdminEmptyState,
   AdminErrorState,
   AdminPageShell,
+  AdminSection,
   ConfirmAction,
 } from '@/components/admin-page'
 import { ConfigField } from '@/components/admin-system-config/config-field'
@@ -147,15 +148,7 @@ function confirmTitle(entry: ConfigEntry): string {
 }
 
 function GroupCard({ children, group }: { children: ReactNode; group: string }) {
-  const label = GROUP_LABELS[group] ?? group
-  return (
-    <div className="border-border overflow-hidden rounded-lg border">
-      <div className="border-border bg-bg-secondary border-b px-4 py-2.5">
-        <h3 className="text-sm font-semibold">{label}</h3>
-      </div>
-      {children}
-    </div>
-  )
+  return <AdminSection title={GROUP_LABELS[group] ?? group}>{children}</AdminSection>
 }
 
 function loadError(queryError: unknown, response: SystemConfigResponse | undefined): Error | null {

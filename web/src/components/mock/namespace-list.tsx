@@ -87,9 +87,6 @@ export function NamespaceList({
         </>
       )}
 
-      {namespaces.length === 0 && (
-        <p className="text-fg-muted py-6 text-center text-sm">No namespaces yet</p>
-      )}
       <ul className="space-y-1.5">
         {namespaces.map((ns) => (
           <NamespaceRow
