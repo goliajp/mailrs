@@ -18,6 +18,12 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### Host command revokes any account's agent key
+
+- `mailrs-webapi agent-key revoke --owner <address> --id <id>`, run on the
+  host, removes the key the same way the owner's own revoke does and
+  records `agent_key.revoke`. An id the owner has no key under is an error.
+
 ### Send-only agent keys; a key can no longer link a sign-in method
 
 - New agent-key scope `mail:send`: `POST /api/mail/send`,
