@@ -1228,6 +1228,14 @@ docker exec mailrs-webapi-fc mailrs-webapi agent-key create \
 
 It prints the secret once on stdout and records `agent_key.create` in the audit log. The key appears on the owner's key list, where the owner can revoke it.
 
+An operator revokes any account's key on the host, by its id from the key list:
+
+```
+docker exec mailrs-webapi-fc mailrs-webapi agent-key revoke --owner someone@example.com --id 3
+```
+
+It records `agent_key.revoke`; an unknown id is an error.
+
 Response — the secret is returned only here:
 ```json
 {

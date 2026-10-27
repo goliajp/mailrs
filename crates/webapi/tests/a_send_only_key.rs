@@ -223,4 +223,33 @@ async fn a_send_only_key_sends_as_its_owner_and_reaches_nothing_else() {
             .as_deref(),
         Some(OWNER)
     );
+
+    // the host command revokes it, and it stops working at once
+    let id = keys["items"][0]["id"].as_i64().expect("id");
+    assert!(
+        mailrs_webapi::cli::revoke_key(OWNER, id + 100)
+            .await
+            .is_err(),
+        "an unknown key"
+    );
+    mailrs_webapi::cli::revoke_key(OWNER, id)
+        .await
+        .expect("revoke");
+    let (status, _) = live.call(Method::GET, "/api/mail/sends", &key, None).await;
+    assert_eq!(status, 401);
+    let (_, keys) = live
+        .call(Method::GET, "/api/agent/keys", &session, None)
+        .await;
+    assert_eq!(keys["items"], serde_json::json!([]));
+    let audit = c
+        .lrange(mailrs_core_sidestate::keys::admin::AUDIT_LOG, 0, 0)
+        .expect("audit");
+    let line: serde_json::Value = serde_json::from_slice(&audit[0]).expect("line");
+    assert_eq!(line["action"], "agent_key.revoke");
+    assert_eq!(line["actor"], "host");
+    assert_eq!(line["target"], OWNER);
+    assert_eq!(
+        line["detail"],
+        format!("id={id} prefix={} name=weekly report", &key[..8])
+    );
 }
