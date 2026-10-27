@@ -35,37 +35,41 @@ pub async fn create_agent_key(
     Json(req): Json<CreateAgentKeyRequest>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     crate::session::validate_agent_scopes(&req.scopes)?;
-    let counter = format!("agent:keys:counter:{user}");
-    let id = with_kevy(move |c| next_id(c, &counter))?;
+    let (id, secret) = with_kevy(move |c| mint_agent_key(c, &user, &req.name, &req.scopes))?;
+    Ok(Json(serde_json::json!({ "id": id, "secret": secret })))
+}
+
+/// Write a new key for `user` and return its id and secret. The record in
+/// `agent:keys:{user}` is what the key list shows and what revoking
+/// removes; the secret index carries `{user, id}` so the auth middleware
+/// can resolve the owner from a bearer key alone (session.rs agent-key
+/// branch). delete_agent_key only removes the hash entry; verification
+/// re-checks the hash so a dangling secret index grants nothing.
+pub(crate) fn mint_agent_key(
+    c: &mut kevy_client::Connection,
+    user: &str,
+    name: &str,
+    scopes: &[String],
+) -> std::io::Result<(i64, String)> {
+    let id = next_id(c, &format!("agent:keys:counter:{user}"))?;
     let secret = format!("mk_{}", random_hex(24));
     let record = serde_json::json!({
         "id": id,
-        "name": req.name,
-        "scopes": req.scopes,
+        "name": name,
+        "scopes": scopes,
         "created_at": now_secs(),
         "prefix": &secret[..8],
     });
-    let hkey = format!("agent:keys:{user}");
-    let payload = serde_json::to_vec(&record).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let secret_c = secret.clone();
-    // secret index carries {user, id} so the auth middleware can resolve
-    // the owner from a bearer key alone (session.rs agent-key branch).
-    // delete_agent_key only removes the hash entry; verification re-checks
-    // the hash so a dangling secret index grants nothing.
-    let index_payload = serde_json::to_vec(&serde_json::json!({ "user": &user, "id": id }))
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    with_kevy(move |c| {
-        c.hset(
-            hkey.as_bytes(),
-            &[(id.to_string().as_bytes(), payload.as_slice())],
-        )?;
-        c.set(
-            format!("agent:key:secret:{secret_c}").as_bytes(),
-            index_payload.as_slice(),
-        )?;
-        Ok(())
-    })?;
-    Ok(Json(serde_json::json!({ "id": id, "secret": secret })))
+    let index = serde_json::json!({ "user": user, "id": id });
+    c.hset(
+        format!("agent:keys:{user}").as_bytes(),
+        &[(id.to_string().as_bytes(), record.to_string().as_bytes())],
+    )?;
+    c.set(
+        format!("agent:key:secret:{secret}").as_bytes(),
+        index.to_string().as_bytes(),
+    )?;
+    Ok((id, secret))
 }
 
 pub async fn delete_agent_key(

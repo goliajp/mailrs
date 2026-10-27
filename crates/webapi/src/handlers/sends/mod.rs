@@ -18,6 +18,7 @@ use axum::http::StatusCode;
 
 use crate::WebState;
 use crate::handlers::conversations::AuthedUser;
+use crate::session::{AgentKey, AgentScopes};
 
 use mailrs_core_sidestate::families::send::Status;
 use mailrs_core_sidestate::families::send_read;
@@ -110,9 +111,13 @@ impl From<send_read::SendListItem> for SendResponse {
 }
 
 /// `GET /api/mail/sends?limit=&offset=&status=`
+///
+/// A send-only key gets the sends it made, not its owner's.
 pub async fn list_sends(
     State(_state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Extension(AgentScopes(scopes)): Extension<AgentScopes>,
+    key: Option<Extension<AgentKey>>,
     Query(q): Query<ListQuery>,
 ) -> Result<Json<Vec<SendResponse>>, StatusCode> {
     let status = match q.status.as_deref() {
@@ -121,7 +126,15 @@ pub async fn list_sends(
     };
     let limit = q.limit.clamp(1, 200);
     let offset = q.offset.max(0);
-    let items = with_kevy(move |c| send_read::list_sends(c, &user, status, offset, limit))?;
+    let by_key = match (crate::session::send_only(&scopes), key) {
+        (false, _) => None,
+        (true, Some(Extension(k))) => Some(k.id),
+        (true, None) => return Err(StatusCode::FORBIDDEN),
+    };
+    let items = with_kevy(move |c| match by_key {
+        Some(k) => send_read::list_sends_by_key(c, &user, k, status, offset, limit),
+        None => send_read::list_sends(c, &user, status, offset, limit),
+    })?;
     Ok(Json(items.into_iter().map(Into::into).collect()))
 }
 

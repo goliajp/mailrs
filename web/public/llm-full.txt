@@ -1208,7 +1208,7 @@ curl -X DELETE https://mail.golia.ai/api/agent/webhooks/1 \
 
 ## 5. Agent Keys
 
-Integrations authenticate with agent keys. A key belongs to the account that created it and acts as that account, limited to the scopes it was created with; an empty scope list means the account's full access. Create one with session auth (web login):
+Integrations authenticate with agent keys. A key belongs to the account that created it and acts as that account, limited to the scopes it was created with; a key with an empty scope list is refused. Create one with session auth (web login):
 
 ```
 curl -X POST https://mail.golia.ai/api/agent/keys \
@@ -1217,7 +1217,16 @@ curl -X POST https://mail.golia.ai/api/agent/keys \
   -d '{"name": "my-agent", "scopes": ["mail:read", "mail:write"]}'
 ```
 
-Scopes: `mail:read`, `mail:write`, `admin`, `mock`, `mock:<namespace>`; anything else answers 400.
+Scopes: `mail:read`, `mail:write`, `mail:send`, `admin`, `mock`, `mock:<namespace>`; anything else answers 400.
+
+`mail:send` reaches `POST /api/mail/send`, `POST /api/mail/send-multipart` and `GET /api/mail/sends`, which lists only the sends that key made; every other route answers 403 and MCP refuses it. Mail sent with it goes out as the key's owner (envelope sender and From), and the copy is filed in the owner's Sent. Each send writes an audit line `mail.send.agent_key` with the key prefix, the `X-Caller` header and the source IP. An operator makes one for any account on the host:
+
+```
+docker exec mailrs-webapi-fc mailrs-webapi agent-key create \
+  --owner someone@example.com --scope mail:send --name weekly-report
+```
+
+It prints the secret once on stdout and records `agent_key.create` in the audit log. The key appears on the owner's key list, where the owner can revoke it.
 
 Response — the secret is returned only here:
 ```json

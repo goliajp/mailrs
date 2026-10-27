@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use axum::Json;
 use axum::extract::{Extension, State};
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, StatusCode};
 
 use crate::WebState;
 use crate::handlers::compose::*;
@@ -17,11 +17,14 @@ use crate::handlers::compose_attach::*;
 use crate::handlers::conversations::AuthedUser;
 use crate::handlers::send_error::SendError;
 use crate::handlers::send_queue::*;
+use crate::session::AgentKey;
 
 /// POST /api/mail/send — JSON compose form, no attachments.
 pub(crate) async fn send_message(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
+    key: Option<Extension<AgentKey>>,
+    headers: HeaderMap,
     Json(req): Json<SendRequest>,
 ) -> Result<Json<SendResponse>, StatusCode> {
     let from = if req.from.is_empty() {
@@ -67,6 +70,8 @@ pub(crate) async fn send_message(
     recipients.extend(parts.cc.clone());
     recipients.extend(parts.bcc.clone());
     let (message_id, envelope) = build_rfc5322(&parts, &from);
+    let key = key.map(|Extension(k)| k);
+    record_key_send(key.as_ref(), &user, &headers, &message_id)?;
     let filed = file_sent_copy(&state, &user, &envelope, &recipients).await?;
     // A redraft gets a **new** Message-ID, unlike a resend: the user
     // edited the content, and a Message-ID names a particular message.
@@ -79,6 +84,7 @@ pub(crate) async fn send_message(
         cc: &parts.cc,
         envelope_ref: &filed.blob_ref,
         resent_from: req.redraft_of.as_deref(),
+        key_id: key.as_ref().map(|k| k.id),
     };
     enqueue_outbound_at(
         &user,
@@ -143,6 +149,7 @@ pub(crate) async fn send_email_mcp(
         cc: &parts.cc,
         envelope_ref: &filed.blob_ref,
         resent_from: None,
+        key_id: None,
     };
     enqueue_outbound_at(
         auth_user,
@@ -162,6 +169,8 @@ pub(crate) async fn send_email_mcp(
 pub(crate) async fn send_message_multipart(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
+    key: Option<Extension<AgentKey>>,
+    headers: HeaderMap,
     mut multipart: axum::extract::Multipart,
 ) -> Result<Json<SendResponse>, SendError> {
     let mut parts = ComposeParts {
@@ -254,6 +263,8 @@ pub(crate) async fn send_message_multipart(
     recipients.extend(parts.bcc.clone());
     let from = parts.from.clone();
     let (message_id, envelope) = build_rfc5322(&parts, &from);
+    let key = key.map(|Extension(k)| k);
+    record_key_send(key.as_ref(), &user, &headers, &message_id)?;
     let filed = file_sent_copy(&state, &user, &envelope, &recipients)
         .await
         .map_err(|status| {
@@ -270,6 +281,7 @@ pub(crate) async fn send_message_multipart(
         cc: &parts.cc,
         envelope_ref: &filed.blob_ref,
         resent_from: redraft_of.as_deref(),
+        key_id: key.as_ref().map(|k| k.id),
     };
     enqueue_outbound_at(
         &user,
@@ -283,4 +295,66 @@ pub(crate) async fn send_message_multipart(
         success: true,
         message: None,
     }))
+}
+
+/// A send made with an agent key leaves an audit line before anything is
+/// filed or queued; when the line cannot be written, nothing is sent.
+fn record_key_send(
+    key: Option<&AgentKey>,
+    user: &str,
+    headers: &HeaderMap,
+    message_id: &str,
+) -> Result<(), StatusCode> {
+    let Some(key) = key else {
+        return Ok(());
+    };
+    crate::handlers::audit::record_required(
+        user,
+        "mail.send.agent_key",
+        message_id,
+        &key_send_detail(key, headers),
+    )
+}
+
+/// `x-caller` is what the caller says it is, so it is cut short and kept
+/// to printable characters.
+fn key_send_detail(key: &AgentKey, headers: &HeaderMap) -> String {
+    let caller: String = headers
+        .get("x-caller")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .chars()
+        .filter(|c| !c.is_control())
+        .take(64)
+        .collect();
+    format!("key={} caller={caller} ip={}", key.prefix, key.source)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_audit_line_names_the_key_caller_and_source() {
+        let key = AgentKey {
+            id: 3,
+            prefix: "mk_ab12c".into(),
+            source: "203.0.113.9".parse().unwrap(),
+        };
+        let mut headers = HeaderMap::new();
+        headers.insert("x-caller", "insight weekly\treport".parse().unwrap());
+        assert_eq!(
+            key_send_detail(&key, &headers),
+            "key=mk_ab12c caller=insight weeklyreport ip=203.0.113.9"
+        );
+        headers.insert("x-caller", "a".repeat(100).parse().unwrap());
+        assert_eq!(
+            key_send_detail(&key, &headers),
+            format!("key=mk_ab12c caller={} ip=203.0.113.9", "a".repeat(64))
+        );
+        assert_eq!(
+            key_send_detail(&key, &HeaderMap::new()),
+            "key=mk_ab12c caller= ip=203.0.113.9"
+        );
+    }
 }
