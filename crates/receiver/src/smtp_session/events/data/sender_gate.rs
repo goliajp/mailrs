@@ -4,6 +4,10 @@
 //! and the `From:` header are checked, once the message is in, and every
 //! decision is logged with the account, both addresses and the client.
 //!
+//! A null envelope sender (`MAIL FROM:<>`) is refused: it is for
+//! notifications a server sends itself, and the outbound queue cannot send
+//! a job without a sender.
+//!
 //! A namespace's sandbox login keeps its mail in the sandbox, and may use
 //! only its own namespace's addresses. A login known only to `users.toml`
 //! has no permissions to ask for and may use only its own address.
@@ -77,17 +81,23 @@ pub(super) async fn check(
     }
     match (verdict, enforce) {
         (Verdict::Allowed, _) | (_, false) => SenderGate::Pass,
-        (Verdict::Refused(reason), true) => SenderGate::Refuse(Response::new(
-            550,
-            Some(code(5, 7, 1)),
-            format!("{user} may not send as this address: {reason}"),
-        )),
+        (Verdict::Refused(reason), true) => SenderGate::Refuse(refusal(user, reason)),
         (Verdict::Unknown(_), true) => SenderGate::Refuse(Response::new(
             451,
             Some(code(4, 3, 0)),
             "cannot check the sender right now, try again later",
         )),
     }
+}
+
+const NULL_SENDER: &str = "null sender";
+
+fn refusal(user: &str, reason: &str) -> Response {
+    let text = match reason {
+        NULL_SENDER => "null sender not allowed on submission".to_string(),
+        _ => format!("{user} may not send as this address: {reason}"),
+    };
+    Response::new(550, Some(code(5, 7, 1)), text)
 }
 
 /// The signed-in account. By the time DATA is answered the session has
@@ -122,6 +132,9 @@ fn judge(
     header: &str,
     perms: Result<Option<EffectivePermissionsResponse>, String>,
 ) -> Verdict {
+    if envelope.is_empty() {
+        return Verdict::Refused(NULL_SENDER);
+    }
     if let Some(ns) = crate::smtp_session::credentials::sandbox_namespace(user) {
         let ours = |a: &str| a.is_empty() || mock::parse(a).is_some_and(|m| m.namespace == ns);
         return verdict_for(ours(envelope), ours(header));
@@ -138,8 +151,8 @@ fn judge(
     verdict_for(may(envelope), may(header))
 }
 
-/// An empty envelope sender (a bounce) and a message without `From:` are
-/// not addresses to check; the caller passes them as allowed.
+/// A message without `From:` has no header address to check; the caller
+/// passes it as allowed.
 fn verdict_for(envelope_ok: bool, header_ok: bool) -> Verdict {
     match (envelope_ok, header_ok) {
         (true, true) => Verdict::Allowed,
@@ -227,12 +240,39 @@ mod tests {
     }
 
     #[test]
-    fn a_bounce_and_a_message_without_from_check_only_what_is_there() {
-        assert_eq!(judge(ME, "", ME, perms(false, &[])), Verdict::Allowed);
+    fn a_message_without_from_checks_only_the_envelope() {
         assert_eq!(judge(ME, ME, "", perms(false, &[])), Verdict::Allowed);
         assert_eq!(
-            judge(ME, "", "lihao@golia.jp", perms(false, &[])),
-            Verdict::Refused("From header")
+            judge(ME, "lihao@golia.jp", "", perms(false, &[])),
+            Verdict::Refused("envelope sender")
+        );
+    }
+
+    /// Accepted, it became a queued job with no sender, which the outbound
+    /// queue fails without sending.
+    #[test]
+    fn a_null_sender_is_refused_for_every_kind_of_login() {
+        for verdict in [
+            judge(ME, "", ME, perms(false, &[])),
+            judge(ME, "", ME, perms(true, &[])),
+            judge("sentori@golia.jp", "", "sentori@golia.jp", Ok(None)),
+            judge("demo@mock.golia.jp", "", "", Ok(None)),
+            judge(ME, "", ME, Err("core down".into())),
+        ] {
+            assert_eq!(verdict, Verdict::Refused(NULL_SENDER));
+        }
+        let r = refusal(ME, NULL_SENDER);
+        assert_eq!(r.code, 550);
+        assert!(
+            r.format()
+                .contains("5.7.1 null sender not allowed on submission"),
+            "{}",
+            r.format()
+        );
+        assert!(
+            refusal(ME, "From header")
+                .format()
+                .contains("may not send as")
         );
     }
 
