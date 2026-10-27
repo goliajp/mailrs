@@ -7,6 +7,7 @@
 
 use mailrs_fraud::advance_fee::{self, Body};
 use mailrs_fraud::line_handoff;
+use mailrs_fraud::links;
 
 const HEAD_LIMIT: usize = 16 * 1024;
 
@@ -27,6 +28,24 @@ pub fn offers_the_reader_a_sum(parsed: &mailrs_mime::Part<'_>) -> bool {
 pub fn asks_for_the_readers_line(parsed: &mailrs_mime::Part<'_>) -> bool {
     let texts = texts(parsed);
     line_handoff::asks_for_the_readers_line(bodies(&texts))
+}
+
+/// Links whose text shows an address on another host than they go to,
+/// as the `shown_links` fact: one `shown target` pair per line. The same
+/// parts as [`offers_the_reader_a_sum`]; only the HTML ones have links.
+pub fn shown_links(parsed: &mailrs_mime::Part<'_>) -> String {
+    let texts = texts(parsed);
+    links::shown_links(bodies(&texts))
+        .iter()
+        .map(|l| format!("{} {}", l.shown, l.target))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Whether a link target carries a kit's unfilled `[[name(...)]]`.
+pub fn link_has_kit_placeholder(parsed: &mailrs_mime::Part<'_>) -> bool {
+    let texts = texts(parsed);
+    links::has_kit_placeholder(bodies(&texts))
 }
 
 /// Every `text/plain` and `text/html` leaf that is not an attachment,

@@ -53,3 +53,59 @@ rule('asks-for-the-readers-line', 'content', 6, true, function(m)
         return 'the text asks the reader to send their own LINE QR code'
     end
 end)
+-- A link whose text is an address on one of our own domains, with a
+-- path, while the link goes somewhere else.  Reported 2026-10-27: `IT
+-- Security Officer <doc@wbg-ae.com>`, "Password Reminder for
+-- lihao@golia.jp", with the text `www. golia.jp /lihao@golia.jp/
+-- check-activity/` linking to a fake webmail login.  The sender's own
+-- domain passes SPF and DKIM, so the link is the whole case.
+-- `mailrs_fraud::links` says what the text shows and where it goes.
+--
+-- Measured over 43,854 production messages on 2026-10-27: 1 caught,
+-- that message.  A bare `golia.jp` in link text matched 22, most of
+-- them Google's business report naming the company; the path is what
+-- makes the text a claim about where the link goes.
+--
+-- **Held.**  Our own address shown over a link to somewhere else is
+-- the deception itself, and a held letter still reaches review.  Only
+-- external senders: our own mail may well link through a tracker.
+rule('link-shows-our-address', 'content', 6, true, function(m)
+    if not external(m) then return end
+    for shown, target in m.shown_links:gmatch('([^ \n]+) ([^\n]+)') do
+        if owns(m.our_domains, shown) and not owns(m.our_domains, target) then
+            return 'a link shows the address ' .. shown .. '/… but goes to ' .. target
+        end
+    end
+end)
+-- A link still carrying a phishing kit's template call, `[[random_
+-- digits(8)]]`, that the sending script never filled in.  Same message
+-- as above; 1 caught over 43,854, that one.  Wider template shapes
+-- (`{{x}}`, `*|X|*`) matched 170, mostly broken newsletter templates.
+--
+-- **Scored, not held.**  One sample is a fingerprint of one kit, not a
+-- measurement; 5 is the Junk threshold, so it leaves the inbox alone.
+rule('link-kit-placeholder', 'content', 5, false, function(m)
+    if external(m) and m.link_has_kit_placeholder then
+        return 'a link still carries the unfilled template of a phishing kit'
+    end
+end)
+-- A subject that carries the recipient's own full address: "Password
+-- Reminder for lihao@golia.jp", "Attention! takagi@golia.jp",
+-- "Support Service: lihao@golia.jp Password Expiry Alert!".
+--
+-- Measured over 43,854 production messages on 2026-10-27: 8 caught,
+-- all credential phishing, nothing else.
+--
+-- **Scored, not held.**  Eight letters is a small sample, and a real
+-- service can name the account it writes about.  5 is the Junk
+-- threshold: alone it leaves the inbox; with any other signal it adds
+-- up.  The address is read from `to_display`, which carries it when the
+-- `To:` has no display name or uses the address as one; a real name
+-- there leaves nothing to compare, and the rule declines.
+rule('subject-names-the-recipient', 'identity', 5, false, function(m)
+    if not external(m) then return end
+    local address = trim(m.to_display):lower():match('^([a-z0-9._+-]+@[a-z0-9.-]+%.[a-z]+)$')
+    if address and contains(m.subject:lower(), address) then
+        return 'the subject names the recipient\'s own address, ' .. address
+    end
+end)
