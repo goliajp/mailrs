@@ -35,19 +35,24 @@ pub(super) async fn pop_next(cfg: Cfg, wait: Duration) -> std::io::Result<Option
             return Ok(None);
         };
         let id = String::from_utf8_lossy(&id_bytes).to_string();
-        if !try_claim(&mut c, &id)? {
-            // Dup or already-terminal id — nothing to process. Return
-            // Some so the outer loop calls process_one(id=this-id)?
-            // No: process_one would call load_envelope which returns
-            // None and short-circuits gracefully. Simpler to return
-            // Some(id) and let process_one detect envelope absence.
-            //
-            // Actually cleaner: recurse-once by returning Ok(None) so
-            // the main loop performs its own idle-back-off; a fresh
-            // BRPOP will hit the next entry. Return None.
-            return Ok(None);
+        // The id has left the list whatever the claim says. A job that is
+        // still pending afterwards sits in no index, and `recover` puts it
+        // back once it is old enough not to be mid-claim.
+        match try_claim(&mut c, &id)? {
+            Claim::Won => Ok(Some(id)),
+            Claim::Missing => {
+                tracing::info!(%id, "claim skipped: no job row");
+                Ok(None)
+            }
+            Claim::NotPending(state) => {
+                tracing::debug!(%id, %state, "claim skipped: job is not pending");
+                Ok(None)
+            }
+            Claim::Lost => {
+                tracing::warn!(%id, "claim lost: the job changed while claiming");
+                Ok(None)
+            }
         }
-        Ok(Some(id))
     })
     .await
     .map_err(|e| std::io::Error::other(format!("join: {e}")))?
@@ -57,13 +62,30 @@ pub(super) async fn pop_next(cfg: Cfg, wait: Duration) -> std::io::Result<Option
 /// claim. Returns true if we won the CAS (state was pending, we now
 /// own it), false if state was non-pending (dup entry or already-
 /// terminal) or the WATCH aborted (another sender beat us).
-pub(super) fn try_claim(c: &mut kevy_client::Connection, id: &str) -> std::io::Result<bool> {
+#[derive(Debug, PartialEq, Eq)]
+pub(super) enum Claim {
+    Won,
+    /// No job row: a duplicate id whose job finished and expired, or a
+    /// row that is not visible yet.
+    Missing,
+    /// Inflight or finished: a duplicate id.
+    NotPending(String),
+    /// The row changed between the read and the write.
+    Lost,
+}
+
+pub(super) fn try_claim(c: &mut kevy_client::Connection, id: &str) -> std::io::Result<Claim> {
     let job_k = ob::job_key(id);
     c.watch(&[job_k.as_bytes()])?;
-    let state = c.hget(job_k.as_bytes(), b"state")?.unwrap_or_default();
+    let Some(state) = c.hget(job_k.as_bytes(), b"state")? else {
+        c.unwatch()?;
+        return Ok(Claim::Missing);
+    };
     if state != b"pending" {
         c.unwatch()?;
-        return Ok(false);
+        return Ok(Claim::NotPending(
+            String::from_utf8_lossy(&state).into_owned(),
+        ));
     }
     let now = now_secs_str();
     let mut tx = c.multi()?;
@@ -77,89 +99,9 @@ pub(super) fn try_claim(c: &mut kevy_client::Connection, id: &str) -> std::io::R
     ])?;
     tx.queue(&[b"HINCRBY", job_k.as_bytes(), b"attempts", b"1"])?;
     match tx.exec_watched()? {
-        Some(_) => Ok(true),
-        None => Ok(false), // another sender's WATCH won
+        Some(_) => Ok(Claim::Won),
+        None => Ok(Claim::Lost),
     }
-}
-
-/// v2.5.2 §P8-B-B `recover_stale` (RFC §2.6). Walks every
-/// `mailrs:outbound:job:*` hash, finds ones where `state==inflight` and
-/// `now - claimed_at > STALE_SECS` (default 5 min) — those are ids a
-/// prior sender BRPOPed and marked inflight but crashed before reaching
-/// a terminal state. Re-enqueues each stale id back onto the legacy
-/// pending list (so the next BRPOP picks it up) and resets state=pending
-/// on the job hash. Idempotent + WATCH-guarded — a second sender doing
-/// recover_stale in parallel will lose the CAS and drop through.
-pub(super) async fn recover_stale(cfg: Cfg) -> std::io::Result<usize> {
-    spawn_blocking(move || {
-        const STALE_SECS: i64 = 300;
-        const SCAN_BATCH: usize = 200;
-        let mut c = kevy(&cfg.kevy_url)?;
-        let mut cursor = 0u64;
-        let mut recovered = 0usize;
-        loop {
-            let (next, keys) = c.scan(cursor, Some(ob::JOB_PATTERN), Some(SCAN_BATCH))?;
-            for key in keys {
-                let Ok(key_str) = std::str::from_utf8(&key) else {
-                    continue;
-                };
-                let Some(id) = key_str.strip_prefix(ob::JOB_PREFIX) else {
-                    continue;
-                };
-                let id_owned = id.to_string();
-                let state = c.hget(&key, b"state")?;
-                let claimed_at_bytes = c.hget(&key, b"claimed_at")?;
-                let (Some(state), Some(claimed_at_bytes)) = (state, claimed_at_bytes) else {
-                    continue;
-                };
-                if state != b"inflight" {
-                    continue;
-                }
-                let Some(claimed_at) = std::str::from_utf8(&claimed_at_bytes)
-                    .ok()
-                    .and_then(|s| s.parse::<i64>().ok())
-                else {
-                    continue;
-                };
-                if now_secs() - claimed_at < STALE_SECS {
-                    continue;
-                }
-                // Optimistic CAS: re-check state + claimed_at, then flip.
-                c.watch(&[&key])?;
-                let state_now = c.hget(&key, b"state")?.unwrap_or_default();
-                let claimed_now = c.hget(&key, b"claimed_at")?.unwrap_or_default();
-                if state_now != b"inflight" || claimed_now != claimed_at_bytes {
-                    c.unwatch()?;
-                    continue;
-                }
-                let now = now_secs_str();
-                let mut tx = c.multi()?;
-                tx.queue(&[
-                    b"HSET",
-                    &key,
-                    b"state",
-                    b"pending",
-                    b"updated_at",
-                    now.as_bytes(),
-                ])?;
-                tx.queue(&[b"HDEL", &key, b"claimed_at"])?;
-                // v2.5.3 §P8-B-C: only LPUSH the v2 pending-idx.
-                // sender BRPOPs pending-idx now, not the legacy list.
-                tx.queue(&[b"LPUSH", PENDING_IDX_KEY, id_owned.as_bytes()])?;
-                if tx.exec_watched()?.is_some() {
-                    recovered += 1;
-                    tracing::info!(id = %id_owned, "recover_stale: reset inflight -> pending");
-                }
-            }
-            if next == 0 {
-                break;
-            }
-            cursor = next;
-        }
-        Ok(recovered)
-    })
-    .await
-    .map_err(|e| std::io::Error::other(format!("join: {e}")))?
 }
 
 /// Fetch the envelope for `id`. Returns `Ok(None)` if blob missing.

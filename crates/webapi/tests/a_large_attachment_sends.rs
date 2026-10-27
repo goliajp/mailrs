@@ -12,10 +12,6 @@
 
 mod live;
 
-use testcontainers::core::{IntoContainerPort, WaitFor};
-use testcontainers::runners::AsyncRunner;
-use testcontainers::{GenericImage, ImageExt};
-
 const ALICE: &str = "alice@example.test";
 const BOUNDARY: &str = "mailrs-test-boundary";
 
@@ -52,36 +48,6 @@ fn form(attachment_len: usize) -> Vec<u8> {
     b
 }
 
-/// The kevy-server tag production runs, as in `deploy/docker-compose.prod.yml`.
-async fn kevy_server() -> (testcontainers::ContainerAsync<GenericImage>, String) {
-    let _startup = mailrs_test_docker::startup_lock().await;
-    let tag = std::env::var("MAILRS_TEST_KEVY_TAG").unwrap_or_else(|_| "6.4.0".to_string());
-    let container = GenericImage::new("ghcr.io/goliajp/kevy", &tag)
-        .with_wait_for(WaitFor::message_on_stderr("starting:"))
-        .with_exposed_port(6379.tcp())
-        .with_startup_timeout(mailrs_test_docker::STARTUP_TIMEOUT)
-        .start()
-        .await
-        .expect("start kevy container");
-    let host =
-        mailrs_test_docker::ipv4_loopback(&container.get_host().await.expect("host").to_string());
-    let port = container.get_host_port_ipv4(6379).await.expect("port");
-    let url = format!("kevy://{host}:{port}");
-    for _ in 0..50 {
-        let u = url.clone();
-        let up = tokio::task::spawn_blocking(move || {
-            kevy_client::Connection::connect(&u).and_then(|mut c| c.ping())
-        })
-        .await
-        .expect("join");
-        if up.is_ok() {
-            return (container, url);
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-    }
-    panic!("kevy-server at {url} never answered");
-}
-
 async fn post(live: &live::Live, token: &str, body: Vec<u8>) -> (u16, serde_json::Value) {
     let res = live
         .http
@@ -105,7 +71,7 @@ async fn post(live: &live::Live, token: &str, body: Vec<u8>) -> (u16, serde_json
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn an_eight_megabyte_attachment_is_filed_and_an_oversized_form_says_the_limit() {
-    let (_kevy, kevy) = kevy_server().await;
+    let (_kevy, kevy) = mailrs_test_docker::kevy::kevy_server().await;
     let tmp = tempfile::tempdir().expect("tmp");
     // SAFETY: the only test in this binary, before anything reads them
     unsafe {

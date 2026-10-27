@@ -10,4 +10,6 @@ publish = false
 workspace = true
 
 [dependencies]
-tokio = { workspace = true, features = ["time"] }
+tokio = { workspace = true, features = ["time", "rt"] }
+testcontainers = "0.27"
+kevy-client = { workspace = true }
