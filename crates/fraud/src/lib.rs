@@ -56,6 +56,7 @@ pub mod greeting;
 pub mod hostname_claim;
 pub mod impersonation;
 pub mod line_handoff;
+pub mod links;
 pub mod mailer_fingerprint;
 pub mod minted_address;
 pub mod reply_rotation;
