@@ -1,7 +1,7 @@
 //! Account, alias, domain and permission RPCs.
 
 use crate::client::Client;
-use crate::error::{ApiResult, CoreApiError};
+use crate::error::ApiResult;
 use crate::method;
 
 impl Client {
@@ -26,7 +26,7 @@ impl Client {
             .json(req)
             .send()
             .await
-            .map_err(|e| CoreApiError::Internal(format!("add_account transport: {e}")))?;
+            .map_err(|e| crate::client::transport("add_account", e))?;
         Self::map_status_unit(resp, "add_account").await
     }
 
@@ -103,7 +103,7 @@ impl Client {
             .json(req)
             .send()
             .await
-            .map_err(|e| CoreApiError::Internal(format!("set_account_password transport: {e}")))?;
+            .map_err(|e| crate::client::transport("set_account_password", e))?;
         Self::map_status_unit(resp, "set_account_password").await
     }
 
@@ -119,7 +119,7 @@ impl Client {
             .json(&req)
             .send()
             .await
-            .map_err(|e| CoreApiError::Internal(format!("add_domain transport: {e}")))?;
+            .map_err(|e| crate::client::transport("add_domain", e))?;
         Self::map_status_unit(resp, "add_domain").await
     }
 
@@ -166,7 +166,7 @@ impl Client {
             .json(&body)
             .send()
             .await
-            .map_err(|e| CoreApiError::Internal(format!("upsert_local_alias transport: {e}")))?;
+            .map_err(|e| crate::client::transport("upsert_local_alias", e))?;
         Self::map_status_unit(resp, "upsert_local_alias").await
     }
 

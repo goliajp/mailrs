@@ -7,6 +7,20 @@ use crate::error::{ApiResult, CoreApiError};
 use crate::method;
 use crate::types;
 
+/// A request that got no answer. reqwest's own message is only "error
+/// sending request"; whether the connection was refused, reset or timed
+/// out is in its sources, so they go into the message too.
+pub(crate) fn transport(context: &str, e: reqwest::Error) -> CoreApiError {
+    let mut message = format!("{context} transport: {e}");
+    let mut source = std::error::Error::source(&e);
+    while let Some(s) = source {
+        message.push_str(": ");
+        message.push_str(&s.to_string());
+        source = s.source();
+    }
+    CoreApiError::Internal(message)
+}
+
 /// HTTP client wrapping a single `mailrs-core` target.
 #[derive(Clone)]
 pub struct Client {
@@ -98,7 +112,7 @@ impl Client {
             .bearer_auth(&self.auth_bearer)
             .send()
             .await
-            .map_err(|e| CoreApiError::Internal(format!("{context} transport: {e}")))?;
+            .map_err(|e| transport(context, e))?;
         Self::map_status(resp, context).await
     }
 
@@ -115,7 +129,7 @@ impl Client {
             .json(body)
             .send()
             .await
-            .map_err(|e| CoreApiError::Internal(format!("{context} transport: {e}")))?;
+            .map_err(|e| transport(context, e))?;
         Self::map_status(resp, context).await
     }
 
@@ -130,7 +144,7 @@ impl Client {
             .bearer_auth(&self.auth_bearer)
             .send()
             .await
-            .map_err(|e| CoreApiError::Internal(format!("{context} transport: {e}")))?;
+            .map_err(|e| transport(context, e))?;
         Self::map_status(resp, context).await
     }
 
@@ -147,7 +161,7 @@ impl Client {
             .json(body)
             .send()
             .await
-            .map_err(|e| CoreApiError::Internal(format!("{context} transport: {e}")))?;
+            .map_err(|e| transport(context, e))?;
         Self::map_status_unit(resp, context).await
     }
 
@@ -158,7 +172,7 @@ impl Client {
             .bearer_auth(&self.auth_bearer)
             .send()
             .await
-            .map_err(|e| CoreApiError::Internal(format!("{context} transport: {e}")))?;
+            .map_err(|e| transport(context, e))?;
         Self::map_status_unit(resp, context).await
     }
 
@@ -187,7 +201,7 @@ impl Client {
             .get(self.url(method::health::PATH_HEALTHZ))
             .send()
             .await
-            .map_err(|e| CoreApiError::Internal(format!("healthz transport: {e}")))?;
+            .map_err(|e| transport("healthz", e))?;
         Self::map_status(resp, "healthz").await
     }
 
@@ -198,7 +212,7 @@ impl Client {
             .get(self.url(method::health::PATH_READYZ))
             .send()
             .await
-            .map_err(|e| CoreApiError::Internal(format!("readyz transport: {e}")))?;
+            .map_err(|e| transport("readyz", e))?;
         Self::map_status(resp, "readyz").await
     }
 
