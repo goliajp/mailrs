@@ -18,6 +18,20 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### Fraud rules read links: our address shown over a link elsewhere is held
+
+- New facts for the rules, from the HTML of every message: links whose
+  text shows a web address with a path on one host while they go to
+  another (`shown_links`), and a link target still carrying a phishing
+  kit's unfilled `[[name(...)]]` template (`link_has_kit_placeholder`).
+  The receiver, the historical sweep and `mailrs-fraud-check` read them
+  with the same extractor.
+- Rules in the bundle (they take effect when the bundle is published):
+  `link-shows-our-address` holds an external message whose link text is
+  an address on one of our domains while the link goes elsewhere;
+  `link-kit-placeholder` and `subject-names-the-recipient` (the subject
+  carries the recipient's own full address) score 5, the Junk threshold.
+
 ### Host command revokes any account's agent key
 
 - `mailrs-webapi agent-key revoke --owner <address> --id <id>`, run on the

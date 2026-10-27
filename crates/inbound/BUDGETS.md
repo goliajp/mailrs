@@ -29,6 +29,8 @@ critical line between the client's `.\r\n` and the 250/451/550 response.
 | `body::offers_the_reader_a_sum` (300 KiB HTML) | 3.5 ms | ~1.1 ms | 3× | Release only. Ceiling for any size: the read stops at 256 KiB |
 | `body::asks_for_the_readers_line` (letter) | 50 µs | 9–16 µs | 3× | Release only. Decode, lowercase, find the request; the parse is the caller's |
 | `body::asks_for_the_readers_line` (300 KiB flood) | 21 ms | ~6.8 ms | 3× | Release only. One sentence of `line qr あなた 返信` to the read limit: the ceiling for any message |
+| `body::shown_links` + `body::link_has_kit_placeholder` (letter) | 30 µs | 5.6–8.7 µs | 3× | Release only. A phishing page with two links; the parse is the caller's |
+| `body::shown_links` + `body::link_has_kit_placeholder` (600 KiB flood) | 18 ms | ~5.8 ms | 3× | Release only. Links to the read limit, none of which lets either reader stop: the ceiling for any message |
 
 Real-world `Pipeline::run` cost is dominated by the stage backends (DNS
 resolver, ClamAV TCP, LLM API) which are owned by the downstream

@@ -123,4 +123,11 @@ pub struct Facts<'a> {
     pub attachment_text: &'a str,
     /// [`Self::offers_the_reader_a_sum`]'s reading of [`Self::attachment_text`].
     pub attachment_offers_the_reader_a_sum: bool,
+    /// Links whose text shows a web address with a path on another host
+    /// than the one they go to, one per line as `shown target`, at most
+    /// [`crate::links::MAX_SHOWN_LINKS`] — [`crate::links::shown_links`].
+    pub shown_links: &'a str,
+    /// A link target still carries a kit's `[[name(...)]]` template call
+    /// — [`crate::links::has_kit_placeholder`].
+    pub link_has_kit_placeholder: bool,
 }

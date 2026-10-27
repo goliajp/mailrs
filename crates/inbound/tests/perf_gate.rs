@@ -390,3 +390,71 @@ fn asks_for_the_readers_line_flood_under_budget() {
         "asks_for_the_readers_line (300 KiB flood) median {median:?} exceeded {budget:?}"
     );
 }
+
+#[cfg(not(debug_assertions))]
+/// A phishing page the size of the one reported: a few styled paragraphs
+/// and two links.
+fn link_letter() -> Vec<u8> {
+    let mut raw =
+        b"From: x <x@example.com>\r\nContent-Type: text/html; charset=us-ascii\r\n\r\n<html><body>"
+            .to_vec();
+    for _ in 0..12 {
+        raw.extend_from_slice(
+            b"<p align=\"center\" style='color: rgb(34, 34, 34); font-family: \"Segoe UI\";'>\
+<span style='color: rgb(0, 0, 0); font-size: 16px;'>Your password for lihao@golia.jp is about to expire soon.</span></p>",
+        );
+    }
+    raw.extend_from_slice(
+        b"<a style=\"color: aliceblue;\" href=\"https://webmail-oauth.example.net/vrill/auth[[random_digits(8)]]\">Keep Current Password</a>\
+You may visit&nbsp;<a href=\"https://webmail-oauth.example.net/x\">www. golia.jp /lihao@golia.jp/check-activity/</a></body></html>\r\n",
+    );
+    raw
+}
+
+#[cfg(not(debug_assertions))]
+/// The worst body for the link readers: links to the read limit, each
+/// showing an address with a path and going where it says, so neither
+/// reader can stop early.
+fn link_flood() -> Vec<u8> {
+    let mut raw =
+        b"From: x <x@example.com>\r\nContent-Type: text/html; charset=us-ascii\r\n\r\n".to_vec();
+    while raw.len() < 600 * 1024 {
+        raw.extend_from_slice(b"<a href=\"https://golia.jp/news/1\">golia.jp/news/1</a> ");
+    }
+    raw
+}
+
+#[cfg(not(debug_assertions))]
+#[test]
+fn link_readers_letter_under_budget() {
+    let raw = link_letter();
+    let parsed = mailrs_mime::parse(&raw);
+    let median = time_median(|| {
+        std::hint::black_box(mailrs_inbound::body::shown_links(&parsed));
+        std::hint::black_box(mailrs_inbound::body::link_has_kit_placeholder(&parsed));
+    });
+    // Budget: 30 µs, 3× the worst P95 seen on a dev machine (5.6–8.7 µs).
+    let budget = Duration::from_micros(30);
+    assert!(
+        median < budget,
+        "link readers (letter) median {median:?} exceeded {budget:?}"
+    );
+}
+
+#[cfg(not(debug_assertions))]
+#[test]
+fn link_readers_flood_under_budget() {
+    let raw = link_flood();
+    let parsed = mailrs_mime::parse(&raw);
+    let median = time_median(|| {
+        std::hint::black_box(mailrs_inbound::body::shown_links(&parsed));
+        std::hint::black_box(mailrs_inbound::body::link_has_kit_placeholder(&parsed));
+    });
+    // Budget: 18 ms, 3× the observed P95 (~5.8 ms). Both readers stop at
+    // `READ_LIMIT`, so this is the ceiling for any message.
+    let budget = Duration::from_millis(18);
+    assert!(
+        median < budget,
+        "link readers (600 KiB flood) median {median:?} exceeded {budget:?}"
+    );
+}

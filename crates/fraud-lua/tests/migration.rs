@@ -40,7 +40,7 @@ fn all_existing_sender_fixtures_match_compiled_rules() {
         account_names: vec!["LI HAO".into(), "No Reply".into(), "李好".into()],
     };
     let mut rules = Rules::compile(DEFAULT_SOURCE).unwrap();
-    // Sixteen migrated rules plus seven written after the migration,
+    // Sixteen migrated rules plus ten written after the migration,
     // which have no Rust counterpart to compare against — the oracle
     // below is frozen on purpose.  `reserved-sender-domain` is left out
     // of the comparison (see `AFTER_THE_MIGRATION`); the rest cannot
@@ -55,8 +55,11 @@ fn all_existing_sender_fixtures_match_compiled_rules() {
     // Their own tests are in `tests/our_domain.rs`,
     // `tests/cut_from_address.rs`, `tests/advance_fee.rs`,
     // `tests/line_handoff.rs`, `tests/dated_in_the_future.rs` and
-    // `tests/unvouched_sender.rs`.
-    assert_eq!(rules.rule_count(), 23);
+    // `tests/unvouched_sender.rs`. `link-shows-our-address` and
+    // `link-kit-placeholder` need links, which these do not have, and
+    // `subject-names-the-recipient` needs an address in `to_display`;
+    // theirs are in `tests/link_claims.rs`.
+    assert_eq!(rules.rule_count(), 26);
     for from in &senders {
         for (subject, seen, to) in [
             (
