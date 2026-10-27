@@ -182,9 +182,13 @@ fn shown_host(text: &str) -> Option<String> {
         {
             continue;
         }
+        // past the whole character that ends the run, which may be wider
+        // than a byte: `＼golia.jp/x`
         let start = squeezed[..i]
-            .rfind(|c: char| !(c.is_ascii_alphanumeric() || c == '.' || c == '-'))
-            .map_or(0, |p| p + 1);
+            .char_indices()
+            .rev()
+            .find(|&(_, c)| !(c.is_ascii_alphanumeric() || c == '.' || c == '-'))
+            .map_or(0, |(p, c)| p + c.len_utf8());
         let host = squeezed[start..i].trim_matches(|c| c == '.' || c == '-');
         if is_host(host) {
             return Some(host.to_string());
@@ -374,6 +378,30 @@ www. golia.jp /lihao@golia.jp/check-activity/</a>&nbsp;to see email activity"#;
         ] {
             let html = format!(r#"<a href="{href}">x</a>"#);
             assert!(!has_kit_placeholder([Body::Html(&html)]), "{href}");
+        }
+    }
+
+    /// Found by the corpus comparison before the rules went live: a
+    /// full-width `＼` before the address took the reader inside the
+    /// character and panicked.
+    #[test]
+    fn wide_characters_anywhere_around_the_address_are_read_as_text() {
+        assert_eq!(
+            links(r#"<a href="https://evil.example/">＼golia.jp/x</a>"#),
+            vec![link("golia.jp", "evil.example")]
+        );
+        let base = "go.jp/a/b";
+        for wide in ["＼", "日", "é", "😀", "\u{a0}"] {
+            for at in (0..=base.len()).filter(|&i| base.is_char_boundary(i)) {
+                let text = format!("{}{wide}{}", &base[..at], &base[at..]);
+                let html = format!(r#"<a href="https://evil.example/">{text}</a>"#);
+                let _ = links(&html);
+                let _ = has_kit_placeholder([Body::Html(&html)]);
+                let href =
+                    format!(r#"<a href="https://e{wide}x.example/[[{wide}(1)]]">{text}</a>"#);
+                let _ = links(&href);
+                let _ = has_kit_placeholder([Body::Html(&href)]);
+            }
         }
     }
 
