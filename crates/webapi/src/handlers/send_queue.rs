@@ -126,6 +126,7 @@ pub(crate) fn enqueue_outbound_at(
             },
             envelope_ref: meta.envelope_ref.to_string(),
             resent_from: meta.resent_from.map(str::to_string),
+            key_id: meta.key_id,
         };
         let user = sender.clone();
         let rcpts: Vec<String> = recipients.to_vec();
@@ -177,6 +178,7 @@ pub(crate) fn enqueue_resend(
             // again.
             envelope_ref,
             resent_from: Some(resent_from),
+            key_id: None,
         }),
     )
 }

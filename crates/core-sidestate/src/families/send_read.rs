@@ -24,7 +24,9 @@
 //! So divergence is split by time, and `missing_since` is the number that
 //! has to be zero.
 
-use super::send::{RecipientState, Status, by_status_key, index_key, read_recipients, send_key};
+use super::send::{
+    RecipientState, Status, by_key_key, by_status_key, index_key, read_recipients, send_key,
+};
 
 /// A send as the list renders it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -72,6 +74,33 @@ pub fn list_sends(
         Some(s) => by_status_key(user, s),
         None => index_key(user),
     };
+    list_on(conn, user, &key, offset, limit)
+}
+
+/// The sends one agent key made, newest first. `status` filters the page
+/// after it is read, so a page can come back shorter than `limit`.
+pub fn list_sends_by_key(
+    conn: &mut kevy_client::Connection,
+    user: &str,
+    key_id: i64,
+    status: Option<Status>,
+    offset: i64,
+    limit: i64,
+) -> std::io::Result<Vec<SendListItem>> {
+    let mut items = list_on(conn, user, &by_key_key(user, key_id), offset, limit)?;
+    if let Some(s) = status {
+        items.retain(|i| i.status == s);
+    }
+    Ok(items)
+}
+
+fn list_on(
+    conn: &mut kevy_client::Connection,
+    user: &str,
+    key: &str,
+    offset: i64,
+    limit: i64,
+) -> std::io::Result<Vec<SendListItem>> {
     // The network client has no zrevrange and its zrange returns members
     // without scores, so newest-first is a tail slice reversed here. Same
     // shape the DMARC report list uses for the same reason.

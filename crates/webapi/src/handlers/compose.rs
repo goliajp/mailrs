@@ -340,6 +340,8 @@ pub(crate) struct SendMeta<'a> {
     /// these, re-edit parses them back. The core's sent copy.
     pub envelope_ref: &'a str,
     pub resent_from: Option<&'a str>,
+    /// The agent key that made this send, when one did.
+    pub key_id: Option<i64>,
 }
 
 /// Return `Ok(())` iff the authed user may send as `from`
@@ -436,6 +438,7 @@ mod send_meta_tests {
             cc: &parts.cc,
             envelope_ref: "",
             resent_from: None,
+            key_id: None,
         };
         assert_eq!(meta.to.len(), 2);
         assert_eq!(meta.cc.len(), 1);

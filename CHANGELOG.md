@@ -18,6 +18,26 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### Send-only agent keys; a key can no longer link a sign-in method
+
+- New agent-key scope `mail:send`: `POST /api/mail/send`,
+  `POST /api/mail/send-multipart`, and `GET /api/mail/sends` narrowed to
+  the sends that key made. Every other REST route answers 403 and MCP
+  refuses the key. Mail sent with it goes out as the key's owner, and the
+  copy is filed in the owner's Sent.
+- Every send made with an agent key writes the audit line
+  `mail.send.agent_key` (key prefix, `X-Caller`, source IP, Message-ID)
+  before anything is filed or queued; if the line cannot be written,
+  nothing is sent (503).
+- `mailrs-webapi agent-key create --owner <address> --scope mail:send
+  --name <name>`, run on the host, makes a send-only key for any account,
+  prints the secret once and records `agent_key.create`. No HTTP route
+  makes keys for another account.
+- Fixed: the external sign-in callback accepted an agent key as proof of
+  being signed in, so a key holder could link their own external identity
+  to the key's owner and then sign in as the owner. Linking now requires a
+  browser session.
+
 ### Signed-in submission refuses a null sender; lost outbound jobs are queued again
 
 - Submission (587/465, any signed-in session) answers `MAIL FROM:<>` with

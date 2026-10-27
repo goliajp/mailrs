@@ -192,8 +192,15 @@ pub async fn mcp_auth_middleware(
     req: axum::http::Request<axum::body::Body>,
     next: axum::middleware::Next,
 ) -> axum::response::Response {
-    let identity = crate::session::resolve_auth_from_headers(req.headers())
-        .await
+    let auth = crate::session::resolve_auth_from_headers(req.headers()).await;
+    // a send-only key has no tool it may call
+    if auth
+        .as_ref()
+        .is_some_and(|a| crate::session::send_only(&a.scopes))
+    {
+        return axum::response::IntoResponse::into_response(axum::http::StatusCode::FORBIDDEN);
+    }
+    let identity = auth
         .map(|a| McpIdentity::new(a.user, a.scopes))
         .unwrap_or_default();
     MCP_AUTH_USER.scope(identity, next.run(req)).await

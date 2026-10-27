@@ -9,6 +9,7 @@
 
 #![allow(missing_docs)]
 
+pub mod cli;
 pub mod handlers;
 mod router;
 pub use router::build_router;

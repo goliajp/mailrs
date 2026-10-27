@@ -1,7 +1,8 @@
 //! Agent-key scope vocabulary and the REST enforcement rule.
 //!
 //! Vocabulary: `admin` (everything), `mail:write` (read + write, no
-//! /api/admin), `mail:read` (GET/HEAD only, no /api/admin), `mock` (only
+//! /api/admin), `mail:read` (GET/HEAD only, no /api/admin), `mail:send`
+//! (send, and list the sends this key made; nothing else), `mock` (only
 //! /api/mock/…), `mock:{ns}` (only that one mock namespace, cannot create
 //! or delete it). A key with no scope is refused everywhere; full owner
 //! access is the `admin` scope, named. A key with several scopes gets the
@@ -26,10 +27,16 @@ impl AgentScopes {
     }
 }
 
+/// True when the key may only send: the sends listing is narrowed to its
+/// own, and MCP refuses it.
+pub fn send_only(scopes: &[String]) -> bool {
+    !scopes.is_empty() && scopes.iter().all(|s| s == "mail:send")
+}
+
 /// True when `scope` is in the vocabulary `create_agent_key` accepts.
 pub fn is_known_scope(scope: &str) -> bool {
     match scope {
-        "admin" | "mail:read" | "mail:write" | "mock" => true,
+        "admin" | "mail:read" | "mail:write" | "mail:send" | "mock" => true,
         _ => scope
             .strip_prefix("mock:")
             .is_some_and(|ns| mailrs_mock::validate_namespace(ns).is_ok()),
@@ -70,6 +77,14 @@ pub fn mock_ns_restriction(scopes: &[String]) -> Option<Vec<String>> {
 /// Where keys are made and revoked.
 const AGENT_KEYS: &str = "/api/agent/keys";
 
+/// All a `mail:send` key reaches. The sends listing answers it with the
+/// sends this key made, not its owner's.
+const SEND_ONLY: [(Method, &str); 3] = [
+    (Method::POST, "/api/mail/send"),
+    (Method::POST, "/api/mail/send-multipart"),
+    (Method::GET, "/api/mail/sends"),
+];
+
 pub(super) fn agent_scopes_allow(scopes: &[String], method: &Method, path: &str) -> bool {
     if under(path, AGENT_KEYS) {
         return false;
@@ -83,6 +98,7 @@ fn scope_allows(scope: &str, method: &Method, path: &str) -> bool {
         "admin" => true,
         "mail:write" => !admin_path,
         "mail:read" => !admin_path && matches!(*method, Method::GET | Method::HEAD),
+        "mail:send" => SEND_ONLY.iter().any(|(m, p)| m == method && *p == path),
         "mock" => under(path, MOCK_PREFIX),
         _ => match scope.strip_prefix("mock:") {
             Some(ns) if mailrs_mock::validate_namespace(ns).is_ok() => {
@@ -329,5 +345,51 @@ mod tests {
             mock_ns_restriction(&s(&["mock:a", "mock:b"])),
             Some(s(&["a", "b"]))
         );
+    }
+
+    #[test]
+    fn mail_send_reaches_sending_and_its_own_sends_only() {
+        let send = s(&["mail:send"]);
+        assert!(agent_scopes_allow(&send, &Method::POST, "/api/mail/send"));
+        assert!(agent_scopes_allow(
+            &send,
+            &Method::POST,
+            "/api/mail/send-multipart"
+        ));
+        assert!(agent_scopes_allow(&send, &Method::GET, "/api/mail/sends"));
+        for (method, path) in [
+            (Method::GET, "/api/conversations"),
+            (Method::GET, "/api/conversations/t1"),
+            (Method::GET, "/api/conversations/search"),
+            (Method::GET, "/api/messages/m1"),
+            (Method::GET, "/api/mail/sends/m1/source"),
+            (Method::POST, "/api/mail/sends/m1/resend"),
+            (Method::DELETE, "/api/mail/sends/m1"),
+            (Method::GET, "/api/mail/export"),
+            (Method::GET, "/api/contacts"),
+            (Method::GET, "/api/settings"),
+            (Method::PUT, "/api/settings"),
+            (Method::GET, "/api/drafts"),
+            (Method::GET, "/api/admin/audit"),
+            (Method::GET, "/api/admin/accounts"),
+            (Method::GET, "/api/agent/keys"),
+            (Method::POST, "/api/agent/keys"),
+            (Method::GET, "/api/mock/namespaces"),
+            (Method::GET, "/api/auth/me"),
+            (Method::POST, "/api/mail/send/"),
+            (Method::GET, "/api/mail/send"),
+        ] {
+            assert!(!agent_scopes_allow(&send, &method, path), "{method} {path}");
+        }
+        assert_eq!(mock_ns_restriction(&send), Some(Vec::new()));
+    }
+
+    #[test]
+    fn only_a_key_with_nothing_but_mail_send_is_send_only() {
+        assert!(send_only(&s(&["mail:send"])));
+        assert!(!send_only(&s(&["mail:send", "mail:read"])));
+        assert!(!send_only(&s(&["mail:write"])));
+        assert!(!send_only(&[]));
+        assert!(validate_agent_scopes(&s(&["mail:send"])).is_ok());
     }
 }
