@@ -7607,7 +7607,7 @@
         "tags": [
           "Mail"
         ],
-        "description": "One row per send attempt (not per conversation). Not yet read by the web UI.",
+        "description": "One row per send attempt (not per conversation). Not yet read by the web UI. An agent key with only the mail:send scope gets the sends that key made, not its owner's; with status, the page is filtered after it is read and can be shorter than limit.",
         "parameters": [
           {
             "name": "limit",

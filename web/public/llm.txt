@@ -91,7 +91,7 @@ Addresses `{namespace}.{any-tag}@mock.golia.jp` receive mail that never reaches 
 - Fixed-result addresses: mail to `bounce@`, `ooto@`, `delay@`, `complaint@mock.golia.jp` (also `+tag`) answers the sender with a bounce, an out-of-office reply, a delay notice or an abuse report — in the sender's own INBOX, or in the namespace for sandbox and `send` mail. Nothing reaches the suppression list
 
 ### Agent
-- POST/GET/DELETE /api/agent/keys — API key management (scopes: admin, mail:read, mail:write, mock, mock:{namespace}; none = full access)
+- POST/GET/DELETE /api/agent/keys — API key management (scopes: admin, mail:read, mail:write, mail:send, mock, mock:{namespace}; a key with no scope is refused)
 - POST/GET/DELETE /api/agent/webhooks — webhook subscriptions
 
 ### Status

@@ -28,7 +28,9 @@ use crate::handlers::conversations::AuthedUser;
 
 mod scopes;
 use scopes::agent_scopes_allow;
-pub use scopes::{AgentScopes, is_known_scope, mock_ns_restriction, validate_agent_scopes};
+pub use scopes::{
+    AgentScopes, is_known_scope, mock_ns_restriction, send_only, validate_agent_scopes,
+};
 
 /// `session:<token>` blob — fields webapi reads. `permissions` is
 /// already serialized by the monolith but we only need the address +
@@ -75,6 +77,19 @@ struct AgentKeyRecord {
 pub struct AgentAuth {
     pub user: String,
     pub scopes: Vec<String>,
+    /// The key's id in its owner's `agent:keys:` hash; `None` for a
+    /// browser session.
+    pub key_id: Option<i64>,
+}
+
+/// The agent key a request came in with, next to `AuthedUser`. Absent for
+/// a browser session.
+#[derive(Debug, Clone)]
+pub struct AgentKey {
+    pub id: i64,
+    /// What the key list shows, never the key.
+    pub prefix: String,
+    pub source: std::net::IpAddr,
 }
 
 /// Resolve an `mk_` bearer key to its owning account + scopes, or
@@ -125,6 +140,7 @@ async fn resolve_agent_key(token: String) -> Option<AgentAuth> {
             Ok(Some(AgentAuth {
                 user: index.user,
                 scopes,
+                key_id: Some(index.id),
             }))
         })
     })
@@ -133,14 +149,19 @@ async fn resolve_agent_key(token: String) -> Option<AgentAuth> {
     .ok()?
 }
 
-/// Resolve the authenticated user address from the incoming headers,
-/// mirroring [`session_auth_middleware`] but returning the result instead
-/// of mutating request extensions. `None` on any auth failure.
-pub async fn resolve_user_from_headers(headers: &HeaderMap) -> Option<String> {
-    resolve_auth_from_headers(headers).await.map(|a| a.user)
+/// The signed-in browser session's address, or `None`. An agent key does
+/// not count: what asks this (linking a sign-in method) would turn a key
+/// into a way to sign in as its owner.
+pub async fn resolve_session_user_from_headers(headers: &HeaderMap) -> Option<String> {
+    let uri = axum::http::Uri::from_static("/mcp");
+    let token = extract_token(headers, &uri)?;
+    if token.starts_with(AGENT_KEY_PREFIX) {
+        return None;
+    }
+    resolve_session(token).await.map(|s| s.address)
 }
 
-/// Same as [`resolve_user_from_headers`], keeping the agent key's scopes;
+/// The caller behind a session or an agent key, with the key's scopes;
 /// the MCP handler uses it to populate its per-session task-local.
 pub async fn resolve_auth_from_headers(headers: &HeaderMap) -> Option<AgentAuth> {
     let uri = axum::http::Uri::from_static("/mcp");
@@ -152,6 +173,7 @@ pub async fn resolve_auth_from_headers(headers: &HeaderMap) -> Option<AgentAuth>
     Some(AgentAuth {
         user: session.address,
         scopes: Vec::new(),
+        key_id: None,
     })
 }
 
@@ -307,6 +329,13 @@ pub async fn session_auth_middleware(
         }
         req.extensions_mut()
             .insert(crate::handlers::conversations::AuthedDisplayName::default());
+        if let Some(id) = auth.key_id {
+            req.extensions_mut().insert(AgentKey {
+                id,
+                prefix: key_id,
+                source,
+            });
+        }
         req.extensions_mut().insert(AuthedUser(auth.user));
         req.extensions_mut().insert(AgentScopes(auth.scopes));
         return Ok(next.run(req).await);
