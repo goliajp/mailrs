@@ -32,6 +32,7 @@ mod deliver;
 mod mock;
 mod outcome;
 mod queue;
+mod recover;
 mod retry;
 mod retry_queue;
 
@@ -39,6 +40,7 @@ use config::*;
 use deliver::*;
 use outcome::*;
 use queue::*;
+use recover::*;
 use retry_queue::*;
 
 /// The queue and the schedule, named by the crate that writes them.
