@@ -76,27 +76,37 @@ pub async fn delete_agent_key(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Path(id): Path<i64>,
 ) -> Result<StatusCode, StatusCode> {
-    let key = format!("agent:keys:{user}");
-    with_kevy(move |c| {
-        c.hdel(key.as_bytes(), &[id.to_string().as_bytes()])?;
-        // Also drop the secret index so revoked keys don't accumulate
-        // forever. The record doesn't store the secret, so scan the
-        // (single-digit-count) index keys for the matching {user,id}.
-        let target = serde_json::json!({ "user": user, "id": id });
-        for idx_key in c.keys(b"agent:key:secret:*")? {
-            let Some(raw) = c.get(&idx_key)? else {
-                continue;
-            };
-            let matches = serde_json::from_slice::<serde_json::Value>(&raw)
-                .map(|v| v == target)
-                .unwrap_or(false);
-            if matches {
-                c.del(&[idx_key.as_slice()])?;
-            }
-        }
-        Ok(())
-    })?;
+    with_kevy(move |c| revoke_agent_key(c, &user, id))?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// Remove `user`'s key `id`; the record it had, or `None` when there was
+/// none. Without its record the key resolves to nobody at once.
+pub(crate) fn revoke_agent_key(
+    c: &mut kevy_client::Connection,
+    user: &str,
+    id: i64,
+) -> std::io::Result<Option<Vec<u8>>> {
+    let key = format!("agent:keys:{user}");
+    let field = id.to_string();
+    let record = c.hget(key.as_bytes(), field.as_bytes())?;
+    c.hdel(key.as_bytes(), &[field.as_bytes()])?;
+    // Also drop the secret index so revoked keys don't accumulate
+    // forever. The record doesn't store the secret, so scan the
+    // (single-digit-count) index keys for the matching {user,id}.
+    let target = serde_json::json!({ "user": user, "id": id });
+    for idx_key in c.keys(b"agent:key:secret:*")? {
+        let Some(raw) = c.get(&idx_key)? else {
+            continue;
+        };
+        let matches = serde_json::from_slice::<serde_json::Value>(&raw)
+            .map(|v| v == target)
+            .unwrap_or(false);
+        if matches {
+            c.del(&[idx_key.as_slice()])?;
+        }
+    }
+    Ok(record)
 }
 
 /// The settings page's webhook surface, scoped to the signed-in user.
