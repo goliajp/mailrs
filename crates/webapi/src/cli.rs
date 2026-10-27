@@ -1,14 +1,16 @@
 //! Commands run on the host with `docker exec`, for what no HTTP route
 //! may do.
 //!
-//! `agent-key create` makes a send-only key for any account. A route that
-//! mints keys for other accounts is what a leaked admin key would reach
-//! for, so this exists only here, behind access to the host.
+//! `agent-key create` makes a send-only key for any account, and
+//! `agent-key revoke` removes any account's key. A route that mints keys
+//! for other accounts is what a leaked admin key would reach for, so this
+//! exists only here, behind access to the host.
 
 use std::process::ExitCode;
 
 const USAGE: &str =
-    "usage: mailrs-webapi agent-key create --owner <address> --scope mail:send --name <name>";
+    "usage: mailrs-webapi agent-key create --owner <address> --scope mail:send --name <name>
+       mailrs-webapi agent-key revoke --owner <address> --id <id>";
 
 /// The only scope this command grants.
 const SCOPE: &str = "mail:send";
@@ -23,57 +25,78 @@ pub async fn run(args: &[String]) -> Option<ExitCode> {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-struct Create {
-    owner: String,
-    name: String,
+enum Command {
+    Create { owner: String, name: String },
+    Revoke { owner: String, id: i64 },
 }
 
-fn parse_create(args: &[String]) -> Result<Create, String> {
-    let Some(("create", flags)) = args.split_first().map(|(c, f)| (c.as_str(), f)) else {
+fn parse(args: &[String]) -> Result<Command, String> {
+    let Some((verb, flags)) = args.split_first() else {
         return Err(USAGE.into());
     };
-    let (mut owner, mut scope, mut name) = (None, None, None);
+    let names: &[&str] = match verb.as_str() {
+        "create" => &["--owner", "--scope", "--name"],
+        "revoke" => &["--owner", "--id"],
+        _ => return Err(USAGE.into()),
+    };
+    let mut given: Vec<(&str, String)> = Vec::new();
     let mut it = flags.iter();
     while let Some(flag) = it.next() {
-        let slot = match flag.as_str() {
-            "--owner" => &mut owner,
-            "--scope" => &mut scope,
-            "--name" => &mut name,
-            _ => return Err(format!("unknown argument {flag}\n{USAGE}")),
+        let Some(name) = names.iter().find(|n| **n == flag.as_str()) else {
+            return Err(format!("unknown argument {flag}\n{USAGE}"));
         };
         let Some(value) = it.next() else {
             return Err(format!("{flag} needs a value\n{USAGE}"));
         };
-        if slot.replace(value.trim().to_string()).is_some() {
+        if given.iter().any(|(n, _)| n == name) {
             return Err(format!("{flag} given twice"));
         }
+        given.push((name, value.trim().to_string()));
     }
-    match scope.as_deref() {
-        Some(SCOPE) => {}
-        Some(other) => return Err(format!("scope {other} is not granted here; only {SCOPE}")),
-        None => return Err(format!("--scope {SCOPE} is required\n{USAGE}")),
+    let get = |name: &str| {
+        given
+            .iter()
+            .find(|(n, v)| *n == name && !v.is_empty())
+            .map(|(_, v)| v.clone())
+    };
+    let owner = get("--owner").ok_or(USAGE)?.to_ascii_lowercase();
+    match verb.as_str() {
+        "create" => {
+            match get("--scope").as_deref() {
+                Some(SCOPE) => {}
+                Some(other) => {
+                    return Err(format!("scope {other} is not granted here; only {SCOPE}"));
+                }
+                None => return Err(format!("--scope {SCOPE} is required\n{USAGE}")),
+            }
+            let name = get("--name").ok_or(USAGE)?;
+            Ok(Command::Create { owner, name })
+        }
+        _ => {
+            let id = get("--id")
+                .and_then(|v| v.parse::<i64>().ok())
+                .ok_or(format!("--id must be a key id\n{USAGE}"))?;
+            Ok(Command::Revoke { owner, id })
+        }
     }
-    let owner = owner.filter(|o| !o.is_empty()).ok_or(USAGE)?;
-    let name = name.filter(|n| !n.is_empty()).ok_or(USAGE)?;
-    Ok(Create {
-        owner: owner.to_ascii_lowercase(),
-        name,
-    })
 }
 
 async fn agent_key(args: &[String]) -> ExitCode {
-    let create = match parse_create(args) {
+    let command = match parse(args) {
         Ok(c) => c,
         Err(e) => {
             eprintln!("{e}");
             return ExitCode::from(2);
         }
     };
-    match create_send_key(&create.owner, &create.name).await {
-        Ok(secret) => {
-            println!("{secret}");
-            ExitCode::SUCCESS
-        }
+    let outcome = match command {
+        Command::Create { owner, name } => create_send_key(&owner, &name)
+            .await
+            .map(|secret| println!("{secret}")),
+        Command::Revoke { owner, id } => revoke_key(&owner, id).await,
+    };
+    match outcome {
+        Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("{e}");
             ExitCode::FAILURE
@@ -81,15 +104,33 @@ async fn agent_key(args: &[String]) -> ExitCode {
     }
 }
 
+/// Revoke `owner`'s key `id` and record it in the audit log. An unknown
+/// key is an error, so a typo does not read as done.
+pub async fn revoke_key(owner: &str, id: i64) -> Result<(), String> {
+    let owner = owner.to_ascii_lowercase();
+    let o = owner.clone();
+    let record = crate::handlers::kevy_util::with_kevy(move |c| {
+        crate::handlers::apps_keys::revoke_agent_key(c, &o, id)
+    })
+    .map_err(|_| "could not revoke the key".to_string())?
+    .ok_or(format!("{owner} has no key {id}"))?;
+    let record: serde_json::Value = serde_json::from_slice(&record).unwrap_or_default();
+    let detail = format!(
+        "id={id} prefix={} name={}",
+        record["prefix"].as_str().unwrap_or(""),
+        record["name"].as_str().unwrap_or("")
+    );
+    crate::handlers::audit::record_required("host", "agent_key.revoke", &owner, &detail)
+        .map_err(|_| format!("key {id} was revoked, but the audit line could not be written"))?;
+    eprintln!("revoked key {id} of {owner}");
+    Ok(())
+}
+
 /// Make a `mail:send` key for `owner`, an account, and record it in the
 /// audit log; the secret. Reads the core and kevy addresses from the
 /// environment, as the server does.
 pub async fn create_send_key(owner: &str, name: &str) -> Result<String, String> {
-    let create = Create {
-        owner: owner.to_ascii_lowercase(),
-        name: name.to_string(),
-    };
-    let create = &create;
+    let owner = owner.to_ascii_lowercase();
     let state = crate::WebState::from_env();
     let accounts = state
         .core
@@ -99,31 +140,22 @@ pub async fn create_send_key(owner: &str, name: &str) -> Result<String, String> 
     if !accounts
         .items
         .iter()
-        .any(|a| a.address.eq_ignore_ascii_case(&create.owner))
+        .any(|a| a.address.eq_ignore_ascii_case(&owner))
     {
-        return Err(format!("{} is not an account", create.owner));
+        return Err(format!("{owner} is not an account"));
     }
-    let (owner, name) = (create.owner.clone(), create.name.clone());
+    let (o, n) = (owner.clone(), name.to_string());
     let (id, secret) = crate::handlers::kevy_util::with_kevy(move |c| {
-        crate::handlers::apps_keys::mint_agent_key(c, &owner, &name, &[SCOPE.to_string()])
+        crate::handlers::apps_keys::mint_agent_key(c, &o, &n, &[SCOPE.to_string()])
     })
     .map_err(|_| "could not write the key".to_string())?;
-    let detail = format!(
-        "id={id} prefix={} name={} scope={SCOPE}",
-        &secret[..8],
-        create.name
-    );
-    if crate::handlers::audit::record_required("host", "agent_key.create", &create.owner, &detail)
-        .is_err()
+    let detail = format!("id={id} prefix={} name={name} scope={SCOPE}", &secret[..8]);
+    if crate::handlers::audit::record_required("host", "agent_key.create", &owner, &detail).is_err()
     {
-        // unrecorded, so it must not work: without its record the secret
-        // index resolves to nothing
-        let (owner, field) = (create.owner.clone(), id.to_string());
+        // unrecorded, so it must not work
+        let o = owner.clone();
         let revoked = crate::handlers::kevy_util::with_kevy(move |c| {
-            Ok(c.hdel(
-                format!("agent:keys:{owner}").as_bytes(),
-                &[field.as_bytes()],
-            )?)
+            crate::handlers::apps_keys::revoke_agent_key(c, &o, id)
         });
         return Err(format!(
             "the audit line could not be written; key {id} {}",
@@ -133,7 +165,7 @@ pub async fn create_send_key(owner: &str, name: &str) -> Result<String, String> 
             }
         ));
     }
-    eprintln!("created key {id} ({}) for {}", &secret[..8], create.owner);
+    eprintln!("created key {id} ({}) for {owner}", &secret[..8]);
     Ok(secret)
 }
 
@@ -148,7 +180,7 @@ mod tests {
     #[test]
     fn create_takes_an_owner_a_name_and_only_the_send_scope() {
         assert_eq!(
-            parse_create(&args(&[
+            parse(&args(&[
                 "create",
                 "--owner",
                 "LiHao@golia.jp",
@@ -157,7 +189,7 @@ mod tests {
                 "--name",
                 "weekly report",
             ])),
-            Ok(Create {
+            Ok(Command::Create {
                 owner: "lihao@golia.jp".into(),
                 name: "weekly report".into(),
             })
@@ -200,10 +232,45 @@ mod tests {
                 "n",
                 "--x",
             ]),
+            args(&[
+                "create",
+                "--owner",
+                "a@x",
+                "--scope",
+                "mail:send",
+                "--id",
+                "1",
+            ]),
             args(&["delete", "--owner", "a@x"]),
             args(&[]),
         ] {
-            assert!(parse_create(&refused).is_err(), "{refused:?}");
+            assert!(parse(&refused).is_err(), "{refused:?}");
+        }
+    }
+
+    #[test]
+    fn revoke_takes_an_owner_and_a_numeric_id() {
+        assert_eq!(
+            parse(&args(&[
+                "revoke",
+                "--owner",
+                "Insight-Report@golia.jp",
+                "--id",
+                "1"
+            ])),
+            Ok(Command::Revoke {
+                owner: "insight-report@golia.jp".into(),
+                id: 1,
+            })
+        );
+        for refused in [
+            args(&["revoke", "--owner", "a@x"]),
+            args(&["revoke", "--id", "1"]),
+            args(&["revoke", "--owner", "a@x", "--id", "mk_cf27c"]),
+            args(&["revoke", "--owner", "a@x", "--id", "1", "--name", "n"]),
+            args(&["revoke", "--owner", "a@x", "--id", "1", "--id", "2"]),
+        ] {
+            assert!(parse(&refused).is_err(), "{refused:?}");
         }
     }
 }
