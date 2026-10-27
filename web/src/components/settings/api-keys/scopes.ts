@@ -6,6 +6,8 @@
  *   - empty list      → refused everywhere; only keys made before scopes were required have one
  *   - `mail:write`    → everything except `/api/admin/*`
  *   - `mail:read`     → GET/HEAD only, and never `/api/admin/*`
+ *   - `mail:send`     → send, and list the sends this key made; nothing else, no MCP.
+ *                       Made on the host (`mailrs-webapi agent-key create`), not offered here
  *   - `mock`          → only `/api/mock/*` and the `mock_*` MCP tools
  *   - `mock:{ns}`     → only that one mock namespace; cannot create or delete it
  *

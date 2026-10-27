@@ -200,6 +200,9 @@ pub struct SendRow {
     /// own row. A failed send is history, and history is the reason
     /// anyone opens this screen.
     pub resent_from: Option<String>,
+    /// The agent key that made this send, when one did. A send-only key
+    /// lists these and nothing else of its owner's.
+    pub key_id: Option<i64>,
 }
 
 pub fn send_key(user: &str, send_id: &str) -> String {
@@ -216,6 +219,10 @@ pub fn index_key(user: &str) -> String {
 
 pub fn by_status_key(user: &str, status: Status) -> String {
     format!("mailrs:send:{user}:by_status:{}", status.as_str())
+}
+
+pub fn by_key_key(user: &str, key_id: i64) -> String {
+    format!("mailrs:send:{user}:by_key:{key_id}")
 }
 
 /// Record a send and its recipients.
@@ -241,6 +248,7 @@ pub fn write_send(
     };
 
     let created = row.created_at.to_string();
+    let key_id = row.key_id.map(|k| k.to_string()).unwrap_or_default();
     let key = send_key(user, &row.send_id);
     let fields: Vec<(&[u8], &[u8])> = vec![
         (b"send_id", row.send_id.as_bytes()),
@@ -256,6 +264,7 @@ pub fn write_send(
             b"resent_from",
             row.resent_from.as_deref().unwrap_or("").as_bytes(),
         ),
+        (b"key_id", key_id.as_bytes()),
     ];
     conn.hset(key.as_bytes(), &fields)?;
 
@@ -280,6 +289,12 @@ pub fn write_send(
         by_status_key(user, status).as_bytes(),
         &[(score, row.send_id.as_bytes())],
     )?;
+    if let Some(k) = row.key_id {
+        conn.zadd(
+            by_key_key(user, k).as_bytes(),
+            &[(score, row.send_id.as_bytes())],
+        )?;
+    }
     Ok(())
 }
 

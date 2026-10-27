@@ -270,11 +270,12 @@ pub async fn callback(
         // otherwise be asked for, so there is nothing to park: link it and
         // say so. The callback is a top-level GET, so the SameSite=Lax
         // session cookie arrives with it.
-        None if crate::session::resolve_user_from_headers(&headers)
+        None if crate::session::resolve_session_user_from_headers(&headers)
             .await
             .is_some() =>
         {
-            let Some(address) = crate::session::resolve_user_from_headers(&headers).await else {
+            let Some(address) = crate::session::resolve_session_user_from_headers(&headers).await
+            else {
                 return login_redirect("failed");
             };
             let (iss, sub) = (identity.issuer.clone(), identity.subject.clone());

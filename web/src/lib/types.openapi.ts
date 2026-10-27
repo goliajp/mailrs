@@ -4464,7 +4464,7 @@ export interface paths {
         };
         /**
          * List the caller's sends with per-recipient delivery status
-         * @description One row per send attempt (not per conversation). Not yet read by the web UI.
+         * @description One row per send attempt (not per conversation). Not yet read by the web UI. An agent key with only the mail:send scope gets the sends that key made, not its owner's; with status, the page is filtered after it is read and can be shorter than limit.
          */
         get: operations["listSends"];
         put?: never;
