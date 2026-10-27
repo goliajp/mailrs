@@ -162,6 +162,7 @@ fn compare(baseline: &str, candidate: &str, root: &str, limit: usize) -> Result<
         });
         let peer_is_private = mailrs_inbound::identity::first_received_peer_ip(&raw)
             .is_some_and(mailrs_inbound::identity::address_is_private);
+        let shown_links = mailrs_inbound::body::shown_links(&parsed);
         let f = Facts {
             from: &from,
             domain: host,
@@ -184,6 +185,8 @@ fn compare(baseline: &str, candidate: &str, root: &str, limit: usize) -> Result<
             has_zero_width_inside_a_word: deception.zero_width_inside_a_word,
             offers_the_reader_a_sum: mailrs_inbound::body::offers_the_reader_a_sum(&parsed),
             asks_for_the_readers_line: mailrs_inbound::body::asks_for_the_readers_line(&parsed),
+            shown_links: &shown_links,
+            link_has_kit_placeholder: mailrs_inbound::body::link_has_kit_placeholder(&parsed),
             is_bulk: mailrs_inbound::body::is_bulk(&raw),
             has_executable_attachment: mailrs_fraud::attachment::any_executable(
                 parsed.attachments().filter_map(|p| p.attachment_filename()),

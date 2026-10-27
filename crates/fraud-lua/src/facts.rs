@@ -54,6 +54,7 @@ fn fill(lua: &mut Lua, t: LuaTable, f: &Facts<'_>, p: &Policy) -> Result<(), Str
         ("dkim", f.dkim.to_string()),
         ("dmarc", f.dmarc.to_string()),
         ("attachment_text", f.attachment_text.to_string()),
+        ("shown_links", f.shown_links.to_string()),
     ] {
         if v.len() > 64 * 1024 {
             return Err(format!("fact {k} exceeds 64 KiB"));
@@ -83,6 +84,7 @@ fn fill(lua: &mut Lua, t: LuaTable, f: &Facts<'_>, p: &Policy) -> Result<(), Str
         ("peer_is_private", f.peer_is_private),
         ("offers_the_reader_a_sum", f.offers_the_reader_a_sum),
         ("asks_for_the_readers_line", f.asks_for_the_readers_line),
+        ("link_has_kit_placeholder", f.link_has_kit_placeholder),
         ("is_bulk", f.is_bulk),
         (
             "attachment_offers_the_reader_a_sum",

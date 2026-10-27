@@ -73,6 +73,8 @@ pub(super) struct Evidence {
     attachment_names: Vec<String>,
     offers_the_reader_a_sum: bool,
     asks_for_the_readers_line: bool,
+    shown_links: String,
+    link_has_kit_placeholder: bool,
     subject: String,
     to_display: String,
     reply_rotation: u32,
@@ -116,6 +118,8 @@ impl Evidence {
             .collect();
         let offers_the_reader_a_sum = mailrs_inbound::body::offers_the_reader_a_sum(&parsed);
         let asks_for_the_readers_line = mailrs_inbound::body::asks_for_the_readers_line(&parsed);
+        let shown_links = mailrs_inbound::body::shown_links(&parsed);
+        let link_has_kit_placeholder = mailrs_inbound::body::link_has_kit_placeholder(&parsed);
         let subject = mailrs_inbound::subject_header(&receive_ctx.message);
         let to_display = mailrs_inbound::identity::to_display_name(&receive_ctx.message);
         let reply_to = mailrs_inbound::identity::reply_to_address(&receive_ctx.message);
@@ -138,6 +142,8 @@ impl Evidence {
             attachment_names,
             offers_the_reader_a_sum,
             asks_for_the_readers_line,
+            shown_links,
+            link_has_kit_placeholder,
             subject,
             to_display,
             reply_rotation,
@@ -169,6 +175,8 @@ impl Evidence {
             has_zero_width_inside_a_word: receive_ctx.deception.zero_width_inside_a_word,
             offers_the_reader_a_sum: self.offers_the_reader_a_sum,
             asks_for_the_readers_line: self.asks_for_the_readers_line,
+            shown_links: &self.shown_links,
+            link_has_kit_placeholder: self.link_has_kit_placeholder,
             is_bulk: mailrs_inbound::body::is_bulk(&receive_ctx.message),
             to_display: &self.to_display,
             reply_rotation: self.reply_rotation,
