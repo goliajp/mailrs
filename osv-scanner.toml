@@ -7,4 +7,5 @@ reason = "rsa Marvin attack: RSA is used only for DKIM signing and verification,
 
 [[IgnoredVulns]]
 id = "GHSA-qwgh-2vcv-g2f7"
+ignoreUntil = 2027-01-31T00:00:00Z
 reason = "block-buffer 0.10.4 under digest 0.10 (blake2/argon2, sha1, sha2, md-5, hmac, curve25519-dalek): the cursor is corrupted only when a compress callback panics and the caller catches it and keeps using the same hasher; the RustCrypto compression functions do not panic, and the one catch_unwind (PDF text extraction) drops everything built inside it; no fixed 0.10.x exists, the fix is 0.12.1, which the fuzz lockfiles already use; no RUSTSEC id yet, so deny.toml has nothing to match"
