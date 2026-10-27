@@ -27,6 +27,8 @@
 //! # }
 //! ```
 
+pub mod kevy;
+
 use std::path::PathBuf;
 use std::time::Duration;
 
