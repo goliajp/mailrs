@@ -18,6 +18,32 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### Signed-in submission refuses a null sender; lost outbound jobs are queued again
+
+- Submission (587/465, any signed-in session) answers `MAIL FROM:<>` with
+  `550 5.7.1 null sender not allowed on submission` at the end of DATA.
+  Before, the message was accepted, queued with an empty sender, and the
+  sender failed it as malformed without sending. Port 25 inbound still
+  takes a null sender.
+- The sender no longer drops a popped id silently when its claim does not
+  take: the reason is logged (no row, not pending, or changed while
+  claiming).
+- The recovery sweep (boot and every minute) also queues again a job that
+  is still `pending` but in no index, once it has not changed for five
+  minutes, beside resetting stale `inflight` jobs as before.
+
+### A large attachment can be sent
+
+- The core's `POST /v1/users/{user}/sent` takes a body of up to the
+  largest message in base64 (`MAX_REQUEST_BYTES`, from the 50 MiB SMTP
+  limit) on both cores. Axum's 2 MiB default had turned away the sent
+  copy of any message with an attachment of a few megabytes, and the send
+  failed with an empty 500 (2.130.0).
+- `/api/mail/send-multipart` answers failures in JSON: 413 with
+  `limit_bytes` (25 MiB) for an oversized form, and an `error` text when
+  the sent copy cannot be filed. A core request that gets no answer now
+  says why (refused, reset, timed out).
+
 ### Failed outbound mail is listed, and the overview marks only recent failures
 
 - The sender records who sent a failed job to whom along with when and
