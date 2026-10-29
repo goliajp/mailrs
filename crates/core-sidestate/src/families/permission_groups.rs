@@ -105,6 +105,69 @@ pub fn membership(conn: &mut Connection, address: &str) -> KevyResult<Membership
     })
 }
 
+/// Create a group and return its row. `now` is unix seconds.
+pub fn create(
+    conn: &mut Connection,
+    name: &str,
+    description: &str,
+    now: i64,
+) -> KevyResult<serde_json::Value> {
+    let id = conn.incr(GROUPS_COUNTER.as_bytes())?;
+    // same row shape as `GroupWire`; only the builtin `super` group is
+    // builtin. `domain` stays null: nothing scopes a group's permissions to
+    // a domain, so a group that named one would still grant everywhere
+    let row = serde_json::json!({
+        "id": id,
+        "name": name,
+        "description": description,
+        "domain": null,
+        "is_builtin": false,
+        "created_at": now,
+    });
+    conn.hset(
+        GROUPS_KEY.as_bytes(),
+        &[(id.to_string().as_bytes(), row.to_string().as_bytes())],
+    )?;
+    Ok(row)
+}
+
+/// Delete a group with its permissions and members. `false` for a builtin
+/// group, which stays.
+pub fn delete(conn: &mut Connection, id: i64) -> KevyResult<bool> {
+    let row = conn.hget(GROUPS_KEY.as_bytes(), id.to_string().as_bytes())?;
+    if row
+        .as_deref()
+        .and_then(parse_group)
+        .is_some_and(|g| g.is_builtin)
+    {
+        return Ok(false);
+    }
+    conn.hdel(GROUPS_KEY.as_bytes(), &[id.to_string().as_bytes()])?;
+    conn.del(&[permissions_key(id).as_bytes(), members_key(id).as_bytes()])?;
+    Ok(true)
+}
+
+/// Replace a group's permissions.
+pub fn set_permissions(conn: &mut Connection, id: i64, permissions: &[String]) -> KevyResult<()> {
+    let key = permissions_key(id);
+    conn.del(&[key.as_bytes()])?;
+    let refs: Vec<&[u8]> = permissions.iter().map(|s| s.as_bytes()).collect();
+    if !refs.is_empty() {
+        conn.sadd(key.as_bytes(), &refs)?;
+    }
+    Ok(())
+}
+
+pub fn add_member(conn: &mut Connection, id: i64, address: &str) -> KevyResult<()> {
+    conn.sadd(members_key(id).as_bytes(), &[address.as_bytes()])?;
+    Ok(())
+}
+
+pub fn remove_member(conn: &mut Connection, id: i64, address: &str) -> KevyResult<()> {
+    conn.srem(members_key(id).as_bytes(), &[address.as_bytes()])?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

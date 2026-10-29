@@ -178,6 +178,10 @@ impl LoginGuard for MemoryLoginGuard {
         }
     }
 
+    async fn raise(&self, alert: crate::alerts::Alert) -> io::Result<bool> {
+        self.run(|ops, _| crate::alerts::raise(ops, &alert))
+    }
+
     async fn take_alerts(&self, max: usize) -> io::Result<Vec<crate::alerts::Alert>> {
         self.run(|ops, _| crate::alerts::take(ops, max))
     }

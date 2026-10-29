@@ -8,7 +8,7 @@ use mailrs_core_sidestate::families::email_groups::{
     COUNTER_KEY as EG_CTR, GROUPS_KEY as EG_KEY, members_key as email_group_members_key,
 };
 use mailrs_core_sidestate::families::permission_groups::{
-    GROUPS_COUNTER, GROUPS_KEY, members_key, parse_group, permissions_key,
+    self as groups, GROUPS_KEY, members_key, permissions_key,
 };
 
 pub async fn list_groups() -> Result<Json<serde_json::Value>, StatusCode> {
@@ -29,47 +29,19 @@ pub struct CreateGroupRequest {
 }
 
 pub async fn create_group(
+    _: crate::session::confirm::Confirmed,
     Json(req): Json<CreateGroupRequest>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let id = with_kevy(|c| next_id(c, GROUPS_COUNTER))?;
-    // same row shape as `GroupWire`; only the builtin `super` group is
-    // builtin. `domain` stays null: nothing scopes a group's permissions to
-    // a domain, so a group that named one would still grant everywhere
-    let g = serde_json::json!({
-        "id": id,
-        "name": req.name,
-        "description": req.description,
-        "domain": null,
-        "is_builtin": false,
-        "created_at": now_secs(),
-    });
-    let payload = serde_json::to_vec(&g).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    with_kevy(move |c| {
-        c.hset(
-            GROUPS_KEY.as_bytes(),
-            &[(id.to_string().as_bytes(), payload.as_slice())],
-        )?;
-        Ok(())
-    })?;
-    Ok(Json(g))
+    let row = with_kevy(move |c| Ok(groups::create(c, &req.name, &req.description, now_secs())?))?;
+    Ok(Json(row))
 }
 
 /// DELETE /api/admin/groups/{id} — 409 for a builtin group.
-pub async fn delete_group(Path(id): Path<i64>) -> Result<StatusCode, StatusCode> {
-    let deleted = with_kevy(move |c| {
-        let row = c.hget(GROUPS_KEY.as_bytes(), id.to_string().as_bytes())?;
-        if row
-            .as_deref()
-            .and_then(parse_group)
-            .is_some_and(|g| g.is_builtin)
-        {
-            return Ok(false);
-        }
-        c.hdel(GROUPS_KEY.as_bytes(), &[id.to_string().as_bytes()])?;
-        c.del(&[permissions_key(id).as_bytes(), members_key(id).as_bytes()])?;
-        Ok(true)
-    })?;
-    match deleted {
+pub async fn delete_group(
+    _: crate::session::confirm::Confirmed,
+    Path(id): Path<i64>,
+) -> Result<StatusCode, StatusCode> {
+    match with_kevy(move |c| Ok(groups::delete(c, id)?))? {
         true => Ok(StatusCode::NO_CONTENT),
         false => Err(StatusCode::CONFLICT),
     }
@@ -93,18 +65,11 @@ pub struct SetGroupPermissionsRequest {
 }
 
 pub async fn set_group_permissions(
+    _: crate::session::confirm::Confirmed,
     Path(id): Path<i64>,
     Json(req): Json<SetGroupPermissionsRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    let key = permissions_key(id);
-    with_kevy(move |c| {
-        c.del(&[key.as_bytes()])?;
-        let refs: Vec<&[u8]> = req.permissions.iter().map(|s| s.as_bytes()).collect();
-        if !refs.is_empty() {
-            c.sadd(key.as_bytes(), &refs)?;
-        }
-        Ok(())
-    })?;
+    with_kevy(move |c| Ok(groups::set_permissions(c, id, &req.permissions)?))?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -126,26 +91,19 @@ pub struct AddGroupMemberRequest {
 }
 
 pub async fn add_group_member(
+    _: crate::session::confirm::Confirmed,
     Path(id): Path<i64>,
     Json(req): Json<AddGroupMemberRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    let key = members_key(id);
-    let addr = req.address;
-    with_kevy(move |c| {
-        c.sadd(key.as_bytes(), &[addr.as_bytes()])?;
-        Ok(())
-    })?;
+    with_kevy(move |c| Ok(groups::add_member(c, id, &req.address)?))?;
     Ok(StatusCode::NO_CONTENT)
 }
 
 pub async fn remove_group_member(
+    _: crate::session::confirm::Confirmed,
     Path((id, address)): Path<(i64, String)>,
 ) -> Result<StatusCode, StatusCode> {
-    let key = members_key(id);
-    with_kevy(move |c| {
-        c.srem(key.as_bytes(), &[address.as_bytes()])?;
-        Ok(())
-    })?;
+    with_kevy(move |c| Ok(groups::remove_member(c, id, &address)?))?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -193,6 +151,7 @@ pub struct CreateEmailGroupRequest {
 }
 
 pub async fn create_email_group(
+    _: crate::session::confirm::Confirmed,
     Json(req): Json<CreateEmailGroupRequest>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let id = with_kevy(|c| next_id(c, EG_CTR))?;
@@ -221,7 +180,10 @@ pub async fn create_email_group(
     Ok(Json(g))
 }
 
-pub async fn delete_email_group(Path(id): Path<i64>) -> Result<StatusCode, StatusCode> {
+pub async fn delete_email_group(
+    _: crate::session::confirm::Confirmed,
+    Path(id): Path<i64>,
+) -> Result<StatusCode, StatusCode> {
     with_kevy(move |c| {
         c.hdel(EG_KEY.as_bytes(), &[id.to_string().as_bytes()])?;
         c.del(&[email_group_members_key(id).as_bytes()])?;

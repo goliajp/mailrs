@@ -12,7 +12,6 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use password_hash::{PasswordHash, PasswordVerifier};
 use serde::Deserialize;
 
 use crate::WebState;
@@ -274,6 +273,7 @@ pub async fn verify_totp(
 /// session (address comes from the middleware).
 pub async fn change_password(
     State(state): State<Arc<WebState>>,
+    ClientIp(source): ClientIp,
     Extension(AuthedUser(address)): Extension<AuthedUser>,
     Json(req): Json<ChangePasswordRequest>,
 ) -> Response {
@@ -289,31 +289,42 @@ pub async fn change_password(
         return super::password::refused(weak);
     }
 
-    // Verify current password via fastcore RPC (same shape as login).
-    let acct = match state.core.get_account_with_hash(&address).await {
-        Ok(a) => a,
-        Err(e) => {
-            tracing::warn!(err = %e, "change_password: get_account_with_hash failed");
-            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    // The current password goes through the login guard like a sign-in:
+    // a stolen session must not be a way to guess it without limit.
+    let guard = &*crate::login_guard::GUARD;
+    let verdict = guard.check(source, &address).await;
+    if let Verdict::Locked { .. } = verdict {
+        guard
+            .record(LoginEvent::new(
+                Channel::Web,
+                Credential::Password,
+                source,
+                &address,
+                Outcome::Locked,
+            ))
+            .await;
+        return crate::login_guard::locked_response(verdict);
+    }
+    match super::password::verify(&state, &address, &req.current_password).await {
+        Err(status) => return status.into_response(),
+        Ok(Some(_)) => guard.succeeded(source, &address).await,
+        Ok(None) => {
+            guard.failed(source, &address).await;
+            guard
+                .record(LoginEvent::new(
+                    Channel::Web,
+                    Credential::Password,
+                    source,
+                    &address,
+                    Outcome::BadPassword,
+                ))
+                .await;
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({"error": "current password is incorrect"})),
+            )
+                .into_response();
         }
-    };
-    let hash = match acct.password_hash.as_deref() {
-        Some(h) if !h.is_empty() => h,
-        _ => return StatusCode::UNAUTHORIZED.into_response(),
-    };
-    let parsed = match PasswordHash::new(hash) {
-        Ok(p) => p,
-        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
-    };
-    if Argon2::default()
-        .verify_password(req.current_password.as_bytes(), &parsed)
-        .is_err()
-    {
-        return (
-            StatusCode::UNAUTHORIZED,
-            Json(serde_json::json!({"error": "current password is incorrect"})),
-        )
-            .into_response();
     }
 
     // Hash new password.

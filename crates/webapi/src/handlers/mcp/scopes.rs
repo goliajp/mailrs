@@ -135,6 +135,9 @@ pub(crate) fn tool_category(name: &str) -> Option<ToolCategory> {
 pub struct McpIdentity {
     pub user: String,
     pub scopes: Option<Vec<String>>,
+    /// The session's hash, for the tools that need a recent confirmation;
+    /// `None` for an agent key.
+    pub session: Option<crate::session::confirm::SessionRef>,
 }
 
 impl McpIdentity {
@@ -143,7 +146,11 @@ impl McpIdentity {
             true => None,
             false => Some(scopes),
         };
-        Self { user, scopes }
+        Self {
+            user,
+            scopes,
+            session: None,
+        }
     }
 
     /// The single scope gate, run before every tool call.

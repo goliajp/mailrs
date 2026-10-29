@@ -20,6 +20,10 @@ pub(super) fn auth_routes() -> axum::Router<Arc<WebState>> {
         .route("/api/auth/me", get(handlers::auth::auth_me))
         .route("/api/auth/logout", post(handlers::auth::logout))
         .route(
+            "/api/auth/confirm",
+            get(crate::session::confirm::status).post(crate::session::confirm::confirm),
+        )
+        .route(
             "/api/auth/change-password",
             post(handlers::auth::change_password),
         )

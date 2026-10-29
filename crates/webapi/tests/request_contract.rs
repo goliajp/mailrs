@@ -194,6 +194,13 @@ fn recovery_email_body_matches() {
 }
 
 #[test]
+fn confirm_body_matches() {
+    let v: mailrs_webapi::session::confirm::ConfirmRequest = parse("confirm");
+    assert_eq!(v.password, "the account password");
+    assert_eq!(v.code.as_deref(), Some("123456"));
+}
+
+#[test]
 fn totp_code_body_matches() {
     let v: handlers::auth_recovery::TotpCodeRequest = parse("totp-code");
     assert_eq!(v.code, "123456");
@@ -301,6 +308,7 @@ fn every_fixture_has_a_test() {
         "system-config-set",
         "unsubscribe",
         "totp-code",
+        "confirm",
         "webhook-create",
     ];
     let dir = format!(

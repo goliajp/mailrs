@@ -21,10 +21,13 @@ async fn a_deleted_account_keeps_no_session_and_no_agent_key() {
     }
     live.grant(ADMIN, "admin.accounts").await;
     let admin = live.login(ADMIN, "pw").await;
+    live.confirm(&admin, "pw").await;
 
     let alice = live.login(ALICE, "pw").await;
+    live.confirm(&alice, "pw").await;
     let alice_second = live.login(ALICE, "pw").await;
     let bob = live.login(BOB, "pw").await;
+    live.confirm(&bob, "pw").await;
     let (status, created) = live
         .call(
             Method::POST,
