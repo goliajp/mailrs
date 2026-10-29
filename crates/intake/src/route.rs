@@ -125,9 +125,23 @@ fn aliased<D: Directory + ?Sized>(dir: &D, fwd: &str) -> io::Result<Option<Strin
 }
 
 fn srs_original(raw: &str) -> Option<String> {
+    srs_original_with(raw, srs_secret().as_deref())
+}
+
+pub(crate) fn srs_original_with(raw: &str, secret: Option<&str>) -> Option<String> {
     if !raw.to_ascii_uppercase().starts_with("SRS0=") {
         return None;
     }
-    let secret = std::env::var("MAILRS_SRS_SECRET").ok()?;
-    mailrs_srs::reverse(raw, &secret, mailrs_srs::DEFAULT_TIMESTAMP_WINDOW_DAYS)
+    let secret = secret.filter(|s| !s.is_empty())?;
+    mailrs_srs::reverse(raw, secret, mailrs_srs::DEFAULT_TIMESTAMP_WINDOW_DAYS)
+}
+
+/// The SRS key, or `None` when SRS is off. Compose passes the variable as
+/// an empty string when `.env` lacks it, and an empty HMAC key is one
+/// anybody can sign with: every SRS0 address would reverse, and we would
+/// relay whatever arrived for it to any address outside.
+pub fn srs_secret() -> Option<String> {
+    std::env::var("MAILRS_SRS_SECRET")
+        .ok()
+        .filter(|s| !s.is_empty())
 }

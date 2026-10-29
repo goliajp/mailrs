@@ -8,7 +8,7 @@ use std::sync::Arc;
 use mailrs_core_sidestate::families::email_groups::Group;
 
 use crate::group::{Target, targets};
-use crate::route::{Directory, Route, base_address, route};
+use crate::route::{Directory, Route, base_address, route, srs_original_with};
 
 #[derive(Default)]
 struct Dir {
@@ -202,4 +202,18 @@ fn only_the_first_plus_splits_the_tag() {
     assert_eq!(base_address("a@x.jp"), None);
     assert_eq!(base_address("+b@x.jp"), None);
     assert_eq!(base_address("not-an-address"), None);
+}
+
+#[test]
+fn an_srs_address_reverses_only_under_a_real_key() {
+    let forged = mailrs_srs::rewrite("victim@example.com", "golia.jp", "");
+    assert_eq!(srs_original_with(&forged, Some("")), None);
+    assert_eq!(srs_original_with(&forged, None), None);
+
+    let ours = mailrs_srs::rewrite("friend@example.com", "golia.jp", "k3y");
+    assert_eq!(
+        srs_original_with(&ours, Some("k3y")).as_deref(),
+        Some("friend@example.com")
+    );
+    assert_eq!(srs_original_with(&forged, Some("k3y")), None);
 }
