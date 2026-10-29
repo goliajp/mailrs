@@ -27,6 +27,7 @@ pub async fn list_accounts(
 /// owns the embedded kevy accounts live in. 409 when the address exists:
 /// creating never rewrites an account.
 pub async fn add_account(
+    _: crate::session::confirm::Confirmed,
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Json(req): Json<wire::AddAccountRequest>,
@@ -43,6 +44,7 @@ pub async fn add_account(
 /// DELETE /api/admin/accounts/{address} — remove the account in fastcore,
 /// then end every session and agent key the address holds.
 pub async fn remove_account(
+    _: crate::session::confirm::Confirmed,
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Path(address): Path<String>,
@@ -62,6 +64,7 @@ pub struct SetAccountPasswordRequest {
 /// POST /api/admin/accounts/{address}/password — replace only the
 /// password hash; quota, recovery email and permissions stay as they are.
 pub async fn set_account_password(
+    _: crate::session::confirm::Confirmed,
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Path(address): Path<String>,
@@ -104,6 +107,7 @@ pub struct UpdateAccountRequest {
 /// PUT /api/admin/accounts/{address} — patch account fields via
 /// fastcore.
 pub async fn update_account(
+    _: crate::session::confirm::Confirmed,
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Path(address): Path<String>,
@@ -218,6 +222,7 @@ pub async fn get_account_overrides(
 }
 
 pub async fn set_account_overrides(
+    _: crate::session::confirm::Confirmed,
     State(_state): State<Arc<WebState>>,
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Path(address): Path<String>,

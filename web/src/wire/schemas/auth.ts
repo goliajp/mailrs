@@ -59,6 +59,22 @@ export const loginResponseSchema = z.union([loginTotpRequiredSchema, loginSucces
 
 export type WireLoginResponse = z.infer<typeof loginResponseSchema>
 
+// ── /auth/confirm ────────────────────────────────────────────────
+// Backend: crates/webapi/src/session/confirm.rs — fn status, fn confirm
+
+export const confirmStatusSchema = z.object({
+  confirmed: z.boolean(),
+  expires_in: z.number().nullable(),
+})
+
+export type WireConfirmStatus = z.infer<typeof confirmStatusSchema>
+
+/** The body of a refused confirmation: 401 or 403 with a code, 429 with a sentence. */
+export const confirmRefusalSchema = z.object({
+  error: z.string(),
+  remaining: z.number().optional(),
+})
+
 // ── /auth/totp/* ─────────────────────────────────────────────────
 
 export const totpStatusSchema = z.object({

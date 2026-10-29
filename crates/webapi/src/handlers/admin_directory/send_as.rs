@@ -35,6 +35,7 @@ pub async fn get_account_send_as(
 /// an entry that is not an address, 404 for an address that is not an
 /// account.
 pub async fn set_account_send_as(
+    _: crate::session::confirm::Confirmed,
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Path(address): Path<String>,

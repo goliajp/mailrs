@@ -56,6 +56,7 @@ async fn sessions_live_under_the_hash_of_their_token() {
     }
     live.grant(ADMIN, "admin.accounts").await;
     let admin = live.login(ADMIN, "pw").await;
+    live.confirm(&admin, "pw").await;
     let me = |token: String| {
         let live = &live;
         async move { live.call(Method::GET, "/api/auth/me", &token, None).await.0 }

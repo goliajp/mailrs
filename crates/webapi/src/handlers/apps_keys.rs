@@ -31,6 +31,7 @@ pub struct CreateAgentKeyRequest {
 }
 
 pub async fn create_agent_key(
+    _: crate::session::confirm::Confirmed,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Json(req): Json<CreateAgentKeyRequest>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
@@ -141,6 +142,7 @@ pub struct CreateAgentWebhookRequest {
 }
 
 pub async fn create_agent_webhook(
+    _: crate::session::confirm::Confirmed,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Json(req): Json<CreateAgentWebhookRequest>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {

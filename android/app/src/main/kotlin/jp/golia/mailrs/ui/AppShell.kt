@@ -209,6 +209,9 @@ fun MailrsApp(vm: MailViewModel, state: UiState) {
             screen == Screen.AccountDetail || screen == Screen.Source,
     )
 
+    // over whichever screen asked for the change it guards
+    state.confirm?.let { ConfirmPasswordDialog(it, vm) }
+
     Box(Modifier.fillMaxSize()) {
         for (candidate in Screen.entries) {
             AnimatedVisibility(

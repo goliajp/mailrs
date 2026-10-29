@@ -61,6 +61,9 @@ class MailViewModel(
 ) : AndroidViewModel(app) {
 
     internal val client = MailrsClient(TokenStore(app))
+
+    /** The answer the open password prompt is waiting to give; see `confirmed`. */
+    internal var confirmation: kotlinx.coroutines.CompletableDeferred<Boolean>? = null
     internal val prefs = Prefs(app)
     internal val cache = MailCache(app)
     internal var nextDraftId = 1

@@ -11,7 +11,8 @@
 use axum::http::StatusCode;
 use kevy_client::Connection;
 use mailrs_core_sidestate::keys::session::{
-    by_addr_key, legacy_session_key, session_key, session_key_by_ref, session_ref,
+    by_addr_key, confirm_failures_key, confirmed_key, legacy_session_key, session_key,
+    session_key_by_ref, session_ref,
 };
 
 use crate::handlers::kevy_util::with_kevy;
@@ -52,6 +53,14 @@ pub fn revoke_sessions(c: &mut Connection, address: &str) -> std::io::Result<usi
     for entry in &entries {
         let [stored, legacy, moved] = keys_of_entry(entry);
         c.del(&[stored.as_bytes(), legacy.as_bytes(), moved.as_bytes()])?;
+        // a confirmation outlives nothing it was made on
+        let entry = String::from_utf8_lossy(entry);
+        for session in [entry.to_string(), session_ref(&entry)] {
+            c.del(&[
+                confirmed_key(&session).as_bytes(),
+                confirm_failures_key(&session).as_bytes(),
+            ])?;
+        }
     }
     c.del(&[idx.as_bytes()])?;
     Ok(entries.len())

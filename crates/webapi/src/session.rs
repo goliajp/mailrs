@@ -26,6 +26,7 @@ use serde::Deserialize;
 use crate::WebState;
 use crate::handlers::conversations::AuthedUser;
 
+pub mod confirm;
 pub mod csrf;
 mod scopes;
 use scopes::agent_scopes_allow;
@@ -80,6 +81,8 @@ pub struct AgentAuth {
     /// The key's id in its owner's `agent:keys:` hash; `None` for a
     /// browser session.
     pub key_id: Option<i64>,
+    /// The session's hash; `None` for an agent key.
+    pub session: Option<confirm::SessionRef>,
 }
 
 /// The agent key a request came in with, next to `AuthedUser`. Absent for
@@ -141,6 +144,7 @@ async fn resolve_agent_key(token: String) -> Option<AgentAuth> {
                 user: index.user,
                 scopes,
                 key_id: Some(index.id),
+                session: None,
             }))
         })
     })
@@ -152,12 +156,15 @@ async fn resolve_agent_key(token: String) -> Option<AgentAuth> {
 /// The signed-in browser session's address, or `None`. An agent key does
 /// not count: what asks this (linking a sign-in method) would turn a key
 /// into a way to sign in as its owner.
-pub async fn resolve_session_user_from_headers(headers: &HeaderMap) -> Option<String> {
+pub async fn resolve_session_user_from_headers(
+    headers: &HeaderMap,
+) -> Option<(String, confirm::SessionRef)> {
     let token = extract_token(headers)?;
     if token.starts_with(AGENT_KEY_PREFIX) {
         return None;
     }
-    resolve_session(token).await.map(|s| s.address)
+    let session = confirm::SessionRef(mailrs_core_sidestate::keys::session::session_ref(&token));
+    resolve_session(token).await.map(|s| (s.address, session))
 }
 
 /// The signed-in browser session behind a request that the auth middleware
@@ -196,11 +203,14 @@ pub async fn resolve_auth_from_headers(headers: &HeaderMap) -> Option<AgentAuth>
     if token.starts_with(AGENT_KEY_PREFIX) {
         return resolve_agent_key(token).await;
     }
-    let session = resolve_session(token).await?;
+    let session = resolve_session(token.clone()).await?;
     Some(AgentAuth {
         user: session.address,
         scopes: Vec::new(),
         key_id: None,
+        session: Some(confirm::SessionRef(
+            mailrs_core_sidestate::keys::session::session_ref(&token),
+        )),
     })
 }
 
@@ -246,7 +256,7 @@ fn extract_token_with_source(headers: &HeaderMap) -> Option<(String, TokenSource
 /// Kevy TTL applied to the session key on every authenticated hit —
 /// sliding-window auth so a user actively using the app doesn't get
 /// logged out mid-session. Matches the cookie's Max-Age.
-const SESSION_TTL_SECS: u64 = 7 * 24 * 3600;
+pub(crate) const SESSION_TTL_SECS: u64 = 7 * 24 * 3600;
 
 /// Look up the session in kevy. Runs the blocking kevy-client call on a
 /// dedicated blocking thread so the axum runtime isn't pinned. On hit,
@@ -461,6 +471,9 @@ pub async fn session_auth_middleware(
         ));
     req.extensions_mut().insert(AuthedUser(session.address));
     req.extensions_mut().insert(AgentScopes::default());
+    req.extensions_mut().insert(confirm::SessionRef(
+        mailrs_core_sidestate::keys::session::session_ref(&token),
+    ));
     let mut resp = next.run(req).await;
     if issue_cookie {
         resp.headers_mut()

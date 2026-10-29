@@ -285,6 +285,70 @@
         }
       }
     },
+    "/api/auth/confirm": {
+      "get": {
+        "summary": "Whether this session confirmed its password recently",
+        "description": "Read only. `confirmed` is true for ten minutes after a successful POST to this path on the same session; `expires_in` is the seconds left, or null. An agent key gets 403 `agent_key_not_allowed`.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "confirmed": {
+                      "type": "boolean"
+                    },
+                    "expires_in": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "confirmed",
+                    "expires_in"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "agent_key_not_allowed"
+          }
+        }
+      },
+      "post": {
+        "summary": "Confirm the session's password",
+        "description": "Type the password again (and the one-time code when an authenticator is enrolled) before an operation that asks for it. Those operations answer 403 `confirm_required` until this succeeds, and 403 `agent_key_not_allowed` to agent keys. The confirmation lasts ten minutes and is not extended by use. Failures count toward the sign-in lockout; the fifth on one session ends it.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Confirmed for ten minutes"
+          },
+          "401": {
+            "description": "`confirm_failed` with `remaining`, `totp_required`, or `session_revoked`"
+          },
+          "403": {
+            "description": "agent_key_not_allowed"
+          },
+          "429": {
+            "description": "Locked after too many failed attempts"
+          }
+        }
+      }
+    },
     "/api/auth/me": {
       "get": {
         "operationId": "getMe",
@@ -10944,6 +11008,21 @@
         "required": [
           "address",
           "code"
+        ]
+      },
+      "ConfirmRequest": {
+        "type": "object",
+        "properties": {
+          "password": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "description": "One-time code or recovery code, when an authenticator is enrolled"
+          }
+        },
+        "required": [
+          "password"
         ]
       },
       "ChangePasswordRequest": {

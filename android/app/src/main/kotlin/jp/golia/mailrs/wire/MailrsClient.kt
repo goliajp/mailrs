@@ -382,10 +382,14 @@ class MailrsClient(private val store: TokenStore) {
             val text = response.body.string()
             when {
                 response.isSuccessful -> Outcome.Ok(text)
-                response.code == 401 -> refusal(request, text)?.let { Outcome.Err(it) } ?: run {
-                    rejected()
-                    Outcome.Err("Signed out — the server rejected this session.")
-                }
+                response.code == 401 -> confirmRefusal(text)
+                    ?: refusal(request, text)?.let { Outcome.Err(it) }
+                    ?: run {
+                        rejected()
+                        Outcome.Err("Signed out — the server rejected this session.")
+                    }
+                response.code == 403 && errorCode(text) == CONFIRM_REQUIRED ->
+                    Outcome.Err("Enter your password to continue.", CONFIRM_REQUIRED)
                 else -> Outcome.Err("The server answered ${response.code}.")
             }
         }
@@ -452,10 +456,14 @@ class MailrsClient(private val store: TokenStore) {
         else "https://$trimmed"
     }
 
-    /** Success, or something to say to the reader. */
+    /**
+     * Success, or something to say to the reader. `code` is the server's
+     * error code when the caller has to act on it rather than show it —
+     * `confirm_required` asks for the password again.
+     */
     sealed interface Outcome<out T> {
         data class Ok<T>(val value: T) : Outcome<T>
-        data class Err(val message: String) : Outcome<Nothing>
+        data class Err(val message: String, val code: String? = null) : Outcome<Nothing>
     }
 
     companion object {

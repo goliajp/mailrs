@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { registerConfirmAsker } from '@/lib/confirm-asker'
 import { http } from '@/lib/http'
 
 function refused(error: string): Response {
@@ -16,6 +17,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  registerConfirmAsker(null)
   vi.unstubAllGlobals()
   document.cookie = 'mailrs_csrf=; max-age=0; path=/'
 })
@@ -66,5 +68,49 @@ describe('http', () => {
     vi.stubGlobal('fetch', missing)
     expect((await http('/api/x', { method: 'POST' })).status).toBe(403)
     expect(missing).toHaveBeenCalledTimes(2)
+  })
+
+  // the server wants the password typed again: ask once, then send the
+  // same request again, reads included (an export or an audit read)
+  it('asks for the password on confirm_required and repeats the request', async () => {
+    const asker = vi.fn(async () => true)
+    registerConfirmAsker(asker)
+    const mock = vi
+      .fn()
+      .mockImplementationOnce(async () => refused('confirm_required'))
+      .mockImplementationOnce(async () => new Response('{}'))
+    vi.stubGlobal('fetch', mock)
+    const res = await http('/api/admin/audit/accounts')
+    expect(res.status).toBe(200)
+    expect(asker).toHaveBeenCalledTimes(1)
+    expect(mock).toHaveBeenCalledTimes(2)
+  })
+
+  it('returns the refusal untouched when the user cancels', async () => {
+    registerConfirmAsker(async () => false)
+    const mock = vi.fn(async () => refused('confirm_required'))
+    vi.stubGlobal('fetch', mock)
+    const res = await http('/api/agent/keys', { method: 'POST' })
+    expect(res.status).toBe(403)
+    expect(mock).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows one dialog for requests refused at the same time', async () => {
+    let finish: (confirmed: boolean) => void = () => {}
+    const asker = vi.fn(() => new Promise<boolean>((done) => (finish = done)))
+    registerConfirmAsker(asker)
+    const mock = vi.fn(async (input: string) => {
+      if (mock.mock.calls.filter((c) => c[0] === input).length === 1)
+        return refused('confirm_required')
+      return new Response('{}')
+    })
+    vi.stubGlobal('fetch', mock)
+    const both = Promise.all([http('/api/a'), http('/api/b')])
+    await vi.waitFor(() => expect(mock).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() => expect(asker).toHaveBeenCalled())
+    finish(true)
+    const [a, b] = await both
+    expect([a.status, b.status]).toEqual([200, 200])
+    expect(asker).toHaveBeenCalledTimes(1)
   })
 })

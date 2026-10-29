@@ -39,6 +39,7 @@ pub async fn get_account_forwards(
 /// when `address` is not an account; 400 when a target is not another
 /// account here.
 pub async fn set_account_forwards(
+    _: crate::session::confirm::Confirmed,
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Path(address): Path<String>,
