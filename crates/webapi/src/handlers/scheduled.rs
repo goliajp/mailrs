@@ -20,8 +20,6 @@ use mailrs_core_sidestate::families::outbound::SCHEDULED_IDX;
 use crate::WebState;
 use crate::handlers::conversations::AuthedUser;
 
-const SCHEDULED_KEY: &[u8] = SCHEDULED_IDX;
-
 /// POST /api/scheduled/{id}/cancel — G13.3. Removes the outbound
 /// entry from the scheduled zset and drops its envelope blob. Only
 /// the sender may cancel; a mismatch returns 404 (leaks no info).
@@ -30,23 +28,11 @@ pub async fn cancel_scheduled(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Path(id): Path<String>,
 ) -> StatusCode {
-    let hkey = mailrs_core_sidestate::families::outbound::job_key(&id);
-    let hkey_c = hkey.clone();
-    let id_c = id.clone();
-    let user_c = user.clone();
+    let Ok(id) = id.parse::<i64>() else {
+        return StatusCode::NOT_FOUND;
+    };
     let removed = crate::handlers::kevy_util::with_kevy(move |c| {
-        let Some(bytes) = c.hget(hkey_c.as_bytes(), b"blob")? else {
-            return Ok(false);
-        };
-        let Ok(env) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
-            return Ok(false);
-        };
-        if env.get("sender").and_then(|v| v.as_str()) != Some(user_c.as_str()) {
-            return Ok(false);
-        }
-        c.zrem(SCHEDULED_KEY, &[id_c.as_bytes()])?;
-        c.del(&[hkey_c.as_bytes()])?;
-        Ok(true)
+        mailrs_core_sidestate::families::outbound::cancel_scheduled(c, id, &user)
     })
     .unwrap_or(false);
     if removed {
@@ -78,23 +64,12 @@ pub async fn reschedule_scheduled(
     if req.scheduled_at <= now {
         return StatusCode::BAD_REQUEST;
     }
-    let hkey = mailrs_core_sidestate::families::outbound::job_key(&id);
-    let user_c = user.clone();
-    let id_c = id.clone();
-    let new_score = req.scheduled_at;
+    let Ok(id) = id.parse::<i64>() else {
+        return StatusCode::NOT_FOUND;
+    };
+    let at = req.scheduled_at;
     let rescheduled = crate::handlers::kevy_util::with_kevy(move |c| {
-        let Some(bytes) = c.hget(hkey.as_bytes(), b"blob")? else {
-            return Ok(false);
-        };
-        let Ok(env) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
-            return Ok(false);
-        };
-        if env.get("sender").and_then(|v| v.as_str()) != Some(user_c.as_str()) {
-            return Ok(false);
-        }
-        c.zrem(SCHEDULED_KEY, &[id_c.as_bytes()])?;
-        c.zadd(SCHEDULED_KEY, &[(new_score as f64, id_c.as_bytes())])?;
-        Ok(true)
+        mailrs_core_sidestate::families::outbound::reschedule(c, id, &user, at)
     })
     .unwrap_or(false);
     if rescheduled {

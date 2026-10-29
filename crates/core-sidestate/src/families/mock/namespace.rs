@@ -84,6 +84,20 @@ pub fn get_namespace(conn: &mut Connection, name: &str) -> MockResult<Option<Nam
 }
 
 /// The namespaces `owner` owns, or every namespace when `owner` is `None`.
+/// The namespace `name`, when `caller` may use it: its owner, or an
+/// administrator. Anyone else is told it does not exist, so a name cannot
+/// be probed for. Every REST and MCP entry point asks this, never
+/// `get_namespace` directly.
+pub fn namespace_for(
+    conn: &mut Connection,
+    name: &str,
+    caller: &str,
+    caller_is_admin: bool,
+) -> MockResult<Option<Namespace>> {
+    let found = get_namespace(conn, name)?;
+    Ok(found.filter(|ns| caller_is_admin || ns.owner.eq_ignore_ascii_case(caller)))
+}
+
 pub fn list_namespaces(conn: &mut Connection, owner: Option<&str>) -> MockResult<Vec<Namespace>> {
     let names = match owner {
         Some(o) => conn.smembers(owner_key(o).as_bytes())?,

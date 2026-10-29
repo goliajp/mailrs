@@ -104,10 +104,21 @@ pub(crate) async fn release_quarantined(
 /// A message nobody suspected has no verdict, and the answer is
 /// `null` rather than an empty one — "nothing was found" and "it was
 /// examined and cleared" are different facts.
+///
+/// The verdict is stored by Message-ID for every recipient at once, so
+/// the caller must have the message: another account's is a 404.
 pub(crate) async fn get_fraud_verdict(
     State(state): State<Arc<FastcoreState>>,
-    Path((_user, message_id)): Path<(String, String)>,
-) -> Json<serde_json::Value> {
+    Path((user, message_id)): Path<(String, String)>,
+) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+    match state.mailbox.user_message_facts(&user, &message_id) {
+        Ok(Some(_)) => {}
+        Ok(None) => return Err(axum::http::StatusCode::NOT_FOUND),
+        Err(e) => {
+            tracing::warn!(%message_id, error = %e, "reading the message's owner failed");
+            return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    }
     let stored = state
         .mailbox
         .fraud_verdict(&message_id)
@@ -118,5 +129,5 @@ pub(crate) async fn get_fraud_verdict(
     let verdict = stored
         .as_deref()
         .and_then(|raw| serde_json::from_str::<serde_json::Value>(raw).ok());
-    Json(serde_json::json!({ "verdict": verdict }))
+    Ok(Json(serde_json::json!({ "verdict": verdict })))
 }

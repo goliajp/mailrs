@@ -249,7 +249,7 @@ pub(crate) async fn mark_junk(
     if ok {
         crate::bayes_train::train_thread(&state, &user, &thread_id, true);
     }
-    action_result(ok)
+    filed_result(ok)
 }
 
 /// v2.4.1 Phase 3 (RFC-B §3.4) — mark a thread as not junk. The
@@ -269,7 +269,7 @@ pub(crate) async fn mark_not_junk(
     if ok {
         crate::bayes_train::train_thread(&state, &user, &thread_id, false);
     }
-    action_result(ok)
+    filed_result(ok)
 }
 
 /// v2.9 triage — move a thread into the Notifications bucket and train
@@ -289,7 +289,7 @@ pub(crate) async fn mark_notification(
     if ok {
         crate::bayes_train::train_triage(&state, &user, &thread_id, "notification");
     }
-    action_result(ok)
+    filed_result(ok)
 }
 
 /// v2.9 triage — move a thread into the Promotions bucket and train
@@ -309,7 +309,7 @@ pub(crate) async fn mark_promotion(
     if ok {
         crate::bayes_train::train_triage(&state, &user, &thread_id, "promotion");
     }
-    action_result(ok)
+    filed_result(ok)
 }
 
 /// v2.9 triage — move a thread back into the Inbox bucket and train the
@@ -325,7 +325,7 @@ pub(crate) async fn move_to_inbox(
     if ok {
         crate::bayes_train::train_triage(&state, &user, &thread_id, "inbox");
     }
-    action_result(ok)
+    filed_result(ok)
 }
 
 pub(crate) async fn unarchive_thread(
@@ -370,4 +370,14 @@ pub(crate) async fn delete_thread(
         );
     }
     action_result(existed)
+}
+
+/// A filing (junk, not junk, a triage bucket) that found no row of the
+/// caller's in the thread is a 404: the thread is not theirs to file.
+fn filed_result(ok: bool) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    match ok {
+        true => action_result(true),
+        false => axum::http::StatusCode::NOT_FOUND.into_response(),
+    }
 }
