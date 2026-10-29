@@ -623,40 +623,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/conversations/{thread_id}/messages/{uid}/reactions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Toggle an emoji reaction on a message */
-        put: operations["toggleReaction"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/conversations/{thread_id}/reactions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get all reactions for messages in a thread */
-        get: operations["getThreadReactions"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/contacts": {
         parameters: {
             query?: never;
@@ -2094,7 +2060,7 @@ export interface paths {
         put?: never;
         /**
          * Create admin oauth clients
-         * @description Stub — full schema TBD.
+         * @description Closed: answers 403 `oauth_client_registration_closed` until /oauth/authorize asks the user to approve each client.
          */
         post: {
             parameters: {
@@ -2117,6 +2083,13 @@ export interface paths {
                     content: {
                         "application/json": Record<string, never>;
                     };
+                };
+                /** @description Registration is closed until a consent step exists */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
                 };
             };
         };
@@ -5209,24 +5182,6 @@ export interface components {
             /** @enum {string} */
             action: "mark_important" | "mark_vip" | "mark_spam" | "mark_not_spam" | "mark_promotion" | "mark_personal";
         };
-        ToggleReactionRequest: {
-            emoji: string;
-        };
-        ReactionSummary: {
-            emoji: string;
-            /** Format: int64 */
-            count: number;
-            me: boolean;
-        };
-        ToggleReactionResponse: {
-            reactions: components["schemas"]["ReactionSummary"][];
-        };
-        ThreadReactionsResponse: {
-            /** @description Map of message ID to reaction summaries */
-            reactions: {
-                [key: string]: components["schemas"]["ReactionSummary"][];
-            };
-        };
         Domain: {
             name: string;
             /** Format: int64 */
@@ -6148,6 +6103,13 @@ export interface operations {
                     };
                 };
             };
+            /** @description Not an image type that renders without script (PNG, JPEG, GIF, WebP, BMP, AVIF) */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     serveInlineImage: {
@@ -6673,55 +6635,6 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
-            };
-        };
-    };
-    toggleReaction: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                thread_id: string;
-                uid: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ToggleReactionRequest"];
-            };
-        };
-        responses: {
-            /** @description Updated reactions for the message */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ToggleReactionResponse"];
-                };
-            };
-        };
-    };
-    getThreadReactions: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                thread_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Reactions grouped by message ID */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ThreadReactionsResponse"];
-                };
             };
         };
     };
