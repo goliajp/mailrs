@@ -6,13 +6,14 @@
 //! complaint rate keeps climbing because we keep mailing the person who
 //! complained.
 //!
-//! This ran nowhere in production before. The receiver has an
-//! equivalent block in `smtp_session/events/data/mod.rs`, but it sits
-//! after the `spool_sink` early return, so in the shipped configuration
-//! it is unreachable. Handling belongs here, where messages are
-//! actually processed.
+//! Anyone can write such a report, so one suppresses only when the
+//! message it carries is one we sent to the person complaining, and a
+//! reporter past its daily limit suppresses nothing more and raises an
+//! alert (`fbl_evidence`). Every report is audited (`fbl.report`).
 
 use mailrs_core_sidestate::families::suppression;
+
+use super::fbl_evidence as evidence;
 
 /// Local-parts that receive feedback-loop reports. Registering an FBL
 /// with an ESP requires one of these, so anything else is not a report
@@ -89,7 +90,64 @@ pub fn maybe_record_complaint(maildir_root: &str, rcpt: &str, body: &[u8]) {
         tracing::warn!(address = %complainant, "FBL: no kevy connection");
         return;
     };
-    let reason = format!("FBL complaint: {}", report.feedback_type);
+    let reporter = evidence::reporter_domain(body);
+    let original = evidence::embedded_original(body);
+    let matched = match &original {
+        Some(o) => evidence::we_sent_it(&mut conn, o, &complainant).unwrap_or_else(|e| {
+            tracing::warn!(error = %e, address = %complainant, "FBL: send record unreadable");
+            false
+        }),
+        None => false,
+    };
+    let message_id = original.as_ref().map_or("-", |o| o.message_id.as_str());
+    let detail = format!(
+        "reporter={reporter} type={} message_id={message_id} matched={matched}",
+        report.feedback_type
+    );
+    crate::live_sync::audit_system("fbl.report", &complainant, &detail);
+    // On the report's word alone nothing is suppressed: the message it
+    // complains about has to be one we sent to the person complaining.
+    if !matched {
+        tracing::warn!(
+            event = "fbl_report_unmatched",
+            address = %complainant,
+            %reporter,
+            %message_id,
+            "ARF report does not match a message we sent; nothing suppressed"
+        );
+        return;
+    }
+
+    let day = chrono::Utc::now().format("%Y%m%d").to_string();
+    match evidence::within_limit(&mut conn, &reporter, &day) {
+        Ok(true) => {}
+        Ok(false) => {
+            crate::live_sync::audit_system("fbl.rate_limited", &complainant, &detail);
+            tracing::warn!(event = "fbl_rate_limited", %reporter, address = %complainant,
+                "FBL reporter past its daily limit; not suppressed");
+            if evidence::first_alert(&mut conn, &reporter, &day).unwrap_or(false) {
+                evidence::send_alert(
+                    &format!("FBL complaints from {reporter} past the daily limit"),
+                    &format!(
+                        "{reporter} has sent more than {} matched feedback-loop complaints today (UTC {day}).\n\
+                         Complaints past the limit are logged and audited (action fbl.rate_limited) but do not suppress anyone.\n\
+                         Latest: {detail} address={complainant}",
+                        evidence::DAILY_LIMIT
+                    ),
+                );
+            }
+            return;
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, %reporter, "FBL: rate counter unavailable; not suppressed");
+            return;
+        }
+    }
+
+    let reason = format!(
+        "FBL complaint: {} from {reporter} about {message_id}",
+        report.feedback_type
+    );
     match suppression::add(
         &mut conn,
         &complainant,
@@ -97,13 +155,16 @@ pub fn maybe_record_complaint(maildir_root: &str, rcpt: &str, body: &[u8]) {
         &reason,
         now_secs(),
     ) {
-        Ok(()) => tracing::info!(
-            event = "fbl_complaint_recorded",
-            address = %complainant,
-            feedback_type = %report.feedback_type,
-            reported_domain = %report.reported_domain.as_deref().unwrap_or("-"),
-            "suppressed complainant permanently"
-        ),
+        Ok(()) => {
+            crate::live_sync::audit_system("fbl.suppressed", &complainant, &detail);
+            tracing::info!(
+                event = "fbl_complaint_recorded",
+                address = %complainant,
+                feedback_type = %report.feedback_type,
+                %reporter,
+                "suppressed complainant"
+            );
+        }
         Err(e) => tracing::warn!(error = %e, address = %complainant, "FBL: suppression failed"),
     }
 }
