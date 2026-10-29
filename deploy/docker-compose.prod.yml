@@ -162,6 +162,10 @@ services:
       MAILRS_HOSTNAME: mail.golia.ai
       MAILRS_ORG_NAMES: GOLIA株式会社,GOLIA K.K.
       MAILRS_FRAUD_RULES_FILE: /fraud-rules/active.lua
+      # Where an FBL reporter past its daily limit is reported
+      # (crates/intake/src/reports/fbl_evidence.rs); same pair as webapi's.
+      MAILRS_SECURITY_ALERT_TO: lihao@golia.jp
+      MAILRS_SECURITY_ALERT_FROM: noreply@golia.jp
       MAILRS_ORG_NAME_ALLOWED_DOMAINS: slack.com,github.com,atlassian.net
       MAILRS_SRS_SECRET: ${MAILRS_SRS_SECRET:-}
       # Must be an FQDN: it becomes Reporting-MTA in every DSN we
