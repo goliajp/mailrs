@@ -4740,24 +4740,75 @@
     },
     "/api/admin/suppressions": {
       "delete": {
-        "summary": "Delete admin suppressions",
-        "description": "Stub \u2014 full schema TBD.",
+        "summary": "Remove suppressed addresses",
+        "description": "With `address`, takes that one address off the suppression list (404 when it is not on it). Without it, removes every address. Audited as suppressions.remove / suppressions.clear.",
+        "parameters": [
+          {
+            "name": "address",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "204": {
             "description": "Done; empty body"
+          },
+          "404": {
+            "description": "The address is not suppressed"
           }
         }
       },
       "get": {
-        "summary": "Get admin suppressions",
-        "description": "Stub \u2014 full schema TBD.",
+        "summary": "List suppressed addresses",
+        "description": "Every address outbound mail is held back from. `source` is `hard_bounce` (expires after 90 days) or `complaint` (an ARF complaint about a message we sent to that address; stays until removed).",
         "responses": {
           "200": {
             "description": "Success",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "email": {
+                            "type": "string"
+                          },
+                          "source": {
+                            "type": "string",
+                            "enum": [
+                              "hard_bounce",
+                              "complaint"
+                            ]
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "added_at": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "email",
+                          "source",
+                          "reason",
+                          "added_at"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
                 }
               }
             }
@@ -6843,20 +6894,20 @@
           "content": {
             "application/json": {
               "schema": {
-                  "type": "object",
-                  "required": [
-                    "forward_to"
-                  ],
-                  "additionalProperties": false,
-                  "properties": {
-                    "forward_to": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
+                "type": "object",
+                "required": [
+                  "forward_to"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "forward_to": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
                     }
                   }
                 }
+              }
             }
           }
         },
@@ -6942,20 +6993,20 @@
           "content": {
             "application/json": {
               "schema": {
-                  "type": "object",
-                  "required": [
-                    "send_as"
-                  ],
-                  "additionalProperties": false,
-                  "properties": {
-                    "send_as": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
+                "type": "object",
+                "required": [
+                  "send_as"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "send_as": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
                     }
                   }
                 }
+              }
             }
           }
         },

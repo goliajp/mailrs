@@ -18,6 +18,35 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### Our own domain earns trust only with proof; a forged ARF report suppresses nobody (2.135.4)
+
+- A message arriving on port 25 skipped spam scoring when its envelope
+  sender was one of our domains and SPF or any DKIM signature passed.
+  A stranger could sign with their own domain under
+  `MAIL FROM:<x@golia.jp>`. Colleague-to-colleague mail does reach the
+  MX this way (the sender hands every local recipient to it over port
+  25), so the skip stays for it, but only when all three hold: the peer
+  is one of `MAILRS_TRUSTED_RELAY_IPS` (exact addresses; prod sets our
+  egress address), DMARC passed, and a passing DKIM signature is aligned
+  with a `From:` domain we host. Fraud holds still apply to it.
+- A `From:` naming one of our domains that fails DMARC now goes to Junk,
+  ahead of the recipient's whitelist. A DMARC lookup error does not
+  count as a failure.
+- An ARF report to abuse@ or postmaster@ suppressed whatever address it
+  named, for good, on its own word. It now suppresses only when the
+  message it carries is one we sent to that address, by the sender's
+  send record; anything else is logged and audited, not acted on. One
+  reporting domain can cause at most 20 suppressions a UTC day; past
+  that it is audited as `fbl.rate_limited` and one alert goes to
+  `MAILRS_SECURITY_ALERT_TO`. Every report is audited (`fbl.report`,
+  `fbl.suppressed`). Mail sent over SMTP submission keeps no send
+  record, so complaints about it are logged only.
+- The admin suppression list read and cleared a set nothing has written
+  since the per-address keys replaced it, so it showed nothing and
+  removed nothing. It now lists every suppressed address with its source
+  (`hard_bounce` or `complaint`) and reason, and
+  `DELETE /api/admin/suppressions?address=` removes one.
+
 ### Attachments cannot run script on the mail origin; deep MIME nesting cannot crash the receiver (2.135.3)
 
 - An attachment was served from the mail origin with the type its
