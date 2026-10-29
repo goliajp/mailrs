@@ -6,6 +6,18 @@ enum MailrsError: Error, LocalizedError, Equatable {
     case server(status: Int)
     case decoding(String)
     case transport(String)
+    /// A write the server could not take while restarting. Never repeated
+    /// here — sending, moving or deleting twice could do it twice.
+    case restarting
+    /// The server wants the password typed again first (`confirm_required`).
+    case confirmRequired
+    /// A wrong password or code at the confirmation, with the tries left
+    /// before the server ends the session.
+    case confirmFailed(remaining: Int)
+    /// The account has an authenticator; the confirmation needs its code.
+    case totpRequired
+    /// Too many wrong confirmations: the server ended this session.
+    case sessionEnded
 
     var errorDescription: String? {
         switch self {
@@ -14,6 +26,14 @@ enum MailrsError: Error, LocalizedError, Equatable {
         case let .server(status): "The server answered \(status)."
         case let .decoding(what): "The server sent something unexpected: \(what)"
         case let .transport(what): what
+        case .restarting: "The server is restarting. Try again in a moment."
+        case .confirmRequired: "Enter your password to continue."
+        case let .confirmFailed(remaining) where remaining == 1:
+            "Wrong password or code. 1 try left before you are signed out."
+        case let .confirmFailed(remaining):
+            "Wrong password or code. \(remaining) tries left before you are signed out."
+        case .totpRequired: "Enter the code from your authenticator app."
+        case .sessionEnded: "Signed out after too many wrong passwords."
         }
     }
 }
@@ -144,9 +164,12 @@ actor MailrsClient {
     }
 
 
+    /// A 503 is the server restarting during a deploy. A read waits the
+    /// `Retry-After` it gives and goes once more; a write is never
+    /// repeated, and says the server is restarting instead.
     func send(
         _ method: String, url: URL, body: Data?, authorized: Bool,
-        contentType: String = "application/json"
+        contentType: String = "application/json", retried: Bool = false
     ) async throws -> (Data, URLResponse) {
         var request = URLRequest(url: url)
         request.httpMethod = method
@@ -157,11 +180,37 @@ actor MailrsClient {
         if authorized, let token {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
+        let answer: (Data, URLResponse)
         do {
-            return try await session.data(for: request)
+            answer = try await session.data(for: request)
         } catch {
             throw MailrsError.transport(error.localizedDescription)
         }
+        guard let http = answer.1 as? HTTPURLResponse else { return answer }
+        if http.statusCode == 403, Self.errorCode(answer.0) == "confirm_required" {
+            throw MailrsError.confirmRequired
+        }
+        guard http.statusCode == 503 else { return answer }
+        guard method == "GET", !retried else { throw MailrsError.restarting }
+        let wait = Self.retryAfterMs(http.value(forHTTPHeaderField: "Retry-After"))
+        try? await Task.sleep(for: .milliseconds(wait))
+        return try await send(
+            method, url: url, body: body, authorized: authorized,
+            contentType: contentType, retried: true
+        )
+    }
+
+    /// The `error` field of a JSON error body, if there is one.
+    nonisolated static func errorCode(_ body: Data) -> String? {
+        (try? JSONSerialization.jsonObject(with: body) as? [String: Any])?["error"] as? String
+    }
+
+    /// How long a read waits before asking a restarting server again: its
+    /// `Retry-After` in seconds, at most thirty; five when it gives none.
+    nonisolated static func retryAfterMs(_ header: String?) -> Int {
+        guard let seconds = header.flatMap({ Int($0.trimmingCharacters(in: .whitespaces)) }),
+              seconds > 0 else { return 5_000 }
+        return min(seconds * 1000, 30_000)
     }
 }
 

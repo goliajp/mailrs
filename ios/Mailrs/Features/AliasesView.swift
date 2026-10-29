@@ -77,7 +77,8 @@ struct AliasesView: View {
                     }
                 }
             }
-            .sheet(isPresented: $adding) { addSheet }
+            .confirmPrompt()
+            .sheet(isPresented: $adding) { addSheet.confirmPrompt() }
             .alert("Delete alias?", isPresented: deleteBinding, presenting: pendingDelete) { alias in
                 Button("Delete", role: .destructive) {
                     Task { await delete(alias) }

@@ -67,7 +67,8 @@ struct AgentKeysView: View {
                     }
                 }
             }
-            .sheet(isPresented: $adding) { addSheet }
+            .confirmPrompt()
+            .sheet(isPresented: $adding) { addSheet.confirmPrompt() }
             .sheet(item: secretBinding) { made in
                 SecretOnceSheet(secret: made.secret)
             }
