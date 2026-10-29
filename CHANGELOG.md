@@ -18,6 +18,23 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### Attachments cannot run script on the mail origin; deep MIME nesting cannot crash the receiver (2.135.3)
+
+- An attachment was served from the mail origin with the type its
+  sender declared and `Content-Disposition: inline`, so an HTML or SVG
+  attachment opened from a message ran the sender's script with the
+  reader's session. Only types a browser shows without running anything
+  (PNG, JPEG, GIF, WebP, BMP, AVIF, PDF, plain text, audio, video) now
+  open in place; everything else downloads. Every attachment response
+  carries `X-Content-Type-Options: nosniff`, and every one but a PDF a
+  sandboxing `Content-Security-Policy`, since Chrome will not show a PDF
+  in a sandboxed document.
+- The MIME parser followed nested multiparts as deep as the sender
+  wrote them. A message of a few hundred kilobytes nested a few thousand
+  levels deep overflowed the receiver's stack and ended every SMTP
+  session at once. Nesting now stops at 100 levels (Postfix's default),
+  and what lies below is kept as one opaque part.
+
 ### An empty SRS key no longer relays mail for strangers (2.135.2)
 
 - Compose passes `MAILRS_SRS_SECRET` as an empty string when it is not
