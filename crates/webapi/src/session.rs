@@ -52,11 +52,10 @@ use mailrs_core_sidestate::keys::session::session_key;
 
 /// Agent API keys (`mk_…`, created via POST /api/agent/keys) are an
 /// alternative bearer credential for machine callers. The secret index
-/// `agent:key:secret:<key>` stores `{"user":…,"id":…}`; the key is live
+/// (`agent_key_index`, by the key's hash) stores `{"user":…,"id":…}`; the key is live
 /// only while its record still exists in the `agent:keys:<user>` hash,
 /// so deletion revokes immediately even though the index lingers.
 pub(crate) const AGENT_KEY_PREFIX: &str = "mk_";
-const AGENT_KEY_INDEX_PREFIX: &str = "agent:key:secret:";
 
 #[derive(Debug, Deserialize)]
 struct AgentKeyIndex {
@@ -104,7 +103,7 @@ async fn resolve_agent_key(token: String) -> Option<AgentAuth> {
     // out; the URL lives in the pool, so it is no longer threaded in here.
     tokio::task::spawn_blocking(move || -> std::io::Result<Option<AgentAuth>> {
         crate::kevy_pool::with_conn(move |client| {
-            let index_key = format!("{AGENT_KEY_INDEX_PREFIX}{token}");
+            let index_key = crate::agent_key_index::index_key(&token);
             let Some(raw) = client.get(index_key.as_bytes())? else {
                 tracing::debug!(reason = "agent_key_miss", "agent key rejected");
                 return Ok(None);
