@@ -48,7 +48,9 @@ impl MailrsMcpService {
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
         self.require_confirmed()?;
-        self.require_admin(&user).await?;
+        crate::handlers::kevy_util::require_permission(&self.state, &user, "admin.accounts")
+            .await
+            .map_err(|_| McpError::invalid_request("admin.accounts permission required", None))?;
         mailrs_auth_guard::password::check_new(&params.password, &params.address)
             .map_err(|weak| McpError::invalid_params(weak.to_string(), None))?;
         let req = mailrs_core_api::method::admin::AddAccountRequest {
@@ -72,7 +74,9 @@ impl MailrsMcpService {
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
         self.require_confirmed()?;
-        self.require_admin(&user).await?;
+        crate::handlers::kevy_util::require_permission(&self.state, &user, "admin.accounts")
+            .await
+            .map_err(|_| McpError::invalid_request("admin.accounts permission required", None))?;
         self.state
             .core
             .remove_account(&params.address)
