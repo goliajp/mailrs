@@ -3,7 +3,7 @@ import type { AuthInfo } from '../auth'
 import { createStore } from 'jotai/vanilla'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { authAtom, getToken } from '../auth'
+import { authAtom, isSignedIn } from '../auth'
 
 const STORAGE_KEY = 'mailrs_auth'
 
@@ -12,7 +12,6 @@ const sampleAuth: AuthInfo = {
   address: 'user@example.com',
   display_name: 'Test User',
   permissions: [],
-  token: 'tok-abc123',
 }
 
 // localStorage mock that supports all needed methods
@@ -53,15 +52,14 @@ describe('authAtom', () => {
     expect(store.get(authAtom)).toBeNull()
   })
 
-  it('reads AuthInfo from localStorage via getToken after set', () => {
+  it('reads AuthInfo from localStorage via isSignedIn after set', () => {
     // baseAuthAtom initializes at module load time, so we verify round-trip:
-    // set via authAtom → data persists in mockStorage → getToken can read it back
+    // set via authAtom → data persists in mockStorage → isSignedIn reads it back
     const store = createStore()
     store.set(authAtom, sampleAuth)
     const stored = JSON.parse(mockStorage.getItem(STORAGE_KEY) ?? 'null')
     expect(stored).toEqual(sampleAuth)
-    // getToken reads directly from localStorage, not from the atom
-    expect(getToken()).toBe(sampleAuth.token)
+    expect(isSignedIn()).toBe(true)
   })
 
   it('writes AuthInfo to localStorage when set', () => {
@@ -92,7 +90,7 @@ describe('authAtom', () => {
   })
 })
 
-describe('getToken', () => {
+describe('isSignedIn', () => {
   let mockStorage: Storage
 
   beforeEach(() => {
@@ -104,18 +102,22 @@ describe('getToken', () => {
     vi.unstubAllGlobals()
   })
 
-  it('returns null when no auth in localStorage', () => {
-    expect(getToken()).toBeNull()
+  it('is false when no profile is stored', () => {
+    expect(isSignedIn()).toBe(false)
   })
 
-  it('returns token string when auth is stored', () => {
+  it('is true when a profile is stored', () => {
     mockStorage.setItem(STORAGE_KEY, JSON.stringify(sampleAuth))
-    expect(getToken()).toBe('tok-abc123')
+    expect(isSignedIn()).toBe(true)
   })
 
-  it('reflects updated token after authAtom is set', () => {
-    const store = createStore()
-    store.set(authAtom, { ...sampleAuth, token: 'new-token-xyz' })
-    expect(getToken()).toBe('new-token-xyz')
+  // the session moved to an HttpOnly cookie; a token an older build
+  // stored must not stay readable by scripts
+  it('drops a token an older build stored, keeping the profile', () => {
+    mockStorage.setItem(STORAGE_KEY, JSON.stringify({ ...sampleAuth, token: 'old-token' }))
+    expect(isSignedIn()).toBe(true)
+    const stored = JSON.parse(mockStorage.getItem(STORAGE_KEY) ?? 'null')
+    expect(stored).toEqual(sampleAuth)
+    expect(mockStorage.getItem(STORAGE_KEY)).not.toContain('old-token')
   })
 })

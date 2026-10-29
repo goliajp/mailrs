@@ -9,8 +9,6 @@
  * is planned for §D).
  */
 
-import { getToken } from '@/store/auth'
-
 import { wireFetch } from '../client'
 import {
   deleteDraftResultSchema,
@@ -202,15 +200,7 @@ export const wireRecordFeedback = (
  * page has ever called it; iOS gained a viewer for it this week.
  */
 export async function wireGetMessageSource(uid: number): Promise<string> {
-  // `getToken()`, not a localStorage key spelled again here — the
-  // store owns where the token lives, and a second spelling is a
-  // second thing to get wrong the day it moves.
-  const token = getToken()
-  const headers: Record<string, string> = {}
-  if (token) headers.Authorization = `Bearer ${token}`
-  const res = await fetch(`/api/mail/messages/${encodeURIComponent(String(uid))}/raw`, {
-    headers,
-  })
+  const res = await fetch(`/api/mail/messages/${encodeURIComponent(String(uid))}/raw`)
   if (!res.ok) throw new Error(`The server answered ${res.status}`)
   return res.text()
 }

@@ -33,15 +33,12 @@ export const wireGetOidcConfig = (): Promise<WireOidcConfig> =>
   wireFetch(oidcConfigSchema, { path: '/auth/oidc/config' })
 
 /**
- * `GET /auth/me` uses an explicit bearer token (not the ambient
- * `getToken()` from auth store) because it's called on the OIDC
- * callback right after the auth atom is set — the store might not
- * have propagated to `getToken()` yet.
+ * `GET /auth/me` through the session cookie. Plain `fetch` rather than
+ * `wireFetch`: the login page calls it to ask whether a cookie session
+ * exists, and a 401 there means "not yet", not "send to the login page".
  */
-export async function wireGetMe(token: string): Promise<WireAuthMe> {
-  const res = await fetch('/api/auth/me', {
-    headers: { Authorization: `Bearer ${token}` },
-  })
+export async function wireGetMe(): Promise<WireAuthMe> {
+  const res = await fetch('/api/auth/me')
   if (!res.ok) throw new Error(`auth/me ${res.status}`)
   const raw = await res.json()
   return authMeSchema.parse(raw)

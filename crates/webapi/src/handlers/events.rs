@@ -4,11 +4,10 @@
 //! (SET frames under the `mailrs:events:notify:*` prefix) — durable
 //! across webapi restarts, no PUBSUB dependency.
 //!
-//! Auth: uses the session-auth middleware — a valid session cookie
-//! or bearer token is required just like every other authenticated
-//! route. The upgrade request goes through the same middleware
-//! stack, so a missing/invalid session gets a 401 before the WS
-//! upgrade completes.
+//! Auth: checked in the handler, from the same token sources as the
+//! session middleware (the browser sends its session cookie on a
+//! same-origin upgrade). A missing or invalid session gets a 401 before
+//! the upgrade completes.
 //!
 //! These connections are deliberately **not pooled**. A feed consumer holds
 //! one for the life of the process and blocks on it; handing it back to a
@@ -27,15 +26,9 @@ use axum::extract::ws::{Message, WebSocket};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use futures_util::{SinkExt, StreamExt};
-use serde::Deserialize;
 use tokio::sync::broadcast;
 
 use crate::WebState;
-
-#[derive(Debug, Deserialize)]
-pub struct WsQuery {
-    pub token: Option<String>,
-}
 
 /// Shared broadcast bus — one subscriber owns the kevy net client's
 /// blocking subscribe loop; per-WS handlers each own a broadcast::Receiver.
@@ -43,38 +36,26 @@ pub struct WsQuery {
 /// initialized on the first WS upgrade.
 pub type EventBus = broadcast::Sender<String>;
 
-/// `GET /api/events?token=<hex>` — upgrade to WS, then stream kevy
-/// pubsub frames. Auth is done here (not in middleware) because
-/// browser WebSockets can only pass credentials via query string
-/// or cookie, and the frontend uses `?token=`.
+/// `GET /api/events` — upgrade to WS, then stream kevy feed frames.
+/// Auth is done here, not in the middleware, but from the same sources:
+/// the browser sends the session cookie on a same-origin upgrade.
 pub async fn ws_events(
     ws: WebSocketUpgrade,
-    axum::extract::Query(query): axum::extract::Query<WsQuery>,
+    headers: axum::http::HeaderMap,
+    uri: axum::http::Uri,
     axum::extract::State(state): axum::extract::State<Arc<WebState>>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    let token = query.token.as_deref().ok_or(StatusCode::UNAUTHORIZED)?;
-    // Verify the session exists in shared kevy — same key the auth
-    // middleware reads.
-    let kevy_url =
-        std::env::var("MAILRS_KEVY_URL").map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let key = mailrs_core_sidestate::keys::session::session_key(token);
-    let session = tokio::task::spawn_blocking(move || -> std::io::Result<Option<Vec<u8>>> {
-        let mut c = kevy_client::Connection::connect(&kevy_url)?;
-        Ok(c.get(key.as_bytes())?)
-    })
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    .ok_or(StatusCode::UNAUTHORIZED)?;
-    let user = session_address(&session).ok_or(StatusCode::UNAUTHORIZED)?;
+    let address = crate::session::resolve_session_user(&headers, &uri)
+        .await
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+    let user = normalized_user(&address).ok_or(StatusCode::UNAUTHORIZED)?;
     let bus = get_or_init_bus(state.clone()).await;
     Ok(ws.on_upgrade(move |socket| handle_ws(socket, bus, user)))
 }
 
-/// The address a stored session belongs to.
-fn session_address(raw: &[u8]) -> Option<String> {
-    let v: serde_json::Value = serde_json::from_slice(raw).ok()?;
-    let address = v.get("address")?.as_str()?.trim();
+/// The address events are matched against.
+fn normalized_user(address: &str) -> Option<String> {
+    let address = address.trim();
     (!address.is_empty()).then(|| address.to_ascii_lowercase())
 }
 
@@ -253,10 +234,9 @@ mod tests {
     #[test]
     fn a_session_names_its_user() {
         assert_eq!(
-            session_address(br#"{"address":"Bob@Golia.jp","display_name":"B"}"#).as_deref(),
+            normalized_user(" Bob@Golia.jp ").as_deref(),
             Some("bob@golia.jp")
         );
-        assert_eq!(session_address(br#"{"address":""}"#), None);
-        assert_eq!(session_address(b"garbage"), None);
+        assert_eq!(normalized_user(""), None);
     }
 }

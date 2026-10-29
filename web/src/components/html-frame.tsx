@@ -5,7 +5,6 @@ import { useEffect, useMemo, useRef } from 'react'
 
 import { cjkFonts, cjkLang, injectCjkFonts } from '@/lib/cjk-fonts'
 import { fitHeight, fitScale, shouldReflowTable } from '@/lib/fit-to-width'
-import { getToken } from '@/store/auth'
 
 // HTML attribute values arrive with entity-encoded specials, e.g. LinkedIn
 // signed CDN URLs come through as src="https://media.licdn.com/…?e=…&amp;v=beta&amp;t=…"
@@ -37,13 +36,11 @@ function decodeHtmlEntities(s: string): string {
 // than serialising them through the server), and `stripTrackingPixels`
 // has already deleted 1×1 beacons before this point.
 function proxyLinks(html: string): string {
-  const token = getToken()
-  const tokenParam = token ? `&token=${encodeURIComponent(token)}` : ''
   return html.replace(
     /(<a\b[^>]*\bhref\s*=\s*["'])(https?:\/\/[^"']+)(["'])/gi,
     (_match, before, url, after) => {
       const cleanUrl = decodeHtmlEntities(url)
-      return `${before}/api/proxy/link?url=${encodeURIComponent(cleanUrl)}${tokenParam}${after}`
+      return `${before}/api/proxy/link?url=${encodeURIComponent(cleanUrl)}${after}`
     }
   )
 }
@@ -67,15 +64,13 @@ function rewriteCidImages(html: string, uid: number, attachments: AttachmentInfo
     if (key) cidToIndex.set(key, idx)
   })
   if (cidToIndex.size === 0) return html
-  const token = getToken()
-  const tokenParam = token ? `?token=${encodeURIComponent(token)}` : ''
   return html.replace(
     /(<img\b[^>]*\bsrc\s*=\s*["'])cid:([^"']+)(["'])/gi,
     (match, before, rawCid, after) => {
       const key = rawCid.replace(/^<|>$/g, '').trim().toLowerCase()
       const idx = cidToIndex.get(key)
       if (idx === undefined) return match
-      return `${before}/api/mail/messages/${uid}/attachments/${idx}/content${tokenParam}${after}`
+      return `${before}/api/mail/messages/${uid}/attachments/${idx}/content${after}`
     }
   )
 }

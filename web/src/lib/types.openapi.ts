@@ -3040,7 +3040,7 @@ export interface paths {
         };
         /**
          * SMTP live monitor stream
-         * @description WebSocket upgrade. Streams one bare `SmtpEvent` JSON object per frame — the protocol trace published by `mailrs-receiver`. Distinct from `/api/events`, which carries inbox changes. Auth via `?token=`, because a browser WebSocket cannot set a header.
+         * @description WebSocket upgrade. Streams one bare `SmtpEvent` JSON object per frame — the protocol trace published by `mailrs-receiver`. Distinct from `/api/events`, which carries inbox changes. Auth: the session cookie, which a browser sends on a same-origin upgrade, or `Authorization: Bearer` from other clients. A `?token=` query is deprecated.
          */
         get: {
             parameters: {

@@ -18,7 +18,7 @@ import { escapeHtml } from '@/lib/html-utils'
 import { queryClient } from '@/lib/query-client'
 import { mailKeys } from '@/lib/query-keys'
 import { epochSecondsFromLocalInput, parseAddressList, sendMail } from '@/lib/send-mail'
-import { authAtom, getToken } from '@/store/auth'
+import { authAtom } from '@/store/auth'
 import {
   composeDraftSourceAtom,
   composeRedraftSourceAtom,
@@ -277,7 +277,6 @@ export function NewConversation() {
         scheduledAt: epochSecondsFromLocalInput(scheduledAt),
         subject,
         to: recipients,
-        token: getToken() ?? '',
       })
 
       if (result.success) {
