@@ -1,6 +1,6 @@
 //! v2.0.0 MCP tool batch 6 — outbound queue admin introspection.
 //! Mirrors the REST `list_admin_queue` handler at
-//! `handlers::complete::list_admin_queue`. Admin-gated read-only.
+//! `handlers::complete::list_admin_queue`. Super-administrator only.
 
 use rmcp::ErrorData as McpError;
 use rmcp::model::{CallToolResult, ContentBlock};
@@ -13,11 +13,11 @@ use mailrs_core_sidestate::families::outbound::{PENDING_IDX, RETRY_IDX};
 #[tool_router(router = tool_router_v2_batch6, vis = "pub")]
 impl MailrsMcpService {
     #[tool(
-        description = "List the current outbound queue (up to 100 IDs each from pending, retrying and inflight) with each envelope's sender / recipient / subject. Admin-gated read."
+        description = "List the current outbound queue (up to 100 IDs each from pending, retrying and inflight) with each envelope's sender / recipient / subject. Super-administrator only."
     )]
     async fn list_admin_queue(&self) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
-        self.require_admin(&user).await?;
+        self.require_super(&user).await?;
         let (pending_ids, retrying_ids, inflight_ids) = with_kevy(|c| {
             let pending = c.lrange(PENDING_IDX, 0, 99).unwrap_or_default();
             let retrying = c.zrange(RETRY_IDX, 0, 99).unwrap_or_default();
@@ -62,11 +62,11 @@ impl MailrsMcpService {
     }
 
     #[tool(
-        description = "List IDs on the outbound `failed` set (deliveries that hit a terminal error and are held for operator inspection). Admin-gated."
+        description = "List IDs on the outbound `failed` set (deliveries that hit a terminal error and are held for operator inspection). Super-administrator only."
     )]
     async fn list_failed_outbound(&self) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
-        self.require_admin(&user).await?;
+        self.require_super(&user).await?;
         let raw = with_kevy(|c| {
             c.smembers(mailrs_core_sidestate::families::outbound::FAILED_SET)
                 .map_err(std::io::Error::from)

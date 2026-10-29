@@ -467,13 +467,13 @@ impl MailrsMcpService {
         Ok(ok_result())
     }
 
-    #[tool(description = "Read the admin audit log, newest first (requires an admin permission).")]
+    #[tool(description = "Read the admin audit log, newest first (super administrator only).")]
     async fn get_audit_log(
         &self,
         Parameters(params): Parameters<AuditQueryParams>,
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
-        self.require_admin(&user).await?;
+        self.require_super(&user).await?;
         let limit = params.limit as i64;
         let rows = crate::handlers::kevy_util::with_kevy(move |c| {
             c.lrange(mailrs_core_sidestate::keys::admin::AUDIT_LOG, 0, limit - 1)

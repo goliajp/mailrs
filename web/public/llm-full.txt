@@ -133,10 +133,10 @@ Config for Claude Code or any MCP client:
 
 | Tool | Permission | Description |
 |------|-----------|-------------|
-| get_audit_log | admin.accounts | Retrieve recent audit log entries with optional limit |
+| get_audit_log | super administrator | Retrieve recent audit log entries with optional limit |
 | list_auth_events | admin.accounts | Sign-in attempts on every way in, newest first, filtered by account, source, result (ok, bad-password, locked, mfa-required, mfa-failed, …), channel (web, verify, imap, pop3, smtp, managesieve, dav, api-key) and time; kept 90 days |
-| audit_list_conversations | admin.accounts | List conversations for any account (admin read across user mailboxes) |
-| audit_read_thread | admin.accounts | Read messages of a specific thread for any account (admin override) |
+| audit_list_conversations | super administrator | List conversations for any account (admin read across user mailboxes) |
+| audit_read_thread | super administrator | Read messages of a specific thread for any account (admin override) |
 
 ### System
 
