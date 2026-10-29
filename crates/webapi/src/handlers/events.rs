@@ -45,9 +45,12 @@ pub async fn ws_events(
     uri: axum::http::Uri,
     axum::extract::State(state): axum::extract::State<Arc<WebState>>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    let address = crate::session::resolve_session_user(&headers, &uri)
+    let (address, source) = crate::session::resolve_session_user(&headers, &uri)
         .await
         .ok_or(StatusCode::UNAUTHORIZED)?;
+    if !crate::session::websocket_origin_ok(&headers, source) {
+        return Err(StatusCode::FORBIDDEN);
+    }
     let user = normalized_user(&address).ok_or(StatusCode::UNAUTHORIZED)?;
     let bus = get_or_init_bus(state.clone()).await;
     Ok(ws.on_upgrade(move |socket| handle_ws(socket, bus, user)))

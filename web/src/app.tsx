@@ -26,6 +26,7 @@ import { useIsMobile } from '@/hooks/use-is-mobile'
 import { useMailEvents } from '@/hooks/use-mail-events'
 import { useRefreshProfile } from '@/hooks/use-refresh-profile'
 import { MPane } from '@/layouts/pane'
+import { http } from '@/lib/http'
 import { dashboardLoader, mailListLoader } from '@/lib/route-loaders'
 import { Login } from '@/pages/login'
 import { ResetPassword } from '@/pages/reset-password'
@@ -291,7 +292,7 @@ function StatusBar() {
 
   const fetchHealth = useCallback(async () => {
     try {
-      const res = await fetch('/api/health')
+      const res = await http('/api/health')
       if (res.ok) setHealth(await res.json())
     } catch {
       // The status bar treats fetch errors as "still contacting" — the

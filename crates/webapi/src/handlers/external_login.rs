@@ -74,8 +74,20 @@ pub async fn start(Path(key): Path<String>) -> impl IntoResponse {
         url.push_str("&nonce=");
         url.push_str(&nonce);
     }
-    Redirect::to(&url).into_response()
+    let mut resp = Redirect::to(&url).into_response();
+    if let Ok(v) = axum::http::HeaderValue::from_str(&format!(
+        "{FLOW_COOKIE}={state_tok}; Path=/api/auth/oidc; HttpOnly; Secure; SameSite=Lax; Max-Age=600"
+    )) {
+        resp.headers_mut().insert(SET_COOKIE, v);
+    }
+    resp
 }
+
+/// Names the sign-in this browser started. The `state` alone is not
+/// enough: anyone can start a sign-in, and a callback URL carrying their
+/// own code and state, opened in somebody else's browser, would sign that
+/// browser in as them.
+const FLOW_COOKIE: &str = "mailrs_oidc_flow";
 
 #[derive(Debug, Deserialize)]
 pub struct CallbackQuery {
@@ -100,17 +112,38 @@ fn signed_in_redirect(issued: axum::response::Response) -> axum::response::Respo
         return login_redirect("failed");
     }
     let mut resp = login_redirect("ok");
-    if let Some(cookie) = issued.headers().get(SET_COOKIE) {
-        resp.headers_mut().insert(SET_COOKIE, cookie.clone());
+    for cookie in issued.headers().get_all(SET_COOKIE) {
+        resp.headers_mut().append(SET_COOKIE, cookie.clone());
     }
     resp
 }
 
 /// `GET /api/auth/oidc/callback` — finish it.
 pub async fn callback(
-    State(state): State<Arc<WebState>>,
+    state: State<Arc<WebState>>,
     headers: axum::http::HeaderMap,
     Query(q): Query<CallbackQuery>,
+) -> axum::response::Response {
+    let started_here =
+        q.state.is_some() && crate::handlers::auth::cookie_value(&headers, FLOW_COOKIE) == q.state;
+    let mut resp = if started_here || q.error.is_some() {
+        finish(state, headers, q).await
+    } else {
+        login_redirect("failed")
+    };
+    resp.headers_mut().append(
+        SET_COOKIE,
+        axum::http::HeaderValue::from_static(
+            "mailrs_oidc_flow=; Path=/api/auth/oidc; HttpOnly; Secure; SameSite=Lax; Max-Age=0",
+        ),
+    );
+    resp
+}
+
+async fn finish(
+    State(state): State<Arc<WebState>>,
+    headers: axum::http::HeaderMap,
+    q: CallbackQuery,
 ) -> axum::response::Response {
     if q.error.is_some() {
         return login_redirect("denied");

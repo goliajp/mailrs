@@ -2,6 +2,8 @@ import type { ConnectionInfo, ConversationLine, ServerStatus, SmtpEvent } from '
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { http } from '@/lib/http'
+
 function getWsUrl() {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
   // the upgrade carries the session cookie; nothing goes in the URL
@@ -156,7 +158,7 @@ export function useSmtpEvents() {
 
   useEffect(() => {
     const poll = () => {
-      fetch(STATUS_URL)
+      http(STATUS_URL)
         .then((r) => r.json())
         .then((data) => setStatus(data as ServerStatus))
         .catch(() => {})

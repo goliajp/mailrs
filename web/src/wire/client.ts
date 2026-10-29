@@ -14,6 +14,7 @@
 import { z } from 'zod'
 
 import { redirectToLogin } from '@/lib/api'
+import { http } from '@/lib/http'
 
 import { type WireError, WireErrorException } from './errors'
 
@@ -62,7 +63,7 @@ export async function wireFetch<T>(schema: z.ZodType<T>, req: WireRequest): Prom
 
   let res: Response
   try {
-    res = await fetch(url, {
+    res = await http(url, {
       body,
       headers,
       method: req.method ?? 'GET',
