@@ -16,8 +16,6 @@ import type {
   MockWebhook,
 } from '../schemas/mock'
 
-import { getToken } from '@/store/auth'
-
 import { wireFetch } from '../client'
 import {
   mockAdminOverviewSchema,
@@ -42,10 +40,9 @@ export type MockSendInput = {
   to: string[]
 }
 
-/** Raw `.eml` link. A plain `<a href>` cannot send a header, so the token rides in the query. */
+/** Raw `.eml` link. A plain `<a href>` sends the session cookie, so nothing goes in the URL. */
 export function mockRawUrl(ns: string, id: string): string {
-  const token = encodeURIComponent(getToken() ?? '')
-  return `/api${messagePath(ns, id)}/raw?token=${token}`
+  return `/api${messagePath(ns, id)}/raw`
 }
 
 /** `GET /api/admin/mock` → every namespace and the store's totals. Admins only. */

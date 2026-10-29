@@ -204,6 +204,21 @@ fn login_redirect(reason: &str) -> axum::response::Response {
     Redirect::to(&format!("/login?external={reason}")).into_response()
 }
 
+/// The callback is a top-level navigation, so the login response body
+/// (which carries the token for the apps) would be shown as a page. Keep
+/// only its session cookie and send the browser back to the login page,
+/// which loads the profile through the cookie.
+fn signed_in_redirect(issued: axum::response::Response) -> axum::response::Response {
+    if !issued.status().is_success() {
+        return login_redirect("failed");
+    }
+    let mut resp = login_redirect("ok");
+    if let Some(cookie) = issued.headers().get(SET_COOKIE) {
+        resp.headers_mut().insert(SET_COOKIE, cookie.clone());
+    }
+    resp
+}
+
 /// `GET /api/auth/oidc/callback` — finish it.
 pub async fn callback(
     State(state): State<Arc<WebState>>,
@@ -259,7 +274,7 @@ pub async fn callback(
         Some(address) => match state.core.get_account_with_hash(&address).await {
             Ok(acct) => {
                 crate::handlers::audit::record(&address, "auth.login.external", &key, "");
-                crate::handlers::auth::issue_session(&state, &acct).await
+                signed_in_redirect(crate::handlers::auth::issue_session(&state, &acct).await)
             }
             // Linked to an account that no longer exists. Refusing is the
             // only safe answer — the alternative is inventing one.
@@ -462,5 +477,34 @@ pub async fn unlink_identity(
         // Not yours, or not there. One answer for both: telling them apart
         // would say whether an identity exists on another account.
         false => Err(StatusCode::NOT_FOUND),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::http::header::LOCATION;
+
+    #[test]
+    fn a_finished_sign_in_keeps_the_cookie_and_drops_the_token_body() {
+        let mut issued = axum::Json(serde_json::json!({ "token": "secret" })).into_response();
+        issued.headers_mut().insert(
+            SET_COOKIE,
+            "mailrs_session=secret; HttpOnly".parse().unwrap(),
+        );
+        let resp = signed_in_redirect(issued);
+        assert!(resp.status().is_redirection());
+        assert_eq!(resp.headers()[LOCATION], "/login?external=ok");
+        assert_eq!(
+            resp.headers()[SET_COOKIE],
+            "mailrs_session=secret; HttpOnly"
+        );
+    }
+
+    #[test]
+    fn a_failed_session_goes_back_as_a_failure_without_a_cookie() {
+        let resp = signed_in_redirect(StatusCode::INTERNAL_SERVER_ERROR.into_response());
+        assert_eq!(resp.headers()[LOCATION], "/login?external=failed");
+        assert!(resp.headers().get(SET_COOKIE).is_none());
     }
 }

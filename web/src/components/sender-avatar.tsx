@@ -3,7 +3,7 @@ import { memo, useEffect, useState } from 'react'
 
 import { avatarColor, avatarInitial } from '@/lib/avatar'
 import { finishedIconUrl } from '@/lib/finish-icon-image'
-import { getToken } from '@/store/auth'
+import { isSignedIn } from '@/store/auth'
 
 function extractDomain(sender: string): null | string {
   const match = sender.match(/@([a-zA-Z0-9.-]+)/)
@@ -110,16 +110,13 @@ function resolveIcon(domain: string): Promise<null | string> {
   if (existing) return existing
 
   const p = (async () => {
-    const token = getToken()
-    if (!token) {
+    if (!isSignedIn()) {
       iconCache.set(domain, null)
       iconInflight.delete(domain)
       return null
     }
     try {
-      const r = await fetch(`/api/icon/${encodeURIComponent(domain)}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      const r = await fetch(`/api/icon/${encodeURIComponent(domain)}`)
       if (r.status === 200) {
         const blob = await r.blob()
         if (blob.size > 0) {

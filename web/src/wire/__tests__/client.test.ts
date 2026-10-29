@@ -4,10 +4,6 @@ import { z } from 'zod'
 import { wireFetch } from '../client'
 import { isWireError, WireErrorException } from '../errors'
 
-vi.mock('@/store/auth', () => ({
-  getToken: () => 'test-token',
-}))
-
 const SCHEMA = z.object({ ok: z.boolean() })
 
 function respond(body: unknown, init?: ResponseInit): typeof fetch {
@@ -25,14 +21,14 @@ describe('wireFetch', () => {
     expect(out).toEqual({ ok: true })
   })
 
-  it('sends Authorization header from the auth store', async () => {
+  // the session is the HttpOnly cookie; a script never handles the token
+  it('sends no Authorization header', async () => {
     const mock = respond({ ok: true })
     vi.stubGlobal('fetch', mock)
     await wireFetch(SCHEMA, { path: '/hi' })
-    // Cast so we can peek at the call args
     const call = vi.mocked(mock).mock.calls[0]
     const opts = call[1] as { headers: Record<string, string> }
-    expect(opts.headers.Authorization).toBe('Bearer test-token')
+    expect(opts.headers.Authorization).toBeUndefined()
   })
 
   it('throws a validation WireError on schema mismatch', async () => {

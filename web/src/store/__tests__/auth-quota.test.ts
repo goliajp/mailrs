@@ -80,7 +80,7 @@ describe('the session must not lose to a cache', () => {
       removeItem: (k: string) => void map.delete(k),
       setItem: (k: string, v: string) => void map.set(k, v),
     })
-    const { getToken } = await import('../auth')
-    expect(getToken()).toBeNull()
+    const { isSignedIn } = await import('../auth')
+    expect(isSignedIn()).toBe(false)
   })
 })

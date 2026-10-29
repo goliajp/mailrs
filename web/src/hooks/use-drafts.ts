@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { deleteDraft, listDrafts, saveDraft, type SaveDraftRequest } from '@/lib/api'
 import { mailKeys } from '@/lib/query-keys'
-import { getToken } from '@/store/auth'
+import { isSignedIn } from '@/store/auth'
 
 // server-backed drafts (both lanes serve /api/mail/drafts — fastcore over
 // kevy, monolith over the PG `drafts` table). saveDraft upserts when the
@@ -20,7 +20,7 @@ export function useDeleteDraftMutation() {
 
 export function useDraftsQuery(enabled: boolean = true) {
   return useQuery({
-    enabled: enabled && Boolean(getToken()),
+    enabled: enabled && isSignedIn(),
     queryFn: listDrafts,
     queryKey: mailKeys.drafts(),
     staleTime: 30_000,

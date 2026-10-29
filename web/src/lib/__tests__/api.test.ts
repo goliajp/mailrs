@@ -16,15 +16,6 @@ import {
   unsnoozeConversation,
 } from '../api'
 
-// mock getToken from auth store
-vi.mock('@/store/auth', () => ({
-  getToken: vi.fn(),
-}))
-
-import { getToken } from '@/store/auth'
-
-const mockGetToken = vi.mocked(getToken)
-
 function makeFetchMock(status: number, body: unknown, isJson = true): typeof fetch {
   return vi.fn().mockResolvedValue({
     blob: vi.fn().mockResolvedValue(body instanceof Blob ? body : new Blob()),
@@ -37,41 +28,30 @@ function makeFetchMock(status: number, body: unknown, isJson = true): typeof fet
   } as unknown as Response)
 }
 
-describe('authHeaders', () => {
+describe('session', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', makeFetchMock(200, { ok: true }))
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
-    mockGetToken.mockReset()
   })
 
-  it('includes Authorization header when token is present', async () => {
-    mockGetToken.mockReturnValue('test-token-abc')
+  // the session is the HttpOnly cookie; a script never handles the token
+  it('sends no Authorization header', async () => {
     await fetchJson('/test')
     const call = vi.mocked(fetch).mock.calls[0]
-    const opts = call[1] as RequestInit
-    expect((opts.headers as Record<string, string>)['Authorization']).toBe('Bearer test-token-abc')
-  })
-
-  it('omits Authorization header when token is null', async () => {
-    mockGetToken.mockReturnValue(null)
-    await fetchJson('/test')
-    const call = vi.mocked(fetch).mock.calls[0]
-    const opts = call[1] as RequestInit
-    expect((opts.headers as Record<string, string>)['Authorization']).toBeUndefined()
+    const opts = (call[1] ?? {}) as RequestInit
+    expect((opts.headers as Record<string, string> | undefined)?.['Authorization']).toBeUndefined()
   })
 })
 
 describe('fetchJson', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
-    mockGetToken.mockReset()
   })
 
   it('calls fetch with correct URL and returns parsed JSON', async () => {
-    mockGetToken.mockReturnValue(null)
     vi.stubGlobal('fetch', makeFetchMock(200, { data: 'hello' }))
     const result = await fetchJson<{ data: string }>('/conversations')
     expect(result).toEqual({ data: 'hello' })
@@ -79,7 +59,6 @@ describe('fetchJson', () => {
   })
 
   it('passes AbortSignal to fetch', async () => {
-    mockGetToken.mockReturnValue(null)
     vi.stubGlobal('fetch', makeFetchMock(200, {}))
     const controller = new AbortController()
     await fetchJson('/test', controller.signal)
@@ -88,7 +67,6 @@ describe('fetchJson', () => {
   })
 
   it('throws on 401 and redirects to /login with return_to', async () => {
-    mockGetToken.mockReturnValue('stale-token')
     const removeItem = vi.fn()
     vi.stubGlobal('localStorage', {
       getItem: vi.fn(),
@@ -108,7 +86,6 @@ describe('fetchJson', () => {
   })
 
   it('does not redirect when 401 fires from /login itself (avoid loop)', async () => {
-    mockGetToken.mockReturnValue('stale-token')
     const removeItem = vi.fn()
     vi.stubGlobal('localStorage', {
       getItem: vi.fn(),
@@ -127,19 +104,16 @@ describe('fetchJson', () => {
   })
 
   it('throws with server error message from body.error', async () => {
-    mockGetToken.mockReturnValue(null)
     vi.stubGlobal('fetch', makeFetchMock(422, { error: 'validation failed' }))
     await expect(fetchJson('/test')).rejects.toThrow('validation failed')
   })
 
   it('throws with server error message from body.message', async () => {
-    mockGetToken.mockReturnValue(null)
     vi.stubGlobal('fetch', makeFetchMock(500, { message: 'internal error' }))
     await expect(fetchJson('/test')).rejects.toThrow('internal error')
   })
 
   it('throws generic message when error body is not JSON', async () => {
-    mockGetToken.mockReturnValue(null)
     vi.stubGlobal('fetch', makeFetchMock(503, {}, false))
     await expect(fetchJson('/test')).rejects.toThrow('API error: 503')
   })
@@ -148,11 +122,9 @@ describe('fetchJson', () => {
 describe('postJson', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
-    mockGetToken.mockReset()
   })
 
   it('sends POST with JSON body and Content-Type header', async () => {
-    mockGetToken.mockReturnValue(null)
     vi.stubGlobal('fetch', makeFetchMock(200, { success: true }))
     const payload = { subject: 'hello', to: 'user@example.com' }
     const result = await postJson<{ success: boolean }>('/mail/send', payload)
@@ -163,24 +135,14 @@ describe('postJson', () => {
     expect((opts.headers as Record<string, string>)['Content-Type']).toBe('application/json')
     expect(opts.body).toBe(JSON.stringify(payload))
   })
-
-  it('includes auth header when token exists', async () => {
-    mockGetToken.mockReturnValue('my-token')
-    vi.stubGlobal('fetch', makeFetchMock(200, {}))
-    await postJson('/test', {})
-    const opts = vi.mocked(fetch).mock.calls[0][1] as RequestInit
-    expect((opts.headers as Record<string, string>)['Authorization']).toBe('Bearer my-token')
-  })
 })
 
 describe('putJson', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
-    mockGetToken.mockReset()
   })
 
   it('sends PUT with JSON body', async () => {
-    mockGetToken.mockReturnValue(null)
     vi.stubGlobal('fetch', makeFetchMock(200, { updated: true }))
     const result = await putJson<{ updated: boolean }>('/resource/1', {
       name: 'test',
@@ -195,11 +157,9 @@ describe('putJson', () => {
 describe('deleteJson', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
-    mockGetToken.mockReset()
   })
 
   it('sends DELETE request and returns parsed JSON', async () => {
-    mockGetToken.mockReturnValue(null)
     vi.stubGlobal('fetch', makeFetchMock(200, { success: true }))
     const result = await deleteJson<{ success: boolean }>('/resource/42')
     expect(result).toEqual({ success: true })
@@ -211,11 +171,9 @@ describe('deleteJson', () => {
 describe('fetchBlob', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
-    mockGetToken.mockReset()
   })
 
   it('returns Blob on success', async () => {
-    mockGetToken.mockReturnValue(null)
     const blob = new Blob(['binary'], { type: 'application/pdf' })
     const fetchMock = vi.fn().mockResolvedValue({
       blob: vi.fn().mockResolvedValue(blob),
@@ -229,7 +187,6 @@ describe('fetchBlob', () => {
   })
 
   it('throws on 401 and redirects to /login with return_to', async () => {
-    mockGetToken.mockReturnValue('old-token')
     const removeItem = vi.fn()
     vi.stubGlobal('localStorage', {
       getItem: vi.fn(),
@@ -254,7 +211,6 @@ describe('fetchBlob', () => {
   })
 
   it('throws on non-200 non-401 status', async () => {
-    mockGetToken.mockReturnValue(null)
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -270,11 +226,9 @@ describe('fetchBlob', () => {
 describe('deleteDraft', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
-    mockGetToken.mockReset()
   })
 
   it('sends DELETE to /mail/drafts/:id and returns result', async () => {
-    mockGetToken.mockReturnValue('tok')
     vi.stubGlobal('fetch', makeFetchMock(200, { success: true }))
     const result = await deleteDraft(42)
     expect(result).toEqual({ success: true })
@@ -287,11 +241,9 @@ describe('deleteDraft', () => {
 describe('getThreadReactions', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
-    mockGetToken.mockReset()
   })
 
   it('fetches reactions and returns the reactions record', async () => {
-    mockGetToken.mockReturnValue(null)
     // v2.1 §10-audit (2026-07-08): backend `ReactionsResponse` is a
     // flat list `{reactions: [{message_uid, emoji, count, me}, ...]}`
     // — the wire adapter groups by `message_uid` client-side.
@@ -309,7 +261,6 @@ describe('getThreadReactions', () => {
   })
 
   it('encodes threadId in URL', async () => {
-    mockGetToken.mockReturnValue(null)
     vi.stubGlobal('fetch', makeFetchMock(200, { reactions: [] }))
     await getThreadReactions('thread with spaces')
     expect(vi.mocked(fetch).mock.calls[0][0]).toBe(
@@ -321,11 +272,9 @@ describe('getThreadReactions', () => {
 describe('listDrafts', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
-    mockGetToken.mockReset()
   })
 
   it('fetches drafts list via GET', async () => {
-    mockGetToken.mockReturnValue(null)
     // v2.1 §10-audit (2026-07-08): backend `DraftWire` uses short
     // `to/cc/bcc` names and numeric epoch `created_at/updated_at`
     // (not `_addresses`, not ISO). `id` normalises to string at the
@@ -365,11 +314,9 @@ describe('listDrafts', () => {
 describe('recordFeedback', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
-    mockGetToken.mockReset()
   })
 
   it('sends POST with sender_email and action', async () => {
-    mockGetToken.mockReturnValue('tok')
     vi.stubGlobal('fetch', makeFetchMock(200, { success: true }))
     const result = await recordFeedback('spam@example.com', 'mark_spam')
     expect(result).toEqual({ success: true })
@@ -387,11 +334,9 @@ describe('recordFeedback', () => {
 describe('saveDraft', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
-    mockGetToken.mockReset()
   })
 
   it('sends POST with draft payload and returns result', async () => {
-    mockGetToken.mockReturnValue('tok')
     const draft = { body: 'Hello', subject: 'Hi', to: ['a@b.com'] }
     vi.stubGlobal('fetch', makeFetchMock(200, { id: 1, success: true }))
     const result = await saveDraft(draft as never)
@@ -407,7 +352,6 @@ describe('saveDraft', () => {
 describe('snoozeConversation', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
-    mockGetToken.mockReset()
   })
 
   /**
@@ -423,7 +367,6 @@ describe('snoozeConversation', () => {
    * test and verifies one side against itself.
    */
   it('sends PUT with snoozed_until in epoch seconds', async () => {
-    mockGetToken.mockReturnValue('tok')
     vi.stubGlobal('fetch', makeFetchMock(200, { success: true }))
     const result = await snoozeConversation('thread-1', 1_764_579_600)
     expect(result).toEqual({ success: true })
@@ -440,11 +383,9 @@ describe('snoozeConversation', () => {
 describe('toggleReaction', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
-    mockGetToken.mockReset()
   })
 
   it('sends PUT with emoji and returns reactions array', async () => {
-    mockGetToken.mockReturnValue('tok')
     const reactions = [{ count: 1, emoji: '👍', me: true }]
     vi.stubGlobal('fetch', makeFetchMock(200, { reactions }))
     const result = await toggleReaction('thread-1', 5, '👍')
@@ -458,11 +399,9 @@ describe('toggleReaction', () => {
 describe('unsnoozeConversation', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
-    mockGetToken.mockReset()
   })
 
   it('sends DELETE to snooze endpoint', async () => {
-    mockGetToken.mockReturnValue('tok')
     vi.stubGlobal('fetch', makeFetchMock(200, { success: true }))
     const result = await unsnoozeConversation('thread-2')
     expect(result).toEqual({ success: true })
