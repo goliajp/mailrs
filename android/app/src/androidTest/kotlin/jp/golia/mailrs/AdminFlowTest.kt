@@ -111,6 +111,15 @@ class AdminFlowTest : MailrsUiTest() {
         // and this is the key a thumb is already on.
         compose.onNodeWithTag("field.admin1").performImeAction()
 
+        // An alias can forward mail anywhere, so the server asks for the
+        // password first. A wrong one says how many tries are left and
+        // keeps the reader signed in; the right one lets the change through.
+        confirmPassword("wrong-password")
+        waitForTag("text.confirmMessage", "a wrong password said nothing")
+        compose.onNodeWithTag("text.confirmMessage").assertTextContains("4 tries left", substring = true)
+        compose.onNodeWithTag("field.confirmPassword").performTextClearance()
+        confirmPassword()
+
         compose.waitUntil(TIMEOUT_MS) {
             compose.onAllNodesWithTag("row.admin").fetchSemanticsNodes().size == before + 1
         }
@@ -155,6 +164,7 @@ class AdminFlowTest : MailrsUiTest() {
         waitForTag("field.member", "the form never opened")
         compose.onNodeWithTag("field.member").performTextInput("newcomer@golia.jp")
         compose.onNodeWithTag("button.confirmMember").performClick()
+        confirmPassword()
         compose.waitUntil(TIMEOUT_MS) {
             compose.onAllNodesWithTag("row.member").fetchSemanticsNodes().size == before + 1
         }

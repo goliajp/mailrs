@@ -24,6 +24,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
+import stub_confirm
 import stub_login
 
 WIDE = ('<table width="760" style="width:760px"><tr><td>'
@@ -1014,6 +1015,8 @@ class H(BaseHTTPRequestHandler):
         self._send({}, 404)
 
     def do_DELETE(self):
+        if stub_confirm.refused(self, "DELETE"):
+            return
         key = re.match(r"^/api/agent/keys/(\d+)$", self.path.split("?")[0])
         if key:
             WRITES.append("DELETE /api/agent/keys/" + key.group(1))
@@ -1133,6 +1136,11 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         if self._session_rejected():
             return
+        if self.path.split("?")[0] == "/api/auth/confirm":
+            stub_confirm.answer(self)
+            return
+        if stub_confirm.refused(self, "POST"):
+            return
         if self.path.split("?")[0] == "/api/accounts/external":
             length = int(self.headers.get("content-length", 0))
             body = json.loads(self.rfile.read(length)) if length else {}
@@ -1248,6 +1256,7 @@ class H(BaseHTTPRequestHandler):
             # would otherwise 401 every test after it, and the failure
             # would look like anything but a leftover flag.
             REJECT_SESSION[0] = False
+            stub_confirm.reset()
             VERB_REFUSE.clear()
             FETCHED.clear()
             SENT.clear()

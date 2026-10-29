@@ -142,6 +142,7 @@ class OperationsFlowTest : MailrsUiTest() {
         compose.onNodeWithTag("field.admin0").performTextInput("Nightly digest")
         compose.onNodeWithTag("field.admin1").performTextInput("mail.send, mail.read")
         compose.onNodeWithTag("button.confirmAdmin").performClick()
+        confirmPassword()
 
         waitForTag("text.newAgentKey", "the secret was never shown")
         // The whole key, not the prefix the list will carry from now on.
