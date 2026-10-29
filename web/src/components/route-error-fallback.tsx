@@ -60,6 +60,8 @@ function describe(err: unknown): string {
         return "We couldn't find what you were looking for."
       case 'server':
         return err.detail.message ?? 'The server hit an error.'
+      case 'unconfirmed':
+        return 'This page needs your password confirmed. Reload it to be asked again.'
       case 'validation':
         return 'The server response was in an unexpected shape.'
       default:
