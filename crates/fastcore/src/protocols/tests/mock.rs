@@ -46,7 +46,8 @@ async fn a_mock_namespace_reads_over_imap_and_an_account_still_signs_in() {
 
     let mut kv = Connection::connect(KEVY).unwrap();
     let created = mock::create_namespace(&mut kv, "dev@golia.example.test", "app").unwrap();
-    let token = mock::rotate_smtp_token(&mut kv, "app").unwrap();
+    let namespace = usable(&mut kv, "app");
+    let token = mock::rotate_smtp_token(&mut kv, &namespace).unwrap();
     store(&mut kv, "app", mock::Direction::In, "first");
     store(&mut kv, "app", mock::Direction::In, "second");
     store(
@@ -132,7 +133,8 @@ async fn a_mock_namespace_reads_over_imap_and_an_account_still_signs_in() {
 
     // 5. a namespace created again under the same name is a new mailbox
     tokio::time::sleep(Duration::from_millis(1100)).await;
-    mock::delete_namespace(&mut kv, mock::root(), "app").unwrap();
+    let namespace = usable(&mut kv, "app");
+    mock::delete_namespace(&mut kv, mock::root(), &namespace).unwrap();
     mock::create_namespace(&mut kv, "dev@golia.example.test", "app").unwrap();
     let r = Imap::connect(&state)
         .await
@@ -142,7 +144,8 @@ async fn a_mock_namespace_reads_over_imap_and_an_account_still_signs_in() {
         tagged(&r).contains(" NO "),
         "the old token still works: {r}"
     );
-    let token = mock::rotate_smtp_token(&mut kv, "app").unwrap();
+    let namespace = usable(&mut kv, "app");
+    let token = mock::rotate_smtp_token(&mut kv, &namespace).unwrap();
     let mut c = Imap::connect(&state).await;
     c.cmd(&format!("LOGIN app@{DOMAIN} {token}")).await;
     let r = c.cmd("EXAMINE INBOX").await;
@@ -159,4 +162,9 @@ async fn a_mock_namespace_reads_over_imap_and_an_account_still_signs_in() {
     assert!(tagged(&r).contains(" OK "), "{r}");
     let r = c.cmd("SELECT INBOX").await;
     assert!(tagged(&r).contains("OK [READ-WRITE]"), "{r}");
+}
+
+/// The namespace as an administrator may use it.
+fn usable(kv: &mut kevy_client::Connection, name: &str) -> mock::Usable {
+    mock::namespace_for(kv, name, "", true).unwrap().unwrap()
 }
