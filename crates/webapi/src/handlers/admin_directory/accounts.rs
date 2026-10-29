@@ -13,7 +13,7 @@ use mailrs_core_sidestate::families::permission_groups;
 use crate::WebState;
 use crate::handlers::admin::map_err;
 use crate::handlers::conversations::AuthedUser;
-use crate::handlers::kevy_util::with_kevy;
+use crate::handlers::kevy_util::{require_permission, with_kevy};
 
 /// GET /api/admin/accounts
 pub async fn list_accounts(
@@ -32,6 +32,7 @@ pub async fn add_account(
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Json(req): Json<wire::AddAccountRequest>,
 ) -> Result<axum::response::Response, StatusCode> {
+    require_permission(&state, &actor, "admin.accounts").await?;
     use axum::response::IntoResponse;
     if let Err(weak) = mailrs_auth_guard::password::check_new(&req.password, &req.address) {
         return Ok(crate::handlers::auth::password::refused(weak));
@@ -49,6 +50,7 @@ pub async fn remove_account(
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Path(address): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
+    require_permission(&state, &actor, "admin.accounts").await?;
     state.core.remove_account(&address).await.map_err(map_err)?;
     // after the account is gone, so no sign-in can slip in behind it
     crate::handlers::auth::revoke_all_access(&address)?;
@@ -70,6 +72,7 @@ pub async fn set_account_password(
     Path(address): Path<String>,
     Json(req): Json<SetAccountPasswordRequest>,
 ) -> Result<axum::response::Response, StatusCode> {
+    require_permission(&state, &actor, "admin.accounts").await?;
     use argon2::{
         Argon2,
         password_hash::{PasswordHasher, SaltString, rand_core::OsRng as ArgonRng},
@@ -113,6 +116,7 @@ pub async fn update_account(
     Path(address): Path<String>,
     Json(req): Json<UpdateAccountRequest>,
 ) -> Result<StatusCode, StatusCode> {
+    require_permission(&state, &actor, "admin.accounts").await?;
     let mut fields_changed = Vec::new();
     if let Some(dn) = req.display_name {
         let wire_req = wire::UpdateAccountRequest {
@@ -177,6 +181,7 @@ pub async fn set_account_quota(
     Path(address): Path<String>,
     Json(req): Json<SetQuotaRequest>,
 ) -> Result<StatusCode, StatusCode> {
+    require_permission(&state, &actor, "admin.accounts").await?;
     let wire_req = wire::SetQuotaRequest {
         quota_bytes: req.quota_bytes,
     };
@@ -223,11 +228,12 @@ pub async fn get_account_overrides(
 
 pub async fn set_account_overrides(
     _: crate::session::confirm::Confirmed,
-    State(_state): State<Arc<WebState>>,
+    State(state): State<Arc<WebState>>,
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Path(address): Path<String>,
     Json(req): Json<serde_json::Value>,
 ) -> Result<StatusCode, StatusCode> {
+    require_permission(&state, &actor, "admin.accounts").await?;
     let key = format!("admin:account:{address}:overrides");
     let payload = serde_json::to_vec(&req).map_err(|_| StatusCode::BAD_REQUEST)?;
     let payload_c = payload.clone();

@@ -181,8 +181,20 @@ async fn finish(
             return login_redirect("failed");
         }
     };
+    settle(&state, &headers, &key, identity).await
+}
 
-    let signed_in = crate::session::resolve_session_user_from_headers(&headers).await;
+/// What a sign-in does once the provider has vouched for `identity`: sign
+/// in the account it is linked to, link it to the signed-in account that
+/// has confirmed its password recently, or park it until a password is
+/// given. Apart from the callback so it can be tested without a provider.
+pub async fn settle(
+    state: &Arc<WebState>,
+    headers: &axum::http::HeaderMap,
+    key: &str,
+    identity: mailrs_oauth_client::ExternalIdentity,
+) -> axum::response::Response {
+    let signed_in = crate::session::resolve_session_user_from_headers(headers).await;
     let (iss, sub) = (identity.issuer.clone(), identity.subject.clone());
     let linked = with_kevy(move |c| {
         mailrs_core_sidestate::families::identity_link::account_for(c, &iss, &sub)
@@ -194,8 +206,8 @@ async fn finish(
         // Linked: this identity is the credential.
         Some(address) => match state.core.get_account_with_hash(&address).await {
             Ok(acct) => {
-                crate::handlers::audit::record(&address, "auth.login.external", &key, "");
-                signed_in_redirect(crate::handlers::auth::issue_session(&state, &acct).await)
+                crate::handlers::audit::record(&address, "auth.login.external", key, "");
+                signed_in_redirect(crate::handlers::auth::issue_session(state, &acct).await)
             }
             // Linked to an account that no longer exists. Refusing is the
             // only safe answer — the alternative is inventing one.
@@ -222,7 +234,7 @@ async fn finish(
             use mailrs_core_sidestate::families::identity_link::LinkOutcome;
             match outcome {
                 Ok(LinkOutcome::Linked) | Ok(LinkOutcome::AlreadyLinked) => {
-                    crate::handlers::audit::record(&address, "auth.identity.link", &key, "");
+                    crate::handlers::audit::record(&address, "auth.identity.link", key, "");
                     Redirect::to("/settings?linked=1").into_response()
                 }
                 // Held by somebody else. Never moved silently — that is one

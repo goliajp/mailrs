@@ -147,15 +147,12 @@ impl KevyMailboxStore {
     /// was: `thread_user_pairs` read it back out on every arrival and
     /// wrote it onto each owner's row.
     ///
-    /// The existence check stays on the shared hash: it is what says the
-    /// conversation exists at all, and starring something that is not
-    /// there should still answer `false`.
-    ///
-    /// It asks [`keys::THREAD_EXISTS_FIELD`] and not a counter. Asking
-    /// `count` made a *count* load-bearing for a question that has
-    /// nothing to do with counting, so a thread whose counter was absent
-    /// was silently unstarrable — the mutation returned `false` and did
-    /// nothing.
+    /// `false` unless `user` is in the thread: their own membership row
+    /// is what says so, and also that the thread exists. Asking the shared
+    /// hash instead let anyone who named a thread id learn whether it
+    /// existed, and wrote a stray half-row under their name when it did.
+    /// The row's `tid` field marks a real membership, not a counter: a
+    /// counter going missing once left threads silently unstarrable.
     fn toggle_flag(
         &self,
         user: &str,
@@ -163,17 +160,14 @@ impl KevyMailboxStore {
         field: &'static str,
         on: bool,
     ) -> io::Result<bool> {
-        let thread_key = keys::thread(thread_id);
+        let user_key = keys::thread_user(user, thread_id);
         let val: &[u8] = if on { b"1" } else { b"0" };
         self.store()
             .atomic(|ctx| {
-                if !ctx.hexists(thread_key.as_bytes(), keys::THREAD_EXISTS_FIELD)? {
+                if !ctx.hexists(user_key.as_bytes(), b"tid")? {
                     return Ok(false);
                 }
-                ctx.hset(
-                    keys::thread_user(user, thread_id).as_bytes(),
-                    &[(field.as_bytes(), val)],
-                )?;
+                ctx.hset(user_key.as_bytes(), &[(field.as_bytes(), val)])?;
                 Ok(true)
             })
             .map_err(std::io::Error::from)
@@ -183,12 +177,13 @@ impl KevyMailboxStore {
     /// direction: set the declared `unread` column, which is what every
     /// unread axis and the badge read.
     ///
-    /// Returns `true` when the row existed. Idempotent.
+    /// Returns `true` when `user` is in the thread. Idempotent.
     pub fn mark_unread(&self, user: &str, thread_id: &str) -> io::Result<bool> {
-        let thread_key = keys::thread(thread_id);
+        let user_key = keys::thread_user(user, thread_id);
         self.store()
             .atomic(|ctx| {
-                if !ctx.hexists(thread_key.as_bytes(), keys::THREAD_EXISTS_FIELD)? {
+                // only somebody in the thread; see `toggle_flag`
+                if !ctx.hexists(user_key.as_bytes(), b"tid")? {
                     return Ok(false);
                 }
                 // The unread axis is a declared column the engine
@@ -196,10 +191,7 @@ impl KevyMailboxStore {
                 // now: the counter that used to be written beside it is
                 // derived from the per-user message rows instead, so
                 // there is nothing here to read back or bump.
-                ctx.hset(
-                    keys::thread_user(user, thread_id).as_bytes(),
-                    &[(b"unread" as &[u8], b"1" as &[u8])],
-                )?;
+                ctx.hset(user_key.as_bytes(), &[(b"unread" as &[u8], b"1" as &[u8])])?;
                 Ok(true)
             })
             .map_err(std::io::Error::from)
@@ -408,6 +400,37 @@ mod tests {
     /// Count on the axis the UI queries, not on a raw index.
     fn axis_count(s: &KevyMailboxStore, user: &str, f: crate::ListThreadsFilter<'_>) -> usize {
         s.list_threads_by_activity(user, &f, 0, 1000).unwrap().1
+    }
+
+    /// Somebody not in a thread cannot flag it, cannot tell from the
+    /// answer whether it exists, and leaves nothing behind under their name.
+    #[test]
+    fn a_stranger_flags_nothing_and_learns_nothing() {
+        let s = store();
+        s.record_message_arrival(&arr("t1", "owner@x.com")).unwrap();
+        let stranger = "stranger@x.com";
+        let answers = [
+            s.set_starred(stranger, "t1", true).unwrap(),
+            s.set_pinned(stranger, "t1", true).unwrap(),
+            s.set_archived(stranger, "t1", true).unwrap(),
+            s.mark_unread(stranger, "t1").unwrap(),
+        ];
+        let missing = [
+            s.set_starred(stranger, "no-such-thread", true).unwrap(),
+            s.set_pinned(stranger, "no-such-thread", true).unwrap(),
+            s.set_archived(stranger, "no-such-thread", true).unwrap(),
+            s.mark_unread(stranger, "no-such-thread").unwrap(),
+        ];
+        assert_eq!(answers, missing, "the answer gives the thread away");
+        assert_eq!(answers, [false; 4]);
+        assert!(
+            s.store()
+                .hgetall(keys::thread_user(stranger, "t1").as_bytes())
+                .unwrap()
+                .is_empty(),
+            "a stray row under the stranger's name"
+        );
+        assert!(s.set_starred("owner@x.com", "t1", true).unwrap());
     }
 
     #[test]

@@ -184,9 +184,10 @@ impl Filter {
 
 pub fn list_messages(
     conn: &mut Connection,
-    ns: &str,
+    usable: &Usable,
     filter: &Filter,
 ) -> MockResult<Vec<MessageMeta>> {
+    let ns = usable.name();
     let ids = conn.zrange(msgs_key(ns).as_bytes(), 0, -1)?;
     let mut out = Vec::new();
     for id in ids.into_iter().rev() {
@@ -209,7 +210,12 @@ pub fn list_messages(
 }
 
 /// The message's metadata, or `None` when it is not in `ns` or has expired.
-pub fn get_message(conn: &mut Connection, ns: &str, id: &str) -> MockResult<Option<MessageMeta>> {
+pub fn get_message(
+    conn: &mut Connection,
+    usable: &Usable,
+    id: &str,
+) -> MockResult<Option<MessageMeta>> {
+    let ns = usable.name();
     let meta = load(conn, ns, id)?;
     Ok(meta)
 }
@@ -232,12 +238,19 @@ fn load(conn: &mut Connection, ns: &str, id: &str) -> MockResult<Option<MessageM
     Ok(Some(meta))
 }
 
-pub fn read_raw(root: &Path, ns: &str, id: &str) -> std::io::Result<Vec<u8>> {
+pub fn read_raw(root: &Path, usable: &Usable, id: &str) -> std::io::Result<Vec<u8>> {
+    let ns = usable.name();
     std::fs::read(message_path(root, ns, id))
 }
 
 /// Remove one message; `false` when it was not there.
-pub fn delete_message(conn: &mut Connection, root: &Path, ns: &str, id: &str) -> MockResult<bool> {
+pub fn delete_message(
+    conn: &mut Connection,
+    root: &Path,
+    usable: &Usable,
+    id: &str,
+) -> MockResult<bool> {
+    let ns = usable.name();
     if conn
         .zscore(msgs_key(ns).as_bytes(), id.as_bytes())?
         .is_none()
@@ -252,9 +265,10 @@ pub fn delete_message(conn: &mut Connection, root: &Path, ns: &str, id: &str) ->
 pub fn delete_messages(
     conn: &mut Connection,
     root: &Path,
-    ns: &str,
+    usable: &Usable,
     tag: Option<&str>,
 ) -> MockResult<usize> {
+    let ns = usable.name();
     let ids = conn.zrange(msgs_key(ns).as_bytes(), 0, -1)?;
     let mut removed = 0;
     for id in ids {

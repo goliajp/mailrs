@@ -80,6 +80,22 @@ async fn marking_read_writes_the_file_name_and_the_index() {
     // answer 404 from its own handler, which is indistinguishable from the
     // path not matching.
     let uid = mailbox.allocate_uid(USER, MID).expect("uid");
+    // the conversation the message is in, as an arrival writes it: marking
+    // read changes only a conversation the reader is in
+    mailbox.ensure_thread_table();
+    mailbox
+        .record_message_arrival(&mailrs_mailbox_kevy::MessageArrival {
+            category: "inbox",
+            is_own: false,
+            latest_date: 1_786_000_000,
+            latest_preview: "body",
+            senders_csv: "a@x.com",
+            subject: "hi",
+            thread_id: TID,
+            unread: true,
+            user: USER,
+        })
+        .expect("arrival");
 
     // The index row for it, also unread (`flags: 0`).
     let wire = serde_json::json!({

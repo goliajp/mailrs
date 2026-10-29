@@ -14,8 +14,12 @@ pub(crate) async fn mark_unread_route(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> axum::response::Response {
-    if let Err(e) = state.mailbox.mark_unread(&user, &thread_id) {
-        tracing::warn!(error = %e, %user, %thread_id, "mark_unread io error — treating as noop");
+    match state.mailbox.mark_unread(&user, &thread_id) {
+        Ok(true) => {}
+        Ok(false) => return crate::routes::thread_actions::member_result(false),
+        Err(e) => {
+            tracing::warn!(error = %e, %user, %thread_id, "mark_unread io error — treating as noop");
+        }
     }
     match state.mailbox.mark_newest_message_unseen(&user, &thread_id) {
         Ok(Some((blob_ref, flags))) if !blob_ref.is_empty() => {

@@ -30,7 +30,7 @@ fn ids(conn: &mut Connection, ns: &str) -> Vec<String> {
         limit: usize::MAX,
         ..Default::default()
     };
-    list_messages(conn, ns, &all)
+    list_messages(conn, &Usable::named(ns), &all)
         .unwrap()
         .into_iter()
         .map(|m| m.id)
@@ -86,7 +86,10 @@ fn storing_twice_keeps_one_copy_and_the_listing_matches_the_files() {
     assert_eq!(ids(&mut c, "twice"), std::slice::from_ref(&id));
     assert_eq!(files(tmp.path(), "twice"), 1);
     assert_eq!(total_bytes(&mut c).unwrap(), raw.len() as i64);
-    assert_eq!(read_raw(tmp.path(), "twice", &id).unwrap(), raw);
+    assert_eq!(
+        read_raw(tmp.path(), &Usable::named("twice"), &id).unwrap(),
+        raw
+    );
 }
 
 #[test]
@@ -155,7 +158,7 @@ fn filters_and_deletes_keep_hash_zset_and_files_in_step() {
         ..Default::default()
     };
     let got = |c: &mut Connection, f: Filter| -> Vec<String> {
-        list_messages(c, "filt", &f)
+        list_messages(c, &Usable::named("filt"), &f)
             .unwrap()
             .into_iter()
             .map(|m| m.id)
@@ -164,19 +167,23 @@ fn filters_and_deletes_keep_hash_zset_and_files_in_step() {
     assert_eq!(got(&mut c, f(Some("signup"), None, None)), ["a1"]);
     assert_eq!(got(&mut c, f(None, Some("signup"), None)), ["a3", "a1"]);
     assert_eq!(got(&mut c, f(None, None, Some("reset"))), ["a2"]);
-    assert!(get_message(&mut c, "other", "a1").unwrap().is_none());
+    assert!(
+        get_message(&mut c, &Usable::named("other"), "a1")
+            .unwrap()
+            .is_none()
+    );
 
-    assert!(delete_message(&mut c, tmp.path(), "filt", "a2").unwrap());
-    assert!(!delete_message(&mut c, tmp.path(), "filt", "a2").unwrap());
+    assert!(delete_message(&mut c, tmp.path(), &Usable::named("filt"), "a2").unwrap());
+    assert!(!delete_message(&mut c, tmp.path(), &Usable::named("filt"), "a2").unwrap());
     assert_eq!(
-        delete_messages(&mut c, tmp.path(), "filt", Some("signup")).unwrap(),
+        delete_messages(&mut c, tmp.path(), &Usable::named("filt"), Some("signup")).unwrap(),
         1
     );
     assert_eq!(ids(&mut c, "filt"), ["a3"]);
     assert_eq!(files(tmp.path(), "filt"), 1);
     assert_eq!(total_bytes(&mut c).unwrap(), 1);
 
-    delete_namespace(&mut c, tmp.path(), "filt").unwrap();
+    delete_namespace(&mut c, tmp.path(), &Usable::named("filt")).unwrap();
     assert!(!namespace_exists(&mut c, "filt").unwrap());
     assert!(c.get(msg_key("a3").as_bytes()).unwrap().is_none());
     assert!(!tmp.path().join("filt").exists());
@@ -202,7 +209,7 @@ fn since_stops_at_older_mail() {
         limit: 10,
         ..Default::default()
     };
-    let got: Vec<String> = list_messages(&mut c, "since", &f)
+    let got: Vec<String> = list_messages(&mut c, &Usable::named("since"), &f)
         .unwrap()
         .into_iter()
         .map(|m| m.id)
@@ -252,11 +259,11 @@ fn an_smtp_token_verifies_until_it_is_rotated() {
     let mut c = conn("token");
     create_namespace(&mut c, "a@x.test", "tok").unwrap();
     assert!(!verify_smtp_token(&mut c, "tok", "").unwrap());
-    let first = rotate_smtp_token(&mut c, "tok").unwrap();
+    let first = rotate_smtp_token(&mut c, &Usable::named("tok")).unwrap();
     assert!(verify_smtp_token(&mut c, "tok", &first).unwrap());
     assert!(!verify_smtp_token(&mut c, "tok", "wrong").unwrap());
     assert!(get_namespace(&mut c, "tok").unwrap().unwrap().smtp_enabled);
-    let second = rotate_smtp_token(&mut c, "tok").unwrap();
+    let second = rotate_smtp_token(&mut c, &Usable::named("tok")).unwrap();
     assert!(!verify_smtp_token(&mut c, "tok", &first).unwrap());
     assert!(verify_smtp_token(&mut c, "tok", &second).unwrap());
     assert!(!verify_smtp_token(&mut c, "other", &second).unwrap());
@@ -271,12 +278,17 @@ fn uids_ascend_and_restart_only_with_a_new_namespace() {
         store_message(&mut c, tmp.path(), meta("uids", id, "t", "s"), b"x").unwrap();
     }
     store_message(&mut c, tmp.path(), meta("uids", "u1", "t", "s"), b"x").unwrap();
-    let uid = |c: &mut Connection, id: &str| get_message(c, "uids", id).unwrap().unwrap().uid;
+    let uid = |c: &mut Connection, id: &str| {
+        get_message(c, &Usable::named("uids"), id)
+            .unwrap()
+            .unwrap()
+            .uid
+    };
     assert_eq!((uid(&mut c, "u1"), uid(&mut c, "u2")), (1, 2));
-    delete_message(&mut c, tmp.path(), "uids", "u2").unwrap();
+    delete_message(&mut c, tmp.path(), &Usable::named("uids"), "u2").unwrap();
     store_message(&mut c, tmp.path(), meta("uids", "u3", "t", "s"), b"x").unwrap();
     assert_eq!(uid(&mut c, "u3"), 3, "a uid was reused");
-    delete_namespace(&mut c, tmp.path(), "uids").unwrap();
+    delete_namespace(&mut c, tmp.path(), &Usable::named("uids")).unwrap();
     create_namespace(&mut c, "a@x.test", "uids").unwrap();
     store_message(&mut c, tmp.path(), meta("uids", "u4", "t", "s"), b"x").unwrap();
     assert_eq!(uid(&mut c, "u4"), 1);
@@ -287,7 +299,7 @@ fn new_mail_queues_one_webhook_delivery_and_deleting_the_namespace_ends_it() {
     let tmp = tempfile::tempdir().unwrap();
     let mut c = conn("webhook");
     create_namespace(&mut c, "a@x.test", "hooked").unwrap();
-    let sub = set_webhook(&mut c, "hooked", "https://hooks.example/in").unwrap();
+    let sub = set_webhook(&mut c, &Usable::named("hooked"), "https://hooks.example/in").unwrap();
     assert_eq!(sub.event_type, EVENT);
     assert_eq!(
         get_namespace(&mut c, "hooked")
@@ -309,10 +321,11 @@ fn new_mail_queues_one_webhook_delivery_and_deleting_the_namespace_ends_it() {
     assert_eq!(payload["event"], EVENT);
     assert_eq!(payload["data"]["id"], "h1");
 
-    let replaced = set_webhook(&mut c, "hooked", "https://hooks.example/v2").unwrap();
+    let replaced =
+        set_webhook(&mut c, &Usable::named("hooked"), "https://hooks.example/v2").unwrap();
     let subs = crate::families::webhooks::list(&mut c, "a@x.test").unwrap();
     assert_eq!(subs.iter().map(|s| s.id).collect::<Vec<_>>(), [replaced.id]);
-    delete_namespace(&mut c, tmp.path(), "hooked").unwrap();
+    delete_namespace(&mut c, tmp.path(), &Usable::named("hooked")).unwrap();
     assert!(
         crate::families::webhooks::list(&mut c, "a@x.test")
             .unwrap()
@@ -338,7 +351,11 @@ fn turned_off_refuses_new_mail_and_namespaces_but_keeps_what_is_stored() {
         create_namespace(&mut c, "a@x.test", "another"),
         Err(MockError::Disabled)
     ));
-    assert!(get_message(&mut c, "offline", "o1").unwrap().is_some());
+    assert!(
+        get_message(&mut c, &Usable::named("offline"), "o1")
+            .unwrap()
+            .is_some()
+    );
 }
 
 #[test]
@@ -357,4 +374,43 @@ fn a_shorter_retention_expires_older_mail_on_the_next_sweep() {
     .unwrap();
     let two_days = now_ms() + 2 * 86_400_000;
     assert_eq!(sweep(&mut c, tmp.path(), two_days).unwrap().expired, 1);
+}
+
+#[test]
+fn a_namespace_is_usable_by_its_owner_an_administrator_or_its_token() {
+    let mut c = conn("usable");
+    create_namespace(&mut c, "ann@x.test", "ann-ns").unwrap();
+    let as_ = |c: &mut Connection, who: &str, admin: bool| {
+        namespace_for(c, "ann-ns", who, admin)
+            .unwrap()
+            .map(|u| u.name().to_string())
+    };
+    assert_eq!(as_(&mut c, "ANN@x.test", false).as_deref(), Some("ann-ns"));
+    assert_eq!(as_(&mut c, "bob@x.test", false), None, "somebody else");
+    assert_eq!(as_(&mut c, "bob@x.test", true).as_deref(), Some("ann-ns"));
+    assert!(
+        namespace_for(&mut c, "missing", "ann@x.test", true)
+            .unwrap()
+            .is_none()
+    );
+
+    let ann = namespace_for(&mut c, "ann-ns", "", true).unwrap().unwrap();
+    let token = rotate_smtp_token(&mut c, &ann).unwrap();
+    assert!(
+        namespace_by_token(&mut c, "ann-ns", "wrong")
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        namespace_by_token(&mut c, "missing", &token)
+            .unwrap()
+            .is_none()
+    );
+    assert_eq!(
+        namespace_by_token(&mut c, "ann-ns", &token)
+            .unwrap()
+            .map(|u| u.name().to_string())
+            .as_deref(),
+        Some("ann-ns")
+    );
 }

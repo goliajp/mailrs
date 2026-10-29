@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use axum::http::StatusCode;
-use mailrs_core_sidestate::families::mock::{self, Filter, MessageMeta};
+use mailrs_core_sidestate::families::mock::{self, Filter, MessageMeta, Usable};
 use serde::Serialize;
 
 use super::service::{MockApiError, MockApiResult, MockCaller, authorize, now_ms, store};
@@ -25,12 +25,9 @@ pub async fn list_messages(
     filter: Filter,
 ) -> MockApiResult<MessageList> {
     let found = authorize(state, caller, ns).await?;
-    let ns = ns.to_string();
-    let messages = store(move |c| mock::list_messages(c, &ns, &filter))?;
-    Ok(MessageList {
-        messages,
-        dropped: found.dropped,
-    })
+    let dropped = found.namespace().dropped;
+    let messages = store(move |c| mock::list_messages(c, &found, &filter))?;
+    Ok(MessageList { messages, dropped })
 }
 
 #[derive(Debug, Serialize)]
@@ -42,8 +39,9 @@ pub struct FullMessage {
     pub dropped: i64,
 }
 
-fn full(meta: MessageMeta, dropped: i64) -> MockApiResult<FullMessage> {
-    let raw = mock::read_raw(mock::root(), &meta.namespace, &meta.id)
+fn full(found: &Usable, meta: MessageMeta) -> MockApiResult<FullMessage> {
+    let dropped = found.namespace().dropped;
+    let raw = mock::read_raw(mock::root(), found, &meta.id)
         .map_err(|_| MockApiError::new(StatusCode::NOT_FOUND, "the message file is gone"))?;
     let parsed = mailrs_mock::parse_message(&raw);
     Ok(FullMessage {
@@ -61,10 +59,10 @@ pub async fn read_message(
     id: &str,
 ) -> MockApiResult<FullMessage> {
     let found = authorize(state, caller, ns).await?;
-    let (ns, id) = (ns.to_string(), id.to_string());
-    let meta = store(move |c| mock::get_message(c, &ns, &id))?
+    let (f, id) = (found.clone(), id.to_string());
+    let meta = store(move |c| mock::get_message(c, &f, &id))?
         .ok_or_else(|| MockApiError::new(StatusCode::NOT_FOUND, "no such message"))?;
-    full(meta, found.dropped)
+    full(&found, meta)
 }
 
 pub async fn read_raw(
@@ -73,11 +71,11 @@ pub async fn read_raw(
     ns: &str,
     id: &str,
 ) -> MockApiResult<Vec<u8>> {
-    authorize(state, caller, ns).await?;
-    let (ns_name, id_s) = (ns.to_string(), id.to_string());
-    store(move |c| mock::get_message(c, &ns_name, &id_s))?
+    let found = authorize(state, caller, ns).await?;
+    let (f, id_s) = (found.clone(), id.to_string());
+    store(move |c| mock::get_message(c, &f, &id_s))?
         .ok_or_else(|| MockApiError::new(StatusCode::NOT_FOUND, "no such message"))?;
-    mock::read_raw(mock::root(), ns, id)
+    mock::read_raw(mock::root(), &found, id)
         .map_err(|_| MockApiError::new(StatusCode::NOT_FOUND, "the message file is gone"))
 }
 
@@ -90,12 +88,12 @@ pub async fn latest(
 ) -> MockApiResult<Option<FullMessage>> {
     let found = authorize(state, caller, ns).await?;
     filter.limit = 1;
-    let ns = ns.to_string();
-    let newest = store(move |c| mock::list_messages(c, &ns, &filter))?;
+    let f = found.clone();
+    let newest = store(move |c| mock::list_messages(c, &f, &filter))?;
     newest
         .into_iter()
         .next()
-        .map(|m| full(m, found.dropped))
+        .map(|m| full(&found, m))
         .transpose()
 }
 
@@ -129,8 +127,8 @@ pub async fn wait_for_message(
     if filter.since.is_none() {
         let minted = match filter.tag.clone() {
             Some(tag) => {
-                let ns = ns.to_string();
-                store(move |c| mock::minted_at(c, &ns, &tag))?
+                let f = found.clone();
+                store(move |c| mock::minted_at(c, &f, &tag))?
             }
             None => None,
         };
@@ -139,16 +137,16 @@ pub async fn wait_for_message(
     filter.limit = usize::MAX;
     let deadline = tokio::time::Instant::now() + timeout.unwrap_or(DEFAULT_WAIT).min(MAX_WAIT);
     loop {
-        let (ns_name, f) = (ns.to_string(), filter.clone());
+        let (usable, f) = (found.clone(), filter.clone());
         // oldest first: the first message after `since` is the one being waited for
-        if let Some(m) = store(move |c| mock::list_messages(c, &ns_name, &f))?.pop() {
+        if let Some(m) = store(move |c| mock::list_messages(c, &usable, &f))?.pop() {
             return Ok(WaitOutcome::Received {
-                message: Box::new(full(m, found.dropped)?),
+                message: Box::new(full(&found, m)?),
             });
         }
         if tokio::time::Instant::now() >= deadline {
             return Ok(WaitOutcome::Timeout {
-                dropped: found.dropped,
+                dropped: found.namespace().dropped,
             });
         }
         tokio::time::sleep(POLL).await;
@@ -164,15 +162,11 @@ pub async fn delete_messages(
     id: Option<&str>,
     tag: Option<&str>,
 ) -> MockApiResult<usize> {
-    authorize(state, caller, ns).await?;
-    let (ns, id, tag) = (
-        ns.to_string(),
-        id.map(str::to_string),
-        tag.map(str::to_string),
-    );
+    let found = authorize(state, caller, ns).await?;
+    let (id, tag) = (id.map(str::to_string), tag.map(str::to_string));
     store(move |c| match id {
-        Some(id) => mock::delete_message(c, mock::root(), &ns, &id).map(usize::from),
-        None => mock::delete_messages(c, mock::root(), &ns, tag.as_deref()),
+        Some(id) => mock::delete_message(c, mock::root(), &found, &id).map(usize::from),
+        None => mock::delete_messages(c, mock::root(), &found, tag.as_deref()),
     })
 }
 
@@ -191,9 +185,8 @@ pub async fn rotate_smtp_token(
     caller: &MockCaller,
     ns: &str,
 ) -> MockApiResult<SmtpCredentials> {
-    authorize(state, caller, ns).await?;
-    let ns_name = ns.to_string();
-    let password = store(move |c| mock::rotate_smtp_token(c, &ns_name))?;
+    let found = authorize(state, caller, ns).await?;
+    let password = store(move |c| mock::rotate_smtp_token(c, &found))?;
     Ok(SmtpCredentials {
         host: std::env::var("MAILRS_HOSTNAME").unwrap_or_default(),
         username: format!("{ns}@{}", mock::domain()),

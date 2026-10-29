@@ -50,6 +50,7 @@ pub async fn release_quarantined(
     State(state): State<Arc<CoreRpcState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> Result<Json<wire::ThreadActionResponse>, StatusCode> {
+    super::thread::require_member(&state, &user, &thread_id).await?;
     let released = state
         .mailbox
         .release_thread(&user, &thread_id)
