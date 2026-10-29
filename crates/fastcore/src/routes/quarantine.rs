@@ -91,7 +91,7 @@ pub(crate) async fn release_quarantined(
         // count is a failure rate nobody can measure.
         tracing::info!(%user, %thread_id, "released: a person said this was not fraud");
     }
-    crate::routes::message_ops::action_result(ok)
+    crate::routes::thread_actions::member_result(ok)
 }
 
 /// `GET /v1/users/{user}/messages/{message_id}/fraud-verdict` — what

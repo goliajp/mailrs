@@ -20,7 +20,7 @@ use crate::*;
 /// bold in every IMAP client. The store may not touch the filesystem, so
 /// it reports which files are behind and this brings them in line.
 ///
-/// Returns whatever `mark_seen` returns — whether the thread row existed.
+/// Returns whatever `mark_seen` returns — whether `user` is in the thread.
 pub(crate) fn mark_thread_read_everywhere(
     state: &Arc<FastcoreState>,
     user: &str,
@@ -63,11 +63,11 @@ pub(crate) async fn mark_read(
         .flatten()
         .is_some_and(|r| r.unread_count > 0);
     let event = crate::importance::read_event(&state, &thread_id, now_secs());
-    mark_thread_read_everywhere(&state, &user, &thread_id);
+    let member = mark_thread_read_everywhere(&state, &user, &thread_id);
     if was_unread {
         crate::importance::record_engagement(&state, &user, &thread_id, event);
     }
-    action_result(true)
+    member_result(member)
 }
 
 /// POST `/v1/users/{user}/conversations:mark-all-read` — sweep every
@@ -149,8 +149,10 @@ pub(crate) async fn pin_thread(
         .unwrap_or(false);
     // Tier 1: a person's decision, written where a rebuilt index cannot
     // lose it. The row above is the index the list reads.
-    crate::keywords::set_on_thread(&state, &user, &thread_id, crate::keywords::PINNED, true);
-    action_result(ok)
+    if ok {
+        crate::keywords::set_on_thread(&state, &user, &thread_id, crate::keywords::PINNED, true);
+    }
+    member_result(ok)
 }
 
 pub(crate) async fn star_thread(
@@ -169,14 +171,14 @@ pub(crate) async fn star_thread(
             mailrs_core_sidestate::families::contacts::Engagement::Starred,
         );
     }
-    action_result(ok)
+    member_result(ok)
 }
 
 pub(crate) async fn unstar_thread(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> axum::response::Response {
-    action_result(
+    member_result(
         state
             .mailbox
             .set_starred(&user, &thread_id, false)
@@ -192,8 +194,10 @@ pub(crate) async fn unpin_thread(
         .mailbox
         .set_pinned(&user, &thread_id, false)
         .unwrap_or(false);
-    crate::keywords::set_on_thread(&state, &user, &thread_id, crate::keywords::PINNED, false);
-    action_result(ok)
+    if ok {
+        crate::keywords::set_on_thread(&state, &user, &thread_id, crate::keywords::PINNED, false);
+    }
+    member_result(ok)
 }
 
 pub(crate) async fn archive_thread(
@@ -215,7 +219,9 @@ pub(crate) async fn archive_thread(
         .unwrap_or(false);
     // Tier 1: no standard maildir flag means "archived", so it goes in a
     // keyword bit, which is where a rebuilt index can find it again.
-    crate::keywords::set_on_thread(&state, &user, &thread_id, crate::keywords::ARCHIVED, true);
+    if ok {
+        crate::keywords::set_on_thread(&state, &user, &thread_id, crate::keywords::ARCHIVED, true);
+    }
     if ok && dismissed_unread {
         crate::importance::record_engagement(
             &state,
@@ -224,7 +230,7 @@ pub(crate) async fn archive_thread(
             mailrs_core_sidestate::families::contacts::Engagement::ArchivedUnread,
         );
     }
-    action_result(ok)
+    member_result(ok)
 }
 
 /// v2.4.1 Phase 3 (RFC-B §3.4) — mark a thread as junk.
@@ -249,7 +255,7 @@ pub(crate) async fn mark_junk(
     if ok {
         crate::bayes_train::train_thread(&state, &user, &thread_id, true);
     }
-    filed_result(ok)
+    member_result(ok)
 }
 
 /// v2.4.1 Phase 3 (RFC-B §3.4) — mark a thread as not junk. The
@@ -269,7 +275,7 @@ pub(crate) async fn mark_not_junk(
     if ok {
         crate::bayes_train::train_thread(&state, &user, &thread_id, false);
     }
-    filed_result(ok)
+    member_result(ok)
 }
 
 /// v2.9 triage — move a thread into the Notifications bucket and train
@@ -289,7 +295,7 @@ pub(crate) async fn mark_notification(
     if ok {
         crate::bayes_train::train_triage(&state, &user, &thread_id, "notification");
     }
-    filed_result(ok)
+    member_result(ok)
 }
 
 /// v2.9 triage — move a thread into the Promotions bucket and train
@@ -309,7 +315,7 @@ pub(crate) async fn mark_promotion(
     if ok {
         crate::bayes_train::train_triage(&state, &user, &thread_id, "promotion");
     }
-    filed_result(ok)
+    member_result(ok)
 }
 
 /// v2.9 triage — move a thread back into the Inbox bucket and train the
@@ -325,7 +331,7 @@ pub(crate) async fn move_to_inbox(
     if ok {
         crate::bayes_train::train_triage(&state, &user, &thread_id, "inbox");
     }
-    filed_result(ok)
+    member_result(ok)
 }
 
 pub(crate) async fn unarchive_thread(
@@ -336,8 +342,10 @@ pub(crate) async fn unarchive_thread(
         .mailbox
         .set_archived(&user, &thread_id, false)
         .unwrap_or(false);
-    crate::keywords::set_on_thread(&state, &user, &thread_id, crate::keywords::ARCHIVED, false);
-    action_result(ok)
+    if ok {
+        crate::keywords::set_on_thread(&state, &user, &thread_id, crate::keywords::ARCHIVED, false);
+    }
+    member_result(ok)
 }
 
 pub(crate) async fn delete_thread(
@@ -372,9 +380,10 @@ pub(crate) async fn delete_thread(
     action_result(existed)
 }
 
-/// A filing (junk, not junk, a triage bucket) that found no row of the
-/// caller's in the thread is a 404: the thread is not theirs to file.
-fn filed_result(ok: bool) -> axum::response::Response {
+/// An action that found no row of the caller's in the thread is a 404:
+/// the thread is not theirs to act on, and the answer must not say
+/// whether it exists for somebody else.
+pub(crate) fn member_result(ok: bool) -> axum::response::Response {
     use axum::response::IntoResponse;
     match ok {
         true => action_result(true),
