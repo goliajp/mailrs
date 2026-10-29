@@ -290,27 +290,53 @@ fn move_legacy_session(
     client: &mut kevy_client::Connection,
     token: &str,
 ) -> std::io::Result<Option<Vec<u8>>> {
-    use mailrs_core_sidestate::keys::session::{by_addr_key, legacy_session_key, session_ref};
-    let legacy = legacy_session_key(token);
+    let legacy = mailrs_core_sidestate::keys::session::legacy_session_key(token);
     let Some(bytes) = client.get(legacy.as_bytes())? else {
         return Ok(None);
     };
-    let stored = session_key(token);
+    write_moved(client, token, &bytes)?;
+    settle_move(client, token, bytes)
+}
+
+// the steps of `move_legacy_session`, apart so the tests can end the
+// session between them
+fn write_moved(
+    client: &mut kevy_client::Connection,
+    token: &str,
+    bytes: &[u8],
+) -> std::io::Result<()> {
     client.set_with_ttl(
-        stored.as_bytes(),
-        &bytes,
+        session_key(token).as_bytes(),
+        bytes,
         std::time::Duration::from_secs(SESSION_TTL_SECS),
     )?;
+    Ok(())
+}
+
+fn settle_move(
+    client: &mut kevy_client::Connection,
+    token: &str,
+    bytes: Vec<u8>,
+) -> std::io::Result<Option<Vec<u8>>> {
+    use mailrs_core_sidestate::keys::session::{by_addr_key, legacy_session_key, session_ref};
+    let legacy = legacy_session_key(token);
+    let stored = session_key(token);
     if client.exists(&[legacy.as_bytes()])? == 0 {
         client.del(&[stored.as_bytes()])?;
         return Ok(None);
     }
-    if let Ok(blob) = serde_json::from_slice::<SessionBlob>(&bytes) {
-        let idx = by_addr_key(&blob.address);
+    // the token leaves the index last: while it is there a revocation
+    // deletes the old key, which a later request would otherwise move back
+    let idx = serde_json::from_slice::<SessionBlob>(&bytes)
+        .ok()
+        .map(|blob| by_addr_key(&blob.address));
+    if let Some(idx) = &idx {
         client.sadd(idx.as_bytes(), &[session_ref(token).as_bytes()])?;
-        client.srem(idx.as_bytes(), &[token.as_bytes()])?;
     }
     client.del(&[legacy.as_bytes()])?;
+    if let Some(idx) = &idx {
+        client.srem(idx.as_bytes(), &[token.as_bytes()])?;
+    }
     Ok(Some(bytes))
 }
 
@@ -445,6 +471,102 @@ pub async fn session_auth_middleware(
 
 #[cfg(test)]
 mod tests {
+    use mailrs_core_sidestate::keys::session::{
+        by_addr_key, legacy_session_key, session_key_by_ref, session_ref,
+    };
+
+    const OWNER: &str = "a@x.test";
+
+    /// A session as a release before hashing left it, on its own store.
+    fn legacy(name: &str, token: &str) -> kevy_client::Connection {
+        let mut c =
+            kevy_client::Connection::connect(&format!("mem://session-move-{name}")).unwrap();
+        c.set(
+            legacy_session_key(token).as_bytes(),
+            br#"{"address":"a@x.test","display_name":""}"#,
+        )
+        .unwrap();
+        c.sadd(by_addr_key(OWNER).as_bytes(), &[token.as_bytes()])
+            .unwrap();
+        c
+    }
+
+    /// Nothing under any name the session could have, and a later request
+    /// does not find it either.
+    fn gone(c: &mut kevy_client::Connection, token: &str) {
+        for key in [session_key(token), legacy_session_key(token)] {
+            assert_eq!(c.exists(&[key.as_bytes()]).unwrap(), 0, "{key} is back");
+        }
+        assert!(super::move_legacy_session(c, token).unwrap().is_none());
+    }
+
+    #[test]
+    fn a_logout_before_the_copy_is_written_stays_a_logout() {
+        let t = "1".repeat(64);
+        let mut c = legacy("logout-before-write", &t);
+        let bytes = c.get(legacy_session_key(&t).as_bytes()).unwrap().unwrap();
+        crate::handlers::auth::end_session(&mut c, &t).unwrap();
+        super::write_moved(&mut c, &t, &bytes).unwrap();
+        assert!(super::settle_move(&mut c, &t, bytes).unwrap().is_none());
+        gone(&mut c, &t);
+    }
+
+    #[test]
+    fn a_logout_after_the_copy_is_written_stays_a_logout() {
+        let t = "2".repeat(64);
+        let mut c = legacy("logout-after-write", &t);
+        let bytes = c.get(legacy_session_key(&t).as_bytes()).unwrap().unwrap();
+        super::write_moved(&mut c, &t, &bytes).unwrap();
+        crate::handlers::auth::end_session(&mut c, &t).unwrap();
+        assert!(super::settle_move(&mut c, &t, bytes).unwrap().is_none());
+        gone(&mut c, &t);
+    }
+
+    #[test]
+    fn a_revocation_after_the_copy_is_written_stays_a_revocation() {
+        let t = "3".repeat(64);
+        let mut c = legacy("revoke-after-write", &t);
+        let bytes = c.get(legacy_session_key(&t).as_bytes()).unwrap().unwrap();
+        super::write_moved(&mut c, &t, &bytes).unwrap();
+        crate::handlers::auth::revoke_sessions(&mut c, OWNER).unwrap();
+        assert!(super::settle_move(&mut c, &t, bytes).unwrap().is_none());
+        gone(&mut c, &t);
+    }
+
+    /// The rest of the move is three writes: the hash joins the index, the
+    /// old key goes, the token leaves the index. A revocation after either
+    /// of the first two still finds the session.
+    #[test]
+    fn a_revocation_during_the_index_swap_finds_the_session() {
+        for (n, old_key_dropped) in [(4, false), (5, true)] {
+            let t = n.to_string().repeat(64);
+            let mut c = legacy(&format!("revoke-during-swap-{n}"), &t);
+            let bytes = c.get(legacy_session_key(&t).as_bytes()).unwrap().unwrap();
+            super::write_moved(&mut c, &t, &bytes).unwrap();
+            c.sadd(by_addr_key(OWNER).as_bytes(), &[session_ref(&t).as_bytes()])
+                .unwrap();
+            if old_key_dropped {
+                c.del(&[legacy_session_key(&t).as_bytes()]).unwrap();
+            }
+            crate::handlers::auth::revoke_sessions(&mut c, OWNER).unwrap();
+            assert_eq!(
+                c.exists(&[session_key_by_ref(&session_ref(&t)).as_bytes()])
+                    .unwrap(),
+                0
+            );
+            gone(&mut c, &t);
+        }
+    }
+
+    #[test]
+    fn an_undisturbed_move_keeps_the_session() {
+        let t = "6".repeat(64);
+        let mut c = legacy("undisturbed", &t);
+        assert!(super::move_legacy_session(&mut c, &t).unwrap().is_some());
+        assert_eq!(c.exists(&[session_key(&t).as_bytes()]).unwrap(), 1);
+        assert_eq!(c.exists(&[legacy_session_key(&t).as_bytes()]).unwrap(), 0);
+    }
+
     use super::*;
     use axum::http::HeaderValue;
 
