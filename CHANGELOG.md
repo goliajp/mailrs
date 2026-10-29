@@ -18,6 +18,17 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### An empty SRS key no longer relays mail for strangers (2.135.2)
+
+- Compose passes `MAILRS_SRS_SECRET` as an empty string when it is not
+  configured, and the spool drain used that empty string as the HMAC
+  key. Anybody could sign an `SRS0=` address under it; the catch-all
+  accepted the message and the drain relayed it, with a null sender, to
+  the address encoded in it. An empty key now means SRS is off in the
+  drain and in forwarding, as it already did in the receiver, and an
+  `SRS0=` address with no key to check it routes like any other local
+  address.
+
 ### Fraud rules read links: our address shown over a link elsewhere is held
 
 - New facts for the rules, from the HTML of every message: links whose
