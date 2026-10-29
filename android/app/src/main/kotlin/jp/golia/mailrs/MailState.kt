@@ -21,6 +21,8 @@ import jp.golia.mailrs.wire.Wire
  * copy of every fact and the screens read it.
  */
 data class UiState(
+    /** The server wants the password typed again before a change goes through. */
+    val confirm: ConfirmPrompt? = null,
     val signedIn: Boolean = false,
     val server: String = "",
     val busy: Boolean = false,
@@ -413,3 +415,14 @@ fun settingsBack(state: UiState): SettingsBack = when {
     state.mergedMailOpen -> SettingsBack.MergedMail
     else -> SettingsBack.Settings
 }
+
+/**
+ * The password prompt for a change the server asked to confirm.
+ * `needsCode` once the server said the account has an authenticator;
+ * `message` is the server's answer to the last try.
+ */
+data class ConfirmPrompt(
+    val needsCode: Boolean = false,
+    val message: String? = null,
+    val busy: Boolean = false,
+)

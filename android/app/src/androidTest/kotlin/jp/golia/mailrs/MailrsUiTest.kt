@@ -174,6 +174,17 @@ abstract class MailrsUiTest : GrantsNotifications() {
         }
     }
 
+    /**
+     * Type the password into the prompt a guarded change opens — adding an
+     * alias, a member, a key. The stub accepts any password but
+     * `wrong-password`.
+     */
+    protected fun confirmPassword(password: String = "anything") {
+        waitForTag("field.confirmPassword", "the password prompt never opened")
+        compose.onNodeWithTag("field.confirmPassword").performTextInput(password)
+        compose.onNodeWithTag("button.confirmPassword").performClick()
+    }
+
     protected fun waitForTag(tag: String, what: String) {
         try {
             compose.waitUntil(TIMEOUT_MS) {
