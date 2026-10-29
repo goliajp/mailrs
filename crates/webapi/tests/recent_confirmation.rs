@@ -173,7 +173,10 @@ const GUARDED_TOOLS: [(&str, &str); 4] = [
         "set_account_password",
         r#"{"address":"x@example.test","password":"a long new passphrase"}"#,
     ),
-    ("audit_list_conversations", r#"{"target_user":"x@example.test"}"#),
+    (
+        "audit_list_conversations",
+        r#"{"target_user":"x@example.test"}"#,
+    ),
 ];
 
 fn error_of(body: &Value) -> &str {
