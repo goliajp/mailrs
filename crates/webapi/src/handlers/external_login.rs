@@ -206,8 +206,8 @@ pub async fn settle(
         // Linked: this identity is the credential.
         Some(address) => match state.core.get_account_with_hash(&address).await {
             Ok(acct) => {
-                crate::handlers::audit::record(&address, "auth.login.external", &key, "");
-                signed_in_redirect(crate::handlers::auth::issue_session(&state, &acct).await)
+                crate::handlers::audit::record(&address, "auth.login.external", key, "");
+                signed_in_redirect(crate::handlers::auth::issue_session(state, &acct).await)
             }
             // Linked to an account that no longer exists. Refusing is the
             // only safe answer — the alternative is inventing one.
@@ -234,7 +234,7 @@ pub async fn settle(
             use mailrs_core_sidestate::families::identity_link::LinkOutcome;
             match outcome {
                 Ok(LinkOutcome::Linked) | Ok(LinkOutcome::AlreadyLinked) => {
-                    crate::handlers::audit::record(&address, "auth.identity.link", &key, "");
+                    crate::handlers::audit::record(&address, "auth.identity.link", key, "");
                     Redirect::to("/settings?linked=1").into_response()
                 }
                 // Held by somebody else. Never moved silently — that is one
