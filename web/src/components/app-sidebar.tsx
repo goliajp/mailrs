@@ -2,7 +2,7 @@ import type { ThemeMode } from '@goliapkg/gds'
 import type { LucideIcon } from 'lucide-react'
 
 import { cx } from '@goliapkg/gds'
-import { useAtom, useAtomValue, useSetAtom } from 'jotai'
+import { useAtom, useAtomValue } from 'jotai'
 import {
   Activity,
   FlaskConical,
@@ -16,14 +16,14 @@ import {
   Sun,
 } from 'lucide-react'
 import { useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router'
+import { Link, useLocation } from 'react-router'
 
 import { BottomSheet } from '@/components/bottom-sheet'
 import { useCurrentUnreadCount } from '@/hooks/use-current-mail-filters'
+import { useSignOut } from '@/hooks/use-sign-out'
 import { authAtom } from '@/store/auth'
 import { themeModeAtom } from '@/store/theme'
 import { selectedDomainsAtom } from '@/store/ui'
-import { wireLogout } from '@/wire/endpoints/auth'
 
 const THEME_CYCLE: ThemeMode[] = ['system', 'light', 'dark']
 
@@ -34,7 +34,6 @@ const navBtnActive = 'bg-accent/10 text-accent'
 
 export function AppSidebar() {
   const auth = useAtomValue(authAtom)
-  const setAuth = useSetAtom(authAtom)
   const [theme, setTheme] = useAtom(themeModeAtom)
   const { pathname } = useLocation()
 
@@ -49,17 +48,7 @@ export function AppSidebar() {
   const [selectedDomains, setSelectedDomains] = useAtom(selectedDomainsAtom)
   const domains = auth?.accessible_domains ?? []
 
-  const navigate = useNavigate()
-
-  const doLogout = async () => {
-    try {
-      await wireLogout()
-    } catch {
-      // ignore
-    }
-    setAuth(null)
-    navigate('/login')
-  }
+  const doLogout = useSignOut()
 
   const section = sidebarSection(pathname)
 
