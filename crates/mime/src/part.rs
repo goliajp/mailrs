@@ -180,6 +180,17 @@ impl<'p, 'a> Iterator for Walker<'p, 'a> {
 /// assert_eq!(root.children[1].content_type.mime_type(), "text/html");
 /// ```
 pub fn parse(raw: &[u8]) -> Part<'_> {
+    parse_nested(raw, 0)
+}
+
+/// How deep multiparts nest before the rest is kept as one opaque part.
+/// The sender chooses the depth and each level costs a stack frame here
+/// and in every walk over the tree: a few thousand levels in a couple of
+/// hundred kilobytes overflowed the receiver's stack and took every SMTP
+/// session down with it. Postfix stops at the same depth by default.
+pub const MAX_NESTING: usize = 100;
+
+fn parse_nested(raw: &[u8], depth: usize) -> Part<'_> {
     // Single-pass header walk: one scan of the header region picks
     // up all 4 MIME headers + the body offset. Previous version
     // called `Message::header()` 4 times + `Message::body()` once,
@@ -210,8 +221,8 @@ pub fn parse(raw: &[u8]) -> Part<'_> {
 
     if content_type.is_multipart() {
         let children = match content_type.boundary() {
-            Some(b) => split_multipart(body, b),
-            None => Vec::new(),
+            Some(b) if depth < MAX_NESTING => split_multipart(body, b, depth),
+            _ => Vec::new(),
         };
         // Multipart preamble is "rarely interesting" per RFC 2046 §5.1.1;
         // dropping it saves a body copy of the entire raw payload
@@ -374,7 +385,7 @@ fn try_dispatch<'a>(line: &'a [u8], name: &[u8], slot: &mut Option<&'a [u8]>) ->
 }
 
 /// Split a multipart body by `--<boundary>` markers (RFC 2046 §5.1.1).
-fn split_multipart<'a>(body: &'a [u8], boundary: &str) -> Vec<Part<'a>> {
+fn split_multipart<'a>(body: &'a [u8], boundary: &str, depth: usize) -> Vec<Part<'a>> {
     let boundary_bytes = boundary.as_bytes();
     // Boundary token = `--<boundary>`. The close form appends `--` again.
     // No heap allocation for either — we work directly against byte
@@ -413,7 +424,7 @@ fn split_multipart<'a>(body: &'a [u8], boundary: &str) -> Vec<Part<'a>> {
                 pos
             };
             let part_bytes = &body[start..end];
-            parts.push(parse(part_bytes));
+            parts.push(parse_nested(part_bytes, depth + 1));
         }
         // Is this the close delimiter (`--boundary--`)?
         let close_end = pos + close_len;
@@ -716,5 +727,41 @@ mod tests {
         let p = parse(raw);
         // No boundary param → can't split → no children
         assert!(p.children.is_empty());
+    }
+
+    /// A sender picks the nesting depth. Past the cap the rest of the tree
+    /// is one opaque part, so neither the parse nor a walk over the result
+    /// can run the stack out.
+    #[test]
+    fn nesting_stops_at_the_cap_instead_of_the_stack() {
+        let depth = 5_000;
+        let mut raw = Vec::new();
+        for i in 0..depth {
+            raw.extend_from_slice(
+                format!("Content-Type: multipart/mixed; boundary=\"b{i}x\"\r\n\r\n--b{i}x\r\n")
+                    .as_bytes(),
+            );
+        }
+        raw.extend_from_slice(b"Content-Type: text/plain\r\n\r\nleaf\r\n");
+        for i in (0..depth).rev() {
+            raw.extend_from_slice(format!("--b{i}x--\r\n").as_bytes());
+        }
+        let root = std::thread::Builder::new()
+            .stack_size(256 * 1024)
+            .spawn(move || {
+                let p = parse(&raw);
+                let mut levels = 0;
+                let mut node = &p;
+                while let Some(child) = node.children.first() {
+                    levels += 1;
+                    node = child;
+                }
+                (levels, p.walk().count())
+            })
+            .unwrap()
+            .join()
+            .expect("parsing deep nesting must not overflow the stack");
+        assert_eq!(root.0, MAX_NESTING);
+        assert_eq!(root.1, MAX_NESTING + 1);
     }
 }
