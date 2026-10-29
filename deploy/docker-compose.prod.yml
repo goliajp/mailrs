@@ -244,6 +244,10 @@ services:
       MAILRS_MAILDIR: /data/maildir
       MAILRS_MOCK_DOMAIN: mock.golia.jp
       MAILRS_HOSTNAME: mail.golia.ai
+      # CSRF: `report` logs violations without refusing them while the web
+      # client is checked against the live traffic. Switch to `enforce`
+      # (or drop this line) by 2026-11-01 at the latest.
+      MAILRS_CSRF: report
       # the domain check reads only domain and selector, never the key files
       <<: [*dkim-identity, *imap-listeners]
       RUST_LOG: info

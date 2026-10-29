@@ -661,6 +661,14 @@ curl -X POST https://mail.golia.ai/api/auth/logout \
   -H "Authorization: Bearer <token>"
 ```
 
+Send the token as `Authorization: Bearer`. The login also sets two cookies
+for the web client: `mailrs_session` (HttpOnly) and `mailrs_csrf`. A request
+authenticated by the session cookie that is not GET, HEAD or OPTIONS must
+carry the `mailrs_csrf` value in `X-CSRF-Token`, and an `Origin` it names must
+be the web origin; otherwise it is refused with 403 and
+`{"error": "csrf_missing" | "csrf_mismatch" | "origin_mismatch"}`. A request
+with an `Authorization` header is judged by that header alone.
+
 ### Send Email
 
 ```

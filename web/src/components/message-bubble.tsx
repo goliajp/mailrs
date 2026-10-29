@@ -8,6 +8,7 @@ import { linkifyNodes } from '@/components/linkify-nodes'
 import { MobileModal } from '@/components/mobile-modal'
 import { splitEmail } from '@/lib/email-split'
 import { formatSize } from '@/lib/format'
+import { http } from '@/lib/http'
 
 // react-markdown + remark-gfm + rehype-highlight together drag in roughly
 // 150-200 kB of JS once highlight.js's language pack is in the graph. plain-
@@ -126,7 +127,7 @@ function AttachmentItem({ att, index, uid }: { att: AttachmentInfo; index: numbe
     }
     setLoading(true)
     try {
-      const res = await fetch(`/api/mail/messages/${uid}/attachments/${index}/content`)
+      const res = await http(`/api/mail/messages/${uid}/attachments/${index}/content`)
       if (!res.ok) {
         setExtractedText('')
         setShowContent(false)
