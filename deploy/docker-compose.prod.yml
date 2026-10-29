@@ -75,6 +75,12 @@ services:
       # Slack's workspace is legitimately called GOLIA株式会社, and its
       # notifications are three of the twelve messages that match.
       MAILRS_ORG_NAME_ALLOWED_DOMAINS: slack.com,github.com,atlassian.net
+      # Our own egress address. The sender hands colleague-to-colleague
+      # mail to this MX over port 25, and a message from here that also
+      # passes DMARC with our own aligned DKIM signature skips scoring.
+      # Exact addresses only: the receiver sees real client addresses
+      # (checked 2026-10-29), and a range would trust strangers.
+      MAILRS_TRUSTED_RELAY_IPS: 52.195.89.111
       MAILRS_SPOOL_ROOT: /data/.spool
       MAILRS_MAILDIR: /data/maildir
       MAILRS_USERS_FILE: /data/users.toml

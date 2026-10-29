@@ -120,6 +120,7 @@ mod tests {
             recipient_blacklist: std::collections::HashSet::new(),
             local_domains: std::collections::HashSet::new(),
             sender_allowed: false,
+            own_mail: false,
         }
     }
 
@@ -967,19 +968,16 @@ mod tests {
             other => panic!("expected Junk, got {other:?}"),
         }
     }
-    /// A colleague's message is not junk.
-    ///
-    /// Content scoring is tuned for strangers, and a message that
-    /// really did come from one of our own domains — through a
-    /// forward, a list, or a device sending via the MX — should not
-    /// be graded on that curve.
+    /// A colleague's message is not junk once it is proven ours: our
+    /// sender's address, DMARC, and our own aligned signature together
+    /// (`PipelineInput::own_mail`, set from `ReceiveContext`).
     #[test]
-    fn our_own_domain_is_accepted_when_the_claim_is_proven() {
+    fn our_own_proven_mail_is_accepted() {
         let mut input = default_input();
         input.local_domains = ours();
         input.from_addr = "colleague@golia.jp".into();
         input.content_score = 99.0; // would be Junk many times over
-        input.auth.spf = "pass".into();
+        input.own_mail = true;
         assert!(
             matches!(
                 make_delivery_decision(&input),
@@ -989,40 +987,27 @@ mod tests {
         );
     }
 
-    /// And the half that matters more: a `From:` header costs nothing
-    /// to write. "Anything claiming our domain is trusted" is the one
-    /// rule an attacker would most like us to install.
+    /// A `From:` header costs nothing to write, and neither do an
+    /// envelope sender, an SPF pass from the sender's own network, or a
+    /// DKIM signature from the sender's own domain. None of them makes a
+    /// stranger one of us.
     #[test]
-    fn claiming_our_domain_without_passing_earns_nothing() {
-        let mut input = default_input();
-        input.local_domains = ours();
-        input.from_addr = "ceo@golia.jp".into();
-        input.content_score = 99.0;
-        input.auth.spf = "fail".into();
-        input.auth.dkim = "fail".into();
-        assert!(
-            matches!(
-                make_delivery_decision(&input),
-                DeliveryDecision::Junk { .. }
-            ),
-            "an unproven claim on our own domain bypassed scoring"
-        );
-    }
-
-    /// DKIM alone is enough — a forwarded message loses SPF and keeps
-    /// its signature, which is the whole reason DKIM survives relays.
-    #[test]
-    fn dkim_alone_proves_it() {
-        let mut input = default_input();
-        input.local_domains = ours();
-        input.from_addr = "colleague@golia.jp".into();
-        input.content_score = 99.0;
-        input.auth.spf = "fail".into();
-        input.auth.dkim = "pass".into();
-        assert!(matches!(
-            make_delivery_decision(&input),
-            DeliveryDecision::Accept { .. }
-        ));
+    fn claiming_our_envelope_domain_earns_nothing() {
+        for (spf, dkim) in [("pass", "none"), ("fail", "pass"), ("fail", "fail")] {
+            let mut input = default_input();
+            input.local_domains = ours();
+            input.from_addr = "ceo@golia.jp".into();
+            input.content_score = 99.0;
+            input.auth.spf = spf.into();
+            input.auth.dkim = dkim.into();
+            assert!(
+                matches!(
+                    make_delivery_decision(&input),
+                    DeliveryDecision::Junk { .. }
+                ),
+                "spf={spf} dkim={dkim} on our envelope domain bypassed scoring"
+            );
+        }
     }
 
     /// An empty list disables the rule. It must not read as "every

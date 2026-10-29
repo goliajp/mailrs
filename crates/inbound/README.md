@@ -189,13 +189,14 @@ let input = PipelineInput {
     header_from_addr: String::new(),
     recipient_whitelist: std::collections::HashSet::new(),
     recipient_blacklist: std::collections::HashSet::new(),
-    // The domains this server hosts. A message that really comes from
-    // one of them — proven by SPF or DKIM, never by the `From:` header
-    // alone — is accepted without content scoring, which is tuned for
-    // strangers. Empty disables the rule rather than matching
-    // everything.
+    // The domains this server hosts. A `From:` naming one of them that
+    // fails DMARC goes to Junk. Empty disables the rule rather than
+    // matching everything.
     local_domains: std::collections::HashSet::new(),
     sender_allowed: false,
+    // Our own mail back through our MX: our sender's address, DMARC,
+    // and our own aligned DKIM signature, all three. Skips scoring.
+    own_mail: false,
 };
 
 let decision = make_delivery_decision(&input);

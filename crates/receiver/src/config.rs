@@ -46,6 +46,13 @@ pub struct ReceiverConfig {
     /// like, whose notifications say your company's name because you
     /// told them to.
     pub org_name_allowed_domains: Vec<String>,
+    /// `MAILRS_TRUSTED_RELAY_IPS`: the addresses our own sender connects
+    /// from when it hands a colleague's message to this MX. Mail from one
+    /// of them that carries our own aligned DKIM signature is not scored.
+    /// Exact addresses, never a range: a published port that hides the
+    /// client behind a gateway address would turn a range into the whole
+    /// internet. Empty trusts no peer, and our own mail is scored.
+    pub trusted_relays: Vec<std::net::IpAddr>,
     pub dnsbl_zones: Vec<String>,
     pub dnsbl_enabled: bool,
     pub antispam_enabled: bool,
@@ -138,6 +145,14 @@ impl ReceiverConfig {
             // anyway, and the value is read by a person in a log line.
             org_names: env_csv("MAILRS_ORG_NAMES", false),
             org_name_allowed_domains: env_csv("MAILRS_ORG_NAME_ALLOWED_DOMAINS", true),
+            trusted_relays: env_csv("MAILRS_TRUSTED_RELAY_IPS", false)
+                .iter()
+                .map(|s| {
+                    s.parse().unwrap_or_else(|_| {
+                        panic!("MAILRS_TRUSTED_RELAY_IPS: {s:?} is not an IP address")
+                    })
+                })
+                .collect(),
             dnsbl_zones: env_csv("MAILRS_DNSBL_ZONES", false),
             dnsbl_enabled: env_bool_truthy("MAILRS_DNSBL_ENABLED", false),
             antispam_enabled: env_bool_truthy("MAILRS_ANTISPAM_ENABLED", true),
