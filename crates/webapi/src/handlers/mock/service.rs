@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use axum::http::StatusCode;
-use mailrs_core_sidestate::families::mock::{self, MockError, Namespace};
+use mailrs_core_sidestate::families::mock::{self, MockError, Namespace, Usable};
 use serde::Serialize;
 
 use crate::WebState;
@@ -87,7 +87,7 @@ pub(super) async fn authorize(
     state: &Arc<WebState>,
     caller: &MockCaller,
     ns: &str,
-) -> MockApiResult<Namespace> {
+) -> MockApiResult<Usable> {
     enabled()?;
     let missing = || MockApiError::new(StatusCode::NOT_FOUND, "no such namespace");
     if caller
@@ -156,7 +156,7 @@ pub async fn list_namespaces(
         let mut out = Vec::new();
         for ns in only {
             if let Ok(found) = authorize(state, caller, ns).await {
-                out.push(view(found));
+                out.push(view(found.into_namespace()));
             }
         }
         return Ok(out);
@@ -181,10 +181,10 @@ pub async fn delete_namespace(
         ));
     }
     let found = authorize(state, caller, ns).await?;
-    let ns = ns.to_string();
-    store(move |c| mock::delete_namespace(c, mock::root(), &ns))?;
-    let detail = format!("owner={}", found.owner);
-    crate::handlers::audit::record(&caller.user, "mock.namespace_delete", &found.name, &detail);
+    let detail = format!("owner={}", found.namespace().owner);
+    let name = found.name().to_string();
+    store(move |c| mock::delete_namespace(c, mock::root(), &found))?;
+    crate::handlers::audit::record(&caller.user, "mock.namespace_delete", &name, &detail);
     Ok(())
 }
 
@@ -202,7 +202,7 @@ pub async fn new_address(
     ns: &str,
     tag: Option<&str>,
 ) -> MockApiResult<MintedAddress> {
-    authorize(state, caller, ns).await?;
+    let found = authorize(state, caller, ns).await?;
     let tag = match tag
         .map(|t| t.trim().to_ascii_lowercase())
         .filter(|t| !t.is_empty())
@@ -217,8 +217,8 @@ pub async fn new_address(
         None => random_tag(),
     };
     let minted_at = now_ms();
-    let (ns_name, t) = (ns.to_string(), tag.clone());
-    store(move |c| mock::record_minted(c, &ns_name, &t, minted_at))?;
+    let t = tag.clone();
+    store(move |c| mock::record_minted(c, &found, &t, minted_at))?;
     Ok(MintedAddress {
         address: format!("{ns}.{tag}@{}", mock::domain()),
         namespace: ns.to_string(),
@@ -254,7 +254,7 @@ pub async fn set_webhook(
     ns: &str,
     url: &str,
 ) -> MockApiResult<MockWebhook> {
-    authorize(state, caller, ns).await?;
+    let found = authorize(state, caller, ns).await?;
     let url = url.trim().to_string();
     let scheme_ok = url.starts_with("https://") || url.starts_with("http://");
     if !scheme_ok || url.len() > 2048 || url.contains(char::is_whitespace) {
@@ -263,8 +263,7 @@ pub async fn set_webhook(
             "the webhook is an http(s) URL",
         ));
     }
-    let ns_name = ns.to_string();
-    let sub = store(move |c| mock::set_webhook(c, &ns_name, &url))?;
+    let sub = store(move |c| mock::set_webhook(c, &found, &url))?;
     Ok(MockWebhook {
         url: sub.url,
         signing_secret: sub.signing_secret,
@@ -276,7 +275,6 @@ pub async fn clear_webhook(
     caller: &MockCaller,
     ns: &str,
 ) -> MockApiResult<bool> {
-    authorize(state, caller, ns).await?;
-    let ns_name = ns.to_string();
-    store(move |c| mock::clear_webhook(c, &ns_name))
+    let found = authorize(state, caller, ns).await?;
+    store(move |c| mock::clear_webhook(c, &found))
 }

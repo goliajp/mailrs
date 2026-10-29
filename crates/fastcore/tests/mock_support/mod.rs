@@ -92,7 +92,8 @@ pub fn all(c: &mut Connection, ns: &str) -> Vec<mock::MessageMeta> {
         limit: usize::MAX,
         ..Default::default()
     };
-    mock::list_messages(c, ns, &f).unwrap()
+    let namespace = usable(c, ns);
+    mock::list_messages(c, &namespace, &f).unwrap()
 }
 
 pub fn files_under(dir: &Path) -> usize {
@@ -125,4 +126,9 @@ fn walk(dir: &Path) -> Vec<std::path::PathBuf> {
         }
     }
     out
+}
+
+/// The namespace as an administrator may use it.
+fn usable(kv: &mut kevy_client::Connection, name: &str) -> mock::Usable {
+    mock::namespace_for(kv, name, "", true).unwrap().unwrap()
 }

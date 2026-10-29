@@ -143,7 +143,8 @@ async fn mock_mail_arrives_once_and_touches_nothing_real() {
     assert!(all(&mut kv, "e2e").iter().any(|m| m.tag == "cc"));
 
     // 5. a sandbox login: everything is captured, nothing is queued outward
-    let token = mock::rotate_smtp_token(&mut kv, "e2e").unwrap();
+    let namespace = usable(&mut kv, "e2e");
+    let token = mock::rotate_smtp_token(&mut kv, &namespace).unwrap();
     let mut sub = Smtp::connect(receiver.submission.port()).await;
     sub.cmd("EHLO app.example.org").await;
     let plain = {
@@ -263,4 +264,9 @@ async fn mock_mail_arrives_once_and_touches_nothing_real() {
         .expect("no auto-reply in the namespace");
     assert_eq!(reply.direction, mock::Direction::In);
     assert!(reply.summary.subject.starts_with("Out of office"));
+}
+
+/// The namespace as an administrator may use it.
+fn usable(kv: &mut kevy_client::Connection, name: &str) -> mock::Usable {
+    mock::namespace_for(kv, name, "", true).unwrap().unwrap()
 }

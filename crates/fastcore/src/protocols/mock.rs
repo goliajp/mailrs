@@ -22,7 +22,7 @@ const UNAVAILABLE: &str = "[UNAVAILABLE] mock store unreachable";
 pub struct MockAccount {
     pub(crate) state: Arc<FastcoreState>,
     pub(crate) user: String,
-    ns: String,
+    ns: store::Usable,
 }
 
 /// Only the namespace's token is checked: a username on the mock domain
@@ -40,17 +40,17 @@ pub(super) async fn login(
     let token = password.to_string();
     let verified = tokio::task::spawn_blocking(move || {
         let mut conn = st.net_conn()?;
-        store::verify_smtp_token(&mut conn, &ns, &token).ok()
+        store::namespace_by_token(&mut conn, &ns, &token).ok()
     })
     .await
     .map_err(|e| Error::Store(e.to_string()))?;
     match verified {
-        Some(true) => Ok(Some(FastcoreAccount::Mock(MockAccount {
+        Some(Some(ns)) => Ok(Some(FastcoreAccount::Mock(MockAccount {
             state: state.clone(),
             user: format!("{}@{}", addr.namespace, store::domain()),
-            ns: addr.namespace,
+            ns,
         }))),
-        Some(false) => Ok(None),
+        Some(None) => Ok(None),
         None => Err(Error::Refused(UNAVAILABLE.into())),
     }
 }
@@ -64,7 +64,7 @@ impl MockAccount {
         }
         Ok(MailboxInfo {
             name: "INBOX".into(),
-            path: store::root().join(&self.ns),
+            path: store::root().join(self.ns.name()),
         })
     }
 
@@ -91,14 +91,20 @@ impl MockAccount {
 /// UIDVALIDITY and the inbound messages of `ns`, ascending by uid.
 /// UIDVALIDITY is the creation second, so a namespace deleted and
 /// created again under the same name invalidates what clients cached.
-fn load(state: &FastcoreState, ns: &str) -> Option<(u32, u32, Vec<Message<PathBuf>>)> {
+fn load(
+    state: &FastcoreState,
+    usable: &store::Usable,
+) -> Option<(u32, u32, Vec<Message<PathBuf>>)> {
     let mut conn = state.net_conn()?;
+    let ns = usable.name();
+    // read again rather than kept from sign-in: deleting and creating the
+    // namespace again must change UIDVALIDITY for an open session too
     let info = store::get_namespace(&mut conn, ns).ok()??;
     let all = store::Filter {
         limit: usize::MAX,
         ..Default::default()
     };
-    let mut metas = store::list_messages(&mut conn, ns, &all).ok()?;
+    let mut metas = store::list_messages(&mut conn, usable, &all).ok()?;
     // uid 0: stored before uids were handed out, not addressable over IMAP
     metas.retain(|m| m.direction == store::Direction::In && m.uid != 0);
     metas.sort_by_key(|m| m.uid);
@@ -121,6 +127,6 @@ fn load(state: &FastcoreState, ns: &str) -> Option<(u32, u32, Vec<Message<PathBu
         .max(1);
     // from the counter, not the newest message: UIDNEXT must not go down
     // when that message is deleted or expires
-    let uidnext = store::last_uid(&mut conn, ns).ok()?.saturating_add(1);
+    let uidnext = store::last_uid(&mut conn, usable).ok()?.saturating_add(1);
     Some((uidvalidity, uidnext, messages))
 }

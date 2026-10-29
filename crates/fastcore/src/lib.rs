@@ -485,23 +485,42 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn mark_read_on_missing_returns_200_idempotent() {
-        // Post 5eb8cc07 mutations are idempotent — a missing thread row
-        // returns 200 (noop success) instead of 404 so the UI's optimistic
-        // patch doesn't flicker back to unread. Reconciliation happens on
-        // the next list refetch.
-        let app = build_router(fresh_state());
-        let resp = app
-            .oneshot(
-                Request::builder()
-                    .method(Method::POST)
-                    .uri("/v1/users/u@x.com/threads/nope/read")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
+    async fn marking_read_a_thread_the_caller_is_not_in_is_not_found() {
+        // A missing thread and somebody else's answer alike, so the answer
+        // cannot tell anyone whether a thread id exists. The web client
+        // keeps its optimistic "read" through an error, so nothing flickers.
+        let state = fresh_state();
+        state
+            .mailbox
+            .record_message_arrival(&mailrs_mailbox_kevy::MessageArrival {
+                thread_id: "t-owned",
+                user: "owner@x.com",
+                subject: "s",
+                senders_csv: "a@b.c",
+                latest_date: 1,
+                latest_preview: "p",
+                category: "inbox",
+                unread: true,
+                is_own: false,
+            })
             .unwrap();
-        assert_eq!(resp.status(), 200);
+        for (user, tid, want) in [
+            ("u@x.com", "nope", 404),
+            ("u@x.com", "t-owned", 404),
+            ("owner@x.com", "t-owned", 200),
+        ] {
+            let resp = build_router(state.clone())
+                .oneshot(
+                    Request::builder()
+                        .method(Method::POST)
+                        .uri(format!("/v1/users/{user}/threads/{tid}/read"))
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(resp.status(), want, "{user} {tid}");
+        }
     }
 
     #[tokio::test]

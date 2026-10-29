@@ -13,11 +13,16 @@ pub const EVENT: &str = "mock_message";
 
 /// Point the namespace's webhook at `url`, replacing any earlier one.
 /// Returns the subscription, signing secret included.
-pub fn set_webhook(conn: &mut Connection, ns: &str, url: &str) -> MockResult<WebhookSubWire> {
+pub fn set_webhook(
+    conn: &mut Connection,
+    usable: &Usable,
+    url: &str,
+) -> MockResult<WebhookSubWire> {
+    let ns = usable.name();
     let Some(found) = get_namespace(conn, ns)? else {
         return Err(MockError::NotFound);
     };
-    clear_webhook(conn, ns)?;
+    clear_webhook(conn, usable)?;
     let sub = webhooks::create(
         conn,
         webhooks::NewWebhook {
@@ -39,7 +44,8 @@ pub fn set_webhook(conn: &mut Connection, ns: &str, url: &str) -> MockResult<Web
 }
 
 /// Remove the namespace's webhook; `false` when it had none.
-pub fn clear_webhook(conn: &mut Connection, ns: &str) -> MockResult<bool> {
+pub fn clear_webhook(conn: &mut Connection, usable: &Usable) -> MockResult<bool> {
+    let ns = usable.name();
     let Some(id) = webhook_id(conn, ns)? else {
         return Ok(false);
     };

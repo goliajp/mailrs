@@ -35,32 +35,24 @@ impl KevyMailboxStore {
     /// every unread axis and out of the badge's count.
     ///
     /// Idempotent: re-applying produces the same state. Returns `true`
-    /// if the thread exists, `false` otherwise.
+    /// when `user` is in the thread, `false` otherwise — and then writes
+    /// nothing. Asked of the caller's own membership row (its `tid`, not a
+    /// counter: a counter going missing once made three routes believe the
+    /// thread had vanished). Asking whether the thread existed told anyone
+    /// who named an id whether it did, and left a stray row under their name.
     pub fn mark_seen(&self, user: &str, thread_id: &str) -> io::Result<bool> {
-        let thread_key = keys::thread(thread_id);
-        let found = self.store().atomic(|ctx| {
-            // Whether the row is there, asked of the field that says so —
-            // not of a counter. This is `mark_seen`'s return value and
-            // three routes branch on it, so a counter going missing used
-            // to make every one of them believe the thread had vanished.
-            let exists = ctx.hexists(thread_key.as_bytes(), keys::THREAD_EXISTS_FIELD)?;
-            // The write is deliberately unguarded by `exists`. A thread
-            // whose row the self-heal created without going through
-            // `record_message_arrival` still has to be able to leave the
-            // unread axis, and clearing a column on a row that is not
-            // there costs nothing.
-            ctx.hset(
-                keys::thread_user(user, thread_id).as_bytes(),
-                &[(b"unread" as &[u8], b"0" as &[u8])],
-            )?;
-            Ok(exists)
-        });
-        let exists = found?;
-        // Only somebody in the thread speaks for its shared copies: these
-        // wires are every owner's, and a thread id alone must not let a
-        // stranger mark them seen.
-        if !self.is_thread_participant(user, thread_id)? {
-            return Ok(exists);
+        let user_key = keys::thread_user(user, thread_id);
+        let member = self.store().atomic(|ctx| {
+            if !ctx.hexists(user_key.as_bytes(), b"tid")? {
+                return Ok(false);
+            }
+            ctx.hset(user_key.as_bytes(), &[(b"unread" as &[u8], b"0" as &[u8])])?;
+            Ok(true)
+        })?;
+        // only somebody in the thread speaks for its shared copies, which
+        // are every owner's
+        if !member {
+            return Ok(false);
         }
         // Sink the \Seen fact into every per-message wire too. The
         // thread-hash zero above is a cache; the wires are what
@@ -86,7 +78,7 @@ impl KevyMailboxStore {
                 }
             }
         }
-        Ok(exists)
+        Ok(true)
     }
 
     /// Set `\Seen` on every message `user` holds in `thread_id`, at the

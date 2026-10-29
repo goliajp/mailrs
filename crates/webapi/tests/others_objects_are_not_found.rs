@@ -26,6 +26,7 @@ async fn another_accounts_objects_are_not_found() {
     webhooks_are_deleted_only_by_their_owner(&live, &alice, &bob).await;
     fraud_verdicts_are_read_by_recipients_only(&live, &alice, &bob).await;
     only_a_participant_files_a_thread(&live, &alice, &bob).await;
+    a_stranger_learns_nothing_from_flagging(&live, &alice, &bob).await;
     scheduled_sends_are_moved_by_their_sender_only(&live, &alice, &bob).await;
     webhooks_over_mcp_stay_in_the_callers_account(&live, &bob).await;
     inline_uploads_cannot_carry_script(&live, &alice).await;
@@ -90,6 +91,54 @@ async fn only_a_participant_files_a_thread(live: &live::Live, alice: &str, bob: 
         (200..300).contains(&status),
         "alice filing her own: {status}"
     );
+}
+
+/// Starring, pinning, archiving, marking read or unread and releasing
+/// somebody else's thread answer exactly as for a thread that does not
+/// exist, so the answer cannot be used to find out which ids exist.
+async fn a_stranger_learns_nothing_from_flagging(live: &live::Live, alice: &str, bob: &str) {
+    let verbs = [
+        "star",
+        "unstar",
+        "pin",
+        "unpin",
+        "archive",
+        "unarchive",
+        "unread",
+        "read",
+    ];
+    for verb in verbs {
+        for thread in ["t-alice", "no-such-thread"] {
+            let path = format!("/api/conversations/{thread}/{verb}");
+            let (status, _) = live.call(Method::POST, &path, bob, None).await;
+            assert_eq!(status, 404, "bob: {verb} {thread}");
+        }
+    }
+    for thread in ["t-alice", "no-such-thread"] {
+        let path = format!("/api/quarantine/{thread}/release");
+        let (status, _) = live.call(Method::POST, &path, bob, None).await;
+        assert_eq!(status, 404, "bob: release {thread}");
+        let path = format!("/api/conversations/{thread}");
+        let (status, _) = live.call(Method::DELETE, &path, bob, None).await;
+        assert_eq!(status, 404, "bob: delete {thread}");
+    }
+    let row = live
+        .mailbox
+        .get_thread_for_user(ALICE, "t-alice")
+        .expect("row")
+        .expect("alice's thread");
+    assert!(
+        !row.starred && !row.pinned && !row.archived,
+        "bob changed alice's thread"
+    );
+    for verb in verbs {
+        let path = format!("/api/conversations/t-alice/{verb}");
+        let (status, _) = live.call(Method::POST, &path, alice, None).await;
+        assert!(
+            (200..300).contains(&status),
+            "alice: {verb} her own: {status}"
+        );
+    }
 }
 
 async fn scheduled_sends_are_moved_by_their_sender_only(live: &live::Live, alice: &str, bob: &str) {

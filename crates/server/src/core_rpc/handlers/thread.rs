@@ -40,6 +40,28 @@ pub async fn list_thread_messages(
 }
 
 /// Helper that wraps `Result<u32, sqlx::Error>` into a `ThreadActionResponse`.
+/// 404 unless `user` is in the thread: a thread somebody else holds and
+/// one that does not exist answer alike, so the answer cannot be used to
+/// find out which ids exist.
+pub(crate) async fn require_member(
+    state: &CoreRpcState,
+    user: &str,
+    thread_id: &str,
+) -> Result<(), StatusCode> {
+    let member = state
+        .mailbox
+        .user_in_thread(user, thread_id)
+        .await
+        .map_err(|e| {
+            tracing::warn!(error = %e, user, thread_id, "membership check failed");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    match member {
+        true => Ok(()),
+        false => Err(StatusCode::NOT_FOUND),
+    }
+}
+
 async fn into_action_response(
     res: Result<u32, sqlx::Error>,
     context: &'static str,
@@ -61,6 +83,7 @@ pub async fn mark_read(
     State(state): State<Arc<CoreRpcState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> Result<Json<wire::ThreadActionResponse>, StatusCode> {
+    require_member(&state, &user, &thread_id).await?;
     let res = state
         .mailbox
         .mark_thread_read(&user, &thread_id, None)
@@ -73,6 +96,7 @@ pub async fn mark_unread(
     State(state): State<Arc<CoreRpcState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> Result<Json<wire::ThreadActionResponse>, StatusCode> {
+    require_member(&state, &user, &thread_id).await?;
     let res = state.mailbox.mark_thread_unread(&user, &thread_id).await;
     into_action_response(res, "mark_unread", &user, &thread_id).await
 }
@@ -82,6 +106,7 @@ pub async fn star(
     State(state): State<Arc<CoreRpcState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> Result<Json<wire::ThreadActionResponse>, StatusCode> {
+    require_member(&state, &user, &thread_id).await?;
     let res = state.mailbox.star_thread(&user, &thread_id).await;
     into_action_response(res, "star", &user, &thread_id).await
 }
@@ -91,6 +116,7 @@ pub async fn unstar(
     State(state): State<Arc<CoreRpcState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> Result<Json<wire::ThreadActionResponse>, StatusCode> {
+    require_member(&state, &user, &thread_id).await?;
     let res = state.mailbox.unstar_thread(&user, &thread_id).await;
     into_action_response(res, "unstar", &user, &thread_id).await
 }
@@ -100,6 +126,7 @@ pub async fn pin(
     State(state): State<Arc<CoreRpcState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> Result<Json<wire::ThreadActionResponse>, StatusCode> {
+    require_member(&state, &user, &thread_id).await?;
     let res = state.mailbox.pin_thread(&user, &thread_id).await;
     into_action_response(res, "pin", &user, &thread_id).await
 }
@@ -109,6 +136,7 @@ pub async fn unpin(
     State(state): State<Arc<CoreRpcState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> Result<Json<wire::ThreadActionResponse>, StatusCode> {
+    require_member(&state, &user, &thread_id).await?;
     let res = state.mailbox.unpin_thread(&user, &thread_id).await;
     into_action_response(res, "unpin", &user, &thread_id).await
 }
@@ -118,6 +146,7 @@ pub async fn archive(
     State(state): State<Arc<CoreRpcState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> Result<Json<wire::ThreadActionResponse>, StatusCode> {
+    require_member(&state, &user, &thread_id).await?;
     let res = state.mailbox.archive_thread(&user, &thread_id).await;
     into_action_response(res, "archive", &user, &thread_id).await
 }
@@ -127,6 +156,7 @@ pub async fn unarchive(
     State(state): State<Arc<CoreRpcState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> Result<Json<wire::ThreadActionResponse>, StatusCode> {
+    require_member(&state, &user, &thread_id).await?;
     let res = state.mailbox.unarchive_thread(&user, &thread_id).await;
     into_action_response(res, "unarchive", &user, &thread_id).await
 }
@@ -174,6 +204,7 @@ pub async fn delete_thread(
     State(state): State<Arc<CoreRpcState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> Result<StatusCode, StatusCode> {
+    require_member(&state, &user, &thread_id).await?;
     let files = state
         .mailbox
         .delete_thread(&user, &thread_id)
