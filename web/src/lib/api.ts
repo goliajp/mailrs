@@ -1,5 +1,3 @@
-import { getToken } from '@/store/auth'
-
 const API_BASE = '/api'
 
 // v2.1 §10-audit (2026-07-08): backend `DraftWire` uses short
@@ -51,7 +49,6 @@ export async function deleteDraft(id: number): Promise<{ message?: string; succe
 
 export async function deleteJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: authHeaders(),
     method: 'DELETE',
     signal,
   })
@@ -62,7 +59,6 @@ export async function deleteJson<T>(path: string, signal?: AbortSignal): Promise
 
 export async function fetchBlob(path: string, signal?: AbortSignal): Promise<Blob> {
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: authHeaders(),
     signal,
   })
   if (res.status === 401) {
@@ -77,7 +73,6 @@ export async function fetchBlob(path: string, signal?: AbortSignal): Promise<Blo
 
 export async function fetchJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: authHeaders(),
     signal,
   })
   return handleResponse<T>(res)
@@ -111,7 +106,6 @@ export async function fetchJson<T>(path: string, signal?: AbortSignal): Promise<
  */
 export async function fetchList<T>(path: string, signal?: AbortSignal): Promise<T[]> {
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: authHeaders(),
     signal,
   })
   if (res.status === 401) {
@@ -150,7 +144,7 @@ export async function listDrafts(): Promise<Draft[]> {
 export async function postJson<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     body: JSON.stringify(body),
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    headers: { 'Content-Type': 'application/json' },
     method: 'POST',
     signal,
   })
@@ -160,7 +154,7 @@ export async function postJson<T>(path: string, body: unknown, signal?: AbortSig
 export async function putJson<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     body: JSON.stringify(body),
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    headers: { 'Content-Type': 'application/json' },
     method: 'PUT',
     signal,
   })
@@ -265,12 +259,6 @@ export function unwrapList<T>(raw: unknown): T[] {
   const arrayValues = Object.values(obj).filter(Array.isArray)
   if (arrayValues.length === 1) return arrayValues[0] as T[]
   return []
-}
-
-function authHeaders(): Record<string, string> {
-  const token = getToken()
-  if (token) return { Authorization: `Bearer ${token}` }
-  return {}
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {

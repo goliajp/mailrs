@@ -4,10 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 function getWsUrl() {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const token = localStorage.getItem('mailrs_auth')
-  const parsed = token ? JSON.parse(token) : null
-  const tokenParam = parsed?.token ? `?token=${encodeURIComponent(parsed.token)}` : ''
-  return `${proto}//${location.host}${SMTP_WS_PATH}${tokenParam}`
+  // the upgrade carries the session cookie; nothing goes in the URL
+  return `${proto}//${location.host}${SMTP_WS_PATH}`
 }
 
 // The monitor's own stream. `/api/events` is the inbox feed and carries

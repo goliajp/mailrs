@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { mailKeys } from '@/lib/query-keys'
-import { getToken } from '@/store/auth'
+import { isSignedIn } from '@/store/auth'
 import {
   wireCancelSend,
   wireDeleteSend,
@@ -45,7 +45,7 @@ export function useDeleteSendMutation() {
 /** A failed send's compose fields, fetched when re-edit is opened. */
 export function useRedraftQuery(sendId: null | string) {
   return useQuery({
-    enabled: Boolean(getToken()) && Boolean(sendId),
+    enabled: isSignedIn() && Boolean(sendId),
     queryKey: mailKeys.redraft(sendId ?? ''),
     // `Infinity`, and this one earns it: the handler reads the bytes
     // of the envelope that was submitted
@@ -90,7 +90,7 @@ export function useResendMutation() {
  */
 export function useSendsQuery(status?: null | string, enabled: boolean = true) {
   return useQuery({
-    enabled: enabled && Boolean(getToken()),
+    enabled: enabled && isSignedIn(),
     queryKey: mailKeys.sends(status),
     refetchInterval: 15_000,
     staleTime: 5_000,

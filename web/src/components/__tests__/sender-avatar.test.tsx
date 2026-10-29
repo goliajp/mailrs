@@ -8,21 +8,19 @@ import { SenderAvatar } from '../sender-avatar'
  *   1. `/api/icon/<domain>` returns 200 + real bytes → render <img>
  *   2. `/api/icon/<domain>` returns 204 No Content   → render initial
  *
- * The tests also nail the auth-token gate — when no token is available
+ * The tests also nail the signed-in gate — with no stored profile
  * (logged-out preview / SSR) the component must NOT fire an anonymous
  * fetch, because that regresses the whole 401-spam issue we just fixed.
  */
 
-// The auth store's `getToken()` parses this JSON from localStorage;
+// The auth store's `isSignedIn()` reads this profile from localStorage;
 // see `src/store/auth.ts::STORAGE_KEY`.
-const AUTH_JSON = JSON.stringify({ address: 'a@b.c', token: 'test-token' })
-
-function stubAuthStorage(token: null | string) {
+function stubAuthStorage(signedIn: boolean) {
   vi.stubGlobal('localStorage', {
     length: 0,
     clear: () => undefined,
     getItem: (k: string) =>
-      k === 'mailrs_auth' && token != null ? JSON.stringify({ address: 'a@b.c', token }) : null,
+      k === 'mailrs_auth' && signedIn ? JSON.stringify({ address: 'a@b.c' }) : null,
     key: () => null,
     removeItem: () => undefined,
     setItem: () => undefined,
@@ -32,7 +30,7 @@ function stubAuthStorage(token: null | string) {
 const FINISHED = new Blob(['finished icon bytes'])
 
 beforeEach(() => {
-  stubAuthStorage('test-token')
+  stubAuthStorage(true)
   // URL.createObjectURL isn't in jsdom.
   Object.defineProperty(globalThis.URL, 'createObjectURL', {
     configurable: true,
@@ -68,9 +66,6 @@ beforeEach(() => {
     configurable: true,
     value: (done: (b: Blob) => void) => done(FINISHED),
   })
-  // Ping AUTH_JSON so the linter doesn't flag it while we keep it
-  // as a self-documenting fixture.
-  void AUTH_JSON
 })
 
 describe('<SenderAvatar />', () => {
@@ -115,7 +110,7 @@ describe('<SenderAvatar />', () => {
   })
 
   it('never fires an anonymous fetch when no auth token is present', async () => {
-    stubAuthStorage(null)
+    stubAuthStorage(false)
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
 
@@ -126,14 +121,15 @@ describe('<SenderAvatar />', () => {
     expect(container.textContent).toBe('B')
   })
 
-  it('passes the Bearer token when auth is available', async () => {
+  // the session is the HttpOnly cookie; the request carries no token
+  it('sends no Authorization header when signed in', async () => {
     const fetchMock = vi.fn(async () => new Response(null, { status: 204 }))
     vi.stubGlobal('fetch', fetchMock)
 
     render(<SenderAvatar sender="Carol <carol@auth-4.example>" />)
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
-    const call = fetchMock.mock.calls[0] as unknown as [string, { headers: Record<string, string> }]
-    expect(call[1]?.headers).toEqual({ Authorization: 'Bearer test-token' })
+    const call = fetchMock.mock.calls[0] as unknown as [string, RequestInit | undefined]
+    expect(call[1]).toBeUndefined()
   })
 
   /**

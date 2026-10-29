@@ -60,7 +60,7 @@ vi.mock('@/lib/api', () => ({
 
 vi.mock('@/store/auth', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/store/auth')>()
-  return { ...actual, getToken: vi.fn(() => 'test-token') }
+  return { ...actual, isSignedIn: vi.fn(() => true) }
 })
 
 // React Query hooks: test runs without a real QueryClientProvider; stub

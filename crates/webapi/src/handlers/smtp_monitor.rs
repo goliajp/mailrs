@@ -30,7 +30,6 @@ use mailrs_core_sidestate::smtp_monitor::{ReceiverStats, STATS_CHANNEL, TRACE_CH
 use tokio::sync::broadcast;
 
 use crate::WebState;
-use crate::handlers::events::WsQuery;
 
 /// The per-process fan-out for trace frames. One subscriber thread owns
 /// the kevy connection; each WS client gets its own receiver.
@@ -54,27 +53,19 @@ impl StatsCache {
     }
 }
 
-/// `GET /api/events/smtp?token=<hex>` — upgrade to WS and stream the
-/// receiver's protocol trace. Auth is done here rather than in
-/// middleware for the same reason as `/api/events`: a browser
-/// WebSocket cannot set a header.
+/// `GET /api/events/smtp` — upgrade to WS and stream the receiver's
+/// protocol trace. Auth is done here rather than in the middleware, from
+/// the same sources as `/api/events`.
 pub async fn ws_smtp_trace(
     ws: WebSocketUpgrade,
-    axum::extract::Query(query): axum::extract::Query<WsQuery>,
+    headers: axum::http::HeaderMap,
+    uri: axum::http::Uri,
     axum::extract::State(state): axum::extract::State<Arc<WebState>>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    let token = query.token.as_deref().ok_or(StatusCode::UNAUTHORIZED)?;
-    let kevy_url =
-        std::env::var("MAILRS_KEVY_URL").map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let key = mailrs_core_sidestate::keys::session::session_key(token);
-    let has_session = tokio::task::spawn_blocking(move || -> std::io::Result<bool> {
-        let mut c = kevy_client::Connection::connect(&kevy_url)?;
-        Ok(c.get(key.as_bytes())?.is_some())
-    })
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    if !has_session {
+    if crate::session::resolve_session_user(&headers, &uri)
+        .await
+        .is_none()
+    {
         return Err(StatusCode::UNAUTHORIZED);
     }
     let bus = get_or_init_trace_bus(state);

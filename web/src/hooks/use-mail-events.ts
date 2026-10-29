@@ -81,10 +81,8 @@ export function useMailEvents(user: string) {
       if (pingTimer.current) clearInterval(pingTimer.current)
 
       const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
-      const token = localStorage.getItem('mailrs_auth')
-      const parsed = token ? JSON.parse(token) : null
-      const tokenParam = parsed?.token ? `?token=${encodeURIComponent(parsed.token)}` : ''
-      const ws = new WebSocket(`${proto}//${location.host}/api/events${tokenParam}`)
+      // the upgrade carries the session cookie; nothing goes in the URL
+      const ws = new WebSocket(`${proto}//${location.host}/api/events`)
       wsRef.current = ws
 
       ws.onopen = () => {

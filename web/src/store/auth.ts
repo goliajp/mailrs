@@ -5,7 +5,6 @@ export type AuthInfo = {
   address: string
   display_name: string
   permissions: string[]
-  token: string
 }
 
 const STORAGE_KEY = 'mailrs_auth'
@@ -14,7 +13,15 @@ function loadAuth(): AuthInfo | null {
   const raw = localStorage.getItem(STORAGE_KEY)
   if (!raw) return null
   try {
-    return JSON.parse(raw) as AuthInfo
+    const parsed = JSON.parse(raw) as AuthInfo & { token?: string }
+    // The session lives in an HttpOnly cookie; a script must never be able
+    // to read it. Builds before that kept the token here — drop it.
+    if ('token' in parsed) {
+      const { token: _dropped, ...rest } = parsed
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(rest))
+      return rest
+    }
+    return parsed
   } catch {
     // A blob that will not parse is not a session. Returning null signs
     // the reader out, which is recoverable; throwing here happens at
@@ -63,6 +70,12 @@ function saveAuth(info: AuthInfo | null) {
 
 const baseAuthAtom = atom<AuthInfo | null>(loadAuth())
 
+/** Whether a profile is stored. The session itself is the HttpOnly cookie;
+ *  a stale profile is cleared by the first 401. */
+export function isSignedIn(): boolean {
+  return loadAuth() !== null
+}
+
 export const authAtom = atom(
   (get) => get(baseAuthAtom),
   (_get, set, value: AuthInfo | null) => {
@@ -70,7 +83,3 @@ export const authAtom = atom(
     set(baseAuthAtom, value)
   }
 )
-
-export function getToken(): null | string {
-  return loadAuth()?.token ?? null
-}

@@ -161,6 +161,18 @@ pub async fn resolve_session_user_from_headers(headers: &HeaderMap) -> Option<St
     resolve_session(token).await.map(|s| s.address)
 }
 
+/// The signed-in browser session behind a request that the auth middleware
+/// does not cover, such as a WebSocket upgrade. Same token sources as the
+/// middleware; a browser sends the session cookie on a same-origin upgrade,
+/// so nothing has to be put in the URL. Agent keys do not count.
+pub async fn resolve_session_user(headers: &HeaderMap, uri: &axum::http::Uri) -> Option<String> {
+    let token = extract_token(headers, uri)?;
+    if token.starts_with(AGENT_KEY_PREFIX) {
+        return None;
+    }
+    resolve_session(token).await.map(|s| s.address)
+}
+
 /// The caller behind a session or an agent key, with the key's scopes;
 /// the MCP handler uses it to populate its per-session task-local.
 pub async fn resolve_auth_from_headers(headers: &HeaderMap) -> Option<AgentAuth> {

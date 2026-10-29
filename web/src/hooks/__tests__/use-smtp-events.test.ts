@@ -87,7 +87,8 @@ describe('useSmtpEvents', () => {
     await renderSmtpEvents()
 
     expect(lastWsUrl).toContain('/api/events/smtp')
-    expect(lastWsUrl).toContain('token=test-token')
+    // the upgrade carries the session cookie; a token in the URL leaks into logs
+    expect(lastWsUrl).not.toContain('token=')
   })
 
   it('returns initial state', async () => {
