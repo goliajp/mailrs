@@ -90,7 +90,7 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
                 // attachment link's session token in the query, and the
                 // default span wrote it into the access log in clear
                 .make_span_with(|req: &axum::http::Request<axum::body::Body>| {
-                    tracing::info_span!("request", method = %req.method(), path = %req.uri().path())
+                    tracing::info_span!("request", method = %req.method(), path = %loggable_path(req.uri().path()))
                 })
                 .on_response(
                     tower_http::trace::DefaultOnResponse::new().level(tracing::Level::INFO),
@@ -137,4 +137,14 @@ async fn api_not_found(uri: axum::http::Uri) -> impl axum::response::IntoRespons
         axum::http::StatusCode::NOT_FOUND,
         axum::Json(serde_json::json!({ "error": format!("no API route {}", uri.path()) })),
     )
+}
+
+/// The path as the access log writes it. An inline image is served to
+/// whoever holds its URL, so its id is the credential and stays out of
+/// the log.
+fn loggable_path(path: &str) -> &str {
+    if path.starts_with("/api/mail/inline/") {
+        return "/api/mail/inline/{id}";
+    }
+    path
 }
