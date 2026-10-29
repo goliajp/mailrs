@@ -18,7 +18,9 @@ async fn another_accounts_objects_are_not_found() {
     live.add_account(ALICE, "pw").await;
     live.add_account(BOB, "pw").await;
     let alice = live.login(ALICE, "pw").await;
+    live.confirm(&alice, "pw").await;
     let bob = live.login(BOB, "pw").await;
+    live.confirm(&bob, "pw").await;
 
     jmap_mailboxes_are_the_callers(&live, &alice, &bob).await;
     webhooks_are_deleted_only_by_their_owner(&live, &alice, &bob).await;
@@ -218,6 +220,7 @@ async fn oauth_client_registration_is_closed(live: &live::Live) {
     live.add_account(ADMIN, "pw").await;
     live.grant(ADMIN, "admin.accounts").await;
     let admin = live.login(ADMIN, "pw").await;
+    live.confirm(&admin, "pw").await;
     let (status, body) = live
         .call(
             Method::POST,

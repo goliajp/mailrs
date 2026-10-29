@@ -34,6 +34,7 @@ impl MailrsMcpService {
             password_hash::{PasswordHasher, SaltString, rand_core::OsRng as ArgonRng},
         };
         let user = self.require_user()?.to_string();
+        self.require_confirmed()?;
         self.require_admin(&user).await?;
         mailrs_auth_guard::password::check_new(&params.password, &params.address)
             .map_err(|weak| McpError::invalid_params(weak.to_string(), None))?;
@@ -91,6 +92,7 @@ impl MailrsMcpService {
         Parameters(params): Parameters<AccountGroupParams>,
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
+        self.require_confirmed()?;
         self.require_admin(&user).await?;
         let key = group_members_key(params.group_id);
         let addr = params.address.clone();
@@ -114,6 +116,7 @@ impl MailrsMcpService {
         Parameters(params): Parameters<AccountGroupParams>,
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
+        self.require_confirmed()?;
         self.require_admin(&user).await?;
         let key = group_members_key(params.group_id);
         let addr = params.address.clone();

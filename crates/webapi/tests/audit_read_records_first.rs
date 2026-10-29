@@ -36,6 +36,7 @@ async fn each_audit_read_is_recorded_before_it_answers() {
     live.add_account(ALICE, "pw").await;
     live.grant(ADMIN, "admin.accounts").await;
     let admin = live.login(ADMIN, "pw").await;
+    live.confirm(&admin, "pw").await;
     live.mailbox.ensure_thread_table();
     live.mailbox
         .record_message_arrival(&mailrs_mailbox_kevy::MessageArrival {

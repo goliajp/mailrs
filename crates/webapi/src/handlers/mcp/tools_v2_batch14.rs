@@ -48,6 +48,7 @@ impl MailrsMcpService {
         Parameters(params): Parameters<AuditListConversationsParams>,
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
+        self.require_confirmed()?;
         self.require_admin(&user).await?;
         audit_first(
             &user,
@@ -98,6 +99,7 @@ impl MailrsMcpService {
         Parameters(params): Parameters<AuditReadThreadParams>,
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
+        self.require_confirmed()?;
         self.require_admin(&user).await?;
         audit_first(
             &user,

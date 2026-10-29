@@ -76,6 +76,7 @@ pub async fn list_audit_log(
 /// caller can dump a full 90-day span in one call. Actor / action
 /// filters still apply.
 pub async fn export_audit_log(
+    _: crate::session::confirm::Confirmed,
     State(_state): State<Arc<WebState>>,
     Extension(_user): Extension<AuthedUser>,
     Query(q): Query<AuditQuery>,
@@ -197,6 +198,7 @@ pub struct AdminExportQuery {
 /// the middleware layer (which just checks admin.*) can't be
 /// side-stepped by passing `?user=someone_else`.
 pub async fn admin_export(
+    _: crate::session::confirm::Confirmed,
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(caller)): Extension<AuthedUser>,
     Query(q): Query<AdminExportQuery>,

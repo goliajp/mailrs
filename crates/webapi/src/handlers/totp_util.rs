@@ -2,6 +2,7 @@
 //! `mailrs-webapi` doesn't need to depend on the server binary crate.
 //! Same algorithm (SHA1, 6 digits, 30 s period).
 
+use axum::http::StatusCode;
 use rand_core::{OsRng, RngCore};
 use totp_rs::{Algorithm, Secret, TOTP};
 
@@ -86,6 +87,51 @@ pub fn hash_recovery_codes(codes: &[String]) -> String {
         .filter_map(|c| hash(c).ok())
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+/// Where an account stands on its second factor for one attempt.
+#[derive(Debug, PartialEq, Eq)]
+pub enum SecondFactor {
+    /// No authenticator enrolled; the password is all there is.
+    NotEnrolled,
+    /// Enrolled, and the attempt carried no code.
+    Missing,
+    /// The code is the current one-time code, or a recovery code (now used up).
+    Passed,
+    /// The code is neither.
+    Failed,
+}
+
+/// Check `code` against `address`'s enrolled authenticator, the way every
+/// sign-in and every confirmation does. A store that cannot be read is an
+/// error, never "not enrolled": that would let a blink of the store skip
+/// the second factor.
+pub fn second_factor(address: &str, code: Option<&str>) -> Result<SecondFactor, StatusCode> {
+    let key = format!("totp:{address}");
+    let k = key.clone();
+    let (secret, enabled) = crate::handlers::kevy_util::with_kevy(move |c| {
+        Ok((
+            c.hget(k.as_bytes(), b"secret")?,
+            c.hget(k.as_bytes(), b"enabled")?,
+        ))
+    })?;
+    let (Some(secret), Some(b"1")) = (secret, enabled.as_deref()) else {
+        return Ok(SecondFactor::NotEnrolled);
+    };
+    let Some(code) = code else {
+        return Ok(SecondFactor::Missing);
+    };
+    if verify_code(&String::from_utf8(secret).unwrap_or_default(), code) {
+        return Ok(SecondFactor::Passed);
+    }
+    // one-shot: a recovery code that matches is removed in the same call
+    let code = code.to_string();
+    let recovered =
+        crate::handlers::kevy_util::with_kevy(move |c| consume_recovery_code(c, &key, &code))?;
+    if recovered {
+        return Ok(SecondFactor::Passed);
+    }
+    Ok(SecondFactor::Failed)
 }
 
 /// Use up `code` if it is one of `key`'s recovery codes. Codes still kept

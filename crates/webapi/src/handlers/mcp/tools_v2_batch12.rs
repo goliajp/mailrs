@@ -54,9 +54,10 @@ impl MailrsMcpService {
             description: String::new(),
             members: params.members,
         };
-        let Json(group) = crate::handlers::complete::create_email_group(Json(req))
-            .await
-            .map_err(|c| map_status(c, "create_email_group"))?;
+        let Json(group) =
+            crate::handlers::complete::create_email_group(self.require_confirmed()?, Json(req))
+                .await
+                .map_err(|c| map_status(c, "create_email_group"))?;
         crate::handlers::audit::record(&user, "email_group.create", &params.address, "via mcp");
         Ok(CallToolResult::success(vec![ContentBlock::text(
             group.to_string(),
@@ -70,7 +71,7 @@ impl MailrsMcpService {
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
         self.require_admin(&user).await?;
-        crate::handlers::complete::delete_email_group(Path(params.id))
+        crate::handlers::complete::delete_email_group(self.require_confirmed()?, Path(params.id))
             .await
             .map_err(|c| map_status(c, "delete_email_group"))?;
         crate::handlers::audit::record(
@@ -95,6 +96,7 @@ impl MailrsMcpService {
             address: params.address,
         };
         crate::handlers::admin::add_email_group_member(
+            self.require_confirmed()?,
             State(self.state.clone()),
             axum::Extension(AuthedUser(user)),
             Path(params.group_id),
@@ -113,6 +115,7 @@ impl MailrsMcpService {
         let user = self.require_user()?.to_string();
         self.require_admin(&user).await?;
         crate::handlers::admin::remove_email_group_member(
+            self.require_confirmed()?,
             State(self.state.clone()),
             axum::Extension(AuthedUser(user)),
             Path((params.group_id, params.address)),

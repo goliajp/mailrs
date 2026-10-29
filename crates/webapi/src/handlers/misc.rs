@@ -96,6 +96,7 @@ pub async fn spam_feedback(
 /// a single mbox file. Walks the activity zset and concatenates each
 /// message's maildir bytes prefixed with `From ...` per RFC 4155.
 pub async fn export_mbox(
+    _: crate::session::confirm::Confirmed,
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
 ) -> Result<axum::response::Response, StatusCode> {

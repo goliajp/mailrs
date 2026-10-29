@@ -21,7 +21,9 @@ async fn a_reset_password_ends_the_old_sessions_only() {
     }
     live.grant(ADMIN, "admin.accounts").await;
     let admin = live.login(ADMIN, "pw").await;
+    live.confirm(&admin, "pw").await;
     let old = live.login(ALICE, "pw").await;
+    live.confirm(&old, "pw").await;
     let (_, created) = live
         .call(
             Method::POST,

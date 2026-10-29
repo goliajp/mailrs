@@ -6,8 +6,8 @@ mod live;
 
 use axum::extract::{Extension, Path, Query, State};
 use mailrs_webapi::handlers::audit_read::{
-    AuditConvMessagesQuery, AuditConversationsQuery, audit_conversation_detail,
-    audit_conversation_messages, audit_conversations, audit_message_raw,
+    AuditConvMessagesQuery, AuditConversationsQuery, read_conversation_detail,
+    read_conversation_messages, read_conversations, read_message_raw,
 };
 use mailrs_webapi::handlers::conversations::AuthedUser;
 
@@ -54,7 +54,7 @@ async fn an_audit_read_that_cannot_be_recorded_answers_503_and_no_mail() {
     let admin = || Extension(AuthedUser(ADMIN.into()));
     let of_alice = || Query(AuditConvMessagesQuery { user: ALICE.into() });
 
-    let list = audit_conversations(
+    let list = read_conversations(
         st(),
         admin(),
         Query(AuditConversationsQuery {
@@ -67,16 +67,16 @@ async fn an_audit_read_that_cannot_be_recorded_answers_503_and_no_mail() {
         list.err(),
         Some(axum::http::StatusCode::SERVICE_UNAVAILABLE)
     );
-    let detail = audit_conversation_detail(st(), admin(), Path(TID.into()), of_alice()).await;
+    let detail = read_conversation_detail(st(), admin(), Path(TID.into()), of_alice()).await;
     assert_eq!(
         detail.err(),
         Some(axum::http::StatusCode::SERVICE_UNAVAILABLE)
     );
-    let messages = audit_conversation_messages(st(), admin(), Path(TID.into()), of_alice()).await;
+    let messages = read_conversation_messages(st(), admin(), Path(TID.into()), of_alice()).await;
     assert_eq!(
         messages.err(),
         Some(axum::http::StatusCode::SERVICE_UNAVAILABLE)
     );
-    let raw = audit_message_raw(st(), admin(), Path(1), of_alice()).await;
+    let raw = read_message_raw(st(), admin(), Path(1), of_alice()).await;
     assert_eq!(raw.err(), Some(axum::http::StatusCode::SERVICE_UNAVAILABLE));
 }

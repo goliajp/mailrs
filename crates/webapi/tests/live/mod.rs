@@ -21,6 +21,11 @@ pub struct Live {
     pub http: reqwest::Client,
     /// the router's state, for calling a handler without signing in
     pub state: Arc<WebState>,
+    /// A connection to the network kevy, held for the whole test: an
+    /// in-process store is dropped with its last connection, so writes made
+    /// before the servers first open theirs would vanish. `None` when the
+    /// test points at a store that is not there.
+    net: Option<std::sync::Mutex<kevy_client::Connection>>,
 }
 
 /// Start both servers. `kevy` must already be in `MAILRS_KEVY_URL`.
@@ -49,6 +54,9 @@ pub async fn start(kevy: &str) -> Live {
         base,
         http: reqwest::Client::new(),
         state,
+        net: kevy_client::Connection::connect(kevy)
+            .ok()
+            .map(std::sync::Mutex::new),
     }
 }
 
@@ -74,31 +82,35 @@ impl Live {
     }
 
     /// A permission group holding `permission`, with `address` in it.
+    /// Written to the store directly: through the API, granting needs an
+    /// administrator who has confirmed a password, which is what this sets up.
     pub async fn grant(&self, address: &str, permission: &str) {
-        use mailrs_webapi::handlers::groups;
-        let axum::Json(g) = groups::create_group(axum::Json(groups::CreateGroupRequest {
-            name: format!("{permission}-holders"),
-            description: String::new(),
-        }))
-        .await
-        .expect("create group");
+        use mailrs_core_sidestate::families::permission_groups as groups;
+        let mut c = self
+            .net
+            .as_ref()
+            .expect("a reachable kevy")
+            .lock()
+            .expect("kevy lock");
+        let c = &mut *c;
+        let g = groups::create(c, &format!("{permission}-holders"), "", 0).expect("create group");
         let id = g["id"].as_i64().expect("id");
-        groups::set_group_permissions(
-            axum::extract::Path(id),
-            axum::Json(groups::SetGroupPermissionsRequest {
-                permissions: vec![permission.into()],
-            }),
-        )
-        .await
-        .expect("set permissions");
-        groups::add_group_member(
-            axum::extract::Path(id),
-            axum::Json(groups::AddGroupMemberRequest {
-                address: address.into(),
-            }),
-        )
-        .await
-        .expect("add member");
+        groups::set_permissions(c, id, &[permission.into()]).expect("set permissions");
+        groups::add_member(c, id, address).expect("add member");
+    }
+
+    /// Confirm `token`'s password, as the operations that ask for a recent
+    /// confirmation require.
+    pub async fn confirm(&self, token: &str, password: &str) {
+        let (status, body) = self
+            .call(
+                reqwest::Method::POST,
+                "/api/auth/confirm",
+                token,
+                Some(serde_json::json!({ "password": password })),
+            )
+            .await;
+        assert_eq!(status, 204, "confirm: {body}");
     }
 
     /// Sign in through `POST /api/auth/login`; the session token.

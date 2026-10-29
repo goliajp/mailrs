@@ -20,6 +20,7 @@ pub use domain_check::check_domain_dns;
 
 /// POST /api/admin/webhook-subscriptions
 pub async fn create_webhook(
+    _: crate::session::confirm::Confirmed,
     State(_state): State<Arc<WebState>>,
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Json(req): Json<wire::CreateWebhookRequest>,
@@ -91,6 +92,7 @@ pub struct SetSieveRequest {
 }
 
 pub async fn set_account_sieve(
+    _: crate::session::confirm::Confirmed,
     State(_state): State<Arc<WebState>>,
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Path(address): Path<String>,
@@ -106,6 +108,7 @@ pub async fn set_account_sieve(
 }
 
 pub async fn delete_account_sieve(
+    _: crate::session::confirm::Confirmed,
     State(_state): State<Arc<WebState>>,
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Path(address): Path<String>,

@@ -52,6 +52,7 @@
 /api/admin/system-config	read only
 /api/agent/keys	read only
 /api/agent/webhooks	read only
+/api/auth/confirm	read only: whether this session confirmed its password, and for how long
 /api/auth/external-providers	read only
 /api/auth/external/{provider}	starts a sign-in: stores a 10-minute flow and binds it to this browser with a cookie
 /api/auth/identities	read only
