@@ -1127,8 +1127,7 @@ events, and asking the wrong one is indistinguishable from an idle server.
 
 Auth: a browser sends its session cookie on a same-origin upgrade; other
 clients send `Authorization: Bearer <session_token>`. A `?token=` query is
-deprecated and will stop working: a token in a URL ends up in logs and
-history.
+not accepted (401): a token in a URL ends up in logs and history.
 
 ```
 wss://mail.golia.ai/api/events
