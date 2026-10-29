@@ -9,6 +9,7 @@
 
 pub mod content_type;
 pub mod decoder;
+mod files;
 pub mod part;
 
 pub use content_type::{ContentType, Disposition};
