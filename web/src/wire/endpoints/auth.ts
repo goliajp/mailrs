@@ -12,6 +12,8 @@ import { http } from '@/lib/http'
 import { wireFetch } from '../client'
 import {
   authMeSchema,
+  confirmRefusalSchema,
+  confirmStatusSchema,
   emptyResponseSchema,
   externalProvidersSchema,
   linkedIdentityListSchema,
@@ -21,6 +23,7 @@ import {
   totpSetupSchema,
   totpStatusSchema,
   type WireAuthMe,
+  type WireConfirmStatus,
   type WireLinkedIdentity,
   type WireLoginResponse,
   type WireOidcConfig,
@@ -117,6 +120,43 @@ export async function wireResetPassword(token: string, newPassword: string): Pro
 export const wireGetRecoveryEmail = (): Promise<WireRecoveryEmail> =>
   wireFetch(recoveryEmailSchema, { path: '/auth/recovery-email' })
 
+export type WireConfirmOutcome =
+  | { kind: 'code-needed' }
+  | { kind: 'confirmed' }
+  | { kind: 'refused'; message: string }
+  | { kind: 'signed-out' }
+  | { kind: 'wrong'; remaining: number }
+
+// ── recent confirmation ────────────────────────────────────────
+
+/**
+ * Backend: crates/webapi/src/session/confirm.rs — fn confirm.
+ *
+ * 204 on success. A refusal is told apart by its code rather than thrown:
+ * a wrong password says how many tries are left, a missing one-time code
+ * asks for it, and the fifth wrong try ends the session.
+ */
+export async function wireConfirm(password: string, code?: string): Promise<WireConfirmOutcome> {
+  const res = await http('/api/auth/confirm', {
+    body: JSON.stringify(code === undefined ? { password } : { code, password }),
+    headers: { 'Content-Type': 'application/json' },
+    method: 'POST',
+  })
+  if (res.status === 204) return { kind: 'confirmed' }
+  const parsed = confirmRefusalSchema.safeParse(await res.json().catch(() => null))
+  const error = parsed.success ? parsed.data.error : `The server answered ${res.status}`
+  switch (error) {
+    case 'confirm_failed':
+      return { kind: 'wrong', remaining: parsed.data?.remaining ?? 0 }
+    case 'session_revoked':
+      return { kind: 'signed-out' }
+    case 'totp_required':
+      return { kind: 'code-needed' }
+    default:
+      return { kind: 'refused', message: error }
+  }
+}
+
 export async function wireSetRecoveryEmail(recoveryEmail: string): Promise<void> {
   await wireFetch(emptyResponseSchema, {
     allowEmpty: true,
@@ -125,6 +165,10 @@ export async function wireSetRecoveryEmail(recoveryEmail: string): Promise<void>
     path: '/auth/recovery-email',
   })
 }
+
+/** Backend: crates/webapi/src/session/confirm.rs — fn status. */
+export const wireConfirmStatus = (): Promise<WireConfirmStatus> =>
+  wireFetch(confirmStatusSchema, { path: '/auth/confirm' })
 
 // ── TOTP ───────────────────────────────────────────────────────
 

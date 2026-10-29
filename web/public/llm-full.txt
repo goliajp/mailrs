@@ -669,6 +669,19 @@ be the web origin; otherwise it is refused with 403 and
 `{"error": "csrf_missing" | "csrf_mismatch" | "origin_mismatch"}`. A request
 with an `Authorization` header is judged by that header alone.
 
+Some operations ask for the password again: changing the recovery email,
+setting up or turning off two-step verification, linking a sign-in method,
+creating an agent key or a webhook, exporting the mailbox, reading another
+account's mail as an administrator, and the administrator's writes to
+accounts, aliases, forwards, send-as, groups, permissions and sieve scripts.
+Without a recent confirmation they answer 403 `{"error": "confirm_required"}`.
+`POST /api/auth/confirm` with `{"password": "...", "code": "123456"}` (the code
+only when an authenticator is enrolled) confirms the session for ten minutes;
+`GET /api/auth/confirm` says whether it is confirmed and for how long. Wrong
+passwords count toward the sign-in lockout, and the fifth on one session ends
+it. Agent keys have no password to confirm: these operations answer them 403
+`{"error": "agent_key_not_allowed"}`, over REST and MCP alike.
+
 ### Send Email
 
 ```

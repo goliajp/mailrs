@@ -304,6 +304,12 @@ describe('request bodies match the shared contract', () => {
     expect(body).toEqual(fixture('totp-code'))
   })
 
+  it('confirm', async () => {
+    const { wireConfirm } = await import('../endpoints/auth')
+    const body = await bodyOf(() => wireConfirm('the account password', '123456'))
+    expect(body).toEqual(fixture('confirm'))
+  })
+
   it('totp disable', async () => {
     const { wireTotpDisable } = await import('../endpoints/auth')
     const body = await bodyOf(() => wireTotpDisable('123456'))
