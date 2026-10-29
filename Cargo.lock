@@ -3598,6 +3598,7 @@ dependencies = [
  "mailrs-ical",
  "mailrs-mock",
  "mailrs-rfc5322",
+ "mailrs-test-docker",
  "rand_core 0.6.4",
  "serde",
  "serde_json",
