@@ -66,7 +66,7 @@ pub(crate) fn mint_agent_key(
         &[(id.to_string().as_bytes(), record.to_string().as_bytes())],
     )?;
     c.set(
-        format!("agent:key:secret:{secret}").as_bytes(),
+        crate::agent_key_index::index_key(&secret).as_bytes(),
         index.to_string().as_bytes(),
     )?;
     Ok((id, secret))
@@ -95,7 +95,7 @@ pub(crate) fn revoke_agent_key(
     // forever. The record doesn't store the secret, so scan the
     // (single-digit-count) index keys for the matching {user,id}.
     let target = serde_json::json!({ "user": user, "id": id });
-    for idx_key in c.keys(b"agent:key:secret:*")? {
+    for idx_key in c.keys(crate::agent_key_index::PATTERN)? {
         let Some(raw) = c.get(&idx_key)? else {
             continue;
         };
