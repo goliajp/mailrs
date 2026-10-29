@@ -33,8 +33,8 @@ function makeStore() {
     accessible_domains: ['x.com'],
     address: 'me@x.com',
     display_name: 'Me',
+    is_admin: false,
     permissions: [],
-    token: 't',
   })
   return store
 }

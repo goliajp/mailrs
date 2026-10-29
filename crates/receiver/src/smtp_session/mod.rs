@@ -85,6 +85,7 @@ mod drive;
 mod events;
 mod headers;
 pub mod spool_sink;
+mod trace_line;
 
 pub use spool_sink::SpoolSink;
 

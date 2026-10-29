@@ -5,12 +5,21 @@ import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { MobileShell } from '@/components/mobile-shell'
+import { authAtom } from '@/store/auth'
 
 vi.mock('@/hooks/use-current-mail-filters', () => ({ useCurrentUnreadCount: () => 0 }))
 
-function renderShell() {
+function renderShell(isAdmin = false) {
+  const store = createStore()
+  store.set(authAtom, {
+    accessible_domains: [],
+    address: 'u@example.com',
+    display_name: 'U',
+    is_admin: isAdmin,
+    permissions: [],
+  })
   return render(
-    <Provider store={createStore()}>
+    <Provider store={store}>
       <QueryClientProvider client={new QueryClient()}>
         <MemoryRouter>
           <MobileShell>
@@ -75,5 +84,22 @@ describe('MobileShell height', () => {
     withViewport(790)
     renderShell()
     expect(shellEl().style.height).toBe('100dvh')
+  })
+})
+
+// the server refuses the admin console to everyone else; offering the tab
+// only leads to an error page
+describe('MobileShell admin tab', () => {
+  it('is not offered to an account that is not an administrator', () => {
+    withViewport(844)
+    renderShell(false)
+    expect(screen.queryByText('Admin')).toBeNull()
+    expect(screen.getByText('Settings')).toBeTruthy()
+  })
+
+  it('is offered to an administrator', () => {
+    withViewport(844)
+    renderShell(true)
+    expect(screen.getByText('Admin')).toBeTruthy()
   })
 })

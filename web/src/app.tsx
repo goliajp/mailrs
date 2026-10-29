@@ -24,6 +24,7 @@ import { sectionForPath } from '@/components/status-bar-model'
 import { useCurrentUnreadCount } from '@/hooks/use-current-mail-filters'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import { useMailEvents } from '@/hooks/use-mail-events'
+import { useRefreshProfile } from '@/hooks/use-refresh-profile'
 import { MPane } from '@/layouts/pane'
 import { dashboardLoader, mailListLoader } from '@/lib/route-loaders'
 import { Login } from '@/pages/login'
@@ -249,6 +250,7 @@ function PageSettings() {
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const auth = useAtomValue(authAtom)
+  useRefreshProfile()
   if (!auth) return <Navigate replace to="/login" />
   return children
 }

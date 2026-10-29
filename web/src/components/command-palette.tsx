@@ -222,6 +222,8 @@ function groupByCategory(commands: Command[]): GroupedCommands[] {
   return groups
 }
 
+const ADMIN_COMMANDS = new Set(['nav-admin', 'nav-protocol'])
+
 function useCommands(query: string, onClose: () => void): Command[] {
   const navigate = useNavigate()
   const setAuth = useSetAtom(authAtom)
@@ -229,8 +231,9 @@ function useCommands(query: string, onClose: () => void): Command[] {
   const setComposeReplySource = useSetAtom(composeReplySourceAtom)
   const setTheme = useSetAtom(themeModeAtom)
   const theme = useAtomValue(themeModeAtom)
+  const isAdmin = useAtomValue(authAtom)?.is_admin ?? false
 
-  const staticCommands = useMemo<Command[]>(
+  const allCommands = useMemo<Command[]>(
     () => [
       {
         category: 'Navigation',
@@ -352,6 +355,11 @@ function useCommands(query: string, onClose: () => void): Command[] {
       },
     ],
     [navigate, onClose, setAuth, setComposeReplySource, setComposing, setTheme, theme]
+  )
+  // the server refuses these to everyone else; do not offer them
+  const staticCommands = useMemo(
+    () => allCommands.filter((c) => isAdmin || !ADMIN_COMMANDS.has(c.id)),
+    [allCommands, isAdmin]
   )
 
   return useMemo(() => {

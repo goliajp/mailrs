@@ -32,9 +32,10 @@ pub struct LoginResponse {
     pub address: String,
     pub display_name: String,
     pub permissions: Vec<String>,
-    /// Session token — same shape as monolith. Frontend stores this
-    /// in the auth store; subsequent authenticated requests send it
-    /// as `Authorization: Bearer <token>`.
+    pub is_admin: bool,
+    /// Session token, the same value as the `mailrs_session` cookie. The
+    /// apps send it as `Authorization: Bearer`; the web client ignores it
+    /// and relies on the HttpOnly cookie.
     pub token: String,
 }
 
@@ -288,8 +289,12 @@ pub(crate) async fn issue_session(
     let display = acct.public.display_name.clone();
     let address = acct.public.address.clone();
     crate::handlers::audit::record(&address, "auth.login", &address, "");
+    let is_admin = perms
+        .as_ref()
+        .is_some_and(crate::handlers::kevy_util::is_admin);
     let perms_vec = perms.map(|p| p.permissions).unwrap_or_default();
     let body = Json(LoginResponse {
+        is_admin,
         address,
         display_name: display,
         permissions: perms_vec,

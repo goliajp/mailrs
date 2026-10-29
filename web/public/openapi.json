@@ -9452,7 +9452,7 @@
         "properties": {
           "token": {
             "type": "string",
-            "description": "Session bearer token"
+            "description": "Session token, the same value as the mailrs_session cookie. Apps send it as Authorization: Bearer; the web client relies on the HttpOnly cookie."
           },
           "address": {
             "type": "string"
@@ -9466,17 +9466,9 @@
               "type": "string"
             }
           },
-          "accessible_domains": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "send_as": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
+          "is_admin": {
+            "type": "boolean",
+            "description": "Whether the account may use the admin console. The one server-side rule (super user, or any admin.* permission); the client shows or hides admin entries by it."
           }
         },
         "required": [
@@ -9484,8 +9476,7 @@
           "address",
           "display_name",
           "permissions",
-          "accessible_domains",
-          "send_as"
+          "is_admin"
         ]
       },
       "MeResponse": {
@@ -9514,6 +9505,10 @@
             "items": {
               "type": "string"
             }
+          },
+          "is_admin": {
+            "type": "boolean",
+            "description": "Whether the account may use the admin console. The one server-side rule (super user, or any admin.* permission); the client shows or hides admin entries by it."
           }
         },
         "required": [
@@ -9521,7 +9516,8 @@
           "display_name",
           "permissions",
           "accessible_domains",
-          "send_as"
+          "send_as",
+          "is_admin"
         ]
       },
       "FolderInfo": {

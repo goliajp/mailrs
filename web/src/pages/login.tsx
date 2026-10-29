@@ -107,6 +107,7 @@ export function Login() {
           accessible_domains: me.accessible_domains,
           address: me.address,
           display_name: me.display_name,
+          is_admin: me.is_admin,
           permissions: me.permissions,
         })
         navigate('/', { replace: true })
@@ -150,6 +151,7 @@ export function Login() {
         accessible_domains: data.accessible_domains,
         address: data.address,
         display_name: data.display_name,
+        is_admin: data.is_admin,
         permissions: data.permissions,
       }
       if (rememberMe) {
