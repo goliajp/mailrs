@@ -3,7 +3,7 @@
 //! Two kinds live in the network kevy: browser sessions (stored under the
 //! hash of their token, indexed per address by `session:by_addr:<address>`,
 //! which `issue_session` writes) and agent keys (`agent:keys:<address>` holds the records,
-//! `agent:key:secret:<key>` maps a key back to `{user, id}`). The auth
+//! the secret index maps a key's hash back to `{user, id}`). The auth
 //! middleware accepts an agent key only while its record is still in the
 //! owner's hash, so dropping the hash is what revokes; the secret indexes
 //! are dropped too so nothing points at a record that is gone.
@@ -65,7 +65,7 @@ pub fn revoke_agent_keys(c: &mut Connection, address: &str) -> std::io::Result<u
     // the index stores no owner prefix in its key, so finding an owner's
     // entries means reading each one; there are a handful per server
     let mut dropped = 0;
-    for idx_key in c.keys(b"agent:key:secret:*")? {
+    for idx_key in c.keys(crate::agent_key_index::PATTERN)? {
         let Some(raw) = c.get(&idx_key)? else {
             continue;
         };
