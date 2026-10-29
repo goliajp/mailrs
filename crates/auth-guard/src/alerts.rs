@@ -33,6 +33,9 @@ pub enum Kind {
     /// One account signed in successfully from several networks within a
     /// few minutes.
     ManyNetworks,
+    /// A signed-in session failed to confirm its password too many times
+    /// and was ended: whoever held it did not know the password.
+    SessionEndedAfterFailedConfirmations,
 }
 
 /// One alert.
@@ -106,6 +109,12 @@ fn headline(a: &Alert) -> String {
         Kind::SourceLocked => format!("source {} locked", a.subject),
         Kind::GlobalLocked => "unfamiliar sources refused server-wide".to_string(),
         Kind::ManyNetworks => format!("{} signed in from several networks", a.subject),
+        Kind::SessionEndedAfterFailedConfirmations => {
+            format!(
+                "a session of {} ended after failed password confirmations",
+                a.subject
+            )
+        }
     }
 }
 

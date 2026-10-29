@@ -89,6 +89,101 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Whether this session confirmed its password recently
+         * @description Read only. `confirmed` is true for ten minutes after a successful POST to this path on the same session; `expires_in` is the seconds left, or null. An agent key gets 403 `agent_key_not_allowed`.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            confirmed: boolean;
+                            expires_in: number | null;
+                        };
+                    };
+                };
+                /** @description agent_key_not_allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Confirm the session's password
+         * @description Type the password again (and the one-time code when an authenticator is enrolled) before an operation that asks for it. Those operations answer 403 `confirm_required` until this succeeds, and 403 `agent_key_not_allowed` to agent keys. The confirmation lasts ten minutes and is not extended by use. Failures count toward the sign-in lockout; the fifth on one session ends it.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ConfirmRequest"];
+                };
+            };
+            responses: {
+                /** @description Confirmed for ten minutes */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description `confirm_failed` with `remaining`, `totp_required`, or `session_revoked` */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description agent_key_not_allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Locked after too many failed attempts */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/me": {
         parameters: {
             query?: never;
@@ -5448,6 +5543,11 @@ export interface components {
             code: string;
             /** @description Address of the person signing in to the calling service; the login guard counts it instead of the caller. */
             client_ip?: string;
+        };
+        ConfirmRequest: {
+            password: string;
+            /** @description One-time code or recovery code, when an authenticator is enrolled */
+            code?: string;
         };
         ChangePasswordRequest: {
             current_password: string;

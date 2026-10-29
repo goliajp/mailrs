@@ -241,7 +241,7 @@ fun MailViewModel.addGroupMember(address: String) {
     val detail = _state.value.adminDetail ?: return
     if (detail.section != AdminSection.EmailGroups || address.isBlank()) return
     viewModelScope.launch {
-        val r = client.addEmailGroupMember(detail.id, address.trim())
+        val r = confirmed { client.addEmailGroupMember(detail.id, address.trim()) }
         if (r is MailrsClient.Outcome.Err) {
             _state.update { it.copy(error = r.message) }
             return@launch
@@ -254,7 +254,7 @@ fun MailViewModel.removeGroupMember(address: String) {
     val detail = _state.value.adminDetail ?: return
     if (detail.section != AdminSection.EmailGroups) return
     viewModelScope.launch {
-        val r = client.removeEmailGroupMember(detail.id, address)
+        val r = confirmed { client.removeEmailGroupMember(detail.id, address) }
         if (r is MailrsClient.Outcome.Err) {
             _state.update { it.copy(error = r.message) }
             return@launch
@@ -307,13 +307,15 @@ fun MailViewModel.addAdminRow(section: AdminSection, values: List<String>) {
                 val source = values.getOrElse(0) { "" }.trim()
                 val target = values.getOrElse(1) { "" }.trim()
                 if (source.isEmpty() || target.isEmpty()) return@launch
-                client.addAlias(
-                    Admin.AddAliasRequest(
-                        sourceAddress = source,
-                        targetAddress = target,
-                        domain = source.substringAfter('@', ""),
-                    ),
-                )
+                confirmed {
+                    client.addAlias(
+                        Admin.AddAliasRequest(
+                            sourceAddress = source,
+                            targetAddress = target,
+                            domain = source.substringAfter('@', ""),
+                        ),
+                    )
+                }
             }
             AdminSection.Domains -> {
                 val name = values.getOrElse(0) { "" }.trim()
@@ -332,7 +334,7 @@ fun MailViewModel.addAdminRow(section: AdminSection, values: List<String>) {
                     .split(',')
                     .map { it.trim() }
                     .filter { it.isNotEmpty() }
-                when (val made = client.createAgentKey(name, scopes)) {
+                when (val made = confirmed { client.createAgentKey(name, scopes) }) {
                     // **Shown now or lost.** The list returns a prefix
                     // and the server keeps only a hash; this is the one
                     // moment the secret exists where it can be read.
@@ -363,7 +365,10 @@ fun MailViewModel.addAdminRow(section: AdminSection, values: List<String>) {
 fun MailViewModel.deleteAdminRow(section: AdminSection, row: jp.golia.mailrs.ui.AdminRow) {
     viewModelScope.launch {
         val r = when (section) {
-            AdminSection.Aliases -> client.deleteAlias(row.key.toLongOrNull() ?: return@launch)
+            AdminSection.Aliases -> {
+                val id = row.key.toLongOrNull() ?: return@launch
+                confirmed { client.deleteAlias(id) }
+            }
             AdminSection.Domains -> client.deleteDomain(row.key)
             AdminSection.AgentKeys ->
                 client.deleteAgentKey(row.key.toLongOrNull() ?: return@launch)

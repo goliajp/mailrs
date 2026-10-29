@@ -64,6 +64,7 @@ impl MailrsMcpService {
         Parameters(params): Parameters<SetAccountSendAsParams>,
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
+        self.require_confirmed()?;
         let req = mailrs_core_api::method::admin::SendAsList {
             send_as: params.send_as,
         };
@@ -119,6 +120,7 @@ impl MailrsMcpService {
         Parameters(params): Parameters<SetAccountForwardsParams>,
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
+        self.require_confirmed()?;
         let req = crate::handlers::admin_directory::LocalForwards {
             forward_to: params.forward_to,
         };

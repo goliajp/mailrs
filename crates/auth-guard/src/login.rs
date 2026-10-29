@@ -143,6 +143,11 @@ pub trait LoginGuard: Send + Sync {
 
     /// Up to `max` queued alerts, oldest first, taken off the queue.
     async fn take_alerts(&self, max: usize) -> io::Result<Vec<Alert>>;
+
+    /// Queue an alert the caller saw happen, for the same digest the
+    /// guard's own alerts go to. Whether it was queued: one about the same
+    /// kind and subject shortly before is not repeated.
+    async fn raise(&self, alert: Alert) -> io::Result<bool>;
 }
 
 /// The storage primitives the policy needs. Every key carries its own

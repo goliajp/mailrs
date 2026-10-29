@@ -94,25 +94,14 @@ pub async fn login(
     // Kevy failure while checking TOTP must NOT fall through to
     // "session issued" — that would let a kevy blink bypass 2FA.
     // Fail closed with 500 instead.
-    let totp_key = format!("totp:{}", req.address);
-    let totp_key_r = totp_key.clone();
-    let totp_enrolled_secret = match crate::handlers::kevy_util::with_kevy(move |c| {
-        Ok((
-            c.hget(totp_key_r.as_bytes(), b"secret")?,
-            c.hget(totp_key_r.as_bytes(), b"enabled")?,
-        ))
-    }) {
-        Ok(v) => v,
-        Err(_) => {
-            tracing::warn!(addr = %req.address, "login: kevy TOTP check failed; rejecting to fail-closed");
-            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    use crate::handlers::totp_util::{SecondFactor, second_factor};
+    match second_factor(&req.address, req.totp_code.as_deref()) {
+        Err(status) => {
+            tracing::warn!(addr = %req.address, "login: TOTP check failed; rejecting to fail-closed");
+            return status.into_response();
         }
-    };
-    if let (Some(secret_bytes), Some(en)) = totp_enrolled_secret
-        && en == b"1"
-    {
-        let secret = String::from_utf8(secret_bytes).unwrap_or_default();
-        let Some(code) = req.totp_code.as_ref() else {
+        Ok(SecondFactor::NotEnrolled | SecondFactor::Passed) => {}
+        Ok(SecondFactor::Missing) => {
             guard
                 .record(event(Credential::Password, Outcome::MfaRequired))
                 .await;
@@ -121,20 +110,8 @@ pub async fn login(
                 Json(serde_json::json!({ "requires_totp": true })),
             )
                 .into_response();
-        };
-        let ok_code = crate::handlers::totp_util::verify_code(&secret, code);
-        let ok_recovery = if !ok_code {
-            // one-shot: a code that matches is removed in the same call
-            let rc_key = totp_key.clone();
-            let code_owned = code.to_string();
-            crate::handlers::kevy_util::with_kevy(move |c| {
-                crate::handlers::totp_util::consume_recovery_code(c, &rc_key, &code_owned)
-            })
-            .unwrap_or(false)
-        } else {
-            false
-        };
-        if !ok_code && !ok_recovery {
+        }
+        Ok(SecondFactor::Failed) => {
             guard.failed(source, &req.address).await;
             guard
                 .record(event(Credential::Totp, Outcome::MfaFailed))
@@ -356,10 +333,15 @@ pub async fn logout(req: axum::extract::Request) -> Response {
 /// before hashing that has not been used since.
 pub(crate) fn end_session(c: &mut kevy_client::Connection, token: &str) -> std::io::Result<()> {
     use mailrs_core_sidestate::keys::session::{
-        by_addr_key, legacy_session_key, session_key, session_ref,
+        by_addr_key, confirm_failures_key, confirmed_key, legacy_session_key, session_key,
+        session_ref,
     };
     let stored = session_key(token);
     let legacy = legacy_session_key(token);
+    let (mark, failures) = (
+        confirmed_key(&session_ref(token)),
+        confirm_failures_key(&session_ref(token)),
+    );
     let mut owner = None;
     for key in [&stored, &legacy] {
         if owner.is_none() {
@@ -369,7 +351,12 @@ pub(crate) fn end_session(c: &mut kevy_client::Connection, token: &str) -> std::
                 .and_then(|v| v.get("address").and_then(|a| a.as_str()).map(String::from));
         }
     }
-    c.del(&[stored.as_bytes(), legacy.as_bytes()])?;
+    c.del(&[
+        stored.as_bytes(),
+        legacy.as_bytes(),
+        mark.as_bytes(),
+        failures.as_bytes(),
+    ])?;
     if let Some(owner) = owner {
         c.srem(
             by_addr_key(&owner).as_bytes(),

@@ -32,6 +32,7 @@ use crate::handlers::conversations::AuthedUser;
 /// accounts actually live). Populates address / domain / display_name
 /// / active shape the frontend `AuditAccount` type expects.
 pub async fn audit_accounts(
+    _: crate::session::confirm::Confirmed,
     State(state): State<Arc<WebState>>,
     Extension(_user): Extension<AuthedUser>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
@@ -77,7 +78,7 @@ fn core_status(e: mailrs_core_api::error::CoreApiError) -> StatusCode {
 /// GET /api/admin/audit/conversations?user=&limit= — list threads
 /// for the target user via fastcore RPC. Same shape as normal
 /// `/api/conversations` but scoped to any user.
-pub async fn audit_conversations(
+pub async fn read_conversations(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
     axum::extract::Query(q): axum::extract::Query<AuditConversationsQuery>,
@@ -129,7 +130,7 @@ pub struct AuditConvMessagesQuery {
 /// GET /api/admin/audit/conversations/{thread_id}?user= — the thread's
 /// summary row as the target user sees it, read through the core like
 /// the list. The message list is `.../messages`.
-pub async fn audit_conversation_detail(
+pub async fn read_conversation_detail(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Path(thread_id): Path<String>,
@@ -153,7 +154,7 @@ pub async fn audit_conversation_detail(
 /// — the thread's messages as the target user has them, bodies and
 /// attachment metadata included (the same enrichment the MCP
 /// `audit_read_thread` tool returns).
-pub async fn audit_conversation_messages(
+pub async fn read_conversation_messages(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Path(thread_id): Path<String>,
@@ -188,7 +189,7 @@ pub async fn audit_conversation_messages(
 
 /// GET /api/admin/audit/messages/{uid}/raw?user= — fetch raw envelope
 /// bytes for a message under the target user. Reads maildir.
-pub async fn audit_message_raw(
+pub async fn read_message_raw(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Path(uid): Path<u32>,
@@ -215,6 +216,72 @@ pub async fn audit_message_raw(
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR),
         _ => Err(StatusCode::NOT_FOUND),
     }
+}
+
+/// The route: [`read_conversations`] behind a recent password confirmation.
+pub async fn audit_conversations(
+    _: crate::session::confirm::Confirmed,
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(actor)): Extension<AuthedUser>,
+    axum::extract::Query(q): axum::extract::Query<AuditConversationsQuery>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    read_conversations(
+        State(state),
+        Extension(AuthedUser(actor)),
+        axum::extract::Query(q),
+    )
+    .await
+}
+
+/// The route: [`read_conversation_detail`] behind a recent password confirmation.
+pub async fn audit_conversation_detail(
+    _: crate::session::confirm::Confirmed,
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(actor)): Extension<AuthedUser>,
+    Path(thread_id): Path<String>,
+    axum::extract::Query(q): axum::extract::Query<AuditConvMessagesQuery>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    read_conversation_detail(
+        State(state),
+        Extension(AuthedUser(actor)),
+        Path(thread_id),
+        axum::extract::Query(q),
+    )
+    .await
+}
+
+/// The route: [`read_conversation_messages`] behind a recent password confirmation.
+pub async fn audit_conversation_messages(
+    _: crate::session::confirm::Confirmed,
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(actor)): Extension<AuthedUser>,
+    Path(thread_id): Path<String>,
+    axum::extract::Query(q): axum::extract::Query<AuditConvMessagesQuery>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    read_conversation_messages(
+        State(state),
+        Extension(AuthedUser(actor)),
+        Path(thread_id),
+        axum::extract::Query(q),
+    )
+    .await
+}
+
+/// The route: [`read_message_raw`] behind a recent password confirmation.
+pub async fn audit_message_raw(
+    _: crate::session::confirm::Confirmed,
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(actor)): Extension<AuthedUser>,
+    Path(uid): Path<u32>,
+    axum::extract::Query(q): axum::extract::Query<AuditConvMessagesQuery>,
+) -> Result<axum::response::Response, StatusCode> {
+    read_message_raw(
+        State(state),
+        Extension(AuthedUser(actor)),
+        Path(uid),
+        axum::extract::Query(q),
+    )
+    .await
 }
 
 #[cfg(test)]

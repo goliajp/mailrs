@@ -155,6 +155,13 @@ impl MailrsMcpService {
             .map_err(|_| McpError::invalid_request("admin permission required", None))
     }
 
+    /// A recent password confirmation by the session behind this call. An
+    /// agent key has no password and is refused.
+    pub(super) fn require_confirmed(&self) -> Result<crate::session::confirm::Confirmed, McpError> {
+        crate::session::confirm::require(self.identity.session.as_ref())
+            .map_err(|r| McpError::invalid_request(r.code(), None))
+    }
+
     pub(super) fn require_user(&self) -> Result<&str, McpError> {
         if self.identity.user.is_empty() {
             return Err(McpError::invalid_params("not authenticated", None));
@@ -201,7 +208,10 @@ pub async fn mcp_auth_middleware(
         return axum::response::IntoResponse::into_response(axum::http::StatusCode::FORBIDDEN);
     }
     let identity = auth
-        .map(|a| McpIdentity::new(a.user, a.scopes))
+        .map(|a| McpIdentity {
+            session: a.session,
+            ..McpIdentity::new(a.user, a.scopes)
+        })
         .unwrap_or_default();
     MCP_AUTH_USER.scope(identity, next.run(req)).await
 }

@@ -213,13 +213,15 @@ async fn a_send_only_key_sends_as_its_owner_and_reaches_nothing_else() {
         );
         h
     };
-    assert_eq!(
-        mailrs_webapi::session::resolve_session_user_from_headers(&header(&key)).await,
-        None
+    assert!(
+        mailrs_webapi::session::resolve_session_user_from_headers(&header(&key))
+            .await
+            .is_none()
     );
     assert_eq!(
         mailrs_webapi::session::resolve_session_user_from_headers(&header(&session))
             .await
+            .map(|(address, _)| address)
             .as_deref(),
         Some(OWNER)
     );

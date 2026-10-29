@@ -16,6 +16,7 @@ import { createBrowserRouter, Navigate, Outlet, RouterProvider, useLocation } fr
 
 import { AppSidebar } from '@/components/app-sidebar'
 import { CommandPalette } from '@/components/command-palette'
+import { ConfirmPasswordHost } from '@/components/confirm-password-dialog'
 import { DashboardShellSkeleton } from '@/components/dashboard-skeleton'
 import { MobileShell } from '@/components/mobile-shell'
 import { RouteErrorFallback } from '@/components/route-error-fallback'
@@ -272,6 +273,7 @@ function RootLayout() {
     <>
       <ToastProvider position="top-right" />
       <CommandPalette />
+      <ConfirmPasswordHost />
       <Outlet />
     </>
   )

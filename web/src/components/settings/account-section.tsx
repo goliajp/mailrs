@@ -4,6 +4,7 @@ import { useAtomValue } from 'jotai'
 import { useEffect, useState } from 'react'
 
 import { useSignOut } from '@/hooks/use-sign-out'
+import { ensureConfirmed } from '@/lib/ensure-confirmed'
 import { queryClient } from '@/lib/query-client'
 import { settingsKeys } from '@/lib/query-keys'
 import { authAtom } from '@/store/auth'
@@ -86,6 +87,13 @@ export function AccountSection() {
   }
 
   const doLogout = useSignOut()
+
+  // the export is a download, which never passes through `http`, so the
+  // confirmation it needs is asked for first; an attachment leaves the page
+  // where it is, and a new tab opened after the await would be blocked
+  const exportMailbox = async () => {
+    if (await ensureConfirmed()) window.location.assign('/api/mail/export')
+  }
 
   return (
     <div className="space-y-6">
@@ -200,7 +208,7 @@ export function AccountSection() {
       <div className={cardClass}>
         <h3 className="mb-2 text-sm font-medium">Export Mailbox</h3>
         <p className="text-fg-muted mb-3 text-xs">Download all your emails as an MBOX file</p>
-        <button className={btnPrimary} onClick={() => window.open('/api/mail/export', '_blank')}>
+        <button className={btnPrimary} onClick={() => void exportMailbox()}>
           Export as MBOX
         </button>
       </div>

@@ -89,6 +89,8 @@ async function forbidden(res: Response): Promise<WireErrorException> {
     if (error === 'temporarily_disabled' && typeof detail === 'string') {
       return new WireErrorException({ kind: 'disabled', message: detail })
     }
+    // `http` already asked for the password; reaching here means it was not given
+    if (error === 'confirm_required') return new WireErrorException({ kind: 'unconfirmed' })
   }
   return new WireErrorException({ kind: 'forbidden' })
 }

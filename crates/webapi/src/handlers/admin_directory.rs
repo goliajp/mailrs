@@ -155,6 +155,7 @@ pub struct AddAliasRequest {
 /// POST /api/admin/aliases — writes the `source → target` pair to
 /// fastcore's alias store.
 pub async fn add_alias(
+    _: crate::session::confirm::Confirmed,
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Json(req): Json<AddAliasRequest>,
@@ -172,6 +173,7 @@ pub async fn add_alias(
 /// DELETE /api/admin/aliases/{id} — `id` is the source address the list
 /// reports. 404 when the store holds no such alias.
 pub async fn remove_alias(
+    _: crate::session::confirm::Confirmed,
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Path(source): Path<String>,
@@ -243,6 +245,7 @@ pub struct AddMemberRequest {
 }
 
 pub async fn add_email_group_member(
+    _: crate::session::confirm::Confirmed,
     State(_state): State<Arc<WebState>>,
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Path(id): Path<String>,
@@ -260,6 +263,7 @@ pub async fn add_email_group_member(
 }
 
 pub async fn remove_email_group_member(
+    _: crate::session::confirm::Confirmed,
     State(_state): State<Arc<WebState>>,
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Path((id, address)): Path<(String, String)>,

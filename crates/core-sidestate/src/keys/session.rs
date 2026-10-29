@@ -44,6 +44,18 @@ pub fn by_addr_key(address: &str) -> String {
     format!("session:by_addr:{address}")
 }
 
+/// Marks a session whose holder typed the password again within the last
+/// few minutes; the operations a stolen session could use to stay in, or
+/// to carry mail away, ask for it.
+pub fn confirmed_key(session_ref: &str) -> String {
+    format!("session:confirmed:{session_ref}")
+}
+
+/// Failed confirmations on one session; enough of them end the session.
+pub fn confirm_failures_key(session_ref: &str) -> String {
+    format!("session:confirm_failures:{session_ref}")
+}
+
 /// Every live token; the single-process server restores from it at boot.
 pub const SESSION_INDEX: &[u8] = b"session:index";
 
@@ -57,6 +69,8 @@ mod tests {
         assert_eq!(legacy_session_key("t0k"), "session:t0k");
         assert_eq!(by_addr_key("a@x.jp"), "session:by_addr:a@x.jp");
         assert_eq!(SESSION_INDEX, b"session:index");
+        assert_eq!(confirmed_key("r"), "session:confirmed:r");
+        assert_eq!(confirm_failures_key("r"), "session:confirm_failures:r");
     }
 
     #[test]

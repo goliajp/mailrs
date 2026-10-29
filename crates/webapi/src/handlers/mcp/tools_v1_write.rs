@@ -47,6 +47,7 @@ impl MailrsMcpService {
         Parameters(params): Parameters<CreateAccountParams>,
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
+        self.require_confirmed()?;
         self.require_admin(&user).await?;
         mailrs_auth_guard::password::check_new(&params.password, &params.address)
             .map_err(|weak| McpError::invalid_params(weak.to_string(), None))?;
@@ -70,6 +71,7 @@ impl MailrsMcpService {
         Parameters(params): Parameters<AddressParams>,
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
+        self.require_confirmed()?;
         self.require_admin(&user).await?;
         self.state
             .core
@@ -91,6 +93,7 @@ impl MailrsMcpService {
         Parameters(params): Parameters<AddAliasParams>,
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
+        self.require_confirmed()?;
         self.require_admin(&user).await?;
         crate::handlers::admin_directory::store_alias(
             &self.state,
@@ -118,6 +121,7 @@ impl MailrsMcpService {
         Parameters(params): Parameters<RemoveAliasParams>,
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
+        self.require_confirmed()?;
         self.require_admin(&user).await?;
         crate::handlers::admin_directory::delete_alias(&self.state, &params.source_address)
             .await
@@ -254,6 +258,7 @@ impl MailrsMcpService {
         Parameters(params): Parameters<CreateWebhookParams>,
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
+        self.require_confirmed()?;
         let resp = if user == params.account_address {
             let new = mailrs_core_sidestate::families::webhooks::NewWebhook {
                 account_address: user.clone(),

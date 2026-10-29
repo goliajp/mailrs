@@ -182,6 +182,7 @@ async fn finish(
         }
     };
 
+    let signed_in = crate::session::resolve_session_user_from_headers(&headers).await;
     let (iss, sub) = (identity.issuer.clone(), identity.subject.clone());
     let linked = with_kevy(move |c| {
         mailrs_core_sidestate::families::identity_link::account_for(c, &iss, &sub)
@@ -201,18 +202,18 @@ async fn finish(
             Err(_) => login_redirect("no-account"),
         },
         // Not linked, but already signed in — this is the "add a sign-in
-        // method" button in settings. The session is the proof that would
-        // otherwise be asked for, so there is nothing to park: link it and
-        // say so. The callback is a top-level GET, so the SameSite=Lax
-        // session cookie arrives with it.
-        None if crate::session::resolve_session_user_from_headers(&headers)
-            .await
-            .is_some() =>
-        {
-            let Some(address) = crate::session::resolve_session_user_from_headers(&headers).await
-            else {
+        // method" button in settings. A linked identity signs in without the
+        // password, so a session alone is not enough: it must have confirmed
+        // the password recently, or a stolen one could add a way back in. The
+        // callback is a top-level GET, so the SameSite=Lax session cookie
+        // arrives with it.
+        None if signed_in.is_some() => {
+            let Some((address, session)) = signed_in else {
                 return login_redirect("failed");
             };
+            if crate::session::confirm::require(Some(&session)).is_err() {
+                return Redirect::to("/settings?linked=confirm").into_response();
+            }
             let (iss, sub) = (identity.issuer.clone(), identity.subject.clone());
             let addr = address.clone();
             let outcome = with_kevy(move |c| {

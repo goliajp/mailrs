@@ -253,6 +253,7 @@ pub struct SetRecoveryEmailRequest {
 }
 
 pub async fn set_recovery_email(
+    _: crate::session::confirm::Confirmed,
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Json(req): Json<SetRecoveryEmailRequest>,
@@ -312,8 +313,17 @@ pub async fn totp_status(
 /// codes, store them un-enabled, return the secret / otpauth URL /
 /// recovery codes so the client can render the QR.
 pub async fn totp_setup(
+    _: crate::session::confirm::Confirmed,
     Extension(AuthedUser(address)): Extension<AuthedUser>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
+    // setup writes a new secret and `enabled = 0`: on an enrolled account
+    // that would switch the second factor off without a code. Disabling has
+    // its own route, which asks for one.
+    let k = format!("totp:{address}");
+    let enrolled = with_kevy(move |c| Ok(c.hget(k.as_bytes(), b"enabled")?))?;
+    if enrolled.as_deref() == Some(b"1") {
+        return Err(StatusCode::CONFLICT);
+    }
     let secret = crate::handlers::totp_util::generate_secret();
     let recovery_codes = crate::handlers::totp_util::generate_recovery_codes();
     let recovery_str = crate::handlers::totp_util::hash_recovery_codes(&recovery_codes);
@@ -375,6 +385,7 @@ pub async fn totp_enable(
 }
 
 pub async fn totp_disable(
+    _: crate::session::confirm::Confirmed,
     Extension(AuthedUser(address)): Extension<AuthedUser>,
     Json(req): Json<TotpCodeRequest>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {

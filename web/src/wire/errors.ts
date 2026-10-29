@@ -15,9 +15,11 @@ export type WireError =
   | { readonly kind: 'auth' }
   | { readonly kind: 'disabled'; readonly message: string }
   | { readonly kind: 'forbidden' }
+  /** The server wanted the password typed again and the user cancelled. */
   | { readonly kind: 'network' }
   | { readonly kind: 'not-found' }
   | { readonly kind: 'server'; readonly message: string; readonly status: number }
+  | { readonly kind: 'unconfirmed' }
 
 /**
  * A tiny wrapper so `throw` semantics still work while `catch` blocks
@@ -49,6 +51,8 @@ export class WireErrorException extends Error {
         return 'Resource not found'
       case 'server':
         return detail.message
+      case 'unconfirmed':
+        return 'Not done: the password was not confirmed'
       case 'validation':
         return `Response failed validation (${detail.issues.length} issue${
           detail.issues.length === 1 ? '' : 's'

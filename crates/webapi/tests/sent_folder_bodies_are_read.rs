@@ -32,6 +32,7 @@ async fn a_sent_message_body_is_found_in_its_subfolder() {
     let live = live::start(KEVY).await;
     live.add_account(ALICE, "pw").await;
     let alice = live.login(ALICE, "pw").await;
+    live.confirm(&alice, "pw").await;
     live.mailbox.ensure_thread_table();
     live.mailbox
         .record_message_arrival(&mailrs_mailbox_kevy::MessageArrival {

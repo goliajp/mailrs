@@ -239,6 +239,13 @@ impl LoginGuard for Arc<KevyLoginGuard> {
         }
     }
 
+    async fn raise(&self, alert: crate::alerts::Alert) -> io::Result<bool> {
+        let me = self.clone();
+        tokio::task::spawn_blocking(move || me.with_ops(|o, _, _| crate::alerts::raise(o, &alert)))
+            .await
+            .map_err(io::Error::other)?
+    }
+
     async fn take_alerts(&self, max: usize) -> io::Result<Vec<crate::alerts::Alert>> {
         let me = self.clone();
         tokio::task::spawn_blocking(move || me.with_ops(|o, _, _| crate::alerts::take(o, max)))
