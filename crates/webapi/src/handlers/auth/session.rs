@@ -354,7 +354,7 @@ pub async fn logout(req: axum::extract::Request) -> Response {
 /// Delete one session and its entry in the owner's index, wherever it is
 /// stored: under the token's hash, or under the token for one issued
 /// before hashing that has not been used since.
-fn end_session(c: &mut kevy_client::Connection, token: &str) -> std::io::Result<()> {
+pub(crate) fn end_session(c: &mut kevy_client::Connection, token: &str) -> std::io::Result<()> {
     use mailrs_core_sidestate::keys::session::{
         by_addr_key, legacy_session_key, session_key, session_ref,
     };
