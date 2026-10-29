@@ -13,17 +13,27 @@
  *
  * An operation that needs a recent password confirmation is refused with
  * `confirm_required`; the user is asked for the password and the request
- * is sent once more. Everything else is the caller's: status handling,
- * parsing.
+ * is sent once more.
+ *
+ * A read answered 503 — the server restarting during a deploy — is sent
+ * once more after the `Retry-After` it gives. A write is not: sending,
+ * moving or deleting twice could do it twice, so the caller says the
+ * server is restarting and leaves the retry to the person. Everything else
+ * is the caller's: status handling, parsing.
  */
 
 import { askToConfirm } from './confirm-asker'
 
 const CSRF_COOKIE = 'mailrs_csrf'
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
+const MAX_WAIT_MS = 30_000
 
 export async function http(input: string, init?: RequestInit): Promise<Response> {
-  const res = await send(input, init)
+  let res = await send(input, init)
+  if (res.status === 503 && SAFE_METHODS.has((init?.method ?? 'GET').toUpperCase())) {
+    await new Promise((done) => setTimeout(done, retryAfterMs(res)))
+    res = await send(input, init)
+  }
   if (res.status !== 403 || (await errorCode(res)) !== 'confirm_required') return res
   if (!(await askToConfirm())) return res
   return send(input, init)
@@ -44,6 +54,12 @@ async function errorCode(res: Response): Promise<unknown> {
     .catch(() => null)
   if (typeof body !== 'object' || body === null) return null
   return (body as { error?: unknown }).error
+}
+
+function retryAfterMs(res: Response): number {
+  const seconds = Number(res.headers.get('Retry-After'))
+  if (!Number.isFinite(seconds) || seconds <= 0) return 5_000
+  return Math.min(seconds * 1000, MAX_WAIT_MS)
 }
 
 async function send(input: string, init?: RequestInit): Promise<Response> {

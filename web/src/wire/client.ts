@@ -110,6 +110,13 @@ async function handleResponse<T>(
   }
   if (res.status === 403) throw await forbidden(res)
   if (res.status === 404) throw new WireErrorException({ kind: 'not-found' })
+  // `http` has already repeated a read once; a write is never repeated
+  if (res.status === 503)
+    throw new WireErrorException({
+      kind: 'server',
+      message: 'The server is restarting. Try again in a moment',
+      status: 503,
+    })
 
   if (!res.ok) {
     let message = res.statusText || `HTTP ${res.status}`

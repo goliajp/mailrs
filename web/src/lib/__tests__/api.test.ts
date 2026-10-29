@@ -112,8 +112,9 @@ describe('fetchJson', () => {
   })
 
   it('throws generic message when error body is not JSON', async () => {
-    vi.stubGlobal('fetch', makeFetchMock(503, {}, false))
-    await expect(fetchJson('/test')).rejects.toThrow('API error: 503')
+    // not 503: a read answered 503 waits and is repeated once
+    vi.stubGlobal('fetch', makeFetchMock(502, {}, false))
+    await expect(fetchJson('/test')).rejects.toThrow('API error: 502')
   })
 })
 
