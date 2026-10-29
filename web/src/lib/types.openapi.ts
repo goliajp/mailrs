@@ -2285,8 +2285,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get admin suppressions
-         * @description Stub — full schema TBD.
+         * List suppressed addresses
+         * @description Every address outbound mail is held back from. `source` is `hard_bounce` (expires after 90 days) or `complaint` (an ARF complaint about a message we sent to that address; stays until removed).
          */
         get: {
             parameters: {
@@ -2303,7 +2303,15 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": Record<string, never>;
+                        "application/json": {
+                            items: {
+                                email: string;
+                                /** @enum {string} */
+                                source: "hard_bounce" | "complaint";
+                                reason: string;
+                                added_at: number | null;
+                            }[];
+                        };
                     };
                 };
             };
@@ -2311,12 +2319,14 @@ export interface paths {
         put?: never;
         post?: never;
         /**
-         * Delete admin suppressions
-         * @description Stub — full schema TBD.
+         * Remove suppressed addresses
+         * @description With `address`, takes that one address off the suppression list (404 when it is not on it). Without it, removes every address. Audited as suppressions.remove / suppressions.clear.
          */
         delete: {
             parameters: {
-                query?: never;
+                query?: {
+                    address?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -2325,6 +2335,13 @@ export interface paths {
             responses: {
                 /** @description Done; empty body */
                 204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description The address is not suppressed */
+                404: {
                     headers: {
                         [name: string]: unknown;
                     };
