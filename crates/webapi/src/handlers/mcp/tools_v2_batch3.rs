@@ -11,7 +11,6 @@ use serde::Deserialize;
 
 use super::MailrsMcpService;
 use crate::handlers::kevy_util::with_kevy;
-use mailrs_core_sidestate::families::outbound::SCHEDULED_IDX;
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct ScheduledIdParams {
@@ -30,8 +29,6 @@ pub struct RescheduleParams {
     pub scheduled_at: i64,
 }
 
-const SCHEDULED_KEY: &[u8] = SCHEDULED_IDX;
-
 #[tool_router(router = tool_router_v2_batch3, vis = "pub")]
 impl MailrsMcpService {
     #[tool(
@@ -42,25 +39,13 @@ impl MailrsMcpService {
         Parameters(params): Parameters<ScheduledIdParams>,
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
-        let id = params.id;
-        let hkey = mailrs_core_sidestate::families::outbound::job_key(&id);
-        let user_c = user.clone();
-        let id_c = id.clone();
-        let removed = with_kevy(move |c| {
-            let Some(bytes) = c.hget(hkey.as_bytes(), b"blob")? else {
-                return Ok(false);
-            };
-            let Ok(env) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
-                return Ok(false);
-            };
-            if env.get("sender").and_then(|v| v.as_str()) != Some(user_c.as_str()) {
-                return Ok(false);
-            }
-            c.zrem(SCHEDULED_KEY, &[id_c.as_bytes()])?;
-            c.del(&[hkey.as_bytes()])?;
-            Ok(true)
-        })
-        .unwrap_or(false);
+        let removed = match params.id.parse::<i64>() {
+            Ok(id) => with_kevy(move |c| {
+                mailrs_core_sidestate::families::outbound::cancel_scheduled(c, id, &user)
+            })
+            .unwrap_or(false),
+            Err(_) => false,
+        };
         Ok(CallToolResult::success(vec![ContentBlock::text(
             if removed {
                 serde_json::json!({ "ok": true }).to_string()
@@ -92,26 +77,14 @@ impl MailrsMcpService {
                     .to_string(),
             )]));
         }
-        let id = params.id;
-        let hkey = mailrs_core_sidestate::families::outbound::job_key(&id);
-        let user_c = user.clone();
-        let id_c = id.clone();
-        let new_score = params.scheduled_at;
-        let ok = with_kevy(move |c| {
-            let Some(bytes) = c.hget(hkey.as_bytes(), b"blob")? else {
-                return Ok(false);
-            };
-            let Ok(env) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
-                return Ok(false);
-            };
-            if env.get("sender").and_then(|v| v.as_str()) != Some(user_c.as_str()) {
-                return Ok(false);
-            }
-            c.zrem(SCHEDULED_KEY, &[id_c.as_bytes()])?;
-            c.zadd(SCHEDULED_KEY, &[(new_score as f64, id_c.as_bytes())])?;
-            Ok(true)
-        })
-        .unwrap_or(false);
+        let at = params.scheduled_at;
+        let ok = match params.id.parse::<i64>() {
+            Ok(id) => with_kevy(move |c| {
+                mailrs_core_sidestate::families::outbound::reschedule(c, id, &user, at)
+            })
+            .unwrap_or(false),
+            Err(_) => false,
+        };
         Ok(CallToolResult::success(vec![ContentBlock::text(if ok {
             serde_json::json!({ "ok": true, "scheduled_at": params.scheduled_at }).to_string()
         } else {

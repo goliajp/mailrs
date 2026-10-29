@@ -47,7 +47,11 @@ pub const CANCELLED_REASON: &str = "cancelled before delivery";
 /// pending list has no `LREM`, and draining and refilling it raced every
 /// concurrent send, whose job could fall out of the index between the
 /// read and the refill. Each job is removed by [`cancel_waiting`].
-pub fn drop_queued_jobs(conn: &mut kevy_client::Connection, send_id: &str) -> Vec<i64> {
+pub fn drop_queued_jobs(
+    conn: &mut kevy_client::Connection,
+    send_id: &str,
+    sender: &str,
+) -> Vec<i64> {
     let mut candidates = conn.lrange(PENDING_IDX, 0, -1).unwrap_or_default();
     for z in [SCHEDULED_IDX, RETRY_IDX] {
         candidates.extend(conn.zrange(z, 0, -1).unwrap_or_default());
@@ -57,7 +61,7 @@ pub fn drop_queued_jobs(conn: &mut kevy_client::Connection, send_id: &str) -> Ve
         let Some(id) = String::from_utf8_lossy(&m).parse::<i64>().ok() else {
             continue;
         };
-        if removed.contains(&id) || !job_belongs_to(conn, id, send_id) {
+        if removed.contains(&id) || !job_belongs_to(conn, id, send_id, sender) {
             continue;
         }
         if cancel_waiting(conn, id).unwrap_or(false) {
@@ -91,26 +95,79 @@ pub fn cancel_waiting(conn: &mut kevy_client::Connection, id: i64) -> std::io::R
     Ok(tx.exec_watched()?.is_some())
 }
 
-/// Whether job `id` is part of `send_id`.
+/// Whether job `id` is part of `send_id` and was sent by `sender`.
 ///
-/// Reads the job hash's blob, which is where `send_id` lives — the
-/// queue's own row has no column for it.
-fn job_belongs_to(conn: &mut kevy_client::Connection, id: i64, send_id: &str) -> bool {
-    let Ok(Some(raw)) = conn.hget(job_key(id).as_bytes(), b"blob") else {
-        return false;
-    };
-    let Ok(v) = serde_json::from_slice::<serde_json::Value>(&raw) else {
+/// Reads the job hash's blob, which is where both live — the queue's own
+/// row has no column for them. The sender is checked here, where the jobs
+/// are, so no caller can remove another account's mail by naming its send.
+fn job_belongs_to(
+    conn: &mut kevy_client::Connection,
+    id: i64,
+    send_id: &str,
+    sender: &str,
+) -> bool {
+    let Some(v) = job_blob(conn, id) else {
         return false;
     };
     v.get("send_id").and_then(|s| s.as_str()) == Some(send_id)
+        && v.get("sender").and_then(|s| s.as_str()) == Some(sender)
+}
+
+fn job_blob(conn: &mut kevy_client::Connection, id: i64) -> Option<serde_json::Value> {
+    let raw = conn.hget(job_key(id).as_bytes(), b"blob").ok()??;
+    serde_json::from_slice(&raw).ok()
+}
+
+/// Cancel one of `sender`'s scheduled jobs while it is still waiting.
+/// Another account's job, or one already claimed, answers `false`.
+pub fn cancel_scheduled(
+    conn: &mut kevy_client::Connection,
+    id: i64,
+    sender: &str,
+) -> std::io::Result<bool> {
+    if !sent_by(conn, id, sender) {
+        return Ok(false);
+    }
+    cancel_waiting(conn, id)
+}
+
+/// Move one of `sender`'s scheduled jobs to `at`. A job no longer in the
+/// scheduled index has been handed to the sender, and is not put back.
+pub fn reschedule(
+    conn: &mut kevy_client::Connection,
+    id: i64,
+    sender: &str,
+    at: i64,
+) -> std::io::Result<bool> {
+    if !sent_by(conn, id, sender) {
+        return Ok(false);
+    }
+    let id_s = id.to_string();
+    if conn.zrem(SCHEDULED_IDX, &[id_s.as_bytes()])? == 0 {
+        return Ok(false);
+    }
+    conn.zadd(SCHEDULED_IDX, &[(at as f64, id_s.as_bytes())])?;
+    Ok(true)
+}
+
+fn sent_by(conn: &mut kevy_client::Connection, id: i64, sender: &str) -> bool {
+    job_blob(conn, id)
+        .and_then(|v| v.get("sender").and_then(|s| s.as_str()).map(String::from))
+        .is_some_and(|s| s == sender)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    const SENDER: &str = "alice@example.test";
+
     fn job(c: &mut kevy_client::Connection, id: i64, send: &str, state: &str) {
-        let blob = format!(r#"{{"send_id":"{send}"}}"#);
+        job_by(c, id, send, state, SENDER);
+    }
+
+    fn job_by(c: &mut kevy_client::Connection, id: i64, send: &str, state: &str, sender: &str) {
+        let blob = format!(r#"{{"send_id":"{send}","sender":"{sender}"}}"#);
         c.hset(
             job_key(id).as_bytes(),
             &[
@@ -137,7 +194,7 @@ mod tests {
         job(&mut c, 44, "s-other", "pending");
         c.lpush(PENDING_IDX, &[b"44"]).unwrap();
 
-        let mut removed = drop_queued_jobs(&mut c, "s-cancel");
+        let mut removed = drop_queued_jobs(&mut c, "s-cancel", SENDER);
         removed.sort();
         assert_eq!(removed, vec![41, 42, 43]);
         for id in [41, 42, 43] {
@@ -165,7 +222,7 @@ mod tests {
         let mut c = kevy_client::Connection::connect(&url).unwrap();
         job(&mut c, 51, "s-late", "inflight");
         assert!(!cancel_waiting(&mut c, 51).unwrap());
-        assert!(drop_queued_jobs(&mut c, "s-late").is_empty());
+        assert!(drop_queued_jobs(&mut c, "s-late", SENDER).is_empty());
         assert_eq!(
             c.hget(job_key(51).as_bytes(), b"state").unwrap().as_deref(),
             Some(b"inflight" as &[u8])
@@ -191,5 +248,35 @@ mod tests {
                 already_delivered: 0
             }
         );
+    }
+
+    /// A send id or a job id names nothing outside its sender's account:
+    /// another account's jobs are neither cancelled nor moved.
+    #[tokio::test]
+    async fn another_senders_jobs_are_left_alone() {
+        let (_kevy, url) = mailrs_test_docker::kevy::kevy_server().await;
+        let mut c = kevy_client::Connection::connect(&url).unwrap();
+        job_by(&mut c, 61, "s-bob", "pending", "bob@example.test");
+        c.zadd(SCHEDULED_IDX, &[(9e9, b"61" as &[u8])]).unwrap();
+
+        assert!(drop_queued_jobs(&mut c, "s-bob", SENDER).is_empty());
+        assert!(!cancel_scheduled(&mut c, 61, SENDER).unwrap());
+        assert!(!reschedule(&mut c, 61, SENDER, 1).unwrap());
+        assert_eq!(
+            c.hget(job_key(61).as_bytes(), b"state").unwrap().as_deref(),
+            Some(b"pending" as &[u8])
+        );
+        assert_eq!(
+            c.zrange(SCHEDULED_IDX, 0, -1).unwrap(),
+            vec![b"61".to_vec()]
+        );
+
+        // bob may move and then cancel his own
+        assert!(reschedule(&mut c, 61, "bob@example.test", 5).unwrap());
+        assert!(cancel_scheduled(&mut c, 61, "bob@example.test").unwrap());
+        assert!(c.hget(job_key(61).as_bytes(), b"state").unwrap().is_none());
+        // gone: rescheduling it again is too late, not a resurrection
+        assert!(!reschedule(&mut c, 61, "bob@example.test", 9).unwrap());
+        assert!(c.zrange(SCHEDULED_IDX, 0, -1).unwrap().is_empty());
     }
 }

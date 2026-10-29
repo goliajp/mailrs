@@ -7,8 +7,8 @@ use mailrs_core_api::method::conversation::{
 use mailrs_core_api::method::thread::SnoozeRequest;
 use mailrs_core_api::types::ConversationFilter;
 
-use super::ALICE;
 use super::harness::{Cores, Diffs};
+use super::{ALICE, BOB};
 
 /// Ids each store mints, and the counters each keeps for itself: a modseq
 /// orders changes within one store and means nothing across two, and an
@@ -207,12 +207,27 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
                 .map_err(|e| e.to_string()),
             &[],
         );
+        // another account's message is not found, in both cores
+        d.both(
+            &format!("fraud_verdict {mid} as bob"),
+            fc.fraud_verdict(BOB, mid).await.map_err(|e| e.to_string()),
+            pg.fraud_verdict(BOB, mid).await.map_err(|e| e.to_string()),
+            &[],
+        );
     }
     d.both(
         "list_quarantined",
         fc.list_quarantined(ALICE, 50, None).await,
         pg.list_quarantined(ALICE, 50, None).await,
         MINTED,
+    );
+
+    // filing somebody else's thread finds nothing of the caller's in it
+    d.both(
+        "mark_junk as bob",
+        fc.mark_junk(BOB, HELLO).await.map_err(|e| e.to_string()),
+        pg.mark_junk(BOB, HELLO).await.map_err(|e| e.to_string()),
+        &[],
     );
 
     let steps = [

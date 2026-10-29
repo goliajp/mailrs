@@ -225,15 +225,22 @@ impl MailrsMcpService {
         Parameters(params): Parameters<AddressParams>,
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
-        if user != params.address {
+        // one's own account is read from the per-account store, where the
+        // key is the owner; only an administrator reaches anyone else's
+        let resp = if user == params.address {
+            let items = crate::handlers::kevy_util::with_kevy(move |c| {
+                mailrs_core_sidestate::families::webhooks::list(c, &user)
+            })
+            .map_err(|_| McpError::internal_error("list_webhooks", None))?;
+            mailrs_core_api::method::admin::WebhookListResponse { items }
+        } else {
             self.require_admin(&user).await?;
-        }
-        let resp = self
-            .state
-            .core
-            .list_webhooks(&params.address)
-            .await
-            .map_err(|e| McpError::internal_error(format!("list_webhooks: {e}"), None))?;
+            self.state
+                .core
+                .list_webhooks(&params.address)
+                .await
+                .map_err(|e| McpError::internal_error(format!("list_webhooks: {e}"), None))?
+        };
         Ok(CallToolResult::success(vec![ContentBlock::text(
             serde_json::to_string(&resp).unwrap_or_default(),
         )]))
@@ -247,22 +254,37 @@ impl MailrsMcpService {
         Parameters(params): Parameters<CreateWebhookParams>,
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
-        if user != params.account_address {
+        let resp = if user == params.account_address {
+            let new = mailrs_core_sidestate::families::webhooks::NewWebhook {
+                account_address: user.clone(),
+                url: params.url.clone(),
+                event_type: params.event_type.clone(),
+                filter_sender: params.filter_sender,
+                filter_thread_id: params.filter_thread_id,
+            };
+            let w = crate::handlers::kevy_util::with_kevy(move |c| {
+                mailrs_core_sidestate::families::webhooks::create(c, new)
+            })
+            .map_err(|_| McpError::internal_error("create_webhook", None))?;
+            mailrs_core_api::method::admin::CreateWebhookResponse {
+                id: w.id,
+                signing_secret: w.signing_secret,
+            }
+        } else {
             self.require_admin(&user).await?;
-        }
-        let req = mailrs_core_api::method::admin::CreateWebhookRequest {
-            account_address: params.account_address.clone(),
-            url: params.url.clone(),
-            event_type: params.event_type.clone(),
-            filter_sender: params.filter_sender,
-            filter_thread_id: params.filter_thread_id,
+            let req = mailrs_core_api::method::admin::CreateWebhookRequest {
+                account_address: params.account_address.clone(),
+                url: params.url.clone(),
+                event_type: params.event_type.clone(),
+                filter_sender: params.filter_sender,
+                filter_thread_id: params.filter_thread_id,
+            };
+            self.state
+                .core
+                .create_webhook(&req)
+                .await
+                .map_err(|e| McpError::internal_error(format!("create_webhook: {e}"), None))?
         };
-        let resp = self
-            .state
-            .core
-            .create_webhook(&req)
-            .await
-            .map_err(|e| McpError::internal_error(format!("create_webhook: {e}"), None))?;
         crate::handlers::audit::record(
             &user,
             "webhook.create",
