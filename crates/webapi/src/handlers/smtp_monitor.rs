@@ -55,19 +55,19 @@ impl StatsCache {
 
 /// `GET /api/events/smtp` — upgrade to WS and stream the receiver's
 /// protocol trace. Auth is done here rather than in the middleware, from
-/// the same sources as `/api/events`.
+/// the same sources as `/api/events`. Administrators only: the trace is
+/// every SMTP session on the server — peer addresses, envelope senders and
+/// recipients of everybody's mail.
 pub async fn ws_smtp_trace(
     ws: WebSocketUpgrade,
     headers: axum::http::HeaderMap,
     uri: axum::http::Uri,
     axum::extract::State(state): axum::extract::State<Arc<WebState>>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    if crate::session::resolve_session_user(&headers, &uri)
+    let user = crate::session::resolve_session_user(&headers, &uri)
         .await
-        .is_none()
-    {
-        return Err(StatusCode::UNAUTHORIZED);
-    }
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+    crate::handlers::kevy_util::require_admin(&state, &user).await?;
     let bus = get_or_init_trace_bus(state);
     Ok(ws.on_upgrade(move |socket| handle_ws(socket, bus)))
 }

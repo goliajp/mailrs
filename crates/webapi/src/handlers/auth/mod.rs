@@ -35,6 +35,7 @@ pub struct AuthMeResponse {
     pub permissions: Vec<String>,
     pub accessible_domains: Vec<String>,
     pub send_as: Vec<String>,
+    pub is_admin: bool,
 }
 
 /// GET /api/auth/me
@@ -53,7 +54,9 @@ pub async fn auth_me(
     // permissions on the EffectivePermissionsResponse). For Phase 3 the
     // accessible_domains field returns empty; the frontend ignores it for
     // non-admin users anyway. Full parity lands in checklist 3.20.
+    let is_admin = crate::handlers::kevy_util::is_admin(&perms);
     Ok(Json(AuthMeResponse {
+        is_admin,
         address: perms.address.clone(),
         display_name,
         permissions: perms.permissions,

@@ -61,8 +61,8 @@ function makeStore() {
     accessible_domains: [],
     address: 'user@example.com',
     display_name: 'Test User',
+    is_admin: false,
     permissions: [],
-    token: 'test-token',
   })
   return store
 }
