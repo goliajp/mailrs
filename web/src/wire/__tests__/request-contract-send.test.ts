@@ -21,7 +21,6 @@ describe('send request bodies match the shared contract', () => {
         scheduledAt: 1_785_542_400,
         subject: 'subject',
         to: ['someone@example.com'],
-        token: 'test-token',
       })
     )
     expect(body).toEqual(fixture('send'))
@@ -38,7 +37,6 @@ describe('send request bodies match the shared contract', () => {
         htmlBody: '<p>hello</p>',
         subject: 'subject',
         to: ['someone@example.com'],
-        token: 'test-token',
       })
     )
     expect(body).toEqual(fixture('send-undo'))
@@ -57,7 +55,6 @@ describe('send request bodies match the shared contract', () => {
         redraftOf: 'abc123@golia.jp',
         subject: 'subject',
         to: ['someone@example.com'],
-        token: 'test-token',
       })
     )
     expect(body).toEqual(fixture('send-redraft'))

@@ -97,35 +97,22 @@ export function Login() {
   // password below is what will attach it.
   const externalResult = searchParams.get('external')
 
-  // handle OIDC callback redirect
+  // A third-party sign-in finished: the callback set the session cookie and
+  // sent the browser here. The profile comes from the cookie, never the URL.
   useEffect(() => {
-    const token = searchParams.get('oidc_token')
-    const addr = searchParams.get('address')
-    const displayName = searchParams.get('display_name')
-    if (token && addr) {
-      const auth: AuthInfo = {
-        accessible_domains: [],
-        address: addr,
-        display_name: displayName ?? '',
-        permissions: [],
-        token,
-      }
-      setAuth(auth)
-      // refresh permissions by calling /auth/me
-      wireGetMe(token)
-        .then((me) => {
-          setAuth({
-            accessible_domains: me.accessible_domains,
-            address: me.address || addr,
-            display_name: me.display_name || (displayName ?? ''),
-            permissions: me.permissions,
-            token,
-          })
+    if (externalResult !== 'ok') return
+    wireGetMe()
+      .then((me) => {
+        setAuth({
+          accessible_domains: me.accessible_domains,
+          address: me.address,
+          display_name: me.display_name,
+          permissions: me.permissions,
         })
-        .catch(() => {})
-      navigate('/', { replace: true })
-    }
-  }, [searchParams, setAuth, navigate])
+        navigate('/', { replace: true })
+      })
+      .catch(() => navigate('/login?external=failed', { replace: true }))
+  }, [externalResult, setAuth, navigate])
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -164,7 +151,6 @@ export function Login() {
         address: data.address,
         display_name: data.display_name,
         permissions: data.permissions,
-        token: data.token,
       }
       if (rememberMe) {
         localStorage.setItem('mailrs_saved_email', address)

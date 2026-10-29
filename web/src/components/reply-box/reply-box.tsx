@@ -242,7 +242,6 @@ export function ReplyBox({
         replyToThreadId: currentMode === 'forward' ? undefined : threadId,
         subject: resolvedSubject,
         to,
-        token: auth?.token ?? '',
       })
 
       if (!result.success) {

@@ -4,14 +4,10 @@ import { toast } from '@goliapkg/gds'
 import DOMPurify from 'dompurify'
 
 import { formatFullDate } from '@/lib/format'
-import { getToken } from '@/store/auth'
 
 export async function downloadEml(uid: number, subject: string) {
   try {
-    const token = getToken()
-    const headers: Record<string, string> = {}
-    if (token) headers['Authorization'] = `Bearer ${token}`
-    const res = await fetch(`/api/mail/messages/${uid}/raw`, { headers })
+    const res = await fetch(`/api/mail/messages/${uid}/raw`)
     if (!res.ok) {
       toast.error('Download failed')
       return

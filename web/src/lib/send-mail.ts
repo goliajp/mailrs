@@ -44,7 +44,6 @@ export type SendMailParams = {
   scheduledAt?: null | number
   subject: string
   to: string[]
-  token: string
   /**
    * Seconds the server holds an immediate send so the Undo in the toast
    * can still stop it. Without the hold the sender claims the job the

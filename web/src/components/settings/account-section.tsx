@@ -5,7 +5,6 @@ import { useEffect, useState } from 'react'
 
 import { queryClient } from '@/lib/query-client'
 import { settingsKeys } from '@/lib/query-keys'
-import { getToken } from '@/store/auth'
 import { authAtom } from '@/store/auth'
 import {
   wireChangePassword,
@@ -210,10 +209,7 @@ export function AccountSection() {
       <div className={cardClass}>
         <h3 className="mb-2 text-sm font-medium">Export Mailbox</h3>
         <p className="text-fg-muted mb-3 text-xs">Download all your emails as an MBOX file</p>
-        <button
-          className={btnPrimary}
-          onClick={() => window.open(`/api/mail/export?token=${getToken()}`, '_blank')}
-        >
+        <button className={btnPrimary} onClick={() => window.open('/api/mail/export', '_blank')}>
           Export as MBOX
         </button>
       </div>

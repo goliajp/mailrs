@@ -173,14 +173,11 @@ pub(super) fn unauth_routes() -> axum::Router<Arc<WebState>> {
             "/api/auth/reset-password",
             post(handlers::complete::reset_password),
         )
-        // WS upgrade uses `?token=<hex>` from query — browsers can't
-        // set custom headers on WebSocket. Auth is inside the handler
-        // (checks kevy `session:<token>` directly).
+        // WS upgrade: auth is inside the handler, read from the session
+        // cookie the browser sends on a same-origin upgrade.
         .route("/api/events", get(handlers::events::ws_events))
-        // The SMTP live monitor's own stream. Same auth shape as
-        // `/api/events` (token in the query — a browser WebSocket
-        // cannot set a header), different vocabulary: protocol trace,
-        // not inbox changes.
+        // The SMTP live monitor's own stream. Same auth as `/api/events`,
+        // different vocabulary: protocol trace, not inbox changes.
         .route(
             "/api/events/smtp",
             get(handlers::smtp_monitor::ws_smtp_trace),

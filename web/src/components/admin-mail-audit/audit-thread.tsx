@@ -6,7 +6,6 @@ import { AdminErrorState, AdminPageShell } from '@/components/admin-page'
 import { HtmlFrame } from '@/components/html-frame'
 import { formatFullDate, formatSize } from '@/lib/format'
 import { adminKeys } from '@/lib/query-keys'
-import { getToken } from '@/store/auth'
 import { adminListGet } from '@/wire/endpoints/admin'
 
 import { BackButton } from './back-button'
@@ -98,7 +97,6 @@ function MessageBody({ msg }: { msg: AuditMessage }) {
 }
 
 function MessageView({ msg, targetUser }: { msg: AuditMessage; targetUser: string }) {
-  const token = getToken() ?? ''
   const attachments = msg.attachments ?? []
 
   return (
@@ -113,7 +111,7 @@ function MessageView({ msg, targetUser }: { msg: AuditMessage; targetUser: strin
           <a
             aria-label="Download as .eml"
             className="text-accent hover:opacity-80"
-            href={`/api/admin/audit/messages/${msg.uid}/raw?user=${enc(targetUser)}&token=${enc(token)}`}
+            href={`/api/admin/audit/messages/${msg.uid}/raw?user=${enc(targetUser)}`}
             title="The download is also recorded in the audit log"
           >
             Download .eml

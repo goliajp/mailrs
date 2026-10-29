@@ -53,10 +53,6 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-vi.mock('@/store/auth', () => ({
-  getToken: () => 'test-token',
-}))
-
 /**
  * Run a call and return the body it put on the wire.
  *

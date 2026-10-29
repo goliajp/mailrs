@@ -8,7 +8,6 @@ import { linkifyNodes } from '@/components/linkify-nodes'
 import { MobileModal } from '@/components/mobile-modal'
 import { splitEmail } from '@/lib/email-split'
 import { formatSize } from '@/lib/format'
-import { getToken } from '@/store/auth'
 
 // react-markdown + remark-gfm + rehype-highlight together drag in roughly
 // 150-200 kB of JS once highlight.js's language pack is in the graph. plain-
@@ -114,8 +113,7 @@ export const MessageBubble = memo(function MessageBubble({
 function AttachmentItem({ att, index, uid }: { att: AttachmentInfo; index: number; uid: number }) {
   const isImage = att.content_type.startsWith('image/')
   const isPdf = att.content_type === 'application/pdf'
-  const token = getToken() ?? ''
-  const url = `/api/mail/messages/${uid}/attachments/${index}?token=${encodeURIComponent(token)}`
+  const url = `/api/mail/messages/${uid}/attachments/${index}`
   const [lightbox, setLightbox] = useState(false)
   const [showContent, setShowContent] = useState(false)
   const [extractedText, setExtractedText] = useState<null | string>(null)
@@ -128,10 +126,7 @@ function AttachmentItem({ att, index, uid }: { att: AttachmentInfo; index: numbe
     }
     setLoading(true)
     try {
-      const t = getToken()
-      const headers: Record<string, string> = {}
-      if (t) headers['Authorization'] = `Bearer ${t}`
-      const res = await fetch(`/api/mail/messages/${uid}/attachments/${index}/content`, { headers })
+      const res = await fetch(`/api/mail/messages/${uid}/attachments/${index}/content`)
       if (!res.ok) {
         setExtractedText('')
         setShowContent(false)

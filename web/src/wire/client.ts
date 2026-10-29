@@ -14,7 +14,6 @@
 import { z } from 'zod'
 
 import { redirectToLogin } from '@/lib/api'
-import { getToken } from '@/store/auth'
 
 import { type WireError, WireErrorException } from './errors'
 
@@ -48,9 +47,8 @@ export type WireRequest = {
  */
 export async function wireFetch<T>(schema: z.ZodType<T>, req: WireRequest): Promise<T> {
   const url = `${API_BASE}${req.path}`
+  // the session rides in the HttpOnly cookie a same-origin fetch sends
   const headers: Record<string, string> = {}
-  const token = getToken()
-  if (token) headers.Authorization = `Bearer ${token}`
   let body: BodyInit | undefined
   if (req.bodyRaw !== undefined) {
     body = req.bodyRaw

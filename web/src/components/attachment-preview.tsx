@@ -7,7 +7,6 @@ import { Copyable, CopyButton } from '@/components/copy-button'
 import { MobileModal } from '@/components/mobile-modal'
 import { formatSize } from '@/lib/format'
 import { visibleAttachments } from '@/lib/inline-attachments'
-import { getToken } from '@/store/auth'
 
 const IMAGE_EXTENSIONS = new Set(['bmp', 'gif', 'ico', 'jpeg', 'jpg', 'png', 'svg', 'webp'])
 
@@ -61,8 +60,7 @@ export function AttachmentPreview({
 }
 
 function attachmentUrl(uid: number, index: number): string {
-  const token = getToken() ?? ''
-  return `/api/mail/messages/${uid}/attachments/${index}?token=${encodeURIComponent(token)}`
+  return `/api/mail/messages/${uid}/attachments/${index}`
 }
 
 // generic file icon

@@ -1117,8 +1117,13 @@ curl https://mail.golia.ai/api/admin/flow \
 Two streams, with different vocabularies. Neither carries the other's
 events, and asking the wrong one is indistinguishable from an idle server.
 
+Auth: a browser sends its session cookie on a same-origin upgrade; other
+clients send `Authorization: Bearer <session_token>`. A `?token=` query is
+deprecated and will stop working: a token in a URL ends up in logs and
+history.
+
 ```
-wss://mail.golia.ai/api/events?token=<session_token>
+wss://mail.golia.ai/api/events
 ```
 
 Inbox changes — `NewMessage`, `InviteReceived`. Durable: served from
@@ -1126,7 +1131,7 @@ kevy's change feed, so a client that reconnects does not miss what
 landed while it was away. Used by the web UI for live updates.
 
 ```
-wss://mail.golia.ai/api/events/smtp?token=<session_token>
+wss://mail.golia.ai/api/events/smtp
 ```
 
 One SMTP session's protocol trace — `ConnectionOpened`,
