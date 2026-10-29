@@ -118,6 +118,9 @@ async fn a_stranger_learns_nothing_from_flagging(live: &live::Live, alice: &str,
         let path = format!("/api/quarantine/{thread}/release");
         let (status, _) = live.call(Method::POST, &path, bob, None).await;
         assert_eq!(status, 404, "bob: release {thread}");
+        let path = format!("/api/conversations/{thread}");
+        let (status, _) = live.call(Method::DELETE, &path, bob, None).await;
+        assert_eq!(status, 404, "bob: delete {thread}");
     }
     let row = live
         .mailbox

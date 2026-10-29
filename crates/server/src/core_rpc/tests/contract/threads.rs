@@ -255,6 +255,20 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
         );
         d.both(&format!("{name} as bob"), fc_answer, pg_answer, &[]);
     }
+    let fc_answer = fc
+        .delete_thread(BOB, HELLO)
+        .await
+        .map_err(|e| e.status_code());
+    let pg_answer = pg
+        .delete_thread(BOB, HELLO)
+        .await
+        .map_err(|e| e.status_code());
+    assert_eq!(
+        fc_answer.as_ref().err(),
+        Some(&404),
+        "fastcore: delete_thread as bob"
+    );
+    d.both("delete_thread as bob", fc_answer, pg_answer, &[]);
     compare_views(c, d, "flagging as bob").await;
 
     let steps = [

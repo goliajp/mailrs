@@ -124,3 +124,38 @@ fn owners_written_before_the_index_was_declared_are_found() {
     );
     assert!(s.thread_message_owners("t2").unwrap().is_empty());
 }
+
+/// Somebody not in a thread deletes nothing, whether the thread has owners
+/// or has lost every one of them, and the answer is the one a thread that
+/// does not exist gets.
+#[test]
+fn a_stranger_deletes_nothing() {
+    let s = store();
+    deliver(&s, "a@x.com", "t-owned", "m1@x", "f1", 1);
+    deliver(&s, "b@x.com", "t-orphan", "m2@x", "f2", 1);
+    // every owner's row gone, the shared records left behind
+    s.store()
+        .del(&[crate::keys::thread_user("b@x.com", "t-orphan").as_bytes()])
+        .unwrap();
+    s.store()
+        .del(&[crate::keys::user_message("b@x.com", "m2@x").as_bytes()])
+        .unwrap();
+
+    for tid in ["t-owned", "t-orphan", "no-such-thread"] {
+        assert_eq!(
+            s.delete_thread("stranger@x.com", tid).unwrap(),
+            (false, Vec::new()),
+            "{tid}"
+        );
+    }
+    assert!(s.get_thread("t-owned").unwrap().is_some());
+    assert!(s.get_thread("t-orphan").unwrap().is_some(), "the orphan's shared row went");
+    assert!(
+        s.store()
+            .get(crate::keys::message_blob("m2@x").as_bytes())
+            .unwrap()
+            .is_some(),
+        "the orphan's message went"
+    );
+    assert!(s.delete_thread("a@x.com", "t-owned").unwrap().0, "the owner still can");
+}
