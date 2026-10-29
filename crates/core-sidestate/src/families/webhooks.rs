@@ -123,6 +123,18 @@ pub fn delete(conn: &mut Connection, id: i64) -> std::io::Result<bool> {
     Ok(removed > 0)
 }
 
+/// Remove a subscription only when `address` owns it. Ids come from one
+/// counter shared by every account, so an id alone must never be enough to
+/// remove somebody else's: anyone could walk the numbers. Another account's
+/// subscription answers as missing.
+pub fn delete_owned(conn: &mut Connection, id: i64, address: &str) -> std::io::Result<bool> {
+    let owner = conn.hget(OWNER, id.to_string().as_bytes())?;
+    match owner {
+        Some(o) if o.eq_ignore_ascii_case(address.as_bytes()) => delete(conn, id),
+        _ => Ok(false),
+    }
+}
+
 /// Give every pre-existing subscription an owner entry.
 ///
 /// Rows created before the owner hash existed have none, so `delete` cannot
