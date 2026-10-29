@@ -129,7 +129,15 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
             "MAILRS_WEB_STATIC_DIR missing index.html — webapi will 404 non-API paths"
         );
     }
-    app
+    // a page's address never leaves for another site with a request it makes
+    // or a link it follows: mail pages name threads, and links inside mail
+    // lead anywhere. Not `no-referrer`: under it a browser sends `Origin:
+    // null` on our own POSTs, which the login and CSRF origin checks refuse
+
+    app.layer(tower_http::set_header::SetResponseHeaderLayer::overriding(
+        axum::http::header::REFERRER_POLICY,
+        axum::http::HeaderValue::from_static("same-origin"),
+    ))
 }
 
 async fn api_not_found(uri: axum::http::Uri) -> impl axum::response::IntoResponse {
