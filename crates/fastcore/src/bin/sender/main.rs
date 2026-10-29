@@ -35,6 +35,7 @@ mod queue;
 mod recover;
 mod retry;
 mod retry_queue;
+mod stop;
 
 use config::*;
 use deliver::*;
@@ -317,7 +318,15 @@ async fn main() {
     let brpop_wait = Duration::from_secs(5);
     let mut consecutive_errors: u32 = 0;
     let mut last_stale_sweep = now_secs();
+    let mut stop = stop::on_stop_signal();
     loop {
+        // checked only here: a popped job is always finished, and a BRPOP
+        // in flight is not abandoned (its id would be lost), so stopping
+        // takes at most one `brpop_wait` plus the job in hand
+        if *stop.borrow() {
+            tracing::info!("stop requested — exiting between jobs");
+            break;
+        }
         // v2.5.2 §P8-B-B: periodic recover_stale (every 60 s). Cheap
         // when the queue is small; guards against sender crashes that
         // happen between boots and leave orphan inflight jobs.
@@ -345,7 +354,10 @@ async fn main() {
                 consecutive_errors = consecutive_errors.saturating_add(1);
                 let back_ms = (cfg.poll_ms * (1 << consecutive_errors.min(6))).min(30_000);
                 tracing::error!(err = %e, back_ms, "pop_next error — backing off");
-                tokio::time::sleep(Duration::from_millis(back_ms)).await;
+                tokio::select! {
+                    _ = tokio::time::sleep(Duration::from_millis(back_ms)) => {}
+                    _ = stop.changed() => {}
+                }
             }
         }
     }
