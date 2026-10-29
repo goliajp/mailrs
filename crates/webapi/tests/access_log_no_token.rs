@@ -1,4 +1,5 @@
-//! The access log never writes a query-string session token. A binary of
+//! The access log never writes a credential: a query-string session token,
+//! or the id that lets anyone fetch an inline image. A binary of
 //! its own: tracing caches "no subscriber" per call site, so a log-capturing
 //! test that shares a process with others sees nothing whenever another
 //! thread touched the call site first.
@@ -57,6 +58,8 @@ async fn the_access_log_never_contains_a_query_token() {
         .finish();
     let _guard = tracing::subscriber::set_default(subscriber);
     get("/api/admin/audit/messages/1/raw?token=SECRET-TOKEN-VALUE").await;
+    // an inline image's id is what lets anyone fetch it
+    get("/api/mail/inline/SECRET-INLINE-ID").await;
     let log = String::from_utf8(captured.0.lock().unwrap().clone()).unwrap();
     assert!(
         log.contains("/api/admin/audit/messages/1/raw"),
@@ -65,5 +68,10 @@ async fn the_access_log_never_contains_a_query_token() {
     assert!(
         !log.contains("SECRET-TOKEN-VALUE"),
         "the token reached the log: {log}"
+    );
+    assert!(log.contains("/api/mail/inline/{id}"), "{log}");
+    assert!(
+        !log.contains("SECRET-INLINE-ID"),
+        "an inline image id reached the log: {log}"
     );
 }
