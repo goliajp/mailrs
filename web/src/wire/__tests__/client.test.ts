@@ -101,6 +101,18 @@ describe('wireFetch', () => {
     )
   })
 
+  it('says the server is restarting when a write gets a 503, and does not repeat it', async () => {
+    const mock = vi.fn(async () => new Response('', { status: 503 }))
+    vi.stubGlobal('fetch', mock)
+    await expect(
+      wireFetch(SCHEMA, { body: {}, method: 'POST', path: '/mail/send' })
+    ).rejects.toSatisfy(
+      (err: unknown) =>
+        isWireError(err) && err.message === 'The server is restarting. Try again in a moment'
+    )
+    expect(mock).toHaveBeenCalledTimes(1)
+  })
+
   it('lifts server body.error into WireError.message', async () => {
     vi.stubGlobal(
       'fetch',

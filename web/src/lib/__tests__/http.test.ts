@@ -113,4 +113,52 @@ describe('http', () => {
     expect([a.status, b.status]).toEqual([200, 200])
     expect(asker).toHaveBeenCalledTimes(1)
   })
+
+  // the server restarting during a deploy: a read waits as told and goes
+  // again once; a write is never repeated
+  it('repeats a read once after Retry-After when the server is restarting', async () => {
+    vi.useFakeTimers()
+    try {
+      const restarting = () => new Response('', { headers: { 'Retry-After': '2' }, status: 503 })
+      const mock = vi
+        .fn()
+        .mockImplementationOnce(async () => restarting())
+        .mockImplementationOnce(async () => new Response('{}'))
+      vi.stubGlobal('fetch', mock)
+      const pending = http('/api/conversations')
+      await vi.advanceTimersByTimeAsync(1_999)
+      expect(mock).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(1)
+      expect((await pending).status).toBe(200)
+      expect(mock).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('repeats a read only once', async () => {
+    vi.useFakeTimers()
+    try {
+      const mock = vi.fn(
+        async () => new Response('', { headers: { 'Retry-After': '1' }, status: 503 })
+      )
+      vi.stubGlobal('fetch', mock)
+      const pending = http('/api/conversations')
+      await vi.advanceTimersByTimeAsync(5_000)
+      expect((await pending).status).toBe(503)
+      expect(mock).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('never repeats a write the server could not take', async () => {
+    const mock = vi.fn(
+      async () => new Response('', { headers: { 'Retry-After': '1' }, status: 503 })
+    )
+    vi.stubGlobal('fetch', mock)
+    const res = await http('/api/mail/send', { body: '{}', method: 'POST' })
+    expect(res.status).toBe(503)
+    expect(mock).toHaveBeenCalledTimes(1)
+  })
 })
