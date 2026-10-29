@@ -259,30 +259,32 @@ pub async fn run() {
         .unwrap_or_else(|e| panic!("webapi bind {bind} failed: {e}"));
     tracing::info!(addr = %bind, "webapi listening");
 
-    let (_shutdown_tx, mut shutdown_rx) = tokio::sync::watch::channel(false);
+    // Graceful: on the signal stop accepting and let requests in flight
+    // finish. Upgraded WebSockets are not waited for; the runtime drops them.
     let server = axum::serve(
         listener,
         router.into_make_service_with_connect_info::<std::net::SocketAddr>(),
     )
-    .with_graceful_shutdown(async move {
-        let _ = shutdown_rx.changed().await;
-    });
+    .with_graceful_shutdown(stop_signal());
+    if let Err(e) = server.await {
+        tracing::error!(error = %e, "webapi server exited");
+    }
+    tracing::info!("mailrs-webapi stopped");
+}
 
+async fn stop_signal() {
     #[cfg(unix)]
     {
-        let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+        let mut term = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
             .expect("SIGTERM handler");
         tokio::select! {
-            r = tokio::signal::ctrl_c() => r.expect("ctrl_c"),
-            _ = sigterm.recv() => {}
-            r = server => { if let Err(e) = r { tracing::error!(error = %e, "webapi server exited"); } return; }
+            _ = term.recv() => {}
+            _ = tokio::signal::ctrl_c() => {}
         }
     }
     #[cfg(not(unix))]
-    tokio::signal::ctrl_c().await.expect("ctrl_c");
-
+    let _ = tokio::signal::ctrl_c().await;
     tracing::info!("mailrs-webapi shutting down");
-    let _ = _shutdown_tx.send(true);
 }
 
 #[cfg(test)]

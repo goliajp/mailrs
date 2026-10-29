@@ -260,6 +260,10 @@ services:
     entrypoint: ["mailrs-fastcore-sender"]
     pull_policy: always
     mem_limit: 256m
+    # On SIGTERM the sender finishes the job in hand and exits between jobs.
+    # Most jobs end well inside this; a delivery stuck on slow MX hosts is
+    # killed and redelivered by the in-flight recovery, once.
+    stop_grace_period: 120s
     healthcheck:
       disable: true
     environment:
