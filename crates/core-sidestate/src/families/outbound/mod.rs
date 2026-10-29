@@ -27,11 +27,6 @@ fn now_secs() -> i64 {
         .unwrap_or(0)
 }
 
-/// RPOP one element (kevy_client's `rpop` takes a count and returns a Vec).
-fn rpop_one(conn: &mut kevy_client::Connection, key: &[u8]) -> Option<Vec<u8>> {
-    conn.rpop(key, 1).ok().and_then(|v| v.into_iter().next())
-}
-
 /// One outbound job to enqueue.
 ///
 /// Named fields rather than positional arguments because four of them

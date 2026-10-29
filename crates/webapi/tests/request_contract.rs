@@ -99,6 +99,26 @@ fn send_body_matches() {
     assert_eq!(v.scheduled_at, Some(1_785_542_400));
 }
 
+/// The hold an interactive send asks for, so its Undo can still stop it.
+/// A scheduled time wins over the hold, and the hold is capped.
+#[test]
+fn send_with_an_undo_window_is_held_for_it() {
+    use handlers::compose::{MAX_UNDO_SECONDS, hold_for_undo};
+    let v: handlers::compose::SendRequest = parse("send-undo");
+    assert_eq!(v.undo_seconds, Some(10));
+    assert_eq!(
+        hold_for_undo(v.scheduled_at, v.undo_seconds, 1_000),
+        Some(1_010)
+    );
+    assert_eq!(hold_for_undo(Some(5_000), Some(10), 1_000), Some(5_000));
+    assert_eq!(
+        hold_for_undo(None, Some(3_600), 1_000),
+        Some(1_000 + i64::from(MAX_UNDO_SECONDS))
+    );
+    assert_eq!(hold_for_undo(None, None, 1_000), None);
+    assert_eq!(hold_for_undo(None, Some(0), 1_000), None);
+}
+
 #[test]
 fn send_redraft_body_matches() {
     let v: handlers::compose::SendRequest = parse("send-redraft");
@@ -281,6 +301,7 @@ fn every_fixture_has_a_test() {
         "reset-password",
         "send",
         "send-redraft",
+        "send-undo",
         "sender-list-add",
         "signature-save",
         "snooze",

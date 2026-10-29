@@ -274,7 +274,7 @@ export function ReplyBox({
                     await wireDeletePendingSend(sentMessageId)
                     toast.success('Send cancelled')
                   } catch {
-                    toast.error('Could not cancel — already delivered')
+                    toast.error('Too late to undo — already sent')
                   }
                 },
               },

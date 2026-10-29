@@ -41,6 +41,25 @@ pub(crate) struct Attachment {
     pub bytes: Vec<u8>,
 }
 
+/// Longest hold a client may ask for; Gmail's longest undo window.
+pub const MAX_UNDO_SECONDS: u32 = 30;
+
+/// When to release a send. A send scheduled for later keeps its time; an
+/// immediate one with an undo window is held that long, through the same
+/// scheduled queue, because the sender claims a job the moment it reaches
+/// the pending list and an undo that loses that race takes nothing back.
+pub fn hold_for_undo(
+    scheduled_at: Option<i64>,
+    undo_seconds: Option<u32>,
+    now: i64,
+) -> Option<i64> {
+    scheduled_at.or_else(|| {
+        undo_seconds
+            .filter(|s| *s > 0)
+            .map(|s| now + i64::from(s.min(MAX_UNDO_SECONDS)))
+    })
+}
+
 #[derive(Debug, serde::Deserialize)]
 pub struct SendRequest {
     #[serde(default)]
@@ -87,6 +106,10 @@ pub struct SendRequest {
     pub reply_to_thread_id: Option<String>,
     #[serde(default)]
     pub scheduled_at: Option<i64>,
+    /// Seconds to hold an immediate send so the person can still take it
+    /// back. See [`hold_for_undo`].
+    #[serde(default)]
+    pub undo_seconds: Option<u32>,
     /// The failed send this repairs. Its attachments are re-extracted
     /// here; they never travelled to the browser.
     #[serde(default)]
