@@ -6,5 +6,6 @@
   "html_body": "<p>hello</p>",
   "scheduled_at": 1785542400,
   "subject": "subject",
-  "to": ["someone@example.com"]
+  "to": ["someone@example.com"],
+  "undo_seconds": 10
 }

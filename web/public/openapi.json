@@ -3608,7 +3608,7 @@
     "/api/mail/pending/{message_id}": {
       "delete": {
         "operationId": "cancelPendingSend",
-        "summary": "Cancel a pending outbound message",
+        "summary": "Undo a send",
         "tags": [
           "Mail"
         ],
@@ -3623,20 +3623,17 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Send cancelled",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResult"
-                }
-              }
-            }
+          "204": {
+            "description": "Stopped"
           },
           "404": {
-            "description": "Message not found or already sent"
+            "description": "No such send"
+          },
+          "409": {
+            "description": "Already on its way"
           }
-        }
+        },
+        "description": "Stops a send that has not left yet, found by its own send record. 204 when stopped, 404 when there is no such send, 409 when it is already on its way. A send made with undo_seconds is held that long, which is what makes this reachable."
       }
     },
     "/api/mail/templates": {
@@ -9781,6 +9778,12 @@
           "list_unsubscribe": {
             "type": "string",
             "description": "List-Unsubscribe header value"
+          },
+          "undo_seconds": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 30,
+            "description": "Hold an immediate send this many seconds (capped at 30) so DELETE /api/mail/pending/{message_id} can still stop it. Ignored when scheduled_at is set."
           }
         },
         "required": [

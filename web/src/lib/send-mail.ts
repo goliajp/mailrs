@@ -45,7 +45,19 @@ export type SendMailParams = {
   subject: string
   to: string[]
   token: string
+  /**
+   * Seconds the server holds an immediate send so the Undo in the toast
+   * can still stop it. Without the hold the sender claims the job the
+   * moment it is queued, and the Undo almost always arrived too late.
+   * Defaults to {@link UNDO_SECONDS}: every caller is a person who was
+   * just shown an Undo.
+   */
+  undoSeconds?: number
 }
+
+/** The hold every interactive send asks for; the Undo toast stays up for
+ *  less than this so a click near the end still lands in time. */
+export const UNDO_SECONDS = 10
 
 export type SendResult = { message?: string; message_id?: string; success: boolean }
 
@@ -101,6 +113,7 @@ export async function sendMail(p: SendMailParams): Promise<SendResult> {
     if (p.forwardAttachmentsFrom) payload['forward_attachments_from'] = p.forwardAttachmentsFrom
     if (p.redraftOf) payload['redraft_of'] = p.redraftOf
     if (p.replyToThreadId) payload['reply_to_thread_id'] = p.replyToThreadId
+    payload['undo_seconds'] = p.undoSeconds ?? UNDO_SECONDS
     // Absent keeps every carried attachment; present-and-empty keeps
     // none. A falsy check here would re-attach files the user removed.
     if (p.redraftKeep !== null && p.redraftKeep !== undefined) {
@@ -128,6 +141,7 @@ export async function sendMail(p: SendMailParams): Promise<SendResult> {
   }
   if (p.redraftOf) fd.append('redraft_of', p.redraftOf)
   if (p.replyToThreadId) fd.append('reply_to_thread_id', p.replyToThreadId)
+  fd.append('undo_seconds', String(p.undoSeconds ?? UNDO_SECONDS))
   // One comma-separated field, not a repeated one: repeating it cannot
   // express "keep none", since zero occurrences and an empty selection
   // both arrive as no field at all and mean opposite things.
