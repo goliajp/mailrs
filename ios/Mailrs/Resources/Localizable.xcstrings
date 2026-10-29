@@ -945,6 +945,22 @@
         }
       }
     },
+    "Authenticator code": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "認証アプリのコード"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "验证器验证码"
+          }
+        }
+      }
+    },
     "Bcc": {
       "localizations": {
         "ja": {
@@ -1154,6 +1170,22 @@
         }
       }
     },
+    "Confirm it’s you": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ご本人の確認"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本人确认"
+          }
+        }
+      }
+    },
     "Connect": {
       "localizations": {
         "ja": {
@@ -1214,6 +1246,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "连接中…"
+          }
+        }
+      }
+    },
+    "Continue": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "続ける"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "继续"
           }
         }
       }
@@ -1838,6 +1886,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "自行填写服务器设置"
+          }
+        }
+      }
+    },
+    "Enter your password to continue. You won’t be asked again for 10 minutes.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "続けるにはパスワードを入力してください。10 分間は再入力を求められません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请输入密码以继续。10 分钟内不会再次要求输入。"
           }
         }
       }

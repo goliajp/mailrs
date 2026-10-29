@@ -45,8 +45,9 @@ const NAV_ITEMS = [
 function MobileNav() {
   const { pathname } = useLocation()
   const unreadCount = useCurrentUnreadCount()
-  const isAdmin = useAtomValue(authAtom)?.is_admin ?? false
-  const items = NAV_ITEMS.filter((item) => isAdmin || !item.adminOnly)
+  // the server pages show other people's mail traffic: super administrators only
+  const isSuper = useAtomValue(authAtom)?.is_super ?? false
+  const items = NAV_ITEMS.filter((item) => isSuper || !item.adminOnly)
 
   const activeSection = pathname.startsWith('/admin')
     ? '/admin'

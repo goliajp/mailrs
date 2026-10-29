@@ -204,6 +204,7 @@ final class AdminFlowTests: MailrsUITestCase {
         XCTAssertTrue(field.waitForExistence(timeout: 5), "no member prompt")
         field.typeText("press@golia.jp")
         app.buttons["Add"].tap()
+        confirmPassword(app)
 
         XCTAssertTrue(app.staticTexts["press@golia.jp"].waitForExistence(timeout: 10),
                       "the new member never came back from the server")

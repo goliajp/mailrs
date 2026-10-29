@@ -34,6 +34,7 @@ function makeStore() {
     address: 'me@x.com',
     display_name: 'Me',
     is_admin: false,
+    is_super: false,
     permissions: [],
   })
   return store

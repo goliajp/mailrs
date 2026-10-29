@@ -22,7 +22,9 @@ pub(crate) async fn verify(
         Err(mailrs_core_api::error::CoreApiError::NotFound(_)) => return Ok(None),
         Err(e) => {
             tracing::warn!(error = %e, "password check: get_account_with_hash failed");
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            return Err(
+                StatusCode::from_u16(e.status_code()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
+            );
         }
     };
     let hash = match acct.password_hash.as_deref() {

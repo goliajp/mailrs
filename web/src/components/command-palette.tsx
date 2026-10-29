@@ -232,7 +232,8 @@ function useCommands(query: string, onClose: () => void): Command[] {
   const setComposeReplySource = useSetAtom(composeReplySourceAtom)
   const setTheme = useSetAtom(themeModeAtom)
   const theme = useAtomValue(themeModeAtom)
-  const isAdmin = useAtomValue(authAtom)?.is_admin ?? false
+  // the server and monitor pages show other people's mail traffic
+  const isSuper = useAtomValue(authAtom)?.is_super ?? false
 
   const allCommands = useMemo<Command[]>(
     () => [
@@ -358,8 +359,8 @@ function useCommands(query: string, onClose: () => void): Command[] {
   )
   // the server refuses these to everyone else; do not offer them
   const staticCommands = useMemo(
-    () => allCommands.filter((c) => isAdmin || !ADMIN_COMMANDS.has(c.id)),
-    [allCommands, isAdmin]
+    () => allCommands.filter((c) => isSuper || !ADMIN_COMMANDS.has(c.id)),
+    [allCommands, isSuper]
   )
 
   return useMemo(() => {

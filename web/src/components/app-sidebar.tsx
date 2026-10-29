@@ -100,7 +100,7 @@ export function AppSidebar() {
 
         {/* other nav */}
         <nav className="flex flex-col items-center gap-1.5">
-          {auth?.is_admin && (
+          {auth?.is_super && (
             <>
               <SidebarLink
                 active={section === 'server'}
@@ -175,7 +175,7 @@ export function AppSidebar() {
           icon={Inbox}
           label="Mail"
         />
-        {auth?.is_admin && (
+        {auth?.is_super && (
           <MobileNavLink active={section === 'server'} href="/admin" icon={Server} label="Admin" />
         )}
         <MobileNavLink

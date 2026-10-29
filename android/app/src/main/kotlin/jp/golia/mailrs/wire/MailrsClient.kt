@@ -377,7 +377,7 @@ class MailrsClient(private val store: TokenStore) {
             send(b.build())
         }
 
-    internal fun send(request: Request): Outcome<String> = try {
+    internal fun send(request: Request, retried: Boolean = false): Outcome<String> = try {
         http.newCall(request).execute().use { response ->
             val text = response.body.string()
             when {
@@ -390,6 +390,7 @@ class MailrsClient(private val store: TokenStore) {
                     }
                 response.code == 403 && errorCode(text) == CONFIRM_REQUIRED ->
                     Outcome.Err("Enter your password to continue.", CONFIRM_REQUIRED)
+                response.code == 503 -> restarting(request, response.header("Retry-After"), retried)
                 else -> Outcome.Err("The server answered ${response.code}.")
             }
         }

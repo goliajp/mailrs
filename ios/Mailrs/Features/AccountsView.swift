@@ -75,7 +75,8 @@ struct AccountsView: View {
                     }
                 }
             }
-            .sheet(isPresented: $adding) { addSheet }
+            .confirmPrompt()
+            .sheet(isPresented: $adding) { addSheet.confirmPrompt() }
             .alert("Delete account?", isPresented: deleteBinding, presenting: pendingDelete) { account in
                 Button("Delete", role: .destructive) {
                     Task { await delete(account) }
