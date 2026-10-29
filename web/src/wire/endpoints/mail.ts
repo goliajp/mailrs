@@ -2,7 +2,7 @@
  * Mail write endpoints — v2.1 §9 batch 3 (2026-07-08).
  *
  * `/mail/send` (JSON), `/mail/drafts` CRUD, `/mail/feedback`,
- * `/mail/pending/{id}` (undo send), reactions PUT / GET.
+ * `/mail/pending/{id}` (undo send).
  *
  * `/mail/send-multipart` and `/mail/inline-upload` are FormData
  * bodies — deferred to a follow-up (`wireFetch` FormData support
@@ -17,18 +17,15 @@ import {
   draftListSchema,
   feedbackResultSchema,
   inlineUploadResultSchema,
-  reactionsListSchema,
   saveDraftResultSchema,
   sendResultSchema,
   sentMessagesSchema,
   snoozeResultSchema,
-  threadReactionsSchema,
   unsubscribeResultSchema,
   type WireDeleteDraftResult,
   type WireDraft,
   type WireFeedbackResult,
   type WireInlineUploadResult,
-  type WireReactionSummary,
   type WireSaveDraftResult,
   type WireSendResult,
   type WireSentMessage,
@@ -187,7 +184,7 @@ export const wireRecordFeedback = (
     path: '/mail/feedback',
   })
 
-// ── reactions ────────────────────────────────────────────────────
+// ── message source ───────────────────────────────────────────────
 
 /**
  * `GET /api/mail/messages/{uid}/raw` — the message as it arrived.
@@ -205,40 +202,6 @@ export async function wireGetMessageSource(uid: number): Promise<string> {
   const res = await http(`/api/mail/messages/${encodeURIComponent(String(uid))}/raw`)
   if (!res.ok) throw new Error(`The server answered ${res.status}`)
   return res.text()
-}
-
-/**
- * Backend `get_thread_reactions` returns a flat
- * `{reactions: [{message_uid, emoji, count, me}, ...]}` — one row
- * per (uid, emoji) pair. Group by `message_uid` client-side for
- * per-message rendering.
- */
-export async function wireGetThreadReactions(
-  threadId: string
-): Promise<Record<number, readonly WireReactionSummary[]>> {
-  const raw = await wireFetch(threadReactionsSchema, {
-    path: `/conversations/${encodeURIComponent(threadId)}/reactions`,
-  })
-  const grouped: Record<number, WireReactionSummary[]> = {}
-  for (const r of raw.reactions) {
-    const uid = r.message_uid ?? 0
-    if (!grouped[uid]) grouped[uid] = []
-    grouped[uid].push(r)
-  }
-  return grouped
-}
-
-export async function wireToggleReaction(
-  threadId: string,
-  uid: number,
-  emoji: string
-): Promise<readonly WireReactionSummary[]> {
-  const raw = await wireFetch(reactionsListSchema, {
-    body: { emoji },
-    method: 'PUT',
-    path: `/conversations/${encodeURIComponent(threadId)}/messages/${uid}/reactions`,
-  })
-  return raw.reactions
 }
 
 /**

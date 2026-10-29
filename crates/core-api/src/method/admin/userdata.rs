@@ -1,5 +1,4 @@
-//! Per-user content the UI stores: drafts, signatures, templates,
-//! reactions.
+//! Per-user content the UI stores: drafts, signatures, templates.
 
 use serde::{Deserialize, Serialize};
 
@@ -122,24 +121,6 @@ pub struct SaveSignatureResponse {
 pub const PATH_LIST_SIGNATURES: &str = "/v1/users/{user}/signatures";
 
 pub const PATH_DELETE_SIGNATURE: &str = "/v1/users/{user}/signatures/{id}";
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ReactionAggregateRow {
-    pub message_uid: i64,
-    pub emoji: String,
-    pub count: i64,
-    pub me: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ReactionsResponse {
-    pub reactions: Vec<ReactionAggregateRow>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ToggleReactionRequest {
-    pub emoji: String,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TemplateWire {

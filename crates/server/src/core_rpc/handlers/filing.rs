@@ -51,6 +51,10 @@ async fn file(
         .file_thread(user, thread_id, bucket)
         .await
         .map_err(fail)?;
+    // nothing of the caller's in the thread: not theirs to file
+    if affected == 0 {
+        return Err(StatusCode::NOT_FOUND);
+    }
     let raws = state
         .mailbox
         .thread_raw_messages(user, thread_id, &state.maildir_root)

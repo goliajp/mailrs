@@ -58,7 +58,8 @@ pub async fn cancel_send(
 
     let u = user.clone();
     let s = send_id.clone();
-    let jobs_removed = with_kevy(move |c| Ok(outbound::drop_queued_jobs(c, &s)))?.len();
+    let sender = user.clone();
+    let jobs_removed = with_kevy(move |c| Ok(outbound::drop_queued_jobs(c, &s, &sender)))?.len();
 
     let s = send_id.clone();
     let (recipients_cancelled, already_delivered) =

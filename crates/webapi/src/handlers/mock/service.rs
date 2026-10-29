@@ -98,11 +98,9 @@ pub(super) async fn authorize(
         return Err(missing());
     }
     let ns_name = ns.to_string();
-    let found = store(move |c| mock::get_namespace(c, &ns_name))?.ok_or_else(missing)?;
-    if found.owner.eq_ignore_ascii_case(&caller.user) || is_admin(state, &caller.user).await {
-        return Ok(found);
-    }
-    Err(missing())
+    let user = caller.user.clone();
+    let admin = is_admin(state, &caller.user).await;
+    store(move |c| mock::namespace_for(c, &ns_name, &user, admin))?.ok_or_else(missing)
 }
 
 #[derive(Debug, Serialize)]

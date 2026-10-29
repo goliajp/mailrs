@@ -1,0 +1,123 @@
+# Every GET route, each reviewed for side effects. A cross-site page can make
+# a browser send a GET with the session cookie, and the CSRF check covers
+# only the other methods, so a GET must not change anything that matters.
+# tests/get_routes_are_reviewed.rs fails when a GET route is added without a
+# line here. Format: path, a tab, what it does beyond reading.
+/.well-known/apple-mobileconfig	protocol discovery, read only
+/.well-known/autoconfig/mail/config-v1.1.xml	protocol discovery, read only
+/.well-known/caldav	protocol discovery, read only
+/.well-known/carddav	protocol discovery, read only
+/.well-known/jmap	protocol discovery, read only
+/.well-known/jwks.json	protocol discovery, read only
+/.well-known/mta-sts.txt	protocol discovery, read only
+/.well-known/openid-configuration	protocol discovery, read only
+/Autodiscover/Autodiscover.xml	protocol discovery, read only
+/_health	read only
+/api/admin/accounts	read only
+/api/admin/accounts/{address}/forwards	read only
+/api/admin/accounts/{address}/groups	read only
+/api/admin/accounts/{address}/overrides	read only
+/api/admin/accounts/{address}/quota	read only
+/api/admin/accounts/{address}/send-as	read only
+/api/admin/accounts/{address}/sieve	read only
+/api/admin/accounts/{address}/webhook-subscriptions	read only
+/api/admin/aliases	read only
+/api/admin/audit-log	read only
+/api/admin/audit-log/export	read only
+/api/admin/audit/accounts	read only
+/api/admin/audit/conversations	audit only: records the administrator's read in the audit log
+/api/admin/audit/conversations/{thread_id}	audit only: records the administrator's read in the audit log
+/api/admin/audit/conversations/{thread_id}/messages	audit only: records the administrator's read in the audit log
+/api/admin/audit/messages/{uid}/raw	audit only: records the administrator's read in the audit log
+/api/admin/auth-events	read only
+/api/admin/dmarc/reports	read only
+/api/admin/dmarc/sources	read only
+/api/admin/domains	read only
+/api/admin/email-groups	read only
+/api/admin/email-groups/{id}/members	read only
+/api/admin/export	read only
+/api/admin/flow	read only
+/api/admin/greylist/local-lists	read only
+/api/admin/groups	read only
+/api/admin/groups/{id}/members	read only
+/api/admin/groups/{id}/permissions	read only
+/api/admin/mock	read only
+/api/admin/oauth-clients	read only
+/api/admin/permissions	read only
+/api/admin/queues	read only
+/api/admin/rbl-status	read only
+/api/admin/reputation	read only
+/api/admin/spam-feedback-stats	read only
+/api/admin/suppressions	read only
+/api/admin/system-config	read only
+/api/agent/keys	read only
+/api/agent/webhooks	read only
+/api/auth/external-providers	read only
+/api/auth/external/{provider}	starts a sign-in: stores a 10-minute flow and binds it to this browser with a cookie
+/api/auth/identities	read only
+/api/auth/me	read only
+/api/auth/oidc/callback	finishes a sign-in, only one this browser started (flow cookie)
+/api/auth/oidc/config	read only
+/api/auth/oidc/login	redirect only
+/api/auth/recovery-email	read only
+/api/auth/totp/status	read only
+/api/bimi/{domain}	read only
+/api/calendar/conflicts	read only
+/api/calendar/feeds	read only
+/api/contacts	read only
+/api/conversations	read only
+/api/conversations/categories	read only
+/api/conversations/search	read only
+/api/conversations/semantic-search	read only
+/api/conversations/unseen-count	read only
+/api/conversations/{thread_id}	read only
+/api/events	WebSocket upgrade; a cookie upgrade must name our origin
+/api/events/smtp	WebSocket upgrade; a cookie upgrade must name our origin
+/api/health	read only
+/api/icon/{domain}	writes a shared icon cache (idempotent, expires)
+/api/keys/{address}/pgp	read only
+/api/keys/{address}/smime	read only
+/api/mail/drafts	read only
+/api/mail/export	read only
+/api/mail/folders	read only
+/api/mail/folders/{name}/messages	read only
+/api/mail/inline/{id}	read only
+/api/mail/keys	read only
+/api/mail/keys/status	read only
+/api/mail/keys/{key_type}	read only
+/api/mail/messages/{uid}	read only
+/api/mail/messages/{uid}/attachments/{index}	read only
+/api/mail/messages/{uid}/attachments/{index}/content	read only
+/api/mail/messages/{uid}/raw	read only
+/api/mail/sends	read only
+/api/mail/sends/{send_id}/redraft	read only
+/api/mail/sends/{send_id}/source	read only
+/api/mail/sent	read only
+/api/mail/signatures	read only
+/api/mail/stats	read only
+/api/mail/templates	read only
+/api/messages/{message_id}/fraud-verdict	read only
+/api/mock/namespaces	read only
+/api/mock/namespaces/{ns}/messages	drops index entries of messages that have already expired
+/api/mock/namespaces/{ns}/messages/latest	drops index entries of messages that have already expired
+/api/mock/namespaces/{ns}/messages/wait	drops index entries of messages that have already expired
+/api/mock/namespaces/{ns}/messages/{id}	drops index entries of messages that have already expired
+/api/mock/namespaces/{ns}/messages/{id}/raw	drops index entries of messages that have already expired
+/api/proxy/link	redirect only
+/api/quarantine	read only
+/api/queue	read only
+/api/readiness	read only
+/api/scheduled	read only
+/api/spam/blacklist	read only
+/api/spam/whitelist	read only
+/api/status	read only
+/api/{*rest}	read only
+/autodiscover/autodiscover.xml	protocol discovery, read only
+/dav	DAV; reads on GET, writes only on DAV methods
+/dav/	DAV; reads on GET, writes only on DAV methods
+/dav/{*path}	DAV; reads on GET, writes only on DAV methods
+/jmap/eventsource/	event stream; sends pings only
+/mail/config-v1.1.xml	protocol discovery, read only
+/metrics	read only
+/oauth/authorize	issues an authorization code; registering clients is closed until a consent step exists
+/oauth/userinfo	read only

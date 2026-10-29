@@ -51,7 +51,9 @@ JSON
 echo "$NDJSON" | MAILRS_KEVY_DATA_DIR="$KEVY_DIR" ./target/release/mailrs-fastcore-migrate
 
 step "[3/4] booting fastcore on :$PORT"
-MAILRS_KEVY_DATA_DIR="$KEVY_DIR" MAILRS_FASTCORE_BIND="127.0.0.1:$PORT" \
+# fastcore refuses to start without a core-api secret; a throwaway one
+SECRET=$(openssl rand -hex 16)
+MAILRS_CORE_API_SECRET="$SECRET" MAILRS_KEVY_DATA_DIR="$KEVY_DIR" MAILRS_FASTCORE_BIND="127.0.0.1:$PORT" \
     ./target/release/mailrs-fastcore 2>/dev/null &
 SVR_PID=$!
 sleep 1.5
@@ -61,7 +63,7 @@ FAIL=0
 BASE="http://127.0.0.1:$PORT"
 probe() {
     local method="$1" path="$2" expect="$3" data="${4:-}"
-    local args=(-s -o /tmp/local-fc.body -w "%{http_code}" -X "$method")
+    local args=(-s -o /tmp/local-fc.body -w "%{http_code}" -X "$method" -H "Authorization: Bearer $SECRET")
     if [[ -n "$data" ]]; then
         args+=(-H "Content-Type: application/json" -d "$data")
     fi

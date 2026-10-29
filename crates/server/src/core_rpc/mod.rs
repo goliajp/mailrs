@@ -37,7 +37,7 @@ pub struct CoreRpcState {
     /// as `crate::body` lays them out.
     pub maildir_root: String,
     /// Network-kevy URL (`MAILRS_KEVY_URL`) for the SHARED side-state
-    /// families (drafts/signatures/templates/reactions/webhooks/audit/
+    /// families (drafts/signatures/templates/webhooks/audit/
     /// contacts/analysis/outbound/groups/api-keys/sieve). The pg-core
     /// serves these from the same network kevy fastcore + webapi use, so
     /// the two cores' side-state routes are byte-identical. `None` when
@@ -99,9 +99,8 @@ impl Handler for CoreRpcState {
 /// Spawn the `mailrs-core-api` server on the bind address from env.
 ///
 /// `MAILRS_CORE_RPC_ADDR` (default `0.0.0.0:3300`) — listen address.
-/// `MAILRS_CORE_API_SECRET` (default empty) — shared bearer secret for
-/// authenticated routes. Empty secret means **no auth**, intended for
-/// local dev only — production deploys MUST set it.
+/// `MAILRS_CORE_API_SECRET` — shared bearer secret for authenticated
+/// routes. Required: the process exits when it is unset or blank.
 ///
 /// Returns immediately — the server runs in a background tokio task, and its
 /// `JoinHandle` comes back so a caller that has to release
@@ -113,13 +112,13 @@ pub fn spawn_core_rpc(
     let addr = std::env::var("MAILRS_CORE_RPC_ADDR")
         .unwrap_or_else(|_| format!("0.0.0.0:{}", mailrs_core_api::DEFAULT_CORE_RPC_PORT));
 
-    let secret = std::env::var(mailrs_core_api::AUTH_SECRET_ENV).unwrap_or_default();
-    if secret.is_empty() {
-        tracing::warn!(
-            event = "core_rpc_no_auth",
-            "MAILRS_CORE_API_SECRET unset — core RPC will accept unauthenticated requests"
-        );
-    }
+    let secret = match mailrs_core_api::required_auth_secret() {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::error!("{e}");
+            std::process::exit(2);
+        }
+    };
 
     let router = build_full_router(state, secret);
 
