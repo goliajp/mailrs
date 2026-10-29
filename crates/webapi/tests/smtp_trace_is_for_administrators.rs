@@ -9,6 +9,7 @@ use tokio_tungstenite::tungstenite::{Error, client::IntoClientRequest, http::Hea
 const KEVY: &str = "mem://webapi-smtp-trace-is-for-administrators";
 const ADMIN: &str = "admin@example.test";
 const USER: &str = "user@example.test";
+const ORIGIN: &str = "https://mail.example.test";
 
 /// The upgrade's HTTP status, with the session in the cookie the way a
 /// browser sends it.
@@ -19,6 +20,8 @@ async fn upgrade_status(live: &live::Live, token: &str) -> u16 {
         "cookie",
         HeaderValue::from_str(&format!("mailrs_session={token}")).expect("cookie"),
     );
+    req.headers_mut()
+        .insert("origin", HeaderValue::from_static(ORIGIN));
     match tokio_tungstenite::connect_async(req).await {
         Ok((_, resp)) => resp.status().as_u16(),
         Err(Error::Http(resp)) => resp.status().as_u16(),
@@ -45,7 +48,10 @@ fn only_an_administrator_may_watch_the_smtp_trace() {
 
 async fn only_admins() {
     // SAFETY: the only test in this binary, before anything reads kevy
-    unsafe { std::env::set_var("MAILRS_KEVY_URL", KEVY) };
+    unsafe {
+        std::env::set_var("MAILRS_KEVY_URL", KEVY);
+        std::env::set_var("MAILRS_WEB_ORIGINS", ORIGIN);
+    }
     let live = live::start(KEVY).await;
     live.add_account(ADMIN, "pw").await;
     live.add_account(USER, "pw").await;

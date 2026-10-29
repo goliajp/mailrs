@@ -20,12 +20,13 @@ use std::sync::Arc;
 use axum::extract::Request;
 use axum::http::{HeaderMap, StatusCode};
 use axum::middleware::Next;
-use axum::response::Response;
+use axum::response::{IntoResponse, Response};
 use serde::Deserialize;
 
 use crate::WebState;
 use crate::handlers::conversations::AuthedUser;
 
+pub mod csrf;
 mod scopes;
 use scopes::agent_scopes_allow;
 pub use scopes::{
@@ -165,19 +166,39 @@ pub async fn resolve_session_user_from_headers(headers: &HeaderMap) -> Option<St
 /// does not cover, such as a WebSocket upgrade. Same token sources as the
 /// middleware; a browser sends the session cookie on a same-origin upgrade,
 /// so nothing has to be put in the URL. Agent keys do not count.
-pub async fn resolve_session_user(headers: &HeaderMap, uri: &axum::http::Uri) -> Option<String> {
-    let token = extract_token(headers, uri)?;
+pub async fn resolve_session_user(
+    headers: &HeaderMap,
+    uri: &axum::http::Uri,
+) -> Option<(String, TokenSource)> {
+    let (token, source) = extract_token_with_source(headers, uri)?;
     if token.starts_with(AGENT_KEY_PREFIX) {
         return None;
     }
-    resolve_session(token).await.map(|s| s.address)
+    resolve_session(token).await.map(|s| (s.address, source))
+}
+
+/// The check every WebSocket upgrade makes. An upgrade is a GET, so the
+/// CSRF token does not apply; one the cookie authenticates must instead
+/// name one of our web origins. A browser always sends `Origin` on an
+/// upgrade, so one that sends none is not a browser and should use a
+/// bearer token.
+pub fn websocket_origin_ok(headers: &HeaderMap, source: TokenSource) -> bool {
+    if source != TokenSource::Cookie {
+        return true;
+    }
+    csrf::origin_ok(headers, &csrf::config().origins) == Some(true)
 }
 
 /// The caller behind a session or an agent key, with the key's scopes;
-/// the MCP handler uses it to populate its per-session task-local.
+/// the MCP handler uses it to populate its per-session task-local. Only an
+/// `Authorization` header counts: no browser page uses MCP, and a cookie
+/// would let any page the user visits call it.
 pub async fn resolve_auth_from_headers(headers: &HeaderMap) -> Option<AgentAuth> {
     let uri = axum::http::Uri::from_static("/mcp");
-    let token = extract_token(headers, &uri)?;
+    let (token, source) = extract_token_with_source(headers, &uri)?;
+    if source != TokenSource::Header {
+        return None;
+    }
     if token.starts_with(AGENT_KEY_PREFIX) {
         return resolve_agent_key(token).await;
     }
@@ -189,11 +210,33 @@ pub async fn resolve_auth_from_headers(headers: &HeaderMap) -> Option<AgentAuth>
     })
 }
 
-/// Extract session token from any of: `mailrs_session` cookie,
-/// `Authorization: Bearer <token>` header, or `?token=<hex>` query.
-/// The query variant is used by browser <img src> / <a href> which
-/// can't set custom headers, e.g. attachment previews.
+/// Where a request's credential came from. Only the cookie needs CSRF
+/// checks: a page on another site can make a browser send it, but cannot
+/// set a header.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TokenSource {
+    Cookie,
+    Header,
+    Query,
+}
+
 fn extract_token(headers: &HeaderMap, uri: &axum::http::Uri) -> Option<String> {
+    extract_token_with_source(headers, uri).map(|(t, _)| t)
+}
+
+/// The token from an `Authorization: Bearer` header, the `mailrs_session`
+/// cookie, or the deprecated `?token=` query, in that order. A request with
+/// an `Authorization` header is judged by it alone: a bad one is a 401 and
+/// never falls back to the cookie, or junk in the header would buy a
+/// cross-site request the cookie's authority without its CSRF check.
+fn extract_token_with_source(
+    headers: &HeaderMap,
+    uri: &axum::http::Uri,
+) -> Option<(String, TokenSource)> {
+    if let Some(auth) = headers.get(axum::http::header::AUTHORIZATION) {
+        let v = auth.to_str().ok()?.strip_prefix("Bearer ")?.trim();
+        return Some((v.to_string(), TokenSource::Header));
+    }
     if let Some(cookie_header) = headers.get(axum::http::header::COOKIE)
         && let Ok(raw) = cookie_header.to_str()
     {
@@ -202,22 +245,16 @@ fn extract_token(headers: &HeaderMap, uri: &axum::http::Uri) -> Option<String> {
             if let Some(rest) = cookie.strip_prefix(SESSION_COOKIE)
                 && let Some(v) = rest.strip_prefix('=')
             {
-                return Some(v.to_string());
+                return Some((v.to_string(), TokenSource::Cookie));
             }
         }
-    }
-    if let Some(auth) = headers.get(axum::http::header::AUTHORIZATION)
-        && let Ok(raw) = auth.to_str()
-        && let Some(v) = raw.strip_prefix("Bearer ")
-    {
-        return Some(v.trim().to_string());
     }
     if let Some(q) = uri.query() {
         for pair in q.split('&') {
             if let Some(v) = pair.strip_prefix("token=") {
                 // Percent-decode via url crate — session tokens are hex so
                 // in practice decode is a noop, but this normalizes anyway.
-                return percent_decode(v);
+                return percent_decode(v).map(|t| (t, TokenSource::Query));
             }
         }
     }
@@ -290,7 +327,7 @@ pub async fn session_auth_middleware(
     }
     let _ = &state; // reserved for future enrichment via core_client
 
-    let token = match extract_token(req.headers(), req.uri()) {
+    let (token, token_source) = match extract_token_with_source(req.headers(), req.uri()) {
         Some(t) => t,
         None => {
             tracing::debug!(reason = "no_token", path = %req.uri().path(), "request rejected");
@@ -353,7 +390,7 @@ pub async fn session_auth_middleware(
         return Ok(next.run(req).await);
     }
 
-    let session = match resolve_session(token).await {
+    let session = match resolve_session(token.clone()).await {
         Some(s) => s,
         None => {
             tracing::debug!(reason = "session_miss", path = %req.uri().path(), "request rejected");
@@ -361,13 +398,48 @@ pub async fn session_auth_middleware(
         }
     };
 
+    let by_cookie = token_source == TokenSource::Cookie;
+    // the token cookie is (re)issued whenever it is missing, refusals
+    // included, so a session from before CSRF checks gets one on first use
+    let issue_cookie = by_cookie && !csrf::has_cookie(req.headers(), &token);
+    if by_cookie {
+        let cfg = csrf::config();
+        if let Err(v) = csrf::check(req.method(), req.headers(), &token, &cfg.origins) {
+            // what was missing or wrong, never a value
+            tracing::warn!(
+                violation = v.code(),
+                method = %req.method(),
+                path = %req.uri().path(),
+                enforced = cfg.mode == csrf::Mode::Enforce,
+                "csrf"
+            );
+            if cfg.mode == csrf::Mode::Enforce {
+                let mut resp = (
+                    StatusCode::FORBIDDEN,
+                    axum::Json(serde_json::json!({ "error": v.code() })),
+                )
+                    .into_response();
+                if issue_cookie {
+                    resp.headers_mut()
+                        .append(axum::http::header::SET_COOKIE, csrf::set_cookie(&token));
+                }
+                return Ok(resp);
+            }
+        }
+    }
+
     req.extensions_mut()
         .insert(crate::handlers::conversations::AuthedDisplayName(
             session.display_name.clone(),
         ));
     req.extensions_mut().insert(AuthedUser(session.address));
     req.extensions_mut().insert(AgentScopes::default());
-    Ok(next.run(req).await)
+    let mut resp = next.run(req).await;
+    if issue_cookie {
+        resp.headers_mut()
+            .append(axum::http::header::SET_COOKIE, csrf::set_cookie(&token));
+    }
+    Ok(resp)
 }
 
 #[cfg(test)]

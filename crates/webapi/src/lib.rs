@@ -251,6 +251,9 @@ pub async fn run() {
     }
 
     login_guard::spawn_alert_mailer();
+    // a bad MAILRS_CSRF stops the process here, not on the first request
+    let csrf = session::csrf::config();
+    tracing::info!(mode = ?csrf.mode, origins = ?csrf.origins, "csrf");
 
     let bind = state.bind_addr.clone();
     let router = build_router(state);

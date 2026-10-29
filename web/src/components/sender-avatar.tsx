@@ -3,6 +3,7 @@ import { memo, useEffect, useState } from 'react'
 
 import { avatarColor, avatarInitial } from '@/lib/avatar'
 import { finishedIconUrl } from '@/lib/finish-icon-image'
+import { http } from '@/lib/http'
 import { isSignedIn } from '@/store/auth'
 
 function extractDomain(sender: string): null | string {
@@ -116,7 +117,7 @@ function resolveIcon(domain: string): Promise<null | string> {
       return null
     }
     try {
-      const r = await fetch(`/api/icon/${encodeURIComponent(domain)}`)
+      const r = await http(`/api/icon/${encodeURIComponent(domain)}`)
       if (r.status === 200) {
         const blob = await r.blob()
         if (blob.size > 0) {

@@ -55,6 +55,13 @@ export default eslintTs.config(
             'Do not use fetchJson<T[]>. Use fetchList<T>() from @/lib/api — the backend wraps list responses as {items: T[]} and a bare-array type crashes on .map at runtime.',
         },
       ],
+      // Every request goes through `http()` in @/lib/http: a write must carry
+      // the session's CSRF token, and a call that forgets it fails only in
+      // production, where the check is on.
+      'no-restricted-globals': [
+        'error',
+        { message: 'Use http() from @/lib/http.', name: 'fetch' },
+      ],
       'unused-imports/no-unused-imports': 'error',
       'unused-imports/no-unused-vars': [
         'error',
@@ -103,6 +110,12 @@ export default eslintTs.config(
         },
       ],
     },
+  },
+
+  // the one module allowed to call fetch, and tests that stub it
+  {
+    files: ['src/lib/http.ts', 'src/**/__tests__/**', 'src/test-setup.ts', 'tests/**'],
+    rules: { 'no-restricted-globals': 'off' },
   },
 
   // react

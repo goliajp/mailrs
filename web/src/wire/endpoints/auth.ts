@@ -7,6 +7,8 @@
  * shape rather than the HTTP status.
  */
 
+import { http } from '@/lib/http'
+
 import { wireFetch } from '../client'
 import {
   authMeSchema,
@@ -38,7 +40,7 @@ export const wireGetOidcConfig = (): Promise<WireOidcConfig> =>
  * exists, and a 401 there means "not yet", not "send to the login page".
  */
 export async function wireGetMe(): Promise<WireAuthMe> {
-  const res = await fetch('/api/auth/me')
+  const res = await http('/api/auth/me')
   if (!res.ok) throw new Error(`auth/me ${res.status}`)
   const raw = await res.json()
   return authMeSchema.parse(raw)
