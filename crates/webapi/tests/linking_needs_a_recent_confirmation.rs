@@ -15,6 +15,7 @@ use mailrs_oauth_client::ExternalIdentity;
 
 const KEVY: &str = "mem://webapi-linking-needs-a-recent-confirmation";
 const ALICE: &str = "alice@example.test";
+const BOB: &str = "bob@example.test";
 
 fn identity() -> ExternalIdentity {
     ExternalIdentity {
@@ -82,4 +83,45 @@ async fn linking_waits_for_a_recent_confirmation() {
         after > 0 && after <= before,
         "before {before} ms, after {after} ms"
     );
+
+    // an identity already linked to bob stays bob's: alice, signed in and
+    // confirmed, neither takes it over nor gets into her account with it
+    let bobs = ExternalIdentity {
+        subject: "subject-bob".into(),
+        ..identity()
+    };
+    live.add_account(BOB, "pw").await;
+    mailrs_core_sidestate::families::identity_link::link(
+        &mut kevy(),
+        "https://idp.example",
+        "subject-bob",
+        BOB,
+    )
+    .expect("link bob");
+    let resp =
+        mailrs_webapi::handlers::external_login::settle(&live.state, &headers, "test", bobs).await;
+    let owner = mailrs_core_sidestate::families::identity_link::account_for(
+        &mut kevy(),
+        "https://idp.example",
+        "subject-bob",
+    )
+    .expect("lookup");
+    assert_eq!(owner.as_deref(), Some(BOB), "moved to alice");
+    // the session it hands out is bob's, never one for alice
+    let issued = resp
+        .headers()
+        .get_all(header::SET_COOKIE)
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .find_map(|c| c.strip_prefix("mailrs_session="))
+        .map(|c| c.split(';').next().unwrap_or("").to_string());
+    let token = issued.expect("a linked identity signs its own account in");
+    let (_, me) = live
+        .call(reqwest::Method::GET, "/api/auth/me", &token, None)
+        .await;
+    assert_eq!(me["address"], BOB, "the identity signed somebody else in");
+    let (_, me) = live
+        .call(reqwest::Method::GET, "/api/auth/me", &alice, None)
+        .await;
+    assert_eq!(me["address"], ALICE);
 }
