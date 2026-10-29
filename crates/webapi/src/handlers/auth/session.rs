@@ -53,6 +53,12 @@ pub async fn login(
     headers: axum::http::HeaderMap,
     Json(req): Json<LoginRequest>,
 ) -> Response {
+    // signing a browser in to somebody else's account takes a request from
+    // another site; a login form posts from ours
+    if let Some(refused) = crate::session::csrf::refuse_foreign_origin(&headers, "/api/auth/login")
+    {
+        return refused;
+    }
     let guard = &*crate::login_guard::GUARD;
     let user_agent = headers
         .get(axum::http::header::USER_AGENT)
@@ -307,6 +313,8 @@ pub(crate) async fn issue_session(
     if let Ok(v) = axum::http::HeaderValue::from_str(&cookie) {
         resp.headers_mut().insert(SET_COOKIE, v);
     }
+    resp.headers_mut()
+        .append(SET_COOKIE, crate::session::csrf::set_cookie(&token));
     resp
 }
 
@@ -338,6 +346,8 @@ pub async fn logout(req: axum::extract::Request) -> Response {
     if let Ok(v) = axum::http::HeaderValue::from_str(cookie) {
         resp.headers_mut().insert(SET_COOKIE, v);
     }
+    resp.headers_mut()
+        .append(SET_COOKIE, crate::session::csrf::clear_cookie());
     resp
 }
 

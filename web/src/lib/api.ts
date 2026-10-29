@@ -48,7 +48,7 @@ export async function deleteDraft(id: number): Promise<{ message?: string; succe
 }
 
 export async function deleteJson<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await http(`${API_BASE}${path}`, {
     method: 'DELETE',
     signal,
   })
@@ -58,7 +58,7 @@ export async function deleteJson<T>(path: string, signal?: AbortSignal): Promise
 // --- draft types and API ---
 
 export async function fetchBlob(path: string, signal?: AbortSignal): Promise<Blob> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await http(`${API_BASE}${path}`, {
     signal,
   })
   if (res.status === 401) {
@@ -72,7 +72,7 @@ export async function fetchBlob(path: string, signal?: AbortSignal): Promise<Blo
 }
 
 export async function fetchJson<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await http(`${API_BASE}${path}`, {
     signal,
   })
   return handleResponse<T>(res)
@@ -105,7 +105,7 @@ export async function fetchJson<T>(path: string, signal?: AbortSignal): Promise<
  * `fetchJson<T[]>()`.** The bare shape is a liability.
  */
 export async function fetchList<T>(path: string, signal?: AbortSignal): Promise<T[]> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await http(`${API_BASE}${path}`, {
     signal,
   })
   if (res.status === 401) {
@@ -142,7 +142,7 @@ export async function listDrafts(): Promise<Draft[]> {
 }
 
 export async function postJson<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await http(`${API_BASE}${path}`, {
     body: JSON.stringify(body),
     headers: { 'Content-Type': 'application/json' },
     method: 'POST',
@@ -152,7 +152,7 @@ export async function postJson<T>(path: string, body: unknown, signal?: AbortSig
 }
 
 export async function putJson<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await http(`${API_BASE}${path}`, {
     body: JSON.stringify(body),
     headers: { 'Content-Type': 'application/json' },
     method: 'PUT',
@@ -173,6 +173,8 @@ export async function recordFeedback(
 // --- reactions API ---
 
 import type { ReactionSummary } from '@/lib/types'
+
+import { http } from '@/lib/http'
 
 // Drop the stale token and bounce to /login, but preserve the current
 // URL via ?return_to= so the user lands back on the same view after

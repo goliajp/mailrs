@@ -132,7 +132,7 @@ describe('postJson', () => {
     const call = vi.mocked(fetch).mock.calls[0]
     const opts = call[1] as RequestInit
     expect(opts.method).toBe('POST')
-    expect((opts.headers as Record<string, string>)['Content-Type']).toBe('application/json')
+    expect(new Headers(opts.headers).get('Content-Type')).toBe('application/json')
     expect(opts.body).toBe(JSON.stringify(payload))
   })
 })
@@ -150,7 +150,7 @@ describe('putJson', () => {
     expect(result).toEqual({ updated: true })
     const opts = vi.mocked(fetch).mock.calls[0][1] as RequestInit
     expect(opts.method).toBe('PUT')
-    expect((opts.headers as Record<string, string>)['Content-Type']).toBe('application/json')
+    expect(new Headers(opts.headers).get('Content-Type')).toBe('application/json')
   })
 })
 

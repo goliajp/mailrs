@@ -64,9 +64,12 @@ pub async fn ws_smtp_trace(
     uri: axum::http::Uri,
     axum::extract::State(state): axum::extract::State<Arc<WebState>>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    let user = crate::session::resolve_session_user(&headers, &uri)
+    let (user, source) = crate::session::resolve_session_user(&headers, &uri)
         .await
         .ok_or(StatusCode::UNAUTHORIZED)?;
+    if !crate::session::websocket_origin_ok(&headers, source) {
+        return Err(StatusCode::FORBIDDEN);
+    }
     crate::handlers::kevy_util::require_admin(&state, &user).await?;
     let bus = get_or_init_trace_bus(state);
     Ok(ws.on_upgrade(move |socket| handle_ws(socket, bus)))

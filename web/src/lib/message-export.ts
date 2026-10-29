@@ -4,10 +4,11 @@ import { toast } from '@goliapkg/gds'
 import DOMPurify from 'dompurify'
 
 import { formatFullDate } from '@/lib/format'
+import { http } from '@/lib/http'
 
 export async function downloadEml(uid: number, subject: string) {
   try {
-    const res = await fetch(`/api/mail/messages/${uid}/raw`)
+    const res = await http(`/api/mail/messages/${uid}/raw`)
     if (!res.ok) {
       toast.error('Download failed')
       return

@@ -9,6 +9,8 @@
  * is planned for §D).
  */
 
+import { http } from '@/lib/http'
+
 import { wireFetch } from '../client'
 import {
   deleteDraftResultSchema,
@@ -200,7 +202,7 @@ export const wireRecordFeedback = (
  * page has ever called it; iOS gained a viewer for it this week.
  */
 export async function wireGetMessageSource(uid: number): Promise<string> {
-  const res = await fetch(`/api/mail/messages/${encodeURIComponent(String(uid))}/raw`)
+  const res = await http(`/api/mail/messages/${encodeURIComponent(String(uid))}/raw`)
   if (!res.ok) throw new Error(`The server answered ${res.status}`)
   return res.text()
 }
