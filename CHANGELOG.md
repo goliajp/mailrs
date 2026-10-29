@@ -18,6 +18,29 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### Undo send works, and cancelling a send no longer disturbs anyone else's (2.135.5)
+
+- The Undo in the "sent" toast almost never stopped anything: the
+  sender claims a job the moment it reaches the pending list, well
+  inside the eight seconds the toast stays up. A send can now ask to be
+  held (`undo_seconds`, at most 30); the web composer asks for 10, and
+  the message waits in the scheduled queue for that long. API and agent
+  sends that do not ask are sent at once, as before.
+- `DELETE /api/mail/pending/{message_id}` finds the send by its own
+  record, so only its owner can stop it, and answers 204 when stopped,
+  404 when there is no such send and 409 when it is already on its way.
+  It answered 200 either way, and the client said "Send cancelled" for
+  mail that went.
+- Cancelling (Undo, or `POST /api/mail/sends/{id}/cancel`) drained the
+  whole pending list and pushed it back, so a send queued by anyone in
+  that moment fell out of the index and went out about five minutes
+  late, out of order. The queue is now only read; each job is removed in
+  a transaction that first checks it is still waiting, so a job the
+  sender has already claimed is left alone and reported as too late.
+- Cancelling a scheduled send through `POST /api/mail/sends/{id}/cancel`
+  marked it cancelled but left the job in the scheduled queue, and it
+  went out at its time anyway.
+
 ### Our own domain earns trust only with proof; a forged ARF report suppresses nobody (2.135.4)
 
 - A message arriving on port 25 skipped spam scoring when its envelope

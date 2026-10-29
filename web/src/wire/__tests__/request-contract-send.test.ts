@@ -27,6 +27,23 @@ describe('send request bodies match the shared contract', () => {
     expect(body).toEqual(fixture('send'))
   })
 
+  it('send now, held for the undo window', async () => {
+    const { sendMail } = await import('@/lib/send-mail')
+    const body = await bodyOf(() =>
+      sendMail({
+        bcc: [],
+        body: 'hello',
+        cc: [],
+        from: 'lihao@golia.jp',
+        htmlBody: '<p>hello</p>',
+        subject: 'subject',
+        to: ['someone@example.com'],
+        token: 'test-token',
+      })
+    )
+    expect(body).toEqual(fixture('send-undo'))
+  })
+
   it('send as a redraft, keeping two of the carried attachments', async () => {
     const { sendMail } = await import('@/lib/send-mail')
     const body = await bodyOf(() =>
