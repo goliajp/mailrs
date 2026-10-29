@@ -28,40 +28,36 @@ fn hostname() -> String {
     std::env::var("MAILRS_HOSTNAME").unwrap_or_else(|_| "mail.golia.jp".into())
 }
 
-/// Bridge between `mailrs-core-api` client and `mailrs_jmap::MailStore`.
+/// Bridge between `mailrs-core-api` client and `mailrs_jmap::MailStore`,
+/// built for one signed-in user per request.
 pub struct JmapAdapter {
     state: Arc<WebState>,
+    user: String,
 }
 
 impl JmapAdapter {
-    pub fn new(state: Arc<WebState>) -> Self {
-        Self { state }
+    pub fn new(state: Arc<WebState>, user: String) -> Self {
+        Self { state, user }
     }
 
-    /// Best-effort mailbox → (wire, owner) lookup. JMAP passes just
-    /// a mailbox_id which is a per-user synthetic in fastcore; we
-    /// discover which user by scanning every registered account until
-    /// we find one whose list_mailboxes returns a match. Cheap because
-    /// list_mailboxes is O(1) per account (INBOX/Sent/Drafts/Junk/Trash).
+    /// The caller's mailbox with this id, and the caller. Mailbox ids are
+    /// the same small numbers in every account (INBOX = 1, Sent = 2, …),
+    /// so the id alone names nobody: it is looked up among the signed-in
+    /// user's own mailboxes and nowhere else.
     async fn resolve_mailbox(
         &self,
         mailbox_id: i64,
     ) -> Result<(mailrs_core_api::method::mailbox::MailboxWire, String), StoreError> {
-        let accounts = self
+        let list = self
             .state
             .core
-            .list_accounts()
+            .list_mailboxes(&self.user)
             .await
             .map_err(|e| -> StoreError { Box::new(std::io::Error::other(e.to_string())) })?;
-        for a in accounts.items {
-            let addr = a.address;
-            if let Ok(list) = self.state.core.list_mailboxes(&addr).await
-                && let Some(m) = list.items.into_iter().find(|m| m.id == mailbox_id)
-            {
-                return Ok((m, addr));
-            }
+        match list.items.into_iter().find(|m| m.id == mailbox_id) {
+            Some(m) => Ok((m, self.user.clone())),
+            None => Err(Box::new(std::io::Error::other("mailbox not found"))),
         }
-        Err(Box::new(std::io::Error::other("mailbox not found")))
     }
 }
 
@@ -408,7 +404,7 @@ pub async fn jmap_api(
     Extension(AuthedUser(address)): Extension<AuthedUser>,
     Json(req): Json<JmapRequest>,
 ) -> impl IntoResponse {
-    let adapter = JmapAdapter::new(state);
+    let adapter = JmapAdapter::new(state, address.clone());
     let response = mailrs_jmap::dispatch_request(req, &address, &adapter).await;
     Json(response)
 }

@@ -160,10 +160,11 @@ pub async fn create_agent_webhook(
 }
 
 pub async fn delete_agent_webhook(
-    Extension(AuthedUser(_user)): Extension<AuthedUser>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
     Path(id): Path<i64>,
 ) -> Result<StatusCode, StatusCode> {
-    let removed = with_kevy(move |c| mailrs_core_sidestate::families::webhooks::delete(c, id))?;
+    let removed =
+        with_kevy(move |c| mailrs_core_sidestate::families::webhooks::delete_owned(c, id, &user))?;
     match removed {
         true => Ok(StatusCode::NO_CONTENT),
         false => Err(StatusCode::NOT_FOUND),
