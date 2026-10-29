@@ -48,7 +48,7 @@ struct SessionBlob {
 const KEVY_URL_ENV: &str = "MAILRS_KEVY_URL";
 
 const SESSION_COOKIE: &str = "mailrs_session";
-use mailrs_core_sidestate::keys::session::SESSION_PREFIX as SESSION_KEY_PREFIX;
+use mailrs_core_sidestate::keys::session::session_key;
 
 /// Agent API keys (`mk_…`, created via POST /api/agent/keys) are an
 /// alternative bearer credential for machine callers. The secret index
@@ -296,21 +296,59 @@ async fn resolve_session(token: String) -> Option<SessionBlob> {
     // `crate::kevy_pool` keeps eight connections and round-robins them.
     let raw = tokio::task::spawn_blocking(move || -> std::io::Result<Option<Vec<u8>>> {
         crate::kevy_pool::with_conn(move |client| {
-            let key = format!("{SESSION_KEY_PREFIX}{token}");
+            let key = session_key(&token);
             let bytes = client.get(key.as_bytes())?;
             if bytes.is_some() {
                 let _ = client.expire(
                     key.as_bytes(),
                     std::time::Duration::from_secs(SESSION_TTL_SECS),
                 );
+                return Ok(bytes);
             }
-            Ok(bytes)
+            move_legacy_session(client, &token)
         })
     })
     .await
     .ok()?
     .ok()??;
     serde_json::from_slice::<SessionBlob>(&raw).ok()
+}
+
+/// A session issued before sessions were stored by hash, moved to its
+/// hashed key on first use.
+///
+/// The network client has no transaction on every backend, so the steps
+/// are ordered so a logout or a revocation running alongside cannot bring
+/// the session back: the hashed copy is written first and dropped again if
+/// the original has meanwhile been deleted; the index gains the hash before
+/// it loses the token, so a revocation always finds one of the two, and
+/// revocation deletes the hashed key for either.
+fn move_legacy_session(
+    client: &mut kevy_client::Connection,
+    token: &str,
+) -> std::io::Result<Option<Vec<u8>>> {
+    use mailrs_core_sidestate::keys::session::{by_addr_key, legacy_session_key, session_ref};
+    let legacy = legacy_session_key(token);
+    let Some(bytes) = client.get(legacy.as_bytes())? else {
+        return Ok(None);
+    };
+    let stored = session_key(token);
+    client.set_with_ttl(
+        stored.as_bytes(),
+        &bytes,
+        std::time::Duration::from_secs(SESSION_TTL_SECS),
+    )?;
+    if client.exists(&[legacy.as_bytes()])? == 0 {
+        client.del(&[stored.as_bytes()])?;
+        return Ok(None);
+    }
+    if let Ok(blob) = serde_json::from_slice::<SessionBlob>(&bytes) {
+        let idx = by_addr_key(&blob.address);
+        client.sadd(idx.as_bytes(), &[session_ref(token).as_bytes()])?;
+        client.srem(idx.as_bytes(), &[token.as_bytes()])?;
+    }
+    client.del(&[legacy.as_bytes()])?;
+    Ok(Some(bytes))
 }
 
 /// Axum middleware — extracts the session token from cookie, hits kevy,
