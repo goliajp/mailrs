@@ -59,3 +59,18 @@ pub const DEFAULT_CORE_RPC_PORT: u16 = 3300;
 /// All 4 processes (core/fastcore/webapi/sender/receiver-if-needed) must
 /// share the same value. Verified per request via `Authorization: Bearer`.
 pub const AUTH_SECRET_ENV: &str = "MAILRS_CORE_API_SECRET";
+
+/// The secret a core needs before it serves its RPC. Unset or blank is an
+/// error, not "no authentication": the RPC trusts the user named in each
+/// path, so a core reachable without the secret would answer for anyone.
+pub fn required_auth_secret() -> Result<String, String> {
+    match std::env::var(AUTH_SECRET_ENV) {
+        Ok(s) if !s.trim().is_empty() => Ok(s),
+        Ok(_) => Err(format!(
+            "{AUTH_SECRET_ENV} is blank; the core RPC is not served without it"
+        )),
+        Err(_) => Err(format!(
+            "{AUTH_SECRET_ENV} is not set; the core RPC is not served without it"
+        )),
+    }
+}
