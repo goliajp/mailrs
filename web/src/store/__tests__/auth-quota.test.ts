@@ -15,6 +15,7 @@ describe('the session must not lose to a cache', () => {
     address: 'a@b.com',
     display_name: 'A',
     is_admin: false,
+    is_super: false,
     permissions: [],
   }
 

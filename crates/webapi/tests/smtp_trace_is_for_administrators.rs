@@ -1,6 +1,7 @@
 //! `/api/events/smtp` is every SMTP session on the server: peer addresses,
 //! envelope senders and recipients of everybody's mail. Any signed-in user
-//! could subscribe to it; only an administrator may.
+//! could subscribe to it, then any administrator; only a super
+//! administrator may.
 
 mod live;
 
@@ -9,6 +10,7 @@ use tokio_tungstenite::tungstenite::{Error, client::IntoClientRequest, http::Hea
 const KEVY: &str = "mem://webapi-smtp-trace-is-for-administrators";
 const ADMIN: &str = "admin@example.test";
 const USER: &str = "user@example.test";
+const SUPER: &str = "root@example.test";
 const ORIGIN: &str = "https://mail.example.test";
 
 /// The upgrade's HTTP status, with the session in the cookie the way a
@@ -55,11 +57,31 @@ async fn only_admins() {
     let live = live::start(KEVY).await;
     live.add_account(ADMIN, "pw").await;
     live.add_account(USER, "pw").await;
+    live.add_account(SUPER, "pw").await;
     live.grant(ADMIN, "admin.queue").await;
+    live.mailbox
+        .upsert_permissions(
+            SUPER,
+            &serde_json::json!({
+                "address": SUPER, "permissions": [], "groups": [], "is_super": true, "send_as": [],
+            })
+            .to_string(),
+        )
+        .expect("super");
     let admin = live.login(ADMIN, "pw").await;
     let user = live.login(USER, "pw").await;
+    let root = live.login(SUPER, "pw").await;
 
     assert_eq!(upgrade_status(&live, &user).await, 403, "a plain session");
-    assert_eq!(upgrade_status(&live, &admin).await, 101, "an administrator");
+    assert_eq!(
+        upgrade_status(&live, &admin).await,
+        403,
+        "an administrator with one admin.* permission"
+    );
+    assert_eq!(
+        upgrade_status(&live, &root).await,
+        101,
+        "a super administrator"
+    );
     assert_eq!(upgrade_status(&live, "not-a-session").await, 401);
 }

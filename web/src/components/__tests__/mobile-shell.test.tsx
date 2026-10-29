@@ -9,13 +9,14 @@ import { authAtom } from '@/store/auth'
 
 vi.mock('@/hooks/use-current-mail-filters', () => ({ useCurrentUnreadCount: () => 0 }))
 
-function renderShell(isAdmin = false) {
+function renderShell(isAdmin = false, isSuper = isAdmin) {
   const store = createStore()
   store.set(authAtom, {
     accessible_domains: [],
     address: 'u@example.com',
     display_name: 'U',
     is_admin: isAdmin,
+    is_super: isSuper,
     permissions: [],
   })
   return render(
@@ -87,8 +88,8 @@ describe('MobileShell height', () => {
   })
 })
 
-// the server refuses the admin console to everyone else; offering the tab
-// only leads to an error page
+// the server pages show other people's mail traffic, so the tab is for a
+// super administrator only; offering it to anyone else leads to an error page
 describe('MobileShell admin tab', () => {
   it('is not offered to an account that is not an administrator', () => {
     withViewport(844)
@@ -97,9 +98,15 @@ describe('MobileShell admin tab', () => {
     expect(screen.getByText('Settings')).toBeTruthy()
   })
 
-  it('is offered to an administrator', () => {
+  it('is not offered to an administrator who is not a super administrator', () => {
     withViewport(844)
-    renderShell(true)
+    renderShell(true, false)
+    expect(screen.queryByText('Admin')).toBeNull()
+  })
+
+  it('is offered to a super administrator', () => {
+    withViewport(844)
+    renderShell(true, true)
     expect(screen.getByText('Admin')).toBeTruthy()
   })
 })

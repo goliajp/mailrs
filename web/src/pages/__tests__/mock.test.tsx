@@ -44,6 +44,7 @@ function renderAt(url: string, permissions: string[] = []) {
     address: 'lihao@golia.jp',
     display_name: 'L',
     is_admin: permissions.some((p) => p === '*' || p.startsWith('admin.')),
+    is_super: false,
     permissions,
   })
   return render(

@@ -34,6 +34,7 @@ export const authMeSchema = z.object({
   address: z.string(),
   display_name: z.string().default(''),
   is_admin: z.boolean().default(false),
+  is_super: z.boolean().default(false),
   permissions: z.array(z.string()).default([]),
 })
 
@@ -50,6 +51,7 @@ const loginSuccessSchema = z.object({
   address: z.string(),
   display_name: z.string().default(''),
   is_admin: z.boolean().default(false),
+  is_super: z.boolean().default(false),
   permissions: z.array(z.string()).default([]),
   requires_totp: z.literal(false).optional(),
   token: z.string(),

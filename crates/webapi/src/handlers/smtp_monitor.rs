@@ -69,7 +69,7 @@ pub async fn ws_smtp_trace(
     if !crate::session::websocket_origin_ok(&headers, source) {
         return Err(StatusCode::FORBIDDEN);
     }
-    crate::handlers::kevy_util::require_admin(&state, &user).await?;
+    crate::handlers::kevy_util::require_super(&state, &user).await?;
     let bus = get_or_init_trace_bus(state);
     Ok(ws.on_upgrade(move |socket| handle_ws(socket, bus)))
 }
