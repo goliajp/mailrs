@@ -61,10 +61,9 @@ impl StatsCache {
 pub async fn ws_smtp_trace(
     ws: WebSocketUpgrade,
     headers: axum::http::HeaderMap,
-    uri: axum::http::Uri,
     axum::extract::State(state): axum::extract::State<Arc<WebState>>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    let (user, source) = crate::session::resolve_session_user(&headers, &uri)
+    let (user, source) = crate::session::resolve_session_user(&headers)
         .await
         .ok_or(StatusCode::UNAUTHORIZED)?;
     if !crate::session::websocket_origin_ok(&headers, source) {

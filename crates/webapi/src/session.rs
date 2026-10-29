@@ -153,8 +153,7 @@ async fn resolve_agent_key(token: String) -> Option<AgentAuth> {
 /// not count: what asks this (linking a sign-in method) would turn a key
 /// into a way to sign in as its owner.
 pub async fn resolve_session_user_from_headers(headers: &HeaderMap) -> Option<String> {
-    let uri = axum::http::Uri::from_static("/mcp");
-    let token = extract_token(headers, &uri)?;
+    let token = extract_token(headers)?;
     if token.starts_with(AGENT_KEY_PREFIX) {
         return None;
     }
@@ -165,11 +164,8 @@ pub async fn resolve_session_user_from_headers(headers: &HeaderMap) -> Option<St
 /// does not cover, such as a WebSocket upgrade. Same token sources as the
 /// middleware; a browser sends the session cookie on a same-origin upgrade,
 /// so nothing has to be put in the URL. Agent keys do not count.
-pub async fn resolve_session_user(
-    headers: &HeaderMap,
-    uri: &axum::http::Uri,
-) -> Option<(String, TokenSource)> {
-    let (token, source) = extract_token_with_source(headers, uri)?;
+pub async fn resolve_session_user(headers: &HeaderMap) -> Option<(String, TokenSource)> {
+    let (token, source) = extract_token_with_source(headers)?;
     if token.starts_with(AGENT_KEY_PREFIX) {
         return None;
     }
@@ -193,8 +189,7 @@ pub fn websocket_origin_ok(headers: &HeaderMap, source: TokenSource) -> bool {
 /// `Authorization` header counts: no browser page uses MCP, and a cookie
 /// would let any page the user visits call it.
 pub async fn resolve_auth_from_headers(headers: &HeaderMap) -> Option<AgentAuth> {
-    let uri = axum::http::Uri::from_static("/mcp");
-    let (token, source) = extract_token_with_source(headers, &uri)?;
+    let (token, source) = extract_token_with_source(headers)?;
     if source != TokenSource::Header {
         return None;
     }
@@ -216,22 +211,19 @@ pub async fn resolve_auth_from_headers(headers: &HeaderMap) -> Option<AgentAuth>
 pub enum TokenSource {
     Cookie,
     Header,
-    Query,
 }
 
-fn extract_token(headers: &HeaderMap, uri: &axum::http::Uri) -> Option<String> {
-    extract_token_with_source(headers, uri).map(|(t, _)| t)
+fn extract_token(headers: &HeaderMap) -> Option<String> {
+    extract_token_with_source(headers).map(|(t, _)| t)
 }
 
-/// The token from an `Authorization: Bearer` header, the `mailrs_session`
-/// cookie, or the deprecated `?token=` query, in that order. A request with
+/// The token from an `Authorization: Bearer` header or the `mailrs_session`
+/// cookie, in that order. Never from the URL: a token there ends up in
+/// proxy logs, browser history and `Referer` headers. A request with
 /// an `Authorization` header is judged by it alone: a bad one is a 401 and
 /// never falls back to the cookie, or junk in the header would buy a
 /// cross-site request the cookie's authority without its CSRF check.
-fn extract_token_with_source(
-    headers: &HeaderMap,
-    uri: &axum::http::Uri,
-) -> Option<(String, TokenSource)> {
+fn extract_token_with_source(headers: &HeaderMap) -> Option<(String, TokenSource)> {
     if let Some(auth) = headers.get(axum::http::header::AUTHORIZATION) {
         let v = auth.to_str().ok()?.strip_prefix("Bearer ")?.trim();
         return Some((v.to_string(), TokenSource::Header));
@@ -248,35 +240,7 @@ fn extract_token_with_source(
             }
         }
     }
-    if let Some(q) = uri.query() {
-        for pair in q.split('&') {
-            if let Some(v) = pair.strip_prefix("token=") {
-                // Percent-decode via url crate — session tokens are hex so
-                // in practice decode is a noop, but this normalizes anyway.
-                return percent_decode(v).map(|t| (t, TokenSource::Query));
-            }
-        }
-    }
     None
-}
-
-fn percent_decode(s: &str) -> Option<String> {
-    let mut out = String::with_capacity(s.len());
-    let mut iter = s.bytes();
-    while let Some(b) = iter.next() {
-        if b == b'%' {
-            let h1 = iter.next()?;
-            let h2 = iter.next()?;
-            let hex = format!("{}{}", h1 as char, h2 as char);
-            let byte = u8::from_str_radix(&hex, 16).ok()?;
-            out.push(byte as char);
-        } else if b == b'+' {
-            out.push(' ');
-        } else {
-            out.push(b as char);
-        }
-    }
-    Some(out)
 }
 
 /// Kevy TTL applied to the session key on every authenticated hit —
@@ -364,7 +328,7 @@ pub async fn session_auth_middleware(
     }
     let _ = &state; // reserved for future enrichment via core_client
 
-    let (token, token_source) = match extract_token_with_source(req.headers(), req.uri()) {
+    let (token, token_source) = match extract_token_with_source(req.headers()) {
         Some(t) => t,
         None => {
             tracing::debug!(reason = "no_token", path = %req.uri().path(), "request rejected");
@@ -496,34 +460,25 @@ mod tests {
     #[test]
     fn parses_lone_session_cookie() {
         let m = h("mailrs_session=abc123");
-        assert_eq!(
-            extract_token(&m, &axum::http::Uri::from_static("/")).as_deref(),
-            Some("abc123")
-        );
+        assert_eq!(extract_token(&m).as_deref(), Some("abc123"));
     }
 
     #[test]
     fn parses_session_among_others() {
         let m = h("foo=bar; mailrs_session=xyz; baz=qux");
-        assert_eq!(
-            extract_token(&m, &axum::http::Uri::from_static("/")).as_deref(),
-            Some("xyz")
-        );
+        assert_eq!(extract_token(&m).as_deref(), Some("xyz"));
     }
 
     #[test]
     fn missing_cookie_returns_none() {
         let m = h("foo=bar");
-        assert!(extract_token(&m, &axum::http::Uri::from_static("/")).is_none());
+        assert!(extract_token(&m).is_none());
     }
 
     #[test]
     fn empty_session_value_yields_empty_string() {
         let m = h("mailrs_session=");
-        assert_eq!(
-            extract_token(&m, &axum::http::Uri::from_static("/")).as_deref(),
-            Some("")
-        );
+        assert_eq!(extract_token(&m).as_deref(), Some(""));
     }
 
     #[test]
@@ -548,7 +503,7 @@ mod tests {
             axum::http::header::AUTHORIZATION,
             HeaderValue::from_static("Bearer mk_abcdef0123456789"),
         );
-        let token = extract_token(&m, &axum::http::Uri::from_static("/")).unwrap();
+        let token = extract_token(&m).unwrap();
         assert!(token.starts_with(AGENT_KEY_PREFIX));
     }
 }

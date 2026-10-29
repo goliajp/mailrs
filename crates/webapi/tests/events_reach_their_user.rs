@@ -15,11 +15,14 @@ type Socket =
     tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 
 async fn connect(live: &live::Live, token: &str) -> Socket {
-    let url = format!(
-        "{}/api/events?token={token}",
-        live.base.replacen("http", "ws", 1)
+    use tokio_tungstenite::tungstenite::client::IntoClientRequest as _;
+    let url = format!("{}/api/events", live.base.replacen("http", "ws", 1));
+    let mut req = url.into_client_request().expect("request");
+    req.headers_mut().insert(
+        "authorization",
+        format!("Bearer {token}").parse().expect("header"),
     );
-    tokio_tungstenite::connect_async(url).await.expect("ws").0
+    tokio_tungstenite::connect_async(req).await.expect("ws").0
 }
 
 /// An event on webapi's bus, as the feed consumer puts it there from what
