@@ -161,6 +161,7 @@ function makeStore() {
     address: 'user@example.com',
     display_name: 'Test User',
     is_admin: false,
+    is_super: false,
     permissions: [],
   })
   return store

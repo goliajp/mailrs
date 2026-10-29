@@ -33,6 +33,7 @@ const profile = {
   address: 'a@x.com',
   display_name: 'A',
   is_admin: false,
+  is_super: false,
   permissions: [],
 }
 

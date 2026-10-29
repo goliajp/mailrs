@@ -33,6 +33,8 @@ pub struct LoginResponse {
     pub display_name: String,
     pub permissions: Vec<String>,
     pub is_admin: bool,
+    /// Holds `*`: what the monitor and the server pages need.
+    pub is_super: bool,
     /// Session token, the same value as the `mailrs_session` cookie. The
     /// apps send it as `Authorization: Bearer`; the web client ignores it
     /// and relies on the HttpOnly cookie.
@@ -275,9 +277,11 @@ pub(crate) async fn issue_session(
     let is_admin = perms
         .as_ref()
         .is_some_and(crate::handlers::kevy_util::is_admin);
+    let is_super = perms.as_ref().is_some_and(|p| p.is_super);
     let perms_vec = perms.map(|p| p.permissions).unwrap_or_default();
     let body = Json(LoginResponse {
         is_admin,
+        is_super,
         address,
         display_name: display,
         permissions: perms_vec,

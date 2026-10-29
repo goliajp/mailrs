@@ -36,6 +36,8 @@ pub struct AuthMeResponse {
     pub accessible_domains: Vec<String>,
     pub send_as: Vec<String>,
     pub is_admin: bool,
+    /// Holds `*`: what the monitor and the server pages need.
+    pub is_super: bool,
 }
 
 /// GET /api/auth/me
@@ -57,6 +59,7 @@ pub async fn auth_me(
     let is_admin = crate::handlers::kevy_util::is_admin(&perms);
     Ok(Json(AuthMeResponse {
         is_admin,
+        is_super: perms.is_super,
         address: perms.address.clone(),
         display_name,
         permissions: perms.permissions,
