@@ -56,6 +56,12 @@ impl KevyMailboxStore {
             Ok(exists)
         });
         let exists = found?;
+        // Only somebody in the thread speaks for its shared copies: these
+        // wires are every owner's, and a thread id alone must not let a
+        // stranger mark them seen.
+        if !self.is_thread_participant(user, thread_id)? {
+            return Ok(exists);
+        }
         // Sink the \Seen fact into every per-message wire too. The
         // thread-hash zero above is a cache; the wires are what
         // self-heal recounts and what a rethread merge recounts from —
@@ -579,6 +585,34 @@ mod tests {
         assert_eq!(changed, Some(("new".to_string(), 0)));
         assert_eq!(unread(), 1);
         assert_eq!(s.mark_newest_message_unseen(u, "t1").unwrap(), None);
+    }
+
+    #[test]
+    fn only_a_participant_marks_the_shared_copies_seen() {
+        let s = store();
+        s.record_message_arrival(&arr("t1", "a@x.com", true))
+            .unwrap();
+        s.upsert_message("t1", "m1", 100, br#"{"message_id":"m1","flags":0}"#)
+            .unwrap();
+        let shared_flags = || {
+            let bytes = s
+                .store()
+                .get(keys::message_blob("m1").as_bytes())
+                .unwrap()
+                .unwrap();
+            serde_json::from_slice::<serde_json::Value>(&bytes).unwrap()["flags"]
+                .as_u64()
+                .unwrap()
+        };
+
+        s.mark_seen("stranger@x.com", "t1").unwrap();
+        assert_eq!(shared_flags(), 0, "a stranger marked the owner's mail seen");
+
+        s.mark_seen("a@x.com", "t1").unwrap();
+        assert_ne!(
+            shared_flags() & u64::from(mailrs_mailbox::types::FLAG_SEEN),
+            0
+        );
     }
 
     #[test]
