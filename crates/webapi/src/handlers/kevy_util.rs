@@ -38,6 +38,21 @@ pub async fn require_admin(state: &Arc<WebState>, user: &str) -> Result<(), Stat
     }
 }
 
+/// Only a super administrator (the `*` permission): for what shows other
+/// people's mail traffic, such as the SMTP trace, which no single admin.*
+/// permission covers.
+pub async fn require_super(state: &Arc<WebState>, user: &str) -> Result<(), StatusCode> {
+    let perms = state
+        .core
+        .effective_permissions(user)
+        .await
+        .map_err(|_| StatusCode::FORBIDDEN)?;
+    match perms.is_super {
+        true => Ok(()),
+        false => Err(StatusCode::FORBIDDEN),
+    }
+}
+
 /// The one definition of an administrator. The login response and
 /// `/auth/me` report it, so the client hides what this would refuse
 /// instead of keeping a second rule of its own.

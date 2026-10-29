@@ -49,6 +49,17 @@ final class SecurityFlowTests: MailrsUITestCase {
         target.typeText("lihao@golia.jp")
         app.buttons["Add"].tap()
 
+        // a wrong password says so and changes nothing
+        confirmPassword(app, password: "wrong-password")
+        XCTAssertTrue(app.staticTexts["text.confirmMessage"].waitForExistence(timeout: 10),
+                      "a refused password said nothing")
+        XCTAssertFalse(recordedWrites().contains("POST /api/admin/aliases"),
+                       "the alias was created without a confirmation")
+        let retry = app.secureTextFields["field.confirmPassword"]
+        retry.tap()
+        retry.typeText("anything")
+        app.buttons["button.confirmPassword"].tap()
+
         XCTAssertTrue(app.staticTexts["press@golia.jp"].waitForExistence(timeout: 10),
                       "the new alias never came back from the server")
         let writes = recordedWrites()
@@ -94,6 +105,7 @@ final class SecurityFlowTests: MailrsUITestCase {
         // The scope list is the server's catalogue, not a copy.
         app.buttons["mail.read"].tap()
         app.buttons["Create"].tap()
+        confirmPassword(app)
 
         XCTAssertTrue(app.staticTexts["Copy this key now"].waitForExistence(timeout: 10),
                       "the secret was never shown")

@@ -21,6 +21,7 @@ export function useRefreshProfile(): void {
           address: me.address,
           display_name: me.display_name,
           is_admin: me.is_admin,
+          is_super: me.is_super,
           permissions: me.permissions,
         })
       )
