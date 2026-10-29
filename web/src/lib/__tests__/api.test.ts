@@ -5,14 +5,12 @@ import {
   deleteJson,
   fetchBlob,
   fetchJson,
-  getThreadReactions,
   listDrafts,
   postJson,
   putJson,
   recordFeedback,
   saveDraft,
   snoozeConversation,
-  toggleReaction,
   unsnoozeConversation,
 } from '../api'
 
@@ -238,37 +236,6 @@ describe('deleteDraft', () => {
   })
 })
 
-describe('getThreadReactions', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
-  it('fetches reactions and returns the reactions record', async () => {
-    // v2.1 §10-audit (2026-07-08): backend `ReactionsResponse` is a
-    // flat list `{reactions: [{message_uid, emoji, count, me}, ...]}`
-    // — the wire adapter groups by `message_uid` client-side.
-    vi.stubGlobal(
-      'fetch',
-      makeFetchMock(200, {
-        reactions: [{ count: 2, emoji: '👍', me: true, message_uid: 1 }],
-      })
-    )
-    const result = await getThreadReactions('thread-abc')
-    expect(result).toEqual({
-      1: [{ count: 2, emoji: '👍', me: true, message_uid: 1 }],
-    })
-    expect(vi.mocked(fetch).mock.calls[0][0]).toBe('/api/conversations/thread-abc/reactions')
-  })
-
-  it('encodes threadId in URL', async () => {
-    vi.stubGlobal('fetch', makeFetchMock(200, { reactions: [] }))
-    await getThreadReactions('thread with spaces')
-    expect(vi.mocked(fetch).mock.calls[0][0]).toBe(
-      '/api/conversations/thread%20with%20spaces/reactions'
-    )
-  })
-})
-
 describe('listDrafts', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
@@ -377,22 +344,6 @@ describe('snoozeConversation', () => {
     expect(JSON.parse(opts.body as string)).toEqual({
       snoozed_until: 1_764_579_600,
     })
-  })
-})
-
-describe('toggleReaction', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
-  it('sends PUT with emoji and returns reactions array', async () => {
-    const reactions = [{ count: 1, emoji: '👍', me: true }]
-    vi.stubGlobal('fetch', makeFetchMock(200, { reactions }))
-    const result = await toggleReaction('thread-1', 5, '👍')
-    expect(result).toEqual(reactions)
-    const call = vi.mocked(fetch).mock.calls[0]
-    expect(call[0]).toBe('/api/conversations/thread-1/messages/5/reactions')
-    expect((call[1] as RequestInit).method).toBe('PUT')
   })
 })
 

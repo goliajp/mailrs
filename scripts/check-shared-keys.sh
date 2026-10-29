@@ -31,7 +31,6 @@ aliases_by_(domain|target);crates/alias-store/src/keys.rs
 admin:(audit_log|system-config|greylist:local-lists);crates/core-sidestate/src/keys/admin.rs
 admin:groups;crates/core-sidestate/src/families/permission_groups.rs
 (drafts|signatures|templates):;crates/core-sidestate/src/families/prefs.rs
-reactions(_index)?:;crates/core-sidestate/src/families/admin_state.rs
 calendar_events?:;crates/core-sidestate/src/families/calendar_events/mod.rs
 push:tokens:;crates/core-sidestate/src/keys/push.rs
 session:;crates/core-sidestate/src/keys/session.rs

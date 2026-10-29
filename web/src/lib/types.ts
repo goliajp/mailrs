@@ -204,12 +204,6 @@ export type QuotaInfo = {
   quota_bytes: number
 }
 
-export type ReactionSummary = {
-  count: number
-  emoji: string
-  me: boolean
-}
-
 export type Reservation = {
   arrival_airport?: string
   departure_airport?: string

@@ -303,8 +303,9 @@ pub async fn cancel_pending_send(
         return Err(StatusCode::CONFLICT);
     }
     let s = message_id.clone();
+    let u = user.clone();
     let removed =
-        crate::handlers::kevy_util::with_kevy(move |c| Ok(outbound::drop_queued_jobs(c, &s)))?;
+        crate::handlers::kevy_util::with_kevy(move |c| Ok(outbound::drop_queued_jobs(c, &s, &u)))?;
     if removed.is_empty() {
         return Err(StatusCode::CONFLICT);
     }

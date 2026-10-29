@@ -1,10 +1,10 @@
 /**
- * Mail write / drafts / reactions / feedback schemas — v2.1 §9
+ * Mail write / drafts / feedback schemas — v2.1 §9
  * batch 3 (2026-07-08), audit-repaired 2026-07-08 (§10-audit).
  *
  * Every list/read shape here is verified against the Rust handler
  * signature in `crates/webapi/src/handlers/{prefs,mail,complete}.rs`
- * and the `DraftWire` / `SaveDraftResponse` / `ReactionsResponse`
+ * and the `DraftWire` / `SaveDraftResponse`
  * structs in `crates/core-api/src/method/admin.rs`.
  */
 
@@ -136,36 +136,6 @@ export const feedbackResultSchema = z
   .passthrough()
 
 export type WireFeedbackResult = z.infer<typeof feedbackResultSchema>
-
-// ── conversation reactions ────────────────────────────────────────
-//
-// Backend `ReactionsResponse` = `{reactions: Vec<ReactionAggregateRow>}`
-// where each row is `{message_uid: i64, emoji, count: i64, me: bool}`.
-// This is a FLAT list — the earlier `threadReactionsSchema` used
-// a per-uid map (`z.record`) which never matched, so every
-// `wireGetThreadReactions` failed validation.
-
-export const reactionSummarySchema = z
-  .object({
-    count: z.number().int().min(0).default(0),
-    emoji: z.string(),
-    me: z.boolean().default(false),
-    message_uid: z.number().int().optional(),
-  })
-  .passthrough()
-
-export type WireReactionSummary = z.infer<typeof reactionSummarySchema>
-
-export const reactionsListSchema = z
-  .object({
-    reactions: z.array(reactionSummarySchema).default([]),
-  })
-  .passthrough()
-
-/** Same wire shape as `reactionsListSchema` — the "thread"-scoped
- *  endpoint returns a flat list including `message_uid` per row.
- *  Callers group by `message_uid` client-side if needed. */
-export const threadReactionsSchema = reactionsListSchema
 
 /**
  * Backend: `UnsubscribeResult` in

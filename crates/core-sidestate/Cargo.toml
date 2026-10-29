@@ -2,7 +2,7 @@
 name = "mailrs-core-sidestate"
 version = "0.0.1"
 edition = "2024"
-description = "Shared network-kevy side-state handlers (drafts/signatures/templates/reactions/webhooks/audit/contacts/analysis/outbound/groups/apikeys/sieve) mounted identically by both mailrs cores (fastcore + pg-core) so their contract behaviour is byte-identical. v2 point 3."
+description = "Shared network-kevy side-state handlers (drafts/signatures/templates/webhooks/audit/contacts/analysis/outbound/groups/apikeys/sieve) mounted identically by both mailrs cores (fastcore + pg-core) so their contract behaviour is byte-identical. v2 point 3."
 license = "Apache-2.0 OR MIT"
 publish = false
 

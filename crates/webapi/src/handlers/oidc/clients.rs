@@ -5,7 +5,6 @@ use axum::extract::Extension;
 use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
 
-use super::*;
 use crate::handlers::conversations::AuthedUser;
 use crate::handlers::kevy_util::with_kevy;
 
@@ -16,23 +15,6 @@ pub struct OauthClient {
     pub redirect_uri: String,
     pub scopes: Vec<String>,
     pub created_at: i64,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct CreateOauthClientRequest {
-    pub name: String,
-    pub redirect_uri: String,
-    #[serde(default)]
-    pub scopes: Vec<String>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct CreateOauthClientResponse {
-    pub client_id: String,
-    pub client_secret: String,
-    pub name: String,
-    pub redirect_uri: String,
-    pub scopes: Vec<String>,
 }
 
 /// GET /api/admin/oauth-clients
@@ -81,42 +63,25 @@ pub async fn list_oauth_clients(
     Json(serde_json::json!({ "items": items }))
 }
 
-/// POST /api/admin/oauth-clients
+/// POST /api/admin/oauth-clients — refused.
+///
+/// `/oauth/authorize` issues a code for the signed-in user without asking
+/// them to approve the client. With a client registered, any page the user
+/// visits could send them through it and come back holding their identity.
+/// Registration stays closed until that approval step exists, so a client
+/// cannot be connected to the gap first.
 pub async fn create_oauth_client(
     Extension(_user): Extension<AuthedUser>,
-    Json(req): Json<CreateOauthClientRequest>,
-) -> Json<CreateOauthClientResponse> {
-    let client_id = format!("mail-{}", random_hex(6));
-    let client_secret = random_hex(32);
-    let key = format!("oidc:client:{client_id}");
-    let scopes_csv = req.scopes.join(",");
-    let now = now_secs();
-    let cid_c = client_id.clone();
-    let secret_c = client_secret.clone();
-    let name_c = req.name.clone();
-    let ru_c = req.redirect_uri.clone();
-    let scopes_c = scopes_csv.clone();
-    let _ = with_kevy(move |c| {
-        c.hset(
-            key.as_bytes(),
-            &[
-                (b"name" as &[u8], name_c.as_bytes()),
-                (b"redirect_uri", ru_c.as_bytes()),
-                (b"secret", secret_c.as_bytes()),
-                (b"scopes", scopes_c.as_bytes()),
-                (b"created_at", now.to_string().as_bytes()),
-            ],
-        )?;
-        c.sadd(b"oidc:clients:index", &[cid_c.as_bytes()])?;
-        Ok(())
-    });
-    Json(CreateOauthClientResponse {
-        client_id,
-        client_secret,
-        name: req.name,
-        redirect_uri: req.redirect_uri,
-        scopes: req.scopes,
-    })
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    (
+        StatusCode::FORBIDDEN,
+        Json(serde_json::json!({
+            "error": "oauth_client_registration_closed",
+            "detail": "Registering OAuth clients is closed until /oauth/authorize asks the user to approve each client.",
+        })),
+    )
+        .into_response()
 }
 
 /// DELETE /api/admin/oauth-clients/{client_id}

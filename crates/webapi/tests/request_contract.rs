@@ -194,12 +194,6 @@ fn recovery_email_body_matches() {
 }
 
 #[test]
-fn reaction_toggle_body_matches() {
-    let v: mailrs_core_api::method::admin::ToggleReactionRequest = parse("reaction-toggle");
-    assert_eq!(v.emoji, "\u{1f44d}");
-}
-
-#[test]
 fn totp_code_body_matches() {
     let v: handlers::auth_recovery::TotpCodeRequest = parse("totp-code");
     assert_eq!(v.code, "123456");
@@ -296,7 +290,6 @@ fn every_fixture_has_a_test() {
         "mock-send",
         "mock-settings-save",
         "mock-webhook-set",
-        "reaction-toggle",
         "recovery-email-set",
         "reset-password",
         "send",

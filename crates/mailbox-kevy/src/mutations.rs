@@ -98,10 +98,18 @@ impl KevyMailboxStore {
         bucket: keys::Bucket,
     ) -> io::Result<bool> {
         let thread_key = keys::thread(thread_id);
+        let user_key = keys::thread_user(user, thread_id);
         let new_category = bucket.category().as_bytes();
         self.store()
             .atomic(|ctx| {
                 if !ctx.hexists(thread_key.as_bytes(), keys::THREAD_EXISTS_FIELD)? {
+                    return Ok(false);
+                }
+                // Only somebody in the thread files it. The shared row's
+                // category is written below and flows into every other
+                // owner's row, so a stranger who knew the id could
+                // otherwise move other people's mail.
+                if !ctx.hexists(user_key.as_bytes(), b"tid")? {
                     return Ok(false);
                 }
                 // Moving a thread into a folder un-archives it.
@@ -119,7 +127,7 @@ impl KevyMailboxStore {
                     &[(b"category" as &[u8], new_category), (b"archived", b"0")],
                 )?;
                 ctx.hset(
-                    keys::thread_user(user, thread_id).as_bytes(),
+                    user_key.as_bytes(),
                     &[
                         (b"bucket".as_slice(), bucket.name().as_bytes()),
                         (b"category".as_slice(), new_category),

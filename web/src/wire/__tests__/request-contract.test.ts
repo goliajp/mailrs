@@ -254,16 +254,6 @@ describe('request bodies match the shared contract', () => {
     expect(body).toEqual(fixture('agent-key-create'))
   })
 
-  /**
-   * The emoji is the key. One that arrives mangled is a reaction nobody can
-   * remove, because removing it sends the same string back.
-   */
-  it('reaction toggle', async () => {
-    const { wireToggleReaction } = await import('../endpoints/mail')
-    const body = await bodyOf(() => wireToggleReaction('t1', 42, '\u{1F44D}'))
-    expect(body).toEqual(fixture('reaction-toggle'))
-  })
-
   it('account update', async () => {
     const { adminPut } = await import('../endpoints/admin')
     const address = encodeURIComponent('qa@golia.jp')

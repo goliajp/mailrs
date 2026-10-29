@@ -69,11 +69,21 @@ pub async fn release_quarantined(
 
 /// GET /v1/users/{user}/messages/{message_id}/fraud-verdict — `null` for a
 /// message nobody suspected, which is not the same as one examined and
-/// cleared.
+/// cleared. Another account's message is a 404: the verdict is stored by
+/// Message-ID, not per recipient.
 pub async fn fraud_verdict(
     State(state): State<Arc<CoreRpcState>>,
-    Path((_user, message_id)): Path<(String, String)>,
+    Path((user, message_id)): Path<(String, String)>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
+    state
+        .mailbox
+        .find_message_by_message_id(&user, &message_id)
+        .await
+        .map_err(|e| {
+            tracing::warn!(error = %e, %message_id, "reading the message's owner failed");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+        .ok_or(StatusCode::NOT_FOUND)?;
     let verdict = state
         .mailbox
         .fraud_verdict(&message_id)

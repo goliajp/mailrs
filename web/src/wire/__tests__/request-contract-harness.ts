@@ -40,7 +40,7 @@ beforeEach(() => {
         path: input,
       }
       return Promise.resolve(
-        new Response(JSON.stringify({ items: [], reactions: [], success: true }), {
+        new Response(JSON.stringify({ items: [], success: true }), {
           headers: { 'content-type': 'application/json' },
           status: 200,
         })

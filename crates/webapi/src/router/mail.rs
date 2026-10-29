@@ -9,7 +9,6 @@ use crate::*;
 use std::sync::Arc;
 
 pub(super) fn conversation_routes() -> axum::Router<Arc<WebState>> {
-    use crate::handlers;
     use crate::handlers::conversations as c;
     use crate::handlers::quarantine as q;
     use axum::routing::{get, post, put};
@@ -83,14 +82,6 @@ pub(super) fn conversation_routes() -> axum::Router<Arc<WebState>> {
         .route(
             "/api/conversations/{thread_id}",
             get(c::get_thread_messages).delete(c::delete_thread),
-        )
-        .route(
-            "/api/conversations/{thread_id}/reactions",
-            get(handlers::mail::get_thread_reactions),
-        )
-        .route(
-            "/api/conversations/{thread_id}/messages/{uid}/reactions",
-            put(handlers::mail::toggle_reaction),
         )
 }
 

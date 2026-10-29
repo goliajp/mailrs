@@ -3,7 +3,7 @@
 //! Only the SWITCHABLE mail-store families live here (conversations /
 //! mailbox / message / thread / admin accounts+aliases+domains). The
 //! shared network-kevy side-state families (drafts/signatures/templates/
-//! reactions/webhooks/audit/contacts/analysis/outbound/groups/api-keys/
+//! webhooks/audit/contacts/analysis/outbound/groups/api-keys/
 //! sieve) are mounted from `mailrs-core-sidestate` so both cores serve
 //! them from the same network kevy — see `build_full_router`.
 

@@ -31,6 +31,12 @@ pub async fn run() {
         )
         .init();
 
+    // before the store is opened: a replay is minutes of work to throw away
+    if let Err(e) = mailrs_core_api::required_auth_secret() {
+        tracing::error!("{e}");
+        std::process::exit(2);
+    }
+
     let kevy_dir =
         std::env::var("MAILRS_KEVY_DATA_DIR").unwrap_or_else(|_| "/data/kevy-fastcore".to_string());
     let state = store::open_state(&kevy_dir);
