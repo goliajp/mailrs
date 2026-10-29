@@ -81,6 +81,7 @@ pub async fn spawn_receiving_server(
         runtime: Vec::new().into(),
         org_names: Vec::new(),
         org_name_allowed_domains: Vec::new(),
+        trusted_relays: Vec::new(),
         resolver: None,
         dnsbl_zones: Vec::new(),
         dnsbl_enabled: false,

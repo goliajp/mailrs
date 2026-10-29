@@ -42,6 +42,8 @@ pub struct ConnectionContext {
     pub org_names: Vec<String>,
     /// Domains allowed to carry that name.
     pub org_name_allowed_domains: Vec<String>,
+    /// See `config::ReceiverConfig::trusted_relays`.
+    pub trusted_relays: Vec<std::net::IpAddr>,
     pub resolver: Option<Arc<TokioResolver>>,
     pub dnsbl_zones: Vec<String>,
     pub dnsbl_enabled: bool,

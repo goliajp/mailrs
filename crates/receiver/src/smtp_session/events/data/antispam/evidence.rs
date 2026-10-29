@@ -52,12 +52,12 @@ pub(super) async fn receive_context(
         receive_ctx.recipient_whitelist = wl;
         receive_ctx.recipient_blacklist = bl;
     }
-    // A colleague's message is not junk. Mail that really comes from
-    // one of our own domains — proven by SPF or DKIM, never by the
-    // `From:` header alone — takes the same Accept as a whitelisted
-    // sender. Mail our own users *send* never reaches here: this whole
-    // function runs only for unauthenticated sessions.
+    // A colleague's message reaches us here too: the sender hands every
+    // local recipient to this MX over port 25. It is recognised by both
+    // the peer it came from and our own aligned signature, never by
+    // either alone (`ReceiveContext::trusted_relay`).
     receive_ctx.local_domains = ctx.runtime.local_domains.as_set();
+    receive_ctx.trusted_relay = ctx.trusted_relays.contains(&addr.ip());
     receive_ctx
 }
 
