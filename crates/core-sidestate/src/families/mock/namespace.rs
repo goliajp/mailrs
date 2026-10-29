@@ -83,21 +83,74 @@ pub fn get_namespace(conn: &mut Connection, name: &str) -> MockResult<Option<Nam
     Ok(Some(ns))
 }
 
-/// The namespaces `owner` owns, or every namespace when `owner` is `None`.
+/// A namespace somebody may use: its owner or an administrator
+/// ([`namespace_for`]), or whoever holds its SMTP token
+/// ([`namespace_by_token`]). The reads and writes made on somebody's behalf
+/// take one, so none of them can be reached with a bare name; delivery,
+/// sweeping and token checks act for nobody and go by name.
+#[derive(Debug, Clone)]
+pub struct Usable(Namespace);
+
+impl Usable {
+    pub fn name(&self) -> &str {
+        &self.0.name
+    }
+
+    pub fn namespace(&self) -> &Namespace {
+        &self.0
+    }
+
+    pub fn into_namespace(self) -> Namespace {
+        self.0
+    }
+}
+
+#[cfg(test)]
+impl Usable {
+    /// For the store's own tests, which exercise reads and writes on
+    /// namespaces they never created.
+    pub(super) fn named(name: &str) -> Self {
+        Usable(Namespace {
+            name: name.to_string(),
+            owner: String::new(),
+            created_at: 0,
+            messages: 0,
+            dropped: 0,
+            smtp_enabled: false,
+            webhook_url: None,
+        })
+    }
+}
+
 /// The namespace `name`, when `caller` may use it: its owner, or an
 /// administrator. Anyone else is told it does not exist, so a name cannot
-/// be probed for. Every REST and MCP entry point asks this, never
-/// `get_namespace` directly.
+/// be probed for.
 pub fn namespace_for(
     conn: &mut Connection,
     name: &str,
     caller: &str,
     caller_is_admin: bool,
-) -> MockResult<Option<Namespace>> {
+) -> MockResult<Option<Usable>> {
     let found = get_namespace(conn, name)?;
-    Ok(found.filter(|ns| caller_is_admin || ns.owner.eq_ignore_ascii_case(caller)))
+    Ok(found
+        .filter(|ns| caller_is_admin || ns.owner.eq_ignore_ascii_case(caller))
+        .map(Usable))
 }
 
+/// The namespace `name`, when `token` is its SMTP token: how a mail client
+/// signed in to it over IMAP reaches its messages.
+pub fn namespace_by_token(
+    conn: &mut Connection,
+    name: &str,
+    token: &str,
+) -> MockResult<Option<Usable>> {
+    if !verify_smtp_token(conn, name, token)? {
+        return Ok(None);
+    }
+    Ok(get_namespace(conn, name)?.map(Usable))
+}
+
+/// The namespaces `owner` owns, or every namespace when `owner` is `None`.
 pub fn list_namespaces(conn: &mut Connection, owner: Option<&str>) -> MockResult<Vec<Namespace>> {
     let names = match owner {
         Some(o) => conn.smembers(owner_key(o).as_bytes())?,
@@ -114,11 +167,12 @@ pub fn list_namespaces(conn: &mut Connection, owner: Option<&str>) -> MockResult
 }
 
 /// Remove `name`, its messages and their files.
-pub fn delete_namespace(conn: &mut Connection, root: &Path, name: &str) -> MockResult<()> {
+pub fn delete_namespace(conn: &mut Connection, root: &Path, usable: &Usable) -> MockResult<()> {
+    let name = usable.name();
     let Some(ns) = get_namespace(conn, name)? else {
         return Err(MockError::NotFound);
     };
-    clear_webhook(conn, name)?;
+    clear_webhook(conn, usable)?;
     let ids = conn.zrange(msgs_key(name).as_bytes(), 0, -1)?;
     for id in &ids {
         conn.del(&[msg_key(&utf8(id.clone())).as_bytes()])?;
@@ -176,7 +230,8 @@ fn hash_token(token: &str) -> String {
 
 /// Give the namespace a new SMTP password, replacing any earlier one, and
 /// return it. Only its hash is kept.
-pub fn rotate_smtp_token(conn: &mut Connection, name: &str) -> MockResult<String> {
+pub fn rotate_smtp_token(conn: &mut Connection, usable: &Usable) -> MockResult<String> {
+    let name = usable.name();
     let mut bytes = [0u8; 32];
     rand_core::RngCore::fill_bytes(&mut rand_core::OsRng, &mut bytes);
     let token: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
@@ -201,7 +256,13 @@ pub fn verify_smtp_token(conn: &mut Connection, name: &str, token: &str) -> Mock
 
 /// Note when `tag` was handed out, so waiting for its first message can
 /// start from then rather than from the moment the wait began.
-pub fn record_minted(conn: &mut Connection, ns: &str, tag: &str, at_ms: i64) -> MockResult<()> {
+pub fn record_minted(
+    conn: &mut Connection,
+    usable: &Usable,
+    tag: &str,
+    at_ms: i64,
+) -> MockResult<()> {
+    let ns = usable.name();
     let key = tags_key(ns);
     let retention = settings(conn)?.retention();
     conn.hset(
@@ -217,14 +278,16 @@ pub fn record_minted(conn: &mut Connection, ns: &str, tag: &str, at_ms: i64) -> 
     Ok(())
 }
 
-pub fn minted_at(conn: &mut Connection, ns: &str, tag: &str) -> MockResult<Option<i64>> {
+pub fn minted_at(conn: &mut Connection, usable: &Usable, tag: &str) -> MockResult<Option<i64>> {
+    let ns = usable.name();
     Ok(conn
         .hget(tags_key(ns).as_bytes(), tag.as_bytes())?
         .and_then(|v| utf8(v).parse().ok()))
 }
 
 /// The highest IMAP UID handed out in the namespace; 0 before its first message.
-pub fn last_uid(conn: &mut Connection, ns: &str) -> MockResult<u32> {
+pub fn last_uid(conn: &mut Connection, usable: &Usable) -> MockResult<u32> {
+    let ns = usable.name();
     Ok(conn
         .get(uid_key(ns).as_bytes())?
         .and_then(|v| utf8(v).parse().ok())

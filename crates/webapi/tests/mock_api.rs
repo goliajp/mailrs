@@ -152,6 +152,61 @@ async fn a_namespace_receives_waits_reads_and_stays_its_owners() {
     let bob = user("bob@example.test");
     let hidden = messages::read_message(&st, &bob, "ann-app", &message.meta.id).await;
     assert_eq!(hidden.unwrap_err().status, 404);
+    // and so does every other thing done on somebody's behalf
+    let id = message.meta.id.as_str();
+    let all = || Filter {
+        limit: 5,
+        ..Default::default()
+    };
+    let refused = [
+        messages::list_messages(&st, &bob, "ann-app", all())
+            .await
+            .err()
+            .map(|e| e.status.as_u16()),
+        messages::latest(&st, &bob, "ann-app", all())
+            .await
+            .err()
+            .map(|e| e.status.as_u16()),
+        messages::read_raw(&st, &bob, "ann-app", id)
+            .await
+            .err()
+            .map(|e| e.status.as_u16()),
+        messages::wait_for_message(&st, &bob, "ann-app", all(), Some(Duration::from_millis(1)))
+            .await
+            .err()
+            .map(|e| e.status.as_u16()),
+        messages::delete_messages(&st, &bob, "ann-app", Some(id), None)
+            .await
+            .err()
+            .map(|e| e.status.as_u16()),
+        messages::rotate_smtp_token(&st, &bob, "ann-app")
+            .await
+            .err()
+            .map(|e| e.status.as_u16()),
+        service::new_address(&st, &bob, "ann-app", None)
+            .await
+            .err()
+            .map(|e| e.status.as_u16()),
+        service::set_webhook(&st, &bob, "ann-app", "https://h.example/")
+            .await
+            .err()
+            .map(|e| e.status.as_u16()),
+        service::clear_webhook(&st, &bob, "ann-app")
+            .await
+            .err()
+            .map(|e| e.status.as_u16()),
+        service::delete_namespace(&st, &bob, "ann-app")
+            .await
+            .err()
+            .map(|e| e.status.as_u16()),
+    ];
+    assert!(refused.iter().all(|s| *s == Some(404)), "{refused:?}");
+    assert!(
+        messages::read_message(&st, &ann, "ann-app", id)
+            .await
+            .is_ok(),
+        "the owner's message is untouched"
+    );
     let scoped = MockCaller {
         user: "ann@example.test".into(),
         only_namespaces: Some(vec!["other".into()]),
