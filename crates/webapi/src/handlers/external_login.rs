@@ -181,8 +181,20 @@ async fn finish(
             return login_redirect("failed");
         }
     };
+    settle(&state, &headers, &key, identity).await
+}
 
-    let signed_in = crate::session::resolve_session_user_from_headers(&headers).await;
+/// What a sign-in does once the provider has vouched for `identity`: sign
+/// in the account it is linked to, link it to the signed-in account that
+/// has confirmed its password recently, or park it until a password is
+/// given. Apart from the callback so it can be tested without a provider.
+pub async fn settle(
+    state: &Arc<WebState>,
+    headers: &axum::http::HeaderMap,
+    key: &str,
+    identity: mailrs_oauth_client::ExternalIdentity,
+) -> axum::response::Response {
+    let signed_in = crate::session::resolve_session_user_from_headers(headers).await;
     let (iss, sub) = (identity.issuer.clone(), identity.subject.clone());
     let linked = with_kevy(move |c| {
         mailrs_core_sidestate::families::identity_link::account_for(c, &iss, &sub)

@@ -149,7 +149,10 @@ fn a_stranger_deletes_nothing() {
         );
     }
     assert!(s.get_thread("t-owned").unwrap().is_some());
-    assert!(s.get_thread("t-orphan").unwrap().is_some(), "the orphan's shared row went");
+    assert!(
+        s.get_thread("t-orphan").unwrap().is_some(),
+        "the orphan's shared row went"
+    );
     assert!(
         s.store()
             .get(crate::keys::message_blob("m2@x").as_bytes())
@@ -157,5 +160,8 @@ fn a_stranger_deletes_nothing() {
             .is_some(),
         "the orphan's message went"
     );
-    assert!(s.delete_thread("a@x.com", "t-owned").unwrap().0, "the owner still can");
+    assert!(
+        s.delete_thread("a@x.com", "t-owned").unwrap().0,
+        "the owner still can"
+    );
 }
