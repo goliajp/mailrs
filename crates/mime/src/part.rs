@@ -82,6 +82,25 @@ impl<'a> Part<'a> {
         self.walk().filter(|p| p.is_attachment())
     }
 
+    /// Every leaf part a reader can open by index: the attachments, then
+    /// the inline resources a body points at only by Content-ID (an image
+    /// in `multipart/related` with no filename). Attachments come first so
+    /// their indexes are the same as in [`attachments`](Self::attachments).
+    pub fn files(&self) -> impl Iterator<Item = &Part<'a>> {
+        self.attachments()
+            .chain(self.walk().filter(|p| p.is_inline_resource()))
+    }
+
+    /// A leaf part that is not an attachment but is referenced by
+    /// Content-ID, and is not one of the text bodies.
+    pub fn is_inline_resource(&self) -> bool {
+        self.children.is_empty()
+            && !self.is_attachment()
+            && self.content_id.is_some()
+            && self.content_type.type_ != "text"
+            && self.content_type.type_ != "multipart"
+    }
+
     /// Returns the attachment's filename if available — checks
     /// Content-Disposition `filename=` first, falls back to
     /// Content-Type `name=`.
@@ -589,6 +608,49 @@ mod tests {
         assert_eq!(attachments.len(), 1);
         assert_eq!(attachments[0].attachment_filename(), Some("report.pdf"));
         assert_eq!(&*attachments[0].body, b"Hello world");
+    }
+
+    #[test]
+    fn inline_resources_follow_the_attachments_without_moving_them() {
+        // an image referenced by cid with no filename, the shape many
+        // newsletters use, plus an ordinary attachment after it
+        let raw = b"Content-Type: multipart/mixed; boundary=\"m\"\r\n\
+                    \r\n\
+                    --m\r\n\
+                    Content-Type: multipart/related; boundary=\"r\"\r\n\
+                    \r\n\
+                    --r\r\n\
+                    Content-Type: text/html\r\n\
+                    \r\n\
+                    <img src=\"cid:logo@x\">\r\n\
+                    --r\r\n\
+                    Content-Type: image/png\r\n\
+                    Content-Disposition: inline\r\n\
+                    Content-ID: <logo@x>\r\n\
+                    \r\n\
+                    PNG\r\n\
+                    --r--\r\n\
+                    --m\r\n\
+                    Content-Type: application/pdf; name=\"report.pdf\"\r\n\
+                    Content-Disposition: attachment; filename=\"report.pdf\"\r\n\
+                    \r\n\
+                    PDF\r\n\
+                    --m--\r\n";
+        let p = parse(raw);
+        let attachments: Vec<&Part> = p.attachments().collect();
+        assert_eq!(attachments.len(), 1);
+        let files: Vec<&Part> = p.files().collect();
+        assert_eq!(files.len(), 2);
+        assert_eq!(files[0].attachment_filename(), Some("report.pdf"));
+        assert_eq!(files[1].content_type.mime_type(), "image/png");
+        assert!(
+            files[1]
+                .content_id
+                .as_deref()
+                .is_some_and(|c| c.contains("logo@x"))
+        );
+        // the html body is not a file even though it sits beside the image
+        assert!(files.iter().all(|f| f.content_type.type_ != "text"));
     }
 
     #[test]

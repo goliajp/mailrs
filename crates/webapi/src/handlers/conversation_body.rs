@@ -288,8 +288,11 @@ pub(crate) fn parse_body(data: &[u8]) -> (Option<String>, Option<String>, Vec<se
             .as_deref()
             .and_then(|html| html2text::from_read(html.as_bytes(), 80).ok())
     });
+    // `files()`, not `attachments()`: an image the html points at only by
+    // Content-ID has to be addressable too, or its `cid:` stays broken.
+    // The index here is the index `get_attachment` serves.
     let attachments: Vec<serde_json::Value> = root
-        .attachments()
+        .files()
         .map(|att| {
             let filename = att.attachment_filename().unwrap_or("unnamed").to_string();
             let mt = att.content_type.mime_type();
@@ -315,6 +318,11 @@ pub(crate) fn parse_body(data: &[u8]) -> (Option<String>, Option<String>, Vec<se
                 && let Some(map) = obj.as_object_mut()
             {
                 map.insert("content_id".into(), serde_json::Value::String(cid.clone()));
+            }
+            if att.is_inline_resource()
+                && let Some(map) = obj.as_object_mut()
+            {
+                map.insert("inline".into(), serde_json::Value::Bool(true));
             }
             obj
         })
@@ -377,4 +385,35 @@ pub(crate) async fn enrich_with_body(
         }
     }
     r
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_body;
+
+    // an html body drawing an image it names only by Content-ID, then a
+    // real attachment; the attachment keeps index 0
+    const RELATED: &[u8] = b"Content-Type: multipart/mixed; boundary=\"m\"\r\n\r\n\
+--m\r\nContent-Type: multipart/related; boundary=\"r\"\r\n\r\n\
+--r\r\nContent-Type: text/html\r\n\r\n<img src=\"cid:logo@x\">\r\n\
+--r\r\nContent-Type: image/png\r\nContent-Disposition: inline\r\nContent-ID: <logo@x>\r\n\r\nPNG\r\n\
+--r--\r\n\
+--m\r\nContent-Type: application/pdf; name=\"a.pdf\"\r\nContent-Disposition: attachment; filename=\"a.pdf\"\r\n\r\nPDF\r\n\
+--m--\r\n";
+
+    #[test]
+    fn a_cid_image_is_listed_after_the_attachments_with_its_content_id() {
+        let (_, html, files) = parse_body(RELATED);
+        assert!(html.is_some_and(|h| h.contains("cid:logo@x")));
+        assert_eq!(files.len(), 2);
+        assert_eq!(files[0]["filename"], "a.pdf");
+        assert!(files[0].get("inline").is_none());
+        assert_eq!(files[1]["content_type"], "image/png");
+        assert_eq!(files[1]["inline"], true);
+        assert!(
+            files[1]["content_id"]
+                .as_str()
+                .is_some_and(|c| c.contains("logo@x"))
+        );
+    }
 }

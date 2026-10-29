@@ -114,7 +114,7 @@ pub async fn get_attachment(
     let msg = resolve_message(&state, &user, uid).await?;
     let bytes = read_maildir_bytes(&user, &msg.blob_ref).await?;
     let root = mailrs_mime::parse(&bytes);
-    let attachments: Vec<_> = root.attachments().collect();
+    let attachments: Vec<_> = root.files().collect();
     let Some(att) = attachments.get(index) else {
         return Err(StatusCode::NOT_FOUND);
     };
@@ -201,7 +201,7 @@ pub async fn get_attachment_content(
     let msg = resolve_message(&state, &user, uid).await?;
     let bytes = read_maildir_bytes(&user, &msg.blob_ref).await?;
     let root = mailrs_mime::parse(&bytes);
-    let attachments: Vec<_> = root.attachments().collect();
+    let attachments: Vec<_> = root.files().collect();
     let Some(att) = attachments.get(index) else {
         return Err(StatusCode::NOT_FOUND);
     };
