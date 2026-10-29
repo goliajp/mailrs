@@ -85,6 +85,13 @@ pub async fn start() -> Receiver {
     let spool_sink: Arc<dyn crate::smtp_session::SpoolSink> =
         Arc::new(MaildirSpoolSink::new(&cfg.spool_root));
 
+    if cfg.trusted_relays.is_empty() {
+        tracing::warn!(
+            "MAILRS_TRUSTED_RELAY_IPS is empty: our own mail coming back through this MX is scored like a stranger's"
+        );
+    } else {
+        tracing::info!(relays = ?cfg.trusted_relays, "trusted relays for our own mail");
+    }
     let ctx = Arc::new(ConnectionContext {
         hostname: cfg.hostname.clone(),
         tls_state,
@@ -97,6 +104,7 @@ pub async fn start() -> Receiver {
         runtime,
         org_names: cfg.org_names.clone(),
         org_name_allowed_domains: cfg.org_name_allowed_domains.clone(),
+        trusted_relays: cfg.trusted_relays.clone(),
         resolver,
         dnsbl_zones: cfg.dnsbl_zones.clone(),
         dnsbl_enabled: cfg.dnsbl_enabled,

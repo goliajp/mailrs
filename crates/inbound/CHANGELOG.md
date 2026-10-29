@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Security:** mail is no longer accepted past scoring because its
+  envelope sender is in `local_domains` and SPF or any DKIM signature
+  passed. A stranger could sign with their own domain under our
+  envelope domain. The skip now needs `PipelineInput::own_mail`: the
+  peer is one of our sender's addresses, DMARC passed, and a passing
+  DKIM signature is aligned with a `From:` domain we host
+  (`ReceiveContext::trusted_relay` and `own_signature`).
+- A `From:` in `local_domains` that fails DMARC now goes to Junk,
+  ahead of the recipient's whitelist. A DMARC lookup error does not
+  count as a failure.
+
 ### Added
 
 - `body::asks_for_the_readers_line`, the fraud fact of the same name

@@ -75,6 +75,12 @@ services:
       # Slack's workspace is legitimately called GOLIA株式会社, and its
       # notifications are three of the twelve messages that match.
       MAILRS_ORG_NAME_ALLOWED_DOMAINS: slack.com,github.com,atlassian.net
+      # Our own egress address. The sender hands colleague-to-colleague
+      # mail to this MX over port 25, and a message from here that also
+      # passes DMARC with our own aligned DKIM signature skips scoring.
+      # Exact addresses only: the receiver sees real client addresses
+      # (checked 2026-10-29), and a range would trust strangers.
+      MAILRS_TRUSTED_RELAY_IPS: 52.195.89.111
       MAILRS_SPOOL_ROOT: /data/.spool
       MAILRS_MAILDIR: /data/maildir
       MAILRS_USERS_FILE: /data/users.toml
@@ -156,6 +162,10 @@ services:
       MAILRS_HOSTNAME: mail.golia.ai
       MAILRS_ORG_NAMES: GOLIA株式会社,GOLIA K.K.
       MAILRS_FRAUD_RULES_FILE: /fraud-rules/active.lua
+      # Where an FBL reporter past its daily limit is reported
+      # (crates/intake/src/reports/fbl_evidence.rs); same pair as webapi's.
+      MAILRS_SECURITY_ALERT_TO: lihao@golia.jp
+      MAILRS_SECURITY_ALERT_FROM: noreply@golia.jp
       MAILRS_ORG_NAME_ALLOWED_DOMAINS: slack.com,github.com,atlassian.net
       MAILRS_SRS_SECRET: ${MAILRS_SRS_SECRET:-}
       # Must be an FQDN: it becomes Reporting-MTA in every DSN we

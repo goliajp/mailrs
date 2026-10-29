@@ -144,10 +144,9 @@ pub struct PipelineInput {
     pub recipient_blacklist: std::collections::HashSet<String>,
     /// The domains this server is the mail host for, lowercased.
     ///
-    /// A colleague's message is not junk. Mail that genuinely comes
-    /// from one of these domains — genuinely, meaning SPF or DKIM
-    /// verified it — takes the same Accept as a whitelisted sender,
-    /// and for the same reason: the score path is tuned for strangers.
+    /// A `From:` naming one of these that fails DMARC is a forgery and
+    /// goes to Junk. Whether a message is really a colleague's is
+    /// [`own_mail`](Self::own_mail), not membership here.
     ///
     /// Empty disables the rule rather than matching everything, which
     /// is the opposite of `is_local_domain`'s convention in the
@@ -160,6 +159,21 @@ pub struct PipelineInput {
     /// Accept past scores, DMARC and the recipient's blacklist; not past
     /// a virus, and [`assess`](crate::assess)'s fraud hold ignores it.
     pub sender_allowed: bool,
+    /// A colleague's message coming back through our own MX: it arrived
+    /// from a peer our sender connects from, passed DMARC, and carries a
+    /// passing DKIM signature of ours aligned with a `From:` domain we
+    /// host. All three, never any one: the envelope domain and SPF cost a
+    /// stranger nothing, a foreign `d=` proves nothing about us, and our
+    /// own signature can be replayed from anywhere.
+    pub own_mail: bool,
+}
+
+/// The `From:` header names a domain this server hosts.
+fn claims_local_domain(input: &PipelineInput) -> bool {
+    input
+        .header_from_addr
+        .rsplit_once('@')
+        .is_some_and(|(_, d)| input.local_domains.contains(&d.to_lowercase()))
 }
 
 /// Whether a per-user sender list names this message's envelope sender
@@ -181,16 +195,18 @@ pub fn sender_listed(
 /// 2. Virus found (hard 550 reject).
 /// 3. **Operator allow list vouches for the sender → Accept.**
 /// 4. DMARC policy=reject (hard 550 reject).
-/// 5. **Recipient whitelist hit → Accept**, unless DMARC failed under
+/// 5. `From:` claims a domain we host and DMARC fails → Junk.
+/// 6. **Recipient whitelist hit → Accept**, unless DMARC failed under
 ///    the sender domain's `p=quarantine`.
-/// 6. **Recipient blacklist hit → Junk** (v2.4.1 Phase 3, RFC-B §D4).
+/// 7. Our own mail back through the MX (`own_mail`) → Accept.
+/// 8. **Recipient blacklist hit → Junk** (v2.4.1 Phase 3, RFC-B §D4).
 ///    Runs after virus / DMARC-reject so a blacklist entry can't save
 ///    virus mail from a hard reject, but before content scoring so an
 ///    explicitly-blocked sender can't accidentally clear a low-score
 ///    threshold.
-/// 7. DMARC policy=quarantine (route to Junk).
-/// 8. Combined `content_score + ptr_score + ai_score >= spam_threshold` (Junk).
-/// 9. Default: Accept.
+/// 9. DMARC policy=quarantine (route to Junk).
+/// 10. Combined score `>= spam_threshold` (Junk).
+/// 11. Default: Accept.
 ///
 /// The function is pure — same input always produces the same output. Use
 /// it directly if you don't want the [`Pipeline`](crate::Pipeline) framework.
@@ -232,6 +248,18 @@ pub fn make_delivery_decision(input: &PipelineInput) -> DeliveryDecision {
         };
     }
 
+    // Our domains publish DMARC, so mail that claims one of them in
+    // `From:` and fails it is a forgery, whatever the recipient has
+    // allowed and whatever the score. Only an outright `fail` counts: a
+    // lookup error is not evidence, and a colleague's mail must not go
+    // to Junk because DNS hiccupped.
+    if claims_local_domain(input) && input.auth.dmarc.eq_ignore_ascii_case("fail") {
+        return DeliveryDecision::Junk {
+            auth_header,
+            reason: "claims our domain and fails DMARC".into(),
+        };
+    }
+
     // The recipient said this sender is not junk, and that outranks
     // every score of ours — including a failed SPF or DKIM check, which
     // is as often our verifier or the sender's setup as it is a forgery.
@@ -248,33 +276,10 @@ pub fn make_delivery_decision(input: &PipelineInput) -> DeliveryDecision {
         return DeliveryDecision::Accept { auth_header };
     }
 
-    // Our own people are not strangers.
-    //
-    // Same shape as the whitelist above and the same auth condition,
-    // because the failure it prevents is the same one and worse: a
-    // `From:` header costs nothing to write, and "anything claiming
-    // our domain is trusted" is the single most useful rule an
-    // attacker could ask us to install. SPF-or-DKIM is what makes the
-    // claim true.
-    //
-    // Mail our own users *send* never reaches here at all — the
-    // receiver runs this pipeline only for unauthenticated sessions
-    // (`if !is_authenticated && ctx.antispam_enabled`). This is for
-    // the other case: a message arriving on port 25 that really did
-    // come from one of our domains, by way of a forward, a mailing
-    // list, or a device sending through the MX.
-    if !input.local_domains.is_empty()
-        && let Some((_, domain)) = input.from_addr.rsplit_once('@')
-        && input.local_domains.contains(&domain.to_lowercase())
-    {
-        let spf_pass = input.auth.spf.eq_ignore_ascii_case("pass");
-        let dkim_pass = input.auth.dkim.eq_ignore_ascii_case("pass");
-        if spf_pass || dkim_pass {
-            return DeliveryDecision::Accept { auth_header };
-        }
-        // Claimed but unproven — fall through to scoring. Nothing is
-        // logged here for the same reason the whitelist logs nothing:
-        // the decision that follows is the authoritative one.
+    // A colleague's message is not a stranger's, but only proof makes it
+    // one: see `PipelineInput::own_mail`.
+    if input.own_mail {
+        return DeliveryDecision::Accept { auth_header };
     }
 
     // v2.4.1 Phase 3 (RFC-B §D4) — recipient blacklist. Straight to
@@ -400,6 +405,7 @@ mod tests {
             recipient_blacklist: std::collections::HashSet::new(),
             local_domains: std::collections::HashSet::new(),
             sender_allowed: false,
+            own_mail: false,
         }
     }
 

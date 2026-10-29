@@ -165,6 +165,7 @@ impl Stage for MailAuthStage {
                 }
             })
             .collect::<Vec<_>>();
+        let from_is_ours = ctx.local_domains.contains(&from_d);
         let input = mailrs_dmarc::DmarcInput {
             from_domain: from_d.clone().into(),
             policy_domain: from_d.into(),
@@ -172,6 +173,8 @@ impl Stage for MailAuthStage {
             dkim: dkim_input,
         };
         let outcome = mailrs_dmarc::evaluate(&policy, &input);
+        // aligned with a From we host, so the passing d= is one of ours
+        ctx.own_signature = from_is_ours && outcome.aligned_dkim_pass;
 
         self.apply_dmarc_policy(ctx, &outcome, &mail_from_domain)
             .await

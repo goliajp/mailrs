@@ -90,6 +90,15 @@ pub struct ReceiveContext {
     /// The operator's allow list vouches for this sender, see
     /// [`PipelineInput::sender_allowed`](crate::PipelineInput).
     pub sender_allowed: bool,
+
+    // ===== our own mail coming back through the MX =====
+    /// The client is one of the addresses our own sender connects from.
+    /// Set by the caller from its configuration; an address, not a range.
+    pub trusted_relay: bool,
+    /// A DKIM signature that passed has a `d=` aligned, under the From
+    /// domain's DMARC policy, with a `From:` domain we host. Set by the
+    /// authentication stage.
+    pub own_signature: bool,
 }
 
 /// What an operator allow list matched for one message.
@@ -150,6 +159,8 @@ impl ReceiveContext {
             local_domains: std::collections::HashSet::new(),
             allow_list: AllowListMatch::None,
             sender_allowed: false,
+            trusted_relay: false,
+            own_signature: false,
         }
     }
 
@@ -199,6 +210,9 @@ impl ReceiveContext {
             local_domains: self.local_domains.clone(),
             recipient_blacklist: self.recipient_blacklist.clone(),
             sender_allowed: self.sender_allowed,
+            own_mail: self.trusted_relay
+                && self.own_signature
+                && self.auth_results.dmarc_policy == crate::DmarcPolicy::Pass,
         }
     }
 }
