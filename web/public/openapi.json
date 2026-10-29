@@ -771,6 +771,9 @@
                 }
               }
             }
+          },
+          "415": {
+            "description": "Not an image type that renders without script (PNG, JPEG, GIF, WebP, BMP, AVIF)"
           }
         }
       }
@@ -1521,86 +1524,6 @@
         "responses": {
           "204": {
             "description": "Done; empty body"
-          }
-        }
-      }
-    },
-    "/api/conversations/{thread_id}/messages/{uid}/reactions": {
-      "put": {
-        "operationId": "toggleReaction",
-        "summary": "Toggle an emoji reaction on a message",
-        "tags": [
-          "Conversations"
-        ],
-        "parameters": [
-          {
-            "name": "thread_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "uid",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ToggleReactionRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Updated reactions for the message",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ToggleReactionResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/conversations/{thread_id}/reactions": {
-      "get": {
-        "operationId": "getThreadReactions",
-        "summary": "Get all reactions for messages in a thread",
-        "tags": [
-          "Conversations"
-        ],
-        "parameters": [
-          {
-            "name": "thread_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Reactions grouped by message ID",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ThreadReactionsResponse"
-                }
-              }
-            }
           }
         }
       }
@@ -4645,7 +4568,7 @@
       },
       "post": {
         "summary": "Create admin oauth clients",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Closed: answers 403 `oauth_client_registration_closed` until /oauth/authorize asks the user to approve each client.",
         "responses": {
           "200": {
             "description": "Success",
@@ -4656,6 +4579,9 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "Registration is closed until a consent step exists"
           }
         },
         "requestBody": {
@@ -10163,69 +10089,6 @@
         "required": [
           "sender_email",
           "action"
-        ]
-      },
-      "ToggleReactionRequest": {
-        "type": "object",
-        "properties": {
-          "emoji": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "emoji"
-        ]
-      },
-      "ReactionSummary": {
-        "type": "object",
-        "properties": {
-          "emoji": {
-            "type": "string"
-          },
-          "count": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "me": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "emoji",
-          "count",
-          "me"
-        ]
-      },
-      "ToggleReactionResponse": {
-        "type": "object",
-        "properties": {
-          "reactions": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ReactionSummary"
-            }
-          }
-        },
-        "required": [
-          "reactions"
-        ]
-      },
-      "ThreadReactionsResponse": {
-        "type": "object",
-        "properties": {
-          "reactions": {
-            "type": "object",
-            "description": "Map of message ID to reaction summaries",
-            "additionalProperties": {
-              "type": "array",
-              "items": {
-                "$ref": "#/components/schemas/ReactionSummary"
-              }
-            }
-          }
-        },
-        "required": [
-          "reactions"
         ]
       },
       "Domain": {

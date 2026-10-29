@@ -46,7 +46,12 @@ pub async fn inline_upload(
     let content_type = field
         .content_type()
         .unwrap_or("application/octet-stream")
-        .to_string();
+        .to_ascii_lowercase();
+    // served from this origin to whoever opens the link, so only image
+    // types a browser draws without running anything; SVG can carry script
+    if !is_inert_image(&content_type) {
+        return Err(StatusCode::UNSUPPORTED_MEDIA_TYPE);
+    }
     let bytes = field.bytes().await.map_err(|_| StatusCode::BAD_REQUEST)?;
     let id = random_id();
     let key = format!("inline:{id}");
@@ -87,12 +92,54 @@ pub async fn get_inline(
         return Err(StatusCode::NOT_FOUND);
     };
     let ct = ct
-        .map(|b| String::from_utf8_lossy(&b).to_string())
+        .map(|b| String::from_utf8_lossy(&b).to_ascii_lowercase())
         .unwrap_or_else(|| "application/octet-stream".to_string());
+    // An upload from before the type check may be anything; it downloads
+    // instead of rendering here, and nothing is sniffed or scripted.
+    let (ct, disposition) = match is_inert_image(&ct) {
+        true => (ct, "inline"),
+        false => ("application/octet-stream".to_string(), "attachment"),
+    };
     axum::response::Response::builder()
         .status(StatusCode::OK)
         .header("content-type", ct)
+        .header("content-disposition", disposition)
+        .header("x-content-type-options", "nosniff")
+        .header("content-security-policy", "sandbox")
         .header("cache-control", "public, max-age=86400")
         .body(axum::body::Body::from(body))
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+}
+
+fn is_inert_image(content_type: &str) -> bool {
+    matches!(
+        content_type,
+        "image/png"
+            | "image/jpeg"
+            | "image/jpg"
+            | "image/gif"
+            | "image/webp"
+            | "image/bmp"
+            | "image/avif"
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_inert_image;
+
+    #[test]
+    fn only_images_that_cannot_run_script_are_kept() {
+        for ok in ["image/png", "image/jpeg", "image/gif", "image/webp"] {
+            assert!(is_inert_image(ok), "{ok}");
+        }
+        for bad in [
+            "image/svg+xml",
+            "text/html",
+            "application/xhtml+xml",
+            "application/octet-stream",
+        ] {
+            assert!(!is_inert_image(bad), "{bad}");
+        }
+    }
 }
