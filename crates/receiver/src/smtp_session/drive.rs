@@ -45,7 +45,7 @@ where
         SmtpInput::Command(line) => {
             ctx.event_bus.emit(SmtpEvent::CommandReceived {
                 id: conn_id,
-                command: line.clone(),
+                command: super::trace_line::traced(&line),
                 state_before: format!("{:?}", session.state),
             });
 
