@@ -48,13 +48,11 @@ vi.mock('@/lib/api', () => ({
   deleteDraft: vi.fn(() => Promise.resolve({ success: true })),
   deleteJson: vi.fn(() => Promise.resolve({ success: true })),
   fetchJson: vi.fn(() => Promise.resolve([])),
-  getThreadReactions: vi.fn(() => Promise.resolve({})),
   listDrafts: vi.fn(() => Promise.resolve([])),
   postJson: vi.fn(() => Promise.resolve({ success: true })),
   recordFeedback: vi.fn(() => Promise.resolve({ success: true })),
   saveDraft: vi.fn(() => Promise.resolve({ success: true })),
   snoozeConversation: vi.fn(() => Promise.resolve({ success: true })),
-  toggleReaction: vi.fn(() => Promise.resolve({ success: true })),
   unsnoozeConversation: vi.fn(() => Promise.resolve({ success: true })),
 }))
 

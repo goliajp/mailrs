@@ -90,7 +90,7 @@ pub struct FastcoreState {
     /// dead one does not) but the health check refuses.
     pub boot_intact: bool,
     /// Network-kevy URL (`MAILRS_KEVY_URL`) for the shared side-state
-    /// routes (drafts / signatures / templates / reactions / webhooks /
+    /// routes (drafts / signatures / templates / webhooks /
     /// audit / outbound / groups). These live in the INDEPENDENT network
     /// kevy — the same keys webapi + the pg-core read — so both cores
     /// serve them identically. `None` in tests / when unset: side-state

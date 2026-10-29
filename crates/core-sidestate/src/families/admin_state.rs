@@ -1,9 +1,7 @@
-//! Webhook subscriptions and message reactions — shared side-state on
-//! the network kevy, keyed exactly like webapi + pg-core:
+//! Webhook subscriptions — shared side-state on the network kevy, keyed
+//! exactly like webapi + pg-core:
 //!   `admin:webhooks:{address}`      hash id → JSON WebhookSubWire
 //!   `admin:webhooks:counter`        string next id
-//!   `reactions_index:{thread_id}`   set of uids that carry ≥1 reaction
-//!   `reactions:{thread_id}:{uid}`   hash emoji → CSV of users
 
 use std::sync::Arc;
 
@@ -16,16 +14,6 @@ use mailrs_core_api::method::admin::{
 };
 
 use crate::NetKevy;
-
-/// One message's reactions: hash emoji → CSV of users.
-pub fn reactions_key(thread_id: &str, uid: i64) -> String {
-    format!("reactions:{thread_id}:{uid}")
-}
-
-/// The uids in a thread that carry at least one reaction.
-pub fn reactions_index_key(thread_id: &str) -> String {
-    format!("reactions_index:{thread_id}")
-}
 
 pub async fn create_webhook<S: NetKevy>(
     State(state): State<Arc<S>>,
@@ -73,16 +61,5 @@ pub async fn delete_webhook<S: NetKevy>(
         // since it searched a swept index it always took this branch.
         Ok(false) => StatusCode::NOT_FOUND,
         Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
-    }
-}
-
-#[cfg(test)]
-mod key_tests {
-    use super::*;
-
-    #[test]
-    fn reaction_keys_keep_their_prod_spelling() {
-        assert_eq!(reactions_key("t1", 7), "reactions:t1:7");
-        assert_eq!(reactions_index_key("t1"), "reactions_index:t1");
     }
 }

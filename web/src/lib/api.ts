@@ -124,17 +124,6 @@ export async function fetchList<T>(path: string, signal?: AbortSignal): Promise<
   return unwrapList<T>(JSON.parse(text))
 }
 
-export async function getThreadReactions(
-  threadId: string
-): Promise<Record<number, ReactionSummary[]>> {
-  // v2.1 §9 batch 3 (2026-07-08): delegated to wire adapter.
-  // v2.1 §10-audit (2026-07-08): wire adapter now returns
-  // Record<number, ...> (grouped from backend's flat list).
-  const { wireGetThreadReactions } = await import('@/wire/endpoints/mail')
-  const raw = await wireGetThreadReactions(threadId)
-  return raw as unknown as Record<number, ReactionSummary[]>
-}
-
 export async function listDrafts(): Promise<Draft[]> {
   const { wireListDrafts } = await import('@/wire/endpoints/mail')
   const items = await wireListDrafts()
@@ -169,10 +158,6 @@ export async function recordFeedback(
   const { wireRecordFeedback } = await import('@/wire/endpoints/mail')
   return wireRecordFeedback(senderEmail, action)
 }
-
-// --- reactions API ---
-
-import type { ReactionSummary } from '@/lib/types'
 
 import { http } from '@/lib/http'
 
@@ -218,17 +203,6 @@ export async function snoozeConversation(
   const { wireSnoozeConversation } = await import('@/wire/endpoints/mail')
   // 204 on success; wireFetch throws on anything else.
   return (await wireSnoozeConversation(threadId, snoozedUntil)) ?? { success: true }
-}
-
-export async function toggleReaction(
-  threadId: string,
-  uid: number,
-  emoji: string
-): Promise<ReactionSummary[]> {
-  // v2.1 §9 batch 3 (2026-07-08): delegated to wire adapter.
-  const { wireToggleReaction } = await import('@/wire/endpoints/mail')
-  const items = await wireToggleReaction(threadId, uid, emoji)
-  return [...items] as ReactionSummary[]
 }
 
 // --- sender feedback API ---
