@@ -25,6 +25,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 import stub_confirm
+import stub_restart
 import stub_login
 
 WIDE = ('<table width="760" style="width:760px"><tr><td>'
@@ -567,6 +568,8 @@ class H(BaseHTTPRequestHandler):
         return True
 
     def do_GET(self):
+        if stub_restart.state(self) or stub_restart.refused(self):
+            return
         if self._session_rejected():
             return
         if self.path.split("?")[0] == "/api/conversations/search":
@@ -1015,6 +1018,8 @@ class H(BaseHTTPRequestHandler):
         self._send({}, 404)
 
     def do_DELETE(self):
+        if stub_restart.refused(self):
+            return
         if stub_confirm.refused(self, "DELETE"):
             return
         key = re.match(r"^/api/agent/keys/(\d+)$", self.path.split("?")[0])
@@ -1134,6 +1139,8 @@ class H(BaseHTTPRequestHandler):
             self._send({}, 404)
 
     def do_POST(self):
+        if stub_restart.arm(self) or stub_restart.refused(self):
+            return
         if self._session_rejected():
             return
         if self.path.split("?")[0] == "/api/auth/confirm":
@@ -1257,6 +1264,7 @@ class H(BaseHTTPRequestHandler):
             # would look like anything but a leftover flag.
             REJECT_SESSION[0] = False
             stub_confirm.reset()
+            stub_restart.reset()
             VERB_REFUSE.clear()
             FETCHED.clear()
             SENT.clear()
