@@ -37,7 +37,9 @@ pub const BOUNCE_TTL: Duration = Duration::from_secs(90 * 86_400);
 pub enum Source {
     /// A permanent (5.x.x) SMTP failure. Expires after [`BOUNCE_TTL`].
     HardBounce,
-    /// An ARF feedback-loop complaint. Never expires.
+    /// An ARF feedback-loop complaint about a message we sent to this
+    /// address. Never expires; an operator removes it from the admin
+    /// suppression list.
     Complaint,
 }
 
@@ -125,6 +127,65 @@ pub fn add(
 pub fn remove(conn: &mut kevy_client::Connection, email: &str) -> std::io::Result<bool> {
     let removed = conn.del(&[key(email).as_bytes()])?;
     Ok(removed > 0)
+}
+
+/// One entry as stored.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Entry {
+    pub email: String,
+    pub source: String,
+    pub reason: String,
+    pub added_at: Option<i64>,
+}
+
+const PREFIX: &str = "mailrs:suppress:";
+
+/// Every suppressed address with what put it there, sorted by address.
+/// The list is a key per address, so this walks them; it is an operator's
+/// view, not a delivery-path read.
+pub fn list(conn: &mut kevy_client::Connection) -> std::io::Result<Vec<Entry>> {
+    let pattern = format!("{PREFIX}*");
+    let mut keys = Vec::new();
+    let mut cursor = 0;
+    loop {
+        let (next, batch) = conn.scan(cursor, Some(pattern.as_bytes()), Some(500))?;
+        keys.extend(batch);
+        if next == 0 {
+            break;
+        }
+        cursor = next;
+    }
+    let mut out = Vec::new();
+    for k in keys {
+        let flat = conn.hgetall(&k)?;
+        let field = |name: &[u8]| {
+            flat.chunks(2)
+                .find(|kv| kv.len() == 2 && kv[0] == name)
+                .map(|kv| String::from_utf8_lossy(&kv[1]).to_string())
+                .unwrap_or_default()
+        };
+        // an entry that expired between the walk and the read is gone
+        if flat.is_empty() {
+            continue;
+        }
+        out.push(Entry {
+            email: String::from_utf8_lossy(&k[PREFIX.len()..]).to_string(),
+            source: field(b"source"),
+            reason: field(b"reason"),
+            added_at: field(b"added_at").parse().ok(),
+        });
+    }
+    out.sort_by(|a, b| a.email.cmp(&b.email));
+    Ok(out)
+}
+
+/// Take every address off the list. Returns how many were removed.
+pub fn clear(conn: &mut kevy_client::Connection) -> std::io::Result<usize> {
+    let entries = list(conn)?;
+    for e in &entries {
+        remove(conn, &e.email)?;
+    }
+    Ok(entries.len())
 }
 
 #[cfg(test)]

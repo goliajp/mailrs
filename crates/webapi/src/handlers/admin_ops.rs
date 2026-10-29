@@ -164,30 +164,57 @@ pub(crate) fn count_maildir(root: &std::path::Path) -> (u64, u64) {
     (users, messages)
 }
 
+/// GET /api/admin/suppressions — every address outbound mail is held
+/// back from, with what put it there (`hard_bounce` expires on its own,
+/// `complaint` stays until removed here).
 pub async fn list_suppressions(
     State(_state): State<Arc<WebState>>,
     Extension(_user): Extension<AuthedUser>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let ids = with_kevy(|c| {
-        c.smembers(mailrs_core_sidestate::families::outbound::SUPPRESSION)
-            .map_err(std::io::Error::from)
-    })?;
-    let items: Vec<String> = ids
+    use mailrs_core_sidestate::families::suppression;
+    let entries = with_kevy(suppression::list)?;
+    let items: Vec<serde_json::Value> = entries
         .into_iter()
-        .filter_map(|v| String::from_utf8(v).ok())
+        .map(|e| {
+            serde_json::json!({
+                "email": e.email,
+                "source": e.source,
+                "reason": e.reason,
+                "added_at": e.added_at,
+            })
+        })
         .collect();
     Ok(Json(serde_json::json!({ "items": items })))
 }
 
+#[derive(serde::Deserialize)]
+pub struct ClearSuppressions {
+    address: Option<String>,
+}
+
+/// DELETE /api/admin/suppressions — `?address=` takes that one address
+/// off the list; without it, every address.
 pub async fn clear_suppressions(
     State(_state): State<Arc<WebState>>,
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
+    axum::extract::Query(q): axum::extract::Query<ClearSuppressions>,
 ) -> Result<StatusCode, StatusCode> {
-    with_kevy(|c| {
-        c.del(&[mailrs_core_sidestate::families::outbound::SUPPRESSION])?;
-        Ok(())
-    })?;
-    super::audit::record(&actor, "suppressions.clear", "", "");
+    use mailrs_core_sidestate::families::suppression;
+    match q.address.filter(|a| !a.trim().is_empty()) {
+        Some(address) => {
+            let address = suppression::normalize(&address);
+            let a = address.clone();
+            let removed = with_kevy(move |c| suppression::remove(c, &a))?;
+            if !removed {
+                return Err(StatusCode::NOT_FOUND);
+            }
+            super::audit::record(&actor, "suppressions.remove", &address, "");
+        }
+        None => {
+            let n = with_kevy(suppression::clear)?;
+            super::audit::record(&actor, "suppressions.clear", "", &format!("removed={n}"));
+        }
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 
