@@ -138,6 +138,24 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         axum::http::header::REFERRER_POLICY,
         axum::http::HeaderValue::from_static("same-origin"),
     ))
+    .layer(axum::middleware::map_response(retry_after_when_unavailable))
+}
+
+/// A 503 says when to come back. The common one is the core restarting
+/// during a deploy, which replays its log for about ten seconds; a client
+/// that repeats a read after this long usually gets an answer.
+async fn retry_after_when_unavailable(
+    mut res: axum::response::Response,
+) -> axum::response::Response {
+    if res.status() == axum::http::StatusCode::SERVICE_UNAVAILABLE
+        && !res.headers().contains_key(axum::http::header::RETRY_AFTER)
+    {
+        res.headers_mut().insert(
+            axum::http::header::RETRY_AFTER,
+            axum::http::HeaderValue::from_static("5"),
+        );
+    }
+    res
 }
 
 async fn api_not_found(uri: axum::http::Uri) -> impl axum::response::IntoResponse {

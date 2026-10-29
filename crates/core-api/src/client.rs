@@ -18,7 +18,10 @@ pub(crate) fn transport(context: &str, e: reqwest::Error) -> CoreApiError {
         message.push_str(&s.to_string());
         source = s.source();
     }
-    CoreApiError::Internal(message)
+    match e.is_connect() {
+        true => CoreApiError::Unavailable(message),
+        false => CoreApiError::Internal(message),
+    }
 }
 
 /// HTTP client wrapping a single `mailrs-core` target.

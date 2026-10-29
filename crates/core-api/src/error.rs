@@ -46,6 +46,12 @@ pub enum CoreApiError {
     #[error("backend timeout")]
     Timeout,
 
+    /// The core could not be reached at all: the connection was refused or
+    /// reset, which is what a core that is starting or restarting answers
+    /// (503). Not a failure of the request, so a client may try again.
+    #[error("core unavailable: {0}")]
+    Unavailable(String),
+
     /// Catch-all internal error (500).
     #[error("internal: {0}")]
     Internal(String),
@@ -63,6 +69,7 @@ impl CoreApiError {
             Self::PoolExhausted => 503,
             Self::BackendUnsupported => 501,
             Self::Timeout => 504,
+            Self::Unavailable(_) => 503,
             Self::Internal(_) => 500,
         }
     }
@@ -80,6 +87,10 @@ mod tests {
         assert_eq!(CoreApiError::NotFound("user".into()).status_code(), 404);
         assert_eq!(CoreApiError::PoolExhausted.status_code(), 503);
         assert_eq!(CoreApiError::BackendUnsupported.status_code(), 501);
+        assert_eq!(
+            CoreApiError::Unavailable("refused".into()).status_code(),
+            503
+        );
     }
 
     #[test]
