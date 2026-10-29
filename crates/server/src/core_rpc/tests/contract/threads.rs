@@ -230,6 +230,33 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
         &[],
     );
 
+    // flagging somebody else's thread answers as a thread that is not there
+    for name in [
+        "star_thread",
+        "unstar_thread",
+        "pin_thread",
+        "unpin_thread",
+        "archive_thread",
+        "unarchive_thread",
+        "mark_thread_read",
+        "mark_thread_unread",
+        "release_quarantined",
+    ] {
+        let fc_answer = act_as(fc, BOB, name, HELLO)
+            .await
+            .map_err(|e| e.status_code());
+        let pg_answer = act_as(pg, BOB, name, HELLO)
+            .await
+            .map_err(|e| e.status_code());
+        assert_eq!(
+            fc_answer.as_ref().err(),
+            Some(&404),
+            "fastcore: {name} as bob"
+        );
+        d.both(&format!("{name} as bob"), fc_answer, pg_answer, &[]);
+    }
+    compare_views(c, d, "flagging as bob").await;
+
     let steps = [
         ("mark_thread_read", HELLO),
         ("mark_thread_unread", HELLO),
@@ -308,21 +335,30 @@ async fn act(
     name: &str,
     thread: &str,
 ) -> mailrs_core_api::error::ApiResult<mailrs_core_api::method::thread::ThreadActionResponse> {
+    act_as(c, ALICE, name, thread).await
+}
+
+async fn act_as(
+    c: &mailrs_core_api::client::Client,
+    user: &str,
+    name: &str,
+    thread: &str,
+) -> mailrs_core_api::error::ApiResult<mailrs_core_api::method::thread::ThreadActionResponse> {
     match name {
-        "mark_thread_read" => c.mark_thread_read(ALICE, thread).await,
-        "mark_thread_unread" => c.mark_thread_unread(ALICE, thread).await,
-        "star_thread" => c.star_thread(ALICE, thread).await,
-        "unstar_thread" => c.unstar_thread(ALICE, thread).await,
-        "pin_thread" => c.pin_thread(ALICE, thread).await,
-        "unpin_thread" => c.unpin_thread(ALICE, thread).await,
-        "archive_thread" => c.archive_thread(ALICE, thread).await,
-        "unarchive_thread" => c.unarchive_thread(ALICE, thread).await,
-        "mark_junk" => c.mark_junk(ALICE, thread).await,
-        "mark_not_junk" => c.mark_not_junk(ALICE, thread).await,
-        "mark_notification" => c.mark_notification(ALICE, thread).await,
-        "mark_promotion" => c.mark_promotion(ALICE, thread).await,
-        "move_to_inbox" => c.move_to_inbox(ALICE, thread).await,
-        "release_quarantined" => c.release_quarantined(ALICE, thread).await,
+        "mark_thread_read" => c.mark_thread_read(user, thread).await,
+        "mark_thread_unread" => c.mark_thread_unread(user, thread).await,
+        "star_thread" => c.star_thread(user, thread).await,
+        "unstar_thread" => c.unstar_thread(user, thread).await,
+        "pin_thread" => c.pin_thread(user, thread).await,
+        "unpin_thread" => c.unpin_thread(user, thread).await,
+        "archive_thread" => c.archive_thread(user, thread).await,
+        "unarchive_thread" => c.unarchive_thread(user, thread).await,
+        "mark_junk" => c.mark_junk(user, thread).await,
+        "mark_not_junk" => c.mark_not_junk(user, thread).await,
+        "mark_notification" => c.mark_notification(user, thread).await,
+        "mark_promotion" => c.mark_promotion(user, thread).await,
+        "move_to_inbox" => c.move_to_inbox(user, thread).await,
+        "release_quarantined" => c.release_quarantined(user, thread).await,
         other => unreachable!("no action {other}"),
     }
 }

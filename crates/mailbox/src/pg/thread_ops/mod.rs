@@ -93,6 +93,21 @@ impl PgMailboxStore {
         }
     }
 
+    /// Whether `user` holds a message in `thread_id`: who may act on the
+    /// thread. Uses `idx_messages_thread`.
+    pub async fn user_in_thread(&self, user: &str, thread_id: &str) -> Result<bool, sqlx::Error> {
+        let (found,): (bool,) = sqlx::query_as(
+            "SELECT EXISTS (SELECT 1 FROM messages m
+                            JOIN mailboxes mb ON m.mailbox_id = mb.id
+                            WHERE m.thread_id = $1 AND mb.user_address = $2)",
+        )
+        .bind(thread_id)
+        .bind(user)
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(found)
+    }
+
     /// list all messages in a thread (deduplicated by message_id)
     /// when `domains` is Some, query across all accounts in those domains
     pub async fn list_thread_messages(
