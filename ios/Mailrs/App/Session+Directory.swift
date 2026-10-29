@@ -35,18 +35,18 @@ extension Session {
     /// a different feature with different semantics, not a spelling.
     func addAlias(source: String, target: String) async throws {
         guard let client else { throw MailrsError.badCredentials }
-        try await client.addAlias(Wire.AddAliasRequest(
+        try await confirmed { try await client.addAlias(Wire.AddAliasRequest(
             sourceAddress: source,
             targetAddress: target,
             domain: AliasRule.domain(of: source),
             aliasType: "alias"
-        ))
+        )) }
     }
 
 
     func deleteAlias(id: Int64) async throws {
         guard let client else { throw MailrsError.badCredentials }
-        try await client.deleteAlias(id: id)
+        try await confirmed { try await client.deleteAlias(id: id) }
     }
 
 
@@ -60,15 +60,15 @@ extension Session {
     /// on this object, not logged, and not carried into a retry.
     func addAccount(address: String, displayName: String, password: String) async throws {
         guard let client else { throw MailrsError.badCredentials }
-        try await client.addAccount(Wire.AddAccountRequest(
+        try await confirmed { try await client.addAccount(Wire.AddAccountRequest(
             address: address, displayName: displayName, password: password
-        ))
+        )) }
     }
 
 
     func deleteAccount(address: String) async throws {
         guard let client else { throw MailrsError.badCredentials }
-        try await client.deleteAccount(address: address)
+        try await confirmed { try await client.deleteAccount(address: address) }
     }
 
 
@@ -98,18 +98,18 @@ extension Session {
 
     func createEmailGroup(address: String, name: String, description: String) async throws {
         guard let client else { throw MailrsError.badCredentials }
-        try await client.createEmailGroup(Wire.CreateEmailGroupRequest(
+        try await confirmed { try await client.createEmailGroup(Wire.CreateEmailGroupRequest(
             address: address,
             domain: AliasRule.domain(of: address),
             name: name,
             description: description
-        ))
+        )) }
     }
 
 
     func deleteEmailGroup(id: Int64) async throws {
         guard let client else { throw MailrsError.badCredentials }
-        try await client.deleteEmailGroup(id: id)
+        try await confirmed { try await client.deleteEmailGroup(id: id) }
     }
 
 
@@ -121,13 +121,13 @@ extension Session {
 
     func addEmailGroupMember(id: Int64, address: String) async throws {
         guard let client else { throw MailrsError.badCredentials }
-        try await client.addEmailGroupMember(id: id, address: address)
+        try await confirmed { try await client.addEmailGroupMember(id: id, address: address) }
     }
 
 
     func removeEmailGroupMember(id: Int64, address: String) async throws {
         guard let client else { throw MailrsError.badCredentials }
-        try await client.removeEmailGroupMember(id: id, address: address)
+        try await confirmed { try await client.removeEmailGroupMember(id: id, address: address) }
     }
 
 

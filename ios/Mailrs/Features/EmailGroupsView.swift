@@ -69,7 +69,8 @@ struct EmailGroupsView: View {
                     }
                 }
             }
-            .sheet(isPresented: $adding) { addSheet }
+            .confirmPrompt()
+            .sheet(isPresented: $adding) { addSheet.confirmPrompt() }
             .alert("Delete group?", isPresented: deleteBinding, presenting: pendingDelete) { group in
                 Button("Delete", role: .destructive) {
                     Task { await delete(group) }
@@ -223,6 +224,7 @@ struct EmailGroupDetailView: View {
             Button("Add") { Task { await add() } }
             Button("Cancel", role: .cancel) { newMember = "" }
         }
+        .confirmPrompt()
         .task { await load() }
     }
 

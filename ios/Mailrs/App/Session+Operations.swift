@@ -55,7 +55,7 @@ extension Session {
 
     func createAgentKey(name: String, scopes: [String]) async throws -> Wire.CreateAgentKeyResponse {
         guard let client else { throw MailrsError.badCredentials }
-        return try await client.createAgentKey(name: name, scopes: scopes)
+        return try await confirmed { try await client.createAgentKey(name: name, scopes: scopes) }
     }
 
 

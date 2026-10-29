@@ -94,6 +94,7 @@ final class Session {
     /// the one failure that belongs on that screen; the rest belong
     /// over the mailbox they happened in.
     var banner: String?
+    let confirmGate = ConfirmGate()
 
     var searchQuery: String?
 

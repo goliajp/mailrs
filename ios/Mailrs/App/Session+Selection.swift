@@ -37,6 +37,9 @@ extension Session {
         // selection, and the loop existed only because the route used
         // to report a count without saying which ones.
         var failed: [UndoableRow] = []
+        // why, when the whole request was refused: "the server is
+        // restarting" tells the reader to try again, a count does not
+        var reason: String?
         do {
             let refused = try await client.batch(
                 action: "archive", threadIds: rows.map(\.conversation.threadId))
@@ -44,6 +47,7 @@ extension Session {
         } catch {
             // The request itself did not land, so nothing was archived.
             failed = rows
+            reason = error.localizedDescription
         }
         if !failed.isEmpty {
             // The rows the server kept come back; the ones it archived
@@ -51,7 +55,7 @@ extension Session {
             // would un-archive rows that were never archived.
             clearUndo()
             withAnimation { conversations = Session.reinserted(failed, into: conversations) }
-            banner = "archive failed for \(failed.count) of \(rows.count)"
+            banner = reason ?? "archive failed for \(failed.count) of \(rows.count)"
         }
     }
 
