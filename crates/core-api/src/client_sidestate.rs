@@ -1,5 +1,5 @@
 //! The shared side-state families: drafts, signatures, templates,
-//! webhooks, reactions, contacts, audit.
+//! webhooks, contacts, audit.
 
 use crate::client::Client;
 use crate::error::ApiResult;

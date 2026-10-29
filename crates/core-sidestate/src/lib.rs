@@ -1,6 +1,6 @@
 //! Shared side-state handlers for the two mailrs cores.
 //!
-//! The side-state families (drafts / signatures / templates / reactions /
+//! The side-state families (drafts / signatures / templates /
 //! webhooks / audit / contacts / analysis / outbound / groups / api-keys /
 //! sieve) live in the INDEPENDENT network kevy — they are not part of the
 //! switchable mail store. Both cores serve their contract routes; to make
