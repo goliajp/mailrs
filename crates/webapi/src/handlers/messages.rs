@@ -130,22 +130,65 @@ pub async fn get_attachment(
         .unwrap_or("attachment")
         .to_string();
     let body = att.body.to_vec();
+    // The type is whatever the sender wrote, and this is our origin: an
+    // HTML or SVG part opened here would run the sender's script with the
+    // reader's session. Only types a browser renders without script open
+    // in place; everything else downloads, and nothing is sniffed.
+    let inline = renders_inert(&ct);
     let mut r = axum::response::Response::builder()
         .status(StatusCode::OK)
-        .header("content-type", ct)
         // RFC 6266. A header value must be ASCII, and this filename has
         // just been decoded — the message that prompted the decode was
         // Japanese, so interpolating it raw would make `body()` return
         // Err and the download answer 500. The ASCII `filename=` stays
         // for readers that ignore the extended form.
-        .header("content-disposition", content_disposition(&filename))
+        .header(
+            "content-disposition",
+            content_disposition(&filename, inline),
+        )
+        .header("x-content-type-options", "nosniff")
         .body(axum::body::Body::from(body))
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    r.headers_mut().insert(
+    let headers = r.headers_mut();
+    headers.insert(
         "cache-control",
         axum::http::HeaderValue::from_static("private, max-age=3600"),
     );
+    // Chrome will not show a PDF in a sandboxed document, so a PDF keeps
+    // its viewer; its scripts run in the viewer, not on this origin.
+    if ct != "application/pdf" {
+        headers.insert(
+            "content-security-policy",
+            axum::http::HeaderValue::from_static("sandbox; default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'"),
+        );
+    }
+    headers.insert(
+        axum::http::header::CONTENT_TYPE,
+        axum::http::HeaderValue::from_str(&ct).unwrap_or(axum::http::HeaderValue::from_static(
+            "application/octet-stream",
+        )),
+    );
     Ok(r)
+}
+
+/// Types a browser shows without running anything the sender wrote. SVG
+/// is an image to the eye and a script host to the browser, so it is not
+/// one of them.
+fn renders_inert(content_type: &str) -> bool {
+    let ct = content_type.to_ascii_lowercase();
+    matches!(
+        ct.as_str(),
+        "image/png"
+            | "image/jpeg"
+            | "image/jpg"
+            | "image/gif"
+            | "image/webp"
+            | "image/bmp"
+            | "image/avif"
+            | "application/pdf"
+            | "text/plain"
+    ) || ct.starts_with("audio/")
+        || ct.starts_with("video/")
 }
 
 /// GET /api/mail/messages/{uid}/attachments/{index}/content — JSON
@@ -374,7 +417,8 @@ pub async fn update_flags(
 /// to get wrong. The ASCII `filename=` is the fallback for readers that
 /// ignore the extended form; every byte a header cannot carry, and the
 /// quote that would end the parameter early, becomes `_`.
-fn content_disposition(filename: &str) -> String {
+fn content_disposition(filename: &str, inline: bool) -> String {
+    let kind = if inline { "inline" } else { "attachment" };
     let ascii: String = filename
         .chars()
         .map(|c| {
@@ -388,15 +432,16 @@ fn content_disposition(filename: &str) -> String {
     let encoded = mailrs_rfc2231::encode_param("filename", filename);
     if filename.is_ascii() {
         // `encode_param` already produced the quoted, escaped form.
-        return format!("inline; {encoded}");
+        return format!("{kind}; {encoded}");
     }
-    format!("inline; filename=\"{ascii}\"; {encoded}")
+    format!("{kind}; filename=\"{ascii}\"; {encoded}")
 }
 
 #[cfg(test)]
 mod tests {
     use super::blob_ref_location;
     use super::content_disposition;
+    use super::renders_inert;
 
     #[test]
     fn bare_filename_maps_to_inbox() {
@@ -433,7 +478,7 @@ mod tests {
     /// makes an invalid header value, and the attachment 500s.
     #[test]
     fn a_japanese_filename_survives_as_an_extended_parameter() {
-        let h = content_disposition("源泉徴収票(2025年分。ZHANG FAN様).pdf");
+        let h = content_disposition("源泉徴収票(2025年分。ZHANG FAN様).pdf", true);
         assert!(
             h.contains("filename*=UTF-8''%E6%BA%90%E6%B3%89"),
             "percent-encoded UTF-8 carries the real name: {h}"
@@ -449,10 +494,40 @@ mod tests {
     /// let the rest of the name be read as further header parameters.
     #[test]
     fn a_quote_cannot_escape_the_fallback_parameter() {
-        let h = content_disposition(r#"a"; evil="x.pdf"#);
+        let h = content_disposition(r#"a"; evil="x.pdf"#, true);
         assert_eq!(
             h, r#"inline; filename="a\"; evil=\"x.pdf""#,
             "the quotes are escaped, so there is still exactly one parameter"
         );
+    }
+
+    /// A sender picks the type. Whatever can carry script must download,
+    /// whatever a browser shows inertly may open in place.
+    #[test]
+    fn only_types_that_cannot_run_script_open_in_place() {
+        for ct in [
+            "image/png",
+            "image/JPEG",
+            "application/pdf",
+            "text/plain",
+            "audio/mpeg",
+            "video/mp4",
+        ] {
+            assert!(renders_inert(ct), "{ct} should open in place");
+        }
+        for ct in [
+            "text/html",
+            "image/svg+xml",
+            "application/xhtml+xml",
+            "text/xml",
+            "application/xml",
+            "text/javascript",
+            "application/octet-stream",
+            "multipart/mixed",
+        ] {
+            assert!(!renders_inert(ct), "{ct} must download");
+        }
+        assert!(content_disposition("x.html", false).starts_with("attachment;"));
+        assert!(content_disposition("x.png", true).starts_with("inline;"));
     }
 }
