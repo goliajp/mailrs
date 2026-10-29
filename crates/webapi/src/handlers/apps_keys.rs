@@ -36,7 +36,15 @@ pub async fn create_agent_key(
     Json(req): Json<CreateAgentKeyRequest>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     crate::session::validate_agent_scopes(&req.scopes)?;
-    let (id, secret) = with_kevy(move |c| mint_agent_key(c, &user, &req.name, &req.scopes))?;
+    let (u, name, scopes) = (user.clone(), req.name.clone(), req.scopes.clone());
+    let (id, secret) = with_kevy(move |c| mint_agent_key(c, &u, &name, &scopes))?;
+    let detail = format!(
+        "id={id} prefix={} name={} scopes={}",
+        &secret[..8],
+        req.name,
+        req.scopes.join(",")
+    );
+    crate::handlers::audit::record(&user, "agent_key.create", &user, &detail);
     Ok(Json(serde_json::json!({ "id": id, "secret": secret })))
 }
 
@@ -77,7 +85,17 @@ pub async fn delete_agent_key(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Path(id): Path<i64>,
 ) -> Result<StatusCode, StatusCode> {
-    with_kevy(move |c| revoke_agent_key(c, &user, id))?;
+    let u = user.clone();
+    let record = with_kevy(move |c| revoke_agent_key(c, &u, id))?;
+    // the key list's prefix, so the row names which key it was
+    if let Some(raw) = record {
+        let prefix = serde_json::from_slice::<serde_json::Value>(&raw)
+            .ok()
+            .and_then(|v| v["prefix"].as_str().map(str::to_string))
+            .unwrap_or_default();
+        let detail = format!("id={id} prefix={prefix}");
+        crate::handlers::audit::record(&user, "agent_key.revoke", &user, &detail);
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -146,11 +164,12 @@ pub async fn create_agent_webhook(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Json(req): Json<CreateAgentWebhookRequest>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
+    let u = user.clone();
     let w = with_kevy(move |c| {
         mailrs_core_sidestate::families::webhooks::create(
             c,
             mailrs_core_sidestate::families::webhooks::NewWebhook {
-                account_address: user,
+                account_address: u,
                 url: req.url,
                 event_type: req.event_type,
                 filter_sender: req.filter_sender,
@@ -158,6 +177,8 @@ pub async fn create_agent_webhook(
             },
         )
     })?;
+    // the id only: a webhook URL can carry the receiver's token
+    crate::handlers::audit::record(&user, "webhook.create", &user, &format!("id={}", w.id));
     Ok(Json(serde_json::to_value(w).unwrap_or_default()))
 }
 
@@ -165,10 +186,14 @@ pub async fn delete_agent_webhook(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Path(id): Path<i64>,
 ) -> Result<StatusCode, StatusCode> {
+    let u = user.clone();
     let removed =
-        with_kevy(move |c| mailrs_core_sidestate::families::webhooks::delete_owned(c, id, &user))?;
+        with_kevy(move |c| mailrs_core_sidestate::families::webhooks::delete_owned(c, id, &u))?;
     match removed {
-        true => Ok(StatusCode::NO_CONTENT),
+        true => {
+            crate::handlers::audit::record(&user, "webhook.delete", &user, &format!("id={id}"));
+            Ok(StatusCode::NO_CONTENT)
+        }
         false => Err(StatusCode::NOT_FOUND),
     }
 }
