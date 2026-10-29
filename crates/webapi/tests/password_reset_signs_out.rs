@@ -4,6 +4,7 @@
 
 mod live;
 
+use mailrs_core_sidestate::keys::session::session_ref;
 use reqwest::Method;
 
 const KEVY: &str = "mem://webapi-password-reset-signs-out";
@@ -45,9 +46,9 @@ async fn a_reset_password_ends_the_old_sessions_only() {
             .collect()
     };
     let members = indexed(&mut kv);
-    assert!(members.contains(&old) && members.contains(&next));
+    assert!(members.contains(&session_ref(&old)) && members.contains(&session_ref(&next)));
     assert!(
-        !members.contains(&expired),
+        !members.contains(&session_ref(&expired)),
         "the next login forgets an expired token"
     );
 
@@ -74,5 +75,5 @@ async fn a_reset_password_ends_the_old_sessions_only() {
     assert_eq!(me(admin.clone()).await, 200);
 
     let fresh = live.login(ALICE, "a much longer new passphrase").await;
-    assert_eq!(indexed(&mut kv), [fresh]);
+    assert_eq!(indexed(&mut kv), [session_ref(&fresh)]);
 }

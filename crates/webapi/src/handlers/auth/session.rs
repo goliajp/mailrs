@@ -320,7 +320,7 @@ pub(crate) async fn issue_session(
 
 /// POST /api/auth/logout
 ///
-/// Deletes the kevy `session:<token>` blob. The cookie is also cleared
+/// Deletes the session's blob in kevy. The cookie is also cleared
 /// via `Set-Cookie: mailrs_session=; Max-Age=0`.
 pub async fn logout(req: axum::extract::Request) -> Response {
     // the cookie for the browser, the bearer header for the apps and for
@@ -351,17 +351,30 @@ pub async fn logout(req: axum::extract::Request) -> Response {
     resp
 }
 
-/// Delete one session and its entry in the owner's index.
+/// Delete one session and its entry in the owner's index, wherever it is
+/// stored: under the token's hash, or under the token for one issued
+/// before hashing that has not been used since.
 fn end_session(c: &mut kevy_client::Connection, token: &str) -> std::io::Result<()> {
-    let key = mailrs_core_sidestate::keys::session::session_key(token);
-    let owner = c
-        .get(key.as_bytes())?
-        .and_then(|raw| serde_json::from_slice::<serde_json::Value>(&raw).ok())
-        .and_then(|v| v.get("address").and_then(|a| a.as_str()).map(String::from));
-    c.del(&[key.as_bytes()])?;
+    use mailrs_core_sidestate::keys::session::{
+        by_addr_key, legacy_session_key, session_key, session_ref,
+    };
+    let stored = session_key(token);
+    let legacy = legacy_session_key(token);
+    let mut owner = None;
+    for key in [&stored, &legacy] {
+        if owner.is_none() {
+            owner = c
+                .get(key.as_bytes())?
+                .and_then(|raw| serde_json::from_slice::<serde_json::Value>(&raw).ok())
+                .and_then(|v| v.get("address").and_then(|a| a.as_str()).map(String::from));
+        }
+    }
+    c.del(&[stored.as_bytes(), legacy.as_bytes()])?;
     if let Some(owner) = owner {
-        let idx = mailrs_core_sidestate::keys::session::by_addr_key(&owner);
-        c.srem(idx.as_bytes(), &[token.as_bytes()])?;
+        c.srem(
+            by_addr_key(&owner).as_bytes(),
+            &[session_ref(token).as_bytes(), token.as_bytes()],
+        )?;
     }
     Ok(())
 }

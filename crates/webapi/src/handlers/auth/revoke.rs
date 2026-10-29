@@ -1,8 +1,8 @@
 //! Ending every credential an address holds.
 //!
-//! Two kinds live in the network kevy: browser sessions (`session:<token>`,
-//! indexed per address by `session:by_addr:<address>`, which `issue_session`
-//! writes) and agent keys (`agent:keys:<address>` holds the records,
+//! Two kinds live in the network kevy: browser sessions (stored under the
+//! hash of their token, indexed per address by `session:by_addr:<address>`,
+//! which `issue_session` writes) and agent keys (`agent:keys:<address>` holds the records,
 //! `agent:key:secret:<key>` maps a key back to `{user, id}`). The auth
 //! middleware accepts an agent key only while its record is still in the
 //! owner's hash, so dropping the hash is what revokes; the secret indexes
@@ -10,6 +10,9 @@
 
 use axum::http::StatusCode;
 use kevy_client::Connection;
+use mailrs_core_sidestate::keys::session::{
+    by_addr_key, legacy_session_key, session_key, session_key_by_ref, session_ref,
+};
 
 use crate::handlers::kevy_util::with_kevy;
 
@@ -18,28 +21,40 @@ use crate::handlers::kevy_util::with_kevy;
 /// expired: the index has no TTL of its own and would otherwise grow by
 /// one entry per login forever.
 pub fn index_session(c: &mut Connection, address: &str, token: &str) -> std::io::Result<()> {
-    let idx = mailrs_core_sidestate::keys::session::by_addr_key(address);
-    for t in c.smembers(idx.as_bytes())? {
-        let key = mailrs_core_sidestate::keys::session::session_key(String::from_utf8_lossy(&t));
-        if c.exists(&[key.as_bytes()])? == 0 {
-            c.srem(idx.as_bytes(), &[t.as_slice()])?;
+    let idx = by_addr_key(address);
+    for entry in c.smembers(idx.as_bytes())? {
+        let [stored, legacy, moved] = keys_of_entry(&entry);
+        if c.exists(&[stored.as_bytes(), legacy.as_bytes(), moved.as_bytes()])? == 0 {
+            c.srem(idx.as_bytes(), &[entry.as_slice()])?;
         }
     }
-    c.sadd(idx.as_bytes(), &[token.as_bytes()])?;
+    c.sadd(idx.as_bytes(), &[session_ref(token).as_bytes()])?;
     Ok(())
+}
+
+/// Every place an index entry's session can be. The entry is a hash; or,
+/// for a session issued before hashing, the token, whose session is under
+/// the token until its first use and under the token's hash after it.
+fn keys_of_entry(entry: &[u8]) -> [String; 3] {
+    let entry = String::from_utf8_lossy(entry);
+    [
+        session_key_by_ref(&entry),
+        legacy_session_key(&entry),
+        session_key(&entry),
+    ]
 }
 
 /// Delete every session `address` holds. Returns how many tokens the
 /// per-address index listed.
 pub fn revoke_sessions(c: &mut Connection, address: &str) -> std::io::Result<usize> {
-    let idx = mailrs_core_sidestate::keys::session::by_addr_key(address);
-    let tokens = c.smembers(idx.as_bytes())?;
-    for t in &tokens {
-        let key = mailrs_core_sidestate::keys::session::session_key(String::from_utf8_lossy(t));
-        c.del(&[key.as_bytes()])?;
+    let idx = by_addr_key(address);
+    let entries = c.smembers(idx.as_bytes())?;
+    for entry in &entries {
+        let [stored, legacy, moved] = keys_of_entry(entry);
+        c.del(&[stored.as_bytes(), legacy.as_bytes(), moved.as_bytes()])?;
     }
     c.del(&[idx.as_bytes()])?;
-    Ok(tokens.len())
+    Ok(entries.len())
 }
 
 /// Delete every agent key `address` owns. Returns how many secret indexes
