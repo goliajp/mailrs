@@ -9,6 +9,7 @@
 
 #![allow(missing_docs)]
 
+mod agent_key_index;
 pub mod cli;
 pub mod handlers;
 mod router;
@@ -248,6 +249,16 @@ pub async fn run() {
                 tracing::info!(count = synced, "alias sync: network → fastcore");
             }
         });
+    }
+
+    // before the first request, or a key whose entry has not moved yet is
+    // refused; a store that cannot be read stops the start
+    match handlers::kevy_util::with_kevy(agent_key_index::move_unhashed) {
+        Ok((walked, moved)) => tracing::info!(walked, moved, "agent key index: hashed"),
+        Err(_) => {
+            tracing::error!("agent key index: the shared store could not be read");
+            std::process::exit(1);
+        }
     }
 
     login_guard::spawn_alert_mailer();
