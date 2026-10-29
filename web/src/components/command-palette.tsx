@@ -17,6 +17,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 
 import { MobileModal } from '@/components/mobile-modal'
+import { useSignOut } from '@/hooks/use-sign-out'
 import { authAtom } from '@/store/auth'
 import { themeModeAtom } from '@/store/theme'
 import { composeReplySourceAtom, composingNewAtom } from '@/store/ui'
@@ -226,7 +227,7 @@ const ADMIN_COMMANDS = new Set(['nav-admin', 'nav-protocol'])
 
 function useCommands(query: string, onClose: () => void): Command[] {
   const navigate = useNavigate()
-  const setAuth = useSetAtom(authAtom)
+  const signOut = useSignOut()
   const setComposing = useSetAtom(composingNewAtom)
   const setComposeReplySource = useSetAtom(composeReplySourceAtom)
   const setTheme = useSetAtom(themeModeAtom)
@@ -348,13 +349,12 @@ function useCommands(query: string, onClose: () => void): Command[] {
         action: () => {
           if (!window.confirm('Sign out? You will need to sign in again to access your mailbox.'))
             return
-          setAuth(null)
-          navigate('/login')
           onClose()
+          void signOut()
         },
       },
     ],
-    [navigate, onClose, setAuth, setComposeReplySource, setComposing, setTheme, theme]
+    [navigate, onClose, setComposeReplySource, setComposing, setTheme, signOut, theme]
   )
   // the server refuses these to everyone else; do not offer them
   const staticCommands = useMemo(

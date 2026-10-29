@@ -1,15 +1,15 @@
 import { toast } from '@goliapkg/gds'
 import { useQuery } from '@tanstack/react-query'
-import { useAtomValue, useSetAtom } from 'jotai'
+import { useAtomValue } from 'jotai'
 import { useEffect, useState } from 'react'
 
+import { useSignOut } from '@/hooks/use-sign-out'
 import { queryClient } from '@/lib/query-client'
 import { settingsKeys } from '@/lib/query-keys'
 import { authAtom } from '@/store/auth'
 import {
   wireChangePassword,
   wireGetRecoveryEmail,
-  wireLogout,
   wireSetRecoveryEmail,
 } from '@/wire/endpoints/auth'
 
@@ -25,7 +25,6 @@ import {
 
 export function AccountSection() {
   const auth = useAtomValue(authAtom)
-  const setAuth = useSetAtom(authAtom)
   const [pw, setPw] = useState({ confirm: '', current: '', next: '' })
   const [saving, setSaving] = useState(false)
   const [recoveryEmail, setRecoveryEmail] = useState('')
@@ -86,15 +85,7 @@ export function AccountSection() {
     }
   }
 
-  const doLogout = async () => {
-    try {
-      await wireLogout()
-    } catch {
-      // ignore
-    }
-    setAuth(null)
-    window.location.href = '/login'
-  }
+  const doLogout = useSignOut()
 
   return (
     <div className="space-y-6">
