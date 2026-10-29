@@ -4,6 +4,8 @@ export type AuthInfo = {
   accessible_domains: string[]
   address: string
   display_name: string
+  /** Server-decided: may this account use the admin console. */
+  is_admin: boolean
   permissions: string[]
 }
 
@@ -19,9 +21,11 @@ function loadAuth(): AuthInfo | null {
     if ('token' in parsed) {
       const { token: _dropped, ...rest } = parsed
       localStorage.setItem(STORAGE_KEY, JSON.stringify(rest))
-      return rest
+      return { ...rest, is_admin: rest.is_admin ?? false }
     }
-    return parsed
+    // a profile from before `is_admin` existed shows no admin entries
+    // until `/auth/me` refreshes it
+    return { ...parsed, is_admin: parsed.is_admin ?? false }
   } catch {
     // A blob that will not parse is not a session. Returning null signs
     // the reader out, which is recoverable; throwing here happens at

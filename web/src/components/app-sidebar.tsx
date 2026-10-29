@@ -111,13 +111,22 @@ export function AppSidebar() {
 
         {/* other nav */}
         <nav className="flex flex-col items-center gap-1.5">
-          <SidebarLink active={section === 'server'} href="/admin" icon={Server} label="Server" />
-          <SidebarLink
-            active={section === 'monitor'}
-            href="/protocol"
-            icon={Activity}
-            label="Monitor"
-          />
+          {auth?.is_admin && (
+            <>
+              <SidebarLink
+                active={section === 'server'}
+                href="/admin"
+                icon={Server}
+                label="Server"
+              />
+              <SidebarLink
+                active={section === 'monitor'}
+                href="/protocol"
+                icon={Activity}
+                label="Monitor"
+              />
+            </>
+          )}
           <SidebarLink
             active={section === 'mock'}
             href="/mock"
@@ -177,7 +186,9 @@ export function AppSidebar() {
           icon={Inbox}
           label="Mail"
         />
-        <MobileNavLink active={section === 'server'} href="/admin" icon={Server} label="Admin" />
+        {auth?.is_admin && (
+          <MobileNavLink active={section === 'server'} href="/admin" icon={Server} label="Admin" />
+        )}
         <MobileNavLink
           active={section === 'settings'}
           href="/settings"
