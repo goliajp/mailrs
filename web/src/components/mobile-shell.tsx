@@ -1,8 +1,10 @@
+import { useAtomValue } from 'jotai'
 import { Home, Inbox, Server, Settings } from 'lucide-react'
 import { Link, useLocation } from 'react-router'
 
 import { useCurrentUnreadCount } from '@/hooks/use-current-mail-filters'
 import { useVisualViewport } from '@/hooks/use-visual-viewport'
+import { authAtom } from '@/store/auth'
 
 /**
  * Independent mobile app shell — no AppShell/Pane dependency.
@@ -34,15 +36,17 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
 }
 
 const NAV_ITEMS = [
-  { href: '/', icon: Home, label: 'Home' },
-  { href: '/mail', icon: Inbox, label: 'Mail' },
-  { href: '/admin', icon: Server, label: 'Admin' },
-  { href: '/settings', icon: Settings, label: 'Settings' },
+  { adminOnly: false, href: '/', icon: Home, label: 'Home' },
+  { adminOnly: false, href: '/mail', icon: Inbox, label: 'Mail' },
+  { adminOnly: true, href: '/admin', icon: Server, label: 'Admin' },
+  { adminOnly: false, href: '/settings', icon: Settings, label: 'Settings' },
 ] as const
 
 function MobileNav() {
   const { pathname } = useLocation()
   const unreadCount = useCurrentUnreadCount()
+  const isAdmin = useAtomValue(authAtom)?.is_admin ?? false
+  const items = NAV_ITEMS.filter((item) => isAdmin || !item.adminOnly)
 
   const activeSection = pathname.startsWith('/admin')
     ? '/admin'
@@ -57,7 +61,7 @@ function MobileNav() {
       className="border-border bg-surface flex shrink-0 items-stretch border-t"
       style={{ paddingBottom: 'var(--safe-area-bottom)' }}
     >
-      {NAV_ITEMS.map((item) => {
+      {items.map((item) => {
         const active = activeSection === item.href
         return (
           <Link

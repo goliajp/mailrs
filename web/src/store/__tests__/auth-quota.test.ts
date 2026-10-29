@@ -14,8 +14,8 @@ describe('the session must not lose to a cache', () => {
     accessible_domains: [],
     address: 'a@b.com',
     display_name: 'A',
+    is_admin: false,
     permissions: [],
-    token: 't',
   }
 
   /**
@@ -61,7 +61,7 @@ describe('the session must not lose to a cache', () => {
 
     store.set(authAtom, AUTH)
 
-    expect(storage.getItem('mailrs_auth')).toContain('"token":"t"')
+    expect(storage.getItem('mailrs_auth')).toContain('"address":"a@b.com"')
     expect(storage.getItem('mailrs:rq:v1:old-build')).toBeNull()
   })
 

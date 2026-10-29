@@ -31,11 +31,18 @@ pub async fn require_admin(state: &Arc<WebState>, user: &str) -> Result<(), Stat
         .effective_permissions(user)
         .await
         .map_err(|_| StatusCode::FORBIDDEN)?;
-    if perms.is_super || perms.permissions.iter().any(|p| p.starts_with("admin.")) {
+    if is_admin(&perms) {
         Ok(())
     } else {
         Err(StatusCode::FORBIDDEN)
     }
+}
+
+/// The one definition of an administrator. The login response and
+/// `/auth/me` report it, so the client hides what this would refuse
+/// instead of keeping a second rule of its own.
+pub fn is_admin(perms: &mailrs_core_api::method::admin::EffectivePermissionsResponse) -> bool {
+    perms.is_super || perms.permissions.iter().any(|p| p.starts_with("admin."))
 }
 
 /// Guard for a specific permission string. Used by handlers whose

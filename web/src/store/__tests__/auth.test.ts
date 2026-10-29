@@ -11,6 +11,7 @@ const sampleAuth: AuthInfo = {
   accessible_domains: ['example.com'],
   address: 'user@example.com',
   display_name: 'Test User',
+  is_admin: false,
   permissions: [],
 }
 

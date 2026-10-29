@@ -43,8 +43,8 @@ function renderAt(url: string, permissions: string[] = []) {
     accessible_domains: [],
     address: 'lihao@golia.jp',
     display_name: 'L',
+    is_admin: permissions.some((p) => p === '*' || p.startsWith('admin.')),
     permissions,
-    token: 't',
   })
   return render(
     <JotaiProvider store={store}>

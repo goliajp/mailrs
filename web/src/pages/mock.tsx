@@ -1,4 +1,3 @@
-import type { AuthInfo } from '@/store/auth'
 import type { MockMessageMeta, MockNamespace } from '@/wire/schemas/mock'
 
 import { useQuery } from '@tanstack/react-query'
@@ -31,7 +30,7 @@ type Tool = 'send' | 'smtp' | 'webhook'
 /** `/mock?ns=<namespace>&msg=<id>` — the selection lives in the URL. */
 export function MockMail() {
   const [params, setParams] = useSearchParams()
-  const admin = isAdmin(useAtomValue(authAtom))
+  const admin = useAtomValue(authAtom)?.is_admin ?? false
   const everyone = admin && params.get('scope') === 'all'
   const query = useQuery({
     queryKey: mockKeys.namespaces(scopeOf(everyone)),
@@ -98,11 +97,6 @@ export function MockMail() {
       </div>
     </AdminPageShell>
   )
-}
-
-function isAdmin(auth: AuthInfo | null): boolean {
-  if (auth === null) return false
-  return auth.permissions.some((p) => p === '*' || p.startsWith('admin.'))
 }
 
 function NamespaceView({

@@ -180,8 +180,8 @@ function makeStore() {
     accessible_domains: ['example.com', 'golia.jp'],
     address: 'user@example.com',
     display_name: 'Test User',
+    is_admin: false,
     permissions: [],
-    token: 'test-token',
   })
   flatStub.initialLoading = false
   return store

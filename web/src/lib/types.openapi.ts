@@ -5006,13 +5006,13 @@ export interface components {
             totp_code?: string;
         };
         LoginResponse: {
-            /** @description Session bearer token */
+            /** @description Session token, the same value as the mailrs_session cookie. Apps send it as Authorization: Bearer; the web client relies on the HttpOnly cookie. */
             token: string;
             address: string;
             display_name: string;
             permissions: string[];
-            accessible_domains: string[];
-            send_as: string[];
+            /** @description Whether the account may use the admin console. The one server-side rule (super user, or any admin.* permission); the client shows or hides admin entries by it. */
+            is_admin: boolean;
         };
         MeResponse: {
             address: string;
@@ -5020,6 +5020,8 @@ export interface components {
             permissions: string[];
             accessible_domains: string[];
             send_as: string[];
+            /** @description Whether the account may use the admin console. The one server-side rule (super user, or any admin.* permission); the client shows or hides admin entries by it. */
+            is_admin: boolean;
         };
         FolderInfo: {
             name: string;
