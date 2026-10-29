@@ -41,7 +41,7 @@ fn audit_first(actor: &str, action: &str, target: &str, detail: &str) -> Result<
 #[tool_router(router = tool_router_v2_batch14, vis = "pub")]
 impl MailrsMcpService {
     #[tool(
-        description = "List a target user's conversations for audit / compliance. Admin-gated; every call is written to the audit log."
+        description = "List a target user's conversations for audit / compliance. Super-administrator only; every call is written to the audit log."
     )]
     async fn audit_list_conversations(
         &self,
@@ -49,7 +49,7 @@ impl MailrsMcpService {
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
         self.require_confirmed()?;
-        self.require_admin(&user).await?;
+        self.require_super(&user).await?;
         audit_first(
             &user,
             "audit.list_conversations",
@@ -92,7 +92,7 @@ impl MailrsMcpService {
     }
 
     #[tool(
-        description = "Read every message in a target user's thread for audit / compliance, bodies included. Admin-gated; every call is written to the audit log."
+        description = "Read every message in a target user's thread for audit / compliance, bodies included. Super-administrator only; every call is written to the audit log."
     )]
     async fn audit_read_thread(
         &self,
@@ -100,7 +100,7 @@ impl MailrsMcpService {
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
         self.require_confirmed()?;
-        self.require_admin(&user).await?;
+        self.require_super(&user).await?;
         audit_first(
             &user,
             "audit.read_thread",
