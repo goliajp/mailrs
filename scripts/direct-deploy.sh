@@ -406,11 +406,13 @@ ssh "$PROD" "umask 077 && mkdir -p /apps/mailrs/receiver-logs \
   && docker logs mailrs-receiver >\$f 2>&1 \
   && echo \"    receiver logs saved: \$f (\$(wc -l <\$f) lines)\"" \
   || echo "    !! receiver logs NOT saved — they are lost with this roll"
+# fastcore first, and the rest only once it answers: it replays its log for
+# about ten seconds on start, and a webapi started beside it answers every
+# request that needs the core with 503 for that long. The old webapi keeps
+# serving the static pages meanwhile.
 ssh "$PROD" "cd /apps/mailrs \
   && sed -i 's/^MAILRS_VERSION=.*/MAILRS_VERSION=$VERSION/' .env \
-  && docker compose up -d --pull never --no-deps receiver fastcore webapi-fc fastcore-sender"
-
-echo "==> [4/6] verify prod"
+  && docker compose up -d --pull never --no-deps fastcore"
 for i in $(seq 1 90); do
     # `/v1/healthz`, and 200 specifically. This probed `/healthz` — which
     # does not exist and answers 404 — and then accepted any non-000 code
@@ -428,6 +430,11 @@ for i in $(seq 1 90); do
     fi
     sleep 2
 done
+ssh "$PROD" "cd /apps/mailrs \
+  && docker compose up -d --pull never --no-deps receiver webapi-fc fastcore-sender"
+
+echo "==> [4/6] verify prod"
+
 # webapi-fc's own router is built at process start, so a bad route takes
 # it into a restart loop while every fastcore check above still passes —
 # that is exactly what 2.19.0 did. Retry, then fail: this used to print
