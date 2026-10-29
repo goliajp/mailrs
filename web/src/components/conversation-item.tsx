@@ -2,7 +2,7 @@ import type { ContextMenuItem } from '@/components/context-menu'
 import type { SingleAction } from '@/components/conversation-actions'
 import type { ConversationSummary } from '@/lib/types'
 
-import { Check, Clock, Mail, Pin, ShieldAlert, Star } from 'lucide-react'
+import { Archive, ArchiveRestore, Check, Clock, Pin, ShieldAlert, Star } from 'lucide-react'
 import { memo, useMemo } from 'react'
 
 import { CategoryBadge, ImportanceBadge } from '@/components/category-badge'
@@ -83,7 +83,7 @@ export const ConversationItem = memo(function ConversationItem({
       },
       {
         label: isFlagged ? 'Unstar' : 'Star',
-        onClick: () => onContextAction(convo.thread_id, isFlagged ? 'unstar' : 'star'),
+        onClick: () => onContextAction(convo.thread_id, starAction(isFlagged)),
       },
       {
         label: isPinned ? 'Unpin' : 'Pin',
@@ -91,7 +91,7 @@ export const ConversationItem = memo(function ConversationItem({
       },
       {
         label: isArchived ? 'Unarchive' : 'Archive',
-        onClick: () => onContextAction(convo.thread_id, isArchived ? 'unarchive' : 'archive'),
+        onClick: () => onContextAction(convo.thread_id, archiveAction(isArchived)),
       },
       isSnoozed
         ? {
@@ -256,56 +256,61 @@ export const ConversationItem = memo(function ConversationItem({
               {!batchMode && (
                 <span className="pointer-events-auto flex items-center gap-0.5 md:hidden">
                   <button
+                    aria-label={archiveLabel(isArchived)}
                     className="touch-target text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary rounded p-1"
                     onClick={(e) => {
                       e.stopPropagation()
-                      onContextAction(convo.thread_id, isArchived ? 'unarchive' : 'archive')
+                      onContextAction(convo.thread_id, archiveAction(isArchived))
                     }}
-                    title={isArchived ? 'Unarchive' : 'Archive'}
+                    title={archiveLabel(isArchived)}
                   >
-                    <Mail className="h-4 w-4" />
+                    <ArchiveIcon archived={isArchived} className="h-4 w-4" />
                   </button>
                   <button
+                    aria-label={starLabel(isFlagged)}
                     className={getStarClass({ density: 'mobile', isFlagged })}
                     onClick={(e) => {
                       e.stopPropagation()
-                      onContextAction(convo.thread_id, isFlagged ? 'unstar' : 'star')
+                      onContextAction(convo.thread_id, starAction(isFlagged))
                     }}
-                    title={isFlagged ? 'Unstar' : 'Star'}
+                    title={starLabel(isFlagged)}
                   >
-                    <Star className="h-4 w-4" fill={isFlagged ? 'currentColor' : 'none'} />
+                    <Star className="h-4 w-4" fill={starFill(isFlagged)} />
                   </button>
                 </span>
               )}
-              {/* desktop: hover actions via group-hover */}
-              {!batchMode && (
-                <span className="pointer-events-auto hidden items-center gap-0.5 md:group-hover:flex">
-                  <button
-                    className="text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary rounded p-0.5"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onContextAction(convo.thread_id, isArchived ? 'unarchive' : 'archive')
-                    }}
-                    title={isArchived ? 'Unarchive' : 'Archive'}
-                  >
-                    <Mail className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    className={getStarClass({ density: 'desktop', isFlagged })}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onContextAction(convo.thread_id, isFlagged ? 'unstar' : 'star')
-                    }}
-                    title={isFlagged ? 'Unstar' : 'Star'}
-                  >
-                    <Star className="h-3.5 w-3.5" fill={isFlagged ? 'currentColor' : 'none'} />
-                  </button>
-                </span>
-              )}
-              {/* full date, always visible (compact rows, 2026-07-17) —
-                  matches the Sent view */}
-              <span className="text-fg-muted text-tiny shrink-0">
-                {formatFullDate(convo.last_date)}
+              {/* Desktop hover actions sit on top of the date, which keeps its
+                  width: nothing in the row moves under the pointer, and the
+                  rest of the row still opens the conversation. Shown on
+                  keyboard focus too. */}
+              <span className="relative shrink-0">
+                <span className={dateClass(batchMode)}>{formatFullDate(convo.last_date)}</span>
+                {!batchMode && (
+                  <span className="pointer-events-auto absolute inset-y-0 right-0 hidden items-center gap-0.5 md:group-focus-within:flex md:group-hover:flex">
+                    <button
+                      aria-label={archiveLabel(isArchived)}
+                      className="text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary rounded p-0.5"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onContextAction(convo.thread_id, archiveAction(isArchived))
+                      }}
+                      title={archiveLabel(isArchived)}
+                    >
+                      <ArchiveIcon archived={isArchived} className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      aria-label={starLabel(isFlagged)}
+                      className={getStarClass({ density: 'desktop', isFlagged })}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onContextAction(convo.thread_id, starAction(isFlagged))
+                      }}
+                      title={starLabel(isFlagged)}
+                    >
+                      <Star className="h-3.5 w-3.5" fill={starFill(isFlagged)} />
+                    </button>
+                  </span>
+                )}
               </span>
             </div>
           </div>
@@ -356,6 +361,28 @@ export const ConversationItem = memo(function ConversationItem({
 // Spam = AI-derived category filter (categoryFilter='spam', see classify.rs).
 // Junk = physical Junk mailbox (mb.name='Junk'), populated by sieve / "mark spam" action.
 
+function archiveAction(archived: boolean): SingleAction {
+  if (archived) return 'unarchive'
+  return 'archive'
+}
+
+/** Archive, or put back from the archive. */
+function ArchiveIcon({ archived, className }: { archived: boolean; className: string }) {
+  if (archived) return <ArchiveRestore aria-hidden className={className} />
+  return <Archive aria-hidden className={className} />
+}
+
+function archiveLabel(archived: boolean): string {
+  if (archived) return 'Unarchive'
+  return 'Archive'
+}
+
+/** The date gives its place to the hover actions, keeping its width. */
+function dateClass(batchMode: boolean): string {
+  if (batchMode) return 'text-fg-muted text-tiny'
+  return 'text-fg-muted text-tiny md:group-focus-within:invisible md:group-hover:invisible'
+}
+
 function getRowStateClass({
   batchMode,
   checked,
@@ -388,4 +415,19 @@ function getStarClass({
     density === 'mobile' ? 'touch-target rounded p-1' : 'hover:bg-bg-secondary rounded p-0.5'
   const color = isFlagged ? 'text-warning' : 'text-fg-muted hover:text-fg-secondary'
   return `${base} ${color}`
+}
+
+function starAction(flagged: boolean): SingleAction {
+  if (flagged) return 'unstar'
+  return 'star'
+}
+
+function starFill(flagged: boolean): string {
+  if (flagged) return 'currentColor'
+  return 'none'
+}
+
+function starLabel(flagged: boolean): string {
+  if (flagged) return 'Unstar'
+  return 'Star'
 }
