@@ -204,6 +204,7 @@ pub async fn delete_thread(
     State(state): State<Arc<CoreRpcState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> Result<StatusCode, StatusCode> {
+    require_member(&state, &user, &thread_id).await?;
     let files = state
         .mailbox
         .delete_thread(&user, &thread_id)

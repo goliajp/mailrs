@@ -377,7 +377,7 @@ pub(crate) async fn delete_thread(
             "delete_thread: cleared thread + unlinked maildir files"
         );
     }
-    action_result(existed)
+    member_result(existed)
 }
 
 /// An action that found no row of the caller's in the thread is a 404:

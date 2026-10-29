@@ -10,7 +10,8 @@ use crate::thread_ownership::file_base;
 impl KevyMailboxStore {
     /// Hard-delete `thread_id` for `user`. Removes the row hash + drops
     /// it from every index zset the row could be in. Idempotent: a
-    /// re-call after deletion is a no-op returning false.
+    /// re-call after deletion is a no-op returning false, and so is a
+    /// call from somebody not in the thread.
     ///
     /// Reads `category` BEFORE the deletion so we know which
     /// per-category zset to clean — that index is keyed by the
@@ -23,6 +24,13 @@ impl KevyMailboxStore {
     /// tick. Confirmed on prod 2026-07-24 with two "ghost FYI" threads
     /// that the pre-fix delete had turned into permanent zombies.
     pub fn delete_thread(&self, user: &str, thread_id: &str) -> io::Result<(bool, Vec<String>)> {
+        // Only somebody in the thread deletes their copy of it. Without
+        // this a stranger who named a thread with no owner recorded was
+        // its "last owner" and took the shared records with them, and
+        // anybody's answer said whether a thread id existed.
+        if !self.is_thread_participant(user, thread_id)? {
+            return Ok((false, Vec::new()));
+        }
         let thread_key = keys::thread(thread_id);
         let msgs_zset = keys::thread_messages(thread_id);
         let store = self.store();
