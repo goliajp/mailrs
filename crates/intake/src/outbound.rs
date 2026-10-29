@@ -38,7 +38,7 @@ pub fn enqueue_redirect(
     // SPF against our IP, so a foreign reverse-path is rewritten with SRS onto
     // our domain; it reverses so bounces reach the original sender. Null
     // senders and senders on our domain stay as they are.
-    let mail_from = match std::env::var("MAILRS_SRS_SECRET").ok() {
+    let mail_from = match crate::route::srs_secret() {
         Some(secret) if !reverse_path.trim().trim_matches(['<', '>']).is_empty() => {
             let our_domain = original_recipient.split('@').nth(1).unwrap_or("");
             let rp = reverse_path.trim().trim_matches(['<', '>']);
