@@ -7,5 +7,6 @@
   "redraft_keep": [0, 2],
   "redraft_of": "abc123@golia.jp",
   "subject": "subject",
-  "to": ["someone@example.com"]
+  "to": ["someone@example.com"],
+  "undo_seconds": 10
 }

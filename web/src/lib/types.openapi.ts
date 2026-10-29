@@ -1361,7 +1361,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Cancel a pending outbound message */
+        /**
+         * Undo a send
+         * @description Stops a send that has not left yet, found by its own send record. 204 when stopped, 404 when there is no such send, 409 when it is already on its way. A send made with undo_seconds is held that long, which is what makes this reachable.
+         */
         delete: operations["cancelPendingSend"];
         options?: never;
         head?: never;
@@ -5097,6 +5100,8 @@ export interface components {
             reply_to_thread_id?: string;
             /** @description List-Unsubscribe header value */
             list_unsubscribe?: string;
+            /** @description Hold an immediate send this many seconds (capped at 30) so DELETE /api/mail/pending/{message_id} can still stop it. Ignored when scheduled_at is set. */
+            undo_seconds?: number;
         };
         SaveDraftRequest: {
             to?: string;
@@ -8295,17 +8300,22 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Send cancelled */
-            200: {
+            /** @description Stopped */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ApiResult"];
-                };
+                content?: never;
             };
-            /** @description Message not found or already sent */
+            /** @description No such send */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Already on its way */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

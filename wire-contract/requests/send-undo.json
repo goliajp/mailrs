@@ -1,0 +1,10 @@
+{
+  "bcc": [],
+  "body": "hello",
+  "cc": [],
+  "from": "lihao@golia.jp",
+  "html_body": "<p>hello</p>",
+  "subject": "subject",
+  "to": ["someone@example.com"],
+  "undo_seconds": 10
+}

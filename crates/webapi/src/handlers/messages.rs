@@ -16,7 +16,6 @@ use mailrs_message_store::MessageStore;
 
 use crate::WebState;
 use crate::handlers::conversations::AuthedUser;
-use mailrs_core_sidestate::families::outbound::{PENDING_IDX, RETRY_IDX, SCHEDULED_IDX};
 
 fn map_err(e: mailrs_core_api::error::CoreApiError) -> StatusCode {
     StatusCode::from_u16(e.status_code()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
@@ -281,111 +280,41 @@ pub async fn delete_message(
     Ok(Json(serde_json::json!({"success": true, "message": null})))
 }
 
-/// DELETE /api/mail/pending/{message_id} — cancel a queued outbound.
-/// Walks the pending list looking for an id whose blob's Message-ID
-/// header matches, then removes the id + blob. Idempotent.
+/// DELETE /api/mail/pending/{message_id} — the "Undo" after a send.
+///
+/// The send is found by its own record, so only its owner can stop it,
+/// and its jobs are taken out of the queue only while they still wait
+/// (`outbound::drop_queued_jobs`). 204 when it was stopped, 404 when
+/// there is no such send, 409 when it is already on its way: the client
+/// shows that answer, so it must not be "cancelled" when it was not.
 pub async fn cancel_pending_send(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Path(message_id): Path<String>,
-) -> Json<serde_json::Value> {
-    let target = message_id;
-    let user_c = user.clone();
-    let removed = crate::handlers::kevy_util::with_kevy(move |c| {
-        // v2: pending is `mailrs:outbound:pending-idx` and the job row
-        // is `mailrs:outbound:job:{id}` — the pre-2.9.38 form read the
-        // legacy `pending` list + `mailrs:outbound:{id}` blob, which
-        // sender no longer produces, so cancel-pending walked an empty
-        // list and never matched anything real.
-        let ids = c.lrange(PENDING_IDX, 0, -1)?;
-        let mut removed = 0u32;
-        let mut keep = Vec::new();
-        for id_bytes in ids {
-            let Ok(id_str) = std::str::from_utf8(&id_bytes) else {
-                keep.push(id_bytes);
-                continue;
-            };
-            let hkey = mailrs_core_sidestate::families::outbound::job_key(id_str);
-            let blob = c.hget(hkey.as_bytes(), b"blob")?;
-            // Strict JSON compare: parse the envelope, match on the
-            // sender field AND the Message-ID header extracted from
-            // message_data. Prior contains-in-string version would
-            // false-positive on any Message-ID substring, letting the
-            // caller cancel other users' outbound entries.
-            let mut matched = false;
-            if let Some(bytes) = blob
-                && let Ok(env) = serde_json::from_slice::<serde_json::Value>(&bytes)
-            {
-                let sender = env.get("sender").and_then(|v| v.as_str()).unwrap_or("");
-                // v2 blobs always carry message_data_b64.
-                let md_owned: String =
-                    if let Some(b64) = env.get("message_data_b64").and_then(|v| v.as_str()) {
-                        use base64::Engine as _;
-                        match base64::engine::general_purpose::STANDARD.decode(b64) {
-                            Ok(bytes) => String::from_utf8_lossy(&bytes).into_owned(),
-                            Err(_) => String::new(),
-                        }
-                    } else {
-                        env.get("message_data")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("")
-                            .to_string()
-                    };
-                let header = format!("Message-ID: <{target}>\r\n");
-                if sender == user_c && md_owned.contains(&header) {
-                    removed += 1;
-                    matched = true;
-                    // Drop the job hash so a re-drain of pending-idx
-                    // sees try_claim's state check fail.
-                    c.del(&[hkey.as_bytes()])?;
-                }
-            }
-            if !matched {
-                keep.push(id_bytes);
-            }
-        }
-        c.del(&[PENDING_IDX])?;
-        for id in keep {
-            c.lpush(PENDING_IDX, &[id.as_slice()])?;
-        }
-        // a scheduled send, or one between attempts, is not on the pending
-        // list yet, so cancelling it must look in both zsets too
-        for zkey in [SCHEDULED_IDX, RETRY_IDX] {
-            for id_bytes in c.zrange(zkey, 0, -1)? {
-                let Ok(id_str) = std::str::from_utf8(&id_bytes) else {
-                    continue;
-                };
-                let hkey = mailrs_core_sidestate::families::outbound::job_key(id_str);
-                let Some(bytes) = c.hget(hkey.as_bytes(), b"blob")? else {
-                    continue;
-                };
-                let Ok(env) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
-                    continue;
-                };
-                let sender = env.get("sender").and_then(|v| v.as_str()).unwrap_or("");
-                let md: String = env
-                    .get("message_data_b64")
-                    .and_then(|v| v.as_str())
-                    .and_then(|b64| {
-                        use base64::Engine as _;
-                        base64::engine::general_purpose::STANDARD.decode(b64).ok()
-                    })
-                    .map(|b| String::from_utf8_lossy(&b).into_owned())
-                    .unwrap_or_default();
-                let header = format!("Message-ID: <{target}>\r\n");
-                if sender == user_c && md.contains(&header) {
-                    c.zrem(zkey, &[id_bytes.as_slice()])?;
-                    c.del(&[hkey.as_bytes()])?;
-                    removed += 1;
-                }
-            }
-        }
-        Ok(removed)
-    })
-    .unwrap_or(0);
-    Json(serde_json::json!({
-        "success": removed > 0,
-        "message": if removed == 0 { Some("message not found or already sent") } else { None },
-    }))
+) -> Result<StatusCode, StatusCode> {
+    use mailrs_core_sidestate::families::{outbound, send as sendfam, send_read};
+    let u = user.clone();
+    let s = message_id.clone();
+    let item = crate::handlers::kevy_util::with_kevy(move |c| send_read::read_one(c, &u, &s))?
+        .ok_or(StatusCode::NOT_FOUND)?;
+    if !matches!(
+        item.status,
+        sendfam::Status::Sending | sendfam::Status::Scheduled
+    ) {
+        return Err(StatusCode::CONFLICT);
+    }
+    let s = message_id.clone();
+    let removed =
+        crate::handlers::kevy_util::with_kevy(move |c| Ok(outbound::drop_queued_jobs(c, &s)))?;
+    if removed.is_empty() {
+        return Err(StatusCode::CONFLICT);
+    }
+    let u = user.clone();
+    let s = message_id.clone();
+    let (cancelled, delivered) = crate::handlers::kevy_util::with_kevy(move |c| {
+        sendfam::cancel_send(c, &u, &s, outbound::CANCELLED_REASON)
+    })?;
+    tracing::info!(%user, %message_id, jobs = removed.len(), cancelled, delivered, "send undone");
+    Ok(StatusCode::NO_CONTENT)
 }
 
 pub async fn update_flags(

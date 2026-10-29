@@ -42,7 +42,11 @@ pub(crate) async fn send_message(
         body: req.body,
         html_body: req.html_body,
         in_reply_to: req.in_reply_to,
-        scheduled_at: req.scheduled_at,
+        scheduled_at: super::compose::hold_for_undo(
+            req.scheduled_at,
+            req.undo_seconds,
+            chrono::Utc::now().timestamp(),
+        ),
         forward_message_id: req.forward_message_id,
         forward_attachments_from: req.forward_attachments_from,
         reply_to_thread_id: req.reply_to_thread_id,
@@ -178,6 +182,7 @@ pub(crate) async fn send_message_multipart(
         ..Default::default()
     };
     let mut redraft_of: Option<String> = None;
+    let mut undo_seconds: Option<u32> = None;
     // Absent and empty are different: absent keeps every carried
     // attachment, an empty list keeps none. A form that dropped the
     // distinction would silently re-attach files the user removed.
@@ -207,6 +212,9 @@ pub(crate) async fn send_message_multipart(
                 let raw = field.text().await.map_err(|_| StatusCode::BAD_REQUEST)?;
                 parts.scheduled_at =
                     parse_scheduled_at(&raw).map_err(|_| StatusCode::BAD_REQUEST)?;
+            }
+            "undo_seconds" => {
+                undo_seconds = field.text().await.ok().and_then(|s| s.trim().parse().ok())
             }
             "redraft_of" => redraft_of = field.text().await.ok().filter(|s| !s.is_empty()),
             // One comma-separated field, not a repeated one. Repeating it
@@ -247,6 +255,11 @@ pub(crate) async fn send_message_multipart(
         parts.from = user.clone();
     }
     ensure_from_allowed(&state, &user, &parts.from).await?;
+    parts.scheduled_at = super::compose::hold_for_undo(
+        parts.scheduled_at,
+        undo_seconds,
+        chrono::Utc::now().timestamp(),
+    );
     // Same fix as the JSON handler: prepend the forwarded original
     // when the request carries forward_message_id.
     inline_forward_content(&state, &user, &mut parts).await;
