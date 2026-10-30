@@ -323,6 +323,20 @@ describe('ThreadView — selected message detail', () => {
     expect(screen.getByTestId('message-bubble').textContent).toBe('HTML')
   })
 
+  // the source link and the unsubscribe offer sat inside the html branch,
+  // so a plain-text message from a mailing list had neither
+  it('offers the source and the unsubscribe for plain-text mail', async () => {
+    await renderAndWait(
+      makeMessage({
+        html_body: null,
+        text_body: 'Weekly digest',
+        unsubscribe: { http: ['https://list.example/u'], one_click: true },
+      })
+    )
+    expect(screen.getByText('View source')).toBeDefined()
+    expect(screen.getByRole('button', { name: /unsubscribe/i })).toBeDefined()
+  })
+
   it('renders plain text in raw email panel', async () => {
     await renderAndWait(makeMessage({ html_body: null, text_body: 'Plain text email body here' }))
     // text appears in both raw panel and chat bubble snippet, use getAllByText

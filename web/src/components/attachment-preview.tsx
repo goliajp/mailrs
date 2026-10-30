@@ -5,6 +5,7 @@ import { useState } from 'react'
 
 import { Copyable, CopyButton } from '@/components/copy-button'
 import { MobileModal } from '@/components/mobile-modal'
+import { PdfPreview } from '@/components/pdf-preview'
 import { formatSize } from '@/lib/format'
 import { visibleAttachments } from '@/lib/inline-attachments'
 
@@ -78,7 +79,7 @@ function FileRow({ att, index, uid }: { att: AttachmentInfo; index: number; uid:
   // which took the anchor apart and left the whole row unclickable. The
   // link and the copy button are now siblings.
   return (
-    <div className="border-border hover:bg-bg-secondary flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors">
+    <div className="border-border hover:bg-bg-secondary flex flex-wrap items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors">
       {isPdf ? (
         <PdfIcon className="text-danger h-5 w-5 shrink-0" />
       ) : (
@@ -104,6 +105,7 @@ function FileRow({ att, index, uid }: { att: AttachmentInfo; index: number; uid:
       >
         <Download className="h-4 w-4" />
       </a>
+      {att.content_type === 'application/pdf' && <PdfPreview filename={att.filename} url={url} />}
     </div>
   )
 }

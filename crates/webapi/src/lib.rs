@@ -306,6 +306,42 @@ async fn stop_signal() {
 mod router_tests {
     use super::*;
 
+    /// A handler that sets its own policy keeps it; every other response
+    /// gets the site's. A PDF attachment's policy lets this site frame it.
+    #[tokio::test]
+    async fn a_response_with_its_own_policy_keeps_it() {
+        use tower::ServiceExt;
+        let header = handlers::csp_report::HEADER;
+        let own = axum::Router::new()
+            .route(
+                "/own",
+                axum::routing::get(|| async {
+                    (
+                        [(handlers::csp_report::HEADER, "frame-ancestors 'self'")],
+                        "x",
+                    )
+                }),
+            )
+            .route("/plain", axum::routing::get(|| async { "x" }));
+        let app = router::with_security_headers(own);
+        let policy = |path: &'static str| {
+            let (app, header) = (app.clone(), header.clone());
+            async move {
+                let res = app
+                    .oneshot(
+                        axum::http::Request::get(path)
+                            .body(axum::body::Body::empty())
+                            .expect("request"),
+                    )
+                    .await
+                    .expect("response");
+                res.headers()[&header].to_str().expect("ascii").to_string()
+            }
+        };
+        assert_eq!(policy("/own").await, "frame-ancestors 'self'");
+        assert_eq!(policy("/plain").await, handlers::csp_report::POLICY);
+    }
+
     /// Build the whole route table.
     ///
     /// `Router::route` panics on an invalid or conflicting path, and that
