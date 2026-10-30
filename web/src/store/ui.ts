@@ -129,7 +129,7 @@ export const importanceSectionAtom = atom<ImportanceSection>(null)
 // quick filter — derived, same as the folder. `attachment` has no list
 // of its own yet, so nothing produces it; it stays in the union because
 // the sticky-unread reset and the row filter both switch on this.
-export type QuickFilter = 'all' | 'attachment' | 'starred' | 'unread'
+export type QuickFilter = 'all' | 'starred' | 'unread'
 export const quickFilterAtom = atom<QuickFilter>((get) => {
   const axes = threadAxesOf(get(activeListAtom))
   if (axes?.unread) return 'unread'

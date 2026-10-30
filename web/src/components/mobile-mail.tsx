@@ -23,7 +23,7 @@ import { useMarkReadOnOpen } from '@/hooks/use-mark-read-on-open'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { formatDate, formatFullDate } from '@/lib/format'
 import { authAtom } from '@/store/auth'
-import { mobileViewAtom } from '@/store/ui'
+import { mobileViewAtom, selectedDomainsAtom } from '@/store/ui'
 
 /**
  * Stable empty-array reference so `?? []` doesn't manufacture a fresh
@@ -229,7 +229,9 @@ function MobileThreadView() {
   // the previous thread's messages into the new thread's timeline).
   // Two independent mirrors would just recreate the same accumulation
   // path here.
-  const threadQuery = useThreadQuery(selectedId, [])
+  // the same domain scope the desktop pane reads the thread under
+  const selectedDomains = useAtomValue(selectedDomainsAtom)
+  const threadQuery = useThreadQuery(selectedId, selectedDomains)
   const loading = threadQuery.isPending && !!selectedId
   const messages: readonly ThreadMessage[] = threadQuery.data ?? EMPTY_MESSAGES
 
