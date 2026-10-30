@@ -142,6 +142,10 @@ pub(super) fn admin_routes() -> axum::Router<Arc<WebState>> {
             post(handlers::admin_password_clear::clear),
         )
         .route(
+            "/api/reset-codes/{address}",
+            get(handlers::reset_code::status).post(handlers::reset_code::issue),
+        )
+        .route(
             "/api/admin/auth-events",
             get(handlers::admin_auth_events::list_auth_events),
         )
@@ -173,6 +177,10 @@ pub(super) fn unauth_routes() -> axum::Router<Arc<WebState>> {
         .route("/api/readiness", get(readiness_handler))
         .route("/api/status", get(status_handler))
         .route("/api/auth/login", post(handlers::auth::login))
+        .route(
+            "/api/auth/password-reset",
+            post(handlers::password_reset::reset),
+        )
         .route(
             "/api/auth/oidc/config",
             get(handlers::complete::oidc_config),

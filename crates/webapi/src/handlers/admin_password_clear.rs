@@ -206,6 +206,15 @@ pub async fn clear(
         let addr = address.clone();
         let sessions = with_kevy(move |c| {
             let n = crate::handlers::auth::revoke_sessions(c, &addr)?;
+            // a recovery link mailed earlier would set a password the owner
+            // did not get from an issuer
+            if let Some(token) = c.get(format!("pwreset_by_addr:{addr}").as_bytes())? {
+                let token = String::from_utf8_lossy(&token).to_string();
+                c.del(&[
+                    format!("pwreset:{token}").as_bytes(),
+                    format!("pwreset_by_addr:{addr}").as_bytes(),
+                ])?;
+            }
             // and the connections already signed in over IMAP, POP3,
             // ManageSieve and SMTP, in the processes that hold them
             mailrs_core_sidestate::keys::signout::publish(c, &addr)?;
