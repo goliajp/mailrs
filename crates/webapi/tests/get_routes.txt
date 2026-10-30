@@ -14,6 +14,7 @@
 /Autodiscover/Autodiscover.xml	protocol discovery, read only
 /_health	read only
 /api/admin/accounts	read only
+/api/admin/accounts/{address}/agent-keys	read only
 /api/admin/accounts/{address}/forwards	read only
 /api/admin/accounts/{address}/groups	read only
 /api/admin/accounts/{address}/overrides	read only
