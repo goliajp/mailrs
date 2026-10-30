@@ -122,9 +122,6 @@ export const folderAtom = atom<MailFolder>(
 // archived view — derived, same as the folder.
 export const showArchivedAtom = atom((get) => threadAxesOf(get(activeListAtom))?.archived === true)
 
-// supermode: mark read across all domain accounts
-export const crossAccountReadAtom = atom(false)
-
 // importance section filter: null = all, or 'action' | 'important' | 'other'
 export type ImportanceSection = 'important' | 'other' | null
 export const importanceSectionAtom = atom<ImportanceSection>(null)
@@ -132,7 +129,7 @@ export const importanceSectionAtom = atom<ImportanceSection>(null)
 // quick filter — derived, same as the folder. `attachment` has no list
 // of its own yet, so nothing produces it; it stays in the union because
 // the sticky-unread reset and the row filter both switch on this.
-export type QuickFilter = 'all' | 'attachment' | 'starred' | 'unread'
+export type QuickFilter = 'all' | 'starred' | 'unread'
 export const quickFilterAtom = atom<QuickFilter>((get) => {
   const axes = threadAxesOf(get(activeListAtom))
   if (axes?.unread) return 'unread'
@@ -149,6 +146,13 @@ export const stickyUnreadIdsAtom = atom<Set<string>>(new Set<string>())
 
 // keyboard shortcuts dialog
 export const shortcutsDialogOpenAtom = atom(false)
+
+/// A keyboard shortcut asking the open thread to reply, forward or delete.
+/// The reading pane answers it the way its own buttons do; the shortcut
+/// handler only names the thread, so it does not depend on what the pane
+/// happens to render.
+export type ThreadShortcut = { kind: 'delete' | 'forward' | 'reply'; threadId: string }
+export const threadShortcutAtom = atom<null | ThreadShortcut>(null)
 
 // websocket connection status
 export type ConnectionStatus = 'connected' | 'connecting' | 'offline'

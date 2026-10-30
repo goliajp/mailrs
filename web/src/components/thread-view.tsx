@@ -27,10 +27,10 @@ import { authAtom } from '@/store/auth'
 import {
   composeReplySourceAtom,
   composingNewAtom,
-  crossAccountReadAtom,
   mobileReplyOpenAtom,
   mobileThreadTabAtom,
   selectedDomainsAtom,
+  threadShortcutAtom,
   timelineCollapsedAtom,
 } from '@/store/ui'
 
@@ -90,11 +90,6 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     if (hasNext) setSelectedId(rows[currentIdx + 1]?.threadId ?? null)
   }, [hasNext, rows, currentIdx, setSelectedId])
   const selectedDomains = useAtomValue(selectedDomainsAtom)
-  const domainsRef = useRef(selectedDomains)
-  domainsRef.current = selectedDomains
-  const crossAccountRead = useAtomValue(crossAccountReadAtom)
-  const crossAccountReadRef = useRef(crossAccountRead)
-  crossAccountReadRef.current = crossAccountRead
   const bottomRef = useRef<HTMLDivElement>(null)
   const contentScrollRef = useRef<HTMLDivElement>(null)
   const [mobileThreadTab, setMobileThreadTab] = useAtom(mobileThreadTabAtom)
@@ -174,8 +169,6 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     handleUnstar,
     refetchThread,
   } = useThreadActions({
-    crossAccountReadRef,
-    domainsRef,
     selectedId,
     setIsFlagged,
     setIsRead,
@@ -238,6 +231,37 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     setIsFlagged(existing?.flagged ?? false)
     // thread fetch is owned by useThreadQuery; nothing imperative to do here
   }, [selectedId, currentConversations, setMobileThreadTab, setMobileReplyOpen])
+
+  // `r`, `f` and `#` from the keyboard do what this pane's own buttons
+  // do, on the newest message, once the thread they name is loaded.
+  // After the reset above, which would otherwise undo a forward when
+  // both run in one commit
+  const [shortcut, setShortcut] = useAtom(threadShortcutAtom)
+  useEffect(() => {
+    if (!shortcut || shortcut.threadId !== selectedId || messages.length === 0) return
+    setShortcut(null)
+    const newest = messages[messages.length - 1]
+    switch (shortcut.kind) {
+      case 'delete':
+        setShowDeleteConfirm(true)
+        break
+      case 'forward':
+        setTimelineCollapsed(false)
+        handleForwardMsg(newest)
+        break
+      case 'reply':
+        handleReplyMsg(newest)
+        break
+    }
+  }, [
+    shortcut,
+    selectedId,
+    messages,
+    setShortcut,
+    setTimelineCollapsed,
+    handleForwardMsg,
+    handleReplyMsg,
+  ])
 
   // Showing is unconditionally true here: this component only renders
   // when the desktop reading pane is on screen. The mobile view passes

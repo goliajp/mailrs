@@ -1,7 +1,11 @@
+import { useAtom } from 'jotai'
 import { X } from 'lucide-react'
+import { useEffect } from 'react'
 
 import { MobileModal } from '@/components/mobile-modal'
+import { isEditableTarget } from '@/lib/editable-target'
 import { SHORTCUT_GROUPS } from '@/lib/shortcuts'
+import { shortcutsDialogOpenAtom } from '@/store/ui'
 
 type Props = {
   onClose: () => void
@@ -73,4 +77,20 @@ export function KeyboardShortcutsDialog({ onClose, open }: Props) {
       </div>
     </MobileModal>
   )
+}
+
+/// `?` shows the shortcuts on every page. It was handled and mounted by
+/// the mail page alone, so everywhere else the key did nothing.
+export function ShortcutsHost() {
+  const [open, setOpen] = useAtom(shortcutsDialogOpenAtom)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== '?' || isEditableTarget(e.target)) return
+      e.preventDefault()
+      setOpen((prev) => !prev)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [setOpen])
+  return <KeyboardShortcutsDialog onClose={() => setOpen(false)} open={open} />
 }

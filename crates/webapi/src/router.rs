@@ -129,6 +129,11 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
             "MAILRS_WEB_STATIC_DIR missing index.html — webapi will 404 non-API paths"
         );
     }
+    with_security_headers(app)
+}
+
+/// The headers every response carries, unless the handler set its own.
+pub fn with_security_headers(app: axum::Router) -> axum::Router {
     // a page's address never leaves for another site with a request it makes
     // or a link it follows: mail pages name threads, and links inside mail
     // lead anywhere. Not `no-referrer`: under it a browser sends `Origin:
@@ -142,11 +147,14 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         axum::http::header::X_CONTENT_TYPE_OPTIONS,
         axum::http::HeaderValue::from_static("nosniff"),
     ))
-    // reported, not enforced, until a week of real traffic reports nothing
-    .layer(tower_http::set_header::SetResponseHeaderLayer::overriding(
-        axum::http::header::CONTENT_SECURITY_POLICY_REPORT_ONLY,
-        axum::http::HeaderValue::from_static(handlers::csp_report::POLICY),
-    ))
+    // a response that carries its own policy keeps it: a PDF attachment
+    // may be framed by this site
+    .layer(
+        tower_http::set_header::SetResponseHeaderLayer::if_not_present(
+            handlers::csp_report::HEADER,
+            axum::http::HeaderValue::from_static(handlers::csp_report::POLICY),
+        ),
+    )
     .layer(axum::middleware::map_response(retry_after_when_unavailable))
 }
 

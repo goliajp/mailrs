@@ -3,7 +3,7 @@ import type { SignatureBlockData } from '../types'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { useEffect, useRef } from 'react'
 
-import { createMinimalExtensions } from '@/components/rich-editor'
+import { createMinimalExtensions } from '@/components/composer/editor-extensions'
 import { sanitizePastedHtml } from '@/lib/sanitize-paste'
 
 type Props = {

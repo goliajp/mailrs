@@ -25,6 +25,7 @@ vi.stubGlobal('localStorage', {
 })
 
 import { authAtom } from '@/store/auth'
+import { composeReplySourceAtom, threadShortcutAtom } from '@/store/ui'
 
 // v2.1 phase-5d: production reads the conversations list through
 // React Query; tests write to this mutable stub and the mocked
@@ -322,6 +323,20 @@ describe('ThreadView — selected message detail', () => {
     expect(screen.getByTestId('message-bubble').textContent).toBe('HTML')
   })
 
+  // the source link and the unsubscribe offer sat inside the html branch,
+  // so a plain-text message from a mailing list had neither
+  it('offers the source and the unsubscribe for plain-text mail', async () => {
+    await renderAndWait(
+      makeMessage({
+        html_body: null,
+        text_body: 'Weekly digest',
+        unsubscribe: { http: ['https://list.example/u'], one_click: true },
+      })
+    )
+    expect(screen.getByText('View source')).toBeDefined()
+    expect(screen.getByRole('button', { name: /unsubscribe/i })).toBeDefined()
+  })
+
   it('renders plain text in raw email panel', async () => {
     await renderAndWait(makeMessage({ html_body: null, text_body: 'Plain text email body here' }))
     // text appears in both raw panel and chat bubble snippet, use getAllByText
@@ -489,5 +504,55 @@ describe('ThreadView — toolbar', () => {
       </Wrapper>
     )
     expect(screen.getByTitle('Mark unread')).toBeDefined()
+  })
+})
+
+// `r`, `f` and `#` reach the pane through `threadShortcutAtom`; the pane
+// answers each the way its own buttons do
+describe('ThreadView — keyboard shortcuts', () => {
+  let store: ReturnType<typeof createStore>
+
+  beforeEach(() => {
+    store = makeStore()
+    flatStub.conversations = [makeConversation()]
+    mockUseThreadQuery.mockReturnValue({ data: [makeMessage()], isPending: false })
+  })
+
+  function open(kind: 'delete' | 'forward' | 'reply') {
+    store.set(threadShortcutAtom, { kind, threadId: 'thread-1' })
+    render(
+      <Wrapper store={store}>
+        <ThreadView />
+      </Wrapper>
+    )
+  }
+
+  it('# asks before deleting', async () => {
+    open('delete')
+    await waitFor(() => expect(screen.getByText('Delete conversation?')).toBeDefined())
+    expect(store.get(threadShortcutAtom)).toBeNull()
+  })
+
+  it('r opens a reply to the newest message', async () => {
+    open('reply')
+    await waitFor(() => expect(store.get(composeReplySourceAtom)?.threadId).toBe('thread-1'))
+    expect(store.get(composeReplySourceAtom)?.messageId).toBe('<msg1@example.com>')
+  })
+
+  it('f turns the reply box to forward', async () => {
+    open('forward')
+    await waitFor(() =>
+      expect(screen.getByTestId('reply-box').textContent).toContain('mode: forward')
+    )
+  })
+
+  it('a request for another thread is left alone', () => {
+    store.set(threadShortcutAtom, { kind: 'delete', threadId: 'thread-9' })
+    render(
+      <Wrapper store={store}>
+        <ThreadView />
+      </Wrapper>
+    )
+    expect(screen.queryByText('Delete conversation?')).toBeNull()
   })
 })

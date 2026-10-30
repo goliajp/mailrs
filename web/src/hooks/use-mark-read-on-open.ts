@@ -1,9 +1,7 @@
-import { useAtomValue } from 'jotai'
 import { useEffect, useMemo, useRef } from 'react'
 
 import { useConversationRows } from '@/hooks/use-current-list'
 import { useMarkReadMutation } from '@/hooks/use-mail-mutations'
-import { crossAccountReadAtom, selectedDomainsAtom } from '@/store/ui'
 
 /**
  * Mark a thread read because it is being read.
@@ -39,12 +37,6 @@ export function useMarkReadOnOpen(
     return rows.find((c) => c.thread_id === threadId)?.unread_count ?? 0
   }, [threadId, rows])
 
-  const selectedDomains = useAtomValue(selectedDomainsAtom)
-  const domainsRef = useRef(selectedDomains)
-  domainsRef.current = selectedDomains
-  const crossAccountRead = useAtomValue(crossAccountReadAtom)
-  const crossAccountReadRef = useRef(crossAccountRead)
-  crossAccountReadRef.current = crossAccountRead
   const onMarkedRef = useRef(onMarked)
   onMarkedRef.current = onMarked
 
@@ -63,12 +55,7 @@ export function useMarkReadOnOpen(
     // `useMarkReadMutation`), so there is no retry loop either.
     if (markReadMutation.isPending) return
 
-    const doms = domainsRef.current
-    const crossAll = crossAccountReadRef.current
     onMarkedRef.current?.()
-    markReadMutation.mutate({
-      domains: crossAll && doms.length > 0 ? doms : undefined,
-      threadId,
-    })
+    markReadMutation.mutate({ threadId })
   }, [threadId, showing, unreadCount, markReadMutation])
 }

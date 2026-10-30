@@ -252,4 +252,20 @@ describe('ReplyBox', () => {
     const forwardButton = screen.getByText('Forward')
     expect(forwardButton.className).not.toContain('bg-blue-100')
   })
+
+  // the `f` key and the Forward toggle both land here: the caret goes to
+  // whom it is forwarded to, and the label names that field
+  it('puts the caret in the forward recipient when switched to forward', () => {
+    const view = render(
+      <Wrapper store={store}>
+        <ReplyBox {...defaultProps} mode="reply" />
+      </Wrapper>
+    )
+    view.rerender(
+      <Wrapper store={store}>
+        <ReplyBox {...defaultProps} mode="forward" />
+      </Wrapper>
+    )
+    expect(document.activeElement).toBe(screen.getByLabelText('To'))
+  })
 })

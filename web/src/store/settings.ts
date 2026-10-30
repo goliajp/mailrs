@@ -1,35 +1,13 @@
 import { atom } from 'jotai'
 
-const PAGE_SIZE_KEY = 'mailrs_page_size'
 const NOTIFICATIONS_KEY = 'mailrs_notifications'
 const NOTIFICATION_SOUND_KEY = 'mailrs_notification_sound'
-
-const DEFAULT_PAGE_SIZE = 50
 
 function loadNotifications(): boolean {
   const raw = localStorage.getItem(NOTIFICATIONS_KEY)
   if (raw === null) return true
   return raw === 'true'
 }
-
-function loadPageSize(): number {
-  const raw = localStorage.getItem(PAGE_SIZE_KEY)
-  if (!raw) return DEFAULT_PAGE_SIZE
-  const parsed = parseInt(raw, 10)
-  if (isNaN(parsed) || parsed < 10 || parsed > 200) return DEFAULT_PAGE_SIZE
-  return parsed
-}
-
-const basePageSizeAtom = atom<number>(loadPageSize())
-
-export const pageSizeAtom = atom(
-  (get) => get(basePageSizeAtom),
-  (_get, set, value: number) => {
-    const clamped = Math.max(10, Math.min(200, value))
-    localStorage.setItem(PAGE_SIZE_KEY, String(clamped))
-    set(basePageSizeAtom, clamped)
-  }
-)
 
 const baseNotificationsAtom = atom<boolean>(loadNotifications())
 

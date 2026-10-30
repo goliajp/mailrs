@@ -1,5 +1,3 @@
-import type { RefObject } from 'react'
-
 import { toast } from '@goliapkg/gds'
 import { useCallback } from 'react'
 
@@ -14,8 +12,6 @@ import { queryClient } from '@/lib/query-client'
 import { mailKeys } from '@/lib/query-keys'
 
 type ThreadActionDeps = {
-  crossAccountReadRef: RefObject<boolean>
-  domainsRef: RefObject<string[]>
   selectedId: null | string
   setIsFlagged: (v: boolean) => void
   setIsRead: (v: boolean) => void
@@ -26,8 +22,6 @@ type ThreadActionDeps = {
 // the verbs the thread header issues. optimistic local flags are set here
 // too, because the header reads them before the mutation settles.
 export function useThreadActions({
-  crossAccountReadRef,
-  domainsRef,
   selectedId,
   setIsFlagged,
   setIsRead,
@@ -59,17 +53,15 @@ export function useThreadActions({
 
   const handleMarkRead = useCallback(() => {
     if (!selectedId) return
-    const doms = domainsRef.current
-    const crossAll = crossAccountReadRef.current
     setIsRead(true)
     markReadMutation.mutate(
-      { domains: crossAll && doms.length > 0 ? doms : undefined, threadId: selectedId },
+      { threadId: selectedId },
       {
         onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed'),
         onSuccess: () => toast.success('Marked as read'),
       }
     )
-  }, [selectedId, markReadMutation, setIsRead, domainsRef, crossAccountReadRef])
+  }, [selectedId, markReadMutation, setIsRead])
 
   const handleStar = useCallback(() => {
     if (!selectedId) return
