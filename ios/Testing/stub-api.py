@@ -26,6 +26,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 
 import stub_confirm
 import stub_restart
+import stub_role
 import stub_login
 
 WIDE = ('<table width="760" style="width:760px"><tr><td>'
@@ -572,6 +573,8 @@ class H(BaseHTTPRequestHandler):
             return
         if self._session_rejected():
             return
+        if stub_role.handle(self) or stub_role.refused(self):
+            return
         if self.path.split("?")[0] == "/api/conversations/search":
             query = parse_qs(urlparse(self.path).query)
             term = query.get("q", [""])[0]
@@ -1004,6 +1007,8 @@ class H(BaseHTTPRequestHandler):
         pass
 
     def do_PUT(self):
+        if stub_role.refused(self):
+            return
         perms = re.match(r"^/api/admin/groups/(\d+)/permissions$", self.path.split("?")[0])
         if perms:
             WRITES.append(f"PUT {self.path.split('?')[0]}")
@@ -1018,7 +1023,7 @@ class H(BaseHTTPRequestHandler):
         self._send({}, 404)
 
     def do_DELETE(self):
-        if stub_restart.refused(self):
+        if stub_restart.refused(self) or stub_role.refused(self):
             return
         if stub_confirm.refused(self, "DELETE"):
             return
@@ -1143,6 +1148,8 @@ class H(BaseHTTPRequestHandler):
             return
         if self._session_rejected():
             return
+        if stub_role.handle(self) or stub_role.refused(self):
+            return
         if self.path.split("?")[0] == "/api/auth/confirm":
             stub_confirm.answer(self)
             return
@@ -1265,6 +1272,7 @@ class H(BaseHTTPRequestHandler):
             REJECT_SESSION[0] = False
             stub_confirm.reset()
             stub_restart.reset()
+            stub_role.reset()
             VERB_REFUSE.clear()
             FETCHED.clear()
             SENT.clear()

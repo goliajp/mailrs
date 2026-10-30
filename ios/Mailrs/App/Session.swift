@@ -95,6 +95,9 @@ final class Session {
     /// over the mailbox they happened in.
     var banner: String?
     let confirmGate = ConfirmGate()
+    /// What the account may do; nil until the server has said, which
+    /// offers no admin page. See `Session+Role.swift`.
+    var role: Wire.Role?
 
     var searchQuery: String?
 
@@ -177,6 +180,17 @@ final class Session {
     // Setting it stays here, with signing in and out.
     private(set) var client: MailrsClient?
 
+    /// Start using `client`. Whatever it is refused with a 403 may mean the
+    /// account's rights changed, so it reads them again then; it reads them
+    /// now too, without holding up the first screen.
+    private func adopt(_ client: MailrsClient) async {
+        self.client = client
+        await client.setOnForbidden { [weak self] in
+            Task { @MainActor in await self?.refreshRole() }
+        }
+        Task { await refreshRole() }
+    }
+
 
     /// Sign back in from the Keychain, if a token is there.
     ///
@@ -203,7 +217,7 @@ final class Session {
         if let index = ProcessInfo.processInfo.arguments.firstIndex(of: "-mailrsToken"),
            index + 1 < ProcessInfo.processInfo.arguments.count {
             let client = MailrsClient(baseURL: baseURL, token: ProcessInfo.processInfo.arguments[index + 1])
-            self.client = client
+            await adopt(client)
             state = .signedIn(address: "me@golia.jp", displayName: "Test")
             // Through loadConversations, not an inline fetch: the badge
             // refresh lives there, and this path quietly skipping it is
@@ -221,7 +235,7 @@ final class Session {
         }
         guard let token = TokenStore.load() else { return }
         let client = MailrsClient(baseURL: baseURL, token: token)
-        self.client = client
+        await adopt(client)
         state = .signedIn(address: TokenStore.loadAddress() ?? "", displayName: "")
         do {
             conversations = try await client.conversations(axes: axes)
@@ -240,35 +254,6 @@ final class Session {
             self.client = nil
             state = .signedOut
         }
-    }
-
-
-    /// A sender domain's brand icon, or nil when there is none.
-    func icon(domain: String) async -> Data? {
-        guard let client else { return nil }
-        return try? await client.icon(domain: domain)
-    }
-
-
-    /// Contact suggestions for a To field. Failures answer as no
-    /// suggestions — autocomplete is an offer, not a feature that may
-    /// interrupt composing with an error.
-    func contacts(matching query: String) async -> [String] {
-        guard let client else { return [] }
-        return (try? await client.contacts(matching: query)) ?? []
-    }
-
-
-    func attachment(uid: UInt32, index: Int) async throws -> Data {
-        guard let client else { throw MailrsError.badCredentials }
-        return try await client.attachment(uid: uid, index: index)
-    }
-
-
-    /// Upload this device's APNs token, so the server can reach it.
-    func registerPushToken(_ token: String) async {
-        guard let client else { return }
-        try? await client.registerPushToken(token)
     }
 
 
@@ -295,7 +280,7 @@ final class Session {
             let login = try await client.logIn(
                 address: address, password: password, totpCode: totpCode
             )
-            self.client = client
+            await adopt(client)
             TokenStore.save(login.token)
             TokenStore.saveAddress(login.address)
             // Remembered for the next sign-in: who it was, and behind
@@ -325,6 +310,7 @@ final class Session {
     func signOut() {
         TokenStore.clear()
         client = nil
+        role = nil
         conversations = []
         state = .signedOut
     }
@@ -372,7 +358,9 @@ final class Session {
     /// looking at, and replacing them under a result set is a change
     /// nobody asked for.
     func refreshForeground() async {
-        guard case .signedIn = state, searchQuery == nil else { return }
+        guard case .signedIn = state else { return }
+        await refreshRole()
+        guard searchQuery == nil else { return }
         await loadConversations()
     }
 
