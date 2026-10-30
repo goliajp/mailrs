@@ -16,7 +16,9 @@ vi.mock('@/wire/endpoints/mutations', () => ({
   wireMarkAllRead: () => Promise.resolve({ flipped: 0 }),
 }))
 
+import { queryClient } from '@/lib/query-client'
 import { authAtom } from '@/store/auth'
+import { conversationKeys } from '@/store/query-keys-v21'
 import { batchModeAtom, selectedThreadIdsAtom } from '@/store/ui'
 
 // v2.1 phase-5d: the mail-list conversations shape lives entirely in
@@ -342,5 +344,29 @@ describe('BatchActionBar', () => {
     fireEvent.click(confirms[confirms.length - 1])
     await waitFor(() => expect(batchCalls).toHaveLength(1))
     expect(batchCalls[0]).toEqual({ action: 'delete', ids: ['t1', 't2'] })
+  })
+
+  // A batch moves rows out of this list and into others. The refresh
+  // after it called the infinite list's `loadMore`, which fetched the
+  // next page of the list the rows had just left.
+  it('fetches every list again after a batch', async () => {
+    batchCalls.length = 0
+    const invalidated: unknown[] = []
+    const spy = vi.spyOn(queryClient, 'invalidateQueries').mockImplementation((filters) => {
+      invalidated.push(filters?.queryKey)
+      return Promise.resolve()
+    })
+    flatStub.conversations = [makeConversation()]
+    store.set(batchModeAtom, true)
+    store.set(selectedThreadIdsAtom, new Set(['t1']))
+    render(
+      <Wrapper store={store}>
+        <ConversationList />
+      </Wrapper>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Archive' }))
+    await waitFor(() => expect(invalidated).toContainEqual(conversationKeys.all()))
+    expect(batchCalls).toEqual([{ action: 'archive', ids: ['t1'] }])
+    spy.mockRestore()
   })
 })

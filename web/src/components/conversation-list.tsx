@@ -18,6 +18,7 @@ import { useCurrentMailFilters } from '@/hooks/use-current-mail-filters'
 import { dateGroupLabel } from '@/lib/format'
 import { listIdentity } from '@/lib/list-identity'
 import { persistScroll, readSavedScroll } from '@/lib/list-scroll'
+import { invalidateBucketMove } from '@/lib/mail-cache'
 import { threadAxesOf } from '@/lib/mail-lists'
 import { queryClient } from '@/lib/query-client'
 import { authAtom } from '@/store/auth'
@@ -213,8 +214,9 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
           toast.error(msg)
         }
         exitBatchMode()
-        // trigger list refresh
-        onLoadMoreRef.current()
+        // the moved rows leave this list and arrive in another: every
+        // list is fetched again, not the next page of this one
+        invalidateBucketMove()
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Batch operation failed')
       } finally {
