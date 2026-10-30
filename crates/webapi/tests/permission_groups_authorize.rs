@@ -72,6 +72,7 @@ async fn a_group_grants_its_permissions_until_the_member_or_group_goes() {
         address: ALICE.into(),
         display_name: String::new(),
         password: "pw".into(),
+        password_hash: None,
     })
     .await
     .expect("create");

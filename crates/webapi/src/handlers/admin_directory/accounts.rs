@@ -23,6 +23,16 @@ pub async fn list_accounts(
     state.core.list_accounts().await.map(Json).map_err(map_err)
 }
 
+/// Body of `POST /api/admin/accounts`. A password and nothing else: the
+/// core also takes a ready hash, and passing one on from here would let an
+/// administrator set someone's password to a value they know.
+#[derive(Debug, serde::Deserialize)]
+pub struct AddAccountRequest {
+    pub address: String,
+    pub display_name: String,
+    pub password: String,
+}
+
 /// POST /api/admin/accounts — provision a new account in fastcore, which
 /// owns the embedded kevy accounts live in. 409 when the address exists:
 /// creating never rewrites an account.
@@ -30,13 +40,19 @@ pub async fn add_account(
     _: crate::session::confirm::Confirmed,
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
-    Json(req): Json<wire::AddAccountRequest>,
+    Json(req): Json<AddAccountRequest>,
 ) -> Result<axum::response::Response, StatusCode> {
     require_permission(&state, &actor, "admin.accounts").await?;
     use axum::response::IntoResponse;
     if let Err(weak) = mailrs_auth_guard::password::check_new(&req.password, &req.address) {
         return Ok(crate::handlers::auth::password::refused(weak));
     }
+    let req = wire::AddAccountRequest {
+        address: req.address,
+        display_name: req.display_name,
+        password: req.password,
+        password_hash: None,
+    };
     state.core.add_account(&req).await.map_err(map_err)?;
     crate::handlers::audit::record(&actor, "account.create", &req.address, "");
     Ok(StatusCode::NO_CONTENT.into_response())

@@ -43,6 +43,7 @@ async fn seed(c: &Client, user: &str, n_threads: usize, n_msgs: usize) {
         address: user.to_string(),
         display_name: "Seed User".into(),
         password: "seed-pw".into(),
+        password_hash: None,
     })
     .await
     .unwrap();
@@ -168,6 +169,7 @@ async fn sync_dedupes_on_blob_ref_not_message_id() {
         address: user.into(),
         display_name: "Dup".into(),
         password: "pw".into(),
+        password_hash: None,
     })
     .await
     .unwrap();
@@ -235,6 +237,7 @@ async fn only_an_argon2_hash_crosses() {
             address: user.into(),
             display_name: String::new(),
             password: "a-real-password-1".into(),
+            password_hash: None,
         })
         .await
         .unwrap();

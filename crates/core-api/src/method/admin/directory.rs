@@ -47,7 +47,39 @@ pub struct AddAccountRequest {
     pub address: UserAddress,
     pub display_name: String,
     /// Plaintext password — server hashes with Argon2 before insert.
+    /// Empty when `password_hash` is given.
+    #[serde(default)]
     pub password: String,
+    /// A stored hash to keep as it is, in place of `password`: an argon2
+    /// one, or empty for an account without a password. For copying an
+    /// account between cores; webapi never passes one on, so an
+    /// administrator cannot set someone's password to a value they know.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub password_hash: Option<String>,
+}
+
+/// What a new account's password starts as.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InitialPassword<'a> {
+    /// Hash this plaintext.
+    Plain(&'a str),
+    /// Store this hash: argon2, or empty for no password.
+    Hash(&'a str),
+}
+
+impl AddAccountRequest {
+    /// The password to start with, or `None` when the request gives
+    /// neither a password nor an acceptable hash: a hash that is not
+    /// argon2 would be a value no sign-in can match, or one compared as
+    /// text by a store that still did.
+    pub fn initial_password(&self) -> Option<InitialPassword<'_>> {
+        match self.password_hash.as_deref() {
+            Some(h) if h.is_empty() || h.starts_with("$argon2") => Some(InitialPassword::Hash(h)),
+            Some(_) => None,
+            None if self.password.is_empty() => None,
+            None => Some(InitialPassword::Plain(&self.password)),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -150,4 +182,42 @@ pub struct AddDomainRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DomainListResponse {
     pub items: Vec<DomainWire>,
+}
+
+#[cfg(test)]
+mod initial_password_tests {
+    use super::*;
+
+    fn req(password: &str, hash: Option<&str>) -> AddAccountRequest {
+        AddAccountRequest {
+            address: "a@example.test".into(),
+            display_name: String::new(),
+            password: password.into(),
+            password_hash: hash.map(str::to_string),
+        }
+    }
+
+    #[test]
+    fn a_hash_is_kept_only_when_it_is_argon2_or_empty() {
+        assert_eq!(
+            req("", Some("$argon2id$x")).initial_password(),
+            Some(InitialPassword::Hash("$argon2id$x"))
+        );
+        assert_eq!(
+            req("", Some("")).initial_password(),
+            Some(InitialPassword::Hash(""))
+        );
+        assert_eq!(req("", Some("clear-text-1")).initial_password(), None);
+        // a hash given wins over a password, and a bad one is not rescued by it
+        assert_eq!(req("pw", Some("clear-text-1")).initial_password(), None);
+    }
+
+    #[test]
+    fn without_a_hash_the_password_is_hashed_and_must_be_there() {
+        assert_eq!(
+            req("pw", None).initial_password(),
+            Some(InitialPassword::Plain("pw"))
+        );
+        assert_eq!(req("", None).initial_password(), None);
+    }
 }

@@ -47,6 +47,7 @@ pub(super) async fn seed(c: &Client) {
         address: USER.into(),
         display_name: "Two Lane".into(),
         password: "pw".into(),
+        password_hash: None,
     })
     .await
     .expect("add_account");
