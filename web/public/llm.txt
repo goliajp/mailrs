@@ -11,7 +11,7 @@ OpenAPI spec: https://mail.golia.ai/openapi.json
 ## MCP (recommended)
 
 Streamable HTTP endpoint: https://mail.golia.ai/mcp
-97 tools auto-discovered, grouped by category (identical on both server lanes):
+99 tools auto-discovered, grouped by category (identical on both server lanes):
 
 ```json
 {"mcpServers":{"mailrs":{"type":"streamable-http","url":"https://mail.golia.ai/mcp","headers":{"Authorization":"Bearer <API_KEY>"}}}}
@@ -27,7 +27,7 @@ Streamable HTTP endpoint: https://mail.golia.ai/mcp
 **Aliases:** list_aliases_admin, add_alias, remove_alias
 **Email Groups:** list_email_groups, create_email_group, delete_email_group, get_email_group_members, add_email_group_member, remove_email_group_member
 **Webhooks:** list_webhooks, create_webhook, delete_webhook
-**Queue & Scheduling:** get_queue, list_admin_queue, retry_queue_message, list_failed_outbound, list_own_scheduled, list_scheduled_outbound, cancel_scheduled, reschedule_scheduled
+**Queue & Scheduling:** get_queue, list_admin_queue, retry_queue_message, list_failed_outbound, list_outbound_paused, resume_outbound_paused, list_own_scheduled, list_scheduled_outbound, cancel_scheduled, reschedule_scheduled
 **Encryption:** list_own_encryption_keys, get_public_key_of, set_encryption_key, delete_encryption_key
 **Greylist:** list_greylist_local, greylist_local_add, greylist_local_remove
 **Mock mail (disposable test mailboxes):** mock_create_namespace, mock_list_namespaces, mock_delete_namespace, mock_new_address, mock_list_messages, mock_wait_for_message, mock_read_message, mock_delete_messages, mock_send
@@ -72,6 +72,8 @@ Streamable HTTP endpoint: https://mail.golia.ai/mcp
 - GET /api/admin/mock, PUT /api/admin/mock/settings — mock mail usage and settings (on/off, retention days, per-namespace and total limits, namespaces per person, who may create); an admin lists everyone's namespaces with GET /api/mock/namespaces?all=true
 - POST /api/admin/accounts/{address}/password — a new password, the account's sessions signed out; with `{"compromised":{"revoke_key_ids":[...]}}` (every key id the list below shows) all its agent keys are revoked too (admin.accounts, recent confirmation)
 - GET /api/admin/accounts/{address}/agent-keys — an account's agent keys with created and last-used times (admin.accounts, recent confirmation)
+- GET /api/admin/outbound/paused, POST /api/admin/outbound/paused/{address}/resume — accounts whose outbound mail is paused after unusual sending, and releasing one with its held mail sent or discarded (super administrator)
+- A send from a paused account answers 423 `outbound_paused`; SMTP submission answers 550 5.7.1 at MAIL FROM
 - GET/PUT /api/admin/accounts/{address}/forwards — other accounts here that get a copy of everything delivered to an account, written straight into their mailboxes (admin.accounts)
 - GET/PUT /api/admin/accounts/{address}/send-as — the addresses an account was granted to send as, besides its own, its aliases and its email groups (admin.accounts)
 - GET /api/admin/auth-events — sign-in attempts on every way in (web, verify, IMAP, POP3, SMTP, ManageSieve, DAV, API keys), newest first; filter with account, source, result, channel, since, until, limit (admin.accounts)

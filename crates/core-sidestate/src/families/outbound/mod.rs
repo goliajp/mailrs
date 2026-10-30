@@ -13,6 +13,7 @@ use mailrs_core_api::method::outbound::{OutboundMessageWire, QueueStatus};
 mod cancel;
 mod failed;
 mod keys;
+pub mod pause;
 mod terminal;
 
 pub use cancel::*;
@@ -60,6 +61,30 @@ pub fn write_fresh_pending(
     job: &FreshPending<'_>,
     now: i64,
 ) -> std::io::Result<i64> {
+    write_pending(conn, job, None, now)
+}
+
+/// The kind a security alert's job carries. The sender neither counts
+/// nor holds it: an alert must leave even when its own account is paused.
+pub const SECURITY_ALERT_KIND: &str = "security_alert";
+
+/// A security alert's job — the alert mailer's and the complaint
+/// evidence's, and nobody else's. No request a user makes reaches this:
+/// a kind a sender could choose would let any account skip the pause.
+pub fn write_security_alert_pending(
+    conn: &mut kevy_client::Connection,
+    job: &FreshPending<'_>,
+    now: i64,
+) -> std::io::Result<i64> {
+    write_pending(conn, job, Some(SECURITY_ALERT_KIND), now)
+}
+
+fn write_pending(
+    conn: &mut kevy_client::Connection,
+    job: &FreshPending<'_>,
+    kind: Option<&str>,
+    now: i64,
+) -> std::io::Result<i64> {
     let FreshPending {
         sender,
         recipient,
@@ -84,7 +109,7 @@ pub fn write_fresh_pending(
         updated_at: now,
         send_id: send_id.map(String::from),
     };
-    let blob = row_blob(&row);
+    let blob = row_blob(&row, kind);
     let job_k = job_key(id);
     let id_str = id.to_string();
     let now_str = now.to_string();
@@ -148,8 +173,8 @@ pub fn requeue_pending(
 }
 
 /// Serialize a queue row's blob field the way the sender consumes it.
-fn row_blob(row: &OutboundMessageWire) -> String {
-    serde_json::json!({
+fn row_blob(row: &OutboundMessageWire, kind: Option<&str>) -> String {
+    let mut blob = serde_json::json!({
         "id": row.id, "sender": row.sender, "recipient": row.recipient,
         "original_sender": row.original_sender,
         "message_data_b64": row.message_data_base64,
@@ -160,6 +185,9 @@ fn row_blob(row: &OutboundMessageWire) -> String {
         // Without this the field round-trips as None and the sender can
         // never find the Send row to report an outcome against.
         "send_id": row.send_id,
-    })
-    .to_string()
+    });
+    if let Some(kind) = kind {
+        blob["kind"] = kind.into();
+    }
+    blob.to_string()
 }

@@ -434,4 +434,12 @@ pub(super) fn mail_routes() -> axum::Router<Arc<WebState>> {
             "/api/admin/queues",
             get(handlers::complete::list_admin_queue),
         )
+        .route(
+            "/api/admin/outbound/paused",
+            get(handlers::admin_outbound_pause::list_paused),
+        )
+        .route(
+            "/api/admin/outbound/paused/{address}/resume",
+            post(handlers::admin_outbound_pause::resume),
+        )
 }

@@ -136,3 +136,25 @@ export const keyListChangedSchema = z.object({
   error: z.literal('key_list_changed'),
   keys: z.array(accountAgentKeySchema),
 })
+
+// Backend: crates/core-sidestate/src/families/outbound/pause.rs — struct Paused
+export const outboundPausedSchema = z.object({
+  items: z.array(
+    z.object({
+      address: z.string(),
+      held: z.number(),
+      reason: z.string(),
+      since: z.number(),
+    })
+  ),
+})
+
+export type WireOutboundPaused = z.infer<typeof outboundPausedSchema>
+
+// Backend: crates/webapi/src/handlers/admin_outbound_pause.rs — fn resume
+export const outboundResumedSchema = z.object({
+  discarded: z.number(),
+  sent: z.number(),
+})
+
+export type WireOutboundResumed = z.infer<typeof outboundResumedSchema>

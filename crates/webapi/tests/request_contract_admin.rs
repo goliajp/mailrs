@@ -60,6 +60,14 @@ fn account_password_compromised_body_matches() {
     assert_eq!(v.compromised.expect("compromised").revoke_key_ids, [3, 7]);
 }
 
+/// Releasing a paused account names what becomes of its held mail; a
+/// misspelt value would be refused rather than read as one or the other.
+#[test]
+fn outbound_resume_body_matches() {
+    let v: handlers::admin_outbound_pause::ResumeRequest = parse("outbound-resume");
+    assert_eq!(v.held, handlers::admin_outbound_pause::HeldChoice::Send);
+}
+
 #[test]
 fn account_send_as_body_matches() {
     let v: mailrs_core_api::method::admin::SendAsList = parse("account-send-as-set");

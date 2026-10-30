@@ -184,7 +184,7 @@ async fn mail_alerts(from: &str, to: &[String]) {
         ..Default::default()
     };
     let (_, message) = crate::handlers::compose::build_rfc5322(&parts, from);
-    match crate::handlers::send_queue::enqueue_outbound_at(from, to, &message, None, None) {
+    match crate::handlers::send_queue::enqueue_security_alert(from, to, &message) {
         Ok(()) => tracing::info!(alerts = alerts.len(), "security alerts mailed"),
         Err(code) => {
             tracing::error!(%code, alerts = alerts.len(), "security alerts could not be queued; they are lost")

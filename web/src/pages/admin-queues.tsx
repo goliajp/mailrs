@@ -15,6 +15,7 @@ import {
   AdminTableSkeleton,
   ConfirmAction,
 } from '@/components/admin-page'
+import { PausedSenders } from '@/components/admin-queues/paused-senders'
 import { QueuePager, QueueStatusFilter } from '@/components/admin-queues/queue-controls'
 import { ALL_STATUSES, statusStyles } from '@/components/admin-queues/queue-row'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
@@ -177,6 +178,8 @@ export function AdminQueues() {
       subtitle="Mail waiting to leave this server, up to 100 jobs per state. Delivered mail leaves the list; mail that failed for good stays under Failed"
       title="Outbound queue"
     >
+      <PausedSenders />
+
       <QueueStatusFilter onChange={setStatusFilter} queue={queue} value={statusFilter} />
 
       {renderBody()}
