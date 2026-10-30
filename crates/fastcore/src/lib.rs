@@ -36,7 +36,7 @@ mod maildir_scan;
 mod maintenance;
 mod mock_sweep;
 mod protocols;
-pub use protocols::FastcoreDirectory;
+pub use protocols::{FastcoreDirectory, listen_for_signouts};
 mod push;
 mod router;
 mod routes;

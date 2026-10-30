@@ -138,6 +138,26 @@ impl<D: Directory> Directory for Guarded<D> {
     fn signins(&self) -> Option<&mailrs_auth_guard::signins::Signins> {
         Some(&self.signins)
     }
+
+    fn password_cleared(&self, account: &str) -> impl Future<Output = bool> + Send {
+        self.dir.password_cleared(account)
+    }
+}
+
+/// Close the connections of every account signed in here whose password
+/// has been cleared: for when the sign-out that would have closed them was
+/// published while nobody was listening.
+pub async fn end_cleared<D: Directory>(dir: &Guarded<D>) {
+    for account in dir.signins.accounts() {
+        if dir.dir.password_cleared(&account).await {
+            let closed = dir.signins.end(&account);
+            tracing::info!(
+                account = %mailrs_auth_guard::login::loggable_account(&account),
+                closed,
+                "closed connections of an account signed out while unheard"
+            );
+        }
+    }
 }
 
 #[cfg(test)]

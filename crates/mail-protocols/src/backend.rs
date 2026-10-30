@@ -54,6 +54,14 @@ pub trait Directory: Send + Sync + 'static {
     fn signins(&self) -> Option<&mailrs_auth_guard::signins::Signins> {
         None
     }
+
+    /// Whether an administrator has cleared `account`'s password, for
+    /// closing the connections a missed sign-out left open. A store that
+    /// cannot be read answers `false`: the connection stays as it was.
+    fn password_cleared(&self, account: &str) -> impl Future<Output = bool> + Send {
+        let _ = account;
+        async { false }
+    }
 }
 
 /// One message of a mailbox, as a session sees it.

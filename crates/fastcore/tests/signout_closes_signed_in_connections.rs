@@ -4,6 +4,11 @@
 //! sign-out travels the real channel to the real listeners, as webapi sends
 //! it when a password is cleared.
 //!
+//! A sign-out published while a listener is not subscribed reaches nobody,
+//! so each (re)subscription looks over the connections held and closes
+//! those of accounts cleared meanwhile. A listener's first subscription
+//! takes that same path, which is how a missed sign-out is played here.
+//!
 //! One test, because the receiver reads its configuration from the
 //! environment once per process.
 
@@ -21,6 +26,10 @@ const KEVY: &str = "mem://signout-closes-signed-in-connections";
 const SECRET: &str = "secret";
 const ALICE: &str = "alice@golia.example";
 const BOB: &str = "bob@golia.example";
+/// Cleared while fastcore's listener was not subscribed.
+const CAROL: &str = "carol@golia.example";
+/// Cleared while the receiver missed the sign-out.
+const DAVE: &str = "dave@golia.example";
 const PW: &str = "a-real-password-1";
 
 struct Conn<R> {
@@ -69,6 +78,30 @@ where
     (r, w)
 }
 
+type Smtp = (
+    Conn<tokio::net::tcp::OwnedReadHalf>,
+    tokio::net::tcp::OwnedWriteHalf,
+);
+
+async fn smtp_signed_in(port: u16, user: &str) -> Smtp {
+    let (r, mut w) = TcpStream::connect(("127.0.0.1", port))
+        .await
+        .unwrap()
+        .into_split();
+    let mut r = Conn {
+        reader: BufReader::new(r),
+    };
+    r.line().await;
+    w.write_all(b"EHLO sender.example.org\r\n").await.unwrap();
+    while !r.line().await.starts_with("250 ") {}
+    let plain = base64::engine::general_purpose::STANDARD.encode(format!("\0{user}\0{PW}"));
+    w.write_all(format!("AUTH PLAIN {plain}\r\n").as_bytes())
+        .await
+        .unwrap();
+    assert!(r.line().await.starts_with("235"), "smtp sign-in as {user}");
+    (r, w)
+}
+
 /// Publish the sign-out once every listener has subscribed.
 fn sign_out(address: &str, listeners: usize) {
     let mut c = kevy_client::Connection::connect(KEVY).unwrap();
@@ -97,7 +130,7 @@ async fn ending_an_accounts_sign_ins_closes_its_open_connections() {
     let core = format!("http://{}", listener.local_addr().unwrap());
     tokio::spawn(async move { axum::serve(listener, router).await });
     let client = mailrs_core_api::client::Client::new(core.clone(), SECRET);
-    for address in [ALICE, BOB] {
+    for address in [ALICE, BOB, CAROL, DAVE] {
         client
             .add_account(&AddAccountRequest {
                 address: address.into(),
@@ -125,15 +158,39 @@ async fn ending_an_accounts_sign_ins_closes_its_open_connections() {
     }
     let _kevy = kevy_client::Connection::connect(KEVY).unwrap();
 
-    // fastcore's protocols, wired as `protocols::spawn` wires them
+    // fastcore's protocols, wired as `protocols::spawn` wires them, the
+    // listener left for later
     let dir = mailrs_fastcore::FastcoreDirectory::new(state, tmp.path().join("maildir"));
     let guard = mailrs_auth_guard::kevy::guard_for(Some(KEVY));
     let guarded = Arc::new(Guarded::new(Arc::new(dir), guard));
-    let signins = guarded.signed_in();
-    signout::listen(KEVY.to_string(), move |account| {
-        signins.end(account);
-    });
     let receiver = mailrs_receiver::start().await;
+
+    // carol and dave are cleared with nobody told: no sign-out is published
+    let (mut carol, mut carol_w) = imap_signed_in(&guarded, CAROL).await;
+    carol_w.write_all(b"c1 IDLE\r\n").await.unwrap();
+    assert_eq!(carol.line().await, "+ idling");
+    let (mut dave, _dave_w) = smtp_signed_in(receiver.submission.port(), DAVE).await;
+    let cleared = mailrs_core_api::method::admin::ClearPasswordRequest {
+        by: "root@golia.example".into(),
+    };
+    for address in [CAROL, DAVE] {
+        client
+            .clear_account_password(address, &cleared)
+            .await
+            .unwrap();
+    }
+    mailrs_fastcore::listen_for_signouts(KEVY.to_string(), guarded.clone());
+    assert_eq!(
+        carol.line().await,
+        "* BYE [ALERT] Signed out: an administrator ended this account's sign-ins",
+        "the subscription did not close an account cleared while it was down"
+    );
+    receiver.end_cleared().await;
+    let r = dave.line().await;
+    assert!(
+        r.starts_with("421"),
+        "receiver after a missed sign-out: {r}"
+    );
 
     let (mut idle, mut idle_w) = imap_signed_in(&guarded, ALICE).await;
     idle_w.write_all(b"a2 IDLE\r\n").await.unwrap();
@@ -155,25 +212,7 @@ async fn ending_an_accounts_sign_ins_closes_its_open_connections() {
     assert_eq!(pop.line().await, "+OK send PASS");
     assert!(pop.line().await.starts_with("+OK"), "pop3 sign-in");
 
-    let mut smtp = TcpStream::connect(("127.0.0.1", receiver.submission.port()))
-        .await
-        .unwrap();
-    let (smtp_r, mut smtp_w) = smtp.split();
-    let mut smtp_r = Conn {
-        reader: BufReader::new(smtp_r),
-    };
-    smtp_r.line().await;
-    smtp_w
-        .write_all(b"EHLO sender.example.org\r\n")
-        .await
-        .unwrap();
-    while !smtp_r.line().await.starts_with("250 ") {}
-    let plain = base64::engine::general_purpose::STANDARD.encode(format!("\0{ALICE}\0{PW}"));
-    smtp_w
-        .write_all(format!("AUTH PLAIN {plain}\r\n").as_bytes())
-        .await
-        .unwrap();
-    assert!(smtp_r.line().await.starts_with("235"), "smtp sign-in");
+    let (mut smtp_r, _smtp_w) = smtp_signed_in(receiver.submission.port(), ALICE).await;
 
     tokio::task::spawn_blocking(|| sign_out(ALICE, 2))
         .await
