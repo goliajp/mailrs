@@ -2,6 +2,7 @@
 
 #[tokio::main]
 async fn main() {
+    mailrs_core_api::refuse_blank_secrets();
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
