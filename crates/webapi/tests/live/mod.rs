@@ -99,6 +99,20 @@ impl Live {
         groups::add_member(c, id, address).expect("add member");
     }
 
+    /// Make `address` a super administrator, the one role that may read
+    /// other people's mail traffic.
+    pub fn make_super(&self, address: &str) {
+        self.mailbox
+            .upsert_permissions(
+                address,
+                &serde_json::json!({
+                    "address": address, "permissions": [], "groups": [], "is_super": true, "send_as": [],
+                })
+                .to_string(),
+            )
+            .expect("make super");
+    }
+
     /// Confirm `token`'s password, as the operations that ask for a recent
     /// confirmation require.
     pub async fn confirm(&self, token: &str, password: &str) {
