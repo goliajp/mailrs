@@ -10,6 +10,7 @@ import {
   useSelectedThreadId,
   useSelectThreadId,
 } from '@/hooks/use-current-list'
+import { invalidateMailAggregatesOnly } from '@/lib/mail-cache'
 import { queryClient } from '@/lib/query-client'
 import { patchAllInfiniteLists } from '@/reducers/snapshot'
 import {
@@ -225,7 +226,9 @@ export function useKeyboardNav() {
           // Shift+I: mark read and go to next
           if (!selectedThreadId) break
           e.preventDefault()
-          wireMarkThreadRead(selectedThreadId).catch(() => {})
+          wireMarkThreadRead(selectedThreadId)
+            .then(invalidateMailAggregatesOnly)
+            .catch(() => {})
           patchAllInfiniteLists(queryClient, (c) =>
             c.thread_id === selectedThreadId ? { ...c, unread_count: 0 } : c
           )
@@ -286,6 +289,7 @@ export function useKeyboardNav() {
           wireBatchMutation('unread', [selectedThreadId])
             .then(() => {
               toast.success('Marked unread')
+              invalidateMailAggregatesOnly()
               patchAllInfiniteLists(queryClient, (c) =>
                 c.thread_id === selectedThreadId
                   ? { ...c, unread_count: Math.max(1, c.unread_count) }
