@@ -28,11 +28,19 @@ pub struct Receiver {
     /// `None` when no certificate is configured.
     pub smtps: Option<SocketAddr>,
     shutdown: watch::Sender<bool>,
+    ctx: Arc<ConnectionContext>,
 }
 
 impl Receiver {
     pub fn stop(self) {
         let _ = self.shutdown.send(true);
+    }
+
+    /// Close the submission connections of accounts whose password has
+    /// been cleared; what runs each time the sign-out subscription is
+    /// (re)made.
+    pub async fn end_cleared(&self) {
+        crate::run::end_cleared(&self.ctx).await;
     }
 }
 
@@ -83,6 +91,7 @@ pub(crate) async fn listen(ctx: Arc<ConnectionContext>, cfg: &ReceiverConfig) ->
         submission,
         smtps,
         shutdown,
+        ctx,
     }
 }
 

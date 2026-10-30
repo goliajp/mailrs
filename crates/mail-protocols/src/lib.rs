@@ -21,6 +21,6 @@ mod test_support;
 #[cfg(test)]
 mod test_tls;
 
-pub use guard::Guarded;
+pub use guard::{Guarded, end_cleared};
 pub use listen::spawn_all;
 pub use mailrs_auth_guard::signins::Signins;
