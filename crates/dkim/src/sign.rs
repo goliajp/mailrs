@@ -207,15 +207,9 @@ pub fn sign(
 
     // 3. Compute the signed-header block.
     //
-    // Header name handling: verify's `DkimHeader::parse` lowercases
-    // every name in `h=` for normalization, so when the verifier
-    // canonicalizes each signed header it uses the lowercased name.
-    // Sign MUST mirror that — otherwise SIMPLE canon (which
-    // preserves the name verbatim per RFC 6376 §3.4.1) produces
-    // "From:" while verify produces "from:" and the hashes don't
-    // match. For RELAXED canon `canonicalize_header` lowercases the
-    // name itself so this is a no-op, but doing it unconditionally
-    // keeps the contract self-consistent.
+    // Each header is hashed under the name the message gives it:
+    // SIMPLE keeps the name verbatim (RFC 6376 §3.4.1), and every other
+    // verifier reads it from the message, not from `h=`.
     let headers_region = &raw_message[..body_offset_minus_blank(body_offset, raw_message)];
     let mut signed_block = Vec::with_capacity(512);
     // Per RFC 6376 §5.4.2: walk h= in order, consume one occurrence
@@ -227,8 +221,7 @@ pub fn sign(
         crate::headers::collect_signed_headers_borrowed(headers_region, &opts.signed_headers);
     for (name, value_opt) in &collected {
         let Some(value) = value_opt else { continue };
-        let canon_name = name.to_ascii_lowercase();
-        signed_block.extend_from_slice(&canonicalize_header(&canon_name, value, opts.canon_header));
+        signed_block.extend_from_slice(&canonicalize_header(name, value, opts.canon_header));
     }
     // Append the DKIM-Signature header value itself with b= empty.
     // canonicalize_header takes a name + value; the value here is the
@@ -243,13 +236,6 @@ pub fn sign(
     // value verbatim — so without this prepend, sign hashes
     // "DKIM-Signature:<tags>" and verify hashes "DKIM-Signature: <tags>".
     // Mismatch ⇒ every simple/simple signature unverifiable.
-    //
-    // We do NOT append a trailing `\r` here even though verify's
-    // value comes with one: `clear_b_value` on the verify side
-    // consumes everything between `b=` and the next `;` (or end of
-    // string), which strips the wire-format `\r` along with the
-    // signature bytes. So the cleared value on the verify side
-    // has the same trailing-CR-free shape as our `tags`.
     let signed_value = format!(" {tags}");
     let canon_dkim = canonicalize_header("DKIM-Signature", &signed_value, opts.canon_header);
     // Per §3.7: trailing CRLF of the DKIM-Signature is NOT in the

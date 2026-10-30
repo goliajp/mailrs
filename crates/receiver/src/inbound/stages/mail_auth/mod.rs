@@ -137,8 +137,8 @@ impl Stage for MailAuthStage {
             return StageOutcome::Continue;
         };
 
-        let policy = match lookup_policy(self.dmarc_resolver(), &from_d).await {
-            Some(p) => p,
+        let (policy, policy_domain) = match lookup_policy(self.dmarc_resolver(), &from_d).await {
+            Some(found) => found,
             None => {
                 // Either no _dmarc TXT or unparseable; both behave like
                 // p=none. Leave defaults; continue.
@@ -167,8 +167,8 @@ impl Stage for MailAuthStage {
             .collect::<Vec<_>>();
         let from_is_ours = ctx.local_domains.contains(&from_d);
         let input = mailrs_dmarc::DmarcInput {
-            from_domain: from_d.clone().into(),
-            policy_domain: from_d.into(),
+            from_domain: from_d.into(),
+            policy_domain: policy_domain.into(),
             spf: spf_input,
             dkim: dkim_input,
         };

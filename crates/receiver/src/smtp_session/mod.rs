@@ -107,6 +107,23 @@ fn note_signin(
     }
 }
 
+/// Answer a connection the connect checks refused, in place of the
+/// greeting, and close it.
+async fn refuse<S>(stream: S, refusal: admission::Refusal, ctx: &ConnectionContext, conn_id: u64)
+where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+{
+    let mut framed = Framed::new(stream, codec(ctx, MAX_MESSAGE_SIZE));
+    let _ = framed.send(refusal.reply).await;
+    ctx.event_bus.emit(SmtpEvent::SpamRejected {
+        id: conn_id,
+        reason: refusal.reason,
+    });
+    ctx.metrics.on_disconnect();
+    ctx.event_bus
+        .emit(SmtpEvent::ConnectionClosed { id: conn_id });
+}
+
 /// handle a plain-text SMTP connection (port 25/587), may upgrade via STARTTLS
 #[tracing::instrument(name = "smtp.conn", skip(stream, ctx), fields(peer = %addr, tls = false))]
 pub async fn handle_plain_connection(
@@ -124,15 +141,7 @@ pub async fn handle_plain_connection(
     });
 
     if let Some(refusal) = admission::ConnectChecks::of(&ctx).refusal(addr.ip()).await {
-        let mut framed = Framed::new(stream, codec(&ctx, MAX_MESSAGE_SIZE));
-        let _ = framed.send(refusal.reply).await;
-        ctx.event_bus.emit(SmtpEvent::SpamRejected {
-            id: conn_id,
-            reason: refusal.reason,
-        });
-        ctx.metrics.on_disconnect();
-        ctx.event_bus
-            .emit(SmtpEvent::ConnectionClosed { id: conn_id });
+        refuse(stream, refusal, &ctx, conn_id).await;
         return;
     }
 
@@ -274,6 +283,12 @@ pub async fn handle_tls_connection(
             return;
         }
     };
+
+    // the same checks as 25 and 587, answered inside the TLS session
+    if let Some(refusal) = admission::ConnectChecks::of(&ctx).refusal(addr.ip()).await {
+        refuse(tls_stream, refusal, &ctx, conn_id).await;
+        return;
+    }
 
     let max_size = ctx.runtime.max_message_size.current().await;
     let config = SessionConfig {
