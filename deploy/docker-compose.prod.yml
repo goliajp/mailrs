@@ -46,6 +46,14 @@ x-imap-listeners: &imap-listeners
   MAILRS_IMAP_BIND: 0.0.0.0:143
   MAILRS_IMAPS_BIND: 0.0.0.0:993
 
+# a password an administrator cleared: whom a sign-in to the account is told
+# to ask (fastcore's IMAP, POP3 and ManageSieve, the receiver's SMTP), and
+# who may hand out reset codes (webapi-fc). one definition so they agree.
+x-password-reset: &password-reset
+  MAILRS_RESET_CONTACT_NAME: ${MAILRS_RESET_CONTACT_NAME:-}
+  MAILRS_RESET_CONTACT: ${MAILRS_RESET_CONTACT:-}
+  MAILRS_RESET_ISSUERS: ${MAILRS_RESET_ISSUERS:-}
+
 services:
   receiver:
     container_name: mailrs-receiver
@@ -62,6 +70,7 @@ services:
       - "465:465"
       - "587:587"
     environment:
+      <<: *password-reset
       MAILRS_HOSTNAME: mail.golia.ai
       MAILRS_LOCAL_DOMAINS: golia.jp,golia.ai,dadaya.jp,marspot.com,bitreits.com,doracawl.com,madcawl.com,mock.golia.jp
       # disposable test mailboxes; every process that touches them reads it
@@ -133,7 +142,7 @@ services:
     stop_grace_period: 60s
     environment:
       MAILRS_FASTCORE_BIND: 0.0.0.0:3301
-      <<: *imap-listeners
+      <<: [*imap-listeners, *password-reset]
       MAILRS_KEVY_DATA_DIR: /data/kevy-fastcore
       # Transparent tiering budget in MB, or `auto` for 70% of the
       # cgroup limit. Unset = off (everything stays in RAM). Cold
@@ -252,7 +261,7 @@ services:
       # (or drop this line) by 2026-11-01 at the latest.
       MAILRS_CSRF: report
       # the domain check reads only domain and selector, never the key files
-      <<: [*dkim-identity, *imap-listeners]
+      <<: [*dkim-identity, *imap-listeners, *password-reset]
       RUST_LOG: info
     volumes:
       - mailrs-data:/data
