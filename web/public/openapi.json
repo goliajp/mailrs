@@ -700,6 +700,9 @@
           },
           "403": {
             "description": "Not authorized to send from this address"
+          },
+          "423": {
+            "description": "`outbound_paused`: the account's outbound mail is paused; `message` says whom to ask"
           }
         }
       }
@@ -9831,6 +9834,123 @@
         "responses": {
           "204": {
             "description": "Received"
+          }
+        }
+      }
+    },
+    "/api/admin/outbound/paused": {
+      "get": {
+        "operationId": "listOutboundPaused",
+        "summary": "Accounts whose outbound mail is paused",
+        "tags": [
+          "Admin"
+        ],
+        "description": "An account is paused when it sends past its hourly limit (default 200 recipients) or has too many permanent failures in an hour (default 30). Its mail is held, neither sent nor bounced. Super administrators only.",
+        "responses": {
+          "200": {
+            "description": "Paused accounts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "address": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "since": {
+                            "type": "integer",
+                            "description": "Unix seconds"
+                          },
+                          "held": {
+                            "type": "integer",
+                            "description": "Messages held"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a super administrator"
+          }
+        }
+      }
+    },
+    "/api/admin/outbound/paused/{address}/resume": {
+      "post": {
+        "operationId": "resumeOutbound",
+        "summary": "Lift an account's outbound pause, sending or discarding the held mail",
+        "tags": [
+          "Admin"
+        ],
+        "description": "Super administrators only, with a recent confirmation. Audited as outbound.resume.",
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "held"
+                ],
+                "properties": {
+                  "held": {
+                    "type": "string",
+                    "enum": [
+                      "send",
+                      "discard"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Released",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sent": {
+                      "type": "integer"
+                    },
+                    "discarded": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a super administrator, or `confirm_required`"
+          },
+          "404": {
+            "description": "The account is not paused"
           }
         }
       }

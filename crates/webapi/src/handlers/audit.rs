@@ -10,32 +10,9 @@
 //! `AUDIT_CAP` entries so it can't grow unbounded — the oldest fact
 //! ages out (retention). A monotonic counter gives each row a stable id.
 
-use serde::Serialize;
-
 use crate::handlers::kevy_util::with_kevy;
 
-use mailrs_core_sidestate::keys::admin::{AUDIT_LOG as AUDIT_KEY, AUDIT_LOG_COUNTER as AUDIT_CTR};
-/// Retention cap — ~90 days of typical admin activity.
-const AUDIT_CAP: i64 = 50_000;
-
-/// One immutable audit fact.
-#[derive(Debug, Clone, Serialize)]
-pub struct AuditFact {
-    /// Monotonic row id.
-    pub id: i64,
-    /// When the action happened (unix seconds). Fact time.
-    pub occurred_at: i64,
-    /// When we recorded it. System time.
-    pub recorded_at: i64,
-    /// Authenticated actor (email) or "system".
-    pub actor: String,
-    /// Verb: `account.create`, `alias.delete`, `sieve.update`, …
-    pub action: String,
-    /// What was acted on (address / id / name).
-    pub target: String,
-    /// Free-text context (old→new, reason, …).
-    pub detail: String,
-}
+pub use mailrs_core_sidestate::families::audit::AuditFact;
 
 /// Record one audit fact. Best-effort: an audit write must never fail
 /// the operation it describes. The row is LPUSH'd so newest reads first.
@@ -67,31 +44,7 @@ fn write(
     let detail = detail.to_string();
     let now = now_secs();
     with_kevy(move |c| {
-        let id = c.incr(AUDIT_CTR)?;
-        let fact = AuditFact {
-            id,
-            occurred_at: now,
-            recorded_at: now,
-            actor,
-            action,
-            target,
-            detail,
-        };
-        let payload = serde_json::to_vec(&fact).unwrap_or_default();
-        c.lpush(AUDIT_KEY, &[payload.as_slice()])?;
-        // retention: kevy-client has no LTRIM, so when the list grows a
-        // window past the cap, rewrite it to the newest AUDIT_CAP rows.
-        // Amortized cheap — the rewrite fires once per AUDIT_CAP/10 rows.
-        let len = c.llen(AUDIT_KEY)? as i64;
-        if len > AUDIT_CAP + AUDIT_CAP / 10 {
-            let keep = c.lrange(AUDIT_KEY, 0, AUDIT_CAP - 1)?;
-            c.del(&[AUDIT_KEY])?;
-            // re-push oldest-first so LPUSH restores newest-first order
-            for row in keep.iter().rev() {
-                c.lpush(AUDIT_KEY, &[row.as_slice()])?;
-            }
-        }
-        Ok(())
+        mailrs_core_sidestate::families::audit::append(c, &actor, &action, &target, &detail, now)
     })
 }
 

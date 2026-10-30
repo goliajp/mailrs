@@ -107,6 +107,10 @@ pub async fn resend(
         return Err(StatusCode::CONFLICT);
     }
 
+    // the sender holds a paused account's mail; say so here as well
+    if crate::handlers::send_queue::ensure_not_paused(&user, &user).is_err() {
+        return Err(StatusCode::LOCKED);
+    }
     let new_id = next_resend_id(&send_id, item.resent_from.as_deref());
     crate::handlers::prefs::enqueue_resend(
         &user,

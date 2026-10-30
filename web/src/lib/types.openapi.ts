@@ -5105,6 +5105,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/outbound/paused": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Accounts whose outbound mail is paused
+         * @description An account is paused when it sends past its hourly limit (default 200 recipients) or has too many permanent failures in an hour (default 30). Its mail is held, neither sent nor bounced. Super administrators only.
+         */
+        get: operations["listOutboundPaused"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/outbound/paused/{address}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Lift an account's outbound pause, sending or discarding the held mail
+         * @description Super administrators only, with a recent confirmation. Audited as outbound.resume.
+         */
+        post: operations["resumeOutbound"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -6208,6 +6248,13 @@ export interface operations {
             };
             /** @description Not authorized to send from this address */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `outbound_paused`: the account's outbound mail is paused; `message` says whom to ask */
+            423: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -11875,6 +11922,88 @@ export interface operations {
             };
             /** @description No admin.accounts, or `confirm_required` */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listOutboundPaused: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paused accounts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items?: {
+                            address?: string;
+                            reason?: string;
+                            /** @description Unix seconds */
+                            since?: number;
+                            /** @description Messages held */
+                            held?: number;
+                        }[];
+                    };
+                };
+            };
+            /** @description Not a super administrator */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    resumeOutbound: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                address: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    held: "send" | "discard";
+                };
+            };
+        };
+        responses: {
+            /** @description Released */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        sent?: number;
+                        discarded?: number;
+                    };
+                };
+            };
+            /** @description Not a super administrator, or `confirm_required` */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The account is not paused */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

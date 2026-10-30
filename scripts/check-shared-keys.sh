@@ -18,6 +18,7 @@ cd "$(dirname "$0")/.."
 # prefix (ERE, matched right after the opening quote) ; defining file
 FAMILIES='
 mailrs:outbound:;crates/core-sidestate/src/families/outbound/keys.rs
+outbound:(paused|held|rate|fail);crates/core-sidestate/src/families/outbound/pause.rs
 mailrs:user:[^"]*:contacts;crates/core-sidestate/src/families/contact_cards.rs
 mailrs:contact:;crates/core-sidestate/src/families/contacts.rs
 mailrs:quota:;crates/core-sidestate/src/keys/quota.rs

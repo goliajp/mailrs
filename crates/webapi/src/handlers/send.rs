@@ -26,13 +26,14 @@ pub(crate) async fn send_message(
     key: Option<Extension<AgentKey>>,
     headers: HeaderMap,
     Json(req): Json<SendRequest>,
-) -> Result<Json<SendResponse>, StatusCode> {
+) -> Result<Json<SendResponse>, SendError> {
     let from = if req.from.is_empty() {
         user.clone()
     } else {
         req.from
     };
     ensure_from_allowed(&state, &user, &from).await?;
+    super::send_queue::ensure_not_paused(&user, &from)?;
     let mut parts = ComposeParts {
         from: from.clone(),
         to: req.to,
@@ -122,6 +123,12 @@ pub(crate) async fn send_email_mcp(
     ensure_from_allowed(state, auth_user, from)
         .await
         .map_err(|c| format!("from not allowed ({c})"))?;
+    if super::send_queue::ensure_not_paused(auth_user, from).is_err() {
+        return Err(format!(
+            "outbound_paused: {}",
+            mailrs_auth_guard::password::outbound_paused_notice()
+        ));
+    }
     let parts = ComposeParts {
         from: from.to_string(),
         to: to.to_vec(),
@@ -255,6 +262,7 @@ pub(crate) async fn send_message_multipart(
         parts.from = user.clone();
     }
     ensure_from_allowed(&state, &user, &parts.from).await?;
+    super::send_queue::ensure_not_paused(&user, &parts.from)?;
     parts.scheduled_at = super::compose::hold_for_undo(
         parts.scheduled_at,
         undo_seconds,

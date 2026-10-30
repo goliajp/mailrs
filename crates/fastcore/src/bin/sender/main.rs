@@ -31,6 +31,7 @@ mod config;
 mod deliver;
 mod mock;
 mod outcome;
+mod pause;
 mod queue;
 mod recover;
 mod retry;
@@ -65,6 +66,10 @@ impl Cfg {
             helo: std::env::var("MAILRS_HELO_HOSTNAME")
                 .unwrap_or_else(|_| "mail.golia.jp".to_string()),
             dsn_from_domain: mailrs_fastcore::bounce::dsn_identity().1,
+            pause_limits: Arc::new(pause::PauseLimits::from_env().unwrap_or_else(|e| {
+                eprintln!("{e}");
+                std::process::exit(2)
+            })),
             max_attempts: std::env::var("MAILRS_SENDER_MAX_ATTEMPTS")
                 .ok()
                 .and_then(|s| s.parse().ok())
@@ -200,6 +205,10 @@ async fn process_one(cfg: Cfg, id: String) {
         return;
     }
 
+    if pause::held(&cfg, &id, &envelope, &sender, attempts_prev == 0).await {
+        return;
+    }
+
     tracing::info!(%id, %sender, %recipient, attempt = attempts_prev + 1, "delivering");
     let original_sender = envelope
         .get("original_sender")
@@ -234,6 +243,7 @@ async fn process_one(cfg: Cfg, id: String) {
             record_suppression(&cfg, &recipient, &reason);
             mailrs_fastcore::live_sync::audit_system("mail.send_failed", &recipient, &reason);
             enqueue_bounce_dsn(&cfg, &sender, &recipient, &reason, &message_bytes).await;
+            pause::note_permanent_failure(&cfg, &envelope, &sender).await;
             if let Err(e) = move_to_failed(cfg, id.clone(), reason, sender, recipient).await {
                 tracing::error!(%id, err = %e, "move_to_failed after permanent failed");
             }
@@ -332,6 +342,7 @@ async fn main() {
         // when the queue is small; guards against sender crashes that
         // happen between boots and leave orphan inflight jobs.
         if now_secs() - last_stale_sweep >= 60 {
+            pause::sweep(&cfg).await;
             if let Err(e) = recover_stale((*cfg).clone()).await {
                 tracing::warn!(err = %e, "periodic recover_stale failed");
             }

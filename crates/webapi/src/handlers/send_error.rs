@@ -39,6 +39,18 @@ impl SendError {
         }
     }
 
+    /// 423 `outbound_paused`: the account's outbound mail is paused, and
+    /// the message says whom to ask.
+    pub fn paused() -> Self {
+        Self {
+            status: StatusCode::LOCKED,
+            body: serde_json::json!({
+                "error": "outbound_paused",
+                "message": mailrs_auth_guard::password::outbound_paused_notice(),
+            }),
+        }
+    }
+
     /// A form field that could not be read: too large, or malformed.
     pub fn form(e: MultipartError) -> Self {
         if e.status() == StatusCode::PAYLOAD_TOO_LARGE {

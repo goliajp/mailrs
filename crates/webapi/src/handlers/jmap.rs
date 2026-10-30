@@ -291,6 +291,12 @@ impl MailStore for JmapAdapter {
                 message: Some("no recipients".into()),
             };
         }
+        if crate::handlers::send_queue::ensure_not_paused(user, user).is_err() {
+            return SubmissionResult {
+                success: false,
+                message: Some(mailrs_auth_guard::password::outbound_paused_notice()),
+            };
+        }
         let created = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs() as i64)

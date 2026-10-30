@@ -32,14 +32,33 @@ pub fn matches(password: &str, hash: &str) -> bool {
 /// `MAILRS_RESET_CONTACT`. ASCII only, as protocol responses must be: a
 /// name written in another script is left out and the contact kept.
 pub fn cleared_notice() -> String {
+    format!(
+        "Your password was reset by an administrator. Ask {} for a reset code to set a new one",
+        contact_text()
+    )
+}
+
+/// What an account whose outbound mail was paused is told when it sends,
+/// in any protocol: whom to ask to release it. The same contact as for a
+/// cleared password; ASCII only.
+pub fn outbound_paused_notice() -> String {
+    format!(
+        "Sending from this account is paused after unusual outbound mail. Ask {} to release it",
+        contact_text()
+    )
+}
+
+/// The contact named in these notices, from `MAILRS_RESET_CONTACT_NAME` and
+/// `MAILRS_RESET_CONTACT`.
+fn contact_text() -> String {
     let read = |name| std::env::var(name).unwrap_or_default();
-    notice(
+    who(
         &read("MAILRS_RESET_CONTACT_NAME"),
         &read("MAILRS_RESET_CONTACT"),
     )
 }
 
-fn notice(name: &str, contact: &str) -> String {
+fn who(name: &str, contact: &str) -> String {
     let ascii = |s: &str| {
         let s = s.trim();
         match s.is_ascii() && !s.chars().any(|c| c.is_ascii_control() || c == '"') {
@@ -47,14 +66,11 @@ fn notice(name: &str, contact: &str) -> String {
             false => String::new(),
         }
     };
-    let who = match (ascii(name), ascii(contact)) {
+    match (ascii(name), ascii(contact)) {
         (n, c) if !n.is_empty() && !c.is_empty() => format!("{n} <{c}>"),
         (n, c) if n.is_empty() && c.is_empty() => "an administrator".to_string(),
         (n, c) => format!("{n}{c}"),
-    };
-    format!(
-        "Your password was reset by an administrator. Ask {who} for a reset code to set a new one"
-    )
+    }
 }
 
 /// Shortest new password.
@@ -172,20 +188,11 @@ mod tests {
 
     #[test]
     fn the_notice_names_whom_to_ask_in_ascii() {
-        assert_eq!(
-            notice("Li Hao", "lihao@golia.jp"),
-            "Your password was reset by an administrator. Ask Li Hao <lihao@golia.jp> for a reset code to set a new one"
-        );
+        assert_eq!(who("Li Hao", "lihao@golia.jp"), "Li Hao <lihao@golia.jp>");
         // a name in another script cannot go into a protocol line; the address can
-        assert_eq!(
-            notice("李浩", "lihao@golia.jp"),
-            "Your password was reset by an administrator. Ask lihao@golia.jp for a reset code to set a new one"
-        );
-        assert_eq!(
-            notice("", ""),
-            "Your password was reset by an administrator. Ask an administrator for a reset code to set a new one"
-        );
-        assert!(notice("a\"b", "x\r\ny").contains("Ask an administrator"));
+        assert_eq!(who("李浩", "lihao@golia.jp"), "lihao@golia.jp");
+        assert_eq!(who("", ""), "an administrator");
+        assert_eq!(who("a\"b", "x\r\ny"), "an administrator");
     }
 
     #[test]
