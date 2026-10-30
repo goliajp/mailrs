@@ -4,6 +4,7 @@ import { useAtomValue, useSetAtom } from 'jotai'
 import { useEffect, useRef } from 'react'
 
 import { useSelectedThreadId } from '@/hooks/use-current-list'
+import { showNewMailNotice } from '@/lib/new-mail-notice'
 import { playNotificationSound } from '@/lib/notification-sound'
 import { queryClient } from '@/lib/query-client'
 import { mailKeys } from '@/lib/query-keys'
@@ -42,7 +43,10 @@ const WS_PING_INTERVAL = 30_000
 const RECONNECT_BASE = 1_000
 const RECONNECT_MAX = 30_000
 
-export function useMailEvents(user: string) {
+/// `onOpen` opens a conversation, for a click on a new-mail notice.
+export function useMailEvents(user: string, onOpen?: (threadId: string) => void) {
+  const onOpenRef = useRef(onOpen)
+  onOpenRef.current = onOpen
   const setConnectionStatus = useSetAtom(connectionStatusAtom)
   const selectedThreadId = useSelectedThreadId()
   const selectedRef = useRef(selectedThreadId)
@@ -154,17 +158,7 @@ export function useMailEvents(user: string) {
 
               if (notificationsRef.current) {
                 if (soundRef.current) playNotificationSound()
-                // 'Notification' is absent on iOS Safari (non-PWA)
-                if (
-                  'Notification' in window &&
-                  Notification.permission === 'granted' &&
-                  document.hidden
-                ) {
-                  new Notification(msg.sender, {
-                    body: msg.subject || msg.snippet,
-                    tag: msg.thread_id,
-                  })
-                }
+                showNewMailNotice(msg, (threadId) => onOpenRef.current?.(threadId))
               }
             }
           }
