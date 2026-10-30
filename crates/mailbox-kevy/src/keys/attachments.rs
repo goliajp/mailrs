@@ -50,3 +50,7 @@ pub fn cap_text(text: &str, cap: usize) -> &str {
     }
     &text[..end]
 }
+
+/// Remote images waiting to be fetched: members `user \t message id \t url`.
+/// fastcore's prefetch worker takes and removes them.
+pub const IMAGE_PREFETCH_PENDING: &[u8] = b"mailrs:imgpending";
