@@ -140,10 +140,15 @@ services:
     # is not about needing a minute — it is about `stop_grace_period`
     # never being one of the candidate explanations when a tail tears.
     stop_grace_period: 60s
+    # on `fetch` too, to reach the image fetcher; its core API there still
+    # wants the core secret, which the fetcher does not have
+    networks: [default, fetch]
     environment:
       MAILRS_FASTCORE_BIND: 0.0.0.0:3301
       <<: [*imap-listeners, *password-reset]
       MAILRS_KEVY_DATA_DIR: /data/kevy-fastcore
+      # remote images in arriving mail, fetched by `fetch` below
+      MAILRS_FETCH_URL: http://fetch:3500/fetch
       # Transparent tiering budget in MB, or `auto` for 70% of the
       # cgroup limit. Unset = off (everything stays in RAM). Cold
       # values move to a vlog on disk and read back transparently.
@@ -343,6 +348,28 @@ services:
       - /apps/mailrs/backup:/backup
     restart: unless-stopped
 
+  # Fetches the remote images of arriving mail for fastcore, and nothing
+  # else. It talks to the outside on purpose, so it holds nothing worth
+  # taking: no MAILRS_* secret, no kevy, no volume. Its own checks refuse
+  # every private address; on top of that it shares only the `fetch`
+  # network, with fastcore alone, and runs locked down.
+  fetch:
+    container_name: mailrs-fetch
+    image: ghcr.io/goliajp/mailrs:${MAILRS_VERSION:?set MAILRS_VERSION in .env}
+    entrypoint: ["mailrs-fetch"]
+    pull_policy: always
+    networks: [fetch]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 256m
+    pids_limit: 64
+    healthcheck:
+      disable: true
+    environment:
+      RUST_LOG: info
+    restart: unless-stopped
+
   kevy-server:
     container_name: mailrs-kevy
     # 6.2.2 since 2026-09-01. It fixes what this project reported: a
@@ -400,3 +427,5 @@ networks:
       config:
         - subnet: 172.18.0.0/16
           gateway: 172.18.0.1
+  # the image fetcher's, shared with fastcore only
+  fetch: {}

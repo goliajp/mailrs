@@ -2,9 +2,9 @@
 //! browsers send what it would have blocked.
 //!
 //! Mail is drawn into a shadow root of the page, so the page's policy is
-//! the mail's policy too: styles inline in a message are allowed, and so
-//! are images from anywhere over https until remote images go through a
-//! proxy of our own. Scripts come only from this site.
+//! the mail's policy too: styles inline in a message are allowed. Images
+//! come only from this site — remote ones are the copies fastcore fetched
+//! when the mail arrived. Scripts come only from this site.
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -12,7 +12,7 @@ use axum::body::Bytes;
 use axum::http::StatusCode;
 
 pub const POLICY: &str = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; \
-img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self'; \
+img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; \
 frame-src 'self' blob:; worker-src 'self'; manifest-src 'self'; object-src 'none'; \
 base-uri 'none'; form-action 'self'; frame-ancestors 'none'; report-uri /api/csp-report";
 

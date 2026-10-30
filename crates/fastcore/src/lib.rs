@@ -25,6 +25,7 @@ mod file_message_id;
 pub mod fraud_backfill;
 mod headers;
 mod idle_backoff;
+pub mod image_prefetch;
 mod imap;
 mod importance;
 mod ingest;

@@ -52,6 +52,11 @@ pub(crate) fn ingest_delivered_file(
     }
     effects::before_store(state.net_conn(), addr, &a, body.len());
     let held = store_arrival(state, addr, blob_ref, body, &a, fraud_verdict);
+    // remote images are fetched now, as the mail arrives, not when it is
+    // read; mail in Junk or held as fraud is not fetched for
+    if target_folder != "Junk" && !held {
+        crate::image_prefetch::queue(state, addr, &a.message_id, &a.parsed);
+    }
     effects::after_store(addr, &a, held);
 }
 
