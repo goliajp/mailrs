@@ -19,7 +19,7 @@ mailrs-smtp-proto = { path = "../smtp-proto", version = "1" }
 mailrs-sieve = { path = "../sieve" }
 mailrs-tls-reload = { path = "../tls-reload", version = "1" }
 tokio = { workspace = true }
-mailrs-auth-guard = { path = "../auth-guard", version = "2" }
+mailrs-auth-guard = { path = "../auth-guard", version = "2", features = ["signins"] }
 tokio-util = { version = "0.7", features = ["codec"] }
 futures-util = { version = "0.3", features = ["sink"] }
 tracing = "0.1"

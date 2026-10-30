@@ -15,6 +15,8 @@ pub mod events;
 pub mod kevy;
 pub mod login;
 pub mod password;
+#[cfg(feature = "signins")]
+pub mod signins;
 
 /// Tunable thresholds for the auth-guard's lockout policy.
 ///

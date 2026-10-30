@@ -48,6 +48,12 @@ pub trait Directory: Send + Sync + 'static {
         password: &str,
         protocol: Protocol,
     ) -> impl Future<Output = Result<Option<Self::Account>>> + Send;
+
+    /// Where signed-in connections register, so that ending an account's
+    /// sign-ins closes them. `None` keeps no registry.
+    fn signins(&self) -> Option<&mailrs_auth_guard::signins::Signins> {
+        None
+    }
 }
 
 /// One message of a mailbox, as a session sees it.

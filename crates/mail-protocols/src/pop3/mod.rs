@@ -20,6 +20,7 @@ use tokio::net::TcpListener;
 use crate::backend::{Directory, Protocol};
 use crate::listen;
 use maildrop::Maildrop;
+use mailrs_auth_guard::signins::{ENDED, SignedIn, ended};
 
 /// Plaintext POP3 on `MAILRS_POP3_BIND` (default `0.0.0.0:110`). Without
 /// a certificate (dev) STLS is not offered and USER / PASS work in clear.
@@ -108,9 +109,18 @@ where
 {
     let mut user: Option<String> = None;
     let mut maildrop: Option<Maildrop<D::Account>> = None;
+    let mut signed_in: Option<SignedIn> = None;
     loop {
         let mut line = String::new();
-        let n = (&mut *reader).take(MAX_LINE).read_line(&mut line).await?;
+        let mut limited = (&mut *reader).take(MAX_LINE);
+        let n = tokio::select! {
+            n = limited.read_line(&mut line) => n?,
+            () = ended(signed_in.as_ref()) => {
+                // nothing marked for deletion is removed: the session did not QUIT
+                tx.write_all(format!("-ERR {ENDED}\r\n").as_bytes()).await?;
+                return Ok(false);
+            }
+        };
         if n == 0 {
             return Ok(false);
         }
@@ -144,6 +154,7 @@ where
             "PASS" => match &user {
                 Some(username) => {
                     if let Some(opened) = pass(dir, username, arg, tx).await? {
+                        signed_in = dir.signins().map(|s| s.enter(opened.user()));
                         maildrop = Some(opened);
                     }
                 }

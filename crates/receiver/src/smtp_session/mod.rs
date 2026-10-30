@@ -75,6 +75,9 @@ pub struct ConnectionContext {
     /// Where DATA writes each accepted message, for a core to deliver; the
     /// receiver resolves and delivers nothing itself.
     pub spool_sink: Arc<dyn spool_sink::SpoolSink>,
+    /// Submission connections signed in, so that ending an account's
+    /// sign-ins (its password cleared) closes the ones already open.
+    pub signins: mailrs_auth_guard::signins::Signins,
 }
 
 mod address;
@@ -90,6 +93,19 @@ mod trace_line;
 pub use spool_sink::SpoolSink;
 
 use drive::drive_session;
+
+/// Register the connection once its AUTH has succeeded.
+fn note_signin(
+    ctx: &ConnectionContext,
+    session: &mailrs_smtp_proto::session::Session,
+    signed_in: &mut Option<mailrs_auth_guard::signins::SignedIn>,
+) {
+    if signed_in.is_none()
+        && let mailrs_smtp_proto::session::State::Authenticated { username, .. } = &session.state
+    {
+        *signed_in = Some(ctx.signins.enter(username));
+    }
+}
 
 /// handle a plain-text SMTP connection (port 25/587), may upgrade via STARTTLS
 #[tracing::instrument(name = "smtp.conn", skip(stream, ctx), fields(peer = %addr, tls = false))]
@@ -148,8 +164,11 @@ pub async fn handle_plain_connection(
         return;
     }
 
+    let mut signed_in = None;
     loop {
-        let action = drive_session(&mut framed, &mut session, addr, &ctx, conn_id).await;
+        let action =
+            drive_session(&mut framed, &mut session, addr, &ctx, conn_id, &signed_in).await;
+        note_signin(&ctx, &session, &mut signed_in);
         match action {
             SessionAction::Continue => continue,
             SessionAction::Close => {
@@ -191,8 +210,16 @@ pub async fn handle_plain_connection(
                 let mut tls_framed = Framed::new(tls_stream, codec(&ctx, max_size));
 
                 loop {
-                    let action =
-                        drive_session(&mut tls_framed, &mut session, addr, &ctx, conn_id).await;
+                    let action = drive_session(
+                        &mut tls_framed,
+                        &mut session,
+                        addr,
+                        &ctx,
+                        conn_id,
+                        &signed_in,
+                    )
+                    .await;
+                    note_signin(&ctx, &session, &mut signed_in);
                     match action {
                         SessionAction::Continue => continue,
                         SessionAction::Close => {
@@ -275,8 +302,11 @@ pub async fn handle_tls_connection(
         return;
     }
 
+    let mut signed_in = None;
     loop {
-        let action = drive_session(&mut framed, &mut session, addr, &ctx, conn_id).await;
+        let action =
+            drive_session(&mut framed, &mut session, addr, &ctx, conn_id, &signed_in).await;
+        note_signin(&ctx, &session, &mut signed_in);
         match action {
             SessionAction::Continue => continue,
             SessionAction::Close | SessionAction::UpgradeTls => {
