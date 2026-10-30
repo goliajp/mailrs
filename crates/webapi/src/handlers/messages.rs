@@ -153,14 +153,8 @@ pub async fn get_attachment(
         "cache-control",
         axum::http::HeaderValue::from_static("private, max-age=3600"),
     );
-    // Chrome will not show a PDF in a sandboxed document, so a PDF keeps
-    // its viewer; its scripts run in the viewer, not on this origin.
-    if ct != "application/pdf" {
-        headers.insert(
-            "content-security-policy",
-            axum::http::HeaderValue::from_static("sandbox; default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'"),
-        );
-    }
+    let (name, policy) = attachment_policy(&ct);
+    headers.insert(name, policy);
     headers.insert(
         axum::http::header::CONTENT_TYPE,
         axum::http::HeaderValue::from_str(&ct).unwrap_or(axum::http::HeaderValue::from_static(
@@ -168,6 +162,27 @@ pub async fn get_attachment(
         )),
     );
     Ok(r)
+}
+
+/// The policy an attachment is served under. Anything but a PDF opens
+/// sandboxed. Chrome will not show a PDF in a sandboxed document, so a
+/// PDF keeps its viewer (its scripts run in the viewer, not on this
+/// origin) and may be framed by this site, where the reading pane
+/// previews it.
+fn attachment_policy(ct: &str) -> (axum::http::HeaderName, axum::http::HeaderValue) {
+    match ct {
+        "application/pdf" => (
+            crate::handlers::csp_report::HEADER,
+            axum::http::HeaderValue::from_str(&crate::handlers::csp_report::framed_by_self())
+                .expect("the policy is ASCII"),
+        ),
+        _ => (
+            axum::http::header::CONTENT_SECURITY_POLICY,
+            axum::http::HeaderValue::from_static(
+                "sandbox; default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'",
+            ),
+        ),
+    }
 }
 
 /// Types a browser shows without running anything the sender wrote. SVG
@@ -369,6 +384,7 @@ fn content_disposition(filename: &str, inline: bool) -> String {
 
 #[cfg(test)]
 mod tests {
+    use super::attachment_policy;
     use super::blob_ref_location;
     use super::content_disposition;
     use super::renders_inert;
@@ -459,5 +475,29 @@ mod tests {
         }
         assert!(content_disposition("x.html", false).starts_with("attachment;"));
         assert!(content_disposition("x.png", true).starts_with("inline;"));
+    }
+
+    /// A PDF may be framed by this site, where the reading pane previews
+    /// it; everything else opens sandboxed, and nothing may be framed by
+    /// another site.
+    #[test]
+    fn only_a_pdf_may_be_framed_and_only_here() {
+        let (name, pdf) = attachment_policy("application/pdf");
+        let pdf = pdf.to_str().expect("ascii");
+        assert_eq!(name, crate::handlers::csp_report::HEADER);
+        assert!(pdf.contains("frame-ancestors 'self'"), "{pdf}");
+        assert!(!pdf.contains("frame-ancestors 'none'"), "{pdf}");
+        assert_eq!(
+            pdf.replace("frame-ancestors 'self'", "frame-ancestors 'none'"),
+            crate::handlers::csp_report::POLICY
+        );
+        for ct in ["text/html", "image/svg+xml", "image/png"] {
+            let (name, policy) = attachment_policy(ct);
+            assert_eq!(name, axum::http::header::CONTENT_SECURITY_POLICY, "{ct}");
+            assert!(
+                policy.to_str().expect("ascii").starts_with("sandbox;"),
+                "{ct}"
+            );
+        }
     }
 }
