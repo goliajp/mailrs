@@ -70,7 +70,10 @@ pub fn revoke_sessions(c: &mut Connection, address: &str) -> std::io::Result<usi
 /// pointed at it. The id counter stays, so a later account with the same
 /// address never reissues an id an old index could name.
 pub fn revoke_agent_keys(c: &mut Connection, address: &str) -> std::io::Result<usize> {
-    c.del(&[format!("agent:keys:{address}").as_bytes()])?;
+    c.del(&[
+        format!("agent:keys:{address}").as_bytes(),
+        crate::agent_key_usage::hash_key(address).as_bytes(),
+    ])?;
     // the index stores no owner prefix in its key, so finding an owner's
     // entries means reading each one; there are a handful per server
     let mut dropped = 0;

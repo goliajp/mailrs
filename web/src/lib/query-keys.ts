@@ -87,6 +87,8 @@ export const mailKeys = {
 }
 
 export const adminKeys = {
+  accountAgentKeys: (address: string) =>
+    [...adminKeys.all(), 'account-agent-keys', address] as const,
   accounts: () => [...adminKeys.all(), 'accounts'] as const,
   aliases: () => [...adminKeys.all(), 'aliases'] as const,
   all: () => ['admin'] as const,

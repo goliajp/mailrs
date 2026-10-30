@@ -4265,7 +4265,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Replace an account's password; nothing else on the account changes */
+        /**
+         * Set an account's password and sign its sessions out; after a compromise, also revoke every agent key
+         * @description Needs admin.accounts and a recent confirmation. Without `compromised` the account's agent keys keep working. With it, every agent key is revoked, and `revoke_key_ids` must be the ids of all of them as GET .../agent-keys lists them; otherwise 409 `key_list_changed` carries the current keys.
+         */
         post: operations["setAccountPassword"];
         delete?: never;
         options?: never;
@@ -5076,6 +5079,26 @@ export interface paths {
         put?: never;
         /** Set a new password on an account whose password was cleared, with the code an issuer handed out. No session needed and none issued */
         post: operations["resetPasswordWithCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/accounts/{address}/agent-keys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * An account's agent keys, with when each was created and last used
+         * @description The keys a compromise reset revokes. Needs admin.accounts and a recent confirmation.
+         */
+        get: operations["listAccountAgentKeys"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -9733,19 +9756,41 @@ export interface operations {
             content: {
                 "application/json": {
                     password: string;
+                    compromised?: {
+                        revoke_key_ids: number[];
+                    };
                 };
             };
         };
         responses: {
-            /** @description Changed */
+            /** @description Reset after a compromise */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        sessions_revoked: number;
+                        agent_keys_revoked: number;
+                    };
+                };
+            };
+            /** @description Changed; sessions signed out, agent keys kept */
             204: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Empty password */
+            /** @description The password fails the password rules */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No admin.accounts, or `confirm_required` */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -9757,6 +9802,28 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description `key_list_changed`: the ids named are not all the account's keys */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error?: string;
+                        keys?: {
+                            id: number;
+                            name: string;
+                            /** @description The key's first 8 characters */
+                            prefix: string;
+                            scopes: string[];
+                            /** @description Unix seconds */
+                            created_at: number | null;
+                            /** @description Unix seconds, to the hour; null when nothing was recorded (every key before recording began) */
+                            last_used_at: number | null;
+                        }[];
+                    };
+                };
             };
         };
     };
@@ -11765,6 +11832,49 @@ export interface operations {
             };
             /** @description `reset_codes_not_configured` */
             501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listAccountAgentKeys: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                address: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Keys */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            id: number;
+                            name: string;
+                            /** @description The key's first 8 characters */
+                            prefix: string;
+                            scopes: string[];
+                            /** @description Unix seconds */
+                            created_at: number | null;
+                            /** @description Unix seconds, to the hour; null when nothing was recorded (every key before recording began) */
+                            last_used_at: number | null;
+                        }[];
+                        /** @description The day keys began recording their last use */
+                        last_use_recorded_since: string;
+                    };
+                };
+            };
+            /** @description No admin.accounts, or `confirm_required` */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

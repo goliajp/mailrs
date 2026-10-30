@@ -282,6 +282,7 @@ fn every_fixture_has_a_test() {
         "account-create",
         "account-forwards-set",
         "account-password-set",
+        "account-password-set-compromised",
         "account-send-as-set",
         "account-sieve-set",
         "account-update",

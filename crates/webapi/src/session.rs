@@ -140,6 +140,10 @@ async fn resolve_agent_key(token: String) -> Option<AgentAuth> {
                 tracing::warn!(reason = "agent_key_unscoped", user = %index.user, id = index.id, "agent key rejected");
                 return Ok(None);
             }
+            let now = chrono::Utc::now().timestamp();
+            if let Err(e) = crate::agent_key_usage::note_use(client, &index.user, index.id, now) {
+                tracing::warn!(error = %e, user = %index.user, "agent key use not recorded");
+            }
             Ok(Some(AgentAuth {
                 user: index.user,
                 scopes,

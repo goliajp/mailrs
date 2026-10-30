@@ -23,38 +23,69 @@ use mailrs_core_sidestate::families::permission_groups::members_key as group_mem
 #[tool_router(router = tool_router_v2_batch11, vis = "pub")]
 impl MailrsMcpService {
     #[tool(
-        description = "Reset an account's password. The plaintext is Argon2-hashed here and only the hash reaches the mail store. Admin-gated."
+        description = "Reset an account's password and sign its sessions out. The plaintext is Argon2-hashed here and only the hash reaches the mail store. Agent keys stay, unless `compromised_revoke_key_ids` is given: then every agent key is revoked, and it must list the ids of all of them as `list_account_agent_keys` shows them (otherwise `key_list_changed` with the current keys). Needs admin.accounts and a recent confirmation."
     )]
     async fn set_account_password(
         &self,
         Parameters(params): Parameters<SetAccountPasswordParams>,
     ) -> Result<CallToolResult, McpError> {
-        use argon2::{
-            Argon2,
-            password_hash::{PasswordHasher, SaltString, rand_core::OsRng as ArgonRng},
-        };
+        use crate::handlers::admin_directory::ResetRefused;
         let user = self.require_user()?.to_string();
         self.require_confirmed()?;
         crate::handlers::kevy_util::require_permission(&self.state, &user, "admin.accounts")
             .await
             .map_err(|_| McpError::invalid_request("admin.accounts permission required", None))?;
-        mailrs_auth_guard::password::check_new(&params.password, &params.address)
-            .map_err(|weak| McpError::invalid_params(weak.to_string(), None))?;
-        let salt = SaltString::generate(&mut ArgonRng);
-        let hash = Argon2::default()
-            .hash_password(params.password.as_bytes(), &salt)
-            .map_err(|e| McpError::internal_error(format!("hash: {e}"), None))?
-            .to_string();
-        let req = mailrs_core_api::method::admin::SetPasswordRequest {
-            password_hash: hash,
-        };
-        self.state
-            .core
-            .set_account_password(&params.address, &req)
+        let named = params.compromised_revoke_key_ids.as_deref();
+        let done = crate::handlers::admin_directory::reset_password(
+            &self.state,
+            &user,
+            &params.address,
+            &params.password,
+            named,
+            "via mcp",
+        )
+        .await;
+        match done {
+            Ok(done) => Ok(CallToolResult::success(vec![ContentBlock::text(
+                serde_json::json!({ "ok": true, "sessions_revoked": done.sessions_revoked, "agent_keys_revoked": done.agent_keys_revoked }).to_string(),
+            )])),
+            Err(ResetRefused::Weak(_)) => Err(McpError::invalid_params(
+                "the new password does not meet the password rules",
+                None,
+            )),
+            Err(ResetRefused::KeyListChanged(keys)) => Err(McpError::invalid_request(
+                "key_list_changed",
+                Some(serde_json::json!({ "keys": keys })),
+            )),
+            Err(ResetRefused::Status(s)) => Err(McpError::internal_error(
+                format!("set_account_password: {s}"),
+                None,
+            )),
+        }
+    }
+
+    #[tool(
+        description = "List an account's agent keys with when each was created and last used (to the hour; null when not recorded, which is every key before last-use recording began). These are the keys a compromise reset revokes. Needs admin.accounts and a recent confirmation."
+    )]
+    async fn list_account_agent_keys(
+        &self,
+        Parameters(params): Parameters<AddressParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?.to_string();
+        self.require_confirmed()?;
+        crate::handlers::kevy_util::require_permission(&self.state, &user, "admin.accounts")
             .await
-            .map_err(|e| McpError::internal_error(format!("set_account_password: {e}"), None))?;
-        crate::handlers::audit::record(&user, "account.password_reset", &params.address, "via mcp");
-        Ok(ok_result())
+            .map_err(|_| McpError::invalid_request("admin.accounts permission required", None))?;
+        let address = params.address.clone();
+        let items = with_kevy(move |c| crate::handlers::admin_directory::key_rows(c, &address))
+            .map_err(|s| McpError::internal_error(format!("list_account_agent_keys: {s}"), None))?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(
+            serde_json::json!({
+                "items": items,
+                "last_use_recorded_since": crate::handlers::admin_directory::LAST_USE_RECORDED_SINCE,
+            })
+            .to_string(),
+        )]))
     }
 
     #[tool(

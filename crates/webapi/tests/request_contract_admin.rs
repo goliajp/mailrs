@@ -50,6 +50,16 @@ fn account_password_body_matches() {
     assert_eq!(v.password, "not-a-real-password");
 }
 
+/// After a compromise the reset names every key it was shown; a dropped
+/// field would make it a routine reset that leaves the keys working.
+#[test]
+fn account_password_compromised_body_matches() {
+    let v: handlers::admin_directory::SetAccountPasswordRequest =
+        parse("account-password-set-compromised");
+    assert_eq!(v.password, "not-a-real-password");
+    assert_eq!(v.compromised.expect("compromised").revoke_key_ids, [3, 7]);
+}
+
 #[test]
 fn account_send_as_body_matches() {
     let v: mailrs_core_api::method::admin::SendAsList = parse("account-send-as-set");

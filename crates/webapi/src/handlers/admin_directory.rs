@@ -17,9 +17,12 @@ use crate::handlers::kevy_util::with_kevy;
 
 mod accounts;
 mod forwards;
+mod password_reset;
 mod send_as;
 pub use accounts::*;
 pub use forwards::*;
+pub use password_reset::{KeyRow, LAST_USE_RECORDED_SINCE};
+pub(crate) use password_reset::{ResetRefused, key_rows, reset_password};
 pub use send_as::*;
 
 /// One-shot boot-time mirror of network-kevy alias entries into the

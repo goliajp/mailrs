@@ -180,10 +180,10 @@ async fn sync_account(
         .await
     {
         Ok(()) => Ok(()),
-        Err(CoreApiError::Conflict(_)) => {
-            dst.set_account_password(address, &SetPasswordRequest { password_hash })
-                .await
-        }
+        Err(CoreApiError::Conflict(_)) => dst
+            .set_account_password(address, &SetPasswordRequest { password_hash })
+            .await
+            .map(|_| ()),
         Err(e) => Err(e),
     }
 }

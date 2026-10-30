@@ -6,9 +6,12 @@ import { useAdminMutation } from '@/hooks/use-admin-mutations'
 import { adminKeys } from '@/lib/query-keys'
 import { adminPost } from '@/wire/endpoints/admin'
 
+import { CompromiseResetDialog } from './compromise-reset-dialog'
+
 export function PasswordCell({ account }: { account: AccountInfo }) {
   const [editing, setEditing] = useState(false)
   const [password, setPassword] = useState('')
+  const [compromised, setCompromised] = useState(false)
 
   const updatePassword = useAdminMutation({
     invalidateKey: adminKeys.accounts(),
@@ -33,9 +36,21 @@ export function PasswordCell({ account }: { account: AccountInfo }) {
 
   if (!editing) {
     return (
-      <button className="text-accent text-xs hover:opacity-80" onClick={() => setEditing(true)}>
-        Change
-      </button>
+      <div className="flex items-center gap-2">
+        <button className="text-accent text-xs hover:opacity-80" onClick={() => setEditing(true)}>
+          Change
+        </button>
+        <button
+          className="text-danger text-xs hover:opacity-80"
+          onClick={() => setCompromised(true)}
+          title="New password, every session ended and every agent key revoked"
+        >
+          Compromised…
+        </button>
+        {compromised && (
+          <CompromiseResetDialog address={account.address} onClose={() => setCompromised(false)} />
+        )}
+      </div>
     )
   }
 

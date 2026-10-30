@@ -105,3 +105,34 @@ export const passwordClearResultSchema = z.object({
 })
 
 export type WirePasswordClearResult = z.infer<typeof passwordClearResultSchema>
+
+// Backend: crates/webapi/src/handlers/admin_directory/password_reset.rs — struct KeyRow
+export const accountAgentKeySchema = z.object({
+  created_at: z.number().nullable(),
+  id: z.number(),
+  last_used_at: z.number().nullable(),
+  name: z.string(),
+  prefix: z.string(),
+  scopes: z.array(z.string()),
+})
+
+export type WireAccountAgentKey = z.infer<typeof accountAgentKeySchema>
+
+// Backend: crates/webapi/src/handlers/admin_directory/accounts.rs — fn list_account_agent_keys
+export const accountAgentKeysSchema = z.object({
+  items: z.array(accountAgentKeySchema),
+  last_use_recorded_since: z.string(),
+})
+
+export type WireAccountAgentKeys = z.infer<typeof accountAgentKeysSchema>
+
+// Backend: crates/webapi/src/handlers/admin_directory/accounts.rs — fn set_account_password
+export const compromiseResetDoneSchema = z.object({
+  agent_keys_revoked: z.number(),
+  sessions_revoked: z.number(),
+})
+
+export const keyListChangedSchema = z.object({
+  error: z.literal('key_list_changed'),
+  keys: z.array(accountAgentKeySchema),
+})

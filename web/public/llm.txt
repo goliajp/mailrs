@@ -11,7 +11,7 @@ OpenAPI spec: https://mail.golia.ai/openapi.json
 ## MCP (recommended)
 
 Streamable HTTP endpoint: https://mail.golia.ai/mcp
-96 tools auto-discovered, grouped by category (identical on both server lanes):
+97 tools auto-discovered, grouped by category (identical on both server lanes):
 
 ```json
 {"mcpServers":{"mailrs":{"type":"streamable-http","url":"https://mail.golia.ai/mcp","headers":{"Authorization":"Bearer <API_KEY>"}}}}
@@ -21,7 +21,7 @@ Streamable HTTP endpoint: https://mail.golia.ai/mcp
 **Fraud hold:** list_quarantined, get_fraud_verdict, release_quarantined
 **Threads:** mark_thread_read, mark_thread_unread, mark_all_read, star_thread, unstar_thread, pin_thread, unpin_thread, snooze_thread, unsnooze_thread, archive_thread, unarchive_thread, delete_thread
 **Drafts & Templates:** list_drafts, save_draft, delete_draft, list_templates, save_template, delete_template, list_signatures, save_signature, delete_signature
-**Accounts:** list_accounts, create_account, remove_account, set_account_password, get_account_send_as, set_account_send_as, get_account_forwards, set_account_forwards
+**Accounts:** list_accounts, create_account, remove_account, set_account_password, list_account_agent_keys, get_account_send_as, set_account_send_as, get_account_forwards, set_account_forwards
 **Permissions:** list_groups, get_account_permissions, get_my_permissions, add_account_to_group, remove_account_from_group
 **Domains:** list_domains, add_domain, remove_domain
 **Aliases:** list_aliases_admin, add_alias, remove_alias
@@ -70,7 +70,8 @@ Streamable HTTP endpoint: https://mail.golia.ai/mcp
 - GET/POST /api/admin/greylist/local-lists, DELETE /api/admin/greylist/local-lists/{id} — local greylist white/black CRUD (admin.greylist)
 - GET /api/admin/flow — where mail is right now: receiving, spool backlog, outbound queue (queued / retrying / scheduled / failed), mock mail
 - GET /api/admin/mock, PUT /api/admin/mock/settings — mock mail usage and settings (on/off, retention days, per-namespace and total limits, namespaces per person, who may create); an admin lists everyone's namespaces with GET /api/mock/namespaces?all=true
-- POST /api/admin/accounts/{address}/password — replace a password without touching the rest of the account
+- POST /api/admin/accounts/{address}/password — a new password, the account's sessions signed out; with `{"compromised":{"revoke_key_ids":[...]}}` (every key id the list below shows) all its agent keys are revoked too (admin.accounts, recent confirmation)
+- GET /api/admin/accounts/{address}/agent-keys — an account's agent keys with created and last-used times (admin.accounts, recent confirmation)
 - GET/PUT /api/admin/accounts/{address}/forwards — other accounts here that get a copy of everything delivered to an account, written straight into their mailboxes (admin.accounts)
 - GET/PUT /api/admin/accounts/{address}/send-as — the addresses an account was granted to send as, besides its own, its aliases and its email groups (admin.accounts)
 - GET /api/admin/auth-events — sign-in attempts on every way in (web, verify, IMAP, POP3, SMTP, ManageSieve, DAV, API keys), newest first; filter with account, source, result, channel, since, until, limit (admin.accounts)

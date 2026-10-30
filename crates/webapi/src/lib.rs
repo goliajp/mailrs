@@ -10,6 +10,7 @@
 #![allow(missing_docs)]
 
 mod agent_key_index;
+mod agent_key_usage;
 pub mod cli;
 pub mod handlers;
 mod router;
