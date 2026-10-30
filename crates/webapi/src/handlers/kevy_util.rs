@@ -13,6 +13,7 @@ use std::sync::Arc;
 use axum::http::StatusCode;
 
 use crate::WebState;
+use crate::handlers::route_permissions::Need;
 
 /// Guard for every `/api/admin/*` handler: return 403 unless the
 /// caller's effective_permissions grant admin authority.
@@ -106,38 +107,20 @@ pub async fn admin_middleware(
     let Some(user) = user else {
         return StatusCode::UNAUTHORIZED.into_response();
     };
-    let check = match is_super_only(&path) {
-        true => require_super(&state, &user).await,
-        false => require_admin(&state, &user).await,
+    let template = req
+        .extensions()
+        .get::<axum::extract::MatchedPath>()
+        .map(|m| m.as_str().to_string())
+        .unwrap_or_default();
+    let check = match crate::handlers::route_permissions::need(&template) {
+        Need::Permission(p) => require_permission(&state, &user, p).await,
+        Need::AnyAdmin => require_admin(&state, &user).await,
+        Need::Super => require_super(&state, &user).await,
     };
     if let Err(status) = check {
         return status.into_response();
     }
     next.run(req).await
-}
-
-/// Admin routes that show other people's mail traffic, what they read or
-/// how they sign in: the outbound queue and who it bounced at, the audit
-/// log and the audit reads of someone else's mailbox, sign-in events, and
-/// spam feedback per user; clearing passwords, which locks people out
-/// of their accounts; and releasing or discarding an account's held mail. No single admin.* permission covers that, so only a
-/// super administrator may call them.
-const SUPER_ONLY: [&str; 8] = [
-    "/api/admin/password-clear",
-    "/api/admin/outbound",
-    "/api/admin/queues",
-    "/api/admin/suppressions",
-    "/api/admin/audit-log",
-    "/api/admin/audit/",
-    "/api/admin/auth-events",
-    "/api/admin/spam-feedback-stats",
-];
-
-fn is_super_only(path: &str) -> bool {
-    // someone's sieve script names who their mail comes from; writing it is
-    // refused too, or a write would be a way to learn what it said
-    let sieve = path.starts_with("/api/admin/accounts/") && path.ends_with("/sieve");
-    sieve || SUPER_ONLY.iter().any(|p| path.starts_with(p))
 }
 
 /// Run `f` against a fresh kevy connection.

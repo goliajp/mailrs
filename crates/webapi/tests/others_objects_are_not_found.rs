@@ -268,6 +268,8 @@ async fn oauth_client_registration_is_closed(live: &live::Live) {
     const ADMIN: &str = "admin@example.test";
     live.add_account(ADMIN, "pw").await;
     live.grant(ADMIN, "admin.accounts").await;
+    // registering an OAuth client is admin.oauth_clients
+    live.grant(ADMIN, "admin.oauth_clients").await;
     let admin = live.login(ADMIN, "pw").await;
     live.confirm(&admin, "pw").await;
     let (status, body) = live

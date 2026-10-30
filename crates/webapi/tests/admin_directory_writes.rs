@@ -14,6 +14,8 @@ const PASSWORD: &str = "an admin passphrase";
 async fn confirmed_admin(live: &live::Live) -> String {
     live.add_account(ADMIN, PASSWORD).await;
     live.grant(ADMIN, "admin.accounts").await;
+    // permission groups are their own permission
+    live.grant(ADMIN, "admin.groups").await;
     let token = live.login(ADMIN, PASSWORD).await;
     let (status, _) = live
         .call(
