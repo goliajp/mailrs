@@ -5013,6 +5013,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/password-clear/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** What clearing these accounts' passwords would cut off: sessions, agent keys, TOTP, external logins, SMTP password sign-ins in the last 7 days. Super administrators only */
+        post: operations["previewPasswordClear"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/password-clear": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Clear these accounts' passwords and end their sessions; agent keys stay. Super administrators only */
+        post: operations["clearPasswords"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reset-codes/{address}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Whether a code is out for the account, until when, wrong tries, and whether it was made with the current key; never the code. Issuers only */
+        get: operations["resetCodeStatus"];
+        put?: never;
+        /** Issue a one-time code to set a new password on an account whose password was cleared. Issuers (MAILRS_RESET_ISSUERS) only, with a recent password confirmation; the code is in this answer and nowhere else */
+        post: operations["issueResetCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/password-reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set a new password on an account whose password was cleared, with the code an issuer handed out. No session needed and none issued */
+        post: operations["resetPasswordWithCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -11442,6 +11511,260 @@ export interface operations {
             };
             /** @description No valid session; empty body */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    previewPasswordClear: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    addresses: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description One row per address, and whether anyone may hand out reset codes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items?: {
+                            address?: string;
+                            exists?: boolean;
+                            cleared_at?: number | null;
+                            sessions?: number;
+                            agent_keys?: {
+                                id?: unknown;
+                                name?: string;
+                                prefix?: string;
+                                scopes?: string[];
+                            }[];
+                            totp?: boolean;
+                            external_logins?: number;
+                            smtp_password_logins_7d?: number;
+                        }[];
+                        issuers_configured?: boolean;
+                    };
+                };
+            };
+            /** @description No address */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not a super administrator, or `confirm_required`: the password was not confirmed in the last ten minutes */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description More than 100 addresses */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    clearPasswords: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    addresses: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description `cleared` or `unknown` per address */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items?: {
+                            address?: string;
+                            /** @enum {string} */
+                            result?: "cleared" | "unknown";
+                            sessions_revoked?: number;
+                        }[];
+                    };
+                };
+            };
+            /** @description No address */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not a super administrator, or `confirm_required`: the password was not confirmed in the last ten minutes */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description More than 100 addresses */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    resetCodeStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                address: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description `issued: false`, or the code's state */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        issued?: boolean;
+                        issued_by?: string;
+                        issued_at?: number;
+                        expires_at?: number;
+                        failures?: number;
+                        key_current?: boolean;
+                    };
+                };
+            };
+            /** @description `not_an_issuer` */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    issueResetCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                address: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The code and when it expires */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code?: string;
+                        expires_at?: number;
+                    };
+                };
+            };
+            /** @description `not_an_issuer`, or `confirm_required` */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `no_such_account` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `password_not_cleared` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `reset_codes_not_configured`: no MAILRS_RESET_CODE_KEY */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    resetPasswordWithCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    address: string;
+                    code: string;
+                    new_password: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The password is set; sign in with it */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `invalid_reset_code` (the same for every way of being wrong), or why the new password was refused */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Locked by the login guard */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `reset_codes_not_configured` */
+            501: {
                 headers: {
                     [name: string]: unknown;
                 };

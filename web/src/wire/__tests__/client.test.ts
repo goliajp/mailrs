@@ -69,6 +69,28 @@ describe('wireFetch', () => {
     expect(loc.href).toContain('return_to=%2Fchat')
   })
 
+  // a sign-in to an account whose password was cleared: the login page asks
+  // for the reset code, so the error names whom to ask and nothing redirects
+  it('maps a 401 password_cleared body to WireError.kind=password-cleared', async () => {
+    const body = {
+      contact: { address: 'lihao@golia.jp', name: 'Li Hao' },
+      error: 'password_cleared',
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify(body), { status: 401 }))
+    )
+    const loc = { hash: '', href: '', pathname: '/login', search: '' }
+    vi.stubGlobal('location', loc as unknown as Location)
+    await expect(wireFetch(SCHEMA, { method: 'POST', path: '/auth/login' })).rejects.toSatisfy(
+      (err: unknown) =>
+        isWireError(err) &&
+        err.detail.kind === 'password-cleared' &&
+        err.detail.contact.name === 'Li Hao'
+    )
+    expect(loc.href).toBe('')
+  })
+
   it('maps 403 to WireError.kind=forbidden', async () => {
     vi.stubGlobal(
       'fetch',

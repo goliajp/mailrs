@@ -34,11 +34,42 @@ export const authMeSchema = z.object({
   address: z.string(),
   display_name: z.string().default(''),
   is_admin: z.boolean().default(false),
+  is_reset_issuer: z.boolean().default(false),
   is_super: z.boolean().default(false),
   permissions: z.array(z.string()).default([]),
 })
 
 export type WireAuthMe = z.infer<typeof authMeSchema>
+
+// ── password cleared / reset codes ──────────────────────────────
+// Backend: crates/webapi/src/handlers/auth/session.rs — fn password_cleared_response
+export const passwordClearedSchema = z.object({
+  contact: z.object({ address: z.string(), name: z.string() }),
+  error: z.literal('password_cleared'),
+})
+
+// Backend: crates/webapi/src/handlers/reset_code.rs — fn issue
+export const resetCodeIssuedSchema = z.object({
+  code: z.string(),
+  expires_at: z.number(),
+})
+
+export type WireResetCodeIssued = z.infer<typeof resetCodeIssuedSchema>
+
+// Backend: crates/webapi/src/handlers/reset_code.rs — fn status
+export const resetCodeStatusSchema = z.union([
+  z.object({ issued: z.literal(false) }),
+  z.object({
+    expires_at: z.number().nullable(),
+    failures: z.number(),
+    issued: z.literal(true),
+    issued_at: z.number().nullable(),
+    issued_by: z.string(),
+    key_current: z.boolean(),
+  }),
+])
+
+export type WireResetCodeStatus = z.infer<typeof resetCodeStatusSchema>
 
 // ── /auth/login — union: TOTP-required OR auth token ─────────────
 

@@ -126,6 +126,7 @@ export const settingsKeys = {
   externalAccounts: () => [...settingsKeys.all(), 'external-accounts'] as const,
   externalSettings: (email: string) => [...settingsKeys.all(), 'external-settings', email] as const,
   recoveryEmail: () => [...settingsKeys.all(), 'recovery-email'] as const,
+  resetCode: (address: string) => [...settingsKeys.all(), 'reset-code', address] as const,
   signatures: () => [...settingsKeys.all(), 'signatures'] as const,
   totpStatus: () => [...settingsKeys.all(), 'totp-status'] as const,
   webhooks: () => [...settingsKeys.all(), 'webhooks'] as const,

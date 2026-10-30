@@ -260,8 +260,24 @@ fn invite_rsvp_body_matches() {
 }
 
 #[test]
+fn password_clear_body_matches() {
+    let v: handlers::admin_password_clear::Addresses = parse("password-clear");
+    assert_eq!(v.addresses, ["ws@golia.jp", "sakai@golia.jp"]);
+}
+
+#[test]
+fn password_reset_with_code_body_matches() {
+    let v: handlers::password_reset::ResetRequest = parse("password-reset-with-code");
+    assert_eq!(v.address, "qa@golia.jp");
+    assert_eq!(v.code, "ABCDE-23456");
+    assert_eq!(v.new_password, "not-a-real-password");
+}
+
+#[test]
 fn every_fixture_has_a_test() {
     const CHECKED: &[&str] = &[
+        "password-clear",
+        "password-reset-with-code",
         "ai-generate-subject",
         "account-create",
         "account-forwards-set",
