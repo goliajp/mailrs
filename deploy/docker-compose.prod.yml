@@ -242,6 +242,8 @@ services:
       # docker-compose.pg-core.yml is layered on this file
       MAILRS_CORE_RPC_BASE: ${MAILRS_CORE_RPC_BASE:-http://mailrs-fastcore:3301}
       MAILRS_CORE_API_SECRET: ${MAILRS_CORE_API_SECRET}
+      # what reset codes are signed with; webapi-fc alone issues and checks them
+      MAILRS_RESET_CODE_KEY: ${MAILRS_RESET_CODE_KEY:-}
       MAILRS_KEVY_URL: kevy://kevy-server:6379
       # Caddy on the host reaches the published port through docker-proxy,
       # which connects from the network's gateway; only that address may

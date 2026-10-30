@@ -10,5 +10,6 @@ pub mod dmarc;
 pub mod events;
 pub mod push;
 pub mod quota;
+pub mod reset;
 pub mod session;
 pub mod signout;

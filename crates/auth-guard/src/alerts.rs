@@ -36,6 +36,18 @@ pub enum Kind {
     /// A signed-in session failed to confirm its password too many times
     /// and was ended: whoever held it did not know the password.
     SessionEndedAfterFailedConfirmations,
+    /// A code to set a new password on an account whose password was
+    /// cleared was handed out. Sent every time, not once an hour: each code
+    /// is a way into an account.
+    ResetCodeIssued,
+}
+
+impl Kind {
+    /// Whether a repeat about the same subject within [`REPEAT_SECS`] is
+    /// dropped.
+    fn once_an_hour(self) -> bool {
+        !matches!(self, Kind::ResetCodeIssued)
+    }
 }
 
 /// One alert.
@@ -59,7 +71,7 @@ pub fn raise<O: Ops + EventOps>(ops: &mut O, alert: &Alert) -> io::Result<bool> 
         .and_then(|v| v.as_str().map(str::to_string))
         .unwrap_or_default();
     let once = format!("auth:alerts:once:{kind}:{}", alert.subject);
-    if Ops::incr(ops, &once, REPEAT_SECS)? > 1 {
+    if alert.kind.once_an_hour() && Ops::incr(ops, &once, REPEAT_SECS)? > 1 {
         return Ok(false);
     }
     let row = serde_json::to_vec(alert).map_err(io::Error::other)?;
@@ -89,7 +101,7 @@ pub fn digest(alerts: &[Alert], host: &str) -> (String, String) {
         many => format!("[{host}] security: {} alerts", many.len()),
     };
     let mut body = format!(
-        "The login guard on {host} raised the following. Each kind of alert about one account or source is sent at most once an hour.\n\n"
+        "The login guard on {host} raised the following. Each kind of alert about one account or source is sent at most once an hour, except reset codes, every one of which is.\n\n"
     );
     for a in alerts {
         body.push_str(&format!(
@@ -115,6 +127,7 @@ fn headline(a: &Alert) -> String {
                 a.subject
             )
         }
+        Kind::ResetCodeIssued => format!("a password reset code was issued for {}", a.subject),
     }
 }
 
@@ -163,6 +176,15 @@ mod tests {
             "oldest first"
         );
         assert!(take(&mut o, 100).unwrap().is_empty(), "taken means gone");
+    }
+
+    #[test]
+    fn every_reset_code_is_reported() {
+        let mut o = MemoryOps::default();
+        o.at(1_792_892_646);
+        assert!(raise(&mut o, &alert(Kind::ResetCodeIssued, "a@x.test")).unwrap());
+        assert!(raise(&mut o, &alert(Kind::ResetCodeIssued, "a@x.test")).unwrap());
+        assert_eq!(take(&mut o, 100).unwrap().len(), 2);
     }
 
     #[test]
