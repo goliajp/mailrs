@@ -92,6 +92,11 @@ pub async fn start() -> Receiver {
     } else {
         tracing::info!(relays = ?cfg.trusted_relays, "trusted relays for our own mail");
     }
+    let signins = mailrs_auth_guard::signins::Signins::default();
+    let ended = signins.clone();
+    mailrs_core_sidestate::keys::signout::listen(cfg.kevy_url.clone(), move |account| {
+        ended.end(account);
+    });
     let ctx = Arc::new(ConnectionContext {
         hostname: cfg.hostname.clone(),
         tls_state,
@@ -119,6 +124,7 @@ pub async fn start() -> Receiver {
         inbound_pipeline,
         spam_lists_client: Some(kevy_client.clone()),
         spool_sink,
+        signins: signins.clone(),
     });
 
     crate::listeners::listen(ctx, &cfg).await

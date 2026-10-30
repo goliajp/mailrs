@@ -23,3 +23,4 @@ mod test_tls;
 
 pub use guard::Guarded;
 pub use listen::spawn_all;
+pub use mailrs_auth_guard::signins::Signins;

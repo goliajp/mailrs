@@ -1,6 +1,7 @@
 //! Clearing a password: a super administrator, with a recent confirmation,
 //! first sees what clearing would cut off, then clears. The account's
-//! sessions end and its password no longer signs in; its agent keys keep
+//! sessions end, its signed-in protocol connections are told to close, and
+//! its password no longer signs in; its agent keys keep
 //! working; the core records who cleared it; the audit log has a row. An
 //! administrator who is not super is refused, and so is an address list
 //! longer than the limit.
@@ -109,6 +110,20 @@ async fn clearing_ends_sessions_and_password_sign_in() {
     assert_eq!(row("nobody@example.test")["exists"], false);
     assert_eq!(preview["issuers_configured"], false);
 
+    // what the protocol listeners hear: each process closes the account's
+    // signed-in IMAP, POP3, ManageSieve and SMTP connections on it
+    let heard = {
+        use mailrs_core_sidestate::keys::signout::CHANNEL;
+        let mut sub =
+            kevy_client::Subscriber::connect_channels(KEVY, &[CHANNEL]).expect("subscribe");
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            if let Ok((_, m)) = sub.recv_message() {
+                let _ = tx.send(m);
+            }
+        });
+        rx
+    };
     let (status, done) = live
         .call(Method::POST, "/api/admin/password-clear", &root, Some(body))
         .await;
@@ -124,6 +139,10 @@ async fn clearing_ends_sessions_and_password_sign_in() {
     assert_eq!(result(ALICE)["result"], "cleared");
     assert!(result(ALICE)["sessions_revoked"].as_u64().unwrap_or(0) >= 1);
     assert_eq!(result("nobody@example.test")["result"], "unknown");
+    let heard = heard
+        .recv_timeout(std::time::Duration::from_secs(5))
+        .expect("no sign-out was published");
+    assert_eq!(heard, ALICE.as_bytes(), "the sign-out names the account");
 
     let (status, _) = live.call(Method::GET, "/api/auth/me", &alice, None).await;
     assert_eq!(status, 401, "alice's session outlived the clearing");

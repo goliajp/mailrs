@@ -13,6 +13,11 @@ pub(super) struct Maildrop<A: Account> {
 }
 
 impl<A: Account> Maildrop<A> {
+    /// The account signed in.
+    pub(super) fn user(&self) -> &str {
+        self.account.user()
+    }
+
     pub(super) async fn open(account: A) -> Result<Self, Error> {
         let inbox = account.mailbox("INBOX").await?;
         let messages = match &inbox {

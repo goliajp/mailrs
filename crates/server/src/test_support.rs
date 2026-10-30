@@ -98,6 +98,7 @@ pub async fn spawn_receiving_server(
         spool_sink: Arc::new(
             mailrs_receiver::smtp_session::spool_sink::MaildirSpoolSink::new(&spool_root),
         ),
+        signins: Default::default(),
     });
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
