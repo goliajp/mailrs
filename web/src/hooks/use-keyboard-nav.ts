@@ -10,6 +10,7 @@ import {
   useSelectedThreadId,
   useSelectThreadId,
 } from '@/hooks/use-current-list'
+import { isEditableTarget } from '@/lib/editable-target'
 import { invalidateMailAggregatesOnly } from '@/lib/mail-cache'
 import { queryClient } from '@/lib/query-client'
 import { patchAllInfiniteLists } from '@/reducers/snapshot'
@@ -20,7 +21,6 @@ import {
   importanceSectionAtom,
   mobileViewAtom,
   selectMailListAtom,
-  shortcutsDialogOpenAtom,
   threadShortcutAtom,
 } from '@/store/ui'
 import {
@@ -70,7 +70,6 @@ export function useKeyboardNav() {
   const setComposingNew = useSetAtom(composingNewAtom)
   const setComposeReplySource = useSetAtom(composeReplySourceAtom)
   const setMobileView = useSetAtom(mobileViewAtom)
-  const setShortcutsOpen = useSetAtom(shortcutsDialogOpenAtom)
   const selectList = useSetAtom(selectMailListAtom)
   const setSection = useSetAtom(importanceSectionAtom)
   const setCategory = useSetAtom(categoryFilterAtom)
@@ -123,11 +122,6 @@ export function useKeyboardNav() {
           break
         }
 
-        case '?': {
-          e.preventDefault()
-          setShortcutsOpen((prev) => !prev)
-          break
-        }
         case 'ArrowDown':
         // falls through
         case 'j': {
@@ -316,18 +310,8 @@ export function useKeyboardNav() {
     setComposingNew,
     setComposeReplySource,
     setMobileView,
-    setShortcutsOpen,
     setCategory,
     selectList,
     setSection,
   ])
-}
-
-// ignore keypresses originating from editable elements
-function isEditableTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false
-  const tag = target.tagName.toLowerCase()
-  if (tag === 'input' || tag === 'textarea' || tag === 'select') return true
-  if (target.isContentEditable) return true
-  return false
 }

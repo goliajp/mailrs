@@ -9,15 +9,23 @@ import {
   useResolvedMode,
   useThemeEffect,
 } from '@goliapkg/gds'
-import { useAtomValue } from 'jotai'
+import { useAtomValue, useSetAtom } from 'jotai'
 import { getDefaultStore } from 'jotai'
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
-import { createBrowserRouter, Navigate, Outlet, RouterProvider, useLocation } from 'react-router'
+import {
+  createBrowserRouter,
+  Navigate,
+  Outlet,
+  RouterProvider,
+  useLocation,
+  useNavigate,
+} from 'react-router'
 
 import { AppSidebar } from '@/components/app-sidebar'
 import { CommandPalette } from '@/components/command-palette'
 import { ConfirmPasswordHost } from '@/components/confirm-password-dialog'
 import { DashboardShellSkeleton } from '@/components/dashboard-skeleton'
+import { ShortcutsHost } from '@/components/keyboard-shortcuts-dialog'
 import { MobileShell } from '@/components/mobile-shell'
 import { RouteErrorFallback } from '@/components/route-error-fallback'
 import { type StatusBarHealth, StatusBarView } from '@/components/status-bar'
@@ -32,7 +40,7 @@ import { dashboardLoader, mailListLoader } from '@/lib/route-loaders'
 import { Login } from '@/pages/login'
 import { ResetPassword } from '@/pages/reset-password'
 import { authAtom } from '@/store/auth'
-import { connectionStatusAtom } from '@/store/ui'
+import { connectionStatusAtom, openThreadAtom } from '@/store/ui'
 
 const Admin = lazy(() => import('@/pages/admin').then((m) => ({ default: m.Admin })))
 const Chat = lazy(() => import('@/pages/chat').then((m) => ({ default: m.Chat })))
@@ -168,7 +176,16 @@ function initMailrsTheme() {
  */
 function LiveEvents() {
   const auth = useAtomValue(authAtom)
-  useMailEvents(auth?.address ?? '')
+  const openThread = useSetAtom(openThreadAtom)
+  const navigate = useNavigate()
+  const open = useCallback(
+    (threadId: string) => {
+      openThread({ list: 'inbox', threadId, uid: null })
+      navigate('/mail')
+    },
+    [openThread, navigate]
+  )
+  useMailEvents(auth?.address ?? '', open)
   return null
 }
 
@@ -273,6 +290,7 @@ function RootLayout() {
     <>
       <ToastProvider position="top-right" />
       <CommandPalette />
+      <ShortcutsHost />
       <ConfirmPasswordHost />
       <Outlet />
     </>

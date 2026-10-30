@@ -4,7 +4,6 @@ import { useSearchParams } from 'react-router'
 
 import { ConversationList } from '@/components/conversation-list'
 import { DraftsList } from '@/components/drafts-list'
-import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog'
 import { MobileMail } from '@/components/mobile-mail'
 import { NewConversation } from '@/components/new-conversation'
 import { SendList } from '@/components/send-list/send-list'
@@ -22,7 +21,6 @@ import {
   mobileViewAtom,
   openThreadAtom,
   selectMailListAtom,
-  shortcutsDialogOpenAtom,
 } from '@/store/ui'
 
 export function Chat() {
@@ -31,7 +29,6 @@ export function Chat() {
   const selectList = useSetAtom(selectMailListAtom)
   const openThread = useSetAtom(openThreadAtom)
   const [mobileView, setMobileView] = useAtom(mobileViewAtom)
-  const [shortcutsOpen, setShortcutsOpen] = useAtom(shortcutsDialogOpenAtom)
   const [importanceSection, setImportanceSection] = useAtom(importanceSectionAtom)
   const [categoryFilter, setCategoryFilter] = useAtom(categoryFilterAtom)
   const selection = useCurrentSelection()
@@ -100,15 +97,6 @@ export function Chat() {
     setCategoryFilter,
   ])
 
-  useEffect(() => {
-    // iOS Safari has no Notification global outside installed PWAs —
-    // a bare reference throws ReferenceError inside this effect, which
-    // unmounts the whole tree (the mobile inbox white-screen incident).
-    if ('Notification' in window && Notification.permission === 'default') {
-      void Notification.requestPermission()
-    }
-  }, [])
-
   // keyboard navigation
   useKeyboardNav()
   const isMobile = useIsMobile()
@@ -166,8 +154,6 @@ export function Chat() {
       <MPane width={480}>{renderList()}</MPane>
 
       <MPaneGroup>{renderDesktopMain()}</MPaneGroup>
-
-      <KeyboardShortcutsDialog onClose={() => setShortcutsOpen(false)} open={shortcutsOpen} />
     </MPaneGroup>
   )
 }
