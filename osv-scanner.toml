@@ -17,3 +17,8 @@ reason = "basic-toml is unmaintained, not vulnerable, and used only at build tim
 [[IgnoredVulns]]
 id = "RUSTSEC-2026-0173"
 reason = "proc-macro-error2 is unmaintained, not vulnerable, and used only at build time by the proc-macros age loads its bundled translations with; in no binary; matches deny.toml"
+
+[[IgnoredVulns]]
+id = "GHSA-g3hv-75wg-m249"
+ignoreUntil = 2027-01-31T00:00:00Z
+reason = "minimatch pattern amplification needs an attacker-supplied glob; in web/bun.lock it is only under eslint, its plugins and the openapi type generator, which read globs from this repository's own config at build time and ship nothing to the browser; fixed in 11.0.1, which none of them accept yet; npm only, so deny.toml has nothing to match"
