@@ -62,7 +62,7 @@ where
                 return send_reply(framed, resp).await;
             }
             let received = format_received_header(
-                &session.hostname,
+                session.client_domain(),
                 &ctx.hostname,
                 forward_paths.first().map(|s| s.as_str()).unwrap_or(""),
                 &addr,

@@ -61,11 +61,11 @@ pub fn find_header_value_in_raw(headers: &[u8], name: &[u8]) -> Result<String, D
                         j += 1;
                         continue;
                     }
-                    return Ok(String::from_utf8_lossy(&headers[value_start..j]).into_owned());
+                    return Ok(value_text(&headers[value_start..j]));
                 }
                 j += 1;
             }
-            return Ok(String::from_utf8_lossy(&headers[value_start..j]).into_owned());
+            return Ok(value_text(&headers[value_start..j]));
         }
         // memchr-anchored LF scan — replaces the prior per-byte loop.
         match memchr::memchr(b'\n', &headers[i..]) {
@@ -74,6 +74,14 @@ pub fn find_header_value_in_raw(headers: &[u8], name: &[u8]) -> Result<String, D
         }
     }
     Err(DkimError::MissingHeader)
+}
+
+/// A header value up to its line end, without the `\r` of the CRLF. A
+/// value kept with it hashes as `b=;\r` when a signature ends in a `;`
+/// after `b=`, and every such signature fails.
+fn value_text(value: &[u8]) -> String {
+    let value = value.strip_suffix(b"\r").unwrap_or(value);
+    String::from_utf8_lossy(value).into_owned()
 }
 
 /// Find ALL header values (folded) by name in a raw headers region.
@@ -101,14 +109,14 @@ pub fn find_all_header_values_in_raw(headers: &[u8], name: &[u8]) -> Vec<String>
                         j += 1;
                         continue;
                     }
-                    out.push(String::from_utf8_lossy(&headers[value_start..j]).into_owned());
+                    out.push(value_text(&headers[value_start..j]));
                     i = j;
                     break;
                 }
                 j += 1;
             }
             if j >= headers.len() {
-                out.push(String::from_utf8_lossy(&headers[value_start..j]).into_owned());
+                out.push(value_text(&headers[value_start..j]));
                 return out;
             }
         }
@@ -193,9 +201,9 @@ pub fn collect_signed_headers(
 }
 
 /// Zero-alloc-per-occurrence variant of [`collect_signed_headers`]:
-/// the returned slices borrow from `headers_raw` (values) and from
-/// `names` (the returned names mirror what the caller asked for, so
-/// they live as long as `names`).
+/// the returned slices borrow from `headers_raw`. A header found is
+/// named as the message spells it; one not found keeps the name asked
+/// for, from `names`.
 ///
 /// This is the actual hot-path implementation; the owned variant is
 /// kept as a thin wrapper for downstream API stability.
@@ -206,10 +214,10 @@ pub fn collect_signed_headers(
 /// matching unconsumed occurrence returns `None` (the caller MUST
 /// skip it from the hash input — emitting a null `name:\r\n` would
 /// corrupt the signature on the verify side).
-pub fn collect_signed_headers_borrowed<'a, 'n>(
+pub fn collect_signed_headers_borrowed<'a>(
     headers_raw: &'a [u8],
-    names: &'n [String],
-) -> Vec<(&'n str, Option<&'a str>)> {
+    names: &'a [String],
+) -> Vec<(&'a str, Option<&'a str>)> {
     // 1. Walk headers top-down, recording (name_slice, value_slice)
     //    per occurrence as byte ranges into `headers_raw`. Pointer +
     //    length only — no String allocation, no copy.
@@ -285,15 +293,22 @@ pub fn collect_signed_headers_borrowed<'a, 'n>(
     let mut result = Vec::with_capacity(names.len());
     for name in names {
         let name_bytes = name.as_bytes();
-        let mut found_value: Option<&'a str> = None;
+        let mut found: (&'a str, Option<&'a str>) = (name.as_str(), None);
         for idx in (0..occurrences.len()).rev() {
             if !consumed[idx] && occurrences[idx].0.eq_ignore_ascii_case(name_bytes) {
                 consumed[idx] = true;
-                found_value = std::str::from_utf8(occurrences[idx].1).ok();
+                // the name as the message spells it: `simple` hashes it
+                // unchanged, and h= is lowercased when it is parsed
+                if let (Ok(n), Ok(v)) = (
+                    std::str::from_utf8(occurrences[idx].0),
+                    std::str::from_utf8(occurrences[idx].1),
+                ) {
+                    found = (n, Some(v));
+                }
                 break;
             }
         }
-        result.push((name.as_str(), found_value));
+        result.push(found);
     }
     result
 }
@@ -415,12 +430,13 @@ mod tests {
 
     #[test]
     fn collect_signed_headers_case_insensitive_name_match() {
+        // found whatever the case, and named as the message spells it
         let headers = b"FROM: alice@example.com\r\n";
-        let names = vec!["From".to_string()];
+        let names = vec!["from".to_string()];
         let got = collect_signed_headers(headers, &names);
         assert_eq!(
             got[0],
-            ("From".to_string(), Some(" alice@example.com".to_string()))
+            ("FROM".to_string(), Some(" alice@example.com".to_string()))
         );
     }
 
@@ -461,7 +477,7 @@ mod tests {
         let headers = b"DKIM-Signature: v=1; d=a.com\r\nFrom: a\r\n";
         let v = find_all_header_values_in_raw(headers, b"DKIM-Signature");
         assert_eq!(v.len(), 1);
-        assert_eq!(v[0], " v=1; d=a.com\r");
+        assert_eq!(v[0], " v=1; d=a.com");
     }
 
     #[test]
@@ -470,8 +486,8 @@ mod tests {
             b"DKIM-Signature: v=1; d=a.com\r\nFrom: a\r\nDKIM-Signature: v=1; d=b.com\r\n";
         let v = find_all_header_values_in_raw(headers, b"DKIM-Signature");
         assert_eq!(v.len(), 2);
-        assert_eq!(v[0], " v=1; d=a.com\r");
-        assert_eq!(v[1], " v=1; d=b.com\r");
+        assert_eq!(v[0], " v=1; d=a.com");
+        assert_eq!(v[1], " v=1; d=b.com");
     }
 
     #[test]
@@ -485,12 +501,9 @@ mod tests {
 
     #[test]
     fn find_header_value_in_raw_returns_owned() {
-        // The owning variant does NOT strip the trailing CR before LF —
-        // by design, since `find_header_value_in_raw` is also used to
-        // recover the exact pre-`b=` bytes for signature input. Keep
-        // this expectation in sync with that contract.
+        // the CR of the line's CRLF is not part of the value
         let headers = b"DKIM-Signature: v=1; a=rsa-sha256\r\nFrom: a@b\r\n";
         let v = find_header_value_in_raw(headers, b"DKIM-Signature").unwrap();
-        assert_eq!(v, " v=1; a=rsa-sha256\r");
+        assert_eq!(v, " v=1; a=rsa-sha256");
     }
 }

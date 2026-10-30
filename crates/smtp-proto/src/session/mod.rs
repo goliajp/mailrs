@@ -353,12 +353,17 @@ impl Session {
     }
 
     fn extract_domain(&self) -> String {
+        self.client_domain().to_string()
+    }
+
+    /// The domain the client gave in EHLO / HELO; empty before it gave one.
+    pub fn client_domain(&self) -> &str {
         match &self.state {
-            State::Connected => String::new(),
             State::Greeted { domain }
             | State::Authenticated { domain, .. }
             | State::MailFrom { domain, .. }
-            | State::RcptTo { domain, .. } => domain.clone(),
+            | State::RcptTo { domain, .. } => domain,
+            _ => "",
         }
     }
 
