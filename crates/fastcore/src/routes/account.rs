@@ -57,9 +57,9 @@ pub(crate) async fn add_account_route(
         Argon2,
         password_hash::{PasswordHasher, SaltString, rand_core::OsRng as ArgonRng},
     };
-    if req.password.is_empty() {
+    let Some(initial) = req.initial_password() else {
         return axum::http::StatusCode::BAD_REQUEST.into_response();
-    }
+    };
     // creating over an existing address used to rewrite the whole blob,
     // resetting quota and recovery email; password changes have their own route
     match state.mailbox.get_account_blob(&req.address) {
@@ -70,10 +70,15 @@ pub(crate) async fn add_account_route(
             return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     }
-    let salt = SaltString::generate(&mut ArgonRng);
-    let hash = match Argon2::default().hash_password(req.password.as_bytes(), &salt) {
-        Ok(h) => h.to_string(),
-        Err(_) => return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    let hash = match initial {
+        adm::InitialPassword::Hash(h) => h.to_string(),
+        adm::InitialPassword::Plain(plain) => {
+            let salt = SaltString::generate(&mut ArgonRng);
+            match Argon2::default().hash_password(plain.as_bytes(), &salt) {
+                Ok(h) => h.to_string(),
+                Err(_) => return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+            }
+        }
     };
     let domain = req
         .address

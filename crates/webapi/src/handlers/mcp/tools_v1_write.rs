@@ -57,6 +57,7 @@ impl MailrsMcpService {
             address: params.address.clone(),
             display_name: params.display_name,
             password: params.password,
+            password_hash: None,
         };
         self.state
             .core

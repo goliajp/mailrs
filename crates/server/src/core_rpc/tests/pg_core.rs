@@ -105,6 +105,7 @@ async fn pg_core_ingest_reads_back_and_is_idempotent() {
         address: user.into(),
         display_name: "U".into(),
         password: "pw".into(),
+        password_hash: None,
     })
     .await
     .expect("add_account");
@@ -166,6 +167,7 @@ async fn sync_kevy_to_pg_mirrors_mail_store() {
         address: user.into(),
         display_name: "Sync".into(),
         password: "pw".into(),
+        password_hash: None,
     })
     .await
     .expect("seed add_account");
@@ -235,6 +237,7 @@ async fn sync_pg_to_kevy_mirrors_mail_store() {
         address: user.into(),
         display_name: "Rev".into(),
         password: "pw".into(),
+        password_hash: None,
     })
     .await
     .expect("seed add_account");
@@ -286,6 +289,7 @@ async fn seed_core(c: &Client, user: &str) {
         address: user.into(),
         display_name: "Parity".into(),
         password: "pw".into(),
+        password_hash: None,
     })
     .await
     .expect("seed add_account");
@@ -401,6 +405,7 @@ async fn sync_sql_core_to_sql_core() {
         address: user.into(),
         display_name: "Sql".into(),
         password: "pw".into(),
+        password_hash: None,
     })
     .await
     .expect("seed add_account");

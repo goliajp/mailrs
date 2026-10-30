@@ -76,6 +76,7 @@ impl Live {
                 address: address.into(),
                 display_name: String::new(),
                 password: password.into(),
+                password_hash: None,
             })
             .await
             .expect("add account");

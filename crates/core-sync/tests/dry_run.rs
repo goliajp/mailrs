@@ -63,6 +63,7 @@ async fn seed(c: &Client, n: usize) {
         address: USER.into(),
         display_name: "Dry".into(),
         password: "pw".into(),
+        password_hash: None,
     })
     .await
     .expect("add_account");
@@ -184,6 +185,7 @@ async fn a_dry_run_reports_accounts_only_the_destination_has() {
         address: "stranger@test".into(),
         display_name: "Only Here".into(),
         password: "pw".into(),
+        password_hash: None,
     })
     .await
     .expect("seed dst-only account");
