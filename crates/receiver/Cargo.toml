@@ -47,7 +47,7 @@ mailrs-spf = { path = "../spf", version = "3" }
 mailrs-dkim = { path = "../dkim", version = "3" }
 mailrs-arc = { path = "../arc", version = "3" }
 mailrs-intelligence = { path = "../intelligence", version = "4" }
-mailrs-auth-guard = { path = "../auth-guard", version = "2", features = ["kevy"] }
+mailrs-auth-guard = { path = "../auth-guard", version = "2", features = ["kevy", "signins"] }
 mailrs-rate-limit = { path = "../rate-limit", version = "1" }
 mailrs-clamav = { path = "../clamav", version = "1" }
 # Network kevy-server client for the receiver/core split: greylist/rate/auth

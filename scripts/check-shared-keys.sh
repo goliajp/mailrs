@@ -41,6 +41,7 @@ ag:;crates/auth-guard/src/login.rs
 auth:events:;crates/auth-guard/src/events.rs
 auth:alerts:;crates/auth-guard/src/alerts.rs
 notify:new-mail;crates/core/src/event_bus.rs
+notify:account-signout;crates/core-sidestate/src/keys/signout.rs
 bayes:(tokens|meta|corpus|trained);crates/triage/src/spam.rs
 bayes:triage:;crates/triage/src/lib.rs
 '

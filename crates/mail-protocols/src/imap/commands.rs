@@ -48,6 +48,7 @@ pub(super) async fn dispatch<D, S>(
     (cmd, line): (ImapCommand, &str),
     framed: &mut Io<S>,
     qresync: &mut bool,
+    signed_in: Option<&mailrs_auth_guard::signins::SignedIn>,
 ) -> Vec<String>
 where
     D: Directory,
@@ -110,7 +111,7 @@ where
             )
             .await
         }
-        ImapCommand::Idle => idle_flow(session, tag, framed).await,
+        ImapCommand::Idle => idle_flow(session, tag, framed, signed_in).await,
         ImapCommand::GetQuota { .. } => quota_response(session, tag).await,
         ImapCommand::GetQuotaRoot { mailbox } => {
             let mut out = vec![format!("* QUOTAROOT \"{mailbox}\" \"\"\r\n")];

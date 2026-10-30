@@ -32,10 +32,12 @@ tokio = { version = "1", features = ["rt"], optional = true }
 [features]
 # The login guard over a shared kevy server.
 kevy = ["dep:kevy-client", "dep:tokio"]
+# Connections signed in, by account, so ending an account's sign-ins closes them.
+signins = ["dep:tokio", "tokio/sync"]
 
 [dev-dependencies]
 criterion = { workspace = true }
-tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
+tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "time"] }
 
 [[bench]]
 name = "guard"

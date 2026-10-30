@@ -179,8 +179,9 @@ async fn row(state: &WebState, address: String) -> Result<PreviewRow, StatusCode
     })
 }
 
-/// POST /api/admin/password-clear — clear each account's password and end
-/// its sessions. Agent keys stay: they are revoked by their own route.
+/// POST /api/admin/password-clear — clear each account's password, end its
+/// sessions, and close its signed-in protocol connections. Agent keys stay:
+/// they are revoked by their own route.
 pub async fn clear(
     _: crate::session::confirm::Confirmed,
     State(state): State<Arc<WebState>>,
@@ -203,7 +204,13 @@ pub async fn clear(
             Err(e) => return Err(crate::handlers::admin::map_err(e)),
         }
         let addr = address.clone();
-        let sessions = with_kevy(move |c| crate::handlers::auth::revoke_sessions(c, &addr))?;
+        let sessions = with_kevy(move |c| {
+            let n = crate::handlers::auth::revoke_sessions(c, &addr)?;
+            // and the connections already signed in over IMAP, POP3,
+            // ManageSieve and SMTP, in the processes that hold them
+            mailrs_core_sidestate::keys::signout::publish(c, &addr)?;
+            Ok(n)
+        })?;
         crate::handlers::audit::record(
             &actor,
             "account.password_clear",

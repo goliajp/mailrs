@@ -11,13 +11,14 @@ use crate::backend::{Account, Watch};
 
 /// RFC 2177 IDLE. On a change to the selected mailbox it is listed
 /// again and `* n EXISTS` sent when the count grew. Ends when the client
-/// sends DONE, the connection drops, or the 29-minute inactivity ceiling
-/// passes (clients re-issue IDLE well before that per the RFC). With no
+/// sends DONE, the connection drops, the account's sign-ins are ended, or
+/// the 29-minute inactivity ceiling passes (clients re-issue IDLE well before that per the RFC). With no
 /// mailbox selected it reports nothing.
 pub(super) async fn idle_flow<A, S>(
     session: &mut State<A>,
     tag: &str,
     framed: &mut Io<S>,
+    signed_in: Option<&mailrs_auth_guard::signins::SignedIn>,
 ) -> Vec<String>
 where
     A: Account,
@@ -59,6 +60,8 @@ where
                 }
             }
             _ = tokio::time::sleep_until(deadline) => break,
+            // the session says goodbye and closes once this returns
+            () = mailrs_auth_guard::signins::ended(signed_in) => return Vec::new(),
         }
     }
     // post-IDLE FETCHes see the new mail

@@ -11,3 +11,4 @@ pub mod events;
 pub mod push;
 pub mod quota;
 pub mod session;
+pub mod signout;
