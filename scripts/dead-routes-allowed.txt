@@ -79,3 +79,7 @@
 /api/bimi/{domain}              # DEBT: a bare BIMI TXT lookup. `/api/icon/{domain}` does its own `bimi_lookup` internally, so this looks superseded.
 /api/mock/namespaces/{}/messages/latest   # for test code and agents polling one address; the web page lists instead
 /api/mock/namespaces/{}/messages/wait     # long poll for test code and agents; the MCP tool mock_wait_for_message covers the same need
+
+# ---- called by the browser itself ----
+
+/api/csp-report             # the browser posts here when the content security policy names it in `report-uri`; no client code calls it.

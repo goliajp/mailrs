@@ -138,6 +138,15 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         axum::http::header::REFERRER_POLICY,
         axum::http::HeaderValue::from_static("same-origin"),
     ))
+    .layer(tower_http::set_header::SetResponseHeaderLayer::overriding(
+        axum::http::header::X_CONTENT_TYPE_OPTIONS,
+        axum::http::HeaderValue::from_static("nosniff"),
+    ))
+    // reported, not enforced, until a week of real traffic reports nothing
+    .layer(tower_http::set_header::SetResponseHeaderLayer::overriding(
+        axum::http::header::CONTENT_SECURITY_POLICY_REPORT_ONLY,
+        axum::http::HeaderValue::from_static(handlers::csp_report::POLICY),
+    ))
     .layer(axum::middleware::map_response(retry_after_when_unavailable))
 }
 
