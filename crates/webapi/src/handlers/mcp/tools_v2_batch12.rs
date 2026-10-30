@@ -36,7 +36,7 @@ impl MailrsMcpService {
         Parameters(params): Parameters<CreateEmailGroupParams>,
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
-        self.require_admin(&user).await?;
+        self.require_route(&user, "/api/admin/email-groups").await?;
         // The tool's parameters do not change — they are a contract with
         // the agents calling it. `domain` is not one of them because the
         // address already carries it, so it is taken from there;
@@ -70,7 +70,8 @@ impl MailrsMcpService {
         Parameters(params): Parameters<EmailGroupIdNumParams>,
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
-        self.require_admin(&user).await?;
+        self.require_route(&user, "/api/admin/email-groups/{id}")
+            .await?;
         crate::handlers::complete::delete_email_group(self.require_confirmed()?, Path(params.id))
             .await
             .map_err(|c| map_status(c, "delete_email_group"))?;
@@ -91,7 +92,8 @@ impl MailrsMcpService {
         Parameters(params): Parameters<EmailGroupMemberParams>,
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
-        self.require_admin(&user).await?;
+        self.require_route(&user, "/api/admin/email-groups/{id}/members")
+            .await?;
         let req = crate::handlers::admin::AddMemberRequest {
             address: params.address,
         };
@@ -113,7 +115,8 @@ impl MailrsMcpService {
         Parameters(params): Parameters<EmailGroupMemberParams>,
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
-        self.require_admin(&user).await?;
+        self.require_route(&user, "/api/admin/email-groups/{id}/members")
+            .await?;
         crate::handlers::admin::remove_email_group_member(
             self.require_confirmed()?,
             State(self.state.clone()),

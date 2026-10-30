@@ -146,13 +146,18 @@ impl ServerHandler for MailrsMcpService {
 }
 
 impl MailrsMcpService {
-    /// Gate an admin tool: the authed user must carry an admin.*
-    /// permission (or be super). Maps a FORBIDDEN to an MCP error.
-    /// `pub(super)` so the sibling tool modules can call it.
-    pub(super) async fn require_admin(&self, user: &str) -> Result<(), McpError> {
-        crate::handlers::kevy_util::require_admin(&self.state, user)
-            .await
-            .map_err(|_| McpError::invalid_request("admin permission required", None))
+    /// What the REST route `template` needs (`route_permissions`): a tool
+    /// that does what a route does asks the same of its caller.
+    pub(super) async fn require_route(&self, user: &str, template: &str) -> Result<(), McpError> {
+        use crate::handlers::route_permissions::{Need, need};
+        let ok = match need(template) {
+            Need::Permission(p) => {
+                crate::handlers::kevy_util::require_permission(&self.state, user, p).await
+            }
+            Need::AnyAdmin => crate::handlers::kevy_util::require_admin(&self.state, user).await,
+            Need::Super => crate::handlers::kevy_util::require_super(&self.state, user).await,
+        };
+        ok.map_err(|_| McpError::invalid_request(format!("not permitted ({template})"), None))
     }
 
     pub(super) async fn require_super(&self, user: &str) -> Result<(), McpError> {
