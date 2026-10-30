@@ -76,12 +76,18 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
     let req = SetPasswordRequest {
         password_hash: hash,
     };
-    d.both(
+    // the core sets the hash only, and its answer says nothing was revoked
+    if let Some((a, _)) = d.both(
         "set_account_password",
         fc.set_account_password(ALICE, &req).await,
         pg.set_account_password(ALICE, &req).await,
         &[],
-    );
+    ) {
+        assert_eq!(
+            a,
+            mailrs_core_api::method::admin::SetPasswordResponse::NOTHING_REVOKED
+        );
+    }
     d.both(
         "list_accounts",
         fc.list_accounts().await,

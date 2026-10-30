@@ -23,6 +23,10 @@ pub(super) fn directory_routes() -> axum::Router<Arc<WebState>> {
             post(admin::set_account_password),
         )
         .route(
+            "/api/admin/accounts/{address}/agent-keys",
+            get(admin::list_account_agent_keys),
+        )
+        .route(
             "/api/admin/accounts/{address}/quota",
             get(admin::get_account_quota).post(admin::set_account_quota),
         )

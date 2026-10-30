@@ -77,10 +77,21 @@ pub async fn remove_account(
 #[derive(Debug, serde::Deserialize)]
 pub struct SetAccountPasswordRequest {
     pub password: String,
+    /// Present for a reset after a compromise: every agent key is revoked,
+    /// and these must be the ids of all of them, as listed to the admin.
+    #[serde(default)]
+    pub compromised: Option<Compromised>,
 }
 
-/// POST /api/admin/accounts/{address}/password — replace only the
-/// password hash; quota, recovery email and permissions stay as they are.
+#[derive(Debug, serde::Deserialize)]
+pub struct Compromised {
+    pub revoke_key_ids: Vec<i64>,
+}
+
+/// POST /api/admin/accounts/{address}/password — a new password, and the
+/// account's sessions signed out. 204 for a routine reset; 200 with what
+/// was revoked for one after a compromise; 409 `key_list_changed` with the
+/// current keys when the ids named are not all of them.
 pub async fn set_account_password(
     _: crate::session::confirm::Confirmed,
     State(state): State<Arc<WebState>>,
@@ -88,33 +99,39 @@ pub async fn set_account_password(
     Path(address): Path<String>,
     Json(req): Json<SetAccountPasswordRequest>,
 ) -> Result<axum::response::Response, StatusCode> {
-    require_permission(&state, &actor, "admin.accounts").await?;
-    use argon2::{
-        Argon2,
-        password_hash::{PasswordHasher, SaltString, rand_core::OsRng as ArgonRng},
-    };
     use axum::response::IntoResponse;
-    if let Err(weak) = mailrs_auth_guard::password::check_new(&req.password, &address) {
-        return Ok(crate::handlers::auth::password::refused(weak));
+    require_permission(&state, &actor, "admin.accounts").await?;
+    let named = req
+        .compromised
+        .as_ref()
+        .map(|c| c.revoke_key_ids.as_slice());
+    match super::reset_password(&state, &actor, &address, &req.password, named, "").await {
+        Ok(done) if named.is_some() => Ok(Json(done).into_response()),
+        Ok(_) => Ok(StatusCode::NO_CONTENT.into_response()),
+        Err(super::ResetRefused::Weak(resp)) => Ok(resp),
+        Err(super::ResetRefused::KeyListChanged(keys)) => Ok((
+            StatusCode::CONFLICT,
+            Json(serde_json::json!({ "error": "key_list_changed", "keys": keys })),
+        )
+            .into_response()),
+        Err(super::ResetRefused::Status(s)) => Err(s),
     }
-    let salt = SaltString::generate(&mut ArgonRng);
-    let password_hash = Argon2::default()
-        .hash_password(req.password.as_bytes(), &salt)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-        .to_string();
-    state
-        .core
-        .set_account_password(&address, &wire::SetPasswordRequest { password_hash })
-        .await
-        .map_err(map_err)?;
-    // whoever signed in with the old password is signed out; agent keys
-    // are separate credentials and stay
-    let addr = address.clone();
-    crate::handlers::kevy_util::with_kevy(move |c| {
-        crate::handlers::auth::revoke_sessions(c, &addr)
-    })?;
-    crate::handlers::audit::record(&actor, "account.password_reset", &address, "");
-    Ok(StatusCode::NO_CONTENT.into_response())
+}
+
+/// GET /api/admin/accounts/{address}/agent-keys — the keys a compromise
+/// reset would revoke, with when each was last used.
+pub async fn list_account_agent_keys(
+    _: crate::session::confirm::Confirmed,
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(actor)): Extension<AuthedUser>,
+    Path(address): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    require_permission(&state, &actor, "admin.accounts").await?;
+    let items = with_kevy(move |c| super::key_rows(c, &address))?;
+    Ok(Json(serde_json::json!({
+        "items": items,
+        "last_use_recorded_since": super::LAST_USE_RECORDED_SINCE,
+    })))
 }
 
 #[derive(Debug, serde::Deserialize)]
