@@ -26,6 +26,37 @@ pub fn matches(password: &str, hash: &str) -> bool {
         .is_ok()
 }
 
+/// What a sign-in to an account whose password an administrator cleared is
+/// told, in every protocol: that the password was reset, and whom to ask for
+/// a code to set a new one, from `MAILRS_RESET_CONTACT_NAME` and
+/// `MAILRS_RESET_CONTACT`. ASCII only, as protocol responses must be: a
+/// name written in another script is left out and the contact kept.
+pub fn cleared_notice() -> String {
+    let read = |name| std::env::var(name).unwrap_or_default();
+    notice(
+        &read("MAILRS_RESET_CONTACT_NAME"),
+        &read("MAILRS_RESET_CONTACT"),
+    )
+}
+
+fn notice(name: &str, contact: &str) -> String {
+    let ascii = |s: &str| {
+        let s = s.trim();
+        match s.is_ascii() && !s.chars().any(|c| c.is_ascii_control() || c == '"') {
+            true => s.to_string(),
+            false => String::new(),
+        }
+    };
+    let who = match (ascii(name), ascii(contact)) {
+        (n, c) if !n.is_empty() && !c.is_empty() => format!("{n} <{c}>"),
+        (n, c) if n.is_empty() && c.is_empty() => "an administrator".to_string(),
+        (n, c) => format!("{n}{c}"),
+    };
+    format!(
+        "Your password was reset by an administrator. Ask {who} for a reset code to set a new one"
+    )
+}
+
 /// Shortest new password.
 pub const MIN_LEN: usize = 12;
 /// Longest, so a request cannot make hashing arbitrarily slow.
@@ -137,6 +168,24 @@ mod tests {
     #[test]
     fn an_empty_password_never_matches_even_its_own_hash() {
         assert!(!matches("", &hashed("")));
+    }
+
+    #[test]
+    fn the_notice_names_whom_to_ask_in_ascii() {
+        assert_eq!(
+            notice("Li Hao", "lihao@golia.jp"),
+            "Your password was reset by an administrator. Ask Li Hao <lihao@golia.jp> for a reset code to set a new one"
+        );
+        // a name in another script cannot go into a protocol line; the address can
+        assert_eq!(
+            notice("李浩", "lihao@golia.jp"),
+            "Your password was reset by an administrator. Ask lihao@golia.jp for a reset code to set a new one"
+        );
+        assert_eq!(
+            notice("", ""),
+            "Your password was reset by an administrator. Ask an administrator for a reset code to set a new one"
+        );
+        assert!(notice("a\"b", "x\r\ny").contains("Ask an administrator"));
     }
 
     #[test]

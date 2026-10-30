@@ -197,6 +197,11 @@ where
             tx.write_all(b"-ERR invalid credentials\r\n").await?;
             return Ok(None);
         }
+        Err(crate::backend::Error::Refused(text)) => {
+            let text = text.replace(['\r', '\n'], " ");
+            tx.write_all(format!("-ERR {text}\r\n").as_bytes()).await?;
+            return Ok(None);
+        }
         Err(e) => return temp_failure(&e, tx).await.map(|()| None),
     };
     match Maildrop::open(account).await {
