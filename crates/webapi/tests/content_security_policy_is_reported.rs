@@ -44,6 +44,10 @@ async fn the_policy_is_reported_and_its_reports_are_taken() {
         let policy = header("content-security-policy-report-only");
         assert!(policy.contains("script-src 'self'"), "{path}: {policy:?}");
         assert!(
+            policy.contains("img-src 'self' data: blob:;"),
+            "{path}: {policy:?}"
+        );
+        assert!(
             policy.contains("frame-ancestors 'none'"),
             "{path}: {policy:?}"
         );

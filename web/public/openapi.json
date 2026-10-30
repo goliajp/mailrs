@@ -9954,6 +9954,39 @@
           }
         }
       }
+    },
+    "/api/mail/image/{name}": {
+      "get": {
+        "operationId": "getMailImage",
+        "summary": "A remote image from the caller's mail, as the server prefetched it",
+        "tags": [
+          "Mail"
+        ],
+        "description": "`name` is the hex sha256 of the image URL as the message wrote it (HTML entities decoded). Only the caller's own mail's images are found; 404 when the image was not fetched (refused, over budget, in Junk, or not yet).",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The re-encoded image",
+            "content": {
+              "image/png": {},
+              "image/jpeg": {}
+            }
+          },
+          "404": {
+            "description": "Not fetched"
+          }
+        }
+      }
     }
   },
   "components": {

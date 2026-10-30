@@ -300,7 +300,7 @@ async fn sweep_forever(root: PathBuf, cap: u64) {
 /// Days an unread image stays.
 const KEEP: Duration = Duration::from_secs(30 * 86_400);
 
-/// Drop images not read for [`KEEP`], then the least recently read until
+/// Drop images not read for 30 days, then the least recently read until
 /// the cache is under `cap` bytes. Reading an image touches its mtime.
 /// Walks the whole cache: it is bounded by `cap`, a few thousand files.
 pub fn sweep(root: &Path, cap: u64, now: std::time::SystemTime) -> usize {
