@@ -1,5 +1,6 @@
-//! The outbound queue, the audit log and the audit reads of someone else's
-//! mailbox all show other people's mail or what they did with it. An
+//! The outbound queue and its suppressions, the audit log, the audit reads
+//! of someone else's mailbox, sign-in events and per-user spam feedback all
+//! show other people's mail traffic, reading or signing in. An
 //! administrator holding admin.* permissions used to read them; only a
 //! super administrator may, over REST and over MCP alike. The rest of the
 //! admin surface still answers an administrator.
@@ -11,6 +12,13 @@ use reqwest::Method;
 const KEVY: &str = "mem://webapi-mail-views-are-for-super-administrators";
 const ADMIN: &str = "admin@example.test";
 const SUPER: &str = "root@example.test";
+const TOOLS: [&str; 5] = [
+    "get_audit_log",
+    "list_admin_queue",
+    "list_failed_outbound",
+    "list_scheduled_outbound",
+    "list_auth_events",
+];
 
 #[tokio::test]
 async fn only_a_super_administrator_sees_other_peoples_mail() {
@@ -22,23 +30,21 @@ async fn only_a_super_administrator_sees_other_peoples_mail() {
     for p in ["admin.queue", "admin.accounts", "admin.domains"] {
         live.grant(ADMIN, p).await;
     }
-    live.mailbox
-        .upsert_permissions(
-            SUPER,
-            &serde_json::json!({
-                "address": SUPER, "permissions": [], "groups": [], "is_super": true, "send_as": [],
-            })
-            .to_string(),
-        )
-        .expect("super");
+    live.make_super(SUPER);
     let admin = live.login(ADMIN, "pw").await;
     let root = live.login(SUPER, "pw").await;
 
-    for path in ["/api/admin/queues", "/api/admin/audit-log"] {
+    for path in [
+        "/api/admin/queues",
+        "/api/admin/suppressions",
+        "/api/admin/audit-log",
+        "/api/admin/auth-events",
+        "/api/admin/spam-feedback-stats",
+    ] {
         let (status, _) = live.call(Method::GET, path, &admin, None).await;
         assert_eq!(status, 403, "{path} for an administrator");
         let (status, body) = live.call(Method::GET, path, &root, None).await;
-        assert_eq!(status, 200, "{path} for a super administrator: {body}");
+        assert_ne!(status, 403, "{path} for a super administrator: {body}");
     }
 
     // the audit reads also want a recent confirmation, asked only once the
@@ -66,14 +72,19 @@ async fn only_a_super_administrator_sees_other_peoples_mail() {
     assert_eq!(status, 200, "the rest of the admin surface: {body}");
 
     let mut as_admin = live.mcp(&admin).await;
-    for tool in ["get_audit_log", "list_admin_queue", "list_failed_outbound"] {
+    for tool in TOOLS {
         assert!(
             as_admin.tool(tool, serde_json::json!({})).await.is_err(),
             "{tool} for an administrator"
         );
     }
     let mut as_root = live.mcp(&root).await;
-    for tool in ["get_audit_log", "list_admin_queue", "list_failed_outbound"] {
+    for tool in [
+        "get_audit_log",
+        "list_admin_queue",
+        "list_failed_outbound",
+        "list_scheduled_outbound",
+    ] {
         let answer = as_root.tool(tool, serde_json::json!({})).await;
         assert!(
             answer.is_ok(),

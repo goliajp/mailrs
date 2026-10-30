@@ -202,6 +202,8 @@ async fn a_recent_confirmation_guards_what_a_stolen_session_could_abuse() {
         live.add_account(who, PW).await;
     }
     live.grant(ADMIN, "admin.accounts").await;
+    // the audit reads are for a super administrator
+    live.make_super(ADMIN);
     let call = |token: String, method: Method, path: String, body: Option<Value>| {
         let live = &live;
         async move { live.call(method, &path, &token, body).await }
