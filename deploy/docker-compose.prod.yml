@@ -120,7 +120,10 @@ services:
       - "143:143"
       - "993:993"
       - "110:110"
-      - "4190:4190"
+      # ManageSieve stays off the internet: sieve scripts are managed from
+      # the web UI, and an open port would only be one more place to guess
+      # passwords
+      - "127.0.0.1:4190:4190"
       - "995:995"
     # The flush on the way out decides whether the next replay is clean,
     # and a SIGKILL in the middle of it leaves a torn frame at the AOF

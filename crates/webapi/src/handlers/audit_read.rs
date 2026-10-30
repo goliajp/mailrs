@@ -1,6 +1,7 @@
 //! The audit **read** surface: reading another account's mail with the
 //! access recorded. Every route here sits under `/api/admin/`, so the
-//! admin middleware (`require_admin`) is the only gate.
+//! admin middleware is the only gate, and it admits a super administrator
+//! only (`SUPER_ONLY` in `kevy_util`).
 //!
 //! Distinct from `audit.rs`, which is the recorder these call into. The
 //! two were nearly merged by a careless split on 2026-08-02 — the reader
