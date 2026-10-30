@@ -59,7 +59,7 @@ COPY --from=planner /build/recipe.json recipe.json
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/build/target \
-    for p in mailrs-fraud-lua mailrs-receiver mailrs-webapi mailrs-fastcore mailrs-backup; do \
+    for p in mailrs-fraud-lua mailrs-receiver mailrs-webapi mailrs-fastcore mailrs-backup mailrs-fetch; do \
         cargo chef cook --release --recipe-path recipe.json -p "$p" --bins || exit 1; \
     done
 
@@ -82,13 +82,15 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     && cargo build --release -p mailrs-webapi --bins \
     && cargo build --release -p mailrs-fastcore --bin mailrs-fastcore --bin mailrs-fastcore-sender --bin mailrs-fastcore-ocr \
     && cargo build --release -p mailrs-backup --bin mailrs-backup \
+    && cargo build --release -p mailrs-fetch --bin mailrs-fetch \
     && cp /build/target/release/mailrs-fraud-check /usr/local/bin/mailrs-fraud-check \
     && cp /build/target/release/mailrs-receiver /usr/local/bin/mailrs-receiver \
     && cp /build/target/release/mailrs-webapi /usr/local/bin/mailrs-webapi \
     && cp /build/target/release/mailrs-fastcore /usr/local/bin/mailrs-fastcore \
     && cp /build/target/release/mailrs-fastcore-sender /usr/local/bin/mailrs-fastcore-sender \
     && cp /build/target/release/mailrs-fastcore-ocr /usr/local/bin/mailrs-fastcore-ocr \
-    && cp /build/target/release/mailrs-backup /usr/local/bin/mailrs-backup
+    && cp /build/target/release/mailrs-backup /usr/local/bin/mailrs-backup \
+    && cp /build/target/release/mailrs-fetch /usr/local/bin/mailrs-fetch
 
 # stage 2: build frontend
 # OCR models, fetched and checked against the sha256 in the manifest. Its
@@ -161,6 +163,7 @@ COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-sender /usr/local/bin/ma
 # attachment, so a hostile file can only take this process down.
 COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-ocr /usr/local/bin/mailrs-fastcore-ocr
 COPY --from=rust-builder /usr/local/bin/mailrs-backup /usr/local/bin/mailrs-backup
+COPY --from=rust-builder /usr/local/bin/mailrs-fetch /usr/local/bin/mailrs-fetch
 COPY --from=ocr-models /usr/share/mailrs/ocr /usr/share/mailrs/ocr
 COPY --from=web-builder /build/dist /opt/mailrs/web
 
