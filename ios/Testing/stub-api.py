@@ -25,6 +25,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 import stub_confirm
+import stub_reset
 import stub_restart
 import stub_role
 import stub_login
@@ -573,7 +574,7 @@ class H(BaseHTTPRequestHandler):
             return
         if self._session_rejected():
             return
-        if stub_role.handle(self) or stub_role.refused(self):
+        if stub_role.handle(self) or stub_role.refused(self) or stub_reset.state(self):
             return
         if self.path.split("?")[0] == "/api/conversations/search":
             query = parse_qs(urlparse(self.path).query)
@@ -1148,7 +1149,7 @@ class H(BaseHTTPRequestHandler):
             return
         if self._session_rejected():
             return
-        if stub_role.handle(self) or stub_role.refused(self):
+        if stub_role.handle(self) or stub_role.refused(self) or stub_reset.handle(self):
             return
         if self.path.split("?")[0] == "/api/auth/confirm":
             stub_confirm.answer(self)
@@ -1270,9 +1271,8 @@ class H(BaseHTTPRequestHandler):
             # would otherwise 401 every test after it, and the failure
             # would look like anything but a leftover flag.
             REJECT_SESSION[0] = False
-            stub_confirm.reset()
-            stub_restart.reset()
-            stub_role.reset()
+            for stub in (stub_confirm, stub_restart, stub_role, stub_reset):
+                stub.reset()
             VERB_REFUSE.clear()
             FETCHED.clear()
             SENT.clear()

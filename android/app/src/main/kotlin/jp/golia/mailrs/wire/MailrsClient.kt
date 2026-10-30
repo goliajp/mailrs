@@ -385,7 +385,7 @@ class MailrsClient(private val store: TokenStore) {
             val text = response.body.string()
             when {
                 response.isSuccessful -> Outcome.Ok(text)
-                response.code == 401 -> confirmRefusal(text)
+                response.code == 401 -> confirmRefusal(text) ?: passwordCleared(text)
                     ?: refusal(request, text)?.let { Outcome.Err(it) }
                     ?: run {
                         rejected()
@@ -395,7 +395,7 @@ class MailrsClient(private val store: TokenStore) {
                     Outcome.Err("Enter your password to continue.", CONFIRM_REQUIRED)
                 response.code == 403 -> forbidden()
                 response.code == 503 -> restarting(request, response.header("Retry-After"), retried)
-                else -> Outcome.Err("The server answered ${response.code}.")
+                else -> Outcome.Err("The server answered ${response.code}.", errorCode(text))
             }
         }
     } catch (e: IOException) {
@@ -455,7 +455,7 @@ class MailrsClient(private val store: TokenStore) {
     internal fun enc(s: String) = java.net.URLEncoder.encode(s, "UTF-8")
 
     /** `mail.golia.jp` and `https://mail.golia.jp/` mean the same thing. */
-    private fun normalise(server: String): String {
+    internal fun normalise(server: String): String {
         val trimmed = server.trim().removeSuffix("/")
         return if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) trimmed
         else "https://$trimmed"

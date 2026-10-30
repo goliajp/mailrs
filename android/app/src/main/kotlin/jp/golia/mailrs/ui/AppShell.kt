@@ -3,6 +3,9 @@ package jp.golia.mailrs.ui
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import jp.golia.mailrs.closeSent
+import jp.golia.mailrs.closeReset
+import jp.golia.mailrs.openReset
+import jp.golia.mailrs.submitReset
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -234,7 +237,23 @@ fun MailrsApp(vm: MailViewModel, state: UiState) {
 
                 when (candidate) {
                     Screen.SignIn -> Box(windowModifier) {
-                        SignInScreen(state.busy, state.error, state.needsTotp) { s, u, p, c -> vm.signIn(s, u, p, c) }
+                        val reset = state.reset
+                        if (reset != null) {
+                            ResetCodeScreen(
+                                reset,
+                                onSubmit = { a, c, p, r -> vm.submitReset(a, c, p, r) },
+                                onCancel = { vm.closeReset() },
+                            )
+                        } else {
+                            SignInScreen(
+                                state.busy,
+                                state.error,
+                                state.needsTotp,
+                                onSignIn = { s, u, p, c -> vm.signIn(s, u, p, c) },
+                                notice = state.notice,
+                                onHaveCode = { s, a -> vm.openReset(s, a) },
+                            )
+                        }
                     }
                     Screen.Compose -> Box(peeled) { ComposeScreen(state, vm) }
                     Screen.Thread -> Box(peeled) { ThreadScreen(state, vm) }

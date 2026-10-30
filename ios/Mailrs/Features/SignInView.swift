@@ -7,6 +7,8 @@ struct SignInView: View {
     @State private var totpCode = ""
     /// The password field appears unless Face ID can answer for it.
     @State private var showsPassword = true
+    /// Said once a reset code has set a new password.
+    @State private var resetDone = false
 
     /// Sign in with the stored credential.
     ///
@@ -135,6 +137,13 @@ struct SignInView: View {
                         Text(message).foregroundStyle(.red)
                     }
                 }
+                if resetDone {
+                    Section {
+                        Text("Your new password is set. Sign in with it.")
+                            .foregroundStyle(.green)
+                            .accessibilityIdentifier("text.resetDone")
+                    }
+                }
 
                 Section {
                     Button {
@@ -168,6 +177,19 @@ struct SignInView: View {
             }
             .navigationTitle("")
             .inlineTitle()
+            .toolbar {
+                ToolbarItem(placement: .bottomBar) {
+                    Button("I have a reset code") { session.showsReset = true }
+                    .accessibilityIdentifier("button.haveResetCode")
+                }
+            }
+            .sheet(isPresented: Bindable(session).showsReset) {
+                ResetCodeSheet(initialAddress: trimmedAddress) { done in
+                    address = done
+                    password = ""
+                    resetDone = true
+                }
+            }
             .task {
                 // Who it was last time, and whether the phone can answer
                 // for them. A form that has forgotten the account on

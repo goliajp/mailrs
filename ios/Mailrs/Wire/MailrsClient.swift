@@ -18,6 +18,24 @@ enum MailrsError: Error, LocalizedError, Equatable {
     case totpRequired
     /// Too many wrong confirmations: the server ended this session.
     case sessionEnded
+    /// An administrator cleared this account's password; a reset code from
+    /// the person named sets a new one (`password_cleared`).
+    case passwordCleared(name: String, address: String)
+    /// The reset code was wrong, used up or replaced (`invalid_reset_code`).
+    case invalidResetCode
+
+    /// Whom a cleared account's owner asks for a reset code.
+    struct Contact: Equatable {
+        let name: String
+        let address: String
+
+        /// "Li Hao (lihao@golia.jp)", or whichever half is set.
+        var text: String {
+            if !name.isEmpty, !address.isEmpty { return "\(name) (\(address))" }
+            if !name.isEmpty { return name }
+            return address
+        }
+    }
 
     var errorDescription: String? {
         switch self {
@@ -34,6 +52,9 @@ enum MailrsError: Error, LocalizedError, Equatable {
             "Wrong password or code. \(remaining) tries left before you are signed out."
         case .totpRequired: "Enter the code from your authenticator app."
         case .sessionEnded: "Signed out after too many wrong passwords."
+        case .passwordCleared: "Your password was reset by an administrator."
+        case .invalidResetCode:
+            "That code does not work: it may be mistyped, used up, or replaced by a newer one."
         }
     }
 }
@@ -86,7 +107,13 @@ actor MailrsClient {
         guard let http = response as? HTTPURLResponse else {
             throw MailrsError.transport("No HTTP response.")
         }
-        if http.statusCode == 401 { throw MailrsError.badCredentials }
+        if http.statusCode == 401 {
+            if let cleared = try? JSONDecoder().decode(Wire.PasswordCleared.self, from: data),
+               cleared.error == "password_cleared" {
+                throw MailrsError.passwordCleared(name: cleared.contact.name, address: cleared.contact.address)
+            }
+            throw MailrsError.badCredentials
+        }
         guard (200..<300).contains(http.statusCode) else {
             throw MailrsError.server(status: http.statusCode)
         }
