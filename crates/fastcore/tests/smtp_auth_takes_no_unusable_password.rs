@@ -110,6 +110,7 @@ async fn no_password_signs_into_an_account_without_a_usable_one() {
                 address: address.into(),
                 display_name: String::new(),
                 password: "a-real-password-1".into(),
+                password_hash: None,
             })
             .await
             .unwrap();

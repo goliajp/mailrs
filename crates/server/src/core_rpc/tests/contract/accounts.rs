@@ -24,6 +24,7 @@ pub(super) async fn seed(c: &Cores, d: &mut Diffs) {
             address: address.into(),
             display_name: name.into(),
             password: "pw".into(),
+            password_hash: None,
         };
         d.both(
             "add_account",
@@ -148,6 +149,66 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
         pg.list_local_aliases().await,
         MINTED,
     );
+    created_with_a_hash(c, d).await;
+}
+
+/// An account made with a ready hash keeps exactly that hash, argon2 or
+/// empty; a hash that is not argon2, or no password at all, is refused.
+async fn created_with_a_hash(c: &Cores, d: &mut Diffs) {
+    let (fc, pg) = (&c.fastcore, &c.pg_core);
+    let argon2 = mailrs_core::users::UserStore::hash_password("kept-pw").expect("hash");
+    for (address, hash) in [
+        (format!("kept-hash@{DOMAIN}"), argon2.as_str()),
+        (format!("no-password@{DOMAIN}"), ""),
+    ] {
+        let req = AddAccountRequest {
+            address: address.clone(),
+            display_name: String::new(),
+            password: String::new(),
+            password_hash: Some(hash.into()),
+        };
+        d.both(
+            "add_account with a hash",
+            fc.add_account(&req).await,
+            pg.add_account(&req).await,
+            &[],
+        );
+        if let Some((a, b)) = d.both(
+            "get_account_with_hash after a create with one",
+            fc.get_account_with_hash(&address).await,
+            pg.get_account_with_hash(&address).await,
+            MINTED,
+        ) {
+            for (core, got) in [("fastcore", a), ("pg-core", b)] {
+                let stored = got.password_hash.unwrap_or_default();
+                if stored != hash {
+                    d.0.push(format!(
+                        "{core} stored {stored:?} for {address}, given {hash:?}"
+                    ));
+                }
+            }
+        }
+    }
+    for (address, password, hash) in [
+        (format!("clear-text@{DOMAIN}"), "", Some("clear-text-1")),
+        (format!("nothing@{DOMAIN}"), "", None),
+    ] {
+        let req = AddAccountRequest {
+            address: address.clone(),
+            display_name: String::new(),
+            password: password.into(),
+            password_hash: hash.map(str::to_string),
+        };
+        let (a, b) = (fc.add_account(&req).await, pg.add_account(&req).await);
+        if a.is_ok() || b.is_ok() {
+            d.0.push(format!(
+                "add_account {address} accepted: fastcore {:?}, pg-core {:?}",
+                a.is_ok(),
+                b.is_ok()
+            ));
+        }
+        d.both("add_account refused", a, b, &[]);
+    }
 }
 
 /// What ALICE may send as, with `alias` pointing at her and `group` holding

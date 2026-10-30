@@ -33,6 +33,7 @@ async fn an_account_added_through_the_core_authenticates_for_submission() {
         address: "alice@example.com".into(),
         display_name: "Alice".into(),
         password: "correct horse".into(),
+        password_hash: None,
     })
     .await
     .expect("add account");
