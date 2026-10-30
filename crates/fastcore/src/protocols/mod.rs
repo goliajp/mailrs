@@ -35,6 +35,12 @@ pub(crate) fn spawn(state: Arc<FastcoreState>, tls: Option<TlsState>) {
     let url = std::env::var("MAILRS_KEVY_URL").ok();
     let guard = mailrs_auth_guard::kevy::guard_for(url.as_deref());
     let guarded = mailrs_mail_protocols::Guarded::new(Arc::new(dir), guard);
+    if let Some(url) = url {
+        let signins = guarded.signed_in();
+        mailrs_core_sidestate::keys::signout::listen(url, move |account| {
+            signins.end(account);
+        });
+    }
     mailrs_mail_protocols::spawn_all(Arc::new(guarded), tls);
 }
 

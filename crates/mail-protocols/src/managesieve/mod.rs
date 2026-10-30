@@ -23,6 +23,7 @@ use tokio::net::TcpListener;
 use crate::backend::{Account, Directory, Error, Protocol};
 use crate::listen;
 use auth::plain_credentials;
+use mailrs_auth_guard::signins::{ENDED, SignedIn, ended};
 use script::{read_script_literal, sanitize};
 
 /// The single script name presented. A stable label keeps clients happy.
@@ -114,10 +115,18 @@ where
     W: AsyncWrite + Unpin,
 {
     let mut account: Option<D::Account> = None;
+    let mut signed_in: Option<SignedIn> = None;
     let mut line = String::new();
     loop {
         line.clear();
-        if reader.read_line(&mut line).await? == 0 {
+        let n = tokio::select! {
+            n = reader.read_line(&mut line) => n?,
+            () = ended(signed_in.as_ref()) => {
+                tx.write_all(format!("BYE \"{ENDED}\"\r\n").as_bytes()).await?;
+                return Ok(false);
+            }
+        };
+        if n == 0 {
             return Ok(false);
         }
         let trimmed = line.trim_end_matches(['\r', '\n']);
@@ -143,8 +152,9 @@ where
             }
             "STARTTLS" => tx.write_all(b"NO \"STARTTLS not available\"\r\n").await?,
             "AUTHENTICATE" => {
-                if let Some(signed_in) = authenticate(dir, arg, reader, tx).await? {
-                    account = Some(signed_in);
+                if let Some(a) = authenticate(dir, arg, reader, tx).await? {
+                    signed_in = dir.signins().map(|s| s.enter(a.user()));
+                    account = Some(a);
                 }
             }
             "HAVESPACE" => tx.write_all(havespace(arg).as_bytes()).await?,

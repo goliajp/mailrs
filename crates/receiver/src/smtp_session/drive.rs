@@ -22,11 +22,20 @@ pub(super) async fn drive_session<S>(
     addr: SocketAddr,
     ctx: &ConnectionContext,
     conn_id: u64,
+    signed_in: &Option<mailrs_auth_guard::signins::SignedIn>,
 ) -> SessionAction
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
-    let result = match tokio::time::timeout(CONNECTION_TIMEOUT, framed.next()).await {
+    let next = tokio::select! {
+        next = tokio::time::timeout(CONNECTION_TIMEOUT, framed.next()) => next,
+        () = mailrs_auth_guard::signins::ended(signed_in.as_ref()) => {
+            let ended = mailrs_auth_guard::signins::ENDED;
+            let _ = framed.send(Response::new(421, None, ended).format()).await;
+            return SessionAction::Close;
+        }
+    };
+    let result = match next {
         Ok(Some(result)) => result,
         Ok(None) => return SessionAction::Close,
         Err(_) => {

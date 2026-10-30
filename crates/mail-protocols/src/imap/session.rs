@@ -19,6 +19,7 @@ use tokio_util::codec::Framed;
 use super::auth;
 use super::commands::dispatch;
 use crate::backend::{Account, Directory, Error, Message};
+use mailrs_auth_guard::signins::{ENDED, SignedIn, ended};
 
 pub(super) type Io<S> = Framed<S, ImapCodec>;
 
@@ -120,7 +121,17 @@ where
     let mut session = State::<D::Account>::NotAuthed;
     // ENABLE QRESYNC is connection-scoped (RFC 7162 §3.2.5)
     let mut qresync = false;
-    while let Some(frame) = framed.next().await {
+    let mut signed_in: Option<SignedIn> = None;
+    loop {
+        let frame = tokio::select! {
+            frame = framed.next() => frame,
+            () = ended(signed_in.as_ref()) => {
+                let bye = format!("* BYE [ALERT] {ENDED}\r\n");
+                drop(framed.send(bye.into_bytes()).await);
+                return false;
+            }
+        };
+        let Some(frame) = frame else { break };
         let input = match frame {
             Ok(input) => input,
             Err(e) => {
@@ -165,7 +176,21 @@ where
         };
         let is_logout = matches!(command, ImapCommand::Logout);
         let parsed = (command, line);
-        let responses = dispatch(dir, &mut session, &tag, parsed, framed, &mut qresync).await;
+        let responses = dispatch(
+            dir,
+            &mut session,
+            &tag,
+            parsed,
+            framed,
+            &mut qresync,
+            signed_in.as_ref(),
+        )
+        .await;
+        if signed_in.is_none()
+            && let (Some(signins), Some(account)) = (dir.signins(), session.account())
+        {
+            signed_in = Some(signins.enter(account.user()));
+        }
         if !send_all(framed, responses).await || is_logout {
             return false;
         }

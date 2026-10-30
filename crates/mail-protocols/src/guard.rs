@@ -31,12 +31,23 @@ pub fn peer() -> IpAddr {
 pub struct Guarded<D> {
     dir: Arc<D>,
     guard: Arc<dyn LoginGuard>,
+    signins: mailrs_auth_guard::signins::Signins,
 }
 
 impl<D> Guarded<D> {
     pub fn new(dir: Arc<D>, guard: Arc<dyn LoginGuard>) -> Self {
         let _ = DENIED.set(guard.clone());
-        Self { dir, guard }
+        Self {
+            dir,
+            guard,
+            signins: mailrs_auth_guard::signins::Signins::default(),
+        }
+    }
+
+    /// The connections signed in through this directory, for whoever ends
+    /// an account's sign-ins.
+    pub fn signed_in(&self) -> mailrs_auth_guard::signins::Signins {
+        self.signins.clone()
     }
 }
 
@@ -122,6 +133,10 @@ impl<D: Directory> Directory for Guarded<D> {
             Err(_) => {}
         }
         signed_in
+    }
+
+    fn signins(&self) -> Option<&mailrs_auth_guard::signins::Signins> {
+        Some(&self.signins)
     }
 }
 

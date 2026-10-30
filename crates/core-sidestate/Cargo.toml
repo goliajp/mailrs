@@ -21,6 +21,7 @@ kevy-client = { workspace = true }
 axum = { version = "0.8" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+tracing = "0.1"
 # Address comparison for webhook sender filters — the same stone the
 # mailbox uses, so `Name <a@b>` and `a@b` are one address here too.
 mailrs-rfc5322 = { path = "../rfc5322", version = "1" }
