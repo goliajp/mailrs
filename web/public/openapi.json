@@ -9801,6 +9801,39 @@
           }
         }
       }
+    },
+    "/api/csp-report": {
+      "post": {
+        "operationId": "cspReport",
+        "summary": "Where browsers report what the content security policy would have blocked",
+        "tags": [
+          "System"
+        ],
+        "description": "Named by `report-uri` in the Content-Security-Policy-Report-Only header. No session needed. Only the directive and the blocked origin are logged.",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/csp-report": {
+              "schema": {
+                "type": "object"
+              }
+            },
+            "application/reports+json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Received"
+          }
+        }
+      }
     }
   },
   "components": {

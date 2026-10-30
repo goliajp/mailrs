@@ -177,6 +177,8 @@ pub(super) fn unauth_routes() -> axum::Router<Arc<WebState>> {
         .route("/api/readiness", get(readiness_handler))
         .route("/api/status", get(status_handler))
         .route("/api/auth/login", post(handlers::auth::login))
+        // a browser reports on its own, with no session token to check
+        .route("/api/csp-report", post(handlers::csp_report::receive))
         .route(
             "/api/auth/password-reset",
             post(handlers::password_reset::reset),
