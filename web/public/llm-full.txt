@@ -25,7 +25,7 @@ Config for Claude Code or any MCP client:
 }
 ```
 
-96 tools auto-discovered via MCP, grouped by category (the table below is a selection; `tools/list` is the authority, and `scripts/check-mcp-parity.sh` holds the two server lanes to the same set):
+97 tools auto-discovered via MCP, grouped by category (the table below is a selection; `tools/list` is the authority, and `scripts/check-mcp-parity.sh` holds the two server lanes to the same set):
 
 ### Email Operations
 
@@ -62,7 +62,8 @@ Config for Claude Code or any MCP client:
 | list_accounts | admin.accounts | List all email accounts (address, domain, display_name, active) |
 | create_account | admin.accounts | Create account (onboarding). Auto-joins domain's default user group |
 | remove_account | admin.accounts | Remove account (offboarding). It can no longer sign in, its sessions and agent keys stop working, stored mail is moved aside on disk (kept, not visible), and new mail to the address is refused unless an alias or catch-all takes it. Aliases and group memberships are kept |
-| set_account_password | admin.accounts | Reset an account's password (argon2 hashed) |
+| set_account_password | admin.accounts | Reset an account's password (argon2 hashed) and sign its sessions out; with `compromised_revoke_key_ids` (all of the account's key ids) every agent key is revoked too |
+| list_account_agent_keys | admin.accounts | An account's agent keys with created and last-used times (to the hour; null when not recorded) |
 | get_account_send_as | admin.accounts | The addresses an account was granted to send as. Its own address, the aliases pointing at it (not a domain catch-all) and its email groups need no grant and are not listed |
 | get_account_forwards | admin.accounts | The other accounts that get a copy of everything delivered to an account |
 | set_account_forwards | admin.accounts | Replace an account's local forwards. Each copy goes straight into the target's mailbox (no SMTP, the original fraud verdict, never forwarded again); targets must be other accounts here; an empty list stops forwarding |

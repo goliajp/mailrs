@@ -294,13 +294,14 @@ pub async fn set_account_password(
     State(state): State<Arc<CoreRpcState>>,
     Path(address): Path<String>,
     Json(req): Json<wire::SetPasswordRequest>,
-) -> Result<StatusCode, StatusCode> {
+) -> Result<Json<wire::SetPasswordResponse>, StatusCode> {
     state
         .domain
         .set_password_hash(&address, &req.password_hash)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    Ok(StatusCode::NO_CONTENT)
+    // the hash only, as fastcore: sessions and agent keys are webapi's
+    Ok(Json(wire::SetPasswordResponse::NOTHING_REVOKED))
 }
 
 /// POST /v1/admin/accounts/{address}/password:clear — no password signs in

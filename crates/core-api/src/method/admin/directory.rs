@@ -130,6 +130,23 @@ pub struct SetPasswordRequest {
     pub password_hash: String,
 }
 
+/// Response of `POST /v1/admin/accounts/{address}/password`. The core sets
+/// the hash and nothing else: whoever calls it directly (the host's
+/// maintenance use) signs no session out and revokes no agent key, and
+/// the answer says so. Webapi's routes do both themselves.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SetPasswordResponse {
+    pub sessions_revoked: bool,
+    pub agent_keys_revoked: bool,
+}
+
+impl SetPasswordResponse {
+    pub const NOTHING_REVOKED: Self = Self {
+        sessions_revoked: false,
+        agent_keys_revoked: false,
+    };
+}
+
 /// Request body for `POST /v1/admin/accounts/{address}/password:clear`:
 /// empty the hash, so no password signs in, and record who did it. Setting
 /// a password afterwards removes the record.

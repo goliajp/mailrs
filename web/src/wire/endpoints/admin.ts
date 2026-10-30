@@ -19,15 +19,23 @@
  * by a fixture or listed as debt with a reason.
  */
 
+import { http } from '@/lib/http'
+
 import { wireFetch } from '../client'
+import { WireErrorException } from '../errors'
 import {
+  accountAgentKeysSchema,
   adminEmptyResultSchema,
   adminListSchema,
   adminObjectSchema,
   adminStringListSchema,
   adminWriteResultSchema,
+  compromiseResetDoneSchema,
+  keyListChangedSchema,
   passwordClearPreviewSchema,
   passwordClearResultSchema,
+  type WireAccountAgentKey,
+  type WireAccountAgentKeys,
   type WirePasswordClearPreview,
   type WirePasswordClearResult,
 } from '../schemas/admin'
@@ -104,3 +112,54 @@ export const wirePasswordClear = (addresses: string[]): Promise<WirePasswordClea
     method: 'POST',
     path: '/admin/password-clear',
   })
+
+/** `GET /admin/accounts/{address}/agent-keys` — the keys a compromise reset revokes. */
+export const wireAccountAgentKeys = (address: string): Promise<WireAccountAgentKeys> =>
+  wireFetch(accountAgentKeysSchema, {
+    path: `/admin/accounts/${encodeURIComponent(address)}/agent-keys`,
+  })
+
+export type CompromiseResetOutcome =
+  | { agentKeysRevoked: number; kind: 'done'; sessionsRevoked: number }
+  | { keys: WireAccountAgentKey[]; kind: 'key-list-changed' }
+  | { kind: 'refused'; message: string }
+
+/**
+ * `POST /admin/accounts/{address}/password` after a compromise: a new
+ * password, the sessions signed out and every agent key revoked. `keyIds`
+ * are the keys the administrator was shown; when they are no longer all
+ * of them the answer carries the current ones to show instead.
+ */
+export async function wireCompromiseReset(
+  address: string,
+  password: string,
+  keyIds: number[]
+): Promise<CompromiseResetOutcome> {
+  const res = await http(`/api/admin/accounts/${encodeURIComponent(address)}/password`, {
+    body: JSON.stringify({ compromised: { revoke_key_ids: keyIds }, password }),
+    headers: { 'Content-Type': 'application/json' },
+    method: 'POST',
+  })
+  const raw: unknown = await res.json().catch(() => null)
+  if (res.ok) {
+    const done = compromiseResetDoneSchema.safeParse(raw)
+    if (!done.success) {
+      throw new WireErrorException({ issues: done.error.issues, kind: 'validation' })
+    }
+    return {
+      agentKeysRevoked: done.data.agent_keys_revoked,
+      kind: 'done',
+      sessionsRevoked: done.data.sessions_revoked,
+    }
+  }
+  const changed = keyListChangedSchema.safeParse(raw)
+  if (changed.success) return { keys: changed.data.keys, kind: 'key-list-changed' }
+  return { kind: 'refused', message: refusalText(raw, res.status) }
+}
+
+function refusalText(raw: unknown, status: number): string {
+  if (raw && typeof raw === 'object' && 'error' in raw && typeof raw.error === 'string') {
+    return raw.error
+  }
+  return `The server answered ${status}`
+}
