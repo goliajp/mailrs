@@ -3,10 +3,13 @@
 Any password signs any address in, except two cases: `WRONG_PASSWORD`
 is refused the way the server refuses a bad password (401, no body), and
 `TOTP_ADDRESS` stands for an account with two-factor sign-in turned on,
-so a client's code prompt has something to talk to.
+so a client's code prompt has something to talk to. The account whose
+password was cleared is `stub_reset.py`'s.
 """
 
 import json
+
+import stub_reset
 
 TOTP_ADDRESS = "totp@golia.jp"
 TOTP_CODE = "123456"
@@ -20,6 +23,8 @@ def answer(handler):
     # field name gets the 422 the server would give it, not a token.
     if not isinstance(body.get("address"), str) or not isinstance(body.get("password"), str):
         handler._send({"error": "missing field `address` or `password`"}, status=422)
+        return
+    if stub_reset.login(handler, body):
         return
     if body["password"] == WRONG_PASSWORD:
         handler.send_response(401)

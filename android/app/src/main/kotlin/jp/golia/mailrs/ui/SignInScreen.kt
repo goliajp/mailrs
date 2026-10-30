@@ -22,6 +22,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,6 +56,9 @@ fun SignInScreen(
     error: String?,
     needsCode: Boolean,
     onSignIn: (server: String, address: String, password: String, totpCode: String?) -> Unit,
+    /** Said once a reset code set a new password. */
+    notice: String? = null,
+    onHaveCode: (server: String, address: String) -> Unit = { _, _ -> },
 ) {
     val theme = LocalTheme.current
     // **Saveable, so a rotation does not empty the form** — typing an
@@ -180,6 +184,14 @@ fun SignInScreen(
             )
         }
 
+        if (notice != null) {
+            Text(
+                notice,
+                color = theme.accent,
+                fontSize = 13.sp,
+                modifier = Modifier.fillMaxWidth().padding(top = 10.dp).testTag("text.resetDone"),
+            )
+        }
         if (error != null) {
             Text(
                 error,
@@ -197,6 +209,12 @@ fun SignInScreen(
             modifier = Modifier.fillMaxWidth().padding(top = 20.dp).height(48.dp).testTag("button.signIn"),
         ) {
             Text(if (busy) "Signing in…" else "Sign in", fontWeight = FontWeight.SemiBold)
+        }
+        TextButton(
+            onClick = { onHaveCode(server, username.trim()) },
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp).testTag("button.haveResetCode"),
+        ) {
+            Text("I have a reset code", color = theme.accent)
         }
     }
 }

@@ -15,6 +15,7 @@ import jp.golia.mailrs.wire.MailSignature
 import jp.golia.mailrs.wire.MailListAxes
 import jp.golia.mailrs.wire.messageSource
 import jp.golia.mailrs.wire.MailrsClient
+import jp.golia.mailrs.wire.PASSWORD_CLEARED
 import jp.golia.mailrs.wire.NewMailWorker
 import jp.golia.mailrs.wire.Prefs
 import jp.golia.mailrs.wire.RecentRecipients
@@ -183,6 +184,8 @@ class MailViewModel(
                     loadSignature()
                     refreshRole()
                 }
+                is MailrsClient.Outcome.Err if r.code == PASSWORD_CLEARED ->
+                    _state.update { it.copy(busy = false, reset = ResetPrompt(server, username, r.message)) }
                 is MailrsClient.Outcome.Err ->
                     _state.update { it.copy(busy = false, error = r.message) }
             }
