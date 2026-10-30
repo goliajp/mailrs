@@ -86,4 +86,18 @@ describe('composing on a phone', () => {
     )
     expect(screen.queryByTestId('composer')).toBeNull()
   })
+
+  // permission is asked for when the reader turns notices on in
+  // Settings, not as soon as the mailbox opens
+  it('does not ask for notification permission on opening', () => {
+    const requestPermission = vi.fn(() => Promise.resolve('default'))
+    vi.stubGlobal('Notification', { permission: 'default', requestPermission })
+    render(
+      <Wrapper store={store}>
+        <Chat />
+      </Wrapper>
+    )
+    expect(requestPermission).not.toHaveBeenCalled()
+    vi.unstubAllGlobals()
+  })
 })

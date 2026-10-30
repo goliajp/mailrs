@@ -16,6 +16,16 @@ img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; \
 frame-src 'self' blob:; worker-src 'self'; manifest-src 'self'; object-src 'none'; \
 base-uri 'none'; form-action 'self'; frame-ancestors 'none'; report-uri /api/csp-report";
 
+/// The header the policy goes out in. Report-only until a week of real
+/// traffic reports nothing; switching to enforcement is this one line.
+pub const HEADER: axum::http::HeaderName = axum::http::header::CONTENT_SECURITY_POLICY_REPORT_ONLY;
+
+/// The policy for a PDF attachment, which the reading pane shows in a
+/// frame of its own page and nobody else's.
+pub fn framed_by_self() -> String {
+    POLICY.replace("frame-ancestors 'none'", "frame-ancestors 'self'")
+}
+
 /// Reports logged per minute at most; the rest are only counted.
 const LOGGED_PER_MINUTE: u64 = 30;
 

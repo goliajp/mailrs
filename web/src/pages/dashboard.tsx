@@ -17,6 +17,7 @@ import {
   todayStart,
   useGreeting,
 } from '@/components/dashboard'
+import { useSearchMail } from '@/hooks/use-search-mail'
 import { cn } from '@/lib/cn'
 import { dashboardKeys } from '@/lib/query-keys'
 import { authAtom } from '@/store/auth'
@@ -25,7 +26,6 @@ import {
   composeReplySourceAtom,
   composingNewAtom,
   openThreadAtom,
-  searchQueryAtom,
   selectMailListAtom,
 } from '@/store/ui'
 import { adminListGet, adminObjectGet } from '@/wire/endpoints/admin'
@@ -54,7 +54,7 @@ export function Dashboard() {
   const openThread = useSetAtom(openThreadAtom)
   const setComposingNew = useSetAtom(composingNewAtom)
   const setComposeReplySource = useSetAtom(composeReplySourceAtom)
-  const setSearchQuery = useSetAtom(searchQueryAtom)
+  const searchMail = useSearchMail()
   const selectList = useSetAtom(selectMailListAtom)
   const [searchInput, setSearchInput] = useState('')
 
@@ -142,12 +142,9 @@ export function Dashboard() {
   const handleSearch = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault()
-      if (searchInput.trim()) {
-        setSearchQuery(searchInput.trim())
-        navigate('/mail')
-      }
+      if (searchInput.trim()) searchMail(searchInput)
     },
-    [searchInput, setSearchQuery, navigate]
+    [searchInput, searchMail]
   )
 
   // v2.1-fix (2026-07-09): derive from the RQ-cached conversation list,

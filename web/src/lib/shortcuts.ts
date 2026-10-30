@@ -18,6 +18,13 @@ export type ShortcutGroup = {
 export const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
     shortcuts: [
+      { description: 'Command palette', keys: ['⌘', 'K'] },
+      { description: 'Show shortcuts', keys: ['?'] },
+    ],
+    title: 'Anywhere',
+  },
+  {
+    shortcuts: [
       { description: 'Next conversation', keys: ['j', '↓'] },
       { description: 'Previous conversation', keys: ['k', '↑'] },
       { description: 'Open conversation', keys: ['Enter'] },
@@ -27,7 +34,7 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
   },
   {
     shortcuts: [
-      { description: 'New conversation', keys: ['n'] },
+      { description: 'New conversation', keys: ['c', 'n'] },
       { description: 'Reply', keys: ['r'] },
       { description: 'Archive / Unarchive', keys: ['e'] },
       { description: 'Star / Unstar', keys: ['s'] },
@@ -37,7 +44,6 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { description: 'Forward', keys: ['f'] },
       { description: 'Delete', keys: ['#'] },
       { description: 'Focus search', keys: ['/'] },
-      { description: 'Show shortcuts', keys: ['?'] },
     ],
     title: 'Actions',
   },

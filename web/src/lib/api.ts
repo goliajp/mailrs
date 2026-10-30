@@ -57,20 +57,6 @@ export async function deleteJson<T>(path: string, signal?: AbortSignal): Promise
 
 // --- draft types and API ---
 
-export async function fetchBlob(path: string, signal?: AbortSignal): Promise<Blob> {
-  const res = await http(`${API_BASE}${path}`, {
-    signal,
-  })
-  if (res.status === 401) {
-    redirectToLogin()
-    throw new Error('unauthorized')
-  }
-  if (!res.ok) {
-    throw new Error(`Download failed: ${res.status}`)
-  }
-  return res.blob()
-}
-
 export async function fetchJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   const res = await http(`${API_BASE}${path}`, {
     signal,

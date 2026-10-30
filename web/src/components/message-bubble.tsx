@@ -6,6 +6,7 @@ import { lazy, memo, Suspense, useCallback, useDeferredValue, useMemo, useState 
 import { HtmlFrame } from '@/components/html-frame'
 import { linkifyNodes } from '@/components/linkify-nodes'
 import { MobileModal } from '@/components/mobile-modal'
+import { PdfPreview } from '@/components/pdf-preview'
 import { splitEmail } from '@/lib/email-split'
 import { formatSize } from '@/lib/format'
 import { http } from '@/lib/http'
@@ -150,7 +151,7 @@ function AttachmentItem({ att, index, uid }: { att: AttachmentInfo; index: numbe
 
   return (
     <div className="border-border border">
-      <div className="flex items-center gap-2 px-3 py-2 text-sm">
+      <div className="flex flex-wrap items-center gap-2 px-3 py-2 text-sm">
         {isImage ? (
           <img
             alt={att.filename}
@@ -186,6 +187,7 @@ function AttachmentItem({ att, index, uid }: { att: AttachmentInfo; index: numbe
             {loading ? '...' : showContent ? 'Hide text' : 'OCR'}
           </button>
         )}
+        {isPdf && <PdfPreview filename={att.filename} url={url} />}
       </div>
 
       {/* extracted text panel */}
@@ -215,18 +217,6 @@ function AttachmentItem({ att, index, uid }: { att: AttachmentInfo; index: numbe
             </button>
           </div>
         </MobileModal>
-      )}
-
-      {/* PDF inline preview — sandbox restricts script execution in PDF viewers */}
-      {isPdf && showContent && (
-        <div className="border-border border-t">
-          <iframe
-            className="h-96 w-full"
-            sandbox="allow-same-origin"
-            src={url}
-            title={att.filename}
-          />
-        </div>
       )}
     </div>
   )

@@ -3,12 +3,7 @@ import type { ThemeMode } from '@goliapkg/gds'
 import { useAtom } from 'jotai'
 import { useCallback, useState } from 'react'
 
-import {
-  hideSuspectedFraudAtom,
-  notificationsAtom,
-  notificationSoundAtom,
-  pageSizeAtom,
-} from '@/store/settings'
+import { hideSuspectedFraudAtom, notificationsAtom, notificationSoundAtom } from '@/store/settings'
 import { themeModeAtom } from '@/store/theme'
 
 import { cardClass, Field, SectionHeader, Toggle } from './_shared'
@@ -19,11 +14,8 @@ const THEME_OPTIONS: { label: string; value: ThemeMode }[] = [
   { label: 'System', value: 'system' },
 ]
 
-const PAGE_SIZE_OPTIONS = [20, 50, 100, 200]
-
 export function AppearanceSection() {
   const [theme, setTheme] = useAtom(themeModeAtom)
-  const [pageSize, setPageSize] = useAtom(pageSizeAtom)
   const [notifications, setNotifications] = useAtom(notificationsAtom)
   const [notificationSound, setNotificationSound] = useAtom(notificationSoundAtom)
   const [hideSuspectedFraud, setHideSuspectedFraud] = useAtom(hideSuspectedFraudAtom)
@@ -75,23 +67,6 @@ export function AppearanceSection() {
               </button>
             ))}
           </div>
-        </Field>
-      </div>
-
-      <div className={cardClass}>
-        <Field label="Page size">
-          <select
-            aria-label="Page size"
-            className="border-border bg-surface text-fg-secondary focus:border-accent focus:ring-accent/40 rounded-md border px-3 py-1.5 text-sm focus:ring-1 focus:outline-none"
-            onChange={(e) => setPageSize(Number(e.target.value))}
-            value={pageSize}
-          >
-            {PAGE_SIZE_OPTIONS.map((size) => (
-              <option key={size} value={size}>
-                {size} per page
-              </option>
-            ))}
-          </select>
         </Field>
       </div>
 

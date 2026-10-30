@@ -380,14 +380,6 @@ export function ThreadContentPane({
                       textBody={null}
                       uid={selectedMsg.uid}
                     />
-                    <div className="px-4 pb-3">
-                      <MessageSource uid={selectedMsg.uid} />
-                      <UnsubscribeFooter
-                        header={selectedMsg.unsubscribe}
-                        threadId={threadId ?? ''}
-                        uid={selectedMsg.uid}
-                      />
-                    </div>
                   </div>
                 )}
                 {!showHtml && (
@@ -404,6 +396,16 @@ export function ThreadContentPane({
                     </div>
                   </div>
                 )}
+                {/* plain-text mail has a source and may have a list to
+                    leave as much as html mail does */}
+                <div className="px-4 pb-3">
+                  <MessageSource uid={selectedMsg.uid} />
+                  <UnsubscribeFooter
+                    header={selectedMsg.unsubscribe}
+                    threadId={threadId ?? ''}
+                    uid={selectedMsg.uid}
+                  />
+                </div>
                 {/* The whole html, not the split body: a forward's
                     inline images are referenced from the quoted half. */}
                 <AttachmentPreview

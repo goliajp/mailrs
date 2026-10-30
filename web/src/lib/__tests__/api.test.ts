@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   deleteDraft,
   deleteJson,
-  fetchBlob,
   fetchJson,
   listDrafts,
   postJson,
@@ -164,61 +163,6 @@ describe('deleteJson', () => {
     expect(result).toEqual({ success: true })
     const opts = vi.mocked(fetch).mock.calls[0][1] as RequestInit
     expect(opts.method).toBe('DELETE')
-  })
-})
-
-describe('fetchBlob', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
-  it('returns Blob on success', async () => {
-    const blob = new Blob(['binary'], { type: 'application/pdf' })
-    const fetchMock = vi.fn().mockResolvedValue({
-      blob: vi.fn().mockResolvedValue(blob),
-      ok: true,
-      status: 200,
-    } as unknown as Response)
-    vi.stubGlobal('fetch', fetchMock)
-    const result = await fetchBlob('/attachment/1')
-    expect(result).toBe(blob)
-    expect(fetchMock).toHaveBeenCalledWith('/api/attachment/1', expect.any(Object))
-  })
-
-  it('throws on 401 and redirects to /login with return_to', async () => {
-    const removeItem = vi.fn()
-    vi.stubGlobal('localStorage', {
-      getItem: vi.fn(),
-      removeItem,
-      setItem: vi.fn(),
-    })
-    vi.stubGlobal('window', {
-      ...globalThis.window,
-      location: { hash: '', href: '', pathname: '/mail/conv/abc', search: '' },
-    })
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        blob: vi.fn(),
-        ok: false,
-        status: 401,
-      } as unknown as Response)
-    )
-    await expect(fetchBlob('/attachment/1')).rejects.toThrow('unauthorized')
-    expect(removeItem).toHaveBeenCalledWith('mailrs_auth')
-    expect(window.location.href).toBe('/login?return_to=' + encodeURIComponent('/mail/conv/abc'))
-  })
-
-  it('throws on non-200 non-401 status', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        blob: vi.fn(),
-        ok: false,
-        status: 404,
-      } as unknown as Response)
-    )
-    await expect(fetchBlob('/attachment/99')).rejects.toThrow('Download failed: 404')
   })
 })
 

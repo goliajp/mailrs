@@ -409,8 +409,12 @@ export function ReplyBox({
             <label className="text-fg-muted w-16 shrink-0 text-xs" htmlFor="forward-to-input">
               To
             </label>
+            {/* mounted by switching to forward, from the toggle or the
+                `f` key: the caret goes to whom it is forwarded to */}
             <ContactAutocomplete
+              autoFocus
               className="border-border text-fg placeholder-fg-muted focus:border-accent w-full rounded-md border bg-transparent px-2 py-1 text-sm outline-none"
+              id="forward-to-input"
               onChange={setForwardTo}
               placeholder="recipient@example.com"
               value={forwardTo}

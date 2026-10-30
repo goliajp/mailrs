@@ -1,12 +1,7 @@
 import { createStore } from 'jotai/vanilla'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import {
-  appendSignature,
-  notificationsAtom,
-  notificationSoundAtom,
-  pageSizeAtom,
-} from '../settings'
+import { appendSignature, notificationsAtom, notificationSoundAtom } from '../settings'
 
 function makeLocalStorageMock(): Storage {
   const store: Record<string, string> = {}
@@ -27,54 +22,6 @@ function makeLocalStorageMock(): Storage {
     },
   } as Storage
 }
-
-describe('pageSizeAtom', () => {
-  let mockStorage: Storage
-
-  beforeEach(() => {
-    mockStorage = makeLocalStorageMock()
-    vi.stubGlobal('localStorage', mockStorage)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
-  it('persists value to localStorage when set', () => {
-    const store = createStore()
-    store.set(pageSizeAtom, 100)
-    expect(store.get(pageSizeAtom)).toBe(100)
-    expect(mockStorage.getItem('mailrs_page_size')).toBe('100')
-  })
-
-  it('clamps value to minimum 10', () => {
-    const store = createStore()
-    store.set(pageSizeAtom, 5)
-    expect(store.get(pageSizeAtom)).toBe(10)
-    expect(mockStorage.getItem('mailrs_page_size')).toBe('10')
-  })
-
-  it('clamps value to maximum 200', () => {
-    const store = createStore()
-    store.set(pageSizeAtom, 500)
-    expect(store.get(pageSizeAtom)).toBe(200)
-    expect(mockStorage.getItem('mailrs_page_size')).toBe('200')
-  })
-
-  it('accepts boundary values 10 and 200', () => {
-    const store = createStore()
-    store.set(pageSizeAtom, 10)
-    expect(store.get(pageSizeAtom)).toBe(10)
-    store.set(pageSizeAtom, 200)
-    expect(store.get(pageSizeAtom)).toBe(200)
-  })
-
-  it('clamps negative values to 10', () => {
-    const store = createStore()
-    store.set(pageSizeAtom, -1)
-    expect(store.get(pageSizeAtom)).toBe(10)
-  })
-})
 
 describe('notificationsAtom', () => {
   let mockStorage: Storage
@@ -154,34 +101,6 @@ describe('settings module load behavior', () => {
   async function importFresh() {
     return await import('../settings')
   }
-
-  it('defaults pageSize to 50 when no value stored', async () => {
-    vi.resetModules()
-    vi.stubGlobal('localStorage', makeLocalStorageMock())
-    const { pageSizeAtom: fresh } = await importFresh()
-    const store = createStore()
-    expect(store.get(fresh)).toBe(50)
-  })
-
-  it('falls back to default pageSize when stored value is non-numeric', async () => {
-    vi.resetModules()
-    const storage = makeLocalStorageMock()
-    storage.setItem('mailrs_page_size', 'not-a-number')
-    vi.stubGlobal('localStorage', storage)
-    const { pageSizeAtom: fresh } = await importFresh()
-    const store = createStore()
-    expect(store.get(fresh)).toBe(50)
-  })
-
-  it('falls back to default pageSize when stored value is out of range', async () => {
-    vi.resetModules()
-    const storage = makeLocalStorageMock()
-    storage.setItem('mailrs_page_size', '5')
-    vi.stubGlobal('localStorage', storage)
-    const { pageSizeAtom: fresh } = await importFresh()
-    const store = createStore()
-    expect(store.get(fresh)).toBe(50)
-  })
 
   it('reads stored notifications=false', async () => {
     vi.resetModules()
