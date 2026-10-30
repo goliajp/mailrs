@@ -13,8 +13,9 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::post;
 use tokio::sync::Semaphore;
 
-/// Fetches in flight at once; the rest wait.
-const CONCURRENT: usize = 8;
+/// Fetches in flight at once; the rest wait. Each decode may take up to
+/// 128 MB, and the container has 512 MB.
+const CONCURRENT: usize = 2;
 
 #[derive(serde::Deserialize)]
 struct FetchRequest {
