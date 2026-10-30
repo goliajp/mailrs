@@ -1,9 +1,9 @@
 //! The outbound queue and its suppressions, the audit log, the audit reads
-//! of someone else's mailbox, sign-in events and per-user spam feedback all
-//! show other people's mail traffic, reading or signing in. An
-//! administrator holding admin.* permissions used to read them; only a
-//! super administrator may, over REST and over MCP alike. The rest of the
-//! admin surface still answers an administrator.
+//! of someone else's mailbox, sign-in events, per-user spam feedback and
+//! anyone's sieve script all show other people's mail traffic, reading or
+//! signing in. An administrator holding admin.* permissions used to read
+//! them; only a super administrator may, over REST and over MCP alike. The
+//! rest of the admin surface still answers an administrator.
 
 mod live;
 
@@ -40,6 +40,7 @@ async fn only_a_super_administrator_sees_other_peoples_mail() {
         "/api/admin/audit-log",
         "/api/admin/auth-events",
         "/api/admin/spam-feedback-stats",
+        "/api/admin/accounts/admin%40example.test/sieve",
     ] {
         let (status, _) = live.call(Method::GET, path, &admin, None).await;
         assert_eq!(status, 403, "{path} for an administrator");
@@ -65,6 +66,15 @@ async fn only_a_super_administrator_sees_other_peoples_mail() {
         (status, body["error"].as_str()),
         (403, Some("confirm_required"))
     );
+
+    // nor may an administrator change someone's sieve script
+    let sieve = "/api/admin/accounts/admin%40example.test/sieve";
+    live.confirm(&admin, "pw").await;
+    let script = serde_json::json!({ "script": "keep;" });
+    let (status, _) = live.call(Method::POST, sieve, &admin, Some(script)).await;
+    assert_eq!(status, 403, "writing a sieve script");
+    let (status, _) = live.call(Method::DELETE, sieve, &admin, None).await;
+    assert_eq!(status, 403, "deleting a sieve script");
 
     let (status, body) = live
         .call(Method::GET, "/api/admin/domains", &admin, None)

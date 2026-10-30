@@ -157,6 +157,8 @@ class MailViewModel(
             WidgetState.clear(getApplication())
         }
 
+        client.onForbidden = { refreshRole() }
+
         if (client.session != null) {
             refresh()
             loadSignature()
@@ -179,6 +181,7 @@ class MailViewModel(
                     ) }
                     refresh()
                     loadSignature()
+                    refreshRole()
                 }
                 is MailrsClient.Outcome.Err ->
                     _state.update { it.copy(busy = false, error = r.message) }

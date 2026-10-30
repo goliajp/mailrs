@@ -131,7 +131,10 @@ const SUPER_ONLY: [&str; 6] = [
 ];
 
 fn is_super_only(path: &str) -> bool {
-    SUPER_ONLY.iter().any(|p| path.starts_with(p))
+    // someone's sieve script names who their mail comes from; writing it is
+    // refused too, or a write would be a way to learn what it said
+    let sieve = path.starts_with("/api/admin/accounts/") && path.ends_with("/sieve");
+    sieve || SUPER_ONLY.iter().any(|p| path.starts_with(p))
 }
 
 /// Run `f` against a fresh kevy connection.
