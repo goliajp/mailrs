@@ -5105,6 +5105,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/csp-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Where browsers report what the content security policy would have blocked
+         * @description Named by `report-uri` in the Content-Security-Policy-Report-Only header. No session needed. Only the directive and the blocked origin are logged.
+         */
+        post: operations["cspReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/outbound/paused": {
         parameters: {
             query?: never;
@@ -11922,6 +11942,29 @@ export interface operations {
             };
             /** @description No admin.accounts, or `confirm_required` */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    cspReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/csp-report": Record<string, never>;
+                "application/reports+json": Record<string, never>[];
+            };
+        };
+        responses: {
+            /** @description Received */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
