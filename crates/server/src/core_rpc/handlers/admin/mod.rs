@@ -137,6 +137,8 @@ pub async fn get_account_with_hash(
         } else {
             Some(account.recovery_email)
         },
+        password_cleared_at: account.password_cleared_at,
+        password_cleared_by: account.password_cleared_by,
     };
     Ok(Json(wire::AccountWithHashWire {
         public,
@@ -166,6 +168,8 @@ pub async fn list_accounts(
             } else {
                 Some(a.recovery_email)
             },
+            password_cleared_at: a.password_cleared_at,
+            password_cleared_by: a.password_cleared_by,
         })
         .collect();
     Ok(Json(wire::AccountListResponse { items }))
@@ -297,6 +301,24 @@ pub async fn set_account_password(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// POST /v1/admin/accounts/{address}/password:clear — no password signs in
+/// until a new one is set; 404 for an unknown account, as fastcore.
+pub async fn clear_account_password(
+    State(state): State<Arc<CoreRpcState>>,
+    Path(address): Path<String>,
+    Json(req): Json<wire::ClearPasswordRequest>,
+) -> Result<StatusCode, StatusCode> {
+    let found = state
+        .domain
+        .clear_password(&address, &req.by, chrono::Utc::now().timestamp())
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    match found {
+        true => Ok(StatusCode::NO_CONTENT),
+        false => Err(StatusCode::NOT_FOUND),
+    }
 }
 
 /// POST /v1/users/{user}/messages/{uid}/flags — set flags verbatim on

@@ -29,6 +29,14 @@ pub struct AccountWire {
     pub quota_bytes: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub recovery_email: Option<String>,
+    /// When an administrator cleared the password (epoch seconds), until a
+    /// new one is set. An account without a password that was never
+    /// cleared has none: the two mean different things to its owner.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub password_cleared_at: Option<i64>,
+    /// Who cleared it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub password_cleared_by: Option<String>,
 }
 
 /// Internal lookup response — includes Argon2 hash. Only the SMTP/IMAP/POP3/
@@ -120,6 +128,14 @@ pub struct SetPasswordRequest {
     /// Argon2-hashed password. Webapi hashes the plaintext locally so
     /// fastcore only ever sees the hash on the wire.
     pub password_hash: String,
+}
+
+/// Request body for `POST /v1/admin/accounts/{address}/password:clear`:
+/// empty the hash, so no password signs in, and record who did it. Setting
+/// a password afterwards removes the record.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClearPasswordRequest {
+    pub by: String,
 }
 
 /// Request body for `POST /v1/users/{user}/messages/{uid}/flags`.

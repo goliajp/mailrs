@@ -107,6 +107,26 @@ impl Client {
         Self::map_status_unit(resp, "set_account_password").await
     }
 
+    /// POST /v1/admin/accounts/{address}/password:clear
+    pub async fn clear_account_password(
+        &self,
+        address: &str,
+        req: &method::admin::ClearPasswordRequest,
+    ) -> ApiResult<()> {
+        let resp = self
+            .inner
+            .post(self.url(&format!(
+                "/v1/admin/accounts/{}/password:clear",
+                Self::enc(address)
+            )))
+            .bearer_auth(&self.auth_bearer)
+            .json(req)
+            .send()
+            .await
+            .map_err(|e| crate::client::transport("clear_account_password", e))?;
+        Self::map_status_unit(resp, "clear_account_password").await
+    }
+
     /// POST /v1/admin/domains
     pub async fn add_domain(&self, name: &str) -> ApiResult<()> {
         let req = method::admin::AddDomainRequest {

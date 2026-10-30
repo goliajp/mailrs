@@ -150,6 +150,71 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
         MINTED,
     );
     created_with_a_hash(c, d).await;
+    cleared(c, d).await;
+}
+
+/// Clearing empties the hash and records who did it; setting a password
+/// afterwards removes the record. An unknown account is 404 on both.
+async fn cleared(c: &Cores, d: &mut Diffs) {
+    use mailrs_core_api::method::admin::ClearPasswordRequest;
+    let (fc, pg) = (&c.fastcore, &c.pg_core);
+    let req = ClearPasswordRequest {
+        by: "root@example.test".into(),
+    };
+    d.both(
+        "clear_account_password",
+        fc.clear_account_password(BOB, &req).await,
+        pg.clear_account_password(BOB, &req).await,
+        &[],
+    );
+    if let Some((a, b)) = d.both(
+        "get_account_with_hash after clear",
+        fc.get_account_with_hash(BOB).await,
+        pg.get_account_with_hash(BOB).await,
+        &["password_cleared_at", "created_at"],
+    ) {
+        for (core, got) in [("fastcore", a), ("pg-core", b)] {
+            let ok = got.password_hash.as_deref() == Some("")
+                && got.public.password_cleared_at.is_some()
+                && got.public.password_cleared_by.as_deref() == Some("root@example.test");
+            if !ok {
+                d.0.push(format!("{core} after clear: {:?}", got.public));
+            }
+        }
+    }
+    d.both(
+        "clear_account_password unknown",
+        fc.clear_account_password(&format!("nobody@{DOMAIN}"), &req)
+            .await,
+        pg.clear_account_password(&format!("nobody@{DOMAIN}"), &req)
+            .await,
+        &[],
+    );
+    let hash = mailrs_core::users::UserStore::hash_password("set-again").expect("hash");
+    let set = SetPasswordRequest {
+        password_hash: hash.clone(),
+    };
+    d.both(
+        "set_account_password after clear",
+        fc.set_account_password(BOB, &set).await,
+        pg.set_account_password(BOB, &set).await,
+        &[],
+    );
+    if let Some((a, b)) = d.both(
+        "get_account_with_hash after a new password",
+        fc.get_account_with_hash(BOB).await,
+        pg.get_account_with_hash(BOB).await,
+        MINTED,
+    ) {
+        for (core, got) in [("fastcore", a), ("pg-core", b)] {
+            let ok = got.password_hash.as_deref() == Some(hash.as_str())
+                && got.public.password_cleared_at.is_none()
+                && got.public.password_cleared_by.is_none();
+            if !ok {
+                d.0.push(format!("{core} after a new password: {:?}", got.public));
+            }
+        }
+    }
 }
 
 /// An account made with a ready hash keeps exactly that hash, argon2 or

@@ -17,6 +17,8 @@ fn account_serde_with_hash_flatten() {
             created_at: 1_700_000_000,
             quota_bytes: 0,
             recovery_email: None,
+            password_cleared_at: None,
+            password_cleared_by: None,
         },
         password_hash: Some("$argon2id$...".into()),
     };

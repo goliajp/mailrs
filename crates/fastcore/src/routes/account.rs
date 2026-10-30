@@ -191,6 +191,27 @@ pub(crate) async fn set_password_route(
             "password_hash".into(),
             serde_json::Value::String(req.password_hash),
         );
+        // a password set is no longer a password cleared
+        obj.remove("password_cleared_at");
+        obj.remove("password_cleared_by");
+    })
+    .await
+}
+
+/// `POST /v1/admin/accounts/{address}/password:clear` — no password signs
+/// in until a new one is set.
+pub(crate) async fn clear_password_route(
+    State(state): State<Arc<FastcoreState>>,
+    Path(address): Path<String>,
+    Json(req): Json<adm::ClearPasswordRequest>,
+) -> axum::response::Response {
+    patch_account_field(&state, &address, |obj| {
+        obj.insert(
+            "password_hash".into(),
+            serde_json::Value::String(String::new()),
+        );
+        obj.insert("password_cleared_at".into(), now_secs().into());
+        obj.insert("password_cleared_by".into(), req.by.into());
     })
     .await
 }
