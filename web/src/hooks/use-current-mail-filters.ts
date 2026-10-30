@@ -12,13 +12,15 @@
  * back on it.
  */
 
+import { useQuery } from '@tanstack/react-query'
 import { useAtomValue } from 'jotai'
 import { useMemo } from 'react'
+import { z } from 'zod'
 
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
-import { useFlatConversations } from '@/hooks/use-flat-conversations'
-import { MAIL_LISTS, threadAxesOf } from '@/lib/mail-lists'
+import { threadAxesOf } from '@/lib/mail-lists'
 import { type MailListFilters } from '@/lib/query-keys'
+import { conversationKeys } from '@/store/query-keys-v21'
 import { hideSuspectedFraudAtom } from '@/store/settings'
 import {
   activeListAtom,
@@ -28,6 +30,7 @@ import {
   selectedAccountsAtom,
   selectedDomainsAtom,
 } from '@/store/ui'
+import { wireFetch } from '@/wire/client'
 
 /** Same 200 ms search debounce as the list's input. */
 const SEARCH_DEBOUNCE_MS = 200
@@ -75,23 +78,22 @@ export function useCurrentMailFilters(): MailListFilters | null {
 }
 
 /**
- * Unread across the mailbox, not across the list on screen.
+ * Unread conversations across the mailbox, as the server counts them.
  *
  * The badge renders in the app sidebar and the mobile shell, which are
- * up outside the mail screen entirely — so "whatever list is showing"
- * was not a question those had an answer to. It reads the Unread list's
- * own axes, which is the set that tab lists and the set the server's
- * `count_flag_non_junk` counts.
+ * up outside the mail screen entirely. It used to add up the rows of
+ * the Unread list this client had loaded, so past the first page it
+ * counted short. The server counts the same buckets the Unread list
+ * shows (`count_flag_non_junk`). Keyed under the conversation lists, so
+ * whatever refreshes the lists after a read or a move refreshes this.
  */
 export function useCurrentUnreadCount(): number {
-  const selectedDomains = useAtomValue(selectedDomainsAtom)
-  const filters = useMemo<MailListFilters>(() => {
-    const source = MAIL_LISTS.unread.source
-    return {
-      ...(source.kind === 'threads' ? source.filters : {}),
-      domains: selectedDomains.length > 0 ? selectedDomains : undefined,
-    }
-  }, [selectedDomains])
-  const { conversations } = useFlatConversations(filters)
-  return useMemo(() => conversations.reduce((sum, c) => sum + c.unread_count, 0), [conversations])
+  const { data } = useQuery({
+    queryKey: [...conversationKeys.lists(), 'unseen-count'],
+    queryFn: ({ signal }) =>
+      wireFetch(unseenCountSchema, { path: '/conversations/unseen-count', signal }),
+  })
+  return data?.count ?? 0
 }
+
+const unseenCountSchema = z.object({ count: z.number() })
