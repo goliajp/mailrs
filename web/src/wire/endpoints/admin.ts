@@ -32,10 +32,14 @@ import {
   adminWriteResultSchema,
   compromiseResetDoneSchema,
   keyListChangedSchema,
+  outboundPausedSchema,
+  outboundResumedSchema,
   passwordClearPreviewSchema,
   passwordClearResultSchema,
   type WireAccountAgentKey,
   type WireAccountAgentKeys,
+  type WireOutboundPaused,
+  type WireOutboundResumed,
   type WirePasswordClearPreview,
   type WirePasswordClearResult,
 } from '../schemas/admin'
@@ -163,3 +167,18 @@ function refusalText(raw: unknown, status: number): string {
   }
   return `The server answered ${status}`
 }
+
+/** `GET /admin/outbound/paused` — accounts whose outbound mail is held. */
+export const wireOutboundPaused = (signal?: AbortSignal): Promise<WireOutboundPaused> =>
+  wireFetch(outboundPausedSchema, { path: '/admin/outbound/paused', signal })
+
+/** `POST /admin/outbound/paused/{address}/resume` — release one, sending or discarding what it held. */
+export const wireResumeOutbound = (
+  address: string,
+  held: 'discard' | 'send'
+): Promise<WireOutboundResumed> =>
+  wireFetch(outboundResumedSchema, {
+    body: { held },
+    method: 'POST',
+    path: `/admin/outbound/paused/${encodeURIComponent(address)}/resume`,
+  })

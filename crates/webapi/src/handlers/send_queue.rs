@@ -135,6 +135,56 @@ pub(crate) fn enqueue_outbound_at(
     Ok(())
 }
 
+/// Refuse a send as `from` by `user` while either's outbound mail is
+/// paused. The sender holds such mail anyway; this tells whoever sends it
+/// now, and whom to ask.
+pub(crate) fn ensure_not_paused(
+    user: &str,
+    from: &str,
+) -> Result<(), super::send_error::SendError> {
+    use mailrs_core_sidestate::families::outbound::pause;
+    let (user, from) = (user.to_ascii_lowercase(), from.to_ascii_lowercase());
+    let paused =
+        with_kevy(move |c| Ok(pause::is_paused(c, &user)? || pause::is_paused(c, &from)?))?;
+    match paused {
+        true => Err(super::send_error::SendError::paused()),
+        false => Ok(()),
+    }
+}
+
+/// The login guard's alert mail, one job per recipient. These jobs are
+/// never counted toward or held by an outbound pause: the pause of the
+/// alert account is itself announced this way. No user-facing send path
+/// calls this.
+pub(crate) fn enqueue_security_alert(
+    sender: &str,
+    recipients: &[String],
+    envelope: &[u8],
+) -> Result<(), StatusCode> {
+    use base64::Engine as _;
+    let b64 = base64::engine::general_purpose::STANDARD.encode(envelope);
+    let now = now_secs();
+    for rcpt in recipients {
+        let (sender, rcpt, b64) = (sender.to_string(), rcpt.trim().to_string(), b64.clone());
+        with_kevy(move |c| {
+            mailrs_core_sidestate::families::outbound::write_security_alert_pending(
+                c,
+                &mailrs_core_sidestate::families::outbound::FreshPending {
+                    sender: &sender,
+                    recipient: &rcpt,
+                    message_data_base64: &b64,
+                    scheduled_at: None,
+                    original_sender: None,
+                    send_id: None,
+                },
+                now,
+            )
+            .map(|_| ())
+        })?;
+    }
+    Ok(())
+}
+
 /// Re-enqueue an already-composed envelope under a new send id.
 ///
 /// Used by resend. The bytes go out unchanged — same Message-ID, same

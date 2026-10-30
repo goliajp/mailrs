@@ -117,7 +117,7 @@ pub fn send_alert(subject: &str, text: &str) {
         "From: {from}\r\nTo: {to}\r\nSubject: {subject}\r\nDate: {}\r\nMessage-ID: <{id}>\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n{text}\r\n",
         chrono::Utc::now().to_rfc2822(),
     );
-    if let Err(e) = crate::outbound::enqueue_outbound(&to, &from, message.as_bytes()) {
+    if let Err(e) = crate::outbound::enqueue_security_alert(&to, &from, message.as_bytes()) {
         tracing::warn!(error = %e, %subject, "FBL alert could not be queued");
     }
 }

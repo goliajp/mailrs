@@ -12,7 +12,7 @@ use mailrs_smtp_proto::parse_command;
 use mailrs_smtp_proto::response::{Response, format_ehlo_response};
 use mailrs_smtp_proto::session::{Event, Session};
 
-use super::events::{handle_event, refuse_unknown_rcpt};
+use super::events::{handle_event, refuse_paused_sender, refuse_unknown_rcpt};
 use super::{CONNECTION_TIMEOUT, ConnectionContext, SessionAction};
 
 /// process one command from the stream, return what to do next
@@ -66,6 +66,11 @@ where
                     );
                     if let Some(action) =
                         refuse_unknown_rcpt(framed, session, &cmd, ctx, conn_id).await
+                    {
+                        return action;
+                    }
+                    if let Some(action) =
+                        refuse_paused_sender(framed, session, &cmd, ctx, conn_id).await
                     {
                         return action;
                     }

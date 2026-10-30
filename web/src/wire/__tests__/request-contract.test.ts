@@ -219,6 +219,13 @@ describe('request bodies match the shared contract', () => {
     expect(body).toEqual(fixture('account-password-set'))
   })
 
+  /** Releasing a paused account: what becomes of the mail it held. */
+  it('outbound resume', async () => {
+    const { wireResumeOutbound } = await import('../endpoints/admin')
+    const body = await bodyOf(() => wireResumeOutbound('qa@golia.jp', 'send'))
+    expect(body).toEqual(fixture('outbound-resume'))
+  })
+
   /** After a compromise: the ids of every key shown, all of which go. */
   it('account password set after a compromise', async () => {
     const { wireCompromiseReset } = await import('../endpoints/admin')
