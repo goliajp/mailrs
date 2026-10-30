@@ -41,11 +41,11 @@ impl MailrsMcpService {
     }
 
     #[tool(
-        description = "List every outbound message currently in the scheduled zset (future-dated sends). Returns id + scheduled_at epoch. Admin-gated."
+        description = "List every outbound message currently in the scheduled zset (future-dated sends). Returns id + scheduled_at epoch. Super-administrator only."
     )]
     async fn list_scheduled_outbound(&self) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
-        self.require_admin(&user).await?;
+        self.require_super(&user).await?;
         let raw = with_kevy(|c| c.zrange(SCHEDULED_IDX, 0, -1).map_err(std::io::Error::from))
             .map_err(|_| McpError::internal_error("scheduled zset read", None))?;
         // zrange returns members without scores in kevy-client 1.13; fetch

@@ -146,7 +146,7 @@ impl MailrsMcpService {
     }
 
     #[tool(
-        description = "Sign-in attempts on every way in (web, verify, IMAP, POP3, SMTP, ManageSieve, DAV, API keys), newest first, filtered by account, source address, outcome, channel and time (requires admin.accounts). Each fact has occurred_at, account, source_ip, channel, credential, result and, for keys, key_id."
+        description = "Sign-in attempts on every way in (web, verify, IMAP, POP3, SMTP, ManageSieve, DAV, API keys), newest first, filtered by account, source address, outcome, channel and time (super administrators only). Each fact has occurred_at, account, source_ip, channel, credential, result and, for keys, key_id."
     )]
     async fn list_auth_events(
         &self,
