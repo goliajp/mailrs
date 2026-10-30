@@ -20,6 +20,7 @@ import {
   mobileViewAtom,
   selectMailListAtom,
   shortcutsDialogOpenAtom,
+  threadShortcutAtom,
 } from '@/store/ui'
 import {
   wireArchiveThread,
@@ -72,12 +73,14 @@ export function useKeyboardNav() {
   const selectList = useSetAtom(selectMailListAtom)
   const setSection = useSetAtom(importanceSectionAtom)
   const setCategory = useSetAtom(categoryFilterAtom)
+  const askThread = useSetAtom(threadShortcutAtom)
 
   useEffect(() => {
     let gPending = false // for g+i, g+s chord sequences
     function scrollToThread() {
       requestAnimationFrame(() => {
-        document.querySelector(`[aria-selected="true"]`)?.scrollIntoView({ block: 'nearest' })
+        // list rows mark the pick with `aria-current`
+        document.querySelector(`[aria-current="true"]`)?.scrollIntoView({ block: 'nearest' })
       })
     }
 
@@ -104,21 +107,10 @@ export function useKeyboardNav() {
 
       switch (e.key) {
         case '#': {
-          // delete current thread
+          // the same confirmation every other delete asks for
           if (!selectedThreadId) break
           e.preventDefault()
-          wireBatchMutation('delete', [selectedThreadId])
-            .then(() => {
-              toast.success('Deleted')
-              patchAllInfiniteLists(queryClient, (c) =>
-                c.thread_id === selectedThreadId ? null : c
-              )
-              // The pick is cleared rather than moved: with the row
-              // gone, the list's own first row is the answer, and
-              // nothing here has to guess at the neighbour.
-              setSelectedThreadId(null)
-            })
-            .catch(() => toast.error('Failed'))
+          askThread({ kind: 'delete', threadId: selectedThreadId })
           break
         }
         case '/': {
@@ -161,6 +153,18 @@ export function useKeyboardNav() {
           break
         }
 
+        case 'c':
+
+        // falls through
+        case 'n': {
+          e.preventDefault()
+          setComposeReplySource(null)
+          setComposingNew(true)
+          setSelectedThreadId(null)
+          setMobileView('thread')
+          break
+        }
+
         case 'e': {
           // archive current thread
           if (!selectedThreadId) break
@@ -200,15 +204,10 @@ export function useKeyboardNav() {
         }
 
         case 'f': {
-          // forward — focus reply box and switch to forward mode
           if (!selectedThreadId) break
           e.preventDefault()
           setMobileView('thread')
-          setTimeout(() => {
-            document.querySelectorAll<HTMLButtonElement>('button[aria-pressed]').forEach((btn) => {
-              if (btn.textContent === 'Forward') btn.click()
-            })
-          }, 100)
+          askThread({ kind: 'forward', threadId: selectedThreadId })
           break
         }
 
@@ -222,7 +221,6 @@ export function useKeyboardNav() {
           }, 1000)
           break
         }
-
         case 'I': {
           // Shift+I: mark read and go to next
           if (!selectedThreadId) break
@@ -234,15 +232,6 @@ export function useKeyboardNav() {
           const readIdx = rows.findIndex((r) => r.threadId === selectedThreadId)
           const nextThread = rows[readIdx + 1]?.threadId ?? rows[readIdx - 1]?.threadId ?? null
           if (nextThread) setSelectedThreadId(nextThread)
-          break
-        }
-
-        case 'n': {
-          e.preventDefault()
-          setComposeReplySource(null)
-          setComposingNew(true)
-          setSelectedThreadId(null)
-          setMobileView('thread')
           break
         }
 
@@ -264,17 +253,10 @@ export function useKeyboardNav() {
         }
 
         case 'r': {
-          // focus reply box
           if (!selectedThreadId) break
           e.preventDefault()
           setMobileView('thread')
-          // focus the reply editor after a tick
-          setTimeout(() => {
-            const editor =
-              document.querySelector<HTMLElement>('.tiptap.ProseMirror') ??
-              document.querySelector<HTMLElement>('[contenteditable="true"]')
-            editor?.focus()
-          }, 100)
+          askThread({ kind: 'reply', threadId: selectedThreadId })
           break
         }
 
@@ -322,6 +304,7 @@ export function useKeyboardNav() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [
+    askThread,
     conversations,
     rows,
     selectedThreadId,

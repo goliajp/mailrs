@@ -44,8 +44,6 @@ export type EditorMode = 'markdown' | 'preview'
 export type StructuredComposeHandle = {
   addAttachment: (file: File) => void
   clearCompose: () => void
-  /** @deprecated tiptap editor removed; always returns null. use getMarkdown / setMarkdown */
-  getComposeEditor: () => null
   getContent: () => StructuredContent
   getEditorMode: () => EditorMode
   getMarkdown: () => string
@@ -123,7 +121,6 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
       () => ({
         addAttachment,
         clearCompose,
-        getComposeEditor: () => null,
         getContent: () => {
           const assembled = getAssembled()
           const textBlock = blocks.find((b) => b.type === 'text')
