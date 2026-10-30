@@ -364,6 +364,11 @@ services:
     security_opt: ["no-new-privileges:true"]
     mem_limit: 512m
     pids_limit: 64
+    # the image declares /data and /certs as volumes for the other roles;
+    # without these each recreate would give fetch two new anonymous ones
+    tmpfs:
+      - /data:size=1m,mode=0700
+      - /certs:size=1m,mode=0700
     healthcheck:
       disable: true
     environment:
