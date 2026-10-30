@@ -236,6 +236,7 @@ async fn work(state: Arc<FastcoreState>, fetch_url: String, budget: Budget, root
             tokio::time::sleep(IDLE).await;
             continue;
         }
+        let mut taken = 0;
         for (user, message_id, url) in batch {
             let domain = host_of(&url).to_ascii_lowercase();
             let now = chrono::Utc::now().timestamp();
@@ -247,12 +248,18 @@ async fn work(state: Arc<FastcoreState>, fetch_url: String, budget: Budget, root
                 // over budget: left for a later round
                 continue;
             }
+            taken += 1;
             fetch_one(&client, &fetch_url, &root, &user, &url).await;
             if let Err(e) = state.mailbox.done_image_prefetch(&user, &message_id, &url) {
                 tracing::warn!(error = %e, "image prefetch not taken off the queue");
             }
         }
-        tokio::time::sleep(Duration::from_millis(200)).await;
+        // everything left is over budget: wait rather than spin on it
+        let pause = match taken {
+            0 => IDLE,
+            _ => Duration::from_millis(200),
+        };
+        tokio::time::sleep(pause).await;
     }
 }
 

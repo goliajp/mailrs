@@ -127,8 +127,14 @@ fn public_v6(a: Ipv6Addr) -> bool {
         || (s0 & 0xffc0) == 0xfe80
         // documentation, 2001:db8::/32
         || (s0 == 0x2001 && a.segments()[1] == 0x0db8)
-        // NAT64 well-known prefix, 64:ff9b::/96, which can reach IPv4 inside
+        // NAT64: the well-known prefix 64:ff9b::/96 and the local-use
+        // 64:ff9b:1::/48 both start 64:ff9b, and can reach IPv4 inside
         || (s0 == 0x64 && a.segments()[1] == 0xff9b)
+        // site local (deprecated), fec0::/10
+        || (s0 & 0xffc0) == 0xfec0
+        // 6to4, 2002::/16, and Teredo, 2001::/32: both carry an IPv4 address
+        || s0 == 0x2002
+        || (s0 == 0x2001 && a.segments()[1] == 0)
         // IPv4-compatible (deprecated) ::a.b.c.d
         || a.segments()[..6].iter().all(|s| *s == 0))
 }
@@ -155,11 +161,15 @@ mod tests {
             "http://100.64.0.1/a.png", // CGNAT
             "http://0.0.0.0/a.png",
             "http://[::1]/a.png",
-            "http://[fd00::1]/a.png",          // unique local
-            "http://[fe80::1]/a.png",          // link local
-            "http://[::ffff:127.0.0.1]/a.png", // IPv4-mapped
-            "http://[::ffff:a9fe:a9fe]/a.png", // 169.254.169.254, mapped
-            "http://[64:ff9b::a00:1]/a.png",   // NAT64 of 10.0.0.1
+            "http://[fd00::1]/a.png",             // unique local
+            "http://[fe80::1]/a.png",             // link local
+            "http://[::ffff:127.0.0.1]/a.png",    // IPv4-mapped
+            "http://[::ffff:a9fe:a9fe]/a.png",    // 169.254.169.254, mapped
+            "http://[64:ff9b::a00:1]/a.png",      // NAT64 of 10.0.0.1
+            "http://[64:ff9b:1::a00:1]/a.png",    // local-use NAT64
+            "http://[fec0::1]/a.png",             // site local
+            "http://[2002:a00:1::1]/a.png",       // 6to4 of 10.0.0.1
+            "http://[2001:0:4136:e378::1]/a.png", // Teredo
         ] {
             assert!(
                 matches!(check(url), Err(Refused::Address(_))),
