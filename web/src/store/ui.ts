@@ -150,6 +150,13 @@ export const stickyUnreadIdsAtom = atom<Set<string>>(new Set<string>())
 // keyboard shortcuts dialog
 export const shortcutsDialogOpenAtom = atom(false)
 
+/// A keyboard shortcut asking the open thread to reply, forward or delete.
+/// The reading pane answers it the way its own buttons do; the shortcut
+/// handler only names the thread, so it does not depend on what the pane
+/// happens to render.
+export type ThreadShortcut = { kind: 'delete' | 'forward' | 'reply'; threadId: string }
+export const threadShortcutAtom = atom<null | ThreadShortcut>(null)
+
 // websocket connection status
 export type ConnectionStatus = 'connected' | 'connecting' | 'offline'
 export const connectionStatusAtom = atom<ConnectionStatus>('connecting')

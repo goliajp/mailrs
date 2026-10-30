@@ -7,12 +7,14 @@ import { fetchContactSuggestions } from '@/wire/endpoints/contacts'
 export function ContactAutocomplete({
   autoFocus = false,
   className = '',
+  id,
   onChange,
   placeholder = 'recipient@example.com',
   value,
 }: {
   autoFocus?: boolean
   className?: string
+  id?: string
   onChange: (value: string) => void
   placeholder?: string
   value: string
@@ -112,6 +114,7 @@ export function ContactAutocomplete({
       <input
         autoFocus={autoFocus}
         className={className || 'text-fg w-full bg-transparent py-2 text-sm outline-none'}
+        id={id}
         onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
         onChange={(e) => handleChange(e.target.value)}
         onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
