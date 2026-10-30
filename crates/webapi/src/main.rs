@@ -1,6 +1,7 @@
 //! `mailrs-webapi` binary entrypoint.
 
 fn main() -> std::process::ExitCode {
+    mailrs_core_api::refuse_blank_secrets();
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
