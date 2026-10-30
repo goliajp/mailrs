@@ -47,9 +47,7 @@ impl PgDirectory {
             None => None,
         };
         let by_row = match row {
-            Some((account, hash)) => {
-                account.active && !hash.is_empty() && matches_hash(password, &hash)
-            }
+            Some((account, hash)) => account.active && UserStore::verify_hash(password, &hash),
             None => {
                 // the same argon2 work as a real account takes
                 crate::users::dummy_verify(password);
@@ -63,14 +61,6 @@ impl PgDirectory {
             Some(ldap) => ldap.authenticate(user, password).await,
             None => false,
         })
-    }
-}
-
-/// An argon2 hash, or a password stored in clear by an old import.
-fn matches_hash(password: &str, hash: &str) -> bool {
-    match hash.starts_with("$argon2") {
-        true => UserStore::verify_hash(password, hash),
-        false => hash == password,
     }
 }
 

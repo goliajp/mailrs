@@ -1,9 +1,30 @@
-//! What a new password must not be. Checked whenever a password is set —
-//! by its owner, by a reset, by an administrator — and never at sign-in:
-//! an existing password keeps working until its owner changes it.
+//! Passwords: the one check a sign-in makes ([`matches()`]), and what a new
+//! password must not be ([`check_new`]). The second is checked whenever a
+//! password is set — by its owner, by a reset, by an administrator — and
+//! never at sign-in: an existing password keeps working until its owner
+//! changes it.
 
 use std::collections::HashSet;
 use std::sync::LazyLock;
+
+use argon2::Argon2;
+use password_hash::{PasswordHash, PasswordVerifier};
+
+/// Whether `password` is the one `hash` was made from: the check every way
+/// of signing in makes. Only an argon2 hash can match. An empty one is an
+/// account without a password, never one that takes any, and a stored value
+/// that is not a hash is never compared as text.
+pub fn matches(password: &str, hash: &str) -> bool {
+    if password.is_empty() || !hash.starts_with("$argon2") {
+        return false;
+    }
+    let Ok(parsed) = PasswordHash::new(hash) else {
+        return false;
+    };
+    Argon2::default()
+        .verify_password(password.as_bytes(), &parsed)
+        .is_ok()
+}
 
 /// Shortest new password.
 pub const MIN_LEN: usize = 12;
@@ -83,6 +104,40 @@ fn names(account: &str) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn hashed(password: &str) -> String {
+        use password_hash::{PasswordHasher, SaltString};
+        let salt = SaltString::from_b64("c29tZXNhbHRzb21lc2FsdA").expect("salt");
+        Argon2::default()
+            .hash_password(password.as_bytes(), &salt)
+            .expect("hash")
+            .to_string()
+    }
+
+    #[test]
+    fn only_the_password_an_argon2_hash_was_made_from_matches() {
+        let hash = hashed("correct horse");
+        assert!(matches("correct horse", &hash));
+        assert!(!matches("wrong horse", &hash));
+        assert!(!matches("", &hash));
+    }
+
+    #[test]
+    fn an_empty_hash_takes_no_password() {
+        assert!(!matches("", ""));
+        assert!(!matches("anything", ""));
+    }
+
+    #[test]
+    fn a_stored_value_that_is_not_a_hash_is_never_compared_as_text() {
+        assert!(!matches("hunter2hunter2", "hunter2hunter2"));
+        assert!(!matches("$2b$10$abc", "$2b$10$abc"));
+    }
+
+    #[test]
+    fn an_empty_password_never_matches_even_its_own_hash() {
+        assert!(!matches("", &hashed("")));
+    }
 
     #[test]
     fn the_list_is_loaded() {

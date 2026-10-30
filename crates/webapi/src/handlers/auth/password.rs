@@ -1,17 +1,15 @@
 //! The one password check every way of logging in uses.
 
-use argon2::Argon2;
 use axum::http::StatusCode;
-use password_hash::{PasswordHash, PasswordVerifier};
 
 use crate::WebState;
 
 use mailrs_core_api::method::admin::AccountWithHashWire;
 
 /// The account, when `password` is `address`'s password. An unknown
-/// account or one with no password set is `Ok(None)`, the same answer as a
-/// wrong password; a store that cannot be read or a hash that does not
-/// parse is an error.
+/// account, one with no password set, and one whose stored value is not an
+/// argon2 hash are all `Ok(None)`, the same answer as a wrong password; a
+/// store that cannot be read is an error.
 pub(crate) async fn verify(
     state: &WebState,
     address: &str,
@@ -27,18 +25,11 @@ pub(crate) async fn verify(
             );
         }
     };
-    let hash = match acct.password_hash.as_deref() {
-        Some(h) if !h.is_empty() => h,
-        _ => return Ok(None),
-    };
-    let parsed = PasswordHash::new(hash).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    if Argon2::default()
-        .verify_password(password.as_bytes(), &parsed)
-        .is_err()
-    {
-        return Ok(None);
+    let hash = acct.password_hash.as_deref().unwrap_or_default();
+    match mailrs_auth_guard::password::matches(password, hash) {
+        true => Ok(Some(acct)),
+        false => Ok(None),
     }
-    Ok(Some(acct))
 }
 
 /// A new password refused, as the answer to give: `400` with the reason.
