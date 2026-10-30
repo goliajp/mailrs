@@ -157,10 +157,32 @@ where
     } else {
         ctx.auth_guard.failed(source, &username).await;
         ctx.auth_guard.record(event(Outcome::BadPassword)).await;
-        Response::auth_failed()
+        // told why only after a password was tried, and counted as a
+        // failure all the same, so this cannot be used to list accounts
+        match password_cleared(ctx, &username).await {
+            true => Response::new(
+                535,
+                Some(mailrs_smtp_proto::EnhancedCode {
+                    class: 5,
+                    subject: 7,
+                    detail: 8,
+                }),
+                mailrs_auth_guard::password::cleared_notice(),
+            ),
+            false => Response::auth_failed(),
+        }
     };
     if framed.send(resp.format()).await.is_err() {
         return SessionAction::Close;
     }
     SessionAction::Continue
+}
+
+/// Whether an administrator cleared `username`'s password; `false` when the
+/// core cannot say.
+async fn password_cleared(ctx: &ConnectionContext, username: &str) -> bool {
+    match &ctx.credential_store {
+        Some(store) => matches!(store.password_cleared(username).await, Ok(true)),
+        None => false,
+    }
 }

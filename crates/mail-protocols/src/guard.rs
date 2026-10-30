@@ -88,7 +88,17 @@ fn locked_text(protocol: Protocol, verdict: Verdict) -> String {
     let text = format!("Too many failed sign-in attempts, try again in {minutes} minutes");
     match protocol {
         Protocol::Imap => format!("[UNAVAILABLE] {text}"),
-        Protocol::Pop3 | Protocol::ManageSieve => text,
+        Protocol::Pop3 => format!("[SYS/TEMP] {text}"),
+        Protocol::ManageSieve => format!("(TRYLATER) {text}"),
+    }
+}
+
+fn cleared_text(protocol: Protocol) -> String {
+    let text = mailrs_auth_guard::password::cleared_notice();
+    match protocol {
+        Protocol::Imap => format!("[EXPIRED] {text}"),
+        Protocol::Pop3 => format!("[AUTH] {text}"),
+        Protocol::ManageSieve => text,
     }
 }
 
@@ -129,6 +139,11 @@ impl<D: Directory> Directory for Guarded<D> {
             Ok(None) => {
                 self.guard.failed(source, user).await;
                 self.guard.record(event(Outcome::BadPassword)).await;
+                // told why only after a password was tried, and counted as a
+                // failure all the same, so this cannot be used to list accounts
+                if self.dir.password_cleared(user).await {
+                    return Err(Error::Refused(cleared_text(protocol)));
+                }
             }
             Err(_) => {}
         }
@@ -175,7 +190,11 @@ mod tests {
         );
         assert_eq!(
             locked_text(Protocol::Pop3, v),
-            "Too many failed sign-in attempts, try again in 30 minutes"
+            "[SYS/TEMP] Too many failed sign-in attempts, try again in 30 minutes"
+        );
+        assert_eq!(
+            locked_text(Protocol::ManageSieve, v),
+            "(TRYLATER) Too many failed sign-in attempts, try again in 30 minutes"
         );
     }
 
