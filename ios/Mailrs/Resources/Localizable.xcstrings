@@ -881,6 +881,22 @@
         }
       }
     },
+    "At least 12 characters. Leave out your name and the company name.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "12 文字以上で、名前と会社名は含めないでください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "至少 12 个字符，不要包含你的名字和公司名。"
+          }
+        }
+      }
+    },
     "Attach": {
       "localizations": {
         "ja": {
@@ -1858,6 +1874,22 @@
         }
       }
     },
+    "Email": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "メールアドレス"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "邮箱"
+          }
+        }
+      }
+    },
     "Enter the full address, like name@example.com": {
       "localizations": {
         "ja": {
@@ -2018,6 +2050,22 @@
         }
       }
     },
+    "Fill in the address, the code and the new password.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アドレス、コード、新しいパスワードを入力してください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请填写地址、验证码和新密码。"
+          }
+        }
+      }
+    },
     "Filter": {
       "localizations": {
         "ja": {
@@ -2142,6 +2190,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "隐藏引用内容"
+          }
+        }
+      }
+    },
+    "I have a reset code": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "リセットコードを持っています"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "我有重设验证码"
           }
         }
       }
@@ -2961,6 +3025,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "写邮件"
+          }
+        }
+      }
+    },
+    "New password": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新しいパスワード"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新密码"
           }
         }
       }
@@ -4022,6 +4102,22 @@
         }
       }
     },
+    "Reset code": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "リセットコード"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重设验证码"
+          }
+        }
+      }
+    },
     "Retrying": {
       "localizations": {
         "ja": {
@@ -4358,6 +4454,38 @@
         }
       }
     },
+    "Set": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设置"
+          }
+        }
+      }
+    },
+    "Set a new password": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新しいパスワードを設定"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设置新密码"
+          }
+        }
+      }
+    },
     "Settings": {
       "localizations": {
         "ja": {
@@ -4386,6 +4514,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "分享"
+          }
+        }
+      }
+    },
+    "Show password": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "パスワードを表示"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示密码"
           }
         }
       }
@@ -4658,6 +4802,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "从第一个字节起用 TLS"
+          }
+        }
+      }
+    },
+    "That code does not work: it may be mistyped, used up, or replaced by a newer one. Ask %@ for a new code.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このコードは使えません。入力ミス、使用済み、または新しいコードに置き換えられた可能性があります。%@ に新しいコードをもらってください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个验证码不能用：可能输错了、已经用过，或者已被新的验证码取代。请向 %@ 索取新的验证码。"
           }
         }
       }
@@ -5222,6 +5382,38 @@
         }
       }
     },
+    "Your new password is set. Sign in with it.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新しいパスワードを設定しました。このパスワードでサインインしてください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新密码已设好，请用它登录。"
+          }
+        }
+      }
+    },
+    "Your password was reset by an administrator. Ask %@ for a reset code, then set a new password here.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "パスワードは管理者によってリセットされました。%@ にリセットコードをもらい、ここで新しいパスワードを設定してください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的密码已被管理员重设。请向 %@ 索取重设验证码，然后在这里设置新密码。"
+          }
+        }
+      }
+    },
     "addresses, comma-separated": {
       "localizations": {
         "ja": {
@@ -5234,6 +5426,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "多个地址用逗号分隔"
+          }
+        }
+      }
+    },
+    "an administrator": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "管理者"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "管理员"
           }
         }
       }

@@ -26,6 +26,10 @@ data class UiState(
     val signedIn: Boolean = false,
     /** What the account may do; null until the server has said, which offers no admin page. */
     val role: jp.golia.mailrs.wire.Role? = null,
+    /** The reset-code form is up, for an account whose password was cleared. */
+    val reset: ResetPrompt? = null,
+    /** Said on the sign-in screen once a reset code set a new password. */
+    val notice: String? = null,
     val server: String = "",
     val busy: Boolean = false,
     val error: String? = null,
@@ -438,5 +442,17 @@ fun settingsBack(state: UiState): SettingsBack = when {
 data class ConfirmPrompt(
     val needsCode: Boolean = false,
     val message: String? = null,
+    val busy: Boolean = false,
+)
+
+/**
+ * The reset-code form: which server and address, whom to ask (null when it
+ * was opened without a failed sign-in), and what the last try said.
+ */
+data class ResetPrompt(
+    val server: String,
+    val address: String,
+    val contact: String? = null,
+    val failure: String? = null,
     val busy: Boolean = false,
 )

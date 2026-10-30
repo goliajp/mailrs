@@ -127,6 +127,11 @@ final class Session {
     }
 
     var needsTotp = false
+    /// Whom to ask for a reset code, after a sign-in to an account whose
+    /// password was cleared; nil when nothing said so.
+    var resetContact: MailrsError.Contact?
+    /// The reset-code sheet is up.
+    var showsReset = false
 
 
     // Stored properties cannot live in an extension, so the state the
@@ -300,6 +305,10 @@ final class Session {
             PushRegistrar.requestAuthorization()
         } catch MailrsError.needsTotp {
             needsTotp = true
+            state = .signedOut
+        } catch let MailrsError.passwordCleared(name, address) {
+            resetContact = MailrsError.Contact(name: name, address: address)
+            showsReset = true
             state = .signedOut
         } catch {
             state = .failed(error.localizedDescription)
