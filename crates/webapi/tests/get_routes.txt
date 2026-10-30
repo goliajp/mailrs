@@ -44,6 +44,7 @@
 /api/admin/groups/{id}/permissions	read only
 /api/admin/mock	read only
 /api/admin/oauth-clients	read only
+/api/admin/outbound/paused	read only
 /api/admin/permissions	read only
 /api/admin/queues	read only
 /api/admin/rbl-status	read only

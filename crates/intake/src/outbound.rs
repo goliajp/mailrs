@@ -25,6 +25,27 @@ pub fn enqueue_outbound(to: &str, sender: &str, body: &[u8]) -> std::io::Result<
     enqueue_redirect(mail_from, to, body, mail_from)
 }
 
+/// A security alert from `from` to `to`: neither counted toward nor held
+/// by an outbound pause, whatever `from`'s state. Only alert senders call
+/// this.
+pub fn enqueue_security_alert(to: &str, from: &str, body: &[u8]) -> std::io::Result<()> {
+    let mut conn = connect()?;
+    let b64_body = base64::engine::general_purpose::STANDARD.encode(body);
+    mailrs_core_sidestate::families::outbound::write_security_alert_pending(
+        &mut conn,
+        &FreshPending {
+            sender: from,
+            recipient: to,
+            message_data_base64: &b64_body,
+            scheduled_at: None,
+            original_sender: None,
+            send_id: None,
+        },
+        now(),
+    )?;
+    Ok(())
+}
+
 /// Forward `body`, addressed to `original_recipient` here, on to `target`.
 pub fn enqueue_redirect(
     original_recipient: &str,

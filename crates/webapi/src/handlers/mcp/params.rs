@@ -54,6 +54,14 @@ pub struct CreateAccountParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+pub struct ResumeOutboundParams {
+    /// The paused account.
+    pub address: String,
+    /// `send` to send the held messages, `discard` to delete them.
+    pub held: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
 pub struct AddressParams {
     /// Account address to act on.
     pub address: String,
