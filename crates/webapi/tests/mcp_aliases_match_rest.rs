@@ -24,6 +24,8 @@ async fn mcp_alias_tools_read_and_write_what_rest_does() {
     let live = live::start(KEVY).await;
     live.add_account(ADMIN, "pw").await;
     live.grant(ADMIN, "admin.aliases").await;
+    // listing domains is admin.domains
+    live.grant(ADMIN, "admin.domains").await;
     let token = live.login(ADMIN, "pw").await;
     live.confirm(&token, "pw").await;
     let mut mcp = live.mcp(&token).await;
