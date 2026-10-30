@@ -40,6 +40,8 @@ pub enum Kind {
     /// cleared was handed out. Sent every time, not once an hour: each code
     /// is a way into an account.
     ResetCodeIssued,
+    /// The daily backup failed, or none has succeeded for too long.
+    BackupFailed,
     /// An account's outbound mail was paused: it sent far more in an hour
     /// than its limit, or kept failing. Repeated daily while it lasts.
     OutboundPaused,
@@ -132,6 +134,7 @@ fn headline(a: &Alert) -> String {
         }
         Kind::ResetCodeIssued => format!("a password reset code was issued for {}", a.subject),
         Kind::OutboundPaused => format!("outbound mail from {} is paused", a.subject),
+        Kind::BackupFailed => format!("backup of {} failed", a.subject),
     }
 }
 
