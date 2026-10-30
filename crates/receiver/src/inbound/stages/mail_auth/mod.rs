@@ -138,10 +138,12 @@ impl Stage for MailAuthStage {
         };
 
         let (policy, policy_domain) = match lookup_policy(self.dmarc_resolver(), &from_d).await {
-            Some(found) => found,
-            None => {
-                // Either no _dmarc TXT or unparseable; both behave like
-                // p=none. Leave defaults; continue.
+            dmarc::Governing::Policy(p, at) => (p, at),
+            // no _dmarc TXT, or none that parses: behaves like p=none
+            dmarc::Governing::Nothing => return StageOutcome::Continue,
+            // delivered as for no record, but said: nothing here passed
+            dmarc::Governing::TempError => {
+                ctx.auth_results.dmarc = "temperror".into();
                 return StageOutcome::Continue;
             }
         };

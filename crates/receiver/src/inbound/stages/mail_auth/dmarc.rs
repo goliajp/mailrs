@@ -7,46 +7,72 @@ use mailrs_inbound::{DeliveryDecision, DmarcPolicy, ReceiveContext, StageOutcome
 
 use super::MailAuthStage;
 
-/// The DMARC record that governs mail from `from_domain`, and the domain
-/// it was published at. A domain without a record of its own falls under
-/// its organizational domain's (RFC 7489 §6.6.3), whose `sp=` then
-/// applies. `None` when neither publishes one, which behaves as `p=none`.
-pub(super) async fn lookup_policy(
-    resolver: &TokioResolver,
-    from_domain: &str,
-) -> Option<(MailrsPolicy, String)> {
-    let (record, at) = governing_record(from_domain, |name| txt_records(resolver, name)).await?;
-    MailrsPolicy::parse(&record).ok().map(|p| (p, at))
+/// What the lookup found.
+pub(super) enum Governing {
+    /// The record that governs, and the domain it was published at.
+    Policy(MailrsPolicy, String),
+    /// No record, or none that parses: behaves as `p=none`.
+    Nothing,
+    /// DNS could not answer. Delivery goes on as for no record, but the
+    /// result says `temperror` (RFC 7489 §6.6.2) and counts as nothing
+    /// passed.
+    TempError,
 }
 
-async fn txt_records(resolver: &TokioResolver, name: String) -> Vec<String> {
-    let Ok(lookup) = resolver.txt_lookup(name).await else {
-        return Vec::new();
+/// The DMARC record that governs mail from `from_domain`. A domain without
+/// a record of its own falls under its organizational domain's (RFC 7489
+/// §6.6.3), whose `sp=` then applies.
+pub(super) async fn lookup_policy(resolver: &TokioResolver, from_domain: &str) -> Governing {
+    match governing_record(from_domain, |name| txt_records(resolver, name)).await {
+        Err(()) => Governing::TempError,
+        Ok(None) => Governing::Nothing,
+        Ok(Some((record, at))) => match MailrsPolicy::parse(&record) {
+            Ok(p) => Governing::Policy(p, at),
+            Err(_) => Governing::Nothing,
+        },
+    }
+}
+
+/// The TXT records at `name`; `Err` when DNS failed rather than said there
+/// are none.
+async fn txt_records(resolver: &TokioResolver, name: String) -> Result<Vec<String>, ()> {
+    let lookup = match resolver.txt_lookup(name).await {
+        Ok(l) => l,
+        Err(e) if no_records(&e) => return Ok(Vec::new()),
+        Err(_) => return Err(()),
     };
-    lookup
+    Ok(lookup
         .answers()
         .iter()
         .filter_map(|r| match &r.data {
             RData::TXT(t) => Some(t.to_string()),
             _ => None,
         })
-        .collect()
+        .collect())
 }
 
-async fn governing_record<F, Fut>(from_domain: &str, txt: F) -> Option<(String, String)>
+/// hickory says "no such name" and "no records of that type" in its error
+/// text; the same check the DKIM resolver makes.
+fn no_records(e: &impl std::fmt::Display) -> bool {
+    let s = e.to_string();
+    s.contains("no record") || s.contains("NXDOMAIN") || s.contains("NoRecordsFound")
+}
+
+async fn governing_record<F, Fut>(from_domain: &str, txt: F) -> Result<Option<(String, String)>, ()>
 where
     F: Fn(String) -> Fut,
-    Fut: std::future::Future<Output = Vec<String>>,
+    Fut: std::future::Future<Output = Result<Vec<String>, ()>>,
 {
-    if let Some(r) = dmarc_record(txt(format!("_dmarc.{from_domain}")).await) {
-        return Some((r, from_domain.to_string()));
+    if let Some(r) = dmarc_record(txt(format!("_dmarc.{from_domain}")).await?) {
+        return Ok(Some((r, from_domain.to_string())));
     }
-    let org = mailrs_dmarc::organizational_domain(from_domain)?;
+    let Some(org) = mailrs_dmarc::organizational_domain(from_domain) else {
+        return Ok(None);
+    };
     if org.eq_ignore_ascii_case(from_domain) {
-        return None;
+        return Ok(None);
     }
-    let r = dmarc_record(txt(format!("_dmarc.{org}")).await)?;
-    Some((r, org))
+    Ok(dmarc_record(txt(format!("_dmarc.{org}")).await?).map(|r| (r, org)))
 }
 
 /// The one record that starts `v=DMARC1`; other TXT records at the name
@@ -132,9 +158,16 @@ mod tests {
         }
         governing_record(from, |name| {
             let found = map.get(&name).cloned().unwrap_or_default();
-            async move { found }
+            async move { Ok(found) }
         })
         .await
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn a_dns_failure_is_not_taken_for_no_record() {
+        let failed = governing_record("mail.example.com", |_| async { Err(()) }).await;
+        assert_eq!(failed, Err(()));
     }
 
     #[tokio::test]
