@@ -217,4 +217,18 @@ mod tests {
         // a two-letter TLD or a short name is not a name worth refusing
         assert_eq!(check_new("jp-and-a-long-tail-here", "ab@cd.jp"), Ok(()));
     }
+
+    /// The passwords the organisation's people reach for first: digits and
+    /// the company name, in any case.
+    #[test]
+    fn the_company_name_is_refused_in_any_case() {
+        let a = "lihao@golia.jp";
+        assert_eq!(check_new("123456789@Golia", a), Err(Weak::ContainsName));
+        assert_eq!(check_new("123456789@GOLIA", a), Err(Weak::ContainsName));
+        assert!(check_new("GOLIA2026", a).is_err(), "GOLIA2026 was accepted");
+        assert_eq!(
+            check_new("GOLIA2026-and-then-some", a),
+            Err(Weak::ContainsName)
+        );
+    }
 }
