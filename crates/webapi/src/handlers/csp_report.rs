@@ -66,7 +66,9 @@ fn origin_of(uri: &str) -> String {
     let Some((scheme, rest)) = uri.split_once("://") else {
         return uri.to_string();
     };
-    let host = rest.split(['/', '?', '#']).next().unwrap_or("");
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
+    // a user name or password in the URL stays out of the log
+    let host = authority.rsplit_once('@').map_or(authority, |(_, h)| h);
     format!("{scheme}://{host}")
 }
 
@@ -95,6 +97,10 @@ mod tests {
             "https://cdn.example.com"
         );
         assert_eq!(origin_of("inline"), "inline");
+        assert_eq!(
+            origin_of("https://user:secret@cdn.example.com/x"),
+            "https://cdn.example.com"
+        );
     }
 
     #[test]

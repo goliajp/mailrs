@@ -24,7 +24,7 @@ impl MailrsMcpService {
     #[tool(description = "List all managed domains (requires an admin permission).")]
     async fn list_domains(&self) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
-        self.require_admin(&user).await?;
+        self.require_route(&user, "/api/admin/domains").await?;
         // domains are shared side-state (env + network kevy admin:domains),
         // not switchable-core data — read network kevy directly.
         let flat = crate::handlers::kevy_util::with_kevy(|c| {
@@ -78,6 +78,14 @@ impl MailrsMcpService {
         crate::handlers::kevy_util::require_permission(&self.state, &user, "admin.accounts")
             .await
             .map_err(|_| McpError::invalid_request("admin.accounts permission required", None))?;
+        crate::handlers::grants::require_may_touch(&self.state, &user, &params.address)
+            .await
+            .map_err(|_| {
+                McpError::invalid_request(
+                    "only a super administrator changes a super administrator",
+                    None,
+                )
+            })?;
         self.state
             .core
             .remove_account(&params.address)
@@ -99,7 +107,7 @@ impl MailrsMcpService {
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
         self.require_confirmed()?;
-        self.require_admin(&user).await?;
+        self.require_route(&user, "/api/admin/aliases").await?;
         crate::handlers::admin_directory::store_alias(
             &self.state,
             &params.source_address,
@@ -127,7 +135,7 @@ impl MailrsMcpService {
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
         self.require_confirmed()?;
-        self.require_admin(&user).await?;
+        self.require_route(&user, "/api/admin/aliases/{id}").await?;
         crate::handlers::admin_directory::delete_alias(&self.state, &params.source_address)
             .await
             .map_err(|code| match code {
@@ -147,7 +155,7 @@ impl MailrsMcpService {
         Parameters(params): Parameters<DomainNameParams>,
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
-        self.require_admin(&user).await?;
+        self.require_route(&user, "/api/admin/domains").await?;
         self.state
             .core
             .add_domain(&params.name)
@@ -165,7 +173,8 @@ impl MailrsMcpService {
         Parameters(params): Parameters<DomainNameParams>,
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
-        self.require_admin(&user).await?;
+        self.require_route(&user, "/api/admin/domains/{name}")
+            .await?;
         self.state
             .core
             .remove_domain(&params.name)
@@ -243,7 +252,8 @@ impl MailrsMcpService {
             .map_err(|_| McpError::internal_error("list_webhooks", None))?;
             mailrs_core_api::method::admin::WebhookListResponse { items }
         } else {
-            self.require_admin(&user).await?;
+            self.require_route(&user, "/api/admin/accounts/{address}/webhook-subscriptions")
+                .await?;
             self.state
                 .core
                 .list_webhooks(&params.address)
@@ -281,7 +291,8 @@ impl MailrsMcpService {
                 signing_secret: w.signing_secret,
             }
         } else {
-            self.require_admin(&user).await?;
+            self.require_route(&user, "/api/admin/webhook-subscriptions")
+                .await?;
             let req = mailrs_core_api::method::admin::CreateWebhookRequest {
                 account_address: params.account_address.clone(),
                 url: params.url.clone(),
@@ -312,7 +323,9 @@ impl MailrsMcpService {
         Parameters(params): Parameters<WebhookIdParams>,
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
-        self.require_admin(&user).await?;
+        self.require_confirmed()?;
+        self.require_route(&user, "/api/admin/webhook-subscriptions/{id}")
+            .await?;
         self.state
             .core
             .delete_webhook(params.id)
@@ -321,147 +334,6 @@ impl MailrsMcpService {
         crate::handlers::audit::record(
             &user,
             "webhook.delete",
-            &format!("id={}", params.id),
-            "via mcp",
-        );
-        Ok(ok_result())
-    }
-
-    #[tool(description = "List the caller's own saved drafts.")]
-    async fn list_drafts(
-        &self,
-        Parameters(params): Parameters<ListDraftsParams>,
-    ) -> Result<CallToolResult, McpError> {
-        let user = self.require_user()?.to_string();
-        let mut resp = self
-            .state
-            .core
-            .list_drafts(&user)
-            .await
-            .map_err(|e| McpError::internal_error(format!("list_drafts: {e}"), None))?;
-        if let Some(limit) = params.limit {
-            resp.items.truncate(limit as usize);
-        }
-        Ok(CallToolResult::success(vec![ContentBlock::text(
-            serde_json::to_string(&resp).unwrap_or_default(),
-        )]))
-    }
-
-    #[tool(
-        description = "Save a draft for the caller. Idempotent per body — returns the new id; overwrite by re-saving."
-    )]
-    async fn save_draft(
-        &self,
-        Parameters(params): Parameters<SaveDraftParams>,
-    ) -> Result<CallToolResult, McpError> {
-        let user = self.require_user()?.to_string();
-        let req = mailrs_core_api::method::admin::SaveDraftRequest {
-            id: None,
-            to: params.to,
-            cc: params.cc,
-            bcc: params.bcc,
-            subject: params.subject.clone(),
-            body: params.body,
-            reply_to_thread_id: params.reply_to_thread_id,
-        };
-        let resp = self
-            .state
-            .core
-            .save_draft(&user, &req)
-            .await
-            .map_err(|e| McpError::internal_error(format!("save_draft: {e}"), None))?;
-        crate::handlers::audit::record(
-            &user,
-            "draft.save",
-            &format!("id={}", resp.id),
-            &params.subject,
-        );
-        Ok(CallToolResult::success(vec![ContentBlock::text(
-            serde_json::to_string(&resp).unwrap_or_default(),
-        )]))
-    }
-
-    #[tool(description = "Delete one of the caller's own drafts by id.")]
-    async fn delete_draft(
-        &self,
-        Parameters(params): Parameters<DraftIdParams>,
-    ) -> Result<CallToolResult, McpError> {
-        let user = self.require_user()?.to_string();
-        self.state
-            .core
-            .delete_draft(&user, params.id)
-            .await
-            .map_err(|e| McpError::internal_error(format!("delete_draft: {e}"), None))?;
-        crate::handlers::audit::record(
-            &user,
-            "draft.delete",
-            &format!("id={}", params.id),
-            "via mcp",
-        );
-        Ok(ok_result())
-    }
-
-    #[tool(description = "List the caller's own compose templates.")]
-    async fn list_templates(&self) -> Result<CallToolResult, McpError> {
-        let user = self.require_user()?.to_string();
-        let resp = self
-            .state
-            .core
-            .list_templates(&user)
-            .await
-            .map_err(|e| McpError::internal_error(format!("list_templates: {e}"), None))?;
-        Ok(CallToolResult::success(vec![ContentBlock::text(
-            serde_json::to_string(&resp).unwrap_or_default(),
-        )]))
-    }
-
-    #[tool(
-        description = "Save or update the caller's own compose template. Returns the new id — pass it to `delete_template` to remove."
-    )]
-    async fn save_template(
-        &self,
-        Parameters(params): Parameters<SaveTemplateParams>,
-    ) -> Result<CallToolResult, McpError> {
-        let user = self.require_user()?.to_string();
-        let req = mailrs_core_api::method::admin::SaveTemplateRequest {
-            name: params.name.clone(),
-            subject: params.subject,
-            html_body: params.html_body,
-            text_body: params.text_body,
-            category: params.category,
-            is_default: params.is_default,
-        };
-        let resp = self
-            .state
-            .core
-            .save_template(&user, &req)
-            .await
-            .map_err(|e| McpError::internal_error(format!("save_template: {e}"), None))?;
-        crate::handlers::audit::record(
-            &user,
-            "template.save",
-            &format!("id={}", resp.id),
-            &params.name,
-        );
-        Ok(CallToolResult::success(vec![ContentBlock::text(
-            serde_json::to_string(&resp).unwrap_or_default(),
-        )]))
-    }
-
-    #[tool(description = "Delete one of the caller's own compose templates by id.")]
-    async fn delete_template(
-        &self,
-        Parameters(params): Parameters<TemplateIdParams>,
-    ) -> Result<CallToolResult, McpError> {
-        let user = self.require_user()?.to_string();
-        self.state
-            .core
-            .delete_template(&user, params.id)
-            .await
-            .map_err(|e| McpError::internal_error(format!("delete_template: {e}"), None))?;
-        crate::handlers::audit::record(
-            &user,
-            "template.delete",
             &format!("id={}", params.id),
             "via mcp",
         );

@@ -325,6 +325,7 @@ impl MailStore for JmapAdapter {
                         // so it has no Send row yet. Wiring it is its own
                         // step; None is the honest value until then.
                         send_id: None,
+                        account: None,
                     },
                     created,
                 )?;

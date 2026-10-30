@@ -26,7 +26,8 @@ impl MailrsMcpService {
     )]
     async fn reconcile_maildir(&self) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
-        self.require_admin(&user).await?;
+        self.require_route(&user, "/api/admin/reconcile-maildir")
+            .await?;
         let root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
         let (users_scanned, messages_seen) =
             crate::handlers::admin_ops::count_maildir(std::path::Path::new(&root));
@@ -75,7 +76,8 @@ impl MailrsMcpService {
         Parameters(params): Parameters<EmailGroupIdParams>,
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
-        self.require_admin(&user).await?;
+        self.require_route(&user, "/api/admin/email-groups/{id}/members")
+            .await?;
         let key = mailrs_core_sidestate::families::email_groups::members_key(&params.id);
         let members = with_kevy(move |c| c.smembers(key.as_bytes()).map_err(std::io::Error::from))
             .map_err(|_| McpError::internal_error("kevy read", None))?;

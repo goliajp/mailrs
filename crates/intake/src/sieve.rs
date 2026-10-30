@@ -273,6 +273,7 @@ fn enqueue_vacation_outbound(conn: &mut Connection, to: &str, body: &[u8]) -> st
             scheduled_at: None,
             original_sender: None,
             send_id: None,
+            account: None,
         },
         now,
     )?;

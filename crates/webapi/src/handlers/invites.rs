@@ -187,6 +187,7 @@ async fn send_reply(
                 // Generated on the reader's behalf rather than composed,
                 // so it does not belong in their Send list.
                 send_id: None,
+                account: None,
             },
             now.timestamp(),
         )

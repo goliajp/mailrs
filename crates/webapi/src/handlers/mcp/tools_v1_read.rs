@@ -422,7 +422,7 @@ impl MailrsMcpService {
     #[tool(description = "List all accounts (requires an admin permission).")]
     async fn list_accounts(&self) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
-        self.require_admin(&user).await?;
+        self.require_route(&user, "/api/admin/accounts").await?;
         let resp = self
             .state
             .core

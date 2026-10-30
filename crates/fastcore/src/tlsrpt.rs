@@ -254,6 +254,7 @@ fn enqueue_report_email(url: &str, to: &str, email: &[u8]) -> std::io::Result<()
             original_sender: Some("<>"),
             // Generated, not composed — no Send row.
             send_id: None,
+            account: None,
         },
         now,
     )?;

@@ -223,6 +223,8 @@ pub fn make_delivery_decision(input: &PipelineInput) -> DeliveryDecision {
     }
 
     let dmarc_reason = match input.auth.dmarc_policy {
+        // DNS did not answer: no policy was read, so none is named
+        _ if input.auth.dmarc == "temperror" => Some("dns lookup failed"),
         DmarcPolicy::Reject => Some("policy=reject"),
         DmarcPolicy::Quarantine => Some("policy=quarantine"),
         DmarcPolicy::None => Some("policy=none"),
@@ -1138,6 +1140,31 @@ mod bidi_verdict_tests {
             i.auth.sender_trust_with(i.deception),
             SenderTrust::Suspicious,
             "the verdict the badge reads must still be Suspicious"
+        );
+    }
+
+    /// A DMARC lookup DNS could not answer is said as such in the header,
+    /// and is no pass: the message is delivered and trusted no more than
+    /// one with no DMARC at all.
+    #[test]
+    fn a_temperror_is_said_and_trusted_no_more_than_none() {
+        let mut i = tests::baseline_input();
+        i.auth.dmarc = "temperror".into();
+        let header = match make_delivery_decision(&i) {
+            DeliveryDecision::Accept { auth_header }
+            | DeliveryDecision::Junk { auth_header, .. } => auth_header,
+            other => panic!("not delivered: {other:?}"),
+        };
+        assert!(header.contains("dmarc=temperror"), "{header}");
+        assert!(!header.contains("policy=none"), "{header}");
+        assert_eq!(
+            crate::auth_header::fold_sender_trust(
+                Some("temperror"),
+                Some("pass"),
+                None,
+                Default::default()
+            ),
+            crate::auth_header::fold_sender_trust(None, Some("pass"), None, Default::default()),
         );
     }
 }
