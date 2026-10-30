@@ -192,6 +192,14 @@ function Wrapper({
 
 const { ThreadView } = await import('@/components/thread-view')
 
+function show(store: ReturnType<typeof createStore>) {
+  return render(
+    <Wrapper store={store}>
+      <ThreadView />
+    </Wrapper>
+  )
+}
+
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
@@ -203,11 +211,7 @@ describe('ThreadView — no selection', () => {
     // derived now, so this is how "nothing is selected" is expressed.
     const store = makeStore()
     flatStub.conversations = []
-    render(
-      <Wrapper store={store}>
-        <ThreadView />
-      </Wrapper>
-    )
+    show(store)
     expect(screen.getByText('No conversation selected')).toBeDefined()
   })
 
@@ -240,22 +244,14 @@ describe('ThreadView — with messages', () => {
       data: [makeMessage({ subject: 'Important Email' })],
       isPending: false,
     })
-    render(
-      <Wrapper store={store}>
-        <ThreadView />
-      </Wrapper>
-    )
+    show(store)
     // subject now appears both in the header and inside the bubble
     expect(screen.getAllByText('Important Email').length).toBeGreaterThanOrEqual(1)
   })
 
   it('shows "(no subject)" when subject is empty', () => {
     mockUseThreadQuery.mockReturnValue({ data: [makeMessage({ subject: '' })], isPending: false })
-    render(
-      <Wrapper store={store}>
-        <ThreadView />
-      </Wrapper>
-    )
+    show(store)
     expect(screen.getAllByText('(no subject)').length).toBeGreaterThan(0)
   })
 
@@ -264,22 +260,14 @@ describe('ThreadView — with messages', () => {
       data: [makeMessage({ uid: 100 }), makeMessage({ sender: 'Bob <bob@example.com>', uid: 101 })],
       isPending: false,
     })
-    render(
-      <Wrapper store={store}>
-        <ThreadView />
-      </Wrapper>
-    )
+    show(store)
     // header renders "<currentIdx>/<total>" once a message is auto-selected
     expect(screen.getByText(/\/?2$/)).toBeDefined()
   })
 
   it('hides count badge for single message', () => {
     mockUseThreadQuery.mockReturnValue({ data: [makeMessage()], isPending: false })
-    render(
-      <Wrapper store={store}>
-        <ThreadView />
-      </Wrapper>
-    )
+    show(store)
     expect(screen.queryByText('1')).toBeNull()
   })
 
@@ -288,11 +276,7 @@ describe('ThreadView — with messages', () => {
       data: [makeMessage({ sender: 'Charlie Brown <charlie@example.com>' })],
       isPending: false,
     })
-    render(
-      <Wrapper store={store}>
-        <ThreadView />
-      </Wrapper>
-    )
+    show(store)
     // sender appears in both the bubble and the auto-selected message header
     expect(screen.getAllByText('Charlie Brown').length).toBeGreaterThan(0)
   })
@@ -300,18 +284,13 @@ describe('ThreadView — with messages', () => {
 
 describe('ThreadView — selected message detail', () => {
   async function renderAndWait(msg: ThreadMessage) {
-    // Thread fetch lives in react-query (mocked at file top), so seed the
-    // messages atom directly — the component reads from there for rendering.
+    // the thread comes from the mocked `useThreadQuery`
     const store = makeStore()
     // The first row of the list IS the selection; nothing has to set it.
     flatStub.conversations = [makeConversation()]
     mockUseThreadQuery.mockReturnValue({ data: [msg], isPending: false })
 
-    render(
-      <Wrapper store={store}>
-        <ThreadView />
-      </Wrapper>
-    )
+    show(store)
 
     await waitFor(() => {
       expect(screen.queryByText('Select a message to preview')).toBeNull()
@@ -392,11 +371,7 @@ describe('ThreadView — loading state', () => {
     // The first row of the list IS the selection; nothing has to set it.
     flatStub.conversations = [makeConversation()]
 
-    const { container } = render(
-      <Wrapper store={store}>
-        <ThreadView />
-      </Wrapper>
-    )
+    const { container } = show(store)
 
     await waitFor(() => {
       expect(container.querySelector('.animate-pulse')).not.toBeNull()
@@ -413,11 +388,7 @@ describe('ThreadView — loading state', () => {
     // The first row of the list IS the selection; nothing has to set it.
     flatStub.conversations = [makeConversation()]
 
-    render(
-      <Wrapper store={store}>
-        <ThreadView />
-      </Wrapper>
-    )
+    show(store)
 
     await waitFor(() => {
       expect(screen.queryByText('Select a message to preview')).toBeNull()
@@ -436,21 +407,13 @@ describe('ThreadView — delete dialog', () => {
   })
 
   it('shows delete dialog', () => {
-    render(
-      <Wrapper store={store}>
-        <ThreadView />
-      </Wrapper>
-    )
+    show(store)
     fireEvent.click(screen.getByTitle('Delete'))
     expect(screen.getByText('Delete conversation?')).toBeDefined()
   })
 
   it('closes on cancel', () => {
-    render(
-      <Wrapper store={store}>
-        <ThreadView />
-      </Wrapper>
-    )
+    show(store)
     fireEvent.click(screen.getByTitle('Delete'))
     fireEvent.click(screen.getByText('Cancel'))
     expect(screen.queryByText('Delete conversation?')).toBeNull()
@@ -471,38 +434,22 @@ describe('ThreadView — toolbar', () => {
   // with rows always has a current one, so clearing the pick jumped to
   // the first row rather than emptying the pane.
   it('has no close button', () => {
-    render(
-      <Wrapper store={store}>
-        <ThreadView />
-      </Wrapper>
-    )
+    show(store)
     expect(screen.queryByTitle('Close')).toBeNull()
   })
 
   it('renders reply box', () => {
-    render(
-      <Wrapper store={store}>
-        <ThreadView />
-      </Wrapper>
-    )
+    show(store)
     expect(screen.getByTestId('reply-box').textContent).toContain('mode: reply')
   })
 
   it('has star button', () => {
-    render(
-      <Wrapper store={store}>
-        <ThreadView />
-      </Wrapper>
-    )
+    show(store)
     expect(screen.getByTitle('Star')).toBeDefined()
   })
 
   it('has mark unread button', () => {
-    render(
-      <Wrapper store={store}>
-        <ThreadView />
-      </Wrapper>
-    )
+    show(store)
     expect(screen.getByTitle('Mark unread')).toBeDefined()
   })
 })
@@ -518,13 +465,9 @@ describe('ThreadView — keyboard shortcuts', () => {
     mockUseThreadQuery.mockReturnValue({ data: [makeMessage()], isPending: false })
   })
 
-  function open(kind: 'delete' | 'forward' | 'reply') {
+  const open = (kind: 'delete' | 'forward' | 'reply') => {
     store.set(threadShortcutAtom, { kind, threadId: 'thread-1' })
-    render(
-      <Wrapper store={store}>
-        <ThreadView />
-      </Wrapper>
-    )
+    show(store)
   }
 
   it('# asks before deleting', async () => {
@@ -548,11 +491,7 @@ describe('ThreadView — keyboard shortcuts', () => {
 
   it('a request for another thread is left alone', () => {
     store.set(threadShortcutAtom, { kind: 'delete', threadId: 'thread-9' })
-    render(
-      <Wrapper store={store}>
-        <ThreadView />
-      </Wrapper>
-    )
+    show(store)
     expect(screen.queryByText('Delete conversation?')).toBeNull()
   })
 })
