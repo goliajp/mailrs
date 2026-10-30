@@ -87,6 +87,12 @@ pub(super) struct Backends {
 /// Maildir core lists the folders that exist. Same folders on both.
 const FOLDERS: [&str; 4] = [".Drafts", ".Junk", ".Sent", ".Trash"];
 
+/// The accounts no password signs into, with what each stores.
+fn passwordless_accounts() -> [(&'static str, &'static str); 2] {
+    use super::passwordless::{BLANK, CLEAR, CLEAR_VALUE};
+    [(BLANK, ""), (CLEAR, CLEAR_VALUE)]
+}
+
 fn fastcore(net_url: &str, root: &std::path::Path) -> Arc<FastcoreDirectory> {
     let store = Arc::new(kevy_embedded::Store::open(kevy_embedded::Config::default()).unwrap());
     store.set(b"hostname", HOST.as_bytes()).unwrap();
@@ -95,6 +101,10 @@ fn fastcore(net_url: &str, root: &std::path::Path) -> Arc<FastcoreDirectory> {
     let hash = crate::users::UserStore::hash_password(PASSWORD).unwrap();
     let blob = serde_json::json!({ "password_hash": hash }).to_string();
     state.mailbox.upsert_account(USER, &blob).unwrap();
+    for (who, stored) in passwordless_accounts() {
+        let blob = serde_json::json!({ "password_hash": stored }).to_string();
+        state.mailbox.upsert_account(who, &blob).unwrap();
+    }
     let home = root.join("example.test").join("alice");
     for folder in FOLDERS {
         for leaf in ["cur", "new", "tmp"] {
@@ -119,6 +129,12 @@ async fn pg(
         .add_account(USER, "example.test", "Alice", &hash, 0)
         .await
         .unwrap();
+    for (who, stored) in passwordless_accounts() {
+        domain
+            .add_account(who, "example.test", "", stored, 0)
+            .await
+            .unwrap();
+    }
     let dir = PgDirectory {
         mailbox: Arc::new(mailrs_mailbox::PgMailboxStore::new(pool)),
         domain: Some(domain),

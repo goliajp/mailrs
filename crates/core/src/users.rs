@@ -73,14 +73,15 @@ impl UserStore {
 
     pub fn verify(&self, username: &str, password: &str) -> bool {
         match self.users.get(username) {
-            Some(hash) => verify_argon2(password, hash),
+            Some(hash) => mailrs_auth_guard::password::matches(password, hash),
             None => false,
         }
     }
 
-    /// verify a password against an argon2 hash (static, no UserStore instance needed)
+    /// verify a password against a stored hash (static, no UserStore instance
+    /// needed); the one sign-in check, see `mailrs_auth_guard::password::matches`
     pub fn verify_hash(password: &str, hash: &str) -> bool {
-        verify_argon2(password, hash)
+        mailrs_auth_guard::password::matches(password, hash)
     }
 
     /// hash a password with argon2id
@@ -119,6 +120,8 @@ pub fn validate_password(password: &str) -> Result<(), &'static str> {
 }
 
 /// verify a password against an argon2 hash
+/// argon2 alone, with no rule about empty values: for the dummy work below.
+/// A sign-in goes through `mailrs_auth_guard::password::matches`.
 fn verify_argon2(password: &str, hash: &str) -> bool {
     let Ok(parsed) = PasswordHash::new(hash) else {
         return false;
@@ -216,9 +219,10 @@ mod tests {
     }
 
     #[test]
-    fn from_plain_passwords_empty_username_and_password() {
+    fn from_plain_passwords_empty_password_signs_in_nowhere() {
+        // even hashed, an empty password is no password
         let store = UserStore::from_plain_passwords(vec![("".into(), "".into())]);
-        assert!(store.verify("", ""));
+        assert!(!store.verify("", ""));
         assert!(!store.verify("", "notempty"));
     }
 
@@ -297,6 +301,13 @@ mod tests {
     }
 
     // ── UserStore::verify with plain passwords ──
+
+    #[test]
+    fn an_empty_hash_takes_no_password() {
+        let store = store_from_toml("[users.alice]\npassword_hash = \"\"\n").unwrap();
+        assert!(!store.verify("alice", ""));
+        assert!(!store.verify("alice", "anything"));
+    }
 
     #[test]
     fn plaintext_entries_are_refused() {
@@ -528,13 +539,14 @@ password = "密码パスワード🔐"
     }
 
     #[test]
-    fn parse_toml_empty_password_string() {
+    fn parse_toml_empty_password_signs_in_nowhere() {
+        // even hashed, an empty password is no password
         let toml_str = r#"
 [users.blank]
 password = ""
 "#;
         let store = store_from_toml(&hashed(toml_str)).unwrap();
-        assert!(store.verify("blank", ""));
+        assert!(!store.verify("blank", ""));
         assert!(!store.verify("blank", "notempty"));
     }
 

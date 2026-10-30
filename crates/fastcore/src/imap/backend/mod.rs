@@ -56,21 +56,13 @@ pub struct ImapMessage {
     pub modseq: u64,
 }
 
-/// Verify a plaintext password against the argon2 hash stored in the
-/// account blob. Returns `false` on any parse / IO failure — never
-/// leaks the reason (constant-time semantics via argon2 verify).
+/// Verify a password against the hash stored in the account blob, by the one
+/// sign-in check. Returns `false` on any parse / IO failure — never leaks the
+/// reason.
 pub fn verify_password(state: &FastcoreState, user: &str, password: &str) -> bool {
-    use argon2::{Argon2, PasswordHash, PasswordVerifier};
     let Ok(Some(blob)) = state.mailbox.get_account_blob(user) else {
-        // No account — still do a dummy hash so timing looks the same
-        // as the real path. Reuses the argon2 default cost.
-        let _ = Argon2::default().verify_password(
-            password.as_bytes(),
-            &PasswordHash::new(
-                "$argon2id$v=19$m=19456,t=2,p=1$c29tZXNhbHQ$WkBqROaBGeYaGmCzR1r7Dq7d",
-            )
-            .unwrap_or_else(|_| PasswordHash::new("").expect("empty hash")),
-        );
+        // no account: the same argon2 work, so timing does not tell
+        mailrs_core::users::dummy_verify(password);
         return false;
     };
     let Ok(v) = serde_json::from_str::<serde_json::Value>(&blob) else {
@@ -79,12 +71,7 @@ pub fn verify_password(state: &FastcoreState, user: &str, password: &str) -> boo
     let Some(hash_str) = v.get("password_hash").and_then(|h| h.as_str()) else {
         return false;
     };
-    let Ok(parsed) = PasswordHash::new(hash_str) else {
-        return false;
-    };
-    Argon2::default()
-        .verify_password(password.as_bytes(), &parsed)
-        .is_ok()
+    mailrs_auth_guard::password::matches(password, hash_str)
 }
 
 /// Discover every mailbox a user owns: INBOX plus every Maildir++

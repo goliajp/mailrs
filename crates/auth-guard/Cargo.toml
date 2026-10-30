@@ -21,6 +21,8 @@ tracing = "0.1"
 mailrs-backoff = { path = "../backoff", version = "1" }
 async-trait = "0.1"
 sha2 = "0.10"
+argon2 = { workspace = true }
+password-hash = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 ipnet = { workspace = true }
