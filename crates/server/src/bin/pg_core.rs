@@ -19,6 +19,7 @@
 //! sequence and this entry point cannot disagree about how many threads it has.
 
 fn main() {
+    mailrs_core_api::refuse_blank_secrets();
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()

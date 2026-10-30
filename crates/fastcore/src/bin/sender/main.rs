@@ -273,6 +273,7 @@ async fn process_one(cfg: Cfg, id: String) {
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 4)]
 async fn main() {
+    mailrs_core_api::refuse_blank_secrets();
     // Install the process-wide rustls crypto provider before any TLS
     // config is built (STARTTLS in try_deliver). Without this rustls
     // 0.23 panics on first use — same fix mailrs-receiver / mailrs-server

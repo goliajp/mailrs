@@ -74,3 +74,114 @@ pub fn required_auth_secret() -> Result<String, String> {
         )),
     }
 }
+
+/// Secrets read from the environment by one process or another. Each is
+/// optional, but one that is set and blank is a mistake in the deployment
+/// (an empty value in `.env`), and each reader would otherwise take it as
+/// "not configured" and carry on with the feature quietly off.
+pub const SECRET_ENVS: &[&str] = &[
+    AUTH_SECRET_ENV,
+    "MAILRS_APNS_KEY_ID",
+    "MAILRS_APNS_KEY_PATH",
+    "MAILRS_CORE_SYNC_SECRET_FROM",
+    "MAILRS_CORE_SYNC_SECRET_TO",
+    "MAILRS_DKIM_KEYS",
+    "MAILRS_DKIM_PRIVATE_KEY",
+    "MAILRS_DKIM_PRIVATE_KEY_PEM",
+    "MAILRS_DKIM_PRIVATE_KEY_PEM_FILE",
+    "MAILRS_GOOGLE_MAIL_CLIENT_SECRET",
+    "MAILRS_LDAP_BIND_PASSWORD",
+    "MAILRS_LLM_API_KEY",
+    "MAILRS_MICROSOFT_MAIL_CLIENT_SECRET",
+    "MAILRS_OIDC_APPLE_CLIENT_SECRET",
+    "MAILRS_OIDC_CLIENT_SECRET",
+    "MAILRS_OIDC_GITHUB_CLIENT_SECRET",
+    "MAILRS_OIDC_GOOGLE_CLIENT_SECRET",
+    "MAILRS_OIDC_MICROSOFT_CLIENT_SECRET",
+    "MAILRS_OIDC_PORTAL_CLIENT_SECRET",
+    "MAILRS_RESET_CODE_KEY",
+    "MAILRS_SRS_SECRET",
+    "MAILRS_TLS_KEY",
+    "MAILRS_WEBHOOK_API_KEY",
+];
+
+/// The secrets in [`SECRET_ENVS`] that are set but blank, by name. A
+/// process refuses to start while this is not empty.
+pub fn blank_secrets() -> Vec<&'static str> {
+    blank_among(SECRET_ENVS, |name| std::env::var(name).ok())
+}
+
+fn blank_among(names: &[&'static str], get: impl Fn(&str) -> Option<String>) -> Vec<&'static str> {
+    names
+        .iter()
+        .copied()
+        .filter(|name| get(name).is_some_and(|v| v.trim().is_empty()))
+        .collect()
+}
+
+/// Exit with status 2, naming every blank secret, when there is one.
+/// Called first thing at each binary's start.
+pub fn refuse_blank_secrets() {
+    let blank = blank_secrets();
+    if !blank.is_empty() {
+        eprintln!(
+            "set but blank, refusing to start: {} (remove the line or give it a value)",
+            blank.join(", ")
+        );
+        std::process::exit(2);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_set_and_blank_secrets_are_named() {
+        let env = |name: &str| match name {
+            "A" => Some(String::new()),
+            "B" => Some("  ".into()),
+            "C" => Some("x".into()),
+            _ => None,
+        };
+        assert_eq!(blank_among(&["A", "B", "C", "D"], env), vec!["A", "B"]);
+    }
+
+    #[test]
+    fn every_secret_read_in_the_code_is_listed() {
+        let crates = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+        let mut found = std::collections::BTreeSet::new();
+        scan(&crates, &mut found);
+        assert!(found.contains(AUTH_SECRET_ENV), "the scan found nothing");
+        let missing: Vec<_> = found
+            .iter()
+            .filter(|n| !SECRET_ENVS.contains(&n.as_str()))
+            .collect();
+        assert!(missing.is_empty(), "add to SECRET_ENVS: {missing:?}");
+    }
+
+    fn scan(dir: &std::path::Path, found: &mut std::collections::BTreeSet<String>) {
+        for entry in std::fs::read_dir(dir).unwrap().flatten() {
+            let path = entry.path();
+            if path.is_dir() && path.file_name().is_some_and(|n| n != "target") {
+                scan(&path, found);
+            } else if path.extension().is_some_and(|e| e == "rs") {
+                let text = std::fs::read_to_string(&path).unwrap();
+                for (i, _) in text.match_indices("MAILRS_") {
+                    let name: String = text[i..]
+                        .chars()
+                        .take_while(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || *c == '_')
+                        .collect();
+                    if looks_secret(&name) {
+                        found.insert(name);
+                    }
+                }
+            }
+        }
+    }
+
+    fn looks_secret(name: &str) -> bool {
+        name.split('_')
+            .any(|part| matches!(part, "SECRET" | "PASSWORD" | "KEY" | "KEYS"))
+    }
+}
