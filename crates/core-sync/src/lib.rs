@@ -39,8 +39,9 @@ pub struct SyncOpts {
     /// Also enumerate + transfer archived threads (a second filtered pass).
     pub include_archived: bool,
     /// Placeholder plaintext used for the initial `add_account` before the
-    /// real hash is written via `set_account_password`. Never authenticates
-    /// (immediately overwritten).
+    /// real hash is written via `set_account_password`. Never authenticates:
+    /// it is always overwritten, by the source's argon2 hash or by an empty
+    /// one.
     pub account_placeholder_pw: String,
     /// Read the source and the destination, write nothing, and report what a
     /// real run would move.
@@ -177,20 +178,21 @@ async fn sync_account(
         Err(e) => return Err(e),
     }
 
-    if let Some(hash) = src
+    // only an argon2 hash moves; anything else (none, an empty one, a value
+    // stored in clear) arrives as no password, never as the placeholder the
+    // account was made with or as text the destination would be asked to
+    // compare
+    let stored = src
         .get_account_with_hash(address)
         .await?
         .password_hash
-        .filter(|h| !h.is_empty())
-    {
-        dst.set_account_password(
-            address,
-            &SetPasswordRequest {
-                password_hash: hash,
-            },
-        )
+        .unwrap_or_default();
+    let password_hash = match stored.starts_with("$argon2") {
+        true => stored,
+        false => String::new(),
+    };
+    dst.set_account_password(address, &SetPasswordRequest { password_hash })
         .await?;
-    }
     Ok(())
 }
 
