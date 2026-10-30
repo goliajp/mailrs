@@ -138,49 +138,57 @@ struct SettingsView: View {
                 // operational work are different errands, and a list
                 // long enough to scroll should say where it changes
                 // subject.
-                Section("Directory") {
-                    Button {
-                        showingAccounts = true
-                    } label: {
-                        LucideRow(title: "Accounts", icon: Lucide.users)
+                // offered as the server would answer them; it refuses the
+                // rest whatever is shown here
+                if session.offersDirectory {
+                    Section("Directory") {
+                        Button {
+                            showingAccounts = true
+                        } label: {
+                            LucideRow(title: "Accounts", icon: Lucide.users)
+                        }
+                        Button {
+                            showingAliases = true
+                        } label: {
+                            LucideRow(title: "Aliases", icon: Lucide.split)
+                        }
+                        Button {
+                            showingGroups = true
+                        } label: {
+                            LucideRow(title: "Groups", icon: Lucide.mails)
+                        }
+                        Button {
+                            showingDomains = true
+                        } label: {
+                            LucideRow(title: "Domains", icon: Lucide.globe)
+                        }
+                        Button {
+                            showingPermissions = true
+                        } label: {
+                            LucideRow(title: "Permissions", icon: Lucide.lockKeyhole)
+                        }
                     }
-                    Button {
-                        showingAliases = true
-                    } label: {
-                        LucideRow(title: "Aliases", icon: Lucide.split)
-                    }
-                    Button {
-                        showingGroups = true
-                    } label: {
-                        LucideRow(title: "Groups", icon: Lucide.mails)
-                    }
-                    Button {
-                        showingDomains = true
-                    } label: {
-                        LucideRow(title: "Domains", icon: Lucide.globe)
-                    }
-                    Button {
-                        showingPermissions = true
-                    } label: {
-                        LucideRow(title: "Permissions", icon: Lucide.lockKeyhole)
-                    }
-                }
 
-                Section("Operations") {
-                    Button {
-                        showingQueue = true
-                    } label: {
-                        LucideRow(title: "Queue", icon: Lucide.send)
-                    }
-                    Button {
-                        showingDmarc = true
-                    } label: {
-                        LucideRow(title: "DMARC", icon: Lucide.shieldCheck)
-                    }
-                    Button {
-                        showingAudit = true
-                    } label: {
-                        LucideRow(title: "Audit log", icon: Lucide.scrollText)
+                    Section("Operations") {
+                        if session.offersMailTraffic {
+                            Button {
+                                showingQueue = true
+                            } label: {
+                                LucideRow(title: "Queue", icon: Lucide.send)
+                            }
+                        }
+                        Button {
+                            showingDmarc = true
+                        } label: {
+                            LucideRow(title: "DMARC", icon: Lucide.shieldCheck)
+                        }
+                        if session.offersMailTraffic {
+                            Button {
+                                showingAudit = true
+                            } label: {
+                                LucideRow(title: "Audit log", icon: Lucide.scrollText)
+                            }
+                        }
                     }
                 }
 

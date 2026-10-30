@@ -20,6 +20,7 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import jp.golia.mailrs.ui.LocalTheme
@@ -229,6 +230,12 @@ class MainActivity : ComponentActivity() {
                     // key is the intent itself, so a rotation does not
                     // reopen a composer the person just cancelled.
                     LaunchedEffect(intent) { actOn(vm, intent) }
+                    // what the account may do can change while the app is
+                    // away; a restored session also learns it here
+                    LifecycleResumeEffect(Unit) {
+                        vm.refreshRole()
+                        onPauseOrDispose {}
+                    }
 
                     // Signed in: start checking, and ask for the
                     // permission that lets the check say anything.

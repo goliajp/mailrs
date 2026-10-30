@@ -24,6 +24,8 @@ data class UiState(
     /** The server wants the password typed again before a change goes through. */
     val confirm: ConfirmPrompt? = null,
     val signedIn: Boolean = false,
+    /** What the account may do; null until the server has said, which offers no admin page. */
+    val role: jp.golia.mailrs.wire.Role? = null,
     val server: String = "",
     val busy: Boolean = false,
     val error: String? = null,
@@ -192,6 +194,18 @@ enum class AdminSection(val title: String, val emptyMessage: String) {
     Suppressed("Suppressed", "The sender is retrying everybody."),
     Groups("Permission groups", "No groups are defined."),
     EmailGroups("Email groups", "No distribution addresses.");
+
+    /**
+     * Offered when the server would answer this page's list: the pages
+     * that show other people's mail traffic to a super administrator, an
+     * account's own agent keys and sender lists to anyone, the rest to an
+     * administrator.
+     */
+    fun offeredTo(role: jp.golia.mailrs.wire.Role?): Boolean = when (this) {
+        AgentKeys, Allowed, Blocked -> true
+        Queue, Audit, Suppressed -> role?.isSuper == true
+        else -> role?.isAdmin == true
+    }
 
     fun rows(state: UiState): List<jp.golia.mailrs.ui.AdminRow> = when (this) {
         // Not deletable here: removing an account takes its mail

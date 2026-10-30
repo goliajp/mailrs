@@ -169,7 +169,7 @@ fun SettingsScreen(
 
             HorizontalDivider(color = theme.border, thickness = 0.5.dp)
             SectionHeading("Administration")
-            for (section in AdminSection.entries) {
+            for (section in AdminSection.entries.filter { it.offeredTo(state.role) }) {
                 TextButton(
                     onClick = { onAdmin(section) },
                     modifier = Modifier

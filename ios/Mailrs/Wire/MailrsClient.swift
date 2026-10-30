@@ -64,6 +64,14 @@ actor MailrsClient {
         self.token = token
     }
 
+    /// Told on a 403 that is not a request for the password: the account
+    /// may have lost a right.
+    var onForbidden: (@Sendable () -> Void)?
+
+    func setOnForbidden(_ handler: @escaping @Sendable () -> Void) {
+        onForbidden = handler
+    }
+
 
     /// `POST /api/auth/login`.
     ///
@@ -190,6 +198,7 @@ actor MailrsClient {
         if http.statusCode == 403, Self.errorCode(answer.0) == "confirm_required" {
             throw MailrsError.confirmRequired
         }
+        if http.statusCode == 403 { onForbidden?() }
         guard http.statusCode == 503 else { return answer }
         guard method == "GET", !retried else { throw MailrsError.restarting }
         let wait = Self.retryAfterMs(http.value(forHTTPHeaderField: "Retry-After"))

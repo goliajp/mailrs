@@ -55,6 +55,9 @@ class MailrsClient(private val store: TokenStore) {
      */
     var onSessionRejected: (() -> Unit)? = null
 
+    /** Told on a 403, which may mean the account's rights changed. */
+    var onForbidden: (() -> Unit)? = null
+
     /**
      * Where a test points the app.
      *
@@ -390,6 +393,7 @@ class MailrsClient(private val store: TokenStore) {
                     }
                 response.code == 403 && errorCode(text) == CONFIRM_REQUIRED ->
                     Outcome.Err("Enter your password to continue.", CONFIRM_REQUIRED)
+                response.code == 403 -> forbidden()
                 response.code == 503 -> restarting(request, response.header("Retry-After"), retried)
                 else -> Outcome.Err("The server answered ${response.code}.")
             }
