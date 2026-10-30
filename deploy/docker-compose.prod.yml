@@ -314,6 +314,35 @@ services:
       - mailrs-data:/data
     restart: unless-stopped
 
+  # A daily encrypted archive of the core's kevy, the maildir, kevy-server's
+  # data and the DKIM keys, into /apps/mailrs/backup (two kept; devops copies
+  # them off the host). Root, because it reads data owned by two users and
+  # writes a root-owned directory; every data mount is read-only. Archives
+  # are encrypted to MAILRS_BACKUP_AGE_RECIPIENT, whose private key never
+  # comes to this host.
+  backup:
+    container_name: mailrs-backup
+    image: ghcr.io/goliajp/mailrs:${MAILRS_VERSION:?set MAILRS_VERSION in .env}
+    entrypoint: ["mailrs-backup"]
+    pull_policy: always
+    user: "0:0"
+    mem_limit: 512m
+    healthcheck:
+      disable: true
+    environment:
+      MAILRS_KEVY_URL: kevy://kevy-server:6379
+      MAILRS_HOSTNAME: mail.golia.ai
+      MAILRS_BACKUP_AGE_RECIPIENT: ${MAILRS_BACKUP_AGE_RECIPIENT:?set MAILRS_BACKUP_AGE_RECIPIENT in .env}
+      MAILRS_BACKUP_TARGET: /backup
+      MAILRS_BACKUP_AT: ${MAILRS_BACKUP_AT:-17:00}
+      RUST_LOG: info
+    volumes:
+      - mailrs-data:/data:ro
+      - kevy-server-data:/kevy-server:ro
+      - /apps/mailrs/dkim:/dkim:ro
+      - /apps/mailrs/backup:/backup
+    restart: unless-stopped
+
   kevy-server:
     container_name: mailrs-kevy
     # 6.2.2 since 2026-09-01. It fixes what this project reported: a
