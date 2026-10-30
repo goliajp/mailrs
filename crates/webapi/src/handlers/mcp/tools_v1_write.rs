@@ -24,7 +24,7 @@ impl MailrsMcpService {
     #[tool(description = "List all managed domains (requires an admin permission).")]
     async fn list_domains(&self) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
-        self.require_admin(&user).await?;
+        self.require_route(&user, "/api/admin/domains").await?;
         // domains are shared side-state (env + network kevy admin:domains),
         // not switchable-core data — read network kevy directly.
         let flat = crate::handlers::kevy_util::with_kevy(|c| {
@@ -99,7 +99,7 @@ impl MailrsMcpService {
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
         self.require_confirmed()?;
-        self.require_admin(&user).await?;
+        self.require_route(&user, "/api/admin/aliases").await?;
         crate::handlers::admin_directory::store_alias(
             &self.state,
             &params.source_address,
@@ -127,7 +127,7 @@ impl MailrsMcpService {
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
         self.require_confirmed()?;
-        self.require_admin(&user).await?;
+        self.require_route(&user, "/api/admin/aliases/{id}").await?;
         crate::handlers::admin_directory::delete_alias(&self.state, &params.source_address)
             .await
             .map_err(|code| match code {
@@ -147,7 +147,7 @@ impl MailrsMcpService {
         Parameters(params): Parameters<DomainNameParams>,
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
-        self.require_admin(&user).await?;
+        self.require_route(&user, "/api/admin/domains").await?;
         self.state
             .core
             .add_domain(&params.name)
@@ -165,7 +165,8 @@ impl MailrsMcpService {
         Parameters(params): Parameters<DomainNameParams>,
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
-        self.require_admin(&user).await?;
+        self.require_route(&user, "/api/admin/domains/{name}")
+            .await?;
         self.state
             .core
             .remove_domain(&params.name)
@@ -243,7 +244,8 @@ impl MailrsMcpService {
             .map_err(|_| McpError::internal_error("list_webhooks", None))?;
             mailrs_core_api::method::admin::WebhookListResponse { items }
         } else {
-            self.require_admin(&user).await?;
+            self.require_route(&user, "/api/admin/accounts/{address}/webhook-subscriptions")
+                .await?;
             self.state
                 .core
                 .list_webhooks(&params.address)
@@ -281,7 +283,8 @@ impl MailrsMcpService {
                 signing_secret: w.signing_secret,
             }
         } else {
-            self.require_admin(&user).await?;
+            self.require_route(&user, "/api/admin/webhook-subscriptions")
+                .await?;
             let req = mailrs_core_api::method::admin::CreateWebhookRequest {
                 account_address: params.account_address.clone(),
                 url: params.url.clone(),
@@ -312,7 +315,9 @@ impl MailrsMcpService {
         Parameters(params): Parameters<WebhookIdParams>,
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
-        self.require_admin(&user).await?;
+        self.require_confirmed()?;
+        self.require_route(&user, "/api/admin/webhook-subscriptions/{id}")
+            .await?;
         self.state
             .core
             .delete_webhook(params.id)

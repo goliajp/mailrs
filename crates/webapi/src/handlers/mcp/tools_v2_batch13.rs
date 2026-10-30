@@ -59,7 +59,8 @@ impl MailrsMcpService {
             NewGreylistEntry, insert_entry, kind_of_value, normalise_list,
         };
         let user = self.require_user()?.to_string();
-        self.require_admin(&user).await?;
+        self.require_route(&user, "/api/admin/greylist/local-lists")
+            .await?;
         let Some(list) = normalise_list(&params.list_type) else {
             return Err(McpError::invalid_params(
                 "list_type must be 'white' or 'black'",
@@ -94,7 +95,8 @@ impl MailrsMcpService {
         Parameters(params): Parameters<GreylistLocalRemoveParams>,
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
-        self.require_admin(&user).await?;
+        self.require_route(&user, "/api/admin/greylist/local-lists/{id}")
+            .await?;
         crate::handlers::complete::delete_greylist_entry(Path(params.id.to_string()))
             .await
             .map_err(|c| map_status(c, "greylist_local_remove"))?;
@@ -144,7 +146,8 @@ impl MailrsMcpService {
     )]
     async fn get_system_config(&self) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
-        self.require_admin(&user).await?;
+        self.require_route(&user, "/api/admin/system-config")
+            .await?;
         let Json(cfg) = crate::handlers::complete::get_system_config()
             .await
             .map_err(|c| map_status(c, "get_system_config"))?;
@@ -161,7 +164,8 @@ impl MailrsMcpService {
         Parameters(params): Parameters<SetSystemConfigParams>,
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
-        self.require_admin(&user).await?;
+        self.require_route(&user, "/api/admin/system-config")
+            .await?;
         crate::handlers::complete::set_system_config_key(
             Path(params.key.clone()),
             Json(crate::handlers::complete::SetSystemConfigRequest {
@@ -188,7 +192,8 @@ impl MailrsMcpService {
         Parameters(params): Parameters<SystemConfigKeyParams>,
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
-        self.require_admin(&user).await?;
+        self.require_route(&user, "/api/admin/system-config")
+            .await?;
         let key = params.key.clone();
         with_kevy(move |c| {
             c.hdel(

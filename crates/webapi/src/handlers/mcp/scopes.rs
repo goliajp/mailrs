@@ -368,4 +368,32 @@ mod tests {
         assert!(i.mock_namespace_allowed("anything"));
         assert!(i.can_manage_namespaces());
     }
+
+    /// An MCP admin tool asks what its REST twin asks, from the same table:
+    /// every route it names is a declared admin route, and none falls back
+    /// to "any admin.* will do".
+    #[test]
+    fn admin_tools_take_their_permission_from_the_route_table() {
+        use crate::handlers::route_permissions::ADMIN_ROUTES;
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/handlers/mcp");
+        let mut named = 0;
+        for entry in std::fs::read_dir(&dir).unwrap() {
+            let path = entry.unwrap().path();
+            let code = std::fs::read_to_string(&path).unwrap();
+            let file = path.file_name().unwrap().to_string_lossy().to_string();
+            for (at, _) in code.match_indices("require_route(&user, \"") {
+                let rest = &code[at + "require_route(&user, \"".len()..];
+                let template = &rest[..rest.find('"').unwrap()];
+                assert!(
+                    ADMIN_ROUTES.iter().any(|(t, _)| *t == template),
+                    "{file}: {template} is not a declared admin route"
+                );
+                named += 1;
+            }
+        }
+        assert!(
+            named >= 28,
+            "found {named} tools naming a route; the scan read nothing?"
+        );
+    }
 }

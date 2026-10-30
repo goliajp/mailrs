@@ -43,7 +43,7 @@ impl MailrsMcpService {
         Parameters(params): Parameters<RetryQueueParams>,
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
-        self.require_admin(&user).await?;
+        self.require_route(&user, "/api/admin/queues").await?;
         let id = params.id;
         let id_c = id.clone();
         let ok = with_kevy(move |c| {
