@@ -17,6 +17,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 
 import { MobileModal } from '@/components/mobile-modal'
+import { useSearchMail } from '@/hooks/use-search-mail'
 import { useSignOut } from '@/hooks/use-sign-out'
 import { authAtom } from '@/store/auth'
 import { themeModeAtom } from '@/store/theme'
@@ -228,6 +229,7 @@ const ADMIN_COMMANDS = new Set(['nav-admin', 'nav-protocol'])
 function useCommands(query: string, onClose: () => void): Command[] {
   const navigate = useNavigate()
   const signOut = useSignOut()
+  const searchMail = useSearchMail()
   const setComposing = useSetAtom(composingNewAtom)
   const setComposeReplySource = useSetAtom(composeReplySourceAtom)
   const setTheme = useSetAtom(themeModeAtom)
@@ -381,7 +383,7 @@ function useCommands(query: string, onClose: () => void): Command[] {
           id: 'search-query',
           label: `Search emails for: ${query.trim()}`,
           action: () => {
-            navigate(`/?q=${encodeURIComponent(query.trim())}`)
+            searchMail(query)
             onClose()
           },
         },
@@ -389,5 +391,5 @@ function useCommands(query: string, onClose: () => void): Command[] {
     }
 
     return filtered
-  }, [query, staticCommands, navigate, onClose])
+  }, [query, staticCommands, searchMail, onClose])
 }
