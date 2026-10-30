@@ -2,7 +2,7 @@
 
 mailrs is a mail server — SMTP in and out, IMAP, POP3, JMAP, ManageSieve,
 CalDAV/CardDAV, a REST and MCP API, and a web client — built as a Cargo
-workspace of 70 crates. Production runs four mailrs processes from one
+workspace of 72 crates. Production runs five mailrs processes from one
 image beside a `kevy-server`. There is no SQL database in that stack:
 message metadata lives in an embedded key-value store, mail bodies are
 Maildir files.
@@ -33,7 +33,8 @@ different entrypoint (`deploy/docker-compose.prod.yml`).
 | fastcore | `mailrs-fastcore` | `crates/fastcore` | Owns the mailbox. Drains the spool (alias and group resolution, Sieve, delivery into Maildir), threads and indexes every message, serves the core-api to the other processes, and runs IMAP, POP3 and ManageSieve. Also the background work: maildir self-heal, bounce filing, attachment text and OCR, snooze, push notifications, report ingestion, AOF compaction. |
 | webapi | `mailrs-webapi` | `crates/webapi` | The HTTP surface: REST for the web client and the iOS/Android apps, JMAP, CalDAV/CardDAV, OIDC sign-in, the MCP server, and the `/api/events` WebSocket. Serves the web client's static files. Holds no mailbox state of its own; it asks fastcore over core-api. |
 | fastcore-sender | `mailrs-fastcore-sender` | `crates/fastcore` (bin) | Takes outbound jobs off a kevy queue, DKIM-signs, delivers over MX with STARTTLS and MTA-STS, retries with backoff for up to five days, and queues a DSN back for fastcore to file when delivery fails for good. |
-| kevy-server | — | `ghcr.io/goliajp/kevy` | The network key-value store the four share. |
+| backup | `mailrs-backup` | `crates/backup` | Once a day, a tar of fastcore's kevy, the maildir, kevy-server's data and the DKIM keys, zstd-compressed and encrypted to an age public key, into a host directory; two are kept, and `last.json` records each run. Reads every store read-only and opens none of them: an AOF is copied as the prefix it had when the run began. `mailrs-backup restore` unpacks one with the private key. |
+| kevy-server | — | `ghcr.io/goliajp/kevy` | The network key-value store the others share. |
 
 fastcore starts `mailrs-fastcore-ocr` as a short-lived child process per
 attachment that needs OCR, with its own memory and CPU limits.
@@ -107,6 +108,7 @@ libraries are published on [crates.io](https://crates.io/users/golia-jp).
 | `mailrs-receiver` | The receiver process |
 | `mailrs-fastcore` | fastcore, fastcore-sender, the OCR child and maintenance tools |
 | `mailrs-webapi` | The webapi process |
+| `mailrs-backup` | The backup process and its restore |
 | `mailrs-core-api` | The core-api: request and response types, paths, client and server stubs |
 | `mailrs-core-sidestate` | Network-kevy state shared by more than one process — key names and the functions that read and write them |
 | `mailrs-core` | The SMTP event bus and spool envelope shared by the receiver and fastcore |
