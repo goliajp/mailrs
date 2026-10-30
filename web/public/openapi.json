@@ -7016,7 +7016,7 @@
     "/api/admin/accounts/{address}/password": {
       "post": {
         "operationId": "setAccountPassword",
-        "summary": "Replace an account's password; nothing else on the account changes",
+        "summary": "Set an account's password and sign its sessions out; after a compromise, also revoke every agent key",
         "tags": [
           "Admin"
         ],
@@ -7042,6 +7042,20 @@
                 "properties": {
                   "password": {
                     "type": "string"
+                  },
+                  "compromised": {
+                    "type": "object",
+                    "required": [
+                      "revoke_key_ids"
+                    ],
+                    "properties": {
+                      "revoke_key_ids": {
+                        "type": "array",
+                        "items": {
+                          "type": "integer"
+                        }
+                      }
+                    }
                   }
                 }
               }
@@ -7049,16 +7063,103 @@
           }
         },
         "responses": {
+          "200": {
+            "description": "Reset after a compromise",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "sessions_revoked",
+                    "agent_keys_revoked"
+                  ],
+                  "properties": {
+                    "sessions_revoked": {
+                      "type": "integer"
+                    },
+                    "agent_keys_revoked": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
           "204": {
-            "description": "Changed"
+            "description": "Changed; sessions signed out, agent keys kept"
           },
           "400": {
-            "description": "Empty password"
+            "description": "The password fails the password rules"
+          },
+          "403": {
+            "description": "No admin.accounts, or `confirm_required`"
           },
           "404": {
             "description": "No such account"
+          },
+          "409": {
+            "description": "`key_list_changed`: the ids named are not all the account's keys",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "keys": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "name",
+                          "prefix",
+                          "scopes",
+                          "created_at",
+                          "last_used_at"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "integer"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "prefix": {
+                            "type": "string",
+                            "description": "The key's first 8 characters"
+                          },
+                          "scopes": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "created_at": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ],
+                            "description": "Unix seconds"
+                          },
+                          "last_used_at": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ],
+                            "description": "Unix seconds, to the hour; null when nothing was recorded (every key before recording began)"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
-        }
+        },
+        "description": "Needs admin.accounts and a recent confirmation. Without `compromised` the account's agent keys keep working. With it, every agent key is revoked, and `revoke_key_ids` must be the ids of all of them as GET .../agent-keys lists them; otherwise 409 `key_list_changed` carries the current keys."
       }
     },
     "/api/conversations/mark-all-read": {
@@ -9606,6 +9707,97 @@
           },
           "501": {
             "description": "`reset_codes_not_configured`"
+          }
+        }
+      }
+    },
+    "/api/admin/accounts/{address}/agent-keys": {
+      "get": {
+        "operationId": "listAccountAgentKeys",
+        "summary": "An account's agent keys, with when each was created and last used",
+        "tags": [
+          "Admin"
+        ],
+        "description": "The keys a compromise reset revokes. Needs admin.accounts and a recent confirmation.",
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Keys",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "last_use_recorded_since"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "name",
+                          "prefix",
+                          "scopes",
+                          "created_at",
+                          "last_used_at"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "integer"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "prefix": {
+                            "type": "string",
+                            "description": "The key's first 8 characters"
+                          },
+                          "scopes": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "created_at": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ],
+                            "description": "Unix seconds"
+                          },
+                          "last_used_at": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ],
+                            "description": "Unix seconds, to the hour; null when nothing was recorded (every key before recording began)"
+                          }
+                        }
+                      }
+                    },
+                    "last_use_recorded_since": {
+                      "type": "string",
+                      "description": "The day keys began recording their last use"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No admin.accounts, or `confirm_required`"
           }
         }
       }

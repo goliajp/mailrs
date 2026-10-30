@@ -89,10 +89,7 @@ impl Client {
         &self,
         address: &str,
         req: &method::admin::SetPasswordRequest,
-    ) -> ApiResult<()> {
-        // cores answer 204 No Content — decode a unit, don't parse a body
-        // (post_authed_json's map_status::<()> would fail on the empty body;
-        // caught by the core-sync round-trip test).
+    ) -> ApiResult<method::admin::SetPasswordResponse> {
         let resp = self
             .inner
             .post(self.url(&format!(
@@ -104,7 +101,7 @@ impl Client {
             .send()
             .await
             .map_err(|e| crate::client::transport("set_account_password", e))?;
-        Self::map_status_unit(resp, "set_account_password").await
+        Self::map_status(resp, "set_account_password").await
     }
 
     /// POST /v1/admin/accounts/{address}/password:clear

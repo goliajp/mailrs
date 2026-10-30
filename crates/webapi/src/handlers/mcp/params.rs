@@ -306,6 +306,10 @@ pub struct SetAccountPasswordParams {
     pub address: String,
     /// New plaintext password. Argon2-hashed before it reaches fastcore.
     pub password: String,
+    /// For a reset after a compromise: the ids of all the account's agent
+    /// keys, as `list_account_agent_keys` lists them. Every one is revoked.
+    #[serde(default)]
+    pub compromised_revoke_key_ids: Option<Vec<i64>>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]

@@ -110,6 +110,10 @@ pub(crate) fn revoke_agent_key(
     let field = id.to_string();
     let record = c.hget(key.as_bytes(), field.as_bytes())?;
     c.hdel(key.as_bytes(), &[field.as_bytes()])?;
+    c.hdel(
+        crate::agent_key_usage::hash_key(user).as_bytes(),
+        &[field.as_bytes()],
+    )?;
     // Also drop the secret index so revoked keys don't accumulate
     // forever. The record doesn't store the secret, so scan the
     // (single-digit-count) index keys for the matching {user,id}.

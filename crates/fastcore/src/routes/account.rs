@@ -181,12 +181,16 @@ pub(crate) async fn set_recovery_email_route(
     .await
 }
 
+/// `POST /v1/admin/accounts/{address}/password` — the hash only. Called
+/// directly on the host it signs no session out and revokes no agent key,
+/// and the answer says so; after a compromise use webapi's reset instead.
 pub(crate) async fn set_password_route(
     State(state): State<Arc<FastcoreState>>,
     Path(address): Path<String>,
     Json(req): Json<adm::SetPasswordRequest>,
 ) -> axum::response::Response {
-    patch_account_field(&state, &address, |obj| {
+    use axum::response::IntoResponse;
+    let done = patch_account_field(&state, &address, |obj| {
         obj.insert(
             "password_hash".into(),
             serde_json::Value::String(req.password_hash),
@@ -195,7 +199,11 @@ pub(crate) async fn set_password_route(
         obj.remove("password_cleared_at");
         obj.remove("password_cleared_by");
     })
-    .await
+    .await;
+    if done.status() != axum::http::StatusCode::NO_CONTENT {
+        return done;
+    }
+    Json(adm::SetPasswordResponse::NOTHING_REVOKED).into_response()
 }
 
 /// `POST /v1/admin/accounts/{address}/password:clear` — no password signs

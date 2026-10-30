@@ -219,6 +219,15 @@ describe('request bodies match the shared contract', () => {
     expect(body).toEqual(fixture('account-password-set'))
   })
 
+  /** After a compromise: the ids of every key shown, all of which go. */
+  it('account password set after a compromise', async () => {
+    const { wireCompromiseReset } = await import('../endpoints/admin')
+    const body = await bodyOf(() =>
+      wireCompromiseReset('qa@golia.jp', 'not-a-real-password', [3, 7])
+    )
+    expect(body).toEqual(fixture('account-password-set-compromised'))
+  })
+
   it('domain create', async () => {
     const { adminPost } = await import('../endpoints/admin')
     const body = await bodyOf(() => adminPost('/admin/domains', { name: 'golia.jp' }))
