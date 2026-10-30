@@ -106,10 +106,28 @@ pub async fn admin_middleware(
     let Some(user) = user else {
         return StatusCode::UNAUTHORIZED.into_response();
     };
-    if let Err(status) = require_admin(&state, &user).await {
+    let check = match is_super_only(&path) {
+        true => require_super(&state, &user).await,
+        false => require_admin(&state, &user).await,
+    };
+    if let Err(status) = check {
         return status.into_response();
     }
     next.run(req).await
+}
+
+/// Admin routes that show other people's mail or what they did with it:
+/// the outbound queue (who sends what to whom), the audit log, and the
+/// audit reads of someone else's mailbox. No single admin.* permission
+/// covers that, so only a super administrator may call them.
+const SUPER_ONLY: [&str; 3] = [
+    "/api/admin/queues",
+    "/api/admin/audit-log",
+    "/api/admin/audit/",
+];
+
+fn is_super_only(path: &str) -> bool {
+    SUPER_ONLY.iter().any(|p| path.starts_with(p))
 }
 
 /// Run `f` against a fresh kevy connection.

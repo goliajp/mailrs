@@ -155,6 +155,12 @@ impl MailrsMcpService {
             .map_err(|_| McpError::invalid_request("admin permission required", None))
     }
 
+    pub(super) async fn require_super(&self, user: &str) -> Result<(), McpError> {
+        crate::handlers::kevy_util::require_super(&self.state, user)
+            .await
+            .map_err(|_| McpError::invalid_request("super administrator required", None))
+    }
+
     /// A recent password confirmation by the session behind this call. An
     /// agent key has no password and is refused.
     pub(super) fn require_confirmed(&self) -> Result<crate::session::confirm::Confirmed, McpError> {
