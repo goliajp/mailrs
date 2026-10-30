@@ -35,6 +35,8 @@ async fn each_audit_read_is_recorded_before_it_answers() {
     live.add_account(ADMIN, "pw").await;
     live.add_account(ALICE, "pw").await;
     live.grant(ADMIN, "admin.accounts").await;
+    // the audit reads are for a super administrator
+    live.make_super(ADMIN);
     let admin = live.login(ADMIN, "pw").await;
     live.confirm(&admin, "pw").await;
     live.mailbox.ensure_thread_table();

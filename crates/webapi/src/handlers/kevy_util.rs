@@ -116,14 +116,18 @@ pub async fn admin_middleware(
     next.run(req).await
 }
 
-/// Admin routes that show other people's mail or what they did with it:
-/// the outbound queue (who sends what to whom), the audit log, and the
-/// audit reads of someone else's mailbox. No single admin.* permission
-/// covers that, so only a super administrator may call them.
-const SUPER_ONLY: [&str; 3] = [
+/// Admin routes that show other people's mail traffic, what they read or
+/// how they sign in: the outbound queue and who it bounced at, the audit
+/// log and the audit reads of someone else's mailbox, sign-in events, and
+/// spam feedback per user. No single admin.* permission covers that, so
+/// only a super administrator may call them.
+const SUPER_ONLY: [&str; 6] = [
     "/api/admin/queues",
+    "/api/admin/suppressions",
     "/api/admin/audit-log",
     "/api/admin/audit/",
+    "/api/admin/auth-events",
+    "/api/admin/spam-feedback-stats",
 ];
 
 fn is_super_only(path: &str) -> bool {

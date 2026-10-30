@@ -10,12 +10,11 @@ use mailrs_auth_guard::events::{self, LoginEvent};
 
 use crate::WebState;
 use crate::handlers::conversations::AuthedUser;
-use crate::handlers::kevy_util::require_permission;
 
 /// GET /api/admin/auth-events?account=&source=&result=&channel=&since=&until=&limit=
 ///
 /// Newest first, at most `limit` (100 by default, 1000 at most); `since`
-/// and `until` are unix seconds. Requires `admin.accounts`.
+/// and `until` are unix seconds. Super administrators only.
 pub async fn list_auth_events(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
@@ -31,7 +30,7 @@ pub(crate) async fn auth_events(
     actor: &str,
     q: events::Query,
 ) -> Result<Vec<LoginEvent>, StatusCode> {
-    require_permission(state, actor, "admin.accounts").await?;
+    crate::handlers::kevy_util::require_super(state, actor).await?;
     crate::login_guard::GUARD.events(q).await.map_err(|e| {
         tracing::warn!(error = %e, "auth events: store unreachable");
         StatusCode::SERVICE_UNAVAILABLE
