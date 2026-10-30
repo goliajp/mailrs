@@ -12,8 +12,9 @@ pub use mailrs_maildir::Flag;
 /// A store failure, or a refusal the client is to be shown verbatim.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    /// Sent after `NO` as is, response code included
-    /// (`[READ-ONLY] …`, `[UNAVAILABLE] …`).
+    /// Sent after `NO` (`-ERR` in POP3) as is, response code included
+    /// (`[READ-ONLY] …`, `[UNAVAILABLE] …`; ManageSieve's in parentheses,
+    /// `(TRYLATER) …`).
     #[error("{0}")]
     Refused(String),
     #[error(transparent)]
@@ -53,6 +54,14 @@ pub trait Directory: Send + Sync + 'static {
     /// sign-ins closes them. `None` keeps no registry.
     fn signins(&self) -> Option<&mailrs_auth_guard::signins::Signins> {
         None
+    }
+
+    /// Whether an administrator has cleared `account`'s password, for
+    /// closing the connections a missed sign-out left open. A store that
+    /// cannot be read answers `false`: the connection stays as it was.
+    fn password_cleared(&self, account: &str) -> impl Future<Output = bool> + Send {
+        let _ = account;
+        async { false }
     }
 }
 

@@ -43,6 +43,16 @@ impl Signins {
         SignedIn { flag }
     }
 
+    /// The accounts with a connection open now.
+    pub fn accounts(&self) -> Vec<String> {
+        let mut map = self.by_account.lock().expect("signins lock");
+        map.retain(|_, list| {
+            list.retain(|w| w.strong_count() > 0);
+            !list.is_empty()
+        });
+        map.keys().cloned().collect()
+    }
+
     /// End every open connection signed in as `account`. Returns how many
     /// there were.
     pub fn end(&self, account: &str) -> usize {
@@ -124,6 +134,14 @@ mod tests {
             .await
             .expect("woke")
             .expect("task");
+    }
+
+    #[test]
+    fn only_accounts_with_an_open_connection_are_listed() {
+        let signins = Signins::default();
+        let _a = signins.enter("A@x.test");
+        drop(signins.enter("b@x.test"));
+        assert_eq!(signins.accounts(), vec!["a@x.test".to_string()]);
     }
 
     #[test]

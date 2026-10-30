@@ -19,11 +19,14 @@ pub fn publish(c: &mut Connection, address: &str) -> std::io::Result<()> {
 
 /// Call `end` with each address published, on a thread of its own, for as
 /// long as the process runs. A dropped subscription is made again after a
-/// second; a sign-out published in that second reaches nobody, which the
-/// password cleared before it makes harmless: no new sign-in succeeds.
-pub fn listen<F>(kevy_url: String, end: F)
+/// second, and a sign-out published while it was down reaches nobody: so
+/// `subscribed` runs each time the subscription is (re)made, for the
+/// caller to look over the connections it holds itself and close those
+/// whose account has been signed out meanwhile.
+pub fn listen<F, G>(kevy_url: String, end: F, subscribed: G)
 where
     F: Fn(&str) + Send + 'static,
+    G: Fn() + Send + 'static,
 {
     std::thread::Builder::new()
         .name("account-signout".into())
@@ -34,6 +37,7 @@ where
                         tracing::info!(
                             "signed-in connections close when an account's sign-ins end"
                         );
+                        subscribed();
                         while let Ok((_, payload)) = sub.recv_message() {
                             if let Ok(address) = std::str::from_utf8(&payload) {
                                 end(address.trim());

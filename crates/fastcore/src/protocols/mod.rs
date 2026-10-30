@@ -34,14 +34,32 @@ pub(crate) fn spawn(state: Arc<FastcoreState>, tls: Option<TlsState>) {
     };
     let url = std::env::var("MAILRS_KEVY_URL").ok();
     let guard = mailrs_auth_guard::kevy::guard_for(url.as_deref());
-    let guarded = mailrs_mail_protocols::Guarded::new(Arc::new(dir), guard);
+    let guarded = Arc::new(mailrs_mail_protocols::Guarded::new(Arc::new(dir), guard));
     if let Some(url) = url {
-        let signins = guarded.signed_in();
-        mailrs_core_sidestate::keys::signout::listen(url, move |account| {
-            signins.end(account);
-        });
+        listen_for_signouts(url, guarded.clone());
     }
-    mailrs_mail_protocols::spawn_all(Arc::new(guarded), tls);
+    mailrs_mail_protocols::spawn_all(guarded, tls);
+}
+
+/// Close the IMAP, POP3 and ManageSieve connections of an account whose
+/// sign-ins are ended, and, each time the subscription is (re)made, those
+/// of accounts cleared while it was down.
+pub fn listen_for_signouts(
+    kevy_url: String,
+    guarded: Arc<mailrs_mail_protocols::Guarded<FastcoreDirectory>>,
+) {
+    let signins = guarded.signed_in();
+    let runtime = tokio::runtime::Handle::current();
+    mailrs_core_sidestate::keys::signout::listen(
+        kevy_url,
+        move |account| {
+            signins.end(account);
+        },
+        move || {
+            let dir = guarded.clone();
+            runtime.spawn(async move { mailrs_mail_protocols::end_cleared(&dir).await });
+        },
+    );
 }
 
 /// The accounts IMAP, POP3 and ManageSieve sign in, over fastcore's
@@ -63,6 +81,14 @@ impl FastcoreDirectory {
 
 impl Directory for FastcoreDirectory {
     type Account = FastcoreAccount;
+
+    async fn password_cleared(&self, account: &str) -> bool {
+        let Ok(Some(blob)) = self.state.mailbox.get_account_blob(account) else {
+            return false;
+        };
+        serde_json::from_str::<serde_json::Value>(&blob)
+            .is_ok_and(|v| v.get("password_cleared_at").is_some_and(|t| !t.is_null()))
+    }
 
     fn hostname(&self) -> String {
         self.state

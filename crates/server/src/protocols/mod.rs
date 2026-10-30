@@ -67,6 +67,16 @@ impl PgDirectory {
 impl Directory for PgDirectory {
     type Account = PgAccount;
 
+    async fn password_cleared(&self, account: &str) -> bool {
+        let Some(domain) = &self.domain else {
+            return false;
+        };
+        matches!(
+            domain.get_account_with_hash(account).await,
+            Ok(Some((a, _))) if a.password_cleared_at.is_some()
+        )
+    }
+
     fn hostname(&self) -> String {
         self.hostname.clone()
     }
