@@ -61,6 +61,26 @@ pub(crate) fn queue(
     }
 }
 
+/// Queue the remote images of every message in `user`'s thread: for a
+/// thread taken out of Junk, whose images were not fetched on arrival.
+pub(crate) fn queue_thread(state: &Arc<FastcoreState>, user: &str, thread_id: &str) {
+    if fetcher().is_none() {
+        return;
+    }
+    for (n, raw) in crate::bayes_train::fetch_thread_raw(state, user, thread_id)
+        .iter()
+        .enumerate()
+    {
+        // the queue keys an image by message only to tell entries apart
+        queue(
+            state,
+            user,
+            &format!("{thread_id}#{n}"),
+            &mailrs_mime::parse(raw),
+        );
+    }
+}
+
 /// The `src` of every `<img>` that names an http or https URL, as the
 /// browser will read it: HTML entities decoded.
 pub fn image_urls(html: &str) -> Vec<String> {
@@ -362,6 +382,63 @@ mod tests {
             a.parent(),
             image_cache::path(root, "b@x.jp", "https://e/x.png").parent()
         );
+    }
+
+    const HTML_MAIL: &[u8] = b"From: Shop <news@shop.example>\r\n\
+To: bob@golia.jp\r\n\
+Subject: Sale\r\n\
+Message-ID: <sale1@shop.example>\r\n\
+Date: Tue, 5 Aug 2026 09:00:00 +0900\r\n\
+Content-Type: text/html; charset=utf-8\r\n\
+\r\n\
+<p>Sale</p><img src=\"https://cdn.shop.example/banner.png\">\r\n";
+
+    fn pending(state: &crate::FastcoreState) -> Vec<String> {
+        state
+            .mailbox
+            .pending_image_prefetches(100)
+            .unwrap()
+            .into_iter()
+            .map(|(_, _, url)| url)
+            .collect()
+    }
+
+    /// Mail that arrives in the inbox has its images queued; mail that
+    /// arrives in Junk does not, until the thread is taken out of Junk.
+    #[test]
+    fn images_are_queued_on_arrival_and_after_junk_only_when_released() {
+        let maildir = tempfile::tempdir().unwrap();
+        // SAFETY: test-only; nothing else in this binary reads these two
+        unsafe {
+            std::env::set_var("MAILRS_FETCH_URL", "http://fetch.invalid/fetch");
+            std::env::set_var("MAILRS_MAILDIR", maildir.path());
+        }
+        let inbox = crate::tests::fresh_state();
+        crate::ingest::ingest_delivered_file(
+            &inbox,
+            "bob@golia.jp",
+            "s1.eml",
+            HTML_MAIL,
+            "INBOX",
+            None,
+        );
+        assert_eq!(pending(&inbox), ["https://cdn.shop.example/banner.png"]);
+
+        let junk = crate::tests::fresh_state();
+        let new = maildir.path().join("golia.jp/bob/new");
+        std::fs::create_dir_all(&new).unwrap();
+        std::fs::write(new.join("s2.eml"), HTML_MAIL).unwrap();
+        crate::ingest::ingest_delivered_file(
+            &junk,
+            "bob@golia.jp",
+            "s2.eml",
+            HTML_MAIL,
+            "Junk",
+            None,
+        );
+        assert!(pending(&junk).is_empty(), "mail in Junk was fetched for");
+        queue_thread(&junk, "bob@golia.jp", "sale1@shop.example");
+        assert_eq!(pending(&junk), ["https://cdn.shop.example/banner.png"]);
     }
 
     #[test]
