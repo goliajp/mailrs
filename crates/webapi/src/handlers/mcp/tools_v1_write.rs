@@ -78,6 +78,14 @@ impl MailrsMcpService {
         crate::handlers::kevy_util::require_permission(&self.state, &user, "admin.accounts")
             .await
             .map_err(|_| McpError::invalid_request("admin.accounts permission required", None))?;
+        crate::handlers::grants::require_may_touch(&self.state, &user, &params.address)
+            .await
+            .map_err(|_| {
+                McpError::invalid_request(
+                    "only a super administrator changes a super administrator",
+                    None,
+                )
+            })?;
         self.state
             .core
             .remove_account(&params.address)

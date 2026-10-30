@@ -101,6 +101,7 @@ pub(crate) async fn reset_password(
         Argon2,
         password_hash::{PasswordHasher, SaltString, rand_core::OsRng as ArgonRng},
     };
+    crate::handlers::grants::require_may_touch(state, actor, address).await?;
     if let Err(weak) = mailrs_auth_guard::password::check_new(password, address) {
         return Err(ResetRefused::Weak(
             crate::handlers::auth::password::refused(weak),

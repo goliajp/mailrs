@@ -120,6 +120,30 @@ pub async fn admin_middleware(
     if let Err(status) = check {
         return status.into_response();
     }
+    // a change to an account's own settings: a super administrator's
+    // account is for a super administrator to change
+    if template.starts_with("/api/admin/accounts/{address}")
+        && req.method() != axum::http::Method::GET
+    {
+        let params = {
+            use axum::RequestPartsExt as _;
+            let (mut parts, body) = req.into_parts();
+            let got = parts
+                .extract::<axum::extract::Path<std::collections::HashMap<String, String>>>()
+                .await;
+            req = axum::extract::Request::from_parts(parts, body);
+            got
+        };
+        let Ok(axum::extract::Path(params)) = params else {
+            return StatusCode::FORBIDDEN.into_response();
+        };
+        let target = params.get("address").cloned().unwrap_or_default();
+        if let Err(status) =
+            crate::handlers::grants::require_may_touch(&state, &user, &target).await
+        {
+            return status.into_response();
+        }
+    }
     next.run(req).await
 }
 
