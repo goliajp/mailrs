@@ -26,7 +26,7 @@ pub(super) async fn handle_spool_mode<S>(
     framed: &mut Framed<S, SmtpCodec>,
     reverse_path: &str,
     forward_paths: &[String],
-    is_authenticated: bool,
+    auth_user: Option<String>,
     conn_id: u64,
     target_folder: &str,
     fraud_verdict: Option<String>,
@@ -37,6 +37,7 @@ pub(super) async fn handle_spool_mode<S>(
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
+    let is_authenticated = auth_user.is_some();
     // Coarse open-relay guard: an unauthenticated session with any forward-path
     // outside our local domains is a relay attempt — reject the whole
     // transaction (matches the monolith's RelayDenied on enqueue_remote_rcpts).
@@ -64,6 +65,7 @@ where
         reverse_path: reverse_path.to_string(),
         forward_paths: forward_paths.to_vec(),
         is_authenticated,
+        auth_user,
         conn_id,
         target_folder: target_folder.to_string(),
         received_at,

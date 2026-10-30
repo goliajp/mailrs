@@ -242,7 +242,12 @@ impl<C: Core + ?Sized> Inbound<'_, C> {
                 }
             }
             if relays_outward(env.is_authenticated, fwd, &self.core.local_domains()) {
-                match enqueue_submission(&env.reverse_path, raw_fwd, self.body) {
+                match enqueue_submission(
+                    &env.reverse_path,
+                    env.auth_user.as_deref(),
+                    raw_fwd,
+                    self.body,
+                ) {
                     Ok(()) => delivered_here += 1,
                     Err(e) => {
                         tracing::warn!(to = %raw_fwd, error = %e, "submission relay enqueue failed");

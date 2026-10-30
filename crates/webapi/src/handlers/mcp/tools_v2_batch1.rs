@@ -31,7 +31,7 @@ impl MailrsMcpService {
     #[tool(description = "List all permission groups (admin-gated).")]
     async fn list_groups(&self) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
-        self.require_admin(&user).await?;
+        self.require_route(&user, "/api/admin/groups").await?;
         let items = admin_read_hash(
             mailrs_core_sidestate::families::permission_groups::GROUPS_KEY.as_bytes(),
         )?;
@@ -43,7 +43,7 @@ impl MailrsMcpService {
     #[tool(description = "List every email distribution group (admin-gated).")]
     async fn list_email_groups(&self) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
-        self.require_admin(&user).await?;
+        self.require_route(&user, "/api/admin/email-groups").await?;
         let items =
             admin_read_hash(mailrs_core_sidestate::families::email_groups::GROUPS_KEY.as_bytes())?;
         Ok(CallToolResult::success(vec![ContentBlock::text(
@@ -54,7 +54,8 @@ impl MailrsMcpService {
     #[tool(description = "List the local greylist allow/block rules (admin-gated).")]
     async fn list_greylist_local(&self) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
-        self.require_admin(&user).await?;
+        self.require_route(&user, "/api/admin/greylist/local-lists")
+            .await?;
         // the page's reader: old not-junk rows and MCP's old words come back
         // in the vocabulary the page and the delete tool use
         let items = with_kevy(crate::handlers::complete::greylist::list_entries)
@@ -69,7 +70,7 @@ impl MailrsMcpService {
     )]
     async fn list_aliases_admin(&self) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
-        self.require_admin(&user).await?;
+        self.require_route(&user, "/api/admin/aliases").await?;
         let items = crate::handlers::admin_directory::alias_rows(&self.state)
             .await
             .map_err(|code| {

@@ -103,6 +103,7 @@ impl Fixture {
             reverse_path: "carol@outside.example".into(),
             forward_paths: to.iter().map(|s| s.to_string()).collect(),
             is_authenticated: false,
+            auth_user: None,
             conn_id: 1,
             target_folder: "INBOX".into(),
             received_at: 1_790_000_000,

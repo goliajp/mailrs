@@ -70,7 +70,12 @@ fn counted_account(envelope: &serde_json::Value, sender: &str) -> Option<String>
         .get("original_sender")
         .and_then(|v| v.as_str())
         .is_some_and(|s| !s.is_empty());
-    let address = sender.trim_matches(['<', '>']).to_ascii_lowercase();
+    // the signed-in account, so that pausing it holds every address it
+    // sends as; jobs written before it was recorded count by sender
+    let address = match envelope.get("account").and_then(|v| v.as_str()) {
+        Some(account) => account.to_ascii_lowercase(),
+        None => sender.trim_matches(['<', '>']).to_ascii_lowercase(),
+    };
     if kind == Some(SECURITY_ALERT_KIND) || forwarded || address.is_empty() {
         return None;
     }
@@ -334,11 +339,25 @@ mod tests {
         // a kind nobody wrote, or any other value, counts as ordinary mail
         let other = serde_json::json!({ "kind": "Security_Alert" });
         assert!(counted_account(&other, "a@golia.jp").is_some());
+        let submitted = serde_json::json!({ "account": "A@golia.jp" });
+        assert_eq!(
+            counted_account(&submitted, "sales@golia.jp").as_deref(),
+            Some("a@golia.jp")
+        );
     }
 
     fn job(
         c: &mut kevy_client::Connection,
         sender: &str,
+        alert: bool,
+    ) -> (String, serde_json::Value) {
+        submission(c, sender, None, alert)
+    }
+
+    fn submission(
+        c: &mut kevy_client::Connection,
+        sender: &str,
+        account: Option<&str>,
         alert: bool,
     ) -> (String, serde_json::Value) {
         use mailrs_core_sidestate::families::outbound as ob;
@@ -349,6 +368,7 @@ mod tests {
             scheduled_at: None,
             original_sender: None,
             send_id: None,
+            account,
         };
         let id = match alert {
             true => ob::write_security_alert_pending(c, &fresh, 1_000),
@@ -401,5 +421,34 @@ mod tests {
             "the OutboundPaused alert was held"
         );
         assert_eq!(pause::held_ids(&mut c, alerts, i64::MAX).unwrap().len(), 1);
+    }
+
+    /// An account sending as two addresses has one hour's limit between
+    /// them, and pausing it holds both: counted by MAIL FROM, each address
+    /// had its own limit and a paused account went on sending as the other.
+    #[tokio::test]
+    async fn an_account_is_counted_once_across_the_addresses_it_sends_as() {
+        let (_kevy, url) = mailrs_test_docker::kevy::kevy_server().await;
+        let mut c = kevy_client::Connection::connect(&url).unwrap();
+        let limits = pause::Limits {
+            per_hour: 2,
+            fails_per_hour: 30,
+        };
+        let account = "a@golia.jp";
+        let (one, other) = ("sales@golia.jp", "info@golia.ai");
+        let mut held = Vec::new();
+        for sender in [one, other, one, other] {
+            let (id, env) = submission(&mut c, sender, Some("A@golia.jp"), false);
+            held.push(claim(&mut c, &id, &env, limits));
+        }
+        assert_eq!(held, [false, false, true, true]);
+        assert!(pause::is_paused(&mut c, account).unwrap());
+        for address in [one, other] {
+            assert!(!pause::is_paused(&mut c, address).unwrap(), "{address}");
+        }
+        assert_eq!(pause::held_ids(&mut c, account, i64::MAX).unwrap().len(), 2);
+        // a job written before the account was recorded counts by sender
+        let (id, env) = submission(&mut c, one, None, false);
+        assert!(!claim(&mut c, &id, &env, limits));
     }
 }

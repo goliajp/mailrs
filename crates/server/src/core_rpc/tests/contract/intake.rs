@@ -21,6 +21,7 @@ pub(super) fn envelope(verdict: Option<String>) -> SpoolEnvelope {
         reverse_path: "carol@outside.example".into(),
         forward_paths: vec![ALICE.into()],
         is_authenticated: false,
+        auth_user: None,
         conn_id: 1,
         target_folder: "INBOX".into(),
         received_at: 1_790_000_000,

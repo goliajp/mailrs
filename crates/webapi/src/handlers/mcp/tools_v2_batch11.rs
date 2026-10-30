@@ -96,7 +96,8 @@ impl MailrsMcpService {
         Parameters(params): Parameters<AddressParams>,
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
-        self.require_admin(&user).await?;
+        self.require_route(&user, "/api/admin/accounts/{address}/groups")
+            .await?;
         // Same RPC `require_admin` itself resolves through, so the
         // answer here is exactly what the gate would decide.
         let perms = self
@@ -126,7 +127,15 @@ impl MailrsMcpService {
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
         self.require_confirmed()?;
-        self.require_admin(&user).await?;
+        self.require_route(&user, "/api/admin/groups/{id}/members")
+            .await?;
+        let carries = crate::handlers::grants::group_permissions(params.group_id)
+            .map_err(|_| McpError::internal_error("group permissions unreadable", None))?;
+        crate::handlers::grants::require_may_grant(&self.state, &user, &carries)
+            .await
+            .map_err(|_| {
+                McpError::invalid_request("that group grants what you may not grant", None)
+            })?;
         let key = group_members_key(params.group_id);
         let addr = params.address.clone();
         with_kevy(move |c| {
@@ -150,7 +159,8 @@ impl MailrsMcpService {
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
         self.require_confirmed()?;
-        self.require_admin(&user).await?;
+        self.require_route(&user, "/api/admin/groups/{id}/members")
+            .await?;
         let key = group_members_key(params.group_id);
         let addr = params.address.clone();
         with_kevy(move |c| {

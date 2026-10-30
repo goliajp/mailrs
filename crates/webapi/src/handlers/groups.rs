@@ -66,9 +66,15 @@ pub struct SetGroupPermissionsRequest {
 
 pub async fn set_group_permissions(
     _: crate::session::confirm::Confirmed,
+    axum::extract::State(state): axum::extract::State<std::sync::Arc<crate::WebState>>,
+    axum::extract::Extension(crate::handlers::conversations::AuthedUser(actor)): axum::extract::Extension<
+        crate::handlers::conversations::AuthedUser,
+    >,
     Path(id): Path<i64>,
     Json(req): Json<SetGroupPermissionsRequest>,
 ) -> Result<StatusCode, StatusCode> {
+    // the group's members get these: only what the writer could grant
+    crate::handlers::grants::require_may_grant(&state, &actor, &req.permissions).await?;
     with_kevy(move |c| Ok(groups::set_permissions(c, id, &req.permissions)?))?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -92,9 +98,16 @@ pub struct AddGroupMemberRequest {
 
 pub async fn add_group_member(
     _: crate::session::confirm::Confirmed,
+    axum::extract::State(state): axum::extract::State<std::sync::Arc<crate::WebState>>,
+    axum::extract::Extension(crate::handlers::conversations::AuthedUser(actor)): axum::extract::Extension<
+        crate::handlers::conversations::AuthedUser,
+    >,
     Path(id): Path<i64>,
     Json(req): Json<AddGroupMemberRequest>,
 ) -> Result<StatusCode, StatusCode> {
+    // a new member gets what the group carries: a grant
+    let carries = crate::handlers::grants::group_permissions(id)?;
+    crate::handlers::grants::require_may_grant(&state, &actor, &carries).await?;
     with_kevy(move |c| Ok(groups::add_member(c, id, &req.address)?))?;
     Ok(StatusCode::NO_CONTENT)
 }

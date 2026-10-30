@@ -267,6 +267,15 @@ pub async fn set_account_overrides(
     Json(req): Json<serde_json::Value>,
 ) -> Result<StatusCode, StatusCode> {
     require_permission(&state, &actor, "admin.accounts").await?;
+    let granted: Vec<String> = req["permissions"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|p| p.as_str().map(String::from))
+                .collect()
+        })
+        .unwrap_or_default();
+    crate::handlers::grants::require_may_grant(&state, &actor, &granted).await?;
     let key = format!("admin:account:{address}:overrides");
     let payload = serde_json::to_vec(&req).map_err(|_| StatusCode::BAD_REQUEST)?;
     let payload_c = payload.clone();

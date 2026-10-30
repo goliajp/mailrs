@@ -251,6 +251,7 @@ async fn words_in_images_and_scans_find_the_conversation() {
             reverse_path: "a@example.org".into(),
             forward_paths: vec![BOB.into()],
             is_authenticated: false,
+            auth_user: None,
             conn_id: 1,
             target_folder: "INBOX".into(),
             received_at: 1,
