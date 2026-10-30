@@ -10,13 +10,18 @@
 import type { z } from 'zod'
 
 export type WireError =
+  | {
+      readonly contact: { readonly address: string; readonly name: string }
+      readonly kind: 'password-cleared'
+    }
   | { readonly issues: readonly z.ZodIssue[]; readonly kind: 'validation' }
   | { readonly kind: 'aborted' }
   | { readonly kind: 'auth' }
   | { readonly kind: 'disabled'; readonly message: string }
-  | { readonly kind: 'forbidden' }
   /** The server wanted the password typed again and the user cancelled. */
+  | { readonly kind: 'forbidden' }
   | { readonly kind: 'network' }
+  /** Signing in to an account whose password an administrator cleared. */
   | { readonly kind: 'not-found' }
   | { readonly kind: 'server'; readonly message: string; readonly status: number }
   | { readonly kind: 'unconfirmed' }
@@ -49,6 +54,8 @@ export class WireErrorException extends Error {
         return 'Network error'
       case 'not-found':
         return 'Resource not found'
+      case 'password-cleared':
+        return 'Your password was reset by an administrator'
       case 'server':
         return detail.message
       case 'unconfirmed':

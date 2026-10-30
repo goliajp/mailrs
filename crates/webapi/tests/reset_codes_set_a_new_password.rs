@@ -91,6 +91,11 @@ async fn a_code_from_an_issuer_sets_a_new_password() {
     );
 
     let issuer = live.login(ISSUER, "pw").await;
+    // the settings page offers reset codes to an issuer, and to nobody else
+    let (_, me) = live.call(Method::GET, "/api/auth/me", &issuer, None).await;
+    assert_eq!(me["is_reset_issuer"], true);
+    let (_, me) = live.call(Method::GET, "/api/auth/me", &bob, None).await;
+    assert_eq!(me["is_reset_issuer"], false);
     let issue = |path: String| {
         let (live, issuer) = (&live, issuer.clone());
         async move { live.call(Method::POST, &path, &issuer, None).await }
@@ -104,7 +109,7 @@ async fn a_code_from_an_issuer_sets_a_new_password() {
     let (status, got) = issue(format!("/api/reset-codes/{ALICE}")).await;
     assert_eq!(
         (status, got["error"].as_str()),
-        (503, Some("reset_codes_not_configured"))
+        (501, Some("reset_codes_not_configured"))
     );
     // SAFETY: as above
     unsafe { std::env::set_var("MAILRS_RESET_CODE_KEY", "11".repeat(32)) };

@@ -17,6 +17,7 @@ import { redirectToLogin } from '@/lib/api'
 import { http } from '@/lib/http'
 
 import { type WireError, WireErrorException } from './errors'
+import { passwordClearedSchema } from './schemas/auth'
 
 const API_BASE = '/api'
 
@@ -101,6 +102,12 @@ async function handleResponse<T>(
   allowEmpty: boolean
 ): Promise<T> {
   if (res.status === 401) {
+    // a sign-in to an account whose password was cleared: the login page
+    // asks for the reset code instead
+    const cleared = passwordClearedSchema.safeParse(await res.json().catch(() => undefined))
+    if (cleared.success) {
+      throw new WireErrorException({ contact: cleared.data.contact, kind: 'password-cleared' })
+    }
     // Send them to log in rather than letting an uncaught exception render
     // as an empty mailbox. The throw stays so any caller that does handle
     // `kind: 'auth'` still sees it, and so the in-flight query rejects

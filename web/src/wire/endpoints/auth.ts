@@ -20,6 +20,8 @@ import {
   loginResponseSchema,
   oidcConfigSchema,
   recoveryEmailSchema,
+  resetCodeIssuedSchema,
+  resetCodeStatusSchema,
   totpSetupSchema,
   totpStatusSchema,
   type WireAuthMe,
@@ -28,6 +30,8 @@ import {
   type WireLoginResponse,
   type WireOidcConfig,
   type WireRecoveryEmail,
+  type WireResetCodeIssued,
+  type WireResetCodeStatus,
   type WireTotpSetup,
   type WireTotpStatus,
 } from '../schemas/auth'
@@ -201,6 +205,20 @@ export async function wireLinkedIdentities(): Promise<readonly WireLinkedIdentit
   return raw.items
 }
 
+/** `POST /auth/password-reset` — a new password, with the code an issuer handed out. */
+export async function wireResetPasswordWithCode(
+  address: string,
+  code: string,
+  newPassword: string
+): Promise<void> {
+  await wireFetch(emptyResponseSchema, {
+    allowEmpty: true,
+    body: { address, code, new_password: newPassword },
+    method: 'POST',
+    path: '/auth/password-reset',
+  })
+}
+
 export async function wireTotpDisable(code: string): Promise<void> {
   await wireFetch(emptyResponseSchema, {
     allowEmpty: true,
@@ -219,6 +237,8 @@ export async function wireTotpEnable(code: string): Promise<void> {
   })
 }
 
+// ── reset codes ─────────────────────────────────────────────────
+
 /**
  * Backend: `unlink_identity`. The account is the session's, never the body's.
  */
@@ -230,3 +250,14 @@ export async function wireUnlinkIdentity(issuer: string, subject: string): Promi
     path: '/auth/identities:unlink',
   })
 }
+
+/** `POST /reset-codes/{address}` — issue a code; it is in this answer only. */
+export const wireIssueResetCode = (address: string): Promise<WireResetCodeIssued> =>
+  wireFetch(resetCodeIssuedSchema, {
+    method: 'POST',
+    path: `/reset-codes/${encodeURIComponent(address)}`,
+  })
+
+/** `GET /reset-codes/{address}` — whether a code is out, never the code. */
+export const wireResetCodeStatus = (address: string): Promise<WireResetCodeStatus> =>
+  wireFetch(resetCodeStatusSchema, { path: `/reset-codes/${encodeURIComponent(address)}` })

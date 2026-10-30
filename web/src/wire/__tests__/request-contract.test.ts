@@ -172,6 +172,28 @@ describe('request bodies match the shared contract', () => {
    * Account provisioning. `password` is hashed server-side, so a dropped
    * field stores an account with no usable credential rather than failing.
    */
+  /** Clearing passwords is previewed first, with the same list of addresses. */
+  it('password clear preview', async () => {
+    const { wirePasswordClearPreview } = await import('../endpoints/admin')
+    const body = await bodyOf(() => wirePasswordClearPreview(['ws@golia.jp', 'sakai@golia.jp']))
+    expect(body).toEqual(fixture('password-clear'))
+  })
+
+  it('password clear', async () => {
+    const { wirePasswordClear } = await import('../endpoints/admin')
+    const body = await bodyOf(() => wirePasswordClear(['ws@golia.jp', 'sakai@golia.jp']))
+    expect(body).toEqual(fixture('password-clear'))
+  })
+
+  /** A new password with a reset code: the code as typed, dash and all. */
+  it('password reset with code', async () => {
+    const { wireResetPasswordWithCode } = await import('../endpoints/auth')
+    const body = await bodyOf(() =>
+      wireResetPasswordWithCode('qa@golia.jp', 'ABCDE-23456', 'not-a-real-password')
+    )
+    expect(body).toEqual(fixture('password-reset-with-code'))
+  })
+
   it('account create', async () => {
     const { adminPost } = await import('../endpoints/admin')
     const body = await bodyOf(() =>

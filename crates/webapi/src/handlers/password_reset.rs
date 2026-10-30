@@ -86,8 +86,9 @@ pub async fn reset(
         return crate::login_guard::locked_response(verdict);
     }
     let Some(key) = reset_code::key() else {
+        // not 503: that is the server restarting, which this is not
         return (
-            StatusCode::SERVICE_UNAVAILABLE,
+            StatusCode::NOT_IMPLEMENTED,
             Json(serde_json::json!({ "error": "reset_codes_not_configured" })),
         )
             .into_response();
