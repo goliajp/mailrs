@@ -69,6 +69,11 @@ pub async fn forgot_password(
     if req.recovery_email.trim().is_empty() {
         return Ok(StatusCode::NO_CONTENT);
     }
+    // a password an administrator cleared comes back only through a code
+    // an issuer hands over in person, never through mail
+    if password_cleared(&state, &req.address).await {
+        return Ok(StatusCode::NO_CONTENT);
+    }
     let stored = account_recovery_email(&state, &req.address).await;
     let matches = stored
         .as_deref()
@@ -145,6 +150,25 @@ pub async fn forgot_password(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// Whether an administrator cleared `address`'s password. An account the
+/// core cannot read counts as cleared: this guards a way around clearing.
+pub(crate) async fn password_cleared(state: &Arc<WebState>, address: &str) -> bool {
+    match state.core.get_account_with_hash(address).await {
+        Ok(a) => a.public.password_cleared_at.is_some(),
+        Err(mailrs_core_api::error::CoreApiError::NotFound(_)) => false,
+        Err(_) => true,
+    }
+}
+
+/// Whether `address`'s password is known to be cleared; `false` when the
+/// core cannot say, for telling a sign-in why it failed.
+pub(crate) async fn password_cleared_known(state: &Arc<WebState>, address: &str) -> bool {
+    matches!(
+        state.core.get_account_with_hash(address).await,
+        Ok(a) if a.public.password_cleared_at.is_some()
+    )
+}
+
 /// The recovery address stored on an account, or `None`.
 ///
 /// Read out of the account JSON rather than a typed field, the same way
@@ -184,6 +208,10 @@ pub async fn reset_password(
         return Err(StatusCode::UNAUTHORIZED);
     };
     let address = String::from_utf8_lossy(&addr_bytes).to_string();
+    // a link mailed before the password was cleared must not undo the clearing
+    if password_cleared(&state, &address).await {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
     // reading the token's address does not use it up: a refused password
     // leaves the link working
     if let Err(weak) = mailrs_auth_guard::password::check_new(&req.new_password, &address) {

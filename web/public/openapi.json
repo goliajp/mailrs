@@ -9457,6 +9457,158 @@
           }
         }
       }
+    },
+    "/api/reset-codes/{address}": {
+      "post": {
+        "operationId": "issueResetCode",
+        "summary": "Issue a one-time code to set a new password on an account whose password was cleared. Issuers (MAILRS_RESET_ISSUERS) only, with a recent password confirmation; the code is in this answer and nowhere else",
+        "tags": [
+          "Auth"
+        ],
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The code and when it expires",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "expires_at": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`not_an_issuer`, or `confirm_required`"
+          },
+          "404": {
+            "description": "`no_such_account`"
+          },
+          "409": {
+            "description": "`password_not_cleared`"
+          },
+          "503": {
+            "description": "`reset_codes_not_configured`: no MAILRS_RESET_CODE_KEY"
+          }
+        }
+      },
+      "get": {
+        "operationId": "resetCodeStatus",
+        "summary": "Whether a code is out for the account, until when, wrong tries, and whether it was made with the current key; never the code. Issuers only",
+        "tags": [
+          "Auth"
+        ],
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`issued: false`, or the code's state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "issued": {
+                      "type": "boolean"
+                    },
+                    "issued_by": {
+                      "type": "string"
+                    },
+                    "issued_at": {
+                      "type": "integer"
+                    },
+                    "expires_at": {
+                      "type": "integer"
+                    },
+                    "failures": {
+                      "type": "integer"
+                    },
+                    "key_current": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`not_an_issuer`"
+          }
+        }
+      }
+    },
+    "/api/auth/password-reset": {
+      "post": {
+        "operationId": "resetPasswordWithCode",
+        "summary": "Set a new password on an account whose password was cleared, with the code an issuer handed out. No session needed and none issued",
+        "tags": [
+          "Auth"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "address",
+                  "code",
+                  "new_password"
+                ],
+                "properties": {
+                  "address": {
+                    "type": "string"
+                  },
+                  "code": {
+                    "type": "string"
+                  },
+                  "new_password": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "The password is set; sign in with it"
+          },
+          "400": {
+            "description": "`invalid_reset_code` (the same for every way of being wrong), or why the new password was refused"
+          },
+          "429": {
+            "description": "Locked by the login guard"
+          },
+          "503": {
+            "description": "`reset_codes_not_configured`"
+          }
+        }
+      }
     }
   },
   "components": {
