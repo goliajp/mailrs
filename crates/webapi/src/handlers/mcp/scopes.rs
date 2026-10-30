@@ -57,6 +57,7 @@ const TOOL_CATEGORIES: &[(&str, ToolCategory)] = &[
     ("get_thread_summary", Read),
     ("greylist_local_add", Admin),
     ("greylist_local_remove", Admin),
+    ("list_account_agent_keys", Admin),
     ("list_accounts", Admin),
     ("list_admin_queue", Admin),
     ("list_aliases_admin", Admin),
