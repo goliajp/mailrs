@@ -431,7 +431,7 @@ for i in $(seq 1 90); do
     sleep 2
 done
 ssh "$PROD" "cd /apps/mailrs \
-  && docker compose up -d --pull never --no-deps receiver webapi-fc fastcore-sender"
+  && docker compose up -d --pull never --no-deps receiver webapi-fc fastcore-sender backup"
 
 echo "==> [4/6] verify prod"
 
