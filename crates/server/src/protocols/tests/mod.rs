@@ -14,6 +14,7 @@ mod folders;
 mod harness;
 mod limits;
 mod moves;
+mod passwordless;
 mod script;
 mod seen;
 mod selection;
@@ -149,6 +150,37 @@ async fn conversations<D: Directory>(dir: Arc<D>, home: std::path::PathBuf) -> V
         diffs.extend(converse(client, "pop3", &steps).await);
     }
     diffs.extend(bodies::folders(dir.clone(), home).await);
+    diffs.extend(passwordless_refused(dir).await);
+    diffs
+}
+
+/// No protocol signs into an account whose password is cleared, or whose
+/// stored value is not a hash.
+async fn passwordless_refused<D: Directory>(dir: Arc<D>) -> Vec<String> {
+    let mut diffs = Vec::new();
+    for steps in passwordless::imap() {
+        let (client, server) = tokio::io::duplex(1 << 20);
+        tokio::spawn(mailrs_mail_protocols::imap::run(dir.clone(), server));
+        diffs.extend(converse(client, "imap", &steps).await);
+    }
+    for steps in passwordless::pop3() {
+        let (client, server) = tokio::io::duplex(1 << 20);
+        tokio::spawn(mailrs_mail_protocols::pop3::session(
+            dir.clone(),
+            server,
+            None,
+        ));
+        diffs.extend(converse(client, "pop3", &steps).await);
+    }
+    for steps in passwordless::managesieve() {
+        let (client, server) = tokio::io::duplex(1 << 20);
+        tokio::spawn(mailrs_mail_protocols::managesieve::session(
+            dir.clone(),
+            server,
+            None,
+        ));
+        diffs.extend(converse(client, "managesieve", &steps).await);
+    }
     diffs
 }
 

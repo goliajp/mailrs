@@ -3509,12 +3509,14 @@ dependencies = [
 name = "mailrs-auth-guard"
 version = "2.1.0"
 dependencies = [
+ "argon2",
  "async-trait",
  "criterion",
  "dashmap",
  "ipnet",
  "kevy-client",
  "mailrs-backoff",
+ "password-hash",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -3558,6 +3560,7 @@ dependencies = [
  "argon2",
  "base64 0.22.1",
  "ldap3",
+ "mailrs-auth-guard",
  "password-hash",
  "rand_core 0.6.4",
  "serde",

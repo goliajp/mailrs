@@ -19,9 +19,8 @@ pub(super) async fn verify_credentials(
     }
     if let Some(ref cs) = ctx.credential_store {
         match cs.password_hash(username).await {
-            // argon2 only, as webapi's login and IMAP accept
             Ok(Some(hash)) => {
-                if hash.starts_with("$argon2") && UserStore::verify_hash(password, &hash) {
+                if UserStore::verify_hash(password, &hash) {
                     return true;
                 }
             }
@@ -34,7 +33,7 @@ pub(super) async fn verify_credentials(
     if let Some(ref ds) = ctx.account_store {
         match ds.password_hash(username).await {
             Ok(Some(hash)) => {
-                if hash_matches(password, &hash) {
+                if UserStore::verify_hash(password, &hash) {
                     return true;
                 }
             }
@@ -72,13 +71,4 @@ pub(super) fn sandbox_namespace(username: &str) -> Option<String> {
     mock::parse(username)
         .filter(|a| a.tag.is_empty())
         .map(|a| a.namespace)
-}
-
-fn hash_matches(password: &str, hash: &str) -> bool {
-    if hash.is_empty() {
-        false
-    } else {
-        // argon2 only; a stored value that is not a hash is never compared
-        hash.starts_with("$argon2") && UserStore::verify_hash(password, hash)
-    }
 }
