@@ -33,6 +33,7 @@ pub trait NetKevy: Send + Sync + 'static {
 }
 
 pub mod families;
+pub mod image_cache;
 pub mod keys;
 pub mod smtp_monitor;
 
