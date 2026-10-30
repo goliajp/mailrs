@@ -38,6 +38,9 @@ pub struct AuthMeResponse {
     pub is_admin: bool,
     /// Holds `*`: what the monitor and the server pages need.
     pub is_super: bool,
+    /// Named in `MAILRS_RESET_ISSUERS`: may hand out codes that set a new
+    /// password on an account whose password was cleared.
+    pub is_reset_issuer: bool,
 }
 
 /// GET /api/auth/me
@@ -65,6 +68,8 @@ pub async fn auth_me(
         permissions: perms.permissions,
         accessible_domains: Vec::new(),
         send_as: perms.send_as,
+        is_reset_issuer: crate::handlers::admin_password_clear::issuers()
+            .contains(&address.to_ascii_lowercase()),
     }))
 }
 

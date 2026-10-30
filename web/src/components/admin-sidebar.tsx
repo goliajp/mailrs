@@ -7,6 +7,7 @@ import {
   KeyRound,
   LayoutGrid,
   ListOrdered,
+  LockKeyhole,
   Mail,
   ScrollText,
   Settings,
@@ -35,6 +36,11 @@ const navGroups: { items: NavItem[]; label: string }[] = [
     items: [
       { icon: <Globe className="h-4 w-4" />, label: 'Domains', to: '/admin/domains' },
       { icon: <Users className="h-4 w-4" />, label: 'Accounts', to: '/admin/accounts' },
+      {
+        icon: <LockKeyhole className="h-4 w-4" />,
+        label: 'Clear passwords',
+        to: '/admin/password-clear',
+      },
       { icon: <ArrowLeftRight className="h-4 w-4" />, label: 'Aliases', to: '/admin/aliases' },
       { icon: <Mail className="h-4 w-4" />, label: 'Email groups', to: '/admin/email-groups' },
       { icon: <Shield className="h-4 w-4" />, label: 'Permission groups', to: '/admin/groups' },

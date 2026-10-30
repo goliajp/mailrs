@@ -79,7 +79,3 @@
 /api/bimi/{domain}              # DEBT: a bare BIMI TXT lookup. `/api/icon/{domain}` does its own `bimi_lookup` internally, so this looks superseded.
 /api/mock/namespaces/{}/messages/latest   # for test code and agents polling one address; the web page lists instead
 /api/mock/namespaces/{}/messages/wait     # long poll for test code and agents; the MCP tool mock_wait_for_message covers the same need
-/api/admin/password-clear/preview     # the admin page that calls it is the next step of the password-clear work; called by hand until then
-/api/admin/password-clear             # the admin page that calls it is the next step of the password-clear work; called by hand until then
-/api/reset-codes/{}                # the issuer's page that calls it is the next step of the password-clear work; called by hand until then
-/api/auth/password-reset           # the sign-in page's reset form is the next step of the password-clear work; called by hand until then

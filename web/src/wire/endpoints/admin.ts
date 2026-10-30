@@ -26,6 +26,10 @@ import {
   adminObjectSchema,
   adminStringListSchema,
   adminWriteResultSchema,
+  passwordClearPreviewSchema,
+  passwordClearResultSchema,
+  type WirePasswordClearPreview,
+  type WirePasswordClearResult,
 } from '../schemas/admin'
 
 type AnyObj = Record<string, unknown>
@@ -84,3 +88,19 @@ export async function adminPut<T = AnyObj>(path: string, body?: unknown): Promis
 export async function adminStringListGet(path: string, signal?: AbortSignal): Promise<string[]> {
   return wireFetch(adminStringListSchema, { path, signal })
 }
+
+/** `POST /admin/password-clear/preview` — what clearing these accounts would cut off. */
+export const wirePasswordClearPreview = (addresses: string[]): Promise<WirePasswordClearPreview> =>
+  wireFetch(passwordClearPreviewSchema, {
+    body: { addresses },
+    method: 'POST',
+    path: '/admin/password-clear/preview',
+  })
+
+/** `POST /admin/password-clear` — clear these accounts' passwords and end their sessions. */
+export const wirePasswordClear = (addresses: string[]): Promise<WirePasswordClearResult> =>
+  wireFetch(passwordClearResultSchema, {
+    body: { addresses },
+    method: 'POST',
+    path: '/admin/password-clear',
+  })
