@@ -232,7 +232,7 @@ mod tests {
     fn extract_dkim_signature_finds_header_and_body_offset() {
         let raw = b"DKIM-Signature: v=1; a=rsa-sha256\r\nFrom: a\r\n\r\nbody";
         let (value, headers_raw, body_offset) = extract_dkim_signature(raw).unwrap();
-        assert_eq!(value, " v=1; a=rsa-sha256\r");
+        assert_eq!(value, " v=1; a=rsa-sha256");
         assert!(headers_raw.starts_with(b"DKIM-Signature"));
         assert_eq!(&raw[body_offset..], b"body");
     }
