@@ -2,7 +2,7 @@ import type { TextBlockData } from '../types'
 
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 
-import { uploadInlineImage } from '@/components/rich-editor'
+import { uploadInlineImage } from '@/components/composer/editor-extensions'
 
 // path lean.
 
