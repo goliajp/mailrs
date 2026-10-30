@@ -71,6 +71,7 @@ mod delete_thread_tests;
 mod deliver;
 mod domain;
 mod fraud_verdict;
+mod image_prefetch;
 mod importance;
 pub mod keys;
 mod list_threads;

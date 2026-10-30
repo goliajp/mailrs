@@ -5165,6 +5165,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/mail/image/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A remote image from the caller's mail, as the server prefetched it
+         * @description `name` is the hex sha256 of the image URL as the message wrote it (HTML entities decoded). Only the caller's own mail's images are found; 404 when the image was not fetched (refused, over budget, in Junk, or not yet).
+         */
+        get: operations["getMailImage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -12046,6 +12066,36 @@ export interface operations {
                 content?: never;
             };
             /** @description The account is not paused */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getMailImage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The re-encoded image */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/png": unknown;
+                    "image/jpeg": unknown;
+                };
+            };
+            /** @description Not fetched */
             404: {
                 headers: {
                     [name: string]: unknown;

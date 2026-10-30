@@ -84,6 +84,7 @@
 /api/mail/export	read only
 /api/mail/folders	read only
 /api/mail/folders/{name}/messages	read only
+/api/mail/image/{name}	read only; touches the cached file's mtime as its last read
 /api/mail/inline/{id}	read only
 /api/mail/keys	read only
 /api/mail/keys/status	read only

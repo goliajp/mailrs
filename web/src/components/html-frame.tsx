@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef } from 'react'
 
 import { cjkFonts, cjkLang, injectCjkFonts } from '@/lib/cjk-fonts'
 import { fitHeight, fitScale, shouldReflowTable } from '@/lib/fit-to-width'
+import { markRemoteImage, showPrefetched } from '@/lib/remote-images'
 
 // HTML attribute values arrive with entity-encoded specials, e.g. LinkedIn
 // signed CDN URLs come through as src="https://media.licdn.com/…?e=…&amp;v=beta&amp;t=…"
@@ -96,6 +97,7 @@ emailPurifier.addHook('afterSanitizeAttributes', (node) => {
     node.setAttribute('target', '_blank')
     node.setAttribute('rel', 'noopener noreferrer')
   }
+  markRemoteImage(node)
 })
 
 // Module-level LRU. DOMPurify + 3 regex transforms run 50-300 ms on
@@ -222,9 +224,9 @@ const SHADOW_STYLES = `
 //   - first paint is one React commit, not commit-iframe-load-measure-
 //     commit
 //
-// External image privacy is preserved by setting
-// `referrerpolicy="no-referrer"` on every <img>, so the recipient
-// server can't see what user the request originated from.
+// Remote images come from the server's prefetched copy (see the purifier
+// hook), so the sender never sees the reader; `referrerpolicy` stays as a
+// second guard.
 export function HtmlFrame({
   attachments,
   html,
@@ -267,6 +269,7 @@ export function HtmlFrame({
       img.decoding = 'async'
       img.referrerPolicy = 'no-referrer'
     }
+    void showPrefetched(root)
 
     const wrap = root.querySelector<HTMLElement>('.mail-wrap')
     if (!wrap) return
