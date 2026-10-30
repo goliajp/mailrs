@@ -122,9 +122,6 @@ export const folderAtom = atom<MailFolder>(
 // archived view — derived, same as the folder.
 export const showArchivedAtom = atom((get) => threadAxesOf(get(activeListAtom))?.archived === true)
 
-// supermode: mark read across all domain accounts
-export const crossAccountReadAtom = atom(false)
-
 // importance section filter: null = all, or 'action' | 'important' | 'other'
 export type ImportanceSection = 'important' | 'other' | null
 export const importanceSectionAtom = atom<ImportanceSection>(null)
