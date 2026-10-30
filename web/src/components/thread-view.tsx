@@ -27,7 +27,6 @@ import { authAtom } from '@/store/auth'
 import {
   composeReplySourceAtom,
   composingNewAtom,
-  crossAccountReadAtom,
   mobileReplyOpenAtom,
   mobileThreadTabAtom,
   selectedDomainsAtom,
@@ -91,11 +90,6 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     if (hasNext) setSelectedId(rows[currentIdx + 1]?.threadId ?? null)
   }, [hasNext, rows, currentIdx, setSelectedId])
   const selectedDomains = useAtomValue(selectedDomainsAtom)
-  const domainsRef = useRef(selectedDomains)
-  domainsRef.current = selectedDomains
-  const crossAccountRead = useAtomValue(crossAccountReadAtom)
-  const crossAccountReadRef = useRef(crossAccountRead)
-  crossAccountReadRef.current = crossAccountRead
   const bottomRef = useRef<HTMLDivElement>(null)
   const contentScrollRef = useRef<HTMLDivElement>(null)
   const [mobileThreadTab, setMobileThreadTab] = useAtom(mobileThreadTabAtom)
@@ -175,8 +169,6 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     handleUnstar,
     refetchThread,
   } = useThreadActions({
-    crossAccountReadRef,
-    domainsRef,
     selectedId,
     setIsFlagged,
     setIsRead,
