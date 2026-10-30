@@ -30,6 +30,7 @@ pub mod dav_auth;
 pub mod dmarc;
 pub mod events;
 pub mod external_login;
+pub mod grants;
 pub mod groups;
 pub mod icon;
 pub mod id_token;

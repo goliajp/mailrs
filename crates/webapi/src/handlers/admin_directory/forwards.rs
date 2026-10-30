@@ -70,6 +70,7 @@ pub(crate) async fn store_forwards(
     req: LocalForwards,
 ) -> Result<(), StatusCode> {
     require_permission(state, actor, "admin.accounts").await?;
+    crate::handlers::grants::require_may_touch(state, actor, address).await?;
     state
         .core
         .get_account_with_hash(address)
