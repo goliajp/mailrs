@@ -108,6 +108,7 @@
 /api/quarantine	read only
 /api/queue	read only
 /api/readiness	read only
+/api/reset-codes/{address}	read only, issuers only
 /api/scheduled	read only
 /api/spam/blacklist	read only
 /api/spam/whitelist	read only

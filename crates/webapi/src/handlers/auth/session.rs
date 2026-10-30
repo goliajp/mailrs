@@ -84,6 +84,11 @@ pub async fn login(
             guard
                 .record(event(Credential::Password, Outcome::BadPassword))
                 .await;
+            // told why only after a password was tried, and counted as a
+            // failure all the same; the page then offers the reset code
+            if crate::handlers::auth_recovery::password_cleared_known(&state, &req.address).await {
+                return password_cleared_response();
+            }
             return StatusCode::UNAUTHORIZED.into_response();
         }
         Err(status) => return status.into_response(),
@@ -368,4 +373,21 @@ pub(crate) fn end_session(c: &mut kevy_client::Connection, token: &str) -> std::
         )?;
     }
     Ok(())
+}
+
+/// `401 password_cleared` with whom to ask for a reset code, from
+/// `MAILRS_RESET_CONTACT_NAME` and `MAILRS_RESET_CONTACT`.
+fn password_cleared_response() -> Response {
+    let read = |name| std::env::var(name).unwrap_or_default();
+    (
+        StatusCode::UNAUTHORIZED,
+        Json(serde_json::json!({
+            "error": "password_cleared",
+            "contact": {
+                "name": read("MAILRS_RESET_CONTACT_NAME"),
+                "address": read("MAILRS_RESET_CONTACT"),
+            },
+        })),
+    )
+        .into_response()
 }

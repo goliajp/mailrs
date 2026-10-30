@@ -57,6 +57,9 @@ pub enum Credential {
     Passkey,
     /// A recovery code.
     RecoveryCode,
+    /// A code an issuer handed out to set a new password on an account
+    /// whose password was cleared.
+    ResetCode,
     /// A per-device password for mail clients.
     AppPassword,
     /// An API or agent key.
