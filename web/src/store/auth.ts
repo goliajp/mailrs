@@ -7,6 +7,11 @@ export type AuthInfo = {
   /** Server-decided: may this account use the admin console. */
   is_admin: boolean
   /**
+   * Server-decided: may hand out reset codes. Read from `/auth/me` only, so
+   * it is missing until the profile has been refreshed once.
+   */
+  is_reset_issuer?: boolean
+  /**
    * Server-decided: holds `*`. The server and monitor pages show other
    * people's mail traffic and are for this account only.
    */

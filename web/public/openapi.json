@@ -9503,7 +9503,7 @@
           "409": {
             "description": "`password_not_cleared`"
           },
-          "503": {
+          "501": {
             "description": "`reset_codes_not_configured`: no MAILRS_RESET_CODE_KEY"
           }
         }
@@ -9604,7 +9604,7 @@
           "429": {
             "description": "Locked by the login guard"
           },
-          "503": {
+          "501": {
             "description": "`reset_codes_not_configured`"
           }
         }

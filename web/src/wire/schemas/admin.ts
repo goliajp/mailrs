@@ -67,3 +67,41 @@ export const adminStringListSchema = z.union([
     .transform((o) => Object.values(o).find((v) => Array.isArray(v)) ?? [])
     .pipe(z.array(z.string())),
 ])
+
+// Backend: crates/webapi/src/handlers/admin_password_clear.rs — fn preview
+export const passwordClearPreviewSchema = z.object({
+  issuers_configured: z.boolean(),
+  items: z.array(
+    z.object({
+      address: z.string(),
+      agent_keys: z.array(
+        z.object({
+          name: z.string(),
+          prefix: z.string(),
+          scopes: z.array(z.string()),
+        })
+      ),
+      cleared_at: z.number().nullable(),
+      exists: z.boolean(),
+      external_logins: z.number(),
+      sessions: z.number(),
+      smtp_password_logins_7d: z.number(),
+      totp: z.boolean(),
+    })
+  ),
+})
+
+export type WirePasswordClearPreview = z.infer<typeof passwordClearPreviewSchema>
+
+// Backend: crates/webapi/src/handlers/admin_password_clear.rs — fn clear
+export const passwordClearResultSchema = z.object({
+  items: z.array(
+    z.object({
+      address: z.string(),
+      result: z.enum(['cleared', 'unknown']),
+      sessions_revoked: z.number(),
+    })
+  ),
+})
+
+export type WirePasswordClearResult = z.infer<typeof passwordClearResultSchema>

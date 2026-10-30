@@ -115,8 +115,9 @@ pub async fn issue(
         return Ok(refused(StatusCode::FORBIDDEN, "not_an_issuer"));
     }
     let Some(key) = key() else {
+        // not 503: that is the server restarting, which this is not
         return Ok(refused(
-            StatusCode::SERVICE_UNAVAILABLE,
+            StatusCode::NOT_IMPLEMENTED,
             "reset_codes_not_configured",
         ));
     };

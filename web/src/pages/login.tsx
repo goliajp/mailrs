@@ -9,6 +9,8 @@ import { useNavigate, useSearchParams } from 'react-router'
 import { AuthCard } from '@/components/auth/auth-card'
 import { AuthField } from '@/components/auth/auth-field'
 import { BrandHeader } from '@/components/auth/brand-header'
+import { ResetWithCode } from '@/components/auth/reset-with-code'
+import { type ResetContact } from '@/lib/password-clear'
 import { authAtom } from '@/store/auth'
 import {
   wireExternalProviders,
@@ -61,7 +63,7 @@ const EXTERNAL_MESSAGES: Record<string, { text: string; tone: 'error' | 'info' }
 export function Login() {
   const setAuth = useSetAtom(authAtom)
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [address, setAddress] = useState(() => localStorage.getItem('mailrs_saved_email') ?? '')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -76,6 +78,16 @@ export function Login() {
   const [forgotRecoveryEmail, setForgotRecoveryEmail] = useState('')
   const [forgotLoading, setForgotLoading] = useState(false)
   const [forgotMessage, setForgotMessage] = useState('')
+  // whom to ask for a reset code, from a sign-in to a cleared account
+  const [cleared, setCleared] = useState<null | ResetContact>(null)
+  const [notice, setNotice] = useState('')
+  const resetMode = searchParams.get('mode') === 'reset-code'
+
+  const openReset = () => {
+    setError('')
+    setSearchParams({ mode: 'reset-code' })
+  }
+  const closeReset = () => setSearchParams({})
 
   // fetch OIDC config
   useEffect(() => {
@@ -171,6 +183,11 @@ export function Login() {
         navigate('/', { replace: true })
       }
     } catch (e) {
+      if (e instanceof WireErrorException && e.detail.kind === 'password-cleared') {
+        setCleared(e.detail.contact)
+        openReset()
+        return
+      }
       if (e instanceof WireErrorException) {
         setError(
           e.detail.kind === 'server'
@@ -187,6 +204,22 @@ export function Login() {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (resetMode) {
+    return (
+      <ResetWithCode
+        address={address}
+        contact={cleared}
+        onCancel={closeReset}
+        onDone={(done) => {
+          setAddress(done)
+          setPassword('')
+          setNotice('Your new password is set. Sign in with it.')
+          closeReset()
+        }}
+      />
+    )
   }
 
   if (forgotMode) {
@@ -254,6 +287,12 @@ export function Login() {
     <AuthCard onSubmit={handleSubmit}>
       <BrandHeader subtitle="Sign in to your account" />
 
+      {notice && (
+        <Alert role="status" variant="success">
+          {notice}
+        </Alert>
+      )}
+
       {error && (
         <Alert role="alert" variant="danger">
           {error}
@@ -318,7 +357,7 @@ export function Login() {
         {loading ? 'Signing in...' : totpRequired ? 'Verify' : 'Sign in'}
       </Button>
 
-      <div className="text-center">
+      <div className="flex justify-center gap-4">
         <button
           className="text-accent text-sm hover:underline"
           onClick={() => {
@@ -329,6 +368,9 @@ export function Login() {
           type="button"
         >
           Forgot password?
+        </button>
+        <button className="text-accent text-sm hover:underline" onClick={openReset} type="button">
+          I have a reset code
         </button>
       </div>
 

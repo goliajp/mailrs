@@ -1,5 +1,8 @@
+import { useAtomValue } from 'jotai'
 import { lazy, Suspense, useId, useRef } from 'react'
 import { useSearchParams } from 'react-router'
+
+import { authAtom } from '@/store/auth'
 
 const AccountSection = lazy(() =>
   import('@/components/settings/account-section').then((m) => ({ default: m.AccountSection }))
@@ -20,6 +23,11 @@ const CalendarFeedsSection = lazy(() =>
 const EncryptionKeysSection = lazy(() =>
   import('@/components/settings/encryption-keys-section').then((m) => ({
     default: m.EncryptionKeysSection,
+  }))
+)
+const ResetCodesSection = lazy(() =>
+  import('@/components/settings/reset-codes-section').then((m) => ({
+    default: m.ResetCodesSection,
   }))
 )
 const SecuritySection = lazy(() =>
@@ -46,6 +54,7 @@ type Category =
   | 'appearance'
   | 'calendar-feeds'
   | 'keys'
+  | 'reset-codes'
   | 'security'
   | 'senders'
   | 'signatures'
@@ -61,6 +70,8 @@ const CATEGORIES: { key: Category; label: string }[] = [
   { key: 'webhooks', label: 'Webhooks' },
   { key: 'calendar-feeds', label: 'Calendar Feeds' },
   { key: 'appearance', label: 'Appearance' },
+  // issuers only
+  { key: 'reset-codes', label: 'Reset Codes' },
 ]
 
 const CATEGORY_KEYS = new Set(CATEGORIES.map((c) => c.key))
@@ -78,6 +89,9 @@ export function Settings() {
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
   const [searchParams, setSearchParams] = useSearchParams()
   const active = parseTab(searchParams.get('tab'))
+  // the server refuses a reset code to anyone else; the tab is only a convenience
+  const issuer = useAtomValue(authAtom)?.is_reset_issuer === true
+  const shown = CATEGORIES.filter((c) => c.key !== 'reset-codes' || issuer)
 
   const setActive = (key: Category) => {
     setSearchParams((prev) => {
@@ -102,16 +116,16 @@ export function Settings() {
           aria-orientation="vertical"
           className="border-border flex shrink-0 gap-1 overflow-x-auto border-b p-2 sm:w-48 sm:flex-col sm:overflow-x-visible sm:overflow-y-auto sm:border-r sm:border-b-0 sm:p-3"
           onKeyDown={(e) => {
-            const from = CATEGORIES.findIndex((c) => c.key === active)
-            const to = nextTabIndex(e.key, from, CATEGORIES.length)
+            const from = shown.findIndex((c) => c.key === active)
+            const to = nextTabIndex(e.key, from, shown.length)
             if (to === null) return
             e.preventDefault()
-            setActive(CATEGORIES[to].key)
+            setActive(shown[to].key)
             tabRefs.current[to]?.focus()
           }}
           role="tablist"
         >
-          {CATEGORIES.map((cat, i) => (
+          {shown.map((cat, i) => (
             <button
               aria-controls={`${tabIds}-panel`}
               aria-selected={active === cat.key}
@@ -149,6 +163,7 @@ export function Settings() {
               {active === 'webhooks' && <WebhooksSection />}
               {active === 'calendar-feeds' && <CalendarFeedsSection />}
               {active === 'appearance' && <AppearanceSection />}
+              {active === 'reset-codes' && <ResetCodesSection />}
             </Suspense>
           </div>
         </div>

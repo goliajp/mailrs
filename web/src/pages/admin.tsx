@@ -17,6 +17,9 @@ const AdminAliases = lazy(() =>
 const AdminAuditLog = lazy(() =>
   import('@/pages/admin-audit-log').then((m) => ({ default: m.AdminAuditLog }))
 )
+const AdminPasswordClear = lazy(() =>
+  import('@/pages/admin-password-clear').then((m) => ({ default: m.AdminPasswordClear }))
+)
 const AdminSignIns = lazy(() =>
   import('@/pages/admin-sign-ins').then((m) => ({ default: m.AdminSignIns }))
 )
@@ -60,6 +63,7 @@ export function Admin() {
             <Route element={<AdminDomains />} path="domains" />
             <Route element={<AdminDmarc />} path="dmarc" />
             <Route element={<AdminAccounts />} path="accounts" />
+            <Route element={<AdminPasswordClear />} path="password-clear" />
             <Route element={<AdminAliases />} path="aliases" />
             <Route element={<AdminGroups />} path="groups" />
             <Route element={<AdminEmailGroups />} path="email-groups" />
