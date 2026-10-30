@@ -274,6 +274,8 @@ pub(crate) async fn mark_not_junk(
     // spam training on the same thread first (mis-file correction).
     if ok {
         crate::bayes_train::train_thread(&state, &user, &thread_id, false);
+        // its images were not fetched while it was in Junk
+        crate::image_prefetch::queue_thread(&state, &user, &thread_id);
     }
     member_result(ok)
 }

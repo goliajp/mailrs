@@ -232,7 +232,11 @@ pub fn backfill_triage(state: &Arc<FastcoreState>, user: &str) -> (u64, u64, u64
 /// Read every raw message file backing a thread. Resolves each
 /// message's `blob_ref` (from the wire blob) to a maildir path and
 /// reads the bytes. Empty vec on any miss — training just skips.
-fn fetch_thread_raw(state: &Arc<FastcoreState>, user: &str, thread_id: &str) -> Vec<Vec<u8>> {
+pub(crate) fn fetch_thread_raw(
+    state: &Arc<FastcoreState>,
+    user: &str,
+    thread_id: &str,
+) -> Vec<Vec<u8>> {
     let Some((local, domain)) = user.split_once('@') else {
         return Vec::new();
     };
