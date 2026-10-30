@@ -8,37 +8,20 @@ impl DomainStore {
     /// preload all accounts into process cache for L3 degradation
     pub async fn preload_accounts(&self) {
         let Ok(pool) = self.pg() else { return };
-        let rows = sqlx::query_as::<_, (String, String, String, bool, i64, i64, String, String)>(
+        let rows = sqlx::query_as::<_, AccountRow>(
             "SELECT address, domain, display_name, active, \
-             EXTRACT(EPOCH FROM created_at)::bigint, quota_bytes, password_hash, recovery_email \
+             EXTRACT(EPOCH FROM created_at)::bigint, quota_bytes, password_hash, recovery_email, \
+             password_cleared_at, password_cleared_by \
              FROM accounts",
         )
         .fetch_all(pool)
         .await;
 
         if let Ok(rows) = rows {
-            for (
-                address,
-                domain,
-                display_name,
-                active,
-                created_at,
-                quota_bytes,
-                password_hash,
-                recovery_email,
-            ) in rows
-            {
-                let account = Account {
-                    address: address.clone(),
-                    domain,
-                    display_name,
-                    active,
-                    created_at,
-                    quota_bytes,
-                    recovery_email,
-                };
+            for row in rows {
+                let (account, password_hash) = account_of(row);
                 self.account_cache.insert(
-                    address,
+                    account.address.clone(),
                     CachedAccount {
                         account,
                         password_hash,
@@ -51,36 +34,16 @@ impl DomainStore {
 
     pub async fn list_accounts(&self) -> Result<Vec<Account>> {
         let pool = self.pg()?;
-        let rows = sqlx::query_as::<_, (String, String, String, bool, i64, i64, String)>(
+        let rows = sqlx::query_as::<_, AccountRow>(
             "SELECT address, domain, display_name, active, \
-             EXTRACT(EPOCH FROM created_at)::bigint, quota_bytes, recovery_email \
+             EXTRACT(EPOCH FROM created_at)::bigint, quota_bytes, password_hash, recovery_email, \
+             password_cleared_at, password_cleared_by \
              FROM accounts ORDER BY address",
         )
         .fetch_all(pool)
         .await?;
 
-        Ok(rows
-            .into_iter()
-            .map(
-                |(
-                    address,
-                    domain,
-                    display_name,
-                    active,
-                    created_at,
-                    quota_bytes,
-                    recovery_email,
-                )| Account {
-                    address,
-                    domain,
-                    display_name,
-                    active,
-                    created_at,
-                    quota_bytes,
-                    recovery_email,
-                },
-            )
-            .collect())
+        Ok(rows.into_iter().map(|row| account_of(row).0).collect())
     }
 
     pub async fn add_account(
@@ -98,7 +61,8 @@ impl DomainStore {
              VALUES ($1, $2, $3, $4) \
              ON CONFLICT (address) DO UPDATE SET \
              domain = EXCLUDED.domain, display_name = EXCLUDED.display_name, \
-             password_hash = EXCLUDED.password_hash \
+             password_hash = EXCLUDED.password_hash, \
+             password_cleared_at = NULL, password_cleared_by = NULL \
              RETURNING active, EXTRACT(EPOCH FROM created_at)::bigint, quota_bytes, recovery_email",
             )
             .bind(address)
@@ -117,6 +81,8 @@ impl DomainStore {
             created_at: created_epoch,
             quota_bytes,
             recovery_email,
+            password_cleared_at: None,
+            password_cleared_by: None,
         };
         self.account_cache.insert(
             address.to_string(),
@@ -160,35 +126,18 @@ impl DomainStore {
 
         // try PG
         if let Ok(pool) = self.pg() {
-            let row = sqlx::query_as::<_, (String, String, String, bool, i64, i64, String, String)>(
+            let row = sqlx::query_as::<_, AccountRow>(
                 "SELECT address, domain, display_name, active, \
-                 EXTRACT(EPOCH FROM created_at)::bigint, quota_bytes, password_hash, recovery_email \
+                 EXTRACT(EPOCH FROM created_at)::bigint, quota_bytes, password_hash, recovery_email, \
+                 password_cleared_at, password_cleared_by \
                  FROM accounts WHERE address = $1",
             )
             .bind(address)
             .fetch_optional(pool)
             .await?;
 
-            if let Some((
-                addr,
-                domain,
-                display_name,
-                active,
-                created_at,
-                quota_bytes,
-                hash,
-                recovery_email,
-            )) = row
-            {
-                let account = Account {
-                    address: addr,
-                    domain,
-                    display_name,
-                    active,
-                    created_at,
-                    quota_bytes,
-                    recovery_email,
-                };
+            if let Some(row) = row {
+                let (account, hash) = account_of(row);
                 let cached = CachedAccount {
                     account: account.clone(),
                     password_hash: hash.clone(),
@@ -271,13 +220,77 @@ impl DomainStore {
     /// two cores accept identical requests).
     pub async fn set_password_hash(&self, address: &str, password_hash: &str) -> Result<bool> {
         let pool = self.pg()?;
-        let res = sqlx::query("UPDATE accounts SET password_hash = $1 WHERE address = $2")
-            .bind(password_hash)
-            .bind(address)
-            .execute(pool)
-            .await?;
+        // a password set is no longer a password cleared
+        let res = sqlx::query(
+            "UPDATE accounts SET password_hash = $1, \
+             password_cleared_at = NULL, password_cleared_by = NULL WHERE address = $2",
+        )
+        .bind(password_hash)
+        .bind(address)
+        .execute(pool)
+        .await?;
         self.account_cache.remove(address);
         self.kevy_del(&format!("acct:{address}"));
         Ok(res.rows_affected() > 0)
     }
+
+    /// Empty the hash, so no password signs in, and record when and by
+    /// whom. `false` for an unknown account.
+    pub async fn clear_password(&self, address: &str, by: &str, now: i64) -> Result<bool> {
+        let pool = self.pg()?;
+        let res = sqlx::query(
+            "UPDATE accounts SET password_hash = '', \
+             password_cleared_at = $1, password_cleared_by = $2 WHERE address = $3",
+        )
+        .bind(now)
+        .bind(by)
+        .bind(address)
+        .execute(pool)
+        .await?;
+        self.account_cache.remove(address);
+        self.kevy_del(&format!("acct:{address}"));
+        Ok(res.rows_affected() > 0)
+    }
+}
+
+/// address, domain, display_name, active, created_at, quota_bytes,
+/// password_hash, recovery_email, password_cleared_at, password_cleared_by
+type AccountRow = (
+    String,
+    String,
+    String,
+    bool,
+    i64,
+    i64,
+    String,
+    String,
+    Option<i64>,
+    Option<String>,
+);
+
+fn account_of(row: AccountRow) -> (Account, String) {
+    let (
+        address,
+        domain,
+        display_name,
+        active,
+        created_at,
+        quota_bytes,
+        password_hash,
+        recovery_email,
+        password_cleared_at,
+        password_cleared_by,
+    ) = row;
+    let account = Account {
+        address,
+        domain,
+        display_name,
+        active,
+        created_at,
+        quota_bytes,
+        recovery_email,
+        password_cleared_at,
+        password_cleared_by,
+    };
+    (account, password_hash)
 }

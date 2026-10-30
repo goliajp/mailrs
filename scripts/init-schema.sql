@@ -17,7 +17,10 @@ CREATE TABLE accounts (
     active BOOLEAN NOT NULL DEFAULT true,
     quota_bytes BIGINT NOT NULL DEFAULT 10737418240,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    recovery_email TEXT NOT NULL DEFAULT ''
+    recovery_email TEXT NOT NULL DEFAULT '',
+    -- an administrator cleared the password, until a new one is set
+    password_cleared_at BIGINT,
+    password_cleared_by TEXT
 );
 
 CREATE TABLE aliases (
@@ -789,4 +792,4 @@ CREATE INDEX idx_messages_clean_text_trgm ON messages USING gin (clean_text gin_
 -- The migration this schema is equal to; the core reads it at boot and
 -- applies whatever it carries beyond it.
 CREATE TABLE schema_version (version INTEGER NOT NULL);
-INSERT INTO schema_version (version) VALUES (52);
+INSERT INTO schema_version (version) VALUES (53);

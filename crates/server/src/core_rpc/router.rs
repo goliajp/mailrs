@@ -133,6 +133,10 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
             post(handlers::admin::set_account_password),
         )
         .route(
+            adm_paths::PATH_CLEAR_ACCOUNT_PASSWORD,
+            post(handlers::admin::clear_account_password),
+        )
+        .route(
             adm_paths::PATH_SET_MESSAGE_FLAGS,
             post(handlers::admin::set_message_flags),
         )

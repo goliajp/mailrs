@@ -119,9 +119,11 @@ pub async fn admin_middleware(
 /// Admin routes that show other people's mail traffic, what they read or
 /// how they sign in: the outbound queue and who it bounced at, the audit
 /// log and the audit reads of someone else's mailbox, sign-in events, and
-/// spam feedback per user. No single admin.* permission covers that, so
-/// only a super administrator may call them.
-const SUPER_ONLY: [&str; 6] = [
+/// spam feedback per user; and clearing passwords, which locks people out
+/// of their accounts. No single admin.* permission covers that, so only a
+/// super administrator may call them.
+const SUPER_ONLY: [&str; 7] = [
+    "/api/admin/password-clear",
     "/api/admin/queues",
     "/api/admin/suppressions",
     "/api/admin/audit-log",

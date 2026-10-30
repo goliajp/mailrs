@@ -11,17 +11,26 @@ const SCHEMA_SQL: &str = include_str!(concat!(
 ));
 
 /// The last migration [`SCHEMA_SQL`] includes.
-pub(crate) const SCHEMA_VERSION: i32 = 52;
+pub(crate) const SCHEMA_VERSION: i32 = 53;
 
 /// Migrations newer than the oldest database this binary still brings
 /// forward (migrate-051 records version 51), in order: `(version, sql)`.
-const MIGRATIONS: &[(i32, &str)] = &[(
-    52,
-    include_str!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../scripts/migrate-052-send-as-grants.sql"
-    )),
-)];
+const MIGRATIONS: &[(i32, &str)] = &[
+    (
+        52,
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../scripts/migrate-052-send-as-grants.sql"
+        )),
+    ),
+    (
+        53,
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../scripts/migrate-053-password-cleared.sql"
+        )),
+    ),
+];
 
 /// Make the database's schema the one this binary was built for.
 pub(crate) async fn ensure(pool: &BackendPool) -> Result<(), String> {

@@ -51,6 +51,9 @@ pub struct Account {
     pub created_at: i64,
     pub quota_bytes: i64,
     pub recovery_email: String,
+    /// When and by whom the password was cleared, until a new one is set.
+    pub password_cleared_at: Option<i64>,
+    pub password_cleared_by: Option<String>,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -197,6 +200,10 @@ impl<'de> serde::Deserialize<'de> for Account {
             quota_bytes: i64,
             #[serde(default)]
             recovery_email: String,
+            #[serde(default)]
+            password_cleared_at: Option<i64>,
+            #[serde(default)]
+            password_cleared_by: Option<String>,
         }
         let h = Helper::deserialize(deserializer)?;
         Ok(Account {
@@ -207,6 +214,8 @@ impl<'de> serde::Deserialize<'de> for Account {
             created_at: h.created_at,
             quota_bytes: h.quota_bytes,
             recovery_email: h.recovery_email,
+            password_cleared_at: h.password_cleared_at,
+            password_cleared_by: h.password_cleared_by,
         })
     }
 }
@@ -225,6 +234,8 @@ mod tests {
             created_at: 1700000000,
             quota_bytes: 1_073_741_824,
             recovery_email: String::new(),
+            password_cleared_at: None,
+            password_cleared_by: None,
         }
     }
 
@@ -305,6 +316,8 @@ mod tests {
             created_at: 1234567890,
             quota_bytes: 500_000_000,
             recovery_email: String::new(),
+            password_cleared_at: None,
+            password_cleared_by: None,
         };
         let json = serde_json::to_string(&account).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();

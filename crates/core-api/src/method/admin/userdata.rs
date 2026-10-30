@@ -21,6 +21,10 @@ pub const PATH_UPDATE_RECOVERY_EMAIL: &str = "/v1/admin/accounts/{address}/recov
 /// instead of the network kevy (which fastcore never reads).
 pub const PATH_SET_ACCOUNT_PASSWORD: &str = "/v1/admin/accounts/{address}/password";
 
+/// `POST /v1/admin/accounts/{address}/password:clear` — empty the hash and
+/// record when and by whom; 404 for an unknown account.
+pub const PATH_CLEAR_ACCOUNT_PASSWORD: &str = "/v1/admin/accounts/{address}/password:clear";
+
 /// `POST /v1/users/{user}/messages/{uid}/flags` — patch the flags
 /// bitmask on a message that lives in fastcore's embedded kevy. Used
 /// by webapi's update_flags / delete_message handlers.

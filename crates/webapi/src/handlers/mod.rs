@@ -7,6 +7,7 @@ pub mod admin_auth_events;
 pub mod admin_directory;
 pub mod admin_flow;
 pub mod admin_ops;
+pub mod admin_password_clear;
 pub mod ai;
 pub mod apps_keys;
 pub mod audit;

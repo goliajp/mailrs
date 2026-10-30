@@ -9272,6 +9272,191 @@
           }
         }
       }
+    },
+    "/api/admin/password-clear/preview": {
+      "post": {
+        "operationId": "previewPasswordClear",
+        "summary": "What clearing these accounts' passwords would cut off: sessions, agent keys, TOTP, external logins, SMTP password sign-ins in the last 7 days. Super administrators only",
+        "tags": [
+          "Admin"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "addresses"
+                ],
+                "properties": {
+                  "addresses": {
+                    "type": "array",
+                    "maxItems": 100,
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "One row per address, and whether anyone may hand out reset codes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "address": {
+                            "type": "string"
+                          },
+                          "exists": {
+                            "type": "boolean"
+                          },
+                          "cleared_at": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ]
+                          },
+                          "sessions": {
+                            "type": "integer"
+                          },
+                          "agent_keys": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {},
+                                "name": {
+                                  "type": "string"
+                                },
+                                "prefix": {
+                                  "type": "string"
+                                },
+                                "scopes": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "totp": {
+                            "type": "boolean"
+                          },
+                          "external_logins": {
+                            "type": "integer"
+                          },
+                          "smtp_password_logins_7d": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    },
+                    "issuers_configured": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a super administrator, or `confirm_required`: the password was not confirmed in the last ten minutes"
+          },
+          "400": {
+            "description": "No address"
+          },
+          "413": {
+            "description": "More than 100 addresses"
+          }
+        }
+      }
+    },
+    "/api/admin/password-clear": {
+      "post": {
+        "operationId": "clearPasswords",
+        "summary": "Clear these accounts' passwords and end their sessions; agent keys stay. Super administrators only",
+        "tags": [
+          "Admin"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "addresses"
+                ],
+                "properties": {
+                  "addresses": {
+                    "type": "array",
+                    "maxItems": 100,
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "`cleared` or `unknown` per address",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "address": {
+                            "type": "string"
+                          },
+                          "result": {
+                            "type": "string",
+                            "enum": [
+                              "cleared",
+                              "unknown"
+                            ]
+                          },
+                          "sessions_revoked": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a super administrator, or `confirm_required`: the password was not confirmed in the last ten minutes"
+          },
+          "400": {
+            "description": "No address"
+          },
+          "413": {
+            "description": "More than 100 addresses"
+          }
+        }
+      }
     }
   },
   "components": {
