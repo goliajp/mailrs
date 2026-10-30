@@ -4080,6 +4080,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-fetch"
+version = "0.0.0"
+dependencies = [
+ "axum",
+ "image",
+ "reqwest",
+ "tokio",
+ "url",
+]
+
+[[package]]
 name = "mailrs-fraud"
 version = "0.1.0"
 
