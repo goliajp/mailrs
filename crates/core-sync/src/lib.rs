@@ -38,11 +38,6 @@ pub struct SyncOpts {
     pub page_size: u32,
     /// Also enumerate + transfer archived threads (a second filtered pass).
     pub include_archived: bool,
-    /// Placeholder plaintext used for the initial `add_account` before the
-    /// real hash is written via `set_account_password`. Never authenticates:
-    /// it is always overwritten, by the source's argon2 hash or by an empty
-    /// one.
-    pub account_placeholder_pw: String,
     /// Read the source and the destination, write nothing, and report what a
     /// real run would move.
     ///
@@ -61,7 +56,6 @@ impl Default for SyncOpts {
         Self {
             page_size: 200,
             include_archived: true,
-            account_placeholder_pw: "sync-placeholder-never-used".to_string(),
             dry_run: false,
         }
     }
@@ -148,9 +142,11 @@ pub async fn sync(src: &Client, dst: &Client, opts: &SyncOpts) -> Result<SyncRep
     Ok(report)
 }
 
-/// Create one account on `dst` unless it is there: `add_account` with a placeholder
-/// password (needed because `add_account` hashes plaintext), then
-/// overwrite with the real hash via `set_account_password`.
+/// Create one account on `dst` unless it is there, with the source's
+/// stored hash; an account already there gets that hash written over its
+/// own. Only an argon2 hash moves: anything else (none, an empty one, a
+/// value stored in clear) arrives as no password, never as text the
+/// destination would be asked to compare.
 async fn sync_account(
     src: &Client,
     dst: &Client,
@@ -163,25 +159,6 @@ async fn sync_account(
     if opts.dry_run {
         return Ok(());
     }
-
-    // an account already on `dst` (a re-run) is kept as it is: creating it
-    // again answers 409 rather than resetting its quota and permissions
-    match dst
-        .add_account(&AddAccountRequest {
-            address: address.to_string(),
-            display_name: display_name.to_string(),
-            password: opts.account_placeholder_pw.clone(),
-        })
-        .await
-    {
-        Ok(()) | Err(CoreApiError::Conflict(_)) => {}
-        Err(e) => return Err(e),
-    }
-
-    // only an argon2 hash moves; anything else (none, an empty one, a value
-    // stored in clear) arrives as no password, never as the placeholder the
-    // account was made with or as text the destination would be asked to
-    // compare
     let stored = src
         .get_account_with_hash(address)
         .await?
@@ -191,9 +168,24 @@ async fn sync_account(
         true => stored,
         false => String::new(),
     };
-    dst.set_account_password(address, &SetPasswordRequest { password_hash })
-        .await?;
-    Ok(())
+    // an account already on `dst` (a re-run) keeps its quota and
+    // permissions: creating it again answers 409 rather than resetting them
+    match dst
+        .add_account(&AddAccountRequest {
+            address: address.to_string(),
+            display_name: display_name.to_string(),
+            password: String::new(),
+            password_hash: Some(password_hash.clone()),
+        })
+        .await
+    {
+        Ok(()) => Ok(()),
+        Err(CoreApiError::Conflict(_)) => {
+            dst.set_account_password(address, &SetPasswordRequest { password_hash })
+                .await
+        }
+        Err(e) => Err(e),
+    }
 }
 
 /// Enumerate a user's threads (paginated by `before_ts`) and deliver each

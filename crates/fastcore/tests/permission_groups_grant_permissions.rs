@@ -31,6 +31,7 @@ async fn create(core: &Client, address: &str) {
         address: address.into(),
         display_name: String::new(),
         password: "pw".into(),
+        password_hash: None,
     })
     .await
     .expect("create");

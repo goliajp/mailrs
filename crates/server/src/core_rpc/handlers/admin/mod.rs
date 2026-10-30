@@ -192,11 +192,16 @@ pub async fn add_account(
         Argon2, PasswordHasher,
         password_hash::{SaltString, rand_core::OsRng},
     };
-    let salt = SaltString::generate(&mut OsRng);
-    let hash = Argon2::default()
-        .hash_password(req.password.as_bytes(), &salt)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-        .to_string();
+    let hash = match req.initial_password().ok_or(StatusCode::BAD_REQUEST)? {
+        wire::InitialPassword::Hash(h) => h.to_string(),
+        wire::InitialPassword::Plain(plain) => {
+            let salt = SaltString::generate(&mut OsRng);
+            Argon2::default()
+                .hash_password(plain.as_bytes(), &salt)
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+                .to_string()
+        }
+    };
     let domain = req.address.rsplit_once('@').map(|(_, d)| d).unwrap_or("");
     // ensure the domain row exists so the accounts FK is satisfied —
     // domains are shared side-state (not synced), so a freshly-migrated

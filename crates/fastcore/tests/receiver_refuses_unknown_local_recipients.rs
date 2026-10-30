@@ -95,6 +95,7 @@ async fn unknown_local_recipients_are_refused_at_rcpt() {
             address: "bob@golia.example".into(),
             display_name: "Bob".into(),
             password: "pw".into(),
+            password_hash: None,
         })
         .await
         .unwrap();

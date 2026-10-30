@@ -34,6 +34,7 @@ fn create(address: &str, password: &str) -> adm::AddAccountRequest {
         address: address.into(),
         display_name: "Alice".into(),
         password: password.into(),
+        password_hash: None,
     }
 }
 

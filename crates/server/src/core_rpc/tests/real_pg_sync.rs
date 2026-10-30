@@ -174,6 +174,7 @@ async fn real_pg_bidirectional_sync() {
         address: user.into(),
         display_name: "Real".into(),
         password: "pw".into(),
+        password_hash: None,
     })
     .await
     .expect("add_account");

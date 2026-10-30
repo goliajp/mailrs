@@ -79,6 +79,7 @@ async fn a_tie_spanning_page_boundaries_is_fully_enumerated() {
         address: USER.into(),
         display_name: "Tie".into(),
         password: "pw".into(),
+        password_hash: None,
     })
     .await
     .expect("add_account");
@@ -152,6 +153,7 @@ async fn a_tie_larger_than_a_page_widens_the_window_rather_than_skipping() {
         address: USER.into(),
         display_name: "Tie".into(),
         password: "pw".into(),
+        password_hash: None,
     })
     .await
     .expect("add_account");
