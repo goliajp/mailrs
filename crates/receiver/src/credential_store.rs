@@ -21,6 +21,10 @@ pub trait CredentialStore: Send + Sync {
         Option<mailrs_core_api::method::admin::EffectivePermissionsResponse>,
         AccountStoreError,
     >;
+
+    /// Whether an administrator has cleared `address`'s password: `false`
+    /// for no such account.
+    async fn password_cleared(&self, address: &str) -> Result<bool, AccountStoreError>;
 }
 
 /// Reads `GET /v1/admin/accounts/{address}/credentials` from the core.
@@ -56,6 +60,14 @@ impl CredentialStore for CoreCredentialStore {
         match self.client.effective_permissions(address).await {
             Ok(p) => Ok(Some(p)),
             Err(mailrs_core_api::error::CoreApiError::NotFound(_)) => Ok(None),
+            Err(e) => Err(AccountStoreError::Backend(e.to_string())),
+        }
+    }
+
+    async fn password_cleared(&self, address: &str) -> Result<bool, AccountStoreError> {
+        match self.client.get_account_with_hash(address).await {
+            Ok(account) => Ok(account.public.password_cleared_at.is_some()),
+            Err(mailrs_core_api::error::CoreApiError::NotFound(_)) => Ok(false),
             Err(e) => Err(AccountStoreError::Backend(e.to_string())),
         }
     }

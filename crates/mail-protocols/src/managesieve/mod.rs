@@ -201,6 +201,10 @@ where
             tx.write_all(b"NO \"Authentication failed\"\r\n").await?;
             Ok(None)
         }
+        Err(Error::Refused(text)) => {
+            tx.write_all(refusal(&text).as_bytes()).await?;
+            Ok(None)
+        }
         Err(e) => {
             tx.write_all(store_error(&e).as_bytes()).await?;
             Ok(None)
@@ -272,6 +276,15 @@ fn answer(done: Result<(), Error>, ok: &str) -> String {
     match done {
         Ok(()) => ok.to_string(),
         Err(e) => store_error(&e),
+    }
+}
+
+/// `NO` with a refusal's text, its response code outside the quotes:
+/// `(TRYLATER) wait` becomes `NO (TRYLATER) "wait"`.
+fn refusal(text: &str) -> String {
+    match text.strip_prefix('(').and_then(|t| t.split_once(") ")) {
+        Some((code, rest)) => format!("NO ({code}) \"{}\"\r\n", sanitize(rest)),
+        None => format!("NO \"{}\"\r\n", sanitize(text)),
     }
 }
 

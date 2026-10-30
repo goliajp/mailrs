@@ -92,11 +92,6 @@ pub async fn start() -> Receiver {
     } else {
         tracing::info!(relays = ?cfg.trusted_relays, "trusted relays for our own mail");
     }
-    let signins = mailrs_auth_guard::signins::Signins::default();
-    let ended = signins.clone();
-    mailrs_core_sidestate::keys::signout::listen(cfg.kevy_url.clone(), move |account| {
-        ended.end(account);
-    });
     let ctx = Arc::new(ConnectionContext {
         hostname: cfg.hostname.clone(),
         tls_state,
@@ -124,8 +119,9 @@ pub async fn start() -> Receiver {
         inbound_pipeline,
         spam_lists_client: Some(kevy_client.clone()),
         spool_sink,
-        signins: signins.clone(),
+        signins: Default::default(),
     });
+    listen_for_signouts(&cfg.kevy_url, ctx.clone());
 
     crate::listeners::listen(ctx, &cfg).await
 }
@@ -191,4 +187,40 @@ async fn wait_for_shutdown() {
 #[cfg(not(unix))]
 async fn wait_for_shutdown() {
     let _ = tokio::signal::ctrl_c().await;
+}
+
+/// Close submission connections when their account's sign-ins end, and,
+/// each time the subscription is (re)made, those of accounts cleared while
+/// it was down.
+fn listen_for_signouts(kevy_url: &str, ctx: Arc<ConnectionContext>) {
+    let ended = ctx.signins.clone();
+    let runtime = tokio::runtime::Handle::current();
+    mailrs_core_sidestate::keys::signout::listen(
+        kevy_url.to_string(),
+        move |account| {
+            ended.end(account);
+        },
+        move || {
+            let ctx = ctx.clone();
+            runtime.spawn(async move { end_cleared(&ctx).await });
+        },
+    );
+}
+
+/// Close the submission connections of every account signed in here whose
+/// password has been cleared.
+pub(crate) async fn end_cleared(ctx: &ConnectionContext) {
+    let Some(credentials) = &ctx.credential_store else {
+        return;
+    };
+    for account in ctx.signins.accounts() {
+        if matches!(credentials.password_cleared(&account).await, Ok(true)) {
+            let closed = ctx.signins.end(&account);
+            tracing::info!(
+                account = %mailrs_auth_guard::login::loggable_account(&account),
+                closed,
+                "closed submission connections of an account signed out while unheard"
+            );
+        }
+    }
 }

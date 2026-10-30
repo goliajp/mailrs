@@ -42,12 +42,20 @@ pub(crate) fn spawn_mail_protocols(p: MailProtocols<'_>) {
     };
     let guard = mailrs_auth_guard::kevy::guard_for(dir.net_url.as_deref());
     let url = dir.net_url.clone();
-    let guarded = mailrs_mail_protocols::Guarded::new(Arc::new(dir), guard);
+    let guarded = Arc::new(mailrs_mail_protocols::Guarded::new(Arc::new(dir), guard));
     if let Some(url) = url {
         let signins = guarded.signed_in();
-        mailrs_core_sidestate::keys::signout::listen(url, move |account| {
-            signins.end(account);
-        });
+        let (dir, runtime) = (guarded.clone(), tokio::runtime::Handle::current());
+        mailrs_core_sidestate::keys::signout::listen(
+            url,
+            move |account| {
+                signins.end(account);
+            },
+            move || {
+                let dir = dir.clone();
+                runtime.spawn(async move { mailrs_mail_protocols::end_cleared(&dir).await });
+            },
+        );
     }
-    mailrs_mail_protocols::spawn_all(Arc::new(guarded), p.tls_state.clone());
+    mailrs_mail_protocols::spawn_all(guarded, p.tls_state.clone());
 }
