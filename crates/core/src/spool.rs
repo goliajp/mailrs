@@ -35,6 +35,12 @@ pub struct SpoolEnvelope {
     pub forward_paths: Vec<String>,
     /// whether the session authenticated (submission). Gates relay in the core.
     pub is_authenticated: bool,
+    /// The account the session signed in as, for a submission. Outbound
+    /// mail is counted and paused by it rather than by MAIL FROM, which
+    /// may be any of the account's send-as addresses. `#[serde(default)]`
+    /// for the same reason as `fraud_verdict`.
+    #[serde(default)]
+    pub auth_user: Option<String>,
     /// connection id (observability / event correlation).
     pub conn_id: u64,
     /// folder the antispam verdict routed to ("INBOX" or "Junk"). Carried so the
@@ -150,6 +156,7 @@ mod tests {
             reverse_path: "sender@example.com".into(),
             forward_paths: vec!["alice@smk.ai".into(), "bob@smk.ai".into()],
             is_authenticated: false,
+            auth_user: None,
             conn_id: 42,
             target_folder: "INBOX".into(),
             received_at: 1_781_500_000,

@@ -40,6 +40,7 @@ pub fn enqueue_security_alert(to: &str, from: &str, body: &[u8]) -> std::io::Res
             scheduled_at: None,
             original_sender: None,
             send_id: None,
+            account: None,
         },
         now(),
     )?;
@@ -83,6 +84,7 @@ pub fn enqueue_redirect(
             original_sender: Some(reverse_path),
             // a forward carries mail the user did not write
             send_id: None,
+            account: None,
         },
         now(),
     )?;
@@ -92,7 +94,12 @@ pub fn enqueue_redirect(
 /// One outbound job for `rcpt`. The envelope sender is the submitting
 /// user's own address, so there is no SRS rewrite as there is for a
 /// forward.
-pub fn enqueue_submission(sender: &str, rcpt: &str, body: &[u8]) -> std::io::Result<()> {
+pub fn enqueue_submission(
+    sender: &str,
+    account: Option<&str>,
+    rcpt: &str,
+    body: &[u8],
+) -> std::io::Result<()> {
     let mut conn = connect()?;
     let b64_body = base64::engine::general_purpose::STANDARD.encode(body);
     let sender = sender.trim().trim_matches(['<', '>']);
@@ -106,6 +113,7 @@ pub fn enqueue_submission(sender: &str, rcpt: &str, body: &[u8]) -> std::io::Res
             original_sender: None,
             // composed in a mail client, not in the web UI's Send list
             send_id: None,
+            account,
         },
         now(),
     )?;

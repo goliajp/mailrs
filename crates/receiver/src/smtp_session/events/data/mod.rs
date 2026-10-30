@@ -39,19 +39,14 @@ where
     }
     framed.codec_mut().enter_data_mode();
 
-    // check if sender is authenticated (needed for outbound)
-    let is_authenticated = matches!(
-        session.state,
-        State::Authenticated { .. }
-            | State::MailFrom {
-                username: Some(_),
-                ..
-            }
-            | State::RcptTo {
-                username: Some(_),
-                ..
-            }
-    );
+    // the signed-in account, for a submission: outbound mail is counted
+    // and paused by it, whichever address the mail is sent from
+    let auth_user = match &session.state {
+        State::Authenticated { username, .. } => Some(username.clone()),
+        State::MailFrom { username, .. } | State::RcptTo { username, .. } => username.clone(),
+        _ => None,
+    };
+    let is_authenticated = auth_user.is_some();
 
     match tokio::time::timeout(DATA_TIMEOUT, framed.next()).await {
         Ok(Some(Ok(SmtpInput::Data(raw)))) => {
@@ -107,7 +102,7 @@ where
                 framed,
                 &reverse_path,
                 &forward_paths,
-                is_authenticated,
+                auth_user,
                 conn_id,
                 target_folder,
                 fraud_verdict,

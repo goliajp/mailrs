@@ -64,6 +64,7 @@ fn submission_to(spool: &std::path::Path, rcpt: &str) {
         reverse_path: "alice@golia.example".into(),
         forward_paths: vec![rcpt.into()],
         is_authenticated: true,
+        auth_user: None,
         conn_id: 1,
         target_folder: "INBOX".into(),
         received_at: 1,

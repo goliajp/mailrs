@@ -102,6 +102,7 @@ pub(crate) fn enqueue_outbound_at(
                     scheduled_at: send_at,
                     original_sender: None,
                     send_id: send_id_c.as_deref(),
+                    account: None,
                 },
                 created,
             )
@@ -176,6 +177,7 @@ pub(crate) fn enqueue_security_alert(
                     scheduled_at: None,
                     original_sender: None,
                     send_id: None,
+                    account: None,
                 },
                 now,
             )

@@ -49,6 +49,10 @@ pub struct FreshPending<'a> {
     /// generated mail — tls-rpt reports, bounce DSNs, sieve redirects —
     /// which must not appear in anyone's Send list.
     pub send_id: Option<&'a str>,
+    /// The signed-in account that sent it, when that is not `sender`: an
+    /// SMTP submission's MAIL FROM may be any of the account's send-as
+    /// addresses. The sender counts and pauses by this when present.
+    pub account: Option<&'a str>,
 }
 
 /// Allocate an id and write a fresh pending job; returns the id.
@@ -92,6 +96,7 @@ fn write_pending(
         scheduled_at,
         original_sender,
         send_id,
+        account,
     } = *job;
     let id = conn.incr(COUNTER)?;
     let row = OutboundMessageWire {
@@ -109,7 +114,7 @@ fn write_pending(
         updated_at: now,
         send_id: send_id.map(String::from),
     };
-    let blob = row_blob(&row, kind);
+    let blob = row_blob(&row, kind, account);
     let job_k = job_key(id);
     let id_str = id.to_string();
     let now_str = now.to_string();
@@ -173,7 +178,7 @@ pub fn requeue_pending(
 }
 
 /// Serialize a queue row's blob field the way the sender consumes it.
-fn row_blob(row: &OutboundMessageWire, kind: Option<&str>) -> String {
+fn row_blob(row: &OutboundMessageWire, kind: Option<&str>, account: Option<&str>) -> String {
     let mut blob = serde_json::json!({
         "id": row.id, "sender": row.sender, "recipient": row.recipient,
         "original_sender": row.original_sender,
@@ -188,6 +193,9 @@ fn row_blob(row: &OutboundMessageWire, kind: Option<&str>) -> String {
     });
     if let Some(kind) = kind {
         blob["kind"] = kind.into();
+    }
+    if let Some(account) = account {
+        blob["account"] = account.to_ascii_lowercase().into();
     }
     blob.to_string()
 }
