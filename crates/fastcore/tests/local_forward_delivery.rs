@@ -57,6 +57,7 @@ impl World {
             reverse_path: "sender@example.org".into(),
             forward_paths: vec![to.into()],
             is_authenticated: false,
+            auth_user: None,
             conn_id: 1,
             target_folder: "INBOX".into(),
             received_at: 1,

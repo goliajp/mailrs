@@ -9,6 +9,7 @@ fn spool_file(dir: &std::path::Path, name: &str, age: Duration) {
         reverse_path: "forged@example.org".into(),
         forward_paths: vec!["nobody@aging.example".into()],
         is_authenticated: false,
+        auth_user: None,
         conn_id: 1,
         target_folder: "INBOX".into(),
         received_at: 1,

@@ -64,6 +64,7 @@ async fn a_paused_account_is_told_and_an_administrator_releases_it() {
             scheduled_at: None,
             original_sender: None,
             send_id: None,
+            account: None,
         },
         1_000,
     )

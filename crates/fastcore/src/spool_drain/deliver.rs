@@ -22,6 +22,7 @@ mod tests {
             reverse_path: "alice@example.com".into(),
             forward_paths: forward_paths.iter().map(|s| s.to_string()).collect(),
             is_authenticated: false,
+            auth_user: None,
             conn_id: 1,
             target_folder: "INBOX".into(),
             received_at: 42,
