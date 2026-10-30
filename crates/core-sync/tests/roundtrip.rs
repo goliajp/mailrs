@@ -217,3 +217,49 @@ async fn sync_dedupes_on_blob_ref_not_message_id() {
     );
     assert_eq!(r2.messages_skipped_dupe, 2, "both skipped by blob_ref");
 }
+
+/// Only an argon2 hash crosses. An account with no usable password on the
+/// source (an empty hash, which is what clearing leaves, or a value stored
+/// in clear) arrives with an empty one: not with the placeholder it was
+/// created with, and not with text the destination would compare.
+#[tokio::test]
+async fn only_an_argon2_hash_crosses() {
+    use mailrs_core_api::method::admin::SetPasswordRequest;
+    let (a, b) = (client(&spawn_core().await), client(&spawn_core().await));
+    for (user, stored) in [
+        ("hashed@test", None),
+        ("blank@test", Some("")),
+        ("clear@test", Some("clear-text-1")),
+    ] {
+        a.add_account(&AddAccountRequest {
+            address: user.into(),
+            display_name: String::new(),
+            password: "a-real-password-1".into(),
+        })
+        .await
+        .unwrap();
+        if let Some(stored) = stored {
+            a.set_account_password(
+                user,
+                &SetPasswordRequest {
+                    password_hash: stored.into(),
+                },
+            )
+            .await
+            .unwrap();
+        }
+    }
+    sync(&a, &b, &SyncOpts::default()).await.unwrap();
+    let hash = |c: Client, user: &'static str| async move {
+        c.get_account_with_hash(user)
+            .await
+            .unwrap()
+            .password_hash
+            .unwrap_or_default()
+    };
+    let source = hash(a.clone(), "hashed@test").await;
+    assert!(source.starts_with("$argon2"), "{source}");
+    assert_eq!(hash(b.clone(), "hashed@test").await, source);
+    assert_eq!(hash(b.clone(), "blank@test").await, "");
+    assert_eq!(hash(b.clone(), "clear@test").await, "");
+}
