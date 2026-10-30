@@ -45,6 +45,7 @@ mod params;
 mod params_greylist;
 mod scopes;
 mod tools_mock;
+mod tools_v1_compose;
 mod tools_v1_read;
 mod tools_v1_write;
 mod tools_v2_batch1;
@@ -91,6 +92,7 @@ impl MailrsMcpService {
     fn tool_router() -> ToolRouter<Self> {
         Self::tool_router_v1_read()
             + Self::tool_router_v1_write()
+            + Self::tool_router_v1_compose()
             + Self::tool_router_v2_batch1()
             + Self::tool_router_v2_batch2()
             + Self::tool_router_v2_batch3()
