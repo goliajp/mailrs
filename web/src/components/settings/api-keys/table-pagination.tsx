@@ -1,5 +1,7 @@
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
 
+import { useT } from '@/i18n'
+
 /** Footer pager. Hidden entirely when everything fits on one page. */
 export function TablePagination({
   onPageChange,
@@ -16,10 +18,11 @@ export function TablePagination({
   rangeStart: number
   total: number
 }) {
+  const t = useT()
   if (pages <= 1) {
     return (
       <p className="text-fg-muted text-xs tabular-nums">
-        Showing {total} of {total}
+        {t('settings.pager.showingAll', { total })}
       </p>
     )
   }
@@ -27,30 +30,38 @@ export function TablePagination({
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
       <p className="text-fg-muted text-xs tabular-nums">
-        Showing {rangeStart}–{rangeEnd} of {total}
+        {t('settings.pager.showing', { end: rangeEnd, start: rangeStart, total })}
       </p>
-      <nav aria-label="Pagination" className="flex items-center gap-1">
-        <PageButton disabled={page === 1} label="First page" onClick={() => onPageChange(1)}>
+      <nav aria-label={t('settings.pager.label')} className="flex items-center gap-1">
+        <PageButton
+          disabled={page === 1}
+          label={t('settings.pager.first')}
+          onClick={() => onPageChange(1)}
+        >
           <ChevronsLeft aria-hidden className="h-4 w-4" />
         </PageButton>
         <PageButton
           disabled={page === 1}
-          label="Previous page"
+          label={t('settings.pager.previous')}
           onClick={() => onPageChange(page - 1)}
         >
           <ChevronLeft aria-hidden className="h-4 w-4" />
         </PageButton>
         <span className="text-fg-secondary px-2 text-xs tabular-nums">
-          Page {page} / {pages}
+          {t('settings.pager.page', { page, pages })}
         </span>
         <PageButton
           disabled={page === pages}
-          label="Next page"
+          label={t('settings.pager.next')}
           onClick={() => onPageChange(page + 1)}
         >
           <ChevronRight aria-hidden className="h-4 w-4" />
         </PageButton>
-        <PageButton disabled={page === pages} label="Last page" onClick={() => onPageChange(pages)}>
+        <PageButton
+          disabled={page === pages}
+          label={t('settings.pager.last')}
+          onClick={() => onPageChange(pages)}
+        >
           <ChevronsRight aria-hidden className="h-4 w-4" />
         </PageButton>
       </nav>
