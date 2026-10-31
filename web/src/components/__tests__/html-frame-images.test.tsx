@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { markRemoteImage } from '@/lib/remote-images'
-import { remoteImagesAtom } from '@/store/settings'
+import { imageSendersAtom, remoteImagesAtom } from '@/store/settings'
 import { wirePrefetchThreadImages } from '@/wire/endpoints/mail'
 
 import { HtmlFrame } from '../html-frame'
@@ -139,5 +139,45 @@ describe('the remote images setting', () => {
     img.dispatchEvent(new Event('error'))
     fireEvent.click(await screen.findByText('Show images anyway'))
     expect(wirePrefetchThreadImages).toHaveBeenCalledWith('t-j', true)
+  })
+})
+
+describe('senders whose images always show', () => {
+  afterEach(() => {
+    cleanup()
+    localStorage.clear()
+  })
+
+  function frame(store: ReturnType<typeof createStore>, from?: string) {
+    return render(
+      <Provider store={store}>
+        <HtmlFrame html='<img src="https://news.example/x.png" alt="n">' imagesFrom={from} />
+      </Provider>
+    )
+  }
+
+  it('a remembered, authenticated sender shows images under On click', async () => {
+    const store = createStore()
+    store.set(remoteImagesAtom, 'click')
+    store.set(imageSendersAtom, 'News@Shop.example')
+    const { container } = frame(store, 'news@shop.example')
+    const root = container.querySelector<HTMLElement>('div:last-child')!.shadowRoot!
+    await vi.waitFor(() =>
+      expect(root.querySelector('img[alt="n"]')!.getAttribute('src')).toContain('/api/mail/image/')
+    )
+  })
+
+  it('the reader can remember the sender, and nothing is offered without one', async () => {
+    const store = createStore()
+    store.set(remoteImagesAtom, 'click')
+    frame(store, 'deals@shop.example')
+    fireEvent.click(screen.getByText('Always show from deals@shop.example'))
+    expect(store.get(imageSendersAtom)).toContain('deals@shop.example')
+    expect(JSON.parse(localStorage.getItem('mailrs_image_senders') ?? '[]')).toContain(
+      'deals@shop.example'
+    )
+    cleanup()
+    frame(store)
+    expect(screen.queryByText(/Always show from/)).toBeNull()
   })
 })

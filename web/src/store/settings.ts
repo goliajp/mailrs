@@ -109,3 +109,32 @@ export const remoteImagesAtom = atom(
     set(baseRemoteImagesAtom, value)
   }
 )
+
+// --- senders whose images always show ---
+//
+// Under "On click", the senders the reader said to always show images
+// from. Only honoured for mail that passed sender authentication, or anyone
+// could borrow the address to have images load.
+
+const IMAGE_SENDERS_KEY = 'mailrs_image_senders'
+
+function loadImageSenders(): string[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(IMAGE_SENDERS_KEY) ?? '[]')
+    if (Array.isArray(raw)) return raw.filter((s): s is string => typeof s === 'string')
+  } catch {
+    // a value written by hand that does not parse is no list
+  }
+  return []
+}
+
+const baseImageSendersAtom = atom<string[]>(loadImageSenders())
+
+export const imageSendersAtom = atom(
+  (get) => get(baseImageSendersAtom),
+  (get, set, sender: string) => {
+    const next = [...new Set([...get(baseImageSendersAtom), sender.toLowerCase()])]
+    localStorage.setItem(IMAGE_SENDERS_KEY, JSON.stringify(next))
+    set(baseImageSendersAtom, next)
+  }
+)

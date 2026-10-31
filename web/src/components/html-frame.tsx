@@ -1,14 +1,14 @@
 import type { AttachmentInfo } from '@/lib/types'
 
 import DOMPurify from 'dompurify'
-import { useAtomValue } from 'jotai'
+import { useAtom, useAtomValue } from 'jotai'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { ImagesHeldNote, ImagesHiddenNote } from '@/components/images-note'
 import { cjkFonts, cjkLang, injectCjkFonts } from '@/lib/cjk-fonts'
 import { fitHeight, fitScale, shouldReflowTable } from '@/lib/fit-to-width'
 import { markRemoteImage, reload, showPrefetched, watchMissing } from '@/lib/remote-images'
-import { remoteImagesAtom } from '@/store/settings'
+import { imageSendersAtom, remoteImagesAtom } from '@/store/settings'
 import { wirePrefetchThreadImages } from '@/wire/endpoints/mail'
 
 // HTML attribute values arrive with entity-encoded specials, e.g. LinkedIn
@@ -237,6 +237,7 @@ const RETRY_MS = [4_000, 12_000, 30_000]
 export function HtmlFrame({
   attachments,
   html,
+  imagesFrom,
   imagesOf,
   maxHeight,
   uid,
@@ -255,6 +256,11 @@ export function HtmlFrame({
    * copy of (mail from before images were fetched on arrival) is fetched
    * on request and loaded again.
    */
+  /**
+   * The sender, when the message passed sender authentication: "On click"
+   * can then remember them. Absent for anything else.
+   */
+  imagesFrom?: string
   imagesOf?: string
   maxHeight?: string
   /** Message uid — needed to construct the attachment URL. */
@@ -263,6 +269,8 @@ export function HtmlFrame({
   const hostRef = useRef<HTMLDivElement>(null)
   const [imagesHeld, setImagesHeld] = useState(false)
   const remoteImages = useAtomValue(remoteImagesAtom)
+  const [imageSenders, trustSender] = useAtom(imageSendersAtom)
+  const trusted = !!imagesFrom && imageSenders.includes(imagesFrom.toLowerCase())
   // the message the reader asked to see the images of; a new message starts hidden again
   const [shownFor, setShownFor] = useState<null | string>(null)
   const missingRef = useRef<HTMLImageElement[]>([])
@@ -278,7 +286,8 @@ export function HtmlFrame({
     () => (sanitized.match(/data-remote-src=/g) ?? []).length,
     [sanitized]
   )
-  const shown = remoteImages === 'auto' || (remoteImages === 'click' && shownFor === sanitized)
+  const shown =
+    remoteImages === 'auto' || (remoteImages === 'click' && (shownFor === sanitized || trusted))
 
   useEffect(() => {
     const host = hostRef.current
@@ -434,7 +443,12 @@ export function HtmlFrame({
     <>
       {imagesHeld && <ImagesHeldNote onShow={showAnyway} />}
       {!shown && remoteCount > 0 && (
-        <ImagesHiddenNote mode={remoteImages} onShow={() => setShownFor(sanitized)} />
+        <ImagesHiddenNote
+          mode={remoteImages}
+          onShow={() => setShownFor(sanitized)}
+          onTrust={imagesFrom ? () => trustSender(imagesFrom) : undefined}
+          sender={imagesFrom}
+        />
       )}
       <div
         // `overflow-x: auto` rather than nothing: a message past the fit

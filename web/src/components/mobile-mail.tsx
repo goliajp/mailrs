@@ -22,6 +22,7 @@ import { useThreadQuery } from '@/hooks/use-mail-queries'
 import { useMarkReadOnOpen } from '@/hooks/use-mark-read-on-open'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { formatDate, formatFullDate } from '@/lib/format'
+import { verifiedSender } from '@/lib/sender-identity'
 import { authAtom } from '@/store/auth'
 import { mobileViewAtom, selectedDomainsAtom } from '@/store/ui'
 
@@ -339,6 +340,7 @@ function MobileThreadView() {
               <MessageBubble
                 attachments={selectedMsg.attachments}
                 htmlBody={selectedMsg.html_body}
+                imagesFrom={verifiedSender(selectedMsg)}
                 imagesOf={selectedId ?? undefined}
                 isOwn={extractEmail(selectedMsg.sender) === myEmail}
                 textBody={selectedMsg.text_body}
