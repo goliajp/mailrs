@@ -4,6 +4,7 @@ import type { ThemeMode } from '@goliapkg/gds'
 import { useAtom } from 'jotai'
 import { useCallback, useState } from 'react'
 
+import { type Key, useT } from '@/i18n'
 import {
   hideSuspectedFraudAtom,
   notificationsAtom,
@@ -15,19 +16,20 @@ import { themeModeAtom } from '@/store/theme'
 import { cardClass, Field, SectionHeader, Toggle } from './_shared'
 import { LanguageField } from './language-field'
 
-const REMOTE_IMAGE_OPTIONS: { label: string; value: RemoteImages }[] = [
-  { label: 'Show', value: 'auto' },
-  { label: 'On click', value: 'click' },
-  { label: 'Never', value: 'never' },
+const REMOTE_IMAGE_OPTIONS: { label: Key; value: RemoteImages }[] = [
+  { label: 'settings.appearance.images.show', value: 'auto' },
+  { label: 'settings.appearance.images.click', value: 'click' },
+  { label: 'settings.appearance.images.never', value: 'never' },
 ]
 
-const THEME_OPTIONS: { label: string; value: ThemeMode }[] = [
-  { label: 'Light', value: 'light' },
-  { label: 'Dark', value: 'dark' },
-  { label: 'System', value: 'system' },
+const THEME_OPTIONS: { label: Key; value: ThemeMode }[] = [
+  { label: 'settings.appearance.theme.light', value: 'light' },
+  { label: 'settings.appearance.theme.dark', value: 'dark' },
+  { label: 'settings.appearance.theme.system', value: 'system' },
 ]
 
 export function AppearanceSection() {
+  const t = useT()
   const [theme, setTheme] = useAtom(themeModeAtom)
   const [notifications, setNotifications] = useAtom(notificationsAtom)
   const [notificationSound, setNotificationSound] = useAtom(notificationSoundAtom)
@@ -39,36 +41,36 @@ export function AppearanceSection() {
     async (enabled: boolean) => {
       // iOS Safari (non-PWA) has no Notification API at all
       if (enabled && !('Notification' in window)) {
-        setNotificationError('Browser notifications are not supported on this device.')
+        setNotificationError(t('settings.appearance.notifyUnsupported'))
         return
       }
       if (enabled && Notification.permission === 'default') {
         const result = await Notification.requestPermission()
         if (result === 'denied') {
-          setNotificationError('Browser notifications were denied.')
+          setNotificationError(t('settings.appearance.notifyDenied'))
           return
         }
       }
       if (enabled && Notification.permission === 'denied') {
-        setNotificationError('Browser notifications are blocked.')
+        setNotificationError(t('settings.appearance.notifyBlocked'))
         return
       }
       setNotificationError(null)
       setNotifications(enabled)
     },
-    [setNotifications]
+    [setNotifications, t]
   )
 
   return (
     <div className="space-y-6">
-      <SectionHeader title="Appearance" />
+      <SectionHeader title={t('settings.cat.appearance')} />
 
       <div className={cardClass}>
         <LanguageField />
       </div>
 
       <div className={cardClass}>
-        <Field label="Theme">
+        <Field label={t('settings.appearance.theme')}>
           <div className="flex gap-1">
             {THEME_OPTIONS.map((opt) => (
               <button
@@ -81,7 +83,7 @@ export function AppearanceSection() {
                 key={opt.value}
                 onClick={() => setTheme(opt.value)}
               >
-                {opt.label}
+                {t(opt.label)}
               </button>
             ))}
           </div>
@@ -90,13 +92,13 @@ export function AppearanceSection() {
 
       <div className={cardClass}>
         <div className="space-y-3">
-          <Field label="Browser notifications">
+          <Field label={t('settings.appearance.notifications')}>
             <div className="flex flex-col items-end gap-1">
               <Toggle checked={notifications} onChange={(v) => handleNotificationToggle(v)} />
               {notificationError && <p className="text-danger text-xs">{notificationError}</p>}
             </div>
           </Field>
-          <Field label="Notification sound">
+          <Field label={t('settings.appearance.sound')}>
             <Toggle checked={notificationSound} onChange={setNotificationSound} />
           </Field>
         </div>
@@ -104,7 +106,7 @@ export function AppearanceSection() {
 
       <div className={cardClass}>
         <div className="space-y-1">
-          <Field label="Images in mail">
+          <Field label={t('settings.appearance.images')}>
             <div className="flex gap-1">
               {REMOTE_IMAGE_OPTIONS.map((opt) => (
                 <button
@@ -113,33 +115,25 @@ export function AppearanceSection() {
                   key={opt.value}
                   onClick={() => setRemoteImages(opt.value)}
                 >
-                  {opt.label}
+                  {t(opt.label)}
                 </button>
               ))}
             </div>
           </Field>
-          <p className="text-fg-muted text-xs">
-            Images never load from the sender&apos;s server: this server fetches a copy when mail
-            arrives, which tells the sender only that it was delivered, not whether or when you read
-            it. Mail in Junk or held for review never shows images unless you ask.
-          </p>
+          <p className="text-fg-muted text-xs">{t('settings.appearance.imagesHelp')}</p>
         </div>
       </div>
 
       <div className={cardClass}>
         <div className="space-y-1">
-          <Field label="Hide suspected fraud">
+          <Field label={t('settings.appearance.hideFraud')}>
             <Toggle checked={hideSuspectedFraud} onChange={setHideSuspectedFraud} />
           </Field>
           {/* Said plainly, because the alternative reading — that
               turning this off deletes less, or that turning it on
               deletes more — is the one a person would reasonably
               assume. Nothing here throws mail away. */}
-          <p className="text-fg-muted text-xs">
-            Conversations the receive pipeline judged to be an attempt to defraud you are kept out
-            of the ordinary lists. Turning this off shows them in place, marked. Either way they are
-            listed under Review, and nothing is deleted.
-          </p>
+          <p className="text-fg-muted text-xs">{t('settings.appearance.hideFraudHelp')}</p>
         </div>
       </div>
     </div>

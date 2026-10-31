@@ -2,6 +2,8 @@ import { toast } from '@goliapkg/gds'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 
+import { type Key, useT } from '@/i18n'
+import { errorText } from '@/lib/error-text'
 import { queryClient } from '@/lib/query-client'
 import {
   type SenderListName,
@@ -12,18 +14,9 @@ import {
 
 import { btnPrimary, btnSecondary, cardClass, inputClass, SectionHeader } from './_shared'
 
-const LISTS: { blurb: string; name: SenderListName; title: string }[] = [
-  {
-    blurb:
-      'Marking a conversation as not junk adds its sender here. Mail from these addresses skips the spam filter.',
-    name: 'whitelist',
-    title: 'Always allowed',
-  },
-  {
-    blurb: 'Mail from these addresses is treated as junk on arrival.',
-    name: 'blacklist',
-    title: 'Always blocked',
-  },
+const LISTS: { blurb: Key; name: SenderListName; title: Key }[] = [
+  { blurb: 'settings.senders.allowedBlurb', name: 'whitelist', title: 'settings.senders.allowed' },
+  { blurb: 'settings.senders.blockedBlurb', name: 'blacklist', title: 'settings.senders.blocked' },
 ]
 
 const sendersKey = (list: SenderListName) => ['settings', 'senders', list] as const
@@ -48,15 +41,8 @@ export function SendersSection() {
   )
 }
 
-function SenderList({
-  blurb,
-  name,
-  title,
-}: {
-  blurb: string
-  name: SenderListName
-  title: string
-}) {
+function SenderList({ blurb, name, title }: { blurb: Key; name: SenderListName; title: Key }) {
+  const t = useT()
   const { data: entries = [] } = useQuery({
     queryKey: sendersKey(name),
     queryFn: () => wireListSenders(name).then((rows) => [...rows].sort()),
@@ -75,7 +61,7 @@ function SenderList({
       setAdding('')
       void invalidate()
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Could not add that address')
+      toast.error(errorText(e, t('settings.senders.addFailed')))
     } finally {
       setBusy(false)
     }
@@ -86,35 +72,35 @@ function SenderList({
       await wireRemoveSender(name, address)
       void invalidate()
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Could not remove that address')
+      toast.error(errorText(e, t('settings.senders.removeFailed')))
     }
   }
 
   return (
     <section className={cardClass}>
-      <SectionHeader title={title} />
-      <p className="text-fg-muted mb-3 text-sm">{blurb}</p>
+      <SectionHeader title={t(title)} />
+      <p className="text-fg-muted mb-3 text-sm">{t(blurb)}</p>
       <div className="mb-3 flex gap-2">
         <input
-          aria-label={`Address to add to ${title}`}
+          aria-label={t('settings.senders.addTo', { list: t(title) })}
           className={inputClass}
           onChange={(e) => setAdding(e.target.value)}
           placeholder="someone@example.com"
           value={adding}
         />
         <button className={btnPrimary} disabled={busy || !adding.trim()} onClick={() => void add()}>
-          Add
+          {t('settings.senders.add')}
         </button>
       </div>
       {entries.length === 0 ? (
-        <p className="text-fg-muted text-sm">No addresses.</p>
+        <p className="text-fg-muted text-sm">{t('settings.senders.empty')}</p>
       ) : (
         <ul className="divide-border divide-y">
           {entries.map((address) => (
             <li className="flex items-center justify-between py-2" key={address}>
               <span className="text-fg text-sm">{address}</span>
               <button className={btnSecondary} onClick={() => void remove(address)}>
-                Remove
+                {t('settings.senders.remove')}
               </button>
             </li>
           ))}

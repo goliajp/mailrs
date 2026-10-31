@@ -1,4 +1,5 @@
 import { MobileModal } from '@/components/mobile-modal'
+import { useT } from '@/i18n'
 
 // shared types reused by multiple sections — colocated here so the section
 // files don't import each other for type-only references.
@@ -94,16 +95,17 @@ export function ConfirmDialog({
   onCancel: () => void
   onConfirm: () => void
 }) {
+  const t = useT()
   return (
     <MobileModal onClose={onCancel} open>
       <div className="bg-surface w-full max-w-sm rounded-lg p-6 shadow-lg">
         <p className="text-fg-secondary mb-4 text-sm">{message}</p>
         <div className="flex justify-end gap-2">
           <button className={btnSecondary} onClick={onCancel} type="button">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button className={btnDanger} onClick={onConfirm} type="button">
-            Confirm
+            {t('common.confirm')}
           </button>
         </div>
       </div>
