@@ -165,6 +165,32 @@ fn alert_addresses() -> Option<(String, Vec<String>)> {
     Some((from, to))
 }
 
+/// A source locked out for failed sign-ins becomes a sign-in-guard
+/// observation, which the screening rules weigh while it is recent. Each
+/// alert is taken from the queue once, so each lockout is recorded once.
+fn record_lockouts(alerts: &[mailrs_auth_guard::alerts::Alert]) {
+    use mailrs_auth_guard::alerts::Kind;
+    for a in alerts.iter().filter(|a| a.kind == Kind::SourceLocked) {
+        let o = mailrs_reputation::Observation {
+            id: String::new(),
+            at: i64::try_from(a.at).unwrap_or(i64::MAX),
+            source: mailrs_reputation::Source::LoginGuard,
+            kind: mailrs_reputation::Kind::Ip,
+            value: a.subject.clone(),
+            stance: mailrs_reputation::Stance::Deny,
+            retracts: None,
+            reason: a.detail.clone(),
+            actor: None,
+        };
+        let recorded = crate::handlers::kevy_util::with_kevy(move |c| {
+            mailrs_core_sidestate::families::screening::add_observation(c, o)
+        });
+        if recorded.is_err() {
+            tracing::warn!(source = %a.subject, "a lockout was not recorded as an observation");
+        }
+    }
+}
+
 async fn mail_alerts(from: &str, to: &[String]) {
     let alerts = match GUARD.take_alerts(ALERTS_PER_MAIL).await {
         Ok(a) if a.is_empty() => return,
@@ -174,6 +200,7 @@ async fn mail_alerts(from: &str, to: &[String]) {
             return;
         }
     };
+    record_lockouts(&alerts);
     let host = std::env::var("MAILRS_HOSTNAME").unwrap_or_else(|_| "mailrs".into());
     let now = crate::handlers::complete::now_secs().max(0) as u64;
     let mail = crate::security_mail::render(

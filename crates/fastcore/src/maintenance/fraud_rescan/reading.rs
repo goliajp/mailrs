@@ -37,7 +37,7 @@ pub(in crate::maintenance) fn raw_for_message(
 }
 
 /// The raw bytes of a thread's newest message, from this user's copy.
-pub(super) fn newest_raw(
+pub(in crate::maintenance) fn newest_raw(
     state: &Arc<FastcoreState>,
     user: &str,
     tid: &str,
@@ -104,7 +104,7 @@ pub(super) fn newest_raw(
 /// RFC 5322 §2.2.3: a line beginning with space or tab continues the
 /// previous field. Joined with a single space, which is what
 /// unfolding means for a structured value.
-pub(super) fn header_value(raw: &[u8], name_lower: &[u8]) -> Option<String> {
+pub(in crate::maintenance) fn header_value(raw: &[u8], name_lower: &[u8]) -> Option<String> {
     let head = &raw[..raw.len().min(16 * 1024)];
     let text = String::from_utf8_lossy(head);
     let name = String::from_utf8_lossy(name_lower);

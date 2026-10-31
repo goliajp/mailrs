@@ -188,8 +188,10 @@ fn compare(baseline: &str, candidate: &str, root: &str, limit: usize) -> Result<
             shown_links: &shown_links,
             link_has_kit_placeholder: mailrs_inbound::body::link_has_kit_placeholder(&parsed),
             is_bulk: mailrs_inbound::body::is_bulk(&raw),
-            has_executable_attachment: mailrs_fraud::attachment::any_executable(
-                parsed.attachments().filter_map(|p| p.attachment_filename()),
+            has_executable_attachment: mailrs_fraud::attachment_inside::any_carries_code(
+                parsed
+                    .attachments()
+                    .map(|p| (p.attachment_filename().unwrap_or(""), &p.body[..])),
             ),
             date_ahead: mailrs_inbound::dates::date_ahead_of(
                 &raw,

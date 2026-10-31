@@ -12,6 +12,7 @@ import {
   ScrollText,
   Settings,
   Shield,
+  ShieldAlert,
   ShieldCheck,
   Users,
 } from 'lucide-react'
@@ -52,6 +53,7 @@ const navGroups: { items: NavItem[]; label: string }[] = [
       { icon: <Eye className="h-4 w-4" />, label: 'Mail audit', to: '/admin/mail-audit' },
       { icon: <ScrollText className="h-4 w-4" />, label: 'Audit log', to: '/admin/audit-log' },
       { icon: <KeyRound className="h-4 w-4" />, label: 'Sign-ins', to: '/admin/sign-ins' },
+      { icon: <ShieldAlert className="h-4 w-4" />, label: 'Screening', to: '/admin/screening' },
     ],
     label: 'Oversight',
   },

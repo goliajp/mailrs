@@ -1,0 +1,19 @@
+[package]
+name = "mailrs-screening-lua"
+version = "0.0.0"
+edition = "2024"
+description = "Scripted spam and attachment rules — a sandboxed Lua VM that judges reputation and attachment facts, so a new rule or a changed lifetime does not need a release."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+authors = ["GOLIA K.K."]
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mailrs-reputation = { path = "../reputation", version = "0" }
+mailrs-attachment-scan = { path = "../attachment-scan", version = "0" }
+luna-jit = "=3.0.0"
+tracing = "0.1"
+sha2 = "0.10"

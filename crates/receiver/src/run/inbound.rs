@@ -85,7 +85,6 @@ pub(super) fn pipeline(
         Some(kevy_client.clone()), // bayes_client — v2.8.1
         resolver,
         mail_auth_resolvers,
-        cfg.clamav_addr.clone(),
         None, // LLM scoring is the core's post-delivery job
         None, // spam cache is core-side
         cfg.spam_score_threshold,

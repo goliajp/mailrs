@@ -65,7 +65,7 @@ where
                         mailrs_smtp_proto::Command::Ehlo(_) | mailrs_smtp_proto::Command::Helo(_)
                     );
                     if let Some(action) =
-                        refuse_unknown_rcpt(framed, session, &cmd, ctx, conn_id).await
+                        refuse_unknown_rcpt(framed, session, &cmd, ctx, conn_id, addr.ip()).await
                     {
                         return action;
                     }

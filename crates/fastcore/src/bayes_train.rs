@@ -47,6 +47,30 @@ pub fn train_thread(state: &Arc<FastcoreState>, user: &str, thread_id: &str, is_
     mailrs_triage::spam::train(&mut conn, thread_id, &raws, is_spam);
 }
 
+/// A reader filed `thread_id` into or out of Junk: train on it, and record
+/// the verdict as a screening observation. Only a reader's own action
+/// comes here; the corpus bootstrap trains without recording.
+pub fn learn_reader_verdict(
+    state: &Arc<FastcoreState>,
+    user: &str,
+    thread_id: &str,
+    is_spam: bool,
+) {
+    let raws = fetch_thread_raw(state, user, thread_id);
+    if raws.is_empty() {
+        return;
+    }
+    let Some(mut conn) = state.net_conn() else {
+        tracing::warn!("bayes train: no network kevy connection");
+        return;
+    };
+    mailrs_triage::spam::train(&mut conn, thread_id, &raws, is_spam);
+    let now = chrono::Utc::now().timestamp();
+    mailrs_core_sidestate::families::screening::learn_junk_verdict(
+        &mut conn, user, thread_id, &raws, is_spam, now,
+    );
+}
+
 /// v2.9 triage — train the shared multi-class triage corpus on a
 /// thread the user (or the backfill) assigned to `class` ∈ {inbox,
 /// notification, promotion}. Tokenizes the thread's maildir messages

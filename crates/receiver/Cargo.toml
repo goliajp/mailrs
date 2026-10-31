@@ -49,7 +49,6 @@ mailrs-arc = { path = "../arc", version = "3" }
 mailrs-intelligence = { path = "../intelligence", version = "4" }
 mailrs-auth-guard = { path = "../auth-guard", version = "3", features = ["kevy", "signins"] }
 mailrs-rate-limit = { path = "../rate-limit", version = "1" }
-mailrs-clamav = { path = "../clamav", version = "1" }
 # Network kevy-server client for the receiver/core split: greylist/rate/auth
 # state + SpoolDelivered notify go over kevy:// instead of in-process.
 kevy-client = { workspace = true }
@@ -61,6 +60,9 @@ mailrs-smtp-proto = { path = "../smtp-proto", version = "1" }
 mailrs-smtp-codec = { path = "../smtp-codec", version = "1" }
 mailrs-rfc2047 = { path = "../rfc2047", version = "1" }
 mailrs-mime = { path = "../mime", version = "2" }
+mailrs-reputation = { path = "../reputation", version = "0.1" }
+mailrs-attachment-scan = { path = "../attachment-scan", version = "0.1" }
+mailrs-screening-lua = { path = "../screening-lua", version = "0" }
 
 tokio = { version = "1", features = ["sync", "rt", "rt-multi-thread", "time", "macros", "net", "io-util", "signal"] }
 tokio-util = { version = "0.7", features = ["codec"] }

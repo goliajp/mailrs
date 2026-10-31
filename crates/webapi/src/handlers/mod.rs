@@ -61,6 +61,7 @@ pub mod rules;
 pub mod rules_run;
 pub mod saved_searches;
 pub mod scheduled;
+pub mod screening_admin;
 pub mod search;
 pub mod send;
 pub mod send_error;
