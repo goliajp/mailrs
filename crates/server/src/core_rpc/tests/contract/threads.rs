@@ -335,10 +335,52 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
     );
     compare_views(c, d, "mark_all_conversations_read").await;
 
+    // a label on the thread about to be deleted: every row carries it, and
+    // the delete takes it off; what labels do at length is
+    // `labels::labels_answer_alike_on_both_cores`
+    let label = mailrs_core_api::method::label::CreateLabelRequest {
+        name: "Kept".into(),
+        color: "teal".into(),
+    };
+    d.both(
+        "create_label",
+        fc.create_label(ALICE, &label).await,
+        pg.create_label(ALICE, &label).await,
+        &["created_at"],
+    );
+    d.both(
+        "label_thread",
+        fc.set_thread_label(ALICE, SPAM, "1", true).await,
+        pg.set_thread_label(ALICE, SPAM, "1", true).await,
+        &[],
+    );
+    compare_views(c, d, "label_thread").await;
+    let recolour = mailrs_core_api::method::label::UpdateLabelRequest {
+        name: None,
+        color: Some("red".into()),
+    };
+    d.both(
+        "update_label",
+        fc.update_label(ALICE, "1", &recolour).await,
+        pg.update_label(ALICE, "1", &recolour).await,
+        &["created_at"],
+    );
     d.both(
         "delete_thread",
         fc.delete_thread(ALICE, SPAM).await,
         pg.delete_thread(ALICE, SPAM).await,
+        &[],
+    );
+    d.both(
+        "list_labels after the delete",
+        fc.list_labels(ALICE).await,
+        pg.list_labels(ALICE).await,
+        &["created_at"],
+    );
+    d.both(
+        "delete_label",
+        fc.delete_label(ALICE, "1").await,
+        pg.delete_label(ALICE, "1").await,
         &[],
     );
     compare_views(c, d, "delete_thread").await;

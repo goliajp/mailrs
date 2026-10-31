@@ -68,6 +68,13 @@ describe('belongsTo', () => {
     expect(belongsTo(axes({ trashed: true }), row())).toBe(false)
   })
 
+  it('a label lists what carries it, archived or not, and nothing from the Trash', () => {
+    expect(belongsTo(axes({ label: '1' }), row({ labels: ['1'] }))).toBe(true)
+    expect(belongsTo(axes({ label: '1' }), row({ archived: true, labels: ['2', '1'] }))).toBe(true)
+    expect(belongsTo(axes({ label: '1' }), row({ labels: ['2'] }))).toBe(false)
+    expect(belongsTo(axes({ label: '1' }), row({ labels: ['1'], trashed_at: 5 }))).toBe(false)
+  })
+
   it('an archived thread is in no folder', () => {
     for (const folder of ['Inbox', 'Junk', 'NP', 'NonJunk']) {
       expect(belongsTo(axes({ folder }), row({ archived: true }))).toBe(false)

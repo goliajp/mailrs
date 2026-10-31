@@ -26,6 +26,7 @@ exclude = [
 workspace = true
 
 [dependencies]
+thiserror = "2"
 sqlx = { workspace = true, optional = true }
 spg-sqlx = { workspace = true, optional = true }
 serde = { workspace = true }

@@ -392,6 +392,7 @@ impl PgMailboxStore {
         // nothing left to keep in the Trash: the purge would find this row
         // again on every pass
         self.untrash_thread(user, thread_id).await?;
+        self.drop_thread_labels(user, thread_id).await?;
 
         Ok(maildir_ids.into_iter().map(|(id,)| id).collect())
     }

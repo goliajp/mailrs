@@ -11,7 +11,7 @@ OpenAPI spec: https://mail.golia.ai/openapi.json
 ## MCP (recommended)
 
 Streamable HTTP endpoint: https://mail.golia.ai/mcp
-101 tools auto-discovered, grouped by category (identical on both server lanes):
+107 tools auto-discovered, grouped by category (identical on both server lanes):
 
 ```json
 {"mcpServers":{"mailrs":{"type":"streamable-http","url":"https://mail.golia.ai/mcp","headers":{"Authorization":"Bearer <API_KEY>"}}}}
@@ -20,6 +20,7 @@ Streamable HTTP endpoint: https://mail.golia.ai/mcp
 **Email:** send_email, read_thread, search_conversations, reply_email, list_conversations, list_mailboxes, get_categories, search_contacts, send_scheduled_email, get_thread_summary, get_inbox_metrics
 **Fraud hold:** list_quarantined, get_fraud_verdict, release_quarantined
 **Threads:** mark_thread_read, mark_thread_unread, mark_all_read, star_thread, unstar_thread, pin_thread, unpin_thread, snooze_thread, unsnooze_thread, archive_thread, unarchive_thread, delete_thread, restore_thread, delete_thread_forever
+**Labels:** list_labels, create_label, update_label, delete_label, label_thread, unlabel_thread
 **Drafts & Templates:** list_drafts, save_draft, delete_draft, list_templates, save_template, delete_template, list_signatures, save_signature, delete_signature
 **Accounts:** list_accounts, create_account, remove_account, set_account_password, list_account_agent_keys, get_account_send_as, set_account_send_as, get_account_forwards, set_account_forwards
 **Permissions:** list_groups, get_account_permissions, get_my_permissions, add_account_to_group, remove_account_from_group
@@ -54,6 +55,9 @@ Streamable HTTP endpoint: https://mail.golia.ai/mcp
 - DELETE /api/conversations/{thread_id}/forever — delete for good (recent password confirmation)
 - POST /api/trash/empty — delete everything in the Trash for good (recent password confirmation)
 - GET /api/conversations?trashed=true — list the Trash
+- GET/POST /api/labels, POST/DELETE /api/labels/{id} — your labels
+- POST/DELETE /api/conversations/{thread_id}/labels/{id} — put a label on or take it off
+- GET /api/conversations?label={id} — one label's conversations
 - POST /api/mail/sends/{send_id}/cancel — stop a send that has not gone out. Returns jobs_removed / recipients_cancelled / already_delivered; a recipient an MX already accepted is NOT recalled. 409 if the send has finished
 - GET /api/quarantine — conversations held as suspected fraud, newest first. Kept, not deleted, and out of every other list — including its counts
 - POST /api/quarantine/{thread_id}/release — it was not fraud; returns the conversation to its list

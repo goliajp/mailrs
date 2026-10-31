@@ -28,6 +28,9 @@ import { type MailListId, threadAxesOf } from '@/lib/mail-lists'
  */
 export const activeListAtom = atom<MailListId>('inbox')
 
+/** The label the `label` list shows. */
+export const activeLabelAtom = atom<null | string>(null)
+
 /**
  * The row the user clicked, and the list they clicked it in.
  *
@@ -44,6 +47,17 @@ export const pickedItemAtom = atom<null | PickedItem>(null)
 export const selectMailListAtom = atom(null, (get, set, id: MailListId) => {
   if (get(activeListAtom) === id) return
   set(activeListAtom, id)
+  set(pickedItemAtom, null)
+})
+
+/** The conversations the label picker is open for, or null when it is closed. */
+export const labelPickerAtom = atom<null | { threadIds: string[] }>(null)
+
+/** Show one label's conversations. */
+export const selectLabelAtom = atom(null, (get, set, id: string) => {
+  if (get(activeListAtom) === 'label' && get(activeLabelAtom) === id) return
+  set(activeLabelAtom, id)
+  set(activeListAtom, 'label')
   set(pickedItemAtom, null)
 })
 

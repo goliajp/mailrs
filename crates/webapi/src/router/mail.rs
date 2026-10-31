@@ -92,6 +92,20 @@ pub(super) fn conversation_routes() -> axum::Router<Arc<WebState>> {
             axum::routing::delete(crate::handlers::trash::delete_forever),
         )
         .route(
+            "/api/labels",
+            get(crate::handlers::labels::list_labels).post(crate::handlers::labels::create_label),
+        )
+        .route(
+            "/api/labels/{id}",
+            post(crate::handlers::labels::update_label)
+                .delete(crate::handlers::labels::delete_label),
+        )
+        .route(
+            "/api/conversations/{thread_id}/labels/{id}",
+            post(crate::handlers::labels::label_thread)
+                .delete(crate::handlers::labels::unlabel_thread),
+        )
+        .route(
             "/api/trash/empty",
             post(crate::handlers::trash::empty_trash),
         )

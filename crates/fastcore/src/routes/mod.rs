@@ -12,6 +12,7 @@
 
 mod account;
 mod account_delete;
+pub(crate) mod labels;
 pub(crate) mod message_ops;
 mod message_reads;
 mod operator_clear;

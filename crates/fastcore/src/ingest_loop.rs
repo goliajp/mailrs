@@ -114,6 +114,7 @@ pub(crate) async fn run_ingest_once(
             .unwrap_or(0);
         let req = ListConversationsRequest {
             filter: ConversationFilter {
+                label: None,
                 accounts: None,
                 limit: 200,
                 before_ts: None,

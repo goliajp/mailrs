@@ -12,6 +12,7 @@ pub mod conversation;
 pub mod deliver;
 pub mod filing;
 pub mod holds;
+pub mod labels;
 pub mod mailbox;
 pub mod message;
 pub mod sent;

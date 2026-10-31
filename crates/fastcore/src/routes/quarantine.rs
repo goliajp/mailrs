@@ -67,6 +67,7 @@ pub(crate) async fn list_quarantined(
         .into_iter()
         .map(crate::routes::message_ops::row_to_wire)
         .collect();
+    let items = crate::routes::labels::with_labels(&state, &user, items);
     Json(mailrs_core_api::method::thread::QuarantineListResponse { items, total })
 }
 

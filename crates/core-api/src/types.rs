@@ -106,11 +106,15 @@ pub struct ConversationSummaryWire {
     /// A client says when the Trash will delete it for good from this.
     #[serde(default)]
     pub trashed_at: i64,
+    /// Ids of this reader's labels on the thread.
+    #[serde(default)]
+    pub labels: Vec<String>,
 }
 
 impl From<&mailrs_mailbox::types::ConversationSummary> for ConversationSummaryWire {
     fn from(s: &mailrs_mailbox::types::ConversationSummary) -> Self {
         Self {
+            labels: Vec::new(),
             // The mailbox stone has no account concept — connected
             // mailboxes are a fastcore-side feature — so everything
             // arriving through it is this deployment's own, which is
@@ -174,6 +178,10 @@ pub struct ConversationFilter {
     /// of every other list, Archived included.
     #[serde(default)]
     pub trashed: bool,
+    /// Only threads carrying this label id, archived ones included and
+    /// those in the Trash left out; `folder` and `archived` are ignored.
+    #[serde(default)]
+    pub label: Option<String>,
     /// `true` also returns conversations held as suspected fraud.
     ///
     /// Default `false`, and the default is the point: a held
@@ -248,6 +256,7 @@ mod tests {
     #[test]
     fn conversation_summary_wire_roundtrip() {
         let w = ConversationSummaryWire {
+            labels: Vec::new(),
             account_id: String::new(),
             thread_id: "tid-1".into(),
             subject: "hello".into(),
@@ -276,6 +285,7 @@ mod tests {
     #[test]
     fn conversation_filter_full_roundtrip() {
         let f = ConversationFilter {
+            label: None,
             accounts: None,
             limit: 50,
             before_ts: Some(1_700_000_000),
