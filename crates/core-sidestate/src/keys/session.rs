@@ -112,6 +112,67 @@ pub fn revoke_sessions(c: &mut kevy_client::Connection, address: &str) -> std::i
     Ok(entries.len())
 }
 
+/// Every live session `address` holds: its ref, and its stored record.
+///
+/// # Errors
+/// The store could not be read.
+pub fn list_sessions(
+    c: &mut kevy_client::Connection,
+    address: &str,
+) -> std::io::Result<Vec<(String, Vec<u8>)>> {
+    let mut out = Vec::new();
+    for entry in c.smembers(by_addr_key(address).as_bytes())? {
+        let keys = keys_of_entry(&entry);
+        let Some(blob) = keys.iter().find_map(|k| c.get(k.as_bytes()).ok().flatten()) else {
+            continue;
+        };
+        out.push((ref_of_entry(&entry, &keys[0], c)?, blob));
+    }
+    Ok(out)
+}
+
+/// The ref an index entry stands for: the entry itself, or the hash of the
+/// token an entry from before hashing is.
+fn ref_of_entry(
+    entry: &[u8],
+    stored: &str,
+    c: &mut kevy_client::Connection,
+) -> std::io::Result<String> {
+    let entry = String::from_utf8_lossy(entry).to_string();
+    match c.exists(&[stored.as_bytes()])? {
+        0 => Ok(session_ref(&entry)),
+        _ => Ok(entry),
+    }
+}
+
+/// End the one session of `address`'s whose ref is `reference`. Returns
+/// whether `address` held it.
+///
+/// # Errors
+/// The store could not be read or written.
+pub fn end_session_by_ref(
+    c: &mut kevy_client::Connection,
+    address: &str,
+    reference: &str,
+) -> std::io::Result<bool> {
+    let idx = by_addr_key(address);
+    for entry in c.smembers(idx.as_bytes())? {
+        let text = String::from_utf8_lossy(&entry).to_string();
+        if text != reference && session_ref(&text) != reference {
+            continue;
+        }
+        let [stored, legacy, moved] = keys_of_entry(&entry);
+        c.del(&[stored.as_bytes(), legacy.as_bytes(), moved.as_bytes()])?;
+        c.del(&[
+            confirmed_key(reference).as_bytes(),
+            confirm_failures_key(reference).as_bytes(),
+        ])?;
+        c.srem(idx.as_bytes(), &[entry.as_slice()])?;
+        return Ok(true);
+    }
+    Ok(false)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -124,6 +185,30 @@ mod tests {
         assert_eq!(SESSION_INDEX, b"session:index");
         assert_eq!(confirmed_key("r"), "session:confirmed:r");
         assert_eq!(confirm_failures_key("r"), "session:confirm_failures:r");
+    }
+
+    #[test]
+    fn one_session_is_listed_and_ended_by_its_ref() {
+        let mut c = kevy_client::Connection::connect("mem://session-list-end").unwrap();
+        let (a, b) = ("aa".repeat(32), "bb".repeat(32));
+        for t in [&a, &b] {
+            c.set(session_key(t).as_bytes(), b"{}").unwrap();
+            index_session(&mut c, "u@x.test", t).unwrap();
+        }
+        let mut refs: Vec<String> = list_sessions(&mut c, "u@x.test")
+            .unwrap()
+            .into_iter()
+            .map(|(r, _)| r)
+            .collect();
+        refs.sort();
+        let mut want = vec![session_ref(&a), session_ref(&b)];
+        want.sort();
+        assert_eq!(refs, want);
+        assert!(!end_session_by_ref(&mut c, "other@x.test", &session_ref(&a)).unwrap());
+        assert!(end_session_by_ref(&mut c, "u@x.test", &session_ref(&a)).unwrap());
+        assert_eq!(c.get(session_key(&a).as_bytes()).unwrap(), None);
+        assert!(c.get(session_key(&b).as_bytes()).unwrap().is_some());
+        assert_eq!(list_sessions(&mut c, "u@x.test").unwrap().len(), 1);
     }
 
     #[test]

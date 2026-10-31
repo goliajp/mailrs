@@ -16,6 +16,7 @@ mod credentials;
 pub(crate) mod password;
 mod revoke;
 mod session;
+pub mod sessions;
 
 pub use credentials::*;
 pub use revoke::*;
