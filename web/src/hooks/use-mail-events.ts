@@ -4,6 +4,7 @@ import { useAtomValue, useSetAtom } from 'jotai'
 import { useEffect, useRef } from 'react'
 
 import { useSelectedThreadId } from '@/hooks/use-current-list'
+import { announce } from '@/lib/announce'
 import { showNewMailNotice } from '@/lib/new-mail-notice'
 import { playNotificationSound } from '@/lib/notification-sound'
 import { queryClient } from '@/lib/query-client'
@@ -147,6 +148,7 @@ export function useMailEvents(user: string, onOpen?: (threadId: string) => void)
               // isolation. Local `patchConversationCaches` kept until
               // the next Phase pass cleans it up.
               onNewMessage(queryClient, msg)
+              announce(`New mail from ${msg.sender}: ${msg.subject || msg.snippet}`)
               queryClient.invalidateQueries({ queryKey: mailKeys.categories([]) }).catch(() => {})
               // also bust the thread the event belongs to, if it's the one
               // we're viewing

@@ -132,3 +132,18 @@ test('no serious accessibility problem: writing a message', async ({ page }) => 
   await expect(page.getByPlaceholder('recipient@example.com').first()).toBeVisible()
   expect(await seriousProblems(page)).toEqual([])
 })
+
+test('the mail list tabs are a tab list the arrow keys move through', async ({ page }) => {
+  await stubApi(page)
+  await page.goto('/mail')
+  const tabs = page.getByRole('tablist', { name: 'Mail lists' }).getByRole('tab')
+  await expect(tabs.first()).toBeVisible()
+  const selected = page.getByRole('tab', { selected: true })
+  await expect(selected).toHaveCount(1)
+  await selected.focus()
+  const before = await selected.textContent()
+  await page.keyboard.press('ArrowRight')
+  const focused = await page.evaluate(() => document.activeElement?.getAttribute('role'))
+  expect(focused).toBe('tab')
+  expect(await page.evaluate(() => document.activeElement?.textContent)).not.toBe(before)
+})

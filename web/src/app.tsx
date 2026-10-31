@@ -18,6 +18,7 @@ import { CommandPalette } from '@/components/command-palette'
 import { ConfirmPasswordHost } from '@/components/confirm-password-dialog'
 import { DashboardShellSkeleton } from '@/components/dashboard-skeleton'
 import { ShortcutsHost } from '@/components/keyboard-shortcuts-dialog'
+import { LiveAnnouncer } from '@/components/live-announcer'
 import { LoadingFallback } from '@/components/loading-fallback'
 import { MobileShell } from '@/components/mobile-shell'
 import { RequireAuth } from '@/components/require-auth'
@@ -136,6 +137,7 @@ function AuthShellLayout() {
     return (
       <RequireAuth>
         <LiveEvents />
+        <LiveAnnouncer />
         <MobileShell>
           <Outlet />
         </MobileShell>
@@ -145,6 +147,7 @@ function AuthShellLayout() {
   return (
     <RequireAuth>
       <LiveEvents />
+      <LiveAnnouncer />
       <AppShell gap={6} padded sidebar={<AppSidebar />} sidebarWidth={56} statusBar={<StatusBar />}>
         <Outlet />
       </AppShell>
