@@ -5,16 +5,17 @@ const styles: Record<string, { bg: string; label: string; text: string }> = {
     text: 'text-warning',
   },
   general: {
-    bg: 'bg-bg-tertiary',
+    bg: 'bg-border-strong',
     label: 'General',
-    text: 'text-fg-secondary',
+    text: 'text-fg',
   },
-  // the surface colour of a row, and of a picked one, so a chip on it
-  // needs a fill of its own to be read
+  // a row is `surface`, and in the dark theme `bg-tertiary` is the same
+  // colour; a read row is also drawn at 70%, so the chip takes the
+  // strongest neutral fill and text
   inbox: {
-    bg: 'bg-bg-tertiary',
+    bg: 'bg-border-strong',
     label: 'Inbox',
-    text: 'text-fg-secondary',
+    text: 'text-fg',
   },
   newsletter: {
     bg: 'bg-danger/10',
@@ -77,9 +78,9 @@ const styles: Record<string, { bg: string; label: string; text: string }> = {
 
 export function CategoryBadge({ category }: { category: string }) {
   const s = styles[category] ?? {
-    bg: 'bg-bg-tertiary',
+    bg: 'bg-border-strong',
     label: category,
-    text: 'text-fg-secondary',
+    text: 'text-fg',
   }
   return (
     <span
