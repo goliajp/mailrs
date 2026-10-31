@@ -58,9 +58,9 @@ function Harness() {
   )
 }
 
-function press(key: string, shiftKey = false) {
+function press(key: string, shiftKey = false, held: KeyboardEventInit = {}) {
   rtlAct(() => {
-    window.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key, shiftKey }))
+    window.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key, shiftKey, ...held }))
   })
 }
 
@@ -132,6 +132,17 @@ describe('list shortcuts', () => {
     const { store } = setup()
     press('c')
     expect(store.get(composingNewAtom)).toBe(true)
+  })
+
+  // Alt+C, Ctrl+C and Cmd+C are copy, not c
+  it('a key held with Alt, Ctrl or Cmd is left to the browser', () => {
+    const { store } = setup()
+    for (const held of [{ altKey: true }, { ctrlKey: true }, { metaKey: true }]) {
+      press('c', false, held)
+      press('e', false, held)
+    }
+    expect(store.get(composingNewAtom)).toBe(false)
+    expect(acted).toEqual([])
   })
 
   it('j scrolls the newly picked row into view', async () => {
