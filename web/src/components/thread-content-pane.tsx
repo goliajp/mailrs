@@ -184,7 +184,7 @@ export function ThreadContentPane({
             <HdrBtn
               className={isFlagged ? 'text-warning hover:text-warning' : undefined}
               onClick={isFlagged ? handleUnstar : handleStar}
-              title={ACTIONS[toggle(isFlagged, 'unstar', 'star')].label}
+              title={t(ACTIONS[toggle(isFlagged, 'unstar', 'star')].label)}
             >
               <Star className="h-4 w-4" fill={isFlagged ? 'currentColor' : 'none'} />
             </HdrBtn>
@@ -462,10 +462,11 @@ function ActionBtn({
   id: ActionId
   onClick: () => void
 }) {
+  const t = useT()
   const spec = ACTIONS[id]
   const Icon = spec.icon
   return (
-    <HdrBtn className={className} onClick={onClick} title={spec.label}>
+    <HdrBtn className={className} onClick={onClick} title={t(spec.label)}>
       <Icon className="h-4 w-4" />
     </HdrBtn>
   )
