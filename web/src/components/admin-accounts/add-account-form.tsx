@@ -52,7 +52,7 @@ export function AddAccountForm({ onDone }: { onDone: () => void }) {
           autoFocus
           className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
           onChange={(e) => setForm({ ...form, address: e.target.value })}
-          placeholder="username"
+          placeholder={t('admin.usernamePlaceholder')}
           value={form.address}
         />
         <input

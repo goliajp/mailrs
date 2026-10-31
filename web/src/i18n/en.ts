@@ -1,3 +1,4 @@
+import { adminOpsEn } from './admin-ops/en'
 import { adminEn } from './admin/en'
 
 /**
@@ -7,6 +8,7 @@ import { adminEn } from './admin/en'
  */
 export const en = {
   ...adminEn,
+  ...adminOpsEn,
   'lang.name.en': 'English',
   'lang.name.ja': '日本語',
   'lang.name.zh': '简体中文',

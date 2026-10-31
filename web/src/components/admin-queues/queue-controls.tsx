@@ -2,7 +2,7 @@ import type { QueueRow, QueueStatus } from './queue-row'
 
 import { useT } from '@/i18n'
 
-import { ALL_STATUSES, statusStyles } from './queue-row'
+import { ALL_STATUSES, statusLabels, statusStyles } from './queue-row'
 
 const filterBaseStyle = 'rounded-md px-3 py-1 text-xs font-medium transition-colors cursor-pointer'
 const filterActiveStyle = 'ring-2 ring-offset-1 ring-border ring-offset-bg'
@@ -81,7 +81,7 @@ export function QueueStatusFilter({
           onClick={() => onChange(toggled(value, status))}
           type="button"
         >
-          <span className="capitalize">{status}</span> ({countOf(queue, status)})
+          <span className="capitalize">{t(statusLabels[status])}</span> ({countOf(queue, status)})
         </button>
       ))}
     </div>
