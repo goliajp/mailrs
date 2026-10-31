@@ -12,28 +12,22 @@ import {
 import { useAtomValue, useSetAtom } from 'jotai'
 import { getDefaultStore } from 'jotai'
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
-import {
-  createBrowserRouter,
-  Navigate,
-  Outlet,
-  RouterProvider,
-  useLocation,
-  useNavigate,
-} from 'react-router'
+import { createBrowserRouter, Outlet, RouterProvider, useLocation, useNavigate } from 'react-router'
 
 import { AppSidebar } from '@/components/app-sidebar'
 import { CommandPalette } from '@/components/command-palette'
 import { ConfirmPasswordHost } from '@/components/confirm-password-dialog'
 import { DashboardShellSkeleton } from '@/components/dashboard-skeleton'
 import { ShortcutsHost } from '@/components/keyboard-shortcuts-dialog'
+import { LoadingFallback } from '@/components/loading-fallback'
 import { MobileShell } from '@/components/mobile-shell'
+import { RequireAuth } from '@/components/require-auth'
 import { RouteErrorFallback } from '@/components/route-error-fallback'
 import { type StatusBarHealth, StatusBarView } from '@/components/status-bar'
 import { sectionForPath } from '@/components/status-bar-model'
 import { useCurrentUnreadCount } from '@/hooks/use-current-mail-filters'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import { useMailEvents } from '@/hooks/use-mail-events'
-import { useRefreshProfile } from '@/hooks/use-refresh-profile'
 import { MPane } from '@/layouts/pane'
 import { http } from '@/lib/http'
 import { dashboardLoader, mailListLoader } from '@/lib/route-loaders'
@@ -189,15 +183,6 @@ function LiveEvents() {
   return null
 }
 
-function LoadingFallback() {
-  return (
-    <div className="text-fg-muted flex flex-1 flex-col items-center justify-center gap-3 p-8">
-      <div className="border-border border-t-accent h-8 w-8 animate-spin rounded-full border-2" />
-      <span className="text-sm">Loading…</span>
-    </div>
-  )
-}
-
 function PageAdmin() {
   return (
     <PagePane>
@@ -265,13 +250,6 @@ function PageSettings() {
       </Suspense>
     </PagePane>
   )
-}
-
-function RequireAuth({ children }: { children: React.ReactNode }) {
-  const auth = useAtomValue(authAtom)
-  useRefreshProfile()
-  if (!auth) return <Navigate replace to="/login" />
-  return children
 }
 
 /**
