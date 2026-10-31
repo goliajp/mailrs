@@ -2,6 +2,7 @@ import { useAtomValue } from 'jotai'
 import { lazy, Suspense, useId, useRef } from 'react'
 import { useSearchParams } from 'react-router'
 
+import { type Key, useT } from '@/i18n'
 import { authAtom } from '@/store/auth'
 
 const AccountSection = lazy(() =>
@@ -70,20 +71,20 @@ type Category =
   | 'signatures'
   | 'webhooks'
 
-const CATEGORIES: { key: Category; label: string }[] = [
-  { key: 'account', label: 'Account' },
-  { key: 'security', label: 'Security' },
-  { key: 'signatures', label: 'Signatures' },
-  { key: 'rules', label: 'Rules' },
-  { key: 'forwarding', label: 'Forwarding' },
-  { key: 'senders', label: 'Senders' },
-  { key: 'keys', label: 'Encryption Keys' },
-  { key: 'api-keys', label: 'API Keys' },
-  { key: 'webhooks', label: 'Webhooks' },
-  { key: 'calendar-feeds', label: 'Calendar Feeds' },
-  { key: 'appearance', label: 'Appearance' },
+const CATEGORIES: { key: Category; label: Key }[] = [
+  { key: 'account', label: 'settings.cat.account' },
+  { key: 'security', label: 'settings.cat.security' },
+  { key: 'signatures', label: 'settings.cat.signatures' },
+  { key: 'rules', label: 'settings.cat.rules' },
+  { key: 'forwarding', label: 'settings.cat.forwarding' },
+  { key: 'senders', label: 'settings.cat.senders' },
+  { key: 'keys', label: 'settings.cat.keys' },
+  { key: 'api-keys', label: 'settings.cat.api-keys' },
+  { key: 'webhooks', label: 'settings.cat.webhooks' },
+  { key: 'calendar-feeds', label: 'settings.cat.calendar-feeds' },
+  { key: 'appearance', label: 'settings.cat.appearance' },
   // issuers only
-  { key: 'reset-codes', label: 'Reset Codes' },
+  { key: 'reset-codes', label: 'settings.cat.reset-codes' },
 ]
 
 const CATEGORY_KEYS = new Set(CATEGORIES.map((c) => c.key))
@@ -97,6 +98,7 @@ const WIDE_CATEGORIES = new Set<Category>(['api-keys'])
 const TABLE_PARAMS = ['dir', 'page', 'q', 'size', 'sort']
 
 export function Settings() {
+  const t = useT()
   const tabIds = useId()
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
   const [searchParams, setSearchParams] = useSearchParams()
@@ -152,7 +154,7 @@ export function Settings() {
               tabIndex={active === cat.key ? 0 : -1}
               type="button"
             >
-              {cat.label}
+              {t(cat.label)}
             </button>
           ))}
         </nav>

@@ -1,9 +1,11 @@
 import type { TotpSetup } from './_shared'
+import type { Key } from '@/i18n'
 
 import { toast } from '@goliapkg/gds'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 
+import { useT } from '@/i18n'
 import { queryClient } from '@/lib/query-client'
 import { settingsKeys } from '@/lib/query-keys'
 import {
@@ -18,6 +20,7 @@ import { AppPasswordsCard } from './app-passwords-card'
 import { SessionsCard } from './sessions-card'
 
 export function SecuritySection() {
+  const t = useT()
   const statusQuery = useQuery({
     queryKey: settingsKeys.totpStatus(),
     queryFn: () => wireGetTotpStatus(),
@@ -36,7 +39,7 @@ export function SecuritySection() {
       const data = await wireTotpSetup()
       setSetup(data)
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to set up 2FA')
+      toast.error(errorText(e, t('security.totp.setupFailed')))
     }
   }
 
@@ -45,12 +48,12 @@ export function SecuritySection() {
     setSubmitting(true)
     try {
       await wireTotpEnable(code.trim())
-      toast.success('2FA enabled')
+      toast.success(t('security.totp.enabledToast'))
       setSetup(null)
       setCode('')
       void invalidateStatus()
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Invalid code')
+      toast.error(errorText(e, t('security.totp.invalidCode')))
     } finally {
       setSubmitting(false)
     }
@@ -61,11 +64,11 @@ export function SecuritySection() {
     setSubmitting(true)
     try {
       await wireTotpDisable(code.trim())
-      toast.success('2FA disabled')
+      toast.success(t('security.totp.disabledToast'))
       setCode('')
       void invalidateStatus()
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Invalid code')
+      toast.error(errorText(e, t('security.totp.invalidCode')))
     } finally {
       setSubmitting(false)
     }
@@ -75,45 +78,42 @@ export function SecuritySection() {
     return (
       <div className="text-fg-muted flex items-center gap-2 py-4 text-sm">
         <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-        Loading...
+        {t('common.loading')}
       </div>
     )
   }
 
+  const enabled = Boolean(status?.enabled)
   return (
     <div className="space-y-6">
-      <SectionHeader title="Two-Factor Authentication" />
+      <SectionHeader title={t('security.totp.title')} />
 
       <div className={cardClass}>
-        <Field label="Status">
-          <span
-            className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-              status?.enabled ? 'bg-success/10 text-success' : 'bg-surface text-fg-muted'
-            }`}
-          >
-            {status?.enabled ? 'Enabled' : 'Disabled'}
+        <Field label={t('security.totp.status')}>
+          <span className={statusClass(enabled)}>
+            {t(pick(enabled, 'security.totp.enabled', 'security.totp.disabled'))}
           </span>
         </Field>
       </div>
 
-      {!status?.enabled && !setup && (
-        <button className={btnPrimary} onClick={handleSetup}>
-          Set up 2FA
+      {!enabled && !setup && (
+        <button className={btnPrimary} onClick={handleSetup} type="button">
+          {t('security.totp.setUp')}
         </button>
       )}
 
       {setup && (
         <div className={cardClass + ' space-y-4'}>
-          <h3 className="text-sm font-medium">Scan QR Code</h3>
+          <h3 className="text-sm font-medium">{t('security.totp.scan')}</h3>
           <div className="bg-surface rounded-md p-3">
             <p className="text-fg-secondary font-mono text-xs break-all">{setup.otpauth_url}</p>
           </div>
 
           {setup.recovery_codes.length > 0 && (
             <div className="border-warning bg-warning/10 rounded-lg border p-3">
-              <p className="mb-2 text-sm font-semibold">Recovery Codes</p>
+              <p className="mb-2 text-sm font-semibold">{t('security.totp.recoveryCodes')}</p>
               <p className="text-fg-secondary mb-2 text-xs">
-                Save these codes in a safe place. Each code can only be used once.
+                {t('security.totp.recoveryCodesNote')}
               </p>
               <div className="grid grid-cols-2 gap-1">
                 {setup.recovery_codes.map((rc) => (
@@ -127,36 +127,46 @@ export function SecuritySection() {
 
           <div className="flex gap-2">
             <input
-              aria-label="TOTP code"
+              aria-label={t('security.totp.code')}
               autoComplete="one-time-code"
               className={inputClass + ' max-w-[200px]'}
               inputMode="numeric"
               onChange={(e) => setCode(e.target.value)}
-              placeholder="Enter TOTP code"
+              placeholder={t('security.totp.codePlaceholder')}
               value={code}
             />
-            <button className={btnPrimary} disabled={submitting} onClick={handleEnable}>
-              {submitting ? 'Verifying...' : 'Verify & Enable'}
+            <button
+              className={btnPrimary}
+              disabled={submitting}
+              onClick={handleEnable}
+              type="button"
+            >
+              {t(pick(submitting, 'security.totp.verifying', 'security.totp.verifyEnable'))}
             </button>
           </div>
         </div>
       )}
 
-      {status?.enabled && (
+      {enabled && (
         <div className={cardClass + ' space-y-3'}>
-          <h3 className="text-sm font-medium">Disable 2FA</h3>
+          <h3 className="text-sm font-medium">{t('security.totp.disableTitle')}</h3>
           <div className="flex gap-2">
             <input
-              aria-label="TOTP code"
+              aria-label={t('security.totp.code')}
               autoComplete="one-time-code"
               className={inputClass + ' max-w-[200px]'}
               inputMode="numeric"
               onChange={(e) => setCode(e.target.value)}
-              placeholder="Enter TOTP code"
+              placeholder={t('security.totp.codePlaceholder')}
               value={code}
             />
-            <button className={btnDanger} disabled={submitting} onClick={handleDisable}>
-              {submitting ? 'Disabling...' : 'Disable 2FA'}
+            <button
+              className={btnDanger}
+              disabled={submitting}
+              onClick={handleDisable}
+              type="button"
+            >
+              {t(pick(submitting, 'security.totp.disabling', 'security.totp.disableTitle'))}
             </button>
           </div>
         </div>
@@ -165,4 +175,21 @@ export function SecuritySection() {
       <SessionsCard />
     </div>
   )
+}
+
+/** The server's message when there is one, else ours. */
+function errorText(e: unknown, fallback: string): string {
+  if (e instanceof Error) return e.message
+  return fallback
+}
+
+function pick(busy: boolean, busyKey: Key, idleKey: Key): Key {
+  if (busy) return busyKey
+  return idleKey
+}
+
+function statusClass(enabled: boolean): string {
+  const base = 'rounded-full px-2 py-0.5 text-xs font-medium'
+  if (enabled) return `${base} bg-success/10 text-success`
+  return `${base} bg-surface text-fg-muted`
 }
