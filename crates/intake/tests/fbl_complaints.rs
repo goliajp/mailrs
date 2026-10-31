@@ -141,8 +141,26 @@ async fn only_a_complaint_about_our_own_message_suppresses_and_a_reporter_is_cap
             .filter(|v| suppression::is_suppressed(&mut conn, v))
             .count();
         assert_eq!(suppressed, 20);
-        let alerts: Vec<_> = mailrs_auth_guard::alerts::take(&mut conn, 100)
-            .unwrap()
+        let all = mailrs_auth_guard::alerts::take(&mut conn, 100).unwrap();
+        // the sender's own complaint rate paused it at the third, once
+        let paused: Vec<_> = all
+            .iter()
+            .filter(|a| a.kind == mailrs_auth_guard::alerts::Kind::OutboundPaused)
+            .collect();
+        assert_eq!(paused.len(), 1);
+        assert_eq!(paused[0].subject, SENDER);
+        assert_eq!(
+            paused[0].facts,
+            [mailrs_auth_guard::alerts::Fact::ComplaintRate {
+                complaints: 3,
+                sent: 0,
+                limit_per_mille: 3,
+            }]
+        );
+        assert!(
+            mailrs_core_sidestate::families::outbound::pause::is_paused(&mut conn, SENDER).unwrap()
+        );
+        let alerts: Vec<_> = all
             .into_iter()
             .filter(|a| a.kind == mailrs_auth_guard::alerts::Kind::ComplaintLimit)
             .collect();
@@ -162,6 +180,7 @@ async fn only_a_complaint_about_our_own_message_suppresses_and_a_reporter_is_cap
         assert_eq!(count("fbl.report"), 28, "every report is audited");
         assert_eq!(count("fbl.suppressed"), 20);
         assert_eq!(count("fbl.rate_limited"), 5);
+        assert_eq!(count("outbound.pause"), 1);
 
         // an operator sees each one and what put it there, and can take
         // one off or all of them

@@ -19,6 +19,9 @@ use crate::handlers::kevy_util::with_kevy;
 use crate::handlers::rules::refused;
 
 static LIVE: OnceLock<Live> = OnceLock::new();
+/// The receiver reports each minute; a report older than this means it
+/// stopped.
+const STALE_SECS: i64 = 180;
 static RULES: std::sync::Mutex<Option<screening::RulesReport>> = std::sync::Mutex::new(None);
 
 fn seq(id: &str) -> u64 {
@@ -59,13 +62,23 @@ pub fn spawn_refresh() {
 
 /// `reputation`, `attachment_scan` and `screening_rules`, for
 /// `/api/health`. `screening_rules` is the receiver's report — the bundle
-/// version, whether it is approved, its failure count — null until it has
-/// reported.
+/// version, whether it is approved, its failure count — with `stale`
+/// true when there is none or it is older than three minutes.
 pub fn health() -> serde_json::Value {
     let mut h = LIVE.get().map_or(serde_json::Value::Null, Live::health);
     if let Some(obj) = h.as_object_mut() {
         let rules = RULES.lock().expect("lock").clone();
-        obj.insert("screening_rules".into(), serde_json::json!(rules));
+        let stale = rules
+            .as_ref()
+            .is_none_or(|r| now() - r.reported_at > STALE_SECS);
+        let mut value = serde_json::json!(rules);
+        match value.as_object_mut() {
+            Some(o) => {
+                o.insert("stale".into(), serde_json::json!(stale));
+            }
+            None => value = serde_json::json!({ "stale": true }),
+        }
+        obj.insert("screening_rules".into(), value);
     }
     h
 }

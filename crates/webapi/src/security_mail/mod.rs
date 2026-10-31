@@ -297,6 +297,44 @@ fn facts(a: &Alert, reader: &Reader, now: u64) -> Vec<(String, String)> {
                 pick("最近一条投诉的人", "Latest complaint from"),
                 address.clone(),
             ),
+            Fact::DaySendLimit { count, limit } => (
+                pick("当天（UTC）发给", "Sent today (UTC)"),
+                match zh {
+                    true => format!("{count} 位收件人（上限 {limit}）"),
+                    false => format!("{count} recipients (limit {limit})"),
+                },
+            ),
+            Fact::BounceRate {
+                bounced,
+                sent,
+                limit_percent,
+            } => (
+                pick("当天退信", "Bounced today"),
+                match zh {
+                    true => format!("{sent} 位收件人中 {bounced} 位（上限 {limit_percent}%）"),
+                    false => format!("{bounced} of {sent} recipients (limit {limit_percent}%)"),
+                },
+            ),
+            Fact::ComplaintRate {
+                complaints,
+                sent,
+                limit_per_mille,
+            } => (
+                pick("当天投诉", "Complaints today"),
+                match zh {
+                    true => format!(
+                        "发给 {sent} 位收件人，{complaints} 条投诉（上限千分之 {limit_per_mille}）"
+                    ),
+                    false => format!(
+                        "{complaints} for {sent} recipients (limit {limit_per_mille} per thousand)"
+                    ),
+                },
+            ),
+            Fact::RemoteRefusal { host, reply } => (
+                pick("对方的回复", "Their reply"),
+                format!("{host}: {reply}"),
+            ),
+            Fact::Listed { address, zone } => (pick("名单", "List"), format!("{address} @ {zone}")),
             Fact::Note { text } => (pick("系统记录", "System note"), text.clone()),
         })
         .collect();

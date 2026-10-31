@@ -18,7 +18,7 @@ cd "$(dirname "$0")/.."
 # prefix (ERE, matched right after the opening quote) ; defining file
 FAMILIES='
 mailrs:outbound:;crates/core-sidestate/src/families/outbound/keys.rs
-outbound:(paused|held|rate|fail);crates/core-sidestate/src/families/outbound/pause.rs
+outbound:(paused|held|rate|fail|bounce|complaint);crates/core-sidestate/src/families/outbound/pause.rs
 mailrs:user:[^"]*:contacts;crates/core-sidestate/src/families/contact_cards.rs
 mailrs:contact:;crates/core-sidestate/src/families/contacts.rs
 mailrs:quota:;crates/core-sidestate/src/keys/quota.rs
@@ -31,6 +31,8 @@ mailrs:alias:v2:;crates/alias-store/src/keys.rs
 aliases_by_(domain|target);crates/alias-store/src/keys.rs
 admin:(audit_log|system-config|greylist:local-lists);crates/core-sidestate/src/keys/admin.rs
 admin:groups;crates/core-sidestate/src/families/permission_groups.rs
+admin:rbl:status;crates/core-sidestate/src/families/egress.rs
+egress:refusals:;crates/core-sidestate/src/families/egress.rs
 (drafts|signatures|templates):;crates/core-sidestate/src/families/prefs.rs
 calendar_events?:;crates/core-sidestate/src/families/calendar_events/mod.rs
 push:tokens:;crates/core-sidestate/src/keys/push.rs
