@@ -12,10 +12,11 @@
 use std::collections::HashSet;
 
 mod filing;
+mod labels;
 
 use crate::backend::{
-    Account, Error, Expunged, Filed, Flag, Message, Quota, Result, Selected, Trashed,
-    TrashedMessage,
+    Account, Error, Expunged, Filed, Flag, LabelFolder, Message, Quota, Result, Selected,
+    ShownMessage, Trashed,
 };
 
 /// The name `Trash` goes by, in every case a client may write it.
@@ -39,6 +40,12 @@ pub enum ViewMailbox<M> {
     /// `inbox` is what IDLE in `Trash` watches: the stores signal a change
     /// per account, not per mailbox.
     Trash {
+        inbox: M,
+    },
+    /// A label, with the same `inbox` for IDLE.
+    Label {
+        id: String,
+        name: String,
         inbox: M,
     },
 }
@@ -70,7 +77,7 @@ fn wrap<M, K>(m: Message<K>) -> Message<ViewKey<M, K>> {
 
 /// The message as its store knows it, and the mailbox it is filed in when
 /// that is not `mailbox`.
-fn unwrap<M: Clone, K: Clone>(m: &Message<ViewKey<M, K>>) -> (Message<K>, Option<M>) {
+pub(super) fn unwrap<M: Clone, K: Clone>(m: &Message<ViewKey<M, K>>) -> (Message<K>, Option<M>) {
     let (uid, filed) = match &m.key.filed {
         Some((mb, uid)) => (*uid, Some(mb.clone())),
         None => (m.uid, None),
@@ -87,7 +94,7 @@ fn unwrap<M: Clone, K: Clone>(m: &Message<ViewKey<M, K>>) -> (Message<K>, Option
     (msg, filed)
 }
 
-fn renumber<K>(messages: &mut [Message<K>]) {
+pub(super) fn renumber<K>(messages: &mut [Message<K>]) {
     for (i, m) in messages.iter_mut().enumerate() {
         m.seqno = i as u32 + 1;
     }
@@ -154,7 +161,7 @@ impl<A: Account> TrashView<A> {
     }
 }
 
-fn trash_entry<M: Clone, K: Clone>(t: &TrashedMessage<M, K>) -> Message<ViewKey<M, K>> {
+pub(super) fn trash_entry<M: Clone, K: Clone>(t: &ShownMessage<M, K>) -> Message<ViewKey<M, K>> {
     let m = &t.message;
     Message {
         uid: t.uid,
@@ -185,9 +192,17 @@ impl<A: Account> Account for TrashView<A> {
 
     async fn mailbox_names(&self) -> Result<Vec<String>> {
         let mut names = self.inner.mailbox_names().await?;
-        // an account that can change nothing has no Trash to move to
-        if self.inner.read_only().is_none() && !names.iter().any(|n| is_trash(n)) {
+        // an account that can change nothing has no Trash or labels
+        if self.inner.read_only().is_some() {
+            return Ok(names);
+        }
+        if !names.iter().any(|n| is_trash(n)) {
             names.push(TRASH.into());
+        }
+        // a label takes over a mailbox of its name
+        for label in self.inner.labels().await? {
+            names.retain(|n| !n.eq_ignore_ascii_case(&label.name));
+            names.push(label.name);
         }
         Ok(names)
     }
@@ -198,6 +213,9 @@ impl<A: Account> Account for TrashView<A> {
                 inbox: self.inbox().await?,
             }));
         }
+        if let Some(label) = self.label_mailbox(name).await? {
+            return Ok(Some(label));
+        }
         Ok(self.inner.mailbox(name).await?.map(ViewMailbox::Filed))
     }
 
@@ -205,6 +223,7 @@ impl<A: Account> Account for TrashView<A> {
         match mailbox {
             ViewMailbox::Filed(m) => self.inner.mailbox_name(m),
             ViewMailbox::Trash { .. } => TRASH,
+            ViewMailbox::Label { name, .. } => name,
         }
     }
 
@@ -236,6 +255,7 @@ impl<A: Account> Account for TrashView<A> {
                     messages,
                 })
             }
+            ViewMailbox::Label { id, .. } => self.label_selected(id).await,
         }
     }
 
@@ -248,6 +268,7 @@ impl<A: Account> Account for TrashView<A> {
                 .map(wrap)
                 .collect()),
             ViewMailbox::Trash { .. } => Ok(self.trash_messages().await?.1),
+            ViewMailbox::Label { id, .. } => self.label_messages(id).await,
         }
     }
 
@@ -265,7 +286,9 @@ impl<A: Account> Account for TrashView<A> {
         match (mailbox, filed) {
             (_, Some(from)) => self.inner.store_flags(&from, &msg, flags).await,
             (ViewMailbox::Filed(m), None) => self.inner.store_flags(m, &msg, flags).await,
-            (ViewMailbox::Trash { .. }, None) => Err(Error::Store("not a message of Trash".into())),
+            (ViewMailbox::Trash { .. } | ViewMailbox::Label { .. }, None) => {
+                Err(Error::Store("not a message shown here".into()))
+            }
         }
     }
 
@@ -291,6 +314,7 @@ impl<A: Account> Account for TrashView<A> {
         match mailbox {
             ViewMailbox::Filed(m) => self.expunge_filed(m, doomed).await,
             ViewMailbox::Trash { .. } => self.expunge_trash(doomed).await,
+            ViewMailbox::Label { id, .. } => self.expunge_label(id, doomed).await,
         }
     }
 
@@ -303,7 +327,9 @@ impl<A: Account> Account for TrashView<A> {
         match (mailbox, filed) {
             (_, Some(from)) => self.inner.remove(&from, &msg).await,
             (ViewMailbox::Filed(m), None) => self.inner.remove(m, &msg).await,
-            (ViewMailbox::Trash { .. }, None) => Err(Error::Store("not a message of Trash".into())),
+            (ViewMailbox::Trash { .. } | ViewMailbox::Label { .. }, None) => {
+                Err(Error::Store("not a message shown here".into()))
+            }
         }
     }
 
@@ -315,8 +341,8 @@ impl<A: Account> Account for TrashView<A> {
     ) -> Result<Filed> {
         match mailbox {
             ViewMailbox::Filed(m) => self.inner.append(m, bytes, flags).await,
-            ViewMailbox::Trash { .. } => Err(Error::Refused(
-                "[CANNOT] messages reach the Trash by being moved there".into(),
+            ViewMailbox::Trash { .. } | ViewMailbox::Label { .. } => Err(Error::Refused(
+                "[CANNOT] messages reach the Trash or a label by being copied there".into(),
             )),
         }
     }
@@ -332,7 +358,7 @@ impl<A: Account> Account for TrashView<A> {
                 gone.dedup();
                 Ok(gone)
             }
-            ViewMailbox::Trash { .. } => Ok(Vec::new()),
+            ViewMailbox::Trash { .. } | ViewMailbox::Label { .. } => Ok(Vec::new()),
         }
     }
 
@@ -342,7 +368,9 @@ impl<A: Account> Account for TrashView<A> {
 
     fn watch(&self, mailbox: &Self::Mailbox) -> Self::Watch {
         match mailbox {
-            ViewMailbox::Filed(m) | ViewMailbox::Trash { inbox: m } => self.inner.watch(m),
+            ViewMailbox::Filed(m)
+            | ViewMailbox::Trash { inbox: m }
+            | ViewMailbox::Label { inbox: m, .. } => self.inner.watch(m),
         }
     }
 
@@ -352,7 +380,7 @@ impl<A: Account> Account for TrashView<A> {
             messages: trashed
                 .messages
                 .into_iter()
-                .map(|t| TrashedMessage {
+                .map(|t| ShownMessage {
                     mailbox: ViewMailbox::Filed(t.mailbox),
                     uid: t.uid,
                     message: wrap(t.message),
@@ -372,7 +400,46 @@ impl<A: Account> Account for TrashView<A> {
         match (mailbox, filed) {
             (_, Some(from)) => self.inner.set_trashed(&from, &msg, trashed).await,
             (ViewMailbox::Filed(m), None) => self.inner.set_trashed(m, &msg, trashed).await,
-            (ViewMailbox::Trash { .. }, None) => Err(Error::Store("not a message of Trash".into())),
+            (ViewMailbox::Trash { .. } | ViewMailbox::Label { .. }, None) => {
+                Err(Error::Store("not a message shown here".into()))
+            }
+        }
+    }
+
+    async fn labels(&self) -> Result<Vec<LabelFolder<Self::Mailbox, Self::Key>>> {
+        let labels = self.inner.labels().await?;
+        Ok(labels
+            .into_iter()
+            .map(|l| LabelFolder {
+                id: l.id,
+                name: l.name,
+                messages: l
+                    .messages
+                    .into_iter()
+                    .map(|t| ShownMessage {
+                        mailbox: ViewMailbox::Filed(t.mailbox),
+                        uid: t.uid,
+                        message: wrap(t.message),
+                    })
+                    .collect(),
+            })
+            .collect())
+    }
+
+    async fn set_label(
+        &self,
+        mailbox: &Self::Mailbox,
+        message: &Message<Self::Key>,
+        id: &str,
+        on: bool,
+    ) -> Result<bool> {
+        let (msg, filed) = unwrap(message);
+        match (mailbox, filed) {
+            (_, Some(from)) => self.inner.set_label(&from, &msg, id, on).await,
+            (ViewMailbox::Filed(m), None) => self.inner.set_label(m, &msg, id, on).await,
+            (ViewMailbox::Trash { .. } | ViewMailbox::Label { .. }, None) => {
+                Err(Error::Store("not a message shown here".into()))
+            }
         }
     }
 

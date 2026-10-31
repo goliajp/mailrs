@@ -4,7 +4,7 @@
 use std::path::PathBuf;
 
 use mailrs_mail_protocols::backend::{
-    Account, Error, Expunged, Filed, Flag, Message, Quota, Result, Selected, Trashed,
+    Account, Error, Expunged, Filed, Flag, LabelFolder, Message, Quota, Result, Selected, Trashed,
 };
 
 use super::mock::MockAccount;
@@ -209,6 +209,26 @@ impl Account for FastcoreAccount {
     ) -> Result<bool> {
         match self {
             Self::Real(a) => a.set_trashed(m, trashed),
+            Self::Mock(_) => refused(),
+        }
+    }
+
+    async fn labels(&self) -> Result<Vec<LabelFolder<FcMailbox, PathBuf>>> {
+        match self {
+            Self::Real(a) => a.labels(),
+            Self::Mock(_) => Ok(Vec::new()),
+        }
+    }
+
+    async fn set_label(
+        &self,
+        _: &FcMailbox,
+        m: &Message<PathBuf>,
+        id: &str,
+        on: bool,
+    ) -> Result<bool> {
+        match self {
+            Self::Real(a) => a.set_label(m, id, on),
             Self::Mock(_) => refused(),
         }
     }

@@ -88,6 +88,34 @@ impl<A: Account> TrashView<A> {
                     false => self.inner.move_to(f, &msg, t).await,
                 }
             }
+            // into a label: the label goes on, the message stays filed
+            (ViewMailbox::Filed(f), ViewMailbox::Label { id, .. }) => {
+                let (msg, _) = unwrap(message);
+                self.put_label(f, &msg, id, true).await?;
+                self.filed_in_label(id, f, msg.uid).await
+            }
+            (ViewMailbox::Trash { .. }, ViewMailbox::Label { id, .. }) => {
+                let (msg, f) = shown_at(message)?;
+                self.inner.set_trashed(&f, &msg, false).await?;
+                self.put_label(&f, &msg, id, true).await?;
+                self.filed_in_label(id, &f, msg.uid).await
+            }
+            (ViewMailbox::Label { id: old, .. }, ViewMailbox::Label { id, .. }) => {
+                let (msg, f) = shown_at(message)?;
+                self.put_label(&f, &msg, id, true).await?;
+                if !keep_copy && old != id {
+                    self.put_label(&f, &msg, old, false).await?;
+                }
+                self.filed_in_label(id, &f, msg.uid).await
+            }
+            (ViewMailbox::Label { id, .. }, ViewMailbox::Filed(t)) => {
+                self.out_of_label(id, message, t, keep_copy).await
+            }
+            (ViewMailbox::Label { .. }, ViewMailbox::Trash { .. }) => {
+                let (msg, f) = shown_at(message)?;
+                self.inner.set_trashed(&f, &msg, true).await?;
+                self.filed_in_trash(&f, msg.uid).await
+            }
         }
     }
 
@@ -138,4 +166,11 @@ impl<A: Account> TrashView<A> {
         }
         out
     }
+}
+
+/// A message shown in `Trash` or a label, and the mailbox it is filed in.
+fn shown_at<M: Clone, K: Clone>(m: &Message<ViewKey<M, K>>) -> Result<(Message<K>, M)> {
+    let (msg, filed) = unwrap(m);
+    let f = filed.ok_or_else(|| Error::Store("not a message shown here".into()))?;
+    Ok((msg, f))
 }
