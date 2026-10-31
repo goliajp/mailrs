@@ -4205,6 +4205,7 @@ dependencies = [
  "mailrs-webhook-signature",
  "psl",
  "rand_core 0.6.4",
+ "reqwest",
  "serde_json",
  "tempfile",
  "testcontainers",
