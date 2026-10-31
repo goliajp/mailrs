@@ -94,15 +94,17 @@ async fn append_copy_move_and_expunge_each_count_once() {
     c.until("a2").await;
     assert_eq!(used(&mut net), size, "APPEND");
 
+    // Junk, not Trash: a copy into Trash moves the conversation there and
+    // writes no file
     c.cmd("a3", "SELECT INBOX").await;
-    c.cmd("a4", "COPY 1 Trash").await;
+    c.cmd("a4", "COPY 1 Junk").await;
     assert_eq!(used(&mut net), 2 * size, "COPY");
 
-    c.cmd("a5", "SELECT Trash").await;
-    c.cmd("a6", "MOVE 1 Junk").await;
+    c.cmd("a5", "SELECT Junk").await;
+    c.cmd("a6", "MOVE 1 INBOX").await;
     assert_eq!(used(&mut net), 2 * size, "MOVE");
 
-    c.cmd("a7", "SELECT Junk").await;
+    c.cmd("a7", "SELECT INBOX").await;
     c.cmd("a8", "STORE 1 +FLAGS.SILENT (\\Deleted)").await;
     c.cmd("a9", "EXPUNGE").await;
     assert_eq!(used(&mut net), size, "EXPUNGE");
