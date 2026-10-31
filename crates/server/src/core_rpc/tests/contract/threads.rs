@@ -342,6 +342,14 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
         &[],
     );
     compare_views(c, d, "delete_thread").await;
+    // an empty Trash empties to nothing on both; what a full one does is
+    // `trash::the_trash_answers_alike_on_both_cores`
+    d.both(
+        "empty_trash (nothing in it)",
+        fc.empty_trash(BOB).await,
+        pg.empty_trash(BOB).await,
+        &[],
+    );
 }
 
 async fn act(
