@@ -50,9 +50,8 @@ vi.mock('@/wire/endpoints/mutations', () => ({
   wireMarkAllRead: () => Promise.resolve({ flipped: 0 }),
 }))
 
-// mock react-query hooks used by ConversationList. The real ones need a
-// QueryClientProvider in the tree, which is overkill for the component
-// shape tests below.
+// the list's queries are mocked so the shape tests below choose exactly what
+// it is given
 vi.mock('@/hooks/use-mail-queries', () => ({
   useActionCountQuery: () => ({ data: { count: 0 } }),
   useCategoriesQuery: () => ({ data: [] }),
