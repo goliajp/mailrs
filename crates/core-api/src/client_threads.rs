@@ -219,13 +219,18 @@ impl Client {
     }
 
     /// POST /v1/users/{user}/threads/{thread_id}/images — `Conflict` for a
-    /// thread in Junk or held.
+    /// thread in Junk or held, unless `anyway`.
     pub async fn prefetch_thread_images(
         &self,
         user: &str,
         thread_id: &str,
+        anyway: bool,
     ) -> ApiResult<method::thread::ThreadActionResponse> {
-        self.thread_action(user, thread_id, "images", "prefetch_thread_images")
+        let action = match anyway {
+            true => "images?anyway=true",
+            false => "images",
+        };
+        self.thread_action(user, thread_id, action, "prefetch_thread_images")
             .await
     }
 

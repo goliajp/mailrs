@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use axum::Json;
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use mailrs_core_api::method::thread as wire;
 use mailrs_mailbox::pg::{Held, ThreadQuery};
@@ -18,9 +18,17 @@ fn fail(e: impl std::fmt::Display) -> StatusCode {
 }
 
 /// POST /v1/users/{user}/threads/{thread_id}/images
+/// `?anyway=true`: the reader asked for a thread in Junk or held all the same.
+#[derive(serde::Deserialize, Default)]
+pub struct Anyway {
+    #[serde(default)]
+    anyway: bool,
+}
+
 pub async fn prefetch_images(
     State(state): State<Arc<CoreRpcState>>,
     Path((user, thread_id)): Path<(String, String)>,
+    Query(asked): Query<Anyway>,
 ) -> Result<Json<wire::ThreadActionResponse>, StatusCode> {
     let ids = [thread_id.clone()];
     let q = ThreadQuery {
@@ -34,7 +42,7 @@ pub async fn prefetch_images(
     let Some(row) = rows.first() else {
         return Err(StatusCode::NOT_FOUND);
     };
-    if row.quarantined || bucket_of(&row.category) == Bucket::Junk {
+    if !asked.anyway && (row.quarantined || bucket_of(&row.category) == Bucket::Junk) {
         return Err(StatusCode::CONFLICT);
     }
     if let Some(url) = state.net_url.clone() {

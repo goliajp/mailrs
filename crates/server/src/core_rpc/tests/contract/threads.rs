@@ -275,18 +275,26 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
     for tid in [SPAM, HELLO] {
         d.both(
             &format!("prefetch_thread_images {tid}"),
-            fc.prefetch_thread_images(ALICE, tid).await,
-            pg.prefetch_thread_images(ALICE, tid).await,
+            fc.prefetch_thread_images(ALICE, tid, false).await,
+            pg.prefetch_thread_images(ALICE, tid, false).await,
             &[],
         );
     }
     assert!(
         matches!(
-            fc.prefetch_thread_images(ALICE, SPAM).await,
+            fc.prefetch_thread_images(ALICE, SPAM, false).await,
             Err(mailrs_core_api::error::CoreApiError::Conflict(_))
         ),
         "images were fetched for a thread in Junk"
     );
+    // asked for all the same, a Junk thread's images are fetched alike
+    d.both(
+        "prefetch_thread_images anyway",
+        fc.prefetch_thread_images(ALICE, SPAM, true).await,
+        pg.prefetch_thread_images(ALICE, SPAM, true).await,
+        &[],
+    );
+    assert!(fc.prefetch_thread_images(ALICE, SPAM, true).await.is_ok());
 
     let steps = [
         ("mark_thread_read", HELLO),

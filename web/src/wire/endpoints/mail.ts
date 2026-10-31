@@ -208,14 +208,20 @@ export async function wireGetMessageSource(uid: number): Promise<string> {
 /**
  * `POST /api/conversations/{threadId}/images` — fetch the thread's remote
  * images now (mail from before they were fetched on arrival). `junk` when
- * the server refuses: images of mail in Junk or held are never fetched.
+ * the server refuses: mail in Junk or held, unless `anyway` (the reader
+ * asked, knowing it tells the sender the address is read).
  */
-export async function wirePrefetchThreadImages(threadId: string): Promise<'junk' | 'queued'> {
+export async function wirePrefetchThreadImages(
+  threadId: string,
+  anyway = false
+): Promise<'junk' | 'queued'> {
+  let query = ''
+  if (anyway) query = '?anyway=true'
   try {
     await wireFetch(emptyResponseSchema, {
       allowEmpty: true,
       method: 'POST',
-      path: `/conversations/${encodeURIComponent(threadId)}/images`,
+      path: `/conversations/${encodeURIComponent(threadId)}/images${query}`,
     })
     return 'queued'
   } catch (e) {

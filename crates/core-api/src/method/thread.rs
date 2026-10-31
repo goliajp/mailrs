@@ -38,7 +38,8 @@ pub const PATH_TRASH: &str = "/v1/users/{user}/threads/{thread_id}/trash";
 pub const PATH_UNTRASH: &str = "/v1/users/{user}/threads/{thread_id}/untrash";
 /// `POST` — fetch the remote images of the thread's mail now, for mail that
 /// arrived before images were fetched on arrival. 409 for a thread in Junk
-/// or held for review, whose images are never fetched.
+/// or held for review, unless `?anyway=true`: the reader asked for them
+/// knowing it tells the sender the address is read.
 pub const PATH_PREFETCH_IMAGES: &str = "/v1/users/{user}/threads/{thread_id}/images";
 /// Delete every conversation in this reader's Trash for good.
 /// Answers `{"affected": n}`.
