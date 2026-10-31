@@ -73,10 +73,10 @@ describe('admin account cells', () => {
     renderIn(<QuotaCell address="qa@golia.jp" />)
     expect(await screen.findByText('10.00 GB')).toBeInTheDocument()
 
-    expect(quotaLabel(null)).toBe('—')
-    expect(quotaLabel(undefined)).toBe('—')
-    expect(quotaLabel(-1)).toBe('Unlimited')
-    expect(quotaLabel(0)).toBe('0 B')
+    expect(quotaLabel(null, 'Unlimited')).toBe('—')
+    expect(quotaLabel(undefined, 'Unlimited')).toBe('—')
+    expect(quotaLabel(-1, 'Unlimited')).toBe('Unlimited')
+    expect(quotaLabel(0, 'Unlimited')).toBe('0 B')
   })
 
   it('shows a dash when the account has no quota to read', async () => {
