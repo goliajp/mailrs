@@ -185,6 +185,8 @@ if [ "${SKIP_GATE:-0}" != 1 ] && [ "${WEB_ONLY_SKIPS_RUST_GATE:-0}" != 1 ]; then
     # were measured on this machine and fail on the runner's slower cores,
     # so they stay here — and nothing else builds here while they run.
     ./scripts/perf-gates.sh
+elif [ "${WEB_ONLY_SKIPS_RUST_GATE:-0}" = 1 ]; then
+    echo "==> [0/6] Rust gate skipped: WEB_ONLY ships no binary (step 5 runs the web check and tests)"
 else
     echo "!! [0/6] SKIP_GATE=1 — shipping unverified code to prod"
 fi
