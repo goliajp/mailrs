@@ -1,13 +1,15 @@
 import type { ContextMenuItem } from '@/components/context-menu'
 import type { SingleAction } from '@/components/conversation-actions'
+import type { RowState } from '@/lib/actions'
 import type { ConversationSummary } from '@/lib/types'
 
-import { Archive, ArchiveRestore, Check, Clock, Pin, ShieldAlert, Star } from 'lucide-react'
+import { Check, Clock, Pin, ShieldAlert, Star } from 'lucide-react'
 import { memo, useMemo } from 'react'
 
 import { CategoryBadge, ImportanceBadge } from '@/components/category-badge'
 import { ActionSheet, ContextMenu, useContextMenu } from '@/components/context-menu'
 import { SenderAvatar } from '@/components/sender-avatar'
+import { ACTIONS, rowActions, toggle } from '@/lib/actions'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { formatFullDate } from '@/lib/format'
 import {
@@ -76,75 +78,24 @@ export const ConversationItem = memo(function ConversationItem({
   // rows to re-render on every parent update (WebSocket tick, hover on
   // another row when group-hover used to be useState, etc).
   const contextItems = useMemo<ContextMenuItem[]>(
-    () => [
-      {
-        label: hasUnread ? 'Mark as read' : 'Mark as unread',
-        onClick: () => onContextAction(convo.thread_id, hasUnread ? 'read' : 'unread'),
-      },
-      {
-        label: isFlagged ? 'Unstar' : 'Star',
-        onClick: () => onContextAction(convo.thread_id, starAction(isFlagged)),
-      },
-      {
-        label: isPinned ? 'Unpin' : 'Pin',
-        onClick: () => onContextAction(convo.thread_id, isPinned ? 'unpin' : 'pin'),
-      },
-      {
-        label: isArchived ? 'Unarchive' : 'Archive',
-        onClick: () => onContextAction(convo.thread_id, archiveAction(isArchived)),
-      },
-      isSnoozed
-        ? {
-            label: 'Wake now',
-            onClick: () => onContextAction(convo.thread_id, 'unsnooze'),
-          }
-        : {
-            label: 'Snooze until tomorrow',
-            onClick: () => onContextAction(convo.thread_id, 'snooze'),
-          },
-      // v2.9 triage — bucket moves, contextual to the current view:
-      //   Junk view  → "Mark as not junk" (back to Inbox)
-      //   N & P view → "Move to Inbox" + "Mark as junk"
-      //   Inbox/else → "Mark as Notification" / "Mark as Promotion" /
-      //                "Mark as junk"
-      ...(isJunkView
-        ? [
-            {
-              label: 'Mark as not junk',
-              onClick: () => onContextAction(convo.thread_id, 'mark-not-junk'),
-            },
-          ]
-        : isNpView
-          ? [
-              {
-                label: 'Move to Inbox',
-                onClick: () => onContextAction(convo.thread_id, 'move-to-inbox'),
-              },
-              {
-                label: 'Mark as junk',
-                onClick: () => onContextAction(convo.thread_id, 'mark-junk'),
-              },
-            ]
-          : [
-              {
-                label: 'Mark as Notification',
-                onClick: () => onContextAction(convo.thread_id, 'mark-notification'),
-              },
-              {
-                label: 'Mark as Promotion',
-                onClick: () => onContextAction(convo.thread_id, 'mark-promotion'),
-              },
-              {
-                label: 'Mark as junk',
-                onClick: () => onContextAction(convo.thread_id, 'mark-junk'),
-              },
-            ]),
-      {
-        danger: true,
-        label: 'Delete',
-        onClick: () => onContextAction(convo.thread_id, 'delete'),
-      },
-    ],
+    () =>
+      rowActions({
+        archived: isArchived,
+        flagged: isFlagged,
+        pinned: isPinned,
+        snoozed: isSnoozed,
+        unread: hasUnread,
+        view: listView(isJunkView, isNpView),
+      }).map((id) => {
+        const spec = ACTIONS[id]
+        const Icon = spec.icon
+        return {
+          danger: spec.danger,
+          icon: <Icon aria-hidden className="h-4 w-4" />,
+          label: spec.label,
+          onClick: () => onContextAction(convo.thread_id, id),
+        }
+      }),
     [
       convo.thread_id,
       hasUnread,
@@ -362,19 +313,17 @@ export const ConversationItem = memo(function ConversationItem({
 // Junk = physical Junk mailbox (mb.name='Junk'), populated by sieve / "mark spam" action.
 
 function archiveAction(archived: boolean): SingleAction {
-  if (archived) return 'unarchive'
-  return 'archive'
+  return toggle(archived, 'unarchive', 'archive')
 }
 
 /** Archive, or put back from the archive. */
 function ArchiveIcon({ archived, className }: { archived: boolean; className: string }) {
-  if (archived) return <ArchiveRestore aria-hidden className={className} />
-  return <Archive aria-hidden className={className} />
+  const Icon = ACTIONS[archiveAction(archived)].icon
+  return <Icon aria-hidden className={className} />
 }
 
 function archiveLabel(archived: boolean): string {
-  if (archived) return 'Unarchive'
-  return 'Archive'
+  return ACTIONS[archiveAction(archived)].label
 }
 
 /** The date gives its place to the hover actions, keeping its width. */
@@ -417,9 +366,15 @@ function getStarClass({
   return `${base} ${color}`
 }
 
+/** Which list the row is seen in, as the action table distinguishes them. */
+function listView(isJunkView: boolean, isNpView: boolean): RowState['view'] {
+  if (isJunkView) return 'junk'
+  if (isNpView) return 'np'
+  return 'other'
+}
+
 function starAction(flagged: boolean): SingleAction {
-  if (flagged) return 'unstar'
-  return 'star'
+  return toggle(flagged, 'unstar', 'star')
 }
 
 function starFill(flagged: boolean): string {
@@ -428,6 +383,5 @@ function starFill(flagged: boolean): string {
 }
 
 function starLabel(flagged: boolean): string {
-  if (flagged) return 'Unstar'
-  return 'Star'
+  return ACTIONS[starAction(flagged)].label
 }

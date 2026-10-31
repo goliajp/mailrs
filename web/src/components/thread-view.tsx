@@ -9,6 +9,7 @@ import { ThreadContentPane } from '@/components/thread-content-pane'
 import { ThreadConversationPane, VISIBLE_RECENT } from '@/components/thread-conversation-pane'
 import { type ThreadReplyContext } from '@/components/thread-reply-box'
 import { ThreadViewDialogs } from '@/components/thread-view-dialogs'
+import { useConversationActions } from '@/hooks/use-conversation-actions'
 import {
   useConversationRows,
   useCurrentListRows,
@@ -19,6 +20,7 @@ import { useThreadQuery } from '@/hooks/use-mail-queries'
 import { useMarkReadOnOpen } from '@/hooks/use-mark-read-on-open'
 import { useThreadActions } from '@/hooks/use-thread-actions'
 import { MPane, MPaneGroup } from '@/layouts/pane'
+import { toggle } from '@/lib/actions'
 import { extractEmail } from '@/lib/avatar'
 import { formatFullDate } from '@/lib/format'
 import { splitAddressList } from '@/lib/recipients'
@@ -232,6 +234,15 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     // thread fetch is owned by useThreadQuery; nothing imperative to do here
   }, [selectedId, currentConversations, setMobileThreadTab, setMobileReplyOpen])
 
+  // archiving runs through the same dispatcher as the list's row, so the
+  // toast, its undo and `z` behave alike
+  const { act } = useConversationActions()
+  const isArchived = currentConversations.find((c) => c.thread_id === selectedId)?.archived ?? false
+  const handleArchive = useCallback(() => {
+    if (!selectedId) return
+    void act(selectedId, toggle(isArchived, 'unarchive', 'archive'))
+  }, [act, isArchived, selectedId])
+
   // `r`, `f` and `#` from the keyboard do what this pane's own buttons
   // do, on the newest message, once the thread they name is loaded.
   // After the reset above, which would otherwise undo a forward when
@@ -383,6 +394,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
         contentScrollRef={contentScrollRef}
         goToNext={goToNext}
         goToPrev={goToPrev}
+        handleArchive={handleArchive}
         handleForwardMsg={handleForwardMsg}
         handleMarkRead={handleMarkRead}
         handleMarkUnread={handleMarkUnread}
@@ -391,6 +403,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
         handleUnstar={handleUnstar}
         hasNext={hasNext}
         hasPrev={hasPrev}
+        isArchived={isArchived}
         isFlagged={isFlagged}
         isRead={isRead}
         loadingThread={loadingThread}

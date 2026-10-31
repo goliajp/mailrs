@@ -1,3 +1,4 @@
+import type { ActionId } from '@/lib/actions'
 import type { ThreadMessage } from '@/lib/types'
 import type { MobileThreadTab } from '@/store/ui'
 import type { Dispatch, RefObject, SetStateAction } from 'react'
@@ -9,14 +10,12 @@ import {
   Download,
   Forward,
   Mail,
-  MailOpen,
   MessageSquare,
   PanelRightClose,
   PanelRightOpen,
   Printer,
   Reply,
   Star,
-  Trash2,
 } from 'lucide-react'
 import { useMemo } from 'react'
 
@@ -37,6 +36,7 @@ import { FeedbackMenu, HdrBtn, SmBtn } from '@/components/thread-view-bubble'
 import { UnsubscribeFooter } from '@/components/unsubscribe-footer'
 import { useSelectedThreadId } from '@/hooks/use-current-list'
 import { MPane } from '@/layouts/pane'
+import { ACTIONS, toggle } from '@/lib/actions'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { htmlBodyPaintsNothing } from '@/lib/email-split'
 import { formatFullDate } from '@/lib/format'
@@ -51,6 +51,7 @@ type ContentPaneProps = {
   contentScrollRef: RefObject<HTMLDivElement | null>
   goToNext: () => void
   goToPrev: () => void
+  handleArchive: () => void
   handleForwardMsg: (msg: ThreadMessage) => void
   handleMarkRead: () => void
   handleMarkUnread: () => void
@@ -59,6 +60,7 @@ type ContentPaneProps = {
   handleUnstar: () => void
   hasNext: boolean
   hasPrev: boolean
+  isArchived: boolean
   isFlagged: boolean
   isRead: boolean
   loadingThread: boolean
@@ -84,6 +86,7 @@ export function ThreadContentPane({
   contentScrollRef,
   goToNext,
   goToPrev,
+  handleArchive,
   handleForwardMsg,
   handleMarkRead,
   handleMarkUnread,
@@ -92,6 +95,7 @@ export function ThreadContentPane({
   handleUnstar,
   hasNext,
   hasPrev,
+  isArchived,
   isFlagged,
   isRead,
   loadingThread,
@@ -166,26 +170,23 @@ export function ThreadContentPane({
             >
               <ChevronDown className="h-4 w-4" />
             </HdrBtn>
-            <HdrBtn
+            <ActionBtn id={toggle(isArchived, 'unarchive', 'archive')} onClick={handleArchive} />
+            <ActionBtn
+              id={toggle(isRead, 'unread', 'read')}
               onClick={isRead ? handleMarkUnread : handleMarkRead}
-              title={isRead ? 'Mark unread' : 'Mark read'}
-            >
-              {isRead ? <Mail className="h-4 w-4" /> : <MailOpen className="h-4 w-4" />}
-            </HdrBtn>
+            />
             <HdrBtn
               className={isFlagged ? 'text-warning hover:text-warning' : undefined}
               onClick={isFlagged ? handleUnstar : handleStar}
-              title={isFlagged ? 'Unstar' : 'Star'}
+              title={ACTIONS[toggle(isFlagged, 'unstar', 'star')].label}
             >
               <Star className="h-4 w-4" fill={isFlagged ? 'currentColor' : 'none'} />
             </HdrBtn>
-            <HdrBtn
+            <ActionBtn
               className="hover:text-danger"
+              id="delete"
               onClick={() => setShowDeleteConfirm(true)}
-              title="Delete"
-            >
-              <Trash2 className="h-4 w-4" />
-            </HdrBtn>
+            />
             {/* mobile: toggle to conversation timeline */}
             {messages.length > 1 && (
               <HdrBtn
@@ -434,5 +435,24 @@ export function ThreadContentPane({
         </button>
       </MPane>
     </>
+  )
+}
+
+/** A header button drawn from the action table: its icon, its label. */
+function ActionBtn({
+  className,
+  id,
+  onClick,
+}: {
+  className?: string
+  id: ActionId
+  onClick: () => void
+}) {
+  const spec = ACTIONS[id]
+  const Icon = spec.icon
+  return (
+    <HdrBtn className={className} onClick={onClick} title={spec.label}>
+      <Icon className="h-4 w-4" />
+    </HdrBtn>
   )
 }

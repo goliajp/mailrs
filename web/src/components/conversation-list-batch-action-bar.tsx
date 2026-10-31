@@ -1,5 +1,7 @@
 import type { BatchAction } from '@/hooks/use-mail-mutations'
 
+import { ACTIONS, BATCH_ACTIONS } from '@/lib/actions'
+
 // floating action bar at bottom of list during batch mode
 export function BatchActionBar({
   loading,
@@ -19,41 +21,16 @@ export function BatchActionBar({
           {selectedCount} selected
         </span>
         <div className="flex flex-1 items-center gap-1.5 overflow-x-auto">
-          <button
-            className="text-fg-secondary hover:bg-bg-secondary focus-visible:ring-accent/50 shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
-            disabled={loading}
-            onClick={() => onAction('read')}
-          >
-            Mark read
-          </button>
-          <button
-            className="text-fg-secondary hover:bg-bg-secondary focus-visible:ring-accent/50 shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
-            disabled={loading}
-            onClick={() => onAction('unread')}
-          >
-            Mark unread
-          </button>
-          <button
-            className="text-fg-secondary hover:bg-bg-secondary focus-visible:ring-accent/50 shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
-            disabled={loading}
-            onClick={() => onAction('star')}
-          >
-            Star
-          </button>
-          <button
-            className="text-fg-secondary hover:bg-bg-secondary focus-visible:ring-accent/50 shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
-            disabled={loading}
-            onClick={() => onAction('archive')}
-          >
-            Archive
-          </button>
-          <button
-            className="text-danger hover:bg-danger/10 focus-visible:ring-accent/50 shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
-            disabled={loading}
-            onClick={() => onAction('delete')}
-          >
-            Delete
-          </button>
+          {BATCH_ACTIONS.map((id) => (
+            <button
+              className={buttonClass(ACTIONS[id].danger)}
+              disabled={loading}
+              key={id}
+              onClick={() => onAction(id as BatchAction)}
+            >
+              {ACTIONS[id].label}
+            </button>
+          ))}
         </div>
         <button
           className="text-fg-muted hover:bg-bg-secondary shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50"
@@ -68,4 +45,11 @@ export function BatchActionBar({
       </div>
     </div>
   )
+}
+
+function buttonClass(danger: boolean): string {
+  const base =
+    'focus-visible:ring-accent/50 shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50'
+  if (danger) return `text-danger hover:bg-danger/10 ${base}`
+  return `text-fg-secondary hover:bg-bg-secondary ${base}`
 }
