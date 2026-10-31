@@ -18,7 +18,7 @@ pub struct RealAccount {
 }
 
 /// The base name of a Maildir file, without its `:2,` info.
-fn base_name(path: &Path) -> Option<&str> {
+pub(super) fn base_name(path: &Path) -> Option<&str> {
     path.file_name()
         .and_then(|f| f.to_str())
         .and_then(|f| f.split(':').next())
