@@ -10984,6 +10984,243 @@
           }
         }
       }
+    },
+    "/api/settings/vacation": {
+      "get": {
+        "operationId": "getVacation",
+        "summary": "Your vacation reply; off when never set",
+        "tags": [
+          "Settings"
+        ],
+        "responses": {
+          "200": {
+            "description": "Vacation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Vacation"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "setVacation",
+        "summary": "Set your vacation reply. Mail in Junk, held mail, mailing lists and automatic mail get no reply",
+        "tags": [
+          "Settings"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Vacation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Vacation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_subject, invalid_body, invalid_days or end_before_start, as {error}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/forwarding": {
+      "get": {
+        "operationId": "getForwarding",
+        "summary": "Your forwarding",
+        "tags": [
+          "Settings"
+        ],
+        "responses": {
+          "200": {
+            "description": "Forwarding",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "address": {
+                      "type": "string",
+                      "description": "Where mail is forwarded; empty when off"
+                    },
+                    "keep_copy": {
+                      "type": "boolean"
+                    },
+                    "pending_address": {
+                      "type": "string",
+                      "description": "Waiting for the code sent to it"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "requestForwarding",
+        "summary": "Send a code to an address; forwarding to it starts once the code is entered. Needs a recent password confirmation",
+        "tags": [
+          "Settings"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "address"
+                ],
+                "properties": {
+                  "address": {
+                    "type": "string"
+                  },
+                  "keep_copy": {
+                    "type": "boolean",
+                    "default": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Code sent"
+          },
+          "400": {
+            "description": "invalid_address or own_address, as {error}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "confirm_required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "stopForwarding",
+        "summary": "Stop forwarding",
+        "tags": [
+          "Settings"
+        ],
+        "responses": {
+          "204": {
+            "description": "Stopped"
+          }
+        }
+      }
+    },
+    "/api/settings/forwarding/verify": {
+      "post": {
+        "operationId": "verifyForwarding",
+        "summary": "Enter the code sent to the address",
+        "tags": [
+          "Settings"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "code"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{address}: forwarding is on",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "address": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "wrong_code with tries_left, or no_pending_code (none sent, expired, or too many wrong codes)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "tries_left": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -13306,6 +13543,48 @@
           "created_at": {
             "type": "integer",
             "description": "Unix seconds"
+          }
+        }
+      },
+      "Vacation": {
+        "type": "object",
+        "required": [
+          "enabled",
+          "subject",
+          "body",
+          "days"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "subject": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 10000
+          },
+          "start": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Unix seconds it starts replying, or null"
+          },
+          "end": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Unix seconds it stops replying, or null"
+          },
+          "days": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 30,
+            "description": "One reply per sender within this many days"
+          },
+          "version": {
+            "type": "integer",
+            "readOnly": true
           }
         }
       }
