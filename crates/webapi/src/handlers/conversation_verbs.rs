@@ -19,6 +19,9 @@ use crate::handlers::conversations::*;
 pub struct BatchRequest {
     pub action: String,
     pub thread_ids: Vec<String>,
+    /// The label `label` and `unlabel` put on or take off.
+    #[serde(default)]
+    pub label_id: Option<String>,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -66,6 +69,12 @@ pub async fn batch_mutation(
             // to the Trash, as a single delete is; restoring is its inverse
             "delete" => f.trash_thread(&user, tid).await.map(|_| ()),
             "untrash" => f.untrash_thread(&user, tid).await.map(|_| ()),
+            "label" | "unlabel" => match req.label_id.as_deref() {
+                Some(id) => f.set_thread_label(&user, tid, id, action == "label").await,
+                None => Err(mailrs_core_api::error::CoreApiError::BadRequest(
+                    "label_id is required".into(),
+                )),
+            },
             _ => Err(mailrs_core_api::error::CoreApiError::Internal(format!(
                 "unknown batch action: {action}"
             ))),

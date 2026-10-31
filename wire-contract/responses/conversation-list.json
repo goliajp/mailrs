@@ -21,6 +21,7 @@
     "thread_id": "a48529b44b1b190f@golia.jp",
     "unread_count": 0,
     "quarantined": false,
-    "trashed_at": 0
+    "trashed_at": 0,
+    "labels": []
   }
 ]
