@@ -263,26 +263,11 @@ pub(crate) fn fetch_thread_raw(
     out
 }
 
-/// Read one maildir file by its `blob_ref`. A ref with a `/` is a
-/// Maildir++ subfolder path (`.Sent/<file>`); otherwise it's a bare
-/// INBOX filename tried under `cur/` then `new/`.
+/// Read one maildir file by its `blob_ref`. A message once read has its
+/// flags in the file name (`<ref>:2,S`), which only `locate` matches; a
+/// lookup by the bare name found no file for any read message, so a thread
+/// taken out of Junk was neither learnt from nor had its images fetched.
 fn read_maildir_file(base: &std::path::Path, blob_ref: &str) -> Option<Vec<u8>> {
-    if let Some((sub, file)) = blob_ref.split_once('/') {
-        for leaf in ["cur", "new"] {
-            let p = base.join(sub).join(leaf).join(file);
-            if let Ok(b) = std::fs::read(&p) {
-                return Some(b);
-            }
-        }
-        // Some refs already include cur/new in the subfolder segment.
-        let p = base.join(sub).join(file);
-        return std::fs::read(p).ok();
-    }
-    for leaf in ["cur", "new"] {
-        let p = base.join(leaf).join(blob_ref);
-        if let Ok(b) = std::fs::read(&p) {
-            return Some(b);
-        }
-    }
-    None
+    let (dir, id) = mailrs_maildir::locate(base, blob_ref)?;
+    dir.fetch(&id).ok().flatten()
 }
