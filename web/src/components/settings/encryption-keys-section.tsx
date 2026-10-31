@@ -2,6 +2,8 @@ import { toast } from '@goliapkg/gds'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 
+import { type Key, useT } from '@/i18n'
+import { errorText } from '@/lib/error-text'
 import { queryClient } from '@/lib/query-client'
 import { settingsKeys } from '@/lib/query-keys'
 import { wireDeleteKey, wireGetKeyStatus, wireUploadKey } from '@/wire/endpoints/settings'
@@ -17,6 +19,7 @@ import {
 } from './_shared'
 
 export function EncryptionKeysSection() {
+  const t = useT()
   const { data: status = null } = useQuery({
     queryKey: settingsKeys.encryptionKeysStatus(),
     queryFn: () => wireGetKeyStatus(),
@@ -34,7 +37,7 @@ export function EncryptionKeysSection() {
     setSaving(type)
     try {
       await wireUploadKey(type, content.trim())
-      toast.success(`${type.toUpperCase()} key saved`)
+      toast.success(t('settings.keys.saved', { kind: type.toUpperCase() }))
       if (type === 'pgp') {
         setPgpKey('')
       } else {
@@ -42,7 +45,7 @@ export function EncryptionKeysSection() {
       }
       void invalidate()
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : `Failed to save ${type} key`)
+      toast.error(errorText(e, t('settings.keys.saveFailed', { kind: type })))
     } finally {
       setSaving(null)
     }
@@ -52,10 +55,10 @@ export function EncryptionKeysSection() {
     setSaving(type)
     try {
       await wireDeleteKey(type)
-      toast.success(`${type.toUpperCase()} key deleted`)
+      toast.success(t('settings.keys.deleted', { kind: type.toUpperCase() }))
       void invalidate()
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : `Failed to delete ${type} key`)
+      toast.error(errorText(e, t('settings.keys.deleteFailed', { kind: type })))
     } finally {
       setSaving(null)
     }
@@ -63,20 +66,20 @@ export function EncryptionKeysSection() {
 
   return (
     <div className="space-y-6">
-      <SectionHeader title="Encryption Keys" />
+      <SectionHeader title={t('settings.keys.title')} />
 
       <div className={cardClass + ' space-y-4'}>
-        <h3 className="text-sm font-medium">PGP Key</h3>
-        <Field label="Fingerprint">
+        <h3 className="text-sm font-medium">{t('settings.keys.pgp')}</h3>
+        <Field label={t('settings.keys.fingerprint')}>
           <span className="text-fg-secondary font-mono text-xs">
-            {status?.pgp_fingerprint ?? 'Not configured'}
+            {status?.pgp_fingerprint ?? t('settings.account.notConfigured')}
           </span>
         </Field>
         <textarea
-          aria-label="PGP public key"
+          aria-label={t('settings.keys.pgpPublic')}
           className={inputClass}
           onChange={(e) => setPgpKey(e.target.value)}
-          placeholder="Paste PGP public key (ASCII-armored)"
+          placeholder={t('settings.keys.pgpPlaceholder')}
           rows={4}
           value={pgpKey}
         />
@@ -86,7 +89,7 @@ export function EncryptionKeysSection() {
             disabled={saving === 'pgp'}
             onClick={() => handleUpload('pgp', pgpKey)}
           >
-            {saving === 'pgp' ? 'Saving...' : 'Save PGP Key'}
+            {t(saveLabel(saving === 'pgp', 'settings.keys.savePgp'))}
           </button>
           {status?.pgp_fingerprint && (
             <button
@@ -94,24 +97,24 @@ export function EncryptionKeysSection() {
               disabled={saving === 'pgp'}
               onClick={() => setDeleteKeyTarget('pgp')}
             >
-              Delete
+              {t('settings.rules.delete')}
             </button>
           )}
         </div>
       </div>
 
       <div className={cardClass + ' space-y-4'}>
-        <h3 className="text-sm font-medium">S/MIME Certificate</h3>
-        <Field label="Fingerprint">
+        <h3 className="text-sm font-medium">{t('settings.keys.smime')}</h3>
+        <Field label={t('settings.keys.fingerprint')}>
           <span className="text-fg-secondary font-mono text-xs">
-            {status?.smime_fingerprint ?? 'Not configured'}
+            {status?.smime_fingerprint ?? t('settings.account.notConfigured')}
           </span>
         </Field>
         <textarea
-          aria-label="S/MIME certificate"
+          aria-label={t('settings.keys.smimeCert')}
           className={inputClass}
           onChange={(e) => setSmimeCert(e.target.value)}
-          placeholder="Paste S/MIME certificate (PEM format)"
+          placeholder={t('settings.keys.smimePlaceholder')}
           rows={4}
           value={smimeCert}
         />
@@ -121,7 +124,7 @@ export function EncryptionKeysSection() {
             disabled={saving === 'smime'}
             onClick={() => handleUpload('smime', smimeCert)}
           >
-            {saving === 'smime' ? 'Saving...' : 'Save S/MIME Cert'}
+            {t(saveLabel(saving === 'smime', 'settings.keys.saveSmime'))}
           </button>
           {status?.smime_fingerprint && (
             <button
@@ -129,7 +132,7 @@ export function EncryptionKeysSection() {
               disabled={saving === 'smime'}
               onClick={() => setDeleteKeyTarget('smime')}
             >
-              Delete
+              {t('settings.rules.delete')}
             </button>
           )}
         </div>
@@ -137,7 +140,7 @@ export function EncryptionKeysSection() {
 
       {deleteKeyTarget && (
         <ConfirmDialog
-          message={`Delete your ${deleteKeyTarget.toUpperCase()} key? This cannot be undone.`}
+          message={t('settings.keys.deleteConfirm', { kind: deleteKeyTarget.toUpperCase() })}
           onCancel={() => setDeleteKeyTarget(null)}
           onConfirm={() => {
             handleDelete(deleteKeyTarget)
@@ -147,4 +150,9 @@ export function EncryptionKeysSection() {
       )}
     </div>
   )
+}
+
+function saveLabel(saving: boolean, idle: Key): Key {
+  if (saving) return 'settings.saving'
+  return idle
 }
