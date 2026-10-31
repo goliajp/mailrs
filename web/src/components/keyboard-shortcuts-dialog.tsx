@@ -86,6 +86,8 @@ export function ShortcutsHost() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== '?' || isEditableTarget(e.target)) return
+      // Cmd+? and the like are the browser's and the system's
+      if (e.altKey || e.ctrlKey || e.metaKey) return
       e.preventDefault()
       setOpen((prev) => !prev)
     }
