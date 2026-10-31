@@ -87,6 +87,9 @@ pub(super) struct Backends {
 /// Maildir core lists the folders that exist. Same folders on both.
 const FOLDERS: [&str; 4] = [".Drafts", ".Junk", ".Sent", ".Trash"];
 
+/// The label both cores hold for the account, shown as a mailbox.
+pub(super) const LABEL: &str = "Work";
+
 /// The accounts no password signs into, with what each stores.
 fn passwordless_accounts() -> [(&'static str, &'static str); 2] {
     use super::passwordless::{BLANK, CLEAR, CLEAR_VALUE};
@@ -101,6 +104,7 @@ fn fastcore(net_url: &str, root: &std::path::Path) -> Arc<FastcoreDirectory> {
     let hash = crate::users::UserStore::hash_password(PASSWORD).unwrap();
     let blob = serde_json::json!({ "password_hash": hash }).to_string();
     state.mailbox.upsert_account(USER, &blob).unwrap();
+    state.mailbox.create_label(USER, LABEL, "blue", 0).unwrap();
     for (who, stored) in passwordless_accounts() {
         let blob = serde_json::json!({ "password_hash": stored }).to_string();
         state.mailbox.upsert_account(who, &blob).unwrap();
@@ -135,8 +139,10 @@ async fn pg(
             .await
             .unwrap();
     }
+    let mailbox = Arc::new(mailrs_mailbox::PgMailboxStore::new(pool));
+    mailbox.create_label(USER, LABEL, "blue", 0).await.unwrap();
     let dir = PgDirectory {
-        mailbox: Arc::new(mailrs_mailbox::PgMailboxStore::new(pool)),
+        mailbox,
         domain: Some(domain),
         users: Arc::new(crate::users::UserStore::empty()),
         ldap: None,

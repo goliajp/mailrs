@@ -5,7 +5,15 @@ use mailrs_imap_proto::special_use_flag;
 use super::Step;
 use super::steps::{logout, signed_in, step};
 
-const FOLDERS: [&str; 5] = ["INBOX", "Drafts", "Junk", "Sent", "Trash"];
+// the account's label is listed after the mailboxes
+const FOLDERS: [&str; 6] = [
+    "INBOX",
+    "Drafts",
+    "Junk",
+    "Sent",
+    "Trash",
+    super::harness::LABEL,
+];
 
 /// INBOX holds two messages, the first of them `\Seen`.
 pub(super) fn status() -> Vec<Step> {

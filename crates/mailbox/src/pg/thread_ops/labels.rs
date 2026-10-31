@@ -189,6 +189,33 @@ impl PgMailboxStore {
         Ok(out)
     }
 
+    /// What IMAP shows under label `id`: the messages of the conversations
+    /// it is on, other than those in the Trash, by row id.
+    pub async fn labelled_messages(
+        &self,
+        user: &str,
+        id: &str,
+    ) -> Result<Vec<crate::types::MessageMeta>, LabelDbError> {
+        let rows = sqlx::query_as::<_, (i64, i64, i32, String, String, String, String, i64, i32, i32, i64, String, String, String, i64)>(
+            "SELECT m.id, m.mailbox_id, m.uid, m.maildir_id, m.sender, m.recipients, m.subject, m.date_epoch, m.size, m.flags, m.internal_date, m.message_id, m.in_reply_to, m.thread_id, m.modseq
+               FROM messages m JOIN mailboxes mb ON mb.id = m.mailbox_id
+              WHERE mb.user_address = $1
+                AND m.thread_id IN (SELECT thread_id FROM thread_labels
+                                     WHERE account_address = $1 AND label_id = $2)
+                AND m.thread_id NOT IN (SELECT thread_id FROM trashed_conversations
+                                         WHERE account_address = $1)
+              ORDER BY m.id",
+        )
+        .bind(user)
+        .bind(label_id(id)?)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(crate::pg::helpers::row_to_message_meta)
+            .collect())
+    }
+
     /// A conversation deleted for good leaves every label of `user`.
     pub async fn drop_thread_labels(&self, user: &str, thread_id: &str) -> Result<(), sqlx::Error> {
         sqlx::query("DELETE FROM thread_labels WHERE account_address = $1 AND thread_id = $2")

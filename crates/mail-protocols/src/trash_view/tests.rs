@@ -85,3 +85,65 @@ async fn expunge_in_trash_deletes_for_good() {
     assert!(uids(&v, "Trash").await.is_empty());
     assert!(uids(&v, "INBOX").await.is_empty());
 }
+
+/// A label is a mailbox of its own: copying a message in puts the label on,
+/// the message stays filed, and expunging there takes the label off
+/// without deleting anything.
+#[tokio::test]
+async fn a_label_is_a_mailbox_that_copies_label_and_expunges_unlabel() {
+    let dir = directory();
+    dir.deliver("Subject: one\r\n\r\n1");
+    dir.deliver("Subject: two\r\n\r\n2");
+    dir.add_label("7", "Work");
+    let v = view(&dir).await;
+    assert!(
+        v.mailbox_names()
+            .await
+            .unwrap()
+            .contains(&"Work".to_string())
+    );
+
+    let inbox = v.mailbox("INBOX").await.unwrap().unwrap();
+    let work = v.mailbox("work").await.unwrap().unwrap();
+    let empty = v.select(&work).await.unwrap().uidvalidity;
+    let first = v.messages(&inbox).await.unwrap()[0].clone();
+    let filed = v.copy(&inbox, &first, &work).await.unwrap();
+    assert_eq!(uids(&v, "Work").await, [filed.uid]);
+    assert_eq!(uids(&v, "INBOX").await, [1, 2], "a label moves nothing");
+    let after = v.select(&work).await.unwrap();
+    assert_ne!(after.uidvalidity, empty, "a client would not look again");
+    assert_eq!(filed.uidvalidity, after.uidvalidity);
+
+    let gone = v.expunge(&work, &after.messages).await;
+    assert!(gone.failed.is_none());
+    assert!(uids(&v, "Work").await.is_empty());
+    assert_eq!(uids(&v, "INBOX").await, [1, 2], "the expunge deleted mail");
+}
+
+#[tokio::test]
+async fn moving_out_of_a_label_takes_it_off_and_into_trash_trashes() {
+    let dir = directory();
+    dir.deliver("Subject: one\r\n\r\n1");
+    dir.add_label("7", "Work");
+    let v = view(&dir).await;
+    let inbox = v.mailbox("INBOX").await.unwrap().unwrap();
+    let work = v.mailbox("Work").await.unwrap().unwrap();
+    let trash = v.mailbox("Trash").await.unwrap().unwrap();
+    let m = v.messages(&inbox).await.unwrap()[0].clone();
+    v.copy(&inbox, &m, &work).await.unwrap();
+
+    let shown = v.messages(&work).await.unwrap()[0].clone();
+    v.move_to(&work, &shown, &inbox).await.unwrap();
+    assert!(uids(&v, "Work").await.is_empty());
+    assert_eq!(uids(&v, "INBOX").await, [1]);
+
+    v.copy(&inbox, &m, &work).await.unwrap();
+    let shown = v.messages(&work).await.unwrap()[0].clone();
+    v.move_to(&work, &shown, &trash).await.unwrap();
+    assert_eq!(uids(&v, "Trash").await.len(), 1);
+    assert!(uids(&v, "INBOX").await.is_empty());
+    assert!(
+        uids(&v, "Work").await.is_empty(),
+        "the Trash is out of every label"
+    );
+}

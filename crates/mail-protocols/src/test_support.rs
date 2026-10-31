@@ -10,8 +10,8 @@ use tokio_rustls::client::TlsStream;
 pub(crate) use crate::test_tls::{Cert, cert};
 
 use crate::backend::{
-    Account, Directory, Error, Expunged, Filed, Flag, Message, Protocol, Quota, Result, Selected,
-    Trashed, TrashedMessage, Watch,
+    Account, Directory, Error, Expunged, Filed, Flag, LabelFolder, Message, Protocol, Quota,
+    Result, Selected, ShownMessage, Trashed, Watch,
 };
 
 pub(crate) const USER: &str = "alice@golia.example.test";
@@ -24,12 +24,16 @@ type Inbox = Arc<Mutex<Vec<(u32, Vec<Flag>, Vec<u8>)>>>;
 /// conversation here), and a clock that ticks once per move there.
 type Trash = Arc<Mutex<(Vec<u32>, i64)>>;
 
+/// Labels: `(id, name, uids)`, each message its own conversation.
+type Labels = Arc<Mutex<Vec<(String, String, Vec<u32>)>>>;
+
 /// One account and its INBOX.
 #[derive(Default)]
 pub(crate) struct Memory {
     inbox: Inbox,
     script: Arc<Mutex<Option<String>>>,
     trash: Trash,
+    labels: Labels,
 }
 
 pub(crate) fn directory() -> Arc<Memory> {
@@ -37,6 +41,11 @@ pub(crate) fn directory() -> Arc<Memory> {
 }
 
 impl Memory {
+    pub(crate) fn add_label(&self, id: &str, name: &str) {
+        let mut labels = self.labels.lock().unwrap();
+        labels.push((id.to_string(), name.to_string(), Vec::new()));
+    }
+
     pub(crate) fn deliver(&self, raw: &str) {
         file(&self.inbox, raw.as_bytes().to_vec(), Vec::new());
     }
@@ -70,6 +79,7 @@ impl Directory for Memory {
                 inbox: self.inbox.clone(),
                 script: self.script.clone(),
                 trash: self.trash.clone(),
+                labels: self.labels.clone(),
             }),
         )
     }
@@ -79,6 +89,7 @@ pub(crate) struct MemoryAccount {
     inbox: Inbox,
     script: Arc<Mutex<Option<String>>>,
     trash: Trash,
+    labels: Labels,
 }
 
 pub(crate) struct Never;
@@ -227,13 +238,46 @@ impl Account for MemoryAccount {
             .listing()
             .into_iter()
             .filter(|m| uids.contains(&m.uid))
-            .map(|m| TrashedMessage {
+            .map(|m| ShownMessage {
                 mailbox: (),
                 uid: m.uid,
                 message: m,
             })
             .collect();
         Ok(Trashed { messages, latest })
+    }
+
+    async fn labels(&self) -> Result<Vec<LabelFolder<(), u32>>> {
+        let labels = self.labels.lock().unwrap().clone();
+        let trashed = self.trash.lock().unwrap().0.clone();
+        let listing = self.listing();
+        Ok(labels
+            .into_iter()
+            .map(|(id, name, uids)| LabelFolder {
+                id,
+                name,
+                messages: listing
+                    .iter()
+                    .filter(|m| uids.contains(&m.uid) && !trashed.contains(&m.uid))
+                    .map(|m| ShownMessage {
+                        mailbox: (),
+                        uid: m.uid,
+                        message: m.clone(),
+                    })
+                    .collect(),
+            })
+            .collect())
+    }
+
+    async fn set_label(&self, _: &(), m: &Message<u32>, id: &str, on: bool) -> Result<bool> {
+        let mut labels = self.labels.lock().unwrap();
+        let label = labels.iter_mut().find(|l| l.0 == id);
+        let label = label.ok_or_else(|| Error::Store("no such label".into()))?;
+        label.2.retain(|u| *u != m.uid);
+        if on {
+            label.2.push(m.uid);
+        }
+        Ok(true)
     }
 
     async fn set_trashed(&self, _: &(), m: &Message<u32>, trashed: bool) -> Result<bool> {

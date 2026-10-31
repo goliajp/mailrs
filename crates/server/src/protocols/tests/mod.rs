@@ -12,6 +12,7 @@ mod bodies;
 mod checks;
 mod folders;
 mod harness;
+mod labelled;
 mod limits;
 mod moves;
 mod passwordless;
@@ -149,7 +150,8 @@ async fn conversations<D: Directory>(dir: Arc<D>, home: std::path::PathBuf) -> V
         tokio::spawn(pop3);
         diffs.extend(converse(client, "pop3", &steps).await);
     }
-    diffs.extend(bodies::folders(dir.clone(), home).await);
+    diffs.extend(bodies::folders(dir.clone(), home.clone()).await);
+    diffs.extend(labelled::label(dir.clone(), home).await);
     diffs.extend(passwordless_refused(dir).await);
     diffs
 }

@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use mailrs_mail_protocols::backend::{
-    Account, Error, Expunged, Filed, Flag, Message, Quota, Result, Selected, Trashed,
+    Account, Error, Expunged, Filed, Flag, LabelFolder, Message, Quota, Result, Selected, Trashed,
 };
 use mailrs_mailbox::{
     FLAG_DELETED, Mailbox, MessageMeta, PgMailboxStore, bitmask_to_maildir_flags,
@@ -241,6 +241,20 @@ impl Account for PgAccount {
         trashed: bool,
     ) -> Result<bool> {
         self.set_trashed_thread(mailbox, m, trashed).await
+    }
+
+    async fn labels(&self) -> Result<Vec<LabelFolder<Mailbox, String>>> {
+        self.labels_view().await
+    }
+
+    async fn set_label(
+        &self,
+        mailbox: &Mailbox,
+        m: &Message<String>,
+        id: &str,
+        on: bool,
+    ) -> Result<bool> {
+        self.set_label_thread(mailbox, m, id, on).await
     }
 
     fn watch(&self, _: &Mailbox) -> BusWatch {
