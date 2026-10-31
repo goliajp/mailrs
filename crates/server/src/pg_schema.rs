@@ -44,6 +44,13 @@ const MIGRATIONS: &[(i32, &str)] = &[
             "/../../scripts/migrate-055-labels.sql"
         )),
     ),
+    (
+        56,
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../scripts/migrate-056-message-attachments.sql"
+        )),
+    ),
 ];
 
 /// Make the database's schema the one this binary was built for.
