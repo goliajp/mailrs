@@ -113,6 +113,7 @@ impl KevyMailboxStore {
         // dropping `from` here only removes empty scaffolding, no
         // maildir files should exist for it anymore. Discard the
         // returned blob_refs deliberately.
+        self.move_thread_labels(user, from, into)?;
         let (_existed, _blob_refs) = self.delete_thread(user, from)?;
         if let Some(mut row) = merged {
             if let Some((count, unread, sent)) = self.recount_from_messages(user, into)? {

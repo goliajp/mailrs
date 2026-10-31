@@ -39,6 +39,7 @@ export type MailListId =
   | 'draft'
   | 'inbox'
   | 'junk'
+  | 'label'
   | 'np'
   | 'quarantine'
   | 'send'
@@ -60,7 +61,7 @@ export type MailListSource =
 /** The axes of `MailListFilters` a list fixes. The rest are refinements. */
 export type ThreadListAxes = Pick<
   MailListFilters,
-  'archived' | 'folder' | 'quarantined' | 'starred' | 'trashed' | 'unread'
+  'archived' | 'folder' | 'label' | 'quarantined' | 'starred' | 'trashed' | 'unread'
 >
 
 /**
@@ -96,6 +97,14 @@ export const MAIL_LISTS: Record<MailListId, MailList> = {
     label: 'Junk',
     selectable: true,
     source: { filters: { folder: 'Junk' }, kind: 'threads' },
+  },
+  // One label's conversations; which label is `activeLabelAtom`. Not a
+  // tab: the labels are the user's own, shown in a row of their own.
+  label: {
+    emptyLabel: 'No conversations with this label',
+    label: 'Label',
+    selectable: true,
+    source: { filters: {}, kind: 'threads' },
   },
   np: {
     emptyLabel: 'Nothing here',

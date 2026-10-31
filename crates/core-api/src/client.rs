@@ -71,6 +71,7 @@ impl Client {
                 serde_json::from_slice::<T>(body)
                     .map_err(|e| CoreApiError::Internal(format!("{context} decode: {e}")))
             }
+            400 => Err(CoreApiError::BadRequest(context.into())),
             401 => Err(CoreApiError::Unauthorized),
             403 => Err(CoreApiError::Forbidden),
             404 => Err(CoreApiError::NotFound(context.into())),
@@ -91,6 +92,7 @@ impl Client {
         let status = resp.status().as_u16();
         match status {
             200..=299 => Ok(()),
+            400 => Err(CoreApiError::BadRequest(context.into())),
             401 => Err(CoreApiError::Unauthorized),
             403 => Err(CoreApiError::Forbidden),
             404 => Err(CoreApiError::NotFound(context.into())),

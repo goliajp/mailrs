@@ -22,7 +22,7 @@ pub use reconcile_ops::ReconcileReport;
 mod search_ids;
 mod thread_ops;
 
-pub use thread_ops::{Held, ThreadQuery};
+pub use thread_ops::{Held, LabelDbError, ThreadQuery};
 mod trait_impl;
 mod usage_ops;
 

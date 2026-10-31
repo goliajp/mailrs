@@ -60,6 +60,8 @@ export type ConversationFilter = {
    * same hazard one field over.
    */
   readonly includeQuarantined?: boolean
+  /** One label's conversations, by label id. */
+  readonly label?: string
   readonly limit?: number
   /** The review list: what was held, and nothing else. */
   readonly quarantined?: boolean
@@ -175,6 +177,7 @@ export function canonicaliseFilter(f: ConversationFilter | undefined): {
   readonly domains: readonly string[]
   readonly folder: Folder | null
   readonly includeQuarantined: boolean
+  readonly label: null | string
   readonly limit: number
   readonly quarantined: boolean
   readonly query: null | string
@@ -194,6 +197,7 @@ export function canonicaliseFilter(f: ConversationFilter | undefined): {
     domains,
     folder: f?.folder ?? null,
     includeQuarantined: f?.includeQuarantined ?? false,
+    label: f?.label ?? null,
     limit: f?.limit ?? 50,
     quarantined: f?.quarantined ?? false,
     query: f?.query ?? null,

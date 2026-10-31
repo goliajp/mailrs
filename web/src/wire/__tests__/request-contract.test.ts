@@ -10,6 +10,14 @@ describe('request bodies match the shared contract', () => {
     expect(capturedRequest().method).toBe('PUT')
   })
 
+  it('label-create, label-update', async () => {
+    const { wireCreateLabel } = await import('../endpoints/labels')
+    const { wireUpdateLabel } = await import('../endpoints/labels')
+    expect(await bodyOf(() => wireCreateLabel('Work', 'blue'))).toEqual(fixture('label-create'))
+    const update = await bodyOf(() => wireUpdateLabel('1', { color: 'red', name: 'Jobs' }))
+    expect(update).toEqual(fixture('label-update'))
+  })
+
   it('feedback', async () => {
     const { wireRecordFeedback } = await import('../endpoints/mail')
     const body = await bodyOf(() => wireRecordFeedback('someone@example.com', 'block'))

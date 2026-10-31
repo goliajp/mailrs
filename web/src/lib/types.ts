@@ -82,6 +82,8 @@ export type ConversationSummary = {
   flagged: boolean
   importance_level: string
   importance_score: number
+  /** This reader's label ids on it. */
+  labels?: string[]
   last_date: number
   message_count: number
   participants: string[]

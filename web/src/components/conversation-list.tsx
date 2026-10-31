@@ -11,6 +11,7 @@ import { BatchActionBar } from '@/components/conversation-list-batch-action-bar'
 import { FilterBar } from '@/components/conversation-list-filter-bar'
 import { VirtualConversationList } from '@/components/conversation-list-virtual'
 import { DeleteThreadConfirm } from '@/components/delete-thread-confirm'
+import { LabelBar } from '@/components/label-bar'
 import { ListSearchInput } from '@/components/list-search-input'
 import { TrashBanner } from '@/components/trash-banner'
 import { useConversationActions } from '@/hooks/use-conversation-actions'
@@ -25,7 +26,7 @@ import { threadAxesOf } from '@/lib/mail-lists'
 import { queryClient } from '@/lib/query-client'
 import { authAtom } from '@/store/auth'
 import { conversationKeys } from '@/store/query-keys-v21'
-import { activeListAtom } from '@/store/ui'
+import { activeListAtom, labelPickerAtom } from '@/store/ui'
 import {
   batchModeAtom,
   composeReplySourceAtom,
@@ -239,6 +240,7 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
   )
 
   const actions = useConversationActions()
+  const openLabels = useSetAtom(labelPickerAtom)
 
   const setSortOrder = useSetAtom(sortOrderAtom)
   const quickFilter = useAtomValue(quickFilterAtom)
@@ -359,6 +361,7 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
       </ListSearchInput>
 
       <FilterBar />
+      <LabelBar />
 
       <DeleteThreadConfirm
         onCancel={actions.cancelDelete}
@@ -397,6 +400,7 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
           loading={batchLoading}
           onAction={handleBatchAction}
           onCancel={exitBatchMode}
+          onLabel={() => openLabels({ threadIds: Array.from(selectedThreadIds) })}
           selectedCount={selectedThreadIds.size}
           view={listView(activeList === 'trash', folder)}
         />

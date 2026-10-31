@@ -47,6 +47,7 @@ pub mod admin;
 pub mod contact;
 pub mod conversation;
 pub mod health;
+pub mod label;
 pub mod mailbox;
 pub mod message;
 pub mod outbound;

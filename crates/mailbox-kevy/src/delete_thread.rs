@@ -155,6 +155,8 @@ impl KevyMailboxStore {
         })?;
         files.sort();
         files.dedup();
+        // and leaves every label of this user
+        self.drop_thread_labels(user, thread_id)?;
         Ok((existed, files))
     }
 }

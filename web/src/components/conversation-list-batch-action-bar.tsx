@@ -7,12 +7,15 @@ export function BatchActionBar({
   loading,
   onAction,
   onCancel,
+  onLabel,
   selectedCount,
   view,
 }: {
   loading: boolean
   onAction: (action: BatchAction) => void
   onCancel: () => void
+  /** Open the label picker for the selection. */
+  onLabel: () => void
   selectedCount: number
   /** The Trash offers restoring; every other list, moving there. */
   view: RowState['view']
@@ -29,7 +32,7 @@ export function BatchActionBar({
               className={buttonClass(ACTIONS[id].danger)}
               disabled={loading}
               key={id}
-              onClick={() => onAction(wireBatchAction(id))}
+              onClick={() => runBatch(id, onAction, onLabel)}
             >
               {ACTIONS[id].label}
             </button>
@@ -55,6 +58,15 @@ function buttonClass(danger: boolean): string {
     'focus-visible:ring-accent/50 shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50'
   if (danger) return `text-danger hover:bg-danger/10 ${base}`
   return `text-fg-secondary hover:bg-bg-secondary ${base}`
+}
+
+/** The label picker for `label`; the batch route for the rest. */
+function runBatch(id: ActionId, onAction: (a: BatchAction) => void, onLabel: () => void) {
+  if (id === 'label') {
+    onLabel()
+    return
+  }
+  onAction(wireBatchAction(id))
 }
 
 /** The batch route's name for an action: it still calls the Trash `delete`. */

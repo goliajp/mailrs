@@ -27,7 +27,7 @@ import {
   useUntrashMutation,
 } from '@/hooks/use-trash-mutations'
 import { ACTIONS } from '@/lib/actions'
-import { lastUndoAtom } from '@/store/ui'
+import { labelPickerAtom, lastUndoAtom } from '@/store/ui'
 
 // One place that turns an action into the mutation serving it. What the
 // action is called, what the toast says and what undoes it are the action
@@ -46,6 +46,7 @@ export type ConversationActions = {
 export function useConversationActions(): ConversationActions {
   const [pendingDelete, setPendingDelete] = useState<null | string>(null)
   const setLastUndo = useSetAtom(lastUndoAtom)
+  const openLabels = useSetAtom(labelPickerAtom)
   const mutations = {
     archive: useArchiveMutation(),
     'delete-forever': useDeleteForeverMutation(),
@@ -76,6 +77,9 @@ export function useConversationActions(): ConversationActions {
     }
     const opts = { onError, onSuccess }
     switch (action) {
+      // the picker, not a mutation: `act` opens it before reaching here
+      case 'label':
+        break
       case 'snooze':
         m.snooze.mutate({ snoozedUntil: tomorrowMorning(), threadId }, opts)
         break
@@ -87,6 +91,10 @@ export function useConversationActions(): ConversationActions {
   const act = useCallback(
     async (threadId: string, action: SingleAction) => {
       const spec = ACTIONS[action]
+      if (action === 'label') {
+        openLabels({ threadIds: [threadId] })
+        return
+      }
       if (spec.confirm) {
         setPendingDelete(threadId)
         return
@@ -105,7 +113,7 @@ export function useConversationActions(): ConversationActions {
         })
       })
     },
-    [run, setLastUndo]
+    [openLabels, run, setLastUndo]
   )
 
   const confirmDelete = useCallback(() => {

@@ -69,15 +69,20 @@ pub(crate) async fn list_conversations(
     // the caller cannot tell from a real one — so say it happened. The
     // dispatcher returns Err when a query names a column its index does
     // not store, and that is a wiring mistake, not an empty page.
-    let (rows, _total) = state
-        .mailbox
-        .list_threads_by_activity(&user, &filter, 0, limit)
-        .unwrap_or_else(|e| {
-            tracing::warn!(%user, error = %e, "conversation list failed; serving empty");
-            (Vec::new(), 0)
-        });
+    let listed = match f.label.as_deref() {
+        Some(id) => crate::routes::labels::rows_with_label(&state, &user, id, &filter, limit),
+        None => state
+            .mailbox
+            .list_threads_by_activity(&user, &filter, 0, limit)
+            .map(|(rows, _)| rows),
+    };
+    let rows = listed.unwrap_or_else(|e| {
+        tracing::warn!(%user, error = %e, "conversation list failed; serving empty");
+        Vec::new()
+    });
 
     let items = rows.into_iter().map(row_to_wire).collect();
+    let items = crate::routes::labels::with_labels(&state, &user, items);
     Json(conv::ListConversationsResponse { items })
 }
 
@@ -272,5 +277,6 @@ pub(crate) async fn conversations_by_thread_ids(
                 .map(row_to_wire)
         })
         .collect();
+    let items = crate::routes::labels::with_labels(&state, &user, items);
     Json(conv::ConversationsByIdsResponse { items })
 }

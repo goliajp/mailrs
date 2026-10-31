@@ -11,7 +11,7 @@ const SCHEMA_SQL: &str = include_str!(concat!(
 ));
 
 /// The last migration [`SCHEMA_SQL`] includes.
-pub(crate) const SCHEMA_VERSION: i32 = 54;
+pub(crate) const SCHEMA_VERSION: i32 = 55;
 
 /// Migrations newer than the oldest database this binary still brings
 /// forward (migrate-051 records version 51), in order: `(version, sql)`.
@@ -35,6 +35,13 @@ const MIGRATIONS: &[(i32, &str)] = &[
         include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../../scripts/migrate-054-trash.sql"
+        )),
+    ),
+    (
+        55,
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../scripts/migrate-055-labels.sql"
         )),
     ),
 ];

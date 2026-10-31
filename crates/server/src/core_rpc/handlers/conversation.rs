@@ -74,12 +74,39 @@ pub async fn list_conversations(
     Path(user): Path<String>,
     Json(req): Json<wire::ListConversationsRequest>,
 ) -> Result<Json<wire::ListConversationsResponse>, StatusCode> {
+    let labelled = match req.filter.label.as_deref() {
+        Some(id) => Some(
+            state
+                .mailbox
+                .threads_with_label(&user, id)
+                .await
+                .map_err(|e| {
+                    tracing::warn!(error = %e, %user, "threads_with_label failed");
+                    StatusCode::INTERNAL_SERVER_ERROR
+                })?,
+        ),
+        None => None,
+    };
+    let mut q = thread_query(&user, &req.filter);
+    if let Some(ids) = &labelled {
+        // a label is not a place: archived conversations are in it, those
+        // in the Trash are not, wherever they are filed
+        q = ThreadQuery {
+            scope: Scope::All,
+            sent: false,
+            archived: None,
+            trashed: Some(false),
+            thread_ids: Some(ids),
+            ..q
+        };
+    }
     let rows = state
         .mailbox
-        .thread_rows(&thread_query(&user, &req.filter))
+        .thread_rows(&q)
         .await
         .map_err(failed("list_conversations", &user))?;
     let items: Vec<ConversationSummaryWire> = rows.iter().map(Into::into).collect();
+    let items = super::labels::with_labels(&state, &user, items).await;
     Ok(Json(wire::ListConversationsResponse { items }))
 }
 
@@ -105,6 +132,7 @@ pub async fn conversations_by_thread_ids(
     let position = |tid: &str| ids.iter().position(|i| i == tid).unwrap_or(usize::MAX);
     rows.sort_by_key(|r| position(&r.thread_id));
     let items: Vec<ConversationSummaryWire> = rows.iter().map(Into::into).collect();
+    let items = super::labels::with_labels(&state, &user, items).await;
     Ok(Json(wire::ConversationsByIdsResponse { items }))
 }
 

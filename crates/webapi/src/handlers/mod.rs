@@ -39,6 +39,7 @@ pub mod invites;
 pub mod jmap;
 pub mod kevy_util;
 pub mod keys;
+pub mod labels;
 pub mod mail;
 pub mod mail_image;
 pub mod mcp;
