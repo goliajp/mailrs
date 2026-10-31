@@ -87,8 +87,6 @@ vi.mock('@/hooks/use-trash-mutations', () => ({
 }))
 vi.mock('@/hooks/use-mail-mutations', () => ({
   useArchiveMutation: stubMutation,
-  useDeleteForeverMutation: stubMutation,
-  useEmptyTrashMutation: stubMutation,
   useMarkJunkMutation: stubMutation,
   useMarkNotificationMutation: stubMutation,
   useMarkNotJunkMutation: stubMutation,
@@ -99,12 +97,10 @@ vi.mock('@/hooks/use-mail-mutations', () => ({
   usePinMutation: stubMutation,
   useSnoozeMutation: stubMutation,
   useStarMutation: stubMutation,
-  useTrashMutation: stubMutation,
   useUnarchiveMutation: stubMutation,
   useUnpinMutation: stubMutation,
   useUnsnoozeMutation: stubMutation,
   useUnstarMutation: stubMutation,
-  useUntrashMutation: stubMutation,
 }))
 
 // mock sonner toast
