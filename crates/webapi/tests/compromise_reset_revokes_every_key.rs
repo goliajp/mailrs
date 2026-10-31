@@ -86,10 +86,18 @@ async fn a_compromise_reset_revokes_every_key_it_was_shown() {
         "a refused reset signed alice out"
     );
 
+    // an app password goes with them
+    {
+        let mut kevy = kevy_client::Connection::connect(KEVY).unwrap();
+        mailrs_auth_guard::app_passwords::create(&mut kevy, ALICE, "phone", 1)
+            .unwrap()
+            .unwrap();
+    }
     let all = json!({ "password": NEW, "compromised": { "revoke_key_ids": shown } });
     let (status, got) = live.call(Method::POST, RESET, &admin, Some(all)).await;
     assert_eq!(status, 200, "{got}");
     assert_eq!(got["agent_keys_revoked"], 2);
+    assert_eq!(got["app_passwords_revoked"], 1);
     assert!(got["sessions_revoked"].as_u64().expect("count") >= 1);
     for secret in &secrets {
         assert_eq!(me(secret.clone()).await, 401, "a key survived");

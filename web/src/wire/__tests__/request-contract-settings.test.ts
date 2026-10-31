@@ -26,6 +26,15 @@ describe('settings request bodies match the shared contract', () => {
     expect(hash).toEqual(fixture('screening-hash'))
   })
 
+  it('app-password-create, protocol-password-set', async () => {
+    const { wireCreateAppPassword } = await import('../endpoints/app-passwords')
+    const { wireSetProtocolPassword } = await import('../endpoints/protocol-logins')
+    const made = await bodyOf(() => wireCreateAppPassword('iPhone Mail'))
+    expect(made).toEqual(fixture('app-password-create'))
+    const set = await bodyOf(() => wireSetProtocolPassword('bob@golia.jp', 'app-only'))
+    expect(set).toEqual(fixture('protocol-password-set'))
+  })
+
   it('vacation-set', async () => {
     const { wireSetVacation } = await import('../endpoints/mail-settings')
     const body = await bodyOf(() =>

@@ -32,9 +32,7 @@ export function AdminScreening() {
   })
   const reload = () => void refetch()
   const withdrawn = new Set(
-    [...(data?.observations ?? []), ...(data?.hashes ?? [])].flatMap((o) =>
-      o.retracts ? [o.retracts] : []
-    )
+    [...(data?.observations ?? []), ...(data?.hashes ?? [])].flatMap((o) => withdrawsOf(o))
   )
   const columns = (isHash: boolean): Column<WireHashObservation | WireObservation>[] => [
     {
@@ -45,7 +43,7 @@ export function AdminScreening() {
     {
       header: 'Source',
       key: 'source',
-      cell: (r) => <span className="text-xs">{'source' in r ? r.source : 'hash'}</span>,
+      cell: (r) => <span className="text-xs">{sourceOf(r)}</span>,
     },
     {
       header: 'Stance',
@@ -57,7 +55,7 @@ export function AdminScreening() {
       key: 'subject',
       cell: (r) => (
         <span className="font-mono text-xs break-all">
-          {'value' in r ? `${r.kind} ${r.value}` : r.sha256}
+          {subjectOf(r)}
           {r.retracts && ` → withdraws ${r.retracts}`}
         </span>
       ),
@@ -123,4 +121,19 @@ export function AdminScreening() {
       </section>
     </AdminPageShell>
   )
+}
+
+function sourceOf(r: WireHashObservation | WireObservation): string {
+  if ('source' in r) return r.source
+  return 'hash'
+}
+
+function subjectOf(r: WireHashObservation | WireObservation): string {
+  if ('value' in r) return `${r.kind} ${r.value}`
+  return r.sha256
+}
+
+function withdrawsOf(o: WireHashObservation | WireObservation): string[] {
+  if (o.retracts) return [o.retracts]
+  return []
 }

@@ -14,6 +14,7 @@ import {
 } from '@/wire/endpoints/auth'
 
 import { btnDanger, btnPrimary, cardClass, Field, inputClass, SectionHeader } from './_shared'
+import { AppPasswordsCard } from './app-passwords-card'
 import { SessionsCard } from './sessions-card'
 
 export function SecuritySection() {
@@ -160,6 +161,7 @@ export function SecuritySection() {
           </div>
         </div>
       )}
+      <AppPasswordsCard />
       <SessionsCard />
     </div>
   )

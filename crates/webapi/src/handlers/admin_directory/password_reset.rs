@@ -72,6 +72,7 @@ pub(crate) fn key_rows(c: &mut Connection, address: &str) -> std::io::Result<Vec
 pub struct ResetDone {
     pub sessions_revoked: usize,
     pub agent_keys_revoked: usize,
+    pub app_passwords_revoked: usize,
 }
 
 pub enum ResetRefused {
@@ -133,13 +134,16 @@ pub(crate) async fn reset_password(
         .map_err(map_err)?;
     let addr = address.to_string();
     let revoke_keys = compromised.is_some();
-    let (sessions, revoked) = with_kevy(move |c| {
+    let (sessions, revoked, app_passwords) = with_kevy(move |c| {
         let sessions = crate::handlers::auth::revoke_sessions(c, &addr)?;
-        let revoked = match revoke_keys {
-            true => revoke_every_key(c, &addr)?,
-            false => Vec::new(),
+        let (revoked, app_passwords) = match revoke_keys {
+            true => (
+                revoke_every_key(c, &addr)?,
+                mailrs_auth_guard::app_passwords::revoke_all(c, &addr)?,
+            ),
+            false => (Vec::new(), 0),
         };
-        Ok((sessions, revoked))
+        Ok((sessions, revoked, app_passwords))
     })?;
     for key in &revoked {
         let detail = format!(
@@ -150,12 +154,16 @@ pub(crate) async fn reset_password(
     }
     let mut detail = via.to_string();
     if revoke_keys {
-        detail = format!("{detail} compromise, keys={}", revoked.len());
+        detail = format!(
+            "{detail} compromise, keys={}, app_passwords={app_passwords}",
+            revoked.len()
+        );
     }
     crate::handlers::audit::record(actor, "account.password_reset", address, detail.trim());
     Ok(ResetDone {
         sessions_revoked: sessions,
         agent_keys_revoked: revoked.len(),
+        app_passwords_revoked: app_passwords,
     })
 }
 

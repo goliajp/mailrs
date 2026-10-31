@@ -54,6 +54,11 @@ const navGroups: { items: NavItem[]; label: string }[] = [
       { icon: <ScrollText className="h-4 w-4" />, label: 'Audit log', to: '/admin/audit-log' },
       { icon: <KeyRound className="h-4 w-4" />, label: 'Sign-ins', to: '/admin/sign-ins' },
       { icon: <ShieldAlert className="h-4 w-4" />, label: 'Screening', to: '/admin/screening' },
+      {
+        icon: <KeyRound className="h-4 w-4" />,
+        label: 'Protocol sign-ins',
+        to: '/admin/protocol-sign-ins',
+      },
     ],
     label: 'Oversight',
   },
