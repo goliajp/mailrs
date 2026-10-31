@@ -25,6 +25,21 @@ pub fn user_uid_by_mid(user: &str) -> String {
     format!("mailrs:user:{user}:uid_by_mid")
 }
 
+/// Hash `mailrs:user:<u>:labels` — label id → the label as JSON.
+pub fn user_labels(user: &str) -> String {
+    format!("mailrs:user:{user}:labels")
+}
+
+/// String counter: `mailrs:user:<u>:label_next` — the last label id given.
+pub fn user_label_next(user: &str) -> String {
+    format!("mailrs:user:{user}:label_next")
+}
+
+/// Set `mailrs:user:<u>:label:<id>` — the conversations label `id` is on.
+pub fn user_label_threads(user: &str, id: &str) -> String {
+    format!("mailrs:user:{user}:label:{id}")
+}
+
 /// String counter: `mailrs:user:<u>:next_uid` — monotonic uid allocator.
 /// `INCR` returns the next uid to assign; caller must persist the
 /// mapping via [`user_uid_by_mid`] + [`user_msg_by_uid`] afterwards.

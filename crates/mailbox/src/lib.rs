@@ -15,6 +15,8 @@
 #![deny(rustdoc::broken_intra_doc_links)]
 
 pub mod fixtures;
+/// A user's labels and the naming rules every core applies to them.
+pub mod labels;
 /// Who a conversation is with, in the order the mail arrived.
 pub mod participants;
 #[cfg(feature = "pg")]
