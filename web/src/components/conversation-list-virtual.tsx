@@ -8,6 +8,7 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 
 import { ConversationItem } from '@/components/conversation-item'
 import { SwipeableRow } from '@/components/swipeable-row'
+import { type Key, useT } from '@/i18n'
 import { toggle } from '@/lib/actions'
 import { MAIL_LISTS, type MailListId } from '@/lib/mail-lists'
 import { activeListAtom } from '@/store/ui'
@@ -83,6 +84,7 @@ export function VirtualConversationList({
   selectedId: null | string
   selectedThreadIds: Set<string>
 }) {
+  const t = useT()
   const activeList = useAtomValue(activeListAtom)
   // build flat list of items. Search results are relevance-ordered, not
   // date-monotonic — date group pills would repeat and read as noise, so
@@ -237,7 +239,7 @@ export function VirtualConversationList({
       >
         <div className="text-fg-muted flex flex-col items-center justify-center p-8 text-center">
           <Mail aria-hidden="true" className="text-fg-muted mb-3 h-10 w-10" strokeWidth={1} />
-          <p className="text-sm font-medium">{emptyLabel(isSearching, activeList)}</p>
+          <p className="text-sm font-medium">{t(emptyLabel(isSearching, activeList))}</p>
           {hint && <p className="mt-1 text-xs">{hint}</p>}
         </div>
       </div>
@@ -374,8 +376,8 @@ function emptyHint(isSearching: boolean): null | string {
  * messages" for a folder the Send tab no longer sets, and had no arm at
  * all for Starred or N & P, so both said "All caught up!".
  */
-function emptyLabel(isSearching: boolean, list: MailListId): string {
-  if (isSearching) return 'No results found'
+function emptyLabel(isSearching: boolean, list: MailListId): Key {
+  if (isSearching) return 'list.search.empty'
   return MAIL_LISTS[list].emptyLabel
 }
 

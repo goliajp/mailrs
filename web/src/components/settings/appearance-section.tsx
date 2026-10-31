@@ -13,6 +13,7 @@ import {
 import { themeModeAtom } from '@/store/theme'
 
 import { cardClass, Field, SectionHeader, Toggle } from './_shared'
+import { LanguageField } from './language-field'
 
 const REMOTE_IMAGE_OPTIONS: { label: string; value: RemoteImages }[] = [
   { label: 'Show', value: 'auto' },
@@ -61,6 +62,10 @@ export function AppearanceSection() {
   return (
     <div className="space-y-6">
       <SectionHeader title="Appearance" />
+
+      <div className={cardClass}>
+        <LanguageField />
+      </div>
 
       <div className={cardClass}>
         <Field label="Theme">
