@@ -35,6 +35,7 @@ pub mod outbound;
 pub mod push;
 pub mod reports;
 pub mod route;
+pub mod rules;
 pub mod sent;
 pub mod sieve;
 pub mod spool;

@@ -1,0 +1,9 @@
+{
+  "actions": [
+    "archive",
+    "label:3"
+  ],
+  "enabled": true,
+  "name": "Shop",
+  "query": "from:shop.example has:attachment"
+}

@@ -236,11 +236,6 @@ async fn a_word_inside_a_pdf_finds_the_conversation() {
             std::fs::create_dir_all(maildir.join("golia.example").join(local).join(sub)).unwrap();
         }
     }
-    let state = Arc::new(mailrs_fastcore::FastcoreState::new(mailbox));
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let core = format!("http://{}", listener.local_addr().unwrap());
-    let router = mailrs_fastcore::build_router_with_secret(state.clone(), SECRET.into());
-    tokio::spawn(async move { axum::serve(listener, router).await });
 
     // The shipped rules plus one that reads the new fact and would move the
     // conversation to Junk: a re-judge after extraction would show, and the
@@ -256,6 +251,8 @@ async fn a_word_inside_a_pdf_finds_the_conversation() {
     )
     .unwrap();
 
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let core = format!("http://{}", listener.local_addr().unwrap());
     // SAFETY: the only test in this binary, before anything reads them
     unsafe {
         std::env::set_var("MAILRS_KEVY_URL", KEVY);
@@ -274,9 +271,27 @@ async fn a_word_inside_a_pdf_finds_the_conversation() {
         // renderer; the OCR path has its own test
         std::env::set_var("MAILRS_OCR_BIN", "/nonexistent/mailrs-fastcore-ocr");
     }
+    // after the environment: the state reads the network kevy's address from it
+    let state = Arc::new(mailrs_fastcore::FastcoreState::new(mailbox));
+    let router = mailrs_fastcore::build_router_with_secret(state.clone(), SECRET.into());
+    tokio::spawn(async move { axum::serve(listener, router).await });
     // Hold the in-process kevy open before the receiver opens it: its first
     // opens race, and two racing opens of one mem:// name can each get a store.
-    let _kevy = kevy_client::Connection::connect(KEVY).unwrap();
+    let mut kevy = kevy_client::Connection::connect(KEVY).unwrap();
+    // a rule, run as the mail arrives
+    mailrs_core_sidestate::families::rules::create(
+        &mut kevy,
+        BOB,
+        mailrs_core_sidestate::families::rules::Draft {
+            name: "papers",
+            query: "has:attachment",
+            actions: vec!["star".into()],
+            enabled: true,
+        },
+        1,
+    )
+    .unwrap()
+    .unwrap();
     let receiver = mailrs_receiver::start().await;
 
     let good = pdf(&format!("contract {WORD}: {OFFER}"));
@@ -318,6 +333,18 @@ async fn a_word_inside_a_pdf_finds_the_conversation() {
         search_for(&state, BOB, "-has:attachment").await,
         ["plain1@example.org"]
     );
+    // the rule starred what has an attachment, and only that
+    let starred = |tid: &str| {
+        state
+            .mailbox
+            .get_thread_for_user(BOB, tid)
+            .unwrap()
+            .unwrap()
+            .starred
+    };
+    assert!(starred("pdf1@example.org"));
+    assert!(starred("bad1@example.org"));
+    assert!(!starred("plain1@example.org"));
     // and the backfill has nothing left to read
     let counts = call(
         &state,

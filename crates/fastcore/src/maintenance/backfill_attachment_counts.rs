@@ -111,7 +111,7 @@ fn walk(state: &Arc<FastcoreState>, q: &BackfillQuery) -> std::io::Result<serde_
                     continue;
                 };
                 files_read += 1;
-                let count = mailrs_mime::parse(&raw).attachments().count() as u32;
+                let count = mailrs_mime::parse(&raw).shown_attachment_count() as u32;
                 with_attachments += u64::from(count > 0);
                 if q.dry_run {
                     continue;

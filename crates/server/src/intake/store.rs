@@ -50,7 +50,7 @@ impl PgCore {
             snippet: &a.preview,
             category: a.category,
             sender_trust: &a.sender_trust,
-            attachments: Some(a.parsed.attachments().count() as u32),
+            attachments: Some(a.parsed.shown_attachment_count() as u32),
         };
         let inserted = mb.record_arrival(input, facts).await?;
         if let Some(found) = mailrs_intake::invite::find(body) {

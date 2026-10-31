@@ -25,7 +25,7 @@ Config for Claude Code or any MCP client:
 }
 ```
 
-107 tools auto-discovered via MCP, grouped by category (the table below is a selection; `tools/list` is the authority, and `scripts/check-mcp-parity.sh` holds the two server lanes to the same set):
+113 tools auto-discovered via MCP, grouped by category (the table below is a selection; `tools/list` is the authority, and `scripts/check-mcp-parity.sh` holds the two server lanes to the same set):
 
 ### Email Operations
 
@@ -811,6 +811,26 @@ curl -X DELETE https://mail.golia.ai/api/saved-searches/1 -H "Authorization: Bea
 ```
 
 A name is unique per user ignoring case (409 `name_taken`); 400 `invalid_name` / `invalid_query` / `too_many` (100 at most).
+
+### Rules
+
+A rule is a search query and what to do with the mail it matches. Rules run on mail as it arrives, oldest rule first; held mail is never touched, and mail in Junk only gets `label:`, `read`, `star` or `trash`.
+
+```
+curl -X POST https://mail.golia.ai/api/rules/preview -H "Authorization: Bearer mlrs_..." \
+  -H "Content-Type: application/json" -d '{"query": "from:news@shop.example"}'
+curl -X POST https://mail.golia.ai/api/rules -H "Authorization: Bearer mlrs_..." \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Shop", "query": "from:news@shop.example", "actions": ["archive", "label:3"]}'
+curl -X POST https://mail.golia.ai/api/rules/1/apply -H "Authorization: Bearer mlrs_..."
+curl -X POST https://mail.golia.ai/api/rules/runs/7/undo -H "Authorization: Bearer mlrs_..."
+```
+
+- the query takes the search operators except `in:`, `is:` and `label:` (400 `operator_not_for_rules`)
+- actions: `label:<id>`, `archive`, `read`, `star`, `junk`, `trash` (400 `invalid_action`)
+- `preview` answers `{count, items}`: the conversations a run would change now, Junk and Trash left out
+- `apply` answers `{run_id, changed, failed}`; `undo` puts every changed conversation back once, within seven days
+- MCP: `list_rules`, `create_rule`, `delete_rule`, `preview_rule`, `apply_rule`, `undo_rule_run`
 
 ### Read a Message
 

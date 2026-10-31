@@ -179,7 +179,7 @@ pub(crate) fn scan_maildir(user: &str, since: i64) -> Vec<MailFile> {
             keywords: maildir_keyword_bits(&bare),
             sender_trust: extract_sender_trust(&bytes),
             invite: crate::invites::find(&bytes),
-            attachments: mailrs_mime::parse(&bytes).attachments().count() as u32,
+            attachments: mailrs_mime::parse(&bytes).shown_attachment_count() as u32,
         });
     }
     parsed

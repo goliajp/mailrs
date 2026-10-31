@@ -106,15 +106,6 @@ pub(super) fn conversation_routes() -> axum::Router<Arc<WebState>> {
                 .delete(crate::handlers::labels::unlabel_thread),
         )
         .route(
-            "/api/saved-searches",
-            get(crate::handlers::saved_searches::list)
-                .post(crate::handlers::saved_searches::create),
-        )
-        .route(
-            "/api/saved-searches/{id}",
-            axum::routing::delete(crate::handlers::saved_searches::delete),
-        )
-        .route(
             "/api/trash/empty",
             post(crate::handlers::trash::empty_trash),
         )
