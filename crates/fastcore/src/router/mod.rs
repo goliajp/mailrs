@@ -106,11 +106,11 @@ pub fn build_router_with_secret(state: Arc<FastcoreState>, secret: String) -> Ro
         .route(adm::PATH_CLEAR_ACCOUNT_PASSWORD, post(clear_password_route))
         // the operator's clearing, on the host only: see password_clear
         .route(
-            mailrs_core_sidestate::families::password_clear::PATH_OPERATOR_CLEAR,
+            adm::PATH_OPERATOR_PASSWORD_CLEAR,
             post(mailrs_core_sidestate::families::password_clear::operator_clear::<FastcoreState>),
         )
         .route(
-            mailrs_core_sidestate::families::password_clear::PATH_OPERATOR_PREVIEW,
+            adm::PATH_OPERATOR_PASSWORD_CLEAR_PREVIEW,
             post(
                 mailrs_core_sidestate::families::password_clear::operator_preview::<FastcoreState>,
             ),

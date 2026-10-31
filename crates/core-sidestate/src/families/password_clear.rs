@@ -238,8 +238,9 @@ pub fn after_clear(
 
 /// The operator's way in: on the host, through the core-api, which only
 /// the host and the services beside it can reach, behind the core secret.
-pub const PATH_OPERATOR_CLEAR: &str = "/v1/admin/password-clear";
-pub const PATH_OPERATOR_PREVIEW: &str = "/v1/admin/password-clear:preview";
+pub use mailrs_core_api::method::admin::{
+    PATH_OPERATOR_PASSWORD_CLEAR, PATH_OPERATOR_PASSWORD_CLEAR_PREVIEW,
+};
 
 /// Who the audit names for a clearing through the core.
 pub const OPERATOR: &str = "operator:devops";
