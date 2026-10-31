@@ -11,6 +11,7 @@ import {
   AdminTableSkeleton,
   type Column,
 } from '@/components/admin-page'
+import { type Key, useT } from '@/i18n'
 import { adminKeys } from '@/lib/query-keys'
 import { adminListGet } from '@/wire/endpoints/admin'
 
@@ -23,9 +24,15 @@ type AuditAccount = {
   domain: string
 }
 
-const ACCOUNT_HEADERS = ['Account', 'Domain', 'Name', 'Status', '']
+const ACCOUNT_HEADERS: Key[] = [
+  'admin.signIns.account',
+  'admin.col.domain',
+  'admin.col.name',
+  'admin.col.status',
+]
 
 export function AdminMailAudit() {
+  const t = useT()
   const [searchParams, setSearchParams] = useSearchParams()
   const selectedAccount = searchParams.get('address')
   const selectedThread = searchParams.get('thread')
@@ -98,15 +105,12 @@ export function AdminMailAudit() {
   }
 
   return (
-    <AdminPageShell
-      subtitle="Reading another account's mail is recorded: each conversation list, each conversation opened and each .eml download first writes a row to the audit log under your address. If that row cannot be written, nothing is shown"
-      title="Mail audit"
-    >
+    <AdminPageShell subtitle={t('admin.mailAudit.subtitle')} title={t('admin.mailAudit.title')}>
       <input
-        aria-label="Search accounts"
+        aria-label={t('admin.mailAudit.search')}
         className="border-border bg-bg-secondary mb-4 w-64 max-w-full rounded-md border px-3 py-1.5 text-sm"
         onChange={(e) => setSearch(e.target.value)}
-        placeholder="Address or name"
+        placeholder={t('admin.mailAudit.searchPlaceholder')}
         type="search"
         value={search}
       />
@@ -140,38 +144,53 @@ function AccountList({
   pending: boolean
   search: string
 }) {
-  if (pending) return <AdminTableSkeleton cols={5} headers={ACCOUNT_HEADERS} rows={6} />
-  if (error) return <AdminErrorState error={error} onRetry={onRetry} what="the account list" />
+  const t = useT()
+  if (pending) {
+    return (
+      <AdminTableSkeleton cols={5} headers={[...ACCOUNT_HEADERS.map((h) => t(h)), '']} rows={6} />
+    )
+  }
+  if (error) {
+    return <AdminErrorState error={error} onRetry={onRetry} what={t('admin.accounts.listName')} />
+  }
   if (accounts.length === 0) {
     return (
       <AdminEmptyState
-        description="Accounts added on the Accounts page can be reviewed here"
+        description={t('admin.mailAudit.emptyHelp')}
         icon={<Users className="h-10 w-10" />}
-        title="No accounts yet"
+        title={t('admin.accounts.empty')}
       />
     )
   }
   if (filtered.length === 0) {
     return (
       <AdminEmptyState
-        description="Search matches part of an address or a display name"
+        description={t('admin.mailAudit.searchHelp')}
         icon={<Search className="h-10 w-10" />}
-        title={`No accounts match "${search}"`}
+        title={t('admin.accounts.noMatch', { filter: search })}
       />
     )
   }
   const columns: Column<AuditAccount>[] = [
     {
-      header: 'Account',
+      header: t('admin.signIns.account'),
       key: 'address',
       cell: (a) => <span className="font-medium">{a.address}</span>,
     },
-    { header: 'Domain', key: 'domain', cell: (a) => <Muted text={a.domain} /> },
-    { header: 'Name', key: 'name', cell: (a) => <Muted text={a.display_name || '—'} /> },
-    { header: 'Status', key: 'status', cell: (a) => <ActiveLabel active={a.active} /> },
+    { header: t('admin.col.domain'), key: 'domain', cell: (a) => <Muted text={a.domain} /> },
+    {
+      header: t('admin.col.name'),
+      key: 'name',
+      cell: (a) => <Muted text={a.display_name || '—'} />,
+    },
+    {
+      header: t('admin.col.status'),
+      key: 'status',
+      cell: (a) => <ActiveLabel active={a.active} />,
+    },
     {
       align: 'end',
-      header: 'Actions',
+      header: t('admin.col.actions'),
       hideHeader: true,
       key: 'actions',
       cell: (a) => (
@@ -180,17 +199,25 @@ function AccountList({
           onClick={() => onView(a.address)}
           type="button"
         >
-          View mail
+          {t('admin.mailAudit.viewMail')}
         </button>
       ),
     },
   ]
-  return <AdminTable columns={columns} label="Accounts" rowKey={(a) => a.address} rows={filtered} />
+  return (
+    <AdminTable
+      columns={columns}
+      label={t('admin.accounts.title')}
+      rowKey={(a) => a.address}
+      rows={filtered}
+    />
+  )
 }
 
 function ActiveLabel({ active }: { active: boolean }) {
-  if (active) return <span className="text-success text-xs">Active</span>
-  return <span className="text-fg-muted text-xs">Inactive</span>
+  const t = useT()
+  if (active) return <span className="text-success text-xs">{t('admin.active')}</span>
+  return <span className="text-fg-muted text-xs">{t('admin.inactive')}</span>
 }
 
 function Muted({ text }: { text: string }) {

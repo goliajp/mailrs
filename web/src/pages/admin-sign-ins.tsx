@@ -11,6 +11,7 @@ import {
   AdminTableSkeleton,
   type Column,
 } from '@/components/admin-page'
+import { type Key, useT } from '@/i18n'
 import { formatDate, formatFullDate } from '@/lib/format'
 import { adminKeys } from '@/lib/query-keys'
 import { adminListGet } from '@/wire/endpoints/admin'
@@ -30,31 +31,39 @@ type SignIn = {
 
 const LIMIT = 200
 const FILTERS = ['account', 'source', 'result', 'channel'] as const
-const HEADERS = ['Time', 'Account', 'Source', 'Way in', 'Result', 'Client']
+const HEADERS: Key[] = [
+  'admin.time',
+  'admin.signIns.account',
+  'admin.aliases.source',
+  'admin.signIns.wayIn',
+  'admin.signIns.result',
+  'admin.signIns.client',
+]
 const NO_ROWS: SignIn[] = []
 
-const RESULTS = [
-  { label: 'Every result', value: '' },
-  { label: 'Signed in', value: 'ok' },
-  { label: 'Wrong credentials', value: 'bad-password' },
-  { label: 'Refused while locked', value: 'locked' },
-  { label: 'Second factor asked', value: 'mfa-required' },
-  { label: 'Second factor wrong', value: 'mfa-failed' },
+const RESULTS: { label: Key; value: string }[] = [
+  { label: 'admin.signIns.result.any', value: '' },
+  { label: 'admin.signIns.result.ok', value: 'ok' },
+  { label: 'admin.signIns.result.badPassword', value: 'bad-password' },
+  { label: 'admin.signIns.result.locked', value: 'locked' },
+  { label: 'admin.signIns.result.mfaRequired', value: 'mfa-required' },
+  { label: 'admin.signIns.result.mfaFailed', value: 'mfa-failed' },
 ]
 
-const CHANNELS = [
-  { label: 'Every way in', value: '' },
-  { label: 'Web', value: 'web' },
-  { label: 'Credential check', value: 'verify' },
-  { label: 'IMAP', value: 'imap' },
-  { label: 'POP3', value: 'pop3' },
-  { label: 'SMTP', value: 'smtp' },
-  { label: 'ManageSieve', value: 'managesieve' },
-  { label: 'Calendar and contacts', value: 'dav' },
-  { label: 'API key', value: 'api-key' },
+const CHANNELS: { label: Key; value: string }[] = [
+  { label: 'admin.signIns.channel.any', value: '' },
+  { label: 'admin.signIns.channel.web', value: 'web' },
+  { label: 'admin.signIns.channel.verify', value: 'verify' },
+  { label: 'admin.proto.imap', value: 'imap' },
+  { label: 'admin.proto.pop3', value: 'pop3' },
+  { label: 'admin.proto.smtp', value: 'smtp' },
+  { label: 'admin.proto.managesieve', value: 'managesieve' },
+  { label: 'admin.signIns.channel.dav', value: 'dav' },
+  { label: 'admin.signIns.channel.apiKey', value: 'api-key' },
 ]
 
 export function AdminSignIns() {
+  const t = useT()
   const [params, setParams] = useSearchParams()
   const filters = Object.fromEntries(FILTERS.map((f) => [f, params.get(f) ?? '']))
 
@@ -84,7 +93,7 @@ export function AdminSignIns() {
 
   const columns: Column<SignIn>[] = [
     {
-      header: 'Time',
+      header: t('admin.time'),
       key: 'time',
       cell: (r) => (
         <span className="text-fg-secondary whitespace-nowrap" title={formatFullDate(r.occurred_at)}>
@@ -93,18 +102,18 @@ export function AdminSignIns() {
       ),
     },
     {
-      header: 'Account',
+      header: t('admin.signIns.account'),
       key: 'account',
       cell: (r) => <span className="font-medium break-all">{r.account || '—'}</span>,
     },
     {
-      header: 'Source',
+      header: t('admin.aliases.source'),
       key: 'source',
       cell: (r) => (
         <button
           className="text-accent font-mono text-xs hover:opacity-80"
           onClick={() => setParam('source', r.source_ip)}
-          title="Show only this source"
+          title={t('admin.signIns.onlySource')}
           type="button"
         >
           {r.source_ip}
@@ -112,7 +121,7 @@ export function AdminSignIns() {
       ),
     },
     {
-      header: 'Way in',
+      header: t('admin.signIns.wayIn'),
       key: 'channel',
       cell: (r) => (
         <span className="text-fg-secondary text-xs">
@@ -121,12 +130,12 @@ export function AdminSignIns() {
       ),
     },
     {
-      header: 'Result',
+      header: t('admin.signIns.result'),
       key: 'result',
       cell: (r) => <span className={`font-mono text-xs ${resultColor(r.result)}`}>{r.result}</span>,
     },
     {
-      header: 'Client',
+      header: t('admin.signIns.client'),
       key: 'client',
       cell: (r) => (
         <span className="text-fg-muted block max-w-xs truncate text-xs" title={r.user_agent}>
@@ -137,30 +146,32 @@ export function AdminSignIns() {
   ]
 
   const renderBody = () => {
-    if (isPending) return <AdminTableSkeleton cols={6} headers={HEADERS} rows={6} />
+    if (isPending) {
+      return <AdminTableSkeleton cols={6} headers={HEADERS.map((h) => t(h))} rows={6} />
+    }
     if (error) {
       return (
         <AdminErrorState
           error={error}
           onRetry={() => refetch()}
           retryDisabled={isFetching}
-          what="the sign-ins"
+          what={t('admin.signIns.listName')}
         />
       )
     }
     if (rows.length === 0) {
       return (
         <AdminEmptyState
-          description="Every attempt to sign in, on the web, by mail apps or with a key, is recorded here and kept for 90 days. Change or clear the filters to see more"
+          description={t('admin.signIns.emptyHelp')}
           icon={<KeyRound className="h-10 w-10" />}
-          title="No sign-ins match"
+          title={t('admin.signIns.empty')}
         />
       )
     }
     return (
       <AdminTable
         columns={columns}
-        label="Sign-ins"
+        label={t('admin.signIns.title')}
         rowKey={(r) => `${r.occurred_at}-${r.source_ip}-${r.account}-${r.channel}-${r.result}`}
         rows={rows}
       />
@@ -177,52 +188,54 @@ export function AdminSignIns() {
           size="sm"
           variant="secondary"
         >
-          Refresh
+          {t('admin.refresh')}
         </Button>
       }
-      subtitle={`The newest ${LIMIT} that match, newest first`}
-      title="Sign-ins"
+      subtitle={t('admin.signIns.subtitle', { n: LIMIT })}
+      title={t('admin.signIns.title')}
     >
       <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
         <input
-          aria-label="Filter by account"
+          aria-label={t('admin.signIns.filterAccount')}
           className="border-border bg-bg-secondary w-64 max-w-full rounded-md border px-3 py-1.5 text-sm"
           onChange={(e) => setParam('account', e.target.value)}
-          placeholder="Account, e.g. lihao@golia.jp"
+          placeholder={t('admin.signIns.accountPlaceholder')}
           value={filters.account}
         />
         <input
-          aria-label="Filter by source address"
+          aria-label={t('admin.signIns.filterSource')}
           className="border-border bg-bg-secondary w-44 max-w-full rounded-md border px-3 py-1.5 font-mono text-sm"
           onChange={(e) => setParam('source', e.target.value)}
-          placeholder="Source address"
+          placeholder={t('admin.signIns.sourceAddress')}
           value={filters.source}
         />
         <select
-          aria-label="Filter by result"
+          aria-label={t('admin.signIns.filterResult')}
           className="border-border bg-bg-secondary rounded-md border px-2 py-1.5 text-sm"
           onChange={(e) => setParam('result', e.target.value)}
           value={filters.result}
         >
           {RESULTS.map((o) => (
             <option key={o.value} value={o.value}>
-              {o.label}
+              {t(o.label)}
             </option>
           ))}
         </select>
         <select
-          aria-label="Filter by way in"
+          aria-label={t('admin.signIns.filterWayIn')}
           className="border-border bg-bg-secondary rounded-md border px-2 py-1.5 text-sm"
           onChange={(e) => setParam('channel', e.target.value)}
           value={filters.channel}
         >
           {CHANNELS.map((o) => (
             <option key={o.value} value={o.value}>
-              {o.label}
+              {t(o.label)}
             </option>
           ))}
         </select>
-        <span className="text-fg-muted ml-auto text-xs tabular-nums">{rows.length} shown</span>
+        <span className="text-fg-muted ml-auto text-xs tabular-nums">
+          {t('admin.nShown', { n: rows.length })}
+        </span>
       </div>
       {renderBody()}
     </AdminPageShell>
