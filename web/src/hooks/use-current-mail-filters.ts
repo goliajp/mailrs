@@ -17,12 +17,13 @@ import { useAtomValue } from 'jotai'
 import { useMemo } from 'react'
 
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
-import { threadAxesOf } from '@/lib/mail-lists'
+import { type MailListId, threadAxesOf, type ThreadListAxes } from '@/lib/mail-lists'
 import { type MailListFilters } from '@/lib/query-keys'
 import { z } from '@/lib/zod'
 import { conversationKeys } from '@/store/query-keys-v21'
 import { hideSuspectedFraudAtom } from '@/store/settings'
 import {
+  activeLabelAtom,
   activeListAtom,
   categoryFilterAtom,
   importanceSectionAtom,
@@ -37,6 +38,7 @@ const SEARCH_DEBOUNCE_MS = 200
 
 export function useCurrentMailFilters(): MailListFilters | null {
   const list = useAtomValue(activeListAtom)
+  const activeLabel = useAtomValue(activeLabelAtom)
   const categoryFilter = useAtomValue(categoryFilterAtom)
   const selectedDomains = useAtomValue(selectedDomainsAtom)
   const selectedAccounts = useAtomValue(selectedAccountsAtom)
@@ -46,7 +48,7 @@ export function useCurrentMailFilters(): MailListFilters | null {
   const debouncedSearch = useDebouncedValue(searchQuery, SEARCH_DEBOUNCE_MS)
 
   return useMemo<MailListFilters | null>(() => {
-    const axes = threadAxesOf(list)
+    const axes = labelAxes(threadAxesOf(list), list, activeLabel)
     if (!axes) return null
     // The list fixes its axes; category, section, search and domains are
     // refinements stacked on top of whichever list is showing.
@@ -68,6 +70,7 @@ export function useCurrentMailFilters(): MailListFilters | null {
     }
   }, [
     list,
+    activeLabel,
     categoryFilter,
     selectedAccounts,
     selectedDomains,
@@ -97,3 +100,14 @@ export function useCurrentUnreadCount(): number {
 }
 
 const unseenCountSchema = z.object({ count: z.number() })
+
+/** The `label` list's axes carry the label it shows. */
+function labelAxes(
+  axes: null | ThreadListAxes,
+  list: MailListId,
+  label: null | string
+): null | ThreadListAxes {
+  if (list !== 'label' || !axes) return axes
+  if (!label) return null
+  return { ...axes, label }
+}

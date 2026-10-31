@@ -16,8 +16,9 @@ const ids = Object.keys(MAIL_LISTS) as MailListId[]
  * list did not follow before it was written down here.
  */
 describe('MAIL_LISTS', () => {
+  // all but `label`, which is reached from the row of the user's labels
   it('every list is reachable from exactly one tab', () => {
-    expect([...MAIL_LIST_TABS].sort()).toEqual([...ids].sort())
+    expect([...MAIL_LIST_TABS].sort()).toEqual(ids.filter((id) => id !== 'label').sort())
     expect(new Set(MAIL_LIST_TABS).size).toBe(MAIL_LIST_TABS.length)
   })
 

@@ -63,6 +63,8 @@ export const wireThreadSummarySchema = z.object({
   thread_id: z.string(),
   // epoch seconds it was moved to the Trash, 0 when it is not there
   trashed_at: z.number().int().min(0).default(0),
+  // this reader's label ids on it
+  labels: z.array(z.string()).default([]),
   unread_count: z.number().int().min(0).default(0),
 })
 

@@ -30,6 +30,8 @@ export type MailListFilters = {
    * above describes.
    */
   includeQuarantined?: boolean
+  /** One label's conversations, by label id. */
+  label?: string
   /**
    * The review list: what was held as suspected fraud, and nothing
    * else.
@@ -68,6 +70,7 @@ function normalizeFilters(f: MailListFilters): Record<string, boolean | number |
   if (f.section) out.section = f.section
   if (f.starred) out.starred = 1
   if (f.trashed) out.trashed = 1
+  if (f.label) out.label = f.label
   if (f.unread) out.unread = 1
   return out
 }

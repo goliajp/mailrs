@@ -67,6 +67,7 @@ describe('the action table', () => {
       expect(actionForKey('e', s)).toBe(s.archived ? 'unarchive' : 'archive')
       expect(actionForKey('s', s)).toBe(s.flagged ? 'unstar' : 'star')
       expect(actionForKey('#', s)).toBe('trash')
+      expect(actionForKey('l', s)).toBe('label')
     }
   })
 

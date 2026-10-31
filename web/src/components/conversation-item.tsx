@@ -8,6 +8,7 @@ import { memo, useMemo } from 'react'
 
 import { CategoryBadge, ImportanceBadge } from '@/components/category-badge'
 import { ActionSheet, ContextMenu, useContextMenu } from '@/components/context-menu'
+import { RowLabels } from '@/components/label-chip'
 import { SenderAvatar } from '@/components/sender-avatar'
 import { ACTIONS, rowActions, toggle } from '@/lib/actions'
 import { extractEmail, extractName } from '@/lib/avatar'
@@ -271,6 +272,7 @@ export const ConversationItem = memo(function ConversationItem({
             >
               {convo.subject || '(no subject)'}
             </p>
+            <RowLabels ids={convo.labels ?? []} />
             {/* A held conversation is only ever on screen because the
                 reader asked to see held ones — so it is marked. An
                 unmarked one would be worse than a hidden one: the

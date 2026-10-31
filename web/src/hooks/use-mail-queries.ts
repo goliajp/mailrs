@@ -56,6 +56,7 @@ export function useConversationsQuery(filters: MailListFilters, enabled: boolean
       // /conversations/search endpoint when filters.query is set, but
       // without query in the key a search reuses the non-search inbox
       // cache and never refetches — search silently shows the inbox.
+      label: filters.label,
       query: filters.query,
       starred: filters.starred,
       trashed: filters.trashed,
@@ -207,6 +208,7 @@ function listPath(filters: MailListFilters, before?: number): string {
   let p = `/conversations?limit=${PAGE_SIZE}`
   if (before) p += `&before=${before}`
   if (filters.trashed) p += '&trashed=true'
+  if (filters.label) p += `&label=${encodeURIComponent(filters.label)}`
   if (filters.category) p += `&category=${encodeURIComponent(filters.category)}`
   if (filters.domains && filters.domains.length > 0) {
     p += `&domains=${encodeURIComponent(filters.domains.join(','))}`

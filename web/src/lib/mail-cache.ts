@@ -205,6 +205,7 @@ function axesOfCacheKey(key: QueryKey): ListAxes | null {
   return {
     archived: f.archived === true || f.archived === 1,
     folder: typeof f.folder === 'string' ? f.folder : null,
+    label: typeof f.label === 'string' ? f.label : null,
     starred: f.starred === true || f.starred === 1 ? true : null,
     trashed: f.trashed === true || f.trashed === 1,
     unread: f.unread === true || f.unread === 1 ? true : null,
