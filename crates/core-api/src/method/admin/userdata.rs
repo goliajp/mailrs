@@ -25,6 +25,15 @@ pub const PATH_SET_ACCOUNT_PASSWORD: &str = "/v1/admin/accounts/{address}/passwo
 /// record when and by whom; 404 for an unknown account.
 pub const PATH_CLEAR_ACCOUNT_PASSWORD: &str = "/v1/admin/accounts/{address}/password:clear";
 
+/// `POST /v1/admin/password-clear` — the operator's clearing, on the host:
+/// the core empties each password and does what the web's clearing does
+/// after it. Body `{"addresses": [..]}`.
+pub const PATH_OPERATOR_PASSWORD_CLEAR: &str = "/v1/admin/password-clear";
+
+/// `POST /v1/admin/password-clear:preview` — what that clearing would cut
+/// off, per address.
+pub const PATH_OPERATOR_PASSWORD_CLEAR_PREVIEW: &str = "/v1/admin/password-clear:preview";
+
 /// `POST /v1/users/{user}/messages/{uid}/flags` — patch the flags
 /// bitmask on a message that lives in fastcore's embedded kevy. Used
 /// by webapi's update_flags / delete_message handlers.

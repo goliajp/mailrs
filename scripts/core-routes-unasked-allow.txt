@@ -56,3 +56,5 @@ POST /v1/admin/maintenance:tier-info | read-only: what the store holds in RAM ve
 POST /v1/admin/maintenance:uidlist-backfill | write each mailbox's uidlist from the UIDs its index holds
 POST /v1/admin/maintenance:uidlist-compact | compact the append-only uidlist to one record per message
 POST /v1/admin/maintenance:usermsg-shadow | read-only: shared thread index against per-user index (per-user projection, stage 3)
+POST /v1/admin/password-clear | the operator clears passwords on the host (127.0.0.1:3201, core secret); same procedure as POST /api/admin/password-clear
+POST /v1/admin/password-clear:preview | what the operator's clearing would cut off, run on the host before clearing
