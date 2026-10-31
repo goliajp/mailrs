@@ -4,6 +4,7 @@ import { toast } from '@goliapkg/gds'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useId, useState } from 'react'
 
+import { type Key, useT } from '@/i18n'
 import { adminKeys } from '@/lib/query-keys'
 import { wireSaveMockSettings } from '@/wire/endpoints/mock'
 
@@ -11,9 +12,9 @@ import { btnPrimary, inputClass } from '../settings/_shared'
 import { errorText } from './errors'
 
 type NumberField = {
-  help: string
+  help: Key
   key: 'max_messages' | 'max_namespaces_per_user' | 'max_total_mb' | 'retention_days'
-  label: string
+  label: Key
   max: number
   min: number
 }
@@ -21,30 +22,30 @@ type NumberField = {
 // the bounds the server enforces (core-sidestate families/mock/settings.rs)
 const FIELDS: NumberField[] = [
   {
-    help: 'Older messages are deleted. A shorter value reaches stored mail at the next sweep, within six hours; a longer one applies to new mail',
+    help: 'settings.mock.retention.help',
     key: 'retention_days',
-    label: 'Keep messages for (days)',
+    label: 'settings.mock.retention',
     max: 30,
     min: 1,
   },
   {
-    help: 'Past this, the oldest message of the namespace is dropped',
+    help: 'settings.mock.messages.help',
     key: 'max_messages',
-    label: 'Messages per namespace',
+    label: 'settings.mock.messages',
     max: 5000,
     min: 10,
   },
   {
-    help: 'Past this, new mock mail is refused until old mail expires or is deleted',
+    help: 'settings.mock.storage.help',
     key: 'max_total_mb',
-    label: 'Total storage (MB)',
+    label: 'settings.mock.storage',
     max: 20480,
     min: 64,
   },
   {
-    help: 'How many namespaces one person may create',
+    help: 'settings.mock.namespaces.help',
     key: 'max_namespaces_per_user',
-    label: 'Namespaces per person',
+    label: 'settings.mock.namespaces',
     max: 100,
     min: 1,
   },
@@ -52,14 +53,15 @@ const FIELDS: NumberField[] = [
 
 /** The rules mock mail is kept by. Saved settings apply at once, with no restart. */
 export function MockSettingsForm({ saved }: { saved: MockSettings }) {
+  const t = useT()
   const queryClient = useQueryClient()
   const [draft, setDraft] = useState<MockSettings>(saved)
   const enabledId = useId()
   const save = useMutation({
     mutationFn: () => wireSaveMockSettings(draft),
-    onError: (e) => toast.error(errorText(e, 'Could not save the settings')),
+    onError: (e) => toast.error(errorText(e, t('settings.mock.saveFailed'))),
     onSuccess: () => {
-      toast.success('Settings saved')
+      toast.success(t('settings.mock.saved'))
       void queryClient.invalidateQueries({ queryKey: adminKeys.mock() })
     },
   })
@@ -73,7 +75,7 @@ export function MockSettingsForm({ saved }: { saved: MockSettings }) {
   }
 
   return (
-    <form aria-label="Mock mail settings" className="max-w-xl space-y-5" onSubmit={submit}>
+    <form aria-label={t('settings.mock.form')} className="max-w-xl space-y-5" onSubmit={submit}>
       <div className="flex items-start gap-3">
         <input
           aria-describedby={`${enabledId}-help`}
@@ -85,21 +87,20 @@ export function MockSettingsForm({ saved }: { saved: MockSettings }) {
         />
         <div>
           <label className="text-fg block text-sm" htmlFor={enabledId}>
-            Accept mock mail
+            {t('settings.mock.accept')}
           </label>
           <p className="text-fg-muted text-xs" id={`${enabledId}-help`}>
-            When off, new mail to the mock domain is refused and no namespace can be created. Stored
-            mail stays readable
+            {t('settings.mock.acceptHelp')}
           </p>
         </div>
       </div>
       <fieldset className="space-y-1">
-        <legend className="text-fg text-sm">Who can create namespaces</legend>
+        <legend className="text-fg text-sm">{t('settings.mock.who')}</legend>
         <CreateChoice draft={draft} onChange={setDraft} value="all-users">
-          Everyone who can sign in
+          {t('settings.mock.everyone')}
         </CreateChoice>
         <CreateChoice draft={draft} onChange={setDraft} value="admins-only">
-          Admins only
+          {t('settings.mock.adminsOnly')}
         </CreateChoice>
       </fieldset>
       <div className="grid gap-4 sm:grid-cols-2">
@@ -114,7 +115,11 @@ export function MockSettingsForm({ saved }: { saved: MockSettings }) {
       </div>
       {invalid !== null && (
         <p className="text-danger text-sm" role="alert">
-          {invalid}
+          {t('settings.mock.invalid', {
+            label: t(invalid.label),
+            max: invalid.max,
+            min: invalid.min,
+          })}
         </p>
       )}
       <button
@@ -122,7 +127,7 @@ export function MockSettingsForm({ saved }: { saved: MockSettings }) {
         disabled={invalid !== null || !changed || save.isPending}
         type="submit"
       >
-        Save settings
+        {t('settings.mock.save')}
       </button>
     </form>
   )
@@ -152,12 +157,10 @@ function CreateChoice({
   )
 }
 
-function firstInvalid(s: MockSettings): null | string {
+function firstInvalid(s: MockSettings): null | NumberField {
   for (const f of FIELDS) {
     const v = s[f.key]
-    if (!Number.isInteger(v) || v < f.min || v > f.max) {
-      return `${f.label} must be a whole number from ${f.min} to ${f.max}`
-    }
+    if (!Number.isInteger(v) || v < f.min || v > f.max) return f
   }
   return null
 }
@@ -171,11 +174,12 @@ function NumberInput({
   onChange: (v: number) => void
   value: number
 }) {
+  const t = useT()
   const id = useId()
   return (
     <div>
       <label className="text-fg block text-sm" htmlFor={id}>
-        {field.label}
+        {t(field.label)}
       </label>
       <input
         aria-describedby={`${id}-help`}
@@ -188,7 +192,7 @@ function NumberInput({
         value={value}
       />
       <p className="text-fg-muted mt-1 text-xs" id={`${id}-help`}>
-        {field.help}. {field.min} to {field.max}
+        {t('settings.mock.fieldHelp', { help: t(field.help), max: field.max, min: field.min })}
       </p>
     </div>
   )

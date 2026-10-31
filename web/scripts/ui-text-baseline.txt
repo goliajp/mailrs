@@ -62,7 +62,6 @@ src/components/mock/message-detail.tsx 14
 src/components/mock/message-list.tsx 2
 src/components/mock/namespace-list.tsx 5
 src/components/mock/send-form.tsx 10
-src/components/mock/settings-form.tsx 7
 src/components/mock/smtp-panel.tsx 7
 src/components/mock/webhook-panel.tsx 8
 src/components/new-conversation/address-fields.tsx 3
