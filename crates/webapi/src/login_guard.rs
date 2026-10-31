@@ -175,12 +175,19 @@ async fn mail_alerts(from: &str, to: &[String]) {
         }
     };
     let host = std::env::var("MAILRS_HOSTNAME").unwrap_or_else(|_| "mailrs".into());
-    let (subject, body) = mailrs_auth_guard::alerts::digest(&alerts, &host);
+    let now = crate::handlers::complete::now_secs().max(0) as u64;
+    let mail = crate::security_mail::render(
+        &alerts,
+        &host,
+        &crate::security_mail::Reader::from_env(),
+        now,
+    );
     let parts = crate::handlers::compose::ComposeParts {
         from: from.to_string(),
         to: to.to_vec(),
-        subject,
-        body,
+        subject: mail.subject,
+        body: mail.text,
+        html_body: mail.html,
         ..Default::default()
     };
     let (_, message) = crate::handlers::compose::build_rfc5322(&parts, from);

@@ -45,6 +45,9 @@ pub enum Kind {
     /// An account's outbound mail was paused: it sent far more in an hour
     /// than its limit, or kept failing. Repeated daily while it lasts.
     OutboundPaused,
+    /// A feedback-loop reporter sent more matched complaints in a day than
+    /// are acted on; the rest are logged and suppress nobody.
+    ComplaintLimit,
 }
 
 impl Kind {
@@ -53,6 +56,104 @@ impl Kind {
     fn once_an_hour(self) -> bool {
         !matches!(self, Kind::ResetCodeIssued)
     }
+}
+
+/// One fact behind an alert, typed so the mail can say it in the reader's
+/// language and time zone. Times are unix seconds.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "fact", rename_all = "kebab-case")]
+pub enum Fact {
+    /// Failed sign-ins in a window.
+    Failures {
+        /// How many failed.
+        count: u64,
+        /// Within this many minutes.
+        minutes: u64,
+    },
+    /// The last failed attempt.
+    LastAttempt {
+        /// The address it came from.
+        source: String,
+        /// The account it tried.
+        account: String,
+    },
+    /// A lock and how long it holds.
+    LockedFor {
+        /// Minutes.
+        minutes: u64,
+    },
+    /// Successful sign-ins from several networks.
+    Networks {
+        /// The networks.
+        list: Vec<String>,
+        /// Within this many minutes.
+        minutes: u64,
+    },
+    /// Who issued it.
+    IssuedBy {
+        /// Their address.
+        actor: String,
+    },
+    /// Valid until then.
+    ValidUntil {
+        /// Unix seconds.
+        at: u64,
+    },
+    /// A session that failed its password confirmations.
+    Session {
+        /// Its first characters.
+        prefix: String,
+        /// Where it was used from.
+        source: String,
+        /// Confirmations it failed.
+        failures: u64,
+    },
+    /// Recipients sent to in an hour, over the account's limit.
+    SendLimit {
+        /// How many.
+        count: u64,
+        /// The limit.
+        limit: u64,
+    },
+    /// Permanent delivery failures in an hour, over the account's limit.
+    FailureLimit {
+        /// How many.
+        count: u64,
+        /// The limit.
+        limit: u64,
+    },
+    /// Paused since then.
+    PausedSince {
+        /// Unix seconds.
+        at: u64,
+    },
+    /// Held messages thrown away when the queue gave up on them.
+    Discarded {
+        /// How many.
+        count: u64,
+    },
+    /// No backup has succeeded for this long.
+    NoBackupFor {
+        /// Hours.
+        hours: u64,
+    },
+    /// More complaints from a feedback loop today than are acted on.
+    Complaints {
+        /// The reporter.
+        reporter: String,
+        /// Complaints a day that are acted on.
+        limit: u64,
+    },
+    /// The address the latest complaint was about.
+    LatestComplaint {
+        /// The address.
+        address: String,
+    },
+    /// Words from the system that raised it, for the operator.
+    Note {
+        /// The words.
+        text: String,
+    },
 }
 
 /// One alert.
@@ -64,8 +165,12 @@ pub struct Alert {
     pub subject: String,
     /// Unix seconds.
     pub at: u64,
-    /// The facts behind it, for the reader.
+    /// The same facts in one English line, for logs and for alerts queued
+    /// before `facts` existed.
     pub detail: String,
+    /// The facts behind it.
+    #[serde(default)]
+    pub facts: Vec<Fact>,
 }
 
 /// Queue `alert` unless the same kind about the same subject was queued
@@ -99,58 +204,6 @@ pub fn take<O: EventOps>(ops: &mut O, max: usize) -> io::Result<Vec<Alert>> {
     Ok(out)
 }
 
-/// The mail an operator gets for `alerts`, as (subject, body).
-pub fn digest(alerts: &[Alert], host: &str) -> (String, String) {
-    let subject = match alerts {
-        [one] => format!("[{host}] security: {}", headline(one)),
-        many => format!("[{host}] security: {} alerts", many.len()),
-    };
-    let mut body = format!(
-        "The login guard on {host} raised the following. Each kind of alert about one account or source is sent at most once an hour, except reset codes, every one of which is.\n\n"
-    );
-    for a in alerts {
-        body.push_str(&format!(
-            "- {} UTC  {}\n  {}\n",
-            utc(a.at),
-            headline(a),
-            a.detail
-        ));
-    }
-    body.push_str("\nThe sign-in attempts behind them: Admin → Oversight → Sign-ins, or GET /api/admin/auth-events.\n");
-    (subject, body)
-}
-
-fn headline(a: &Alert) -> String {
-    match a.kind {
-        Kind::AccountLocked => format!("account {} locked for unfamiliar sources", a.subject),
-        Kind::SourceLocked => format!("source {} locked", a.subject),
-        Kind::GlobalLocked => "unfamiliar sources refused server-wide".to_string(),
-        Kind::ManyNetworks => format!("{} signed in from several networks", a.subject),
-        Kind::SessionEndedAfterFailedConfirmations => {
-            format!(
-                "a session of {} ended after failed password confirmations",
-                a.subject
-            )
-        }
-        Kind::ResetCodeIssued => format!("a password reset code was issued for {}", a.subject),
-        Kind::OutboundPaused => format!("outbound mail from {} is paused", a.subject),
-        Kind::BackupFailed => format!("backup of {} failed", a.subject),
-    }
-}
-
-fn utc(unix: u64) -> String {
-    let d = crate::events::day(unix);
-    let s = unix % 86_400;
-    format!(
-        "{}-{:02}-{:02} {:02}:{:02}",
-        d / 10_000,
-        d / 100 % 100,
-        d % 100,
-        s / 3600,
-        s / 60 % 60
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -162,7 +215,25 @@ mod tests {
             subject: subject.into(),
             at: 1_792_892_646,
             detail: "10 failures in an hour from 10 sources".into(),
+            facts: vec![Fact::Failures {
+                count: 10,
+                minutes: 60,
+            }],
         }
+    }
+
+    /// An alert queued by the previous build has no `facts`, and still
+    /// reads: during a deploy the queue holds both.
+    #[test]
+    fn an_alert_without_facts_still_reads() {
+        let old = r#"{"kind":"account-locked","subject":"a@x.test","at":1,"detail":"d"}"#;
+        let a: Alert = serde_json::from_str(old).unwrap();
+        assert_eq!((a.kind, a.facts.len()), (Kind::AccountLocked, 0));
+        let new = serde_json::to_string(&alert(Kind::AccountLocked, "a@x.test")).unwrap();
+        assert!(
+            new.contains(r#""facts":[{"fact":"failures","count":10,"minutes":60}]"#),
+            "{new}"
+        );
     }
 
     #[test]
@@ -192,23 +263,5 @@ mod tests {
         assert!(raise(&mut o, &alert(Kind::ResetCodeIssued, "a@x.test")).unwrap());
         assert!(raise(&mut o, &alert(Kind::ResetCodeIssued, "a@x.test")).unwrap());
         assert_eq!(take(&mut o, 100).unwrap().len(), 2);
-    }
-
-    #[test]
-    fn a_digest_names_each_alert() {
-        let (subject, body) = digest(&[alert(Kind::AccountLocked, "a@x.test")], "mail.golia.ai");
-        assert_eq!(
-            subject,
-            "[mail.golia.ai] security: account a@x.test locked for unfamiliar sources"
-        );
-        assert!(body.contains("2026-10-25 01:44 UTC"), "{body}");
-        let (subject, _) = digest(
-            &[
-                alert(Kind::SourceLocked, "192.0.2.1"),
-                alert(Kind::GlobalLocked, "*"),
-            ],
-            "mail.golia.ai",
-        );
-        assert_eq!(subject, "[mail.golia.ai] security: 2 alerts");
     }
 }
