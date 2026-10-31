@@ -61,7 +61,7 @@ spg-sqlx = { workspace = true, optional = true }
 spg-embedded = { workspace = true, optional = true }
 kevy-embedded = { workspace = true }
 kevy-client = { workspace = true }
-mailrs-auth-guard = { path = "../auth-guard", version = "2", features = ["kevy"] }
+mailrs-auth-guard = { path = "../auth-guard", version = "3", features = ["kevy"] }
 mailrs-triage = { path = "../triage" }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

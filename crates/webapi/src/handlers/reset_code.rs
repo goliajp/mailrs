@@ -167,6 +167,14 @@ pub async fn issue(
         subject: address.clone(),
         at: now as u64,
         detail: format!("issued by {actor}, valid until {expires_at} (unix seconds)"),
+        facts: vec![
+            mailrs_auth_guard::alerts::Fact::IssuedBy {
+                actor: actor.clone(),
+            },
+            mailrs_auth_guard::alerts::Fact::ValidUntil {
+                at: expires_at.max(0) as u64,
+            },
+        ],
     };
     if let Err(e) = crate::login_guard::GUARD.raise(alert).await {
         tracing::warn!(error = %e, "reset code issued, but the alert could not be queued");

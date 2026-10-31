@@ -10,7 +10,7 @@
 
 use std::collections::HashMap;
 
-use mailrs_auth_guard::alerts::{Alert, Kind};
+use mailrs_auth_guard::alerts::{Alert, Fact, Kind};
 use mailrs_core_sidestate::families::outbound::{SECURITY_ALERT_KIND, pause};
 use tokio::task::spawn_blocking;
 
@@ -116,8 +116,8 @@ pub(super) async fn held(
     .await;
     match res {
         Ok(Ok((held, newly))) => {
-            if let Some(reason) = newly {
-                announce(cfg, &account, &reason, "outbound.pause").await;
+            if let Some((reason, fact)) = newly {
+                announce(cfg, &account, &reason, vec![fact], "outbound.pause").await;
             }
             if held {
                 tracing::warn!(%account, "outbound paused: job held");
@@ -143,7 +143,7 @@ fn decide(
     first_attempt: bool,
     limits: pause::Limits,
     now: i64,
-) -> std::io::Result<(bool, Option<String>)> {
+) -> std::io::Result<(bool, Option<(String, Fact)>)> {
     let mut newly = None;
     if !pause::is_paused(c, account)? {
         if !first_attempt {
@@ -158,7 +158,11 @@ fn decide(
             limits.per_hour
         );
         if pause::pause(c, account, &reason, now)? {
-            newly = Some(reason);
+            let fact = Fact::SendLimit {
+                count: n,
+                limit: limits.per_hour,
+            };
+            newly = Some((reason, fact));
         }
     }
     pause::hold(c, account, id, created_at)?;
@@ -173,7 +177,7 @@ pub(super) async fn note_permanent_failure(cfg: &Cfg, envelope: &serde_json::Val
     };
     let limits = cfg.pause_limits.for_account(&account);
     let (url, acct) = (cfg.kevy_url.clone(), account.clone());
-    let res = spawn_blocking(move || -> std::io::Result<Option<String>> {
+    let res = spawn_blocking(move || -> std::io::Result<Option<(String, Fact)>> {
         let mut c = kevy(&url)?;
         let now = now_secs();
         let n = pause::count_failure(&mut c, &acct, now)?;
@@ -184,23 +188,30 @@ pub(super) async fn note_permanent_failure(cfg: &Cfg, envelope: &serde_json::Val
             "{n} permanent failures in an hour, over its limit of {}",
             limits.fails_per_hour
         );
-        Ok(pause::pause(&mut c, &acct, &reason, now)?.then_some(reason))
+        let fact = Fact::FailureLimit {
+            count: n,
+            limit: limits.fails_per_hour,
+        };
+        Ok(pause::pause(&mut c, &acct, &reason, now)?.then_some((reason, fact)))
     })
     .await;
     match res {
-        Ok(Ok(Some(reason))) => announce(cfg, &account, &reason, "outbound.pause").await,
+        Ok(Ok(Some((reason, fact)))) => {
+            announce(cfg, &account, &reason, vec![fact], "outbound.pause").await
+        }
         Ok(Ok(None)) => {}
         other => tracing::warn!(?other, %account, "failure count not recorded"),
     }
 }
 
 /// Alert the operators and write the audit fact for `account`.
-async fn announce(cfg: &Cfg, account: &str, detail: &str, action: &'static str) {
+async fn announce(cfg: &Cfg, account: &str, detail: &str, facts: Vec<Fact>, action: &'static str) {
     let alert = Alert {
         kind: Kind::OutboundPaused,
         subject: account.to_string(),
         at: now_secs().max(0) as u64,
         detail: detail.to_string(),
+        facts,
     };
     if let Err(e) = mailrs_auth_guard::kevy::guard_for(Some(&cfg.kevy_url))
         .raise(alert)
@@ -270,7 +281,22 @@ pub(super) async fn sweep(cfg: &Cfg) {
     for s in swept {
         if s.repeat {
             let detail = format!("still paused since {}: {}", s.paused.since, s.paused.reason);
-            announce(cfg, &s.paused.address, &detail, "outbound.pause_repeat").await;
+            let facts = vec![
+                Fact::PausedSince {
+                    at: s.paused.since.max(0) as u64,
+                },
+                Fact::Note {
+                    text: s.paused.reason.clone(),
+                },
+            ];
+            announce(
+                cfg,
+                &s.paused.address,
+                &detail,
+                facts,
+                "outbound.pause_repeat",
+            )
+            .await;
         }
         if !s.expired.is_empty() {
             bounce_expired(cfg, &s.paused.address, &s.expired).await;
@@ -318,7 +344,10 @@ async fn bounce_expired(cfg: &Cfg, account: &str, blobs: &[Vec<u8>]) {
         "{} held messages discarded at the end of the queue lifetime",
         blobs.len()
     );
-    announce(cfg, account, &detail, "outbound.pause_expired").await;
+    let facts = vec![Fact::Discarded {
+        count: blobs.len() as u64,
+    }];
+    announce(cfg, account, &detail, facts, "outbound.pause_expired").await;
 }
 
 #[cfg(test)]
