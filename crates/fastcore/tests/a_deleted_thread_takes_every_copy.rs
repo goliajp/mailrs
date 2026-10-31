@@ -114,7 +114,7 @@ async fn a_deleted_thread_takes_every_copy_and_spares_other_owners() {
     }
     deliver(&root, ALICE, "", &message("shared@x.com", "team news"));
     for leaf in ["cur", "new", "tmp"] {
-        std::fs::create_dir_all(root.join("x.com/alice/.Trash").join(leaf)).unwrap();
+        std::fs::create_dir_all(root.join("x.com/alice/.Junk").join(leaf)).unwrap();
     }
 
     let mailbox = mailrs_mailbox_kevy::KevyMailboxStore::new(Arc::new(
@@ -306,12 +306,13 @@ async fn a_deleted_thread_takes_every_copy_and_spares_other_owners() {
     let fetched = until("a3", "FETCH 1 BODY[]").await;
     assert!(fetched.contains("Message-ID: <shared@x.com>"), "{fetched}");
 
-    // a copy IMAP makes is a copy the next delete has to find
-    until("a4", "COPY 1 Trash").await;
+    // a copy IMAP makes is a copy the next delete has to find; into Junk,
+    // since a copy into Trash moves the conversation and writes no file
+    until("a4", "COPY 1 Junk").await;
     let set = mailrs_mailbox_kevy::keys::user_message_files(ALICE, "shared@x.com");
     let names = state.mailbox.store_ref().smembers(set.as_bytes()).unwrap();
-    assert_eq!(names.len(), 2, "the Trash copy was not recorded: {names:?}");
-    assert!(names.iter().any(|n| n.starts_with(b".Trash/")), "{names:?}");
+    assert_eq!(names.len(), 2, "the Junk copy was not recorded: {names:?}");
+    assert!(names.iter().any(|n| n.starts_with(b".Junk/")), "{names:?}");
 }
 
 fn urlencode(s: &str) -> String {
