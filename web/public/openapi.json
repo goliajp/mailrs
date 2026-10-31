@@ -1326,7 +1326,55 @@
       },
       "delete": {
         "operationId": "deleteThread",
-        "summary": "Delete an entire conversation thread",
+        "summary": "Move a conversation thread to the Trash; restore it with untrash, delete it for good with forever",
+        "tags": [
+          "Conversations"
+        ],
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Moved to the Trash; empty body"
+          }
+        }
+      }
+    },
+    "/api/conversations/{thread_id}/untrash": {
+      "post": {
+        "operationId": "untrashThread",
+        "summary": "Restore a conversation thread from the Trash",
+        "tags": [
+          "Conversations"
+        ],
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done; empty body"
+          }
+        }
+      }
+    },
+    "/api/conversations/{thread_id}/forever": {
+      "delete": {
+        "operationId": "deleteThreadForever",
+        "summary": "Delete a conversation thread for good; needs a recent password confirmation",
         "tags": [
           "Conversations"
         ],
@@ -1343,6 +1391,41 @@
         "responses": {
           "204": {
             "description": "Deleted; empty body"
+          },
+          "403": {
+            "description": "No recent password confirmation (confirm_required)"
+          }
+        }
+      }
+    },
+    "/api/trash/empty": {
+      "post": {
+        "operationId": "emptyTrash",
+        "summary": "Delete everything in the Trash for good; needs a recent password confirmation",
+        "tags": [
+          "Conversations"
+        ],
+        "responses": {
+          "200": {
+            "description": "How many conversations were deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "deleted"
+                  ],
+                  "properties": {
+                    "deleted": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No recent password confirmation (confirm_required)"
           }
         }
       }

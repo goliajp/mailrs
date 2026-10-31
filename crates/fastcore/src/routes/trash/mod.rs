@@ -50,7 +50,17 @@ async fn delete_for_good(state: &Arc<FastcoreState>, user: &str, thread_id: &str
         Path((user.to_string(), thread_id.to_string())),
     )
     .await;
-    res.status().is_success()
+    let deleted = res.status().is_success();
+    // the Send rows for the mail in it go too, or the Send list keeps
+    // showing them with nothing behind
+    if deleted && let Some(mut c) = state.net_conn() {
+        if let Err(e) =
+            mailrs_core_sidestate::families::send::delete_sends_in_thread(&mut c, user, thread_id)
+        {
+            tracing::warn!(error = %e, %user, %thread_id, "send rows not removed");
+        }
+    }
+    deleted
 }
 
 /// `POST /v1/users/{user}/trash:empty`.

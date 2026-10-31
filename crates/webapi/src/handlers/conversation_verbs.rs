@@ -63,7 +63,9 @@ pub async fn batch_mutation(
             "unstar" => f.unstar_thread(&user, tid).await.map(|_| ()),
             "archive" => f.archive_thread(&user, tid).await.map(|_| ()),
             "unarchive" => f.unarchive_thread(&user, tid).await.map(|_| ()),
-            "delete" => f.delete_thread(&user, tid).await.map(|_| ()),
+            // to the Trash, as a single delete is; restoring is its inverse
+            "delete" => f.trash_thread(&user, tid).await.map(|_| ()),
+            "untrash" => f.untrash_thread(&user, tid).await.map(|_| ()),
             _ => Err(mailrs_core_api::error::CoreApiError::Internal(format!(
                 "unknown batch action: {action}"
             ))),
@@ -389,25 +391,6 @@ pub async fn unarchive_thread(
         .await
         .map(|_| StatusCode::NO_CONTENT)
         .map_err(map_err)
-}
-
-/// DELETE /api/conversations/{thread_id}
-pub async fn delete_thread(
-    State(state): State<Arc<WebState>>,
-    Extension(AuthedUser(user)): Extension<AuthedUser>,
-    Path(thread_id): Path<String>,
-) -> Result<StatusCode, StatusCode> {
-    state
-        .core
-        .delete_thread(&user, &thread_id)
-        .await
-        .map_err(map_err)?;
-    // The Send rows for the mail in it go too, or the Send list keeps
-    // showing them with nothing behind.
-    crate::handlers::kevy_util::with_kevy(move |c| {
-        mailrs_core_sidestate::families::send::delete_sends_in_thread(c, &user, &thread_id)
-    })?;
-    Ok(StatusCode::NO_CONTENT)
 }
 
 #[derive(Debug, serde::Deserialize)]
