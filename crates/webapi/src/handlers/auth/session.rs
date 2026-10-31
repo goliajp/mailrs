@@ -142,7 +142,8 @@ pub async fn login(
     guard.succeeded(source, &req.address).await;
     guard.record(event(Credential::Password, Outcome::Ok)).await;
     claim_pending_link(&headers, &acct.public.address).await;
-    issue_session(&state, &acct).await
+    let origin = crate::handlers::owner_notice::origin_of(&headers, &source.to_string());
+    issue_session(&state, &acct, origin).await
 }
 
 /// Link the identity parked by an external login, if one is waiting.
@@ -215,6 +216,7 @@ pub(crate) fn cookie_value(headers: &axum::http::HeaderMap, name: &str) -> Optio
 pub(crate) async fn issue_session(
     state: &Arc<WebState>,
     acct: &mailrs_core_api::method::admin::AccountWithHashWire,
+    origin: crate::handlers::owner_notice::Origin,
 ) -> axum::response::Response {
     // Permissions for the login response — fastcore-only.
     let perms = state
@@ -243,14 +245,19 @@ pub(crate) async fn issue_session(
             "send_as": empty_strings.clone(),
         }),
     };
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    // where it was signed in from, for the owner's list of sessions
     let blob = serde_json::json!({
         "address": acct.public.address,
         "display_name": acct.public.display_name,
         "permissions": perms_obj,
-        "created_at_unix": std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_secs())
-            .unwrap_or(0),
+        "created_at_unix": now,
+        "last_seen_unix": now,
+        "ip": origin.ip,
+        "user_agent": origin.user_agent,
     });
     let blob_bytes = match serde_json::to_vec(&blob) {
         Ok(b) => b,
@@ -261,17 +268,41 @@ pub(crate) async fn issue_session(
     if let Some(url) = kevy_url {
         let token_clone = token.clone();
         let addr_clone = acct.public.address.clone();
-        let _ = tokio::task::spawn_blocking(move || -> std::io::Result<()> {
-            let mut c = kevy_client::Connection::connect(&url)?;
-            let key = mailrs_core_sidestate::keys::session::session_key(&token_clone);
-            c.set_with_ttl(
-                key.as_bytes(),
-                &blob_bytes,
-                std::time::Duration::from_secs(7 * 24 * 3600),
-            )?;
-            super::revoke::index_session(&mut c, &addr_clone, &token_clone)
-        })
+        let ua = origin.user_agent.clone();
+        let device = tokio::task::spawn_blocking(
+            move || -> std::io::Result<mailrs_core_sidestate::families::devices::Device> {
+                let mut c = kevy_client::Connection::connect(&url)?;
+                let key = mailrs_core_sidestate::keys::session::session_key(&token_clone);
+                c.set_with_ttl(
+                    key.as_bytes(),
+                    &blob_bytes,
+                    std::time::Duration::from_secs(7 * 24 * 3600),
+                )?;
+                super::revoke::index_session(&mut c, &addr_clone, &token_clone)?;
+                mailrs_core_sidestate::families::devices::sign_in(
+                    &mut c,
+                    &addr_clone,
+                    &ua,
+                    now as i64,
+                )
+            },
+        )
         .await;
+        match device {
+            Ok(Ok(mailrs_core_sidestate::families::devices::Device::New)) => {
+                crate::handlers::owner_notice::notify_owner(
+                    Some(state),
+                    &acct.public.address,
+                    crate::security_mail::Notice::NewSignIn,
+                    origin,
+                    &[],
+                )
+                .await;
+            }
+            Ok(Ok(_)) => {}
+            Ok(Err(e)) => tracing::warn!(error = %e, "login: session or device not recorded"),
+            Err(e) => tracing::warn!(error = %e, "login: recording the session failed"),
+        }
     } else {
         tracing::warn!("login: MAILRS_KEVY_URL unset — token NOT persisted");
     }

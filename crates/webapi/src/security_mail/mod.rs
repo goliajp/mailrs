@@ -12,10 +12,13 @@
 
 mod copy;
 mod layout;
+pub(crate) mod owner;
 
 use mailrs_auth_guard::alerts::{Alert, Fact};
 
 pub use copy::Level;
+pub use layout::Audience;
+pub use owner::{Notice, owner_mail};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Lang {
@@ -125,8 +128,8 @@ pub fn render(alerts: &[Alert], host: &str, reader: &Reader, now: u64) -> Mail {
         .collect();
     shown.sort_by_key(|s| s.copy.level);
     let subject = subject(&shown, host, reader.lang);
-    let text = layout::text(&shown, host, reader);
-    let html = layout::html(&shown, host, reader);
+    let text = layout::text(&shown, host, reader, Audience::Operators);
+    let html = layout::html(&shown, host, reader, Audience::Operators);
     Mail {
         subject,
         text,

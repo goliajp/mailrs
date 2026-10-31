@@ -286,12 +286,17 @@ pub struct SetRecoveryEmailRequest {
 pub async fn set_recovery_email(
     _: crate::session::confirm::Confirmed,
     State(state): State<Arc<WebState>>,
+    crate::login_guard::ClientIp(source): crate::login_guard::ClientIp,
+    headers: axum::http::HeaderMap,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Json(req): Json<SetRecoveryEmailRequest>,
 ) -> Result<StatusCode, StatusCode> {
     let email = req.recovery_email.unwrap_or_default();
+    // the address it had is told too: it may be the owner's, and the new one
+    // the taker's
+    let before = crate::handlers::owner_notice::recovery_address(&state, &user).await;
     let wire_req = mailrs_core_api::method::admin::UpdateRecoveryEmailRequest {
-        recovery_email: email,
+        recovery_email: email.clone(),
     };
     state
         .core
@@ -300,6 +305,14 @@ pub async fn set_recovery_email(
         .map_err(|e| {
             StatusCode::from_u16(e.status_code()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
         })?;
+    crate::handlers::owner_notice::notify_owner(
+        Some(&state),
+        &user,
+        crate::security_mail::Notice::RecoveryChanged(email.trim().to_string()),
+        crate::handlers::owner_notice::origin_of(&headers, &source.to_string()),
+        &before.into_iter().collect::<Vec<_>>(),
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -382,6 +395,9 @@ pub async fn totp_setup(
 }
 
 pub async fn totp_enable(
+    State(state): State<Arc<WebState>>,
+    crate::login_guard::ClientIp(source): crate::login_guard::ClientIp,
+    headers: axum::http::HeaderMap,
     Extension(AuthedUser(address)): Extension<AuthedUser>,
     Json(req): Json<TotpCodeRequest>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
@@ -412,11 +428,22 @@ pub async fn totp_enable(
         c.hset(key.as_bytes(), &[(b"enabled" as &[u8], b"1")])?;
         Ok(())
     })?;
+    crate::handlers::owner_notice::notify_owner(
+        Some(&state),
+        &address,
+        crate::security_mail::Notice::TwoStepOn,
+        crate::handlers::owner_notice::origin_of(&headers, &source.to_string()),
+        &[],
+    )
+    .await;
     Ok(Json(serde_json::json!({ "success": true })))
 }
 
 pub async fn totp_disable(
     _: crate::session::confirm::Confirmed,
+    State(state): State<Arc<WebState>>,
+    crate::login_guard::ClientIp(source): crate::login_guard::ClientIp,
+    headers: axum::http::HeaderMap,
     Extension(AuthedUser(address)): Extension<AuthedUser>,
     Json(req): Json<TotpCodeRequest>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
@@ -445,6 +472,14 @@ pub async fn totp_disable(
         c.del(&[key.as_bytes()])?;
         Ok(())
     })?;
+    crate::handlers::owner_notice::notify_owner(
+        Some(&state),
+        &address,
+        crate::security_mail::Notice::TwoStepOff,
+        crate::handlers::owner_notice::origin_of(&headers, &source.to_string()),
+        &[],
+    )
+    .await;
     Ok(Json(serde_json::json!({ "success": true })))
 }
 

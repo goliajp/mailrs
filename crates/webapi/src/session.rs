@@ -28,11 +28,15 @@ use crate::handlers::conversations::AuthedUser;
 
 pub mod confirm;
 pub mod csrf;
+mod legacy;
 mod scopes;
+mod seen;
+use legacy::move_legacy_session;
 use scopes::agent_scopes_allow;
 pub use scopes::{
     AgentScopes, is_known_scope, mock_ns_restriction, send_only, validate_agent_scopes,
 };
+use seen::seen_now;
 
 /// `session:<token>` blob — fields webapi reads. `permissions` is
 /// already serialized by the monolith but we only need the address +
@@ -237,6 +241,11 @@ fn extract_token(headers: &HeaderMap) -> Option<String> {
 /// an `Authorization` header is judged by it alone: a bad one is a 401 and
 /// never falls back to the cookie, or junk in the header would buy a
 /// cross-site request the cookie's authority without its CSRF check.
+/// The session token a request carries, by header or cookie.
+pub(crate) fn session_token(headers: &HeaderMap) -> Option<String> {
+    extract_token_with_source(headers).map(|(t, _)| t)
+}
+
 fn extract_token_with_source(headers: &HeaderMap) -> Option<(String, TokenSource)> {
     if let Some(auth) = headers.get(axum::http::header::AUTHORIZATION) {
         let v = auth.to_str().ok()?.strip_prefix("Bearer ")?.trim();
@@ -275,11 +284,16 @@ async fn resolve_session(token: String) -> Option<SessionBlob> {
         crate::kevy_pool::with_conn(move |client| {
             let key = session_key(&token);
             let bytes = client.get(key.as_bytes())?;
-            if bytes.is_some() {
-                let _ = client.expire(
-                    key.as_bytes(),
-                    std::time::Duration::from_secs(SESSION_TTL_SECS),
-                );
+            if let Some(blob) = &bytes {
+                let ttl = std::time::Duration::from_secs(SESSION_TTL_SECS);
+                match seen_now(blob) {
+                    // the owner's list shows when it was last used; written
+                    // at most every ten minutes, renewed every time
+                    Some(updated) => client.set_with_ttl(key.as_bytes(), &updated, ttl)?,
+                    None => {
+                        let _ = client.expire(key.as_bytes(), ttl);
+                    }
+                }
                 return Ok(bytes);
             }
             move_legacy_session(client, &token)
@@ -289,69 +303,6 @@ async fn resolve_session(token: String) -> Option<SessionBlob> {
     .ok()?
     .ok()??;
     serde_json::from_slice::<SessionBlob>(&raw).ok()
-}
-
-/// A session issued before sessions were stored by hash, moved to its
-/// hashed key on first use.
-///
-/// The network client has no transaction on every backend, so the steps
-/// are ordered so a logout or a revocation running alongside cannot bring
-/// the session back: the hashed copy is written first and dropped again if
-/// the original has meanwhile been deleted; the index gains the hash before
-/// it loses the token, so a revocation always finds one of the two, and
-/// revocation deletes the hashed key for either.
-fn move_legacy_session(
-    client: &mut kevy_client::Connection,
-    token: &str,
-) -> std::io::Result<Option<Vec<u8>>> {
-    let legacy = mailrs_core_sidestate::keys::session::legacy_session_key(token);
-    let Some(bytes) = client.get(legacy.as_bytes())? else {
-        return Ok(None);
-    };
-    write_moved(client, token, &bytes)?;
-    settle_move(client, token, bytes)
-}
-
-// the steps of `move_legacy_session`, apart so the tests can end the
-// session between them
-fn write_moved(
-    client: &mut kevy_client::Connection,
-    token: &str,
-    bytes: &[u8],
-) -> std::io::Result<()> {
-    client.set_with_ttl(
-        session_key(token).as_bytes(),
-        bytes,
-        std::time::Duration::from_secs(SESSION_TTL_SECS),
-    )?;
-    Ok(())
-}
-
-fn settle_move(
-    client: &mut kevy_client::Connection,
-    token: &str,
-    bytes: Vec<u8>,
-) -> std::io::Result<Option<Vec<u8>>> {
-    use mailrs_core_sidestate::keys::session::{by_addr_key, legacy_session_key, session_ref};
-    let legacy = legacy_session_key(token);
-    let stored = session_key(token);
-    if client.exists(&[legacy.as_bytes()])? == 0 {
-        client.del(&[stored.as_bytes()])?;
-        return Ok(None);
-    }
-    // the token leaves the index last: while it is there a revocation
-    // deletes the old key, which a later request would otherwise move back
-    let idx = serde_json::from_slice::<SessionBlob>(&bytes)
-        .ok()
-        .map(|blob| by_addr_key(&blob.address));
-    if let Some(idx) = &idx {
-        client.sadd(idx.as_bytes(), &[session_ref(token).as_bytes()])?;
-    }
-    client.del(&[legacy.as_bytes()])?;
-    if let Some(idx) = &idx {
-        client.srem(idx.as_bytes(), &[token.as_bytes()])?;
-    }
-    Ok(Some(bytes))
 }
 
 /// Axum middleware — extracts the session token from cookie, hits kevy,
@@ -523,8 +474,12 @@ mod tests {
         let mut c = legacy("logout-before-write", &t);
         let bytes = c.get(legacy_session_key(&t).as_bytes()).unwrap().unwrap();
         crate::handlers::auth::end_session(&mut c, &t).unwrap();
-        super::write_moved(&mut c, &t, &bytes).unwrap();
-        assert!(super::settle_move(&mut c, &t, bytes).unwrap().is_none());
+        super::legacy::write_moved(&mut c, &t, &bytes).unwrap();
+        assert!(
+            super::legacy::settle_move(&mut c, &t, bytes)
+                .unwrap()
+                .is_none()
+        );
         gone(&mut c, &t);
     }
 
@@ -533,9 +488,13 @@ mod tests {
         let t = "2".repeat(64);
         let mut c = legacy("logout-after-write", &t);
         let bytes = c.get(legacy_session_key(&t).as_bytes()).unwrap().unwrap();
-        super::write_moved(&mut c, &t, &bytes).unwrap();
+        super::legacy::write_moved(&mut c, &t, &bytes).unwrap();
         crate::handlers::auth::end_session(&mut c, &t).unwrap();
-        assert!(super::settle_move(&mut c, &t, bytes).unwrap().is_none());
+        assert!(
+            super::legacy::settle_move(&mut c, &t, bytes)
+                .unwrap()
+                .is_none()
+        );
         gone(&mut c, &t);
     }
 
@@ -544,9 +503,13 @@ mod tests {
         let t = "3".repeat(64);
         let mut c = legacy("revoke-after-write", &t);
         let bytes = c.get(legacy_session_key(&t).as_bytes()).unwrap().unwrap();
-        super::write_moved(&mut c, &t, &bytes).unwrap();
+        super::legacy::write_moved(&mut c, &t, &bytes).unwrap();
         crate::handlers::auth::revoke_sessions(&mut c, OWNER).unwrap();
-        assert!(super::settle_move(&mut c, &t, bytes).unwrap().is_none());
+        assert!(
+            super::legacy::settle_move(&mut c, &t, bytes)
+                .unwrap()
+                .is_none()
+        );
         gone(&mut c, &t);
     }
 
@@ -559,7 +522,7 @@ mod tests {
             let t = n.to_string().repeat(64);
             let mut c = legacy(&format!("revoke-during-swap-{n}"), &t);
             let bytes = c.get(legacy_session_key(&t).as_bytes()).unwrap().unwrap();
-            super::write_moved(&mut c, &t, &bytes).unwrap();
+            super::legacy::write_moved(&mut c, &t, &bytes).unwrap();
             c.sadd(by_addr_key(OWNER).as_bytes(), &[session_ref(&t).as_bytes()])
                 .unwrap();
             if old_key_dropped {

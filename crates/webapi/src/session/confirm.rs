@@ -19,9 +19,7 @@ use axum::http::request::Parts;
 use axum::response::{IntoResponse, Response};
 use mailrs_auth_guard::events::{Channel, Credential, LoginEvent, Outcome};
 use mailrs_auth_guard::login::Verdict;
-use mailrs_core_sidestate::keys::session::{
-    by_addr_key, confirm_failures_key, confirmed_key, session_key_by_ref,
-};
+use mailrs_core_sidestate::keys::session::{confirm_failures_key, confirmed_key};
 
 use crate::WebState;
 use crate::handlers::conversations::AuthedUser;
@@ -217,7 +215,9 @@ async fn failed(source: std::net::IpAddr, address: &str, session: &str) -> Respo
         }));
     }
     let (addr, s) = (address.to_string(), session.to_string());
-    if let Err(status) = with_kevy(move |c| end_session_by_ref(c, &addr, &s)) {
+    if let Err(status) = with_kevy(move |c| {
+        mailrs_core_sidestate::keys::session::end_session_by_ref(c, &addr, &s).map(|_| ())
+    }) {
         return status.into_response();
     }
     let alert = mailrs_auth_guard::alerts::Alert {
@@ -241,21 +241,16 @@ async fn failed(source: std::net::IpAddr, address: &str, session: &str) -> Respo
         tracing::error!(error = %e, "confirm: the alert could not be queued");
     }
     tracing::warn!(account = %address, session = &session[..8], %source, "confirm: session ended after failed confirmations");
+    crate::handlers::owner_notice::notify_owner(
+        None,
+        address,
+        crate::security_mail::Notice::SessionEnded,
+        crate::handlers::owner_notice::Origin {
+            ip: source.to_string(),
+            user_agent: String::new(),
+        },
+        &[],
+    )
+    .await;
     unauthorized(serde_json::json!({ "error": "session_revoked" }))
-}
-
-/// End the session stored under `session` (its hash) and everything kept
-/// beside it.
-pub fn end_session_by_ref(
-    c: &mut kevy_client::Connection,
-    address: &str,
-    session: &str,
-) -> std::io::Result<()> {
-    c.del(&[
-        session_key_by_ref(session).as_bytes(),
-        confirmed_key(session).as_bytes(),
-        confirm_failures_key(session).as_bytes(),
-    ])?;
-    c.srem(by_addr_key(address).as_bytes(), &[session.as_bytes()])?;
-    Ok(())
 }
