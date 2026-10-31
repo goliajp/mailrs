@@ -396,6 +396,7 @@ pub(crate) fn sync_index_to_flags(
 
 pub(crate) fn row_to_wire(r: ThreadRow) -> ConversationSummaryWire {
     ConversationSummaryWire {
+        labels: Vec::new(),
         account_id: r.account_id.clone(),
         thread_id: r.thread_id,
         subject: r.subject,
