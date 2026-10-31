@@ -126,7 +126,7 @@ pub async fn verify_credentials(
             Outcome::Ok,
         ))
         .await;
-    let totp_key = format!("totp:{}", req.address);
+    let totp_key = mailrs_core_sidestate::keys::credentials::totp_key(&req.address);
     let totp_required = crate::handlers::kevy_util::with_kevy(move |c| {
         c.hget(totp_key.as_bytes(), b"enabled")
             .map_err(std::io::Error::from)
@@ -190,7 +190,7 @@ pub async fn verify_totp(
             .await;
         return crate::login_guard::locked_response(verdict);
     }
-    let key = format!("totp:{}", req.address);
+    let key = mailrs_core_sidestate::keys::credentials::totp_key(&req.address);
     let key_r = key.clone();
     let secret = match crate::handlers::kevy_util::with_kevy(move |c| {
         c.hget(key_r.as_bytes(), b"secret")

@@ -50,7 +50,7 @@ pub async fn forgot_password(
     // Rate-limit — one reset per address per 5 minutes. Without this
     // an attacker can spam the endpoint to churn pwreset:<token>
     // entries and DoS the reset flow.
-    let rate_key = format!("pwreset:ratelimit:{}", req.address);
+    let rate_key = mailrs_core_sidestate::keys::credentials::pwreset_ratelimit_key(&req.address);
     let rate_key_c = rate_key.clone();
     let now = now_secs();
     let recent = with_kevy(move |c| c.get(rate_key_c.as_bytes()).map_err(std::io::Error::from))?
@@ -88,7 +88,7 @@ pub async fn forgot_password(
     let token = random_hex(24);
     // The kevy closure takes ownership of `token`; the link needs it after.
     let token_for_link = token.clone();
-    let key = format!("pwreset:{token}");
+    let key = mailrs_core_sidestate::keys::credentials::pwreset_key(&token);
     let addr = req.address;
     let addr_c = addr.clone();
     // Needed for the mail body after the closure consumes `addr`.
@@ -102,11 +102,11 @@ pub async fn forgot_password(
             ],
         )?;
         let _ = c.expire(
-            format!("pwreset:{token}").as_bytes(),
+            mailrs_core_sidestate::keys::credentials::pwreset_key(&token).as_bytes(),
             std::time::Duration::from_secs(3600),
         );
         c.set(
-            format!("pwreset_by_addr:{addr}").as_bytes(),
+            mailrs_core_sidestate::keys::credentials::pwreset_by_addr_key(&addr).as_bytes(),
             token.as_bytes(),
         )?;
         // Bump rate-limit stamp with a matching TTL so the entry
@@ -201,8 +201,11 @@ pub async fn reset_password(
     use axum::response::IntoResponse;
     let token = req.token.clone();
     let addr_bytes = with_kevy(move |c| {
-        c.hget(format!("pwreset:{token}").as_bytes(), b"address")
-            .map_err(std::io::Error::from)
+        c.hget(
+            mailrs_core_sidestate::keys::credentials::pwreset_key(&token).as_bytes(),
+            b"address",
+        )
+        .map_err(std::io::Error::from)
     })?;
     let Some(addr_bytes) = addr_bytes else {
         return Err(StatusCode::UNAUTHORIZED);
@@ -237,7 +240,7 @@ pub async fn reset_password(
     let _ = with_kevy(move |c| crate::handlers::auth::revoke_sessions(c, &addr_c));
     let tok = req.token;
     with_kevy(move |c| {
-        c.del(&[format!("pwreset:{tok}").as_bytes()])?;
+        c.del(&[mailrs_core_sidestate::keys::credentials::pwreset_key(&tok).as_bytes()])?;
         Ok(())
     })?;
     Ok(StatusCode::NO_CONTENT.into_response())
@@ -321,7 +324,7 @@ pub struct TotpCodeRequest {
 pub async fn totp_status(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
 ) -> Json<serde_json::Value> {
-    let key = format!("totp:{user}");
+    let key = mailrs_core_sidestate::keys::credentials::totp_key(&user);
     let key_c = key.clone();
     let enabled = with_kevy(move |c| {
         c.hget(key_c.as_bytes(), b"enabled")
@@ -347,7 +350,7 @@ pub async fn totp_setup(
     // setup writes a new secret and `enabled = 0`: on an enrolled account
     // that would switch the second factor off without a code. Disabling has
     // its own route, which asks for one.
-    let k = format!("totp:{address}");
+    let k = mailrs_core_sidestate::keys::credentials::totp_key(&address);
     let enrolled = with_kevy(move |c| Ok(c.hget(k.as_bytes(), b"enabled")?))?;
     if enrolled.as_deref() == Some(b"1") {
         return Err(StatusCode::CONFLICT);
@@ -357,7 +360,7 @@ pub async fn totp_setup(
     let recovery_str = crate::handlers::totp_util::hash_recovery_codes(&recovery_codes);
     let otpauth_url = crate::handlers::totp_util::get_otpauth_url(&secret, &address, "mailrs");
 
-    let key = format!("totp:{address}");
+    let key = mailrs_core_sidestate::keys::credentials::totp_key(&address);
     let s = secret.clone();
     let r = recovery_str.clone();
     with_kevy(move |c| {
@@ -382,7 +385,7 @@ pub async fn totp_enable(
     Extension(AuthedUser(address)): Extension<AuthedUser>,
     Json(req): Json<TotpCodeRequest>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let key = format!("totp:{address}");
+    let key = mailrs_core_sidestate::keys::credentials::totp_key(&address);
     let key_r = key.clone();
     let secret = with_kevy(move |c| {
         c.hget(key_r.as_bytes(), b"secret")
@@ -417,7 +420,7 @@ pub async fn totp_disable(
     Extension(AuthedUser(address)): Extension<AuthedUser>,
     Json(req): Json<TotpCodeRequest>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let key = format!("totp:{address}");
+    let key = mailrs_core_sidestate::keys::credentials::totp_key(&address);
     let key_r = key.clone();
     let secret = with_kevy(move |c| {
         c.hget(key_r.as_bytes(), b"secret")

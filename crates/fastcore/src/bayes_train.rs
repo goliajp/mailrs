@@ -240,8 +240,9 @@ pub(crate) fn fetch_thread_raw(
     let Some((local, domain)) = user.split_once('@') else {
         return Vec::new();
     };
-    let root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
-    let base = std::path::PathBuf::from(&root).join(domain).join(local);
+    let base = std::path::PathBuf::from(&state.maildir_root)
+        .join(domain)
+        .join(local);
 
     let wires = match state.mailbox.list_thread_messages(user, thread_id) {
         Ok(w) => w,

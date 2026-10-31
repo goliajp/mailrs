@@ -84,6 +84,15 @@ impl PgCore {
                 return false;
             }
         };
+        // remote images are fetched as the mail arrives, not when it is
+        // read; mail in Junk or held as fraud is not fetched for
+        if folder != "Junk"
+            && !held
+            && let Some(url) = self.dir.net_url.clone()
+        {
+            let q = mailrs_intake::image_prefetch::NetworkQueue { url };
+            mailrs_intake::image_prefetch::queue(&q, addr, &a.message_id, &a.parsed);
+        }
         effects::after_store(addr, &a, held);
         self.announce(addr, &a);
         true

@@ -37,7 +37,10 @@ pub struct KeyRow {
 /// `address`'s agent keys, by id.
 pub(crate) fn key_rows(c: &mut Connection, address: &str) -> std::io::Result<Vec<KeyRow>> {
     let used = crate::agent_key_usage::of_owner(c, address)?;
-    let records = crate::handlers::admin::hgetall_values(c, &format!("agent:keys:{address}"))?;
+    let records = crate::handlers::admin::hgetall_values(
+        c,
+        &mailrs_core_sidestate::keys::credentials::agent_keys_key(address),
+    )?;
     let mut rows: Vec<KeyRow> = records
         .iter()
         .filter_map(|raw| serde_json::from_slice::<serde_json::Value>(raw).ok())

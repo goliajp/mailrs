@@ -14,6 +14,7 @@ mod account;
 mod account_delete;
 pub(crate) mod message_ops;
 mod message_reads;
+mod operator_clear;
 mod permissions;
 mod quarantine;
 mod reads;

@@ -16,6 +16,7 @@ mod deletes;
 mod harness;
 mod intake;
 mod mail;
+mod operator;
 mod sent;
 mod side;
 mod threads;
