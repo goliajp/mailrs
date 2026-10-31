@@ -3,9 +3,15 @@ import '@/index.css'
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { z } from 'zod'
 
 import { App } from '@/app'
 import { dropOrphanedCaches, persistBuster, persister, queryClient } from '@/lib/query-client'
+
+// zod would probe `new Function` on its first parse to see whether it may
+// compile parsers; the policy forbids eval, and the caught probe still
+// files a violation report from every page load
+z.config({ jitless: true })
 
 // Unregister any previously-installed service worker so cached chunks
 // from the old PWA cycle don't keep serving stale code after this build.
