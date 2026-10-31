@@ -228,3 +228,89 @@ async fn mail_spooled_by_the_receiver_reads_alike_from_both_cores() {
         d.0.join("\n\n")
     );
 }
+
+/// Remote images are queued alike by both cores: on arrival to the inbox,
+/// not for mail in Junk or held, and again by each way a person takes a
+/// thread out of Junk or Review. The SQL core had no prefetch at all, and
+/// on fastcore only "not junk" queued.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn remote_images_are_queued_alike_by_both_cores() {
+    // SAFETY: only enables queueing; nothing in this binary fetches
+    unsafe { std::env::set_var("MAILRS_FETCH_URL", "http://fetch.invalid/fetch") };
+    let cores = harness::start_on(
+        "mem://images-fastcore-side-state",
+        "mem://images-pg-core-side-state",
+    )
+    .await;
+    let mut d = Diffs::default();
+    accounts::seed(&cores, &mut d).await;
+    let spools = Spools::new(&cores);
+    let pg_net = cores.pg_core_state.net_url.clone().expect("net url");
+    let queued = |cores: &Cores| {
+        let mut fc: Vec<String> = cores
+            .fastcore_state
+            .mailbox
+            .pending_image_prefetches(100)
+            .expect("fastcore queue")
+            .into_iter()
+            .map(|(_, _, url)| url)
+            .collect();
+        let mut conn = kevy_client::Connection::connect(&pg_net).expect("kevy");
+        let mut pg: Vec<String> =
+            mailrs_core_sidestate::families::image_prefetch::pending(&mut conn, 100)
+                .expect("pg queue")
+                .into_iter()
+                .map(|(_, _, url)| url)
+                .collect();
+        fc.sort();
+        fc.dedup();
+        pg.sort();
+        pg.dedup();
+        (fc, pg)
+    };
+    let mail = |id: &str| {
+        format!(
+            "From: Shop <news@outside.example>\r\nTo: alice@example.test\r\n\
+             Subject: {id}\r\nMessage-ID: <{id}@outside.example>\r\n\
+             Date: Tue, 5 Aug 2025 09:00:00 +0900\r\nContent-Type: text/html\r\n\r\n\
+             <p>sale</p><img src=\"https://cdn.outside.example/{id}.png\">\r\n"
+        )
+    };
+    let url = |id: &str| format!("https://cdn.outside.example/{id}.png");
+    let into = |folder: &str, verdict: Option<String>| SpoolEnvelope {
+        target_folder: folder.into(),
+        ..envelope(verdict)
+    };
+
+    spools
+        .arrive(&cores, &into("INBOX", None), mail("inbox").as_bytes())
+        .await;
+    spools
+        .arrive(&cores, &into("Junk", None), mail("notjunk").as_bytes())
+        .await;
+    spools
+        .arrive(&cores, &into("Junk", None), mail("moved").as_bytes())
+        .await;
+    spools
+        .arrive(&cores, &into("INBOX", held()), mail("held").as_bytes())
+        .await;
+    let (fc, pg) = queued(&cores);
+    assert_eq!(fc, [url("inbox")], "fastcore on arrival");
+    assert_eq!(pg, [url("inbox")], "pg-core on arrival");
+
+    let tid = |id: &str| format!("{id}@outside.example");
+    for c in [&cores.fastcore, &cores.pg_core] {
+        c.mark_not_junk(ALICE, &tid("notjunk"))
+            .await
+            .expect("not junk");
+        c.move_to_inbox(ALICE, &tid("moved")).await.expect("move");
+        c.release_quarantined(ALICE, &tid("held"))
+            .await
+            .expect("release");
+    }
+    let mut want: Vec<String> = ["held", "inbox", "moved", "notjunk"].map(url).to_vec();
+    want.sort();
+    let (fc, pg) = queued(&cores);
+    assert_eq!(fc, want, "fastcore after leaving Junk and Review");
+    assert_eq!(pg, want, "pg-core after leaving Junk and Review");
+}

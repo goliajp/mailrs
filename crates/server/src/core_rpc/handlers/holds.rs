@@ -61,6 +61,20 @@ pub async fn release_quarantined(
         })?;
     if released > 0 {
         tracing::info!(%user, %thread_id, "released: a person said this was not fraud");
+        // held mail had no images fetched on arrival
+        if let Some(url) = state.net_url.clone() {
+            match state
+                .mailbox
+                .thread_raw_messages(&user, &thread_id, &state.maildir_root)
+                .await
+            {
+                Ok(raws) => {
+                    let q = mailrs_intake::image_prefetch::NetworkQueue { url };
+                    mailrs_intake::image_prefetch::queue_thread(&q, &user, &thread_id, &raws);
+                }
+                Err(e) => tracing::warn!(error = %e, %user, %thread_id, "images not queued"),
+            }
+        }
     }
     Ok(Json(wire::ThreadActionResponse {
         affected: released as u32,

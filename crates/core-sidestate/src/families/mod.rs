@@ -14,6 +14,7 @@ pub mod dkim_signers;
 pub mod domain_history;
 pub mod email_groups;
 pub mod identity_link;
+pub mod image_prefetch;
 pub mod local_forward;
 pub mod mock;
 pub mod outbound;
