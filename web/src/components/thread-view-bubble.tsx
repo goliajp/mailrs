@@ -11,6 +11,7 @@ import { SenderClaimBadge } from '@/components/sender-claim-badge'
 import { SenderTrustBadge } from '@/components/sender-trust-badge'
 import { type Key, useT } from '@/i18n'
 import { type FeedbackAction, recordFeedback } from '@/lib/api'
+import { errorText } from '@/lib/error-text'
 import { formatTimeOfDay } from '@/lib/format'
 import { highlightMentions } from '@/lib/mention'
 
@@ -273,11 +274,6 @@ export function SmBtn({
 function confirmLabel(action: FeedbackAction): Key {
   if (action === 'block') return 'feedback.confirmBlock'
   return 'feedback.confirmSpam'
-}
-
-function errorText(err: unknown, fallback: string): string {
-  if (err instanceof Error) return err.message
-  return fallback
 }
 
 // extract a clean reading-order preview from html.

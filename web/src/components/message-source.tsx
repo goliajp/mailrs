@@ -2,6 +2,7 @@ import { toast } from '@goliapkg/gds'
 import { useState } from 'react'
 
 import { type Key, useT } from '@/i18n'
+import { errorText } from '@/lib/error-text'
 import { wireGetMessageSource } from '@/wire/endpoints/mail'
 
 export function MessageSource({ uid }: { uid: number }) {
@@ -74,10 +75,6 @@ export function MessageSource({ uid }: { uid: number }) {
  * page ever called it; iOS gained a viewer this week and this is the
  * other half.
  */
-function errorText(e: unknown, fallback: string): string {
-  if (e instanceof Error) return e.message
-  return fallback
-}
 
 function viewLabel(loading: boolean): Key {
   if (loading) return 'source.loading'
