@@ -2,7 +2,7 @@
 //!
 //! Assembles a **narrow** `ConnectionContext` — SMTP I/O + anti (greylist /
 //! rate / auth via the shared network kevy-server) + antispam pipeline
-//! (SPF/DKIM/DMARC + clamav/content) + a spool sink + a cross-process notify
+//! (SPF/DKIM/DMARC + content) + a spool sink + a cross-process notify
 //! publisher. It resolves nothing and stores nothing in spg: recipient
 //! resolution / sieve / relay / quota all run later in the core consumer.
 //! Accepted mail is written to `{spool_root}/incoming` and a `SpoolDelivered`
@@ -64,6 +64,8 @@ pub async fn start() -> Receiver {
     // admin UI takes effect without a receiver restart.
     let greylist_local = crate::greylist_local::empty();
     crate::greylist_local_sync::spawn_reload_task(greylist_local.clone(), kevy_client.clone(), 60);
+    // the reputation judgement and the attachment scan, in shadow
+    crate::screening::spawn_refresh(kevy_client.clone(), cfg.local_domains.clone());
     let inbound_pipeline = inbound::pipeline(
         &cfg,
         &kevy_client,

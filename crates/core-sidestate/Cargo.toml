@@ -29,6 +29,9 @@ mailrs-rfc5322 = { path = "../rfc5322", version = "1" }
 base64 = "0.22"
 rand_core = { workspace = true }
 sha2 = "0.11"
+mailrs-reputation = { path = "../reputation", version = "0.1" }
+mailrs-attachment-scan = { path = "../attachment-scan", version = "0.1" }
+mailrs-inbound = { path = "../inbound", version = "2" }
 # CalDAV / CardDAV storage over the event and contact rows.
 mailrs-dav = { path = "../dav", version = "2" }
 mailrs-ical = { path = "../ical", version = "2" }

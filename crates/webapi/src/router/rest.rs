@@ -71,6 +71,14 @@ pub(super) fn admin_routes() -> axum::Router<Arc<WebState>> {
     axum::Router::new()
         .merge(directory::directory_routes())
         .route(
+            "/api/admin/screening/observations",
+            get(handlers::screening_admin::list).post(handlers::screening_admin::add),
+        )
+        .route(
+            "/api/admin/screening/hashes",
+            post(handlers::screening_admin::add_hash),
+        )
+        .route(
             "/api/admin/accounts/{address}/sieve",
             get(handlers::admin::get_account_sieve)
                 .post(handlers::admin::set_account_sieve)

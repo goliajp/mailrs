@@ -87,6 +87,8 @@ pub const ADMIN_ROUTES: &[(&str, Need)] = &[
     ("/api/admin/rbl-status", DOMAINS),
     ("/api/admin/reconcile-maildir", CACHE),
     ("/api/admin/reputation", DOMAINS),
+    ("/api/admin/screening/hashes", Super),
+    ("/api/admin/screening/observations", Super),
     ("/api/admin/spam-feedback-stats", Super),
     ("/api/admin/suppressions", Super),
     ("/api/admin/system-config", SYSTEM),

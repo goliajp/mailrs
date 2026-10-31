@@ -146,6 +146,7 @@ async fn health_handler(
     // fresh TCP per request.
     let kevy_ok =
         handlers::kevy_util::with_kevy(|c| c.ping().map_err(std::io::Error::from)).is_ok();
+    let screening = handlers::screening_admin::health();
     axum::Json(serde_json::json!({
         "status": if kevy_ok { "healthy" } else { "degraded" },
         "ok": kevy_ok,
@@ -154,6 +155,9 @@ async fn health_handler(
         "uptime_secs": uptime_secs,
         "kevy": kevy_ok,
         "pg": serde_json::Value::Null,
+        "reputation": screening["reputation"],
+        "attachment_scan": screening["attachment_scan"],
+        "screening_rules": screening["screening_rules"],
     }))
 }
 
@@ -264,6 +268,7 @@ pub async fn run() {
     }
 
     login_guard::spawn_alert_mailer();
+    handlers::screening_admin::spawn_refresh();
     // a bad MAILRS_CSRF stops the process here, not on the first request
     let csrf = session::csrf::config();
     tracing::info!(mode = ?csrf.mode, origins = ?csrf.origins, "csrf");

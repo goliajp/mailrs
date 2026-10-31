@@ -2,7 +2,7 @@
 
 mailrs is a mail server — SMTP in and out, IMAP, POP3, JMAP, ManageSieve,
 CalDAV/CardDAV, a REST and MCP API, and a web client — built as a Cargo
-workspace of 73 crates. Production runs six mailrs processes from one
+workspace of 75 crates. Production runs six mailrs processes from one
 image beside a `kevy-server`. There is no SQL database in that stack:
 message metadata lives in an embedded key-value store, mail bodies are
 Maildir files.
@@ -137,7 +137,7 @@ libraries are published on [crates.io](https://crates.io/users/golia-jp).
 | `mailrs-rate-limit`, `mailrs-auth-guard` | Token-bucket rate limits; failed-login counting with backoff lockout |
 | `mailrs-bayes`, `mailrs-triage` | Bayesian spam classification; inbox / notification / promotion triage over kevy |
 | `mailrs-fraud`, `mailrs-fraud-lua`, `mailrs-textguard` | Fraud signals authentication cannot see; scripted fraud rules in sandboxed Lua; deceptive characters in display names |
-| `mailrs-clamav` | ClamAV (clamd) client |
+| `mailrs-reputation`, `mailrs-attachment-scan`, `mailrs-screening-lua` | Facts about where a message comes from and points, from the server's own observations; facts about the code an attachment carries, read from its structure; spam and attachment rules over both in sandboxed Lua |
 | `mailrs-intelligence` | LLM-assisted extraction and scoring behind a provider trait (off unless configured) |
 | `mailrs-clean` | HTML sanitising, tracking-pixel detection, quoted-reply splitting |
 | `mailrs-attachment-extract`, `mailrs-ocr` | Text from PDF attachments; OCR of images and scanned pages (Chinese, Japanese, English) in pure Rust |

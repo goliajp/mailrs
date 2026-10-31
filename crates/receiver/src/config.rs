@@ -60,7 +60,6 @@ pub struct ReceiverConfig {
     /// `MAILRS_SUBMISSION_FROM_CHECK`: `log` only logs a submission whose
     /// From the account may not use; anything else refuses it.
     pub submission_from_check: SubmissionFromCheck,
-    pub clamav_addr: Option<String>,
     pub greylist_delay_secs: u64,
     pub rate_limit_capacity: u32,
     pub rate_limit_refill: f64,
@@ -158,7 +157,6 @@ impl ReceiverConfig {
             antispam_enabled: env_bool_truthy("MAILRS_ANTISPAM_ENABLED", true),
             smuggle_protection,
             submission_from_check,
-            clamav_addr: env_opt_nonempty("MAILRS_CLAMAV_ADDR"),
             greylist_delay_secs: env_parsed("MAILRS_GREYLIST_DELAY", 60),
             rate_limit_capacity: env_parsed("MAILRS_RATE_LIMIT_CAPACITY", 100),
             rate_limit_refill: env_parsed("MAILRS_RATE_LIMIT_REFILL", 1.0),

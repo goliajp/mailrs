@@ -11321,6 +11321,203 @@
           }
         }
       }
+    },
+    "/api/admin/screening/observations": {
+      "get": {
+        "operationId": "listScreeningObservations",
+        "summary": "Every reputation and file-hash observation, newest first (super administrators)",
+        "tags": [
+          "Admin"
+        ],
+        "responses": {
+          "200": {
+            "description": "{observations, hashes}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a super administrator"
+          }
+        }
+      },
+      "post": {
+        "operationId": "addScreeningObservation",
+        "summary": "Record an incident, a manual allow or deny, or withdraw one (super administrators, audited)",
+        "tags": [
+          "Admin"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "source",
+                  "kind",
+                  "value",
+                  "stance",
+                  "reason"
+                ],
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "incident",
+                      "manual"
+                    ]
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "ip",
+                      "cidr",
+                      "sender_domain",
+                      "link_domain"
+                    ]
+                  },
+                  "value": {
+                    "type": "string"
+                  },
+                  "stance": {
+                    "type": "string",
+                    "enum": [
+                      "deny",
+                      "allow",
+                      "retract"
+                    ]
+                  },
+                  "retracts": {
+                    "type": "string",
+                    "description": "For retract: the id it withdraws"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "source_not_by_hand, reason_required or invalid_observation, as {error}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a super administrator"
+          }
+        }
+      }
+    },
+    "/api/admin/screening/hashes": {
+      "post": {
+        "operationId": "addScreeningHash",
+        "summary": "Record a file hash as known bad or known good (the allowlist wins), or withdraw one (super administrators, audited)",
+        "tags": [
+          "Admin"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "sha256",
+                  "stance",
+                  "reason"
+                ],
+                "properties": {
+                  "sha256": {
+                    "type": "string"
+                  },
+                  "stance": {
+                    "type": "string",
+                    "enum": [
+                      "deny",
+                      "allow",
+                      "retract"
+                    ]
+                  },
+                  "retracts": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_observation, as {error}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a super administrator"
+          }
+        }
+      }
     }
   },
   "components": {

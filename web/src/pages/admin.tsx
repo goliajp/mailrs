@@ -20,6 +20,9 @@ const AdminAuditLog = lazy(() =>
 const AdminPasswordClear = lazy(() =>
   import('@/pages/admin-password-clear').then((m) => ({ default: m.AdminPasswordClear }))
 )
+const AdminScreening = lazy(() =>
+  import('@/pages/admin-screening').then((m) => ({ default: m.AdminScreening }))
+)
 const AdminSignIns = lazy(() =>
   import('@/pages/admin-sign-ins').then((m) => ({ default: m.AdminSignIns }))
 )
@@ -72,6 +75,7 @@ export function Admin() {
             <Route element={<AdminMock />} path="mock" />
             <Route element={<AdminAuditLog />} path="audit-log" />
             <Route element={<AdminSignIns />} path="sign-ins" />
+            <Route element={<AdminScreening />} path="screening" />
             <Route element={<AdminMailAudit />} path="mail-audit" />
             <Route element={<AdminSystemConfig />} path="system-config" />
             <Route element={<Navigate replace to="overview" />} path="*" />

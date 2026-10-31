@@ -44,10 +44,6 @@ impl Reading {
         // The display name has to be read the way it renders, or the
         // sweep cannot see one that says something else.
         let deception = mailrs_inbound::deception_in_identity(raw);
-        let attachments: Vec<&str> = parsed
-            .attachments()
-            .filter_map(|p| p.attachment_filename())
-            .collect();
         Self {
             registrable: mailrs_fraud::brand::registrable(&host),
             x_mailer: mailrs_inbound::x_mailer_header(raw),
@@ -56,8 +52,10 @@ impl Reading {
             has_zero_width_inside_a_word: deception.zero_width_inside_a_word,
             has_zero_width_in_name: mailrs_inbound::deception_in_display_name(raw)
                 .unjustified_zero_width,
-            has_executable_attachment: mailrs_fraud::attachment::any_executable(
-                attachments.iter().copied(),
+            has_executable_attachment: mailrs_fraud::attachment_inside::any_carries_code(
+                parsed
+                    .attachments()
+                    .map(|p| (p.attachment_filename().unwrap_or(""), &p.body[..])),
             ),
             offers_the_reader_a_sum: mailrs_inbound::body::offers_the_reader_a_sum(&parsed),
             asks_for_the_readers_line: mailrs_inbound::body::asks_for_the_readers_line(&parsed),

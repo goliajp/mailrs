@@ -3777,6 +3777,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-attachment-scan"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "sha2 0.11.0",
+ "toml 1.1.2+spec-1.1.0",
+]
+
+[[package]]
 name = "mailrs-auth-guard"
 version = "3.0.0"
 dependencies = [
@@ -3830,14 +3839,6 @@ name = "mailrs-bayes"
 version = "0.1.0"
 
 [[package]]
-name = "mailrs-clamav"
-version = "1.0.1"
-dependencies = [
- "criterion",
- "tokio",
-]
-
-[[package]]
 name = "mailrs-clean"
 version = "1.2.0"
 dependencies = [
@@ -3888,12 +3889,15 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "kevy-client",
+ "mailrs-attachment-scan",
  "mailrs-auth-guard",
  "mailrs-core-api",
  "mailrs-dav",
  "mailrs-fraud",
  "mailrs-ical",
+ "mailrs-inbound",
  "mailrs-mock",
+ "mailrs-reputation",
  "mailrs-rfc5322",
  "mailrs-test-docker",
  "rand_core 0.6.4",
@@ -4025,6 +4029,7 @@ dependencies = [
  "mailrs-arc",
  "mailrs-arf",
  "mailrs-attachment-extract",
+ "mailrs-attachment-scan",
  "mailrs-auth-guard",
  "mailrs-backoff",
  "mailrs-bayes",
@@ -4051,8 +4056,10 @@ dependencies = [
  "mailrs-ocr",
  "mailrs-outbound-queue",
  "mailrs-receiver",
+ "mailrs-reputation",
  "mailrs-rfc2047",
  "mailrs-rfc5322",
+ "mailrs-screening-lua",
  "mailrs-sieve",
  "mailrs-smtp-client",
  "mailrs-srs",
@@ -4492,9 +4499,9 @@ dependencies = [
  "ipnet",
  "kevy-client",
  "mailrs-arc",
+ "mailrs-attachment-scan",
  "mailrs-auth-guard",
  "mailrs-bayes",
- "mailrs-clamav",
  "mailrs-core",
  "mailrs-core-api",
  "mailrs-core-sidestate",
@@ -4507,8 +4514,10 @@ dependencies = [
  "mailrs-message-store",
  "mailrs-mime",
  "mailrs-rate-limit",
+ "mailrs-reputation",
  "mailrs-rfc2047",
  "mailrs-rfc5322",
+ "mailrs-screening-lua",
  "mailrs-shield",
  "mailrs-smtp-codec",
  "mailrs-smtp-proto",
@@ -4527,6 +4536,16 @@ dependencies = [
  "tokio-util",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "mailrs-reputation"
+version = "0.1.0"
+dependencies = [
+ "psl",
+ "serde",
+ "sha2 0.11.0",
+ "toml 1.1.2+spec-1.1.0",
 ]
 
 [[package]]
@@ -4558,6 +4577,17 @@ dependencies = [
  "mail-parser",
  "memchr",
  "proptest",
+]
+
+[[package]]
+name = "mailrs-screening-lua"
+version = "0.0.0"
+dependencies = [
+ "luna-jit",
+ "mailrs-attachment-scan",
+ "mailrs-reputation",
+ "sha2 0.10.9",
+ "tracing",
 ]
 
 [[package]]
@@ -4799,6 +4829,7 @@ dependencies = [
  "jsonwebtoken",
  "kevy-client",
  "kevy-embedded",
+ "mailrs-attachment-scan",
  "mailrs-auth-guard",
  "mailrs-clean",
  "mailrs-core-api",
@@ -4818,6 +4849,7 @@ dependencies = [
  "mailrs-mime",
  "mailrs-mock",
  "mailrs-oauth-client",
+ "mailrs-reputation",
  "mailrs-rfc2047",
  "mailrs-rfc2231",
  "mailrs-rfc5322",
@@ -5699,9 +5731,9 @@ dependencies = [
 
 [[package]]
 name = "psl"
-version = "2.1.222"
+version = "2.1.245"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "33fa2bb454bd1a4e046f36c4e8b60f034143ce14d09cfbf4608a65619e9f8611"
+checksum = "46cce9bc841c0eeb395275a775d11e3cc91b904e6ab370a9a42369e111b3038e"
 dependencies = [
  "psl-types",
 ]
