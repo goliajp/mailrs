@@ -14,7 +14,7 @@
  *   full schemas below.
  */
 
-import { z } from 'zod'
+import { z } from '@/lib/zod'
 
 /**
  * 204 No Content response schema — parse target is `undefined`.

@@ -10,7 +10,7 @@
  * cascading a rename through every settings section.
  */
 
-import { z } from 'zod'
+import { z } from '@/lib/zod'
 
 const wireIdSchema = z.union([z.string(), z.number()]).transform((v) => String(v))
 

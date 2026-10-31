@@ -8,7 +8,7 @@
  * structs in `crates/core-api/src/method/admin.rs`.
  */
 
-import { z } from 'zod'
+import { z } from '@/lib/zod'
 
 /** id fields on the wire come as either i64 (drafts) or hex string
  * (message_id). Callers that need to round-trip a value use it as

@@ -2,7 +2,7 @@
  * AI feature wire schemas — v2.1 §10.1 (2026-07-08).
  */
 
-import { z } from 'zod'
+import { z } from '@/lib/zod'
 
 export const polishResultSchema = z.object({
   message: z.string().optional(),

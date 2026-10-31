@@ -58,10 +58,7 @@ export default eslintTs.config(
       // Every request goes through `http()` in @/lib/http: a write must carry
       // the session's CSRF token, and a call that forgets it fails only in
       // production, where the check is on.
-      'no-restricted-globals': [
-        'error',
-        { message: 'Use http() from @/lib/http.', name: 'fetch' },
-      ],
+      'no-restricted-globals': ['error', { message: 'Use http() from @/lib/http.', name: 'fetch' }],
       'unused-imports/no-unused-imports': 'error',
       'unused-imports/no-unused-vars': [
         'error',
@@ -157,10 +154,7 @@ export default eslintTs.config(
   {
     plugins: { 'react-refresh': eslintPluginReactRefresh },
     rules: {
-      'react-refresh/only-export-components': [
-        'error',
-        { allowConstantExport: true },
-      ],
+      'react-refresh/only-export-components': ['error', { allowConstantExport: true }],
     },
   },
 
@@ -190,6 +184,27 @@ export default eslintTs.config(
     },
   },
 
+  // zod is configured once, in `lib/zod.ts`, before any schema exists;
+  // a schema built from the package directly can run before that
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/lib/zod.ts'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              allowTypeImports: true,
+              message: "import { z } from '@/lib/zod', which configures zod first",
+              name: 'zod',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
   // prettier must be last
-  eslintConfigPrettier,
+  eslintConfigPrettier
 )

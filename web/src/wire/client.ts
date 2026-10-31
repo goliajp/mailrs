@@ -11,10 +11,9 @@
  * will be deleted once every screen reads through `wire/endpoints/`.
  */
 
-import { z } from 'zod'
-
 import { redirectToLogin } from '@/lib/api'
 import { http } from '@/lib/http'
+import { z } from '@/lib/zod'
 
 import { type WireError, WireErrorException } from './errors'
 import { passwordClearedSchema } from './schemas/auth'
