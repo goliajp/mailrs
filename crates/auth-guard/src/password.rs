@@ -8,7 +8,7 @@ use std::collections::HashSet;
 use std::sync::LazyLock;
 
 use argon2::Argon2;
-use password_hash::{PasswordHash, PasswordVerifier};
+use password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
 
 /// Whether `password` is the one `hash` was made from: the check every way
 /// of signing in makes. Only an argon2 hash can match. An empty one is an
@@ -24,6 +24,28 @@ pub fn matches(password: &str, hash: &str) -> bool {
     Argon2::default()
         .verify_password(password.as_bytes(), &parsed)
         .is_ok()
+}
+
+/// An argon2id hash of `secret`, the form [`matches()`] checks.
+///
+/// # Errors
+/// The hasher refused the input.
+pub fn hash(secret: &str) -> Result<String, password_hash::Error> {
+    let salt = SaltString::generate(&mut rand_core::OsRng);
+    Ok(Argon2::default()
+        .hash_password(secret.as_bytes(), &salt)?
+        .to_string())
+}
+
+/// What a mail-app sign-in with the account password is told on an
+/// account that takes app passwords only: where to make one. The web
+/// client is served on the host the server names itself
+/// (`MAILRS_HOSTNAME`). ASCII, as protocol responses must be.
+pub fn app_only_notice() -> String {
+    let settings = std::env::var("MAILRS_HOSTNAME")
+        .map(|h| format!("https://{}/settings?tab=security", h.trim()))
+        .unwrap_or_else(|_| "Settings > Security".into());
+    format!("This account signs in to mail apps with an app password only; make one at {settings}")
 }
 
 /// What a sign-in to an account whose password an administrator cleared is

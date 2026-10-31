@@ -8,7 +8,7 @@ use mailrs_smtp_proto::response::Response;
 use mailrs_smtp_proto::session::{AuthStep, Event, Session};
 
 use mailrs_auth_guard::events::{Channel, Credential, LoginEvent, Outcome};
-use mailrs_auth_guard::login::Verdict;
+use mailrs_auth_guard::login::{ProtocolCheck, Verdict};
 use mailrs_core::event_bus::SmtpEvent;
 use mailrs_smtp_codec::{SmtpCodec, SmtpInput};
 
@@ -131,7 +131,37 @@ where
         )
     };
     let verdict = ctx.auth_guard.check(source, &username).await;
-    let resp = if let Verdict::Locked { .. } = verdict {
+    let app = match verdict {
+        Verdict::Locked { .. } => ProtocolCheck::TryAccountPassword,
+        _ => ctx.auth_guard.protocol_password(&username, &password).await,
+    };
+    let resp = if let ProtocolCheck::AppPassword(id) = app {
+        ctx.auth_guard.succeeded(source, &username).await;
+        let mut e = event(Outcome::Ok);
+        e.credential = Credential::AppPassword;
+        e.key_id = Some(id);
+        ctx.auth_guard.record(e).await;
+        session.set_authenticated(username.clone());
+        ctx.event_bus.emit(SmtpEvent::Authenticated {
+            id: conn_id,
+            username,
+        });
+        Response::auth_ok()
+    } else if app == ProtocolCheck::AppOnly {
+        ctx.auth_guard.failed(source, &username).await;
+        let mut e = event(Outcome::BadPassword);
+        e.credential = Credential::AppPassword;
+        ctx.auth_guard.record(e).await;
+        Response::new(
+            535,
+            Some(mailrs_smtp_proto::EnhancedCode {
+                class: 5,
+                subject: 7,
+                detail: 8,
+            }),
+            mailrs_auth_guard::password::app_only_notice(),
+        )
+    } else if let Verdict::Locked { .. } = verdict {
         ctx.auth_guard.record(event(Outcome::Locked)).await;
         Response::new(
             421,

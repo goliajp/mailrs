@@ -23,6 +23,7 @@ import {
   inputClass,
   SectionHeader,
 } from './_shared'
+import { RevokeAllAppPasswords } from './app-passwords-card'
 
 export function AccountSection() {
   const auth = useAtomValue(authAtom)
@@ -202,6 +203,7 @@ export function AccountSection() {
           <button className={btnPrimary} disabled={saving} onClick={handlePasswordChange}>
             {saving ? 'Saving...' : 'Update Password'}
           </button>
+          <RevokeAllAppPasswords />
         </div>
       </div>
 

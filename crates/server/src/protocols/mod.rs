@@ -86,9 +86,24 @@ impl Directory for PgDirectory {
         &self,
         user: &str,
         password: &str,
-        _: Protocol,
+        protocol: Protocol,
     ) -> Result<Option<Self::Account>> {
         if !self.verify(user, password).await? {
+            return Ok(None);
+        }
+        self.open(user, protocol).await
+    }
+
+    async fn open(&self, user: &str, _: Protocol) -> Result<Option<Self::Account>> {
+        let active = match &self.domain {
+            Some(ds) => ds
+                .get_account_with_hash(user)
+                .await
+                .map_err(|e| Error::Store(e.to_string()))?
+                .is_some_and(|(account, _)| account.active),
+            None => false,
+        };
+        if !active {
             return Ok(None);
         }
         self.mailbox

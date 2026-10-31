@@ -5534,6 +5534,92 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/app-passwords": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your app passwords for mail apps, newest first; never the passwords */
+        get: operations["listAppPasswords"];
+        put?: never;
+        /** Make an app password for a mail app; the password is in this answer only. Needs a recent password confirmation */
+        post: operations["createAppPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/app-passwords/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke one of your app passwords */
+        delete: operations["revokeAppPassword"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/app-passwords/revoke-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoke every one of your app passwords */
+        post: operations["revokeAllAppPasswords"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/protocol-logins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Successful mail-protocol sign-ins per account and protocol, with the account password and with app passwords, and each account's setting (super administrators) */
+        get: operations["protocolLogins"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/accounts/{address}/protocol-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Whether the account's own password still signs in to mail apps: inherit, allow or app-only (super administrators) */
+        put: operations["setProtocolPassword"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/screening/observations": {
         parameters: {
             query?: never;
@@ -10360,6 +10446,8 @@ export interface operations {
                     "application/json": {
                         sessions_revoked: number;
                         agent_keys_revoked: number;
+                        /** @description App passwords revoked; only a reset after a compromise revokes them */
+                        app_passwords_revoked?: number;
                     };
                 };
             };
@@ -13504,6 +13592,206 @@ export interface operations {
                         ended?: number;
                     };
                 };
+            };
+        };
+    };
+    listAppPasswords: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description App passwords */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id?: string;
+                        name?: string;
+                        created_at?: number;
+                        /** @description Latest sign-in with it, to ten minutes */
+                        last_used_at?: number | null;
+                    }[];
+                };
+            };
+        };
+    };
+    createAppPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description 1 to 100 characters */
+                    name: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Made */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id?: string;
+                        name?: string;
+                        /** @description 16 letters; shown once */
+                        password?: string;
+                    };
+                };
+            };
+            /** @description bad_name */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description confirm_required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description too_many: the account holds 20 already */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    revokeAppPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revoked */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not one of yours */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    revokeAllAppPasswords: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description {revoked} */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        revoked?: number;
+                    };
+                };
+            };
+        };
+    };
+    protocolLogins: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Usage */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        days?: number;
+                        /** @enum {string} */
+                        default?: "allow" | "app-only";
+                        policies?: {
+                            [key: string]: "inherit" | "allow" | "app-only";
+                        };
+                        items?: {
+                            account?: string;
+                            /** @enum {string} */
+                            channel?: "imap" | "pop3" | "smtp" | "managesieve" | "dav";
+                            password_logins?: number;
+                            password_last?: number | null;
+                            app_password_logins?: number;
+                            app_password_last?: number | null;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    setProtocolPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                address: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    policy: "inherit" | "allow" | "app-only";
+                };
+            };
+        };
+        responses: {
+            /** @description Set */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not a policy */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

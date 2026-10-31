@@ -3797,6 +3797,7 @@ dependencies = [
  "kevy-client",
  "mailrs-backoff",
  "password-hash",
+ "rand_core 0.6.4",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -4280,6 +4281,7 @@ dependencies = [
 name = "mailrs-mail-protocols"
 version = "0.0.0"
 dependencies = [
+ "async-trait",
  "base64 0.22.1",
  "chrono",
  "futures-util",

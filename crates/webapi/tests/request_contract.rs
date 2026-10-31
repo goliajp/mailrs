@@ -46,6 +46,14 @@ fn label_bodies_match() {
 }
 
 #[test]
+fn app_password_bodies_match() {
+    let v: handlers::app_passwords::CreateRequest = parse("app-password-create");
+    assert_eq!(v.name, "iPhone Mail");
+    let v: handlers::app_passwords::PolicyRequest = parse("protocol-password-set");
+    assert_eq!(v.policy, "app-only");
+}
+
+#[test]
 fn screening_bodies_match() {
     let v: handlers::screening_admin::ObservationRequest = parse("screening-observation");
     assert_eq!(
@@ -382,6 +390,8 @@ fn every_fixture_has_a_test() {
         "saved-search-create",
         "screening-hash",
         "screening-observation",
+        "app-password-create",
+        "protocol-password-set",
         "mock-address-create",
         "mock-namespace-create",
         "invite-counter",
