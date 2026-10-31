@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
+import { type Key, useT } from '@/i18n'
+import { errorText } from '@/lib/error-text'
 import { queryClient } from '@/lib/query-client'
 import { settingsKeys } from '@/lib/query-keys'
 import {
@@ -12,6 +14,7 @@ import {
 import { btnPrimary, inputClass, SectionHeader } from './_shared'
 
 export function CalendarFeedsSection() {
+  const t = useT()
   const feedsQuery = useQuery({
     queryKey: settingsKeys.calendarFeeds(),
     queryFn: () => wireListCalendarFeeds().then((items) => [...items]),
@@ -27,16 +30,16 @@ export function CalendarFeedsSection() {
 
   useEffect(() => {
     if (feedsQuery.error) {
-      setError(feedsQuery.error instanceof Error ? feedsQuery.error.message : 'failed to load')
+      setError(errorText(feedsQuery.error, t('settings.feeds.loadFailed')))
     }
-  }, [feedsQuery.error])
+  }, [feedsQuery.error, t])
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: settingsKeys.calendarFeeds() })
 
   const handleCreate = async () => {
     setError('')
     if (!url.trim()) {
-      setError('URL is required')
+      setError(t('settings.feeds.urlRequired'))
       return
     }
     setCreating(true)
@@ -53,36 +56,31 @@ export function CalendarFeedsSection() {
       setAuthPass('')
       await refresh()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'failed')
+      setError(errorText(e, t('common.failed')))
     } finally {
       setCreating(false)
     }
   }
 
   const handleDelete = async (id: number) => {
-    if (!window.confirm('Remove this feed and all its synced events?')) return
+    if (!window.confirm(t('settings.feeds.removeConfirm'))) return
     try {
       await wireDeleteCalendarFeed(id)
       await refresh()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'failed')
+      setError(errorText(e, t('common.failed')))
     }
   }
 
   return (
     <div className="space-y-6">
-      <SectionHeader title="External Calendar Feeds" />
-      <p className="text-fg-muted text-sm">
-        Subscribe to a remote .ics URL (room calendar, public team calendar, Google Calendar export,
-        Nextcloud / Radicale published calendar). The events appear alongside your own calendar.
-        mailrs polls each feed at its refresh interval; macOS Calendar.app, Thunderbird, etc. pick
-        the events up via mailrs's CalDAV server.
-      </p>
+      <SectionHeader title={t('settings.feeds.title')} />
+      <p className="text-fg-muted text-sm">{t('settings.feeds.help')}</p>
 
       <div className="border-border space-y-3 rounded-md border p-4">
-        <div className="text-fg text-sm font-medium">Add a feed</div>
+        <div className="text-fg text-sm font-medium">{t('settings.feeds.addTitle')}</div>
         <input
-          aria-label="Feed URL"
+          aria-label={t('settings.feeds.url')}
           className={inputClass}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="https://example.com/calendar.ics"
@@ -90,10 +88,10 @@ export function CalendarFeedsSection() {
           value={url}
         />
         <input
-          aria-label="Display name"
+          aria-label={t('settings.feeds.displayName')}
           className={inputClass}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Display name (optional)"
+          placeholder={t('settings.feeds.displayNameOptional')}
           type="text"
           value={name}
         />
@@ -102,20 +100,20 @@ export function CalendarFeedsSection() {
             worker at all, so the password was discarded on arrival and
             storing it would have put a secret at rest with no consumer. */}
         <input
-          aria-label="Basic-auth username"
+          aria-label={t('settings.feeds.authUser')}
           autoComplete="off"
           className={inputClass}
           onChange={(e) => setAuthUser(e.target.value)}
-          placeholder="Username (only if the feed requires one)"
+          placeholder={t('settings.feeds.authUserPlaceholder')}
           type="text"
           value={authUser}
         />
         <input
-          aria-label="Basic-auth password"
+          aria-label={t('settings.feeds.authPass')}
           autoComplete="new-password"
           className={inputClass}
           onChange={(e) => setAuthPass(e.target.value)}
-          placeholder="Password"
+          placeholder={t('login.password')}
           type="password"
           value={authPass}
         />
@@ -125,16 +123,19 @@ export function CalendarFeedsSection() {
           disabled={creating || !url.trim()}
           onClick={() => void handleCreate()}
         >
-          {creating ? 'Adding…' : 'Add feed'}
+          {t(addLabel(creating))}
         </button>
       </div>
 
       <div>
         <div className="text-fg mb-2 text-sm font-medium">
-          Subscriptions {loading && <span className="text-fg-muted ml-2 text-xs">loading…</span>}
+          {t('settings.feeds.subscriptions')}{' '}
+          {loading && (
+            <span className="text-fg-muted ml-2 text-xs">{t('settings.feeds.loading')}</span>
+          )}
         </div>
         {feeds.length === 0 && !loading ? (
-          <div className="text-fg-muted text-sm">No feeds yet.</div>
+          <div className="text-fg-muted text-sm">{t('settings.feeds.empty')}</div>
         ) : (
           <ul className="space-y-2">
             {feeds.map((f) => (
@@ -146,21 +147,11 @@ export function CalendarFeedsSection() {
                   <div className="text-fg truncate text-sm font-medium">{f.name || f.url}</div>
                   <div className="text-fg-muted truncate text-xs">{f.url}</div>
                   <div className="text-fg-muted mt-1 text-xs">
-                    Refresh every {Math.round(f.refresh_interval_secs / 60)}m
-                    {f.last_synced_at === null ? (
-                      ' · never synced'
-                    ) : (
-                      <>
-                        {' · last synced '}
-                        {/* Epoch seconds from the backend; Date takes ms. */}
-                        {new Date(f.last_synced_at * 1000).toLocaleString(undefined, {
-                          dateStyle: 'short',
-                          timeStyle: 'short',
-                        })}
-                        {` · ${f.lastEventCount} events`}
-                      </>
-                    )}
-                    {f.hasBasicAuth && ' · authenticated'}
+                    {t('settings.feeds.refreshEvery', {
+                      minutes: Math.round(f.refresh_interval_secs / 60),
+                    })}
+                    {syncText(f.last_synced_at, f.lastEventCount, t)}
+                    {f.hasBasicAuth && t('settings.feeds.authenticated')}
                   </div>
                   {f.last_error && <div className="text-danger mt-1 text-xs">⚠ {f.last_error}</div>}
                 </div>
@@ -168,7 +159,7 @@ export function CalendarFeedsSection() {
                   className="text-fg-muted hover:text-fg shrink-0 text-xs underline-offset-2 hover:underline"
                   onClick={() => void handleDelete(f.id)}
                 >
-                  Remove
+                  {t('settings.senders.remove')}
                 </button>
               </li>
             ))}
@@ -177,4 +168,23 @@ export function CalendarFeedsSection() {
       </div>
     </div>
   )
+}
+
+function addLabel(creating: boolean): Key {
+  if (creating) return 'settings.feeds.adding'
+  return 'settings.feeds.add'
+}
+
+function syncText(
+  lastSyncedAt: null | number,
+  count: number,
+  t: (key: Key, vars?: Record<string, number | string>) => string
+): string {
+  if (lastSyncedAt === null) return t('settings.feeds.neverSynced')
+  // epoch seconds from the backend; Date takes ms
+  const at = new Date(lastSyncedAt * 1000).toLocaleString(undefined, {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  })
+  return t('settings.feeds.lastSynced', { at, count })
 }
