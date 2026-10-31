@@ -46,6 +46,18 @@ fn label_bodies_match() {
 }
 
 #[test]
+fn rule_bodies_match() {
+    let v: handlers::rules::RuleRequest = parse("rule-create");
+    assert_eq!(
+        (v.name.as_str(), v.query.as_str(), v.enabled),
+        ("Shop", "from:shop.example has:attachment", true)
+    );
+    assert_eq!(v.actions, ["archive", "label:3"]);
+    let v: handlers::rules_run::PreviewRequest = parse("rule-preview");
+    assert_eq!(v.query, "from:shop.example");
+}
+
+#[test]
 fn saved_search_body_matches() {
     let v: handlers::saved_searches::CreateRequest = parse("saved-search-create");
     assert_eq!(
@@ -330,6 +342,8 @@ fn every_fixture_has_a_test() {
         "key-upload",
         "label-create",
         "label-update",
+        "rule-create",
+        "rule-preview",
         "saved-search-create",
         "mock-address-create",
         "mock-namespace-create",

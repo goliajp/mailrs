@@ -23,6 +23,8 @@ pub mod participants;
 pub mod pg;
 /// Search operators, shared by search and rules in every core.
 pub mod query;
+/// Rules: a saved search and what to do with the mail it finds.
+pub mod rules;
 /// Which conversations a view shows: triage buckets and the scope a
 /// request's folder and category reconcile to, shared by every store.
 pub mod scope;

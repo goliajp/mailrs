@@ -5342,6 +5342,93 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your rules, in the order they run on arriving mail */
+        get: operations["listRules"];
+        put?: never;
+        /** Create a rule: arriving mail matching the query gets the actions */
+        post: operations["createRule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rules/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** How many conversations a rule with this query would change if run now (Junk and Trash left out), and the newest 20 */
+        post: operations["previewRule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rules/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Replace a rule's name, query, actions and switch */
+        post: operations["updateRule"];
+        /** Delete a rule; mail it changed stays as it is */
+        delete: operations["deleteRule"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rules/{id}/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run a rule over mail already received */
+        post: operations["applyRule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rules/runs/{run_id}/undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Put back every conversation a run changed; once per run */
+        post: operations["undoRuleRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -6051,6 +6138,17 @@ export interface components {
             id: string;
             name: string;
             query: string;
+            /** @description Unix seconds */
+            created_at: number;
+        };
+        Rule: {
+            id: string;
+            name: string;
+            /** @description A search query without in:, is: or label: */
+            query: string;
+            /** @description label:<id>, archive, read, star, junk, trash */
+            actions: string[];
+            enabled: boolean;
             /** @description Unix seconds */
             created_at: number;
         };
@@ -12711,6 +12809,283 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    listRules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Rules */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Rule"][];
+                };
+            };
+        };
+    };
+    createRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    query: string;
+                    actions: string[];
+                    /** @default true */
+                    enabled?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Rule"];
+                };
+            };
+            /** @description empty_query, operator_not_for_rules, invalid_action, invalid_name or too_many (100 at most), as {error} */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error?: string;
+                    };
+                };
+            };
+            /** @description name_taken, as {error} */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error?: string;
+                    };
+                };
+            };
+        };
+    };
+    previewRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    query: string;
+                };
+            };
+        };
+        responses: {
+            /** @description {count, items} */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        count?: number;
+                        items?: components["schemas"]["ConversationResponse"][];
+                    };
+                };
+            };
+            /** @description empty_query or operator_not_for_rules, as {error} */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error?: string;
+                    };
+                };
+            };
+        };
+    };
+    updateRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    query: string;
+                    actions: string[];
+                    /** @default true */
+                    enabled?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Rule"];
+                };
+            };
+            /** @description empty_query, operator_not_for_rules, invalid_action, invalid_name or too_many (100 at most), as {error} */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error?: string;
+                    };
+                };
+            };
+            /** @description not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error?: string;
+                    };
+                };
+            };
+            /** @description name_taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error?: string;
+                    };
+                };
+            };
+        };
+    };
+    deleteRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such rule of yours */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    applyRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description {run_id, changed, failed}; run_id undoes it for seven days */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        run_id?: string;
+                        changed?: number;
+                        failed?: number;
+                    };
+                };
+            };
+            /** @description not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error?: string;
+                    };
+                };
+            };
+        };
+    };
+    undoRuleRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description {restored, failed} */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        restored?: number;
+                        failed?: number;
+                    };
+                };
+            };
+            /** @description not_found: no such run, already undone, or older than seven days */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error?: string;
+                    };
+                };
             };
         };
     };

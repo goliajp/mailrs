@@ -57,6 +57,13 @@ pub(crate) fn ingest_delivered_file(
     if target_folder != "Junk" && !held {
         crate::image_prefetch::queue(state, addr, &a.message_id, &a.parsed);
     }
+    // the user's rules, before the clients hear of the mail, so a rule
+    // that archives it never shows it in the inbox
+    let in_junk = target_folder == "Junk"
+        || mailrs_mailbox_kevy::scope::bucket_of(a.category)
+            == mailrs_mailbox_kevy::scope::Bucket::Junk;
+    let actions = mailrs_intake::rules::matching(state.net_conn(), addr, &a, held, in_junk);
+    crate::rules::apply(state, addr, &a.thread_id, &actions);
     effects::after_store(addr, &a, held);
 }
 
@@ -101,7 +108,7 @@ pub(crate) fn store_arrival(
         thread_id: a.thread_id.clone(),
         modseq: 0,
         user_address: addr.to_string(),
-        attachments: Some(a.parsed.attachments().count() as u32),
+        attachments: Some(a.parsed.shown_attachment_count() as u32),
     };
     let root = &a.thread_id;
     write_message_row(state, addr, root, &a.message_id, a.date, blob_ref, &wire);

@@ -44,6 +44,7 @@ pub use scopes::McpIdentity;
 mod params;
 mod params_greylist;
 mod params_labels;
+mod params_rules;
 mod scopes;
 mod tools_mock;
 mod tools_v1_compose;
@@ -57,6 +58,7 @@ mod tools_v2_batch13;
 mod tools_v2_batch14;
 mod tools_v2_batch15;
 mod tools_v2_batch16;
+mod tools_v2_batch17;
 mod tools_v2_batch2;
 mod tools_v2_batch3;
 mod tools_v2_batch4;
@@ -111,6 +113,7 @@ impl MailrsMcpService {
             + Self::tool_router_v2_batch14()
             + Self::tool_router_v2_batch15()
             + Self::tool_router_v2_batch16()
+            + Self::tool_router_v2_batch17()
             + Self::tool_router_mock()
     }
 }

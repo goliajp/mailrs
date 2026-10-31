@@ -1,7 +1,8 @@
 import { toast } from '@goliapkg/gds'
 import { useAtom } from 'jotai'
-import { Bookmark, Search, X } from 'lucide-react'
+import { Bookmark, ListFilter, Search, X } from 'lucide-react'
 import { useState } from 'react'
+import { useNavigate } from 'react-router'
 
 import {
   useCreateSavedSearch,
@@ -9,6 +10,23 @@ import {
   useSavedSearches,
 } from '@/hooks/use-saved-searches'
 import { searchQueryAtom } from '@/store/ui'
+
+/** Shown while searching: makes a rule of what is in the box. */
+export function CreateRuleButton() {
+  const [query] = useAtom(searchQueryAtom)
+  const navigate = useNavigate()
+  return (
+    <button
+      aria-label="Create a rule from this search"
+      className="text-fg-muted hover:bg-bg-secondary flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-all duration-150"
+      onClick={() => navigate(`/settings?tab=rules&rule_query=${encodeURIComponent(query.trim())}`)}
+      title="Create a rule from this search"
+      type="button"
+    >
+      <ListFilter aria-hidden="true" className="h-4 w-4" />
+    </button>
+  )
+}
 
 /** The user's saved searches under the labels; each runs its query. */
 export function SavedSearchBar() {

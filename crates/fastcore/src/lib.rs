@@ -41,6 +41,7 @@ pub use protocols::{FastcoreDirectory, listen_for_signouts};
 mod push;
 mod router;
 mod routes;
+mod rules;
 mod sent;
 mod snooze_wake;
 mod store_motion;

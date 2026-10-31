@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { createStore, Provider } from 'jotai'
+import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { authAtom } from '@/store/auth'
@@ -210,7 +211,9 @@ function Wrapper({
 }) {
   return (
     <QueryClientProvider client={testQueryClient}>
-      <Provider store={store}>{children}</Provider>
+      <Provider store={store}>
+        <MemoryRouter>{children}</MemoryRouter>
+      </Provider>
     </QueryClientProvider>
   )
 }

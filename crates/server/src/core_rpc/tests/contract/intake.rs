@@ -31,7 +31,7 @@ pub(super) fn envelope(verdict: Option<String>) -> SpoolEnvelope {
     }
 }
 
-const REPORT: &[u8] = b"From: Carol <carol@outside.example>\r\n\
+pub(super) const REPORT: &[u8] = b"From: Carol <carol@outside.example>\r\n\
 To: alice@example.test\r\n\
 Subject: Quarterly report\r\n\
 Message-ID: <q1@outside.example>\r\n\
@@ -57,7 +57,7 @@ Date: Tue, 5 Aug 2025 11:00:00 +0900\r\n\
 \r\n\
 sent from my phone\r\n";
 
-const PHISH: &[u8] = b"From: Bank <alerts@outside.example>\r\n\
+pub(super) const PHISH: &[u8] = b"From: Bank <alerts@outside.example>\r\n\
 To: alice@example.test\r\n\
 Subject: Your account is locked\r\n\
 Message-ID: <p1@outside.example>\r\n\
@@ -65,7 +65,7 @@ Date: Tue, 5 Aug 2025 12:00:00 +0900\r\n\
 \r\n\
 Confirm your password here.\r\n";
 
-fn held() -> Option<String> {
+pub(super) fn held() -> Option<String> {
     Some(
         serde_json::json!({
             "rules_version": "2026-08-29.1",

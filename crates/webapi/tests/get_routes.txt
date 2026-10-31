@@ -82,6 +82,7 @@
 /api/keys/{address}/smime	read only
 /api/labels	read only
 /api/saved-searches	read only
+/api/rules	read only
 /api/mail/drafts	read only
 /api/mail/export	read only
 /api/mail/folders	read only

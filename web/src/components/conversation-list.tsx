@@ -13,7 +13,7 @@ import { VirtualConversationList } from '@/components/conversation-list-virtual'
 import { DeleteThreadConfirm } from '@/components/delete-thread-confirm'
 import { LabelBar } from '@/components/label-bar'
 import { ListSearchInput } from '@/components/list-search-input'
-import { SavedSearchBar, SaveSearchButton } from '@/components/saved-search-bar'
+import { CreateRuleButton, SavedSearchBar, SaveSearchButton } from '@/components/saved-search-bar'
 import { TrashBanner } from '@/components/trash-banner'
 import { useConversationActions } from '@/hooks/use-conversation-actions'
 import { useConversationRows, useCurrentSelection } from '@/hooks/use-current-list'
@@ -303,6 +303,7 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
         placeholder="Search, or from: to: subject: has:attachment in: is: label:"
       >
         {isSearching && <SaveSearchButton />}
+        {isSearching && <CreateRuleButton />}
         {/* batch select toggle — hidden during search */}
         {!isSearching && (
           <button
