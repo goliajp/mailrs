@@ -3,6 +3,7 @@ import { useState } from 'react'
 
 import { useLabels } from '@/hooks/use-labels'
 import { useApplyRule, useSaveRule } from '@/hooks/use-rules'
+import { useT } from '@/i18n'
 import { wirePreviewRule } from '@/wire/endpoints/rules'
 
 import { btnPrimary, btnSecondary, cardClass, inputClass } from './_shared'
@@ -10,6 +11,7 @@ import { errorText, PLAIN_ACTIONS, runToast } from './rules-shared'
 
 /** A new rule: the search, what to do, and how many it would change now. */
 export function RuleForm({ initialQuery, onDone }: { initialQuery: string; onDone: () => void }) {
+  const t = useT()
   const [name, setName] = useState('')
   const [query, setQuery] = useState(initialQuery)
   const [actions, setActions] = useState<string[]>([])
@@ -42,7 +44,7 @@ export function RuleForm({ initialQuery, onDone }: { initialQuery: string; onDon
         onError: (e) => toast.error(errorText(e)),
         onSuccess: (rule) => {
           if (!runNow) {
-            toast.success('Rule saved')
+            toast.success(t('settings.rules.saved'))
             onDone()
             return
           }
@@ -67,7 +69,7 @@ export function RuleForm({ initialQuery, onDone }: { initialQuery: string; onDon
       }}
     >
       <label className="block space-y-1 text-sm">
-        <span className="text-fg-secondary">Name</span>
+        <span className="text-fg-secondary">{t('settings.rules.name')}</span>
         <input
           className={inputClass}
           maxLength={64}
@@ -76,7 +78,7 @@ export function RuleForm({ initialQuery, onDone }: { initialQuery: string; onDon
         />
       </label>
       <label className="block space-y-1 text-sm">
-        <span className="text-fg-secondary">Mail that matches</span>
+        <span className="text-fg-secondary">{t('settings.rules.matches')}</span>
         <input
           className={`${inputClass} font-mono`}
           onChange={(e) => {
@@ -88,7 +90,7 @@ export function RuleForm({ initialQuery, onDone }: { initialQuery: string; onDon
         />
       </label>
       <fieldset className="space-y-1 text-sm">
-        <legend className="text-fg-secondary mb-1">Do this</legend>
+        <legend className="text-fg-secondary mb-1">{t('settings.rules.doThis')}</legend>
         {PLAIN_ACTIONS.map((a) => (
           <label className="mr-4 inline-flex items-center gap-1.5" key={a.value}>
             <input
@@ -96,13 +98,13 @@ export function RuleForm({ initialQuery, onDone }: { initialQuery: string; onDon
               onChange={() => toggle(a.value)}
               type="checkbox"
             />
-            {a.label}
+            {t(a.label)}
           </label>
         ))}
         <label className="flex items-center gap-2 pt-1">
-          Label
+          {t('settings.rules.label')}
           <select className={inputClass} onChange={(e) => setLabel(e.target.value)} value={label}>
-            <option value="">None</option>
+            <option value="">{t('settings.rules.none')}</option>
             {(labels ?? []).map((l) => (
               <option key={l.id} value={l.id}>
                 {l.name}
@@ -113,26 +115,26 @@ export function RuleForm({ initialQuery, onDone }: { initialQuery: string; onDon
       </fieldset>
       <div className="flex flex-wrap items-center gap-3 text-sm">
         <button className={btnSecondary} disabled={!query.trim()} onClick={check} type="button">
-          Preview
+          {t('compose.preview')}
         </button>
-        {preview !== null && <span>{preview} conversations match now</span>}
+        {preview !== null && <span>{t('settings.rules.matchNow', { count: preview })}</span>}
         {preview !== null && preview > 0 && (
           <label className="inline-flex items-center gap-1.5">
             <input checked={runNow} onChange={(e) => setRunNow(e.target.checked)} type="checkbox" />
-            Also apply to them
+            {t('settings.rules.alsoApply')}
           </label>
         )}
       </div>
       <div className="flex justify-end gap-2">
         <button className={btnSecondary} onClick={onDone} type="button">
-          Cancel
+          {t('common.cancel')}
         </button>
         <button
           className={btnPrimary}
           disabled={!name.trim() || !query.trim() || chosen().length === 0 || save.isPending}
           type="submit"
         >
-          Save rule
+          {t('settings.rules.save')}
         </button>
       </div>
     </form>
