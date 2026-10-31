@@ -83,6 +83,9 @@ export function useKeyboardNav() {
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (isEditableTarget(e.target)) return
+      // A key held with Alt, Ctrl or Cmd belongs to the browser and the
+      // system (copy, paste, find); Shift is part of `Shift+I`, `#`, `!`
+      if (e.altKey || e.ctrlKey || e.metaKey) return
 
       // **The chord is resolved before the switch, not inside it.** It
       // was a `default:` arm, and `switch` matches `case 's'` first —
