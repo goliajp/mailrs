@@ -1,3 +1,4 @@
+import type { ActionId } from '@/lib/actions'
 /// The shortcuts the app advertises.
 ///
 /// Its own file because the dialog is a component and this is data —
@@ -5,48 +6,47 @@
 /// is one `chordList` actually handles. The sheet used to advertise
 /// `g a` for a "Go to Action" nothing implemented.
 
-import type { ActionId } from '@/lib/actions'
-
+import { type Key } from '@/i18n'
 import { ACTIONS } from '@/lib/actions'
 
 export type ShortcutEntry = {
-  description: string
+  description: Key[]
   keys: string[]
 }
 
 export type ShortcutGroup = {
   shortcuts: ShortcutEntry[]
-  title: string
+  title: Key
 }
 
 export const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
     shortcuts: [
-      { description: 'Command palette', keys: ['⌘', 'K'] },
-      { description: 'Show shortcuts', keys: ['?'] },
+      { description: ['home.commandPalette'], keys: ['⌘', 'K'] },
+      { description: ['shortcuts.show'], keys: ['?'] },
     ],
-    title: 'Anywhere',
+    title: 'shortcuts.anywhere',
   },
   {
     shortcuts: [
-      { description: 'Next conversation', keys: ['j', '↓'] },
-      { description: 'Previous conversation', keys: ['k', '↑'] },
-      { description: 'Open conversation', keys: ['Enter'] },
-      { description: 'Back to list', keys: ['Esc'] },
+      { description: ['shortcuts.next'], keys: ['j', '↓'] },
+      { description: ['shortcuts.previous'], keys: ['k', '↑'] },
+      { description: ['shortcuts.open'], keys: ['Enter'] },
+      { description: ['shortcuts.back'], keys: ['Esc'] },
     ],
-    title: 'Navigation',
+    title: 'palette.navigation',
   },
   {
     shortcuts: [
-      { description: 'New conversation', keys: ['c', 'n'] },
-      { description: 'Reply', keys: ['r'] },
-      { description: 'Forward', keys: ['f'] },
+      { description: ['list.newConversation'], keys: ['c', 'n'] },
+      { description: ['read.reply'], keys: ['r'] },
+      { description: ['compose.mode.forward'], keys: ['f'] },
       ...tableShortcuts(),
-      { description: 'Select for a batch action', keys: ['x'] },
-      { description: 'Undo the last action', keys: ['z'] },
-      { description: 'Focus search', keys: ['/'] },
+      { description: ['shortcuts.select'], keys: ['x'] },
+      { description: ['shortcuts.undo'], keys: ['z'] },
+      { description: ['shortcuts.search'], keys: ['/'] },
     ],
-    title: 'Actions',
+    title: 'palette.actions',
   },
   {
     shortcuts: [
@@ -54,12 +54,12 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
       // used to advertise `g a` for a "Go to Action" that was never
       // written, and `g s`, which the key switch shadowed with the
       // star binding — pressing it starred the open thread.
-      { description: 'Go to Inbox', keys: ['g', 'i'] },
-      { description: 'Go to Sent', keys: ['g', 's'] },
-      { description: 'Go to Drafts', keys: ['g', 'd'] },
-      { description: 'Go to Archived', keys: ['g', 'a'] },
+      { description: ['palette.goInbox'], keys: ['g', 'i'] },
+      { description: ['palette.goSent'], keys: ['g', 's'] },
+      { description: ['shortcuts.goDrafts'], keys: ['g', 'd'] },
+      { description: ['shortcuts.goArchived'], keys: ['g', 'a'] },
     ],
-    title: 'Go to',
+    title: 'shortcuts.goTo',
   },
 ]
 
@@ -78,7 +78,7 @@ function tableShortcuts(): ShortcutEntry[] {
     ['trash', 'delete-forever'],
   ]
   return keyed.map((ids) => ({
-    description: ids.map((id) => ACTIONS[id].label).join(' / '),
+    description: ids.map((id) => ACTIONS[id].label),
     keys: ACTIONS[ids[0] as ActionId].keys,
   }))
 }

@@ -3,6 +3,7 @@ import { X } from 'lucide-react'
 import { useEffect } from 'react'
 
 import { MobileModal } from '@/components/mobile-modal'
+import { useT } from '@/i18n'
 import { isEditableTarget } from '@/lib/editable-target'
 import { SHORTCUT_GROUPS } from '@/lib/shortcuts'
 import { shortcutsDialogOpenAtom } from '@/store/ui'
@@ -13,6 +14,7 @@ type Props = {
 }
 
 export function KeyboardShortcutsDialog({ onClose, open }: Props) {
+  const t = useT()
   if (!open) return null
 
   return (
@@ -23,9 +25,9 @@ export function KeyboardShortcutsDialog({ onClose, open }: Props) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-fg text-base font-semibold">Keyboard Shortcuts</h2>
+          <h2 className="text-fg text-base font-semibold">{t('shortcuts.title')}</h2>
           <button
-            aria-label="Close"
+            aria-label={t('common.close')}
             className="text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary flex h-7 w-7 items-center justify-center rounded-md transition-colors"
             onClick={onClose}
           >
@@ -37,15 +39,17 @@ export function KeyboardShortcutsDialog({ onClose, open }: Props) {
           {SHORTCUT_GROUPS.map((group) => (
             <div key={group.title}>
               <p className="text-fg-muted mb-2 text-xs font-medium tracking-wider uppercase">
-                {group.title}
+                {t(group.title)}
               </p>
               <ul className="space-y-1.5">
                 {group.shortcuts.map((shortcut) => (
                   <li
                     className="flex items-center justify-between gap-4"
-                    key={shortcut.description}
+                    key={shortcut.description.join()}
                   >
-                    <span className="text-fg-secondary text-sm">{shortcut.description}</span>
+                    <span className="text-fg-secondary text-sm">
+                      {shortcut.description.map((d) => t(d)).join(' / ')}
+                    </span>
                     <span className="flex shrink-0 gap-1">
                       {shortcut.keys.map((key) => (
                         <kbd
