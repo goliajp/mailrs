@@ -238,6 +238,7 @@ pub async fn get_conversations(
             category: q.category,
             domains: None,
             archived: q.archived,
+            trashed: false,
             include_quarantined: q.include_quarantined,
             folder: q.folder,
             unread: q.unread,

@@ -165,6 +165,10 @@ pub struct ConversationFilter {
     /// `true` shows only archived threads, `false` (default) hides them.
     #[serde(default)]
     pub archived: bool,
+    /// `true` is the Trash list; `false` (default) leaves the Trash out
+    /// of every other list, Archived included.
+    #[serde(default)]
+    pub trashed: bool,
     /// `true` also returns conversations held as suspected fraud.
     ///
     /// Default `false`, and the default is the point: a held
@@ -272,6 +276,7 @@ mod tests {
             category: Some("personal".into()),
             domains: Some(vec!["example.com".into(), "test.com".into()]),
             archived: true,
+            trashed: false,
             include_quarantined: false,
             folder: Some("INBOX".into()),
             unread: Some(true),
