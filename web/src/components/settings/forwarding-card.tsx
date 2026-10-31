@@ -2,6 +2,7 @@ import { toast } from '@goliapkg/gds'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 
+import { useT } from '@/i18n'
 import { queryClient } from '@/lib/query-client'
 import {
   wireGetForwarding,
@@ -21,6 +22,7 @@ const forwardingKey = ['settings', 'forwarding'] as const
  * that address has typed it back.
  */
 export function ForwardingCard() {
+  const t = useT()
   const { data } = useQuery({
     queryKey: forwardingKey,
     queryFn: ({ signal }) => wireGetForwarding(signal),
@@ -43,19 +45,19 @@ export function ForwardingCard() {
   const pending = data?.pending_address ?? ''
   return (
     <div className={`${cardClass} space-y-3`}>
-      <h3 className="text-sm font-medium">Forwarding</h3>
+      <h3 className="text-sm font-medium">{t('settings.cat.forwarding')}</h3>
       {on && (
         <div className="flex items-center justify-between gap-3 text-sm">
           <span>
-            Forwarding to <b>{on}</b>
-            {!data?.keep_copy && ', without keeping a copy here'}
+            <WithAddress address={on} text={t('settings.forwarding.to')} />
+            {!data?.keep_copy && t('settings.forwarding.noCopy')}
           </span>
           <button
             className={btnSecondary}
-            onClick={() => run(wireStopForwarding, 'Forwarding stopped')}
+            onClick={() => run(wireStopForwarding, t('settings.forwarding.stopped'))}
             type="button"
           >
-            Stop
+            {t('settings.forwarding.stop')}
           </button>
         </div>
       )}
@@ -64,23 +66,23 @@ export function ForwardingCard() {
           className="space-y-2 text-sm"
           onSubmit={(e) => {
             e.preventDefault()
-            void run(() => wireVerifyForwarding(code.trim()), 'Forwarding is on')
+            void run(() => wireVerifyForwarding(code.trim()), t('settings.forwarding.on'))
             setCode('')
           }}
         >
           <p>
-            A code was sent to <b>{pending}</b>. Enter it here to start forwarding there.
+            <WithAddress address={pending} text={t('settings.forwarding.codeSentEnter')} />
           </p>
           <div className="flex gap-2">
             <input
-              aria-label="Code"
+              aria-label={t('settings.forwarding.code')}
               className={inputClass}
               inputMode="numeric"
               onChange={(e) => setCode(e.target.value)}
               value={code}
             />
             <button className={btnPrimary} disabled={code.trim().length === 0} type="submit">
-              Confirm
+              {t('common.confirm')}
             </button>
           </div>
         </form>
@@ -91,13 +93,13 @@ export function ForwardingCard() {
           e.preventDefault()
           void run(
             () => wireRequestForwarding(address.trim(), keepCopy),
-            `A code was sent to ${address.trim()}`
+            t('settings.forwarding.codeSent', { address: address.trim() })
           )
           setAddress('')
         }}
       >
         <label className="block space-y-1">
-          <span className="text-fg-secondary">Forward my mail to</span>
+          <span className="text-fg-secondary">{t('settings.forwarding.forwardTo')}</span>
           <input
             className={inputClass}
             onChange={(e) => setAddress(e.target.value)}
@@ -112,18 +114,27 @@ export function ForwardingCard() {
             onChange={(e) => setKeepCopy(e.target.checked)}
             type="checkbox"
           />
-          Keep a copy here
+          {t('settings.forwarding.keepCopy')}
         </label>
         <div className="flex justify-end">
           <button className={btnPrimary} disabled={!address.includes('@')} type="submit">
-            Send code
+            {t('settings.forwarding.sendCode')}
           </button>
         </div>
       </form>
-      <p className="text-fg-muted text-xs">
-        Mail in Junk or held for review is never forwarded. Your password is asked for before a new
-        address is set.
-      </p>
+      <p className="text-fg-muted text-xs">{t('settings.forwarding.note')}</p>
     </div>
+  )
+}
+
+/** `text` with its `{address}` placeholder shown in bold. */
+function WithAddress({ address, text }: { address: string; text: string }) {
+  const [before, after] = text.split('{address}')
+  return (
+    <>
+      {before}
+      <b>{address}</b>
+      {after}
+    </>
   )
 }
