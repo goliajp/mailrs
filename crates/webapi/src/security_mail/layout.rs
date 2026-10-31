@@ -3,29 +3,24 @@
 
 use super::{Lang, Level, Reader, Shown};
 
-struct Tone {
-    bar: &'static str,
-    badge_fg: &'static str,
-    badge_bg: &'static str,
-}
+// The web app's palette (the gds light theme), so the mail looks like
+// the product it comes from.
+const BG: &str = "#fafafa";
+const SURFACE: &str = "#ffffff";
+const BORDER: &str = "#e4e4e7";
+const FG: &str = "#09090b";
+const FG_SECONDARY: &str = "#3f3f46";
+const FG_MUTED: &str = "#71717a";
+const ACCENT: &str = "#3b7ddd";
+const FONT: &str = "Inter,'Noto Sans SC','PingFang SC','Hiragino Sans','Microsoft YaHei',system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 
-fn tone(level: Level) -> Tone {
+/// The level badge's text and background: the theme's danger, warning
+/// and info colours on a light tint of each.
+fn badge(level: Level) -> (&'static str, &'static str) {
     match level {
-        Level::Act => Tone {
-            bar: "#d92d20",
-            badge_fg: "#b42318",
-            badge_bg: "#fef3f2",
-        },
-        Level::Check => Tone {
-            bar: "#f79009",
-            badge_fg: "#b54708",
-            badge_bg: "#fffaeb",
-        },
-        Level::Note => Tone {
-            bar: "#2e90fa",
-            badge_fg: "#175cd3",
-            badge_bg: "#eff8ff",
-        },
+        Level::Act => ("#c92a2a", "#fdecec"),
+        Level::Check => ("#b35c00", "#fdf1e3"),
+        Level::Note => ("#2b6bc5", "#ebf2fc"),
     }
 }
 
@@ -56,7 +51,6 @@ fn summary(shown: &[Shown], lang: Lang) -> String {
 
 struct Words {
     kicker: &'static str,
-    what: &'static str,
     steps: &'static str,
     when: &'static str,
     colon: &'static str,
@@ -68,7 +62,6 @@ fn words(reader: &Reader) -> Words {
     match reader.lang {
         Lang::Zh => Words {
             kicker: "安全提醒",
-            what: "这是什么情况",
             steps: "建议怎么做",
             when: "发生时间",
             colon: "：",
@@ -78,7 +71,6 @@ fn words(reader: &Reader) -> Words {
         },
         Lang::En => Words {
             kicker: "Security alert",
-            what: "What this means",
             steps: "What to do",
             when: "When",
             colon: ": ",
@@ -119,7 +111,6 @@ pub fn text(shown: &[Shown], host: &str, reader: &Reader) -> String {
 
 pub fn html(shown: &[Shown], host: &str, reader: &Reader) -> String {
     let w = words(reader);
-    let font = "-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans','Microsoft YaHei',Roboto,Helvetica,Arial,sans-serif";
     let mut cards = String::new();
     for s in shown {
         cards.push_str(&card(s, host, &w, reader.lang));
@@ -127,15 +118,15 @@ pub fn html(shown: &[Shown], host: &str, reader: &Reader) -> String {
     format!(
         r#"<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>{title}</title></head>
-<body style="margin:0;padding:0;background:#f2f4f7;font-family:{font};color:#101828;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f2f4f7;">
-<tr><td align="center" style="padding:28px 12px;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;">
-<tr><td style="padding:0 4px 16px 4px;">
-<div style="font-size:13px;color:#667085;letter-spacing:0.02em;">{kicker} · {host}</div>
-<div style="font-size:22px;line-height:30px;font-weight:700;color:#101828;margin-top:4px;">{summary}</div>
+<body style="margin:0;padding:0;background:{BG};font-family:{FONT};color:{FG};">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{BG};">
+<tr><td align="center" style="padding:32px 12px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
+<tr><td style="padding:0 2px 16px 2px;">
+<div style="font-size:13px;line-height:18px;color:{FG_MUTED};">{kicker} · {host}</div>
+<div style="font-size:20px;line-height:28px;font-weight:600;color:{FG};margin-top:4px;">{summary}</div>
 </td></tr>
-{cards}<tr><td style="padding:8px 4px 0 4px;font-size:12px;line-height:18px;color:#98a2b3;">{footer}</td></tr>
+{cards}<tr><td style="padding:8px 2px 0 2px;font-size:12px;line-height:18px;color:{FG_MUTED};">{footer}</td></tr>
 </table>
 </td></tr>
 </table>
@@ -151,27 +142,30 @@ pub fn html(shown: &[Shown], host: &str, reader: &Reader) -> String {
 
 fn card(s: &Shown, host: &str, w: &Words, lang: Lang) -> String {
     let c = &s.copy;
-    let t = tone(c.level);
-    let mut rows = format!(
-        r#"<tr><td style="padding:6px 0;font-size:13px;color:#667085;width:96px;vertical-align:top;">{}</td><td style="padding:6px 0;font-size:14px;color:#101828;vertical-align:top;">{}</td></tr>"#,
-        esc(w.when),
-        esc(&s.when)
-    );
-    for (k, v) in &s.facts {
-        rows.push_str(&format!(
-            r#"<tr><td style="padding:6px 0;font-size:13px;color:#667085;width:96px;vertical-align:top;border-top:1px solid #f2f4f7;">{}</td><td style="padding:6px 0;font-size:14px;color:#101828;vertical-align:top;border-top:1px solid #f2f4f7;overflow-wrap:break-word;">{}</td></tr>"#,
+    let (badge_fg, badge_bg) = badge(c.level);
+    let row = |k: &str, v: &str, first: bool| {
+        let line = match first {
+            true => "",
+            false => "border-top:1px solid #f4f4f5;",
+        };
+        format!(
+            r#"<tr><td style="padding:8px 12px 8px 0;font-size:13px;line-height:20px;color:{FG_MUTED};width:96px;vertical-align:top;{line}">{}</td><td style="padding:8px 0;font-size:14px;line-height:20px;color:{FG};vertical-align:top;overflow-wrap:break-word;{line}">{}</td></tr>"#,
             esc(k),
             esc(v)
-        ));
+        )
+    };
+    let mut rows = row(w.when, &s.when, true);
+    for (k, v) in &s.facts {
+        rows.push_str(&row(k, v, false));
     }
     let steps: String = c
         .steps
         .iter()
-        .map(|st| format!(r#"<li style="margin:0 0 6px 0;">{}</li>"#, esc(st)))
+        .map(|st| format!(r#"<li style="margin:0 0 4px 0;">{}</li>"#, esc(st)))
         .collect();
     let button = match &c.link {
         Some((path, label)) => format!(
-            r#"<tr><td style="padding:4px 24px 22px 24px;"><a href="https://{host}{path}" style="display:inline-block;background:#101828;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 18px;border-radius:8px;">{label} →</a></td></tr>"#,
+            r#"<tr><td style="padding:8px 24px 24px 24px;"><a href="https://{host}{path}" style="display:inline-block;background:{ACCENT};color:#ffffff;text-decoration:none;font-size:14px;line-height:20px;font-weight:500;padding:8px 16px;border-radius:6px;">{label}</a></td></tr>"#,
             host = esc(host),
             path = esc(path),
             label = esc(label),
@@ -180,31 +174,24 @@ fn card(s: &Shown, host: &str, w: &Words, lang: Lang) -> String {
     };
     format!(
         r#"<tr><td style="padding:0 0 16px 0;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;border:1px solid #eaecf0;border-left:4px solid {bar};">
-<tr><td style="padding:20px 24px 4px 24px;">
-<span style="display:inline-block;font-size:12px;font-weight:600;color:{badge_fg};background:{badge_bg};border-radius:999px;padding:3px 10px;">{level}</span>
-<div style="font-size:18px;line-height:26px;font-weight:700;color:#101828;margin-top:10px;">{title}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{SURFACE};border:1px solid {BORDER};border-radius:12px;">
+<tr><td style="padding:20px 24px 0 24px;">
+<span style="display:inline-block;font-size:12px;line-height:18px;font-weight:500;color:{badge_fg};background:{badge_bg};border-radius:9999px;padding:1px 8px;">{level}</span>
+<div style="font-size:16px;line-height:24px;font-weight:600;color:{FG};margin-top:8px;">{title}</div>
+<div style="font-size:14px;line-height:22px;color:{FG_SECONDARY};margin-top:4px;">{meaning}</div>
 </td></tr>
-<tr><td style="padding:8px 24px 0 24px;">
-<div style="font-size:12px;font-weight:600;color:#667085;text-transform:uppercase;letter-spacing:0.04em;">{what}</div>
-<div style="font-size:14px;line-height:22px;color:#344054;margin-top:4px;">{meaning}</div>
-</td></tr>
-<tr><td style="padding:14px 24px 0 24px;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;border-radius:8px;padding:6px 14px;">{rows}</table>
+<tr><td style="padding:12px 24px 0 24px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid {BORDER};border-bottom:1px solid {BORDER};">{rows}</table>
 </td></tr>
 <tr><td style="padding:16px 24px 8px 24px;">
-<div style="font-size:12px;font-weight:600;color:#667085;text-transform:uppercase;letter-spacing:0.04em;">{steps_h}</div>
-<ol style="margin:6px 0 0 0;padding-left:20px;font-size:14px;line-height:22px;color:#344054;">{steps}</ol>
+<div style="font-size:13px;line-height:20px;font-weight:500;color:{FG};">{steps_h}</div>
+<ol style="margin:4px 0 0 0;padding-left:20px;font-size:14px;line-height:22px;color:{FG_SECONDARY};">{steps}</ol>
 </td></tr>
 {button}</table>
 </td></tr>
 "#,
-        bar = t.bar,
-        badge_fg = t.badge_fg,
-        badge_bg = t.badge_bg,
         level = esc(c.level.label(lang)),
         title = esc(&c.title),
-        what = esc(w.what),
         meaning = esc(&c.meaning),
         steps_h = esc(w.steps),
     )
