@@ -42,6 +42,7 @@ pub mod keys;
 pub mod labels;
 pub mod mail;
 pub mod mail_image;
+pub mod mail_settings;
 pub mod mcp;
 pub mod messages;
 pub mod metrics;

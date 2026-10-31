@@ -5429,6 +5429,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings/vacation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your vacation reply; off when never set */
+        get: operations["getVacation"];
+        /** Set your vacation reply. Mail in Junk, held mail, mailing lists and automatic mail get no reply */
+        put: operations["setVacation"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/forwarding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your forwarding */
+        get: operations["getForwarding"];
+        put?: never;
+        /** Send a code to an address; forwarding to it starts once the code is entered. Needs a recent password confirmation */
+        post: operations["requestForwarding"];
+        /** Stop forwarding */
+        delete: operations["stopForwarding"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/forwarding/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Enter the code sent to the address */
+        post: operations["verifyForwarding"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -6151,6 +6205,18 @@ export interface components {
             enabled: boolean;
             /** @description Unix seconds */
             created_at: number;
+        };
+        Vacation: {
+            enabled: boolean;
+            subject: string;
+            body: string;
+            /** @description Unix seconds it starts replying, or null */
+            start?: number | null;
+            /** @description Unix seconds it stops replying, or null */
+            end?: number | null;
+            /** @description One reply per sender within this many days */
+            days: number;
+            readonly version?: number;
         };
     };
     responses: never;
@@ -13084,6 +13150,193 @@ export interface operations {
                 content: {
                     "application/json": {
                         error?: string;
+                    };
+                };
+            };
+        };
+    };
+    getVacation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Vacation */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Vacation"];
+                };
+            };
+        };
+    };
+    setVacation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Vacation"];
+            };
+        };
+        responses: {
+            /** @description Saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Vacation"];
+                };
+            };
+            /** @description invalid_subject, invalid_body, invalid_days or end_before_start, as {error} */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error?: string;
+                    };
+                };
+            };
+        };
+    };
+    getForwarding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Forwarding */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Where mail is forwarded; empty when off */
+                        address?: string;
+                        keep_copy?: boolean;
+                        /** @description Waiting for the code sent to it */
+                        pending_address?: string;
+                    };
+                };
+            };
+        };
+    };
+    requestForwarding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    address: string;
+                    /** @default true */
+                    keep_copy?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Code sent */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description invalid_address or own_address, as {error} */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error?: string;
+                    };
+                };
+            };
+            /** @description confirm_required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error?: string;
+                    };
+                };
+            };
+        };
+    };
+    stopForwarding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Stopped */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    verifyForwarding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    code: string;
+                };
+            };
+        };
+        responses: {
+            /** @description {address}: forwarding is on */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        address?: string;
+                    };
+                };
+            };
+            /** @description wrong_code with tries_left, or no_pending_code (none sent, expired, or too many wrong codes) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error?: string;
+                        tries_left?: number;
                     };
                 };
             };

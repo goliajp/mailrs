@@ -51,6 +51,12 @@ fn guarded() -> Vec<(Method, String, Option<Value>)> {
             Some(json!({ "url": "https://hooks.example/a", "event_type": "new_mail" })),
         ),
         (Method::GET, "/api/mail/export".into(), None),
+        // pointing mail at a new address elsewhere
+        (
+            Method::POST,
+            "/api/settings/forwarding".into(),
+            Some(json!({ "address": "away@elsewhere.example" })),
+        ),
         (Method::GET, "/api/admin/audit/accounts".into(), None),
         (
             Method::GET,
