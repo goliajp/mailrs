@@ -5,7 +5,6 @@ import {
   themeAtom,
   themePresets,
   ToastProvider,
-  useFonts,
   useResolvedMode,
   useThemeEffect,
 } from '@goliapkg/gds'
@@ -254,14 +253,16 @@ function PageSettings() {
 
 /**
  * Root-layout route element. Owns the global side-effect hooks
- * (document title, theme, fonts, `<meta name="theme-color">`) plus
+ * (document title, theme, `<meta name="theme-color">`) plus
  * the persistent chrome (`ToastProvider`, `CommandPalette`) that
  * every route sees. `<Outlet />` renders the child route.
  */
 function RootLayout() {
   useDocumentTitle()
   useThemeEffect()
-  useFonts()
+  // no `useFonts()`: it loads CJK fonts from Google, which hands every
+  // reader's address to a third party on each page load and is outside the
+  // content security policy; the font stacks name the system's own first
   useThemeColor()
 
   return (
