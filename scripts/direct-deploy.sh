@@ -245,8 +245,10 @@ fi
 if [ "${WEB_ONLY:-0}" != 1 ]; then
 echo "==> [2/6] push $GHCR (best-effort)"
 docker tag "$TAG" "$GHCR"
+GHCR_STATE="ghcr pushed"
 if ! docker push "$GHCR"; then
     echo "!! ghcr push failed — continuing with the deploy (image still ships via save|load)"
+    GHCR_STATE="ghcr NOT pushed: run docker push $GHCR"
 fi
 
 echo "==> [3/6] prod: save | ssh load + compose up"
@@ -556,4 +558,4 @@ echo "==> [6/6] prune target/"
 # build that just passed stays warm for the next deploy.
 ./scripts/prune-target.sh
 
-echo "done: prod on $VERSION (ghcr pushed)"
+echo "done: prod on $VERSION (${GHCR_STATE:-ghcr not pushed: web only})"
