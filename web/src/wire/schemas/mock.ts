@@ -26,7 +26,7 @@
  * Times are milliseconds since the epoch.
  */
 
-import { z } from 'zod'
+import { z } from '@/lib/zod'
 
 /** Mirrors `NamespaceView`. */
 export const mockNamespaceSchema = z.object({

@@ -18,7 +18,7 @@
  * struct, and that is all the confidence they carry until one is caught.
  */
 
-import { z } from 'zod'
+import { z } from '@/lib/zod'
 
 /** Delivery state of one send. Mirrors `families::send::Status`. */
 export const sendStatusSchema = z.enum([

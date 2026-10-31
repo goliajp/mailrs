@@ -7,7 +7,7 @@
  * openapi-diff CI gate catches the drift before it reaches prod.
  */
 
-import { z } from 'zod'
+import { z } from '@/lib/zod'
 
 /**
  * A single participant from the wire.

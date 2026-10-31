@@ -14,7 +14,7 @@
  * here without ripping wire boundary out of the codebase.
  */
 
-import { z } from 'zod'
+import { z } from '@/lib/zod'
 
 /**
  * The universal list-envelope shape. Every admin list endpoint

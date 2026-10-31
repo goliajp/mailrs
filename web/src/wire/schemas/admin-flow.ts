@@ -5,7 +5,7 @@
  * A stage is `null` when its owner could not be read, which is not zero.
  */
 
-import { z } from 'zod'
+import { z } from '@/lib/zod'
 
 export const adminFlowSchema = z.object({
   mock: z

@@ -6,7 +6,7 @@
  * `success: false` means the invite was not found or not answerable.
  */
 
-import { z } from 'zod'
+import { z } from '@/lib/zod'
 
 import { wireFetch } from '../client'
 
