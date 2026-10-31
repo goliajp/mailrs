@@ -179,10 +179,6 @@ services:
       MAILRS_HOSTNAME: mail.golia.ai
       MAILRS_ORG_NAMES: GOLIA株式会社,GOLIA K.K.
       MAILRS_FRAUD_RULES_FILE: /fraud-rules/active.lua
-      # Where an FBL reporter past its daily limit is reported
-      # (crates/intake/src/reports/fbl_evidence.rs); same pair as webapi's.
-      MAILRS_SECURITY_ALERT_TO: lihao@golia.jp
-      MAILRS_SECURITY_ALERT_FROM: noreply@golia.jp
       MAILRS_ORG_NAME_ALLOWED_DOMAINS: slack.com,github.com,atlassian.net
       MAILRS_SRS_SECRET: ${MAILRS_SRS_SECRET:-}
       # Must be an FQDN: it becomes Reporting-MTA in every DSN we
@@ -255,9 +251,13 @@ services:
       # name the client in X-Forwarded-For. webapi logs an error if another
       # private address starts forwarding (a recreated network moves it)
       MAILRS_TRUSTED_PROXIES: 172.18.0.1/32
-      # the login guard's alerts, mailed as a digest at most every 5 minutes
+      # every security alert (sign-ins, outbound pauses, backups, complaint
+      # limits), mailed as one message at most every 5 minutes, in this
+      # language and time zone
       MAILRS_SECURITY_ALERT_TO: lihao@golia.jp
       MAILRS_SECURITY_ALERT_FROM: noreply@golia.jp
+      MAILRS_SECURITY_ALERT_LANG: zh
+      MAILRS_SECURITY_ALERT_UTC_OFFSET: "+09:00"
       MAILRS_WEB_BIND: 0.0.0.0:3100
       MAILRS_WEB_STATIC_DIR: /opt/mailrs/web
       MAILRS_MAILDIR: /data/maildir

@@ -31,7 +31,7 @@ use std::net::IpAddr;
 
 use async_trait::async_trait;
 
-use crate::alerts::{self, Alert, Kind};
+use crate::alerts::{self, Alert, Fact, Kind};
 use crate::events::EventOps;
 
 /// One counted scope's threshold and lock.
@@ -405,6 +405,17 @@ pub fn record_failure<O: Ops + EventOps>(
                     subject,
                     at: now,
                     detail,
+                    facts: vec![
+                        Fact::Failures {
+                            count: u64::from(limits.max_failures),
+                            minutes: limits.window_secs / 60,
+                        },
+                        Fact::LastAttempt {
+                            source: source.to_string(),
+                            account: account.clone(),
+                        },
+                        Fact::LockedFor { minutes: secs / 60 },
+                    ],
                 },
             )?;
         }
@@ -421,6 +432,10 @@ pub fn record_failure<O: Ops + EventOps>(
             subject: "*".into(),
             at: now,
             detail,
+            facts: vec![Fact::Failures {
+                count: total,
+                minutes: policy.global_window_secs / 60,
+            }],
         };
         alerts::raise(ops, &alert)?;
     }

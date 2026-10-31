@@ -11,7 +11,7 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use mailrs_auth_guard::alerts::{Alert, Kind};
+use mailrs_auth_guard::alerts::{Alert, Fact, Kind};
 use mailrs_backup::{Outcome, Plan, Source, SourceKind};
 
 const DEFAULT_SOURCES: &str = "kevy-fastcore=kevy:/data/kevy-fastcore,maildir=maildir:/data/maildir,kevy-server=kevy:/kevy-server,dkim=files:/dkim";
@@ -168,7 +168,14 @@ async fn once(plan: &Plan) -> Option<Outcome> {
         other => {
             let reason = format!("{other:?}");
             tracing::error!(%reason, "backup could not record its outcome");
-            alert(&format!("the run could not record its outcome: {reason}")).await;
+            let detail = format!("the run could not record its outcome: {reason}");
+            alert(
+                &detail,
+                vec![Fact::Note {
+                    text: detail.clone(),
+                }],
+            )
+            .await;
             return None;
         }
     };
@@ -186,7 +193,10 @@ async fn once(plan: &Plan) -> Option<Outcome> {
     tracing::info!(ok = outcome.ok, %detail, "backup run");
     audit(action, &detail).await;
     if !outcome.ok {
-        alert(&outcome.reason).await;
+        let note = Fact::Note {
+            text: outcome.reason.clone(),
+        };
+        alert(&outcome.reason, vec![note]).await;
     }
     Some(outcome)
 }
@@ -198,15 +208,18 @@ async fn check_stale(target: &Path) {
     };
     let since = last.last_success.unwrap_or(last.started);
     if now - since > STALE_SECS {
-        alert(&format!(
-            "no backup has succeeded for {} hours",
-            (now - since) / 3600
-        ))
+        let hours = (now - since) / 3600;
+        alert(
+            &format!("no backup has succeeded for {hours} hours"),
+            vec![Fact::NoBackupFor {
+                hours: hours.max(0) as u64,
+            }],
+        )
         .await;
     }
 }
 
-async fn alert(detail: &str) {
+async fn alert(detail: &str, facts: Vec<Fact>) {
     let Ok(url) = std::env::var("MAILRS_KEVY_URL") else {
         tracing::error!(%detail, "backup alert not raised: MAILRS_KEVY_URL unset");
         return;
@@ -216,6 +229,7 @@ async fn alert(detail: &str) {
         subject: hostname(),
         at: chrono::Utc::now().timestamp().max(0) as u64,
         detail: detail.to_string(),
+        facts,
     };
     if let Err(e) = mailrs_auth_guard::kevy::guard_for(Some(&url))
         .raise(alert)

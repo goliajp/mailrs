@@ -3,7 +3,6 @@
 //! suppress more than its daily limit. Against a real kevy-server: the
 //! send record is written with a pipeline, which is what production reads.
 
-use mailrs_core_sidestate::families::outbound::PENDING_IDX;
 use mailrs_core_sidestate::families::send::{self, SendRow, Status};
 use mailrs_core_sidestate::families::suppression;
 use mailrs_intake::reports::fbl::maybe_record_complaint;
@@ -66,8 +65,6 @@ async fn only_a_complaint_about_our_own_message_suppresses_and_a_reporter_is_cap
     // environment concurrently.
     unsafe {
         std::env::set_var("MAILRS_KEVY_URL", &url);
-        std::env::set_var("MAILRS_SECURITY_ALERT_TO", "devops@golia.jp");
-        std::env::set_var("MAILRS_SECURITY_ALERT_FROM", "noreply@golia.jp");
     }
     let maildir = std::env::temp_dir().join(format!("fbl-test-{}", std::process::id()));
     let root = maildir.to_string_lossy().to_string();
@@ -144,23 +141,21 @@ async fn only_a_complaint_about_our_own_message_suppresses_and_a_reporter_is_cap
             .filter(|v| suppression::is_suppressed(&mut conn, v))
             .count();
         assert_eq!(suppressed, 20);
-        let pending = conn.lrange(PENDING_IDX, 0, -1).unwrap();
-        let alerts = pending
-            .iter()
-            .filter_map(|id| {
-                let id = String::from_utf8_lossy(id).to_string();
-                conn.hget(
-                    mailrs_core_sidestate::families::outbound::job_key(&id).as_bytes(),
-                    b"blob",
-                )
-                .ok()
-                .flatten()
-            })
-            .filter(|blob| {
-                String::from_utf8_lossy(blob).contains("\"recipient\":\"devops@golia.jp\"")
-            })
-            .count();
-        assert_eq!(alerts, 1, "one alert for one burst");
+        let alerts: Vec<_> = mailrs_auth_guard::alerts::take(&mut conn, 100)
+            .unwrap()
+            .into_iter()
+            .filter(|a| a.kind == mailrs_auth_guard::alerts::Kind::ComplaintLimit)
+            .collect();
+        assert_eq!(alerts.len(), 1, "one alert for one burst");
+        assert_eq!(alerts[0].subject, "fbl.example");
+        assert!(
+            alerts[0]
+                .facts
+                .contains(&mailrs_auth_guard::alerts::Fact::Complaints {
+                    reporter: "fbl.example".into(),
+                    limit: 20,
+                })
+        );
 
         let actions = audit_actions(&mut conn);
         let count = |a: &str| actions.iter().filter(|x| *x == a).count();
