@@ -9,6 +9,7 @@ mod account;
 mod tests;
 mod watch;
 
+use mailrs_mail_protocols::trash_view::TrashView;
 use std::sync::Arc;
 
 use mailrs_mail_protocols::backend::{Directory, Error, Protocol, Result};
@@ -65,7 +66,7 @@ impl PgDirectory {
 }
 
 impl Directory for PgDirectory {
-    type Account = PgAccount;
+    type Account = TrashView<PgAccount>;
 
     async fn password_cleared(&self, account: &str) -> bool {
         let Some(domain) = &self.domain else {
@@ -81,7 +82,12 @@ impl Directory for PgDirectory {
         self.hostname.clone()
     }
 
-    async fn login(&self, user: &str, password: &str, _: Protocol) -> Result<Option<PgAccount>> {
+    async fn login(
+        &self,
+        user: &str,
+        password: &str,
+        _: Protocol,
+    ) -> Result<Option<Self::Account>> {
         if !self.verify(user, password).await? {
             return Ok(None);
         }
@@ -89,6 +95,6 @@ impl Directory for PgDirectory {
             .ensure_default_mailboxes(user)
             .await
             .map_err(|e| Error::Store(e.to_string()))?;
-        Ok(Some(PgAccount::new(self, user)))
+        Ok(Some(TrashView::new(PgAccount::new(self, user))))
     }
 }

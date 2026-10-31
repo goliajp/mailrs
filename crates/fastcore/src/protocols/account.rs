@@ -4,7 +4,7 @@
 use std::path::PathBuf;
 
 use mailrs_mail_protocols::backend::{
-    Account, Error, Expunged, Filed, Flag, Message, Quota, Result, Selected,
+    Account, Error, Expunged, Filed, Flag, Message, Quota, Result, Selected, Trashed,
 };
 
 use super::mock::MockAccount;
@@ -189,6 +189,28 @@ impl Account for FastcoreAccount {
             used: used.max(0) as u64,
             limit: limit.max(0) as u64,
         })
+    }
+
+    async fn trashed(&self) -> Result<Trashed<FcMailbox, PathBuf>> {
+        match self {
+            Self::Real(a) => a.trashed(),
+            Self::Mock(_) => Ok(Trashed {
+                messages: Vec::new(),
+                latest: 0,
+            }),
+        }
+    }
+
+    async fn set_trashed(
+        &self,
+        _: &FcMailbox,
+        m: &Message<PathBuf>,
+        trashed: bool,
+    ) -> Result<bool> {
+        match self {
+            Self::Real(a) => a.set_trashed(m, trashed),
+            Self::Mock(_) => refused(),
+        }
     }
 
     fn watch(&self, _: &FcMailbox) -> FeedWatch {
