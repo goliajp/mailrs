@@ -4,6 +4,7 @@ import DOMPurify from 'dompurify'
 import { useAtomValue } from 'jotai'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
+import { ImagesHeldNote, ImagesHiddenNote } from '@/components/images-note'
 import { cjkFonts, cjkLang, injectCjkFonts } from '@/lib/cjk-fonts'
 import { fitHeight, fitScale, shouldReflowTable } from '@/lib/fit-to-width'
 import { markRemoteImage, reload, showPrefetched, watchMissing } from '@/lib/remote-images'
@@ -431,15 +432,7 @@ export function HtmlFrame({
 
   return (
     <>
-      {imagesHeld && (
-        <p className="border-border bg-bg-secondary text-fg-secondary border-b px-3 py-2 text-xs">
-          Images are not loaded for mail in Junk or held for review: loading them tells the sender
-          the address is read.{' '}
-          <button className="text-accent hover:underline" onClick={showAnyway} type="button">
-            Show images anyway
-          </button>
-        </p>
-      )}
+      {imagesHeld && <ImagesHeldNote onShow={showAnyway} />}
       {!shown && remoteCount > 0 && (
         <ImagesHiddenNote mode={remoteImages} onShow={() => setShownFor(sanitized)} />
       )}
@@ -471,24 +464,6 @@ function cachedSanitize(html: string): string {
     sanitizeCache.delete(oldest)
   }
   return sanitized
-}
-
-function ImagesHiddenNote({ mode, onShow }: { mode: string; onShow: () => void }) {
-  if (mode === 'never') {
-    return (
-      <p className="border-border bg-bg-secondary text-fg-secondary border-b px-3 py-2 text-xs">
-        Images are hidden by your settings
-      </p>
-    )
-  }
-  return (
-    <p className="border-border bg-bg-secondary text-fg-secondary border-b px-3 py-2 text-xs">
-      Images in this message are hidden.{' '}
-      <button className="text-accent hover:underline" onClick={onShow} type="button">
-        Show images
-      </button>
-    </p>
-  )
 }
 
 function sanitizeEmail(html: string): string {
