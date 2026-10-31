@@ -1,8 +1,7 @@
+import type { ThreadMessage } from '@/lib/types'
 // mobile-mail.tsx — complete mobile email experience
 // replaces desktop Chat (MPaneGroup/MPane) with full-screen view switching
 // shares data layer (atoms, API) but independent UI
-
-import type { ThreadMessage } from '@/lib/types'
 
 import { useAtomValue, useSetAtom } from 'jotai'
 import { ArrowLeft, Mail, MessageSquare, Reply } from 'lucide-react'
@@ -20,6 +19,7 @@ import {
 } from '@/hooks/use-current-list'
 import { useThreadQuery } from '@/hooks/use-mail-queries'
 import { useMarkReadOnOpen } from '@/hooks/use-mark-read-on-open'
+import { useT } from '@/i18n'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { formatDate, formatFullDate } from '@/lib/format'
 import { verifiedSender } from '@/lib/sender-identity'
@@ -52,6 +52,7 @@ export function MobileMail() {
 // ─── thread view (full-screen email reader) ──────────────────
 
 function MobileConversationView() {
+  const t = useT()
   // v2.1 phase-5d: read thread messages from RQ instead of the atom.
   const messages = useCurrentThreadMessages()
   const auth = useAtomValue(authAtom)
@@ -73,7 +74,7 @@ function MobileConversationView() {
       {/* header */}
       <div className="border-border flex shrink-0 items-center gap-2 border-b px-3 py-2">
         <button
-          aria-label="Back to thread"
+          aria-label={t('mobile.backToThread')}
           className="touch-target text-fg-muted hover:text-fg -ml-1 p-1"
           onClick={() => setMobileView('thread')}
           type="button"
@@ -81,9 +82,11 @@ function MobileConversationView() {
           <ArrowLeft className="h-5 w-5" />
         </button>
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-sm font-semibold">Conversation ({messages.length})</h2>
+          <h2 className="truncate text-sm font-semibold">
+            {t('mobile.conversationCount', { count: messages.length })}
+          </h2>
           <p className="text-fg-muted truncate text-xs">
-            {conversation?.subject || '(no subject)'}
+            {conversation?.subject || t('mobile.noSubject')}
           </p>
         </div>
       </div>
@@ -128,7 +131,7 @@ function MobileConversationView() {
           type="button"
         >
           <Reply className="h-4 w-4" />
-          Reply
+          {t('read.reply')}
         </button>
       </div>
     </div>
@@ -138,6 +141,7 @@ function MobileConversationView() {
 // ─── conversation timeline view ──────────────────────────────
 
 function MobileReplyView() {
+  const t = useT()
   const auth = useAtomValue(authAtom)
   const selectedId = useSelectedThreadId()
   const messages = useCurrentThreadMessages()
@@ -174,7 +178,7 @@ function MobileReplyView() {
       {/* header */}
       <div className="border-border flex shrink-0 items-center gap-2 border-b px-3 py-2">
         <button
-          aria-label="Back to thread"
+          aria-label={t('mobile.backToThread')}
           className="touch-target text-fg-muted hover:text-fg -ml-1 p-1"
           onClick={() => setMobileView('thread')}
           type="button"
@@ -215,6 +219,7 @@ function MobileReplyView() {
 // ─── full-screen reply view ──────────────────────────────────
 
 function MobileThreadView() {
+  const t = useT()
   const auth = useAtomValue(authAtom)
   const myEmail = auth?.address ?? ''
   const selectedId = useSelectedThreadId()
@@ -271,7 +276,7 @@ function MobileThreadView() {
       {/* header */}
       <div className="border-border flex shrink-0 items-center gap-2 border-b px-3 py-2">
         <button
-          aria-label="Back to inbox"
+          aria-label={t('mobile.backToInbox')}
           className="touch-target text-fg-muted hover:text-fg -ml-1 p-1"
           onClick={() => setMobileView('list')}
           type="button"
@@ -319,7 +324,9 @@ function MobileThreadView() {
                       {formatFullDate(selectedMsg.internal_date)}
                     </span>
                   </div>
-                  <p className="text-fg-muted truncate text-xs">to {selectedMsg.recipients}</p>
+                  <p className="text-fg-muted truncate text-xs">
+                    {t('compose.toRecipients', { recipients: selectedMsg.recipients })}
+                  </p>
                 </div>
               </div>
             </div>
@@ -364,7 +371,7 @@ function MobileThreadView() {
                   type="button"
                 >
                   <MessageSquare className="h-4 w-4" />
-                  View conversation ({messages.length} messages)
+                  {t('mobile.viewConversation', { count: messages.length })}
                 </button>
               </div>
             )}
@@ -375,13 +382,13 @@ function MobileThreadView() {
         ) : (
           <div className="text-fg-muted flex flex-col items-center justify-center py-12">
             <Mail className="mb-2 h-8 w-8" />
-            <p className="text-sm">No message selected</p>
+            <p className="text-sm">{t('mobile.noMessage')}</p>
           </div>
         )}
 
         {/* floating reply button */}
         <button
-          aria-label="Reply"
+          aria-label={t('read.reply')}
           className="bg-accent sticky bottom-4 left-full z-10 mr-4 -ml-20 flex h-14 w-14 items-center justify-center rounded-full text-white shadow-lg active:scale-95"
           onClick={() => setMobileView('reply')}
           type="button"
