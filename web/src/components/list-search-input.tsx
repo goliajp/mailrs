@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { useAtom } from 'jotai'
 import { Search, X } from 'lucide-react'
 
+import { useT } from '@/i18n'
 import { searchQueryAtom } from '@/store/ui'
 
 /**
@@ -22,12 +23,13 @@ import { searchQueryAtom } from '@/store/ui'
 export function ListSearchInput({
   children,
   label,
-  placeholder = 'Search...',
+  placeholder,
 }: {
   children?: ReactNode
   label: string
   placeholder?: string
 }) {
+  const t = useT()
   const [value, setValue] = useAtom(searchQueryAtom)
   const active = value.trim().length > 0
   return (
@@ -41,13 +43,13 @@ export function ListSearchInput({
           aria-label={label}
           className="border-border bg-bg-secondary text-fg placeholder:text-fg-muted focus:border-accent focus:bg-bg w-full rounded-md border py-2 pr-8 pl-9 text-sm transition-colors outline-none"
           onChange={(e) => setValue(e.target.value)}
-          placeholder={placeholder}
+          placeholder={placeholder ?? t('search.placeholder')}
           type="text"
           value={value}
         />
         {active && (
           <button
-            aria-label="Clear search"
+            aria-label={t('search.clear')}
             className="text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary focus-visible:ring-accent/50 absolute top-1/2 right-1.5 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:outline-none"
             onClick={() => setValue('')}
             type="button"

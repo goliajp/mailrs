@@ -33,10 +33,10 @@ src/components/composer/email-preview.tsx 3
 src/components/confirm-password-dialog.tsx 7
 src/components/contact-autocomplete.tsx 3
 src/components/context-menu.tsx 2
-src/components/conversation-item.tsx 2
+src/components/conversation-item.tsx 1
 src/components/conversation-list-batch-action-bar.tsx 1
-src/components/conversation-list-filter-bar.tsx 8
-src/components/conversation-list-virtual.tsx 9
+src/components/conversation-list-filter-bar.tsx 3
+src/components/conversation-list-virtual.tsx 4
 src/components/conversation-list.tsx 9
 src/components/dashboard/category-bar.tsx 1
 src/components/dashboard/conversation-row.tsx 3
@@ -52,7 +52,7 @@ src/components/keyboard-shortcuts-dialog.tsx 3
 src/components/label-bar.tsx 1
 src/components/label-chip.tsx 1
 src/components/label-picker.tsx 7
-src/components/list-search-input.tsx 2
+src/components/list-search-input.tsx 1
 src/components/loading-fallback.tsx 1
 src/components/message-bubble.tsx 4
 src/components/message-source.tsx 2
@@ -116,7 +116,6 @@ src/components/thread-content-pane.tsx 15
 src/components/thread-conversation-pane.tsx 1
 src/components/thread-view-bubble.tsx 8
 src/components/thread-view.tsx 10
-src/components/trash-banner.tsx 6
 src/components/unsubscribe-footer.tsx 2
 src/main.tsx 3
 src/pages/admin-accounts.tsx 12

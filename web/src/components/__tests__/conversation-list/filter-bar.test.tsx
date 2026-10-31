@@ -228,7 +228,7 @@ afterEach(() => {
 
 // helper: open the filter dropdown panel
 function openFilterPanel() {
-  fireEvent.click(screen.getByLabelText('Toggle filters'))
+  fireEvent.click(screen.getByLabelText('Show or hide filters'))
 }
 
 // domain selector tests removed — domains moved to sidebar
@@ -250,8 +250,8 @@ describe('FilterBar — sort', () => {
 
     openFilterPanel()
     expect(screen.getByText('Sort')).toBeDefined()
-    expect(screen.getByText('newest')).toBeDefined()
-    expect(screen.getByText('oldest')).toBeDefined()
+    expect(screen.getByText('Newest')).toBeDefined()
+    expect(screen.getByText('Oldest')).toBeDefined()
     expect(screen.getByText('Unread first')).toBeDefined()
   })
 
@@ -277,7 +277,7 @@ describe('FilterBar — sort', () => {
     )
 
     openFilterPanel()
-    fireEvent.click(screen.getByText('oldest'))
+    fireEvent.click(screen.getByText('Oldest'))
 
     const items = screen.getAllByRole('listitem')
     expect(items[0].textContent).toContain('Older')
