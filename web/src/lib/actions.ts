@@ -25,6 +25,7 @@ import {
   ShoppingBag,
   Star,
   StarOff,
+  Tag,
   Trash2,
   Undo2,
 } from 'lucide-react'
@@ -32,6 +33,7 @@ import {
 export type ActionId =
   | 'archive'
   | 'delete-forever'
+  | 'label'
   | 'mark-junk'
   | 'mark-not-junk'
   | 'mark-notification'
@@ -92,6 +94,18 @@ export const ACTIONS: Record<ActionId, ActionSpec> = {
     id: 'delete-forever',
     keys: ['#'],
     label: 'Delete forever',
+    undo: null,
+  }),
+  // opens the label picker; what it changes is said there
+  label: spec({
+    batch: true,
+    confirm: false,
+    danger: false,
+    done: null,
+    icon: Tag,
+    id: 'label',
+    keys: ['l'],
+    label: 'Labels',
     undo: null,
   }),
   'mark-junk': spec({
@@ -295,7 +309,7 @@ export function actionForKey(key: string, s: RowState): ActionId | null {
 
 /** The batch bar's actions, in order. */
 export function batchActions(view: RowState['view']): ActionId[] {
-  let ids: ActionId[] = ['read', 'unread', 'star', 'archive', 'trash']
+  let ids: ActionId[] = ['read', 'unread', 'star', 'archive', 'label', 'trash']
   if (view === 'trash') ids = ['read', 'unread', 'untrash']
   return ids.filter((id) => ACTIONS[id].batch)
 }
@@ -317,6 +331,7 @@ export function rowActions(s: RowState): ActionId[] {
     toggle(s.archived, 'unarchive', 'archive'),
     toggle(s.snoozed, 'unsnooze', 'snooze'),
     ...bucketActions(s.view),
+    'label',
     'trash',
   ]
 }

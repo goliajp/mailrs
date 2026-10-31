@@ -72,6 +72,7 @@ function tableShortcuts(): ShortcutEntry[] {
     ['pin', 'unpin'],
     ['snooze', 'unsnooze'],
     ['mark-junk'],
+    ['label'],
     ['unread'],
     ['read'],
     ['trash', 'delete-forever'],

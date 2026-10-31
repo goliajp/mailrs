@@ -35,6 +35,17 @@ fn snooze_body_matches() {
 }
 
 #[test]
+fn label_bodies_match() {
+    let v: mailrs_core_api::method::label::CreateLabelRequest = parse("label-create");
+    assert_eq!((v.name.as_str(), v.color.as_str()), ("Work", "blue"));
+    let v: mailrs_core_api::method::label::UpdateLabelRequest = parse("label-update");
+    assert_eq!(
+        (v.name.as_deref(), v.color.as_deref()),
+        (Some("Jobs"), Some("red"))
+    );
+}
+
+#[test]
 fn feedback_body_matches() {
     let v: handlers::prefs_misc::FeedbackRequest = parse("feedback");
     assert_eq!(v.sender_email, "someone@example.com");
@@ -308,6 +319,8 @@ fn every_fixture_has_a_test() {
         "group-members-add",
         "login",
         "key-upload",
+        "label-create",
+        "label-update",
         "mock-address-create",
         "mock-namespace-create",
         "invite-counter",

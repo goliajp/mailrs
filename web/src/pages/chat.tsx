@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router'
 
 import { ConversationList } from '@/components/conversation-list'
 import { DraftsList } from '@/components/drafts-list'
+import { LabelPicker } from '@/components/label-picker'
 import { MobileMail } from '@/components/mobile-mail'
 import { NewConversation } from '@/components/new-conversation'
 import { SendList } from '@/components/send-list/send-list'
@@ -147,14 +148,22 @@ export function Chat() {
   // conversation list and reading pane mounted on every phone, running
   // their effects against data nobody could see.
   if (isMobile) {
-    return <div className="h-full">{renderMobileBody()}</div>
+    return (
+      <div className="h-full">
+        {renderMobileBody()}
+        <LabelPicker />
+      </div>
+    )
   }
   return (
-    <MPaneGroup className="flex">
-      <MPane width={480}>{renderList()}</MPane>
+    <>
+      <MPaneGroup className="flex">
+        <MPane width={480}>{renderList()}</MPane>
 
-      <MPaneGroup>{renderDesktopMain()}</MPaneGroup>
-    </MPaneGroup>
+        <MPaneGroup>{renderDesktopMain()}</MPaneGroup>
+      </MPaneGroup>
+      <LabelPicker />
+    </>
   )
 }
 

@@ -5,6 +5,7 @@
 //! what holds this table to the fastcore lane's — the two cores serve one client, so a path
 //! here and not there is a feature that works or 404s depending on which is deployed.
 
+use mailrs_core_api::method::label as lb;
 use std::sync::Arc;
 
 use axum::Router;
@@ -82,15 +83,15 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
         .route(th_paths::PATH_ARCHIVE, post(handlers::thread::archive))
         .route(th_paths::PATH_UNARCHIVE, post(handlers::thread::unarchive))
         .route(
-            mailrs_core_api::method::label::PATH_LABELS,
+            lb::PATH_LABELS,
             get(handlers::labels::list_labels).post(handlers::labels::create_label),
         )
         .route(
-            mailrs_core_api::method::label::PATH_LABEL,
+            lb::PATH_LABEL,
             post(handlers::labels::update_label).delete(handlers::labels::delete_label),
         )
         .route(
-            mailrs_core_api::method::label::PATH_THREAD_LABEL,
+            lb::PATH_THREAD_LABEL,
             post(handlers::labels::label_thread).delete(handlers::labels::unlabel_thread),
         )
         .route(th_paths::PATH_TRASH, post(handlers::trash::trash))
