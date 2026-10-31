@@ -48,8 +48,6 @@ export type MailRowState = {
   readonly checked?: boolean
   /** Wants attention — a failed send, currently. Overrides the accent. */
   readonly flagged?: boolean
-  /** Dim rows that have been read. */
-  readonly muted?: boolean
   /** The row whose content the reading pane is showing. */
   readonly selected?: boolean
 }
@@ -72,13 +70,11 @@ export function mailRowClass(state: MailRowState): string {
  * user's attention than which row happens to be open, and the two never
  * need to be distinguished at once.
  *
- * A read row dims only the parts marked `data-row-dims`, never the whole
- * row: opacity on the row made the sender's icon translucent too, so the
- * page showed through it and a logo read as washed out next to the same
- * logo on an unread row.
+ * A read row is not dimmed: muted text is already as light as 4.5:1
+ * contrast allows, and any opacity on it fell below (2.8:1 at 70%). Unread
+ * rows stand out by their bold, darker sender and subject instead. The
+ * selected tint is light enough for muted text to keep 4.5:1 on it.
  */
-const ROW_DIM =
-  '[&_[data-row-dims]]:opacity-70 hover:[&_[data-row-dims]]:opacity-100 [&_[data-row-dims]]:transition-opacity'
 
 export function mailRowStateClass(state: MailRowState): string {
   const isSelected = Boolean(state.selected) && !state.batchMode
@@ -87,7 +83,6 @@ export function mailRowStateClass(state: MailRowState): string {
     : isSelected
       ? 'border-l-accent'
       : 'border-l-transparent'
-  const bg = isSelected || state.checked ? 'bg-accent/10' : 'hover:bg-bg-secondary'
-  const dim = state.muted && !isSelected && !state.checked ? ROW_DIM : ''
-  return `${border} ${bg} ${dim}`
+  const bg = isSelected || state.checked ? 'bg-accent/6' : 'hover:bg-bg-secondary'
+  return `${border} ${bg}`
 }
