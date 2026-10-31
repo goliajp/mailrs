@@ -71,7 +71,7 @@ fn a_label_goes_on_and_off_a_conversation_its_user_is_in() {
     let l = s.create_label(U, "Work", "blue", 1).unwrap();
     s.set_label(U, &l.id, "t1", true).unwrap();
     assert_eq!(s.threads_with_label(U, &l.id).unwrap(), ["t1"]);
-    assert_eq!(s.labels_by_thread(U).unwrap()["t1"], [l.id.clone()]);
+    assert_eq!(s.labels_by_thread(U).unwrap()["t1"], std::slice::from_ref(&l.id));
     assert_eq!(
         refused(s.set_label(U, &l.id, "t-theirs", true)),
         LabelError::NotFound
