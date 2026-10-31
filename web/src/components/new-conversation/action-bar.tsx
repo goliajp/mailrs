@@ -2,6 +2,9 @@ import type { TemplateInfo } from './types'
 
 import { Clock, Loader2, Send, X } from 'lucide-react'
 
+import { useT } from '@/i18n'
+import { sendLabel } from '@/lib/compose-labels'
+
 type ActionBarProps = {
   onCancel: () => void
   onPolish: () => void
@@ -31,6 +34,7 @@ export function ActionBar({
   showSchedulePicker,
   templates,
 }: ActionBarProps) {
+  const t = useT()
   return (
     <div className="border-border flex shrink-0 flex-wrap items-center gap-1 border-t px-4 py-2 select-none">
       {scheduledAt && (
@@ -42,7 +46,7 @@ export function ActionBar({
             month: 'short',
           })}
           <button
-            aria-label="Clear schedule"
+            aria-label={t('compose.clearSchedule')}
             className="rounded-full p-0.5 hover:opacity-70"
             onClick={onScheduleClear}
             type="button"
@@ -58,25 +62,25 @@ export function ActionBar({
         type="button"
       >
         <Send className="h-3.5 w-3.5" />
-        {sending ? 'Sending…' : 'Send'}
+        {t(sendLabel(sending))}
       </button>
 
       <button
-        aria-label="Schedule send"
+        aria-label={t('compose.schedule')}
         aria-pressed={showSchedulePicker}
         className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
           showSchedulePicker ? 'bg-accent/10 text-accent' : 'text-fg-muted hover:bg-bg-secondary'
         }`}
         disabled={sending}
         onClick={onToggleSchedulePicker}
-        title="Schedule send"
+        title={t('compose.schedule')}
         type="button"
       >
         <Clock className="h-4 w-4" />
       </button>
       {showSchedulePicker && (
         <input
-          aria-label="Schedule send time"
+          aria-label={t('compose.scheduleTime')}
           className="border-border bg-bg-secondary text-fg focus:border-accent h-8 w-44 max-w-full shrink-0 rounded-md border px-2 text-xs outline-none"
           min={localDatetimeMin()}
           onChange={(e) => onScheduleChange(e.target.value)}
@@ -88,34 +92,35 @@ export function ActionBar({
       <div className="bg-border mx-0.5 h-4 w-px" />
 
       <button
-        aria-label="AI polish"
+        aria-label={t('compose.aiPolish')}
         className="text-accent hover:bg-accent/10 disabled:text-fg-muted flex h-8 shrink-0 items-center rounded-md px-2 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50"
         disabled={polishing || sending}
         onClick={onPolish}
-        title="AI polish"
+        title={t('compose.aiPolish')}
         type="button"
       >
-        {polishing ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Polish'}
+        {polishing && <Loader2 className="h-3 w-3 animate-spin" />}
+        {!polishing && t('compose.polish')}
       </button>
 
       {templates.length > 0 && (
         <select
-          aria-label="Apply template"
+          aria-label={t('compose.applyTemplate')}
           className="border-border bg-bg-secondary text-fg-secondary h-8 rounded-md border px-2 text-xs disabled:cursor-not-allowed disabled:opacity-50"
           defaultValue=""
           disabled={sending}
           onChange={(e) => {
-            const t = templates.find((tt) => tt.id === Number(e.target.value))
-            if (t) onTemplateSelect(t)
+            const picked = templates.find((tt) => tt.id === Number(e.target.value))
+            if (picked) onTemplateSelect(picked)
             e.target.value = ''
           }}
         >
           <option disabled value="">
-            Templates
+            {t('compose.templates')}
           </option>
-          {templates.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name}
+          {templates.map((tpl) => (
+            <option key={tpl.id} value={tpl.id}>
+              {tpl.name}
             </option>
           ))}
         </select>
@@ -131,7 +136,7 @@ export function ActionBar({
         onClick={onCancel}
         type="button"
       >
-        Cancel
+        {t('common.cancel')}
       </button>
     </div>
   )

@@ -2,13 +2,16 @@ import type { ReplyMode } from './types'
 
 import { Eye, Loader2, Send } from 'lucide-react'
 
-const TONE_OPTIONS = [
-  { label: 'Pro', value: 'professional' },
-  { label: 'Casual', value: 'casual' },
-  { label: 'Formal', value: 'formal' },
-  { label: 'Friendly', value: 'friendly' },
-  { label: 'Concise', value: 'concise' },
-] as const
+import { type Key, useT } from '@/i18n'
+import { sendLabel } from '@/lib/compose-labels'
+
+const TONE_OPTIONS: readonly { label: Key; value: string }[] = [
+  { label: 'compose.tone.professional', value: 'professional' },
+  { label: 'compose.tone.casual', value: 'casual' },
+  { label: 'compose.tone.formal', value: 'formal' },
+  { label: 'compose.tone.friendly', value: 'friendly' },
+  { label: 'compose.tone.concise', value: 'concise' },
+]
 
 type ActionBarProps = {
   mode: ReplyMode
@@ -35,34 +38,36 @@ export function ActionBar({
   suggesting,
   tone,
 }: ActionBarProps) {
+  const t = useT()
+  const toneName = toneLabel(tone, t)
   return (
     <div className="border-border flex shrink-0 flex-wrap items-center gap-1 border-t px-4 py-2 select-none">
       {mode !== 'forward' && (
         <button
-          aria-label="Suggest replies"
+          aria-label={t('compose.suggestReplies')}
           className="text-accent hover:bg-accent/10 disabled:text-fg-muted flex h-8 shrink-0 items-center rounded-md px-2 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50"
           disabled={suggesting || sending}
           onClick={onSuggest}
-          title="AI reply suggestions"
+          title={t('compose.suggestTitle')}
           type="button"
         >
-          {suggesting ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Suggest'}
+          {suggesting ? <Loader2 className="h-3 w-3 animate-spin" /> : t('compose.suggest')}
         </button>
       )}
 
       <div className="relative flex shrink-0">
         <button
-          aria-label={`Polish text (${tone})`}
+          aria-label={t('compose.polishWithTone', { tone: toneName })}
           className="text-accent hover:bg-accent/10 disabled:text-fg-muted flex h-8 items-center rounded-l-md px-2 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50"
           disabled={polishing || sending}
           onClick={onPolish}
-          title={`Polish (${tone})`}
+          title={t('compose.polishWithTone', { tone: toneName })}
           type="button"
         >
-          {polishing ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Polish'}
+          {polishing ? <Loader2 className="h-3 w-3 animate-spin" /> : t('compose.polish')}
         </button>
         <select
-          aria-label="Polish tone"
+          aria-label={t('compose.polishTone')}
           className="border-border text-accent hover:bg-accent/10 text-tiny h-8 appearance-none rounded-r-md border-l bg-transparent px-1 outline-none disabled:cursor-not-allowed disabled:opacity-50"
           disabled={polishing || sending}
           onChange={(e) => onToneChange(e.target.value)}
@@ -70,7 +75,7 @@ export function ActionBar({
         >
           {TONE_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>
-              {opt.label}
+              {t(opt.label)}
             </option>
           ))}
         </select>
@@ -82,11 +87,11 @@ export function ActionBar({
         className="border-border text-fg hover:bg-bg-tertiary flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-3 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
         disabled={sending}
         onClick={onPreview}
-        title="Preview as the recipient will see it"
+        title={t('compose.previewTitle')}
         type="button"
       >
         <Eye className="h-3.5 w-3.5" />
-        Preview
+        {t('compose.preview')}
       </button>
 
       <button
@@ -96,8 +101,14 @@ export function ActionBar({
         type="button"
       >
         <Send className="h-3.5 w-3.5" />
-        {sending ? 'Sending…' : 'Send'}
+        {t(sendLabel(sending))}
       </button>
     </div>
   )
+}
+
+function toneLabel(tone: string, t: (key: Key) => string): string {
+  const option = TONE_OPTIONS.find((o) => o.value === tone)
+  if (option) return t(option.label)
+  return tone
 }
