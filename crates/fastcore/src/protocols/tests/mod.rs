@@ -6,6 +6,7 @@ mod moves;
 mod pop3;
 mod seen;
 mod sieve;
+mod trash;
 mod uidvalidity;
 mod writes;
 
