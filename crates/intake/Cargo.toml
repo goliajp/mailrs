@@ -12,6 +12,7 @@ workspace = true
 [dependencies]
 mailrs-core = { path = "../core" }
 mailrs-core-sidestate = { path = "../core-sidestate" }
+mailrs-auth-guard = { path = "../auth-guard", version = "3", features = ["kevy"] }
 mailrs-mock = { path = "../mock" }
 mailrs-srs = { path = "../srs", version = "1" }
 kevy-client = { workspace = true }

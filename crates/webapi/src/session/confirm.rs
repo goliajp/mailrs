@@ -231,6 +231,11 @@ async fn failed(source: std::net::IpAddr, address: &str, session: &str) -> Respo
             "session {}…, source {source}, {count} failed confirmations; the session was ended",
             &session[..8]
         ),
+        facts: vec![mailrs_auth_guard::alerts::Fact::Session {
+            prefix: session[..8].to_string(),
+            source: source.to_string(),
+            failures: count.max(0) as u64,
+        }],
     };
     if let Err(e) = crate::login_guard::GUARD.raise(alert).await {
         tracing::error!(error = %e, "confirm: the alert could not be queued");

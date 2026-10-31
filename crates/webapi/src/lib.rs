@@ -17,6 +17,7 @@ mod router;
 pub use router::build_router;
 pub mod kevy_pool;
 pub mod login_guard;
+pub mod security_mail;
 pub mod session;
 
 use std::sync::Arc;
