@@ -1,12 +1,24 @@
+import type { RemoteImages } from '@/store/settings'
 import type { ThemeMode } from '@goliapkg/gds'
 
 import { useAtom } from 'jotai'
 import { useCallback, useState } from 'react'
 
-import { hideSuspectedFraudAtom, notificationsAtom, notificationSoundAtom } from '@/store/settings'
+import {
+  hideSuspectedFraudAtom,
+  notificationsAtom,
+  notificationSoundAtom,
+  remoteImagesAtom,
+} from '@/store/settings'
 import { themeModeAtom } from '@/store/theme'
 
 import { cardClass, Field, SectionHeader, Toggle } from './_shared'
+
+const REMOTE_IMAGE_OPTIONS: { label: string; value: RemoteImages }[] = [
+  { label: 'Show', value: 'auto' },
+  { label: 'On click', value: 'click' },
+  { label: 'Never', value: 'never' },
+]
 
 const THEME_OPTIONS: { label: string; value: ThemeMode }[] = [
   { label: 'Light', value: 'light' },
@@ -19,6 +31,7 @@ export function AppearanceSection() {
   const [notifications, setNotifications] = useAtom(notificationsAtom)
   const [notificationSound, setNotificationSound] = useAtom(notificationSoundAtom)
   const [hideSuspectedFraud, setHideSuspectedFraud] = useAtom(hideSuspectedFraudAtom)
+  const [remoteImages, setRemoteImages] = useAtom(remoteImagesAtom)
   const [notificationError, setNotificationError] = useState<null | string>(null)
 
   const handleNotificationToggle = useCallback(
@@ -86,6 +99,30 @@ export function AppearanceSection() {
 
       <div className={cardClass}>
         <div className="space-y-1">
+          <Field label="Images in mail">
+            <div className="flex gap-1">
+              {REMOTE_IMAGE_OPTIONS.map((opt) => (
+                <button
+                  aria-pressed={remoteImages === opt.value}
+                  className={optionClass(remoteImages === opt.value)}
+                  key={opt.value}
+                  onClick={() => setRemoteImages(opt.value)}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </Field>
+          <p className="text-fg-muted text-xs">
+            Images never load from the sender&apos;s server: this server fetches a copy when mail
+            arrives, which tells the sender only that it was delivered, not whether or when you read
+            it. Mail in Junk or held for review never shows images unless you ask.
+          </p>
+        </div>
+      </div>
+
+      <div className={cardClass}>
+        <div className="space-y-1">
           <Field label="Hide suspected fraud">
             <Toggle checked={hideSuspectedFraud} onChange={setHideSuspectedFraud} />
           </Field>
@@ -102,4 +139,10 @@ export function AppearanceSection() {
       </div>
     </div>
   )
+}
+
+function optionClass(selected: boolean): string {
+  const base = 'rounded-md px-3 py-1.5 text-sm transition-colors'
+  if (selected) return `${base} bg-accent text-accent-fg`
+  return `${base} bg-surface text-fg-secondary hover:bg-bg-secondary`
 }

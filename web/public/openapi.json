@@ -10420,6 +10420,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "anyway",
+            "in": "query",
+            "description": "Fetch them for a conversation in Junk or held all the same; it tells the sender the address is read",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -10430,7 +10438,7 @@
             "description": "No such conversation"
           },
           "409": {
-            "description": "In Junk or held for review: its images are never fetched"
+            "description": "In Junk or held for review, and anyway is not set"
           }
         }
       }

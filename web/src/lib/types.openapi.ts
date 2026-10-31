@@ -12541,7 +12541,10 @@ export interface operations {
     };
     prefetchThreadImages: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Fetch them for a conversation in Junk or held all the same; it tells the sender the address is read */
+                anyway?: boolean;
+            };
             header?: never;
             path: {
                 thread_id: string;
@@ -12564,7 +12567,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description In Junk or held for review: its images are never fetched */
+            /** @description In Junk or held for review, and anyway is not set */
             409: {
                 headers: {
                     [name: string]: unknown;

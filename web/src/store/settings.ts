@@ -81,3 +81,31 @@ export const hideSuspectedFraudAtom = atom(
     set(baseHideSuspectedFraudAtom, value)
   }
 )
+
+// --- remote images ---
+//
+// Whether images a message loads from elsewhere are shown when it is
+// opened. They never come from the sender's server: the server fetched a
+// copy when the mail arrived, which tells the sender only that it was
+// delivered, so `auto` is the default. `click` shows them on request, and
+// `never` not at all. Mail in Junk or held is never shown automatically.
+
+export type RemoteImages = 'auto' | 'click' | 'never'
+
+const REMOTE_IMAGES_KEY = 'mailrs_remote_images'
+
+function loadRemoteImages(): RemoteImages {
+  const raw = localStorage.getItem(REMOTE_IMAGES_KEY)
+  if (raw === 'click' || raw === 'never') return raw
+  return 'auto'
+}
+
+const baseRemoteImagesAtom = atom<RemoteImages>(loadRemoteImages())
+
+export const remoteImagesAtom = atom(
+  (get) => get(baseRemoteImagesAtom),
+  (_get, set, value: RemoteImages) => {
+    localStorage.setItem(REMOTE_IMAGES_KEY, value)
+    set(baseRemoteImagesAtom, value)
+  }
+)

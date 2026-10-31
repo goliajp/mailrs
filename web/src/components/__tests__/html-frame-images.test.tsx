@@ -1,8 +1,12 @@
-import { render, screen } from '@testing-library/react'
+import type { RemoteImages } from '@/store/settings'
+
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { createStore, Provider } from 'jotai'
 import { createHash } from 'node:crypto'
-import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { markRemoteImage } from '@/lib/remote-images'
+import { remoteImagesAtom } from '@/store/settings'
 import { wirePrefetchThreadImages } from '@/wire/endpoints/mail'
 
 import { HtmlFrame } from '../html-frame'
@@ -82,5 +86,58 @@ describe('remote images in mail', () => {
     await vi.waitFor(() => expect(img.getAttribute('src')).toContain('/api/mail/image/'))
     img.dispatchEvent(new Event('error'))
     expect(await screen.findByText(/not loaded for mail in Junk/)).toBeDefined()
+  })
+})
+
+describe('the remote images setting', () => {
+  afterEach(() => {
+    cleanup()
+    localStorage.clear()
+  })
+
+  function renderWith(mode: RemoteImages, html: string, imagesOf?: string) {
+    const store = createStore()
+    store.set(remoteImagesAtom, mode)
+    return render(
+      <Provider store={store}>
+        <HtmlFrame html={html} imagesOf={imagesOf} />
+      </Provider>
+    )
+  }
+
+  it('on click: images wait until the reader asks', async () => {
+    const { container } = renderWith('click', '<img src="https://a.example/x.png" alt="x">')
+    const root = container.querySelector<HTMLElement>('div:last-child')!.shadowRoot!
+    const img = () => root.querySelector<HTMLImageElement>('img[alt="x"]')!
+    await new Promise((r) => setTimeout(r, 50))
+    expect(img().hasAttribute('src')).toBe(false)
+    fireEvent.click(screen.getByText('Show images'))
+    await vi.waitFor(() => expect(img().getAttribute('src')).toContain('/api/mail/image/'))
+  })
+
+  it('never: images stay hidden and nothing offers to show them', async () => {
+    const { container } = renderWith('never', '<img src="https://a.example/y.png" alt="y">')
+    const root = container.querySelector<HTMLElement>('div:last-child')!.shadowRoot!
+    await new Promise((r) => setTimeout(r, 50))
+    expect(root.querySelector('img[alt="y"]')!.hasAttribute('src')).toBe(false)
+    expect(screen.getByText('Images are hidden by your settings')).toBeDefined()
+    expect(screen.queryByText('Show images')).toBeNull()
+  })
+
+  it('a message without remote images says nothing', () => {
+    renderWith('click', '<p>plain</p>')
+    expect(screen.queryByText(/hidden/)).toBeNull()
+  })
+
+  it('Junk mail: showing anyway asks the server past the Junk refusal', async () => {
+    vi.mocked(wirePrefetchThreadImages).mockReset()
+    vi.mocked(wirePrefetchThreadImages).mockResolvedValue('junk')
+    const { container } = renderWith('auto', '<img src="https://s.example/p.gif" alt="p">', 't-j')
+    const root = container.querySelector<HTMLElement>('div:last-child')!.shadowRoot!
+    const img = root.querySelector<HTMLImageElement>('img[alt="p"]')!
+    await vi.waitFor(() => expect(img.getAttribute('src')).toContain('/api/mail/image/'))
+    img.dispatchEvent(new Event('error'))
+    fireEvent.click(await screen.findByText('Show images anyway'))
+    expect(wirePrefetchThreadImages).toHaveBeenCalledWith('t-j', true)
   })
 })
