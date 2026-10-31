@@ -92,6 +92,7 @@ struct Row {
     last_sender: String,
     sent_count: i64,
     snoozed_until: i64,
+    trashed_at: i64,
     quarantined: bool,
 }
 
@@ -131,7 +132,8 @@ fn thread_rows_sql(ids_param: Option<usize>) -> String {
                 BOOL_AND(mb.name = 'Sent') AS sent_only,
                 COALESCE(MAX(CAST(EXTRACT(EPOCH FROM sc.snoozed_until) AS BIGINT)), 0) AS snoozed_until,
                 BOOL_OR(q.thread_id IS NOT NULL) AS quarantined,
-                BOOL_OR(tr.thread_id IS NOT NULL) AS trashed
+                BOOL_OR(tr.thread_id IS NOT NULL) AS trashed,
+                COALESCE(MAX(tr.trashed_at), 0) AS trashed_at
            FROM messages m
                 JOIN mailboxes mb ON m.mailbox_id = mb.id
                 LEFT JOIN email_analysis ea ON ea.message_id = m.id
@@ -225,6 +227,7 @@ impl From<Row> for ConversationSummary {
             last_sender: r.last_sender,
             sent_count: r.sent_count as u32,
             snoozed_until: r.snoozed_until,
+            trashed_at: r.trashed_at,
             quarantined: r.quarantined,
         }
     }

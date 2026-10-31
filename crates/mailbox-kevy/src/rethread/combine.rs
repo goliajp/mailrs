@@ -78,6 +78,11 @@ pub(crate) fn combine_rows(
             (0, _) | (_, 0) => 0,
             (x, y) => x.min(y),
         },
+        // in the Trash only if both were, like `archived`
+        trashed_at: match (a.trashed_at, b.trashed_at) {
+            (0, _) | (_, 0) => 0,
+            (x, y) => x.max(y),
+        },
     }
 }
 
@@ -140,6 +145,7 @@ mod search_tests {
             sent_count: 0,
             starred: false,
             snoozed_until: 0,
+            trashed_at: 0,
         }
     }
 

@@ -43,6 +43,8 @@ export type MailListFilters = {
   query?: string
   section?: null | string
   starred?: boolean
+  /** The Trash; the server ignores `archived` and `folder` with it. */
+  trashed?: boolean
   unread?: boolean
 }
 
@@ -65,6 +67,7 @@ function normalizeFilters(f: MailListFilters): Record<string, boolean | number |
   if (f.query) out.query = f.query
   if (f.section) out.section = f.section
   if (f.starred) out.starred = 1
+  if (f.trashed) out.trashed = 1
   if (f.unread) out.unread = 1
   return out
 }

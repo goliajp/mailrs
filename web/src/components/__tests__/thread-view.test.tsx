@@ -83,13 +83,19 @@ vi.mock('@/hooks/use-current-mail-filters', () => ({
 vi.mock('@/hooks/use-flat-conversations', () => ({
   useFlatConversations: () => flatStub,
 }))
-const stubMutation = () => ({ isPending: false, mutate: vi.fn(), mutateAsync: vi.fn() })
 // every mutation the conversation dispatcher holds, as a stub
+const { stubs } = vi.hoisted(() => ({
+  stubs: (names: string) =>
+    Object.fromEntries(
+      names
+        .split(' ')
+        .map((n) => [`use${n}Mutation`, () => ({ isPending: false, mutate: vi.fn() })])
+    ),
+}))
+vi.mock('@/hooks/use-trash-mutations', () => stubs('DeleteForever EmptyTrash Trash Untrash'))
 vi.mock('@/hooks/use-mail-mutations', () =>
-  Object.fromEntries(
-    'Archive Delete MarkJunk MarkNotification MarkNotJunk MarkPromotion MarkRead MarkUnread MoveToInbox Pin Snooze Star Unarchive Unpin Unsnooze Unstar'
-      .split(' ')
-      .map((n) => [`use${n}Mutation`, stubMutation])
+  stubs(
+    'Archive MarkJunk MarkNotification MarkNotJunk MarkPromotion MarkRead MarkUnread MoveToInbox Pin Snooze Star Unarchive Unpin Unsnooze Unstar'
   )
 )
 vi.mock('@/lib/query-client', () => ({
@@ -397,30 +403,6 @@ describe('ThreadView — loading state', () => {
   })
 })
 
-describe('ThreadView — delete dialog', () => {
-  let store: ReturnType<typeof createStore>
-
-  beforeEach(() => {
-    store = makeStore()
-    // The first row of the list IS the selection; nothing has to set it.
-    flatStub.conversations = [makeConversation()]
-    mockUseThreadQuery.mockReturnValue({ data: [makeMessage()], isPending: false })
-  })
-
-  it('shows delete dialog', () => {
-    show(store)
-    fireEvent.click(screen.getByTitle('Delete'))
-    expect(screen.getByText('Delete conversation?')).toBeDefined()
-  })
-
-  it('closes on cancel', () => {
-    show(store)
-    fireEvent.click(screen.getByTitle('Delete'))
-    fireEvent.click(screen.getByText('Cancel'))
-    expect(screen.queryByText('Delete conversation?')).toBeNull()
-  })
-})
-
 describe('ThreadView — toolbar', () => {
   let store: ReturnType<typeof createStore>
 
@@ -453,6 +435,20 @@ describe('ThreadView — toolbar', () => {
     show(store)
     expect(screen.getByTitle('Mark as unread')).toBeDefined()
   })
+
+  it('moves to the Trash without asking', () => {
+    show(store)
+    fireEvent.click(screen.getByTitle('Move to Trash'))
+    expect(screen.queryByText('Delete this conversation forever?')).toBeNull()
+  })
+
+  it('in the Trash, restores, and asks before deleting for good', () => {
+    flatStub.conversations = [makeConversation({ trashed_at: 1_793_427_570 })]
+    show(store)
+    expect(screen.getByTitle('Restore')).toBeDefined()
+    fireEvent.click(screen.getByTitle('Delete forever'))
+    expect(screen.getByText('Delete this conversation forever?')).toBeDefined()
+  })
 })
 
 // `r`, `f` and `#` reach the pane through `threadShortcutAtom`; the pane
@@ -471,10 +467,16 @@ describe('ThreadView — keyboard shortcuts', () => {
     show(store)
   }
 
-  it('# asks before deleting', async () => {
+  it('# moves to the Trash without asking', async () => {
     open('delete')
-    await waitFor(() => expect(screen.getByText('Delete conversation?')).toBeDefined())
-    expect(store.get(threadShortcutAtom)).toBeNull()
+    await waitFor(() => expect(store.get(threadShortcutAtom)).toBeNull())
+    expect(screen.queryByText('Delete this conversation forever?')).toBeNull()
+  })
+
+  it('# in the Trash asks before deleting for good', async () => {
+    flatStub.conversations = [makeConversation({ trashed_at: 1_793_427_570 })]
+    open('delete')
+    await waitFor(() => expect(screen.getByText('Delete this conversation forever?')).toBeDefined())
   })
 
   it('r opens a reply to the newest message', async () => {
@@ -493,6 +495,6 @@ describe('ThreadView — keyboard shortcuts', () => {
   it('a request for another thread is left alone', () => {
     store.set(threadShortcutAtom, { kind: 'delete', threadId: 'thread-9' })
     show(store)
-    expect(screen.queryByText('Delete conversation?')).toBeNull()
+    expect(screen.queryByText('Delete this conversation forever?')).toBeNull()
   })
 })

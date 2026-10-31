@@ -237,11 +237,27 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   // archiving runs through the same dispatcher as the list's row, so the
   // toast, its undo and `z` behave alike
   const { act } = useConversationActions()
-  const isArchived = currentConversations.find((c) => c.thread_id === selectedId)?.archived ?? false
+  const selectedRow = currentConversations.find((c) => c.thread_id === selectedId)
+  const isArchived = selectedRow?.archived ?? false
   const handleArchive = useCallback(() => {
     if (!selectedId) return
     void act(selectedId, toggle(isArchived, 'unarchive', 'archive'))
   }, [act, isArchived, selectedId])
+  // deleting goes to the Trash without asking; in the Trash it is for
+  // good, and asked first
+  const isTrashed = (selectedRow?.trashed_at ?? 0) > 0
+  const handleTrash = useCallback(() => {
+    if (!selectedId) return
+    if (isTrashed) {
+      setShowDeleteConfirm(true)
+      return
+    }
+    void act(selectedId, 'trash')
+  }, [act, isTrashed, selectedId])
+  const handleUntrash = useCallback(() => {
+    if (!selectedId) return
+    void act(selectedId, 'untrash')
+  }, [act, selectedId])
 
   // `r`, `f` and `#` from the keyboard do what this pane's own buttons
   // do, on the newest message, once the thread they name is loaded.
@@ -254,7 +270,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     const newest = messages[messages.length - 1]
     switch (shortcut.kind) {
       case 'delete':
-        setShowDeleteConfirm(true)
+        handleTrash()
         break
       case 'forward':
         setTimelineCollapsed(false)
@@ -272,6 +288,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     setTimelineCollapsed,
     handleForwardMsg,
     handleReplyMsg,
+    handleTrash,
   ])
 
   // Showing is unconditionally true here: this component only renders
@@ -400,12 +417,15 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
         handleMarkUnread={handleMarkUnread}
         handleReplyMsg={handleReplyMsg}
         handleStar={handleStar}
+        handleTrash={handleTrash}
         handleUnstar={handleUnstar}
+        handleUntrash={handleUntrash}
         hasNext={hasNext}
         hasPrev={hasPrev}
         isArchived={isArchived}
         isFlagged={isFlagged}
         isRead={isRead}
+        isTrashed={isTrashed}
         loadingThread={loadingThread}
         messages={messages}
         mobileThreadTab={mobileThreadTab}
@@ -415,7 +435,6 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
         selectedMsgIdx={currentMsgIdx}
         setMobileReplyOpen={setMobileReplyOpen}
         setMobileThreadTab={setMobileThreadTab}
-        setShowDeleteConfirm={setShowDeleteConfirm}
         setTimelineCollapsed={setTimelineCollapsed}
         subject={subject}
         timelineCollapsed={timelineCollapsed}

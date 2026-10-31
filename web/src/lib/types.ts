@@ -98,6 +98,8 @@ export type ConversationSummary = {
   snoozed_until?: number
   subject: string
   thread_id: string
+  /** Epoch seconds it was moved to the Trash; 0 or absent when it is not there. */
+  trashed_at?: number
   unread_count: number
 }
 

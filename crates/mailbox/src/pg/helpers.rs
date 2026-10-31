@@ -308,6 +308,7 @@ mod tests {
             last_sender: "alice".into(),
             sent_count: 0,
             snoozed_until: 0,
+            trashed_at: 0,
             quarantined: false,
         };
         let cloned = cs.clone();
@@ -340,6 +341,7 @@ mod tests {
             last_sender: "a".into(),
             sent_count: 0,
             snoozed_until: 0,
+            trashed_at: 0,
             quarantined: false,
         };
         let debug = format!("{:?}", cs);

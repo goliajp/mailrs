@@ -115,6 +115,7 @@ impl From<ThreadRowJson> for ThreadRow {
             sent_count: j.sent_count,
             starred: j.starred,
             snoozed_until: 0,
+            trashed_at: 0,
         }
     }
 }

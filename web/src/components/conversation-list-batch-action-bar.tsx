@@ -1,6 +1,6 @@
 import type { BatchAction } from '@/hooks/use-mail-mutations'
 
-import { ACTIONS, BATCH_ACTIONS } from '@/lib/actions'
+import { type ActionId, ACTIONS, batchActions, type RowState } from '@/lib/actions'
 
 // floating action bar at bottom of list during batch mode
 export function BatchActionBar({
@@ -8,11 +8,14 @@ export function BatchActionBar({
   onAction,
   onCancel,
   selectedCount,
+  view,
 }: {
   loading: boolean
   onAction: (action: BatchAction) => void
   onCancel: () => void
   selectedCount: number
+  /** The Trash offers restoring; every other list, moving there. */
+  view: RowState['view']
 }) {
   return (
     <div className="border-border bg-surface absolute right-0 bottom-0 left-0 z-40 border-t px-3 py-2 backdrop-blur">
@@ -21,12 +24,12 @@ export function BatchActionBar({
           {selectedCount} selected
         </span>
         <div className="flex flex-1 items-center gap-1.5 overflow-x-auto">
-          {BATCH_ACTIONS.map((id) => (
+          {batchActions(view).map((id) => (
             <button
               className={buttonClass(ACTIONS[id].danger)}
               disabled={loading}
               key={id}
-              onClick={() => onAction(id as BatchAction)}
+              onClick={() => onAction(wireBatchAction(id))}
             >
               {ACTIONS[id].label}
             </button>
@@ -52,4 +55,10 @@ function buttonClass(danger: boolean): string {
     'focus-visible:ring-accent/50 shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50'
   if (danger) return `text-danger hover:bg-danger/10 ${base}`
   return `text-fg-secondary hover:bg-bg-secondary ${base}`
+}
+
+/** The batch route's name for an action: it still calls the Trash `delete`. */
+function wireBatchAction(id: ActionId): BatchAction {
+  if (id === 'trash') return 'delete'
+  return id as BatchAction
 }

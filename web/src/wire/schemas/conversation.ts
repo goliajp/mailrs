@@ -61,6 +61,8 @@ export const wireThreadSummarySchema = z.object({
   snoozed_until: z.number().nullish(),
   subject: z.string().default(''),
   thread_id: z.string(),
+  // epoch seconds it was moved to the Trash, 0 when it is not there
+  trashed_at: z.number().int().min(0).default(0),
   unread_count: z.number().int().min(0).default(0),
 })
 

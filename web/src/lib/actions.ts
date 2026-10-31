@@ -13,6 +13,7 @@ import {
   AlarmClockOff,
   Archive,
   ArchiveRestore,
+  ArchiveX,
   Bell,
   Inbox,
   Mail,
@@ -25,11 +26,12 @@ import {
   Star,
   StarOff,
   Trash2,
+  Undo2,
 } from 'lucide-react'
 
 export type ActionId =
   | 'archive'
-  | 'delete'
+  | 'delete-forever'
   | 'mark-junk'
   | 'mark-not-junk'
   | 'mark-notification'
@@ -39,11 +41,13 @@ export type ActionId =
   | 'read'
   | 'snooze'
   | 'star'
+  | 'trash'
   | 'unarchive'
   | 'unpin'
   | 'unread'
   | 'unsnooze'
   | 'unstar'
+  | 'untrash'
 
 export type ActionSpec = {
   /** In batch mode, over every selected conversation. */
@@ -78,17 +82,16 @@ export const ACTIONS: Record<ActionId, ActionSpec> = {
     label: 'Archive',
     undo: 'unarchive',
   }),
-  // held for a confirmation until deleting goes to a trash that can be
-  // emptied later; it unlinks the files today
-  delete: spec({
-    batch: true,
+  // only in the Trash, and asked first: the files go
+  'delete-forever': spec({
+    batch: false,
     confirm: true,
     danger: true,
-    done: 'Deleted',
-    icon: Trash2,
-    id: 'delete',
+    done: 'Deleted forever',
+    icon: ArchiveX,
+    id: 'delete-forever',
     keys: ['#'],
-    label: 'Delete',
+    label: 'Delete forever',
     undo: null,
   }),
   'mark-junk': spec({
@@ -190,6 +193,18 @@ export const ACTIONS: Record<ActionId, ActionSpec> = {
     label: 'Star',
     undo: 'unstar',
   }),
+  // not asked: the Trash keeps it for 30 days and `z` brings it back
+  trash: spec({
+    batch: true,
+    confirm: false,
+    danger: true,
+    done: 'Moved to Trash',
+    icon: Trash2,
+    id: 'trash',
+    keys: ['#'],
+    label: 'Move to Trash',
+    undo: 'untrash',
+  }),
   unarchive: spec({
     batch: true,
     confirm: false,
@@ -245,6 +260,17 @@ export const ACTIONS: Record<ActionId, ActionSpec> = {
     label: 'Unstar',
     undo: 'star',
   }),
+  untrash: spec({
+    batch: true,
+    confirm: false,
+    danger: false,
+    done: 'Restored',
+    icon: Undo2,
+    id: 'untrash',
+    keys: [],
+    label: 'Restore',
+    undo: 'trash',
+  }),
 }
 
 /** What a conversation is now, as far as which actions apply. */
@@ -254,44 +280,9 @@ export type RowState = {
   pinned: boolean
   snoozed: boolean
   unread: boolean
-  /** The list it is seen in: Junk, the merged N & P view, or any other. */
-  view: 'junk' | 'np' | 'other'
+  /** The list it is seen in: Junk, the merged N & P view, the Trash, or any other. */
+  view: 'junk' | 'np' | 'other' | 'trash'
 }
-
-/** The actions for one conversation, in menu order. */
-export function rowActions(s: RowState): ActionId[] {
-  return [
-    toggle(s.unread, 'read', 'unread'),
-    toggle(s.flagged, 'unstar', 'star'),
-    toggle(s.pinned, 'unpin', 'pin'),
-    toggle(s.archived, 'unarchive', 'archive'),
-    toggle(s.snoozed, 'unsnooze', 'snooze'),
-    ...bucketActions(s.view),
-    'delete',
-  ]
-}
-
-/** Of a pair, the one that applies now. */
-export function toggle(on: boolean, ifOn: ActionId, ifOff: ActionId): ActionId {
-  if (on) return ifOn
-  return ifOff
-}
-
-function bucketActions(view: RowState['view']): ActionId[] {
-  switch (view) {
-    case 'junk':
-      return ['mark-not-junk']
-    case 'np':
-      return ['move-to-inbox', 'mark-junk']
-    case 'other':
-      return ['mark-notification', 'mark-promotion', 'mark-junk']
-  }
-}
-
-/** The batch bar's actions, in order. */
-export const BATCH_ACTIONS: ActionId[] = (
-  ['read', 'unread', 'star', 'archive', 'delete'] as ActionId[]
-).filter((id) => ACTIONS[id].batch)
 
 /**
  * The action a key asks for on a conversation in `s`, or null. A key on
@@ -302,10 +293,32 @@ export function actionForKey(key: string, s: RowState): ActionId | null {
   return applicable.find((id) => ACTIONS[id].keys.includes(key)) ?? null
 }
 
+/** The batch bar's actions, in order. */
+export function batchActions(view: RowState['view']): ActionId[] {
+  let ids: ActionId[] = ['read', 'unread', 'star', 'archive', 'trash']
+  if (view === 'trash') ids = ['read', 'unread', 'untrash']
+  return ids.filter((id) => ACTIONS[id].batch)
+}
+
 /** A key event as the table names keys: `e`, `#`, `Shift+I`. */
 export function keyName(e: { key: string; shiftKey: boolean }): string {
   if (e.shiftKey && /^[A-Z]$/.test(e.key)) return `Shift+${e.key}`
   return e.key
+}
+
+/** The actions for one conversation, in menu order. */
+export function rowActions(s: RowState): ActionId[] {
+  // in the Trash a conversation can only come back or go for good
+  if (s.view === 'trash') return [toggle(s.unread, 'read', 'unread'), 'untrash', 'delete-forever']
+  return [
+    toggle(s.unread, 'read', 'unread'),
+    toggle(s.flagged, 'unstar', 'star'),
+    toggle(s.pinned, 'unpin', 'pin'),
+    toggle(s.archived, 'unarchive', 'archive'),
+    toggle(s.snoozed, 'unsnooze', 'snooze'),
+    ...bucketActions(s.view),
+    'trash',
+  ]
 }
 
 /** A conversation's state as the table reads it. */
@@ -315,6 +328,7 @@ export function rowStateOf(
     flagged: boolean
     pinned: boolean
     snoozed_until?: null | number
+    trashed_at?: number
     unread_count: number
   },
   view: RowState['view'],
@@ -326,8 +340,15 @@ export function rowStateOf(
     pinned: row.pinned,
     snoozed: (row.snoozed_until ?? 0) > now,
     unread: row.unread_count > 0,
-    view,
+    // a row in the Trash is one wherever it is seen
+    view: trashedView((row.trashed_at ?? 0) > 0, view),
   }
+}
+
+/** Of a pair, the one that applies now. */
+export function toggle(on: boolean, ifOn: ActionId, ifOff: ActionId): ActionId {
+  if (on) return ifOn
+  return ifOff
 }
 
 /** The view the table distinguishes, from the folder a list shows. */
@@ -335,4 +356,22 @@ export function viewOf(folder: null | string): RowState['view'] {
   if (folder === 'Junk') return 'junk'
   if (folder === 'NP') return 'np'
   return 'other'
+}
+
+function bucketActions(view: RowState['view']): ActionId[] {
+  switch (view) {
+    case 'junk':
+      return ['mark-not-junk']
+    case 'np':
+      return ['move-to-inbox', 'mark-junk']
+    case 'other':
+      return ['mark-notification', 'mark-promotion', 'mark-junk']
+    case 'trash':
+      return []
+  }
+}
+
+function trashedView(trashed: boolean, view: RowState['view']): RowState['view'] {
+  if (trashed) return 'trash'
+  return view
 }
