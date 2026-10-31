@@ -4,6 +4,7 @@ import type { AdminFlow } from '@/wire/schemas/admin-flow'
 import { ChevronRight } from 'lucide-react'
 import { Link } from 'react-router'
 
+import { useT } from '@/i18n'
 import { cn } from '@/lib/cn'
 
 import { lanesOf } from './flow-model'
@@ -15,13 +16,14 @@ import { count } from './format'
  * read shows a dash, never a zero.
  */
 export function FlowStrip({ flow }: { flow: AdminFlow }) {
+  const t = useT()
   return (
     <div
-      aria-label="Mail flow"
+      aria-label={t('admin.flow.label')}
       className="border-border bg-surface divide-border divide-y rounded-lg border"
       role="group"
     >
-      {lanesOf(flow).map((lane) => (
+      {lanesOf(flow, t).map((lane) => (
         <LaneRow key={lane.name} lane={lane} />
       ))}
     </div>
@@ -37,13 +39,17 @@ function Connector() {
 }
 
 function LaneRow({ lane }: { lane: Lane }) {
+  const t = useT()
   return (
     <section aria-label={lane.name} className="flex flex-col lg:flex-row">
       <header className="border-border px-4 pt-4 lg:w-40 lg:shrink-0 lg:border-r lg:py-4">
         <h3 className="text-fg text-sm font-medium">{lane.name}</h3>
         <p className="text-fg-muted text-xs">{lane.note}</p>
       </header>
-      <ol aria-label={`${lane.name} steps`} className="flex min-w-0 flex-1 flex-col md:flex-row">
+      <ol
+        aria-label={t('admin.flow.steps', { lane: lane.name })}
+        className="flex min-w-0 flex-1 flex-col md:flex-row"
+      >
         {lane.stages.map((stage, i) => (
           <li className="flex min-w-0 flex-1 flex-col md:flex-row" key={stage.name}>
             <StageCell stage={stage} />

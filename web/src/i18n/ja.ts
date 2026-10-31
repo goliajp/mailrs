@@ -1,9 +1,11 @@
 import type { Key } from './en'
 
+import { adminOpsJa } from './admin-ops/ja'
 import { adminJa } from './admin/ja'
 
 export const ja: Record<Key, string> = {
   ...adminJa,
+  ...adminOpsJa,
   'lang.name.en': 'English',
   'lang.name.ja': '日本語',
   'lang.name.zh': '简体中文',
