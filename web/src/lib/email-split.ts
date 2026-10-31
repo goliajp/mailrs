@@ -6,7 +6,8 @@ export type EmailParts = {
 type SplitResult = { isHtml: boolean; parts: EmailParts }
 
 // detect "On ... wrote:" attribution line
-const ATTRIBUTION_RE = /^.{0,200}\bwrote:\s*$/
+// in each language the composer writes it in, so our own replies fold too
+const ATTRIBUTION_RE = /^.{0,200}(\bwrote:|写道[:：]|書きました[:：])\s*$/
 
 // detect Outlook-style original message separator
 const OUTLOOK_SEP_RE = /^-{4,}\s*Original Message\s*-{4,}$/i

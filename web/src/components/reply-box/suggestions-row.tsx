@@ -1,3 +1,4 @@
+import { useT } from '@/i18n'
 type SuggestionsRowProps = {
   onApply: (suggestion: string) => void
   onDismiss: () => void
@@ -5,6 +6,7 @@ type SuggestionsRowProps = {
 }
 
 export function SuggestionsRow({ onApply, onDismiss, suggestions }: SuggestionsRowProps) {
+  const t = useT()
   if (suggestions.length === 0) return null
   return (
     <div className="border-border flex shrink-0 flex-wrap gap-1.5 border-b px-4 py-2">
@@ -24,7 +26,7 @@ export function SuggestionsRow({ onApply, onDismiss, suggestions }: SuggestionsR
         onClick={onDismiss}
         type="button"
       >
-        Dismiss
+        {t('compose.dismiss')}
       </button>
     </div>
   )

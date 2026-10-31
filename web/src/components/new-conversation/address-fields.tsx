@@ -1,6 +1,7 @@
 import { Loader2, Sparkles } from 'lucide-react'
 
 import { ContactAutocomplete } from '@/components/contact-autocomplete'
+import { useT } from '@/i18n'
 
 type AddressFieldsProps = {
   bcc: string
@@ -33,10 +34,11 @@ export function AddressFields({
   subject,
   to,
 }: AddressFieldsProps) {
+  const t = useT()
   return (
     <div className="border-border flex shrink-0 flex-col border-b">
       <div className="border-border flex h-9 items-center border-b px-4">
-        <span className="text-fg-muted w-14 shrink-0 text-xs">To</span>
+        <span className="text-fg-muted w-14 shrink-0 text-xs">{t('compose.to')}</span>
         <ContactAutocomplete
           autoFocus
           onChange={onToChange}
@@ -49,25 +51,25 @@ export function AddressFields({
             onClick={onShowCcBcc}
             type="button"
           >
-            Cc/Bcc
+            {t('compose.ccBcc')}
           </button>
         )}
       </div>
       {showCcBcc && (
         <>
           <div className="border-border flex h-9 items-center border-b px-4">
-            <span className="text-fg-muted w-14 shrink-0 text-xs">Cc</span>
+            <span className="text-fg-muted w-14 shrink-0 text-xs">{t('compose.cc')}</span>
             <ContactAutocomplete onChange={onCcChange} placeholder="cc@example.com" value={cc} />
           </div>
           <div className="border-border flex h-9 items-center border-b px-4">
-            <span className="text-fg-muted w-14 shrink-0 text-xs">Bcc</span>
+            <span className="text-fg-muted w-14 shrink-0 text-xs">{t('compose.bcc')}</span>
             <ContactAutocomplete onChange={onBccChange} placeholder="bcc@example.com" value={bcc} />
           </div>
         </>
       )}
       <div className="border-border flex h-9 items-center border-b px-4">
         <label className="text-fg-muted w-14 shrink-0 text-xs" htmlFor="new-conv-subject">
-          Subject
+          {t('compose.subject')}
         </label>
         <input
           className="text-fg flex-1 bg-transparent py-2 text-sm outline-none"
@@ -77,11 +79,11 @@ export function AddressFields({
           value={subject}
         />
         <button
-          aria-label="AI generate subject"
+          aria-label={t('compose.aiSubject')}
           className="text-fg-muted hover:bg-accent/10 hover:text-accent shrink-0 rounded-md p-1 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
           disabled={generatingSubject || sending}
           onClick={onGenerateSubject}
-          title="AI generate subject"
+          title={t('compose.aiSubject')}
           type="button"
         >
           {generatingSubject ? (
