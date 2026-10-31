@@ -7,6 +7,10 @@
  * unknown and rendered as an em dash rather than as 1970.
  */
 
+import { getDefaultStore } from 'jotai'
+
+import { type Key, langAtom, translate } from '@/i18n'
+
 const MINUTE = 60
 const HOUR = 60 * MINUTE
 const DAY = 24 * HOUR
@@ -25,18 +29,22 @@ export function formatAbsolute(date: Date): string {
 
 export function formatRelative(date: Date, now: Date): string {
   const secs = Math.round((now.getTime() - date.getTime()) / 1000)
-  if (secs < MINUTE) return 'just now'
-  if (secs < HOUR) return `${Math.floor(secs / MINUTE)}m ago`
-  if (secs < DAY) return `${Math.floor(secs / HOUR)}h ago`
-  if (secs < MONTH) return `${Math.floor(secs / DAY)}d ago`
-  if (secs < YEAR) return `${Math.floor(secs / MONTH)}mo ago`
-  return `${Math.floor(secs / YEAR)}y ago`
+  if (secs < MINUTE) return ago('settings.ago.now', 0)
+  if (secs < HOUR) return ago('settings.ago.minutes', Math.floor(secs / MINUTE))
+  if (secs < DAY) return ago('settings.ago.hours', Math.floor(secs / HOUR))
+  if (secs < MONTH) return ago('settings.ago.days', Math.floor(secs / DAY))
+  if (secs < YEAR) return ago('settings.ago.months', Math.floor(secs / MONTH))
+  return ago('settings.ago.years', Math.floor(secs / YEAR))
 }
 
 export function parseEpochSeconds(raw: string): Date | null {
   const n = Number(raw)
   if (!Number.isFinite(n) || n <= 0) return null
   return new Date(n * 1000)
+}
+
+function ago(key: Key, count: number): string {
+  return translate(getDefaultStore().get(langAtom), key, { count })
 }
 
 function pad(value: number): string {
