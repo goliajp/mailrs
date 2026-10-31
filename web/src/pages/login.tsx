@@ -10,6 +10,7 @@ import { AuthCard } from '@/components/auth/auth-card'
 import { AuthField } from '@/components/auth/auth-field'
 import { BrandHeader } from '@/components/auth/brand-header'
 import { ResetWithCode } from '@/components/auth/reset-with-code'
+import { type Key, useT } from '@/i18n'
 import { type ResetContact } from '@/lib/password-clear'
 import { authAtom } from '@/store/auth'
 import {
@@ -44,23 +45,18 @@ const PROVIDER_LABELS: Record<string, string> = {
  * password below is what attaches it. Every other value is a genuine
  * failure and says which.
  */
-const EXTERNAL_MESSAGES: Record<string, { text: string; tone: 'error' | 'info' }> = {
-  denied: { text: 'Sign-in was cancelled.', tone: 'info' },
-  expired: { text: 'That sign-in took too long. Try again.', tone: 'error' },
-  failed: { text: 'That sign-in could not be completed.', tone: 'error' },
-  incomplete: { text: 'That sign-in came back incomplete.', tone: 'error' },
-  link: {
-    text: 'Almost there — sign in once with your mailrs password to link that account.',
-    tone: 'info',
-  },
-  'no-account': {
-    text: 'That account is linked to a mailbox that no longer exists.',
-    tone: 'error',
-  },
-  unavailable: { text: 'That sign-in method is not available.', tone: 'error' },
+const EXTERNAL_MESSAGES: Record<string, { text: Key; tone: 'error' | 'info' }> = {
+  denied: { text: 'login.external.denied', tone: 'info' },
+  expired: { text: 'login.external.expired', tone: 'error' },
+  failed: { text: 'login.external.failed', tone: 'error' },
+  incomplete: { text: 'login.external.incomplete', tone: 'error' },
+  link: { text: 'login.external.link', tone: 'info' },
+  'no-account': { text: 'login.external.noAccount', tone: 'error' },
+  unavailable: { text: 'login.external.unavailable', tone: 'error' },
 }
 
 export function Login() {
+  const t = useT()
   const setAuth = useSetAtom(authAtom)
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -134,9 +130,9 @@ export function Login() {
     setForgotMessage('')
     try {
       await wireForgotPassword(forgotAddress, forgotRecoveryEmail || undefined)
-      setForgotMessage('If the account and recovery email match, a reset link has been sent.')
+      setForgotMessage(t('login.resetLinkSent'))
     } catch {
-      setForgotMessage('If the account and recovery email match, a reset link has been sent.')
+      setForgotMessage(t('login.resetLinkSent'))
     } finally {
       setForgotLoading(false)
     }
@@ -188,19 +184,7 @@ export function Login() {
         openReset()
         return
       }
-      if (e instanceof WireErrorException) {
-        setError(
-          e.detail.kind === 'server'
-            ? (e.detail.message ?? 'Login failed')
-            : e.detail.kind === 'network'
-              ? 'Network error'
-              : e.detail.kind === 'auth'
-                ? 'Login failed'
-                : 'Login failed'
-        )
-      } else {
-        setError('Network error')
-      }
+      setError(loginErrorText(e, t))
     } finally {
       setLoading(false)
     }
@@ -215,7 +199,7 @@ export function Login() {
         onDone={(done) => {
           setAddress(done)
           setPassword('')
-          setNotice('Your new password is set. Sign in with it.')
+          setNotice(t('login.newPasswordSet'))
           closeReset()
         }}
       />
@@ -225,7 +209,7 @@ export function Login() {
   if (forgotMode) {
     return (
       <AuthCard onSubmit={handleForgotPassword}>
-        <BrandHeader subtitle="Reset your password" />
+        <BrandHeader subtitle={t('login.resetTitle')} />
 
         {forgotMessage && (
           <Alert role="status" variant="success">
@@ -237,7 +221,7 @@ export function Login() {
           autoComplete="email"
           autoFocus
           id="forgot-email"
-          label="Account Email"
+          label={t('login.accountEmail')}
           onChange={setForgotAddress}
           placeholder="you@domain.com"
           required
@@ -247,11 +231,11 @@ export function Login() {
 
         <AuthField
           autoComplete="email"
-          helperText="Enter the recovery email you configured in Settings. The reset link will be sent there."
+          helperText={t('login.recoveryHelp')}
           id="forgot-recovery"
-          label="Recovery Email"
+          label={t('login.recoveryEmail')}
           onChange={setForgotRecoveryEmail}
-          placeholder="your-recovery@gmail.com"
+          placeholder={t('login.recoveryPlaceholder')}
           required
           type="email"
           value={forgotRecoveryEmail}
@@ -264,7 +248,7 @@ export function Login() {
           type="submit"
           variant="primary"
         >
-          {forgotLoading ? 'Sending...' : 'Send Reset Link'}
+          {t(resetButtonLabel(forgotLoading))}
         </Button>
 
         <div className="text-center">
@@ -276,7 +260,7 @@ export function Login() {
             }}
             type="button"
           >
-            Back to login
+            {t('login.backToLogin')}
           </button>
         </div>
       </AuthCard>
@@ -285,7 +269,7 @@ export function Login() {
 
   return (
     <AuthCard onSubmit={handleSubmit}>
-      <BrandHeader subtitle="Sign in to your account" />
+      <BrandHeader subtitle={t('login.title')} />
 
       {notice && (
         <Alert role="status" variant="success">
@@ -305,7 +289,7 @@ export function Login() {
             autoComplete="email"
             autoFocus
             id="login-email"
-            label="Email"
+            label={t('login.email')}
             onChange={setAddress}
             placeholder="you@domain.com"
             required
@@ -316,7 +300,7 @@ export function Login() {
           <AuthField
             autoComplete="current-password"
             id="login-password"
-            label="Password"
+            label={t('login.password')}
             onChange={setPassword}
             passwordToggle
             required
@@ -330,12 +314,12 @@ export function Login() {
         <AuthField
           autoComplete="one-time-code"
           autoFocus
-          helperText="Enter the code from your authenticator app, or a recovery code"
+          helperText={t('login.totpHelp')}
           id="login-totp"
           inputMode="numeric"
-          label="Two-Factor Code"
+          label={t('login.totpLabel')}
           onChange={setTotpCode}
-          placeholder="Enter 6-digit code"
+          placeholder={t('login.totpPlaceholder')}
           required
           value={totpCode}
         />
@@ -349,12 +333,12 @@ export function Login() {
             onChange={(e) => setRememberMe(e.target.checked)}
             type="checkbox"
           />
-          <span className="text-fg-secondary text-sm">Remember email</span>
+          <span className="text-fg-secondary text-sm">{t('login.rememberEmail')}</span>
         </label>
       )}
 
       <Button disabled={loading} fullWidth loading={loading} type="submit" variant="primary">
-        {loading ? 'Signing in...' : totpRequired ? 'Verify' : 'Sign in'}
+        {t(submitLabel(loading, totpRequired))}
       </Button>
 
       <div className="flex justify-center gap-4">
@@ -367,10 +351,10 @@ export function Login() {
           }}
           type="button"
         >
-          Forgot password?
+          {t('login.forgotPassword')}
         </button>
         <button className="text-accent text-sm hover:underline" onClick={openReset} type="button">
-          I have a reset code
+          {t('login.haveResetCode')}
         </button>
       </div>
 
@@ -379,7 +363,7 @@ export function Login() {
           role="status"
           variant={EXTERNAL_MESSAGES[externalResult].tone === 'info' ? 'info' : 'danger'}
         >
-          {EXTERNAL_MESSAGES[externalResult].text}
+          {t(EXTERNAL_MESSAGES[externalResult].text)}
         </Alert>
       )}
 
@@ -387,7 +371,7 @@ export function Login() {
         <>
           <div className="flex items-center gap-3">
             <div className="bg-border h-px flex-1" />
-            <span className="text-fg-muted text-xs">or</span>
+            <span className="text-fg-muted text-xs">{t('login.or')}</span>
             <div className="bg-border h-px flex-1" />
           </div>
           {oidcConfig?.enabled && (
@@ -396,7 +380,7 @@ export function Login() {
               href={oidcConfig.login_url}
             >
               <ExternalLink className="h-4 w-4" />
-              Sign in with {oidcConfig.provider_name ?? 'SSO'}
+              {t('login.signInWith', { provider: oidcConfig.provider_name ?? 'SSO' })}
             </a>
           )}
           {externalProviders.map((key) => (
@@ -406,11 +390,29 @@ export function Login() {
               key={key}
             >
               <ExternalLink className="h-4 w-4" />
-              Sign in with {PROVIDER_LABELS[key] ?? key}
+              {t('login.signInWith', { provider: PROVIDER_LABELS[key] ?? key })}
             </a>
           ))}
         </>
       )}
     </AuthCard>
   )
+}
+
+function loginErrorText(e: unknown, t: (key: Key) => string): string {
+  if (!(e instanceof WireErrorException)) return t('compose.networkError')
+  if (e.detail.kind === 'server') return e.detail.message ?? t('login.failed')
+  if (e.detail.kind === 'network') return t('compose.networkError')
+  return t('login.failed')
+}
+
+function resetButtonLabel(sending: boolean): Key {
+  if (sending) return 'compose.sending'
+  return 'login.sendResetLink'
+}
+
+function submitLabel(loading: boolean, totpRequired: boolean): Key {
+  if (loading) return 'login.signingIn'
+  if (totpRequired) return 'login.verify'
+  return 'login.signIn'
 }

@@ -21,9 +21,11 @@ function fill(code: string, password: string, repeat: string) {
 
 describe('contactText', () => {
   it('names whom to ask, or an administrator', () => {
-    expect(contactText(CONTACT)).toBe('Li Hao (lihao@golia.jp)')
-    expect(contactText({ address: 'lihao@golia.jp', name: '' })).toBe('lihao@golia.jp')
-    expect(contactText(null)).toBe('an administrator')
+    expect(contactText(CONTACT, 'an administrator')).toBe('Li Hao (lihao@golia.jp)')
+    expect(contactText({ address: 'lihao@golia.jp', name: '' }, 'an administrator')).toBe(
+      'lihao@golia.jp'
+    )
+    expect(contactText(null, 'an administrator')).toBe('an administrator')
   })
 })
 
