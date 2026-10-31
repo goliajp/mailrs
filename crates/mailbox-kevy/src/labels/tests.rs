@@ -42,8 +42,14 @@ fn labels_are_made_renamed_and_deleted() {
     assert_eq!((work.id.as_str(), work.name.as_str()), ("1", "Work"));
     let home = s.create_label(U, "Home", "green", 2).unwrap();
     assert_eq!(home.id, "2");
-    assert_eq!(refused(s.create_label(U, "work", "red", 3)), LabelError::Taken("work".into()));
-    assert_eq!(refused(s.update_label(U, "2", Some("WORK"), None)), LabelError::Taken("WORK".into()));
+    assert_eq!(
+        refused(s.create_label(U, "work", "red", 3)),
+        LabelError::Taken("work".into())
+    );
+    assert_eq!(
+        refused(s.update_label(U, "2", Some("WORK"), None)),
+        LabelError::Taken("WORK".into())
+    );
     let renamed = s.update_label(U, "1", Some("Jobs"), Some("red")).unwrap();
     assert_eq!((renamed.id.as_str(), renamed.color.as_str()), ("1", "red"));
     let names: Vec<_> = s.labels(U).unwrap().into_iter().map(|l| l.name).collect();
@@ -51,7 +57,10 @@ fn labels_are_made_renamed_and_deleted() {
     assert!(s.delete_label(U, "1").unwrap());
     assert!(!s.delete_label(U, "1").unwrap());
     assert_eq!(s.labels(U).unwrap().len(), 1);
-    assert!(s.labels("other@x.com").unwrap().is_empty(), "labels are per user");
+    assert!(
+        s.labels("other@x.com").unwrap().is_empty(),
+        "labels are per user"
+    );
 }
 
 #[test]
@@ -63,8 +72,14 @@ fn a_label_goes_on_and_off_a_conversation_its_user_is_in() {
     s.set_label(U, &l.id, "t1", true).unwrap();
     assert_eq!(s.threads_with_label(U, &l.id).unwrap(), ["t1"]);
     assert_eq!(s.labels_by_thread(U).unwrap()["t1"], [l.id.clone()]);
-    assert_eq!(refused(s.set_label(U, &l.id, "t-theirs", true)), LabelError::NotFound);
-    assert_eq!(refused(s.set_label(U, "99", "t1", true)), LabelError::NotFound);
+    assert_eq!(
+        refused(s.set_label(U, &l.id, "t-theirs", true)),
+        LabelError::NotFound
+    );
+    assert_eq!(
+        refused(s.set_label(U, "99", "t1", true)),
+        LabelError::NotFound
+    );
     s.set_label(U, &l.id, "t1", false).unwrap();
     assert!(s.threads_with_label(U, &l.id).unwrap().is_empty());
 }
