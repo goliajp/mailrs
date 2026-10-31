@@ -263,8 +263,8 @@ describe('BatchActionBar', () => {
     )
 
     expect(screen.getByText('1 selected')).toBeDefined()
-    expect(screen.getByText('Mark read')).toBeDefined()
-    expect(screen.getByText('Mark unread')).toBeDefined()
+    expect(screen.getByText('Mark as read')).toBeDefined()
+    expect(screen.getByText('Mark as unread')).toBeDefined()
     expect(screen.getByText('Star')).toBeDefined()
     expect(screen.getByText('Archive')).toBeDefined()
     expect(screen.getByText('Delete')).toBeDefined()

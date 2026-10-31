@@ -1,42 +1,49 @@
-// The list shortcuts act on what is on screen without searching the page
-// for it. `r` and `f` used to look for an editor the reply box no longer
-// has and a button by its English text; `#` deleted with no confirmation
-// while every other delete asked; `j`/`k` scrolled to `aria-selected`,
-// which no row sets; `c`, which the command palette advertises, did
-// nothing.
+// The list shortcuts act on what is on screen without searching the page,
+// and each key does what the action table says on the conversation in its
+// current state, through the same dispatcher as the mouse: `e` archives or
+// puts back, `s` stars or unstars, `z` takes the last action back.
 
-import { act, cleanup, render } from '@testing-library/react'
+import { cleanup, render, act as rtlAct } from '@testing-library/react'
 import { createStore, Provider } from 'jotai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const selection = { id: 't2' as null | string }
 const rows = [{ threadId: 't1' }, { threadId: 't2' }, { threadId: 't3' }]
-const deleted: string[][] = []
+const convo = {
+  archived: false,
+  flagged: true,
+  pinned: false,
+  snoozed_until: null as null | number,
+  thread_id: 't2',
+  unread_count: 0,
+}
+const acted: Array<[string, string]> = []
 
 vi.mock('@/hooks/use-current-list', () => ({
-  useConversationRows: () => ({ rows: [] }),
+  useConversationRows: () => ({ rows: [convo] }),
   useCurrentListRows: () => rows,
   useSelectedThreadId: () => selection.id,
   useSelectThreadId: () => (id: null | string) => {
     selection.id = id
   },
 }))
-vi.mock('@/wire/endpoints/mutations', () => ({
-  wireArchiveThread: vi.fn(() => Promise.resolve()),
-  wireBatchMutation: vi.fn((action: string, ids: string[]) => {
-    if (action === 'delete') deleted.push(ids)
-    return Promise.resolve()
+vi.mock('@/hooks/use-conversation-actions', () => ({
+  useConversationActions: () => ({
+    act: (threadId: string, action: string) => {
+      acted.push([threadId, action])
+      return Promise.resolve()
+    },
   }),
-  wireMarkThreadRead: vi.fn(() => Promise.resolve()),
-  wirePinThread: vi.fn(() => Promise.resolve()),
-  wireStarThread: vi.fn(() => Promise.resolve()),
-  wireUnarchiveThread: vi.fn(() => Promise.resolve()),
-  wireUnpinThread: vi.fn(() => Promise.resolve()),
-  wireUnstarThread: vi.fn(() => Promise.resolve()),
 }))
 
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
-import { composingNewAtom, threadShortcutAtom } from '@/store/ui'
+import {
+  batchModeAtom,
+  composingNewAtom,
+  lastUndoAtom,
+  selectedThreadIdsAtom,
+  threadShortcutAtom,
+} from '@/store/ui'
 
 function Harness() {
   useKeyboardNav()
@@ -51,15 +58,15 @@ function Harness() {
   )
 }
 
-function press(key: string) {
-  act(() => {
-    window.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key }))
+function press(key: string, shiftKey = false) {
+  rtlAct(() => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key, shiftKey }))
   })
 }
 
 function setup() {
   selection.id = 't2'
-  deleted.length = 0
+  acted.length = 0
   const store = createStore()
   const view = render(
     <Provider store={store}>
@@ -78,9 +85,47 @@ describe('list shortcuts', () => {
     expect(store.get(threadShortcutAtom)).toEqual({ kind: 'reply', threadId: 't2' })
     press('f')
     expect(store.get(threadShortcutAtom)).toEqual({ kind: 'forward', threadId: 't2' })
-    press('#')
+    press('#', true)
     expect(store.get(threadShortcutAtom)).toEqual({ kind: 'delete', threadId: 't2' })
-    expect(deleted).toEqual([])
+    expect(acted).toEqual([])
+  })
+
+  it('each key does what the table says on the conversation as it is', () => {
+    setup()
+    // starred and not archived: `s` unstars, `e` archives
+    press('s')
+    press('p')
+    press('b')
+    press('!', true)
+    press('u')
+    press('e')
+    expect(acted).toEqual([
+      ['t2', 'unstar'],
+      ['t2', 'pin'],
+      ['t2', 'snooze'],
+      ['t2', 'mark-junk'],
+      ['t2', 'unread'],
+      ['t2', 'archive'],
+    ])
+    // archiving drops the pick; the list's first row becomes it
+    expect(selection.id).toBeNull()
+  })
+
+  it('z takes back the last action, once', () => {
+    const { store } = setup()
+    rtlAct(() => store.set(lastUndoAtom, { action: 'unarchive', threadId: 't9' }))
+    press('z')
+    press('z')
+    expect(acted).toEqual([['t9', 'unarchive']])
+  })
+
+  it('x picks the open conversation for a batch, and puts it back', () => {
+    const { store } = setup()
+    press('x')
+    expect(store.get(batchModeAtom)).toBe(true)
+    expect([...store.get(selectedThreadIdsAtom)]).toEqual(['t2'])
+    press('x')
+    expect([...store.get(selectedThreadIdsAtom)]).toEqual([])
   })
 
   it('c starts a new message, as the palette says', () => {
