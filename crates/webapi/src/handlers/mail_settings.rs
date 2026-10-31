@@ -127,7 +127,9 @@ pub struct VerifyRequest {
 
 /// POST /api/settings/forwarding/verify `{code}`
 pub async fn verify_forwarding(
-    State(_state): State<Arc<WebState>>,
+    State(state): State<Arc<WebState>>,
+    crate::login_guard::ClientIp(source): crate::login_guard::ClientIp,
+    headers: axum::http::HeaderMap,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Json(req): Json<VerifyRequest>,
 ) -> Response {
@@ -136,6 +138,14 @@ pub async fn verify_forwarding(
     match with_kevy(move |c| forwarding::verify(c, &who, &req.code, now)) {
         Ok(Verified::On(address)) => {
             super::audit::record(&user, "forwarding.on", &address, "");
+            super::owner_notice::notify_owner(
+                Some(&state),
+                &user,
+                crate::security_mail::Notice::ForwardingOn(address.clone()),
+                super::owner_notice::origin_of(&headers, &source.to_string()),
+                &[],
+            )
+            .await;
             Json(serde_json::json!({ "address": address })).into_response()
         }
         Ok(Verified::Wrong(left)) => (

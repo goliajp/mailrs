@@ -32,6 +32,9 @@ pub struct CreateAgentKeyRequest {
 
 pub async fn create_agent_key(
     _: crate::session::confirm::Confirmed,
+    axum::extract::State(state): axum::extract::State<std::sync::Arc<crate::WebState>>,
+    crate::login_guard::ClientIp(source): crate::login_guard::ClientIp,
+    headers: axum::http::HeaderMap,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Json(req): Json<CreateAgentKeyRequest>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
@@ -45,6 +48,14 @@ pub async fn create_agent_key(
         req.scopes.join(",")
     );
     crate::handlers::audit::record(&user, "agent_key.create", &user, &detail);
+    crate::handlers::owner_notice::notify_owner(
+        Some(&state),
+        &user,
+        crate::security_mail::Notice::AgentKeyMade(req.name.clone()),
+        crate::handlers::owner_notice::origin_of(&headers, &source.to_string()),
+        &[],
+    )
+    .await;
     Ok(Json(serde_json::json!({ "id": id, "secret": secret })))
 }
 

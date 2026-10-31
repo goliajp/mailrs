@@ -49,6 +49,15 @@ fn summary(shown: &[Shown], lang: Lang) -> String {
     }
 }
 
+/// Who reads the mail.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Audience {
+    /// The operators the server names for alerts.
+    Operators,
+    /// The account it happened on.
+    Owner,
+}
+
 struct Words {
     kicker: &'static str,
     steps: &'static str,
@@ -57,7 +66,7 @@ struct Words {
     footer: String,
 }
 
-fn words(reader: &Reader) -> Words {
+fn words(reader: &Reader, to: Audience) -> Words {
     let clock = &reader.clock.name;
     match reader.lang {
         Lang::Zh => Words {
@@ -65,24 +74,34 @@ fn words(reader: &Reader) -> Words {
             steps: "建议怎么做",
             when: "发生时间",
             colon: "：",
-            footer: format!(
-                "这封信发给本服务器设置的安全提醒收件人。同一件事对同一个账号或地址一小时内只提醒一次；重置码每签发一个就提醒一次。时间按 {clock} 显示。"
-            ),
+            footer: match to {
+                Audience::Operators => format!(
+                    "这封信发给本服务器设置的安全提醒收件人。同一件事对同一个账号或地址一小时内只提醒一次；重置码每签发一个就提醒一次。时间按 {clock} 显示。"
+                ),
+                Audience::Owner => format!(
+                    "这封信发给账号本人和账号设置的恢复邮箱，因为这个账号上发生了上面这件事。时间按 {clock} 显示。"
+                ),
+            },
         },
         Lang::En => Words {
             kicker: "Security alert",
             steps: "What to do",
             when: "When",
             colon: ": ",
-            footer: format!(
-                "Sent to this server's security alert recipients. The same alert about one account or address is sent at most once an hour; every reset code issued is reported. Times are in {clock}."
-            ),
+            footer: match to {
+                Audience::Operators => format!(
+                    "Sent to this server's security alert recipients. The same alert about one account or address is sent at most once an hour; every reset code issued is reported. Times are in {clock}."
+                ),
+                Audience::Owner => format!(
+                    "Sent to the account and its recovery address because this happened on the account. Times are in {clock}."
+                ),
+            },
         },
     }
 }
 
-pub fn text(shown: &[Shown], host: &str, reader: &Reader) -> String {
-    let w = words(reader);
+pub fn text(shown: &[Shown], host: &str, reader: &Reader, to: Audience) -> String {
+    let w = words(reader, to);
     let mut out = format!("{} · {host}\n{}\n", w.kicker, summary(shown, reader.lang));
     for (i, s) in shown.iter().enumerate() {
         let c = &s.copy;
@@ -109,8 +128,8 @@ pub fn text(shown: &[Shown], host: &str, reader: &Reader) -> String {
     out
 }
 
-pub fn html(shown: &[Shown], host: &str, reader: &Reader) -> String {
-    let w = words(reader);
+pub fn html(shown: &[Shown], host: &str, reader: &Reader, to: Audience) -> String {
+    let w = words(reader, to);
     let mut cards = String::new();
     for s in shown {
         cards.push_str(&card(s, host, &w, reader.lang));

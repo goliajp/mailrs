@@ -274,6 +274,7 @@ pub async fn verify_totp(
 pub async fn change_password(
     State(state): State<Arc<WebState>>,
     ClientIp(source): ClientIp,
+    headers: axum::http::HeaderMap,
     Extension(AuthedUser(address)): Extension<AuthedUser>,
     Json(req): Json<ChangePasswordRequest>,
 ) -> Response {
@@ -349,5 +350,13 @@ pub async fn change_password(
     // itself owns the session:by_addr:<address> set of tokens.
     let addr_c = address.clone();
     let _ = crate::handlers::kevy_util::with_kevy(move |c| super::revoke_sessions(c, &addr_c));
+    crate::handlers::owner_notice::notify_owner(
+        Some(&state),
+        &address,
+        crate::security_mail::Notice::PasswordChanged,
+        crate::handlers::owner_notice::origin_of(&headers, &source.to_string()),
+        &[],
+    )
+    .await;
     (StatusCode::OK, Json(serde_json::json!({"success": true}))).into_response()
 }
