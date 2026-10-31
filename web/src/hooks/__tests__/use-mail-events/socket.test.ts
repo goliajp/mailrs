@@ -62,6 +62,11 @@ vi.mock('@/store/ui', () => ({
   selectedDomainsAtom: Symbol('domains'),
   selectedThreadIdAtom: Symbol('selected'),
 }))
+vi.mock('@/i18n', () => ({
+  langAtom: Symbol('lang'),
+  translate: (_lang: unknown, key: string) => key,
+}))
+
 vi.mock('@/store/settings', () => ({
   notificationsAtom: Symbol('notifications'),
   notificationSoundAtom: Symbol('sound'),

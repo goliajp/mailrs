@@ -3,6 +3,7 @@ import { SlidersHorizontal } from 'lucide-react'
 import { memo, useEffect, useRef, useState } from 'react'
 
 import { useCategoriesQuery } from '@/hooks/use-mail-queries'
+import { useT } from '@/i18n'
 import { MAIL_LIST_TABS, MAIL_LISTS, type MailListId } from '@/lib/mail-lists'
 import { rovingKeyDown } from '@/lib/roving'
 import {
@@ -80,6 +81,7 @@ export const FilterBar = memo(function FilterBar() {
   const [selectedDomains, setSelectedDomains] = useAtom(selectedDomainsAtom)
   const selectedDomainsVal = useAtomValue(selectedDomainsAtom)
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const t = useT()
   const panelRef = useRef<HTMLDivElement>(null)
 
   const { data: categories = [] } = useCategoriesQuery(selectedDomainsVal)
@@ -125,7 +127,7 @@ export const FilterBar = memo(function FilterBar() {
           in particular. Five columns give every tab the same width and
           put the second row's three under the first row's three. */}
       <div
-        aria-label="Mail lists"
+        aria-label={t('list.tabs')}
         className="grid flex-1 grid-cols-5 gap-1"
         onKeyDown={(e) => rovingKeyDown(e, '[role="tab"]', 'horizontal')}
         role="tablist"
@@ -140,7 +142,7 @@ export const FilterBar = memo(function FilterBar() {
             tabIndex={tabStop(activeList === id)}
             type="button"
           >
-            {MAIL_LISTS[id].label}
+            {t(MAIL_LISTS[id].label)}
           </button>
         ))}
       </div>

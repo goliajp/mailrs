@@ -21,6 +21,7 @@ import { Link, useLocation } from 'react-router'
 import { BottomSheet } from '@/components/bottom-sheet'
 import { useCurrentUnreadCount } from '@/hooks/use-current-mail-filters'
 import { useSignOut } from '@/hooks/use-sign-out'
+import { useT } from '@/i18n'
 import { authAtom } from '@/store/auth'
 import { themeModeAtom } from '@/store/theme'
 import { selectedDomainsAtom } from '@/store/ui'
@@ -33,6 +34,7 @@ const navBtnInactive = 'text-fg-muted hover:bg-bg-secondary hover:text-fg-second
 const navBtnActive = 'bg-accent/10 text-accent'
 
 export function AppSidebar() {
+  const t = useT()
   const auth = useAtomValue(authAtom)
   const [theme, setTheme] = useAtom(themeModeAtom)
   const { pathname } = useLocation()
@@ -62,7 +64,7 @@ export function AppSidebar() {
         </div>
 
         {/* home */}
-        <SidebarLink active={section === 'home'} href="/" icon={Home} label="Home" />
+        <SidebarLink active={section === 'home'} href="/" icon={Home} label={t('nav.home')} />
 
         {/* inbox + domain group */}
         <div className="mt-1 flex flex-col items-center gap-0.5">
@@ -71,7 +73,7 @@ export function AppSidebar() {
             badge={unreadCount}
             href="/mail"
             icon={Inbox}
-            label="Mail"
+            label={t('nav.mail')}
           />
           {domains.length > 0 &&
             domains.map((d) => {
@@ -106,13 +108,13 @@ export function AppSidebar() {
                 active={section === 'server'}
                 href="/admin"
                 icon={Server}
-                label="Server"
+                label={t('nav.server')}
               />
               <SidebarLink
                 active={section === 'monitor'}
                 href="/protocol"
                 icon={Activity}
-                label="Monitor"
+                label={t('nav.monitor')}
               />
             </>
           )}
@@ -120,7 +122,7 @@ export function AppSidebar() {
             active={section === 'mock'}
             href="/mock"
             icon={FlaskConical}
-            label="Mock mail"
+            label={t('nav.mock')}
           />
         </nav>
 
@@ -129,10 +131,10 @@ export function AppSidebar() {
         {/* bottom actions */}
         <div className="flex flex-col items-center gap-2">
           <button
-            aria-label={`Switch theme, current: ${theme}`}
+            aria-label={t('nav.theme', { theme })}
             className={`${navBtnBase} ${navBtnInactive}`}
             onClick={cycleTheme}
-            title={`Theme: ${theme}`}
+            title={t('nav.theme', { theme })}
           >
             {theme === 'dark' ? (
               <Moon className="h-5 w-5" />
@@ -147,14 +149,14 @@ export function AppSidebar() {
             active={section === 'settings'}
             href="/settings"
             icon={Settings}
-            label="Settings"
+            label={t('nav.settings')}
           />
 
           <button
-            aria-label={`Sign out (${auth?.address})`}
+            aria-label={t('nav.signOutAs', { address: auth?.address ?? '' })}
             className={`${navBtnBase} ${navBtnInactive}`}
             onClick={() => setShowLogoutConfirm(true)}
-            title={`Sign out (${auth?.address})`}
+            title={t('nav.signOutAs', { address: auth?.address ?? '' })}
           >
             <LogOut className="h-5 w-5" />
           </button>
@@ -167,25 +169,30 @@ export function AppSidebar() {
 
       {/* mobile: bottom tab bar */}
       <nav className="border-border bg-surface flex items-stretch border-t pb-[var(--safe-area-bottom)] select-none md:hidden">
-        <MobileNavLink active={section === 'home'} href="/" icon={Home} label="Home" />
+        <MobileNavLink active={section === 'home'} href="/" icon={Home} label={t('nav.home')} />
         <MobileNavLink
           active={section === 'mail'}
           badge={unreadCount}
           href="/mail"
           icon={Inbox}
-          label="Mail"
+          label={t('nav.mail')}
         />
         {auth?.is_super && (
-          <MobileNavLink active={section === 'server'} href="/admin" icon={Server} label="Admin" />
+          <MobileNavLink
+            active={section === 'server'}
+            href="/admin"
+            icon={Server}
+            label={t('nav.admin')}
+          />
         )}
         <MobileNavLink
           active={section === 'settings'}
           href="/settings"
           icon={Settings}
-          label="Settings"
+          label={t('nav.settings')}
         />
         <button
-          aria-label="Sign out"
+          aria-label={t('nav.signOut')}
           className="text-fg-muted md:text-tiny flex flex-1 flex-col items-center gap-0.5 py-1.5 text-xs transition-colors"
           onClick={() => setShowLogoutConfirm(true)}
         >
