@@ -13,7 +13,7 @@ describe('mailRowClass', () => {
   it('marks the selected row with the accent border and tint', () => {
     const cls = mailRowClass({ selected: true })
     expect(cls).toContain('border-l-accent')
-    expect(cls).toContain('bg-accent/10')
+    expect(cls).toContain('bg-accent/6')
     expect(cls).not.toContain('border-l-transparent')
   })
 
@@ -33,7 +33,7 @@ describe('mailRowClass', () => {
     expect(cls).toContain('border-l-danger/60')
     expect(cls).not.toContain('border-l-accent')
     // Still reads as selected through the background.
-    expect(cls).toContain('bg-accent/10')
+    expect(cls).toContain('bg-accent/6')
   })
 
   /** Batch mode carries selection on the checkbox, not the row. */
@@ -42,16 +42,10 @@ describe('mailRowClass', () => {
     expect(cls).toContain('border-l-transparent')
   })
 
-  it('dims a read row only while it is neither selected nor ticked', () => {
-    expect(mailRowClass({ muted: true })).toContain('[&_[data-row-dims]]:opacity-70')
-    expect(mailRowClass({ muted: true, selected: true })).not.toContain('opacity-70')
-    expect(mailRowClass({ checked: true, muted: true })).not.toContain('opacity-70')
-  })
-
-  it('never dims the row as a whole, which would dim its icon too', () => {
-    const tokens = mailRowClass({ muted: true }).split(' ')
-    expect(tokens).not.toContain('opacity-70')
-    expect(tokens).not.toContain('hover:opacity-100')
+  it('never dims a read row: muted text has no contrast to spare', () => {
+    for (const state of [{}, { selected: true }, { checked: true }]) {
+      expect(mailRowClass(state)).not.toContain('opacity')
+    }
   })
 
   /**
@@ -65,7 +59,6 @@ describe('mailRowClass', () => {
       {},
       { selected: true },
       { flagged: true },
-      { muted: true },
       { batchMode: true, selected: true },
       { checked: true },
     ]) {
@@ -84,7 +77,7 @@ describe('mailRowClass', () => {
   })
 
   it('every row is the same height, whatever its state', () => {
-    for (const state of [{}, { selected: true }, { flagged: true }, { muted: true }]) {
+    for (const state of [{}, { selected: true }, { flagged: true }]) {
       // The virtualizer's estimateSize is fixed at this height; a state that
       // changed it would misplace every row below.
       expect(mailRowClass(state)).toContain('h-16')

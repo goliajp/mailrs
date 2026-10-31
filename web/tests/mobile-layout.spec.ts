@@ -30,7 +30,11 @@ const WIDE_EMAIL = `<table width="760" style="width:760px"><tr><td>
 const MESSAGES = [
   {
     attachments: [
-      { filename: `${'Very_Long_Attachment_Filename_'.repeat(5)}final_v3.pdf`, index: 0, size: 123456 },
+      {
+        filename: `${'Very_Long_Attachment_Filename_'.repeat(5)}final_v3.pdf`,
+        index: 0,
+        size: 123456,
+      },
       { filename: '請求書_2026年8月分_株式会社ゴリア様_確定版.xlsx', index: 1, size: 4096 },
     ],
     html_body: WIDE_EMAIL,
@@ -179,7 +183,9 @@ async function offenders(page: Page): Promise<string[]> {
       }
       if (!scrollable && (r.right > vw + 1 || r.left < -1)) {
         const cls = String((el as HTMLElement).className).slice(0, 48)
-        out.push(`${el.tagName.toLowerCase()}[${cls}] ${Math.round(r.left)}..${Math.round(r.right)}`)
+        out.push(
+          `${el.tagName.toLowerCase()}[${cls}] ${Math.round(r.left)}..${Math.round(r.right)}`
+        )
       }
     }
     return out
@@ -202,8 +208,13 @@ for (const phone of PHONES) {
       await page.goto('/mail')
       await expect(page.locator('[role="listitem"]')).toHaveCount(THREADS.length)
       const nested = await page.evaluate(() =>
-        [...document.querySelectorAll('button button, button a[href], a[href] button, a[href] a[href]')].map(
-          (el) => `${el.tagName.toLowerCase()} in ${el.closest('button, a[href]')?.tagName.toLowerCase()}`
+        [
+          ...document.querySelectorAll(
+            'button button, button a[href], a[href] button, a[href] a[href]'
+          ),
+        ].map(
+          (el) =>
+            `${el.tagName.toLowerCase()} in ${el.closest('button, a[href]')?.tagName.toLowerCase()}`
         )
       )
       expect(nested).toEqual([])
@@ -271,7 +282,9 @@ for (const phone of PHONES) {
       await expect(page.locator('[role="listitem"]')).toHaveCount(THREADS.length)
 
       await swipeRow(page, 1, 110)
-      await expect.poll(() => writes.some((w) => w.endsWith('/archive')), { timeout: 4000 }).toBe(true)
+      await expect
+        .poll(() => writes.some((w) => w.endsWith('/archive')), { timeout: 4000 })
+        .toBe(true)
     })
 
     /**
