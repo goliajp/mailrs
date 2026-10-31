@@ -6,6 +6,7 @@
 //! spelled once; `scripts/check-shared-keys.sh` rejects a second spelling.
 
 pub mod admin;
+pub mod credentials;
 pub mod dmarc;
 pub mod events;
 pub mod push;

@@ -136,6 +136,15 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
             adm_paths::PATH_CLEAR_ACCOUNT_PASSWORD,
             post(handlers::admin::clear_account_password),
         )
+        // the operator's clearing, on the host only: see password_clear
+        .route(
+            mailrs_core_sidestate::families::password_clear::PATH_OPERATOR_CLEAR,
+            post(mailrs_core_sidestate::families::password_clear::operator_clear::<CoreRpcState>),
+        )
+        .route(
+            mailrs_core_sidestate::families::password_clear::PATH_OPERATOR_PREVIEW,
+            post(mailrs_core_sidestate::families::password_clear::operator_preview::<CoreRpcState>),
+        )
         .route(
             adm_paths::PATH_SET_MESSAGE_FLAGS,
             post(handlers::admin::set_message_flags),

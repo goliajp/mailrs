@@ -15,6 +15,7 @@ path = "src/lib.rs"
 
 [dependencies]
 mailrs-fraud = { path = "../fraud", version = "0" }
+mailrs-auth-guard = { path = "../auth-guard", version = "2", features = ["kevy"] }
 mailrs-mock = { path = "../mock" }
 mailrs-core-api = { path = "../core-api", features = ["server"] }
 kevy-client = { workspace = true }

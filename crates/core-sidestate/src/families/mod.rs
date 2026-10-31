@@ -18,6 +18,7 @@ pub mod image_prefetch;
 pub mod local_forward;
 pub mod mock;
 pub mod outbound;
+pub mod password_clear;
 pub mod permission_groups;
 pub mod prefs;
 pub mod reply_rotation;
