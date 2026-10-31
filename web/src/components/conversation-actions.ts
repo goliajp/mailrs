@@ -9,6 +9,5 @@ export type BatchAction = 'archive' | 'delete' | 'read' | 'star' | 'unarchive' |
 // batch handler.
 // v2.9 triage — bucket moves between Inbox / Notifications / Promotions
 // / Junk. Kept out of BatchAction (no matching backend batch handler).
-export type JunkAction =
-  'mark-junk' | 'mark-not-junk' | 'mark-notification' | 'mark-promotion' | 'move-to-inbox'
-export type SingleAction = 'pin' | 'snooze' | 'unpin' | 'unsnooze' | BatchAction | JunkAction
+// The single-thread verbs are the action table's; see `lib/actions.ts`.
+export type SingleAction = import('@/lib/actions').ActionId

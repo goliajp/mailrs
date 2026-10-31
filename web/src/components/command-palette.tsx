@@ -17,15 +17,23 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 
 import { MobileModal } from '@/components/mobile-modal'
+import { useConversationActions } from '@/hooks/use-conversation-actions'
+import { useConversationRows, useSelectedThreadId } from '@/hooks/use-current-list'
 import { useSearchMail } from '@/hooks/use-search-mail'
 import { useSignOut } from '@/hooks/use-sign-out'
+import { ACTIONS, rowActions, rowStateOf, viewOf } from '@/lib/actions'
 import { authAtom } from '@/store/auth'
 import { themeModeAtom } from '@/store/theme'
-import { composeReplySourceAtom, composingNewAtom } from '@/store/ui'
+import {
+  composeReplySourceAtom,
+  composingNewAtom,
+  folderAtom,
+  threadShortcutAtom,
+} from '@/store/ui'
 
 type Command = {
   action: () => void
-  category: 'Actions' | 'Navigation' | 'Search'
+  category: 'Actions' | 'Conversation' | 'Navigation' | 'Search'
   icon: React.ReactNode
   id: string
   label: string
@@ -211,7 +219,7 @@ export function CommandPalette() {
 }
 
 function groupByCategory(commands: Command[]): GroupedCommands[] {
-  const order: Command['category'][] = ['Navigation', 'Actions', 'Search']
+  const order: Command['category'][] = ['Conversation', 'Navigation', 'Actions', 'Search']
   const groups: GroupedCommands[] = []
 
   for (const category of order) {
@@ -359,10 +367,11 @@ function useCommands(query: string, onClose: () => void): Command[] {
     ],
     [navigate, onClose, setComposeReplySource, setComposing, setTheme, signOut, theme]
   )
+  const conversation = useConversationCommands(onClose)
   // the server refuses these to everyone else; do not offer them
   const staticCommands = useMemo(
-    () => allCommands.filter((c) => isSuper || !ADMIN_COMMANDS.has(c.id)),
-    [allCommands, isSuper]
+    () => [...conversation, ...allCommands.filter((c) => isSuper || !ADMIN_COMMANDS.has(c.id))],
+    [allCommands, conversation, isSuper]
   )
 
   return useMemo(() => {
@@ -392,4 +401,38 @@ function useCommands(query: string, onClose: () => void): Command[] {
 
     return filtered
   }, [query, staticCommands, searchMail, onClose])
+}
+
+/// The open conversation's actions, from the action table: what the row's
+/// menu offers, with the same keys. Deleting asks in the reading pane.
+function useConversationCommands(onClose: () => void): Command[] {
+  const threadId = useSelectedThreadId()
+  const { rows } = useConversationRows()
+  const folder = useAtomValue(folderAtom)
+  const { act } = useConversationActions()
+  const askThread = useSetAtom(threadShortcutAtom)
+  const row = rows.find((c) => c.thread_id === threadId)
+  return useMemo(() => {
+    if (!threadId || !row) return []
+    const state = rowStateOf(row, viewOf(folder), Date.now() / 1000)
+    return rowActions(state).map((id) => {
+      const spec = ACTIONS[id]
+      const Icon = spec.icon
+      return {
+        category: 'Conversation' as const,
+        icon: <Icon size={16} />,
+        id: `conversation-${id}`,
+        label: spec.label,
+        shortcut: spec.keys[0],
+        action: () => {
+          onClose()
+          if (spec.confirm) {
+            askThread({ kind: 'delete', threadId })
+            return
+          }
+          void act(threadId, id)
+        },
+      }
+    })
+  }, [act, askThread, folder, onClose, row, threadId])
 }

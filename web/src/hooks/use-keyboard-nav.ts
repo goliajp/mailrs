@@ -1,38 +1,30 @@
 import type { MailListId } from '@/lib/mail-lists'
 
-import { toast } from '@goliapkg/gds'
-import { useSetAtom } from 'jotai'
+import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { useEffect } from 'react'
 
+import { useConversationActions } from '@/hooks/use-conversation-actions'
 import {
   useConversationRows,
   useCurrentListRows,
   useSelectedThreadId,
   useSelectThreadId,
 } from '@/hooks/use-current-list'
+import { actionForKey, ACTIONS, keyName, rowStateOf, viewOf } from '@/lib/actions'
 import { isEditableTarget } from '@/lib/editable-target'
-import { invalidateMailAggregatesOnly } from '@/lib/mail-cache'
-import { queryClient } from '@/lib/query-client'
-import { patchAllInfiniteLists } from '@/reducers/snapshot'
 import {
+  batchModeAtom,
   categoryFilterAtom,
   composeReplySourceAtom,
   composingNewAtom,
+  folderAtom,
   importanceSectionAtom,
+  lastUndoAtom,
   mobileViewAtom,
+  selectedThreadIdsAtom,
   selectMailListAtom,
   threadShortcutAtom,
 } from '@/store/ui'
-import {
-  wireArchiveThread,
-  wireBatchMutation,
-  wireMarkThreadRead,
-  wirePinThread,
-  wireStarThread,
-  wireUnarchiveThread,
-  wireUnpinThread,
-  wireUnstarThread,
-} from '@/wire/endpoints/mutations'
 
 /// The list a `g` chord goes to, or nothing when the second key is not
 /// part of one.
@@ -74,6 +66,11 @@ export function useKeyboardNav() {
   const setSection = useSetAtom(importanceSectionAtom)
   const setCategory = useSetAtom(categoryFilterAtom)
   const askThread = useSetAtom(threadShortcutAtom)
+  const { act } = useConversationActions()
+  const folder = useAtomValue(folderAtom)
+  const [lastUndo, setLastUndo] = useAtom(lastUndoAtom)
+  const setBatchMode = useSetAtom(batchModeAtom)
+  const setChecked = useSetAtom(selectedThreadIdsAtom)
 
   useEffect(() => {
     let gPending = false // for g+i, g+s chord sequences
@@ -160,30 +157,6 @@ export function useKeyboardNav() {
           break
         }
 
-        case 'e': {
-          // archive current thread
-          if (!selectedThreadId) break
-          e.preventDefault()
-          const convo = conversations.find((c) => c.thread_id === selectedThreadId)
-          const action = convo?.archived ? 'unarchive' : 'archive'
-          const req =
-            action === 'archive'
-              ? wireArchiveThread(selectedThreadId)
-              : wireUnarchiveThread(selectedThreadId)
-          req
-            .then(() => {
-              toast.success(action === 'archive' ? 'Archived' : 'Unarchived')
-              patchAllInfiniteLists(queryClient, (c) =>
-                c.thread_id === selectedThreadId ? { ...c, archived: action === 'archive' } : c
-              )
-              // Archiving takes the row out of every list but Archived,
-              // so dropping the pick lands on whatever is now first.
-              if (action === 'archive') setSelectedThreadId(null)
-            })
-            .catch(() => toast.error('Failed'))
-          break
-        }
-
         case 'Enter': {
           if (selectedThreadId !== null) {
             e.preventDefault()
@@ -217,35 +190,13 @@ export function useKeyboardNav() {
           break
         }
         case 'I': {
-          // Shift+I: mark read and go to next
+          // Shift+I: mark read and go to the next
           if (!selectedThreadId) break
           e.preventDefault()
-          wireMarkThreadRead(selectedThreadId)
-            .then(invalidateMailAggregatesOnly)
-            .catch(() => {})
-          patchAllInfiniteLists(queryClient, (c) =>
-            c.thread_id === selectedThreadId ? { ...c, unread_count: 0 } : c
-          )
+          void act(selectedThreadId, 'read')
           const readIdx = rows.findIndex((r) => r.threadId === selectedThreadId)
           const nextThread = rows[readIdx + 1]?.threadId ?? rows[readIdx - 1]?.threadId ?? null
           if (nextThread) setSelectedThreadId(nextThread)
-          break
-        }
-
-        case 'p': {
-          // pin/unpin current thread
-          if (!selectedThreadId) break
-          e.preventDefault()
-          const pinned = conversations.find((c) => c.thread_id === selectedThreadId)?.pinned
-          const req = pinned ? wireUnpinThread(selectedThreadId) : wirePinThread(selectedThreadId)
-          req
-            .then(() => {
-              toast.success(pinned ? 'Unpinned' : 'Pinned')
-              patchAllInfiniteLists(queryClient, (c) =>
-                c.thread_id === selectedThreadId ? { ...c, pinned: !pinned } : c
-              )
-            })
-            .catch(() => toast.error('Failed'))
           break
         }
 
@@ -257,52 +208,60 @@ export function useKeyboardNav() {
           break
         }
 
-        case 's': {
-          // star/unstar current thread
+        case 'x': {
+          // pick the open conversation for a batch action, or put it back
           if (!selectedThreadId) break
           e.preventDefault()
-          const flagged = conversations.find((c) => c.thread_id === selectedThreadId)?.flagged
-          const nextFlagged = !flagged
-          const req = flagged
-            ? wireUnstarThread(selectedThreadId)
-            : wireStarThread(selectedThreadId)
-          req
-            .then(() => {
-              patchAllInfiniteLists(queryClient, (c) =>
-                c.thread_id === selectedThreadId ? { ...c, flagged: nextFlagged } : c
-              )
-            })
-            .catch(() => toast.error('Failed'))
+          const id = selectedThreadId
+          setBatchMode(true)
+          setChecked((prev) => {
+            const next = new Set(prev)
+            if (next.has(id)) next.delete(id)
+            else next.add(id)
+            return next
+          })
           break
         }
 
-        case 'u': {
-          // mark current thread unread
-          if (!selectedThreadId) break
+        case 'z': {
+          // take back the last action that has a way back
+          if (!lastUndo) break
           e.preventDefault()
-          wireBatchMutation('unread', [selectedThreadId])
-            .then(() => {
-              toast.success('Marked unread')
-              invalidateMailAggregatesOnly()
-              patchAllInfiniteLists(queryClient, (c) =>
-                c.thread_id === selectedThreadId
-                  ? { ...c, unread_count: Math.max(1, c.unread_count) }
-                  : c
-              )
-            })
-            .catch(() => toast.error('Failed'))
+          void act(lastUndo.threadId, lastUndo.action)
+          setLastUndo(null)
           break
         }
 
-        default:
+        default: {
+          // every other key is the action table's: `e`, `s`, `p`, `b`, `!`,
+          // `u`, whichever of a pair applies to the open conversation
+          if (!selectedThreadId) break
+          const row = conversations.find((c) => c.thread_id === selectedThreadId)
+          if (!row) break
+          const state = rowStateOf(row, viewOf(folder), Date.now() / 1000)
+          const id = actionForKey(keyName(e), state)
+          // what asks first (`#`) goes through the reading pane above
+          if (!id || ACTIONS[id].confirm) break
+          e.preventDefault()
+          void act(selectedThreadId, id)
+          // archiving takes the row out of the list: the list's own first
+          // row becomes the pick
+          if (id === 'archive') setSelectedThreadId(null)
           break
+        }
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [
+    act,
     askThread,
+    folder,
+    lastUndo,
+    setBatchMode,
+    setChecked,
+    setLastUndo,
     conversations,
     rows,
     selectedThreadId,

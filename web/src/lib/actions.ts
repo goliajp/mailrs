@@ -258,12 +258,6 @@ export type RowState = {
   view: 'junk' | 'np' | 'other'
 }
 
-/** Of a pair, the one that applies now. */
-export function toggle(on: boolean, ifOn: ActionId, ifOff: ActionId): ActionId {
-  if (on) return ifOn
-  return ifOff
-}
-
 /** The actions for one conversation, in menu order. */
 export function rowActions(s: RowState): ActionId[] {
   return [
@@ -275,6 +269,12 @@ export function rowActions(s: RowState): ActionId[] {
     ...bucketActions(s.view),
     'delete',
   ]
+}
+
+/** Of a pair, the one that applies now. */
+export function toggle(on: boolean, ifOn: ActionId, ifOff: ActionId): ActionId {
+  if (on) return ifOn
+  return ifOff
 }
 
 function bucketActions(view: RowState['view']): ActionId[] {
@@ -300,4 +300,39 @@ export const BATCH_ACTIONS: ActionId[] = (
 export function actionForKey(key: string, s: RowState): ActionId | null {
   const applicable = rowActions(s)
   return applicable.find((id) => ACTIONS[id].keys.includes(key)) ?? null
+}
+
+/** A key event as the table names keys: `e`, `#`, `Shift+I`. */
+export function keyName(e: { key: string; shiftKey: boolean }): string {
+  if (e.shiftKey && /^[A-Z]$/.test(e.key)) return `Shift+${e.key}`
+  return e.key
+}
+
+/** A conversation's state as the table reads it. */
+export function rowStateOf(
+  row: {
+    archived: boolean
+    flagged: boolean
+    pinned: boolean
+    snoozed_until?: null | number
+    unread_count: number
+  },
+  view: RowState['view'],
+  now: number
+): RowState {
+  return {
+    archived: row.archived,
+    flagged: row.flagged,
+    pinned: row.pinned,
+    snoozed: (row.snoozed_until ?? 0) > now,
+    unread: row.unread_count > 0,
+    view,
+  }
+}
+
+/** The view the table distinguishes, from the folder a list shows. */
+export function viewOf(folder: null | string): RowState['view'] {
+  if (folder === 'Junk') return 'junk'
+  if (folder === 'NP') return 'np'
+  return 'other'
 }
