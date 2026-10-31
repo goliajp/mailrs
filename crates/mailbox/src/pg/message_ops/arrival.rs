@@ -13,6 +13,8 @@ pub struct ArrivalFacts<'a> {
     pub category: &'a str,
     /// The sender-authentication verdict, or `""` for none.
     pub sender_trust: &'a str,
+    /// Attachments in the message, or `None` when not counted.
+    pub attachments: Option<u32>,
 }
 
 impl PgMailboxStore {
@@ -25,12 +27,15 @@ impl PgMailboxStore {
         facts: ArrivalFacts<'_>,
     ) -> Result<Inserted, StoreError> {
         let inserted = MailboxStore::insert_message(self, input).await?;
-        sqlx::query("UPDATE messages SET snippet = $1, sender_trust = $2 WHERE id = $3")
-            .bind(facts.snippet)
-            .bind(facts.sender_trust)
-            .bind(inserted.id)
-            .execute(&self.pool)
-            .await?;
+        sqlx::query(
+            "UPDATE messages SET snippet = $1, sender_trust = $2, attachments = $3 WHERE id = $4",
+        )
+        .bind(facts.snippet)
+        .bind(facts.sender_trust)
+        .bind(facts.attachments.map(|n| n as i32))
+        .bind(inserted.id)
+        .execute(&self.pool)
+        .await?;
         sqlx::query(
             "INSERT INTO email_analysis (message_id, category) VALUES ($1, $2) \
              ON CONFLICT (message_id) DO UPDATE SET category = EXCLUDED.category",

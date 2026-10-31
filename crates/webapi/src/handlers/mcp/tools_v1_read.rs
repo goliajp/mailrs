@@ -116,47 +116,32 @@ impl MailrsMcpService {
     }
 
     #[tool(
-        description = "Search conversations by free-text query. Matches subject + participants + snippet. Returns thread summaries."
+        description = "Search conversations, as the search box does: words match subjects, senders, bodies and attachment text, and operators narrow it (from:, to:, subject:, has:attachment, after:YYYY-MM-DD, before:YYYY-MM-DD, label:<name>, is:unread|read|starred|pinned, in:inbox|archive|junk|trash|sent|starred|anywhere; a leading - negates). Returns thread summaries."
     )]
     async fn search_conversations(
         &self,
         Parameters(params): Parameters<SearchConversationsParams>,
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?;
-        let needle = params.q.to_lowercase();
         let limit = params.limit.unwrap_or(20).min(100);
-        let req = mailrs_core_api::method::conversation::ListConversationsRequest {
-            filter: mailrs_core_api::types::ConversationFilter {
-                label: None,
-                accounts: None,
-                limit: 20_000,
-                before_ts: None,
-                category: None,
-                domains: None,
-                archived: false,
-                trashed: false,
-                include_quarantined: false,
-                folder: None,
-                unread: None,
-                starred: None,
-                section: None,
-            },
+        let req = mailrs_core_api::method::conversation::SearchConversationsRequest {
+            query: params.q,
+            category: None,
+            limit,
+            folder: None,
+            unread: None,
+            starred: None,
+            archived: false,
         };
         let resp = self
             .state
             .core
-            .list_conversations(user, &req)
+            .search_conversations(user, &req)
             .await
-            .map_err(|e| McpError::internal_error(format!("list_conversations: {e}"), None))?;
+            .map_err(|e| McpError::internal_error(format!("search_conversations: {e}"), None))?;
         let matched: Vec<_> = resp
             .items
             .into_iter()
-            .filter(|c| {
-                c.subject.to_lowercase().contains(&needle)
-                    || c.participants.to_lowercase().contains(&needle)
-                    || c.snippet.to_lowercase().contains(&needle)
-            })
-            .take(limit as usize)
             .map(|c| {
                 serde_json::json!({
                     "thread_id": c.thread_id,

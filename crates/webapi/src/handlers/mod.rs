@@ -55,6 +55,7 @@ pub mod push;
 pub mod quarantine;
 pub mod reset_code;
 pub mod route_permissions;
+pub mod saved_searches;
 pub mod scheduled;
 pub mod search;
 pub mod send;

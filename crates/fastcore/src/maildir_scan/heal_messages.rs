@@ -243,6 +243,7 @@ pub(crate) fn heal_missing_messages(
                 thread_id: tid.to_string(),
                 modseq: 0,
                 user_address: user.to_string(),
+                attachments: Some(m.attachments),
             };
             if let Some(found) = &m.invite {
                 crate::invites::store(state, &m.message_id, found);

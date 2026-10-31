@@ -120,6 +120,7 @@ fn record_message(
         thread_id: root.to_string(),
         modseq: 0,
         user_address: user.to_string(),
+        attachments: Some(m.attachments),
     };
     if let Ok(payload) = serde_json::to_vec(&wire) {
         let _ = state.mailbox.upsert_user_message(

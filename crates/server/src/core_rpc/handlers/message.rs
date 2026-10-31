@@ -38,7 +38,25 @@ pub async fn get_message_by_uid_for_user(
         .ok_or(StatusCode::NOT_FOUND)?;
     let mut w: wire::MessageWire = (&row).into();
     w.user_address = user;
+    fill_attachments(&state, std::slice::from_mut(&mut w)).await?;
     Ok(Json(w))
+}
+
+/// The attachment count each message was stored with, which the message
+/// rows these reads come from do not select.
+pub(crate) async fn fill_attachments(
+    state: &CoreRpcState,
+    items: &mut [wire::MessageWire],
+) -> Result<(), StatusCode> {
+    let ids: Vec<i64> = items.iter().map(|w| w.id).collect();
+    let counts = state.mailbox.attachment_counts(&ids).await.map_err(|e| {
+        tracing::warn!(error = %e, "attachment counts failed");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    for w in items {
+        w.attachments = counts.get(&w.id).copied();
+    }
+    Ok(())
 }
 
 /// GET /v1/users/{user}/messages/by-uid/{uid}/invite — the invitation the
@@ -80,9 +98,10 @@ pub async fn find_message_by_message_id(
         })?
         .ok_or(StatusCode::NOT_FOUND)?;
     // MessageMeta → MessageWire, then fill in user_address from path.
-    let mut wire: wire::MessageWire = (&row).into();
-    wire.user_address = user;
-    Ok(Json(wire))
+    let mut w: wire::MessageWire = (&row).into();
+    w.user_address = user;
+    fill_attachments(&state, std::slice::from_mut(&mut w)).await?;
+    Ok(Json(w))
 }
 
 // query_messages handler omitted from this loop — inherent method

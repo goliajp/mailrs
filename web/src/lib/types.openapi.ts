@@ -519,7 +519,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Full-text search across conversations */
+        /** Search conversations, with operators */
         get: operations["searchConversations"];
         put?: never;
         post?: never;
@@ -5307,6 +5307,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/saved-searches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your saved searches, by name */
+        get: operations["listSavedSearches"];
+        put?: never;
+        /** Save a search under a name */
+        post: operations["createSavedSearch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/saved-searches/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a saved search */
+        delete: operations["deleteSavedSearch"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -6010,6 +6045,13 @@ export interface components {
             name: string;
             /** @enum {string} */
             color: "gray" | "red" | "orange" | "yellow" | "green" | "teal" | "blue" | "purple";
+            created_at: number;
+        };
+        SavedSearch: {
+            id: string;
+            name: string;
+            query: string;
+            /** @description Unix seconds */
             created_at: number;
         };
     };
@@ -6754,7 +6796,7 @@ export interface operations {
     searchConversations: {
         parameters: {
             query: {
-                /** @description Search query string (max 500 chars) */
+                /** @description Search query (max 500 chars). Words are matched in subjects, senders, bodies and attachment text. Operators: from:, to:, subject:, has:attachment, after:YYYY-MM-DD, before:YYYY-MM-DD, label:<name>, is:unread|read|starred|pinned, in:inbox|archive|junk|trash|sent|starred|anywhere (in: replaces the folder the search was made from). A leading - negates an operator; quotes keep a value with spaces together. Anything else is searched as text. */
                 q: string;
                 limit?: number;
                 category?: string;
@@ -12569,6 +12611,102 @@ export interface operations {
             };
             /** @description In Junk or held for review, and anyway is not set */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listSavedSearches: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Saved searches */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedSearch"][];
+                };
+            };
+        };
+    };
+    createSavedSearch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    query: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Saved */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedSearch"];
+                };
+            };
+            /** @description invalid_name, invalid_query or too_many (100 at most), as {error} */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error?: string;
+                    };
+                };
+            };
+            /** @description name_taken, as {error} */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error?: string;
+                    };
+                };
+            };
+        };
+    };
+    deleteSavedSearch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such saved search of yours */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

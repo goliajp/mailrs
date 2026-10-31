@@ -1186,7 +1186,7 @@
     "/api/conversations/search": {
       "get": {
         "operationId": "searchConversations",
-        "summary": "Full-text search across conversations",
+        "summary": "Search conversations, with operators",
         "tags": [
           "Conversations"
         ],
@@ -1195,7 +1195,7 @@
             "name": "q",
             "in": "query",
             "required": true,
-            "description": "Search query string (max 500 chars)",
+            "description": "Search query (max 500 chars). Words are matched in subjects, senders, bodies and attachment text. Operators: from:, to:, subject:, has:attachment, after:YYYY-MM-DD, before:YYYY-MM-DD, label:<name>, is:unread|read|starred|pinned, in:inbox|archive|junk|trash|sent|starred|anywhere (in: replaces the folder the search was made from). A leading - negates an operator; quotes keep a value with spaces together. Anything else is searched as text.",
             "schema": {
               "type": "string",
               "maxLength": 500
@@ -10442,6 +10442,130 @@
           }
         }
       }
+    },
+    "/api/saved-searches": {
+      "get": {
+        "operationId": "listSavedSearches",
+        "summary": "Your saved searches, by name",
+        "tags": [
+          "Conversations"
+        ],
+        "responses": {
+          "200": {
+            "description": "Saved searches",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SavedSearch"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createSavedSearch",
+        "summary": "Save a search under a name",
+        "tags": [
+          "Conversations"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "query"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "query": {
+                    "type": "string",
+                    "maxLength": 500
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedSearch"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_name, invalid_query or too_many (100 at most), as {error}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "name_taken, as {error}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/saved-searches/{id}": {
+      "delete": {
+        "operationId": "deleteSavedSearch",
+        "summary": "Delete a saved search",
+        "tags": [
+          "Conversations"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "404": {
+            "description": "No such saved search of yours"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -12703,6 +12827,30 @@
           },
           "created_at": {
             "type": "integer"
+          }
+        }
+      },
+      "SavedSearch": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "query",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "query": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "integer",
+            "description": "Unix seconds"
           }
         }
       }

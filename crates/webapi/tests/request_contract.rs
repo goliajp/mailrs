@@ -46,6 +46,15 @@ fn label_bodies_match() {
 }
 
 #[test]
+fn saved_search_body_matches() {
+    let v: handlers::saved_searches::CreateRequest = parse("saved-search-create");
+    assert_eq!(
+        (v.name.as_str(), v.query.as_str()),
+        ("Invoices", "has:attachment invoice")
+    );
+}
+
+#[test]
 fn feedback_body_matches() {
     let v: handlers::prefs_misc::FeedbackRequest = parse("feedback");
     assert_eq!(v.sender_email, "someone@example.com");
@@ -321,6 +330,7 @@ fn every_fixture_has_a_test() {
         "key-upload",
         "label-create",
         "label-update",
+        "saved-search-create",
         "mock-address-create",
         "mock-namespace-create",
         "invite-counter",
