@@ -202,4 +202,40 @@ async fn the_replay_reports_both_samples_and_moves_nothing() {
     assert_eq!(mine, 2, "one hit per message");
     let (status, _) = replay(&state, "not lua !!!").await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    // the ledger estimate writes its entries into a throwaway store only
+    let res = mailrs_fastcore::build_router(state.clone())
+        .oneshot(
+            Request::builder()
+                .method(Method::POST)
+                .uri("/v1/admin/maintenance:ledger-estimate?limit=10")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let est: serde_json::Value = serde_json::from_slice(
+        &axum::body::to_bytes(res.into_body(), 1 << 20)
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(est["messages"], 2);
+    // per message: its hash, domain and sender indexes, relationship;
+    // the bad one adds a hash index (no links in either letter)
+    assert!(est["keys"].as_u64().unwrap() >= 6, "{est}");
+    assert!(est["raw_bytes"].as_u64().unwrap() > 200, "{est}");
+    let after: Vec<String> = threads
+        .iter()
+        .map(|t| {
+            state
+                .mailbox
+                .get_thread_for_user(BOB, t)
+                .unwrap()
+                .unwrap()
+                .category
+        })
+        .collect();
+    assert_eq!(before, after, "the estimate moved something");
 }
