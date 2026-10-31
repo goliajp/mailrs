@@ -89,6 +89,7 @@ mod text_search;
 mod thread_files;
 mod thread_ownership;
 mod thread_row;
+mod trash;
 pub use attachment_text::AttachmentTextState;
 pub use list_threads::{ListThreadsFilter, QuarantineScope};
 /// Which conversations a view shows; shared with every store.
