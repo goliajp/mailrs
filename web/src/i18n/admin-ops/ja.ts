@@ -1,6 +1,34 @@
 import type { AdminOpsKey } from './en'
 
 export const adminOpsJa: Record<AdminOpsKey, string> = {
+  'admin.config.empty': '設定はまだありません',
+  'admin.config.emptyHelp':
+    'このサーバーのプロセスが読む設定が、それぞれの設定場所とともにここに表示されます',
+  'admin.config.group.custom': '保存済みだがどのプロセスも読まないキー',
+  'admin.config.group.security': 'セキュリティ',
+  'admin.config.listName': 'サーバー設定',
+  'admin.config.logged': 'この変更は監査ログに記録されます',
+  'admin.config.noSettingsAnswer': 'サーバーの応答に設定が含まれていませんでした',
+  'admin.config.reader.maxSize': 'receiver は 1 分以内に新しい接続でこの値を使います',
+  'admin.config.removed': '「{key}」を削除しました',
+  'admin.config.removeTitle': '{key} を削除しますか？',
+  'admin.config.removeUnread':
+    '{key} を読むプロセスはないため、保存された値を削除してもサーバー上は何も変わりません。{logged}',
+  'admin.config.resetDone': '「{key}」を既定値に戻しました',
+  'admin.config.resetting': '戻しています…',
+  'admin.config.resetTitle': '{key} を既定値に戻しますか？',
+  'admin.config.resetToDefault': '既定値に戻す',
+  'admin.config.resetValue': '{value} は削除され、組み込みの {default} が再び適用されます',
+  'admin.config.saved': '「{key}」を保存しました',
+  'admin.config.savedBy': '{by} が {on} に保存',
+  'admin.config.savedOn': '{on} に保存',
+  'admin.config.sentenceJoin': '。',
+  'admin.config.source.database': 'ここで保存',
+  'admin.config.source.default': '既定値',
+  'admin.config.source.env': '環境変数',
+  'admin.config.source.unknown': 'ここでは見えません',
+  'admin.config.subtitle':
+    'ポート、ホスト名、TLS は compose で設定され、各プロセスの起動時に読み込まれます。ローカルドメインは「ドメイン」ページで管理します',
   'admin.flow.attn.failedMany': '過去 7 日間に {n} 通の送信メールが最終的に失敗しました',
   'admin.flow.attn.failedOne': '過去 7 日間に 1 通の送信メールが最終的に失敗しました',
   'admin.flow.attn.kevy': 'kevy が応答していません。セッション、キュー、設定が利用できません',

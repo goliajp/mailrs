@@ -1,5 +1,33 @@
 /** Interface text of the admin operations pages; spread into the main dictionaries. */
 export const adminOpsEn = {
+  'admin.config.empty': 'No settings yet',
+  'admin.config.emptyHelp':
+    "Settings this server's processes read are listed here, with where each one is set",
+  'admin.config.group.custom': 'Stored keys nothing reads',
+  'admin.config.group.security': 'Security',
+  'admin.config.listName': 'the server settings',
+  'admin.config.logged': 'The change is recorded in the audit log',
+  'admin.config.noSettingsAnswer': 'The server answered without its settings',
+  'admin.config.reader.maxSize': 'The receiver uses it for new connections within a minute',
+  'admin.config.removed': '"{key}" removed',
+  'admin.config.removeTitle': 'Remove {key}?',
+  'admin.config.removeUnread':
+    'No process reads {key}, so removing the stored value changes nothing on the server. {logged}',
+  'admin.config.resetDone': '"{key}" reset to default',
+  'admin.config.resetting': 'Resetting...',
+  'admin.config.resetTitle': 'Reset {key}?',
+  'admin.config.resetToDefault': 'Reset to default',
+  'admin.config.resetValue': '{value} is removed and the built-in {default} applies again',
+  'admin.config.saved': '"{key}" saved',
+  'admin.config.savedBy': 'Saved by {by} on {on}',
+  'admin.config.savedOn': 'Saved on {on}',
+  'admin.config.sentenceJoin': '. ',
+  'admin.config.source.database': 'Saved here',
+  'admin.config.source.default': 'Default',
+  'admin.config.source.env': 'Environment',
+  'admin.config.source.unknown': 'Not visible here',
+  'admin.config.subtitle':
+    'Ports, hostname and TLS are set in compose and read when each process starts. Local domains are managed on the Domains page',
   'admin.flow.attn.failedMany': '{n} outbound messages failed for good in the last 7 days',
   'admin.flow.attn.failedOne': '1 outbound message failed for good in the last 7 days',
   'admin.flow.attn.kevy': 'kevy is not answering: sessions, queues and settings are unavailable',

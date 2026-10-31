@@ -1,6 +1,33 @@
 import type { AdminOpsKey } from './en'
 
 export const adminOpsZh: Record<AdminOpsKey, string> = {
+  'admin.config.empty': '还没有设置',
+  'admin.config.emptyHelp': '本服务器各进程读取的设置会列在这里，并注明每一项在哪里设置',
+  'admin.config.group.custom': '已保存但没有进程读取的键',
+  'admin.config.group.security': '安全',
+  'admin.config.listName': '服务器设置',
+  'admin.config.logged': '这次改动会记进审计日志',
+  'admin.config.noSettingsAnswer': '服务器的回应里没有设置',
+  'admin.config.reader.maxSize': 'receiver 会在一分钟内对新连接使用它',
+  'admin.config.removed': '已移除“{key}”',
+  'admin.config.removeTitle': '移除 {key}？',
+  'admin.config.removeUnread':
+    '没有进程读取 {key}，所以移除保存的值不会改变服务器上的任何东西。{logged}',
+  'admin.config.resetDone': '“{key}”已恢复默认值',
+  'admin.config.resetting': '正在恢复…',
+  'admin.config.resetTitle': '把 {key} 恢复默认值？',
+  'admin.config.resetToDefault': '恢复默认值',
+  'admin.config.resetValue': '{value} 会被移除，重新使用内置的 {default}',
+  'admin.config.saved': '已保存“{key}”',
+  'admin.config.savedBy': '{by} 于 {on} 保存',
+  'admin.config.savedOn': '于 {on} 保存',
+  'admin.config.sentenceJoin': '。',
+  'admin.config.source.database': '在此保存',
+  'admin.config.source.default': '默认值',
+  'admin.config.source.env': '环境变量',
+  'admin.config.source.unknown': '这里看不到',
+  'admin.config.subtitle':
+    '端口、主机名和 TLS 在 compose 里设置，各进程启动时读取。本地域名在“域名”页面管理',
   'admin.flow.attn.failedMany': '最近 7 天有 {n} 封外发邮件彻底失败',
   'admin.flow.attn.failedOne': '最近 7 天有 1 封外发邮件彻底失败',
   'admin.flow.attn.kevy': 'kevy 没有响应：会话、队列和设置都不可用',
