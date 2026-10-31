@@ -34,41 +34,64 @@ fn rate_key(address: &str, hour: i64) -> String {
     format!("outbound:rate:{address}:{hour}")
 }
 
+fn day_key(address: &str, day: i64) -> String {
+    format!("outbound:rate:day:{address}:{day}")
+}
+
+fn bounce_day_key(address: &str, day: i64) -> String {
+    format!("outbound:bounce:day:{address}:{day}")
+}
+
+fn complaint_day_key(address: &str, day: i64) -> String {
+    format!("outbound:complaint:day:{address}:{day}")
+}
+
 fn fail_key(address: &str, hour: i64) -> String {
     format!("outbound:fail:{address}:{hour}")
 }
 
 /// An hour's counters outlive the hour by another, then go.
 const COUNTER_TTL: std::time::Duration = std::time::Duration::from_secs(7200);
+/// A day's counter (UTC days) outlives its day by another.
+const DAY_COUNTER_TTL: std::time::Duration = std::time::Duration::from_secs(2 * 86_400);
 
 /// The ceiling one account sends under in an hour.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Limits {
     pub per_hour: u64,
+    /// Recipients in a UTC day.
+    pub per_day: u64,
     pub fails_per_hour: u64,
 }
 
 impl Limits {
     pub const DEFAULT: Self = Self {
         per_hour: 200,
+        per_day: 2000,
         fails_per_hour: 30,
     };
 }
 
 /// Per-account ceilings from `MAILRS_OUTBOUND_PAUSE_OVERRIDES`:
-/// `address:per_hour:fails_per_hour`, comma-separated. Always numbers:
-/// there is no way to turn the check off for an account.
+/// `address:per_hour:fails_per_hour[:per_day]`, comma-separated. An
+/// override without a day's ceiling gets 24 hours of its hourly one, so
+/// raising an account's hour never leaves it stopped by the default day.
+/// Always numbers: there is no way to turn the check off for an account.
 pub fn parse_overrides(raw: &str) -> Result<Vec<(String, Limits)>, String> {
     raw.split(',')
         .map(str::trim)
         .filter(|s| !s.is_empty())
         .map(|entry| {
             let mut parts = entry.split(':');
-            let (Some(addr), Some(per), Some(fails), None) =
-                (parts.next(), parts.next(), parts.next(), parts.next())
-            else {
+            let (Some(addr), Some(per), Some(fails), day, None) = (
+                parts.next(),
+                parts.next(),
+                parts.next(),
+                parts.next(),
+                parts.next(),
+            ) else {
                 return Err(format!(
-                    "{entry:?}: expected address:per_hour:fails_per_hour"
+                    "{entry:?}: expected address:per_hour:fails_per_hour[:per_day]"
                 ));
             };
             let number = |s: &str| {
@@ -80,10 +103,16 @@ pub fn parse_overrides(raw: &str) -> Result<Vec<(String, Limits)>, String> {
             if !addr.contains('@') {
                 return Err(format!("{entry:?}: {addr:?} is not an address"));
             }
+            let per_hour = number(per)?;
+            let per_day = match day {
+                Some(d) => number(d)?,
+                None => per_hour.saturating_mul(24),
+            };
             Ok((
                 addr.to_ascii_lowercase(),
                 Limits {
-                    per_hour: number(per)?,
+                    per_hour,
+                    per_day,
                     fails_per_hour: number(fails)?,
                 },
             ))
@@ -96,21 +125,76 @@ pub fn is_paused(c: &mut Connection, address: &str) -> io::Result<bool> {
     Ok(c.exists(&[paused_key(address).as_bytes()])? > 0)
 }
 
-/// Count one job (one recipient) for `address` at `now`; the hour's
-/// count after it.
-pub fn count_send(c: &mut Connection, address: &str, now: i64) -> io::Result<u64> {
-    count(c, &rate_key(address, now / 3600))
+/// One account's sending so far, counting the job just claimed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Sent {
+    pub hour: u64,
+    pub day: u64,
+}
+
+/// Count one job (one recipient) for `address` at `now`; the hour's and
+/// the UTC day's counts after it.
+pub fn count_send(c: &mut Connection, address: &str, now: i64) -> io::Result<Sent> {
+    Ok(Sent {
+        hour: count(c, &rate_key(address, now / 3600), COUNTER_TTL)?,
+        day: count(c, &day_key(address, now / 86_400), DAY_COUNTER_TTL)?,
+    })
+}
+
+/// The share of a day's recipients that may bounce for good, in percent,
+/// once the day has [`BOUNCE_MIN_SENT`] recipients. A list kept clean
+/// bounces under 2%; ten is a bought or stale list, or a typo storm.
+pub const BOUNCE_LIMIT_PERCENT: u64 = 10;
+/// Recipients in a day before the bounce rate counts.
+pub const BOUNCE_MIN_SENT: u64 = 50;
+/// Complaints per thousand of a day's recipients; the large mailbox
+/// providers start refusing a sender around three.
+pub const COMPLAINT_LIMIT_PER_MILLE: u64 = 3;
+/// Complaints in a day before the complaint rate counts: one or two
+/// annoyed people are not a pattern.
+pub const COMPLAINT_MIN: u64 = 3;
+
+/// Recipients `address` sent to on the UTC day holding `now`.
+pub fn sent_today(c: &mut Connection, address: &str, now: i64) -> io::Result<u64> {
+    Ok(c.get(day_key(address, now / 86_400).as_bytes())?
+        .and_then(|v| String::from_utf8(v).ok())
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0))
+}
+
+/// Count one remote hard bounce for `address`; the day's count.
+pub fn count_bounce(c: &mut Connection, address: &str, now: i64) -> io::Result<u64> {
+    count(c, &bounce_day_key(address, now / 86_400), DAY_COUNTER_TTL)
+}
+
+/// Count one matched complaint about `address`'s mail; the day's count.
+pub fn count_complaint(c: &mut Connection, address: &str, now: i64) -> io::Result<u64> {
+    count(
+        c,
+        &complaint_day_key(address, now / 86_400),
+        DAY_COUNTER_TTL,
+    )
+}
+
+/// Whether `bounced` of `sent` passes the bounce limit.
+pub fn bounce_rate_over(sent: u64, bounced: u64) -> bool {
+    sent >= BOUNCE_MIN_SENT && bounced * 100 > sent * BOUNCE_LIMIT_PERCENT
+}
+
+/// Whether `complaints` about `sent` recipients pass the complaint limit.
+pub fn complaint_rate_over(sent: u64, complaints: u64) -> bool {
+    complaints >= COMPLAINT_MIN && complaints * 1000 > sent * COMPLAINT_LIMIT_PER_MILLE
 }
 
 /// Count one permanent failure for `address` at `now`; the hour's count.
 pub fn count_failure(c: &mut Connection, address: &str, now: i64) -> io::Result<u64> {
-    count(c, &fail_key(address, now / 3600))
+    count(c, &fail_key(address, now / 3600), COUNTER_TTL)
 }
 
-fn count(c: &mut Connection, key: &str) -> io::Result<u64> {
+fn count(c: &mut Connection, key: &str, ttl: std::time::Duration) -> io::Result<u64> {
     let n = c.incr(key.as_bytes())?;
     if n == 1 {
-        c.expire(key.as_bytes(), COUNTER_TTL)?;
+        c.expire(key.as_bytes(), ttl)?;
     }
     Ok(n.max(0) as u64)
 }
@@ -266,7 +350,7 @@ mod tests {
 
     #[test]
     fn overrides_are_numbers_for_named_accounts() {
-        let got = parse_overrides(" news@golia.jp:2000:100 , a@b.jp:300:40").unwrap();
+        let got = parse_overrides(" news@golia.jp:2000:100 , a@b.jp:300:40:1000").unwrap();
         assert_eq!(
             got,
             vec![
@@ -274,6 +358,7 @@ mod tests {
                     "news@golia.jp".to_string(),
                     Limits {
                         per_hour: 2000,
+                        per_day: 48_000,
                         fails_per_hour: 100
                     }
                 ),
@@ -281,6 +366,7 @@ mod tests {
                     "a@b.jp".to_string(),
                     Limits {
                         per_hour: 300,
+                        per_day: 1000,
                         fails_per_hour: 40
                     }
                 ),
@@ -291,9 +377,45 @@ mod tests {
             "news@golia.jp:off:1",
             "news@golia.jp:0:1",
             "news@golia.jp:5",
+            "news@golia.jp:5:5:0",
+            "news@golia.jp:5:5:5:5",
             "nobody:5:5",
         ] {
             assert!(parse_overrides(bad).is_err(), "{bad} was taken");
         }
+    }
+
+    #[test]
+    fn a_send_counts_its_hour_and_its_day() {
+        let mut c = Connection::connect("mem://outbound-pause-day").unwrap();
+        let day = 20_000 * 86_400;
+        assert_eq!(
+            count_send(&mut c, "a@b.jp", day + 10).unwrap(),
+            Sent { hour: 1, day: 1 }
+        );
+        assert_eq!(
+            count_send(&mut c, "a@b.jp", day + 3_700).unwrap(),
+            Sent { hour: 1, day: 2 },
+            "next hour, same day"
+        );
+        assert_eq!(
+            count_send(&mut c, "a@b.jp", day + 86_400).unwrap(),
+            Sent { hour: 1, day: 1 },
+            "next day"
+        );
+    }
+
+    #[test]
+    fn rates_need_enough_mail_before_they_count() {
+        assert!(!bounce_rate_over(49, 40), "too few sent");
+        assert!(!bounce_rate_over(100, 10), "exactly the limit");
+        assert!(bounce_rate_over(100, 11));
+        assert!(!complaint_rate_over(10_000, 2), "too few complaints");
+        assert!(!complaint_rate_over(1_000, 3), "exactly the limit");
+        assert!(complaint_rate_over(1_000, 4));
+        assert!(
+            complaint_rate_over(0, 3),
+            "complaints about mail not counted today"
+        );
     }
 }

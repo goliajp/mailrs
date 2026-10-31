@@ -48,6 +48,12 @@ pub enum Kind {
     /// A feedback-loop reporter sent more matched complaints in a day than
     /// are acted on; the rest are logged and suppress nobody.
     ComplaintLimit,
+    /// A receiving server refused our mail and named a blocklist or our
+    /// address's reputation as the reason.
+    EgressRefused,
+    /// One of our sending addresses is on a DNS blocklist the deployment
+    /// checks daily.
+    EgressListed,
 }
 
 impl Kind {
@@ -115,6 +121,13 @@ pub enum Fact {
         /// The limit.
         limit: u64,
     },
+    /// Recipients sent to in a UTC day, over the account's limit.
+    DaySendLimit {
+        /// How many.
+        count: u64,
+        /// The limit.
+        limit: u64,
+    },
     /// Permanent delivery failures in an hour, over the account's limit.
     FailureLimit {
         /// How many.
@@ -148,6 +161,39 @@ pub enum Fact {
     LatestComplaint {
         /// The address.
         address: String,
+    },
+    /// Of the recipients an account sent to today, the share that
+    /// bounced for good, over the limit.
+    BounceRate {
+        /// Bounced.
+        bounced: u64,
+        /// Sent.
+        sent: u64,
+        /// The limit, in percent.
+        limit_percent: u64,
+    },
+    /// Complaints about an account's mail today, against what it sent.
+    ComplaintRate {
+        /// Complaints.
+        complaints: u64,
+        /// Sent.
+        sent: u64,
+        /// The limit, per thousand recipients.
+        limit_per_mille: u64,
+    },
+    /// What a receiving server answered when it refused our mail.
+    RemoteRefusal {
+        /// The server.
+        host: String,
+        /// Its reply, shortened.
+        reply: String,
+    },
+    /// A blocklist one of our addresses is on.
+    Listed {
+        /// Our address.
+        address: String,
+        /// The list's DNS zone.
+        zone: String,
     },
     /// Words from the system that raised it, for the operator.
     Note {

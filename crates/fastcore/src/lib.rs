@@ -36,6 +36,7 @@ pub mod live_sync;
 mod maildir_scan;
 mod maintenance;
 mod mock_sweep;
+pub mod outbound_fraud;
 mod protocols;
 pub use protocols::{FastcoreDirectory, listen_for_signouts};
 mod push;

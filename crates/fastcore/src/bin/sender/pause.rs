@@ -25,8 +25,9 @@ pub(super) struct PauseLimits {
 }
 
 impl PauseLimits {
-    /// From `MAILRS_OUTBOUND_PAUSE_PER_HOUR`, `..._FAILS_PER_HOUR` and
-    /// `..._OVERRIDES`; a value that does not parse stops the process.
+    /// From `MAILRS_OUTBOUND_PAUSE_PER_HOUR`, `..._PER_DAY`,
+    /// `..._FAILS_PER_HOUR` and `..._OVERRIDES`; a value that does not
+    /// parse stops the process.
     pub(super) fn from_env() -> Result<Self, String> {
         let number = |name: &str, default: u64| match std::env::var(name) {
             Err(_) => Ok(default),
@@ -41,6 +42,10 @@ impl PauseLimits {
             per_hour: number(
                 "MAILRS_OUTBOUND_PAUSE_PER_HOUR",
                 pause::Limits::DEFAULT.per_hour,
+            )?,
+            per_day: number(
+                "MAILRS_OUTBOUND_PAUSE_PER_DAY",
+                pause::Limits::DEFAULT.per_day,
             )?,
             fails_per_hour: number(
                 "MAILRS_OUTBOUND_PAUSE_FAILS_PER_HOUR",
@@ -149,20 +154,33 @@ fn decide(
         if !first_attempt {
             return Ok((false, None));
         }
-        let n = pause::count_send(c, account, now)?;
-        if n <= limits.per_hour {
-            return Ok((false, None));
-        }
-        let reason = format!(
-            "{n} recipients in an hour, over its limit of {}",
-            limits.per_hour
-        );
-        if pause::pause(c, account, &reason, now)? {
-            let fact = Fact::SendLimit {
-                count: n,
-                limit: limits.per_hour,
-            };
-            newly = Some((reason, fact));
+        let sent = pause::count_send(c, account, now)?;
+        let over = match (sent.hour > limits.per_hour, sent.day > limits.per_day) {
+            (false, false) => return Ok((false, None)),
+            (true, _) => (
+                format!(
+                    "{} recipients in an hour, over its limit of {}",
+                    sent.hour, limits.per_hour
+                ),
+                Fact::SendLimit {
+                    count: sent.hour,
+                    limit: limits.per_hour,
+                },
+            ),
+            (false, true) => {
+                let text = format!(
+                    "{} recipients in a day (UTC), over its limit of {}",
+                    sent.day, limits.per_day
+                );
+                let fact = Fact::DaySendLimit {
+                    count: sent.day,
+                    limit: limits.per_day,
+                };
+                (text, fact)
+            }
+        };
+        if pause::pause(c, account, &over.0, now)? {
+            newly = Some(over);
         }
     }
     pause::hold(c, account, id, created_at)?;
@@ -170,19 +188,43 @@ fn decide(
 }
 
 /// Count a permanent failure of `sender`'s job, pausing the account when
-/// its hour's failures pass the limit.
-pub(super) async fn note_permanent_failure(cfg: &Cfg, envelope: &serde_json::Value, sender: &str) {
+/// its hour's failures pass the limit, or when today's remote hard
+/// bounces pass the bounce rate.
+pub(super) async fn note_permanent_failure(
+    cfg: &Cfg,
+    envelope: &serde_json::Value,
+    sender: &str,
+    reason: &str,
+) {
     let Some(account) = counted_account(envelope, sender) else {
         return;
     };
     let limits = cfg.pause_limits.for_account(&account);
     let (url, acct) = (cfg.kevy_url.clone(), account.clone());
+    let remote = super::outcome::is_remote_hard_bounce(reason);
     let res = spawn_blocking(move || -> std::io::Result<Option<(String, Fact)>> {
         let mut c = kevy(&url)?;
         let now = now_secs();
         let n = pause::count_failure(&mut c, &acct, now)?;
         if n <= limits.fails_per_hour {
-            return Ok(None);
+            if !remote {
+                return Ok(None);
+            }
+            let bounced = pause::count_bounce(&mut c, &acct, now)?;
+            let sent = pause::sent_today(&mut c, &acct, now)?;
+            if !pause::bounce_rate_over(sent, bounced) {
+                return Ok(None);
+            }
+            let reason = format!(
+                "{bounced} of {sent} recipients bounced today, over its limit of {}%",
+                pause::BOUNCE_LIMIT_PERCENT
+            );
+            let fact = Fact::BounceRate {
+                bounced,
+                sent,
+                limit_percent: pause::BOUNCE_LIMIT_PERCENT,
+            };
+            return Ok(pause::pause(&mut c, &acct, &reason, now)?.then_some((reason, fact)));
         }
         let reason = format!(
             "{n} permanent failures in an hour, over its limit of {}",
@@ -435,6 +477,7 @@ mod tests {
         let mut c = kevy_client::Connection::connect(&url).unwrap();
         let limits = pause::Limits {
             per_hour: 2,
+            per_day: 100,
             fails_per_hour: 30,
         };
         let alerts = "noreply@golia.jp";
@@ -461,6 +504,7 @@ mod tests {
         let mut c = kevy_client::Connection::connect(&url).unwrap();
         let limits = pause::Limits {
             per_hour: 2,
+            per_day: 100,
             fails_per_hour: 30,
         };
         let account = "a@golia.jp";
@@ -479,5 +523,27 @@ mod tests {
         // a job written before the account was recorded counts by sender
         let (id, env) = submission(&mut c, one, None, false);
         assert!(!claim(&mut c, &id, &env, limits));
+    }
+
+    /// A day's limit pauses an account that stays under every hour's.
+    #[tokio::test]
+    async fn a_day_over_its_limit_pauses_inside_the_hourly_one() {
+        let (_kevy, url) = mailrs_test_docker::kevy::kevy_server().await;
+        let mut c = kevy_client::Connection::connect(&url).unwrap();
+        let limits = pause::Limits {
+            per_hour: 100,
+            per_day: 3,
+            fails_per_hour: 30,
+        };
+        let account = "day@golia.jp";
+        let mut held = Vec::new();
+        for _ in 0..4 {
+            let (id, env) = job(&mut c, account, false);
+            held.push(claim(&mut c, &id, &env, limits));
+        }
+        assert_eq!(held, [false, false, false, true]);
+        let paused = pause::paused(&mut c).unwrap();
+        let p = paused.iter().find(|p| p.address == account).unwrap();
+        assert_eq!(p.reason, "4 recipients in a day (UTC), over its limit of 3");
     }
 }
