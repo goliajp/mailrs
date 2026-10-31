@@ -25,6 +25,11 @@ const EncryptionKeysSection = lazy(() =>
     default: m.EncryptionKeysSection,
   }))
 )
+const ForwardingSection = lazy(() =>
+  import('@/components/settings/forwarding-section').then((m) => ({
+    default: m.ForwardingSection,
+  }))
+)
 const ResetCodesSection = lazy(() =>
   import('@/components/settings/reset-codes-section').then((m) => ({
     default: m.ResetCodesSection,
@@ -56,6 +61,7 @@ type Category =
   | 'api-keys'
   | 'appearance'
   | 'calendar-feeds'
+  | 'forwarding'
   | 'keys'
   | 'reset-codes'
   | 'rules'
@@ -69,6 +75,7 @@ const CATEGORIES: { key: Category; label: string }[] = [
   { key: 'security', label: 'Security' },
   { key: 'signatures', label: 'Signatures' },
   { key: 'rules', label: 'Rules' },
+  { key: 'forwarding', label: 'Forwarding' },
   { key: 'senders', label: 'Senders' },
   { key: 'keys', label: 'Encryption Keys' },
   { key: 'api-keys', label: 'API Keys' },
@@ -163,6 +170,7 @@ export function Settings() {
               {active === 'security' && <SecuritySection />}
               {active === 'signatures' && <SignaturesSection />}
               {active === 'rules' && <RulesSection />}
+              {active === 'forwarding' && <ForwardingSection />}
               {active === 'senders' && <SendersSection />}
               {active === 'keys' && <EncryptionKeysSection />}
               {active === 'api-keys' && <ApiKeysSection />}

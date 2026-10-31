@@ -1,5 +1,6 @@
-//! Rules and saved searches: the searches a user keeps, and what to do with
-//! the mail they find.
+//! Rules and saved searches — the searches a user keeps and what to do with
+//! the mail they find — and the forwarding and vacation reply that also act
+//! on mail as it arrives.
 
 use std::sync::Arc;
 
@@ -27,6 +28,21 @@ pub(super) fn rule_routes() -> axum::Router<Arc<WebState>> {
         .route(
             "/api/rules/runs/{run_id}/undo",
             post(crate::handlers::rules_run::undo),
+        )
+        .route(
+            "/api/settings/vacation",
+            get(crate::handlers::mail_settings::get_vacation)
+                .put(crate::handlers::mail_settings::put_vacation),
+        )
+        .route(
+            "/api/settings/forwarding",
+            get(crate::handlers::mail_settings::get_forwarding)
+                .post(crate::handlers::mail_settings::request_forwarding)
+                .delete(crate::handlers::mail_settings::stop_forwarding),
+        )
+        .route(
+            "/api/settings/forwarding/verify",
+            post(crate::handlers::mail_settings::verify_forwarding),
         )
         .route(
             "/api/saved-searches",
