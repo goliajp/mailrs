@@ -41,7 +41,8 @@ Streamable HTTP endpoint: https://mail.golia.ai/mcp
 - POST /api/mail/send-multipart — send with attachments
 - POST /api/mail/unsubscribe — RFC 8058 one-click leave; body names the message, the server posts to the URL that message carried
 - GET /api/conversations — list conversations (?category=, ?folder=, ?limit=)
-- GET /api/conversations/search?q=keyword — full-text search (also ?category=, ?folder=, ?limit=)
+- GET /api/conversations/search?q=keyword — search (also ?category=, ?folder=, ?limit=); q takes operators: from:, to:, subject:, has:attachment, after:YYYY-MM-DD, before:YYYY-MM-DD, label:<name>, is:unread|read|starred|pinned, in:inbox|archive|junk|trash|sent|starred|anywhere, and - to negate
+- GET/POST /api/saved-searches, DELETE /api/saved-searches/{id} — your saved searches ({name, query})
 - GET /api/conversations/{thread_id} — thread messages
 - GET /api/mail/messages/{uid} — read message; a meeting invitation comes back as `invite_method` + `invite_payload`
 - POST /api/invites/{uid}/rsvp — answer an invitation (ACCEPTED / TENTATIVE / DECLINED); records the choice and queues an iTIP REPLY to the organiser

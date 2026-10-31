@@ -178,18 +178,28 @@ fn judged(m: &mailrs_mailbox_kevy::KevyMailboxStore) -> (Option<String>, bool, S
 }
 
 async fn search(state: &Arc<mailrs_fastcore::FastcoreState>, user: &str) -> Vec<String> {
+    search_for(state, user, WORD).await
+}
+
+async fn search_for(
+    state: &Arc<mailrs_fastcore::FastcoreState>,
+    user: &str,
+    query: &str,
+) -> Vec<String> {
     let found = call(
         state,
         &format!("/v1/users/{user}/conversations:search"),
-        serde_json::json!({ "query": WORD }),
+        serde_json::json!({ "query": query }),
     )
     .await;
-    found["items"]
+    let mut ids: Vec<String> = found["items"]
         .as_array()
         .unwrap()
         .iter()
         .map(|i| i["thread_id"].as_str().unwrap().to_string())
-        .collect()
+        .collect();
+    ids.sort();
+    ids
 }
 
 async fn rescan_dry(state: &Arc<mailrs_fastcore::FastcoreState>) -> serde_json::Value {
@@ -298,6 +308,25 @@ async fn a_word_inside_a_pdf_finds_the_conversation() {
     let drained =
         mailrs_fastcore::spool_drain::drain_once(&incoming, maildir.to_str().unwrap(), &state).0;
     assert_eq!(drained, 3);
+
+    // delivery counted the attachments, so the operator finds them
+    assert_eq!(
+        search_for(&state, BOB, "has:attachment").await,
+        ["bad1@example.org", "pdf1@example.org"]
+    );
+    assert_eq!(
+        search_for(&state, BOB, "-has:attachment").await,
+        ["plain1@example.org"]
+    );
+    // and the backfill has nothing left to read
+    let counts = call(
+        &state,
+        "/v1/admin/maintenance:backfill-attachment-counts?dry_run=false",
+        serde_json::json!({}),
+    )
+    .await;
+    assert_eq!(counts["already_counted"], 3, "{counts}");
+    assert_eq!(counts["files_read"], 0, "{counts}");
 
     // delivery queued the two PDFs and not the letter
     let m = &state.mailbox;

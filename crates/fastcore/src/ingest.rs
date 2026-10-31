@@ -101,6 +101,7 @@ pub(crate) fn store_arrival(
         thread_id: a.thread_id.clone(),
         modseq: 0,
         user_address: addr.to_string(),
+        attachments: Some(a.parsed.attachments().count() as u32),
     };
     let root = &a.thread_id;
     write_message_row(state, addr, root, &a.message_id, a.date, blob_ref, &wire);

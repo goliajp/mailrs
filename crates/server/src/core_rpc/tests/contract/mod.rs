@@ -18,6 +18,7 @@ mod intake;
 mod labels;
 mod mail;
 mod operator;
+mod search;
 mod sent;
 mod side;
 mod threads;

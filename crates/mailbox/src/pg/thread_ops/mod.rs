@@ -22,6 +22,7 @@ mod labels;
 pub use labels::LabelDbError;
 mod mutate;
 mod query;
+mod search_facts;
 mod trash;
 
 pub use query::{Held, ThreadQuery};

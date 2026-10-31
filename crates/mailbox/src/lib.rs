@@ -21,6 +21,8 @@ pub mod labels;
 pub mod participants;
 #[cfg(feature = "pg")]
 pub mod pg;
+/// Search operators, shared by search and rules in every core.
+pub mod query;
 /// Which conversations a view shows: triage buckets and the scope a
 /// request's folder and category reconcile to, shared by every store.
 pub mod scope;

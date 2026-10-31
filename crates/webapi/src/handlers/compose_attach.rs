@@ -388,6 +388,7 @@ mod reply_threading_tests {
             thread_id: "t".into(),
             modseq: 0,
             user_address: "me@x.com".into(),
+            attachments: None,
         }
     }
 

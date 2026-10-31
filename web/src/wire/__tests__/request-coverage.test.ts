@@ -87,9 +87,17 @@ function bodySenders(): string[] {
   return out.sort()
 }
 
+/** The contract tests, split by subject, read as one. */
+function contractTests(): string {
+  return readdirSync(import.meta.dirname)
+    .filter((f) => f.startsWith('request-contract') && f.endsWith('.test.ts'))
+    .map((f) => readFileSync(join(import.meta.dirname, f), 'utf8'))
+    .join('\n')
+}
+
 /** Wire function names named by a case in the contract test. */
 function covered(): Set<string> {
-  const src = readFileSync(join(import.meta.dirname, 'request-contract.test.ts'), 'utf8')
+  const src = contractTests()
   const names = new Set<string>()
   for (const m of src.matchAll(/const \{ (wire[A-Za-z0-9_]+) \} = await import/g)) {
     names.add(m[1])
@@ -99,7 +107,7 @@ function covered(): Set<string> {
 
 /** Admin paths named by a case in the contract test. */
 function coveredAdminPaths(): Set<string> {
-  const src = readFileSync(join(import.meta.dirname, 'request-contract.test.ts'), 'utf8')
+  const src = contractTests()
   const out = new Set<string>()
   for (const m of src.matchAll(/admin(?:Post|Put|Patch)(?:<[^(]*>)?\(\s*[`']([^`']+)[`']/g)) {
     out.add(normalisePath(m[1]))

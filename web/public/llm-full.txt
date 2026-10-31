@@ -790,6 +790,28 @@ curl "https://mail.golia.ai/api/conversations/search?q=invoice&limit=10" \
 
 Same response format as list conversations. `GET /api/conversations` itself does not search: it has no `q` parameter and ignores one.
 
+`q` takes operators besides words, and a query can be operators only:
+
+- `from:alice`, `to:bob`, `subject:"q3 plan"` -- a sender, a To recipient, or the subject contains the value
+- `has:attachment`
+- `after:2026-10-01`, `before:2026-11-01` -- by the latest message, UTC
+- `label:Work` -- by label name
+- `is:unread`, `is:read`, `is:starred`, `is:pinned`
+- `in:inbox`, `in:archive`, `in:junk`, `in:trash`, `in:sent`, `in:starred`, `in:anywhere` -- where to look, in place of `folder`
+- a leading `-` negates an operator: `-from:noreply`
+- anything else, including an unknown `x:y`, is searched as text
+
+### Saved Searches
+
+```
+curl https://mail.golia.ai/api/saved-searches -H "Authorization: Bearer mlrs_..."
+curl -X POST https://mail.golia.ai/api/saved-searches -H "Authorization: Bearer mlrs_..." \
+  -H "Content-Type: application/json" -d '{"name": "Invoices", "query": "has:attachment invoice"}'
+curl -X DELETE https://mail.golia.ai/api/saved-searches/1 -H "Authorization: Bearer mlrs_..."
+```
+
+A name is unique per user ignoring case (409 `name_taken`); 400 `invalid_name` / `invalid_query` / `too_many` (100 at most).
+
 ### Read a Message
 
 ```

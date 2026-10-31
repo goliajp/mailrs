@@ -48,6 +48,8 @@ pub(crate) struct MailFile {
     /// first time a mailbox is healed — which is the whole reason this
     /// scan exists.
     pub(crate) invite: Option<crate::invites::FoundInvite>,
+    /// Attachments in the file, as delivery counts them.
+    pub(crate) attachments: u32,
 }
 
 /// Every mail file in `user`'s maildir, parsed far enough to thread it.
@@ -177,6 +179,7 @@ pub(crate) fn scan_maildir(user: &str, since: i64) -> Vec<MailFile> {
             keywords: maildir_keyword_bits(&bare),
             sender_trust: extract_sender_trust(&bytes),
             invite: crate::invites::find(&bytes),
+            attachments: mailrs_mime::parse(&bytes).attachments().count() as u32,
         });
     }
     parsed

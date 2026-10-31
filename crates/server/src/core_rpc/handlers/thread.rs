@@ -28,7 +28,7 @@ pub async fn list_thread_messages(
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
     let user_clone = user.clone();
-    let items = rows
+    let mut items: Vec<mailrs_core_api::method::message::MessageWire> = rows
         .iter()
         .map(|m| {
             let mut w: mailrs_core_api::method::message::MessageWire = m.into();
@@ -36,6 +36,7 @@ pub async fn list_thread_messages(
             w
         })
         .collect();
+    super::message::fill_attachments(&state, &mut items).await?;
     Ok(Json(wire::ListThreadMessagesResponse { items }))
 }
 
