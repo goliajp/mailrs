@@ -132,3 +132,4 @@
 /metrics	read only
 /oauth/authorize	issues an authorization code; registering clients is closed until a consent step exists
 /oauth/userinfo	read only
+/api/admin/screening/observations	read only, super administrators

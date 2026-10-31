@@ -1,9 +1,3 @@
-// ClamAV INSTREAM client lives in mailrs-clamav 1.0.0; we re-export
-// for back-compat with the previous internal API names.
-pub use mailrs_clamav::{
-    ClamavResult, parse_response as parse_clamav_response, scan as scan_clamav,
-};
-
 /// content scanning result
 #[derive(Debug, Clone, PartialEq)]
 pub enum ScanResult {
@@ -392,25 +386,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parse_clamav_clean() {
-        assert_eq!(parse_clamav_response(b"stream: OK\0"), ClamavResult::Clean);
-    }
-
-    #[test]
-    fn parse_clamav_virus() {
-        assert_eq!(
-            parse_clamav_response(b"stream: Eicar FOUND\0"),
-            ClamavResult::Virus("Eicar".into())
-        );
-    }
-
-    #[test]
-    fn parse_clamav_error() {
-        let result = parse_clamav_response(b"INSTREAM size limit exceeded\0");
-        assert!(matches!(result, ClamavResult::Error(_)));
-    }
-
-    #[test]
     fn evaluate_missing_from() {
         let data = b"Subject: test\r\nDate: Mon, 01 Jan 2024 00:00:00 +0000\r\nMessage-ID: <test@example.com>\r\n\r\nbody";
         let (score, rules) = evaluate_rules(data);
@@ -557,13 +532,6 @@ mod tests {
         assert!(rules.contains(&"shouty_subject".to_string()));
     }
 
-    #[test]
-    fn clamav_response_multi_null_bytes() {
-        let mut response = b"stream: OK".to_vec();
-        response.extend_from_slice(&[0, 0, 0]);
-        assert_eq!(parse_clamav_response(&response), ClamavResult::Clean);
-    }
-
     // --- empty and binary input tests ---
 
     #[test]
@@ -598,40 +566,6 @@ mod tests {
         data.extend_from_slice(&[0xFF, 0xFE]);
         let (_, rules) = evaluate_rules(&data);
         assert!(!rules.contains(&"missing_from".to_string()));
-    }
-
-    // --- parse_clamav_response edge cases ---
-
-    #[test]
-    fn clamav_empty_response() {
-        let result = parse_clamav_response(b"");
-        assert!(matches!(result, ClamavResult::Error(_)));
-    }
-
-    #[test]
-    fn clamav_only_whitespace() {
-        let result = parse_clamav_response(b"   \0");
-        assert!(matches!(result, ClamavResult::Error(_)));
-    }
-
-    #[test]
-    fn clamav_virus_with_dots_in_name() {
-        assert_eq!(
-            parse_clamav_response(b"stream: Win.Trojan.Agent-123456 FOUND\0"),
-            ClamavResult::Virus("Win.Trojan.Agent-123456".into())
-        );
-    }
-
-    #[test]
-    fn clamav_ok_without_null() {
-        assert_eq!(parse_clamav_response(b"stream: OK"), ClamavResult::Clean);
-    }
-
-    #[test]
-    fn clamav_found_without_colon() {
-        // edge: "FOUND" present but no colon prefix
-        let result = parse_clamav_response(b"SomeVirus FOUND\0");
-        assert_eq!(result, ClamavResult::Virus("SomeVirus".into()));
     }
 
     // --- helper function unit tests ---

@@ -70,8 +70,14 @@ async fn file(
     }
     if let Some(mut conn) = state.net_conn() {
         match lesson {
-            Lesson::Spam => mailrs_triage::spam::train(&mut conn, thread_id, &raws, true),
-            Lesson::Ham => mailrs_triage::spam::train(&mut conn, thread_id, &raws, false),
+            Lesson::Spam | Lesson::Ham => {
+                let is_junk = matches!(lesson, Lesson::Spam);
+                mailrs_triage::spam::train(&mut conn, thread_id, &raws, is_junk);
+                let now = chrono::Utc::now().timestamp();
+                mailrs_core_sidestate::families::screening::learn_junk_verdict(
+                    &mut conn, user, thread_id, &raws, is_junk, now,
+                );
+            }
             Lesson::Class(c) => mailrs_triage::spam::train_class(&mut conn, thread_id, &raws, c),
         }
     }

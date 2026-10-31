@@ -5534,6 +5534,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/screening/observations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every reputation and file-hash observation, newest first (super administrators) */
+        get: operations["listScreeningObservations"];
+        put?: never;
+        /** Record an incident, a manual allow or deny, or withdraw one (super administrators, audited) */
+        post: operations["addScreeningObservation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/screening/hashes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record a file hash as known bad or known good (the allowlist wins), or withdraw one (super administrators, audited) */
+        post: operations["addScreeningHash"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -13469,6 +13504,138 @@ export interface operations {
                         ended?: number;
                     };
                 };
+            };
+        };
+    };
+    listScreeningObservations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description {observations, hashes} */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Not a super administrator */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    addScreeningObservation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    source: "incident" | "manual";
+                    /** @enum {string} */
+                    kind: "ip" | "cidr" | "sender_domain" | "link_domain";
+                    value: string;
+                    /** @enum {string} */
+                    stance: "deny" | "allow" | "retract";
+                    /** @description For retract: the id it withdraws */
+                    retracts?: string;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Recorded */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id?: string;
+                    };
+                };
+            };
+            /** @description source_not_by_hand, reason_required or invalid_observation, as {error} */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error?: string;
+                    };
+                };
+            };
+            /** @description Not a super administrator */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    addScreeningHash: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    sha256: string;
+                    /** @enum {string} */
+                    stance: "deny" | "allow" | "retract";
+                    retracts?: string;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Recorded */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id?: string;
+                    };
+                };
+            };
+            /** @description invalid_observation, as {error} */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error?: string;
+                    };
+                };
+            };
+            /** @description Not a super administrator */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

@@ -3,6 +3,29 @@ import { describe, expect, it } from 'vitest'
 import { bodyOf, fixture } from './request-contract-harness'
 
 describe('settings request bodies match the shared contract', () => {
+  it('screening-observation, screening-hash', async () => {
+    const { wireAddScreeningObservation } = await import('../endpoints/screening')
+    const { wireAddScreeningHash } = await import('../endpoints/screening')
+    const obs = await bodyOf(() =>
+      wireAddScreeningObservation({
+        kind: 'ip',
+        reason: '2026-10-24 incident',
+        source: 'incident',
+        stance: 'deny',
+        value: '200.181.82.134',
+      })
+    )
+    expect(obs).toEqual(fixture('screening-observation'))
+    const hash = await bodyOf(() =>
+      wireAddScreeningHash({
+        reason: "the vendor's installer",
+        sha256: 'ab'.repeat(32),
+        stance: 'allow',
+      })
+    )
+    expect(hash).toEqual(fixture('screening-hash'))
+  })
+
   it('vacation-set', async () => {
     const { wireSetVacation } = await import('../endpoints/mail-settings')
     const body = await bodyOf(() =>

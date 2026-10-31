@@ -48,6 +48,7 @@
 
 pub mod advance_fee;
 pub mod attachment;
+pub mod attachment_inside;
 pub mod brand;
 mod checks;
 mod facts;

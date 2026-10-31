@@ -66,6 +66,7 @@ pub(super) async fn run_antispam(
 
     let started = std::time::Instant::now();
     let decision = ctx.inbound_pipeline.run(&mut receive_ctx).await;
+    crate::screening::shadow(&receive_ctx);
     rescan_with_alignment(&mut receive_ctx, facts, &policy);
     // Only when something was found. The verdict costs four small
     // string builds, and this runs on every message that reaches the

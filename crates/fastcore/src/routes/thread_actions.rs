@@ -253,7 +253,7 @@ pub(crate) async fn mark_junk(
     // v2.8.0: feed the Bayesian corpus off the user's explicit junk
     // verdict (RFC 20260713). Best-effort; never blocks the move.
     if ok {
-        crate::bayes_train::train_thread(&state, &user, &thread_id, true);
+        crate::bayes_train::learn_reader_verdict(&state, &user, &thread_id, true);
     }
     member_result(ok)
 }
@@ -273,7 +273,7 @@ pub(crate) async fn mark_not_junk(
     // v2.8.0: learn this thread as ham. train_thread unlearns any prior
     // spam training on the same thread first (mis-file correction).
     if ok {
-        crate::bayes_train::train_thread(&state, &user, &thread_id, false);
+        crate::bayes_train::learn_reader_verdict(&state, &user, &thread_id, false);
         // its images were not fetched while it was in Junk
         crate::image_prefetch::queue_thread(&state, &user, &thread_id);
     }

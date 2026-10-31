@@ -1,0 +1,4 @@
+# Rule bundle versions approved for enforcement, one per line:
+#   lua:<sha256>  <replay report it was approved from>  <approved on>
+# A version not listed here may run in shadow, but health reports it as
+# not approved. Adding a line is the approval; it ships with a release.

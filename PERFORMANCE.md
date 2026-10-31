@@ -95,7 +95,6 @@ exists only inside a full MTA/server, not as a consumable library.
 | dnsbl | — (3-line DNS, everyone rolls own) | — | godnsbl (small) | — (use dnspython directly) | mail-os (inline) |
 | rate-limit | Postfix anvil (monolith) | **Facebook folly TokenBucket** | **golang.org/x/time/rate** (stdlib-ish) | **limits** (Redis/Memcached backed) | **minhqdao/zimit** (GCRA) |
 | auth-guard | fail2ban (Python); Postfix postscreen (monolith) | — | — (rolled in-house) | — (FastAPI middleware) | — |
-| clamav | libclamav (engine, not client) | libclamav (C, called from C++) | dutchcoders/go-clamd | python-clamd / clamav-client | — |
 | backoff | — | kingsamchen/backoffxx (header-only) | **cenkalti/backoff/v5** (canonical) | `backoff`; `tenacity` | — |
 | webhook-signature | OpenSSL HMAC (primitive) | OpenSSL HMAC | standard-webhooks; svix | pyca/cryptography (primitive) | std.crypto.HmacSha256 (primitive) |
 | tls-reload | (SIGHUP reload in nginx/Postfix) | (manual SSL_CTX swap) | (stdlib GetCertificate + in-mem swap) | pyOpenSSL context replace | — (no rustls in Zig; BearSSL/OpenSSL bindings only) |
@@ -174,7 +173,7 @@ which excludes upstream deps unlike `target/release/deps/`).
 | Bucket | Crates | Range |
 |---|---|---:|
 | **Tiny** (≤50 KB, 9 crates) | imap_codec, rfc2231, srs, backoff, webhook_signature, rfc2047, smtp_codec, sieve, rfc5322 | 20–39 KB |
-| **Small** (50–110 KB, 11 crates) | arf, attachment_extract, auth_guard, clamav, shield, maildir, rate_limit, tls_reload, mime (97), delivery_executor, imap_format | 56–108 KB |
+| **Small** (50–110 KB, 10 crates) | arf, attachment_extract, auth_guard, shield, maildir, rate_limit, tls_reload, mime (97), delivery_executor, imap_format | 56–108 KB |
 | **Medium** (110–500 KB, 9 crates) | mta_sts, dnsbl, inbound, imap_proto, smtp_proto, arc, ical, dav, clean | 117–496 KB |
 | **Large** (≥500 KB, 11 crates) | smtp_client (563), jmap (591), tls_rpt (678), dns (779), spf (930), dkim (1008), intelligence (1014), acme (1163), dmarc (1432), outbound_queue (1579), mailbox (1659) | 563–1659 KB |
 
@@ -643,23 +642,6 @@ the pure CPU portion.
 Run: `cargo bench -p mailrs-backoff --bench backoff`. Generic
 exponential-backoff primitive with AWS-style jitter taxonomy
 (None/Equal/Full); zero runtime deps, caller supplies seed.
-
-### `mailrs-clamav` — ClamAV TCP INSTREAM client (criterion, M-series Mac, release)
-
-CPU portion only — `scan` itself is network-bound (10-30 ms for a
-localhost clamd scan of a typical 100 KB payload).
-
-| Path | Median |
-|---|---:|
-| `parse_response` (clean) | **~9 ns** |
-| `parse_response` (virus, short name) | **~60 ns** |
-| `parse_response` (virus, long name) | **~78 ns** |
-| `parse_response` (error reply) | **~49 ns** |
-| `parse_response` (empty input) | **~21 ns** |
-
-Run: `cargo bench -p mailrs-clamav --bench clamav`. Extracted from
-server's content_scan.rs; server re-exports `scan_clamav` +
-`parse_clamav_response` for back-compat with existing call sites.
 
 ### `mailrs-dnsbl` — RFC 5782 DNSBL primitive (criterion, M-series Mac, release)
 

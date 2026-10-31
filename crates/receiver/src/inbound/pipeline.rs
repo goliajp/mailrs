@@ -10,8 +10,8 @@ pub use mailrs_inbound::{
 
 use super::stages::mail_auth::MailAuthResolvers;
 use super::stages::{
-    AiScoringStage, BayesStage, ClamavStage, ContentScanStage, GreylistStage, LocalListsStage,
-    MailAuthStage, PtrStage,
+    AiScoringStage, BayesStage, ContentScanStage, GreylistStage, LocalListsStage, MailAuthStage,
+    PtrStage,
 };
 use mailrs_intelligence::spam::SpamCache;
 use mailrs_shield::greylist::{GreylistConfig, GreylistDb};
@@ -25,7 +25,7 @@ use crate::inbound::stages::quota::QuotaStage;
 /// Build the inbound `mailrs_inbound::Pipeline` from the optional backends
 /// configured at server startup. Each backend, when present, contributes its
 /// corresponding `Stage` to the pipeline in fixed evaluation order:
-/// `local_lists → greylist → quota → ptr → mail_auth → clamav →
+/// `local_lists → greylist → quota → ptr → mail_auth →
 /// content_scan → ai_scoring → bayes`.
 ///
 /// `local_lists`, `quota`, `content_scan` and `bayes` always run; the
@@ -41,7 +41,6 @@ pub fn build_inbound_pipeline(
     bayes_client: Option<Arc<crate::kevy_net::KevyNetClient>>,
     resolver: Option<Arc<TokioResolver>>,
     mail_auth_resolvers: Option<MailAuthResolvers>,
-    clamav_addr: Option<String>,
     llm_provider: Option<Arc<dyn mailrs_intelligence::provider::LlmProvider>>,
     spam_cache: Option<Arc<dyn SpamCache>>,
     spam_score_threshold: f64,
@@ -66,9 +65,6 @@ pub fn build_inbound_pipeline(
     }
     if let Some(resolvers) = mail_auth_resolvers {
         builder = builder.add(MailAuthStage::new(resolvers));
-    }
-    if let Some(addr) = clamav_addr {
-        builder = builder.add(ClamavStage::new(addr));
     }
     builder = builder.add(ContentScanStage::new());
     if let Some(provider) = llm_provider {
