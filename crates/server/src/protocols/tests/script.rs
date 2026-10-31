@@ -29,10 +29,18 @@ fn plain() -> String {
 }
 
 fn list() -> Vec<String> {
-    let mut out: Vec<String> = ["INBOX", "Drafts", "Junk", "Sent", "Trash"]
-        .iter()
-        .map(|n| format_list(&format!("\\HasNoChildren{}", special_use_flag(n)), "/", n))
-        .collect();
+    // the account's label, after the mailboxes
+    let mut out: Vec<String> = [
+        "INBOX",
+        "Drafts",
+        "Junk",
+        "Sent",
+        "Trash",
+        super::harness::LABEL,
+    ]
+    .iter()
+    .map(|n| format_list(&format!("\\HasNoChildren{}", special_use_flag(n)), "/", n))
+    .collect();
     out.push("a3 OK LIST completed\r\n".into());
     out
 }
