@@ -19,6 +19,7 @@ import {
 import { useThreadQuery } from '@/hooks/use-mail-queries'
 import { useMarkReadOnOpen } from '@/hooks/use-mark-read-on-open'
 import { useThreadActions } from '@/hooks/use-thread-actions'
+import { useT } from '@/i18n'
 import { MPane, MPaneGroup } from '@/layouts/pane'
 import { toggle } from '@/lib/actions'
 import { extractEmail } from '@/lib/avatar'
@@ -52,6 +53,7 @@ type ForwardSource = {
 const EMPTY_MESSAGES: readonly ThreadMessage[] = []
 
 export function ThreadView({ onBack }: { onBack?: () => void }) {
+  const t = useT()
   const auth = useAtomValue(authAtom)
   const selection = useCurrentSelection()
   const selectedId = selection?.threadId ?? null
@@ -348,8 +350,8 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
       <MPane center>
         <div className="text-fg-muted text-center">
           <Mail className="mx-auto mb-3 h-10 w-10" strokeWidth={1.5} />
-          <p className="text-sm font-medium">No conversation selected</p>
-          <p className="mt-1 text-xs">Choose an email from the list to read it here</p>
+          <p className="text-sm font-medium">{t('read.noneSelected')}</p>
+          <p className="mt-1 text-xs">{t('read.noneSelectedHint')}</p>
         </div>
       </MPane>
     )
