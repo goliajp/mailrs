@@ -38,6 +38,14 @@ fn day_key(address: &str, day: i64) -> String {
     format!("outbound:rate:day:{address}:{day}")
 }
 
+fn bounce_day_key(address: &str, day: i64) -> String {
+    format!("outbound:bounce:day:{address}:{day}")
+}
+
+fn complaint_day_key(address: &str, day: i64) -> String {
+    format!("outbound:complaint:day:{address}:{day}")
+}
+
 fn fail_key(address: &str, hour: i64) -> String {
     format!("outbound:fail:{address}:{hour}")
 }
@@ -131,6 +139,51 @@ pub fn count_send(c: &mut Connection, address: &str, now: i64) -> io::Result<Sen
         hour: count(c, &rate_key(address, now / 3600), COUNTER_TTL)?,
         day: count(c, &day_key(address, now / 86_400), DAY_COUNTER_TTL)?,
     })
+}
+
+/// The share of a day's recipients that may bounce for good, in percent,
+/// once the day has [`BOUNCE_MIN_SENT`] recipients. A list kept clean
+/// bounces under 2%; ten is a bought or stale list, or a typo storm.
+pub const BOUNCE_LIMIT_PERCENT: u64 = 10;
+/// Recipients in a day before the bounce rate counts.
+pub const BOUNCE_MIN_SENT: u64 = 50;
+/// Complaints per thousand of a day's recipients; the large mailbox
+/// providers start refusing a sender around three.
+pub const COMPLAINT_LIMIT_PER_MILLE: u64 = 3;
+/// Complaints in a day before the complaint rate counts: one or two
+/// annoyed people are not a pattern.
+pub const COMPLAINT_MIN: u64 = 3;
+
+/// Recipients `address` sent to on the UTC day holding `now`.
+pub fn sent_today(c: &mut Connection, address: &str, now: i64) -> io::Result<u64> {
+    Ok(c.get(day_key(address, now / 86_400).as_bytes())?
+        .and_then(|v| String::from_utf8(v).ok())
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0))
+}
+
+/// Count one remote hard bounce for `address`; the day's count.
+pub fn count_bounce(c: &mut Connection, address: &str, now: i64) -> io::Result<u64> {
+    count(c, &bounce_day_key(address, now / 86_400), DAY_COUNTER_TTL)
+}
+
+/// Count one matched complaint about `address`'s mail; the day's count.
+pub fn count_complaint(c: &mut Connection, address: &str, now: i64) -> io::Result<u64> {
+    count(
+        c,
+        &complaint_day_key(address, now / 86_400),
+        DAY_COUNTER_TTL,
+    )
+}
+
+/// Whether `bounced` of `sent` passes the bounce limit.
+pub fn bounce_rate_over(sent: u64, bounced: u64) -> bool {
+    sent >= BOUNCE_MIN_SENT && bounced * 100 > sent * BOUNCE_LIMIT_PERCENT
+}
+
+/// Whether `complaints` about `sent` recipients pass the complaint limit.
+pub fn complaint_rate_over(sent: u64, complaints: u64) -> bool {
+    complaints >= COMPLAINT_MIN && complaints * 1000 > sent * COMPLAINT_LIMIT_PER_MILLE
 }
 
 /// Count one permanent failure for `address` at `now`; the hour's count.
@@ -349,6 +402,20 @@ mod tests {
             count_send(&mut c, "a@b.jp", day + 86_400).unwrap(),
             Sent { hour: 1, day: 1 },
             "next day"
+        );
+    }
+
+    #[test]
+    fn rates_need_enough_mail_before_they_count() {
+        assert!(!bounce_rate_over(49, 40), "too few sent");
+        assert!(!bounce_rate_over(100, 10), "exactly the limit");
+        assert!(bounce_rate_over(100, 11));
+        assert!(!complaint_rate_over(10_000, 2), "too few complaints");
+        assert!(!complaint_rate_over(1_000, 3), "exactly the limit");
+        assert!(complaint_rate_over(1_000, 4));
+        assert!(
+            complaint_rate_over(0, 3),
+            "complaints about mail not counted today"
         );
     }
 }

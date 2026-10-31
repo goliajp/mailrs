@@ -13,6 +13,7 @@ pub mod dav_store;
 pub mod devices;
 pub mod dkim_signers;
 pub mod domain_history;
+pub mod egress;
 pub mod email_groups;
 pub mod forwarding;
 pub mod identity_link;

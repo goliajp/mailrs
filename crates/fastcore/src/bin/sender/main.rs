@@ -29,6 +29,7 @@ use tokio::task::spawn_blocking;
 
 mod config;
 mod deliver;
+mod egress;
 mod mock;
 mod outbound_scan;
 mod outcome;
@@ -236,7 +237,7 @@ async fn process_one(cfg: Cfg, id: String) {
             record_suppression(&cfg, &recipient, &reason);
             mailrs_fastcore::live_sync::audit_system("mail.send_failed", &recipient, &reason);
             enqueue_bounce_dsn(&cfg, &sender, &recipient, &reason, &message_bytes).await;
-            pause::note_permanent_failure(&cfg, &envelope, &sender).await;
+            pause::note_permanent_failure(&cfg, &envelope, &sender, &reason).await;
             if let Err(e) = move_to_failed(cfg, id.clone(), reason, sender, recipient).await {
                 tracing::error!(%id, err = %e, "move_to_failed after permanent failed");
             }
@@ -335,7 +336,7 @@ async fn main() {
         // when the queue is small; guards against sender crashes that
         // happen between boots and leave orphan inflight jobs.
         if now_secs() - last_stale_sweep >= 60 {
-            pause::sweep(&cfg).await;
+            egress::every_minute(&cfg).await;
             if let Err(e) = recover_stale((*cfg).clone()).await {
                 tracing::warn!(err = %e, "periodic recover_stale failed");
             }

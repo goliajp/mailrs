@@ -123,6 +123,49 @@ pub fn raise_alert(conn: &mut Connection, reporter: &str, complainant: &str, det
     }
 }
 
+/// Count a matched complaint against the account that sent the message
+/// (`from`), and pause its outbound mail when today's complaints pass the
+/// complaint rate. Returns the pause reason when this complaint paused it.
+///
+/// Counted before the reporter's daily cap: that cap limits whom one
+/// reporter can suppress, not what a sender's complaints say about it.
+/// Sends are counted by signed-in account and complaints by the message's
+/// `From:`; an account sending as another address is measured as that
+/// address, with no sends of its own, so its complaints alone decide.
+pub fn complaint_against_sender(
+    conn: &mut Connection,
+    from: &str,
+    now: i64,
+) -> std::io::Result<Option<String>> {
+    use mailrs_auth_guard::alerts::{self, Alert, Fact, Kind};
+    use mailrs_core_sidestate::families::outbound::pause;
+    let complaints = pause::count_complaint(conn, from, now)?;
+    let sent = pause::sent_today(conn, from, now)?;
+    if !pause::complaint_rate_over(sent, complaints) {
+        return Ok(None);
+    }
+    let reason = format!(
+        "{complaints} complaints today about mail to {sent} recipients, over its limit of {} per thousand",
+        pause::COMPLAINT_LIMIT_PER_MILLE
+    );
+    if !pause::pause(conn, from, &reason, now)? {
+        return Ok(None);
+    }
+    let alert = Alert {
+        kind: Kind::OutboundPaused,
+        subject: from.to_string(),
+        at: now.max(0) as u64,
+        detail: reason.clone(),
+        facts: vec![Fact::ComplaintRate {
+            complaints,
+            sent,
+            limit_per_mille: pause::COMPLAINT_LIMIT_PER_MILLE,
+        }],
+    };
+    alerts::raise(conn, &alert)?;
+    Ok(Some(reason))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

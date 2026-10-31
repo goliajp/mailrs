@@ -172,7 +172,11 @@ fn decide(
                     "{} recipients in a day (UTC), over its limit of {}",
                     sent.day, limits.per_day
                 );
-                (text.clone(), Fact::Note { text })
+                let fact = Fact::DaySendLimit {
+                    count: sent.day,
+                    limit: limits.per_day,
+                };
+                (text, fact)
             }
         };
         if pause::pause(c, account, &over.0, now)? {
@@ -184,19 +188,43 @@ fn decide(
 }
 
 /// Count a permanent failure of `sender`'s job, pausing the account when
-/// its hour's failures pass the limit.
-pub(super) async fn note_permanent_failure(cfg: &Cfg, envelope: &serde_json::Value, sender: &str) {
+/// its hour's failures pass the limit, or when today's remote hard
+/// bounces pass the bounce rate.
+pub(super) async fn note_permanent_failure(
+    cfg: &Cfg,
+    envelope: &serde_json::Value,
+    sender: &str,
+    reason: &str,
+) {
     let Some(account) = counted_account(envelope, sender) else {
         return;
     };
     let limits = cfg.pause_limits.for_account(&account);
     let (url, acct) = (cfg.kevy_url.clone(), account.clone());
+    let remote = super::outcome::is_remote_hard_bounce(reason);
     let res = spawn_blocking(move || -> std::io::Result<Option<(String, Fact)>> {
         let mut c = kevy(&url)?;
         let now = now_secs();
         let n = pause::count_failure(&mut c, &acct, now)?;
         if n <= limits.fails_per_hour {
-            return Ok(None);
+            if !remote {
+                return Ok(None);
+            }
+            let bounced = pause::count_bounce(&mut c, &acct, now)?;
+            let sent = pause::sent_today(&mut c, &acct, now)?;
+            if !pause::bounce_rate_over(sent, bounced) {
+                return Ok(None);
+            }
+            let reason = format!(
+                "{bounced} of {sent} recipients bounced today, over its limit of {}%",
+                pause::BOUNCE_LIMIT_PERCENT
+            );
+            let fact = Fact::BounceRate {
+                bounced,
+                sent,
+                limit_percent: pause::BOUNCE_LIMIT_PERCENT,
+            };
+            return Ok(pause::pause(&mut c, &acct, &reason, now)?.then_some((reason, fact)));
         }
         let reason = format!(
             "{n} permanent failures in an hour, over its limit of {}",
