@@ -25,6 +25,9 @@ pub struct ThreadQuery<'a> {
     pub sent: bool,
     /// Archived threads (`Some(true)`), live ones (`Some(false)`), or both.
     pub archived: Option<bool>,
+    /// The Trash (`Some(true)`), everything else (`Some(false)`, every
+    /// ordinary list), or both.
+    pub trashed: Option<bool>,
     /// Only threads with unread mail.
     pub unread: bool,
     /// Only starred threads.
@@ -58,6 +61,7 @@ impl<'a> ThreadQuery<'a> {
             scope: Scope::All,
             sent: false,
             archived: Some(false),
+            trashed: Some(false),
             unread: false,
             starred: false,
             held: Held::Hide,
@@ -126,7 +130,8 @@ fn thread_rows_sql(ids_param: Option<usize>) -> String {
                 COUNT(DISTINCT CASE WHEN mb.name = 'Sent' THEN {MESSAGE_KEY} END) AS sent_count,
                 BOOL_AND(mb.name = 'Sent') AS sent_only,
                 COALESCE(MAX(CAST(EXTRACT(EPOCH FROM sc.snoozed_until) AS BIGINT)), 0) AS snoozed_until,
-                BOOL_OR(q.thread_id IS NOT NULL) AS quarantined
+                BOOL_OR(q.thread_id IS NOT NULL) AS quarantined,
+                BOOL_OR(tr.thread_id IS NOT NULL) AS trashed
            FROM messages m
                 JOIN mailboxes mb ON m.mailbox_id = mb.id
                 LEFT JOIN email_analysis ea ON ea.message_id = m.id
@@ -134,6 +139,8 @@ fn thread_rows_sql(ids_param: Option<usize>) -> String {
                        ON sc.thread_id = m.thread_id AND sc.account_address = mb.user_address
                 LEFT JOIN quarantine_holds q
                        ON q.thread_id = m.thread_id AND q.account_address = mb.user_address
+                LEFT JOIN trashed_conversations tr
+                       ON tr.thread_id = m.thread_id AND tr.account_address = mb.user_address
           WHERE mb.user_address = $1 AND m.thread_id != ''{ids}
           GROUP BY m.thread_id"
     )
@@ -241,6 +248,9 @@ impl PgMailboxStore {
         let mut wheres = vec![scope_sql];
         if let Some(archived) = q.archived {
             wheres.push(format!("t.archived = {archived}"));
+        }
+        if let Some(trashed) = q.trashed {
+            wheres.push(format!("t.trashed = {trashed}"));
         }
         match q.held {
             Held::Hide => wheres.push("NOT t.quarantined".into()),

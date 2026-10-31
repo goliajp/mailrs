@@ -16,6 +16,7 @@ pub mod mailbox;
 pub mod message;
 pub mod sent;
 pub mod thread;
+pub mod trash;
 pub mod views;
 
 /// Log a store error for `what` and answer 500.
