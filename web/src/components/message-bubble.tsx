@@ -7,6 +7,7 @@ import { HtmlFrame } from '@/components/html-frame'
 import { linkifyNodes } from '@/components/linkify-nodes'
 import { MobileModal } from '@/components/mobile-modal'
 import { PdfPreview } from '@/components/pdf-preview'
+import { type Key, useT } from '@/i18n'
 import { splitEmail } from '@/lib/email-split'
 import { formatSize } from '@/lib/format'
 import { http } from '@/lib/http'
@@ -41,6 +42,7 @@ export const MessageBubble = memo(function MessageBubble({
   textBody: null | string
   uid: number
 }) {
+  const t = useT()
   const hasAttachments = attachments.length > 0
   const [showQuoted, setShowQuoted] = useState(false)
   // Defer the body inputs through `useDeferredValue` so that clicking a new
@@ -98,7 +100,7 @@ export const MessageBubble = memo(function MessageBubble({
             className="text-fg-muted hover:text-fg text-xs underline"
             onClick={() => setShowQuoted((v) => !v)}
           >
-            {showQuoted ? 'Hide quoted text' : 'Show quoted text'}
+            {t(quotedLabel(showQuoted))}
           </button>
           {showQuoted &&
             (isHtml ? (
@@ -131,6 +133,7 @@ export const MessageBubble = memo(function MessageBubble({
 })
 
 function AttachmentItem({ att, index, uid }: { att: AttachmentInfo; index: number; uid: number }) {
+  const t = useT()
   const isImage = att.content_type.startsWith('image/')
   const isPdf = att.content_type === 'application/pdf'
   const url = `/api/mail/messages/${uid}/attachments/${index}`
@@ -199,10 +202,10 @@ function AttachmentItem({ att, index, uid }: { att: AttachmentInfo; index: numbe
             className="text-fg-muted hover:bg-bg-secondary shrink-0 rounded-md px-2 py-0.5 text-xs transition-colors"
             disabled={loading}
             onClick={fetchContent}
-            title="Show extracted text"
+            title={t('attachment.showText')}
             type="button"
           >
-            {loading ? '...' : showContent ? 'Hide text' : 'OCR'}
+            {ocrLabel(loading, showContent, t)}
           </button>
         )}
         {isPdf && <PdfPreview filename={att.filename} url={url} />}
@@ -240,9 +243,14 @@ function AttachmentItem({ att, index, uid }: { att: AttachmentInfo; index: numbe
   )
 }
 
-// check if content type supports OCR/text extraction
 function isExtractable(contentType: string): boolean {
   return contentType.startsWith('image/') || contentType === 'application/pdf'
+}
+
+function ocrLabel(loading: boolean, shown: boolean, t: (k: Key) => string): string {
+  if (loading) return '...'
+  if (shown) return t('attachment.hideText')
+  return t('attachment.ocr')
 }
 
 function PlainPre({ body, isOwn }: { body: string; isOwn: boolean }) {
@@ -258,6 +266,12 @@ function PlainPre({ body, isOwn }: { body: string; isOwn: boolean }) {
       {linkifyNodes([body], `no-underline hover:underline ${isOwn ? 'text-white' : 'text-accent'}`)}
     </pre>
   )
+}
+
+// check if content type supports OCR/text extraction
+function quotedLabel(shown: boolean): Key {
+  if (shown) return 'read.quoted.hide'
+  return 'read.quoted.show'
 }
 
 function TextContent({ body, isOwn }: { body: string; isOwn: boolean }) {

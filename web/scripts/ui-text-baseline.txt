@@ -46,7 +46,6 @@ src/components/delete-thread-confirm.tsx 3
 src/components/domain-health-card.tsx 2
 src/components/drafts-list.tsx 6
 src/components/html-frame.tsx 7
-src/components/images-note.tsx 3
 src/components/invite-card.tsx 14
 src/components/keyboard-shortcuts-dialog.tsx 3
 src/components/label-bar.tsx 1
@@ -54,7 +53,7 @@ src/components/label-chip.tsx 1
 src/components/label-picker.tsx 7
 src/components/list-search-input.tsx 1
 src/components/loading-fallback.tsx 1
-src/components/message-bubble.tsx 4
+src/components/message-bubble.tsx 3
 src/components/message-source.tsx 2
 src/components/mobile-mail.tsx 15
 src/components/mobile-modal.tsx 1
@@ -112,10 +111,10 @@ src/components/status-bar.tsx 3
 src/components/structured-compose.tsx 9
 src/components/structured-data-card.tsx 7
 src/components/swipeable-row.tsx 2
-src/components/thread-content-pane.tsx 15
+src/components/thread-content-pane.tsx 3
 src/components/thread-conversation-pane.tsx 1
-src/components/thread-view-bubble.tsx 8
-src/components/thread-view.tsx 10
+src/components/thread-view-bubble.tsx 5
+src/components/thread-view.tsx 8
 src/components/unsubscribe-footer.tsx 2
 src/main.tsx 3
 src/pages/admin-accounts.tsx 12
