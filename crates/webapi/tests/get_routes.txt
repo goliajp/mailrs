@@ -80,6 +80,7 @@
 /api/icon/{domain}	writes a shared icon cache (idempotent, expires)
 /api/keys/{address}/pgp	read only
 /api/keys/{address}/smime	read only
+/api/labels	read only
 /api/mail/drafts	read only
 /api/mail/export	read only
 /api/mail/folders	read only
