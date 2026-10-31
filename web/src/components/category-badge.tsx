@@ -5,8 +5,15 @@ const styles: Record<string, { bg: string; label: string; text: string }> = {
     text: 'text-warning',
   },
   general: {
-    bg: 'bg-surface',
+    bg: 'bg-bg-tertiary',
     label: 'General',
+    text: 'text-fg-secondary',
+  },
+  // the surface colour of a row, and of a picked one, so a chip on it
+  // needs a fill of its own to be read
+  inbox: {
+    bg: 'bg-bg-tertiary',
+    label: 'Inbox',
     text: 'text-fg-secondary',
   },
   newsletter: {
@@ -70,9 +77,9 @@ const styles: Record<string, { bg: string; label: string; text: string }> = {
 
 export function CategoryBadge({ category }: { category: string }) {
   const s = styles[category] ?? {
-    bg: 'bg-surface',
+    bg: 'bg-bg-tertiary',
     label: category,
-    text: 'text-fg-muted',
+    text: 'text-fg-secondary',
   }
   return (
     <span
