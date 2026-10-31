@@ -39,7 +39,7 @@ pub(crate) fn key_rows(c: &mut Connection, address: &str) -> std::io::Result<Vec
     let used = crate::agent_key_usage::of_owner(c, address)?;
     let records = crate::handlers::admin::hgetall_values(
         c,
-        &mailrs_core_sidestate::keys::credentials::agent_keys_key(&address),
+        &mailrs_core_sidestate::keys::credentials::agent_keys_key(address),
     )?;
     let mut rows: Vec<KeyRow> = records
         .iter()

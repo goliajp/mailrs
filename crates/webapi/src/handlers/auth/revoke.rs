@@ -20,7 +20,7 @@ pub use mailrs_core_sidestate::keys::session::{index_session, revoke_sessions};
 /// address never reissues an id an old index could name.
 pub fn revoke_agent_keys(c: &mut Connection, address: &str) -> std::io::Result<usize> {
     c.del(&[
-        mailrs_core_sidestate::keys::credentials::agent_keys_key(&address).as_bytes(),
+        mailrs_core_sidestate::keys::credentials::agent_keys_key(address).as_bytes(),
         crate::agent_key_usage::hash_key(address).as_bytes(),
     ])?;
     // the index stores no owner prefix in its key, so finding an owner's

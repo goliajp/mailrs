@@ -100,7 +100,7 @@ async fn a_compromise_reset_revokes_every_key_it_was_shown() {
     let mut kevy = kevy_client::Connection::connect(KEVY).unwrap();
     let last_used = kevy
         .hgetall(
-            mailrs_core_sidestate::keys::credentials::agent_keys_last_used_key(&ALICE).as_bytes(),
+            mailrs_core_sidestate::keys::credentials::agent_keys_last_used_key(ALICE).as_bytes(),
         )
         .unwrap();
     assert!(last_used.is_empty(), "revoked keys left their last use");

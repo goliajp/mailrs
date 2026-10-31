@@ -59,31 +59,6 @@ pub fn confirm_failures_key(session_ref: &str) -> String {
 /// Every live token; the single-process server restores from it at boot.
 pub const SESSION_INDEX: &[u8] = b"session:index";
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn session_keys_keep_their_prod_spelling() {
-        assert_eq!(SESSION_PREFIX, "session:");
-        assert_eq!(legacy_session_key("t0k"), "session:t0k");
-        assert_eq!(by_addr_key("a@x.jp"), "session:by_addr:a@x.jp");
-        assert_eq!(SESSION_INDEX, b"session:index");
-        assert_eq!(confirmed_key("r"), "session:confirmed:r");
-        assert_eq!(confirm_failures_key("r"), "session:confirm_failures:r");
-    }
-
-    #[test]
-    fn the_stored_key_does_not_contain_the_token() {
-        assert_eq!(
-            session_key("abc"),
-            "session:h:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
-        );
-        let token = "ab".repeat(32);
-        assert!(!session_key(&token).contains(&token));
-    }
-}
-
 /// Record `token` in `address`'s session index, so a password change or
 /// account deletion can end it, and drop the tokens whose session has
 /// expired: the index has no TTL of its own and would otherwise grow by
@@ -135,4 +110,29 @@ pub fn revoke_sessions(c: &mut kevy_client::Connection, address: &str) -> std::i
     }
     c.del(&[idx.as_bytes()])?;
     Ok(entries.len())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn session_keys_keep_their_prod_spelling() {
+        assert_eq!(SESSION_PREFIX, "session:");
+        assert_eq!(legacy_session_key("t0k"), "session:t0k");
+        assert_eq!(by_addr_key("a@x.jp"), "session:by_addr:a@x.jp");
+        assert_eq!(SESSION_INDEX, b"session:index");
+        assert_eq!(confirmed_key("r"), "session:confirmed:r");
+        assert_eq!(confirm_failures_key("r"), "session:confirm_failures:r");
+    }
+
+    #[test]
+    fn the_stored_key_does_not_contain_the_token() {
+        assert_eq!(
+            session_key("abc"),
+            "session:h:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+        let token = "ab".repeat(32);
+        assert!(!session_key(&token).contains(&token));
+    }
 }

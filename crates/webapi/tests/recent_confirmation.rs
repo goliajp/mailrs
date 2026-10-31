@@ -335,7 +335,7 @@ async fn a_recent_confirmation_guards_what_a_stolen_session_could_abuse() {
     let secret = mailrs_webapi::handlers::totp_util::generate_secret();
     kevy()
         .hset(
-            mailrs_core_sidestate::keys::credentials::totp_key(&TOTP_USER).as_bytes(),
+            mailrs_core_sidestate::keys::credentials::totp_key(TOTP_USER).as_bytes(),
             &[
                 (b"secret".as_slice(), secret.as_bytes()),
                 (b"enabled", b"1"),

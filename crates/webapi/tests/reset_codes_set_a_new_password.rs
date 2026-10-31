@@ -59,7 +59,7 @@ async fn a_code_from_an_issuer_sets_a_new_password() {
     )
     .unwrap();
     kevy.set(
-        mailrs_core_sidestate::keys::credentials::pwreset_by_addr_key(&ALICE).as_bytes(),
+        mailrs_core_sidestate::keys::credentials::pwreset_by_addr_key(ALICE).as_bytes(),
         b"old-link",
     )
     .unwrap();
