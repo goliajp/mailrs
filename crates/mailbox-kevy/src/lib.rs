@@ -74,6 +74,8 @@ mod fraud_verdict;
 mod image_prefetch;
 mod importance;
 pub mod keys;
+mod labels;
+pub use labels::LabelOpError;
 mod list_threads;
 mod mark_seen;
 pub mod mbid;
