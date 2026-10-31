@@ -115,27 +115,36 @@ pub struct Filed {
     pub uid: u32,
 }
 
-/// A message of a conversation in the Trash, as IMAP's `Trash` folder shows
-/// it: where the message is filed, and the uid it has in `Trash`.
+/// A message shown in a mailbox it is not filed in (`Trash`, a label):
+/// where it is filed, and the uid it has where it is shown.
 #[derive(Debug, Clone)]
-pub struct TrashedMessage<M, K> {
+pub struct ShownMessage<M, K> {
     pub mailbox: M,
     /// With the uid it has in `mailbox`.
     pub message: Message<K>,
     /// Unique among every message of this user, so that messages filed in
-    /// different mailboxes do not collide in `Trash`.
+    /// different mailboxes do not collide where they are shown together.
     pub uid: u32,
 }
 
 /// What `Trash` holds now.
 #[derive(Debug, Clone)]
 pub struct Trashed<M, K> {
-    pub messages: Vec<TrashedMessage<M, K>>,
+    pub messages: Vec<ShownMessage<M, K>>,
     /// Unix seconds the latest conversation went to the Trash, 0 for none.
     /// `Trash`'s UIDVALIDITY follows it: a message joining the Trash keeps
     /// its old uid, below UIDNEXT, and only a new UIDVALIDITY tells a client
     /// to look again.
     pub latest: i64,
+}
+
+/// A label as IMAP shows it: a mailbox named after it, holding the messages
+/// of the conversations it is on, other than those in the Trash.
+#[derive(Debug, Clone)]
+pub struct LabelFolder<M, K> {
+    pub id: String,
+    pub name: String,
+    pub messages: Vec<ShownMessage<M, K>>,
 }
 
 /// Resolves when the watched mailbox may have changed (IMAP IDLE).
@@ -257,6 +266,21 @@ pub trait Account: Send + Sync + 'static {
         mailbox: &Self::Mailbox,
         message: &Message<Self::Key>,
         trashed: bool,
+    ) -> impl Future<Output = Result<bool>> + Send;
+
+    /// The user's labels, each with the messages of its conversations.
+    fn labels(
+        &self,
+    ) -> impl Future<Output = Result<Vec<LabelFolder<Self::Mailbox, Self::Key>>>> + Send;
+
+    /// Put label `id` on the conversation `message` belongs to, or take it
+    /// off. `Ok(false)` when the message belongs to no conversation.
+    fn set_label(
+        &self,
+        mailbox: &Self::Mailbox,
+        message: &Message<Self::Key>,
+        id: &str,
+        on: bool,
     ) -> impl Future<Output = Result<bool>> + Send;
 
     /// The user's Sieve script; `Ok(None)` when there is none.
