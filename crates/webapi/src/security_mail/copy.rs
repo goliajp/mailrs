@@ -129,7 +129,7 @@ fn zh(a: &Alert, s: &str, account: &str) -> Copy {
         Kind::OutboundPaused => Copy {
             level: Level::Act,
             title: format!("{s} 的外发邮件已暂停"),
-            meaning: "这个账号一小时内发出的邮件或者退信超过了上限，系统已经暂停它往外发信。之后它发的邮件会先扣下，不会发出去。常见原因是账号被盗用来发垃圾邮件，或者批量发信的设置有误。暂停期间每天提醒一次。".into(),
+            meaning: "这个账号发出的邮件、退信或收到的投诉超过了上限（一小时或一天的发信数、一小时的退信数、当天的退信率或投诉率），系统已经暂停它往外发信。之后它发的邮件会先扣下，不会发出去。常见原因是账号被盗用来发垃圾邮件，或者批量发信的设置有误。暂停期间每天提醒一次。".into(),
             steps: v(&[
                 "先确认这些邮件是不是账号的主人自己发的。",
                 "确认没问题后，在「管理 → 队列 → 已暂停的发件人」里恢复，可以选择把扣下的邮件继续发出。",
@@ -154,6 +154,26 @@ fn zh(a: &Alert, s: &str, account: &str) -> Copy {
             steps: v(&[
                 "看一下最近谁在大量发信，是否有收件人不想收的群发。",
                 "如果是正常的业务邮件，考虑在信里把退订做得更明显。",
+            ]),
+            link: None,
+        },
+        Kind::EgressRefused => Copy {
+            level: Level::Check,
+            title: format!("{s} 拒收了我们的信，理由提到黑名单或发信地址的信誉"),
+            meaning: "对方的邮件服务器拒收时说明了原因，里面提到了黑名单或我们发信地址的信誉。发往这家的信可能大量被拒，直到对方解除。".into(),
+            steps: v(&[
+                "看下面对方的原话，里面一般写了是哪个名单、怎么申请解除。",
+                "看最近有没有账号大量发信或被投诉；有的话先处理那个账号，再去申请解除。",
+            ]),
+            link: Some(("/admin/queues".into(), "打开队列")),
+        },
+        Kind::EgressListed => Copy {
+            level: Level::Check,
+            title: format!("我们的发信地址 {s} 上了黑名单"),
+            meaning: "每天的黑名单自查发现我们的一个发信地址在某个名单上。用这个名单的收件方会拒收或把我们的信放进垃圾箱。只靠这一条不会暂停任何人发信。".into(),
+            steps: v(&[
+                "到这个名单的网站查列入原因和解除方法。",
+                "看最近有没有账号大量发信、退信或被投诉；有的话先处理那个账号，再申请解除。",
             ]),
             link: None,
         },
@@ -226,7 +246,7 @@ fn en(a: &Alert, s: &str, account: &str) -> Copy {
         Kind::OutboundPaused => Copy {
             level: Level::Act,
             title: format!("Outbound mail from {s} is paused"),
-            meaning: "This account sent, or bounced, more mail in an hour than its limit, so its outbound mail is paused: what it sends now is held, not delivered. Usually the account was taken over to send spam, or a bulk mailing was misconfigured. You are reminded daily while it lasts.".into(),
+            meaning: "This account went over a limit — recipients in an hour or a day, bounces in an hour, or today's bounce or complaint rate — so its outbound mail is paused: what it sends now is held, not delivered. Usually the account was taken over to send spam, or a bulk mailing was misconfigured. You are reminded daily while it lasts.".into(),
             steps: v(&[
                 "Check whether the owner sent this mail.",
                 "If all is well, resume it under Admin → Queues → Paused senders, and choose to send the held mail.",
@@ -251,6 +271,26 @@ fn en(a: &Alert, s: &str, account: &str) -> Copy {
             steps: v(&[
                 "Check who has been sending a lot, and whether anyone sent mail its recipients did not want.",
                 "If it is ordinary business mail, make unsubscribing easier to find.",
+            ]),
+            link: None,
+        },
+        Kind::EgressRefused => Copy {
+            level: Level::Check,
+            title: format!("{s} refused our mail, citing a blocklist or our address's reputation"),
+            meaning: "The receiving server gave a reason for refusing our mail, and it names a blocklist or the reputation of our sending address. Mail to this provider may keep being refused until they lift it.".into(),
+            steps: v(&[
+                "Read their reply below; it usually names the list and how to ask for removal.",
+                "Check whether any account has been sending a lot or drawing complaints; deal with it first, then ask for removal.",
+            ]),
+            link: Some(("/admin/queues".into(), "Open queues")),
+        },
+        Kind::EgressListed => Copy {
+            level: Level::Check,
+            title: format!("Our sending address {s} is on a blocklist"),
+            meaning: "The daily blocklist check found one of our sending addresses on a list. Receivers that use it will refuse our mail or file it as spam. This alone pauses nobody.".into(),
+            steps: v(&[
+                "Look the address up on the list's site for the reason and how to be removed.",
+                "Check whether any account has been sending, bouncing or drawing complaints; deal with it first, then ask for removal.",
             ]),
             link: None,
         },

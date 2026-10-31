@@ -29,7 +29,9 @@ use tokio::task::spawn_blocking;
 
 mod config;
 mod deliver;
+mod egress;
 mod mock;
+mod outbound_scan;
 mod outcome;
 mod pause;
 mod queue;
@@ -156,28 +158,13 @@ async fn process_one(cfg: Cfg, id: String) {
                 .as_bytes()
                 .to_vec()
         };
-    let attempts_prev = envelope
-        .get("attempts")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as u32;
-    let last_attempt_at = envelope
-        .get("last_attempt_at")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(0);
+    let number = |k: &str| envelope.get(k).and_then(|v| v.as_i64()).unwrap_or(0);
+    let attempts_prev = number("attempts").max(0) as u32;
+    let last_attempt_at = number("last_attempt_at");
     // When this message entered the queue. The give-up rule is its age,
     // not how many times we have tried — see `retry`.
-    let created_at = envelope
-        .get("created_at")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(0);
-    // Deterministic per message, so its jitter is stable across reads
-    // and two messages to the same dead host do not retry in lockstep.
-    let jitter_seed = {
-        use std::hash::{Hash, Hasher};
-        let mut h = std::collections::hash_map::DefaultHasher::new();
-        id.hash(&mut h);
-        h.finish()
-    };
+    let created_at = number("created_at");
+    let jitter_seed = retry::jitter_seed(&id);
 
     if sender.is_empty() || recipient.is_empty() || message_bytes.is_empty() {
         tracing::error!(%id, "envelope malformed (missing sender/recipient/message_data)");
@@ -206,6 +193,13 @@ async fn process_one(cfg: Cfg, id: String) {
     }
 
     if pause::held(&cfg, &id, &envelope, &sender, attempts_prev == 0).await {
+        return;
+    }
+    if let Some(why) =
+        outbound_scan::refusal(&cfg, &id, &envelope, &message_bytes, attempts_prev == 0).await
+    {
+        enqueue_bounce_dsn(&cfg, &sender, &recipient, &why, &message_bytes).await;
+        let _ = move_to_failed(cfg, id, why, sender, recipient).await;
         return;
     }
 
@@ -243,7 +237,7 @@ async fn process_one(cfg: Cfg, id: String) {
             record_suppression(&cfg, &recipient, &reason);
             mailrs_fastcore::live_sync::audit_system("mail.send_failed", &recipient, &reason);
             enqueue_bounce_dsn(&cfg, &sender, &recipient, &reason, &message_bytes).await;
-            pause::note_permanent_failure(&cfg, &envelope, &sender).await;
+            pause::note_permanent_failure(&cfg, &envelope, &sender, &reason).await;
             if let Err(e) = move_to_failed(cfg, id.clone(), reason, sender, recipient).await {
                 tracing::error!(%id, err = %e, "move_to_failed after permanent failed");
             }
@@ -342,7 +336,7 @@ async fn main() {
         // when the queue is small; guards against sender crashes that
         // happen between boots and leave orphan inflight jobs.
         if now_secs() - last_stale_sweep >= 60 {
-            pause::sweep(&cfg).await;
+            egress::every_minute(&cfg).await;
             if let Err(e) = recover_stale((*cfg).clone()).await {
                 tracing::warn!(err = %e, "periodic recover_stale failed");
             }

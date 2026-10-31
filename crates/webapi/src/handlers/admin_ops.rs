@@ -232,14 +232,17 @@ pub async fn flush_conversations_cache(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// GET /api/admin/rbl-status — return the last RBL check result from
-/// kevy `admin:rbl:status` (populated by an out-of-band worker; empty
-/// object until such a worker is wired up).
+/// GET /api/admin/rbl-status — the sender's latest daily check of our
+/// sending addresses against the configured blocklists; empty until it
+/// has run (it is off while no zones are configured).
 pub async fn get_rbl_status(
     State(_state): State<Arc<WebState>>,
     Extension(_user): Extension<AuthedUser>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let val = with_kevy(|c| c.get(b"admin:rbl:status").map_err(std::io::Error::from))?;
+    let val = with_kevy(|c| {
+        c.get(mailrs_core_sidestate::families::egress::RBL_STATUS)
+            .map_err(std::io::Error::from)
+    })?;
     let parsed: serde_json::Value = val
         .and_then(|b| serde_json::from_slice(&b).ok())
         .unwrap_or_else(|| serde_json::json!({ "status": "unknown", "checked_at": null }));

@@ -128,6 +128,7 @@ pub(super) fn report_send_outcome(
     attempts: u32,
 ) {
     use mailrs_core_sidestate::families::send as sendfam;
+    super::egress::note_refusal(cfg, outcome);
     let Some(send_id) = send_id else {
         // Mail nobody composed — tls-rpt, a bounce DSN, a sieve
         // redirect. There is no Send row to report against, and

@@ -118,6 +118,19 @@ pub fn maybe_record_complaint(maildir_root: &str, rcpt: &str, body: &[u8]) {
         return;
     }
 
+    if let Some(o) = &original {
+        match evidence::complaint_against_sender(&mut conn, &o.from, now_secs()) {
+            Ok(Some(reason)) => {
+                crate::live_sync::audit_system("outbound.pause", &o.from, &reason);
+                tracing::warn!(event = "outbound_paused_by_complaints", sender = %o.from, %reason, "complaints paused an account's outbound mail");
+            }
+            Ok(None) => {}
+            Err(e) => {
+                tracing::warn!(error = %e, sender = %o.from, "FBL: complaint not counted against the sender")
+            }
+        }
+    }
+
     let day = chrono::Utc::now().format("%Y%m%d").to_string();
     match evidence::within_limit(&mut conn, &reporter, &day) {
         Ok(true) => {}
