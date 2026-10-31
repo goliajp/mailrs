@@ -20,6 +20,7 @@ pub mod pop3;
 mod test_support;
 #[cfg(test)]
 mod test_tls;
+pub mod trash_view;
 
 pub use guard::{Guarded, end_cleared};
 pub use listen::spawn_all;

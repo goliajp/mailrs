@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use mailrs_mail_protocols::backend::{
-    Account, Error, Expunged, Filed, Flag, Message, Quota, Result, Selected,
+    Account, Error, Expunged, Filed, Flag, Message, Quota, Result, Selected, Trashed,
 };
 use mailrs_mailbox::{
     FLAG_DELETED, Mailbox, MessageMeta, PgMailboxStore, bitmask_to_maildir_flags,
@@ -20,6 +20,7 @@ use crate::message_store::MessageStore;
 use crate::sieve_store;
 
 mod filing;
+mod trash;
 
 /// What a user may store when the account row names no quota.
 const DEFAULT_QUOTA: u64 = 1 << 30;
@@ -227,6 +228,19 @@ impl Account for PgAccount {
             used,
             limit: limit.map_or(DEFAULT_QUOTA, |q| q.max(0) as u64),
         })
+    }
+
+    async fn trashed(&self) -> Result<Trashed<Mailbox, String>> {
+        self.trashed_view().await
+    }
+
+    async fn set_trashed(
+        &self,
+        mailbox: &Mailbox,
+        m: &Message<String>,
+        trashed: bool,
+    ) -> Result<bool> {
+        self.set_trashed_thread(mailbox, m, trashed).await
     }
 
     fn watch(&self, _: &Mailbox) -> BusWatch {

@@ -115,6 +115,29 @@ pub struct Filed {
     pub uid: u32,
 }
 
+/// A message of a conversation in the Trash, as IMAP's `Trash` folder shows
+/// it: where the message is filed, and the uid it has in `Trash`.
+#[derive(Debug, Clone)]
+pub struct TrashedMessage<M, K> {
+    pub mailbox: M,
+    /// With the uid it has in `mailbox`.
+    pub message: Message<K>,
+    /// Unique among every message of this user, so that messages filed in
+    /// different mailboxes do not collide in `Trash`.
+    pub uid: u32,
+}
+
+/// What `Trash` holds now.
+#[derive(Debug, Clone)]
+pub struct Trashed<M, K> {
+    pub messages: Vec<TrashedMessage<M, K>>,
+    /// Unix seconds the latest conversation went to the Trash, 0 for none.
+    /// `Trash`'s UIDVALIDITY follows it: a message joining the Trash keeps
+    /// its old uid, below UIDNEXT, and only a new UIDVALIDITY tells a client
+    /// to look again.
+    pub latest: i64,
+}
+
 /// Resolves when the watched mailbox may have changed (IMAP IDLE).
 pub trait Watch: Send {
     fn changed(&mut self) -> impl Future<Output = ()> + Send;
@@ -221,6 +244,20 @@ pub trait Account: Send + Sync + 'static {
     fn quota(&self) -> impl Future<Output = Result<Quota>> + Send;
 
     fn watch(&self, mailbox: &Self::Mailbox) -> Self::Watch;
+
+    /// The messages of the user's conversations in the Trash, wherever they
+    /// are filed, and anything filed in a mailbox named Trash.
+    fn trashed(&self) -> impl Future<Output = Result<Trashed<Self::Mailbox, Self::Key>>> + Send;
+
+    /// Move the conversation `message` belongs to into the Trash, or back
+    /// out. The message stays where it is filed. `Ok(false)` when it belongs
+    /// to no conversation (a file nothing indexed).
+    fn set_trashed(
+        &self,
+        mailbox: &Self::Mailbox,
+        message: &Message<Self::Key>,
+        trashed: bool,
+    ) -> impl Future<Output = Result<bool>> + Send;
 
     /// The user's Sieve script; `Ok(None)` when there is none.
     fn sieve_script(&self) -> impl Future<Output = Result<Option<String>>> + Send;

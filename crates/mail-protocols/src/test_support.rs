@@ -11,7 +11,7 @@ pub(crate) use crate::test_tls::{Cert, cert};
 
 use crate::backend::{
     Account, Directory, Error, Expunged, Filed, Flag, Message, Protocol, Quota, Result, Selected,
-    Watch,
+    Trashed, TrashedMessage, Watch,
 };
 
 pub(crate) const USER: &str = "alice@golia.example.test";
@@ -20,11 +20,16 @@ pub(crate) const PASSWORD: &str = "correct horse";
 /// An INBOX in memory: `(uid, flags, bytes)`.
 type Inbox = Arc<Mutex<Vec<(u32, Vec<Flag>, Vec<u8>)>>>;
 
+/// Uids whose conversation is in the Trash (each message its own
+/// conversation here), and a clock that ticks once per move there.
+type Trash = Arc<Mutex<(Vec<u32>, i64)>>;
+
 /// One account and its INBOX.
 #[derive(Default)]
 pub(crate) struct Memory {
     inbox: Inbox,
     script: Arc<Mutex<Option<String>>>,
+    trash: Trash,
 }
 
 pub(crate) fn directory() -> Arc<Memory> {
@@ -64,6 +69,7 @@ impl Directory for Memory {
             (user == USER && password == PASSWORD).then(|| MemoryAccount {
                 inbox: self.inbox.clone(),
                 script: self.script.clone(),
+                trash: self.trash.clone(),
             }),
         )
     }
@@ -72,6 +78,7 @@ impl Directory for Memory {
 pub(crate) struct MemoryAccount {
     inbox: Inbox,
     script: Arc<Mutex<Option<String>>>,
+    trash: Trash,
 }
 
 pub(crate) struct Never;
@@ -212,6 +219,31 @@ impl Account for MemoryAccount {
     async fn delete_sieve_script(&self) -> Result<()> {
         *self.script.lock().unwrap() = None;
         Ok(())
+    }
+
+    async fn trashed(&self) -> Result<Trashed<(), u32>> {
+        let (uids, latest) = self.trash.lock().unwrap().clone();
+        let messages = self
+            .listing()
+            .into_iter()
+            .filter(|m| uids.contains(&m.uid))
+            .map(|m| TrashedMessage {
+                mailbox: (),
+                uid: m.uid,
+                message: m,
+            })
+            .collect();
+        Ok(Trashed { messages, latest })
+    }
+
+    async fn set_trashed(&self, _: &(), m: &Message<u32>, trashed: bool) -> Result<bool> {
+        let mut trash = self.trash.lock().unwrap();
+        trash.0.retain(|u| *u != m.uid);
+        if trashed {
+            trash.0.push(m.uid);
+            trash.1 += 1;
+        }
+        Ok(true)
     }
 }
 

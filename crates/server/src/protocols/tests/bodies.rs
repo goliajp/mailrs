@@ -1,7 +1,9 @@
 //! A message's body is a file in its mailbox's Maildir++ folder, on both
-//! cores: APPEND writes it there, COPY writes a second one into the target,
-//! MOVE takes it across, EXPUNGE removes it. Each is read back over IMAP
-//! and looked for on disk, and a copy or a move keeps the message's flags.
+//! cores: APPEND writes it there, MOVE takes it across, EXPUNGE removes it.
+//! Trash is kept per conversation: COPY or MOVE into it writes no file, the
+//! message leaves its mailbox and shows in Trash, and moving it out of Trash
+//! brings the conversation back. Each is read back over IMAP and looked for
+//! on disk, and the message keeps its flags throughout.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -85,34 +87,45 @@ pub(super) async fn folders<D: Directory>(dir: Arc<D>, home: PathBuf) -> Vec<Str
     t.check(r.contains(BODY), "the appended body reads back", &r);
 
     let r = c.cmd("b4", &format!("UID COPY {uid} Trash")).await;
-    let copied = code(&r, "[COPYUID ").map(|w| w[2].to_string());
-    t.on_disk("Trash", 1, "COPY writes a body into .Trash");
+    let in_trash = code(&r, "[COPYUID ").map(|w| w[2].to_string());
+    t.on_disk("Trash", 0, "COPY to Trash writes no second body");
     t.on_disk("Sent", 1, "and leaves the one in .Sent");
-
-    let r = c.cmd("b5", &format!("UID MOVE {uid} Junk")).await;
-    let moved = code(&r, "[COPYUID ").map(|w| w[2].to_string());
-    t.on_disk("Junk", 1, "MOVE takes the body into .Junk");
-    t.on_disk("Sent", 0, "and out of .Sent");
+    c.cmd("b5", "SELECT Sent").await;
+    let r = c.cmd("b5a", &format!("UID FETCH {uid} (UID)")).await;
+    t.check(
+        !r.contains("* "),
+        "the message leaves Sent for the Trash",
+        &r,
+    );
 
     c.cmd("b6", "SELECT Trash").await;
-    let r = read_back(&mut c, "b7", copied.as_deref().unwrap_or("*")).await;
-    t.check(r.contains(BODY), "the copy's body reads back in Trash", &r);
-    t.check(kept(&r), "the copy keeps the message's flags", &r);
+    let in_trash = in_trash.unwrap_or_else(|| "*".into());
+    let r = read_back(&mut c, "b7", &in_trash).await;
+    t.check(r.contains(BODY), "its body reads back in Trash", &r);
+    t.check(kept(&r), "and it keeps the message's flags", &r);
 
-    c.cmd("b8", "SELECT Junk").await;
+    let r = c.cmd("b8", &format!("UID MOVE {in_trash} Junk")).await;
+    let moved = code(&r, "[COPYUID ").map(|w| w[2].to_string());
+    t.on_disk("Junk", 1, "MOVE out of Trash takes the body into .Junk");
+    t.on_disk("Sent", 0, "and out of .Sent");
+    c.cmd("b9", "SELECT Trash").await;
+    let r = c.cmd("b9a", &format!("UID FETCH {in_trash} (UID)")).await;
+    t.check(!r.contains("* "), "and it is no longer in Trash", &r);
+
+    c.cmd("b10", "SELECT Junk").await;
     let moved = moved.unwrap_or_else(|| "*".into());
-    let r = read_back(&mut c, "b9", &moved).await;
+    let r = read_back(&mut c, "b11", &moved).await;
     t.check(r.contains(BODY), "the moved body reads back in Junk", &r);
     t.check(kept(&r), "the moved message keeps its flags", &r);
 
     c.cmd(
-        "b10",
+        "b12",
         &format!("UID STORE {moved} +FLAGS.SILENT (\\Deleted)"),
     )
     .await;
-    let r = c.cmd("b11", &format!("UID EXPUNGE {moved}")).await;
-    t.check(r.contains("b11 OK "), "UID EXPUNGE completes", &r);
+    let r = c.cmd("b13", &format!("UID EXPUNGE {moved}")).await;
+    t.check(r.contains("b13 OK "), "UID EXPUNGE completes", &r);
     t.on_disk("Junk", 0, "EXPUNGE removes the body");
-    t.on_disk("Trash", 1, "and only that one");
+    t.on_disk("Trash", 0, "and leaves nothing behind");
     t.diffs
 }
