@@ -1,11 +1,13 @@
 import type { AttachmentInfo } from '@/lib/types'
 
 import DOMPurify from 'dompurify'
+import { useAtomValue } from 'jotai'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { cjkFonts, cjkLang, injectCjkFonts } from '@/lib/cjk-fonts'
 import { fitHeight, fitScale, shouldReflowTable } from '@/lib/fit-to-width'
 import { markRemoteImage, reload, showPrefetched, watchMissing } from '@/lib/remote-images'
+import { remoteImagesAtom } from '@/store/settings'
 import { wirePrefetchThreadImages } from '@/wire/endpoints/mail'
 
 // HTML attribute values arrive with entity-encoded specials, e.g. LinkedIn
@@ -259,6 +261,10 @@ export function HtmlFrame({
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
   const [imagesHeld, setImagesHeld] = useState(false)
+  const remoteImages = useAtomValue(remoteImagesAtom)
+  // the message the reader asked to see the images of; a new message starts hidden again
+  const [shownFor, setShownFor] = useState<null | string>(null)
+  const missingRef = useRef<HTMLImageElement[]>([])
   // Rewrite cid: images BEFORE the sanitize cache lookup so
   // different uid / attachments combinations don't share a cached
   // result (the cache is keyed on the html string).
@@ -267,6 +273,11 @@ export function HtmlFrame({
     return rewriteCidImages(html, uid, attachments)
   }, [html, uid, attachments])
   const sanitized = useMemo(() => cachedSanitize(preprocessed), [preprocessed])
+  const remoteCount = useMemo(
+    () => (sanitized.match(/data-remote-src=/g) ?? []).length,
+    [sanitized]
+  )
+  const shown = remoteImages === 'auto' || (remoteImages === 'click' && shownFor === sanitized)
 
   useEffect(() => {
     const host = hostRef.current
@@ -281,7 +292,6 @@ export function HtmlFrame({
       img.decoding = 'async'
       img.referrerPolicy = 'no-referrer'
     }
-    void showPrefetched(root)
 
     const wrap = root.querySelector<HTMLElement>('.mail-wrap')
     if (!wrap) return
@@ -373,42 +383,65 @@ export function HtmlFrame({
     }
   }, [sanitized])
 
-  // after the effect above, before its images get their address: a miss
-  // for mail the server never fetched is fetched now and asked for again
+  // after the effect above. A miss for mail the server never fetched is
+  // fetched now and asked for again; the listeners go on before the images
+  // get their address, so no failure is missed.
   useEffect(() => {
     const root = hostRef.current?.shadowRoot
-    if (!root || !imagesOf) return
+    setImagesHeld(false)
+    missingRef.current = []
+    if (!root || !shown) return
     let asked = false
     let gone = false
     const timers: ReturnType<typeof setTimeout>[] = []
-    setImagesHeld(false)
-    watchMissing(root, (imgs) => {
-      if (asked) return
-      asked = true
-      void wirePrefetchThreadImages(imagesOf).then((answer) => {
-        if (gone) return
-        if (answer === 'junk') {
-          setImagesHeld(true)
-          return
-        }
-        RETRY_MS.forEach((ms, i) => {
-          timers.push(setTimeout(() => imgs.forEach((img) => reload(img, i + 1)), ms))
+    if (imagesOf) {
+      watchMissing(root, (imgs) => {
+        missingRef.current = imgs
+        if (asked) return
+        asked = true
+        void wirePrefetchThreadImages(imagesOf).then((answer) => {
+          if (gone) return
+          if (answer === 'junk') {
+            setImagesHeld(true)
+            return
+          }
+          RETRY_MS.forEach((ms, i) => {
+            timers.push(setTimeout(() => imgs.forEach((img) => reload(img, i + 1)), ms))
+          })
         })
       })
-    })
+    }
+    void showPrefetched(root)
     return () => {
       gone = true
       timers.forEach(clearTimeout)
     }
-  }, [sanitized, imagesOf])
+  }, [sanitized, shown, imagesOf])
+
+  const showAnyway = () => {
+    if (!imagesOf) return
+    const imgs = missingRef.current
+    setImagesHeld(false)
+    void wirePrefetchThreadImages(imagesOf, true).then(() => {
+      RETRY_MS.forEach((ms, i) => {
+        setTimeout(() => imgs.forEach((img) => reload(img, i + 1)), ms)
+      })
+    })
+  }
 
   return (
     <>
       {imagesHeld && (
         <p className="border-border bg-bg-secondary text-fg-secondary border-b px-3 py-2 text-xs">
           Images are not loaded for mail in Junk or held for review: loading them tells the sender
-          the address is read. Mark it as not junk to see them.
+          the address is read.{' '}
+          <button className="text-accent hover:underline" onClick={showAnyway} type="button">
+            Show images anyway
+          </button>
         </p>
+      )}
+      {!shown && remoteCount > 0 && (
+        <ImagesHiddenNote mode={remoteImages} onShow={() => setShownFor(sanitized)} />
       )}
       <div
         // `overflow-x: auto` rather than nothing: a message past the fit
@@ -438,6 +471,24 @@ function cachedSanitize(html: string): string {
     sanitizeCache.delete(oldest)
   }
   return sanitized
+}
+
+function ImagesHiddenNote({ mode, onShow }: { mode: string; onShow: () => void }) {
+  if (mode === 'never') {
+    return (
+      <p className="border-border bg-bg-secondary text-fg-secondary border-b px-3 py-2 text-xs">
+        Images are hidden by your settings
+      </p>
+    )
+  }
+  return (
+    <p className="border-border bg-bg-secondary text-fg-secondary border-b px-3 py-2 text-xs">
+      Images in this message are hidden.{' '}
+      <button className="text-accent hover:underline" onClick={onShow} type="button">
+        Show images
+      </button>
+    </p>
+  )
 }
 
 function sanitizeEmail(html: string): string {
