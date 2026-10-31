@@ -1,9 +1,12 @@
+import { settingsEn } from './settings/en'
+
 /**
  * The source dictionary. `zh.ts` and `ja.ts` must have every key here —
  * their type says so, so a missing one fails `tsc`. Keys are grouped by
  * where they appear; `{name}` is filled in by `t(key, { name })`.
  */
 export const en = {
+  ...settingsEn,
   'lang.name.en': 'English',
   'lang.name.ja': '日本語',
   'lang.name.zh': '简体中文',
@@ -433,18 +436,6 @@ export const en = {
   'sessions.title': 'Signed-in sessions',
   'sessions.unknownAddress': 'Unknown address',
   'sessions.where': '{ip} · last used {when}',
-  'settings.cat.account': 'Account',
-  'settings.cat.api-keys': 'API keys',
-  'settings.cat.appearance': 'Appearance',
-  'settings.cat.calendar-feeds': 'Calendar feeds',
-  'settings.cat.forwarding': 'Forwarding',
-  'settings.cat.keys': 'Encryption keys',
-  'settings.cat.reset-codes': 'Reset codes',
-  'settings.cat.rules': 'Rules',
-  'settings.cat.security': 'Security',
-  'settings.cat.senders': 'Senders',
-  'settings.cat.signatures': 'Signatures',
-  'settings.cat.webhooks': 'Webhooks',
   'shortcuts.anywhere': 'Anywhere',
   'shortcuts.back': 'Back to list',
   'shortcuts.goArchived': 'Go to Archived',

@@ -1,6 +1,8 @@
 import { Check, Copy } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
+import { type Key, useT } from '@/i18n'
+
 import { copyText } from './copy-text'
 
 type Variant = 'ghost' | 'solid'
@@ -28,6 +30,7 @@ export function CopyButton({
   variant?: Variant
   withText?: boolean
 }) {
+  const t = useT()
   const [copied, setCopied] = useState(false)
   const timer = useRef<null | ReturnType<typeof setTimeout>>(null)
 
@@ -55,16 +58,21 @@ export function CopyButton({
   ].join(' ')
 
   return (
-    <button aria-label={`Copy ${label}`} className={classes} onClick={handleClick} type="button">
+    <button
+      aria-label={t('settings.copyNamed', { label })}
+      className={classes}
+      onClick={handleClick}
+      type="button"
+    >
       {icon}
-      {withText && <span>{copyWord(copied)}</span>}
+      {withText && <span>{t(copyWord(copied))}</span>}
     </button>
   )
 }
 
-function copyWord(copied: boolean): string {
-  if (copied) return 'Copied'
-  return 'Copy'
+function copyWord(copied: boolean): Key {
+  if (copied) return 'common.copied'
+  return 'common.copy'
 }
 
 function renderIcon(copied: boolean) {

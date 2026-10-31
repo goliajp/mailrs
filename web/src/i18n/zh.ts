@@ -1,6 +1,9 @@
 import type { Key } from './en'
 
+import { settingsZh } from './settings/zh'
+
 export const zh: Record<Key, string> = {
+  ...settingsZh,
   'lang.name.en': 'English',
   'lang.name.ja': '日本語',
   'lang.name.zh': '简体中文',
@@ -424,18 +427,6 @@ export const zh: Record<Key, string> = {
   'sessions.title': '已登录的会话',
   'sessions.unknownAddress': '地址未知',
   'sessions.where': '{ip} · 最近使用 {when}',
-  'settings.cat.account': '账号',
-  'settings.cat.api-keys': 'API key',
-  'settings.cat.appearance': '外观',
-  'settings.cat.calendar-feeds': '日历订阅',
-  'settings.cat.forwarding': '转发',
-  'settings.cat.keys': '加密密钥',
-  'settings.cat.reset-codes': '重设码',
-  'settings.cat.rules': '规则',
-  'settings.cat.security': '安全',
-  'settings.cat.senders': '发件人',
-  'settings.cat.signatures': '签名',
-  'settings.cat.webhooks': 'Webhook',
   'shortcuts.anywhere': '任何页面',
   'shortcuts.back': '返回列表',
   'shortcuts.goArchived': '前往已归档',

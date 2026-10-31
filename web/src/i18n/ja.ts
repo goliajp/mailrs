@@ -1,6 +1,9 @@
 import type { Key } from './en'
 
+import { settingsJa } from './settings/ja'
+
 export const ja: Record<Key, string> = {
+  ...settingsJa,
   'lang.name.en': 'English',
   'lang.name.ja': '日本語',
   'lang.name.zh': '简体中文',
@@ -434,18 +437,6 @@ export const ja: Record<Key, string> = {
   'sessions.title': 'ログイン中のセッション',
   'sessions.unknownAddress': '不明なアドレス',
   'sessions.where': '{ip} · 最終使用 {when}',
-  'settings.cat.account': 'アカウント',
-  'settings.cat.api-keys': 'API キー',
-  'settings.cat.appearance': '表示',
-  'settings.cat.calendar-feeds': 'カレンダーフィード',
-  'settings.cat.forwarding': '転送',
-  'settings.cat.keys': '暗号化キー',
-  'settings.cat.reset-codes': 'リセットコード',
-  'settings.cat.rules': 'ルール',
-  'settings.cat.security': 'セキュリティ',
-  'settings.cat.senders': '送信者',
-  'settings.cat.signatures': '署名',
-  'settings.cat.webhooks': 'Webhook',
   'shortcuts.anywhere': 'どこでも',
   'shortcuts.back': '一覧に戻る',
   'shortcuts.goArchived': 'アーカイブへ移動',

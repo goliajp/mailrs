@@ -1,5 +1,7 @@
 import { Braces, Hash, Search, Trash2, X } from 'lucide-react'
 
+import { type Key, useT } from '@/i18n'
+
 import { PAGE_SIZES } from './table-model'
 
 /**
@@ -31,23 +33,26 @@ export function TableToolbar({
   size: number
   total: number
 }) {
+  const t = useT()
   if (selectedCount > 0) {
     return (
       <div className="border-accent/40 bg-accent/5 flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2">
-        <span className="text-sm font-medium tabular-nums">{selectedCount} selected</span>
+        <span className="text-sm font-medium tabular-nums">
+          {t('settings.apiKeys.selected', { count: selectedCount })}
+        </span>
         <span className="bg-border h-4 w-px" />
         <BulkButton icon={<Hash aria-hidden className="h-3.5 w-3.5" />} onClick={onCopyIds}>
-          Copy IDs
+          {t('settings.apiKeys.copyIds')}
         </BulkButton>
         <BulkButton icon={<Braces aria-hidden className="h-3.5 w-3.5" />} onClick={onCopyJson}>
-          Copy JSON
+          {t('settings.apiKeys.copyJson')}
         </BulkButton>
         <BulkButton
           danger
           icon={<Trash2 aria-hidden className="h-3.5 w-3.5" />}
           onClick={onRevokeSelected}
         >
-          Revoke
+          {t('settings.apiKeys.revoke')}
         </BulkButton>
         <button
           className="text-fg-muted hover:text-fg ml-auto inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs transition-colors"
@@ -55,7 +60,7 @@ export function TableToolbar({
           type="button"
         >
           <X aria-hidden className="h-3.5 w-3.5" />
-          Clear
+          {t('settings.apiKeys.clear')}
         </button>
       </div>
     )
@@ -69,16 +74,16 @@ export function TableToolbar({
           className="text-fg-muted pointer-events-none absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2"
         />
         <input
-          aria-label="Search API keys"
+          aria-label={t('settings.apiKeys.search')}
           className="border-border bg-bg-secondary focus:border-accent focus:ring-accent/30 w-full rounded-md border py-1.5 pr-8 pl-8 text-sm focus:ring-1 focus:outline-none"
           onChange={(e) => onQueryChange(e.target.value)}
-          placeholder="Search name, prefix, scope, id"
+          placeholder={t('settings.apiKeys.searchPlaceholder')}
           type="search"
           value={query}
         />
         {query.length > 0 && (
           <button
-            aria-label="Clear search"
+            aria-label={t('settings.apiKeys.clearSearch')}
             className="text-fg-muted hover:text-fg absolute top-1/2 right-2 -translate-y-1/2"
             onClick={() => onQueryChange('')}
             type="button"
@@ -89,13 +94,13 @@ export function TableToolbar({
       </div>
 
       <span className="text-fg-muted ml-auto text-xs tabular-nums" role="status">
-        {countLabel(filtered, total)}
+        {t(countLabel(filtered, total), { filtered, total })}
       </span>
 
       <label className="text-fg-muted flex items-center gap-1.5 text-xs">
-        Rows
+        {t('settings.apiKeys.rows')}
         <select
-          aria-label="Rows per page"
+          aria-label={t('settings.apiKeys.rowsPerPage')}
           className="border-border bg-bg-secondary text-fg focus:border-accent rounded-md border px-1.5 py-1 text-xs focus:outline-none"
           onChange={(e) => onSizeChange(Number(e.target.value))}
           value={size}
@@ -137,7 +142,7 @@ function bulkClass(danger: boolean): string {
   return `${base} border-border text-fg-secondary hover:bg-bg-secondary hover:text-fg`
 }
 
-function countLabel(filtered: number, total: number): string {
-  if (filtered === total) return `${total} keys`
-  return `${filtered} of ${total} keys`
+function countLabel(filtered: number, total: number): Key {
+  if (filtered === total) return 'settings.apiKeys.countAll'
+  return 'settings.apiKeys.countSome'
 }

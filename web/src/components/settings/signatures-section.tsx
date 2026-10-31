@@ -4,6 +4,8 @@ import { toast } from '@goliapkg/gds'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 
+import { type Key, useT } from '@/i18n'
+import { errorText } from '@/lib/error-text'
 import { queryClient } from '@/lib/query-client'
 import { settingsKeys } from '@/lib/query-keys'
 import {
@@ -22,6 +24,7 @@ import {
 } from './_shared'
 
 export function SignaturesSection() {
+  const t = useT()
   const { data: signatures = [] } = useQuery({
     queryKey: settingsKeys.signatures(),
     queryFn: () => wireListSignatures().then((items) => [...items]),
@@ -43,11 +46,11 @@ export function SignaturesSection() {
         name: editing.name.trim(),
         text_content: editing.text_content ?? '',
       })
-      toast.success(editing.id ? 'Signature updated' : 'Signature created')
+      toast.success(t(savedLabel(Boolean(editing.id))))
       setEditing(null)
       void invalidate()
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to save signature')
+      toast.error(errorText(e, t('settings.signatures.saveFailed')))
     } finally {
       setSaving(false)
     }
@@ -56,11 +59,11 @@ export function SignaturesSection() {
   const handleDelete = async (id: number) => {
     try {
       await wireDeleteSignature(id)
-      toast.success('Signature deleted')
+      toast.success(t('settings.signatures.deleted'))
       setDeleteTarget(null)
       void invalidate()
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to delete signature')
+      toast.error(errorText(e, t('settings.signatures.deleteFailed')))
       setDeleteTarget(null)
     }
   }
@@ -68,7 +71,7 @@ export function SignaturesSection() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <SectionHeader title="Signatures" />
+        <SectionHeader title={t('settings.cat.signatures')} />
         <button
           className={btnPrimary}
           onClick={() =>
@@ -80,24 +83,26 @@ export function SignaturesSection() {
             })
           }
         >
-          Add Signature
+          {t('settings.signatures.add')}
         </button>
       </div>
 
       {editing && (
         <div className={cardClass + ' space-y-3'}>
           <input
-            aria-label="Signature name"
+            aria-label={t('settings.signatures.name')}
             autoFocus
             className={inputClass}
             onChange={(e) => setEditing({ ...editing, name: e.target.value })}
-            placeholder="Signature name"
+            placeholder={t('settings.signatures.name')}
             value={editing.name ?? ''}
           />
           <div>
-            <label className="text-fg-secondary mb-1 block text-xs font-medium">Text content</label>
+            <label className="text-fg-secondary mb-1 block text-xs font-medium">
+              {t('settings.signatures.text')}
+            </label>
             <textarea
-              aria-label="Text content"
+              aria-label={t('settings.signatures.text')}
               className={inputClass}
               onChange={(e) => setEditing({ ...editing, text_content: e.target.value })}
               rows={3}
@@ -105,9 +110,11 @@ export function SignaturesSection() {
             />
           </div>
           <div>
-            <label className="text-fg-secondary mb-1 block text-xs font-medium">HTML content</label>
+            <label className="text-fg-secondary mb-1 block text-xs font-medium">
+              {t('settings.signatures.html')}
+            </label>
             <textarea
-              aria-label="HTML content"
+              aria-label={t('settings.signatures.html')}
               className={inputClass}
               onChange={(e) => setEditing({ ...editing, html_content: e.target.value })}
               rows={3}
@@ -120,21 +127,21 @@ export function SignaturesSection() {
               onChange={(e) => setEditing({ ...editing, is_default: e.target.checked })}
               type="checkbox"
             />
-            Default signature
+            {t('settings.signatures.defaultSignature')}
           </label>
           <div className="flex gap-2">
             <button className={btnPrimary} disabled={saving} onClick={handleSave}>
-              {saving ? 'Saving...' : 'Save'}
+              {t(saveLabel(saving))}
             </button>
             <button className={btnSecondary} onClick={() => setEditing(null)}>
-              Cancel
+              {t('common.cancel')}
             </button>
           </div>
         </div>
       )}
 
       {signatures.length === 0 && !editing && (
-        <p className="text-fg-muted text-sm">No signatures configured</p>
+        <p className="text-fg-muted text-sm">{t('settings.signatures.empty')}</p>
       )}
 
       {signatures.map((sig) => (
@@ -144,7 +151,7 @@ export function SignaturesSection() {
               <span className="text-sm font-medium">{sig.name}</span>
               {sig.is_default && (
                 <span className="bg-success/10 text-success ml-2 rounded-full px-2 py-0.5 text-xs">
-                  Default
+                  {t('settings.signatures.default')}
                 </span>
               )}
               {sig.text_content && (
@@ -156,10 +163,10 @@ export function SignaturesSection() {
             </div>
             <div className="flex gap-2">
               <button className="text-accent text-xs" onClick={() => setEditing(sig)}>
-                Edit
+                {t('settings.signatures.edit')}
               </button>
               <button className="text-danger text-xs" onClick={() => setDeleteTarget(sig.id)}>
-                Delete
+                {t('settings.rules.delete')}
               </button>
             </div>
           </div>
@@ -168,11 +175,21 @@ export function SignaturesSection() {
 
       {deleteTarget !== null && (
         <ConfirmDialog
-          message="Delete this signature? This cannot be undone."
+          message={t('settings.signatures.deleteConfirm')}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={() => handleDelete(deleteTarget)}
         />
       )}
     </div>
   )
+}
+
+function savedLabel(existing: boolean): Key {
+  if (existing) return 'settings.signatures.updated'
+  return 'settings.signatures.created'
+}
+
+function saveLabel(saving: boolean): Key {
+  if (saving) return 'settings.saving'
+  return 'settings.save'
 }

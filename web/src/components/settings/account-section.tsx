@@ -4,7 +4,9 @@ import { useAtomValue } from 'jotai'
 import { useEffect, useState } from 'react'
 
 import { useSignOut } from '@/hooks/use-sign-out'
+import { type Key, useT } from '@/i18n'
 import { ensureConfirmed } from '@/lib/ensure-confirmed'
+import { errorText } from '@/lib/error-text'
 import { queryClient } from '@/lib/query-client'
 import { settingsKeys } from '@/lib/query-keys'
 import { authAtom } from '@/store/auth'
@@ -26,6 +28,7 @@ import {
 import { RevokeAllAppPasswords } from './app-passwords-card'
 
 export function AccountSection() {
+  const t = useT()
   const auth = useAtomValue(authAtom)
   const [pw, setPw] = useState({ confirm: '', current: '', next: '' })
   const [saving, setSaving] = useState(false)
@@ -56,10 +59,10 @@ export function AccountSection() {
     setSavingRecovery(true)
     try {
       await wireSetRecoveryEmail(recoveryEmail)
-      toast.success('Recovery email updated')
+      toast.success(t('settings.account.recoveryUpdated'))
       void queryClient.invalidateQueries({ queryKey: settingsKeys.recoveryEmail() })
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to update recovery email')
+      toast.error(errorText(e, t('settings.account.recoveryFailed')))
     } finally {
       setSavingRecovery(false)
     }
@@ -68,20 +71,20 @@ export function AccountSection() {
   const handlePasswordChange = async () => {
     if (!pw.current || !pw.next) return
     if (pw.next !== pw.confirm) {
-      toast.error('New passwords do not match')
+      toast.error(t('settings.account.mismatch'))
       return
     }
     if (pw.next.length < 12) {
-      toast.error('Password must be at least 12 characters')
+      toast.error(t('reset.tooShort'))
       return
     }
     setSaving(true)
     try {
       await wireChangePassword(pw.current, pw.next)
-      toast.success('Password updated')
+      toast.success(t('settings.account.passwordUpdated'))
       setPw({ confirm: '', current: '', next: '' })
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to update password')
+      toast.error(errorText(e, t('settings.account.passwordFailed')))
     } finally {
       setSaving(false)
     }
@@ -98,22 +101,22 @@ export function AccountSection() {
 
   return (
     <div className="space-y-6">
-      <SectionHeader title="Account" />
+      <SectionHeader title={t('settings.cat.account')} />
 
       <div className={cardClass}>
         <div className="space-y-3">
-          <Field label="Email">
+          <Field label={t('login.email')}>
             <span className="text-fg-secondary text-sm">{auth?.address ?? '-'}</span>
           </Field>
-          <Field label="Display Name">
+          <Field label={t('settings.account.displayName')}>
             <span className="text-fg-secondary text-sm">{auth?.display_name || '-'}</span>
           </Field>
-          <Field label="Permissions">
+          <Field label={t('settings.account.permissions')}>
             <span className="text-fg-secondary text-sm break-all">
               {auth?.permissions?.join(', ') || '-'}
             </span>
           </Field>
-          <Field label="Domains">
+          <Field label={t('settings.account.domains')}>
             <span className="text-fg-secondary text-sm break-all">
               {auth?.accessible_domains?.join(', ') || '-'}
             </span>
@@ -122,17 +125,14 @@ export function AccountSection() {
       </div>
 
       <div className={cardClass}>
-        <h3 className="mb-3 text-sm font-medium">Recovery Email</h3>
-        <p className="text-fg-muted mb-2 text-xs">
-          Used to receive password reset links. Must be an external email address you can access
-          independently.
-        </p>
+        <h3 className="mb-3 text-sm font-medium">{t('login.recoveryEmail')}</h3>
+        <p className="text-fg-muted mb-2 text-xs">{t('settings.account.recoveryHelp')}</p>
         <div className="flex gap-2">
           <input
             className={inputClass + ' flex-1'}
             disabled={!recoveryLoaded}
             onChange={(e) => setRecoveryEmail(e.target.value)}
-            placeholder={recoveryLoaded ? 'Not configured' : 'Loading...'}
+            placeholder={t(recoveryPlaceholder(recoveryLoaded))}
             type="email"
             value={recoveryEmail}
           />
@@ -141,27 +141,27 @@ export function AccountSection() {
             disabled={savingRecovery || !recoveryLoaded}
             onClick={handleRecoveryEmailSave}
           >
-            {savingRecovery ? 'Saving...' : 'Save'}
+            {t(saveLabel(savingRecovery, 'settings.save'))}
           </button>
         </div>
       </div>
 
       <div className={cardClass}>
-        <h3 className="mb-3 text-sm font-medium">Change Password</h3>
+        <h3 className="mb-3 text-sm font-medium">{t('settings.account.changePassword')}</h3>
         <div className="space-y-2">
           <div>
             <label
               className="text-fg-secondary mb-1 block text-xs font-medium"
               htmlFor="settings-current-pw"
             >
-              Current password
+              {t('settings.account.currentPassword')}
             </label>
             <input
               autoComplete="current-password"
               className={inputClass}
               id="settings-current-pw"
               onChange={(e) => setPw({ ...pw, current: e.target.value })}
-              placeholder="Current password"
+              placeholder={t('settings.account.currentPassword')}
               type="password"
               value={pw.current}
             />
@@ -171,14 +171,14 @@ export function AccountSection() {
               className="text-fg-secondary mb-1 block text-xs font-medium"
               htmlFor="settings-new-pw"
             >
-              New password
+              {t('reset.newPassword')}
             </label>
             <input
               autoComplete="new-password"
               className={inputClass}
               id="settings-new-pw"
               onChange={(e) => setPw({ ...pw, next: e.target.value })}
-              placeholder="New password"
+              placeholder={t('reset.newPassword')}
               type="password"
               value={pw.next}
             />
@@ -188,47 +188,61 @@ export function AccountSection() {
               className="text-fg-secondary mb-1 block text-xs font-medium"
               htmlFor="settings-confirm-pw"
             >
-              Confirm new password
+              {t('settings.account.confirmNew')}
             </label>
             <input
               autoComplete="new-password"
               className={inputClass}
               id="settings-confirm-pw"
               onChange={(e) => setPw({ ...pw, confirm: e.target.value })}
-              placeholder="Confirm new password"
+              placeholder={t('settings.account.confirmNew')}
               type="password"
               value={pw.confirm}
             />
           </div>
           <button className={btnPrimary} disabled={saving} onClick={handlePasswordChange}>
-            {saving ? 'Saving...' : 'Update Password'}
+            {t(saveLabel(saving, 'settings.account.updatePassword'))}
           </button>
           <RevokeAllAppPasswords />
         </div>
       </div>
 
       <div className={cardClass}>
-        <h3 className="mb-2 text-sm font-medium">Export Mailbox</h3>
-        <p className="text-fg-muted mb-3 text-xs">Download all your emails as an MBOX file</p>
+        <h3 className="mb-2 text-sm font-medium">{t('settings.account.export')}</h3>
+        <p className="text-fg-muted mb-3 text-xs">{t('settings.account.exportHelp')}</p>
         <button className={btnPrimary} onClick={() => void exportMailbox()}>
-          Export as MBOX
+          {t('settings.account.exportMbox')}
         </button>
       </div>
 
       <div className="border-border border-t pt-4">
         <button className={btnDanger} onClick={() => setShowLogoutConfirm(true)}>
-          Sign out
+          {t('settings.account.signOut')}
         </button>
-        {auth?.address && <p className="text-fg-muted mt-2 text-xs">Signed in as {auth.address}</p>}
+        {auth?.address && (
+          <p className="text-fg-muted mt-2 text-xs">
+            {t('settings.account.signedInAs', { address: auth.address })}
+          </p>
+        )}
       </div>
 
       {showLogoutConfirm && (
         <ConfirmDialog
-          message="Sign out? You will need to sign in again to access your mailbox."
+          message={t('settings.account.signOutConfirm')}
           onCancel={() => setShowLogoutConfirm(false)}
           onConfirm={doLogout}
         />
       )}
     </div>
   )
+}
+
+function recoveryPlaceholder(loaded: boolean): Key {
+  if (loaded) return 'settings.account.notConfigured'
+  return 'settings.loadingDots'
+}
+
+function saveLabel(saving: boolean, idle: Key): Key {
+  if (saving) return 'settings.saving'
+  return idle
 }
