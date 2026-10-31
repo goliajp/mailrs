@@ -78,6 +78,10 @@ pub struct ListThreadsFilter<'a> {
     /// rows onto it would be filtering a page it had already counted
     /// — the defect this axis was built to avoid.
     pub quarantine: QuarantineScope,
+    /// The Trash list: only threads this reader moved to the Trash, keyed
+    /// on the `trashed` flag. `false` is every other list, and excludes
+    /// them, Archived included.
+    pub trashed: bool,
     /// Only threads with `unread_count > 0`.
     pub has_unread: bool,
     /// Only threads with `has_action = true`.
@@ -119,12 +123,13 @@ impl ListThreadsFilter<'_> {
     /// So it can be keyed on but not filtered on, and the caller keys on
     /// whichever flag comes back first.
     fn flags_on(&self) -> Vec<&'static str> {
-        let mut out = Vec::with_capacity(6);
+        let mut out = Vec::with_capacity(7);
         for (name, on) in [
             (
                 "is_sender",
                 self.folder.is_some_and(|f| f.eq_ignore_ascii_case("sent")),
             ),
+            ("trashed", self.trashed),
             ("starred", self.starred),
             ("archived", self.archived),
             ("pinned", self.pinned),
@@ -170,6 +175,11 @@ pub(super) fn not_archived() -> (&'static str, String) {
     ("archived", "0".to_string())
 }
 
+/// The exclusion every list but the Trash carries.
+pub(super) fn not_trashed() -> (&'static str, String) {
+    ("trashed", "0".to_string())
+}
+
 pub(super) fn bucket_predicates<'a>(
     bucket: &'a str,
     extra: &[(&'a str, String)],
@@ -191,7 +201,7 @@ pub(super) fn bucket_predicates<'a>(
 impl KevyMailboxStore {
     pub fn count_flag_non_junk(&self, user: &str, flag: &str) -> io::Result<usize> {
         let mut total = 0usize;
-        let live = [not_archived()];
+        let live = [not_archived(), not_trashed()];
         for bucket in NON_JUNK_BUCKETS {
             let scoped = bucket_predicates(bucket, &live);
             let refs: Vec<(&str, &str)> = scoped.iter().map(|(c, v)| (*c, v.as_str())).collect();
@@ -237,7 +247,8 @@ impl KevyMailboxStore {
         // excludes archived threads, and leaving it to a post-filter is
         // what once answered "Inbox" with archived threads in it.
         let archived = if filter.archived { "1" } else { "0" };
-        let mut extra: Vec<(&str, &str)> = vec![("archived", archived)];
+        let trashed = if filter.trashed { "1" } else { "0" };
+        let mut extra: Vec<(&str, &str)> = vec![("archived", archived), ("trashed", trashed)];
         for (col, on) in [
             ("starred", filter.starred),
             ("pinned", filter.pinned),
@@ -369,8 +380,16 @@ impl KevyMailboxStore {
         // Every list but Archived excludes it. When it *is* the Archived
         // list the column is the key, so pinning it to 0 here would ask
         // the index for rows it exists to exclude.
-        if !filter.archived {
-            extra.push(not_archived());
+        // The Trash shows what was moved there whether or not it had
+        // been archived first; every other list leaves the Trash out.
+        match filter.trashed {
+            true => {}
+            false => {
+                extra.push(not_trashed());
+                if !filter.archived {
+                    extra.push(not_archived());
+                }
+            }
         }
         match scope {
             Scope::All => {}
