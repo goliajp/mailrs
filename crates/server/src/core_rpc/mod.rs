@@ -7,6 +7,7 @@
 //! on authenticated routes.
 
 mod handlers;
+mod operator_clear;
 mod router;
 mod router_views;
 // Not re-exported wider than it is: `build_full_router` is `pub(super)` in

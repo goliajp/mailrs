@@ -107,7 +107,7 @@ pub enum SecondFactor {
 /// error, never "not enrolled": that would let a blink of the store skip
 /// the second factor.
 pub fn second_factor(address: &str, code: Option<&str>) -> Result<SecondFactor, StatusCode> {
-    let key = format!("totp:{address}");
+    let key = mailrs_core_sidestate::keys::credentials::totp_key(&address);
     let k = key.clone();
     let (secret, enabled) = crate::handlers::kevy_util::with_kevy(move |c| {
         Ok((
@@ -186,7 +186,7 @@ mod recovery_tests {
     #[test]
     fn a_code_works_once_and_plaintext_codes_are_converted() {
         let mut c = kevy_client::Connection::connect("mem://recovery-codes").unwrap();
-        let key = "totp:alice@x.test";
+        let key = &mailrs_core_sidestate::keys::credentials::totp_key("alice@x.test");
         c.hset(key.as_bytes(), &[(RECOVERY_PLAIN, b"aaaa1111,bbbb2222")])
             .unwrap();
         assert!(!consume_recovery_code(&mut c, key, "nope").unwrap());

@@ -3888,6 +3888,7 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "kevy-client",
+ "mailrs-auth-guard",
  "mailrs-core-api",
  "mailrs-dav",
  "mailrs-fraud",

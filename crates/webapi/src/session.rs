@@ -123,7 +123,7 @@ async fn resolve_agent_key(token: String) -> Option<AgentAuth> {
             };
             // revocation check: the key is valid only while its record is
             // still present in the owner's hash (delete_agent_key removes it)
-            let hash_key = format!("agent:keys:{}", index.user);
+            let hash_key = mailrs_core_sidestate::keys::credentials::agent_keys_key(&index.user);
             let Some(record) =
                 client.hget(hash_key.as_bytes(), index.id.to_string().as_bytes())?
             else {

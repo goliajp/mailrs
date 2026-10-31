@@ -43,6 +43,9 @@ auth:events:;crates/auth-guard/src/events.rs
 auth:alerts:;crates/auth-guard/src/alerts.rs
 notify:new-mail;crates/core/src/event_bus.rs
 notify:account-signout;crates/core-sidestate/src/keys/signout.rs
+agent:keys:;crates/core-sidestate/src/keys/credentials.rs
+totp:;crates/core-sidestate/src/keys/credentials.rs
+pwreset(_by_addr)?:;crates/core-sidestate/src/keys/credentials.rs
 reset:code:;crates/core-sidestate/src/keys/reset.rs
 reset:failures:;crates/core-sidestate/src/keys/reset.rs
 bayes:(tokens|meta|corpus|trained);crates/triage/src/spam.rs

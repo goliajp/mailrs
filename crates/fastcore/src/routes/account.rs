@@ -213,19 +213,28 @@ pub(crate) async fn clear_password_route(
     Path(address): Path<String>,
     Json(req): Json<adm::ClearPasswordRequest>,
 ) -> axum::response::Response {
-    patch_account_field(&state, &address, |obj| {
+    clear_password(&state, &address, req.by).await
+}
+
+/// Empty `address`'s password, recording who and when. 404 for no account.
+pub(crate) async fn clear_password(
+    state: &FastcoreState,
+    address: &str,
+    by: String,
+) -> axum::response::Response {
+    patch_account_field(state, address, |obj| {
         obj.insert(
             "password_hash".into(),
             serde_json::Value::String(String::new()),
         );
         obj.insert("password_cleared_at".into(), now_secs().into());
-        obj.insert("password_cleared_by".into(), req.by.into());
+        obj.insert("password_cleared_by".into(), by.into());
     })
     .await
 }
 
 pub(crate) async fn patch_account_field<F>(
-    state: &Arc<FastcoreState>,
+    state: &FastcoreState,
     address: &str,
     mutator: F,
 ) -> axum::response::Response
