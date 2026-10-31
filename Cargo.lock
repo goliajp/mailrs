@@ -3778,7 +3778,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-auth-guard"
-version = "2.1.0"
+version = "3.0.0"
 dependencies = [
  "argon2",
  "async-trait",
@@ -4183,6 +4183,7 @@ dependencies = [
  "kevy-client",
  "mailrs-apns",
  "mailrs-arf",
+ "mailrs-auth-guard",
  "mailrs-bayes",
  "mailrs-clean",
  "mailrs-core",

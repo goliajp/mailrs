@@ -4,7 +4,7 @@
 use std::io;
 
 use super::{Ops, Scopes, loggable_account};
-use crate::alerts::{self, Alert, Kind};
+use crate::alerts::{self, Alert, Fact, Kind};
 use crate::events::EventOps;
 
 /// Networks seen signing in to one account within this long...
@@ -41,6 +41,10 @@ pub(super) fn many_networks<O: Ops + EventOps>(
             subject: account,
             at: now,
             detail,
+            facts: vec![Fact::Networks {
+                list: recent.clone(),
+                minutes: RECENT_SECS / 60,
+            }],
         };
         alerts::raise(ops, &alert)?;
     }
