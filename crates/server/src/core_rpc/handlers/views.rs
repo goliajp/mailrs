@@ -60,6 +60,7 @@ pub async fn search_conversations(
     rows.sort_by_key(|r| rank(&r.thread_id));
     rows.truncate(limit);
     let items: Vec<ConversationSummaryWire> = rows.iter().map(Into::into).collect();
+    let items = super::labels::with_labels(&state, &user, items).await;
     Ok(Json(conv::SearchConversationsResponse { items }))
 }
 

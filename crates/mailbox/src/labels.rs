@@ -90,7 +90,10 @@ mod tests {
         assert_eq!(label_name(""), Err(LabelError::Length));
         assert_eq!(label_name(&"x".repeat(65)), Err(LabelError::Length));
         assert_eq!(label_name("a/b"), Err(LabelError::Slash));
-        assert_eq!(label_name("inbox"), Err(LabelError::Reserved("INBOX".into())));
+        assert_eq!(
+            label_name("inbox"),
+            Err(LabelError::Reserved("INBOX".into()))
+        );
         assert!(label_name("待办").is_ok());
     }
 

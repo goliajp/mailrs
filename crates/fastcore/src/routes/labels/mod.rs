@@ -49,7 +49,10 @@ pub(crate) async fn create_label(
     Path(user): Path<String>,
     Json(req): Json<lb::CreateLabelRequest>,
 ) -> Response {
-    match state.mailbox.create_label(&user, &req.name, &req.color, now()) {
+    match state
+        .mailbox
+        .create_label(&user, &req.name, &req.color, now())
+    {
         Ok(l) => Json(l).into_response(),
         Err(e) => refused(e),
     }
@@ -120,8 +123,8 @@ pub(crate) fn rows_with_label(
         let Some(row) = state.mailbox.get_thread_for_user(user, &tid)? else {
             continue;
         };
-        let held = row.quarantined
-            && filter.quarantine != mailrs_mailbox_kevy::QuarantineScope::Include;
+        let held =
+            row.quarantined && filter.quarantine != mailrs_mailbox_kevy::QuarantineScope::Include;
         let shown = row.trashed_at == 0
             && !held
             && filter.before_ts.is_none_or(|ts| row.latest_date < ts)
@@ -131,7 +134,12 @@ pub(crate) fn rows_with_label(
             rows.push(row);
         }
     }
-    rows.sort_by(|a, b| b.latest_date.cmp(&a.latest_date).then(b.thread_id.cmp(&a.thread_id)));
+    // newest first, then by id: the order the SQL core gives the same rows
+    rows.sort_by(|a, b| {
+        b.latest_date
+            .cmp(&a.latest_date)
+            .then(a.thread_id.cmp(&b.thread_id))
+    });
     rows.truncate(limit);
     Ok(rows)
 }

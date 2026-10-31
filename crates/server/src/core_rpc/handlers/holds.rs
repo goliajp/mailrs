@@ -41,6 +41,7 @@ pub async fn list_quarantined(
     let total = rows.len();
     let limit = q.limit.unwrap_or(50).min(1000);
     let items: Vec<ConversationSummaryWire> = rows.iter().take(limit).map(Into::into).collect();
+    let items = super::labels::with_labels(&state, &user, items).await;
     Ok(Json(wire::QuarantineListResponse { items, total }))
 }
 

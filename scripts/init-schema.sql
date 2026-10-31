@@ -346,6 +346,22 @@ CREATE TABLE IF NOT EXISTS trashed_conversations (
 );
 CREATE INDEX IF NOT EXISTS idx_trashed_at ON trashed_conversations(trashed_at);
 
+CREATE TABLE IF NOT EXISTS labels (
+    account_address TEXT NOT NULL,
+    id              BIGINT NOT NULL,
+    name            TEXT NOT NULL,
+    color           TEXT NOT NULL,
+    created_at      BIGINT NOT NULL,
+    PRIMARY KEY (account_address, id)
+);
+CREATE TABLE IF NOT EXISTS thread_labels (
+    account_address TEXT NOT NULL,
+    label_id        BIGINT NOT NULL,
+    thread_id       TEXT NOT NULL,
+    PRIMARY KEY (account_address, label_id, thread_id)
+);
+CREATE INDEX IF NOT EXISTS idx_thread_labels_thread ON thread_labels(account_address, thread_id);
+
 CREATE TABLE IF NOT EXISTS webhook_subscriptions (
     id BIGSERIAL PRIMARY KEY,
     account_address TEXT NOT NULL,
@@ -801,4 +817,4 @@ CREATE INDEX idx_messages_clean_text_trgm ON messages USING gin (clean_text gin_
 -- The migration this schema is equal to; the core reads it at boot and
 -- applies whatever it carries beyond it.
 CREATE TABLE schema_version (version INTEGER NOT NULL);
-INSERT INTO schema_version (version) VALUES (54);
+INSERT INTO schema_version (version) VALUES (55);

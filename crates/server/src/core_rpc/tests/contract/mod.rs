@@ -15,6 +15,7 @@ mod coverage;
 mod deletes;
 mod harness;
 mod intake;
+mod labels;
 mod mail;
 mod operator;
 mod sent;
