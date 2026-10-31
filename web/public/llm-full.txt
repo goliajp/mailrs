@@ -25,7 +25,7 @@ Config for Claude Code or any MCP client:
 }
 ```
 
-101 tools auto-discovered via MCP, grouped by category (the table below is a selection; `tools/list` is the authority, and `scripts/check-mcp-parity.sh` holds the two server lanes to the same set):
+107 tools auto-discovered via MCP, grouped by category (the table below is a selection; `tools/list` is the authority, and `scripts/check-mcp-parity.sh` holds the two server lanes to the same set):
 
 ### Email Operations
 
@@ -56,6 +56,12 @@ Config for Claude Code or any MCP client:
 | delete_thread | any authenticated | Move a thread to the Trash; it is deleted for good after 30 days |
 | restore_thread | any authenticated | Bring a thread back out of the Trash |
 | delete_thread_forever | recent password confirmation; not agent keys | Delete a thread and all its messages for good |
+| list_labels | any authenticated | Your labels: id, name, colour |
+| create_label | any authenticated | Create a label (name, colour) |
+| update_label | any authenticated | Rename or recolour a label |
+| delete_label | any authenticated | Delete a label; no mail is deleted |
+| label_thread | any authenticated | Put a label on a conversation |
+| unlabel_thread | any authenticated | Take a label off a conversation |
 
 ### Account Management
 
