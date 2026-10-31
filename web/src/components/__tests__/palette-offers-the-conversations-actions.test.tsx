@@ -52,7 +52,7 @@ describe('command palette', () => {
     })
     await screen.findByRole('combobox')
     // unread and starred: read, unstar; not archived: archive
-    for (const label of ['Mark as read', 'Unstar', 'Archive', 'Delete']) {
+    for (const label of ['Mark as read', 'Unstar', 'Archive', 'Move to Trash']) {
       expect(screen.getByText(label)).toBeDefined()
     }
     fireEvent.click(screen.getByText('Archive'))
@@ -62,8 +62,12 @@ describe('command palette', () => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))
     })
     await screen.findByRole('combobox')
-    fireEvent.click(screen.getByText('Delete'))
-    expect(store.get(threadShortcutAtom)).toEqual({ kind: 'delete', threadId: 't1' })
-    expect(acted).toHaveLength(1)
+    // the Trash keeps it, so it runs like archiving, without asking
+    fireEvent.click(screen.getByText('Move to Trash'))
+    expect(acted).toEqual([
+      ['t1', 'archive'],
+      ['t1', 'trash'],
+    ])
+    expect(store.get(threadShortcutAtom)).toBeNull()
   })
 })

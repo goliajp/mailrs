@@ -79,9 +79,14 @@ vi.mock('@/hooks/use-flat-conversations', () => ({
   useFlatConversations: () => flatStub,
 }))
 const stubMutation = () => ({ isPending: false, mutate: vi.fn(), mutateAsync: vi.fn() })
+vi.mock('@/hooks/use-trash-mutations', () => ({
+  useDeleteForeverMutation: stubMutation,
+  useEmptyTrashMutation: stubMutation,
+  useTrashMutation: stubMutation,
+  useUntrashMutation: stubMutation,
+}))
 vi.mock('@/hooks/use-mail-mutations', () => ({
   useArchiveMutation: stubMutation,
-  useDeleteMutation: stubMutation,
   useMarkJunkMutation: stubMutation,
   useMarkNotificationMutation: stubMutation,
   useMarkNotJunkMutation: stubMutation,

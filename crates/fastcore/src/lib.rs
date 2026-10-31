@@ -305,11 +305,15 @@ mod tests {
     use tower::ServiceExt;
 
     pub(super) fn fresh_state() -> Arc<FastcoreState> {
+        Arc::new(fresh_state_owned())
+    }
+
+    /// The same, before it is shared, for a test that sets a field.
+    pub(super) fn fresh_state_owned() -> FastcoreState {
         let store = Arc::new(
             kevy_embedded::Store::open(kevy_embedded::Config::default()).expect("in-memory kevy"),
         );
-        let mailbox = KevyMailboxStore::new(store);
-        Arc::new(FastcoreState::new(mailbox))
+        FastcoreState::new(KevyMailboxStore::new(store))
     }
 
     pub(super) fn arr<'a>(tid: &'a str, user: &'a str, unread: bool) -> MessageArrival<'a> {

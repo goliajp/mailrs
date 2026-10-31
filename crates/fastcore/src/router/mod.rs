@@ -80,6 +80,12 @@ pub fn build_router_with_secret(state: Arc<FastcoreState>, secret: String) -> Ro
         .route(th::PATH_FRAUD_VERDICT, get(get_fraud_verdict))
         .route(th::PATH_ARCHIVE, post(archive_thread))
         .route(th::PATH_UNARCHIVE, post(unarchive_thread))
+        .route(th::PATH_TRASH, post(crate::routes::trash::trash_thread))
+        .route(th::PATH_UNTRASH, post(crate::routes::trash::untrash_thread))
+        .route(
+            th::PATH_EMPTY_TRASH,
+            post(crate::routes::trash::empty_trash),
+        )
         .route(th::PATH_MARK_JUNK, post(mark_junk))
         .route(th::PATH_MARK_NOT_JUNK, post(mark_not_junk))
         .route(th::PATH_MARK_NOTIFICATION, post(mark_notification))

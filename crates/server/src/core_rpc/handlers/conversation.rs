@@ -29,10 +29,17 @@ use crate::core_rpc::handlers::failed;
 /// the empty string: an account filter that does not name it selects
 /// nothing.
 pub(crate) fn thread_query<'a>(user: &'a str, f: &'a ConversationFilter) -> ThreadQuery<'a> {
-    let folder = if f.archived {
+    // the Trash too: a list of its own across folders
+    let folder = if f.archived || f.trashed {
         None
     } else {
         f.folder.as_deref()
+    };
+    // the Trash shows what was moved there whether or not it had been
+    // archived first; every other list leaves the Trash out
+    let archived = match f.trashed {
+        true => None,
+        false => Some(f.archived),
     };
     let own_mail_excluded = f
         .accounts
@@ -46,7 +53,8 @@ pub(crate) fn thread_query<'a>(user: &'a str, f: &'a ConversationFilter) -> Thre
     ThreadQuery {
         scope,
         sent: is_sent_folder(folder),
-        archived: Some(f.archived),
+        archived,
+        trashed: Some(f.trashed),
         unread: f.unread.unwrap_or(false),
         starred: f.starred.unwrap_or(false),
         held: if f.include_quarantined {

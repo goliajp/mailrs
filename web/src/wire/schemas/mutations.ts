@@ -56,3 +56,7 @@ export const markAllReadResponseSchema = z.object({
 })
 
 export type WireMarkAllReadResponse = z.infer<typeof markAllReadResponseSchema>
+
+/** `POST /api/trash/empty`: how many conversations went for good. */
+export const emptyTrashResponseSchema = z.object({ deleted: z.number().int().min(0) })
+export type WireEmptyTrashResponse = z.infer<typeof emptyTrashResponseSchema>

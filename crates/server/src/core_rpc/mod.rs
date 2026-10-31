@@ -49,6 +49,11 @@ pub struct CoreRpcState {
     pub event_bus: crate::event_bus::EventBus,
 }
 
+/// Start the Trash purge over this core's store.
+pub(crate) fn spawn_trash_purge(state: Arc<CoreRpcState>) {
+    handlers::trash::spawn_purge(state);
+}
+
 impl mailrs_core_sidestate::NetKevy for CoreRpcState {
     fn net_conn(&self) -> Option<kevy_client::Connection> {
         let url = self.net_url.as_ref()?;

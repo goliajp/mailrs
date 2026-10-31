@@ -36,6 +36,7 @@ impl MailrsMcpService {
                 category: params.category,
                 domains: None,
                 archived: false,
+                trashed: false,
                 include_quarantined: false,
                 folder: params.folder,
                 unread: params.unread_only,
@@ -131,6 +132,7 @@ impl MailrsMcpService {
                 category: None,
                 domains: None,
                 archived: false,
+                trashed: false,
                 include_quarantined: false,
                 folder: None,
                 unread: None,
@@ -310,7 +312,9 @@ impl MailrsMcpService {
         Ok(ok_result())
     }
 
-    #[tool(description = "Delete a thread (moves it out of every folder view).")]
+    #[tool(
+        description = "Move a thread to the Trash. It leaves every other list and can be restored with restore_thread for 30 days, after which it is deleted for good."
+    )]
     async fn delete_thread(
         &self,
         Parameters(params): Parameters<MarkThreadReadParams>,
@@ -318,9 +322,38 @@ impl MailrsMcpService {
         let user = self.require_user()?;
         self.state
             .core
-            .delete_thread(user, &params.thread_id)
+            .trash_thread(user, &params.thread_id)
             .await
             .map_err(|e| McpError::internal_error(format!("delete_thread: {e}"), None))?;
+        Ok(ok_result())
+    }
+
+    #[tool(description = "Restore a thread from the Trash to the list it left.")]
+    async fn restore_thread(
+        &self,
+        Parameters(params): Parameters<MarkThreadReadParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?;
+        self.state
+            .core
+            .untrash_thread(user, &params.thread_id)
+            .await
+            .map_err(|e| McpError::internal_error(format!("restore_thread: {e}"), None))?;
+        Ok(ok_result())
+    }
+
+    #[tool(
+        description = "Delete a thread for good, files and all. Cannot be undone; needs a recent password confirmation."
+    )]
+    async fn delete_thread_forever(
+        &self,
+        Parameters(params): Parameters<MarkThreadReadParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?.to_string();
+        self.require_confirmed()?;
+        crate::handlers::trash::delete_for_good(&self.state, user, params.thread_id)
+            .await
+            .map_err(|e| McpError::internal_error(format!("delete_thread_forever: {e}"), None))?;
         Ok(ok_result())
     }
 

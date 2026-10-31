@@ -102,6 +102,9 @@ pub struct ThreadRow {
     /// conversation away would have done it for everyone who could
     /// see it, if anything had read the field at all.
     pub snoozed_until: i64,
+    /// Epoch seconds this reader moved the conversation to the Trash,
+    /// or 0 when it is not there.
+    pub trashed_at: i64,
     /// Which connected mailbox this conversation arrived at, or empty
     /// for this deployment's own.
     ///
@@ -249,6 +252,7 @@ impl ThreadRow {
             // reading somebody else's.
             quarantined: false,
             snoozed_until: 0,
+            trashed_at: 0,
         })
     }
 }
@@ -289,6 +293,7 @@ impl ThreadRow {
             sent_count: 0,
             starred: false,
             snoozed_until: 0,
+            trashed_at: 0,
         };
         for (k, v) in pairs {
             let (Ok(kk), Ok(vv)) = (std::str::from_utf8(k), std::str::from_utf8(v)) else {
@@ -315,6 +320,7 @@ impl ThreadRow {
                 "has_action" => row.has_action = vv == "1",
                 "starred" => row.starred = vv == "1",
                 "snoozed_until" => row.snoozed_until = vv.parse().unwrap_or(0),
+                "trashed_at" => row.trashed_at = vv.parse().unwrap_or(0),
                 _ => {}
             }
         }
@@ -511,6 +517,7 @@ mod tests {
             sent_count: 1,
             starred: false,
             snoozed_until: 0,
+            trashed_at: 0,
         }
     }
 

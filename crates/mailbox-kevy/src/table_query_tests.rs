@@ -33,6 +33,7 @@ mod orderpath_read_tests {
             sent_count: 0,
             starred: false,
             snoozed_until: 0,
+            trashed_at: 0,
         }
     }
 
@@ -136,6 +137,7 @@ mod flag_axis_tests {
             sent_count: 0,
             starred,
             snoozed_until: 0,
+            trashed_at: 0,
         }
     }
 

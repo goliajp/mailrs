@@ -32,7 +32,6 @@ import { conversationKeys } from '@/store/query-keys-v21'
 
 import {
   useArchiveMutation,
-  useDeleteMutation,
   useMarkJunkMutation,
   useMarkNotJunkMutation,
   useMarkReadMutation,
@@ -45,22 +44,29 @@ import {
   useUnsnoozeMutation,
   useUnstarMutation,
 } from '../use-mail-mutations'
+import {
+  useDeleteForeverMutation,
+  useTrashMutation,
+  useUntrashMutation,
+} from '../use-trash-mutations'
 
 // Wire adapter is mocked per-test: resolve for the patch assertions,
 // reject for the rollback assertions.
 vi.mock('@/wire/endpoints/mutations', () => ({
   wireArchiveThread: vi.fn(),
   wireBatchMutation: vi.fn(),
-  wireDeleteThread: vi.fn(),
+  wireDeleteThreadForever: vi.fn(),
   wireMarkJunk: vi.fn(),
   wireMarkNotJunk: vi.fn(),
   wireMarkThreadRead: vi.fn(),
   wireMarkThreadUnread: vi.fn(),
   wirePinThread: vi.fn(),
   wireStarThread: vi.fn(),
+  wireTrashThread: vi.fn(),
   wireUnarchiveThread: vi.fn(),
   wireUnpinThread: vi.fn(),
   wireUnstarThread: vi.fn(),
+  wireUntrashThread: vi.fn(),
 }))
 vi.mock('@/lib/api', () => ({
   snoozeConversation: vi.fn(),
@@ -96,6 +102,7 @@ function makeConvo(id: string, over: Partial<ConversationSummary> = {}): Convers
 const INBOX_KEY = conversationKeys.infinite({ folder: 'Inbox' } as never)
 const JUNK_KEY = conversationKeys.infinite({ folder: 'Junk' } as never)
 const ARCHIVED_KEY = conversationKeys.infinite({ archived: true } as never)
+const TRASH_KEY = conversationKeys.infinite({ trashed: true } as never)
 const SCREEN_KEYS = [
   conversationKeys.infinite({}), // mail-list, unscoped
   JUNK_KEY,
@@ -187,7 +194,11 @@ const FIELD_MATRIX = [
 // ── matrix: drop mutations (row removed from every list) ──────────
 
 const DROP_MATRIX = [
-  { hook: useDeleteMutation, name: 'delete', wireFn: () => wire.wireDeleteThread },
+  {
+    hook: useDeleteForeverMutation,
+    name: 'delete-forever',
+    wireFn: () => wire.wireDeleteThreadForever,
+  },
 ] as const
 
 // ── matrix: moves between lists ───────────────────────────────────
@@ -200,6 +211,7 @@ const DROP_MATRIX = [
 const LIVE_INBOX = { archived: false, category: 'inbox' } as const
 const IN_ARCHIVE = { archived: true, category: 'inbox' } as const
 const IN_JUNK = { archived: false, category: 'spam' } as const
+const IN_TRASH = { archived: false, category: 'inbox', trashed_at: 1_793_427_570 } as const
 
 const MOVE_MATRIX = [
   {
@@ -237,6 +249,24 @@ const MOVE_MATRIX = [
     leaves: JUNK_KEY,
     name: 'mark-not-junk',
     wireFn: () => wire.wireMarkNotJunk,
+  },
+  {
+    after: IN_TRASH,
+    before: LIVE_INBOX,
+    hook: useTrashMutation,
+    keeps: TRASH_KEY,
+    leaves: INBOX_KEY,
+    name: 'trash',
+    wireFn: () => wire.wireTrashThread,
+  },
+  {
+    after: LIVE_INBOX,
+    before: IN_TRASH,
+    hook: useUntrashMutation,
+    keeps: INBOX_KEY,
+    leaves: TRASH_KEY,
+    name: 'untrash',
+    wireFn: () => wire.wireUntrashThread,
   },
 ] as const
 

@@ -111,6 +111,7 @@ pub(super) fn spawn_core_rpc_server(
         // to release, so the handle is dropped rather than awaited. `drop` and not `let _ =`: a JoinHandle
         // is a future, and `let _ =` on one reads as "ignore the result" while
         // actually detaching it (clippy::let_underscore_future).
+        core_rpc::spawn_trash_purge(core_rpc_state.clone());
         drop(core_rpc::spawn_core_rpc(
             core_rpc_state,
             shutdown_rx.clone(),

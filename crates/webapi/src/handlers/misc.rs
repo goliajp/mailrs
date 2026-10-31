@@ -117,6 +117,7 @@ pub async fn export_mbox(
             category: None,
             domains: None,
             archived: false,
+            trashed: false,
             include_quarantined: false,
             folder: None,
             unread: None,

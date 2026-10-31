@@ -20,6 +20,7 @@ mod filing;
 mod holds;
 mod mutate;
 mod query;
+mod trash;
 
 pub use query::{Held, ThreadQuery};
 

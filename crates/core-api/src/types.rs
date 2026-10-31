@@ -102,6 +102,10 @@ pub struct ConversationSummaryWire {
     /// everyone who could see it — had anything read it at all.
     #[serde(default)]
     pub snoozed_until: i64,
+    /// Epoch seconds this reader moved the thread to the Trash, or `0`.
+    /// A client says when the Trash will delete it for good from this.
+    #[serde(default)]
+    pub trashed_at: i64,
 }
 
 impl From<&mailrs_mailbox::types::ConversationSummary> for ConversationSummaryWire {
@@ -129,6 +133,7 @@ impl From<&mailrs_mailbox::types::ConversationSummary> for ConversationSummaryWi
             requires_action: s.requires_action,
             sent_count: s.sent_count,
             snoozed_until: s.snoozed_until,
+            trashed_at: s.trashed_at,
         }
     }
 }
@@ -165,6 +170,10 @@ pub struct ConversationFilter {
     /// `true` shows only archived threads, `false` (default) hides them.
     #[serde(default)]
     pub archived: bool,
+    /// `true` is the Trash list; `false` (default) leaves the Trash out
+    /// of every other list, Archived included.
+    #[serde(default)]
+    pub trashed: bool,
     /// `true` also returns conversations held as suspected fraud.
     ///
     /// Default `false`, and the default is the point: a held
@@ -257,6 +266,7 @@ mod tests {
             requires_action: true,
             sent_count: 0,
             snoozed_until: 0,
+            trashed_at: 0,
         };
         let s = serde_json::to_string(&w).unwrap();
         let back: ConversationSummaryWire = serde_json::from_str(&s).unwrap();
@@ -272,6 +282,7 @@ mod tests {
             category: Some("personal".into()),
             domains: Some(vec!["example.com".into(), "test.com".into()]),
             archived: true,
+            trashed: false,
             include_quarantined: false,
             folder: Some("INBOX".into()),
             unread: Some(true),

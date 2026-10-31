@@ -20,6 +20,7 @@ mod operator;
 mod sent;
 mod side;
 mod threads;
+mod trash;
 
 const DOMAIN: &str = "example.test";
 const ALICE: &str = "alice@example.test";
