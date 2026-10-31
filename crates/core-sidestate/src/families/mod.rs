@@ -10,6 +10,7 @@ pub mod contact_cards;
 pub mod contacts;
 pub mod correspondent;
 pub mod dav_store;
+pub mod devices;
 pub mod dkim_signers;
 pub mod domain_history;
 pub mod email_groups;

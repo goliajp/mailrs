@@ -25,6 +25,7 @@ function looksLikeMarkdown(text: string): boolean {
 export const MessageBubble = memo(function MessageBubble({
   attachments,
   htmlBody,
+  imagesFrom,
   imagesOf,
   isOwn,
   textBody,
@@ -32,6 +33,8 @@ export const MessageBubble = memo(function MessageBubble({
 }: {
   attachments: AttachmentInfo[]
   htmlBody: null | string
+  /** The authenticated sender, whose images "On click" can remember. */
+  imagesFrom?: string
   /** The thread, so images the server has no copy of are fetched on request. */
   imagesOf?: string
   isOwn: boolean
@@ -63,7 +66,13 @@ export const MessageBubble = memo(function MessageBubble({
               phone and on a desktop alike. HtmlFrame scales the body to
               fit; whatever a pathological width leaves over scrolls. */}
           <div className="border-border border bg-white select-text">
-            <HtmlFrame attachments={attachments} html={parts.body} imagesOf={imagesOf} uid={uid} />
+            <HtmlFrame
+              attachments={attachments}
+              html={parts.body}
+              imagesFrom={imagesFrom}
+              imagesOf={imagesOf}
+              uid={uid}
+            />
           </div>
         </div>
       ) : (
@@ -97,6 +106,7 @@ export const MessageBubble = memo(function MessageBubble({
                 <HtmlFrame
                   attachments={attachments}
                   html={parts.quoted}
+                  imagesFrom={imagesFrom}
                   imagesOf={imagesOf}
                   uid={uid}
                 />

@@ -42,7 +42,7 @@ import { htmlBodyPaintsNothing } from '@/lib/email-split'
 import { formatFullDate } from '@/lib/format'
 import { highlightMentions } from '@/lib/mention'
 import { downloadEml, printMessage } from '@/lib/message-export'
-import { isOwnMessage, isSpoofSuspected } from '@/lib/sender-identity'
+import { isOwnMessage, isSpoofSuspected, verifiedSender } from '@/lib/sender-identity'
 
 const EMPTY_ATTACHMENTS: never[] = []
 
@@ -382,6 +382,7 @@ export function ThreadContentPane({
                     <MessageBubble
                       attachments={EMPTY_ATTACHMENTS}
                       htmlBody={selectedMsg.html_body}
+                      imagesFrom={verifiedSender(selectedMsg)}
                       imagesOf={threadId ?? undefined}
                       isOwn={false}
                       textBody={null}

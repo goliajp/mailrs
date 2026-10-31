@@ -30,6 +30,18 @@ pub(super) fn rule_routes() -> axum::Router<Arc<WebState>> {
             post(crate::handlers::rules_run::undo),
         )
         .route(
+            "/api/auth/sessions",
+            get(crate::handlers::auth::sessions::list),
+        )
+        .route(
+            "/api/auth/sessions/end-others",
+            post(crate::handlers::auth::sessions::end_others),
+        )
+        .route(
+            "/api/auth/sessions/{id}",
+            axum::routing::delete(crate::handlers::auth::sessions::end),
+        )
+        .route(
             "/api/settings/vacation",
             get(crate::handlers::mail_settings::get_vacation)
                 .put(crate::handlers::mail_settings::put_vacation),

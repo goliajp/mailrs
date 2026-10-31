@@ -207,7 +207,14 @@ pub async fn settle(
         Some(address) => match state.core.get_account_with_hash(&address).await {
             Ok(acct) => {
                 crate::handlers::audit::record(&address, "auth.login.external", key, "");
-                signed_in_redirect(crate::handlers::auth::issue_session(state, &acct).await)
+                signed_in_redirect(
+                    crate::handlers::auth::issue_session(
+                        state,
+                        &acct,
+                        crate::handlers::owner_notice::origin_of(headers, ""),
+                    )
+                    .await,
+                )
             }
             // Linked to an account that no longer exists. Refusing is the
             // only safe answer — the alternative is inventing one.

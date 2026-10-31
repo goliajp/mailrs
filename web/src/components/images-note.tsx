@@ -14,7 +14,17 @@ export function ImagesHeldNote({ onShow }: { onShow: () => void }) {
 }
 
 /** Above a message whose images the settings keep from showing. */
-export function ImagesHiddenNote({ mode, onShow }: { mode: string; onShow: () => void }) {
+export function ImagesHiddenNote({
+  mode,
+  onShow,
+  onTrust,
+  sender,
+}: {
+  mode: string
+  onShow: () => void
+  onTrust?: () => void
+  sender?: string
+}) {
   if (mode === 'never') {
     return <p className={NOTE}>Images are hidden by your settings</p>
   }
@@ -24,6 +34,14 @@ export function ImagesHiddenNote({ mode, onShow }: { mode: string; onShow: () =>
       <button className="text-accent hover:underline" onClick={onShow} type="button">
         Show images
       </button>
+      {onTrust && sender && (
+        <>
+          {' · '}
+          <button className="text-accent hover:underline" onClick={onTrust} type="button">
+            Always show from {sender}
+          </button>
+        </>
+      )}
     </p>
   )
 }

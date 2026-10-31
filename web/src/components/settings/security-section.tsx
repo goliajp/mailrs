@@ -14,6 +14,7 @@ import {
 } from '@/wire/endpoints/auth'
 
 import { btnDanger, btnPrimary, cardClass, Field, inputClass, SectionHeader } from './_shared'
+import { SessionsCard } from './sessions-card'
 
 export function SecuritySection() {
   const statusQuery = useQuery({
@@ -159,6 +160,7 @@ export function SecuritySection() {
           </div>
         </div>
       )}
+      <SessionsCard />
     </div>
   )
 }

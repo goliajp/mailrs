@@ -49,6 +49,7 @@ pub mod metrics;
 pub mod misc;
 pub mod mock;
 pub mod oidc;
+pub mod owner_notice;
 pub mod password_reset;
 pub mod prefs;
 pub mod prefs_misc;

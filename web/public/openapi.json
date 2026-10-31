@@ -11221,6 +11221,106 @@
           }
         }
       }
+    },
+    "/api/auth/sessions": {
+      "get": {
+        "operationId": "listSessions",
+        "summary": "Your signed-in sessions, most recently used first",
+        "tags": [
+          "Auth"
+        ],
+        "responses": {
+          "200": {
+            "description": "Sessions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "description": "First 16 hex characters of a hash of the session's token; names it, cannot sign in"
+                      },
+                      "created_at": {
+                        "type": "integer"
+                      },
+                      "last_seen": {
+                        "type": "integer",
+                        "description": "Last used, to ten minutes"
+                      },
+                      "ip": {
+                        "type": "string"
+                      },
+                      "user_agent": {
+                        "type": "string"
+                      },
+                      "current": {
+                        "type": "boolean",
+                        "description": "The session this request came with"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/sessions/{id}": {
+      "delete": {
+        "operationId": "endSession",
+        "summary": "Sign out one of your sessions",
+        "tags": [
+          "Auth"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Signed out"
+          },
+          "404": {
+            "description": "No such session of yours"
+          }
+        }
+      }
+    },
+    "/api/auth/sessions/end-others": {
+      "post": {
+        "operationId": "endOtherSessions",
+        "summary": "Sign out every session but this one",
+        "tags": [
+          "Auth"
+        ],
+        "responses": {
+          "200": {
+            "description": "{ended}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ended": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
