@@ -153,6 +153,7 @@ const POOL_SIZE: usize = 4;
 pub struct KevyLoginGuard {
     url: String,
     policy: LoginPolicy,
+    protocol_default: crate::app_passwords::Policy,
     pool: Vec<Mutex<Option<Connection>>>,
     next: AtomicUsize,
 }
@@ -163,6 +164,9 @@ impl KevyLoginGuard {
         Arc::new(Self {
             url: url.into(),
             policy,
+            // a bad value stops the process at its first guard, at start
+            protocol_default: crate::app_passwords::default_policy()
+                .unwrap_or_else(|e| panic!("{e}")),
             pool: (0..POOL_SIZE).map(|_| Mutex::new(None)).collect(),
             next: AtomicUsize::new(0),
         })
@@ -207,6 +211,21 @@ impl KevyLoginGuard {
 /// `Arc<KevyLoginGuard>` is what callers hold, behind `dyn LoginGuard`.
 #[async_trait]
 impl LoginGuard for Arc<KevyLoginGuard> {
+    async fn protocol_password(&self, account: &str, secret: &str) -> crate::login::ProtocolCheck {
+        let (account, secret, default) = (
+            account.to_string(),
+            secret.to_string(),
+            self.protocol_default,
+        );
+        // a store that cannot be read tries the account password, as a
+        // sign-in did before app passwords existed
+        self.run("protocol_password", move |c, _, now| {
+            crate::app_passwords::check(c, &account, &secret, default, now as i64)
+        })
+        .await
+        .unwrap_or(crate::login::ProtocolCheck::TryAccountPassword)
+    }
+
     async fn check(&self, source: IpAddr, account: &str) -> Verdict {
         let account = account.to_string();
         self.run("check", move |o, p, now| check(o, p, source, &account, now))
@@ -244,6 +263,15 @@ impl LoginGuard for Arc<KevyLoginGuard> {
         tokio::task::spawn_blocking(move || me.with_ops(|o, _, _| crate::alerts::raise(o, &alert)))
             .await
             .map_err(io::Error::other)?
+    }
+
+    async fn protocol_usage(&self, days: u64) -> io::Result<Vec<crate::protocol_usage::Usage>> {
+        let me = self.clone();
+        tokio::task::spawn_blocking(move || {
+            me.with_ops(|o, _, now| crate::protocol_usage::usage(o, days, now))
+        })
+        .await
+        .map_err(io::Error::other)?
     }
 
     async fn take_alerts(&self, max: usize) -> io::Result<Vec<crate::alerts::Alert>> {

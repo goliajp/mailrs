@@ -30,6 +30,18 @@ pub(super) fn rule_routes() -> axum::Router<Arc<WebState>> {
             post(crate::handlers::rules_run::undo),
         )
         .route(
+            "/api/auth/app-passwords",
+            get(crate::handlers::app_passwords::list).post(crate::handlers::app_passwords::create),
+        )
+        .route(
+            "/api/auth/app-passwords/revoke-all",
+            post(crate::handlers::app_passwords::revoke_all),
+        )
+        .route(
+            "/api/auth/app-passwords/{id}",
+            axum::routing::delete(crate::handlers::app_passwords::revoke),
+        )
+        .route(
             "/api/auth/sessions",
             get(crate::handlers::auth::sessions::list),
         )

@@ -10,6 +10,7 @@ pub mod admin_ops;
 pub mod admin_outbound_pause;
 pub mod admin_password_clear;
 pub mod ai;
+pub mod app_passwords;
 pub mod apps_keys;
 pub mod audit;
 pub mod audit_read;

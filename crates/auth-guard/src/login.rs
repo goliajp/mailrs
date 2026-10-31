@@ -119,9 +119,28 @@ impl Verdict {
     }
 }
 
+/// What a mail-protocol sign-in's password turned out to be.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProtocolCheck {
+    /// One of the account's app passwords, by id.
+    AppPassword(String),
+    /// Not an app password; the account password may be tried.
+    TryAccountPassword,
+    /// Not an app password, and this account takes app passwords only.
+    AppOnly,
+}
+
 /// The guard every login entry point asks.
 #[async_trait]
 pub trait LoginGuard: Send + Sync {
+    /// For a mail-protocol sign-in: whether `secret` is one of
+    /// `account`'s app passwords, and if not, whether its own password may
+    /// be tried. A guard with no shared store knows no app passwords.
+    async fn protocol_password(&self, account: &str, secret: &str) -> ProtocolCheck {
+        let _ = (account, secret);
+        ProtocolCheck::TryAccountPassword
+    }
+
     /// Before verifying credentials. Records nothing.
     async fn check(&self, source: IpAddr, account: &str) -> Verdict;
 
@@ -140,6 +159,10 @@ pub trait LoginGuard: Send + Sync {
         &self,
         query: crate::events::Query,
     ) -> io::Result<Vec<crate::events::LoginEvent>>;
+
+    /// Successful mail-protocol sign-ins of the last `days` days, by
+    /// account, protocol and kind of password.
+    async fn protocol_usage(&self, days: u64) -> io::Result<Vec<crate::protocol_usage::Usage>>;
 
     /// Up to `max` queued alerts, oldest first, taken off the queue.
     async fn take_alerts(&self, max: usize) -> io::Result<Vec<Alert>>;
@@ -203,61 +226,14 @@ impl Scopes {
 
 pub mod contract;
 mod memory;
+mod names;
 mod networks;
 
 pub use memory::{MemoryLoginGuard, MemoryOps};
+use names::normalize_account;
+pub use names::{familiar_prefix, loggable_account, looks_like_address};
 
 const GLOBAL: &str = "g";
-
-/// How an account name is kept in a key. Something that is not an address
-/// is often a password typed into the wrong field, so only its hash is kept.
-fn normalize_account(account: &str) -> String {
-    let a = account.trim().to_lowercase();
-    if !looks_like_address(&a) {
-        use sha2::Digest as _;
-        let digest = sha2::Sha256::digest(a.as_bytes());
-        let hex: String = digest[..16].iter().map(|b| format!("{b:02x}")).collect();
-        return format!("~{hex}");
-    }
-    a
-}
-
-/// `local@domain.tld` with nothing odd in it.
-pub fn looks_like_address(name: &str) -> bool {
-    let name = name.trim();
-    match name.split_once('@') {
-        Some((local, domain)) => {
-            !local.is_empty()
-                && domain.contains('.')
-                && !domain.starts_with('.')
-                && !domain.ends_with('.')
-                && !domain.contains('@')
-                && name.len() <= 254
-                && name.chars().all(|c| c.is_ascii_graphic() || !c.is_ascii())
-        }
-        None => false,
-    }
-}
-
-/// An account name as logs may show it: as typed when it is an address,
-/// otherwise only its length, since it may well be a password.
-pub fn loggable_account(name: &str) -> String {
-    match looks_like_address(name) {
-        true => name.trim().to_string(),
-        false => format!("<{} chars, not an address>", name.chars().count()),
-    }
-}
-
-/// The network a familiar source stands for: IPv4 /24, IPv6 /64.
-pub fn familiar_prefix(source: IpAddr) -> String {
-    match crate::normalize_ip(source) {
-        IpAddr::V4(v4) => {
-            let [a, b, c, _] = v4.octets();
-            format!("{a}.{b}.{c}.0/24")
-        }
-        v6 => format!("{v6}/64"),
-    }
-}
 
 /// Networks an account signed in from in the last few minutes.
 fn recent_key(account_scope: &str) -> String {

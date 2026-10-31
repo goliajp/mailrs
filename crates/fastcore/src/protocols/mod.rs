@@ -116,6 +116,16 @@ impl Directory for FastcoreDirectory {
         if !backend::verify_password(&self.state, user, password) {
             return Ok(None);
         }
+        self.open(user, protocol).await
+    }
+
+    async fn open(&self, user: &str, _: Protocol) -> Result<Option<Self::Account>> {
+        // the mock namespace signs in with its own token, never an app password
+        if mock_store::is_mock(user)
+            || !matches!(self.state.mailbox.get_account_blob(user), Ok(Some(_)))
+        {
+            return Ok(None);
+        }
         Ok(Some(TrashView::new(FastcoreAccount::Real(
             real::RealAccount {
                 state: self.state.clone(),

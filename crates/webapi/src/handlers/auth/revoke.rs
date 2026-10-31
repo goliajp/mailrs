@@ -41,12 +41,17 @@ pub fn revoke_agent_keys(c: &mut Connection, address: &str) -> std::io::Result<u
     Ok(dropped)
 }
 
-/// Every session and agent key of `address`, ended. What deleting an
+/// Every session, agent key and app password of `address`, ended. What deleting an
 /// account does to the credentials it left behind.
 pub fn revoke_all_access(address: &str) -> Result<(), StatusCode> {
     let addr = address.to_string();
-    let (sessions, keys) =
-        with_kevy(move |c| Ok((revoke_sessions(c, &addr)?, revoke_agent_keys(c, &addr)?)))?;
-    tracing::info!(%address, sessions, agent_keys = keys, "revoked all access");
+    let (sessions, keys, app_passwords) = with_kevy(move |c| {
+        Ok((
+            revoke_sessions(c, &addr)?,
+            revoke_agent_keys(c, &addr)?,
+            mailrs_auth_guard::app_passwords::revoke_all(c, &addr)?,
+        ))
+    })?;
+    tracing::info!(%address, sessions, agent_keys = keys, app_passwords, "revoked all access");
     Ok(())
 }

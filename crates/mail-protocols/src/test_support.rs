@@ -72,16 +72,21 @@ impl Directory for Memory {
         &self,
         user: &str,
         password: &str,
-        _: Protocol,
+        protocol: Protocol,
     ) -> Result<Option<MemoryAccount>> {
-        Ok(
-            (user == USER && password == PASSWORD).then(|| MemoryAccount {
-                inbox: self.inbox.clone(),
-                script: self.script.clone(),
-                trash: self.trash.clone(),
-                labels: self.labels.clone(),
-            }),
-        )
+        match password == PASSWORD {
+            true => self.open(user, protocol).await,
+            false => Ok(None),
+        }
+    }
+
+    async fn open(&self, user: &str, _: Protocol) -> Result<Option<MemoryAccount>> {
+        Ok((user == USER).then(|| MemoryAccount {
+            inbox: self.inbox.clone(),
+            script: self.script.clone(),
+            trash: self.trash.clone(),
+            labels: self.labels.clone(),
+        }))
     }
 }
 

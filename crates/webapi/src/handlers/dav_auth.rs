@@ -17,7 +17,7 @@ use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use base64::Engine as _;
 use mailrs_auth_guard::events::{Channel, Credential, LoginEvent, Outcome};
-use mailrs_auth_guard::login::Verdict;
+use mailrs_auth_guard::login::{ProtocolCheck, Verdict};
 
 use crate::WebState;
 use crate::handlers::conversations::{AuthedDisplayName, AuthedUser};
@@ -55,6 +55,32 @@ pub async fn dav_auth_middleware(
             ))
             .await;
         return crate::login_guard::locked_response(verdict);
+    }
+    let event =
+        |credential, result| LoginEvent::new(Channel::Dav, credential, source, &address, result);
+    match guard.protocol_password(&address, &password).await {
+        ProtocolCheck::AppPassword(id) => {
+            guard.succeeded(source, &address).await;
+            let mut e = event(Credential::AppPassword, Outcome::Ok);
+            e.key_id = Some(id);
+            guard.record(e).await;
+            req.extensions_mut().insert(AuthedDisplayName::default());
+            req.extensions_mut()
+                .insert(AuthedUser(address.trim().to_ascii_lowercase()));
+            req.extensions_mut().insert(AgentScopes::default());
+            return next.run(req).await;
+        }
+        ProtocolCheck::AppOnly => {
+            guard.failed(source, &address).await;
+            guard
+                .record(event(Credential::AppPassword, Outcome::BadPassword))
+                .await;
+            let mut resp = challenge();
+            *resp.body_mut() =
+                axum::body::Body::from(mailrs_auth_guard::password::app_only_notice());
+            return resp;
+        }
+        ProtocolCheck::TryAccountPassword => {}
     }
     match crate::handlers::auth::password::verify(&state, &address, &password).await {
         Ok(Some(acct)) => {

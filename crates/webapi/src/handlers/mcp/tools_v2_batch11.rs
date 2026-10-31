@@ -47,7 +47,7 @@ impl MailrsMcpService {
         .await;
         match done {
             Ok(done) => Ok(CallToolResult::success(vec![ContentBlock::text(
-                serde_json::json!({ "ok": true, "sessions_revoked": done.sessions_revoked, "agent_keys_revoked": done.agent_keys_revoked }).to_string(),
+                serde_json::json!({ "ok": true, "sessions_revoked": done.sessions_revoked, "agent_keys_revoked": done.agent_keys_revoked, "app_passwords_revoked": done.app_passwords_revoked }).to_string(),
             )])),
             Err(ResetRefused::Weak(_)) => Err(McpError::invalid_params(
                 "the new password does not meet the password rules",

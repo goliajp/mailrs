@@ -186,6 +186,13 @@ impl LoginGuard for MemoryLoginGuard {
         self.run(|ops, _| crate::alerts::take(ops, max))
     }
 
+    async fn protocol_usage(&self, days: u64) -> io::Result<Vec<crate::protocol_usage::Usage>> {
+        self.run(|ops, _| {
+            let now = ops.now;
+            crate::protocol_usage::usage(ops, days, now)
+        })
+    }
+
     async fn events(&self, query: Query) -> io::Result<Vec<LoginEvent>> {
         self.run(|ops, _| {
             let now = ops.now;
