@@ -54,6 +54,21 @@ x-password-reset: &password-reset
   MAILRS_RESET_CONTACT: ${MAILRS_RESET_CONTACT:-}
   MAILRS_RESET_ISSUERS: ${MAILRS_RESET_ISSUERS:-}
 
+# how fraud is judged: the receiver on arrival, fastcore's re-scan sweep,
+# and fastcore-sender on outgoing mail. one definition, so a sweep or the
+# outgoing check never judges by different rules than the receive path.
+x-fraud-policy: &fraud-policy
+  MAILRS_LOCAL_DOMAINS: golia.jp,golia.ai,dadaya.jp,marspot.com,bitreits.com,doracawl.com,madcawl.com,mock.golia.jp
+  # Somebody sending as this company from an address that is not it
+  # — `mailrs-fraud`. Full names only: `golia` as a substring
+  # matches 490 GitHub notifications carrying a `goliajp/…` path.
+  MAILRS_ORG_NAMES: GOLIA株式会社,GOLIA K.K.
+  MAILRS_FRAUD_RULES_FILE: /fraud-rules/active.lua
+  # Services that carry the company's name because we told them to.
+  # Slack's workspace is legitimately called GOLIA株式会社, and its
+  # notifications are three of the twelve messages that match.
+  MAILRS_ORG_NAME_ALLOWED_DOMAINS: slack.com,github.com,atlassian.net
+
 services:
   receiver:
     container_name: mailrs-receiver
@@ -70,20 +85,10 @@ services:
       - "465:465"
       - "587:587"
     environment:
-      <<: *password-reset
+      <<: [*password-reset, *fraud-policy]
       MAILRS_HOSTNAME: mail.golia.ai
-      MAILRS_LOCAL_DOMAINS: golia.jp,golia.ai,dadaya.jp,marspot.com,bitreits.com,doracawl.com,madcawl.com,mock.golia.jp
       # disposable test mailboxes; every process that touches them reads it
       MAILRS_MOCK_DOMAIN: mock.golia.jp
-      # Somebody sending as this company from an address that is not it
-      # — `mailrs-fraud`. Full names only: `golia` as a substring
-      # matches 490 GitHub notifications carrying a `goliajp/…` path.
-      MAILRS_ORG_NAMES: GOLIA株式会社,GOLIA K.K.
-      MAILRS_FRAUD_RULES_FILE: /fraud-rules/active.lua
-      # Services that carry the company's name because we told them to.
-      # Slack's workspace is legitimately called GOLIA株式会社, and its
-      # notifications are three of the twelve messages that match.
-      MAILRS_ORG_NAME_ALLOWED_DOMAINS: slack.com,github.com,atlassian.net
       # Our own egress address. The sender hands colleague-to-colleague
       # mail to this MX over port 25, and a message from here that also
       # passes DMARC with our own aligned DKIM signature skips scoring.
@@ -145,7 +150,7 @@ services:
     networks: [default, fetch]
     environment:
       MAILRS_FASTCORE_BIND: 0.0.0.0:3301
-      <<: [*imap-listeners, *password-reset]
+      <<: [*imap-listeners, *password-reset, *fraud-policy]
       MAILRS_KEVY_DATA_DIR: /data/kevy-fastcore
       # remote images in arriving mail, fetched by `fetch` below
       MAILRS_FETCH_URL: http://fetch:3500/fetch
@@ -160,16 +165,6 @@ services:
       MAILRS_KEVY_AOF_REWRITE: ${MAILRS_KEVY_AOF_REWRITE:-on}
       MAILRS_MAILDIR: /data/maildir
       MAILRS_SPOOL_ROOT: /data/.spool
-      # The same fraud policy the receiver is given, because the
-      # re-scan sweep lives in *this* process and reads it from the
-      # environment. It was set only on the receiver until 2026-08-28,
-      # so `maintenance:fraud-rescan` ran here with an empty org-name
-      # list and the impersonation rule could not fire at all — half
-      # the checks, silently, on the only lane that runs the sweep.
-      # Kept identical to the receiver's block above; a copy that
-      # drifts is a sweep that judges by different rules than the
-      # receive path.
-      MAILRS_LOCAL_DOMAINS: golia.jp,golia.ai,dadaya.jp,marspot.com,bitreits.com,doracawl.com,madcawl.com,mock.golia.jp
       # disposable test mailboxes; every process that touches them reads it
       MAILRS_MOCK_DOMAIN: mock.golia.jp
       # Which stamp on `Authentication-Results:` is ours. The fraud
@@ -177,9 +172,6 @@ services:
       # from mail our own people submitted; unset, it says so and
       # the rules that need it decline.
       MAILRS_HOSTNAME: mail.golia.ai
-      MAILRS_ORG_NAMES: GOLIA株式会社,GOLIA K.K.
-      MAILRS_FRAUD_RULES_FILE: /fraud-rules/active.lua
-      MAILRS_ORG_NAME_ALLOWED_DOMAINS: slack.com,github.com,atlassian.net
       MAILRS_SRS_SECRET: ${MAILRS_SRS_SECRET:-}
       # Must be an FQDN: it becomes Reporting-MTA in every DSN we
       # originate, and the old "mailrs" default is not resolvable.
@@ -309,13 +301,14 @@ services:
       # policy it was written before.
       MAILRS_SENDER_POLL_MS: "500"
       MAILRS_SENDER_RETRY_MIN_SECS: "60"
-      <<: *dkim-identity
+      <<: [*dkim-identity, *fraud-policy]
       MAILRS_DKIM_PRIVATE_KEY: /dkim/golia.jp.key
       # mail to the mock domain is stored under /data/mock, never sent
       MAILRS_MOCK_DOMAIN: mock.golia.jp
       RUST_LOG: info
     volumes:
       - /apps/mailrs/dkim:/dkim:ro
+      - /apps/mailrs/fraud-rules:/fraud-rules:ro
       - mailrs-data:/data
     restart: unless-stopped
 

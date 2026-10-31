@@ -55,6 +55,20 @@ pub(crate) fn snapshot(state: &FastcoreState) -> std::io::Result<Vec<(String, St
     Ok(targets)
 }
 
+/// An outgoing message through the fraud rules, read the way the sweep
+/// reads stored mail. No account names: every one of them is ours, and
+/// a colleague's own name in their own mail is not an impersonation.
+pub(crate) fn judge_outgoing(raw: &[u8]) -> Result<mailrs_fraud_lua::Scan, String> {
+    let reading = facts::Reading::of(raw, None, &[]);
+    let policy = mailrs_fraud::Policy {
+        org_names: config::csv_env("MAILRS_ORG_NAMES"),
+        our_domains: config::csv_env("MAILRS_LOCAL_DOMAINS"),
+        allowed_domains: config::csv_env("MAILRS_ORG_NAME_ALLOWED_DOMAINS"),
+        account_names: Vec::new(),
+    };
+    mailrs_fraud_lua::scan(&reading.facts(0, 0), &policy)
+}
+
 /// `POST /v1/admin/maintenance:fraud-rescan?dry_run=false`
 pub(crate) async fn fraud_rescan_route(
     State(state): State<Arc<FastcoreState>>,

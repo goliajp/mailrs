@@ -47,6 +47,15 @@ pub(super) const DEFAULT_MAX_ATTEMPTS: u32 = 100;
 /// `seed` makes the jitter deterministic per message: two messages to
 /// the same dead host must not synchronise, and the same message must
 /// pick the same delay if this is evaluated twice.
+/// Deterministic per message, so its jitter is stable across reads and
+/// two messages to the same dead host do not retry in lockstep.
+pub(super) fn jitter_seed(id: &str) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    id.hash(&mut h);
+    h.finish()
+}
+
 pub(super) fn retry_floor_secs(attempts_so_far: u32, seed: u64) -> i64 {
     Backoff::smtp_outbound()
         .delay(attempts_so_far, seed)

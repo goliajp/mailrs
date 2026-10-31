@@ -4,7 +4,7 @@
 
 mod facts;
 mod reload;
-pub use reload::scan;
+pub use reload::{Scan, scan};
 
 use luna_jit::runtime::Value;
 use luna_jit::{Lua, LuaRoot, version::LuaVersion};
