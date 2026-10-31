@@ -1,5 +1,6 @@
 import { Alert, Button } from '@goliapkg/gds'
 
+import { type Key, useT } from '@/i18n'
 import { isWireError } from '@/wire/errors'
 
 type AdminErrorStateProps = {
@@ -16,20 +17,21 @@ type AdminErrorStateProps = {
  * why and offers no retry, since retrying cannot change the answer.
  */
 export function AdminErrorState({ error, onRetry, retryDisabled, what }: AdminErrorStateProps) {
+  const t = useT()
   if (isWireError(error) && error.detail.kind === 'disabled') {
     return (
-      <Alert role="status" title="This feature is temporarily closed" variant="info">
+      <Alert role="status" title={t('admin.featureClosed')} variant="info">
         <p className="text-sm">{error.detail.message}</p>
       </Alert>
     )
   }
   return (
-    <Alert role="alert" title={titleOf(what)} variant="danger">
+    <Alert role="alert" title={titleOf(what, t)} variant="danger">
       <div className="space-y-2">
-        <p className="text-sm">{messageOf(error)}</p>
+        <p className="text-sm">{messageOf(error, t('admin.noReason'))}</p>
         {onRetry && (
           <Button disabled={retryDisabled} onClick={onRetry} size="sm" variant="secondary">
-            Try again
+            {t('common.tryAgain')}
           </Button>
         )}
       </div>
@@ -37,13 +39,16 @@ export function AdminErrorState({ error, onRetry, retryDisabled, what }: AdminEr
   )
 }
 
-function messageOf(error: unknown): string {
+function messageOf(error: unknown, noReason: string): string {
   if (error instanceof Error) return error.message
   if (typeof error === 'string') return error
-  return 'The server did not say why'
+  return noReason
 }
 
-function titleOf(what: string | undefined): string {
-  if (what === undefined) return 'Could not load this page'
-  return `Could not load ${what}`
+function titleOf(
+  what: string | undefined,
+  t: (key: Key, vars?: Record<string, string>) => string
+): string {
+  if (what === undefined) return t('admin.loadPageFailed')
+  return t('admin.loadFailed', { what })
 }
