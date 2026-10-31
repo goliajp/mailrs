@@ -15,11 +15,11 @@
 import { useQuery } from '@tanstack/react-query'
 import { useAtomValue } from 'jotai'
 import { useMemo } from 'react'
-import { z } from 'zod'
 
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import { threadAxesOf } from '@/lib/mail-lists'
 import { type MailListFilters } from '@/lib/query-keys'
+import { z } from '@/lib/zod'
 import { conversationKeys } from '@/store/query-keys-v21'
 import { hideSuspectedFraudAtom } from '@/store/settings'
 import {

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { z } from 'zod'
+
+import { z } from '@/lib/zod'
 
 import { wireFetch } from '../client'
 import { isWireError, WireErrorException } from '../errors'

@@ -14,7 +14,7 @@
  * and the panel must not draw them the same way.
  */
 
-import { z } from 'zod'
+import { z } from '@/lib/zod'
 
 export const wireFraudLayerSchema = z.object({
   detail: z.string(),

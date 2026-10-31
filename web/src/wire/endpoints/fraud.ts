@@ -2,7 +2,7 @@
  * The review screen's reads and its one write.
  */
 
-import { z } from 'zod'
+import { z } from '@/lib/zod'
 
 import { wireFetch } from '../client'
 import { type WireFraudVerdict, wireFraudVerdictResponseSchema } from '../schemas/fraud'

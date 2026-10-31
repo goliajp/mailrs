@@ -5,7 +5,7 @@
  * profile refresh, TOTP setup/status, recovery email get/set.
  */
 
-import { z } from 'zod'
+import { z } from '@/lib/zod'
 
 import { emptyResponseSchema } from './mutations'
 
