@@ -115,6 +115,43 @@ impl KevyMailboxStore {
     }
 }
 
+impl KevyMailboxStore {
+    /// Whether the stored message already says how many attachments it has.
+    pub fn message_attachments_counted(&self, message_id: &str) -> io::Result<bool> {
+        let Some(blob) = self.get_message(message_id)? else {
+            return Ok(false);
+        };
+        let v: serde_json::Value = serde_json::from_slice(&blob).map_err(io::Error::other)?;
+        Ok(v.get("attachments").is_some_and(|n| !n.is_null()))
+    }
+
+    /// Record the attachment count on a stored message that has none.
+    /// Returns whether it wrote: a message already counted is left as it is.
+    pub fn set_message_attachments(&self, message_id: &str, count: u32) -> io::Result<bool> {
+        let key = keys::message_blob(message_id);
+        self.store()
+            .atomic(|ctx| {
+                let Some(blob) = ctx.get(key.as_bytes())? else {
+                    return Ok(false);
+                };
+                let Ok(mut v) = serde_json::from_slice::<serde_json::Value>(&blob) else {
+                    return Ok(false);
+                };
+                let Some(obj) = v.as_object_mut() else {
+                    return Ok(false);
+                };
+                if obj.get("attachments").is_some_and(|n| !n.is_null()) {
+                    return Ok(false);
+                }
+                obj.insert("attachments".into(), count.into());
+                let bytes = serde_json::to_vec(&v).unwrap_or(blob);
+                ctx.set(key.as_bytes(), &bytes);
+                Ok(true)
+            })
+            .map_err(io::Error::from)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

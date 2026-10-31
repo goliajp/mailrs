@@ -25,7 +25,7 @@ Config for Claude Code or any MCP client:
 }
 ```
 
-107 tools auto-discovered via MCP, grouped by category (the table below is a selection; `tools/list` is the authority, and `scripts/check-mcp-parity.sh` holds the two server lanes to the same set):
+113 tools auto-discovered via MCP, grouped by category (the table below is a selection; `tools/list` is the authority, and `scripts/check-mcp-parity.sh` holds the two server lanes to the same set):
 
 ### Email Operations
 
@@ -789,6 +789,48 @@ curl "https://mail.golia.ai/api/conversations/search?q=invoice&limit=10" \
 ```
 
 Same response format as list conversations. `GET /api/conversations` itself does not search: it has no `q` parameter and ignores one.
+
+`q` takes operators besides words, and a query can be operators only:
+
+- `from:alice`, `to:bob`, `subject:"q3 plan"` -- a sender, a To recipient, or the subject contains the value
+- `has:attachment`
+- `after:2026-10-01`, `before:2026-11-01` -- by the latest message, UTC
+- `label:Work` -- by label name
+- `is:unread`, `is:read`, `is:starred`, `is:pinned`
+- `in:inbox`, `in:archive`, `in:junk`, `in:trash`, `in:sent`, `in:starred`, `in:anywhere` -- where to look, in place of `folder`
+- a leading `-` negates an operator: `-from:noreply`
+- anything else, including an unknown `x:y`, is searched as text
+
+### Saved Searches
+
+```
+curl https://mail.golia.ai/api/saved-searches -H "Authorization: Bearer mlrs_..."
+curl -X POST https://mail.golia.ai/api/saved-searches -H "Authorization: Bearer mlrs_..." \
+  -H "Content-Type: application/json" -d '{"name": "Invoices", "query": "has:attachment invoice"}'
+curl -X DELETE https://mail.golia.ai/api/saved-searches/1 -H "Authorization: Bearer mlrs_..."
+```
+
+A name is unique per user ignoring case (409 `name_taken`); 400 `invalid_name` / `invalid_query` / `too_many` (100 at most).
+
+### Rules
+
+A rule is a search query and what to do with the mail it matches. Rules run on mail as it arrives, oldest rule first; held mail is never touched, and mail in Junk only gets `label:`, `read`, `star` or `trash`.
+
+```
+curl -X POST https://mail.golia.ai/api/rules/preview -H "Authorization: Bearer mlrs_..." \
+  -H "Content-Type: application/json" -d '{"query": "from:news@shop.example"}'
+curl -X POST https://mail.golia.ai/api/rules -H "Authorization: Bearer mlrs_..." \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Shop", "query": "from:news@shop.example", "actions": ["archive", "label:3"]}'
+curl -X POST https://mail.golia.ai/api/rules/1/apply -H "Authorization: Bearer mlrs_..."
+curl -X POST https://mail.golia.ai/api/rules/runs/7/undo -H "Authorization: Bearer mlrs_..."
+```
+
+- the query takes the search operators except `in:`, `is:` and `label:` (400 `operator_not_for_rules`)
+- actions: `label:<id>`, `archive`, `read`, `star`, `junk`, `trash` (400 `invalid_action`)
+- `preview` answers `{count, items}`: the conversations a run would change now, Junk and Trash left out
+- `apply` answers `{run_id, changed, failed}`; `undo` puts every changed conversation back once, within seven days
+- MCP: `list_rules`, `create_rule`, `delete_rule`, `preview_rule`, `apply_rule`, `undo_rule_run`
 
 ### Read a Message
 

@@ -1186,7 +1186,7 @@
     "/api/conversations/search": {
       "get": {
         "operationId": "searchConversations",
-        "summary": "Full-text search across conversations",
+        "summary": "Search conversations, with operators",
         "tags": [
           "Conversations"
         ],
@@ -1195,7 +1195,7 @@
             "name": "q",
             "in": "query",
             "required": true,
-            "description": "Search query string (max 500 chars)",
+            "description": "Search query (max 500 chars). Words are matched in subjects, senders, bodies and attachment text. Operators: from:, to:, subject:, has:attachment, after:YYYY-MM-DD, before:YYYY-MM-DD, label:<name>, is:unread|read|starred|pinned, in:inbox|archive|junk|trash|sent|starred|anywhere (in: replaces the folder the search was made from). A leading - negates an operator; quotes keep a value with spaces together. Anything else is searched as text.",
             "schema": {
               "type": "string",
               "maxLength": 500
@@ -10442,6 +10442,548 @@
           }
         }
       }
+    },
+    "/api/saved-searches": {
+      "get": {
+        "operationId": "listSavedSearches",
+        "summary": "Your saved searches, by name",
+        "tags": [
+          "Conversations"
+        ],
+        "responses": {
+          "200": {
+            "description": "Saved searches",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SavedSearch"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createSavedSearch",
+        "summary": "Save a search under a name",
+        "tags": [
+          "Conversations"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "query"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "query": {
+                    "type": "string",
+                    "maxLength": 500
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedSearch"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_name, invalid_query or too_many (100 at most), as {error}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "name_taken, as {error}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/saved-searches/{id}": {
+      "delete": {
+        "operationId": "deleteSavedSearch",
+        "summary": "Delete a saved search",
+        "tags": [
+          "Conversations"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "404": {
+            "description": "No such saved search of yours"
+          }
+        }
+      }
+    },
+    "/api/rules": {
+      "get": {
+        "operationId": "listRules",
+        "summary": "Your rules, in the order they run on arriving mail",
+        "tags": [
+          "Conversations"
+        ],
+        "responses": {
+          "200": {
+            "description": "Rules",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Rule"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createRule",
+        "summary": "Create a rule: arriving mail matching the query gets the actions",
+        "tags": [
+          "Conversations"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "query",
+                  "actions"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "query": {
+                    "type": "string"
+                  },
+                  "actions": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "default": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Rule"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "empty_query, operator_not_for_rules, invalid_action, invalid_name or too_many (100 at most), as {error}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "name_taken, as {error}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rules/preview": {
+      "post": {
+        "operationId": "previewRule",
+        "summary": "How many conversations a rule with this query would change if run now (Junk and Trash left out), and the newest 20",
+        "tags": [
+          "Conversations"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "query"
+                ],
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{count, items}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "count": {
+                      "type": "integer"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ConversationResponse"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "empty_query or operator_not_for_rules, as {error}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rules/{id}": {
+      "post": {
+        "operationId": "updateRule",
+        "summary": "Replace a rule's name, query, actions and switch",
+        "tags": [
+          "Conversations"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "query",
+                  "actions"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "query": {
+                    "type": "string"
+                  },
+                  "actions": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "default": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Rule"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "empty_query, operator_not_for_rules, invalid_action, invalid_name or too_many (100 at most), as {error}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "name_taken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteRule",
+        "summary": "Delete a rule; mail it changed stays as it is",
+        "tags": [
+          "Conversations"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "404": {
+            "description": "No such rule of yours"
+          }
+        }
+      }
+    },
+    "/api/rules/{id}/apply": {
+      "post": {
+        "operationId": "applyRule",
+        "summary": "Run a rule over mail already received",
+        "tags": [
+          "Conversations"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{run_id, changed, failed}; run_id undoes it for seven days",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "run_id": {
+                      "type": "string"
+                    },
+                    "changed": {
+                      "type": "integer"
+                    },
+                    "failed": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rules/runs/{run_id}/undo": {
+      "post": {
+        "operationId": "undoRuleRun",
+        "summary": "Put back every conversation a run changed; once per run",
+        "tags": [
+          "Conversations"
+        ],
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{restored, failed}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "restored": {
+                      "type": "integer"
+                    },
+                    "failed": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found: no such run, already undone, or older than seven days",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -12703,6 +13245,67 @@
           },
           "created_at": {
             "type": "integer"
+          }
+        }
+      },
+      "SavedSearch": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "query",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "query": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "integer",
+            "description": "Unix seconds"
+          }
+        }
+      },
+      "Rule": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "query",
+          "actions",
+          "enabled",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "query": {
+            "type": "string",
+            "description": "A search query without in:, is: or label:"
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "label:<id>, archive, read, star, junk, trash"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": "integer",
+            "description": "Unix seconds"
           }
         }
       }

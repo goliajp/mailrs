@@ -35,8 +35,9 @@ pub struct ReadThreadParams {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct SearchConversationsParams {
-    /// Free-text query. Case-insensitive; matches subject +
-    /// participants + snippet.
+    /// What to search for: words, operators (`from:`, `to:`, `subject:`,
+    /// `has:attachment`, `after:`, `before:`, `label:`, `is:`, `in:`), or
+    /// both.
     pub q: String,
     /// Max hits (default 20, cap 100).
     #[serde(default)]

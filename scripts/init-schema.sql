@@ -85,6 +85,7 @@ CREATE TABLE messages (
     -- 'unverified', or '' for mail that predates the field. Read with the
     -- row and never filtered on, so no index. See migrate-050.
     sender_trust TEXT NOT NULL DEFAULT '',
+    attachments INTEGER,
     modseq BIGINT NOT NULL DEFAULT 0,
     pinned BOOLEAN NOT NULL DEFAULT false,
     archived BOOLEAN NOT NULL DEFAULT false,
@@ -817,4 +818,4 @@ CREATE INDEX idx_messages_clean_text_trgm ON messages USING gin (clean_text gin_
 -- The migration this schema is equal to; the core reads it at boot and
 -- applies whatever it carries beyond it.
 CREATE TABLE schema_version (version INTEGER NOT NULL);
-INSERT INTO schema_version (version) VALUES (55);
+INSERT INTO schema_version (version) VALUES (56);

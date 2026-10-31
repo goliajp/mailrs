@@ -37,6 +37,8 @@ push:tokens:;crates/core-sidestate/src/keys/push.rs
 session:;crates/core-sidestate/src/keys/session.rs
 spam:[^"]*:(whitelist|blacklist);crates/core-sidestate/src/families/sender_lists.rs
 sieve:;crates/core-sidestate/src/lib.rs
+saved_searches:;crates/core-sidestate/src/families/saved_searches.rs
+rules:;crates/core-sidestate/src/families/rules.rs
 gl:;crates/shield/src/greylist_key.rs
 ag:;crates/auth-guard/src/login.rs
 auth:events:;crates/auth-guard/src/events.rs

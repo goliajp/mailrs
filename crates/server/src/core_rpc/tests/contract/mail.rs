@@ -49,6 +49,8 @@ impl Arrival<'_> {
             "size": 120, "flags": flags, "message_id": self.message_id,
             "in_reply_to": "", "thread_id": self.thread_id, "modseq": 0,
             "user_address": self.user,
+            // the invoice carries its PDF, for `has:attachment`
+            "attachments": u32::from(self.message_id == "m3@billing.test"),
         });
         DeliverMessageRequest {
             message_id: self.message_id.into(),

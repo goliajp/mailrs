@@ -5,6 +5,8 @@ use std::sync::Arc;
 use axum::Json;
 use axum::extract::{Path, State};
 
+use mailrs_mailbox_kevy::query::{Cond, MessageFacts, Place, Query, ThreadFacts, Within};
+
 use crate::*;
 
 /// `POST /v1/users/{user}/conversations:search` — ranked full-text
@@ -23,6 +25,62 @@ pub(crate) async fn search_conversations(
     } else {
         req.limit as usize
     };
+    let query = Query::parse(&req.query);
+    let rows = candidates(&state, &user, &query, limit);
+    let names = label_names(&state, &user, &query);
+    let items = rows
+        .into_iter()
+        .filter(|row| in_place(row, &req, query.within))
+        .filter(|row| {
+            let labels = names.get(&row.thread_id).cloned().unwrap_or_default();
+            query.admits(&thread_facts(row, &labels), || {
+                message_facts(&state, &user, &row.thread_id)
+            })
+        })
+        .take(limit)
+        .map(row_to_wire)
+        .collect();
+    let items = crate::routes::labels::with_labels(&state, &user, items);
+    Json(conv::SearchConversationsResponse { items })
+}
+
+/// The searcher's own rows to judge, best first.
+///
+/// With words, the text indexes choose them; with operators only, every
+/// conversation the user has, newest first, since nothing narrower can
+/// answer `to:` or `has:attachment`.
+fn candidates(
+    state: &FastcoreState,
+    user: &str,
+    query: &Query,
+    limit: usize,
+) -> Vec<mailrs_mailbox_kevy::ThreadRow> {
+    if !query.text.is_empty() {
+        return text_hits(state, user, &query.text, limit)
+            .into_iter()
+            .filter_map(|tid| state.mailbox.get_thread_for_user(user, &tid).ok().flatten())
+            .collect();
+    }
+    if !query.has_operators() {
+        return Vec::new();
+    }
+    let mut rows: Vec<_> = state
+        .mailbox
+        .all_thread_ids_for_user(user)
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|tid| state.mailbox.get_thread_for_user(user, &tid).ok().flatten())
+        .collect();
+    rows.sort_by(|a, b| {
+        b.latest_date
+            .cmp(&a.latest_date)
+            .then_with(|| a.thread_id.cmp(&b.thread_id))
+    });
+    rows
+}
+
+/// Thread ids matching `text`, best first.
+fn text_hits(state: &FastcoreState, user: &str, text: &str, limit: usize) -> Vec<String> {
     // Four stages, in the order a person would look: the words you
     // typed, then those words inside a message, then inside one of its
     // PDF attachments, then anything merely containing them. Each stage skips what the ones before it already
@@ -37,56 +95,128 @@ pub(crate) async fn search_conversations(
             }
         };
 
-    // Overfetch: the scope filter below runs after the index has chosen
-    // its page, so a query whose matches are mostly in other folders
-    // needs more than `limit` candidates to fill one.
+    // Overfetch: the scope filter runs after the index has chosen its
+    // page, so a query whose matches are mostly in other folders needs
+    // more than `limit` candidates to fill one.
     const SCOPE_OVERFETCH: usize = 8;
     let want = limit.saturating_mul(SCOPE_OVERFETCH);
 
     for (tid, _) in state
         .mailbox
-        .search_threads(&user, &req.query, want)
+        .search_threads(user, text, want)
         .unwrap_or_default()
     {
         push(tid, &mut tids, &mut seen);
     }
-    if let Ok(body_hits) = state.mailbox.search_message_bodies(&user, &req.query, want) {
+    if let Ok(body_hits) = state.mailbox.search_message_bodies(user, text, want) {
         for tid in body_hits {
             push(tid, &mut tids, &mut seen);
         }
     }
-    if let Ok(attachment_hits) = state
-        .mailbox
-        .search_attachment_texts(&user, &req.query, want)
-    {
+    if let Ok(attachment_hits) = state.mailbox.search_attachment_texts(user, text, want) {
         for tid in attachment_hits {
             push(tid, &mut tids, &mut seen);
         }
     }
-    if let Ok(like_hits) = state.mailbox.like_threads(&user, &req.query, &seen, want) {
+    if let Ok(like_hits) = state.mailbox.like_threads(user, text, &seen, want) {
         for tid in like_hits {
             push(tid, &mut tids, &mut seen);
         }
     }
+    tids
+}
 
-    // The searcher's own copy of each hit. The shared hash has no user
-    // segment, so reading it here handed one owner's counters, flags and
-    // category to the other — the same defect the list had.
-    let items = tids
+/// The names of the labels on each conversation, read only when the
+/// query asks about labels.
+fn label_names(
+    state: &FastcoreState,
+    user: &str,
+    query: &Query,
+) -> std::collections::HashMap<String, Vec<String>> {
+    let asks = query.conds.iter().any(|(_, c)| matches!(c, Cond::Label(_)));
+    if !asks {
+        return Default::default();
+    }
+    let defs: std::collections::HashMap<String, String> = state
+        .mailbox
+        .labels(user)
+        .unwrap_or_default()
         .into_iter()
-        .filter_map(|tid| {
-            state
-                .mailbox
-                .get_thread_for_user(&user, &tid)
-                .ok()
-                .flatten()
-        })
-        .filter(|row| in_search_scope(row, &req))
-        .take(limit)
-        .map(row_to_wire)
+        .map(|l| (l.id, l.name))
         .collect();
-    let items = crate::routes::labels::with_labels(&state, &user, items);
-    Json(conv::SearchConversationsResponse { items })
+    state
+        .mailbox
+        .labels_by_thread(user)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(tid, ids)| {
+            let names = ids.iter().filter_map(|id| defs.get(id).cloned()).collect();
+            (tid, names)
+        })
+        .collect()
+}
+
+fn thread_facts<'a>(
+    row: &'a mailrs_mailbox_kevy::ThreadRow,
+    labels: &'a [String],
+) -> ThreadFacts<'a> {
+    ThreadFacts {
+        subject: &row.subject,
+        senders: &row.senders_csv,
+        latest_date: row.latest_date,
+        unread_count: row.unread_count,
+        starred: row.starred,
+        pinned: row.pinned,
+        labels,
+    }
+}
+
+/// This user's copy of each message in the thread, as the operators read it.
+pub(crate) fn message_facts(
+    state: &FastcoreState,
+    user: &str,
+    thread_id: &str,
+) -> Vec<MessageFacts> {
+    state
+        .mailbox
+        .list_thread_messages(user, thread_id)
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|b| {
+            serde_json::from_slice::<mailrs_core_api::method::message::MessageWire>(&b).ok()
+        })
+        .map(|w| MessageFacts {
+            sender: w.sender,
+            recipients: w.recipients,
+            subject: w.subject,
+            attachments: w.attachments,
+        })
+        .collect()
+}
+
+/// Whether a conversation is where the search looks: the place `in:`
+/// names, or else the tab the search was made from. Held mail is in
+/// neither.
+fn in_place(
+    row: &mailrs_mailbox_kevy::ThreadRow,
+    req: &conv::SearchConversationsRequest,
+    within: Option<Within>,
+) -> bool {
+    if row.quarantined {
+        return false;
+    }
+    let Some(within) = within else {
+        return in_search_scope(row, req);
+    };
+    within.admits(Place {
+        archived: row.archived,
+        trashed: row.trashed_at > 0,
+        junk: mailrs_mailbox_kevy::scope::bucket_of(&row.category)
+            == mailrs_mailbox_kevy::scope::Bucket::Junk,
+        has_sent: row.sent_count > 0,
+        sent_only: row.count > 0 && row.sent_count >= row.count,
+        starred: row.starred,
+    })
 }
 
 /// Whether a hit belongs to the tab the search was issued from.
@@ -99,7 +229,7 @@ fn in_search_scope(
     req: &conv::SearchConversationsRequest,
 ) -> bool {
     use mailrs_mailbox_kevy::scope::{ThreadFacts, is_sent_folder, scope};
-    if row.archived != req.archived {
+    if row.archived != req.archived || row.trashed_at > 0 {
         return false;
     }
     // Search is a list, and held mail is out of every list. Without
