@@ -54,12 +54,19 @@ struct Sample {
     with_hits: u64,
     junk_action: u64,
     by_rule: BTreeMap<String, u64>,
+    /// The fraud rules would hold it.
+    fraud_hold: u64,
+    /// The fraud rules would score it into Junk.
+    fraud_junk: u64,
+    fraud_by_rule: BTreeMap<String, u64>,
 }
 
 #[derive(serde::Serialize)]
 struct Row {
     message_id: String,
     sample: &'static str,
+    /// `screening` or `fraud`.
+    kind: &'static str,
     rule: String,
     action: String,
     score: f64,
@@ -135,7 +142,9 @@ fn replay(state: &Arc<FastcoreState>, q: &ReplayQuery, body: String) -> axum::re
             return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
-    let (mut clean, mut junk) = (Sample::default(), Sample::default());
+    let (mut clean, mut junk, mut held) = (Sample::default(), Sample::default(), Sample::default());
+    let mut fraud = super::fraud_rescan::FraudJudge::new(state);
+    let mut fraud_version = String::new();
     let (mut rows, mut errors) = (Vec::new(), Vec::new());
     let (mut walked, mut stopped_early, mut out_of_window) = (0u64, false, 0u64);
     for (i, (user, tid)) in targets.iter().enumerate() {
@@ -158,20 +167,45 @@ fn replay(state: &Arc<FastcoreState>, q: &ReplayQuery, body: String) -> axum::re
             out_of_window += 1;
             continue;
         }
-        let in_junk = state
-            .mailbox
-            .get_thread_for_user(user, tid)
-            .ok()
-            .flatten()
-            .is_some_and(|t| {
-                mailrs_mailbox_kevy::scope::bucket_of(&t.category)
-                    == mailrs_mailbox_kevy::scope::Bucket::Junk
-            });
-        let (name, sample) = match in_junk {
-            true => ("junk", &mut junk),
-            false => ("clean", &mut clean),
+        let row = state.mailbox.get_thread_for_user(user, tid).ok().flatten();
+        let is_held = row.as_ref().is_some_and(|t| t.quarantined);
+        let in_junk = row.as_ref().is_some_and(|t| {
+            mailrs_mailbox_kevy::scope::bucket_of(&t.category)
+                == mailrs_mailbox_kevy::scope::Bucket::Junk
+        });
+        let (name, sample) = match (is_held, in_junk) {
+            (true, _) => ("held", &mut held),
+            (false, true) => ("junk", &mut junk),
+            (false, false) => ("clean", &mut clean),
         };
         sample.messages += 1;
+        match fraud.judge(state, &message_id, &raw) {
+            Ok(j) => {
+                fraud_version = j.version;
+                sample.fraud_hold += u64::from(j.holds);
+                sample.fraud_junk += u64::from(j.junks);
+                for f in j.findings.iter() {
+                    *sample.fraud_by_rule.entry(f.rule.clone()).or_default() += 1;
+                    let action = match f.holds {
+                        true => "hold",
+                        false => "score",
+                    };
+                    rows.push(Row {
+                        message_id: message_id.clone(),
+                        sample: name,
+                        kind: "fraud",
+                        rule: f.rule.clone(),
+                        action: action.to_string(),
+                        score: f.score,
+                        detail: f.detail.clone(),
+                        evidence: Vec::new(),
+                    });
+                }
+            }
+            Err(e) => errors.push(
+                serde_json::json!({ "message_id": message_id, "error": format!("fraud: {e}") }),
+            ),
+        }
         let verdict = match judge(&mut rules, &set, &inspector, &own, &raw) {
             Ok(v) => v,
             Err(e) => {
@@ -194,6 +228,7 @@ fn replay(state: &Arc<FastcoreState>, q: &ReplayQuery, body: String) -> axum::re
             rows.push(Row {
                 message_id: message_id.clone(),
                 sample: name,
+                kind: "screening",
                 rule: h.rule,
                 action: format!("{:?}", h.action).to_ascii_lowercase(),
                 score: h.score,
@@ -204,6 +239,7 @@ fn replay(state: &Arc<FastcoreState>, q: &ReplayQuery, body: String) -> axum::re
     }
     Json(serde_json::json!({
         "version": rules.version(),
+        "fraud_version": fraud_version,
         "approved": mailrs_screening_lua::approved(rules.version()),
         "observations": set.observations(),
         "hashes": inspector.denied_hashes(),
@@ -213,6 +249,7 @@ fn replay(state: &Arc<FastcoreState>, q: &ReplayQuery, body: String) -> axum::re
         "next_skip": q.skip + walked,
         "stopped_early": stopped_early,
         "clean": clean,
+        "held": held,
         "junk": junk,
         "errors": errors,
         "hits": rows,

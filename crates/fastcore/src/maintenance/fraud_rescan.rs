@@ -55,6 +55,58 @@ pub(crate) fn snapshot(state: &FastcoreState) -> std::io::Result<Vec<(String, St
     Ok(targets)
 }
 
+/// Stored mail through the fraud rules exactly as the sweep reads it, for
+/// evaluation: nothing is held, moved or recorded.
+pub(in crate::maintenance) struct FraudJudge {
+    policy: mailrs_fraud::Policy,
+    our_stamp: Option<String>,
+    hist: Option<kevy_client::Connection>,
+}
+
+/// What the fraud rules make of one message.
+pub(in crate::maintenance) struct FraudJudgement {
+    pub(in crate::maintenance) findings: mailrs_fraud::Findings,
+    /// The rules would hold it.
+    pub(in crate::maintenance) holds: bool,
+    /// Not held, but scored into Junk.
+    pub(in crate::maintenance) junks: bool,
+    pub(in crate::maintenance) version: String,
+}
+
+impl FraudJudge {
+    pub(in crate::maintenance) fn new(state: &Arc<FastcoreState>) -> Self {
+        Self {
+            policy: policy_from_env(state),
+            our_stamp: our_authserv_id(),
+            hist: crate::live_sync::network_kevy_url()
+                .and_then(|u| kevy_client::Connection::connect(&u).ok()),
+        }
+    }
+
+    pub(in crate::maintenance) fn judge(
+        &mut self,
+        state: &Arc<FastcoreState>,
+        message_id: &str,
+        raw: &[u8],
+    ) -> Result<FraudJudgement, String> {
+        let texts = state
+            .mailbox
+            .attachment_texts(message_id)
+            .unwrap_or_default();
+        let msg = facts::Reading::of(raw, self.our_stamp.as_deref(), &texts);
+        let seen = domain_seen(self.hist.as_mut(), &msg.from);
+        let rotation = reading::reply_rotation(&mut self.hist, &msg.host, &msg.reply_to);
+        let scan = mailrs_fraud_lua::scan(&msg.facts(seen, rotation), &self.policy)?;
+        let holds = mailrs_inbound::holds(&scan.findings);
+        Ok(FraudJudgement {
+            junks: !holds && junks_on_its_own(&scan.findings),
+            holds,
+            findings: scan.findings,
+            version: scan.version,
+        })
+    }
+}
+
 /// An outgoing message through the fraud rules, read the way the sweep
 /// reads stored mail. No account names: every one of them is ours, and
 /// a colleague's own name in their own mail is not an impersonation.
