@@ -6,6 +6,7 @@
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, Weak};
+use std::time::Instant;
 
 use tokio::sync::Notify;
 
@@ -23,6 +24,9 @@ struct Flag {
 #[derive(Clone, Default)]
 pub struct Signins {
     by_account: Arc<Mutex<HashMap<String, Vec<Weak<Flag>>>>>,
+    /// When each account's sign-ins were last ended, for a connection that
+    /// signs in while that happens; see [`Signins::enter_since`].
+    last_ended: Arc<Mutex<HashMap<String, Instant>>>,
 }
 
 /// A connection's place in the registry, held for as long as it is signed
@@ -43,6 +47,23 @@ impl Signins {
         SignedIn { flag }
     }
 
+    /// [`Signins::enter`] for a connection that answered the sign-in before
+    /// registering: ended already if the account's sign-ins were ended at
+    /// or after `since`, a moment taken before the sign-in was answered.
+    /// Otherwise an end landing between the answer and the registration
+    /// would find nothing to close, and the connection would stay open.
+    pub fn enter_since(&self, account: &str, since: Instant) -> SignedIn {
+        let signed_in = self.enter(account);
+        let ended = self.last_ended.lock().expect("signins lock");
+        if ended
+            .get(&account.to_ascii_lowercase())
+            .is_some_and(|at| *at >= since)
+        {
+            signed_in.flag.ended.store(true, Ordering::SeqCst);
+        }
+        signed_in
+    }
+
     /// The accounts with a connection open now.
     pub fn accounts(&self) -> Vec<String> {
         let mut map = self.by_account.lock().expect("signins lock");
@@ -56,6 +77,10 @@ impl Signins {
     /// End every open connection signed in as `account`. Returns how many
     /// there were.
     pub fn end(&self, account: &str) -> usize {
+        self.last_ended
+            .lock()
+            .expect("signins lock")
+            .insert(account.to_ascii_lowercase(), Instant::now());
         let list = self
             .by_account
             .lock()
@@ -134,6 +159,32 @@ mod tests {
             .await
             .expect("woke")
             .expect("task");
+    }
+
+    /// The SMTP race: the client is told it signed in, the account's
+    /// sign-ins end, and only then does the connection register.
+    #[tokio::test]
+    async fn an_end_between_the_answer_and_the_registration_still_ends_it() {
+        let signins = Signins::default();
+        let since = Instant::now();
+        assert_eq!(signins.end("A@x.test"), 0, "nothing registered yet");
+        let late = signins.enter_since("a@x.test", since);
+        tokio::time::timeout(Duration::from_secs(1), late.ended())
+            .await
+            .expect("the late registration was not ended");
+    }
+
+    #[tokio::test]
+    async fn an_end_before_the_sign_in_does_not_end_a_later_one() {
+        let signins = Signins::default();
+        signins.end("a@x.test");
+        let after = signins.enter_since("a@x.test", Instant::now());
+        assert!(
+            tokio::time::timeout(Duration::from_millis(50), after.ended())
+                .await
+                .is_err(),
+            "a sign-in after the end was ended"
+        );
     }
 
     #[test]
