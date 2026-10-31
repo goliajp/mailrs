@@ -239,6 +239,7 @@ pub async fn get_conversations(
 ) -> Result<Json<Vec<ConversationResponse>>, StatusCode> {
     let req = wire::ListConversationsRequest {
         filter: ConversationFilter {
+            label: None,
             accounts: parse_accounts(q.accounts.as_deref()),
             limit: q.limit,
             before_ts: q.before_ts,

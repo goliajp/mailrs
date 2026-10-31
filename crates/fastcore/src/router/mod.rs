@@ -80,6 +80,18 @@ pub fn build_router_with_secret(state: Arc<FastcoreState>, secret: String) -> Ro
         .route(th::PATH_FRAUD_VERDICT, get(get_fraud_verdict))
         .route(th::PATH_ARCHIVE, post(archive_thread))
         .route(th::PATH_UNARCHIVE, post(unarchive_thread))
+        .route(
+            mailrs_core_api::method::label::PATH_LABELS,
+            get(crate::routes::labels::list_labels).post(crate::routes::labels::create_label),
+        )
+        .route(
+            mailrs_core_api::method::label::PATH_LABEL,
+            post(crate::routes::labels::update_label).delete(crate::routes::labels::delete_label),
+        )
+        .route(
+            mailrs_core_api::method::label::PATH_THREAD_LABEL,
+            post(crate::routes::labels::label_thread).delete(crate::routes::labels::unlabel_thread),
+        )
         .route(th::PATH_TRASH, post(crate::routes::trash::trash_thread))
         .route(th::PATH_UNTRASH, post(crate::routes::trash::untrash_thread))
         .route(
