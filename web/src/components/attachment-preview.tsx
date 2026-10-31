@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { Copyable, CopyButton } from '@/components/copy-button'
 import { MobileModal } from '@/components/mobile-modal'
 import { PdfPreview } from '@/components/pdf-preview'
+import { useT } from '@/i18n'
 import { formatSize } from '@/lib/format'
 import { visibleAttachments } from '@/lib/inline-attachments'
 
@@ -71,6 +72,7 @@ function FileIcon({ className }: { className?: string }) {
 
 // non-image file row
 function FileRow({ att, index, uid }: { att: AttachmentInfo; index: number; uid: number }) {
+  const t = useT()
   const url = attachmentUrl(uid, index)
   const isPdf = isPdfAttachment(att)
 
@@ -97,11 +99,11 @@ function FileRow({ att, index, uid }: { att: AttachmentInfo; index: number; uid:
       </div>
       <CopyButton value={att.filename} />
       <a
-        aria-label={`Download ${att.filename}`}
+        aria-label={t('attachment.downloadNamed', { name: att.filename })}
         className="text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary shrink-0 rounded-md p-1"
         download={att.filename}
         href={url}
-        title="Download"
+        title={t('attachment.download')}
       >
         <Download className="h-4 w-4" />
       </a>
@@ -112,11 +114,15 @@ function FileRow({ att, index, uid }: { att: AttachmentInfo; index: number; uid:
 
 // lightbox modal for full-size image preview
 function ImageLightbox({ alt, onClose, src }: { alt: string; onClose: () => void; src: string }) {
+  const t = useT()
   return (
     <MobileModal className="bg-black/70" onClose={onClose} open>
-      <div aria-label={`Image preview: ${alt}`} onClick={(e) => e.stopPropagation()}>
+      <div
+        aria-label={t('attachment.imagePreview', { name: alt })}
+        onClick={(e) => e.stopPropagation()}
+      >
         <button
-          aria-label="Close preview"
+          aria-label={t('attachment.closePreview')}
           className="absolute top-4 right-4 rounded-md bg-black/50 p-2 text-white transition-colors hover:bg-black/70"
           onClick={onClose}
         >

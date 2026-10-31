@@ -1,5 +1,7 @@
 import { ShieldAlert } from 'lucide-react'
 
+import { useT } from '@/i18n'
+
 /**
  * Sender-authentication badge, from the message's `sender_trust` field
  * (self-hosted SPF/DKIM/DMARC verdict — see
@@ -26,15 +28,16 @@ import { ShieldAlert } from 'lucide-react'
  * user trusting a fake one, and the attacker chose it.
  */
 export function SenderTrustBadge({ trust }: { trust: string }) {
+  const t = useT()
   switch (trust) {
     case 'suspicious':
       return (
         <span
           className="bg-danger/10 text-danger inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[10px] font-medium"
-          title="This sender does not hold up: either its authentication failed, or its displayed name was tampered with"
+          title={t('trust.suspiciousNote')}
         >
           <ShieldAlert className="h-3 w-3" />
-          Suspicious sender
+          {t('trust.suspicious')}
         </span>
       )
     default:
