@@ -94,6 +94,10 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
             lb::PATH_THREAD_LABEL,
             post(handlers::labels::label_thread).delete(handlers::labels::unlabel_thread),
         )
+        .route(
+            th_paths::PATH_PREFETCH_IMAGES,
+            post(handlers::images::prefetch_images),
+        )
         .route(th_paths::PATH_TRASH, post(handlers::trash::trash))
         .route(th_paths::PATH_UNTRASH, post(handlers::trash::untrash))
         .route(th_paths::PATH_EMPTY_TRASH, post(handlers::trash::empty))

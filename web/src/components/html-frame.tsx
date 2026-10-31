@@ -1,11 +1,12 @@
 import type { AttachmentInfo } from '@/lib/types'
 
 import DOMPurify from 'dompurify'
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { cjkFonts, cjkLang, injectCjkFonts } from '@/lib/cjk-fonts'
 import { fitHeight, fitScale, shouldReflowTable } from '@/lib/fit-to-width'
-import { markRemoteImage, showPrefetched } from '@/lib/remote-images'
+import { markRemoteImage, reload, showPrefetched, watchMissing } from '@/lib/remote-images'
+import { wirePrefetchThreadImages } from '@/wire/endpoints/mail'
 
 // HTML attribute values arrive with entity-encoded specials, e.g. LinkedIn
 // signed CDN URLs come through as src="https://media.licdn.com/…?e=…&amp;v=beta&amp;t=…"
@@ -227,9 +228,13 @@ const SHADOW_STYLES = `
 // Remote images come from the server's prefetched copy (see the purifier
 // hook), so the sender never sees the reader; `referrerpolicy` stays as a
 // second guard.
+/** When to ask again for images the server was asked to fetch just now. */
+const RETRY_MS = [4_000, 12_000, 30_000]
+
 export function HtmlFrame({
   attachments,
   html,
+  imagesOf,
   maxHeight,
   uid,
 }: {
@@ -242,11 +247,18 @@ export function HtmlFrame({
    */
   attachments?: AttachmentInfo[]
   html: string
+  /**
+   * The thread the message is in. Given, a remote image the server has no
+   * copy of (mail from before images were fetched on arrival) is fetched
+   * on request and loaded again.
+   */
+  imagesOf?: string
   maxHeight?: string
   /** Message uid — needed to construct the attachment URL. */
   uid?: number
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
+  const [imagesHeld, setImagesHeld] = useState(false)
   // Rewrite cid: images BEFORE the sanitize cache lookup so
   // different uid / attachments combinations don't share a cached
   // result (the cache is keyed on the html string).
@@ -361,15 +373,52 @@ export function HtmlFrame({
     }
   }, [sanitized])
 
+  // after the effect above, before its images get their address: a miss
+  // for mail the server never fetched is fetched now and asked for again
+  useEffect(() => {
+    const root = hostRef.current?.shadowRoot
+    if (!root || !imagesOf) return
+    let asked = false
+    let gone = false
+    const timers: ReturnType<typeof setTimeout>[] = []
+    setImagesHeld(false)
+    watchMissing(root, (imgs) => {
+      if (asked) return
+      asked = true
+      void wirePrefetchThreadImages(imagesOf).then((answer) => {
+        if (gone) return
+        if (answer === 'junk') {
+          setImagesHeld(true)
+          return
+        }
+        RETRY_MS.forEach((ms, i) => {
+          timers.push(setTimeout(() => imgs.forEach((img) => reload(img, i + 1)), ms))
+        })
+      })
+    })
+    return () => {
+      gone = true
+      timers.forEach(clearTimeout)
+    }
+  }, [sanitized, imagesOf])
+
   return (
-    <div
-      // `overflow-x: auto` rather than nothing: a message past the fit
-      // floor still has a remainder, and before this it was clipped with
-      // no way to reach it — the pixels were simply gone.
-      className={`relative isolate overflow-x-auto [contain:layout_style_paint] ${maxHeight ? 'overflow-y-auto' : ''}`}
-      ref={hostRef}
-      style={{ maxHeight }}
-    />
+    <>
+      {imagesHeld && (
+        <p className="border-border bg-bg-secondary text-fg-secondary border-b px-3 py-2 text-xs">
+          Images are not loaded for mail in Junk or held for review: loading them tells the sender
+          the address is read. Mark it as not junk to see them.
+        </p>
+      )}
+      <div
+        // `overflow-x: auto` rather than nothing: a message past the fit
+        // floor still has a remainder, and before this it was clipped with
+        // no way to reach it — the pixels were simply gone.
+        className={`relative isolate overflow-x-auto [contain:layout_style_paint] ${maxHeight ? 'overflow-y-auto' : ''}`}
+        ref={hostRef}
+        style={{ maxHeight }}
+      />
+    </>
   )
 }
 
