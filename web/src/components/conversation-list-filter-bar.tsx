@@ -3,6 +3,7 @@ import { SlidersHorizontal } from 'lucide-react'
 import { memo, useEffect, useRef, useState } from 'react'
 
 import { useCategoriesQuery } from '@/hooks/use-mail-queries'
+import { type Key, useT } from '@/i18n'
 import { MAIL_LIST_TABS, MAIL_LISTS, type MailListId } from '@/lib/mail-lists'
 import { rovingKeyDown } from '@/lib/roving'
 import {
@@ -31,16 +32,17 @@ function panelChipClass(isActive: boolean, extra: string): string {
   return `${base} text-fg-secondary hover:bg-bg-secondary`
 }
 
-function sectionLabel(s: ImportanceSection): string {
-  if (s === null) return 'All'
-  if (s === 'important') return 'Important'
-  return 'Other'
+function sectionLabel(s: ImportanceSection): Key {
+  if (s === null) return 'filters.priority.all'
+  if (s === 'important') return 'filters.priority.important'
+  return 'filters.priority.other'
 }
 
-function sortLabel(s: SortOrder): string {
-  if (s === 'unread') return 'Unread first'
-  if (s === 'relevance') return 'Best match'
-  return s
+function sortLabel(s: SortOrder): Key {
+  if (s === 'unread') return 'filters.sort.unread'
+  if (s === 'relevance') return 'filters.sort.relevance'
+  if (s === 'oldest') return 'filters.sort.oldest'
+  return 'filters.sort.newest'
 }
 
 // `relevance` is only offered while a search is running — for a plain
@@ -80,6 +82,7 @@ export const FilterBar = memo(function FilterBar() {
   const [selectedDomains, setSelectedDomains] = useAtom(selectedDomainsAtom)
   const selectedDomainsVal = useAtomValue(selectedDomainsAtom)
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const t = useT()
   const panelRef = useRef<HTMLDivElement>(null)
 
   const { data: categories = [] } = useCategoriesQuery(selectedDomainsVal)
@@ -125,7 +128,7 @@ export const FilterBar = memo(function FilterBar() {
           in particular. Five columns give every tab the same width and
           put the second row's three under the first row's three. */}
       <div
-        aria-label="Mail lists"
+        aria-label={t('list.tabs')}
         className="grid flex-1 grid-cols-5 gap-1"
         onKeyDown={(e) => rovingKeyDown(e, '[role="tab"]', 'horizontal')}
         role="tablist"
@@ -140,7 +143,7 @@ export const FilterBar = memo(function FilterBar() {
             tabIndex={tabStop(activeList === id)}
             type="button"
           >
-            {MAIL_LISTS[id].label}
+            {t(MAIL_LISTS[id].label)}
           </button>
         ))}
       </div>
@@ -152,10 +155,10 @@ export const FilterBar = memo(function FilterBar() {
 
       <div className="relative" ref={panelRef}>
         <button
-          aria-label="Toggle filters"
+          aria-label={t('filters.toggle')}
           className={`relative flex h-7 w-7 items-center justify-center rounded-md transition-all duration-150 ${filterBtnClass}`}
           onClick={() => setFiltersOpen((prev) => !prev)}
-          title="Filters"
+          title={t('filters.title')}
         >
           <SlidersHorizontal className="h-4 w-4" />
           {hasAdvancedFilters && (
@@ -166,7 +169,7 @@ export const FilterBar = memo(function FilterBar() {
         {filtersOpen && (
           <div className="border-border bg-surface absolute top-full right-0 z-50 mt-1 w-56 rounded-lg border p-3 text-xs shadow-lg">
             <div className="mb-3">
-              <label className="text-fg-muted mb-1 block font-medium">Sort</label>
+              <label className="text-fg-muted mb-1 block font-medium">{t('filters.sort')}</label>
               <div className="flex gap-1">
                 {sortOptions(searchQuery).map((s) => (
                   <button
@@ -174,14 +177,16 @@ export const FilterBar = memo(function FilterBar() {
                     key={s}
                     onClick={() => setSortOrder(s)}
                   >
-                    {sortLabel(s)}
+                    {t(sortLabel(s))}
                   </button>
                 ))}
               </div>
             </div>
 
             <div className="mb-3">
-              <label className="text-fg-muted mb-1 block font-medium">Priority</label>
+              <label className="text-fg-muted mb-1 block font-medium">
+                {t('filters.priority')}
+              </label>
               <div className="flex flex-wrap gap-1">
                 {([null, 'important', 'other'] as ImportanceSection[]).map((s) => (
                   <button
@@ -192,7 +197,7 @@ export const FilterBar = memo(function FilterBar() {
                       else setSection(s)
                     }}
                   >
-                    {sectionLabel(s)}
+                    {t(sectionLabel(s))}
                   </button>
                 ))}
               </div>
@@ -200,7 +205,9 @@ export const FilterBar = memo(function FilterBar() {
 
             {categories.length > 0 && (
               <div className="mb-3">
-                <label className="text-fg-muted mb-1 block font-medium">Category</label>
+                <label className="text-fg-muted mb-1 block font-medium">
+                  {t('filters.category')}
+                </label>
                 <div className="flex flex-wrap gap-1">
                   <button
                     className={panelChipClass(activeCategory === null, '')}

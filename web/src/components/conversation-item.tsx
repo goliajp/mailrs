@@ -10,6 +10,7 @@ import { CategoryBadge, ImportanceBadge } from '@/components/category-badge'
 import { ActionSheet, ContextMenu, useContextMenu } from '@/components/context-menu'
 import { RowLabels } from '@/components/label-chip'
 import { SenderAvatar } from '@/components/sender-avatar'
+import { useT } from '@/i18n'
 import { ACTIONS, rowActions, toggle } from '@/lib/actions'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { formatFullDate } from '@/lib/format'
@@ -52,6 +53,7 @@ export const ConversationItem = memo(function ConversationItem({
   onToggleCheck: (threadId: string) => void
   selected: boolean
 }) {
+  const t = useT()
   // the row's face is the OTHER side of the conversation (Gmail rule:
   // "Thripura, me (7)" — never bare "Me"). After the user replies their
   // own address can bubble to participants[0], which used to flip the
@@ -280,7 +282,7 @@ export const ConversationItem = memo(function ConversationItem({
                 judged an attempt to defraud them from the rest. */}
             {convo.quarantined && (
               <ShieldAlert
-                aria-label="Held: suspected fraud"
+                aria-label={t('list.held')}
                 className="h-3.5 w-3.5 shrink-0 text-red-500"
               />
             )}
