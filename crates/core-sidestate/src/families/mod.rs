@@ -22,6 +22,8 @@ pub mod password_clear;
 pub mod permission_groups;
 pub mod prefs;
 pub mod reply_rotation;
+pub mod rules;
+pub mod saved_searches;
 pub mod send;
 pub mod send_as;
 pub mod send_read;

@@ -1,0 +1,40 @@
+//! Rules and saved searches: the searches a user keeps, and what to do with
+//! the mail they find.
+
+use std::sync::Arc;
+
+use crate::*;
+
+pub(super) fn rule_routes() -> axum::Router<Arc<WebState>> {
+    use axum::routing::{get, post};
+    axum::Router::new()
+        .route(
+            "/api/rules",
+            get(crate::handlers::rules::list).post(crate::handlers::rules::create),
+        )
+        .route(
+            "/api/rules/preview",
+            post(crate::handlers::rules_run::preview),
+        )
+        .route(
+            "/api/rules/{id}",
+            post(crate::handlers::rules::update).delete(crate::handlers::rules::delete),
+        )
+        .route(
+            "/api/rules/{id}/apply",
+            post(crate::handlers::rules_run::apply),
+        )
+        .route(
+            "/api/rules/runs/{run_id}/undo",
+            post(crate::handlers::rules_run::undo),
+        )
+        .route(
+            "/api/saved-searches",
+            get(crate::handlers::saved_searches::list)
+                .post(crate::handlers::saved_searches::create),
+        )
+        .route(
+            "/api/saved-searches/{id}",
+            axum::routing::delete(crate::handlers::saved_searches::delete),
+        )
+}

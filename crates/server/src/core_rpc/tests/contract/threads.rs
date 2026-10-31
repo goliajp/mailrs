@@ -1,9 +1,7 @@
 //! Conversations: the lists and views webapi renders, search, and every
 //! per-thread action, each followed by the views it changes.
 
-use mailrs_core_api::method::conversation::{
-    ConversationsByIdsRequest, ListConversationsRequest, SearchConversationsRequest,
-};
+use mailrs_core_api::method::conversation::{ConversationsByIdsRequest, ListConversationsRequest};
 use mailrs_core_api::method::thread::SnoozeRequest;
 use mailrs_core_api::types::ConversationFilter;
 
@@ -147,33 +145,7 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
     let (fc, pg) = (&c.fastcore, &c.pg_core);
     compare_views(c, d, "delivery").await;
 
-    for q in ["hello", "invoice", "partner.test", "nothing-matches"] {
-        let req = SearchConversationsRequest {
-            query: q.into(),
-            category: None,
-            limit: 20,
-            folder: None,
-            unread: None,
-            starred: None,
-            archived: false,
-        };
-        // Which conversations a search finds must agree; their order is each
-        // store's own ranking, and a text index and Postgres rank differently.
-        let by_thread = |r: mailrs_core_api::error::ApiResult<
-            mailrs_core_api::method::conversation::SearchConversationsResponse,
-        >| {
-            r.map(|mut r| {
-                r.items.sort_by(|a, b| a.thread_id.cmp(&b.thread_id));
-                r
-            })
-        };
-        d.both(
-            &format!("search_conversations {q}"),
-            by_thread(fc.search_conversations(ALICE, &req).await),
-            by_thread(pg.search_conversations(ALICE, &req).await),
-            MINTED,
-        );
-    }
+    super::search::run(c, d).await;
     let req = ConversationsByIdsRequest {
         thread_ids: vec![HELLO.into(), SALE.into(), "t-missing@x".into()],
         folder: None,

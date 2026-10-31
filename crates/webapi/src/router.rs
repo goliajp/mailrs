@@ -13,10 +13,12 @@ use crate::*;
 mod mail;
 mod mock;
 mod rest;
+mod rules;
 
 use mail::*;
 use mock::*;
 use rest::*;
+use rules::*;
 
 /// Build the axum router. Conversation routes wired (Phase 3.5);
 /// auth + rest fill in next loops.
@@ -45,6 +47,7 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
     // without one configured nothing authenticates
     let authenticated = convo
         .merge(mail)
+        .merge(rule_routes())
         .merge(auth_routes)
         .merge(admin_routes)
         .merge(jmap_routes)

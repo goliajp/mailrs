@@ -118,6 +118,7 @@ pub async fn deliver_message(
         snippet: &req.latest_preview,
         category,
         sender_trust: &wire.sender_trust,
+        attachments: wire.attachments,
     };
     state
         .mailbox

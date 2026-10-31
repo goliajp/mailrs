@@ -93,6 +93,13 @@ impl PgCore {
             let q = mailrs_intake::image_prefetch::NetworkQueue { url };
             mailrs_intake::image_prefetch::queue(&q, addr, &a.message_id, &a.parsed);
         }
+        // the user's rules, before the clients hear of the mail
+        let in_junk = folder == "Junk"
+            || mailrs_mailbox::scope::bucket_of(a.category) == mailrs_mailbox::scope::Bucket::Junk;
+        let actions = mailrs_intake::rules::matching(self.net_conn(), addr, &a, held, in_junk);
+        self.dir
+            .rt
+            .block_on(self.apply_rules(addr, &a.thread_id, &actions));
         effects::after_store(addr, &a, held);
         self.announce(addr, &a);
         true

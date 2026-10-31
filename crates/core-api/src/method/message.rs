@@ -123,6 +123,11 @@ pub struct MessageWire {
     /// the request path when known, else leave blank).
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub user_address: UserAddress,
+    /// Attachments the message carries, counted when it was stored.
+    /// `None` for mail stored before the count was kept, until backfilled;
+    /// `has:attachment` does not match it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attachments: Option<u32>,
 }
 
 impl From<&mailrs_mailbox::types::MessageMeta> for MessageWire {
@@ -151,6 +156,7 @@ impl From<&mailrs_mailbox::types::MessageMeta> for MessageWire {
             modseq: m.modseq,
             // MessageMeta has no user_address — caller fills if needed.
             user_address: String::new(),
+            attachments: None,
         }
     }
 }
@@ -180,6 +186,7 @@ impl From<&mailrs_mailbox::types::Message> for MessageWire {
             thread_id: m.thread_id.clone(),
             modseq: m.modseq,
             user_address: m.user_address.clone(),
+            attachments: None,
         }
     }
 }
