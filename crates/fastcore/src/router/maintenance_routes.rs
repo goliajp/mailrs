@@ -104,6 +104,12 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
             "/v1/admin/maintenance:screening-replay",
             post(crate::maintenance::screening_replay_route),
         )
+        // Read-only: what the fact ledger would take in memory, measured
+        // by writing its entries for real mail into a throwaway store.
+        .route(
+            "/v1/admin/maintenance:ledger-estimate",
+            post(crate::maintenance::ledger_estimate_route),
+        )
         // Reads the calendar part out of mail that arrived before
         // anybody looked at one — which is all of it, since production
         // ingested invitations for a year and stored nothing about
