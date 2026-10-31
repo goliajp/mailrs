@@ -97,28 +97,29 @@ pub fn first_alert(conn: &mut Connection, reporter: &str, day: &str) -> std::io:
     Ok(n == 1)
 }
 
-/// A plain-text alert to `MAILRS_SECURITY_ALERT_TO`, from
-/// `MAILRS_SECURITY_ALERT_FROM`, on the outbound queue. Both unset (a
-/// deployment that has not said where alerts go) is logged and skipped.
-pub fn send_alert(subject: &str, text: &str) {
-    let to = std::env::var("MAILRS_SECURITY_ALERT_TO").unwrap_or_default();
-    let from = std::env::var("MAILRS_SECURITY_ALERT_FROM").unwrap_or_default();
-    if to.is_empty() || from.is_empty() {
-        tracing::warn!(%subject, "FBL alert not sent: MAILRS_SECURITY_ALERT_TO/FROM unset");
-        return;
-    }
-    let host = from.rsplit_once('@').map_or("localhost", |(_, d)| d);
-    let id = format!(
-        "fbl-{}-{}@{host}",
-        chrono::Utc::now().timestamp(),
-        std::process::id()
-    );
-    let message = format!(
-        "From: {from}\r\nTo: {to}\r\nSubject: {subject}\r\nDate: {}\r\nMessage-ID: <{id}>\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n{text}\r\n",
-        chrono::Utc::now().to_rfc2822(),
-    );
-    if let Err(e) = crate::outbound::enqueue_security_alert(&to, &from, message.as_bytes()) {
-        tracing::warn!(error = %e, %subject, "FBL alert could not be queued");
+/// Tell the operators, through the security alert queue every security
+/// mail goes out from, that `reporter` is past its daily limit.
+pub fn raise_alert(conn: &mut Connection, reporter: &str, complainant: &str, detail: &str) {
+    use mailrs_auth_guard::alerts::{self, Alert, Fact, Kind};
+    let alert = Alert {
+        kind: Kind::ComplaintLimit,
+        subject: reporter.to_string(),
+        at: chrono::Utc::now().timestamp().max(0) as u64,
+        detail: format!(
+            "more than {DAILY_LIMIT} matched complaints today; latest: {detail} address={complainant}"
+        ),
+        facts: vec![
+            Fact::Complaints {
+                reporter: reporter.to_string(),
+                limit: DAILY_LIMIT as u64,
+            },
+            Fact::LatestComplaint {
+                address: complainant.to_string(),
+            },
+        ],
+    };
+    if let Err(e) = alerts::raise(conn, &alert) {
+        tracing::warn!(error = %e, %reporter, "FBL alert could not be queued");
     }
 }
 

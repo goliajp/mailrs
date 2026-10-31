@@ -126,15 +126,7 @@ pub fn maybe_record_complaint(maildir_root: &str, rcpt: &str, body: &[u8]) {
             tracing::warn!(event = "fbl_rate_limited", %reporter, address = %complainant,
                 "FBL reporter past its daily limit; not suppressed");
             if evidence::first_alert(&mut conn, &reporter, &day).unwrap_or(false) {
-                evidence::send_alert(
-                    &format!("FBL complaints from {reporter} past the daily limit"),
-                    &format!(
-                        "{reporter} has sent more than {} matched feedback-loop complaints today (UTC {day}).\n\
-                         Complaints past the limit are logged and audited (action fbl.rate_limited) but do not suppress anyone.\n\
-                         Latest: {detail} address={complainant}",
-                        evidence::DAILY_LIMIT
-                    ),
-                );
+                evidence::raise_alert(&mut conn, &reporter, &complainant, &detail);
             }
             return;
         }
