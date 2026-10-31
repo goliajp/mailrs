@@ -84,13 +84,14 @@ vi.mock('@/hooks/use-flat-conversations', () => ({
   useFlatConversations: () => flatStub,
 }))
 const stubMutation = () => ({ isPending: false, mutate: vi.fn(), mutateAsync: vi.fn() })
-vi.mock('@/hooks/use-mail-mutations', () => ({
-  useDeleteMutation: stubMutation,
-  useMarkReadMutation: stubMutation,
-  useMarkUnreadMutation: stubMutation,
-  useStarMutation: stubMutation,
-  useUnstarMutation: stubMutation,
-}))
+// every mutation the conversation dispatcher holds, as a stub
+vi.mock('@/hooks/use-mail-mutations', () =>
+  Object.fromEntries(
+    'Archive Delete MarkJunk MarkNotification MarkNotJunk MarkPromotion MarkRead MarkUnread MoveToInbox Pin Snooze Star Unarchive Unpin Unsnooze Unstar'
+      .split(' ')
+      .map((n) => [`use${n}Mutation`, stubMutation])
+  )
+)
 vi.mock('@/lib/query-client', () => ({
   queryClient: { invalidateQueries: vi.fn(() => Promise.resolve()) },
 }))
@@ -450,7 +451,7 @@ describe('ThreadView — toolbar', () => {
 
   it('has mark unread button', () => {
     show(store)
-    expect(screen.getByTitle('Mark unread')).toBeDefined()
+    expect(screen.getByTitle('Mark as unread')).toBeDefined()
   })
 })
 
