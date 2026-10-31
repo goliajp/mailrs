@@ -48,3 +48,15 @@ export function isOwnMessage(
 export function isSpoofSuspected(trust: null | SenderTrust | undefined): boolean {
   return trust === 'suspicious'
 }
+
+/** The sender's address when authentication vouched for it, else undefined. */
+export function verifiedSender(m: {
+  sender: string
+  sender_trust?: null | SenderTrust
+}): string | undefined {
+  if (m.sender_trust !== 'verified') return undefined
+  const angled = /<([^>]+)>/.exec(m.sender)
+  const address = (angled?.[1] ?? m.sender).trim()
+  if (!address.includes('@')) return undefined
+  return address
+}
