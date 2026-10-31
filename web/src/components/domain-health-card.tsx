@@ -3,29 +3,31 @@ import type { CheckResult, CheckStatus, DomainCheckReport } from '@/lib/types'
 import { Loader2 } from 'lucide-react'
 import { useState } from 'react'
 
+import { type Key, useLocale, useT } from '@/i18n'
+
 const statusConfig: Record<
   CheckStatus,
-  { bg: string; border: string; dot: string; label: string; text: string }
+  { bg: string; border: string; dot: string; label: Key; text: string }
 > = {
   fail: {
     bg: 'bg-danger/10',
     border: 'border-danger/10',
     dot: 'bg-danger',
-    label: 'Fail',
+    label: 'health.fail',
     text: 'text-danger',
   },
   pass: {
     bg: 'bg-success/10',
     border: 'border-success/10',
     dot: 'bg-success',
-    label: 'Pass',
+    label: 'health.pass',
     text: 'text-success',
   },
   warn: {
     bg: 'bg-warning/10',
     border: 'border-warning/10',
     dot: 'bg-warning',
-    label: 'Warn',
+    label: 'health.warn',
     text: 'text-warning',
   },
 }
@@ -40,8 +42,10 @@ type DomainHealthCardProps = {
 }
 
 export function DomainHealthCard({ checking, onRecheck, report }: DomainHealthCardProps) {
+  const t = useT()
+  const locale = useLocale()
   const checkedAt = new Date(report.checked_at * 1000)
-  const timeStr = checkedAt.toLocaleTimeString([], {
+  const timeStr = checkedAt.toLocaleTimeString(locale, {
     hour: '2-digit',
     minute: '2-digit',
   })
@@ -51,8 +55,8 @@ export function DomainHealthCard({ checking, onRecheck, report }: DomainHealthCa
       {/* header */}
       <div className="border-border flex items-center justify-between border-b px-4 py-3">
         <div>
-          <h3 className="text-fg text-sm font-semibold">Health Check</h3>
-          <p className="text-fg-secondary text-xs">Last checked at {timeStr}</p>
+          <h3 className="text-fg text-sm font-semibold">{t('health.title')}</h3>
+          <p className="text-fg-secondary text-xs">{t('health.lastChecked', { time: timeStr })}</p>
         </div>
         <button
           className="bg-surface text-fg-secondary hover:bg-bg-secondary inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
@@ -60,8 +64,8 @@ export function DomainHealthCard({ checking, onRecheck, report }: DomainHealthCa
           onClick={onRecheck}
         >
           {checking && <Loader2 className="h-3 w-3 animate-spin" />}
-          {checking && 'Running...'}
-          {!checking && 'Re-check'}
+          {checking && t('health.running')}
+          {!checking && t('health.recheck')}
         </button>
       </div>
 
@@ -142,18 +146,20 @@ function pctToWidth(pct: number): string {
 }
 
 function StatusBadge({ status }: { status: CheckStatus }) {
+  const t = useT()
   const config = statusConfig[status]
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium ${config.bg} ${config.text}`}
     >
       <span className={`h-1.5 w-1.5 rounded-full ${config.dot}`} />
-      {config.label}
+      {t(config.label)}
     </span>
   )
 }
 
 function SummaryBar({ checks }: { checks: CheckResult[] }) {
+  const t = useT()
   const counts: Record<CheckStatus, number> = { fail: 0, pass: 0, warn: 0 }
   for (const c of checks) counts[c.status] += 1
   const total = checks.length
@@ -176,9 +182,15 @@ function SummaryBar({ checks }: { checks: CheckResult[] }) {
         })}
       </div>
       <div className="text-fg-secondary flex shrink-0 gap-3 text-xs">
-        {counts.pass > 0 && <span className="text-success">{counts.pass} pass</span>}
-        {counts.warn > 0 && <span className="text-warning">{counts.warn} warn</span>}
-        {counts.fail > 0 && <span className="text-danger">{counts.fail} fail</span>}
+        {counts.pass > 0 && (
+          <span className="text-success">{t('health.passCount', { count: counts.pass })}</span>
+        )}
+        {counts.warn > 0 && (
+          <span className="text-warning">{t('health.warnCount', { count: counts.warn })}</span>
+        )}
+        {counts.fail > 0 && (
+          <span className="text-danger">{t('health.failCount', { count: counts.fail })}</span>
+        )}
       </div>
     </div>
   )

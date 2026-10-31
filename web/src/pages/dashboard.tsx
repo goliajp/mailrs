@@ -18,6 +18,7 @@ import {
   useGreeting,
 } from '@/components/dashboard'
 import { useSearchMail } from '@/hooks/use-search-mail'
+import { useLocale, useT } from '@/i18n'
 import { cn } from '@/lib/cn'
 import { dashboardKeys } from '@/lib/query-keys'
 import { authAtom } from '@/store/auth'
@@ -48,6 +49,8 @@ type MailStats = {
 const REFRESH_INTERVAL = 60_000
 
 export function Dashboard() {
+  const t = useT()
+  const locale = useLocale()
   const auth = useAtomValue(authAtom)
   const greeting = useGreeting()
   const navigate = useNavigate()
@@ -233,11 +236,9 @@ export function Dashboard() {
       {/* greeting + actions */}
       <div className="mb-6 flex items-start justify-between">
         <div>
-          <h1 className="text-fg text-xl font-semibold">
-            {greeting}, {displayName}
-          </h1>
+          <h1 className="text-fg text-xl font-semibold">{t(greeting, { name: displayName })}</h1>
           <p className="text-fg-muted mt-1 text-sm">
-            {new Date().toLocaleDateString('en', {
+            {new Date().toLocaleDateString(locale, {
               day: 'numeric',
               month: 'long',
               weekday: 'long',
@@ -248,13 +249,13 @@ export function Dashboard() {
         <div className="flex items-center gap-2">
           <button
             aria-busy={refreshing}
-            aria-label="Refresh dashboard"
+            aria-label={t('home.refresh')}
             className={cn(
               'text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary flex h-8 w-8 items-center justify-center rounded-md transition-colors',
               refreshing && 'animate-spin'
             )}
             onClick={refetchAll}
-            title="Refresh"
+            title={t('home.refreshShort')}
             type="button"
           >
             <RefreshCw className="h-4 w-4" />
@@ -266,7 +267,7 @@ export function Dashboard() {
             type="button"
           >
             <Pen className="h-3.5 w-3.5" />
-            Compose
+            {t('home.compose')}
           </button>
         </div>
       </div>
@@ -279,10 +280,10 @@ export function Dashboard() {
             className="text-fg-muted pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2"
           />
           <input
-            aria-label="Search emails"
+            aria-label={t('home.search')}
             className="border-border bg-surface text-fg placeholder:text-fg-muted focus:border-accent focus:ring-accent w-full rounded-lg border py-2.5 pr-4 pl-9 text-sm focus:ring-1 focus:outline-none"
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search emails..."
+            placeholder={t('home.searchPlaceholder')}
             type="search"
             value={searchInput}
           />
@@ -294,28 +295,28 @@ export function Dashboard() {
         <StatCard
           color="brand"
           icon={MailOpen}
-          label="Unread"
+          label={t('list.unread')}
           onClick={handleOpenInbox}
           value={totalUnread}
         />
         <StatCard
           color="info"
           icon={Clock}
-          label="Today"
+          label={t('home.today')}
           onClick={handleOpenInbox}
           value={todayCount}
         />
         <StatCard
           color="warning"
           icon={Star}
-          label="Starred"
+          label={t('list.starred')}
           onClick={handleOpenInbox}
           value={starredCount}
         />
         <StatCard
           color="danger"
           icon={AlertTriangle}
-          label="Important"
+          label={t('home.important')}
           onClick={handleOpenInbox}
           value={importantCount}
         />
@@ -352,7 +353,7 @@ export function Dashboard() {
             Navigate and `?` did nothing on the first screen after
             login — four dead keys teaching people the app has no
             keyboard story. The palette is global (`app.tsx`). */}
-        <Shortcut keys="⌘K" label="Command palette" />
+        <Shortcut keys="⌘K" label={t('home.commandPalette')} />
       </div>
     </ScrollArea>
   )

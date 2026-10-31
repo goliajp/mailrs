@@ -2,6 +2,8 @@ import type { ConversationSummary } from '@/lib/types'
 
 import { AlertTriangle, Clock, Mail, Pin, Plus, Shield } from 'lucide-react'
 
+import { type Key, useT } from '@/i18n'
+
 import { ConversationRow } from './conversation-row'
 import { Section } from './section'
 
@@ -26,13 +28,14 @@ export function MainColumn({
   recentUnread,
   totalUnread,
 }: MainColumnProps) {
+  const t = useT()
   const allEmpty = pinned.length === 0 && needsAttention.length === 0 && recentUnread.length === 0
   const handleEmptyAction = totalUnread > 0 ? onOpenInbox : onCompose
 
   return (
     <div className="min-w-0 space-y-6 lg:col-span-2">
       {pinned.length > 0 && (
-        <Section icon={Pin} title="Pinned">
+        <Section icon={Pin} title={t('home.pinned')}>
           <div className="space-y-0.5">
             {pinned.map((c) => (
               <ConversationRow
@@ -47,9 +50,9 @@ export function MainColumn({
 
       {needsAttention.length > 0 && (
         <Section
-          action={{ label: 'View all', onClick: onOpenInbox }}
+          action={{ label: t('home.viewAll'), onClick: onOpenInbox }}
           icon={AlertTriangle}
-          title="Needs Attention"
+          title={t('home.needsAttention')}
         >
           <div className="space-y-0.5">
             {needsAttention.map((c) => (
@@ -64,7 +67,11 @@ export function MainColumn({
       )}
 
       {recentUnread.length > 0 && (
-        <Section action={{ label: 'Open inbox', onClick: onOpenInbox }} icon={Mail} title="Recent">
+        <Section
+          action={{ label: t('home.openInbox'), onClick: onOpenInbox }}
+          icon={Mail}
+          title={t('home.recent')}
+        >
           <div className="space-y-0.5">
             {recentUnread.map((c) => (
               <ConversationRow
@@ -79,14 +86,10 @@ export function MainColumn({
 
       {allEmpty && (
         <>
-          <Section icon={Mail} title="Inbox">
+          <Section icon={Mail} title={t('list.inbox')}>
             <div className="text-fg-muted flex flex-col items-center gap-2 py-6">
               <Shield aria-hidden="true" className="h-8 w-8" />
-              <p className="text-sm">
-                {totalUnread > 0
-                  ? `${totalUnread} unread further down — open inbox to see`
-                  : 'All caught up — no unread emails'}
-              </p>
+              <p className="text-sm">{emptyText(totalUnread, t)}</p>
               <button
                 className="bg-accent/10 text-accent hover:bg-accent mt-2 flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:text-white"
                 onClick={handleEmptyAction}
@@ -95,12 +98,12 @@ export function MainColumn({
                 {totalUnread > 0 ? (
                   <>
                     <Mail className="h-3.5 w-3.5" />
-                    Open inbox
+                    {t('home.openInbox')}
                   </>
                 ) : (
                   <>
                     <Plus className="h-3.5 w-3.5" />
-                    Compose new email
+                    {t('home.composeNew')}
                   </>
                 )}
               </button>
@@ -108,9 +111,9 @@ export function MainColumn({
           </Section>
           {conversations.length > 0 && (
             <Section
-              action={{ label: 'Open inbox', onClick: onOpenInbox }}
+              action={{ label: t('home.openInbox'), onClick: onOpenInbox }}
               icon={Clock}
-              title="Recent Activity"
+              title={t('home.recentActivity')}
             >
               <div className="space-y-0.5">
                 {conversations.slice(0, 5).map((c) => (
@@ -127,4 +130,9 @@ export function MainColumn({
       )}
     </div>
   )
+}
+
+function emptyText(unread: number, t: (key: Key, vars?: Record<string, number>) => string): string {
+  if (unread > 0) return t('home.unreadBelow', { count: unread })
+  return t('home.allCaughtUp')
 }
