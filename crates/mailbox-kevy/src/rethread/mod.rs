@@ -121,6 +121,7 @@ impl KevyMailboxStore {
                 row.sent_count = sent;
             }
             self.upsert_thread(user, &row)?;
+            self.set_unread_axis(user, into, row.unread_count)?;
         }
         Ok(moved)
     }
@@ -196,6 +197,7 @@ impl KevyMailboxStore {
                     row.subject = w["subject"].as_str().unwrap_or(&row.subject).to_string();
                 }
                 self.upsert_thread(user, &row)?;
+                self.set_unread_axis(user, &old_tid, row.unread_count)?;
             } else {
                 // no messages left — drop the empty thread entirely.
                 // Split moved every message away already, so no maildir
@@ -235,7 +237,28 @@ impl KevyMailboxStore {
             trashed_at: 0,
         };
         self.upsert_thread(user, &row)?;
+        self.set_unread_axis(user, &new_tid, row.unread_count)?;
         Ok(Some(new_tid))
+    }
+
+    /// The user's `unread` column, which the Unread list and the badge are
+    /// keyed on, set from a recount. `upsert_thread` leaves per-user columns
+    /// alone, so a rethread that moved an unread message away left the old
+    /// conversation on the Unread axis with nothing unread in it, and the
+    /// new one off it.
+    fn set_unread_axis(&self, user: &str, tid: &str, unread: i64) -> io::Result<()> {
+        let key = keys::thread_user(user, tid);
+        let value: &[u8] = match unread > 0 {
+            true => b"1",
+            false => b"0",
+        };
+        self.store().atomic(|ctx| {
+            if ctx.hexists(key.as_bytes(), b"tid")? {
+                ctx.hset(key.as_bytes(), &[(b"unread" as &[u8], value)])?;
+            }
+            Ok(())
+        })?;
+        Ok(())
     }
 
     /// Recompute (count, unread_count, sent_count) for a thread from its
@@ -360,6 +383,47 @@ mod tests {
             },
         )
         .unwrap();
+    }
+
+    fn unread_axis(s: &KevyMailboxStore, user: &str, tid: &str) -> String {
+        let v = s
+            .store()
+            .hget(keys::thread_user(user, tid).as_bytes(), b"unread")
+            .unwrap()
+            .unwrap_or_default();
+        String::from_utf8(v).unwrap()
+    }
+
+    /// The unread message leaves, the read one stays: the old conversation
+    /// leaves the Unread axis and the new one joins it. Before, the old one
+    /// kept its `unread = 1` with nothing unread in it, and the badge
+    /// counted a conversation the Unread list showed as read.
+    #[test]
+    fn a_split_moves_the_unread_axis_with_the_unread_message() {
+        let s = store();
+        let u = "u@x.com";
+        arrive(&s, "t-old", u, "Subj", 100);
+        put_msg_for(&s, u, "t-old", "m-read@x", 100, true);
+        put_msg_for(&s, u, "t-old", "m-unread@x", 200, false);
+        assert_eq!(unread_axis(&s, u, "t-old"), "1");
+
+        let new = s
+            .split_message_to_new_thread(u, "m-unread@x")
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(s.counts_from_index(u, "t-old"), Some((1, 0, 0)));
+        assert_eq!(
+            unread_axis(&s, u, "t-old"),
+            "0",
+            "old thread still on Unread"
+        );
+        assert_eq!(
+            unread_axis(&s, u, &new),
+            "1",
+            "new thread missing from Unread"
+        );
+        assert_eq!(s.count_flag_non_junk(u, "unread").unwrap(), 1);
     }
 
     /// A split moves the message on **both** sides, not just the shared one.
@@ -516,6 +580,8 @@ mod tests {
         // flags, which is what "not from the stale hash" now means
         // structurally rather than by a recount step.
         assert_eq!(s.counts_from_index(u, "t-new"), Some((2, 0, 0)));
+        // and off the Unread axis the list and the badge are keyed on
+        assert_eq!(unread_axis(&s, u, "t-new"), "0");
         // And the merged message is in the mailbox that owns it, not only
         // in the shared index — the reading pane lists a thread from the
         // per-user index, so a merge that moves one and not the other
