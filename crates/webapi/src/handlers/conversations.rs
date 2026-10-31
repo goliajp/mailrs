@@ -53,6 +53,8 @@ pub struct ListQuery {
     /// ignored, since the Trash holds conversations from all of them.
     #[serde(default)]
     pub trashed: bool,
+    /// One label's conversations; `folder` and `archived` are then ignored.
+    pub label: Option<String>,
     pub unread: Option<bool>,
     pub starred: Option<bool>,
     pub section: Option<String>,
@@ -197,6 +199,8 @@ pub struct ConversationResponse {
     pub account_id: String,
     /// Epoch seconds this reader moved it to the Trash, or 0.
     pub trashed_at: i64,
+    /// Ids of this reader's labels on it.
+    pub labels: Vec<String>,
 }
 
 impl From<mailrs_core_api::types::ConversationSummaryWire> for ConversationResponse {
@@ -228,6 +232,7 @@ impl From<mailrs_core_api::types::ConversationSummaryWire> for ConversationRespo
             received_count,
             sent_count: w.sent_count,
             trashed_at: w.trashed_at,
+            labels: w.labels,
         }
     }
 }
@@ -239,7 +244,7 @@ pub async fn get_conversations(
 ) -> Result<Json<Vec<ConversationResponse>>, StatusCode> {
     let req = wire::ListConversationsRequest {
         filter: ConversationFilter {
-            label: None,
+            label: q.label,
             accounts: parse_accounts(q.accounts.as_deref()),
             limit: q.limit,
             before_ts: q.before_ts,

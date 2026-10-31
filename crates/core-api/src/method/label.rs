@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-pub use mailrs_mailbox::labels::Label;
+pub use mailrs_mailbox::labels::{LABEL_COLORS, Label, LabelError, label_color, label_name};
 
 /// `GET` (list, by name) and `POST` (create) `/v1/users/{user}/labels`.
 pub const PATH_LABELS: &str = "/v1/users/{user}/labels";
