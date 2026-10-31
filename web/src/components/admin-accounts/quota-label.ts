@@ -1,7 +1,7 @@
 /** Unknown is a dash, never `0` or `null B`; `-1` is the unlimited sentinel. */
-export function quotaLabel(bytes: null | number | undefined): string {
+export function quotaLabel(bytes: null | number | undefined, unlimited: string): string {
   if (bytes === null || bytes === undefined) return '—'
-  if (bytes < 0) return 'Unlimited'
+  if (bytes < 0) return unlimited
   return formatBytes(bytes)
 }
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { translate } from '@/i18n'
 import { activeLabel, serviceLabel, stateDotClass } from '@/lib/status-label'
 
 /**
@@ -12,8 +13,8 @@ import { activeLabel, serviceLabel, stateDotClass } from '@/lib/status-label'
  */
 describe('status labels', () => {
   it('says both states of an account in words', () => {
-    expect(activeLabel(true)).toBe('Active')
-    expect(activeLabel(false)).toBe('Inactive')
+    expect(translate('en', activeLabel(true))).toBe('Active')
+    expect(translate('en', activeLabel(false))).toBe('Inactive')
     expect(activeLabel(true)).not.toBe(activeLabel(false))
   })
 
