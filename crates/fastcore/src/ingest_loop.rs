@@ -120,6 +120,7 @@ pub(crate) async fn run_ingest_once(
                 category: None,
                 domains: None,
                 archived: false,
+                trashed: false,
                 include_quarantined: false,
                 folder: None,
                 unread: None,

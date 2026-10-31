@@ -26,7 +26,8 @@ pub(crate) fn threads_filter(
     // it was opened from. The client keeps sending that folder, so
     // honouring both answers "archived within Inbox", which is 0 for a
     // thread filed under notifications and is not what the tab means.
-    let folder = if f.archived {
+    // The Trash, the same: a list of its own across folders.
+    let folder = if f.archived || f.trashed {
         None
     } else {
         f.folder.as_deref()
@@ -36,6 +37,7 @@ pub(crate) fn threads_filter(
         folder,
         pinned: false,
         archived: f.archived,
+        trashed: f.trashed,
         has_unread: f.unread.unwrap_or(false),
         has_action: false,
         starred: f.starred.unwrap_or(false),

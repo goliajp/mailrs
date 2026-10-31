@@ -208,6 +208,32 @@ impl Client {
             .await
     }
 
+    /// POST /v1/users/{user}/threads/{thread_id}/trash
+    pub async fn trash_thread(
+        &self,
+        user: &str,
+        thread_id: &str,
+    ) -> ApiResult<method::thread::ThreadActionResponse> {
+        self.thread_action(user, thread_id, "trash", "trash_thread")
+            .await
+    }
+
+    /// POST /v1/users/{user}/threads/{thread_id}/untrash
+    pub async fn untrash_thread(
+        &self,
+        user: &str,
+        thread_id: &str,
+    ) -> ApiResult<method::thread::ThreadActionResponse> {
+        self.thread_action(user, thread_id, "untrash", "untrash_thread")
+            .await
+    }
+
+    /// POST /v1/users/{user}/trash:empty
+    pub async fn empty_trash(&self, user: &str) -> ApiResult<method::thread::ThreadActionResponse> {
+        let path = format!("/v1/users/{}/trash:empty", Self::enc(user));
+        self.post_authed_no_body(path, "empty_trash").await
+    }
+
     /// GET /v1/users/{user}/quarantine — what is being held, newest
     /// first.
     ///
