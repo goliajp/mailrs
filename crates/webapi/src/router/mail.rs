@@ -278,6 +278,10 @@ pub(super) fn mail_routes() -> axum::Router<Arc<WebState>> {
         .route("/api/icon/{domain}", get(handlers::icon::get_icon))
         .route("/api/proxy/link", get(handlers::prefs::proxy_link))
         .route(
+            "/api/conversations/{thread_id}/images",
+            post(handlers::mail_image::prefetch_thread),
+        )
+        .route(
             "/api/mail/image/{name}",
             get(handlers::mail_image::get_image),
         )

@@ -218,6 +218,17 @@ impl Client {
             .await
     }
 
+    /// POST /v1/users/{user}/threads/{thread_id}/images — `Conflict` for a
+    /// thread in Junk or held.
+    pub async fn prefetch_thread_images(
+        &self,
+        user: &str,
+        thread_id: &str,
+    ) -> ApiResult<method::thread::ThreadActionResponse> {
+        self.thread_action(user, thread_id, "images", "prefetch_thread_images")
+            .await
+    }
+
     /// POST /v1/users/{user}/threads/{thread_id}/untrash
     pub async fn untrash_thread(
         &self,

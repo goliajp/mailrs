@@ -12,6 +12,7 @@
 import { http } from '@/lib/http'
 
 import { wireFetch } from '../client'
+import { WireErrorException } from '../errors'
 import {
   deleteDraftResultSchema,
   draftListSchema,
@@ -202,6 +203,27 @@ export async function wireGetMessageSource(uid: number): Promise<string> {
   const res = await http(`/api/mail/messages/${encodeURIComponent(String(uid))}/raw`)
   if (!res.ok) throw new Error(`The server answered ${res.status}`)
   return res.text()
+}
+
+/**
+ * `POST /api/conversations/{threadId}/images` — fetch the thread's remote
+ * images now (mail from before they were fetched on arrival). `junk` when
+ * the server refuses: images of mail in Junk or held are never fetched.
+ */
+export async function wirePrefetchThreadImages(threadId: string): Promise<'junk' | 'queued'> {
+  try {
+    await wireFetch(emptyResponseSchema, {
+      allowEmpty: true,
+      method: 'POST',
+      path: `/conversations/${encodeURIComponent(threadId)}/images`,
+    })
+    return 'queued'
+  } catch (e) {
+    if (e instanceof WireErrorException && e.detail.kind === 'server' && e.detail.status === 409) {
+      return 'junk'
+    }
+    throw e
+  }
 }
 
 /**

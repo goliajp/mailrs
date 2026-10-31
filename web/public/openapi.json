@@ -10404,6 +10404,36 @@
           }
         }
       }
+    },
+    "/api/conversations/{thread_id}/images": {
+      "post": {
+        "operationId": "prefetchThreadImages",
+        "summary": "Fetch the conversation's remote images now, for mail that arrived before images were fetched on arrival",
+        "tags": [
+          "Conversations"
+        ],
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Queued; empty body"
+          },
+          "404": {
+            "description": "No such conversation"
+          },
+          "409": {
+            "description": "In Junk or held for review: its images are never fetched"
+          }
+        }
+      }
     }
   },
   "components": {
