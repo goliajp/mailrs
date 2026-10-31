@@ -7,7 +7,7 @@ pub use mailrs_intake::domains::LocalDomainsCache;
 
 use crate::FastcoreState;
 
-pub(super) fn local_domains(state: &FastcoreState) -> Arc<Vec<String>> {
+pub(crate) fn local_domains(state: &FastcoreState) -> Arc<Vec<String>> {
     state.local_domains.get(|| {
         state
             .mailbox

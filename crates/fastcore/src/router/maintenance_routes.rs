@@ -98,6 +98,12 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
             "/v1/admin/maintenance:fraud-rescan",
             post(crate::maintenance::fraud_rescan_route),
         )
+        // Read-only: the screening rules over stored mail, for the
+        // review before they act. The body is the bundle under review.
+        .route(
+            "/v1/admin/maintenance:screening-replay",
+            post(crate::maintenance::screening_replay_route),
+        )
         // Reads the calendar part out of mail that arrived before
         // anybody looked at one — which is all of it, since production
         // ingested invitations for a year and stored nothing about

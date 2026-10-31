@@ -35,6 +35,8 @@ pub(crate) use duplicate_blob_repair::duplicate_blob_repair_route;
 mod backfill_message_files;
 mod backfill_read_state;
 pub(crate) mod recompute_sender_trust;
+mod screening_replay;
+pub(crate) use screening_replay::screening_replay_route;
 mod reindex;
 mod repair_blob_refs;
 mod shadow_axes;

@@ -25,12 +25,17 @@ pub(in crate::smtp_session) async fn refuse_unknown_rcpt<S>(
     cmd: &Command<'_>,
     ctx: &ConnectionContext,
     conn_id: u64,
+    client_ip: std::net::IpAddr,
 ) -> Option<SessionAction>
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
     let rcpt = session.pending_recipient(cmd)?;
     if is_local(&rcpt, ctx) && srs_without_bounce(&rcpt, &session.state) {
+        crate::screening::record_abuse(
+            client_ip,
+            "used an SRS address to relay mail that was not a bounce".into(),
+        );
         let resp = Response::new(
             550,
             Some(code(5, 7, 1)),

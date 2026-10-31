@@ -72,6 +72,7 @@ pub mod dates;
 pub mod decision;
 pub mod identity;
 pub mod pipeline;
+pub mod scan_input;
 pub mod stage;
 pub mod verdict;
 

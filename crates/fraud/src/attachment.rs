@@ -12,11 +12,11 @@
 //! That is worth its line: the cost of holding a legitimate `.cab` is
 //! one click, and the cost of delivering a real one is the machine.
 //!
-//! **Extension, not content.** Sniffing the bytes would be a better
-//! check and a much larger one — an unpacker is an attack surface of
-//! its own, and the file this caught announced itself in its name.
-//! A sender who renames the file to `.pdf` defeats this and is caught
-//! by the scanner instead; the two are not substitutes.
+//! **Names here; listings in `attachment_inside`.** This reads the
+//! name. What an archive or an Office document holds is read from its
+//! directory by `attachment_inside`, which decompresses nothing: an
+//! unpacker is an attack surface of its own. A file renamed to `.pdf`
+//! with no directory to read is the virus scanner's to catch.
 
 /// Extensions an operating system will execute, or hand to something
 /// that will.

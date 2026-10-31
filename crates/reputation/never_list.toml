@@ -1,0 +1,25 @@
+# Registrable domains a Junk or complaint threshold never lists: hosts that
+# carry everybody's content, and link shorteners. Reviewed; a manual deny can
+# still name one subdomain. Hosts under the private part of the public suffix
+# list (github.io, blogspot.com, …) are each their own registrable domain, so
+# one user's site there does not stand for the rest.
+domains = [
+  # documents, files and forms
+  "google.com", "googleusercontent.com", "goo.gl", "forms.gle", "sites.google.com",
+  "microsoft.com", "office.com", "office365.com", "live.com", "sharepoint.com", "onedrive.com", "1drv.ms",
+  "dropbox.com", "box.com", "wetransfer.com", "we.tl", "icloud.com", "apple.com",
+  "notion.so", "notion.site", "canva.com", "figma.com", "airtable.com", "typeform.com", "jotform.com",
+  # code and hosting
+  "github.com", "githubusercontent.com", "gitlab.com", "bitbucket.org", "amazonaws.com", "cloudfront.net",
+  "azurewebsites.net", "windows.net", "web.app", "firebaseapp.com", "vercel.app", "netlify.app",
+  "pages.dev", "workers.dev", "herokuapp.com",
+  # shorteners
+  "bit.ly", "t.co", "tinyurl.com", "ow.ly", "buff.ly", "is.gd", "lnkd.in", "rebrand.ly", "cutt.ly", "shorturl.at",
+  # social and messaging
+  "linkedin.com", "facebook.com", "instagram.com", "x.com", "twitter.com", "youtube.com", "youtu.be",
+  "line.me", "slack.com", "zoom.us", "teams.microsoft.com",
+  # mail and newsletter platforms
+  "gmail.com", "outlook.com", "hotmail.com", "yahoo.com", "yahoo.co.jp",
+  "mailchimp.com", "list-manage.com", "sendgrid.net", "mailgun.org", "amazonses.com", "sparkpostmail.com",
+  "hubspot.com", "hs-sites.com", "salesforce.com", "exacttarget.com",
+]

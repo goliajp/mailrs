@@ -1,0 +1,22 @@
+[package]
+name = "mailrs-reputation"
+version = "0.1.0"
+edition = "2024"
+description = "Says what a server has observed about where a message comes from and where it points — sending address, sender domains, link hosts — as facts naming each observation, its source and its age."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-reputation"
+authors = ["GOLIA K.K."]
+keywords = ["email", "reputation", "spam", "security"]
+categories = ["email"]
+readme = "README.md"
+
+[dependencies]
+serde = { workspace = true }
+toml = "1"
+sha2 = "0.11"
+psl = "2.1.245"
+
+[lints]
+workspace = true

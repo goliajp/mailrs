@@ -46,6 +46,23 @@ fn label_bodies_match() {
 }
 
 #[test]
+fn screening_bodies_match() {
+    let v: handlers::screening_admin::ObservationRequest = parse("screening-observation");
+    assert_eq!(
+        (v.source, v.kind, v.stance, v.value.as_str()),
+        (
+            mailrs_reputation::Source::Incident,
+            mailrs_reputation::Kind::Ip,
+            mailrs_reputation::Stance::Deny,
+            "200.181.82.134"
+        )
+    );
+    let v: handlers::screening_admin::HashRequest = parse("screening-hash");
+    assert_eq!(v.stance, mailrs_attachment_scan::Stance::Allow);
+    assert_eq!(v.sha256, "ab".repeat(32));
+}
+
+#[test]
 fn forwarding_and_vacation_bodies_match() {
     let v: mailrs_core_sidestate::families::vacation::Vacation = parse("vacation-set");
     assert_eq!(
@@ -363,6 +380,8 @@ fn every_fixture_has_a_test() {
         "rule-create",
         "rule-preview",
         "saved-search-create",
+        "screening-hash",
+        "screening-observation",
         "mock-address-create",
         "mock-namespace-create",
         "invite-counter",

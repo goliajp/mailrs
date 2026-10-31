@@ -1,0 +1,24 @@
+[package]
+name = "mailrs-attachment-scan"
+version = "0.1.0"
+edition = "2024"
+description = "Reads an email attachment's structure — names, magic bytes, archive directories, Office and PDF dictionaries, HTML — and reports the code it carries as facts; decompresses and executes nothing."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-attachment-scan"
+authors = ["GOLIA K.K."]
+keywords = ["email", "attachment", "malware", "security"]
+categories = ["email"]
+readme = "README.md"
+
+[dependencies]
+serde = { workspace = true }
+toml = "1"
+sha2 = "0.11"
+
+[dev-dependencies]
+sha2 = "0.11"
+
+[lints]
+workspace = true
