@@ -154,6 +154,14 @@ pub(super) fn admin_routes() -> axum::Router<Arc<WebState>> {
             get(handlers::reset_code::status).post(handlers::reset_code::issue),
         )
         .route(
+            "/api/admin/protocol-logins",
+            get(handlers::app_passwords::usage),
+        )
+        .route(
+            "/api/admin/accounts/{address}/protocol-password",
+            axum::routing::put(handlers::app_passwords::set_policy),
+        )
+        .route(
             "/api/admin/auth-events",
             get(handlers::admin_auth_events::list_auth_events),
         )

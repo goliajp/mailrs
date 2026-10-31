@@ -85,6 +85,8 @@
 /api/rules	read only
 /api/settings/vacation	read only
 /api/auth/sessions	read only, ids are hash prefixes
+/api/auth/app-passwords	read only, never the passwords
+/api/admin/protocol-logins	read only
 /api/settings/forwarding	read only, never the code
 /api/mail/drafts	read only
 /api/mail/export	read only

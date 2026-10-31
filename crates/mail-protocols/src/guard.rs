@@ -5,7 +5,7 @@ use std::net::{IpAddr, Ipv4Addr};
 use std::sync::Arc;
 
 use mailrs_auth_guard::events::{Channel, Credential, LoginEvent, Outcome};
-use mailrs_auth_guard::login::{LoginGuard, Verdict};
+use mailrs_auth_guard::login::{LoginGuard, ProtocolCheck, Verdict};
 
 use crate::backend::{Directory, Error, Protocol, Result};
 
@@ -93,6 +93,14 @@ fn locked_text(protocol: Protocol, verdict: Verdict) -> String {
     }
 }
 
+fn app_only_text(protocol: Protocol) -> String {
+    let text = mailrs_auth_guard::password::app_only_notice();
+    match protocol {
+        Protocol::Imap => format!("[AUTHENTICATIONFAILED] {text}"),
+        _ => text,
+    }
+}
+
 fn cleared_text(protocol: Protocol) -> String {
     let text = mailrs_auth_guard::password::cleared_notice();
     match protocol {
@@ -116,20 +124,37 @@ impl<D: Directory> Directory for Guarded<D> {
         protocol: Protocol,
     ) -> Result<Option<Self::Account>> {
         let source = peer();
-        let event = |result| {
-            LoginEvent::new(
-                channel(protocol),
-                Credential::Password,
-                source,
-                user,
-                result,
-            )
+        let event = |credential, result| {
+            LoginEvent::new(channel(protocol), credential, source, user, result)
         };
         let verdict = self.guard.check(source, user).await;
         if let Verdict::Locked { .. } = verdict {
-            self.guard.record(event(Outcome::Locked)).await;
+            self.guard
+                .record(event(Credential::Password, Outcome::Locked))
+                .await;
             return Err(Error::Refused(locked_text(protocol, verdict)));
         }
+        match self.guard.protocol_password(user, password).await {
+            ProtocolCheck::AppPassword(id) => {
+                let opened = self.dir.open(user, protocol).await;
+                if let Ok(Some(_)) = &opened {
+                    self.guard.succeeded(source, user).await;
+                    let mut e = event(Credential::AppPassword, Outcome::Ok);
+                    e.key_id = Some(id);
+                    self.guard.record(e).await;
+                }
+                return opened;
+            }
+            ProtocolCheck::AppOnly => {
+                self.guard.failed(source, user).await;
+                self.guard
+                    .record(event(Credential::AppPassword, Outcome::BadPassword))
+                    .await;
+                return Err(Error::Refused(app_only_text(protocol)));
+            }
+            ProtocolCheck::TryAccountPassword => {}
+        }
+        let event = |result| event(Credential::Password, result);
         let signed_in = self.dir.login(user, password, protocol).await;
         match &signed_in {
             Ok(Some(_)) => {
@@ -148,6 +173,14 @@ impl<D: Directory> Directory for Guarded<D> {
             Err(_) => {}
         }
         signed_in
+    }
+
+    fn open(
+        &self,
+        user: &str,
+        protocol: Protocol,
+    ) -> impl Future<Output = Result<Option<Self::Account>>> + Send {
+        self.dir.open(user, protocol)
     }
 
     fn signins(&self) -> Option<&mailrs_auth_guard::signins::Signins> {
@@ -250,5 +283,101 @@ mod tests {
         let mapped: IpAddr = "::ffff:192.0.2.7".parse().unwrap();
         let seen = serving(mapped, async { peer() }).await;
         assert_eq!(seen, "192.0.2.7".parse::<IpAddr>().unwrap());
+    }
+
+    /// A store that knows one app password, and may hold the account to
+    /// app passwords only.
+    struct AppGuard {
+        inner: mailrs_auth_guard::login::MemoryLoginGuard,
+        app_only: bool,
+    }
+
+    const APP: &str = "abcdefghijkmnpqr";
+
+    #[async_trait::async_trait]
+    impl LoginGuard for AppGuard {
+        async fn protocol_password(&self, _: &str, secret: &str) -> ProtocolCheck {
+            match (secret == APP, self.app_only) {
+                (true, _) => ProtocolCheck::AppPassword("k1".into()),
+                (false, true) => ProtocolCheck::AppOnly,
+                (false, false) => ProtocolCheck::TryAccountPassword,
+            }
+        }
+        async fn check(&self, s: IpAddr, a: &str) -> Verdict {
+            self.inner.check(s, a).await
+        }
+        async fn failed(&self, s: IpAddr, a: &str) {
+            self.inner.failed(s, a).await
+        }
+        async fn succeeded(&self, s: IpAddr, a: &str) {
+            self.inner.succeeded(s, a).await
+        }
+        async fn record(&self, e: LoginEvent) {
+            self.inner.record(e).await
+        }
+        async fn events(
+            &self,
+            q: mailrs_auth_guard::events::Query,
+        ) -> std::io::Result<Vec<LoginEvent>> {
+            self.inner.events(q).await
+        }
+        async fn protocol_usage(
+            &self,
+            d: u64,
+        ) -> std::io::Result<Vec<mailrs_auth_guard::protocol_usage::Usage>> {
+            self.inner.protocol_usage(d).await
+        }
+        async fn take_alerts(
+            &self,
+            m: usize,
+        ) -> std::io::Result<Vec<mailrs_auth_guard::alerts::Alert>> {
+            self.inner.take_alerts(m).await
+        }
+        async fn raise(&self, a: mailrs_auth_guard::alerts::Alert) -> std::io::Result<bool> {
+            self.inner.raise(a).await
+        }
+    }
+
+    /// IMAP takes an app password; held to app passwords only, the account
+    /// password is refused with where to make one, and each sign-in is
+    /// recorded with what was presented.
+    #[tokio::test]
+    async fn an_app_password_signs_in_and_can_be_the_only_way() {
+        use crate::test_support::{Client, PASSWORD, USER, directory, listener};
+        for app_only in [false, true] {
+            let guard = Arc::new(AppGuard {
+                inner: mailrs_auth_guard::login::MemoryLoginGuard::default(),
+                app_only,
+            });
+            let dir = Arc::new(Guarded::new(directory(), guard.clone()));
+            let (imap, addr) = listener().await;
+            tokio::spawn(crate::imap::serve_plain(imap, dir, None));
+            let mut c = Client::connect(addr).await;
+            c.line().await;
+            c.send(&format!("a1 LOGIN \"{USER}\" \"{APP}\"\r\n")).await;
+            let r = c.line().await;
+            assert!(
+                r.starts_with("a1 OK"),
+                "app password, app_only={app_only}: {r}"
+            );
+            let mut c = Client::connect(addr).await;
+            c.line().await;
+            c.send(&format!("a2 LOGIN \"{USER}\" \"{PASSWORD}\"\r\n"))
+                .await;
+            let r = c.line().await;
+            match app_only {
+                false => assert!(r.starts_with("a2 OK"), "{r}"),
+                true => assert!(r.starts_with("a2 NO [AUTHENTICATIONFAILED] This account signs in to mail apps with an app password only"), "{r}"),
+            }
+            let events = guard.events(Default::default()).await.unwrap();
+            let creds: Vec<_> = events
+                .iter()
+                .map(|e| (e.credential, e.result, e.key_id.clone()))
+                .collect();
+            assert!(
+                creds.contains(&(Credential::AppPassword, Outcome::Ok, Some("k1".into()))),
+                "{creds:?}"
+            );
+        }
     }
 }

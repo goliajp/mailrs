@@ -7181,6 +7181,10 @@
                     },
                     "agent_keys_revoked": {
                       "type": "integer"
+                    },
+                    "app_passwords_revoked": {
+                      "type": "integer",
+                      "description": "App passwords revoked; only a reset after a compromise revokes them"
                     }
                   }
                 }
@@ -11318,6 +11322,303 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/auth/app-passwords": {
+      "get": {
+        "operationId": "listAppPasswords",
+        "summary": "Your app passwords for mail apps, newest first; never the passwords",
+        "tags": [
+          "Auth"
+        ],
+        "responses": {
+          "200": {
+            "description": "App passwords",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "created_at": {
+                        "type": "integer"
+                      },
+                      "last_used_at": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ],
+                        "description": "Latest sign-in with it, to ten minutes"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createAppPassword",
+        "summary": "Make an app password for a mail app; the password is in this answer only. Needs a recent password confirmation",
+        "tags": [
+          "Auth"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "1 to 100 characters"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Made",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "password": {
+                      "type": "string",
+                      "description": "16 letters; shown once"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "bad_name"
+          },
+          "403": {
+            "description": "confirm_required"
+          },
+          "409": {
+            "description": "too_many: the account holds 20 already"
+          }
+        }
+      }
+    },
+    "/api/auth/app-passwords/{id}": {
+      "delete": {
+        "operationId": "revokeAppPassword",
+        "summary": "Revoke one of your app passwords",
+        "tags": [
+          "Auth"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Revoked"
+          },
+          "404": {
+            "description": "Not one of yours"
+          }
+        }
+      }
+    },
+    "/api/auth/app-passwords/revoke-all": {
+      "post": {
+        "operationId": "revokeAllAppPasswords",
+        "summary": "Revoke every one of your app passwords",
+        "tags": [
+          "Auth"
+        ],
+        "responses": {
+          "200": {
+            "description": "{revoked}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "revoked": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/protocol-logins": {
+      "get": {
+        "operationId": "protocolLogins",
+        "summary": "Successful mail-protocol sign-ins per account and protocol, with the account password and with app passwords, and each account's setting (super administrators)",
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 30
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Usage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "days": {
+                      "type": "integer"
+                    },
+                    "default": {
+                      "type": "string",
+                      "enum": [
+                        "allow",
+                        "app-only"
+                      ]
+                    },
+                    "policies": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string",
+                        "enum": [
+                          "inherit",
+                          "allow",
+                          "app-only"
+                        ]
+                      }
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "account": {
+                            "type": "string"
+                          },
+                          "channel": {
+                            "type": "string",
+                            "enum": [
+                              "imap",
+                              "pop3",
+                              "smtp",
+                              "managesieve",
+                              "dav"
+                            ]
+                          },
+                          "password_logins": {
+                            "type": "integer"
+                          },
+                          "password_last": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ]
+                          },
+                          "app_password_logins": {
+                            "type": "integer"
+                          },
+                          "app_password_last": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/accounts/{address}/protocol-password": {
+      "put": {
+        "operationId": "setProtocolPassword",
+        "summary": "Whether the account's own password still signs in to mail apps: inherit, allow or app-only (super administrators)",
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "policy"
+                ],
+                "properties": {
+                  "policy": {
+                    "type": "string",
+                    "enum": [
+                      "inherit",
+                      "allow",
+                      "app-only"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Set"
+          },
+          "400": {
+            "description": "Not a policy"
           }
         }
       }

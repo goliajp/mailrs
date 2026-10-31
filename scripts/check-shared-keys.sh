@@ -50,6 +50,7 @@ screening:rules;crates/core-sidestate/src/families/screening.rs
 gl:;crates/shield/src/greylist_key.rs
 ag:;crates/auth-guard/src/login.rs
 auth:events:;crates/auth-guard/src/events.rs
+app_pw:;crates/auth-guard/src/app_passwords.rs
 auth:alerts:;crates/auth-guard/src/alerts.rs
 notify:new-mail;crates/core/src/event_bus.rs
 notify:account-signout;crates/core-sidestate/src/keys/signout.rs

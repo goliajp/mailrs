@@ -20,6 +20,8 @@ pub enum Notice {
     ForwardingOn(String),
     /// A key for programs was made, with this name.
     AgentKeyMade(String),
+    /// An app password for a mail app was made, with this name.
+    AppPasswordMade(String),
     /// A session failed its password confirmations and was ended.
     SessionEnded,
 }
@@ -56,6 +58,8 @@ fn copy(n: &Notice, lang: Lang) -> Copy {
         (Notice::ForwardingOn(to), false) => (Level::Act, "Your mail is now forwarded".to_string(), format!("Mail sent to you is now forwarded to {to}.")),
         (Notice::AgentKeyMade(name), true) => (Level::Check, "新建了一把程序用的 key".to_string(), format!("你的账号新建了一把给程序用的 key「{name}」，持有它的程序可以按它的权限读写你的邮件。")),
         (Notice::AgentKeyMade(name), false) => (Level::Check, "A key for programs was made".to_string(), format!("A key for programs named \"{name}\" was made on your account; a program holding it can use your mail as far as its scopes allow.")),
+        (Notice::AppPasswordMade(name), true) => (Level::Check, "新建了一个应用专用密码".to_string(), format!("你的账号新建了一个应用专用密码「{name}」，用它可以在邮件 App 里收发你的邮件。")),
+        (Notice::AppPasswordMade(name), false) => (Level::Check, "An app password was made".to_string(), format!("An app password named \"{name}\" was made on your account; a mail app using it can read and send your mail.")),
         (Notice::SessionEnded, true) => (Level::Act, "一个会话因为确认密码失败被结束".to_string(), "你账号的一个已登录会话连续 5 次输错了确认密码，已经被结束。持有它的人不知道你的密码。".to_string()),
         (Notice::SessionEnded, false) => (Level::Act, "A session was ended after failed password confirmations".to_string(), "A signed-in session on your account entered the wrong password five times when asked to confirm it, and was ended: whoever held it did not know the password.".to_string()),
     };

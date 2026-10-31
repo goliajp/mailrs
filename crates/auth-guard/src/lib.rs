@@ -10,11 +10,14 @@ use dashmap::DashMap;
 
 pub mod alerts;
 pub mod allowlist;
+#[cfg(feature = "kevy")]
+pub mod app_passwords;
 pub mod events;
 #[cfg(feature = "kevy")]
 pub mod kevy;
 pub mod login;
 pub mod password;
+pub mod protocol_usage;
 #[cfg(feature = "signins")]
 pub mod signins;
 
