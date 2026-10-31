@@ -1,10 +1,13 @@
-import { render } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import { createHash } from 'node:crypto'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { markRemoteImage } from '@/lib/remote-images'
+import { wirePrefetchThreadImages } from '@/wire/endpoints/mail'
 
 import { HtmlFrame } from '../html-frame'
+
+vi.mock('@/wire/endpoints/mail', () => ({ wirePrefetchThreadImages: vi.fn() }))
 
 const REMOTE = 'https://tracker.example/open.gif?u=1&m=2'
 
@@ -50,5 +53,34 @@ describe('remote images in mail', () => {
     for (const img of root!.querySelectorAll('img')) {
       expect(img.getAttribute('src') ?? '').not.toContain('tracker.example')
     }
+  })
+
+  // mail from before images were fetched on arrival: the miss asks the
+  // server for them once, and the image is asked for again later
+  it('a missing image is fetched on request and loaded again', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.mocked(wirePrefetchThreadImages).mockResolvedValue('queued')
+    const html = '<img src="https://old.example/banner.png" alt="old">'
+    const { container } = render(<HtmlFrame html={html} imagesOf="t-1" />)
+    const root = container.querySelector<HTMLElement>('div')!.shadowRoot!
+    const img = () => root.querySelector<HTMLImageElement>('img[alt="old"]')!
+    await vi.waitFor(() => expect(img().getAttribute('src')).toContain('/api/mail/image/'))
+    img().dispatchEvent(new Event('error'))
+    await vi.advanceTimersByTimeAsync(600)
+    expect(wirePrefetchThreadImages).toHaveBeenCalledWith('t-1')
+    await vi.advanceTimersByTimeAsync(4_000)
+    expect(img().getAttribute('src')).toContain('?attempt=1')
+    vi.useRealTimers()
+  })
+
+  it('says why the images of mail in Junk are not shown', async () => {
+    vi.mocked(wirePrefetchThreadImages).mockResolvedValue('junk')
+    const html = '<img src="https://spam.example/pixel.gif" alt="px">'
+    const { container } = render(<HtmlFrame html={html} imagesOf="t-junk" />)
+    const root = container.querySelector<HTMLElement>('div:last-child')!.shadowRoot!
+    const img = root.querySelector<HTMLImageElement>('img[alt="px"]')!
+    await vi.waitFor(() => expect(img.getAttribute('src')).toContain('/api/mail/image/'))
+    img.dispatchEvent(new Event('error'))
+    expect(await screen.findByText(/not loaded for mail in Junk/)).toBeDefined()
   })
 })

@@ -382,6 +382,7 @@ export function ThreadContentPane({
                     <MessageBubble
                       attachments={EMPTY_ATTACHMENTS}
                       htmlBody={selectedMsg.html_body}
+                      imagesOf={threadId ?? undefined}
                       isOwn={false}
                       textBody={null}
                       uid={selectedMsg.uid}

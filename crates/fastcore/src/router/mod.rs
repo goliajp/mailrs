@@ -93,6 +93,10 @@ pub fn build_router_with_secret(state: Arc<FastcoreState>, secret: String) -> Ro
             lb::PATH_THREAD_LABEL,
             post(crate::routes::labels::label_thread).delete(crate::routes::labels::unlabel_thread),
         )
+        .route(
+            th::PATH_PREFETCH_IMAGES,
+            post(crate::routes::images::prefetch_images),
+        )
         .route(th::PATH_TRASH, post(crate::routes::trash::trash_thread))
         .route(th::PATH_UNTRASH, post(crate::routes::trash::untrash_thread))
         .route(

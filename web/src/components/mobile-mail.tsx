@@ -339,6 +339,7 @@ function MobileThreadView() {
               <MessageBubble
                 attachments={selectedMsg.attachments}
                 htmlBody={selectedMsg.html_body}
+                imagesOf={selectedId ?? undefined}
                 isOwn={extractEmail(selectedMsg.sender) === myEmail}
                 textBody={selectedMsg.text_body}
                 uid={selectedMsg.uid}

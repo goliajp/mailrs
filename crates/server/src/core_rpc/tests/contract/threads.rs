@@ -271,6 +271,23 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
     d.both("delete_thread as bob", fc_answer, pg_answer, &[]);
     compare_views(c, d, "flagging as bob").await;
 
+    // images on request: refused alike for Junk, taken alike otherwise
+    for tid in [SPAM, HELLO] {
+        d.both(
+            &format!("prefetch_thread_images {tid}"),
+            fc.prefetch_thread_images(ALICE, tid).await,
+            pg.prefetch_thread_images(ALICE, tid).await,
+            &[],
+        );
+    }
+    assert!(
+        matches!(
+            fc.prefetch_thread_images(ALICE, SPAM).await,
+            Err(mailrs_core_api::error::CoreApiError::Conflict(_))
+        ),
+        "images were fetched for a thread in Junk"
+    );
+
     let steps = [
         ("mark_thread_read", HELLO),
         ("mark_thread_unread", HELLO),
