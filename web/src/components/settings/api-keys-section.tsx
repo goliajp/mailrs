@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { KeyRound, Plus, SearchX } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
+import { type Key, useT } from '@/i18n'
 import { queryClient } from '@/lib/query-client'
 import { settingsKeys } from '@/lib/query-keys'
 import {
@@ -27,7 +28,10 @@ import { useKeyTableParams } from './api-keys/use-key-table-params'
 
 const EMPTY_KEYS: readonly AgentKey[] = []
 
+type Translate = (key: Key, vars?: Record<string, number | string>) => string
+
 export function ApiKeysSection() {
+  const t = useT()
   const query = useQuery({
     queryKey: settingsKeys.agentKeys(),
     queryFn: () => wireListAgentKeys(),
@@ -61,12 +65,12 @@ export function ApiKeysSection() {
         name: values.name,
         scopes: presetToScopes(values.preset),
       })
-      toast.success('API key created')
+      toast.success(t('settings.apiKeys.created'))
       setCreatedKey(created)
       setAdding(false)
       void invalidate()
     } catch (e) {
-      toast.error(errorMessage(e, 'Failed to create key'))
+      toast.error(errorMessage(e, t('settings.apiKeys.createFailed')))
     } finally {
       setBusy(false)
     }
@@ -80,10 +84,10 @@ export function ApiKeysSection() {
         await wireDeleteAgentKey(target.id)
         revoked += 1
       } catch (e) {
-        toast.error(errorMessage(e, `Failed to revoke ${target.name}`))
+        toast.error(errorMessage(e, t('settings.apiKeys.revokeFailed', { name: target.name })))
       }
     }
-    if (revoked > 0) toast.success(revokedLabel(revoked))
+    if (revoked > 0) toast.success(revokedLabel(revoked, t))
     setRevokeTargets(null)
     setSelected(new Set())
     setBusy(false)
@@ -114,11 +118,8 @@ export function ApiKeysSection() {
     <div className="space-y-5">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold tracking-tight">API Keys</h2>
-          <p className="text-fg-muted mt-0.5 text-xs">
-            Bearer credentials for agents and scripts. mailrs stores a one-way record — only the
-            prefix shown here is recoverable.
-          </p>
+          <h2 className="text-base font-semibold tracking-tight">{t('settings.apiKeys.title')}</h2>
+          <p className="text-fg-muted mt-0.5 text-xs">{t('settings.apiKeys.help')}</p>
         </div>
         <button
           className={createButtonClass(adding)}
@@ -126,7 +127,7 @@ export function ApiKeysSection() {
           onClick={() => setAdding(true)}
         >
           <Plus aria-hidden className="h-4 w-4" />
-          Create Key
+          {t('settings.apiKeys.create')}
         </button>
       </header>
 
@@ -142,9 +143,9 @@ export function ApiKeysSection() {
 
       {!query.isPending && !query.isError && keys.length === 0 && !adding && (
         <EmptyState
-          description="Create one to let an agent, CI job, or script authenticate as this account."
+          description={t('settings.apiKeys.emptyHelp')}
           icon={<KeyRound aria-hidden className="h-8 w-8" />}
-          title="No API keys yet"
+          title={t('settings.apiKeys.empty')}
         />
       )}
 
@@ -153,8 +154,18 @@ export function ApiKeysSection() {
           <TableToolbar
             filtered={matched.length}
             onClearSelection={() => setSelected(new Set())}
-            onCopyIds={() => void copyText(liveSelection.map((k) => k.id).join('\n'), 'key IDs')}
-            onCopyJson={() => void copyText(JSON.stringify(liveSelection, null, 2), 'key JSON')}
+            onCopyIds={() =>
+              void copyText(
+                liveSelection.map((k) => k.id).join('\n'),
+                t('settings.apiKeys.copyIdsLabel')
+              )
+            }
+            onCopyJson={() =>
+              void copyText(
+                JSON.stringify(liveSelection, null, 2),
+                t('settings.apiKeys.copyJsonLabel')
+              )
+            }
             onQueryChange={setQuery}
             onRevokeSelected={() => setRevokeTargets(liveSelection)}
             onSizeChange={setSize}
@@ -166,9 +177,12 @@ export function ApiKeysSection() {
 
           {matched.length === 0 && (
             <EmptyState
-              description={`Nothing matches “${params.query}”. Clear the search to see all ${keys.length} keys.`}
+              description={t('settings.apiKeys.noMatchHelp', {
+                count: keys.length,
+                query: params.query,
+              })}
               icon={<SearchX aria-hidden className="h-8 w-8" />}
-              title="No matching keys"
+              title={t('settings.apiKeys.noMatch')}
             />
           )}
 
@@ -201,7 +215,7 @@ export function ApiKeysSection() {
 
       {revokeTargets !== null && revokeTargets.length > 0 && (
         <ConfirmDialog
-          message={revokeMessage(revokeTargets)}
+          message={revokeMessage(revokeTargets, t)}
           onCancel={() => setRevokeTargets(null)}
           onConfirm={() => void handleRevoke(revokeTargets)}
         />
@@ -240,30 +254,37 @@ function errorMessage(error: unknown, fallback: string): string {
 }
 
 function ErrorState({ error, onRetry }: { error: unknown; onRetry: () => void }) {
+  const t = useT()
   return (
     <div className="border-danger/40 bg-danger/5 rounded-lg border px-4 py-3" role="alert">
-      <p className="text-sm font-medium">Could not load API keys</p>
-      <p className="text-fg-secondary mt-1 text-xs">{errorMessage(error, 'Unknown error')}</p>
+      <p className="text-sm font-medium">{t('settings.apiKeys.loadFailed')}</p>
+      <p className="text-fg-secondary mt-1 text-xs">
+        {errorMessage(error, t('settings.unknownError'))}
+      </p>
       <button className={`${btnSecondary} mt-2`} onClick={onRetry} type="button">
-        Retry
+        {t('common.retry')}
       </button>
     </div>
   )
 }
 
-function revokedLabel(count: number): string {
-  if (count === 1) return 'API key revoked'
-  return `${count} API keys revoked`
+function revokedLabel(count: number, t: Translate): string {
+  if (count === 1) return t('settings.apiKeys.revokedOne')
+  return t('settings.apiKeys.revokedMany', { count })
 }
 
-function revokeMessage(targets: readonly AgentKey[]): string {
+function revokeMessage(targets: readonly AgentKey[], t: Translate): string {
   if (targets.length === 1) {
-    return `Revoke “${targets[0].name}” (${targets[0].prefix}…)? Anything using this key stops authenticating immediately. This cannot be undone.`
+    return t('settings.apiKeys.revokeOneConfirm', {
+      name: targets[0].name,
+      prefix: targets[0].prefix,
+    })
   }
-  return `Revoke ${targets.length} API keys? Anything using them stops authenticating immediately. This cannot be undone.`
+  return t('settings.apiKeys.revokeManyConfirm', { count: targets.length })
 }
 
 function TableSkeleton() {
+  const t = useT()
   return (
     <div className="border-border overflow-hidden rounded-lg border" role="status">
       <div className="bg-bg-secondary h-9" />
@@ -274,7 +295,7 @@ function TableSkeleton() {
           <div className="bg-bg-secondary ml-auto h-3 w-24 animate-pulse rounded" />
         </div>
       ))}
-      <span className="sr-only">Loading API keys</span>
+      <span className="sr-only">{t('settings.apiKeys.loading')}</span>
     </div>
   )
 }
