@@ -36,6 +36,10 @@ pub const PATH_UNARCHIVE: &str = "/v1/users/{user}/threads/{thread_id}/unarchive
 pub const PATH_TRASH: &str = "/v1/users/{user}/threads/{thread_id}/trash";
 /// Take it back out of the Trash, to the list it left.
 pub const PATH_UNTRASH: &str = "/v1/users/{user}/threads/{thread_id}/untrash";
+/// `POST` — fetch the remote images of the thread's mail now, for mail that
+/// arrived before images were fetched on arrival. 409 for a thread in Junk
+/// or held for review, whose images are never fetched.
+pub const PATH_PREFETCH_IMAGES: &str = "/v1/users/{user}/threads/{thread_id}/images";
 /// Delete every conversation in this reader's Trash for good.
 /// Answers `{"affected": n}`.
 pub const PATH_EMPTY_TRASH: &str = "/v1/users/{user}/trash:empty";
