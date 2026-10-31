@@ -1,20 +1,12 @@
 import { BottomSheet } from '@/components/bottom-sheet'
 
 /**
- * The question asked before a thread is destroyed.
+ * The question asked before a thread is deleted for good.
  *
- * Shared because the answer has to be the same wherever the verb is
- * reached from. Deleting a thread unlinks its maildir files — there is
- * no trash and nothing to restore from — and the reading pane has always
- * said so before doing it. The list did not: the row's context menu and
- * a left swipe both went straight to `DELETE`, so on a phone one gesture
- * destroyed mail with a toast for company.
- *
- * `count` because the batch bar reached `DELETE` without asking at all
- * — forty threads unlinked on one click, while deleting one of them
- * from the row beside it was held for an answer. Same verb, same
- * question, and the number is in it: "Delete 40 conversations?" is a
- * different thing to agree to than "Delete conversation?".
+ * Deleting moves a thread to the Trash and is not asked; this is the
+ * Trash's own delete, which unlinks the maildir files and cannot be
+ * undone. `count` is in the question because agreeing to remove forty
+ * conversations is a different thing from agreeing to remove one.
  */
 export function DeleteThreadConfirm({
   count = 1,
@@ -31,7 +23,9 @@ export function DeleteThreadConfirm({
   return (
     <BottomSheet onClose={onCancel} open>
       <h3 className="text-fg text-sm font-semibold">{deleteTitle(count)}</h3>
-      <p className="text-fg-muted mt-1.5 text-sm">This will permanently delete all messages.</p>
+      <p className="text-fg-muted mt-1.5 text-sm">
+        The messages are deleted and cannot be restored.
+      </p>
       <div className="mt-4 flex justify-end gap-2">
         <button
           className="border-border text-fg-secondary hover:bg-bg-secondary rounded-md border px-3 py-2 text-sm transition-colors"
@@ -45,7 +39,7 @@ export function DeleteThreadConfirm({
           onClick={onConfirm}
           type="button"
         >
-          Delete
+          Delete forever
         </button>
       </div>
     </BottomSheet>
@@ -54,6 +48,6 @@ export function DeleteThreadConfirm({
 
 /// The question, with the number in it when there is more than one.
 function deleteTitle(count: number): string {
-  if (count <= 1) return 'Delete conversation?'
-  return `Delete ${count} conversations?`
+  if (count <= 1) return 'Delete this conversation forever?'
+  return `Delete ${count} conversations forever?`
 }

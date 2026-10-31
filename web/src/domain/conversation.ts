@@ -68,6 +68,8 @@ export type ConversationFilter = {
   // query key or a search silently reuses the non-search list cache.
   readonly query?: string
   readonly starred?: boolean
+  /** The Trash: what this reader deleted, from every list. */
+  readonly trashed?: boolean
   readonly unread?: boolean
 }
 
@@ -177,6 +179,7 @@ export function canonicaliseFilter(f: ConversationFilter | undefined): {
   readonly quarantined: boolean
   readonly query: null | string
   readonly starred: boolean | null
+  readonly trashed: boolean
   readonly unread: boolean | null
 } {
   const domains = [...(f?.domains ?? [])].sort()
@@ -195,6 +198,7 @@ export function canonicaliseFilter(f: ConversationFilter | undefined): {
     quarantined: f?.quarantined ?? false,
     query: f?.query ?? null,
     starred: f?.starred ?? null,
+    trashed: f?.trashed ?? false,
     unread: f?.unread ?? null,
   }
 }

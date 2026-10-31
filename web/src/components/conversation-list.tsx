@@ -12,9 +12,11 @@ import { FilterBar } from '@/components/conversation-list-filter-bar'
 import { VirtualConversationList } from '@/components/conversation-list-virtual'
 import { DeleteThreadConfirm } from '@/components/delete-thread-confirm'
 import { ListSearchInput } from '@/components/list-search-input'
+import { TrashBanner } from '@/components/trash-banner'
 import { useConversationActions } from '@/hooks/use-conversation-actions'
 import { useConversationRows, useCurrentSelection } from '@/hooks/use-current-list'
 import { useCurrentMailFilters } from '@/hooks/use-current-mail-filters'
+import { type RowState, viewOf } from '@/lib/actions'
 import { dateGroupLabel } from '@/lib/format'
 import { listIdentity } from '@/lib/list-identity'
 import { persistScroll, readSavedScroll } from '@/lib/list-scroll'
@@ -66,7 +68,6 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
   const [batchMode, setBatchMode] = useAtom(batchModeAtom)
   const [selectedThreadIds, setSelectedThreadIds] = useAtom(selectedThreadIdsAtom)
   const [batchLoading, setBatchLoading] = useState(false)
-  const [pendingBatchDelete, setPendingBatchDelete] = useState<null | string[]>(null)
 
   // refs to avoid stale closures in observer callback
   const onLoadMoreRef = useRef(loadMore)
@@ -230,14 +231,8 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
     async (action: BatchAction) => {
       const ids = Array.from(selectedThreadIds)
       if (ids.length === 0) return
-      // Held for an answer, like the single-thread verb beside it. It
-      // went straight to the wire, so forty threads were unlinked from
-      // disk on one click while deleting one of them from its own row
-      // asked first.
-      if (action === 'delete') {
-        setPendingBatchDelete(ids)
-        return
-      }
+      // `delete` moves them to the Trash, which keeps them 30 days, so
+      // it is not asked
       await runBatch(action, ids)
     },
     [selectedThreadIds, runBatch]
@@ -371,16 +366,7 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
         open={actions.pendingDelete !== null}
       />
 
-      <DeleteThreadConfirm
-        count={pendingBatchDelete?.length ?? 0}
-        onCancel={() => setPendingBatchDelete(null)}
-        onConfirm={() => {
-          const ids = pendingBatchDelete
-          setPendingBatchDelete(null)
-          if (ids) void runBatch('delete', ids)
-        }}
-        open={pendingBatchDelete !== null}
-      />
+      {activeList === 'trash' && <TrashBanner empty={sortedConversations.length === 0} />}
 
       <VirtualConversationList
         batchMode={batchMode}
@@ -412,6 +398,7 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
           onAction={handleBatchAction}
           onCancel={exitBatchMode}
           selectedCount={selectedThreadIds.size}
+          view={listView(activeList === 'trash', folder)}
         />
       )}
     </div>
@@ -419,3 +406,9 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
 }
 // shared with the Sent / Drafts list views so every list groups rows
 // under the same Today / Yesterday / weekday pills.
+
+/** The action table's view of the list on screen. */
+function listView(trash: boolean, folder: null | string): RowState['view'] {
+  if (trash) return 'trash'
+  return viewOf(folder)
+}

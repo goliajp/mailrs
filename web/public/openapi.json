@@ -1069,6 +1069,14 @@
             }
           },
           {
+            "name": "trashed",
+            "in": "query",
+            "description": "List the Trash instead; archived and folder are ignored",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "name": "folder",
             "in": "query",
             "description": "Filter by folder name",

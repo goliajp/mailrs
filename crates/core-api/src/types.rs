@@ -102,6 +102,10 @@ pub struct ConversationSummaryWire {
     /// everyone who could see it — had anything read it at all.
     #[serde(default)]
     pub snoozed_until: i64,
+    /// Epoch seconds this reader moved the thread to the Trash, or `0`.
+    /// A client says when the Trash will delete it for good from this.
+    #[serde(default)]
+    pub trashed_at: i64,
 }
 
 impl From<&mailrs_mailbox::types::ConversationSummary> for ConversationSummaryWire {
@@ -129,6 +133,7 @@ impl From<&mailrs_mailbox::types::ConversationSummary> for ConversationSummaryWi
             requires_action: s.requires_action,
             sent_count: s.sent_count,
             snoozed_until: s.snoozed_until,
+            trashed_at: s.trashed_at,
         }
     }
 }
@@ -261,6 +266,7 @@ mod tests {
             requires_action: true,
             sent_count: 0,
             snoozed_until: 0,
+            trashed_at: 0,
         };
         let s = serde_json::to_string(&w).unwrap();
         let back: ConversationSummaryWire = serde_json::from_str(&s).unwrap();

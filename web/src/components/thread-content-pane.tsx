@@ -57,12 +57,15 @@ type ContentPaneProps = {
   handleMarkUnread: () => void
   handleReplyMsg: (msg: ThreadMessage) => void
   handleStar: () => void
+  handleTrash: () => void
   handleUnstar: () => void
+  handleUntrash: () => void
   hasNext: boolean
   hasPrev: boolean
   isArchived: boolean
   isFlagged: boolean
   isRead: boolean
+  isTrashed: boolean
   loadingThread: boolean
   messages: readonly ThreadMessage[]
   mobileThreadTab: MobileThreadTab
@@ -72,7 +75,6 @@ type ContentPaneProps = {
   selectedMsgIdx: null | number
   setMobileReplyOpen: (v: boolean) => void
   setMobileThreadTab: (v: MobileThreadTab) => void
-  setShowDeleteConfirm: (v: boolean) => void
   setTimelineCollapsed: Dispatch<SetStateAction<boolean>>
   subject: string
   timelineCollapsed: boolean
@@ -92,12 +94,15 @@ export function ThreadContentPane({
   handleMarkUnread,
   handleReplyMsg,
   handleStar,
+  handleTrash,
   handleUnstar,
+  handleUntrash,
   hasNext,
   hasPrev,
   isArchived,
   isFlagged,
   isRead,
+  isTrashed,
   loadingThread,
   messages,
   mobileThreadTab,
@@ -107,7 +112,6 @@ export function ThreadContentPane({
   selectedMsgIdx,
   setMobileReplyOpen,
   setMobileThreadTab,
-  setShowDeleteConfirm,
   setTimelineCollapsed,
   subject,
   timelineCollapsed,
@@ -182,10 +186,11 @@ export function ThreadContentPane({
             >
               <Star className="h-4 w-4" fill={isFlagged ? 'currentColor' : 'none'} />
             </HdrBtn>
+            {isTrashed && <ActionBtn id="untrash" onClick={handleUntrash} />}
             <ActionBtn
               className="hover:text-danger"
-              id="delete"
-              onClick={() => setShowDeleteConfirm(true)}
+              id={toggle(isTrashed, 'delete-forever', 'trash')}
+              onClick={handleTrash}
             />
             {/* mobile: toggle to conversation timeline */}
             {messages.length > 1 && (

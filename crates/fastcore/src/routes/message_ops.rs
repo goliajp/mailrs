@@ -417,6 +417,7 @@ pub(crate) fn row_to_wire(r: ThreadRow) -> ConversationSummaryWire {
         // row a client draws, and a zero here would mean no client
         // could ever say a thread is asleep.
         snoozed_until: r.snoozed_until,
+        trashed_at: r.trashed_at,
     }
 }
 

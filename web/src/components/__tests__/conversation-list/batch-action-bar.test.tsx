@@ -81,9 +81,16 @@ vi.mock('@/hooks/use-flat-conversations', () => ({
   useFlatConversations: () => flatStub,
 }))
 const stubMutation = () => ({ isPending: false, mutate: vi.fn(), mutateAsync: vi.fn() })
+vi.mock('@/hooks/use-trash-mutations', () => ({
+  useDeleteForeverMutation: stubMutation,
+  useEmptyTrashMutation: stubMutation,
+  useTrashMutation: stubMutation,
+  useUntrashMutation: stubMutation,
+}))
 vi.mock('@/hooks/use-mail-mutations', () => ({
   useArchiveMutation: stubMutation,
-  useDeleteMutation: stubMutation,
+  useDeleteForeverMutation: stubMutation,
+  useEmptyTrashMutation: stubMutation,
   useMarkJunkMutation: stubMutation,
   useMarkNotificationMutation: stubMutation,
   useMarkNotJunkMutation: stubMutation,
@@ -94,10 +101,12 @@ vi.mock('@/hooks/use-mail-mutations', () => ({
   usePinMutation: stubMutation,
   useSnoozeMutation: stubMutation,
   useStarMutation: stubMutation,
+  useTrashMutation: stubMutation,
   useUnarchiveMutation: stubMutation,
   useUnpinMutation: stubMutation,
   useUnsnoozeMutation: stubMutation,
   useUnstarMutation: stubMutation,
+  useUntrashMutation: stubMutation,
 }))
 
 // mock sonner toast
@@ -267,7 +276,7 @@ describe('BatchActionBar', () => {
     expect(screen.getByText('Mark as unread')).toBeDefined()
     expect(screen.getByText('Star')).toBeDefined()
     expect(screen.getByText('Archive')).toBeDefined()
-    expect(screen.getByText('Delete')).toBeDefined()
+    expect(screen.getByText('Move to Trash')).toBeDefined()
     expect(screen.getByText('Cancel')).toBeDefined()
   })
 
@@ -316,14 +325,10 @@ describe('BatchActionBar', () => {
   })
 
   /**
-   * Deleting forty threads asks first, the same as deleting one does.
-   *
-   * The batch bar went straight to the wire: `onAction('delete')` →
-   * `wireBatchMutation`, no question, while the row beside it held the
-   * same verb for an answer. Deleting unlinks maildir files and there
-   * is nothing to restore from.
+   * A batch delete moves the threads to the Trash, which keeps them for
+   * 30 days, so it goes to the server without a question.
    */
-  it('holds a batch delete for an answer, and names the number', async () => {
+  it('moves a batch to the Trash without asking', async () => {
     batchCalls.length = 0
     flatStub.conversations = [makeConversation()]
     store.set(batchModeAtom, true)
@@ -335,15 +340,10 @@ describe('BatchActionBar', () => {
       </Wrapper>
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
-    expect(screen.getByText('Delete 2 conversations?')).toBeDefined()
-    expect(batchCalls, 'the delete went to the server before the question').toEqual([])
-
-    // The sheet's own Delete is the second button with that name.
-    const confirms = screen.getAllByRole('button', { name: 'Delete' })
-    fireEvent.click(confirms[confirms.length - 1])
+    fireEvent.click(screen.getByRole('button', { name: 'Move to Trash' }))
     await waitFor(() => expect(batchCalls).toHaveLength(1))
     expect(batchCalls[0]).toEqual({ action: 'delete', ids: ['t1', 't2'] })
+    expect(screen.queryByText('Delete 2 conversations forever?')).toBeNull()
   })
 
   // A batch moves rows out of this list and into others. The refresh

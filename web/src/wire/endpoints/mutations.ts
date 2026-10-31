@@ -16,8 +16,10 @@ import { wireFetch } from '../client'
 import {
   batchMutationResponseSchema,
   emptyResponseSchema,
+  emptyTrashResponseSchema,
   markAllReadResponseSchema,
   type WireBatchMutationResponse,
+  type WireEmptyTrashResponse,
   type WireMarkAllReadResponse,
 } from '../schemas/mutations'
 
@@ -93,11 +95,33 @@ export function wireBatchMutation(
 
 // ── multi-thread aggregated mutations ────────────────────────────
 
-export async function wireDeleteThread(threadId: string): Promise<void> {
+/** To the Trash; the server deletes it for good 30 days later. */
+export async function wireTrashThread(threadId: string): Promise<void> {
   await wireFetch(emptyResponseSchema, {
     allowEmpty: true,
     method: 'DELETE',
     path: `/conversations/${encodeURIComponent(threadId)}`,
+  })
+}
+
+export const wireUntrashThread = (threadId: string): Promise<void> =>
+  postEmpty(`/conversations/${encodeURIComponent(threadId)}/untrash`)
+
+/** Deleted for good; the server asks for the password again first. */
+export async function wireDeleteThreadForever(threadId: string): Promise<void> {
+  await wireFetch(emptyResponseSchema, {
+    allowEmpty: true,
+    method: 'DELETE',
+    path: `/conversations/${encodeURIComponent(threadId)}/forever`,
+  })
+}
+
+/** Everything in the Trash, for good; asks for the password again too. */
+export function wireEmptyTrash(): Promise<WireEmptyTrashResponse> {
+  return wireFetch(emptyTrashResponseSchema, {
+    body: {},
+    method: 'POST',
+    path: '/trash/empty',
   })
 }
 

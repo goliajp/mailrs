@@ -39,6 +39,7 @@ fn add(store: &KevyMailboxStore, root: &Path, tid: &str, raw: &[u8]) {
                 has_action: false,
                 sent_count: 0,
                 snoozed_until: 0,
+                trashed_at: 0,
                 starred: false,
             },
         )

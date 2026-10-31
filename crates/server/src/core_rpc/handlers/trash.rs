@@ -66,12 +66,12 @@ async fn delete_for_good(state: &Arc<CoreRpcState>, user: &str, thread_id: &str)
     .await
     .is_ok();
     // the Send rows for the mail in it go too, as fastcore's do
-    if deleted && let Some(mut c) = mailrs_core_sidestate::NetKevy::net_conn(state.as_ref()) {
-        if let Err(e) =
+    if deleted
+        && let Some(mut c) = mailrs_core_sidestate::NetKevy::net_conn(state.as_ref())
+        && let Err(e) =
             mailrs_core_sidestate::families::send::delete_sends_in_thread(&mut c, user, thread_id)
-        {
-            tracing::warn!(error = %e, %user, %thread_id, "send rows not removed");
-        }
+    {
+        tracing::warn!(error = %e, %user, %thread_id, "send rows not removed");
     }
     deleted
 }

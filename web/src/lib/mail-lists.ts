@@ -35,7 +35,16 @@ export type MailList = {
  * not about the UI — the screen treats all eight the same way.
  */
 export type MailListId =
-  'archived' | 'draft' | 'inbox' | 'junk' | 'np' | 'quarantine' | 'send' | 'starred' | 'unread'
+  | 'archived'
+  | 'draft'
+  | 'inbox'
+  | 'junk'
+  | 'np'
+  | 'quarantine'
+  | 'send'
+  | 'starred'
+  | 'trash'
+  | 'unread'
 
 /**
  * Where a list's rows come from.
@@ -51,7 +60,7 @@ export type MailListSource =
 /** The axes of `MailListFilters` a list fixes. The rest are refinements. */
 export type ThreadListAxes = Pick<
   MailListFilters,
-  'archived' | 'folder' | 'quarantined' | 'starred' | 'unread'
+  'archived' | 'folder' | 'quarantined' | 'starred' | 'trashed' | 'unread'
 >
 
 /**
@@ -119,6 +128,14 @@ export const MAIL_LISTS: Record<MailListId, MailList> = {
     selectable: true,
     source: { filters: { folder: 'NonJunk', starred: true }, kind: 'threads' },
   },
+  // Cross-folder like Archived: what this reader deleted, from any list,
+  // until the server deletes it for good 30 days later.
+  trash: {
+    emptyLabel: 'Trash is empty',
+    label: 'Trash',
+    selectable: true,
+    source: { filters: { trashed: true }, kind: 'threads' },
+  },
   unread: {
     emptyLabel: 'All caught up!',
     label: 'Unread',
@@ -144,6 +161,7 @@ export const MAIL_LIST_TABS: MailListId[] = [
   'draft',
   'archived',
   'quarantine',
+  'trash',
 ]
 
 export function isMailListId(v: unknown): v is MailListId {

@@ -79,9 +79,16 @@ vi.mock('@/hooks/use-flat-conversations', () => ({
   useFlatConversations: () => flatStub,
 }))
 const stubMutation = () => ({ isPending: false, mutate: vi.fn(), mutateAsync: vi.fn() })
+vi.mock('@/hooks/use-trash-mutations', () => ({
+  useDeleteForeverMutation: stubMutation,
+  useEmptyTrashMutation: stubMutation,
+  useTrashMutation: stubMutation,
+  useUntrashMutation: stubMutation,
+}))
 vi.mock('@/hooks/use-mail-mutations', () => ({
   useArchiveMutation: stubMutation,
-  useDeleteMutation: stubMutation,
+  useDeleteForeverMutation: stubMutation,
+  useEmptyTrashMutation: stubMutation,
   useMarkJunkMutation: stubMutation,
   useMarkNotificationMutation: stubMutation,
   useMarkNotJunkMutation: stubMutation,
@@ -92,10 +99,12 @@ vi.mock('@/hooks/use-mail-mutations', () => ({
   usePinMutation: stubMutation,
   useSnoozeMutation: stubMutation,
   useStarMutation: stubMutation,
+  useTrashMutation: stubMutation,
   useUnarchiveMutation: stubMutation,
   useUnpinMutation: stubMutation,
   useUnsnoozeMutation: stubMutation,
   useUnstarMutation: stubMutation,
+  useUntrashMutation: stubMutation,
 }))
 
 // mock sonner toast

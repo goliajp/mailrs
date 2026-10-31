@@ -59,6 +59,7 @@ fn conversation_list_keys_match() {
         received_count: 1,
         sent_count: 0,
         account_id: String::new(),
+        trashed_at: 0,
     };
     let serialized = serde_json::to_value(&sample).expect("serialize");
 

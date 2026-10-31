@@ -2,12 +2,12 @@ import { toast } from '@goliapkg/gds'
 import { useCallback } from 'react'
 
 import {
-  useDeleteMutation,
   useMarkReadMutation,
   useMarkUnreadMutation,
   useStarMutation,
   useUnstarMutation,
 } from '@/hooks/use-mail-mutations'
+import { useDeleteForeverMutation } from '@/hooks/use-trash-mutations'
 import { queryClient } from '@/lib/query-client'
 import { mailKeys } from '@/lib/query-keys'
 
@@ -37,7 +37,7 @@ export function useThreadActions({
   const markUnreadMutation = useMarkUnreadMutation()
   const starMutation = useStarMutation()
   const unstarMutation = useUnstarMutation()
-  const deleteMutation = useDeleteMutation()
+  const deleteMutation = useDeleteForeverMutation()
 
   const handleMarkUnread = useCallback(() => {
     if (!selectedId) return
@@ -91,11 +91,11 @@ export function useThreadActions({
           setShowDeleteConfirm(false)
         },
         onSuccess: () => {
-          toast.success('Deleted')
+          toast.success('Deleted forever')
           setSelectedId(null)
           setShowDeleteConfirm(false)
           // messages come from RQ; invalidation happens via
-          // `onSettled` in `useDeleteMutation`, so no local reset here.
+          // `onSettled` in `useDeleteForeverMutation`, so no local reset here.
         },
       }
     )

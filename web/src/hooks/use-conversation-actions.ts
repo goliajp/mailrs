@@ -6,7 +6,6 @@ import { useCallback, useRef, useState } from 'react'
 
 import {
   useArchiveMutation,
-  useDeleteMutation,
   useMarkJunkMutation,
   useMarkNotificationMutation,
   useMarkNotJunkMutation,
@@ -22,6 +21,11 @@ import {
   useUnsnoozeMutation,
   useUnstarMutation,
 } from '@/hooks/use-mail-mutations'
+import {
+  useDeleteForeverMutation,
+  useTrashMutation,
+  useUntrashMutation,
+} from '@/hooks/use-trash-mutations'
 import { ACTIONS } from '@/lib/actions'
 import { lastUndoAtom } from '@/store/ui'
 
@@ -29,11 +33,11 @@ import { lastUndoAtom } from '@/store/ui'
 // action is called, what the toast says and what undoes it are the action
 // table's (`lib/actions.ts`); this only knows which mutation runs it.
 export type ConversationActions = {
-  /** Run an action. One that asks first (`delete`) is held for an answer. */
+  /** Run an action. One that asks first (`delete-forever`) is held for an answer. */
   act: (threadId: string, action: SingleAction) => Promise<void>
   /** Dismiss the confirmation without deleting. */
   cancelDelete: () => void
-  /** Delete the held thread. */
+  /** Delete the held thread for good. */
   confirmDelete: () => void
   /** The thread awaiting confirmation, or null. */
   pendingDelete: null | string
@@ -44,7 +48,7 @@ export function useConversationActions(): ConversationActions {
   const setLastUndo = useSetAtom(lastUndoAtom)
   const mutations = {
     archive: useArchiveMutation(),
-    delete: useDeleteMutation(),
+    'delete-forever': useDeleteForeverMutation(),
     'mark-junk': useMarkJunkMutation(),
     'mark-not-junk': useMarkNotJunkMutation(),
     'mark-notification': useMarkNotificationMutation(),
@@ -54,11 +58,13 @@ export function useConversationActions(): ConversationActions {
     read: useMarkReadMutation(),
     snooze: useSnoozeMutation(),
     star: useStarMutation(),
+    trash: useTrashMutation(),
     unarchive: useUnarchiveMutation(),
     unpin: useUnpinMutation(),
     unread: useMarkUnreadMutation(),
     unsnooze: useUnsnoozeMutation(),
     unstar: useUnstarMutation(),
+    untrash: useUntrashMutation(),
   }
   const latest = useRef(mutations)
   latest.current = mutations
@@ -70,9 +76,6 @@ export function useConversationActions(): ConversationActions {
     }
     const opts = { onError, onSuccess }
     switch (action) {
-      case 'delete':
-        m.delete.mutate({ threadId }, opts)
-        break
       case 'snooze':
         m.snooze.mutate({ snoozedUntil: tomorrowMorning(), threadId }, opts)
         break
@@ -109,7 +112,9 @@ export function useConversationActions(): ConversationActions {
     if (!pendingDelete) return
     const threadId = pendingDelete
     setPendingDelete(null)
-    run(threadId, 'delete', () => toast.success(ACTIONS.delete.done ?? 'Deleted'))
+    run(threadId, 'delete-forever', () =>
+      toast.success(ACTIONS['delete-forever'].done ?? 'Deleted forever')
+    )
   }, [pendingDelete, run])
 
   const cancelDelete = useCallback(() => setPendingDelete(null), [])

@@ -1,15 +1,16 @@
-import type { InfinitePages } from '@/lib/mail-cache'
 import type { WireSentMessage } from '@/wire/schemas/mail'
 
-import { type QueryKey, useMutation } from '@tanstack/react-query'
+import { useMutation } from '@tanstack/react-query'
 
 import { snoozeConversation as snoozeApi, unsnoozeConversation as unsnoozeApi } from '@/lib/api'
 import { dedupeSentByMessageId } from '@/lib/dedupe-sent'
 import {
   addStickyUnread,
+  cancelConversationFetches,
   invalidateBucketMove,
   invalidateMail,
   invalidateMailAggregatesOnly,
+  type MutationContext,
   patchConversationFields,
   patchConversations,
   removeStickyUnread,
@@ -17,14 +18,12 @@ import {
 } from '@/lib/mail-cache'
 import { queryClient } from '@/lib/query-client'
 import { mailKeys } from '@/lib/query-keys'
-import { conversationKeys } from '@/store/query-keys-v21'
 // v2.1 §7 batch 1 (2026-07-08): every mutation path routes through
 // the wire adapter — Zod-parsed responses, structured errors, 204
 // handled explicitly.
 import {
   wireArchiveThread,
   wireBatchMutation,
-  wireDeleteThread,
   wireMarkJunk,
   wireMarkNotification,
   wireMarkNotJunk,
@@ -39,7 +38,8 @@ import {
   wireUnstarThread,
 } from '@/wire/endpoints/mutations'
 
-export type BatchAction = 'archive' | 'delete' | 'read' | 'star' | 'unarchive' | 'unread' | 'unstar'
+export type BatchAction =
+  'archive' | 'delete' | 'read' | 'star' | 'unarchive' | 'unread' | 'unstar' | 'untrash'
 
 type BatchResult = {
   failed: number
@@ -64,7 +64,7 @@ type BatchResult = {
 // refetch — RQ's getQueryData / setQueryData operates on the canonical
 // store, not on a React-state mirror.
 
-type Context = { snapshots: Array<[QueryKey, InfinitePages | undefined]> }
+type Context = MutationContext
 
 export function useArchiveMutation() {
   return useMutation<unknown, Error, { threadId: string }, Context>({
@@ -95,18 +95,16 @@ export function useBatchMutation() {
     onMutate: async ({ action, threadIds }) => {
       await cancelConversationFetches()
       const set = new Set(threadIds)
-      // Delete is the one that genuinely removes a row rather than
-      // moving it, so it stays on the dropping patch; the rest write a
-      // field and let `belongsTo` place them.
-      if (action === 'delete') {
-        const snapshots = patchConversations((c) => (set.has(c.thread_id) ? null : c))
-        return { snapshots }
-      }
+      // Each writes the field its endpoint writes and lets `belongsTo`
+      // place the row; `delete` is the Trash, so the row moves there.
+      const now = Math.floor(Date.now() / 1000)
       const snapshots = patchConversationFields((c) => {
         if (!set.has(c.thread_id)) return c
         switch (action) {
           case 'archive':
             return { ...c, archived: true }
+          case 'delete':
+            return { ...c, trashed_at: now }
           case 'read':
             return { ...c, unread_count: 0 }
           case 'star':
@@ -117,29 +115,10 @@ export function useBatchMutation() {
             return { ...c, unread_count: Math.max(1, c.unread_count) }
           case 'unstar':
             return { ...c, flagged: false }
+          case 'untrash':
+            return { ...c, trashed_at: 0 }
         }
       })
-      return { snapshots }
-    },
-    onSettled: () => invalidateMail(),
-  })
-}
-
-export function useDeleteMutation() {
-  return useMutation<unknown, Error, { threadId: string }, Context>({
-    mutationFn: ({ threadId }) => wireDeleteThread(threadId),
-    onError: (_e, _vars, ctx) => {
-      if (ctx) rollbackConversations(ctx.snapshots)
-    },
-    onMutate: async ({ threadId }) => {
-      await cancelConversationFetches()
-      const snapshots = patchConversations((c) => (c.thread_id === threadId ? null : c))
-      // Also strip any per-message Sent rows for this thread so a
-      // delete triggered from the Sent view (or any view) removes the
-      // row visibly instant. Refetch reconciles via invalidateMail().
-      queryClient.setQueryData<readonly WireSentMessage[]>(mailKeys.sent(), (old) =>
-        old ? old.filter((m) => m.thread_id !== threadId) : old
-      )
       return { snapshots }
     },
     onSettled: () => invalidateMail(),
@@ -443,15 +422,4 @@ export function useUnstarMutation() {
     },
     onSettled: () => invalidateMail(),
   })
-}
-
-async function cancelConversationFetches() {
-  // Cancel both the legacy key (still used by any not-yet-migrated
-  // caller during Phase 3) AND the new v2.1 key that
-  // `useConversationsQuery` moved onto.
-  await Promise.all([
-    queryClient.cancelQueries({ queryKey: mailKeys.conversations() }),
-    queryClient.cancelQueries({ queryKey: conversationKeys.infinites() }),
-    queryClient.cancelQueries({ queryKey: conversationKeys.lists() }),
-  ])
 }

@@ -232,6 +232,7 @@ impl KevyMailboxStore {
             sent_count: if is_own { 1 } else { 0 },
             starred: false,
             snoozed_until: 0,
+            trashed_at: 0,
         };
         self.upsert_thread(user, &row)?;
         Ok(Some(new_tid))

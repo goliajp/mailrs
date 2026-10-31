@@ -26,10 +26,16 @@ export type ListAxes = {
   archived: boolean
   folder: null | string
   starred: boolean | null
+  trashed: boolean
   unread: boolean | null
 }
 
 export function belongsTo(axes: ListAxes, row: ConversationSummary): boolean {
+  // The Trash is exclusive the same way, and holds deleted threads from
+  // every list, archived or not, whatever their folder.
+  const trashed = (row.trashed_at ?? 0) > 0
+  if (trashed !== axes.trashed) return false
+  if (axes.trashed) return true
   // Archived is exclusive in both directions: it is a list of its own,
   // so an archived thread is in it and in nothing else.
   if (row.archived !== axes.archived) return false

@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { belongsTo, bucketOf } from '@/lib/list-membership'
 
 function axes(over: Partial<ListAxes> = {}): ListAxes {
-  return { archived: false, folder: null, starred: null, unread: null, ...over }
+  return { archived: false, folder: null, starred: null, trashed: false, unread: null, ...over }
 }
 
 function row(over: Partial<ConversationSummary> = {}): ConversationSummary {
@@ -55,6 +55,17 @@ describe('belongsTo', () => {
     expect(belongsTo(axes(), row({ archived: true }))).toBe(false)
     expect(belongsTo(axes({ archived: true }), row({ archived: true }))).toBe(true)
     expect(belongsTo(axes({ archived: true }), row())).toBe(false)
+  })
+
+  it('the Trash is exclusive, and holds deleted threads from every list', () => {
+    const trashed = { trashed_at: 1_793_427_570 }
+    for (const folder of [null, 'Inbox', 'Junk', 'NP', 'NonJunk']) {
+      expect(belongsTo(axes({ folder }), row(trashed))).toBe(false)
+    }
+    expect(belongsTo(axes({ archived: true }), row({ archived: true, ...trashed }))).toBe(false)
+    expect(belongsTo(axes({ trashed: true }), row({ archived: true, ...trashed }))).toBe(true)
+    expect(belongsTo(axes({ trashed: true }), row({ category: 'spam', ...trashed }))).toBe(true)
+    expect(belongsTo(axes({ trashed: true }), row())).toBe(false)
   })
 
   it('an archived thread is in no folder', () => {

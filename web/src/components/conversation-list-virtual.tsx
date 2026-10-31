@@ -8,6 +8,7 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 
 import { ConversationItem } from '@/components/conversation-item'
 import { SwipeableRow } from '@/components/swipeable-row'
+import { toggle } from '@/lib/actions'
 import { MAIL_LISTS, type MailListId } from '@/lib/mail-lists'
 import { activeListAtom } from '@/store/ui'
 
@@ -300,7 +301,12 @@ export function VirtualConversationList({
               {item.type === 'divider' && <DateDivider label={item.label} />}
               {item.type === 'conversation' && (
                 <SwipeableRow
-                  onSwipeLeft={() => onContextAction(item.convo.thread_id, 'delete')}
+                  onSwipeLeft={() =>
+                    onContextAction(
+                      item.convo.thread_id,
+                      toggle((item.convo.trashed_at ?? 0) > 0, 'delete-forever', 'trash')
+                    )
+                  }
                   onSwipeRight={() =>
                     onContextAction(
                       item.convo.thread_id,
