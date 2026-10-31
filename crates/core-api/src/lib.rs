@@ -101,6 +101,8 @@ pub const SECRET_ENVS: &[&str] = &[
     "MAILRS_OIDC_GOOGLE_CLIENT_SECRET",
     "MAILRS_OIDC_MICROSOFT_CLIENT_SECRET",
     "MAILRS_OIDC_PORTAL_CLIENT_SECRET",
+    // not a secret: allow or app-only, and blank is no setting at all
+    "MAILRS_PROTOCOL_PASSWORD",
     "MAILRS_RESET_CODE_KEY",
     "MAILRS_SRS_SECRET",
     "MAILRS_TLS_KEY",
