@@ -23,7 +23,7 @@
  * verified against the handler, which serializes them as integers.
  */
 
-import { z } from 'zod'
+import { z } from '@/lib/zod'
 
 /** One report's summary row. Mirrors Rust `ReportSummary`. */
 export const wireDmarcReportSchema = z
