@@ -155,7 +155,14 @@ async fn the_replay_reports_both_samples_and_moves_nothing() {
     assert_eq!(out["junk"]["messages"], 1);
     assert_eq!(out["junk"]["with_hits"], 0);
     assert_eq!(out["clean"]["junk_action"], 1);
-    let hits = out["hits"].as_array().unwrap();
+    assert_eq!(out["held"]["messages"], 0);
+    assert!(out["fraud_version"].as_str().unwrap().starts_with("lua:"));
+    let all = out["hits"].as_array().unwrap();
+    assert!(
+        all.iter()
+            .all(|h| h["kind"] == "screening" || h["kind"] == "fraud")
+    );
+    let hits: Vec<&serde_json::Value> = all.iter().filter(|h| h["kind"] == "screening").collect();
     let rules: Vec<&str> = hits.iter().map(|h| h["rule"].as_str().unwrap()).collect();
     assert_eq!(rules, ["exe-name", "ip-incident-manual"]);
     assert!(
@@ -186,11 +193,13 @@ async fn the_replay_reports_both_samples_and_moves_nothing() {
     );
     let (status, out) = replay(&state, &one).await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(
-        out["hits"].as_array().unwrap().len(),
-        2,
-        "one hit per message"
-    );
+    let mine = out["hits"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|h| h["kind"] == "screening")
+        .count();
+    assert_eq!(mine, 2, "one hit per message");
     let (status, _) = replay(&state, "not lua !!!").await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
 }
