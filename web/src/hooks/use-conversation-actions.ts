@@ -1,7 +1,8 @@
 import type { SingleAction } from '@/components/conversation-actions'
 
 import { toast } from '@goliapkg/gds'
-import { useCallback, useState } from 'react'
+import { useSetAtom } from 'jotai'
+import { useCallback, useRef, useState } from 'react'
 
 import {
   useArchiveMutation,
@@ -21,13 +22,14 @@ import {
   useUnsnoozeMutation,
   useUnstarMutation,
 } from '@/hooks/use-mail-mutations'
+import { ACTIONS } from '@/lib/actions'
+import { lastUndoAtom } from '@/store/ui'
 
-// One place that turns a context-menu verb into the mutation serving it.
-// Fifteen mutation hooks and a 170-line switch lived inside
-// `ConversationList` until 2026-08-02; nothing in them is specific to that
-// component, and the drafts and Send lists want the same verbs.
+// One place that turns an action into the mutation serving it. What the
+// action is called, what the toast says and what undoes it are the action
+// table's (`lib/actions.ts`); this only knows which mutation runs it.
 export type ConversationActions = {
-  /** Route a verb to its mutation. `delete` is held for confirmation. */
+  /** Run an action. One that asks first (`delete`) is held for an answer. */
   act: (threadId: string, action: SingleAction) => Promise<void>
   /** Dismiss the confirmation without deleting. */
   cancelDelete: () => void
@@ -39,204 +41,86 @@ export type ConversationActions = {
 
 export function useConversationActions(): ConversationActions {
   const [pendingDelete, setPendingDelete] = useState<null | string>(null)
-  // single-thread context menu action — each individual mutation runs
-  // its own optimistic-update + rollback cycle inside react-query, so this
-  // dispatcher only routes by action name. Toast messages remain here so
-  // the visual feedback matches the human-facing language.
-  const markReadMutation = useMarkReadMutation()
-  const markUnreadMutation = useMarkUnreadMutation()
-  const starMutation = useStarMutation()
-  const unstarMutation = useUnstarMutation()
-  const pinMutation = usePinMutation()
-  const unpinMutation = useUnpinMutation()
-  const archiveMutation = useArchiveMutation()
-  const unarchiveMutation = useUnarchiveMutation()
-  const snoozeMutation = useSnoozeMutation()
-  const unsnoozeMutation = useUnsnoozeMutation()
-  const deleteMutation = useDeleteMutation()
-  const markJunkMutation = useMarkJunkMutation()
-  const markNotJunkMutation = useMarkNotJunkMutation()
-  const markNotificationMutation = useMarkNotificationMutation()
-  const markPromotionMutation = useMarkPromotionMutation()
-  const moveToInboxMutation = useMoveToInboxMutation()
+  const setLastUndo = useSetAtom(lastUndoAtom)
+  const mutations = {
+    archive: useArchiveMutation(),
+    delete: useDeleteMutation(),
+    'mark-junk': useMarkJunkMutation(),
+    'mark-not-junk': useMarkNotJunkMutation(),
+    'mark-notification': useMarkNotificationMutation(),
+    'mark-promotion': useMarkPromotionMutation(),
+    'move-to-inbox': useMoveToInboxMutation(),
+    pin: usePinMutation(),
+    read: useMarkReadMutation(),
+    snooze: useSnoozeMutation(),
+    star: useStarMutation(),
+    unarchive: useUnarchiveMutation(),
+    unpin: useUnpinMutation(),
+    unread: useMarkUnreadMutation(),
+    unsnooze: useUnsnoozeMutation(),
+    unstar: useUnstarMutation(),
+  }
+  const latest = useRef(mutations)
+  latest.current = mutations
+
+  const run = useCallback((threadId: string, action: SingleAction, onSuccess: () => void) => {
+    const m = latest.current
+    const onError = (err: unknown) => {
+      toast.error(err instanceof Error ? err.message : 'Action failed')
+    }
+    const opts = { onError, onSuccess }
+    switch (action) {
+      case 'delete':
+        m.delete.mutate({ threadId }, opts)
+        break
+      case 'snooze':
+        m.snooze.mutate({ snoozedUntil: tomorrowMorning(), threadId }, opts)
+        break
+      default:
+        m[action].mutate({ threadId }, opts)
+    }
+  }, [])
+
   const act = useCallback(
     async (threadId: string, action: SingleAction) => {
-      const onError = (err: unknown) => {
-        toast.error(err instanceof Error ? err.message : 'Action failed')
+      const spec = ACTIONS[action]
+      if (spec.confirm) {
+        setPendingDelete(threadId)
+        return
       }
-      // **A way back.** Every one of these has an inverse in this same
-      // hook, and none of them offered it: a right swipe on a phone
-      // archives in one gesture, and the only route back was to go
-      // find the Archived list and unarchive by hand. The toast has
-      // taken an `action` all along — 109 call sites, none using it.
-      const undo = (run: () => void) => ({
-        action: { label: 'Undo', onClick: run },
-        duration: 8000,
-      })
-      switch (action) {
-        case 'archive':
-          archiveMutation.mutate(
-            { threadId },
-            {
-              onError,
-              onSuccess: () =>
-                toast.success(
-                  'Archived',
-                  undo(() => unarchiveMutation.mutate({ threadId }))
-                ),
-            }
-          )
-          break
-        case 'delete':
-          // Held, not run. Deleting unlinks the maildir files, and the
-          // reading pane has always asked first — the list reached the
-          // same verb without asking, so a left swipe on a phone was one
-          // gesture away from permanent loss. The caller renders
-          // `DeleteThreadConfirm` off `pendingDelete`.
-          setPendingDelete(threadId)
-          break
-        case 'mark-junk':
-          markJunkMutation.mutate(
-            { threadId },
-            {
-              onError,
-              onSuccess: () =>
-                toast.success(
-                  'Moved to Junk',
-                  undo(() => markNotJunkMutation.mutate({ threadId }))
-                ),
-            }
-          )
-          break
-        case 'mark-not-junk':
-          markNotJunkMutation.mutate(
-            { threadId },
-            { onError, onSuccess: () => toast.success('Marked as not junk') }
-          )
-          break
-        case 'mark-notification':
-          markNotificationMutation.mutate(
-            { threadId },
-            {
-              onError,
-              onSuccess: () =>
-                toast.success(
-                  'Moved to Notifications',
-                  undo(() => moveToInboxMutation.mutate({ threadId }))
-                ),
-            }
-          )
-          break
-        case 'mark-promotion':
-          markPromotionMutation.mutate(
-            { threadId },
-            {
-              onError,
-              onSuccess: () =>
-                toast.success(
-                  'Moved to Promotions',
-                  undo(() => moveToInboxMutation.mutate({ threadId }))
-                ),
-            }
-          )
-          break
-        case 'move-to-inbox':
-          moveToInboxMutation.mutate(
-            { threadId },
-            { onError, onSuccess: () => toast.success('Moved to Inbox') }
-          )
-          break
-        case 'pin':
-          pinMutation.mutate({ threadId }, { onError, onSuccess: () => toast.success('Pinned') })
-          break
-        case 'read':
-          markReadMutation.mutate({ threadId }, { onError })
-          break
-        case 'snooze': {
-          const tomorrow = new Date()
-          tomorrow.setDate(tomorrow.getDate() + 1)
-          tomorrow.setHours(9, 0, 0, 0)
-          snoozeMutation.mutate(
-            // Epoch seconds, not an ISO string: the handler takes
-            // `snoozed_until: i64` and the ISO form 422'd every time.
-            { snoozedUntil: Math.floor(tomorrow.getTime() / 1000), threadId },
-            {
-              onError,
-              onSuccess: () =>
-                toast.success(
-                  'Snoozed until tomorrow 9:00',
-                  undo(() => unsnoozeMutation.mutate({ threadId }))
-                ),
-            }
-          )
-          break
+      run(threadId, action, () => {
+        const undo = spec.undo
+        if (undo) setLastUndo({ action: undo, threadId })
+        if (!spec.done) return
+        if (!undo) {
+          toast.success(spec.done)
+          return
         }
-        case 'star':
-          starMutation.mutate({ threadId }, { onError })
-          break
-        case 'unarchive':
-          unarchiveMutation.mutate(
-            { threadId },
-            { onError, onSuccess: () => toast.success('Unarchived') }
-          )
-          break
-        case 'unpin':
-          unpinMutation.mutate(
-            { threadId },
-            { onError, onSuccess: () => toast.success('Unpinned') }
-          )
-          break
-        case 'unread':
-          markUnreadMutation.mutate({ threadId }, { onError })
-          break
-        case 'unsnooze':
-          // The way back out. A snooze files the thread away, so
-          // without this the only route back is finding it in Archived
-          // and unarchiving it, which does not clear the wake time.
-          unsnoozeMutation.mutate(
-            { threadId },
-            { onError, onSuccess: () => toast.success('Back in your inbox') }
-          )
-          break
-        case 'unstar':
-          unstarMutation.mutate({ threadId }, { onError })
-          break
-      }
+        toast.success(spec.done, {
+          action: { label: 'Undo', onClick: () => run(threadId, undo, () => {}) },
+          duration: 8000,
+        })
+      })
     },
-    [
-      archiveMutation,
-      markJunkMutation,
-      markNotJunkMutation,
-      markNotificationMutation,
-      markPromotionMutation,
-      markReadMutation,
-      markUnreadMutation,
-      moveToInboxMutation,
-      pinMutation,
-      snoozeMutation,
-      unsnoozeMutation,
-      starMutation,
-      unarchiveMutation,
-      unpinMutation,
-      unstarMutation,
-    ]
+    [run, setLastUndo]
   )
 
   const confirmDelete = useCallback(() => {
     if (!pendingDelete) return
     const threadId = pendingDelete
     setPendingDelete(null)
-    deleteMutation.mutate(
-      { threadId },
-      {
-        onError: (err: unknown) =>
-          toast.error(err instanceof Error ? err.message : 'Action failed'),
-        onSuccess: () => toast.success('Deleted'),
-      }
-    )
-  }, [pendingDelete, deleteMutation])
+    run(threadId, 'delete', () => toast.success(ACTIONS.delete.done ?? 'Deleted'))
+  }, [pendingDelete, run])
 
   const cancelDelete = useCallback(() => setPendingDelete(null), [])
 
   return { act, cancelDelete, confirmDelete, pendingDelete }
+}
+
+/** Tomorrow at 9:00 local time, in epoch seconds (what the handler takes). */
+function tomorrowMorning(): number {
+  const t = new Date()
+  t.setDate(t.getDate() + 1)
+  t.setHours(9, 0, 0, 0)
+  return Math.floor(t.getTime() / 1000)
 }

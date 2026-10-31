@@ -154,6 +154,10 @@ export const shortcutsDialogOpenAtom = atom(false)
 export type ThreadShortcut = { kind: 'delete' | 'forward' | 'reply'; threadId: string }
 export const threadShortcutAtom = atom<null | ThreadShortcut>(null)
 
+/// The way back from the last action that has one, for `z`.
+export type LastUndo = { action: import('@/lib/actions').ActionId; threadId: string }
+export const lastUndoAtom = atom<LastUndo | null>(null)
+
 // websocket connection status
 export type ConnectionStatus = 'connected' | 'connecting' | 'offline'
 export const connectionStatusAtom = atom<ConnectionStatus>('connecting')
