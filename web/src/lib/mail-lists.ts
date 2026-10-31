@@ -1,10 +1,11 @@
+import type { Key } from '@/i18n'
 import type { MailListFilters } from '@/lib/query-keys'
 
 export type MailList = {
   /** What the list says when it has nothing in it. */
-  emptyLabel: string
+  emptyLabel: Key
   /** The chip's text. */
-  label: string
+  label: Key
   /**
    * Whether a row of this list can become the current item.
    *
@@ -73,49 +74,49 @@ export type ThreadListAxes = Pick<
  */
 export const MAIL_LISTS: Record<MailListId, MailList> = {
   archived: {
-    emptyLabel: 'No archived conversations',
-    label: 'Archived',
+    emptyLabel: 'list.archived.empty',
+    label: 'list.archived',
     // Cross-folder: the server drops the folder when this is set, because
     // "archived within Inbox" is not what the tab means.
     selectable: true,
     source: { filters: { archived: true }, kind: 'threads' },
   },
   draft: {
-    emptyLabel: 'No drafts',
-    label: 'Draft',
+    emptyLabel: 'list.draft.empty',
+    label: 'list.draft',
     selectable: false,
     source: { kind: 'drafts' },
   },
   inbox: {
-    emptyLabel: 'All caught up!',
-    label: 'Inbox',
+    emptyLabel: 'list.inbox.empty',
+    label: 'list.inbox',
     selectable: true,
     source: { filters: { folder: 'Inbox' }, kind: 'threads' },
   },
   junk: {
-    emptyLabel: 'No junk mail',
-    label: 'Junk',
+    emptyLabel: 'list.junk.empty',
+    label: 'list.junk',
     selectable: true,
     source: { filters: { folder: 'Junk' }, kind: 'threads' },
   },
   // One label's conversations; which label is `activeLabelAtom`. Not a
   // tab: the labels are the user's own, shown in a row of their own.
   label: {
-    emptyLabel: 'No conversations with this label',
-    label: 'Label',
+    emptyLabel: 'list.label.empty',
+    label: 'list.label',
     selectable: true,
     source: { filters: {}, kind: 'threads' },
   },
   np: {
-    emptyLabel: 'Nothing here',
-    label: 'N & P',
+    emptyLabel: 'list.np.empty',
+    label: 'list.np',
     selectable: true,
     source: { filters: { folder: 'NP' }, kind: 'threads' },
   },
   quarantine: {
     // A real answer, not an apology: nothing is being held.
-    emptyLabel: 'Nothing held. No one is currently trying to defraud you.',
-    label: 'Review',
+    emptyLabel: 'list.quarantine.empty',
+    label: 'list.quarantine',
     selectable: true,
     // Its own endpoint, not a predicate over the ordinary lists —
     // those exclude held conversations by construction, so a filter
@@ -126,28 +127,28 @@ export const MAIL_LISTS: Record<MailListId, MailList> = {
   // going out, so a heading claiming they were sent would be wrong about
   // the rows it is showing.
   send: {
-    emptyLabel: 'Nothing sent yet',
-    label: 'Send',
+    emptyLabel: 'list.send.empty',
+    label: 'list.send',
     selectable: true,
     source: { kind: 'sends' },
   },
   starred: {
-    emptyLabel: 'Nothing starred',
-    label: 'Starred',
+    emptyLabel: 'list.starred.empty',
+    label: 'list.starred',
     selectable: true,
     source: { filters: { folder: 'NonJunk', starred: true }, kind: 'threads' },
   },
   // Cross-folder like Archived: what this reader deleted, from any list,
   // until the server deletes it for good 30 days later.
   trash: {
-    emptyLabel: 'Trash is empty',
-    label: 'Trash',
+    emptyLabel: 'list.trash.empty',
+    label: 'list.trash',
     selectable: true,
     source: { filters: { trashed: true }, kind: 'threads' },
   },
   unread: {
-    emptyLabel: 'All caught up!',
-    label: 'Unread',
+    emptyLabel: 'list.unread.empty',
+    label: 'list.unread',
     selectable: true,
     source: { filters: { folder: 'NonJunk', unread: true }, kind: 'threads' },
   },

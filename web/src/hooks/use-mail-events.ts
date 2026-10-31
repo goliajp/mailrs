@@ -4,6 +4,7 @@ import { useAtomValue, useSetAtom } from 'jotai'
 import { useEffect, useRef } from 'react'
 
 import { useSelectedThreadId } from '@/hooks/use-current-list'
+import { langAtom, translate } from '@/i18n'
 import { announce } from '@/lib/announce'
 import { showNewMailNotice } from '@/lib/new-mail-notice'
 import { playNotificationSound } from '@/lib/notification-sound'
@@ -58,6 +59,9 @@ export function useMailEvents(user: string, onOpen?: (threadId: string) => void)
   const soundEnabled = useAtomValue(notificationSoundAtom)
   const soundRef = useRef(soundEnabled)
   soundRef.current = soundEnabled
+  const lang = useAtomValue(langAtom)
+  const langRef = useRef(lang)
+  langRef.current = lang
 
   const wsRef = useRef<null | WebSocket>(null)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>(null)
@@ -148,7 +152,12 @@ export function useMailEvents(user: string, onOpen?: (threadId: string) => void)
               // isolation. Local `patchConversationCaches` kept until
               // the next Phase pass cleans it up.
               onNewMessage(queryClient, msg)
-              announce(`New mail from ${msg.sender}: ${msg.subject || msg.snippet}`)
+              announce(
+                translate(langRef.current, 'live.newMail', {
+                  sender: msg.sender,
+                  subject: msg.subject || msg.snippet,
+                })
+              )
               queryClient.invalidateQueries({ queryKey: mailKeys.categories([]) }).catch(() => {})
               // also bust the thread the event belongs to, if it's the one
               // we're viewing

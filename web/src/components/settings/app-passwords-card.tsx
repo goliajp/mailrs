@@ -4,6 +4,7 @@ import { toast } from '@goliapkg/gds'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 
+import { useDate, useDateTime, useT } from '@/i18n'
 import { appPasswordsKey, grouped } from '@/lib/app-passwords'
 import { queryClient } from '@/lib/query-client'
 import {
@@ -22,6 +23,7 @@ import { errorText } from './rules-shared'
  * on its own; the account's own password stays for the web.
  */
 export function AppPasswordsCard() {
+  const t = useT()
   const { data } = useQuery({
     queryKey: appPasswordsKey,
     queryFn: ({ signal }) => wireListAppPasswords(signal),
@@ -44,7 +46,7 @@ export function AppPasswordsCard() {
   const revoke = async (id: string) => {
     try {
       await wireRevokeAppPassword(id)
-      toast.success('Revoked')
+      toast.success(t('appPasswords.revoked'))
     } catch (e) {
       toast.error(errorText(e))
     } finally {
@@ -53,11 +55,8 @@ export function AppPasswordsCard() {
   }
   return (
     <div className="space-y-3">
-      <SectionHeader title="App passwords" />
-      <p className="text-fg-muted text-sm">
-        Mail apps sign in with an app password, one per device. Use your full address as the user
-        name.
-      </p>
+      <SectionHeader title={t('appPasswords.title')} />
+      <p className="text-fg-muted text-sm">{t('appPasswords.intro')}</p>
       {made && <MadeNotice made={made} onDone={() => setMade(null)} />}
       {items.length > 0 && (
         <ul className={`${cardClass} divide-border divide-y p-0`}>
@@ -68,15 +67,15 @@ export function AppPasswordsCard() {
       )}
       <div className="flex gap-2">
         <input
-          aria-label="Device name"
+          aria-label={t('appPasswords.deviceName')}
           className={inputClass}
           maxLength={100}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Device, e.g. iPhone Mail"
+          placeholder={t('appPasswords.devicePlaceholder')}
           value={name}
         />
         <button className={btnPrimary} disabled={!name.trim()} onClick={create} type="button">
-          Create
+          {t('appPasswords.create')}
         </button>
       </div>
     </div>
@@ -88,6 +87,7 @@ export function AppPasswordsCard() {
  * working, so revoking them all is offered beside it.
  */
 export function RevokeAllAppPasswords() {
+  const t = useT()
   const { data } = useQuery({
     queryKey: appPasswordsKey,
     queryFn: ({ signal }) => wireListAppPasswords(signal),
@@ -97,7 +97,7 @@ export function RevokeAllAppPasswords() {
   const revokeAll = async () => {
     try {
       const { revoked } = await wireRevokeAllAppPasswords()
-      toast.success(`Revoked ${revoked} app passwords`)
+      toast.success(t('appPasswords.revokedAll', { n: revoked }))
     } catch (e) {
       toast.error(errorText(e))
     } finally {
@@ -106,32 +106,32 @@ export function RevokeAllAppPasswords() {
   }
   return (
     <div className="text-fg-muted flex items-center justify-between gap-3 text-sm">
-      <span>
-        Changing your password leaves your {n} app passwords working. If someone else may know one,
-        revoke them
-      </span>
+      <span>{t('appPasswords.changeNote', { n })}</span>
       <button className={btnSecondary} onClick={revokeAll} type="button">
-        Revoke all app passwords
+        {t('appPasswords.revokeAll')}
       </button>
     </div>
   )
 }
 
 function AppPasswordRow({ item, onRevoke }: { item: WireAppPassword; onRevoke: () => void }) {
-  let used = 'never used'
+  const t = useT()
+  const dateTime = useDateTime()
+  const date = useDate()
+  let used = t('appPasswords.neverUsed')
   if (item.last_used_at !== null) {
-    used = `last used ${new Date(item.last_used_at * 1000).toLocaleString()}`
+    used = t('appPasswords.lastUsed', { when: dateTime(item.last_used_at) })
   }
   return (
     <li className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
       <div className="min-w-0">
         <p className="truncate font-medium">{item.name}</p>
         <p className="text-fg-muted truncate text-xs">
-          made {new Date(item.created_at * 1000).toLocaleDateString()} · {used}
+          {t('appPasswords.made', { when: date(item.created_at) })} · {used}
         </p>
       </div>
       <button className={btnSecondary} onClick={onRevoke} type="button">
-        Revoke
+        {t('appPasswords.revoke')}
       </button>
     </li>
   )
@@ -144,22 +144,21 @@ function MadeNotice({
   made: { name: string; password: string }
   onDone: () => void
 }) {
+  const t = useT()
   const copy = async () => {
     await navigator.clipboard.writeText(made.password)
-    toast.success('Copied')
+    toast.success(t('common.copied'))
   }
   return (
     <div className={`${cardClass} space-y-2`} role="status">
-      <p className="text-sm">
-        App password for <span className="font-medium">{made.name}</span>. It is shown only now
-      </p>
+      <p className="text-sm">{t('appPasswords.shownOnce', { name: made.name })}</p>
       <p className="font-mono text-lg tracking-wider">{grouped(made.password)}</p>
       <div className="flex gap-2">
         <button className={btnSecondary} onClick={copy} type="button">
-          Copy
+          {t('common.copy')}
         </button>
         <button className={btnSecondary} onClick={onDone} type="button">
-          Done
+          {t('common.done')}
         </button>
       </div>
     </div>

@@ -28,6 +28,7 @@ import { sectionForPath } from '@/components/status-bar-model'
 import { useCurrentUnreadCount } from '@/hooks/use-current-mail-filters'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import { useMailEvents } from '@/hooks/use-mail-events'
+import { syncDocumentLang } from '@/i18n'
 import { MPane } from '@/layouts/pane'
 import { http } from '@/lib/http'
 import { dashboardLoader, mailListLoader } from '@/lib/route-loaders'
@@ -59,6 +60,7 @@ const CONTRAST_DARK = { '--gds-fg-muted': '#8d8d98' }
 
 // apply zinc-neutral preset before first render — no effect race conditions
 initMailrsTheme()
+syncDocumentLang()
 
 // v2.1 phase-8: routes expressed as a data-router config
 // (RFC decision #2). `createBrowserRouter` + `<RouterProvider>`

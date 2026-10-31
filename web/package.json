@@ -10,7 +10,7 @@
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "lint": "eslint src/",
-    "check": "bun run gen-types && tsc --noEmit && eslint src/ && prettier --check src/",
+    "check": "bun run gen-types && tsc --noEmit && eslint src/ && prettier --check src/ && bun scripts/check-ui-text.ts",
     "fix": "eslint --fix src/ && prettier --write src/",
     "preview": "vite preview",
     "gen-types": "openapi-typescript public/openapi.json -o src/lib/types.openapi.ts",

@@ -16,6 +16,7 @@ vi.mock('@/wire/endpoints/mutations', () => ({
   wireMarkAllRead: () => Promise.resolve({ flipped: 0 }),
 }))
 
+import { translate } from '@/i18n'
 import { MAIL_LIST_TABS, MAIL_LISTS } from '@/lib/mail-lists'
 import { authAtom } from '@/store/auth'
 
@@ -227,7 +228,7 @@ afterEach(() => {
 
 // helper: open the filter dropdown panel
 function openFilterPanel() {
-  fireEvent.click(screen.getByLabelText('Toggle filters'))
+  fireEvent.click(screen.getByLabelText('Show or hide filters'))
 }
 
 // domain selector tests removed — domains moved to sidebar
@@ -249,8 +250,8 @@ describe('FilterBar — sort', () => {
 
     openFilterPanel()
     expect(screen.getByText('Sort')).toBeDefined()
-    expect(screen.getByText('newest')).toBeDefined()
-    expect(screen.getByText('oldest')).toBeDefined()
+    expect(screen.getByText('Newest')).toBeDefined()
+    expect(screen.getByText('Oldest')).toBeDefined()
     expect(screen.getByText('Unread first')).toBeDefined()
   })
 
@@ -276,7 +277,7 @@ describe('FilterBar — sort', () => {
     )
 
     openFilterPanel()
-    fireEvent.click(screen.getByText('oldest'))
+    fireEvent.click(screen.getByText('Oldest'))
 
     const items = screen.getAllByRole('listitem')
     expect(items[0].textContent).toContain('Older')
@@ -389,8 +390,9 @@ describe('FilterBar — archived tab', () => {
     // what this one is about.
     expect(grid?.children.length).toBe(MAIL_LIST_TABS.length)
     for (const id of MAIL_LIST_TABS) {
-      const tab = screen.getByText(MAIL_LISTS[id].label)
-      expect(tab.className, `${MAIL_LISTS[id].label} does not fill its column`).toContain('w-full')
+      const label = translate('en', MAIL_LISTS[id].label)
+      const tab = screen.getByText(label)
+      expect(tab.className, `${label} does not fill its column`).toContain('w-full')
     }
   })
 
