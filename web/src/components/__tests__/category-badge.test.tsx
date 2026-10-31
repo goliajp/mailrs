@@ -44,8 +44,9 @@ describe('CategoryBadge', () => {
   it('uses fallback styles for unknown category', () => {
     const { container } = render(<CategoryBadge category="unknown" />)
     const span = container.querySelector('span')
-    expect(span?.className).toContain('bg-surface')
-    expect(span?.className).toContain('text-fg-muted')
+    // not the row's own surface colour, which made it unreadable
+    expect(span?.className).toContain('bg-bg-tertiary')
+    expect(span?.className).toContain('text-fg-secondary')
   })
 
   it('renders all known categories without error', () => {
