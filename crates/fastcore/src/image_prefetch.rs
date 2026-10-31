@@ -107,6 +107,29 @@ Content-Type: text/html; charset=utf-8\r\n\
         queue_thread(&junk, "bob@golia.jp", "sale1@shop.example");
         assert_eq!(pending(&junk), ["https://cdn.shop.example/banner.png"]);
 
+        // A message once read is filed under its flags (`:2,S`); the
+        // lookup by the bare name found no file for it, and nothing of the
+        // mail the person had already opened was ever queued.
+        let read = crate::tests::fresh_state();
+        let cur = maildir.path().join("golia.jp/bob/cur");
+        std::fs::create_dir_all(&cur).unwrap();
+        std::fs::write(cur.join("s4.eml:2,S"), HTML_MAIL).unwrap();
+        crate::ingest::ingest_delivered_file(
+            &read,
+            "bob@golia.jp",
+            "s4.eml",
+            HTML_MAIL,
+            "Junk",
+            None,
+        );
+        assert!(pending(&read).is_empty());
+        queue_thread(&read, "bob@golia.jp", "sale1@shop.example");
+        assert_eq!(
+            pending(&read),
+            ["https://cdn.shop.example/banner.png"],
+            "a read message"
+        );
+
         // Each way a person takes a thread out of Junk or Review queues
         // its images: "not junk", "move to inbox" and releasing it from
         // Review. The last two did not, so those threads never showed one.
