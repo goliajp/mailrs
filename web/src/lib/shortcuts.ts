@@ -5,6 +5,10 @@
 /// is one `chordList` actually handles. The sheet used to advertise
 /// `g a` for a "Go to Action" nothing implemented.
 
+import type { ActionId } from '@/lib/actions'
+
+import { ACTIONS } from '@/lib/actions'
+
 export type ShortcutEntry = {
   description: string
   keys: string[]
@@ -36,13 +40,10 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
     shortcuts: [
       { description: 'New conversation', keys: ['c', 'n'] },
       { description: 'Reply', keys: ['r'] },
-      { description: 'Archive / Unarchive', keys: ['e'] },
-      { description: 'Star / Unstar', keys: ['s'] },
-      { description: 'Pin / Unpin', keys: ['p'] },
-      { description: 'Mark unread', keys: ['u'] },
-      { description: 'Mark read + next', keys: ['Shift+I'] },
       { description: 'Forward', keys: ['f'] },
-      { description: 'Delete', keys: ['#'] },
+      ...tableShortcuts(),
+      { description: 'Select for a batch action', keys: ['x'] },
+      { description: 'Undo the last action', keys: ['z'] },
       { description: 'Focus search', keys: ['/'] },
     ],
     title: 'Actions',
@@ -61,3 +62,22 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
     title: 'Go to',
   },
 ]
+
+/// The action table's keys, one line per key: a pair on one key (`e`
+/// archives or puts back) is one line naming both.
+function tableShortcuts(): ShortcutEntry[] {
+  const keyed: ActionId[][] = [
+    ['archive', 'unarchive'],
+    ['star', 'unstar'],
+    ['pin', 'unpin'],
+    ['snooze', 'unsnooze'],
+    ['mark-junk'],
+    ['unread'],
+    ['read'],
+    ['delete'],
+  ]
+  return keyed.map((ids) => ({
+    description: ids.map((id) => ACTIONS[id].label).join(' / '),
+    keys: ACTIONS[ids[0] as ActionId].keys,
+  }))
+}
