@@ -31,8 +31,8 @@ export function LabelPicker() {
   }
   if (!open) return null
   return (
-    <MobileModal className="max-w-sm" onClose={close} open>
-      <div className="p-4">
+    <MobileModal onClose={close} open>
+      <div className="bg-surface border-border mx-4 w-full max-w-sm rounded-xl border p-4 shadow-xl">
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-fg text-sm font-semibold">{title(managing)}</h3>
           <button
