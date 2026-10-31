@@ -37,7 +37,11 @@ pub(super) fn spawn_spool_drain(
         })));
         // DSNs from the sender and simulated replies for local senders are
         // handed over on the network kevy; this core delivers them
-        mailrs_intake::notice::spawn_drain(core.clone(), url);
+        mailrs_intake::notice::spawn_drain(core.clone(), url.clone());
+        // remote images of arriving mail, queued on the network kevy
+        mailrs_intake::image_prefetch::spawn(Arc::new(
+            mailrs_intake::image_prefetch::NetworkQueue { url },
+        ));
     }
     crate::intake::spawn_drain(
         core,

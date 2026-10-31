@@ -13,7 +13,7 @@ use crate::handlers::kevy_util::with_kevy;
 pub async fn list_agent_keys(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let key = format!("agent:keys:{user}");
+    let key = mailrs_core_sidestate::keys::credentials::agent_keys_key(&user);
     let vals = with_kevy(move |c| hgetall_values(c, &key))?;
     let items: Vec<serde_json::Value> = vals
         .into_iter()
@@ -60,7 +60,10 @@ pub(crate) fn mint_agent_key(
     name: &str,
     scopes: &[String],
 ) -> std::io::Result<(i64, String)> {
-    let id = next_id(c, &format!("agent:keys:counter:{user}"))?;
+    let id = next_id(
+        c,
+        &mailrs_core_sidestate::keys::credentials::agent_keys_counter_key(user),
+    )?;
     let secret = format!("mk_{}", random_hex(24));
     let record = serde_json::json!({
         "id": id,
@@ -71,7 +74,7 @@ pub(crate) fn mint_agent_key(
     });
     let index = serde_json::json!({ "user": user, "id": id });
     c.hset(
-        format!("agent:keys:{user}").as_bytes(),
+        mailrs_core_sidestate::keys::credentials::agent_keys_key(user).as_bytes(),
         &[(id.to_string().as_bytes(), record.to_string().as_bytes())],
     )?;
     c.set(
@@ -106,7 +109,7 @@ pub(crate) fn revoke_agent_key(
     user: &str,
     id: i64,
 ) -> std::io::Result<Option<Vec<u8>>> {
-    let key = format!("agent:keys:{user}");
+    let key = mailrs_core_sidestate::keys::credentials::agent_keys_key(user);
     let field = id.to_string();
     let record = c.hget(key.as_bytes(), field.as_bytes())?;
     c.hdel(key.as_bytes(), &[field.as_bytes()])?;

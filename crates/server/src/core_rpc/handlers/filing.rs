@@ -60,6 +60,14 @@ async fn file(
         .thread_raw_messages(user, thread_id, &state.maildir_root)
         .await
         .map_err(fail)?;
+    // a thread filed into the Inbox may come from Junk, where its images
+    // were not fetched
+    if matches!(bucket, Bucket::Inbox)
+        && let Some(url) = state.net_url.clone()
+    {
+        let q = mailrs_intake::image_prefetch::NetworkQueue { url };
+        mailrs_intake::image_prefetch::queue_thread(&q, user, thread_id, &raws);
+    }
     if let Some(mut conn) = state.net_conn() {
         match lesson {
             Lesson::Spam => mailrs_triage::spam::train(&mut conn, thread_id, &raws, true),

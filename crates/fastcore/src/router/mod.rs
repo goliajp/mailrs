@@ -104,6 +104,17 @@ pub fn build_router_with_secret(state: Arc<FastcoreState>, secret: String) -> Ro
         )
         .route(adm::PATH_SET_ACCOUNT_PASSWORD, post(set_password_route))
         .route(adm::PATH_CLEAR_ACCOUNT_PASSWORD, post(clear_password_route))
+        // the operator's clearing, on the host only: see password_clear
+        .route(
+            adm::PATH_OPERATOR_PASSWORD_CLEAR,
+            post(mailrs_core_sidestate::families::password_clear::operator_clear::<FastcoreState>),
+        )
+        .route(
+            adm::PATH_OPERATOR_PASSWORD_CLEAR_PREVIEW,
+            post(
+                mailrs_core_sidestate::families::password_clear::operator_preview::<FastcoreState>,
+            ),
+        )
         .route(adm::PATH_SET_MESSAGE_FLAGS, post(set_message_flags_route))
         // Ops endpoint — reset every user's ingest cursor to 0 so the
         // next sync tick re-processes historic threads and (via the

@@ -16,7 +16,7 @@ use kevy_client::Connection;
 pub(crate) const RESOLUTION_SECS: i64 = 3600;
 
 pub(crate) fn hash_key(owner: &str) -> String {
-    format!("agent:keys:last_used:{owner}")
+    mailrs_core_sidestate::keys::credentials::agent_keys_last_used_key(owner)
 }
 
 /// When this process last wrote each key, so a busy key costs a write an

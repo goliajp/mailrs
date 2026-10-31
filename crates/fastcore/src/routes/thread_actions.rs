@@ -332,6 +332,8 @@ pub(crate) async fn move_to_inbox(
         .unwrap_or(false);
     if ok {
         crate::bayes_train::train_triage(&state, &user, &thread_id, "inbox");
+        // a thread moved out of Junk this way had no images fetched
+        crate::image_prefetch::queue_thread(&state, &user, &thread_id);
     }
     member_result(ok)
 }

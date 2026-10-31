@@ -54,12 +54,15 @@ async fn a_code_from_an_issuer_sets_a_new_password() {
     // a recovery link mailed before the clearing, to be found dead after it
     let mut kevy = kevy_client::Connection::connect(KEVY).expect("kevy");
     kevy.hset(
-        b"pwreset:old-link",
+        mailrs_core_sidestate::keys::credentials::pwreset_key("old-link").as_bytes(),
         &[(b"address" as &[u8], ALICE.as_bytes())],
     )
     .unwrap();
-    kevy.set(format!("pwreset_by_addr:{ALICE}").as_bytes(), b"old-link")
-        .unwrap();
+    kevy.set(
+        mailrs_core_sidestate::keys::credentials::pwreset_by_addr_key(ALICE).as_bytes(),
+        b"old-link",
+    )
+    .unwrap();
     live.core
         .clear_account_password(
             ALICE,
