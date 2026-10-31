@@ -44,13 +44,25 @@ pub async fn get_image(
 /// POST /api/conversations/{thread_id}/images — fetch the thread's remote
 /// images now, for mail that arrived before images were fetched on
 /// arrival; the page asks again for the ones it could not load. 409 for a
-/// thread in Junk or held, whose images are never fetched.
+/// thread in Junk or held, unless `?anyway=true`.
+/// `?anyway=true`: the reader asked for a thread in Junk or held all the same.
+#[derive(serde::Deserialize, Default)]
+pub struct Anyway {
+    #[serde(default)]
+    anyway: bool,
+}
+
 pub async fn prefetch_thread(
     axum::extract::State(state): axum::extract::State<std::sync::Arc<crate::WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Path(thread_id): Path<String>,
+    axum::extract::Query(q): axum::extract::Query<Anyway>,
 ) -> Response {
-    match state.core.prefetch_thread_images(&user, &thread_id).await {
+    match state
+        .core
+        .prefetch_thread_images(&user, &thread_id, q.anyway)
+        .await
+    {
         Ok(_) => StatusCode::NO_CONTENT.into_response(),
         Err(mailrs_core_api::error::CoreApiError::Conflict(_)) => (
             StatusCode::CONFLICT,
