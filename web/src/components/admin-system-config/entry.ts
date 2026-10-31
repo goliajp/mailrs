@@ -1,3 +1,5 @@
+import type { Key } from '@/i18n'
+
 // Backend: crates/webapi/src/handlers/system_config.rs — fn get_system_config
 export type ConfigEntry = {
   default_value: null | string
@@ -18,7 +20,7 @@ export type ConfigEntry = {
 }
 
 /** "Reset to default" for a setting with a default; "Remove" for a key nothing reads. */
-export function resetVerb(entry: ConfigEntry): string {
-  if (entry.editable) return 'Reset to default'
-  return 'Remove'
+export function resetVerb(entry: ConfigEntry): Key {
+  if (entry.editable) return 'admin.config.resetToDefault'
+  return 'admin.remove'
 }

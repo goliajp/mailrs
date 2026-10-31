@@ -118,7 +118,7 @@ src/pages/admin-queues.tsx 1
 src/pages/admin-screening-forms.tsx 25
 src/pages/admin-screening.tsx 6
 src/pages/admin-sign-ins.tsx 1
-src/pages/admin-system-config.tsx 3
+src/pages/admin-system-config.tsx 1
 src/pages/chat.tsx 3
 src/pages/dashboard.tsx 16
 src/pages/login.tsx 5
