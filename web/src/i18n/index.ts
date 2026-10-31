@@ -71,6 +71,23 @@ export function translate(lang: Lang, key: Key, vars?: Record<string, number | s
   })
 }
 
+const LOCALE: Record<Lang, string> = { en: 'en-US', ja: 'ja-JP', zh: 'zh-CN' }
+
+/** Unix seconds as a date, in the current language. */
+export function useDate() {
+  const lang = useAtomValue(langAtom)
+  return useCallback(
+    (unix: number) => new Date(unix * 1000).toLocaleDateString(LOCALE[lang]),
+    [lang]
+  )
+}
+
+/** Unix seconds as a date and time, in the current language. */
+export function useDateTime() {
+  const lang = useAtomValue(langAtom)
+  return useCallback((unix: number) => new Date(unix * 1000).toLocaleString(LOCALE[lang]), [lang])
+}
+
 /** `t` for the current language. */
 export function useT() {
   const lang = useAtomValue(langAtom)

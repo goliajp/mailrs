@@ -3,6 +3,7 @@ import type { WireSession } from '@/wire/schemas/sessions'
 import { toast } from '@goliapkg/gds'
 import { useQuery } from '@tanstack/react-query'
 
+import { useDateTime, useT } from '@/i18n'
 import { queryClient } from '@/lib/query-client'
 import { device } from '@/lib/user-agent'
 import { wireEndOtherSessions, wireEndSession, wireListSessions } from '@/wire/endpoints/sessions'
@@ -17,6 +18,7 @@ const sessionsKey = ['settings', 'sessions'] as const
  * be signed out here; the reader is also mailed when a new device signs in.
  */
 export function SessionsCard() {
+  const t = useT()
   const { data } = useQuery({
     queryKey: sessionsKey,
     queryFn: ({ signal }) => wireListSessions(signal),
@@ -26,7 +28,7 @@ export function SessionsCard() {
   const end = async (id: string) => {
     try {
       await wireEndSession(id)
-      toast.success('Signed out')
+      toast.success(t('sessions.signedOut'))
     } catch (e) {
       toast.error(errorText(e))
     } finally {
@@ -36,7 +38,7 @@ export function SessionsCard() {
   const endOthers = async () => {
     try {
       const { ended } = await wireEndOtherSessions()
-      toast.success(`Signed out ${ended} other sessions`)
+      toast.success(t('sessions.signedOutOthers', { n: ended }))
     } catch (e) {
       toast.error(errorText(e))
     } finally {
@@ -45,7 +47,7 @@ export function SessionsCard() {
   }
   return (
     <div className="space-y-3">
-      <SectionHeader title="Signed-in sessions" />
+      <SectionHeader title={t('sessions.title')} />
       <ul className={`${cardClass} divide-border divide-y p-0`}>
         {sessions.map((s) => (
           <SessionRow key={s.id} onEnd={() => end(s.id)} session={s} />
@@ -53,7 +55,7 @@ export function SessionsCard() {
       </ul>
       {sessions.length > 1 && (
         <button className={btnSecondary} onClick={endOthers} type="button">
-          Sign out of all other sessions
+          {t('sessions.signOutOthers')}
         </button>
       )}
     </div>
@@ -61,21 +63,27 @@ export function SessionsCard() {
 }
 
 function SessionRow({ onEnd, session }: { onEnd: () => void; session: WireSession }) {
+  const t = useT()
+  const dateTime = useDateTime()
   return (
     <li className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
       <div className="min-w-0">
         <p className="truncate font-medium">
           {device(session.user_agent)}
-          {session.current && <span className="text-success ml-2 text-xs">This device</span>}
+          {session.current && (
+            <span className="text-success ml-2 text-xs">{t('sessions.thisDevice')}</span>
+          )}
         </p>
         <p className="text-fg-muted truncate text-xs">
-          {session.ip || 'Unknown address'} · last used{' '}
-          {new Date(session.last_seen * 1000).toLocaleString()}
+          {t('sessions.where', {
+            ip: session.ip || t('sessions.unknownAddress'),
+            when: dateTime(session.last_seen),
+          })}
         </p>
       </div>
       {!session.current && (
         <button className={btnSecondary} onClick={onEnd} type="button">
-          Sign out
+          {t('sessions.signOut')}
         </button>
       )}
     </li>
