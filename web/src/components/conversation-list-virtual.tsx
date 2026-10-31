@@ -197,7 +197,7 @@ export function VirtualConversationList({
         role="list"
       >
         <div
-          aria-label="Loading conversations"
+          aria-label={t('list.loading')}
           className="border-border border-t-accent h-8 w-8 animate-spin rounded-full border-2"
         />
       </div>
@@ -215,14 +215,16 @@ export function VirtualConversationList({
       >
         <div className="flex flex-col items-center justify-center p-8 text-center" role="alert">
           <CloudOff aria-hidden="true" className="text-danger mb-3 h-10 w-10" strokeWidth={1} />
-          <p className="text-sm font-medium">Could not load your mail</p>
-          <p className="text-fg-muted mt-1 text-xs">{listErrorMessage(error)}</p>
+          <p className="text-sm font-medium">{t('list.loadFailed')}</p>
+          <p className="text-fg-muted mt-1 text-xs">
+            {listErrorMessage(error, t('list.noAnswer'))}
+          </p>
           <button
             className="border-border hover:bg-bg-secondary focus-visible:ring-accent/50 mt-3 rounded-md border px-3 py-1.5 text-xs transition-colors focus-visible:ring-2 focus-visible:outline-none"
             onClick={() => void onRefresh?.()}
             type="button"
           >
-            Try again
+            {t('common.tryAgain')}
           </button>
         </div>
       </div>
@@ -240,7 +242,7 @@ export function VirtualConversationList({
         <div className="text-fg-muted flex flex-col items-center justify-center p-8 text-center">
           <Mail aria-hidden="true" className="text-fg-muted mb-3 h-10 w-10" strokeWidth={1} />
           <p className="text-sm font-medium">{t(emptyLabel(isSearching, activeList))}</p>
-          {hint && <p className="mt-1 text-xs">{hint}</p>}
+          {hint && <p className="mt-1 text-xs">{t(hint)}</p>}
         </div>
       </div>
     )
@@ -248,7 +250,7 @@ export function VirtualConversationList({
 
   return (
     <div
-      aria-label="Conversations"
+      aria-label={t('list.conversations')}
       className={`flex-1 overflow-y-auto ${hasBatchBar ? 'pb-14' : ''}`}
       onTouchEnd={handlePullEnd}
       onTouchMove={handlePullMove}
@@ -338,7 +340,7 @@ export function VirtualConversationList({
                 </div>
               )}
               {item.type === 'end' && (
-                <div className="text-fg-muted py-3 text-center text-xs">No more conversations</div>
+                <div className="text-fg-muted py-3 text-center text-xs">{t('list.end')}</div>
               )}
             </div>
           )
@@ -362,8 +364,8 @@ export function VirtualConversationList({
 /// It used to be a ternary that rendered an empty string when not
 /// searching — a `<p>` that was always mounted, always invisible, and
 /// always contributing its top margin.
-function emptyHint(isSearching: boolean): null | string {
-  if (isSearching) return 'Try a different search term'
+function emptyHint(isSearching: boolean): Key | null {
+  if (isSearching) return 'list.search.hint'
   return null
 }
 
@@ -382,7 +384,7 @@ function emptyLabel(isSearching: boolean, list: MailListId): Key {
 }
 
 /// What went wrong, in a sentence, without leaking an object.
-function listErrorMessage(error: unknown): string {
+function listErrorMessage(error: unknown, noAnswer: string): string {
   if (error instanceof Error && error.message.length > 0) return error.message
-  return 'The server did not answer.'
+  return noAnswer
 }
