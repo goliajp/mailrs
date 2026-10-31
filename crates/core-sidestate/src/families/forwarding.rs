@@ -18,7 +18,7 @@ pub const CODE_TTL_SECS: i64 = 24 * 3600;
 /// Wrong codes before the pending address is dropped.
 pub const ATTEMPTS_MAX: u32 = 5;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Forwarding {
     /// Where mail goes, once verified; empty when off.
     #[serde(default)]
@@ -43,6 +43,23 @@ pub struct Forwarding {
 
 fn yes() -> bool {
     true
+}
+
+/// Off, and set to keep a copy when it is turned on, as a stored one with
+/// no `keep_copy` reads.
+impl Default for Forwarding {
+    fn default() -> Self {
+        Self {
+            address: String::new(),
+            keep_copy: true,
+            verified_at: 0,
+            pending_address: String::new(),
+            pending_keep_copy: true,
+            code_hash: String::new(),
+            code_expires_at: 0,
+            attempts: 0,
+        }
+    }
 }
 
 impl Forwarding {
@@ -230,6 +247,13 @@ mod tests {
             verify(&mut c, "u@x.test", &code, 2).unwrap(),
             Verified::Nothing
         );
+    }
+
+    #[test]
+    fn never_set_reads_as_off_keeping_a_copy() {
+        let mut c = kevy_client::Connection::connect("mem://forwarding-default").unwrap();
+        let f = get(&mut c, "u@x.test").unwrap();
+        assert_eq!((f.target(), f.keep_copy), (None, true));
     }
 
     #[test]
