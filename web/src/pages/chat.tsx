@@ -182,5 +182,6 @@ function listFromParams(params: URLSearchParams): MailListId | null {
   if (folder === 'Junk') return 'junk'
   if (folder === 'NP') return 'np'
   if (folder === 'Inbox') return 'inbox'
+  if (folder === 'Trash') return 'trash'
   return null
 }

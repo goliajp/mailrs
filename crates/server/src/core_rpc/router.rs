@@ -81,6 +81,9 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
         .route(th_paths::PATH_UNPIN, post(handlers::thread::unpin))
         .route(th_paths::PATH_ARCHIVE, post(handlers::thread::archive))
         .route(th_paths::PATH_UNARCHIVE, post(handlers::thread::unarchive))
+        .route(th_paths::PATH_TRASH, post(handlers::trash::trash))
+        .route(th_paths::PATH_UNTRASH, post(handlers::trash::untrash))
+        .route(th_paths::PATH_EMPTY_TRASH, post(handlers::trash::empty))
         .route(th_paths::PATH_SNOOZE, put(handlers::thread::snooze))
         .route(th_paths::PATH_UNSNOOZE, delete(handlers::thread::unsnooze))
         .route(

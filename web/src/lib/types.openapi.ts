@@ -557,8 +557,59 @@ export interface paths {
         get: operations["getThreadMessages"];
         put?: never;
         post?: never;
-        /** Delete an entire conversation thread */
+        /** Move a conversation thread to the Trash; restore it with untrash, delete it for good with forever */
         delete: operations["deleteThread"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/conversations/{thread_id}/untrash": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore a conversation thread from the Trash */
+        post: operations["untrashThread"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/conversations/{thread_id}/forever": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a conversation thread for good; needs a recent password confirmation */
+        delete: operations["deleteThreadForever"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trash/empty": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Delete everything in the Trash for good; needs a recent password confirmation */
+        post: operations["emptyTrash"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -6549,6 +6600,8 @@ export interface operations {
                 domains?: string;
                 /** @description If true, show archived conversations */
                 archived?: boolean;
+                /** @description List the Trash instead; archived and folder are ignored */
+                trashed?: boolean;
                 /** @description Filter by folder name */
                 folder?: string;
                 /** @description Show conversations held as suspected fraud in place, marked. Default false; the exclusion lives in the query shape, so held conversations are out of the totals too. */
@@ -6704,8 +6757,84 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description Moved to the Trash; empty body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    untrashThread: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                thread_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Done; empty body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteThreadForever: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                thread_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
             /** @description Deleted; empty body */
             204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No recent password confirmation (confirm_required) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    emptyTrash: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description How many conversations were deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        deleted: number;
+                    };
+                };
+            };
+            /** @description No recent password confirmation (confirm_required) */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

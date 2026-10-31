@@ -37,6 +37,7 @@ const FIXTURES = join(import.meta.dirname, '..', '..', '..', '..', 'wire-contrac
  * nothing.
  */
 const UNCOVERED: Record<string, string> = {
+  wireEmptyTrash: 'sends an empty object; nothing to get wrong',
   wireLogout: 'sends an empty object; nothing to get wrong',
   wireMarkAllRead: 'sends an empty object; nothing to get wrong',
   wireSendMailJson: 'covered by send.json; the multipart path is not',

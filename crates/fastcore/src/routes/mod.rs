@@ -21,6 +21,7 @@ mod reads;
 mod search;
 pub(crate) mod thread_actions;
 mod thread_park;
+pub(crate) mod trash;
 
 pub(crate) use account::*;
 pub(crate) use account_delete::*;

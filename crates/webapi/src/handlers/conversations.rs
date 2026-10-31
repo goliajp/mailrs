@@ -49,6 +49,10 @@ pub struct ListQuery {
     /// question asked on every request.
     #[serde(default)]
     pub include_quarantined: bool,
+    /// The Trash instead of the lists; `archived` and `folder` are then
+    /// ignored, since the Trash holds conversations from all of them.
+    #[serde(default)]
+    pub trashed: bool,
     pub unread: Option<bool>,
     pub starred: Option<bool>,
     pub section: Option<String>,
@@ -191,6 +195,8 @@ pub struct ConversationResponse {
     pub sent_count: u32,
     /// Which connected mailbox this arrived at, empty for our own.
     pub account_id: String,
+    /// Epoch seconds this reader moved it to the Trash, or 0.
+    pub trashed_at: i64,
 }
 
 impl From<mailrs_core_api::types::ConversationSummaryWire> for ConversationResponse {
@@ -221,6 +227,7 @@ impl From<mailrs_core_api::types::ConversationSummaryWire> for ConversationRespo
             // decode fix (fastcore lib.rs) still hold =?..?= runes
             received_count,
             sent_count: w.sent_count,
+            trashed_at: w.trashed_at,
         }
     }
 }
@@ -238,6 +245,7 @@ pub async fn get_conversations(
             category: q.category,
             domains: None,
             archived: q.archived,
+            trashed: q.trashed,
             include_quarantined: q.include_quarantined,
             folder: q.folder,
             unread: q.unread,

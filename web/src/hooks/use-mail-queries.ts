@@ -58,6 +58,7 @@ export function useConversationsQuery(filters: MailListFilters, enabled: boolean
       // cache and never refetches — search silently shows the inbox.
       query: filters.query,
       starred: filters.starred,
+      trashed: filters.trashed,
       unread: filters.unread,
     }),
     getNextPageParam: (lastPage) => {
@@ -205,6 +206,7 @@ function listPath(filters: MailListFilters, before?: number): string {
   }
   let p = `/conversations?limit=${PAGE_SIZE}`
   if (before) p += `&before=${before}`
+  if (filters.trashed) p += '&trashed=true'
   if (filters.category) p += `&category=${encodeURIComponent(filters.category)}`
   if (filters.domains && filters.domains.length > 0) {
     p += `&domains=${encodeURIComponent(filters.domains.join(','))}`

@@ -14,7 +14,7 @@ use super::*;
 ///
 /// Each is written by its own mutator against the membership row.
 /// `thread_user_pairs` leaves them alone; a fresh row gets them at zero.
-pub(crate) const PER_USER_FLAGS: [&str; 7] = [
+pub(crate) const PER_USER_FLAGS: [&str; 9] = [
     "starred",
     "archived",
     // A finding about this reader's mail, so it is theirs and not the
@@ -35,6 +35,10 @@ pub(crate) const PER_USER_FLAGS: [&str; 7] = [
     // carry the field at all, so a row without it would vanish from
     // the inbox rather than stay in it.
     "snoozed_until",
+    // In every ORDERPATH prefix after `quarantined`, so planted at zero
+    // for the same reason; `trashed_at` beside it is when, for the purge.
+    "trashed",
+    "trashed_at",
 ];
 
 /// `1` / `0` as the stored bytes for a boolean column. i64-typed in the

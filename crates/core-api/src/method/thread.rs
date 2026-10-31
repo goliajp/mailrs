@@ -31,6 +31,14 @@ pub const PATH_PIN: &str = "/v1/users/{user}/threads/{thread_id}/pin";
 pub const PATH_UNPIN: &str = "/v1/users/{user}/threads/{thread_id}/unpin";
 pub const PATH_ARCHIVE: &str = "/v1/users/{user}/threads/{thread_id}/archive";
 pub const PATH_UNARCHIVE: &str = "/v1/users/{user}/threads/{thread_id}/unarchive";
+/// Move a conversation to this reader's Trash: out of every other list,
+/// kept until restored, deleted for good, or 30 days pass.
+pub const PATH_TRASH: &str = "/v1/users/{user}/threads/{thread_id}/trash";
+/// Take it back out of the Trash, to the list it left.
+pub const PATH_UNTRASH: &str = "/v1/users/{user}/threads/{thread_id}/untrash";
+/// Delete every conversation in this reader's Trash for good.
+/// Answers `{"affected": n}`.
+pub const PATH_EMPTY_TRASH: &str = "/v1/users/{user}/trash:empty";
 /// The review list: what this reader is holding as suspected fraud,
 /// newest first.
 ///

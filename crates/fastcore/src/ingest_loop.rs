@@ -120,6 +120,7 @@ pub(crate) async fn run_ingest_once(
                 category: None,
                 domains: None,
                 archived: false,
+                trashed: false,
                 include_quarantined: false,
                 folder: None,
                 unread: None,
@@ -222,6 +223,7 @@ pub(crate) async fn run_ingest_once(
                 // reset it on the next message. `thread_user_pairs`
                 // omits it for the same reason it omits `starred`.
                 snoozed_until: 0,
+                trashed_at: 0,
             };
             if let Err(e) = state.mailbox.upsert_thread(user, &row) {
                 tracing::warn!(error = %e, %user, tid = %s.thread_id, "upsert_thread failed");

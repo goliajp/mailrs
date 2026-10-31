@@ -64,6 +64,7 @@ export async function fetchConversationList(
   if (canonical.category) params.set('category', canonical.category)
   if (canonical.domains.length > 0) params.set('domains', canonical.domains.join(','))
   if (canonical.archived) params.set('archived', '1')
+  if (canonical.trashed) params.set('trashed', '1')
   if (canonical.includeQuarantined) params.set('include_quarantined', '1')
   if (canonical.unread === true) params.set('unread', '1')
   if (canonical.starred === true) params.set('starred', '1')

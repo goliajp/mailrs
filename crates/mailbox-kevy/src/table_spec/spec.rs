@@ -94,10 +94,12 @@ fn stored_values() -> Vec<Vec<u8>> {
         "starred",
         "archived",
         "quarantined",
+        "trashed",
         "pinned",
         "unread",
         "has_action",
         "snoozed_until",
+        "trashed_at",
         // Stored beside every index as well as keyed by its own, so
         // "Starred, and only this mailbox" is one walk. Without it
         // here, the account could be keyed on but never filtered on,
@@ -138,6 +140,11 @@ fn columns() -> Vec<(Vec<u8>, ValType)> {
         // reports sent on 2026-08-27 — so it is hidden, never
         // dropped.
         col("quarantined", ValType::I64),
+        // 1 while the reader has it in the Trash: out of every other
+        // list, the Trash's own list keys on it, and the files are
+        // removed when the purge reaches `trashed_at` plus 30 days.
+        col("trashed", ValType::I64),
+        col("trashed_at", ValType::I64),
         col("pinned", ValType::I64),
         col("unread", ValType::I64),
         col("has_action", ValType::I64),
@@ -156,6 +163,8 @@ fn indexes() -> Vec<TableIndex> {
     [
         "starred",
         "archived",
+        // the Trash list keys on it, like Archived
+        "trashed",
         "pinned",
         "unread",
         "has_action",
@@ -168,6 +177,9 @@ fn indexes() -> Vec<TableIndex> {
         // due — which is what makes waking cost nothing on the
         // calls where nothing has to happen.
         "snoozed_until",
+        // Keyed on when a thread went to the Trash, the same way: the
+        // purge asks for `[1, cutoff]`, empty until something is due.
+        "trashed_at",
         // Which connected mailbox the conversation arrived at.
         // Keyed like the flags rather than folded into an
         // ORDERPATH: "only these accounts" is N walks on this
@@ -195,6 +207,7 @@ fn orderpaths() -> Vec<OrderPath> {
                 ("bucket", false),
                 ("archived", false),
                 ("quarantined", false),
+                ("trashed", false),
                 ("activity", true),
                 ("ord", false),
             ],
@@ -214,6 +227,7 @@ fn orderpaths() -> Vec<OrderPath> {
                 ("sent_only", false),
                 ("archived", false),
                 ("quarantined", false),
+                ("trashed", false),
                 ("activity", true),
                 ("ord", false),
             ],
@@ -226,6 +240,7 @@ fn orderpaths() -> Vec<OrderPath> {
                 ("user", false),
                 ("archived", false),
                 ("quarantined", false),
+                ("trashed", false),
                 ("activity", true),
                 ("ord", false),
             ],
@@ -240,6 +255,7 @@ fn orderpaths() -> Vec<OrderPath> {
             &[
                 ("user", false),
                 ("quarantined", false),
+                ("trashed", false),
                 ("activity", true),
                 ("ord", false),
             ],
@@ -251,6 +267,7 @@ fn orderpaths() -> Vec<OrderPath> {
                 ("category", false),
                 ("archived", false),
                 ("quarantined", false),
+                ("trashed", false),
                 ("activity", true),
                 ("ord", false),
             ],

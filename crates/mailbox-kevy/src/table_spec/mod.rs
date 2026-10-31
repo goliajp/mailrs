@@ -242,6 +242,7 @@ mod table_spec_tests {
             sent_count: 0,
             starred: false,
             snoozed_until: 0,
+            trashed_at: 0,
         };
         // The union of the two writers: the derived fields, plus the
         // per-user flags a fresh row is planted with. They are apart on

@@ -81,7 +81,19 @@ pub(super) fn conversation_routes() -> axum::Router<Arc<WebState>> {
         .route("/api/mail/sent", get(c::list_sent_messages))
         .route(
             "/api/conversations/{thread_id}",
-            get(c::get_thread_messages).delete(c::delete_thread),
+            get(c::get_thread_messages).delete(crate::handlers::trash::trash_thread),
+        )
+        .route(
+            "/api/conversations/{thread_id}/untrash",
+            post(crate::handlers::trash::untrash_thread),
+        )
+        .route(
+            "/api/conversations/{thread_id}/forever",
+            axum::routing::delete(crate::handlers::trash::delete_forever),
+        )
+        .route(
+            "/api/trash/empty",
+            post(crate::handlers::trash::empty_trash),
         )
 }
 

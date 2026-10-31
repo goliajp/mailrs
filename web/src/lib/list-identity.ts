@@ -21,6 +21,7 @@ export function listIdentity(f: MailListFilters | null): string {
     f.starred,
     f.unread,
     f.archived,
+    f.trashed,
     f.query,
     f.domains,
   ])

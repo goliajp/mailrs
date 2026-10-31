@@ -9,7 +9,7 @@ import {
   actionForKey,
   type ActionId,
   ACTIONS,
-  BATCH_ACTIONS,
+  batchActions,
   rowActions,
   type RowState,
 } from '@/lib/actions'
@@ -46,6 +46,7 @@ describe('the action table', () => {
       ['pin', 'unpin'],
       ['read', 'unread'],
       ['snooze', 'unsnooze'],
+      ['trash', 'untrash'],
     ] as [ActionId, ActionId][]) {
       expect(ACTIONS[a].undo).toBe(b)
       expect(ACTIONS[b].undo).toBe(a)
@@ -65,11 +66,27 @@ describe('the action table', () => {
       }
       expect(actionForKey('e', s)).toBe(s.archived ? 'unarchive' : 'archive')
       expect(actionForKey('s', s)).toBe(s.flagged ? 'unstar' : 'star')
+      expect(actionForKey('#', s)).toBe('trash')
     }
   })
 
+  it('moves to the Trash without asking, and deletes for good only from it, asking', () => {
+    expect(ACTIONS.trash.confirm).toBe(false)
+    expect(ACTIONS['delete-forever'].confirm).toBe(true)
+    for (const s of states()) {
+      expect(rowActions(s)).not.toContain('delete-forever')
+      const inTrash = rowActions({ ...s, view: 'trash' })
+      expect(inTrash).toContain('untrash')
+      expect(inTrash).not.toContain('trash')
+      expect(actionForKey('#', { ...s, view: 'trash' })).toBe('delete-forever')
+    }
+    expect(batchActions('trash')).toContain('untrash')
+    expect(batchActions('trash')).not.toContain('trash')
+  })
+
   it('lets the batch bar offer only what works in a batch', () => {
-    for (const id of BATCH_ACTIONS) expect(ACTIONS[id].batch, id).toBe(true)
+    for (const view of ['junk', 'np', 'other', 'trash'] as const)
+      for (const id of batchActions(view)) expect(ACTIONS[id].batch, id).toBe(true)
   })
 
   it('advertises in the shortcuts sheet every key the table has', () => {

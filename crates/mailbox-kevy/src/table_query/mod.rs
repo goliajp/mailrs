@@ -50,9 +50,9 @@ pub enum ArchiveScope {
 impl ArchiveScope {
     /// The equality predicates this scope contributes, in prefix order.
     ///
-    /// Two, since 2026-08-28: `archived` and then `quarantined`. They
-    /// sit next to each other in every ORDERPATH prefix and are the
-    /// same kind of thing — a row this reader has taken out of the
+    /// Three: `archived`, `quarantined` (since 2026-08-28) and `trashed`
+    /// (since 2026-10-31). They sit next to each other in every ORDERPATH
+    /// prefix and are the same kind of thing — a row this reader has taken out of the
     /// ordinary lists, one by choice and one by a finding — so one
     /// scope decides both rather than two that have to agree.
     fn eqs(self) -> Vec<(Vec<u8>, Vec<u8>)> {
@@ -60,10 +60,12 @@ impl ArchiveScope {
             Self::Live => vec![
                 (b"archived".to_vec(), b"0".to_vec()),
                 (b"quarantined".to_vec(), b"0".to_vec()),
+                (b"trashed".to_vec(), b"0".to_vec()),
             ],
             Self::Held => vec![
                 (b"archived".to_vec(), b"0".to_vec()),
                 (b"quarantined".to_vec(), b"1".to_vec()),
+                (b"trashed".to_vec(), b"0".to_vec()),
             ],
             Self::All => vec![],
         }
@@ -82,7 +84,7 @@ impl ArchiveScope {
             Self::Live | Self::Held => Ok(()),
             Self::All => Err(io::Error::other(format!(
                 "{what}: ArchiveScope::All cannot take a cursor — the ORDERPATH \
-                 keys on `archived` and `quarantined` ahead of `activity`"
+                 keys on `archived`, `quarantined` and `trashed` ahead of `activity`"
             ))),
         }
     }

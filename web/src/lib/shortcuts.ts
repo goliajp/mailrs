@@ -74,7 +74,7 @@ function tableShortcuts(): ShortcutEntry[] {
     ['mark-junk'],
     ['unread'],
     ['read'],
-    ['delete'],
+    ['trash', 'delete-forever'],
   ]
   return keyed.map((ids) => ({
     description: ids.map((id) => ACTIONS[id].label).join(' / '),

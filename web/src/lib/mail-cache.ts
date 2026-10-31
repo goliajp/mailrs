@@ -22,6 +22,11 @@ export type InfinitePages = {
   pages: ConversationSummary[][]
 }
 
+/** What a mail mutation keeps to roll its optimistic patch back. */
+export type MutationContext = { snapshots: Array<[QueryKey, InfinitePages | undefined]> }
+
+// ---- delete (single + batch share the same backend) ----
+
 export function addStickyUnread(threadId: string) {
   const store = getDefaultStore()
   const next = new Set(store.get(stickyUnreadIdsAtom))
@@ -29,7 +34,19 @@ export function addStickyUnread(threadId: string) {
   store.set(stickyUnreadIdsAtom, next)
 }
 
-// ---- delete (single + batch share the same backend) ----
+/** Stop in-flight list fetches so they do not overwrite an optimistic patch. */
+export async function cancelConversationFetches() {
+  // Cancel both the legacy key (still used by any not-yet-migrated
+  // caller during Phase 3) AND the new v2.1 key that
+  // `useConversationsQuery` moved onto.
+  await Promise.all([
+    queryClient.cancelQueries({ queryKey: mailKeys.conversations() }),
+    queryClient.cancelQueries({ queryKey: conversationKeys.infinites() }),
+    queryClient.cancelQueries({ queryKey: conversationKeys.lists() }),
+  ])
+}
+
+// ---- batch operations ----
 
 // A bucket move (junk / not-junk / notification / promotion / inbox)
 // changes WHICH list a thread belongs to, so the destination list — a
@@ -75,8 +92,6 @@ export function invalidateMail() {
   // holds regardless of which screen a caller is on.
   queryClient.invalidateQueries({ queryKey: conversationKeys.all() }).catch(() => {})
 }
-
-// ---- batch operations ----
 
 // Invalidates only the small server-computed aggregate (categories) —
 // leaves the conversations list cache alone. Used by mark-read /
@@ -191,6 +206,7 @@ function axesOfCacheKey(key: QueryKey): ListAxes | null {
     archived: f.archived === true || f.archived === 1,
     folder: typeof f.folder === 'string' ? f.folder : null,
     starred: f.starred === true || f.starred === 1 ? true : null,
+    trashed: f.trashed === true || f.trashed === 1,
     unread: f.unread === true || f.unread === 1 ? true : null,
   }
 }
