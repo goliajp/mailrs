@@ -9,6 +9,7 @@ import { X } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 
 import { AutosaveWarning } from '@/components/autosave-warning'
+import { ComposerSkeleton } from '@/components/composer-skeleton'
 import { useAutosaveStatus } from '@/hooks/use-autosave-status'
 import { useDefaultSignature } from '@/hooks/use-default-signature'
 import { useDeleteDraftMutation, useSaveDraftMutation } from '@/hooks/use-drafts'
@@ -441,16 +442,6 @@ export function NewConversation() {
 function bodyPlaceholder(isReply: boolean): Key {
   if (isReply) return 'compose.replyPlaceholder'
   return 'compose.bodyPlaceholder'
-}
-
-function ComposerSkeleton() {
-  return (
-    <div aria-busy="true" className="flex h-full flex-col gap-2 p-4">
-      <div className="bg-bg-secondary h-4 w-3/4 animate-pulse rounded" />
-      <div className="bg-bg-secondary h-4 w-1/2 animate-pulse rounded" />
-      <div className="bg-bg-secondary mt-2 h-24 w-full animate-pulse rounded" />
-    </div>
-  )
 }
 
 function extractReplyAddress(sender: string): string {

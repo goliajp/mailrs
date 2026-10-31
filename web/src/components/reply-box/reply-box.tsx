@@ -6,6 +6,7 @@ import { useAtomValue } from 'jotai'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 
 import { AutosaveWarning } from '@/components/autosave-warning'
+import { ComposerSkeleton } from '@/components/composer-skeleton'
 import { ContactAutocomplete } from '@/components/contact-autocomplete'
 import { useAutosaveStatus } from '@/hooks/use-autosave-status'
 import { useCurrentThreadMessages } from '@/hooks/use-current-list'
@@ -13,6 +14,7 @@ import { useDefaultSignature } from '@/hooks/use-default-signature'
 import { useDeleteDraftMutation, useDraftsQuery, useSaveDraftMutation } from '@/hooks/use-drafts'
 import { applyOptimisticSent } from '@/hooks/use-mail-mutations'
 import { type Key, useT } from '@/i18n'
+import { errorText } from '@/lib/error-text'
 import { buildForwardHeaderHtml, escapeHtml } from '@/lib/html-utils'
 import { parseAddressList, sendMail } from '@/lib/send-mail'
 import { authAtom } from '@/store/auth'
@@ -481,21 +483,6 @@ export function ReplyBox({
       )}
     </div>
   )
-}
-
-function ComposerSkeleton() {
-  return (
-    <div aria-busy="true" className="flex h-full flex-col gap-2 p-4">
-      <div className="bg-bg-secondary h-4 w-3/4 animate-pulse rounded" />
-      <div className="bg-bg-secondary h-4 w-1/2 animate-pulse rounded" />
-      <div className="bg-bg-secondary mt-2 h-24 w-full animate-pulse rounded" />
-    </div>
-  )
-}
-
-function errorText(err: unknown, fallback: string): string {
-  if (err instanceof Error) return err.message
-  return fallback
 }
 
 function replyPlaceholder(forward: boolean): Key {
