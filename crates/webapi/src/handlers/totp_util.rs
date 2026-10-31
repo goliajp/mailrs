@@ -107,7 +107,7 @@ pub enum SecondFactor {
 /// error, never "not enrolled": that would let a blink of the store skip
 /// the second factor.
 pub fn second_factor(address: &str, code: Option<&str>) -> Result<SecondFactor, StatusCode> {
-    let key = mailrs_core_sidestate::keys::credentials::totp_key(&address);
+    let key = mailrs_core_sidestate::keys::credentials::totp_key(address);
     let k = key.clone();
     let (secret, enabled) = crate::handlers::kevy_util::with_kevy(move |c| {
         Ok((

@@ -33,7 +33,7 @@ async fn the_operator_clears_alike_on_both_cores() {
         .await
         .map(|j| j.0);
     let (fc, pg) = (fc.expect("fastcore preview"), pg.expect("pg-core preview"));
-    assert_eq!(fc.items[0].exists, true);
+    assert!(fc.items[0].exists);
     d.same("operator preview", &fc, &pg, &[]);
 
     let fc = operator_clear(State(cores.fastcore_state.clone()), Json(body()))
