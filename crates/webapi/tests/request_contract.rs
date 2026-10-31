@@ -46,6 +46,22 @@ fn label_bodies_match() {
 }
 
 #[test]
+fn forwarding_and_vacation_bodies_match() {
+    let v: mailrs_core_sidestate::families::vacation::Vacation = parse("vacation-set");
+    assert_eq!(
+        (v.enabled, v.subject.as_str(), v.days, v.start, v.end),
+        (true, "Away", 7, None, Some(1_793_500_000))
+    );
+    let v: handlers::mail_settings::ForwardRequest = parse("forwarding-request");
+    assert_eq!(
+        (v.address.as_str(), v.keep_copy),
+        ("me@elsewhere.example", false)
+    );
+    let v: handlers::mail_settings::VerifyRequest = parse("forwarding-verify");
+    assert_eq!(v.code, "123456");
+}
+
+#[test]
 fn rule_bodies_match() {
     let v: handlers::rules::RuleRequest = parse("rule-create");
     assert_eq!(
@@ -342,6 +358,8 @@ fn every_fixture_has_a_test() {
         "key-upload",
         "label-create",
         "label-update",
+        "forwarding-request",
+        "forwarding-verify",
         "rule-create",
         "rule-preview",
         "saved-search-create",
@@ -362,6 +380,7 @@ fn every_fixture_has_a_test() {
         "snooze",
         "system-config-set",
         "unsubscribe",
+        "vacation-set",
         "totp-code",
         "confirm",
         "webhook-create",

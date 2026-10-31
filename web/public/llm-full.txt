@@ -812,6 +812,18 @@ curl -X DELETE https://mail.golia.ai/api/saved-searches/1 -H "Authorization: Bea
 
 A name is unique per user ignoring case (409 `name_taken`); 400 `invalid_name` / `invalid_query` / `too_many` (100 at most).
 
+### Forwarding and Vacation Reply
+
+```
+curl -X PUT https://mail.golia.ai/api/settings/vacation -H "Authorization: Bearer mlrs_..." \
+  -H "Content-Type: application/json" \
+  -d '{"enabled": true, "subject": "Away", "body": "Back on Monday.", "start": null, "end": null, "days": 7}'
+```
+
+- the vacation reply goes once per sender within `days` (1–30), never to mail in Junk, held mail, mailing lists or automatic mail
+- `POST /api/settings/forwarding {address, keep_copy}` mails a code to `address`; forwarding starts after `POST /api/settings/forwarding/verify {code}`. The POST needs a recent password confirmation (403 `confirm_required`), so an agent key cannot set it
+- `DELETE /api/settings/forwarding` stops it; mail in Junk or held is never forwarded
+
 ### Rules
 
 A rule is a search query and what to do with the mail it matches. Rules run on mail as it arrives, oldest rule first; held mail is never touched, and mail in Junk only gets `label:`, `read`, `star` or `trash`.

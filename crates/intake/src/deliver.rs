@@ -44,17 +44,26 @@ impl<C: Core + ?Sized> Inbound<'_, C> {
                     }
                 }
             }
+            // the script filed it: forwarded as well, the filed copy kept
             Decision::FileInto(folder) => {
+                self.forward_by_settings(addr);
                 let ok = self.file_into(addr, &folder);
                 (ok, ok)
             }
-            Decision::Keep => {
-                let ok = self.keep(addr);
-                (ok, ok)
-            }
+            Decision::Keep => match self.forward_by_settings(addr) {
+                true => {
+                    let ok = self.keep(addr);
+                    (ok, ok)
+                }
+                // forwarded without a copy here, as a redirect is
+                false => (true, false),
+            },
         };
-        if delivered_locally && let Some(vac) = outcome.vacation {
-            sieve::maybe_vacation_reply(addr, &env.reverse_path, body, &vac);
+        if delivered_locally {
+            match outcome.vacation {
+                Some(vac) => sieve::maybe_vacation_reply(addr, &env.reverse_path, body, &vac),
+                None => self.vacation_by_settings(addr, now()),
+            }
         }
         consumed
     }
@@ -130,4 +139,10 @@ impl<C: Core + ?Sized> Inbound<'_, C> {
                 "sieve: reject DSN enqueue failed; message discarded"),
         }
     }
+}
+
+fn now() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs() as i64)
 }

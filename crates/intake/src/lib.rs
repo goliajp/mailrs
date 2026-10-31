@@ -17,6 +17,7 @@ mod deliver;
 mod drain;
 mod forward;
 mod group;
+mod mail_settings;
 
 pub mod arrival;
 pub mod domains;
