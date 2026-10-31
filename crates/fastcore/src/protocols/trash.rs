@@ -67,22 +67,44 @@ impl RealAccount {
     }
 
     pub(crate) fn set_trashed(&self, m: &Message<PathBuf>, trashed: bool) -> Result<bool> {
-        let store = &self.state.mailbox;
-        let wire = store
-            .get_message_by_uid(&self.user, m.uid)
-            .map_err(Error::Io)?
-            .and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok());
-        let Some(tid) = wire
-            .as_ref()
-            .and_then(|w| w["thread_id"].as_str())
-            .filter(|t| !t.is_empty())
-        else {
+        let Some(tid) = self.conversation_of(m)? else {
             return Ok(false);
         };
         let now = chrono::Utc::now().timestamp();
-        store
-            .set_trashed(&self.user, tid, trashed, now)
+        self.state
+            .mailbox
+            .set_trashed(&self.user, &tid, trashed, now)
             .map_err(Error::Io)?;
         Ok(true)
+    }
+
+    /// The conversation a message file belongs to: by its uid, and when the
+    /// uid index cannot answer (rows indexed with uid 0, which production
+    /// has), by the message id the file gives, the way delivery derived it.
+    fn conversation_of(&self, m: &Message<PathBuf>) -> Result<Option<String>> {
+        let store = &self.state.mailbox;
+        let thread_of = |bytes: Option<Vec<u8>>| {
+            bytes
+                .and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok())
+                .and_then(|w| w["thread_id"].as_str().map(String::from))
+                .filter(|t| !t.is_empty())
+        };
+        let by_uid = store
+            .get_message_by_uid(&self.user, m.uid)
+            .map_err(Error::Io)?;
+        if let Some(tid) = thread_of(by_uid) {
+            return Ok(Some(tid));
+        }
+        let Ok(bytes) = std::fs::read(&m.key) else {
+            return Ok(None);
+        };
+        let head = &bytes[..bytes.len().min(16 * 1024)];
+        let (header_id, ..) = mailrs_intake::headers::extract_headers(head);
+        let name = m.key.file_name().and_then(|f| f.to_str()).unwrap_or("");
+        let mid = mailrs_intake::headers::message_id_or_file_id(header_id, name);
+        let view = store
+            .user_message_view(&self.user, &mid)
+            .map_err(Error::Io)?;
+        Ok(thread_of(view))
     }
 }
