@@ -64,4 +64,5 @@ pub mod smtp_monitor;
 pub mod spam_lists;
 pub mod system_config;
 pub mod totp_util;
+pub mod trash;
 pub mod unsubscribe;

@@ -59,12 +59,21 @@ pub async fn untrash(
 }
 
 async fn delete_for_good(state: &Arc<CoreRpcState>, user: &str, thread_id: &str) -> bool {
-    super::thread::delete_thread(
+    let deleted = super::thread::delete_thread(
         State(state.clone()),
         Path((user.to_string(), thread_id.to_string())),
     )
     .await
-    .is_ok()
+    .is_ok();
+    // the Send rows for the mail in it go too, as fastcore's do
+    if deleted && let Some(mut c) = mailrs_core_sidestate::NetKevy::net_conn(state.as_ref()) {
+        if let Err(e) =
+            mailrs_core_sidestate::families::send::delete_sends_in_thread(&mut c, user, thread_id)
+        {
+            tracing::warn!(error = %e, %user, %thread_id, "send rows not removed");
+        }
+    }
+    deleted
 }
 
 /// POST /v1/users/{user}/trash:empty
@@ -102,7 +111,9 @@ pub(crate) async fn purge_once(state: &Arc<CoreRpcState>, cutoff: i64, batch: i6
         } else {
             // a conversation with none of its mail left: nothing to delete
             // but the Trash row, which would otherwise come back every pass
-            let _ = state.mailbox.untrash_thread(&user, &tid).await;
+            if let Err(e) = state.mailbox.untrash_thread(&user, &tid).await {
+                tracing::warn!(error = %e, %user, %tid, "trash purge: row not removed");
+            }
         }
     }
     done

@@ -40,6 +40,8 @@ const TOOL_CATEGORIES: &[(&str, ToolCategory)] = &[
     ("delete_signature", Write),
     ("delete_template", Write),
     ("delete_thread", Write),
+    ("restore_thread", Write),
+    ("delete_thread_forever", Write),
     ("delete_webhook", Admin),
     ("get_account_forwards", Admin),
     ("get_account_permissions", Admin),
