@@ -4,6 +4,7 @@ import { memo, useEffect, useRef, useState } from 'react'
 
 import { useCategoriesQuery } from '@/hooks/use-mail-queries'
 import { MAIL_LIST_TABS, MAIL_LISTS, type MailListId } from '@/lib/mail-lists'
+import { rovingKeyDown } from '@/lib/roving'
 import {
   activeListAtom,
   categoryFilterAtom,
@@ -58,6 +59,12 @@ function tabButtonClass(isActive: boolean): string {
   const base = 'w-full cursor-pointer truncate rounded-md px-2 py-1 text-xs transition-colors'
   if (isActive) return `${base} bg-border-strong text-fg font-semibold`
   return `${base} bg-bg-secondary text-fg-muted hover:bg-bg-tertiary hover:text-fg-secondary font-medium`
+}
+
+/** Only the active tab is a Tab stop; arrows move among the rest. */
+function tabStop(active: boolean): number {
+  if (active) return 0
+  return -1
 }
 
 // memo'd because FilterBar takes no props — every parent re-render would
@@ -117,12 +124,21 @@ export const FilterBar = memo(function FilterBar() {
           `Archived` was wide, and the second row started under nothing
           in particular. Five columns give every tab the same width and
           put the second row's three under the first row's three. */}
-      <div className="grid flex-1 grid-cols-5 gap-1">
+      <div
+        aria-label="Mail lists"
+        className="grid flex-1 grid-cols-5 gap-1"
+        onKeyDown={(e) => rovingKeyDown(e, '[role="tab"]', 'horizontal')}
+        role="tablist"
+      >
         {MAIL_LIST_TABS.map((id) => (
           <button
+            aria-selected={activeList === id}
             className={tabButtonClass(activeList === id)}
             key={id}
             onClick={() => handleTab(id)}
+            role="tab"
+            tabIndex={tabStop(activeList === id)}
+            type="button"
           >
             {MAIL_LISTS[id].label}
           </button>

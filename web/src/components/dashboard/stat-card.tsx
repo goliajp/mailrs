@@ -19,7 +19,6 @@ export function StatCard({
 }) {
   return (
     <button
-      aria-label={`${label}: ${value}`}
       className={cn(
         'border-border flex shrink-0 items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors md:shrink',
         'w-[140px] md:w-auto',

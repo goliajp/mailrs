@@ -62,6 +62,12 @@ export default defineConfig({
       testMatch: /live-list\.spec\.ts/,
       use: { baseURL: 'http://localhost:6038' },
     },
+    // axe-core over the built bundle, on the same preview server
+    {
+      name: 'a11y',
+      testMatch: /accessibility\.spec\.ts/,
+      use: { baseURL: 'http://localhost:6038' },
+    },
   ],
   webServer: [
     // Port from the shared port registry (this project's row).

@@ -18,6 +18,7 @@ import { CommandPalette } from '@/components/command-palette'
 import { ConfirmPasswordHost } from '@/components/confirm-password-dialog'
 import { DashboardShellSkeleton } from '@/components/dashboard-skeleton'
 import { ShortcutsHost } from '@/components/keyboard-shortcuts-dialog'
+import { LiveAnnouncer } from '@/components/live-announcer'
 import { LoadingFallback } from '@/components/loading-fallback'
 import { MobileShell } from '@/components/mobile-shell'
 import { RequireAuth } from '@/components/require-auth'
@@ -42,6 +43,19 @@ const Dashboard = lazy(() => import('@/pages/dashboard').then((m) => ({ default:
 const Playground = lazy(() => import('@/pages/playground').then((m) => ({ default: m.Playground })))
 const Protocol = lazy(() => import('@/pages/protocol').then((m) => ({ default: m.Protocol })))
 const Settings = lazy(() => import('@/pages/settings').then((m) => ({ default: m.Settings })))
+
+// The preset's muted text and accent fall short of 4.5:1 (WCAG AA): muted
+// #71717a on #f4f4f5 is 4.39, white on accent #3b7ddd is 4.06, accent text
+// on its own 10% tint (badges, the active item) is 3.6, and dark muted on
+// #18181b is 3.67. Each is moved only as far as it takes; hover stays the
+// darker of the pair.
+const CONTRAST_LIGHT = {
+  '--gds-accent': '#336cbf',
+  '--gds-accent-hover': '#2a5a9e',
+  '--gds-fg-muted': '#6f6f78',
+  '--gds-info': '#336cbf',
+}
+const CONTRAST_DARK = { '--gds-fg-muted': '#8d8d98' }
 
 // apply zinc-neutral preset before first render — no effect race conditions
 initMailrsTheme()
@@ -123,6 +137,7 @@ function AuthShellLayout() {
     return (
       <RequireAuth>
         <LiveEvents />
+        <LiveAnnouncer />
         <MobileShell>
           <Outlet />
         </MobileShell>
@@ -132,6 +147,7 @@ function AuthShellLayout() {
   return (
     <RequireAuth>
       <LiveEvents />
+      <LiveAnnouncer />
       <AppShell gap={6} padded sidebar={<AppSidebar />} sidebarWidth={56} statusBar={<StatusBar />}>
         <Outlet />
       </AppShell>
@@ -145,15 +161,19 @@ function initMailrsTheme() {
   const store = getDefaultStore()
   const current = store.get(themeAtom)
 
-  if (current.presetId === 'zinc-neutral' && current.colorOverridesDark !== null) {
-    return
-  }
+  const applied =
+    current.presetId === 'zinc-neutral' &&
+    current.colorOverridesLight?.['--gds-accent'] === CONTRAST_LIGHT['--gds-accent'] &&
+    current.colorOverridesDark?.['--gds-fg-muted'] === CONTRAST_DARK['--gds-fg-muted']
+  if (applied) return
 
   const preset = themePresets['zinc-neutral']
   store.set(themeAtom, {
     ...current,
     ...preset,
     colorOverrides: null,
+    colorOverridesDark: { ...preset.colorOverridesDark, ...CONTRAST_DARK },
+    colorOverridesLight: { ...preset.colorOverridesLight, ...CONTRAST_LIGHT },
     presetId: 'zinc-neutral',
   })
 }
