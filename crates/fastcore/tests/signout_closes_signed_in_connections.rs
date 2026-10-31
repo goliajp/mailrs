@@ -39,14 +39,11 @@ struct Conn<R> {
 impl<R: tokio::io::AsyncRead + Unpin> Conn<R> {
     async fn line(&mut self) -> String {
         let mut line = String::new();
-        // only how long to wait before calling it lost: a line that does
-        // come returns at once, and a loaded test machine took over 5s
-        match tokio::time::timeout(Duration::from_secs(15), self.reader.read_line(&mut line)).await
-        {
+        match tokio::time::timeout(Duration::from_secs(5), self.reader.read_line(&mut line)).await {
             Ok(Ok(0)) => "<closed>".into(),
             Ok(Ok(_)) => line.trim_end().to_string(),
             Ok(Err(e)) => format!("<error {e}>"),
-            Err(_) => "<nothing within 15s>".into(),
+            Err(_) => "<nothing within 5s>".into(),
         }
     }
 }
