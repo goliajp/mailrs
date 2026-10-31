@@ -120,7 +120,7 @@ export const ConversationItem = memo(function ConversationItem({
 
   return (
     <div
-      className={`group ${MAIL_ROW_FRAME} ${getRowStateClass({ batchMode, checked, hasUnread, selected })}`}
+      className={`group ${MAIL_ROW_FRAME} ${mailRowStateClass({ batchMode, checked, selected })}`}
       onTouchEnd={ctx.onTouchEnd}
       onTouchMove={ctx.onTouchMove}
       onTouchStart={ctx.onTouchStart}
@@ -332,20 +332,6 @@ function archiveLabel(archived: boolean): string {
 function dateClass(batchMode: boolean): string {
   if (batchMode) return 'text-fg-muted text-tiny'
   return 'text-fg-muted text-tiny md:group-focus-within:invisible md:group-hover:invisible'
-}
-
-function getRowStateClass({
-  batchMode,
-  checked,
-  hasUnread,
-  selected,
-}: {
-  batchMode: boolean
-  checked: boolean
-  hasUnread: boolean
-  selected: boolean
-}): string {
-  return mailRowStateClass({ batchMode, checked, muted: !hasUnread, selected })
 }
 
 function getSenderClass({ hasUnread, isOwn }: { hasUnread: boolean; isOwn: boolean }): string {

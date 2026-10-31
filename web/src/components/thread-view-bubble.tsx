@@ -62,7 +62,7 @@ export const ThreadTimelineItem = memo(function ThreadTimelineItem({
       {showDivider && <BubbleDateDivider label={dateLabel} />}
       <div
         className={`focus-visible:ring-accent/50 flex cursor-pointer gap-3 rounded-lg px-3 py-2.5 transition-colors focus-visible:ring-2 focus-visible:outline-none ${
-          isSelected ? 'bg-accent/10' : 'hover:bg-bg-secondary'
+          isSelected ? 'bg-accent/6' : 'hover:bg-bg-secondary'
         } ${isOwn ? 'ml-6' : ''}`}
         onClick={handleClick}
         onKeyDown={(e) => {
