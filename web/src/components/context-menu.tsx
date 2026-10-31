@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import { MobileModal } from '@/components/mobile-modal'
+import { rovingKeyDown } from '@/lib/roving'
 
 export type ContextMenuItem = {
   danger?: boolean
@@ -79,6 +80,8 @@ export function ContextMenu({
 
   useEffect(() => {
     if (!position) return
+    // the keyboard starts on the first item, so the arrows have somewhere to go
+    ref.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus()
 
     const handleClick = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) {
@@ -113,6 +116,7 @@ export function ContextMenu({
   return createPortal(
     <div
       className="border-border bg-surface hidden min-w-[160px] rounded-lg border py-1 shadow-lg md:block"
+      onKeyDown={(e) => rovingKeyDown(e, '[role="menuitem"]', 'vertical')}
       ref={ref}
       role="menu"
       style={style}
@@ -130,6 +134,8 @@ export function ContextMenu({
             onClose()
           }}
           role="menuitem"
+          tabIndex={-1}
+          type="button"
         >
           {item.icon && <span className="shrink-0">{item.icon}</span>}
           {item.label}
