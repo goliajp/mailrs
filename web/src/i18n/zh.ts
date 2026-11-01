@@ -3,11 +3,13 @@ import type { Key } from './en'
 import { adminOpsZh } from './admin-ops/zh'
 import { adminZh } from './admin/zh'
 import { appZh } from './app/zh'
+import { mockZh } from './mock/zh'
 import { settingsZh } from './settings/zh'
 
 export const zh: Record<Key, string> = {
   ...appZh,
   ...settingsZh,
+  ...mockZh,
   ...adminZh,
   ...adminOpsZh,
   'lang.name.en': 'English',
@@ -384,6 +386,7 @@ export const zh: Record<Key, string> = {
   'source.loading': '正在加载源码…',
   'source.view': '查看源码',
   'structured.details': '详情',
+  'structured.order': '订单',
   'structured.reservation': '{kind}预订',
   'structured.title': '结构化信息',
   'structured.total': '合计：{amount}',

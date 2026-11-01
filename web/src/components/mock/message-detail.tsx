@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { FileDown, Trash2 } from 'lucide-react'
 
 import { HtmlFrame } from '@/components/html-frame'
+import { useLocale, useT } from '@/i18n'
 import { mockKeys } from '@/lib/query-keys'
 import { mockRawUrl, wireDeleteMockMessage, wireReadMockMessage } from '@/wire/endpoints/mock'
 
@@ -25,20 +26,22 @@ export function MessageBody({
   onDelete: () => void
   rawUrl: string
 }) {
+  const t = useT()
+  const locale = useLocale()
   return (
-    <article aria-label="Message" className="space-y-4">
+    <article aria-label={t('mock.message')} className="space-y-4">
       <header className="space-y-1">
         <div className="flex items-start gap-2">
           <DirectionBadge direction={message.direction} />
           <h3 className="min-w-0 flex-1 text-base font-semibold break-words">
-            {subjectLabel(message.subject)}
+            {subjectLabel(message.subject, t('mobile.noSubject'))}
           </h3>
           <a className={`${btnSecondary} inline-flex items-center gap-1`} download href={rawUrl}>
             <FileDown aria-hidden className="h-4 w-4" />
             .eml
           </a>
           <button
-            aria-label="Delete message"
+            aria-label={t('mock.deleteMessage')}
             className={`${btnSecondary} hover:text-danger`}
             disabled={deleting}
             onClick={onDelete}
@@ -48,21 +51,26 @@ export function MessageBody({
           </button>
         </div>
         <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5 text-xs">
-          <HeaderRow label="From" value={message.from} />
-          <HeaderRow label="To" value={message.to.join(', ')} />
-          {message.cc.length > 0 && <HeaderRow label="Cc" value={message.cc.join(', ')} />}
-          <HeaderRow label="Received" value={formatReceived(message.received_at)} />
+          <HeaderRow label={t('admin.queue.from')} value={message.from} />
+          <HeaderRow label={t('compose.to')} value={message.to.join(', ')} />
+          {message.cc.length > 0 && (
+            <HeaderRow label={t('mock.cc')} value={message.cc.join(', ')} />
+          )}
+          <HeaderRow
+            label={t('mock.received')}
+            value={formatReceived(message.received_at, locale)}
+          />
         </dl>
       </header>
 
-      <Block title="Codes">
+      <Block title={t('mock.codes')}>
         <CodeChips codes={message.codes} />
       </Block>
-      <Block title="Links">
+      <Block title={t('mock.links')}>
         <LinkList links={message.links} />
       </Block>
       {message.attachments.length > 0 && (
-        <Block title="Attachments">
+        <Block title={t('mock.attachments')}>
           <AttachmentList attachments={message.attachments} />
         </Block>
       )}
@@ -73,7 +81,7 @@ export function MessageBody({
           </div>
         </Block>
       )}
-      <Block title="Text">
+      <Block title={t('mock.text')}>
         <pre className="bg-bg-secondary max-h-[480px] overflow-auto rounded-md p-3 text-xs break-words whitespace-pre-wrap select-text">
           {message.text}
         </pre>
@@ -91,6 +99,7 @@ export function MessageDetail({
   namespace: string
   onDeleted: () => void
 }) {
+  const t = useT()
   const queryClient = useQueryClient()
   const query = useQuery({
     // the previous message shown under the newly selected id would be the wrong mail
@@ -101,7 +110,7 @@ export function MessageDetail({
 
   const remove = useMutation({
     mutationFn: () => wireDeleteMockMessage(namespace, id),
-    onError: (e) => toast.error(errorText(e, 'Could not delete the message')),
+    onError: (e) => toast.error(errorText(e, t('mock.deleteFailed'))),
     onSuccess: () => {
       queryClient.removeQueries({ queryKey: mockKeys.message(namespace, id) })
       void queryClient.invalidateQueries({ queryKey: mockKeys.messages(namespace) })
@@ -113,11 +122,11 @@ export function MessageDetail({
   if (query.isError) {
     return (
       <p className="text-danger text-sm" role="alert">
-        {errorText(query.error, 'Could not load the message')}
+        {errorText(query.error, t('mock.loadFailed'))}
       </p>
     )
   }
-  if (query.isPending) return <p className="text-fg-muted text-sm">Loading…</p>
+  if (query.isPending) return <p className="text-fg-muted text-sm">{t('common.loading')}</p>
 
   return (
     <MessageBody

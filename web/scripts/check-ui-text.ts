@@ -3,19 +3,16 @@
  * `t()`: JSX text, and the `aria-label`, `placeholder`, `title`, `label`,
  * `alt` and `helperText` attributes given as a string literal. Read from
  * the syntax tree, so comments, generics and comparisons never count.
- * Counted per file against `ui-text-baseline.txt`; a file over its count,
- * or a new file with any, fails. Moving a file to `t()` lowers its count:
- * run with `--update` to write the lower counts (an update never raises
- * one).
+ * Any hit fails, with its file, line and text. `--list <file>...` prints
+ * the hits in those files without failing.
  */
 
-import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import ts from 'typescript'
 
 const ROOT = join(import.meta.dir, '..')
 const SRC = join(ROOT, 'src')
-const BASELINE = join(import.meta.dir, 'ui-text-baseline.txt')
 
 // words that read the same in every language: product and protocol names
 const KEEP = new Set([
@@ -40,6 +37,7 @@ const KEEP = new Set([
   'CIDR',
   'ESC',
   'Esc',
+  'HTML',
 ])
 
 // example input shown as a placeholder: code and query syntax, not prose
@@ -107,58 +105,15 @@ if (listAt >= 0) {
   process.exit(0)
 }
 
-function read(): Map<string, number> {
-  const out = new Map<string, number>()
-  let text = ''
-  try {
-    text = readFileSync(BASELINE, 'utf8')
-  } catch {
-    return out
-  }
-  for (const line of text.split('\n')) {
-    const [path, n] = line.trim().split(/\s+/)
-    if (path && n) out.set(path, Number(n))
-  }
-  return out
-}
-
-const baseline = read()
-const now = new Map<string, number>()
+let hits = 0
 for (const f of files(SRC)) {
-  if (EXEMPT.has(relative(ROOT, f))) continue
-  const n = count(readFileSync(f, 'utf8'))
-  if (n > 0) now.set(relative(ROOT, f), n)
+  const path = relative(ROOT, f)
+  if (EXEMPT.has(path)) continue
+  for (const { line, text } of found(readFileSync(f, 'utf8'))) {
+    if (hits === 0)
+      console.error('!! interface text written into components; look it up with t() instead:')
+    console.error(`   ${path}:${line}: ${text}`)
+    hits++
+  }
 }
-
-function write() {
-  const lines = [...now].sort(([a], [b]) => a.localeCompare(b)).map(([p, n]) => `${p} ${n}`)
-  writeFileSync(BASELINE, lines.join('\n') + '\n')
-  console.log(
-    `baseline: ${now.size} files, ${[...now.values()].reduce((a, b) => a + b, 0)} strings`
-  )
-}
-
-// the first baseline is whatever is there today
-if (baseline.size === 0 && process.argv.includes('--update')) {
-  write()
-  process.exit(0)
-}
-
-const over = [...now].filter(([path, n]) => n > (baseline.get(path) ?? 0))
-if (over.length > 0) {
-  console.error('!! interface text written into components; look it up with t() instead:')
-  for (const [path, n] of over)
-    console.error(`   ${path}: ${n} (allowed ${baseline.get(path) ?? 0})`)
-  process.exit(1)
-}
-
-const lower = [...baseline].filter(([path, n]) => (now.get(path) ?? 0) < n)
-if (process.argv.includes('--update')) {
-  write()
-} else if (lower.length > 0) {
-  console.error(
-    '!! fewer written-in strings than the baseline says; run `bun scripts/check-ui-text.ts --update`:'
-  )
-  for (const [path, n] of lower) console.error(`   ${path}: ${now.get(path) ?? 0} (baseline ${n})`)
-  process.exit(1)
-}
+if (hits > 0) process.exit(1)

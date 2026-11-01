@@ -14,6 +14,7 @@ import { NamespaceList } from '@/components/mock/namespace-list'
 import { SendForm } from '@/components/mock/send-form'
 import { SmtpPanel } from '@/components/mock/smtp-panel'
 import { WebhookPanel } from '@/components/mock/webhook-panel'
+import { useT } from '@/i18n'
 import { cn } from '@/lib/cn'
 import { mockKeys } from '@/lib/query-keys'
 import { authAtom } from '@/store/auth'
@@ -22,13 +23,12 @@ import { wireListMockMessages, wireListMockNamespaces } from '@/wire/endpoints/m
 const EMPTY_NAMESPACES: readonly MockNamespace[] = []
 const EMPTY_MESSAGES: readonly MockMessageMeta[] = []
 const POLL_MS = 5000
-const TITLE = 'Mock mail'
-const SUBTITLE = 'Disposable mailboxes for tests: sign up with an address, read the code here'
 
 type Tool = 'send' | 'smtp' | 'webhook'
 
 /** `/mock?ns=<namespace>&msg=<id>` — the selection lives in the URL. */
 export function MockMail() {
+  const t = useT()
   const [params, setParams] = useSearchParams()
   const admin = useAtomValue(authAtom)?.is_admin ?? false
   const everyone = admin && params.get('scope') === 'all'
@@ -41,18 +41,18 @@ export function MockMail() {
 
   if (query.isError && isMockDisabled(query.error)) {
     return (
-      <AdminPageShell title={TITLE}>
+      <AdminPageShell title={t('nav.mock')}>
         <AdminEmptyState
-          description="This server has no mock mail domain configured, so there are no test mailboxes to show"
+          description={t('mock.disabled.description')}
           icon={<FlaskConical className="h-10 w-10" />}
-          title="Mock mail is not enabled on this deployment"
+          title={t('mock.disabled.title')}
         />
       </AdminPageShell>
     )
   }
   if (query.isError) {
     return (
-      <AdminPageShell title={TITLE}>
+      <AdminPageShell title={t('nav.mock')}>
         <AdminErrorState error={query.error} onRetry={() => void query.refetch()} />
       </AdminPageShell>
     )
@@ -70,7 +70,7 @@ export function MockMail() {
   const selectTool = (tool: null | Tool) => setParams(withParam(params, 'tool', tool))
 
   return (
-    <AdminPageShell subtitle={SUBTITLE} title={TITLE}>
+    <AdminPageShell subtitle={t('mock.subtitle')} title={t('nav.mock')}>
       <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
         <div className="space-y-3">
           {admin && <ScopeSwitch everyone={everyone} onChange={selectScope} />}
@@ -112,6 +112,7 @@ function NamespaceView({
   onSelectTool: (tool: null | Tool) => void
   tool: null | Tool
 }) {
+  const t = useT()
   const messages = useQuery({
     // React Query pauses the interval while the tab is hidden
     queryKey: mockKeys.messages(namespace.name),
@@ -128,17 +129,17 @@ function NamespaceView({
       <div className="flex flex-wrap gap-2">
         <ToolTab
           active={tool === 'smtp'}
-          label="SMTP sandbox"
+          label={t('mock.tool.smtp')}
           onClick={() => onSelectTool(toggle(tool, 'smtp'))}
         />
         <ToolTab
           active={tool === 'send'}
-          label="Send test mail"
+          label={t('mock.tool.send')}
           onClick={() => onSelectTool(toggle(tool, 'send'))}
         />
         <ToolTab
           active={tool === 'webhook'}
-          label="Webhook"
+          label={t('mock.tool.webhook')}
           onClick={() => onSelectTool(toggle(tool, 'webhook'))}
         />
       </div>
@@ -192,30 +193,31 @@ function NothingOpen({
   everyone: boolean
   pending: boolean
 }) {
+  const t = useT()
   if (pending) return <div aria-busy className="bg-surface h-40 animate-pulse rounded-lg" />
   if (count > 0) {
     return (
       <AdminEmptyState
-        description="Its test addresses, the mail they received and the sandbox tools show here"
+        description={t('mock.pick.description')}
         icon={<FlaskConical className="h-10 w-10" />}
-        title="Pick a namespace"
+        title={t('mock.pick.title')}
       />
     )
   }
   if (everyone) {
     return (
       <AdminEmptyState
-        description="Namespaces anyone creates are listed here"
+        description={t('mock.noneAnyone.description')}
         icon={<FlaskConical className="h-10 w-10" />}
-        title="Nobody has created a namespace yet"
+        title={t('mock.noneAnyone.title')}
       />
     )
   }
   return (
     <AdminEmptyState
-      description="Name one on the left; every address under it is a test mailbox you can read here"
+      description={t('mock.noneMine.description')}
       icon={<FlaskConical className="h-10 w-10" />}
-      title="Create a namespace to get test addresses"
+      title={t('mock.noneMine.title')}
     />
   )
 }
@@ -268,17 +270,18 @@ function ScopeSwitch({
   everyone: boolean
   onChange: (all: boolean) => void
 }) {
+  const t = useT()
   return (
     <div
-      aria-label="Whose namespaces"
+      aria-label={t('mock.scope')}
       className="border-border inline-flex rounded-md border p-0.5 text-xs"
       role="group"
     >
       <ScopeButton active={!everyone} onClick={() => onChange(false)}>
-        Mine
+        {t('mock.scope.mine')}
       </ScopeButton>
       <ScopeButton active={everyone} onClick={() => onChange(true)}>
-        Everyone’s
+        {t('mock.scope.everyone')}
       </ScopeButton>
     </div>
   )

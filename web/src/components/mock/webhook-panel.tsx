@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { CopyButton } from '@/components/settings/api-keys/copy-button'
+import { type Key, useT } from '@/i18n'
 import { mockKeys } from '@/lib/query-keys'
 import { wireClearMockWebhook, wireSetMockWebhook } from '@/wire/endpoints/mock'
 
@@ -22,6 +23,7 @@ export function WebhookPanel({
   current: null | string
   namespace: string
 }) {
+  const t = useT()
   const queryClient = useQueryClient()
   const [url, setUrl] = useState('')
   const [issued, setIssued] = useState<null | { hook: MockWebhook; ns: string }>(null)
@@ -29,7 +31,7 @@ export function WebhookPanel({
 
   const save = useMutation({
     mutationFn: () => wireSetMockWebhook(namespace, url.trim()),
-    onError: (e) => toast.error(errorText(e, 'Could not set the webhook')),
+    onError: (e) => toast.error(errorText(e, t('mock.hook.setFailed'))),
     onSuccess: (hook) => {
       setIssued({ hook, ns: namespace })
       setUrl('')
@@ -38,7 +40,7 @@ export function WebhookPanel({
   })
   const clear = useMutation({
     mutationFn: () => wireClearMockWebhook(namespace),
-    onError: (e) => toast.error(errorText(e, 'Could not remove the webhook')),
+    onError: (e) => toast.error(errorText(e, t('mock.hook.removeFailed'))),
     onSuccess: () => {
       setIssued(null)
       refresh()
@@ -53,22 +55,19 @@ export function WebhookPanel({
   const hook = hookFor(issued, namespace)
 
   return (
-    <section aria-label="Webhook" className="space-y-3">
-      <p className="text-fg-secondary text-xs">
-        Each new message is POSTed as JSON with event &quot;mock_message&quot;, signed with the
-        secret below. Setting a new URL replaces the old one and its secret.
-      </p>
-      <p className="text-fg-muted text-xs">{currentLabel(current)}</p>
+    <section aria-label={t('mock.tool.webhook')} className="space-y-3">
+      <p className="text-fg-secondary text-xs">{t('mock.hook.help')}</p>
+      <p className="text-fg-muted text-xs">{currentLabel(current, t)}</p>
       <form className="flex flex-wrap gap-2" onSubmit={submit}>
         <input
-          aria-label="Webhook URL"
+          aria-label={t('mock.hook.url')}
           className={`${inputClass} min-w-0 flex-1`}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="https://example.com/hooks/mock"
           value={url}
         />
         <button className={btnPrimary} disabled={save.isPending} type="submit">
-          Save
+          {t('admin.save')}
         </button>
         {current !== null && (
           <button
@@ -77,24 +76,27 @@ export function WebhookPanel({
             onClick={() => clear.mutate()}
             type="button"
           >
-            Remove
+            {t('admin.remove')}
           </button>
         )}
       </form>
       {hook && (
         <div className="border-warning/60 bg-warning/5 flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm">
-          <span className="text-fg-muted text-xs">Signing secret</span>
+          <span className="text-fg-muted text-xs">{t('mock.hook.secret')}</span>
           <span className="min-w-0 flex-1 truncate font-mono">{hook.signing_secret}</span>
-          <CopyButton label="Signing secret" value={hook.signing_secret} />
+          <CopyButton label={t('mock.hook.secret')} value={hook.signing_secret} />
         </div>
       )}
     </section>
   )
 }
 
-function currentLabel(current: null | string): string {
-  if (current === null) return 'No webhook set'
-  return `Posting to ${current}`
+function currentLabel(
+  current: null | string,
+  t: (key: Key, vars?: Record<string, string>) => string
+): string {
+  if (current === null) return t('mock.hook.none')
+  return t('mock.hook.posting', { url: current })
 }
 
 function hookFor(

@@ -7,6 +7,7 @@ import { useState } from 'react'
 
 import { CopyButton } from '@/components/settings/api-keys/copy-button'
 import { copyText } from '@/components/settings/api-keys/copy-text'
+import { useT } from '@/i18n'
 import { cn } from '@/lib/cn'
 import { wireMintMockAddress } from '@/wire/endpoints/mock'
 
@@ -19,17 +20,18 @@ import { errorText } from './errors'
  * which is what `wait` measures "new mail" from.
  */
 export function AddressMinter({ namespace }: { namespace: string }) {
+  const t = useT()
   const [tag, setTag] = useState('')
   // the last POST response, shown until the next one
   const [minted, setMinted] = useState<MockMintedAddress | null>(null)
 
   const mint = useMutation({
     mutationFn: (t: string) => wireMintMockAddress(namespace, optionalTag(t)),
-    onError: (e) => toast.error(errorText(e, 'Could not mint an address')),
+    onError: (e) => toast.error(errorText(e, t('mock.mint.failed'))),
     onSuccess: (out) => {
       setMinted(out)
       setTag('')
-      void copyText(out.address, 'Address')
+      void copyText(out.address, t('mock.address'))
     },
   })
 
@@ -42,13 +44,13 @@ export function AddressMinter({ namespace }: { namespace: string }) {
   const shown = mintedFor(minted, namespace)
 
   return (
-    <section aria-label="New address" className="space-y-2">
+    <section aria-label={t('mock.mint.new')} className="space-y-2">
       <form className="flex flex-wrap gap-2" onSubmit={submit}>
         <input
-          aria-label="Tag (optional)"
+          aria-label={t('mock.mint.tag')}
           className={cn(inputClass, 'w-auto min-w-0 flex-1')}
           onChange={(e) => setTag(e.target.value)}
-          placeholder="tag (optional), e.g. signup-01"
+          placeholder={t('mock.mint.tagPlaceholder')}
           value={tag}
         />
         <button
@@ -57,7 +59,7 @@ export function AddressMinter({ namespace }: { namespace: string }) {
           type="submit"
         >
           <AtSign aria-hidden className="h-4 w-4" />
-          New address
+          {t('mock.mint.new')}
         </button>
       </form>
       {shown && (
@@ -65,7 +67,7 @@ export function AddressMinter({ namespace }: { namespace: string }) {
           <code className="min-w-0 flex-1 truncate text-sm" data-testid="minted-address">
             {shown.address}
           </code>
-          <CopyButton label="Address" value={shown.address} withText />
+          <CopyButton label={t('mock.address')} value={shown.address} withText />
         </div>
       )}
     </section>

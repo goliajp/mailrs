@@ -1,6 +1,7 @@
 import { adminOpsEn } from './admin-ops/en'
 import { adminEn } from './admin/en'
 import { appEn } from './app/en'
+import { mockEn } from './mock/en'
 import { settingsEn } from './settings/en'
 
 /**
@@ -11,6 +12,7 @@ import { settingsEn } from './settings/en'
 export const en = {
   ...appEn,
   ...settingsEn,
+  ...mockEn,
   ...adminEn,
   ...adminOpsEn,
   'lang.name.en': 'English',
@@ -394,6 +396,7 @@ export const en = {
   'source.loading': 'Loading source…',
   'source.view': 'View source',
   'structured.details': 'Details',
+  'structured.order': 'Order',
   'structured.reservation': '{kind} Reservation',
   'structured.title': 'Structured Data',
   'structured.total': 'Total: {amount}',
