@@ -116,6 +116,8 @@ export const appEn = {
   'monitor.total': 'Total Connections',
   'monitor.uptime': 'Receiver Uptime',
   'monitor.waiting': 'waiting for commands…',
+  'office.truncated': 'Only the beginning is shown. Download the file for the rest.',
+  'office.unreadable': 'This file could not be read here. Download it to open it.',
   'palette.actions': 'Actions',
   'palette.commands': 'Commands',
   'palette.conversation': 'Conversation',
