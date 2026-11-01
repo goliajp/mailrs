@@ -58,4 +58,26 @@ describe('settings request bodies match the shared contract', () => {
     )
     expect(await bodyOf(() => wireVerifyForwarding('123456'))).toEqual(fixture('forwarding-verify'))
   })
+
+  it('signature save', async () => {
+    const { wireCreateSignature } = await import('../endpoints/settings')
+    const body = await bodyOf(() =>
+      wireCreateSignature({
+        html_content: '<p>Regards</p>',
+        name: 'default',
+        text_content: 'Regards',
+      })
+    )
+    // `id` is absent in the fixture and undefined here; JSON.stringify drops
+    // it, so the captured body has no such key either.
+    expect(body).toEqual(fixture('signature-save'))
+  })
+
+  it('template save', async () => {
+    const { wireCreateTemplate } = await import('../endpoints/templates')
+    const body = await bodyOf(() =>
+      wireCreateTemplate({ name: 'Weekly report', subject: 'Report', text_body: 'Hello team' })
+    )
+    expect(body).toEqual(fixture('template-save'))
+  })
 })
