@@ -303,7 +303,7 @@ Subject: Ledger check\r\n\
 Message-ID: <ledger-in@vendor.example>\r\n\
 Date: Mon, 4 Aug 2026 10:00:00 +0900\r\n\
 \r\n\
-see https://pay.vendor.example/invoice\r\n";
+see https://pay.vendor.example/invoice or https://pay-here.example/now\r\n";
         const OWN: &[u8] = b"From: Bob <bob@golia.jp>\r\n\
 To: support@vendor.example\r\n\
 Subject: RE: Ledger check\r\n\
@@ -321,14 +321,11 @@ thanks\r\n";
         let from_vendor = state.mailbox.ledger_by_domain("vendor.example").unwrap();
         assert_eq!(from_vendor.len(), 1, "{from_vendor:?}");
         assert_eq!(from_vendor[0].1, user);
-        assert_eq!(
-            state
-                .mailbox
-                .ledger_by_link_host("pay.vendor.example")
-                .unwrap()
-                .len(),
-            1
-        );
+        // a link to another host gets a row; one to the sender's own domain
+        // does not, the domain index already finds it
+        let by_host = |h: &str| state.mailbox.ledger_by_link_host(h).unwrap().len();
+        assert_eq!(by_host("pay-here.example"), 1);
+        assert_eq!(by_host("pay.vendor.example"), 0);
         assert!(
             state
                 .mailbox
