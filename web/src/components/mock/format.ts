@@ -1,6 +1,6 @@
-/** `received_at` is milliseconds. */
-export function formatReceived(ms: number): string {
-  return new Date(ms).toLocaleString([], {
+/** `received_at` is milliseconds, shown in `locale`. */
+export function formatReceived(ms: number, locale: string): string {
+  return new Date(ms).toLocaleString(locale, {
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
@@ -17,7 +17,7 @@ export function splitRecipients(raw: string): string[] {
     .filter((a) => a !== '')
 }
 
-export function subjectLabel(subject: string): string {
-  if (subject === '') return '(no subject)'
+export function subjectLabel(subject: string, noSubject: string): string {
+  if (subject === '') return noSubject
   return subject
 }
