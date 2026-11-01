@@ -17,6 +17,7 @@ use axum::routing::{delete, get, post, put};
 
 use crate::*;
 use mailrs_core_api::method::import as import_paths;
+use mailrs_core_api::method::message_index as mix;
 use mailrs_core_api::method::senders as senders_paths;
 use mailrs_core_api::method::sent;
 
@@ -177,6 +178,7 @@ pub fn build_router_with_secret(state: Arc<FastcoreState>, secret: String) -> Ro
             get(get_message_by_uid_for_user),
         )
         .route(msg::PATH_GET_INVITE, get(get_invite))
+        .route(mix::PATH_MESSAGE_INDEX, get(message_index))
         // ── shared side-state (network kevy): drafts / signatures /
         // templates — same keys webapi + pg-core read (v2 point 3) ──
         .route(

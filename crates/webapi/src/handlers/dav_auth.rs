@@ -28,6 +28,18 @@ const CHALLENGE: &str = "Basic realm=\"mailrs\", charset=\"UTF-8\"";
 
 pub async fn dav_auth_middleware(
     State(state): State<Arc<WebState>>,
+    req: Request,
+    next: Next,
+) -> Response {
+    basic_or_session(state, Channel::Dav, req, next).await
+}
+
+/// An app password (or, where the account allows it, the account
+/// password) over HTTP Basic, under the same lockout as every other way
+/// in; without Basic, the session or bearer the rest of the API takes.
+pub(crate) async fn basic_or_session(
+    state: Arc<WebState>,
+    channel: Channel,
     mut req: Request,
     next: Next,
 ) -> Response {
@@ -47,7 +59,7 @@ pub async fn dav_auth_middleware(
     if let Verdict::Locked { .. } = verdict {
         guard
             .record(LoginEvent::new(
-                Channel::Dav,
+                channel,
                 Credential::Password,
                 source,
                 &address,
@@ -56,8 +68,7 @@ pub async fn dav_auth_middleware(
             .await;
         return crate::login_guard::locked_response(verdict);
     }
-    let event =
-        |credential, result| LoginEvent::new(Channel::Dav, credential, source, &address, result);
+    let event = |credential, result| LoginEvent::new(channel, credential, source, &address, result);
     match guard.protocol_password(&address, &password).await {
         ProtocolCheck::AppPassword(id) => {
             guard.succeeded(source, &address).await;
@@ -85,15 +96,7 @@ pub async fn dav_auth_middleware(
     match crate::handlers::auth::password::verify(&state, &address, &password).await {
         Ok(Some(acct)) => {
             guard.succeeded(source, &address).await;
-            guard
-                .record(LoginEvent::new(
-                    Channel::Dav,
-                    Credential::Password,
-                    source,
-                    &address,
-                    Outcome::Ok,
-                ))
-                .await;
+            guard.record(event(Credential::Password, Outcome::Ok)).await;
             req.extensions_mut().insert(AuthedDisplayName::default());
             req.extensions_mut().insert(AuthedUser(acct.public.address));
             req.extensions_mut().insert(AgentScopes::default());
@@ -102,13 +105,7 @@ pub async fn dav_auth_middleware(
         Ok(None) => {
             guard.failed(source, &address).await;
             guard
-                .record(LoginEvent::new(
-                    Channel::Dav,
-                    Credential::Password,
-                    source,
-                    &address,
-                    Outcome::BadPassword,
-                ))
+                .record(event(Credential::Password, Outcome::BadPassword))
                 .await;
             challenge()
         }
@@ -116,7 +113,7 @@ pub async fn dav_auth_middleware(
     }
 }
 
-fn challenge() -> Response {
+pub(crate) fn challenge() -> Response {
     let mut resp = StatusCode::UNAUTHORIZED.into_response();
     resp.headers_mut().insert(
         header::WWW_AUTHENTICATE,
@@ -127,7 +124,7 @@ fn challenge() -> Response {
 
 /// `None` when the request carries no Basic credentials, `Some(None)` when
 /// it carries a Basic header that does not decode to `user:password`.
-fn basic_credentials(headers: &HeaderMap) -> Option<Option<(String, String)>> {
+pub(crate) fn basic_credentials(headers: &HeaderMap) -> Option<Option<(String, String)>> {
     let raw = headers.get(header::AUTHORIZATION)?.to_str().ok()?;
     let encoded = raw.strip_prefix("Basic ")?;
     let decoded = base64::engine::general_purpose::STANDARD

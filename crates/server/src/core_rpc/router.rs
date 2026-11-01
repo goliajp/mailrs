@@ -24,6 +24,7 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
     use mailrs_core_api::method::import as import_paths;
     use mailrs_core_api::method::mailbox as mb_paths;
     use mailrs_core_api::method::message as msg_paths;
+    use mailrs_core_api::method::message_index as mix;
     use mailrs_core_api::method::senders as senders_paths;
     use mailrs_core_api::method::sent as sent_paths;
     use mailrs_core_api::method::thread as th_paths;
@@ -146,6 +147,10 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
         .route(
             msg_paths::PATH_FIND_BY_MESSAGE_ID,
             get(handlers::message::find_message_by_message_id),
+        )
+        .route(
+            mix::PATH_MESSAGE_INDEX,
+            get(handlers::message::message_index),
         )
         .with_state(state.clone());
 

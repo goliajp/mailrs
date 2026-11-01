@@ -231,6 +231,7 @@ export const adminJa: Record<AdminKey, string> = {
   'admin.prev': '前へ',
   'admin.previous': '前へ',
   'admin.proto.imap': 'IMAP',
+  'admin.proto.jmap': 'JMAP',
   'admin.proto.managesieve': 'ManageSieve',
   'admin.proto.pop3': 'POP3',
   'admin.proto.smtp': 'SMTP',

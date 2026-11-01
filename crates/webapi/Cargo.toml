@@ -92,6 +92,8 @@ rmcp = { version = "3.5", features = ["server", "macros", "transport-streamable-
 schemars = "1"
 totp-rs = { version = "5.7.1", features = ["otpauth"] }
 hex = "0.4"
+# free space of the JMAP upload volume, for /api/health
+libc = "0.2"
 jsonwebtoken = { version = "10", default-features = false, features = ["aws_lc_rs", "use_pem"] }
 sha2 = "0.10"
 hmac = "0.12"
@@ -102,6 +104,8 @@ metrics-exporter-prometheus = { version = "0.18", default-features = false }
 metrics = "0.24"
 
 [dev-dependencies]
+# a JMAP client someone else wrote, against the real router
+jmap-client = { version = "0.4.3", default-features = false, features = ["async", "aws_lc_rs"] }
 zip = { version = "9.0.4", default-features = false, features = ["deflate"] }
 aws-lc-rs = "1"
 tempfile = "3"

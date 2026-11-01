@@ -59,6 +59,7 @@ const CHANNELS: { label: Key; value: string }[] = [
   { label: 'admin.proto.smtp', value: 'smtp' },
   { label: 'admin.proto.managesieve', value: 'managesieve' },
   { label: 'admin.signIns.channel.dav', value: 'dav' },
+  { label: 'admin.proto.jmap', value: 'jmap' },
   { label: 'admin.signIns.channel.apiKey', value: 'api-key' },
 ]
 
