@@ -19,18 +19,15 @@ import { useNavigate } from 'react-router'
 import { MobileModal } from '@/components/mobile-modal'
 import { useConversationActions } from '@/hooks/use-conversation-actions'
 import { useConversationRows, useSelectedThreadId } from '@/hooks/use-current-list'
+import { isMobileScreen } from '@/hooks/use-is-mobile'
 import { useSearchMail } from '@/hooks/use-search-mail'
 import { useSignOut } from '@/hooks/use-sign-out'
 import { type Key, useT } from '@/i18n'
 import { ACTIONS, rowActions, rowStateOf, viewOf } from '@/lib/actions'
 import { authAtom } from '@/store/auth'
+import { openNewMessageAtom } from '@/store/composer-windows'
 import { themeModeAtom } from '@/store/theme'
-import {
-  composeReplySourceAtom,
-  composingNewAtom,
-  folderAtom,
-  threadShortcutAtom,
-} from '@/store/ui'
+import { folderAtom, threadShortcutAtom } from '@/store/ui'
 
 type Command = {
   action: () => void
@@ -250,8 +247,7 @@ function useCommands(query: string, onClose: () => void): Command[] {
   const navigate = useNavigate()
   const signOut = useSignOut()
   const searchMail = useSearchMail()
-  const setComposing = useSetAtom(composingNewAtom)
-  const setComposeReplySource = useSetAtom(composeReplySourceAtom)
+  const openNewMessage = useSetAtom(openNewMessageAtom)
   const setTheme = useSetAtom(themeModeAtom)
   const theme = useAtomValue(themeModeAtom)
   // the server and monitor pages show other people's mail traffic
@@ -337,9 +333,9 @@ function useCommands(query: string, onClose: () => void): Command[] {
         label: t('home.composeNew'),
         shortcut: 'C',
         action: () => {
-          setComposeReplySource(null)
-          setComposing(true)
-          navigate('/mail')
+          openNewMessage()
+          // a phone opens the page, which lives on the mail screen
+          if (isMobileScreen()) navigate('/mail')
           onClose()
         },
       },
@@ -376,7 +372,7 @@ function useCommands(query: string, onClose: () => void): Command[] {
         },
       },
     ],
-    [navigate, onClose, setComposeReplySource, setComposing, setTheme, signOut, t, theme]
+    [navigate, onClose, openNewMessage, setTheme, signOut, t, theme]
   )
   const conversation = useConversationCommands(onClose)
   // the server refuses these to everyone else; do not offer them

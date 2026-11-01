@@ -12,11 +12,10 @@ import {
 } from '@/hooks/use-current-list'
 import { actionForKey, ACTIONS, keyName, rowStateOf, viewOf } from '@/lib/actions'
 import { isEditableTarget } from '@/lib/editable-target'
+import { openNewMessageAtom } from '@/store/composer-windows'
 import {
   batchModeAtom,
   categoryFilterAtom,
-  composeReplySourceAtom,
-  composingNewAtom,
   folderAtom,
   importanceSectionAtom,
   lastUndoAtom,
@@ -59,8 +58,7 @@ export function useKeyboardNav() {
   const rows = useCurrentListRows()
   const selectedThreadId = useSelectedThreadId()
   const setSelectedThreadId = useSelectThreadId()
-  const setComposingNew = useSetAtom(composingNewAtom)
-  const setComposeReplySource = useSetAtom(composeReplySourceAtom)
+  const openNewMessage = useSetAtom(openNewMessageAtom)
   const setMobileView = useSetAtom(mobileViewAtom)
   const selectList = useSetAtom(selectMailListAtom)
   const setSection = useSetAtom(importanceSectionAtom)
@@ -153,8 +151,7 @@ export function useKeyboardNav() {
         // falls through
         case 'n': {
           e.preventDefault()
-          setComposeReplySource(null)
-          setComposingNew(true)
+          openNewMessage()
           setSelectedThreadId(null)
           setMobileView('thread')
           break
@@ -269,8 +266,7 @@ export function useKeyboardNav() {
     rows,
     selectedThreadId,
     setSelectedThreadId,
-    setComposingNew,
-    setComposeReplySource,
+    openNewMessage,
     setMobileView,
     setCategory,
     selectList,

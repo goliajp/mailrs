@@ -12,4 +12,7 @@ export const composerJa: Record<ComposerKey, string> = {
   'composer.format.toolbar': '書式',
   'composer.from': '差出人',
   'composer.hideFields': '宛先と件名を閉じる',
+  'composer.window.expand': '全画面で開く',
+  'composer.window.minimize': '最小化',
+  'composer.window.restore': '元に戻す',
 }
