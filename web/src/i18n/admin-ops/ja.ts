@@ -23,8 +23,8 @@ export const adminOpsJa: Record<AdminOpsKey, string> = {
     'パスワードを消去したアカウントには、所有者が再設定コードで新しいパスワードを設定するまで、誰もパスワードでサインインできません。セッションは終了し、開いているメール接続は閉じられます。エージェントキーは引き続き有効です。',
   'admin.clear.title': 'パスワードの消去',
   'admin.clear.toClear': '消去するアカウント',
-  'admin.clear.typeAfter': ' と入力して消去',
-  'admin.clear.typeBefore': '',
+  'admin.clear.typeAfter': ' と入力してください',
+  'admin.clear.typeBefore': '確認のため ',
   'admin.clear.yes': 'あり',
   'admin.config.empty': '設定はまだありません',
   'admin.config.emptyHelp':
