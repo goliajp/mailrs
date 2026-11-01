@@ -16,6 +16,7 @@ import {
   ConfirmAction,
 } from '@/components/admin-page'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
+import { type Key, useT } from '@/i18n'
 import { adminKeys } from '@/lib/query-keys'
 import { adminDelete, adminListGet, adminPost } from '@/wire/endpoints/admin'
 
@@ -29,22 +30,35 @@ import { GreylistAddForm } from './admin-greylist-form'
  */
 type GreylistRow = Omit<GreylistLocalEntry, 'id'> & { id: number | string }
 
-const HEADERS = ['Value', 'Kind', 'List', 'Note', 'Added', 'By', '']
+const HEADERS: Key[] = [
+  'admin.greylist.value',
+  'admin.col.type',
+  'admin.greylist.list',
+  'admin.greylist.note',
+  'admin.domains.added',
+  'admin.greylist.by',
+]
 const NO_ROWS: GreylistRow[] = []
 const KINDS: GreylistLocalKind[] = ['domain', 'email', 'cidr']
 const LISTS: GreylistLocalListName[] = ['white', 'black']
-const KIND_LABELS: Record<GreylistLocalKind, string> = {
-  cidr: 'CIDR',
-  domain: 'Domain',
-  email: 'Email',
+const KIND_LABELS: Record<GreylistLocalKind, Key> = {
+  cidr: 'admin.greylist.kind.cidr',
+  domain: 'admin.col.domain',
+  email: 'admin.greylist.kind.email',
 }
-const LIST_LABELS: Record<GreylistLocalListName, string> = { black: 'Black', white: 'White' }
+const LIST_LABELS: Record<GreylistLocalListName, Key> = {
+  black: 'admin.greylist.black',
+  white: 'admin.greylist.white',
+}
 
-// the receiver applies the lists in their own stage; greylisting is a separate switch
-const RULES_NOTE =
-  'A white domain or email counts only when SPF or DKIM proves the mail comes from that domain; a white CIDR needs no proof and also skips the connection rate limit and DNSBL. Fraud quarantine still applies to white senders. These lists apply whether or not greylisting is on, and greylisting is off unless MAILRS_GREYLIST_ENABLED=1'
+// the list's name inside a sentence
+const LIST_WORDS: Record<GreylistLocalListName, Key> = {
+  black: 'admin.greylist.word.black',
+  white: 'admin.greylist.word.white',
+}
 
 export function AdminGreylist() {
+  const t = useT()
   const [searchParams, setSearchParams] = useSearchParams()
   const filterKind = pick(searchParams.get('kind'), KINDS)
   const filterList = pick(searchParams.get('list'), LISTS)
@@ -83,55 +97,56 @@ export function AdminGreylist() {
         note: f.note.trim() || null,
         value: f.value.trim(),
       }),
-    successMsg: (f) => `"${f.value.trim()}" added to the ${f.list} list`,
+    successMsg: (f) =>
+      t('admin.greylist.added', { list: t(LIST_WORDS[f.list]), value: f.value.trim() }),
   })
 
   const deleteEntry = useAdminMutation({
     invalidateKey: adminKeys.greylistLocal(),
-    successMsg: 'Entry deleted',
+    successMsg: t('admin.greylist.deleted'),
     mutationFn: (id: number | string) =>
       adminDelete(`/admin/greylist/local-lists/${encodeURIComponent(String(id))}`),
   })
 
   const columns: Column<GreylistRow>[] = [
     {
-      header: 'Value',
+      header: t('admin.greylist.value'),
       key: 'value',
       cell: (e) => <span className="font-mono text-xs">{e.value}</span>,
     },
     {
-      header: 'Kind',
+      header: t('admin.col.type'),
       key: 'kind',
-      cell: (e) => <span className="text-fg-secondary">{KIND_LABELS[e.kind]}</span>,
+      cell: (e) => <span className="text-fg-secondary">{t(KIND_LABELS[e.kind])}</span>,
     },
     {
-      header: 'List',
+      header: t('admin.greylist.list'),
       key: 'list',
       cell: (e) => (
         <span className={`rounded px-2 py-0.5 text-xs font-medium ${listStyle(e.list)}`}>
-          {LIST_LABELS[e.list]}
+          {t(LIST_LABELS[e.list])}
         </span>
       ),
     },
     {
-      header: 'Note',
+      header: t('admin.greylist.note'),
       key: 'note',
       cell: (e) => <span className="text-fg-secondary text-xs">{e.note ?? '—'}</span>,
     },
     {
       align: 'end',
-      header: 'Added',
+      header: t('admin.domains.added'),
       key: 'created',
       cell: (e) => <span className="text-fg-muted text-xs">{formatCreated(e.created_at)}</span>,
     },
     {
-      header: 'By',
+      header: t('admin.greylist.by'),
       key: 'by',
       cell: (e) => <span className="text-fg-muted text-xs">{e.created_by ?? '—'}</span>,
     },
     {
       align: 'end',
-      header: 'Actions',
+      header: t('admin.col.actions'),
       hideHeader: true,
       key: 'actions',
       cell: (e) => (
@@ -140,37 +155,47 @@ export function AdminGreylist() {
           onClick={() => setDeleteTarget(e)}
           type="button"
         >
-          Delete
+          {t('admin.delete')}
         </button>
       ),
     },
   ]
 
   const renderBody = () => {
-    if (isPending) return <AdminTableSkeleton cols={HEADERS.length} headers={HEADERS} rows={5} />
+    if (isPending) {
+      return (
+        <AdminTableSkeleton
+          cols={HEADERS.length + 1}
+          headers={[...HEADERS.map((h) => t(h)), '']}
+          rows={5}
+        />
+      )
+    }
     if (error) {
       return (
-        <AdminErrorState error={error} onRetry={() => refetch()} what="the sender list entries" />
+        <AdminErrorState
+          error={error}
+          onRetry={() => refetch()}
+          what={t('admin.greylist.listName')}
+        />
       )
     }
     if (entries.length === 0 && !adding) {
       return (
         <AdminEmptyState
-          description={`Add a sender's domain, address or network here to deliver its mail to the inbox (white) or to refuse it (black). ${RULES_NOTE}`}
+          description={`${t('admin.greylist.emptyHelp')} ${t('admin.greylist.rules')}`}
           icon={<Shield className="h-10 w-10" />}
-          title="No sender list entries yet"
+          title={t('admin.greylist.empty')}
         />
       )
     }
     if (filtered.length === 0) {
-      return (
-        <p className="text-fg-muted py-8 text-center text-sm">No entries match these filters</p>
-      )
+      return <p className="text-fg-muted py-8 text-center text-sm">{t('admin.audit.noMatch')}</p>
     }
     return (
       <AdminTable
         columns={columns}
-        label="Sender list entries"
+        label={t('admin.greylist.entries')}
         rowKey={(e) => String(e.id)}
         rows={filtered}
       />
@@ -186,37 +211,37 @@ export function AdminGreylist() {
             onClick={() => setAdding(true)}
             type="button"
           >
-            Add entry
+            {t('admin.greylist.add')}
           </button>
         )
       }
-      subtitle={`White entries go to the inbox past the spam checks, black entries are refused with SMTP 550 5.7.1, and black wins when a sender matches both. ${RULES_NOTE}`}
-      title="Sender lists"
+      subtitle={`${t('admin.greylist.subtitle')} ${t('admin.greylist.rules')}`}
+      title={t('admin.greylist.title')}
     >
       <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
         <select
-          aria-label="Filter by kind"
+          aria-label={t('admin.greylist.filterKind')}
           className="border-border bg-bg-secondary rounded-md border px-2 py-1 text-sm"
           onChange={(e) => setFilter('kind', e.target.value)}
           value={filterKind ?? 'all'}
         >
-          <option value="all">All kinds</option>
+          <option value="all">{t('admin.greylist.allKinds')}</option>
           {KINDS.map((k) => (
             <option key={k} value={k}>
-              {KIND_LABELS[k]}
+              {t(KIND_LABELS[k])}
             </option>
           ))}
         </select>
         <select
-          aria-label="Filter by list"
+          aria-label={t('admin.greylist.filterList')}
           className="border-border bg-bg-secondary rounded-md border px-2 py-1 text-sm"
           onChange={(e) => setFilter('list', e.target.value)}
           value={filterList ?? 'all'}
         >
-          <option value="all">Both lists</option>
+          <option value="all">{t('admin.greylist.bothLists')}</option>
           {LISTS.map((l) => (
             <option key={l} value={l}>
-              {LIST_LABELS[l]}
+              {t(LIST_LABELS[l])}
             </option>
           ))}
         </select>
@@ -241,32 +266,33 @@ export function AdminGreylist() {
 
       {deleteTarget && (
         <ConfirmAction
-          confirmLabel={busyLabel(deleteEntry.isPending, 'Delete entry', 'Deleting...')}
-          consequence={deleteConsequence(deleteTarget)}
+          confirmLabel={t(
+            busyLabel(deleteEntry.isPending, 'admin.greylist.delete', 'admin.deleting')
+          )}
+          consequence={t(deleteConsequence(deleteTarget), { value: deleteTarget.value })}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={() =>
             deleteEntry.mutate(deleteTarget.id, { onSettled: () => setDeleteTarget(null) })
           }
           pending={deleteEntry.isPending}
-          title={`Delete ${deleteTarget.value} from the ${deleteTarget.list} list?`}
+          title={t('admin.greylist.deleteTitle', {
+            list: t(LIST_WORDS[deleteTarget.list]),
+            value: deleteTarget.value,
+          })}
         />
       )}
     </AdminPageShell>
   )
 }
 
-function busyLabel(busy: boolean, idle: string, working: string): string {
+function busyLabel(busy: boolean, idle: Key, working: Key): Key {
   if (busy) return working
   return idle
 }
 
-function deleteConsequence(entry: GreylistRow): string {
-  const reload =
-    'The entry is deleted, and the receiver drops it at its next reload, within a minute'
-  if (entry.list === 'black') {
-    return `Mail from ${entry.value} is no longer refused by this entry. ${reload}`
-  }
-  return `Mail from ${entry.value} no longer goes to the inbox through this entry and is checked for spam like anyone else's. ${reload}`
+function deleteConsequence(entry: GreylistRow): Key {
+  if (entry.list === 'black') return 'admin.greylist.deleteBlack'
+  return 'admin.greylist.deleteWhite'
 }
 
 function formatCreated(unix: number): string {
