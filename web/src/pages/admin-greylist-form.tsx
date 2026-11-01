@@ -2,6 +2,8 @@ import type { GreylistLocalKind, GreylistLocalListName } from '@/lib/types'
 
 import { useState } from 'react'
 
+import { type Key, useT } from '@/i18n'
+
 export type GreylistForm = {
   kind: GreylistLocalKind
   list: GreylistLocalListName
@@ -31,8 +33,9 @@ export function GreylistAddForm({
   onSave: (form: GreylistForm, done: () => void) => void
   saving: boolean
 }) {
+  const t = useT()
   const [form, setForm] = useState<GreylistForm>(EMPTY_FORM)
-  const [formError, setFormError] = useState<null | string>(null)
+  const [formError, setFormError] = useState<Key | null>(null)
 
   const handleSave = () => {
     const err = validateValue(form.kind, form.value)
@@ -40,41 +43,39 @@ export function GreylistAddForm({
     if (err) return
     onSave(form, () => setForm(EMPTY_FORM))
   }
-  let saveLabel = 'Add entry'
-  if (saving) saveLabel = 'Adding...'
+  let saveLabel: Key = 'admin.greylist.add'
+  if (saving) saveLabel = 'admin.adding'
 
   return (
     <div className="border-border mb-4 space-y-2 rounded-lg border p-4">
       <p className="text-fg-secondary text-xs">
-        <strong className="text-fg">White</strong> delivers to the inbox past the spam checks; a
-        domain or email counts only when SPF or DKIM proves the mail comes from that domain, a CIDR
-        needs no proof and also skips the connection rate limit and DNSBL. Fraud quarantine and
-        virus rejection still apply. <strong className="text-fg">Black</strong> refuses the mail
-        with SMTP 550 5.7.1; a black CIDR is refused with 554 before the greeting. A value on both
-        lists is treated as black. A domain also covers its subdomains
+        <strong className="text-fg">{t('admin.greylist.white')}</strong>{' '}
+        {t('admin.greylist.form.whiteHelp')}{' '}
+        <strong className="text-fg">{t('admin.greylist.black')}</strong>{' '}
+        {t('admin.greylist.form.blackHelp')}
       </p>
       <div className="flex flex-wrap gap-2">
         <select
-          aria-label="Kind"
+          aria-label={t('admin.col.type')}
           className="border-border bg-bg-secondary w-28 rounded-md border px-3 py-1.5 text-sm"
           onChange={(e) => setForm({ ...form, kind: e.target.value as GreylistLocalKind })}
           value={form.kind}
         >
-          <option value="domain">Domain</option>
-          <option value="email">Email</option>
+          <option value="domain">{t('admin.col.domain')}</option>
+          <option value="email">{t('admin.greylist.kind.email')}</option>
           <option value="cidr">CIDR</option>
         </select>
         <select
-          aria-label="List"
+          aria-label={t('admin.greylist.list')}
           className="border-border bg-bg-secondary w-24 rounded-md border px-3 py-1.5 text-sm"
           onChange={(e) => setForm({ ...form, list: e.target.value as GreylistLocalListName })}
           value={form.list}
         >
-          <option value="white">White</option>
-          <option value="black">Black</option>
+          <option value="white">{t('admin.greylist.white')}</option>
+          <option value="black">{t('admin.greylist.black')}</option>
         </select>
         <input
-          aria-label="Value"
+          aria-label={t('admin.greylist.value')}
           autoFocus
           className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
           onChange={(e) => {
@@ -86,20 +87,20 @@ export function GreylistAddForm({
         />
       </div>
       <input
-        aria-label="Note (optional)"
+        aria-label={t('admin.greylist.noteLabel')}
         className="border-border bg-bg-secondary w-full rounded-md border px-3 py-1.5 text-sm"
         onChange={(e) => setForm({ ...form, note: e.target.value })}
-        placeholder="Why this entry exists (optional)"
+        placeholder={t('admin.greylist.notePlaceholder')}
         value={form.note}
       />
-      {formError && <p className="text-danger text-xs">{formError}</p>}
+      {formError && <p className="text-danger text-xs">{t(formError)}</p>}
       <div className="flex gap-2">
         <button
           className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm disabled:opacity-50"
           disabled={saving || !form.value.trim()}
           onClick={handleSave}
         >
-          {saveLabel}
+          {t(saveLabel)}
         </button>
         <button
           className="text-fg-secondary hover:bg-bg-secondary rounded-md px-3 py-1.5 text-sm transition-colors"
@@ -109,26 +110,26 @@ export function GreylistAddForm({
             onCancel()
           }}
         >
-          Cancel
+          {t('common.cancel')}
         </button>
       </div>
     </div>
   )
 }
 
-function validateValue(kind: GreylistLocalKind, value: string): null | string {
+function validateValue(kind: GreylistLocalKind, value: string): Key | null {
   const v = value.trim()
-  if (!v) return 'Enter a value'
+  if (!v) return 'admin.greylist.err.empty'
   if (kind === 'domain') {
     if (!v.includes('.') || v.includes('@') || v.includes(' ')) {
-      return 'A domain needs at least one dot, and no @ or spaces'
+      return 'admin.greylist.err.domain'
     }
   } else if (kind === 'email') {
     if (!/^[^@\s]+@[^@\s.]+\.[^@\s]+$/.test(v)) {
-      return 'An email address looks like user@example.com'
+      return 'admin.greylist.err.email'
     }
   } else if (kind === 'cidr') {
-    if (!v.includes('/')) return 'A CIDR needs a /N prefix length, e.g. 203.0.113.0/24'
+    if (!v.includes('/')) return 'admin.greylist.err.cidr'
   }
   return null
 }

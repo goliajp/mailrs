@@ -1,3 +1,4 @@
+import { type Key } from '@/i18n'
 /**
  * Agent-key scope vocabulary.
  *
@@ -21,33 +22,36 @@ export type ScopePreset = 'full' | 'mail:read' | 'mail:write' | 'mock'
 
 export type ScopeTone = 'elevated' | 'normal'
 
-export const SCOPE_PRESETS: { description: string; label: string; value: ScopePreset }[] = [
+export const SCOPE_PRESETS: { description: Key; label: Key; value: ScopePreset }[] = [
   {
-    description: 'Every route this account can reach, including admin APIs.',
-    label: 'Full access',
+    description: 'settings.scope.full.help',
+    label: 'settings.scope.full',
     value: 'full',
   },
   {
-    description: 'Read and write mail. Admin APIs are refused.',
-    label: 'Mail read + write',
+    description: 'settings.scope.write.help',
+    label: 'settings.scope.write',
     value: 'mail:write',
   },
   {
-    description: 'GET requests only. Cannot send, delete, or reach admin APIs.',
-    label: 'Mail read-only',
+    description: 'settings.scope.read.help',
+    label: 'settings.scope.read',
     value: 'mail:read',
   },
   {
-    description: 'Disposable test mailboxes only. Cannot read or send real mail.',
-    label: 'Mock mailboxes',
+    description: 'settings.scope.mock.help',
+    label: 'settings.scope.mock',
     value: 'mock',
   },
 ]
 
 /** Label + tone for the scope cell. Empty scopes are the loudest case. */
-export function describeScopes(scopes: readonly string[]): { label: string; tone: ScopeTone } {
-  if (scopes.length === 0) return { label: 'No scope · refused', tone: 'elevated' }
-  if (scopes.includes('admin')) return { label: 'Full access · admin', tone: 'elevated' }
+export function describeScopes(
+  scopes: readonly string[],
+  t: (key: Key) => string
+): { label: string; tone: ScopeTone } {
+  if (scopes.length === 0) return { label: t('settings.scope.none'), tone: 'elevated' }
+  if (scopes.includes('admin')) return { label: t('settings.scope.admin'), tone: 'elevated' }
   return { label: scopes.join(' · '), tone: 'normal' }
 }
 

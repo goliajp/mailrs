@@ -1,3 +1,4 @@
+import type { Key } from '@/i18n'
 // Every action on a conversation, defined once. The context menu, the
 // row's hover buttons, the batch bar, the reading pane's header, the
 // command palette and the keyboard all draw from this table, so an action
@@ -5,7 +6,6 @@
 // reached. Before it, each of those spelled its own labels and its own
 // idea of which actions apply, and `#` deleted without asking while the
 // other four asked.
-
 import type { LucideIcon } from 'lucide-react'
 
 import {
@@ -59,13 +59,13 @@ export type ActionSpec = {
   /** Drawn in red. */
   danger: boolean
   /** The toast once it is done, or null for none (a star needs no word). */
-  done: null | string
+  done: Key | null
   icon: LucideIcon
   id: ActionId
   /** Gmail's keys where Gmail has one. */
   keys: string[]
   /** The verb on a button or a menu item. */
-  label: string
+  label: Key
   /** The action that takes it back, offered in the toast and on `z`. */
   undo: ActionId | null
 }
@@ -77,11 +77,11 @@ export const ACTIONS: Record<ActionId, ActionSpec> = {
     batch: true,
     confirm: false,
     danger: false,
-    done: 'Archived',
+    done: 'action.archive.done',
     icon: Archive,
     id: 'archive',
     keys: ['e'],
-    label: 'Archive',
+    label: 'action.archive',
     undo: 'unarchive',
   }),
   // only in the Trash, and asked first: the files go
@@ -89,11 +89,11 @@ export const ACTIONS: Record<ActionId, ActionSpec> = {
     batch: false,
     confirm: true,
     danger: true,
-    done: 'Deleted forever',
+    done: 'action.deleteForever.done',
     icon: ArchiveX,
     id: 'delete-forever',
     keys: ['#'],
-    label: 'Delete forever',
+    label: 'action.deleteForever',
     undo: null,
   }),
   // opens the label picker; what it changes is said there
@@ -105,73 +105,73 @@ export const ACTIONS: Record<ActionId, ActionSpec> = {
     icon: Tag,
     id: 'label',
     keys: ['l'],
-    label: 'Labels',
+    label: 'action.label',
     undo: null,
   }),
   'mark-junk': spec({
     batch: false,
     confirm: false,
     danger: false,
-    done: 'Moved to Junk',
+    done: 'action.markJunk.done',
     icon: ShieldAlert,
     id: 'mark-junk',
     keys: ['!'],
-    label: 'Mark as junk',
+    label: 'action.markJunk',
     undo: 'mark-not-junk',
   }),
   'mark-not-junk': spec({
     batch: false,
     confirm: false,
     danger: false,
-    done: 'Marked as not junk',
+    done: 'action.markNotJunk.done',
     icon: ShieldCheck,
     id: 'mark-not-junk',
     keys: [],
-    label: 'Mark as not junk',
+    label: 'action.markNotJunk',
     undo: 'mark-junk',
   }),
   'mark-notification': spec({
     batch: false,
     confirm: false,
     danger: false,
-    done: 'Moved to Notifications',
+    done: 'action.markNotification.done',
     icon: Bell,
     id: 'mark-notification',
     keys: [],
-    label: 'Mark as Notification',
+    label: 'action.markNotification',
     undo: 'move-to-inbox',
   }),
   'mark-promotion': spec({
     batch: false,
     confirm: false,
     danger: false,
-    done: 'Moved to Promotions',
+    done: 'action.markPromotion.done',
     icon: ShoppingBag,
     id: 'mark-promotion',
     keys: [],
-    label: 'Mark as Promotion',
+    label: 'action.markPromotion',
     undo: 'move-to-inbox',
   }),
   'move-to-inbox': spec({
     batch: false,
     confirm: false,
     danger: false,
-    done: 'Moved to Inbox',
+    done: 'action.moveToInbox.done',
     icon: Inbox,
     id: 'move-to-inbox',
     keys: [],
-    label: 'Move to Inbox',
+    label: 'action.moveToInbox',
     undo: null,
   }),
   pin: spec({
     batch: false,
     confirm: false,
     danger: false,
-    done: 'Pinned',
+    done: 'action.pin.done',
     icon: Pin,
     id: 'pin',
     keys: ['p'],
-    label: 'Pin',
+    label: 'action.pin',
     undo: 'unpin',
   }),
   read: spec({
@@ -182,18 +182,18 @@ export const ACTIONS: Record<ActionId, ActionSpec> = {
     icon: MailOpen,
     id: 'read',
     keys: ['Shift+I'],
-    label: 'Mark as read',
+    label: 'action.read',
     undo: 'unread',
   }),
   snooze: spec({
     batch: false,
     confirm: false,
     danger: false,
-    done: 'Snoozed until tomorrow 9:00',
+    done: 'action.snooze.done',
     icon: AlarmClock,
     id: 'snooze',
     keys: ['b'],
-    label: 'Snooze until tomorrow',
+    label: 'action.snooze',
     undo: 'unsnooze',
   }),
   star: spec({
@@ -204,7 +204,7 @@ export const ACTIONS: Record<ActionId, ActionSpec> = {
     icon: Star,
     id: 'star',
     keys: ['s'],
-    label: 'Star',
+    label: 'action.star',
     undo: 'unstar',
   }),
   // not asked: the Trash keeps it for 30 days and `z` brings it back
@@ -212,55 +212,55 @@ export const ACTIONS: Record<ActionId, ActionSpec> = {
     batch: true,
     confirm: false,
     danger: true,
-    done: 'Moved to Trash',
+    done: 'action.trash.done',
     icon: Trash2,
     id: 'trash',
     keys: ['#'],
-    label: 'Move to Trash',
+    label: 'action.trash',
     undo: 'untrash',
   }),
   unarchive: spec({
     batch: true,
     confirm: false,
     danger: false,
-    done: 'Unarchived',
+    done: 'action.unarchive.done',
     icon: ArchiveRestore,
     id: 'unarchive',
     keys: ['e'],
-    label: 'Unarchive',
+    label: 'action.unarchive',
     undo: 'archive',
   }),
   unpin: spec({
     batch: false,
     confirm: false,
     danger: false,
-    done: 'Unpinned',
+    done: 'action.unpin.done',
     icon: PinOff,
     id: 'unpin',
     keys: ['p'],
-    label: 'Unpin',
+    label: 'action.unpin',
     undo: 'pin',
   }),
   unread: spec({
     batch: true,
     confirm: false,
     danger: false,
-    done: 'Marked unread',
+    done: 'action.unread.done',
     icon: Mail,
     id: 'unread',
     keys: ['u', 'Shift+U'],
-    label: 'Mark as unread',
+    label: 'action.unread',
     undo: 'read',
   }),
   unsnooze: spec({
     batch: false,
     confirm: false,
     danger: false,
-    done: 'Back in your inbox',
+    done: 'action.unsnooze.done',
     icon: AlarmClockOff,
     id: 'unsnooze',
     keys: ['b'],
-    label: 'Wake now',
+    label: 'action.unsnooze',
     undo: 'snooze',
   }),
   unstar: spec({
@@ -271,18 +271,18 @@ export const ACTIONS: Record<ActionId, ActionSpec> = {
     icon: StarOff,
     id: 'unstar',
     keys: ['s'],
-    label: 'Unstar',
+    label: 'action.unstar',
     undo: 'star',
   }),
   untrash: spec({
     batch: true,
     confirm: false,
     danger: false,
-    done: 'Restored',
+    done: 'action.untrash.done',
     icon: Undo2,
     id: 'untrash',
     keys: [],
-    label: 'Restore',
+    label: 'action.untrash',
     undo: 'trash',
   }),
 }

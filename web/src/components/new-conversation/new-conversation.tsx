@@ -9,10 +9,12 @@ import { X } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 
 import { AutosaveWarning } from '@/components/autosave-warning'
+import { ComposerSkeleton } from '@/components/composer-skeleton'
 import { useAutosaveStatus } from '@/hooks/use-autosave-status'
 import { useDefaultSignature } from '@/hooks/use-default-signature'
 import { useDeleteDraftMutation, useSaveDraftMutation } from '@/hooks/use-drafts'
 import { applyOptimisticSent } from '@/hooks/use-mail-mutations'
+import { type Key, useT } from '@/i18n'
 import { formatFullDate } from '@/lib/format'
 import { escapeHtml } from '@/lib/html-utils'
 import { queryClient } from '@/lib/query-client'
@@ -39,6 +41,7 @@ const StructuredCompose = lazy(() =>
 )
 
 export function NewConversation() {
+  const t = useT()
   const auth = useAtomValue(authAtom)
   // From the server, not from `localStorage`: the atom that used to
   // feed this was written by no UI anywhere, so the composer's
@@ -192,12 +195,12 @@ export function NewConversation() {
       const result = await wirePolishText(text)
       if (result.success && result.polished) {
         handle.setMarkdown(result.polished)
-        toast.success('Text polished')
+        toast.success(t('compose.polished'))
       } else {
-        toast.error(result.message ?? 'Polish failed')
+        toast.error(result.message ?? t('compose.polishFailed'))
       }
     } catch {
-      toast.error('AI unavailable')
+      toast.error(t('compose.aiUnavailable'))
     } finally {
       setPolishing(false)
     }
@@ -206,7 +209,7 @@ export function NewConversation() {
   const generateSubject = async () => {
     const content = composeRef.current?.getContent()
     if (!content?.compose.text.trim()) {
-      toast.error('Write some content first')
+      toast.error(t('compose.writeFirst'))
       return
     }
     setGeneratingSubject(true)
@@ -217,12 +220,12 @@ export function NewConversation() {
       })
       if (result.success && result.subject) {
         setSubject(result.subject)
-        toast.success('Subject generated')
+        toast.success(t('compose.subjectGenerated'))
       } else {
-        toast.error(result.message ?? 'Failed')
+        toast.error(result.message ?? t('common.failed'))
       }
     } catch {
-      toast.error('AI unavailable')
+      toast.error(t('compose.aiUnavailable'))
     } finally {
       setGeneratingSubject(false)
     }
@@ -248,12 +251,12 @@ export function NewConversation() {
     if (sending) return
     const recipients = parseAddressList(to)
     if (recipients.length === 0) {
-      setError('Recipient is required')
+      setError(t('compose.needRecipient'))
       return
     }
     const content = composeRef.current?.getContent()
     if (!content || !content.compose.text.trim()) {
-      setError('Message body is required')
+      setError(t('compose.needBody'))
       return
     }
 
@@ -294,17 +297,17 @@ export function NewConversation() {
             to: recipients.join(', '),
           })
         }
-        toast.success('Message sent', {
+        toast.success(t('compose.sent'), {
           ...(sentMessageId
             ? {
                 action: {
-                  label: 'Undo',
+                  label: t('common.undo'),
                   onClick: async () => {
                     try {
                       await wireDeletePendingSend(sentMessageId)
-                      toast.success('Send cancelled')
+                      toast.success(t('compose.sendCancelled'))
                     } catch {
-                      toast.error('Too late to undo — already sent')
+                      toast.error(t('compose.undoTooLate'))
                     }
                   },
                 },
@@ -322,10 +325,10 @@ export function NewConversation() {
         await queryClient.invalidateQueries({ queryKey: mailKeys.conversations() })
         closeComposer()
       } else {
-        setError(result.message ?? 'Send failed')
+        setError(result.message ?? t('compose.sendFailed'))
       }
     } catch {
-      setError('Network error')
+      setError(t('compose.networkError'))
     } finally {
       setSending(false)
     }
@@ -340,11 +343,9 @@ export function NewConversation() {
     <div className="flex h-full min-h-0 flex-1 flex-col">
       {/* header — subtle, not shouty */}
       <div className="border-border flex shrink-0 items-center justify-between border-b px-4 py-2">
-        <span className="text-fg-muted text-xs font-medium">
-          {isReply ? 'Reply' : 'New message'}
-        </span>
+        <span className="text-fg-muted text-xs font-medium">{t(headerLabel(isReply))}</span>
         <button
-          aria-label="Close"
+          aria-label={t('common.close')}
           className="text-fg-muted hover:bg-bg-secondary rounded-md p-1 transition-colors"
           onClick={closeComposer}
           type="button"
@@ -394,15 +395,15 @@ export function NewConversation() {
             disabled={sending}
             mode={isReply ? 'reply' : 'new'}
             onSubmit={send}
-            placeholder={isReply ? 'Type a reply...' : 'Write your message...'}
+            placeholder={t(bodyPlaceholder(isReply))}
             quotedHeader={
               replySource
-                ? `On ${formatFullDate(replySource.internalDate)}, ${replySource.sender} wrote:\n\n`
+                ? `${t('compose.quoteHeader', { date: formatFullDate(replySource.internalDate), sender: replySource.sender })}\n\n`
                 : undefined
             }
             quotedHeaderHtml={
               replySource
-                ? `<p style="color:#888">On ${escapeHtml(formatFullDate(replySource.internalDate))}, ${escapeHtml(replySource.sender)} wrote:</p>`
+                ? `<p style="color:#888">${escapeHtml(t('compose.quoteHeader', { date: formatFullDate(replySource.internalDate), sender: replySource.sender }))}</p>`
                 : undefined
             }
             quotedHtml={
@@ -438,20 +439,20 @@ export function NewConversation() {
   )
 }
 
-function ComposerSkeleton() {
-  return (
-    <div aria-busy="true" className="flex h-full flex-col gap-2 p-4">
-      <div className="bg-bg-secondary h-4 w-3/4 animate-pulse rounded" />
-      <div className="bg-bg-secondary h-4 w-1/2 animate-pulse rounded" />
-      <div className="bg-bg-secondary mt-2 h-24 w-full animate-pulse rounded" />
-    </div>
-  )
+function bodyPlaceholder(isReply: boolean): Key {
+  if (isReply) return 'compose.replyPlaceholder'
+  return 'compose.bodyPlaceholder'
 }
 
 function extractReplyAddress(sender: string): string {
   const match = sender.match(/<([^>]+)>/)
   if (match) return match[1].trim()
   return sender.trim()
+}
+
+function headerLabel(isReply: boolean): Key {
+  if (isReply) return 'compose.replyHeader'
+  return 'compose.newHeader'
 }
 
 function initialSubject(

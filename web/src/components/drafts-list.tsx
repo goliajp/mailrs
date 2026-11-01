@@ -13,6 +13,7 @@ import { ListSearchInput } from '@/components/list-search-input'
 import { SenderAvatar } from '@/components/sender-avatar'
 import { useDraftRows } from '@/hooks/use-current-list'
 import { useDeleteDraftMutation } from '@/hooks/use-drafts'
+import { useT } from '@/i18n'
 import { dateGroupLabel, formatFullDate } from '@/lib/format'
 import { MAIL_ROW_CONTENT, MAIL_ROW_FOCUS, mailRowStateClass } from '@/lib/list-row-class'
 import { splitAddressList } from '@/lib/recipients'
@@ -26,6 +27,7 @@ type DraftListItem = { draft: Draft; type: 'row' } | { label: string; type: 'div
 // a row reopens it in the composer (which upserts the same id on autosave
 // and deletes it on send).
 export function DraftsList() {
+  const t = useT()
   // Nothing is auto-selected here, and that is not an omission: a draft
   // row opens the composer, so picking one for you would pop it open the
   // moment you arrived. `useCurrentListRows` returns no rows for this
@@ -57,7 +59,7 @@ export function DraftsList() {
 
   const removeDraft = (id: number) => {
     deleteDraftMut.mutate(id, {
-      onError: () => toast.error('Could not delete draft'),
+      onError: () => toast.error(t('drafts.deleteFailed')),
     })
   }
 
@@ -66,13 +68,13 @@ export function DraftsList() {
   // away from the Draft tab is always possible.
   const renderBody = () => {
     if (isLoading) {
-      return <div className="text-fg-muted p-4 text-xs">Loading drafts…</div>
+      return <div className="text-fg-muted p-4 text-xs">{t('drafts.loading')}</div>
     }
     if (drafts.length === 0) {
-      return <div className="text-fg-muted p-8 text-center text-sm">No drafts</div>
+      return <div className="text-fg-muted p-8 text-center text-sm">{t('list.draft.empty')}</div>
     }
     if (filtered.length === 0) {
-      return <div className="text-fg-muted p-8 text-center text-sm">No matching drafts</div>
+      return <div className="text-fg-muted p-8 text-center text-sm">{t('drafts.noMatch')}</div>
     }
     return (
       <div className="flex flex-col">
@@ -97,7 +99,7 @@ export function DraftsList() {
 
   return (
     <div className="flex h-full flex-col">
-      <ListSearchInput label="Search drafts" placeholder="Search drafts…" />
+      <ListSearchInput label={t('drafts.search')} placeholder={t('drafts.searchPlaceholder')} />
       <FilterBar />
       <div className="min-h-0 flex-1 overflow-y-auto">{renderBody()}</div>
     </div>
@@ -118,19 +120,20 @@ const DraftRow = memo(function DraftRow({
   onOpen: (d: Draft) => void
 }) {
   const ctx = useContextMenu()
+  const t = useT()
   const items = useMemo<ContextMenuItem[]>(
     () => [
       {
-        label: 'Open',
+        label: t('drafts.open'),
         onClick: () => onOpen(draft),
       },
       {
         danger: true,
-        label: 'Delete',
+        label: t('labels.delete'),
         onClick: () => onDelete(Number(draft.id)),
       },
     ],
-    [draft, onOpen, onDelete]
+    [draft, onOpen, onDelete, t]
   )
 
   return (
@@ -164,7 +167,7 @@ const DraftRow = memo(function DraftRow({
             </span>
           </div>
           <span className="text-fg-muted truncate text-sm">
-            To: {draft.to || '—'} · {draftPreview(draft.body)}
+            {t('drafts.to', { to: draft.to || '—' })} · {draftPreview(draft.body)}
           </span>
         </div>
       </button>
@@ -172,7 +175,7 @@ const DraftRow = memo(function DraftRow({
           focused and stayed at `opacity-0`, so a keyboard user could
           land on Delete without seeing it. */}
       <button
-        aria-label="Delete draft"
+        aria-label={t('drafts.delete')}
         className="text-fg-muted hover:text-danger focus-visible:ring-accent/50 absolute top-1/2 right-3 -translate-y-1/2 rounded p-1 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:outline-none"
         onClick={() => onDelete(Number(draft.id))}
         type="button"

@@ -10,7 +10,7 @@ import { CategoryBadge, ImportanceBadge } from '@/components/category-badge'
 import { ActionSheet, ContextMenu, useContextMenu } from '@/components/context-menu'
 import { RowLabels } from '@/components/label-chip'
 import { SenderAvatar } from '@/components/sender-avatar'
-import { useT } from '@/i18n'
+import { type Key, useT } from '@/i18n'
 import { ACTIONS, rowActions, toggle } from '@/lib/actions'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { formatFullDate } from '@/lib/format'
@@ -95,7 +95,7 @@ export const ConversationItem = memo(function ConversationItem({
         return {
           danger: spec.danger,
           icon: <Icon aria-hidden className="h-4 w-4" />,
-          label: spec.label,
+          label: t(spec.label),
           onClick: () => onContextAction(convo.thread_id, id),
         }
       }),
@@ -109,6 +109,7 @@ export const ConversationItem = memo(function ConversationItem({
       isJunkView,
       isNpView,
       onContextAction,
+      t,
     ]
   )
 
@@ -210,24 +211,24 @@ export const ConversationItem = memo(function ConversationItem({
               {!batchMode && (
                 <span className="pointer-events-auto flex items-center gap-0.5 md:hidden">
                   <button
-                    aria-label={archiveLabel(isArchived)}
+                    aria-label={t(archiveLabel(isArchived))}
                     className="touch-target text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary rounded p-1"
                     onClick={(e) => {
                       e.stopPropagation()
                       onContextAction(convo.thread_id, archiveAction(isArchived))
                     }}
-                    title={archiveLabel(isArchived)}
+                    title={t(archiveLabel(isArchived))}
                   >
                     <ArchiveIcon archived={isArchived} className="h-4 w-4" />
                   </button>
                   <button
-                    aria-label={starLabel(isFlagged)}
+                    aria-label={t(starLabel(isFlagged))}
                     className={getStarClass({ density: 'mobile', isFlagged })}
                     onClick={(e) => {
                       e.stopPropagation()
                       onContextAction(convo.thread_id, starAction(isFlagged))
                     }}
-                    title={starLabel(isFlagged)}
+                    title={t(starLabel(isFlagged))}
                   >
                     <Star className="h-4 w-4" fill={starFill(isFlagged)} />
                   </button>
@@ -242,24 +243,24 @@ export const ConversationItem = memo(function ConversationItem({
                 {!batchMode && (
                   <span className="pointer-events-auto absolute inset-y-0 right-0 hidden items-center gap-0.5 md:group-focus-within:flex md:group-hover:flex">
                     <button
-                      aria-label={archiveLabel(isArchived)}
+                      aria-label={t(archiveLabel(isArchived))}
                       className="text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary rounded p-0.5"
                       onClick={(e) => {
                         e.stopPropagation()
                         onContextAction(convo.thread_id, archiveAction(isArchived))
                       }}
-                      title={archiveLabel(isArchived)}
+                      title={t(archiveLabel(isArchived))}
                     >
                       <ArchiveIcon archived={isArchived} className="h-3.5 w-3.5" />
                     </button>
                     <button
-                      aria-label={starLabel(isFlagged)}
+                      aria-label={t(starLabel(isFlagged))}
                       className={getStarClass({ density: 'desktop', isFlagged })}
                       onClick={(e) => {
                         e.stopPropagation()
                         onContextAction(convo.thread_id, starAction(isFlagged))
                       }}
-                      title={starLabel(isFlagged)}
+                      title={t(starLabel(isFlagged))}
                     >
                       <Star className="h-3.5 w-3.5" fill={starFill(isFlagged)} />
                     </button>
@@ -326,7 +327,7 @@ function ArchiveIcon({ archived, className }: { archived: boolean; className: st
   return <Icon aria-hidden className={className} />
 }
 
-function archiveLabel(archived: boolean): string {
+function archiveLabel(archived: boolean): Key {
   return ACTIONS[archiveAction(archived)].label
 }
 
@@ -372,6 +373,6 @@ function starFill(flagged: boolean): string {
   return 'none'
 }
 
-function starLabel(flagged: boolean): string {
+function starLabel(flagged: boolean): Key {
   return ACTIONS[starAction(flagged)].label
 }

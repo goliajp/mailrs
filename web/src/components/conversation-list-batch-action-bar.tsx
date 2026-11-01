@@ -1,5 +1,6 @@
 import type { BatchAction } from '@/hooks/use-mail-mutations'
 
+import { useT } from '@/i18n'
 import { type ActionId, ACTIONS, batchActions, type RowState } from '@/lib/actions'
 
 // floating action bar at bottom of list during batch mode
@@ -20,11 +21,12 @@ export function BatchActionBar({
   /** The Trash offers restoring; every other list, moving there. */
   view: RowState['view']
 }) {
+  const t = useT()
   return (
     <div className="border-border bg-surface absolute right-0 bottom-0 left-0 z-40 border-t px-3 py-2 backdrop-blur">
       <div className="flex items-center gap-2">
         <span className="text-fg-secondary shrink-0 text-xs font-medium">
-          {selectedCount} selected
+          {t('batch.selected', { count: selectedCount })}
         </span>
         <div className="flex flex-1 items-center gap-1.5 overflow-x-auto">
           {batchActions(view).map((id) => (
@@ -34,7 +36,7 @@ export function BatchActionBar({
               key={id}
               onClick={() => runBatch(id, onAction, onLabel)}
             >
-              {ACTIONS[id].label}
+              {t(ACTIONS[id].label)}
             </button>
           ))}
         </div>
@@ -43,7 +45,7 @@ export function BatchActionBar({
           disabled={loading}
           onClick={onCancel}
         >
-          Cancel
+          {t('common.cancel')}
         </button>
         {loading && (
           <div className="border-border border-t-fg-secondary h-4 w-4 shrink-0 animate-spin rounded-full border-2" />

@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 
+import { useT } from '@/i18n'
 import { adminKeys } from '@/lib/query-keys'
 import { adminObjectGet } from '@/wire/endpoints/admin'
 
@@ -9,6 +10,7 @@ import { quotaLabel } from './quota-label'
 type QuotaResponse = { quota_bytes?: null | number }
 
 export function QuotaCell({ address }: { address: string }) {
+  const t = useT()
   const { data, isPending } = useQuery({
     queryKey: [...adminKeys.accounts(), 'quota', address],
     retry: false,
@@ -17,8 +19,12 @@ export function QuotaCell({ address }: { address: string }) {
   })
 
   if (isPending) {
-    return <span className="text-fg-muted text-xs">Loading...</span>
+    return <span className="text-fg-muted text-xs">{t('admin.loading')}</span>
   }
 
-  return <span className="text-fg-secondary text-xs">{quotaLabel(data?.quota_bytes)}</span>
+  return (
+    <span className="text-fg-secondary text-xs">
+      {quotaLabel(data?.quota_bytes, t('admin.unlimited'))}
+    </span>
+  )
 }

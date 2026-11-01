@@ -1,4 +1,5 @@
 import { MobileModal } from '@/components/mobile-modal'
+import { useT } from '@/i18n'
 
 /**
  * A confirmation that says what will happen. The confirm button carries
@@ -20,6 +21,7 @@ export function ConfirmAction({
   pending?: boolean
   title: string
 }) {
+  const t = useT()
   return (
     <MobileModal onClose={onCancel} open>
       <div
@@ -35,7 +37,7 @@ export function ConfirmAction({
             onClick={onCancel}
             type="button"
           >
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             className="bg-danger rounded-md px-3 py-1.5 text-sm font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"

@@ -13,6 +13,7 @@ import {
   useSetThreadLabel,
   useUpdateLabel,
 } from '@/hooks/use-labels'
+import { type Key, useT } from '@/i18n'
 import { labelColor } from '@/lib/label-colors'
 import { labelPickerAtom } from '@/store/ui'
 import { LABEL_COLORS, type WireLabel } from '@/wire/schemas/labels'
@@ -23,6 +24,7 @@ import { LABEL_COLORS, type WireLabel } from '@/wire/schemas/labels'
  * conversations has it.
  */
 export function LabelPicker() {
+  const t = useT()
   const [open, setOpen] = useAtom(labelPickerAtom)
   const [managing, setManaging] = useState(false)
   const close = () => {
@@ -34,13 +36,13 @@ export function LabelPicker() {
     <MobileModal onClose={close} open>
       <div className="bg-surface border-border mx-4 w-full max-w-sm rounded-xl border p-4 shadow-xl">
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-fg text-sm font-semibold">{title(managing)}</h3>
+          <h3 className="text-fg text-sm font-semibold">{t(title(managing))}</h3>
           <button
             className="text-accent text-xs hover:underline"
             onClick={() => setManaging(!managing)}
             type="button"
           >
-            {switchLabel(managing)}
+            {t(switchLabel(managing))}
           </button>
         </div>
         {managing && <ManageLabels />}
@@ -51,6 +53,7 @@ export function LabelPicker() {
 }
 
 function ApplyLabels({ threadIds }: { threadIds: string[] }) {
+  const t = useT()
   const { data: labels = [] } = useLabels()
   const { rows } = useConversationRows()
   const setLabel = useSetThreadLabel()
@@ -96,7 +99,7 @@ function ApplyLabels({ threadIds }: { threadIds: string[] }) {
           </li>
         ))}
         {labels.length === 0 && (
-          <li className="text-fg-muted px-2 py-1.5 text-sm">No labels yet</li>
+          <li className="text-fg-muted px-2 py-1.5 text-sm">{t('labels.empty')}</li>
         )}
       </ul>
       <form
@@ -107,10 +110,10 @@ function ApplyLabels({ threadIds }: { threadIds: string[] }) {
         }}
       >
         <input
-          aria-label="New label"
+          aria-label={t('labels.new')}
           className="border-border bg-bg flex-1 rounded-md border px-2 py-1 text-sm"
           onChange={(e) => setName(e.target.value)}
-          placeholder="New label"
+          placeholder={t('labels.new')}
           value={name}
         />
         <button
@@ -118,7 +121,7 @@ function ApplyLabels({ threadIds }: { threadIds: string[] }) {
           disabled={!name.trim() || create.isPending}
           type="submit"
         >
-          Create
+          {t('appPasswords.create')}
         </button>
       </form>
     </div>
@@ -131,18 +134,20 @@ function errorText(err: unknown): string {
 }
 
 function ManageLabels() {
+  const t = useT()
   const { data: labels = [] } = useLabels()
   return (
     <ul className="max-h-80 space-y-2 overflow-y-auto">
       {labels.map((l) => (
         <ManageRow key={l.id} label={l} />
       ))}
-      {labels.length === 0 && <li className="text-fg-muted text-sm">No labels yet</li>}
+      {labels.length === 0 && <li className="text-fg-muted text-sm">{t('labels.empty')}</li>}
     </ul>
   )
 }
 
 function ManageRow({ label }: { label: WireLabel }) {
+  const t = useT()
   const update = useUpdateLabel()
   const remove = useDeleteLabel()
   const [name, setName] = useState(label.name)
@@ -185,23 +190,21 @@ function ManageRow({ label }: { label: WireLabel }) {
       </div>
       {asking && (
         <div className="mt-2 text-xs">
-          <p className="text-fg-secondary">
-            Delete {label.name}? It comes off every conversation; no mail is deleted.
-          </p>
+          <p className="text-fg-secondary">{t('labels.deleteConfirm', { name: label.name })}</p>
           <div className="mt-1.5 flex justify-end gap-2">
             <button
               className="text-fg-secondary px-2 py-1"
               onClick={() => setAsking(false)}
               type="button"
             >
-              Cancel
+              {t('common.cancel')}
             </button>
             <button
               className="bg-danger rounded-md px-2 py-1 font-medium text-white"
               onClick={() => remove.mutate(label.id, { onError: (e) => toast.error(errorText(e)) })}
               type="button"
             >
-              Delete
+              {t('labels.delete')}
             </button>
           </div>
         </div>
@@ -216,12 +219,12 @@ function swatchClass(active: boolean): string {
   return base
 }
 
-function switchLabel(managing: boolean): string {
-  if (managing) return 'Done'
-  return 'Manage'
+function switchLabel(managing: boolean): Key {
+  if (managing) return 'common.done'
+  return 'labels.manage'
 }
 
-function title(managing: boolean): string {
-  if (managing) return 'Manage labels'
-  return 'Labels'
+function title(managing: boolean): Key {
+  if (managing) return 'labels.manageTitle'
+  return 'labels.title'
 }

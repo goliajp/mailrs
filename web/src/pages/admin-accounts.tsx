@@ -18,13 +18,22 @@ import {
   ConfirmAction,
 } from '@/components/admin-page'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
+import { type Key, useT } from '@/i18n'
 import { adminKeys } from '@/lib/query-keys'
 import { adminDelete, adminListGet } from '@/wire/endpoints/admin'
 
 const PAGE_SIZE = 20
-const HEADERS = ['Address', 'Display name', 'Domain', 'Quota', 'Status', 'Password', '']
+const HEADERS: Key[] = [
+  'admin.col.address',
+  'admin.displayName',
+  'admin.col.domain',
+  'admin.col.quota',
+  'admin.col.status',
+  'admin.password',
+]
 
 export function AdminAccounts() {
+  const t = useT()
   const [searchParams, setSearchParams] = useSearchParams()
   const filter = searchParams.get('q') ?? ''
   const page = Math.max(0, Number.parseInt(searchParams.get('page') ?? '0', 10) || 0)
@@ -52,7 +61,7 @@ export function AdminAccounts() {
   const deleteAccount = useAdminMutation({
     invalidateKey: adminKeys.accounts(),
     mutationFn: (address: string) => adminDelete(`/admin/accounts/${encodeURIComponent(address)}`),
-    successMsg: (address) => `Account "${address}" deleted`,
+    successMsg: (address) => t('admin.accounts.deleted', { address }),
   })
 
   const filtered = useMemo(() => {
@@ -78,6 +87,7 @@ export function AdminAccounts() {
   const columns = accountColumns({
     onToggle: toggle,
     open,
+    t,
     onDelete: (address) => setParam('delete', address),
   })
 
@@ -88,36 +98,52 @@ export function AdminAccounts() {
   }
 
   const renderList = () => {
-    if (isPending) return <AdminTableSkeleton cols={7} headers={HEADERS} rows={6} />
+    if (isPending) {
+      return <AdminTableSkeleton cols={7} headers={[...HEADERS.map((h) => t(h)), '']} rows={6} />
+    }
     if (error) {
-      return <AdminErrorState error={error} onRetry={() => refetch()} what="the account list" />
+      return (
+        <AdminErrorState
+          error={error}
+          onRetry={() => refetch()}
+          what={t('admin.accounts.listName')}
+        />
+      )
     }
     if (accounts.length === 0 && !adding) {
       return (
         <AdminEmptyState
-          description="An account is a mailbox someone signs in to, over the web, IMAP or POP3. Add one to start receiving mail at its address"
+          description={t('admin.accounts.emptyHelp')}
           icon={<Users className="h-10 w-10" />}
-          title="No accounts yet"
+          title={t('admin.accounts.empty')}
         />
       )
     }
     if (filtered.length === 0) {
-      return <AdminEmptyState description={`No accounts match "${filter}"`} title="No matches" />
+      return (
+        <AdminEmptyState
+          description={t('admin.accounts.noMatch', { filter })}
+          title={t('admin.noMatches')}
+        />
+      )
     }
     return (
       <>
         <AdminTable
           columns={columns}
           detail={panelOf}
-          label="Accounts"
+          label={t('admin.accounts.title')}
           rowKey={(a) => a.address}
           rows={paged}
         />
         {totalPages > 1 && (
           <div className="text-fg-secondary mt-4 flex items-center justify-between text-sm">
             <span className="tabular-nums">
-              Showing {safePage * PAGE_SIZE + 1}–
-              {Math.min((safePage + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}
+              {t('admin.showing', {
+                from: safePage * PAGE_SIZE + 1,
+                to: Math.min((safePage + 1) * PAGE_SIZE, filtered.length),
+                total: filtered.length,
+              })}
             </span>
             <div className="flex gap-1">
               <button
@@ -125,14 +151,14 @@ export function AdminAccounts() {
                 disabled={safePage === 0}
                 onClick={() => setParam('page', pageParam(safePage - 1))}
               >
-                Prev
+                {t('admin.prev')}
               </button>
               <button
                 className="hover:bg-bg-secondary rounded-md px-2.5 py-1 disabled:opacity-40"
                 disabled={safePage >= totalPages - 1}
                 onClick={() => setParam('page', pageParam(safePage + 1))}
               >
-                Next
+                {t('admin.next')}
               </button>
             </div>
           </div>
@@ -146,10 +172,10 @@ export function AdminAccounts() {
       actions={
         <div className="flex items-center gap-3">
           <input
-            aria-label="Filter accounts"
+            aria-label={t('admin.accounts.filter')}
             className="border-border bg-bg-secondary placeholder:text-fg-muted focus:border-accent w-64 rounded-md border px-3 py-1.5 text-sm outline-none"
             onChange={(e) => setParam('q', e.target.value)}
-            placeholder="Filter accounts..."
+            placeholder={t('admin.accounts.filterPlaceholder')}
             value={filter}
           />
           {!adding && (
@@ -157,12 +183,12 @@ export function AdminAccounts() {
               className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:opacity-90"
               onClick={() => setAdding(true)}
             >
-              Add account
+              {t('admin.accounts.add')}
             </button>
           )}
         </div>
       }
-      title="Accounts"
+      title={t('admin.accounts.title')}
     >
       {adding && <AddAccountForm onDone={() => setAdding(false)} />}
 
@@ -170,27 +196,20 @@ export function AdminAccounts() {
 
       {deleteTarget && (
         <ConfirmAction
-          confirmLabel={pendingLabel(deleteAccount.isPending, 'Deleting...', 'Delete account')}
-          consequence={accountDeleteConsequence(deleteTarget)}
+          confirmLabel={t(
+            pendingLabel(deleteAccount.isPending, 'admin.deleting', 'admin.accounts.delete')
+          )}
+          consequence={t('admin.accounts.deleteConsequence', { address: deleteTarget })}
           onCancel={() => setParam('delete', null)}
           onConfirm={() =>
             deleteAccount.mutate(deleteTarget, { onSettled: () => setParam('delete', null) })
           }
           pending={deleteAccount.isPending}
-          title={`Delete ${deleteTarget}?`}
+          title={t('admin.deleteTitle', { name: deleteTarget })}
         />
       )}
     </AdminPageShell>
   )
-}
-
-/**
- * Deleting removes the account, revokes its sessions and agent keys, and
- * moves its maildir to `.deleted/`. The receiver then refuses the address
- * like any other unknown one, unless an alias or catch-all resolves it.
- */
-function accountDeleteConsequence(address: string): string {
-  return `${address} can no longer sign in, and its open sessions and agent keys stop working. Its stored mail is moved aside on disk, kept but no longer visible. New mail to the address is refused unless an alias or catch-all takes it. Its aliases and group memberships are kept`
 }
 
 function pageParam(p: number): null | string {
@@ -198,7 +217,7 @@ function pageParam(p: number): null | string {
   return String(p)
 }
 
-function pendingLabel(pending: boolean, busy: string, idle: string): string {
+function pendingLabel(pending: boolean, busy: Key, idle: Key): Key {
   if (pending) return busy
   return idle
 }

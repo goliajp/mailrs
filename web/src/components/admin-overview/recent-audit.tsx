@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router'
 
+import { useT } from '@/i18n'
 import { adminKeys } from '@/lib/query-keys'
 import { adminListGet } from '@/wire/endpoints/admin'
 
@@ -16,6 +17,7 @@ const EMPTY: AuditEntry[] = []
 
 /** The last few things an admin or the system changed. */
 export function RecentAudit() {
+  const t = useT()
   const audit = useQuery({
     queryKey: adminKeys.overviewAuditLog(),
     refetchInterval: 30_000,
@@ -23,11 +25,11 @@ export function RecentAudit() {
   })
   const rows = audit.data ?? EMPTY
   return (
-    <section aria-label="Recent changes">
+    <section aria-label={t('admin.recent.title')}>
       <div className="mb-2 flex items-baseline justify-between">
-        <h3 className="text-fg text-sm font-medium">Recent changes</h3>
+        <h3 className="text-fg text-sm font-medium">{t('admin.recent.title')}</h3>
         <Link className="text-fg-muted hover:text-fg text-xs" to="/admin/audit-log">
-          Audit log
+          {t('admin.auditLog')}
         </Link>
       </div>
       <Rows error={audit.error} rows={rows} />
@@ -35,19 +37,23 @@ export function RecentAudit() {
   )
 }
 
-function ago(epochSecs: number): string {
+function ago(epochSecs: number, t: ReturnType<typeof useT>): string {
   const diff = Math.floor(Date.now() / 1000) - epochSecs
-  if (diff < 60) return 'just now'
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
-  return `${Math.floor(diff / 86400)}d ago`
+  if (diff < 60) return t('admin.ago.now')
+  if (diff < 3600) return t('admin.ago.minutes', { n: Math.floor(diff / 60) })
+  if (diff < 86400) return t('admin.ago.hours', { n: Math.floor(diff / 3600) })
+  return t('admin.ago.days', { n: Math.floor(diff / 86400) })
 }
 
 function Rows({ error, rows }: { error: Error | null; rows: AuditEntry[] }) {
+  const t = useT()
   if (error)
-    return <p className="text-danger text-sm">The audit log could not be read: {error.message}</p>
-  if (rows.length === 0)
-    return <p className="text-fg-muted text-sm">Nothing has been changed yet</p>
+    return (
+      <p className="text-danger text-sm">
+        {t('admin.recent.unreadable', { reason: error.message })}
+      </p>
+    )
+  if (rows.length === 0) return <p className="text-fg-muted text-sm">{t('admin.recent.empty')}</p>
   return (
     <ul className="border-border divide-border divide-y rounded-lg border">
       {rows.map((e) => (
@@ -59,7 +65,7 @@ function Rows({ error, rows }: { error: Error | null; rows: AuditEntry[] }) {
             className="text-fg-muted shrink-0 text-xs tabular-nums"
             dateTime={new Date(e.timestamp * 1000).toISOString()}
           >
-            {ago(e.timestamp)}
+            {ago(e.timestamp, t)}
           </time>
         </li>
       ))}

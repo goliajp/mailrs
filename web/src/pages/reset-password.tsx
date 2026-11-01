@@ -5,10 +5,12 @@ import { Link, useSearchParams } from 'react-router'
 import { AuthCard } from '@/components/auth/auth-card'
 import { AuthField } from '@/components/auth/auth-field'
 import { BrandHeader } from '@/components/auth/brand-header'
+import { type Key, useT } from '@/i18n'
 import { wireResetPassword } from '@/wire/endpoints/auth'
 import { WireErrorException } from '@/wire/errors'
 
 export function ResetPassword() {
+  const t = useT()
   const [searchParams] = useSearchParams()
   const token = searchParams.get('token') ?? ''
   const [password, setPassword] = useState('')
@@ -24,12 +26,12 @@ export function ResetPassword() {
     setError('')
 
     if (password.length < 12) {
-      setError('Password must be at least 12 characters')
+      setError(t('reset.tooShort'))
       return
     }
 
     if (password !== confirm) {
-      setError('Passwords do not match')
+      setError(t('reset.mismatch'))
       return
     }
 
@@ -38,17 +40,7 @@ export function ResetPassword() {
       await wireResetPassword(token, password)
       setSuccess(true)
     } catch (e) {
-      if (e instanceof WireErrorException) {
-        setError(
-          e.detail.kind === 'server'
-            ? (e.detail.message ?? 'Failed to reset password')
-            : e.detail.kind === 'network'
-              ? 'Network error'
-              : 'Failed to reset password'
-        )
-      } else {
-        setError('Network error')
-      }
+      setError(resetErrorText(e, t))
     } finally {
       setLoading(false)
     }
@@ -59,11 +51,11 @@ export function ResetPassword() {
       <AuthCard>
         <BrandHeader />
         <Alert role="alert" variant="danger">
-          Invalid or missing reset token
+          {t('reset.badToken')}
         </Alert>
         <div className="text-center">
           <Link className="text-accent text-sm hover:underline" to="/login">
-            Back to sign in
+            {t('reset.backToSignIn')}
           </Link>
         </div>
       </AuthCard>
@@ -75,11 +67,11 @@ export function ResetPassword() {
       <AuthCard>
         <BrandHeader />
         <Alert role="status" variant="success">
-          Password reset successfully. You can now sign in with your new password.
+          {t('reset.done')}
         </Alert>
         <div className="text-center">
           <Link className="text-accent text-sm hover:underline" to="/login">
-            Sign in
+            {t('login.signIn')}
           </Link>
         </div>
       </AuthCard>
@@ -88,7 +80,7 @@ export function ResetPassword() {
 
   return (
     <AuthCard onSubmit={handleSubmit}>
-      <BrandHeader subtitle="Set your new password" />
+      <BrandHeader subtitle={t('reset.setYours')} />
 
       {error && (
         <Alert role="alert" variant="danger">
@@ -100,7 +92,7 @@ export function ResetPassword() {
         autoComplete="new-password"
         autoFocus
         id="reset-password"
-        label="New Password"
+        label={t('reset.newPassword')}
         onChange={setPassword}
         passwordToggle
         required
@@ -112,8 +104,8 @@ export function ResetPassword() {
         autoComplete="new-password"
         id="reset-confirm"
         invalid={confirmMismatch}
-        invalidMessage={confirmMismatch ? 'Passwords do not match' : undefined}
-        label="Confirm Password"
+        invalidMessage={mismatchMessage(confirmMismatch, t('reset.mismatch'))}
+        label={t('reset.confirm')}
         onChange={setConfirm}
         passwordToggle
         required
@@ -122,14 +114,31 @@ export function ResetPassword() {
       />
 
       <Button disabled={loading} fullWidth loading={loading} type="submit" variant="primary">
-        {loading ? 'Resetting...' : 'Reset Password'}
+        {t(resetLabel(loading))}
       </Button>
 
       <div className="text-center">
         <Link className="text-accent text-sm hover:underline" to="/login">
-          Back to sign in
+          {t('reset.backToSignIn')}
         </Link>
       </div>
     </AuthCard>
   )
+}
+
+function mismatchMessage(mismatch: boolean, text: string): string | undefined {
+  if (mismatch) return text
+  return undefined
+}
+
+function resetErrorText(e: unknown, t: (key: Key) => string): string {
+  if (!(e instanceof WireErrorException)) return t('compose.networkError')
+  if (e.detail.kind === 'server') return e.detail.message ?? t('reset.failed')
+  if (e.detail.kind === 'network') return t('compose.networkError')
+  return t('reset.failed')
+}
+
+function resetLabel(loading: boolean): Key {
+  if (loading) return 'reset.resetting'
+  return 'reset.submit'
 }

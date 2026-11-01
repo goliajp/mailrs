@@ -35,6 +35,7 @@ import { StructuredDataCard } from '@/components/structured-data-card'
 import { FeedbackMenu, HdrBtn, SmBtn } from '@/components/thread-view-bubble'
 import { UnsubscribeFooter } from '@/components/unsubscribe-footer'
 import { useSelectedThreadId } from '@/hooks/use-current-list'
+import { type Key, useT } from '@/i18n'
 import { MPane } from '@/layouts/pane'
 import { ACTIONS, toggle } from '@/lib/actions'
 import { extractEmail, extractName } from '@/lib/avatar'
@@ -116,6 +117,7 @@ export function ThreadContentPane({
   subject,
   timelineCollapsed,
 }: ContentPaneProps) {
+  const t = useT()
   // The thread this pane is showing — `POST /api/mail/unsubscribe`
   // names the message by (thread, uid) rather than by URL, which is
   // what stops it being a request forwarder.
@@ -138,7 +140,7 @@ export function ThreadContentPane({
             <button
               className="text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary shrink-0 rounded-md p-1 md:hidden"
               onClick={onBack}
-              title="Back"
+              title={t('read.back')}
             >
               <ArrowLeft className="h-4 w-4" />
             </button>
@@ -162,7 +164,7 @@ export function ThreadContentPane({
               className="hidden lg:inline-flex"
               disabled={!hasPrev}
               onClick={goToPrev}
-              title="Previous conversation"
+              title={t('read.previous')}
             >
               <ChevronUp className="h-4 w-4" />
             </HdrBtn>
@@ -170,7 +172,7 @@ export function ThreadContentPane({
               className="hidden lg:inline-flex"
               disabled={!hasNext}
               onClick={goToNext}
-              title="Next conversation"
+              title={t('read.next')}
             >
               <ChevronDown className="h-4 w-4" />
             </HdrBtn>
@@ -182,7 +184,7 @@ export function ThreadContentPane({
             <HdrBtn
               className={isFlagged ? 'text-warning hover:text-warning' : undefined}
               onClick={isFlagged ? handleUnstar : handleStar}
-              title={ACTIONS[toggle(isFlagged, 'unstar', 'star')].label}
+              title={t(ACTIONS[toggle(isFlagged, 'unstar', 'star')].label)}
             >
               <Star className="h-4 w-4" fill={isFlagged ? 'currentColor' : 'none'} />
             </HdrBtn>
@@ -197,7 +199,7 @@ export function ThreadContentPane({
               <HdrBtn
                 className="md:hidden"
                 onClick={() => setMobileThreadTab('conversation')}
-                title="Thread"
+                title={t('read.thread')}
               >
                 <MessageSquare className="h-4 w-4" />
               </HdrBtn>
@@ -206,7 +208,7 @@ export function ThreadContentPane({
             <HdrBtn
               className="hidden md:inline-flex"
               onClick={() => setTimelineCollapsed((v) => !v)}
-              title={timelineCollapsed ? 'Show conversation' : 'Hide conversation'}
+              title={t(timelineLabel(timelineCollapsed))}
             >
               {timelineCollapsed ? (
                 <PanelRightOpen className="h-4 w-4" />
@@ -292,18 +294,24 @@ export function ThreadContentPane({
                           </span>
                         </p>
                         <div className="flex h-5 shrink-0 items-center gap-0.5">
-                          <SmBtn onClick={() => handleReplyMsg(selectedMsg)} title="Reply">
+                          <SmBtn
+                            onClick={() => handleReplyMsg(selectedMsg)}
+                            title={t('read.reply')}
+                          >
                             <Reply className="h-3.5 w-3.5" />
                           </SmBtn>
-                          <SmBtn onClick={() => handleForwardMsg(selectedMsg)} title="Forward">
+                          <SmBtn
+                            onClick={() => handleForwardMsg(selectedMsg)}
+                            title={t('read.forward')}
+                          >
                             <Forward className="h-3.5 w-3.5" />
                           </SmBtn>
-                          <SmBtn onClick={() => printMessage(selectedMsg)} title="Print">
+                          <SmBtn onClick={() => printMessage(selectedMsg)} title={t('read.print')}>
                             <Printer className="h-3.5 w-3.5" />
                           </SmBtn>
                           <SmBtn
                             onClick={() => downloadEml(selectedMsg.uid, selectedMsg.subject)}
-                            title="Download .eml"
+                            title={t('read.downloadEml')}
                           >
                             <Download className="h-3.5 w-3.5" />
                           </SmBtn>
@@ -322,11 +330,11 @@ export function ThreadContentPane({
                           which is the question a reader has exactly
                           when a name looks odd. */}
                       <p className="text-fg-muted flex min-h-4 items-center text-xs select-text">
-                        <RecipientList label="to" value={selectedMsg.recipients} />
+                        <RecipientList label={t('read.to')} value={selectedMsg.recipients} />
                       </p>
                       {selectedMsg.cc && (
                         <p className="text-fg-muted flex min-h-4 items-center text-xs select-text">
-                          <RecipientList label="cc" value={selectedMsg.cc} />
+                          <RecipientList label={t('read.cc')} value={selectedMsg.cc} />
                         </p>
                       )}
                       <div className="flex h-5 items-center gap-1.5">
@@ -335,7 +343,7 @@ export function ThreadContentPane({
                         </span>
                         {selectedMsg.action_deadline && (
                           <span className="bg-warning/10 text-warning text-mini inline-flex h-4 items-center rounded px-1.5 leading-none font-medium">
-                            Due: {selectedMsg.action_deadline}
+                            {t('read.due', { when: selectedMsg.action_deadline })}
                           </span>
                         )}
                         {selectedMsg.risk_score >= 40 && (
@@ -346,7 +354,7 @@ export function ThreadContentPane({
                                 : 'bg-warning/10 text-warning'
                             }`}
                           >
-                            {selectedMsg.risk_score >= 60 ? 'Dangerous' : 'Suspicious'}
+                            {t(riskLabel(selectedMsg.risk_score))}
                           </span>
                         )}
                       </div>
@@ -425,7 +433,7 @@ export function ThreadContentPane({
             ) : loadingThread ? null : (
               <div className="text-fg-muted flex h-full flex-col items-center justify-center gap-2 py-12 text-sm">
                 <Mail className="h-8 w-8" strokeWidth={1.5} />
-                <p>Select a message to preview</p>
+                <p>{t('read.selectMessage')}</p>
               </div>
             )}
           </div>
@@ -436,7 +444,7 @@ export function ThreadContentPane({
           className="bg-accent fixed right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full text-white shadow-lg active:opacity-80 md:hidden"
           onClick={() => setMobileReplyOpen(true)}
           style={{ bottom: 'calc(60px + var(--safe-area-bottom))' }}
-          title="Reply"
+          title={t('read.reply')}
         >
           <Reply className="h-6 w-6" />
         </button>
@@ -445,7 +453,6 @@ export function ThreadContentPane({
   )
 }
 
-/** A header button drawn from the action table: its icon, its label. */
 function ActionBtn({
   className,
   id,
@@ -455,11 +462,23 @@ function ActionBtn({
   id: ActionId
   onClick: () => void
 }) {
+  const t = useT()
   const spec = ACTIONS[id]
   const Icon = spec.icon
   return (
-    <HdrBtn className={className} onClick={onClick} title={spec.label}>
+    <HdrBtn className={className} onClick={onClick} title={t(spec.label)}>
       <Icon className="h-4 w-4" />
     </HdrBtn>
   )
+}
+
+function riskLabel(score: number): Key {
+  if (score >= 60) return 'read.risk.dangerous'
+  return 'read.risk.suspicious'
+}
+
+/** A header button drawn from the action table: its icon, its label. */
+function timelineLabel(collapsed: boolean): Key {
+  if (collapsed) return 'read.timeline.show'
+  return 'read.timeline.hide'
 }

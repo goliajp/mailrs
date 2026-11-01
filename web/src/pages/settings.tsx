@@ -120,13 +120,13 @@ export function Settings() {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <header className="border-border border-b px-4 py-3 sm:px-6">
-        <h1 className="text-lg font-semibold tracking-tight">Settings</h1>
+        <h1 className="text-lg font-semibold tracking-tight">{t('settings.title')}</h1>
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
         {/* sidebar - horizontal on mobile, vertical on desktop */}
         <nav
-          aria-label="Settings sections"
+          aria-label={t('settings.sections')}
           aria-orientation="vertical"
           className="border-border flex shrink-0 gap-1 overflow-x-auto border-b p-2 sm:w-48 sm:flex-col sm:overflow-x-visible sm:overflow-y-auto sm:border-r sm:border-b-0 sm:p-3"
           onKeyDown={(e) => {
@@ -223,10 +223,11 @@ function parseTab(raw: null | string): Category {
 }
 
 function SectionFallback() {
+  const t = useT()
   return (
     <div className="text-fg-muted flex items-center gap-2 py-4 text-sm" role="status">
       <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-      Loading...
+      {t('common.loading')}
     </div>
   )
 }

@@ -2,6 +2,8 @@ import { toast } from '@goliapkg/gds'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 
+import { type Key, useT } from '@/i18n'
+import { errorText } from '@/lib/error-text'
 import { queryClient } from '@/lib/query-client'
 import { settingsKeys } from '@/lib/query-keys'
 import { wireCreateWebhook, wireDeleteWebhook, wireListWebhooks } from '@/wire/endpoints/settings'
@@ -16,6 +18,7 @@ import {
 } from './_shared'
 
 export function WebhooksSection() {
+  const t = useT()
   const { data: webhooks = [] } = useQuery({
     queryKey: settingsKeys.webhooks(),
     queryFn: () => wireListWebhooks().then((items) => [...items]),
@@ -43,7 +46,7 @@ export function WebhooksSection() {
         ...(form.filter_sender.trim() ? { filter_sender: form.filter_sender.trim() } : {}),
         ...(form.filter_thread_id.trim() ? { filter_thread_id: form.filter_thread_id.trim() } : {}),
       })
-      toast.success('Webhook created')
+      toast.success(t('settings.webhooks.created'))
       setCreatedSecret(data.signing_secret)
       setForm({
         event_type: 'new_message',
@@ -54,7 +57,7 @@ export function WebhooksSection() {
       setAdding(false)
       void invalidate()
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to create webhook')
+      toast.error(errorText(e, t('settings.webhooks.createFailed')))
     } finally {
       setCreating(false)
     }
@@ -63,47 +66,45 @@ export function WebhooksSection() {
   const handleDelete = async (id: string) => {
     try {
       await wireDeleteWebhook(id)
-      toast.success('Webhook deleted')
+      toast.success(t('settings.webhooks.deleted'))
       setDeleteTarget(null)
       void invalidate()
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to delete webhook')
+      toast.error(errorText(e, t('settings.webhooks.deleteFailed')))
       setDeleteTarget(null)
     }
   }
 
   const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text).then(() => toast.success('Copied to clipboard'))
+    navigator.clipboard.writeText(text).then(() => toast.success(t('settings.copiedToClipboard')))
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <SectionHeader title="Webhooks" />
+        <SectionHeader title={t('settings.cat.webhooks')} />
         <button className={btnPrimary} onClick={() => setAdding(true)}>
-          Add Webhook
+          {t('settings.webhooks.add')}
         </button>
       </div>
 
       {createdSecret && (
         <div className="border-warning bg-warning/10 rounded-lg border p-4" role="status">
-          <p className="mb-2 text-sm font-semibold">Signing Secret</p>
-          <p className="text-fg-secondary mb-2 text-xs">
-            Copy this secret now. It will not be shown again.
-          </p>
+          <p className="mb-2 text-sm font-semibold">{t('settings.webhooks.secret')}</p>
+          <p className="text-fg-secondary mb-2 text-xs">{t('settings.webhooks.secretOnce')}</p>
           <div className="flex items-center gap-2">
             <code className="bg-bg-secondary flex-1 rounded px-3 py-1.5 font-mono text-sm">
               {createdSecret}
             </code>
             <button className={btnPrimary} onClick={() => copyToClipboard(createdSecret)}>
-              Copy
+              {t('common.copy')}
             </button>
           </div>
           <button
             className="text-fg-secondary mt-2 text-xs transition-colors hover:opacity-70"
             onClick={() => setCreatedSecret(null)}
           >
-            Dismiss
+            {t('compose.dismiss')}
           </button>
         </div>
       )}
@@ -111,7 +112,7 @@ export function WebhooksSection() {
       {adding && (
         <div className={cardClass + ' space-y-3'}>
           <input
-            aria-label="Webhook URL"
+            aria-label={t('settings.webhooks.url')}
             autoFocus
             className={inputClass}
             onChange={(e) => setForm({ ...form, url: e.target.value })}
@@ -120,9 +121,11 @@ export function WebhooksSection() {
             value={form.url}
           />
           <div>
-            <label className="text-fg-secondary mb-1 block text-xs font-medium">Event type</label>
+            <label className="text-fg-secondary mb-1 block text-xs font-medium">
+              {t('settings.webhooks.eventType')}
+            </label>
             <select
-              aria-label="Event type"
+              aria-label={t('settings.webhooks.eventType')}
               className={inputClass}
               onChange={(e) => setForm({ ...form, event_type: e.target.value })}
               value={form.event_type}
@@ -133,32 +136,32 @@ export function WebhooksSection() {
             </select>
           </div>
           <input
-            aria-label="Filter by sender"
+            aria-label={t('settings.webhooks.filterSender')}
             className={inputClass}
             onChange={(e) => setForm({ ...form, filter_sender: e.target.value })}
-            placeholder="Filter by sender (optional)"
+            placeholder={t('settings.webhooks.filterSenderOptional')}
             value={form.filter_sender}
           />
           <input
-            aria-label="Filter by thread ID"
+            aria-label={t('settings.webhooks.filterThread')}
             className={inputClass}
             onChange={(e) => setForm({ ...form, filter_thread_id: e.target.value })}
-            placeholder="Filter by thread ID (optional)"
+            placeholder={t('settings.webhooks.filterThreadOptional')}
             value={form.filter_thread_id}
           />
           <div className="flex gap-2">
             <button className={btnPrimary} disabled={creating} onClick={handleCreate}>
-              {creating ? 'Creating…' : 'Create'}
+              {t(createLabel(creating))}
             </button>
             <button className={btnSecondary} onClick={() => setAdding(false)}>
-              Cancel
+              {t('common.cancel')}
             </button>
           </div>
         </div>
       )}
 
       {webhooks.length === 0 && !adding && (
-        <p className="text-fg-muted text-sm">No webhooks configured</p>
+        <p className="text-fg-muted text-sm">{t('settings.webhooks.empty')}</p>
       )}
 
       {webhooks.map((wh) => (
@@ -174,12 +177,12 @@ export function WebhooksSection() {
                 </span>
                 {wh.filter_sender && (
                   <span className="bg-surface text-fg-muted rounded-full px-2 py-0.5 text-xs">
-                    sender: {wh.filter_sender}
+                    {t('settings.webhooks.senderChip', { value: wh.filter_sender })}
                   </span>
                 )}
                 {wh.filter_thread_id && (
                   <span className="bg-surface text-fg-muted rounded-full px-2 py-0.5 text-xs">
-                    thread: {wh.filter_thread_id}
+                    {t('settings.webhooks.threadChip', { value: wh.filter_thread_id })}
                   </span>
                 )}
                 <span
@@ -187,12 +190,12 @@ export function WebhooksSection() {
                     wh.active ? 'bg-success/10 text-success' : 'bg-surface text-fg-muted'
                   }`}
                 >
-                  {wh.active ? 'Active' : 'Inactive'}
+                  {t(activeLabel(wh.active))}
                 </span>
               </div>
             </div>
             <button className="text-danger ml-3 text-xs" onClick={() => setDeleteTarget(wh.id)}>
-              Delete
+              {t('settings.rules.delete')}
             </button>
           </div>
         </div>
@@ -200,11 +203,21 @@ export function WebhooksSection() {
 
       {deleteTarget !== null && (
         <ConfirmDialog
-          message="Delete this webhook? This cannot be undone."
+          message={t('settings.webhooks.deleteConfirm')}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={() => handleDelete(deleteTarget)}
         />
       )}
     </div>
   )
+}
+
+function activeLabel(active: boolean): Key {
+  if (active) return 'settings.active'
+  return 'settings.inactive'
+}
+
+function createLabel(creating: boolean): Key {
+  if (creating) return 'settings.creating'
+  return 'settings.create'
 }

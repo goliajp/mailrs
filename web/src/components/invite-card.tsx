@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Calendar, Check, Clock, MapPin, Users, Video, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
+import { type Key, useT } from '@/i18n'
 import { answerWanted, inviteBadge } from '@/lib/invite-badge'
 import { compactStatusLabel, guestSummary, partstatDot, partstatWord } from '@/lib/invite-guests'
 import { joinLinkOf } from '@/lib/invite-join'
@@ -78,6 +79,7 @@ export function InviteCard({
   compact?: boolean
   messageUid: number
 }) {
+  const t = useT()
   const detailQuery = useQuery({
     queryKey: messageKeys.detail(messageUid),
     queryFn: async () => {
@@ -249,9 +251,7 @@ export function InviteCard({
       <div className="mt-2">
         <div className="text-fg text-base font-semibold">{payload.summary}</div>
         {isSingleOccurrence && (
-          <div className="mt-1 text-xs text-amber-300">
-            ⓘ This occurrence of a recurring event — RSVP applies only to this instance.
-          </div>
+          <div className="mt-1 text-xs text-amber-300">ⓘ {t('invite.singleOccurrence')}</div>
         )}
         {range && (
           <div className="text-fg-muted mt-1 flex items-center gap-1 text-sm">
@@ -312,7 +312,7 @@ export function InviteCard({
             target="_blank"
           >
             <Video className="h-4 w-4 sm:h-3 sm:w-3" />
-            Join the meeting
+            {t('invite.join')}
           </a>
         )}
       </div>
@@ -321,7 +321,7 @@ export function InviteCard({
         <div className="mt-3 rounded border border-amber-500/30 bg-amber-500/5 p-2 text-xs">
           {conflicts.length === 1 ? (
             <div className="text-amber-300">
-              ⚠ Conflicts with {conflicts[0].summary}
+              ⚠ {t('invite.conflictsWith', { what: conflicts[0].summary })}
               {conflicts[0].dtstart && (
                 <span className="text-fg-muted ml-1">({formatDateTime(conflicts[0].dtstart)})</span>
               )}
@@ -334,7 +334,8 @@ export function InviteCard({
                 onClick={() => setConflictsExpanded((v) => !v)}
                 type="button"
               >
-                ⚠ Conflicts with {conflicts.length} events {conflictsExpanded ? '(hide)' : '(show)'}
+                ⚠ {t('invite.conflictsMany', { n: conflicts.length })}{' '}
+                {t(showHide(conflictsExpanded))}
               </button>
               {conflictsExpanded && (
                 <ul className="text-fg-muted mt-1 space-y-0.5">
@@ -359,7 +360,7 @@ export function InviteCard({
             onClick={() => setOverridePersisted(true)}
             type="button"
           >
-            Change
+            {t('invite.change')}
           </button>
         </div>
       )}
@@ -379,7 +380,7 @@ export function InviteCard({
               type="button"
             >
               <Check className="h-3.5 w-3.5" />
-              Accept
+              {t('invite.accept')}
             </button>
             <button
               className="border-border text-fg hover:bg-bg-tertiary flex min-h-11 flex-1 items-center justify-center gap-1 rounded-md border px-3 py-1.5 text-sm transition-colors disabled:opacity-50 sm:min-h-0 sm:flex-none"
@@ -387,7 +388,7 @@ export function InviteCard({
               onClick={() => void send('TENTATIVE')}
               type="button"
             >
-              Tentative
+              {t('invite.tentative')}
             </button>
             <button
               className="border-border text-fg hover:bg-bg-tertiary flex min-h-11 flex-1 items-center justify-center gap-1 rounded-md border px-3 py-1.5 text-sm transition-colors disabled:opacity-50 sm:min-h-0 sm:flex-none"
@@ -396,7 +397,7 @@ export function InviteCard({
               type="button"
             >
               <X className="h-3.5 w-3.5" />
-              Decline
+              {t('invite.decline')}
             </button>
             <button
               aria-expanded={counterOpen}
@@ -405,31 +406,28 @@ export function InviteCard({
               onClick={() => setCounterOpen((v) => !v)}
               type="button"
             >
-              {counterOpen ? 'Cancel counter-proposal' : 'Propose new time'}
+              {t(counterLabel(counterOpen))}
             </button>
           </div>
           {rsvp !== 'idle' && (
             <div className="text-fg-muted mt-1.5 text-xs">
-              {rsvp === 'pending' && 'sending…'}
-              {rsvp === 'sent' && <span className="text-emerald-400">✓ reply sent</span>}
+              {rsvp === 'pending' && t('invite.sending')}
+              {rsvp === 'sent' && <span className="text-emerald-400">✓ {t('invite.sent')}</span>}
               {typeof rsvp === 'object' && (
-                <span className="text-red-400">error: {rsvp.error}</span>
+                <span className="text-red-400">{t('invite.error', { error: rsvp.error })}</span>
               )}
             </div>
           )}
 
           {counterOpen && (
             <div className="border-border mt-3 rounded border p-3">
-              <div className="text-fg-muted mb-2 text-xs">
-                Counter-proposal — your local time. Sends a METHOD=COUNTER reply to the organizer;
-                their calendar surfaces it for accept/decline.
-              </div>
+              <div className="text-fg-muted mb-2 text-xs">{t('invite.counterNote')}</div>
               <div className="flex flex-wrap items-center gap-2">
                 <label className="text-fg-muted text-xs" htmlFor="counter-start">
-                  Start
+                  {t('invite.start')}
                 </label>
                 <input
-                  aria-label="Counter-proposal start time"
+                  aria-label={t('invite.counterStart')}
                   className="border-border text-fg bg-bg-secondary rounded border px-2 py-1 text-sm"
                   id="counter-start"
                   onChange={(e) => setCounterStart(e.target.value)}
@@ -437,10 +435,10 @@ export function InviteCard({
                   value={counterStart}
                 />
                 <label className="text-fg-muted text-xs" htmlFor="counter-end">
-                  End
+                  {t('invite.end')}
                 </label>
                 <input
-                  aria-label="Counter-proposal end time"
+                  aria-label={t('invite.counterEnd')}
                   className="border-border text-fg bg-bg-secondary rounded border px-2 py-1 text-sm"
                   id="counter-end"
                   onChange={(e) => setCounterEnd(e.target.value)}
@@ -453,7 +451,7 @@ export function InviteCard({
                   onClick={() => void sendCounter()}
                   type="button"
                 >
-                  Send counter
+                  {t('invite.sendCounter')}
                 </button>
               </div>
             </div>
@@ -464,17 +462,23 @@ export function InviteCard({
   )
 }
 
+function counterLabel(open: boolean): Key {
+  if (open) return 'invite.counterCancel'
+  return 'invite.counterPropose'
+}
+
+function replyLabel(partstat: string): Key {
+  if (partstat === 'ACCEPTED') return 'invite.replied.accepted'
+  if (partstat === 'TENTATIVE') return 'invite.replied.tentative'
+  if (partstat === 'DECLINED') return 'invite.replied.declined'
+  return 'invite.replied.other'
+}
+
 /// "4 guests · 1 yes, 2 awaiting" — the shape Gmail uses, because the
 /// count alone does not say whether the meeting is happening.
 function RsvpStatusPill({ at, partstat }: { at: null | string; partstat: string }) {
-  const label =
-    partstat === 'ACCEPTED'
-      ? 'You accepted'
-      : partstat === 'TENTATIVE'
-        ? 'You marked tentative'
-        : partstat === 'DECLINED'
-          ? 'You declined'
-          : `You replied: ${partstat}`
+  const t = useT()
+  const label = t(replyLabel(partstat), { status: partstat })
   const cls =
     partstat === 'ACCEPTED'
       ? 'bg-emerald-500/15 text-emerald-300'
@@ -488,4 +492,9 @@ function RsvpStatusPill({ at, partstat }: { at: null | string; partstat: string 
       {when && <span className="text-fg-muted ml-1 font-normal">{when}</span>}
     </span>
   )
+}
+
+function showHide(expanded: boolean): Key {
+  if (expanded) return 'common.hideParen'
+  return 'common.showParen'
 }

@@ -4,6 +4,8 @@ import type { SortDir, SortField } from './table-model'
 import { ArrowDown, ArrowUp, ChevronsUpDown, Trash2 } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 
+import { useT } from '@/i18n'
+
 import { CopyButton } from './copy-button'
 import { formatAbsolute, formatRelative, parseEpochSeconds } from './format'
 import { describeScopes } from './scopes'
@@ -35,6 +37,7 @@ export function KeyTable({
   sortDir: SortDir
   sortField: SortField
 }) {
+  const t = useT()
   const allChecked = rows.length > 0 && rows.every((row) => selected.has(row.id))
   const someChecked = rows.some((row) => selected.has(row.id))
 
@@ -54,40 +57,40 @@ export function KeyTable({
               <SortHeader
                 dir={sortDir}
                 field="name"
-                label="Name"
+                label={t('settings.rules.name')}
                 onSort={onSort}
                 sortField={sortField}
               />
               <SortHeader
                 dir={sortDir}
                 field="prefix"
-                label="Key"
+                label={t('settings.apiKeys.col.key')}
                 onSort={onSort}
                 sortField={sortField}
               />
               <SortHeader
                 dir={sortDir}
                 field="scopes"
-                label="Access"
+                label={t('settings.apiKeys.access')}
                 onSort={onSort}
                 sortField={sortField}
               />
               <SortHeader
                 dir={sortDir}
                 field="created"
-                label="Created"
+                label={t('settings.apiKeys.col.created')}
                 onSort={onSort}
                 sortField={sortField}
               />
               <SortHeader
                 dir={sortDir}
                 field="id"
-                label="ID"
+                label={t('settings.apiKeys.col.id')}
                 onSort={onSort}
                 sortField={sortField}
               />
               <th className={`${CELL} w-24`} scope="col">
-                <span className="sr-only">Actions</span>
+                <span className="sr-only">{t('settings.apiKeys.col.actions')}</span>
               </th>
             </tr>
           </thead>
@@ -135,6 +138,7 @@ function HeaderCheckbox({
   indeterminate: boolean
   onChange: (checked: boolean) => void
 }) {
+  const t = useT()
   const ref = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -143,7 +147,7 @@ function HeaderCheckbox({
 
   return (
     <input
-      aria-label="Select all keys on this page"
+      aria-label={t('settings.apiKeys.selectPage')}
       checked={checked}
       className="accent-accent align-middle"
       onChange={(e) => onChange(e.target.checked)}
@@ -166,11 +170,12 @@ function KeyRow({
   row: AgentKey
   selected: boolean
 }) {
+  const t = useT()
   return (
     <tr className={rowClass(selected)}>
       <td className={CELL}>
         <input
-          aria-label={`Select ${row.name}`}
+          aria-label={t('settings.apiKeys.selectRow', { name: row.name })}
           checked={selected}
           className="accent-accent align-middle"
           onChange={(e) => onToggle(e.target.checked)}
@@ -184,7 +189,7 @@ function KeyRow({
           <span className="text-fg-muted text-mid font-mono">…</span>
           <CopyButton
             className="opacity-60 hover:opacity-100"
-            label="key prefix"
+            label={t('settings.apiKeys.prefixLabel')}
             value={row.prefix}
           />
         </span>
@@ -205,7 +210,7 @@ function KeyRow({
           type="button"
         >
           <Trash2 aria-hidden className="h-3.5 w-3.5" />
-          Revoke
+          {t('settings.apiKeys.revoke')}
         </button>
       </td>
     </tr>
@@ -218,7 +223,8 @@ function rowClass(selected: boolean): string {
 }
 
 function ScopeBadge({ scopes }: { scopes: readonly string[] }) {
-  const described = describeScopes(scopes)
+  const t = useT()
+  const described = describeScopes(scopes, t)
   return <span className={scopeClass(described.tone)}>{described.label}</span>
 }
 

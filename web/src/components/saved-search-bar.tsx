@@ -9,18 +9,20 @@ import {
   useDeleteSavedSearch,
   useSavedSearches,
 } from '@/hooks/use-saved-searches'
+import { useT } from '@/i18n'
 import { searchQueryAtom } from '@/store/ui'
 
 /** Shown while searching: makes a rule of what is in the box. */
 export function CreateRuleButton() {
+  const t = useT()
   const [query] = useAtom(searchQueryAtom)
   const navigate = useNavigate()
   return (
     <button
-      aria-label="Create a rule from this search"
+      aria-label={t('search.createRule')}
       className="text-fg-muted hover:bg-bg-secondary flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-all duration-150"
       onClick={() => navigate(`/settings?tab=rules&rule_query=${encodeURIComponent(query.trim())}`)}
-      title="Create a rule from this search"
+      title={t('search.createRule')}
       type="button"
     >
       <ListFilter aria-hidden="true" className="h-4 w-4" />
@@ -30,6 +32,7 @@ export function CreateRuleButton() {
 
 /** The user's saved searches under the labels; each runs its query. */
 export function SavedSearchBar() {
+  const t = useT()
   const { data } = useSavedSearches()
   const [query, setQuery] = useAtom(searchQueryAtom)
   const remove = useDeleteSavedSearch()
@@ -37,7 +40,7 @@ export function SavedSearchBar() {
   if (saved.length === 0) return null
   return (
     <div
-      aria-label="Saved searches"
+      aria-label={t('search.saved')}
       className="border-border flex gap-1 overflow-x-auto border-b px-3 py-1.5 text-xs"
       role="toolbar"
     >
@@ -69,6 +72,7 @@ export function SavedSearchBar() {
 
 /** Shown while searching: saves what is in the box under a name. */
 export function SaveSearchButton() {
+  const t = useT()
   const [query] = useAtom(searchQueryAtom)
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
@@ -79,7 +83,7 @@ export function SaveSearchButton() {
       {
         onError: (e) => toast.error(errorText(e)),
         onSuccess: () => {
-          toast.success('Search saved')
+          toast.success(t('search.savedToast'))
           setOpen(false)
         },
       }
@@ -89,13 +93,13 @@ export function SaveSearchButton() {
     <div className="relative">
       <button
         aria-expanded={open}
-        aria-label="Save this search"
+        aria-label={t('search.save')}
         className="text-fg-muted hover:bg-bg-secondary flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-all duration-150"
         onClick={() => {
           setName(query.trim())
           setOpen(!open)
         }}
-        title="Save this search"
+        title={t('search.save')}
         type="button"
       >
         <Bookmark aria-hidden="true" className="h-4 w-4" />
@@ -109,7 +113,7 @@ export function SaveSearchButton() {
           }}
         >
           <label className="text-fg-secondary text-xs" htmlFor="saved-search-name">
-            Name
+            {t('search.name')}
           </label>
           <input
             autoFocus
@@ -125,14 +129,14 @@ export function SaveSearchButton() {
               onClick={() => setOpen(false)}
               type="button"
             >
-              Cancel
+              {t('common.cancel')}
             </button>
             <button
               className="bg-accent text-accent-fg rounded-md px-2 py-1 text-xs disabled:opacity-50"
               disabled={name.trim().length === 0 || create.isPending}
               type="submit"
             >
-              Save
+              {t('search.saveButton')}
             </button>
           </div>
         </form>

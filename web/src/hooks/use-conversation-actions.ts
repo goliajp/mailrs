@@ -26,6 +26,7 @@ import {
   useTrashMutation,
   useUntrashMutation,
 } from '@/hooks/use-trash-mutations'
+import { useT } from '@/i18n'
 import { ACTIONS } from '@/lib/actions'
 import { labelPickerAtom, lastUndoAtom } from '@/store/ui'
 
@@ -44,6 +45,7 @@ export type ConversationActions = {
 }
 
 export function useConversationActions(): ConversationActions {
+  const t = useT()
   const [pendingDelete, setPendingDelete] = useState<null | string>(null)
   const setLastUndo = useSetAtom(lastUndoAtom)
   const openLabels = useSetAtom(labelPickerAtom)
@@ -104,26 +106,24 @@ export function useConversationActions(): ConversationActions {
         if (undo) setLastUndo({ action: undo, threadId })
         if (!spec.done) return
         if (!undo) {
-          toast.success(spec.done)
+          toast.success(t(spec.done))
           return
         }
-        toast.success(spec.done, {
-          action: { label: 'Undo', onClick: () => run(threadId, undo, () => {}) },
+        toast.success(t(spec.done), {
+          action: { label: t('common.undo'), onClick: () => run(threadId, undo, () => {}) },
           duration: 8000,
         })
       })
     },
-    [openLabels, run, setLastUndo]
+    [openLabels, run, setLastUndo, t]
   )
 
   const confirmDelete = useCallback(() => {
     if (!pendingDelete) return
     const threadId = pendingDelete
     setPendingDelete(null)
-    run(threadId, 'delete-forever', () =>
-      toast.success(ACTIONS['delete-forever'].done ?? 'Deleted forever')
-    )
-  }, [pendingDelete, run])
+    run(threadId, 'delete-forever', () => toast.success(t('action.deleteForever.done')))
+  }, [pendingDelete, run, t])
 
   const cancelDelete = useCallback(() => setPendingDelete(null), [])
 

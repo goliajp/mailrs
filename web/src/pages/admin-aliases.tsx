@@ -13,6 +13,7 @@ import {
 } from '@/components/admin-page'
 import { Copyable } from '@/components/copy-button'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
+import { type Key, useT } from '@/i18n'
 import { adminKeys } from '@/lib/query-keys'
 import { adminDelete, adminListGet, adminPost } from '@/wire/endpoints/admin'
 
@@ -32,9 +33,10 @@ type AliasRow = {
   target_address: string
 }
 
-const HEADERS = ['Source', 'Target', 'Domain', '']
+const HEADERS: Key[] = ['admin.aliases.source', 'admin.aliases.target', 'admin.col.domain']
 
 export function AdminAliases() {
+  const t = useT()
   const { data, error, isPending, refetch } = useQuery({
     queryKey: adminKeys.aliases(),
     queryFn: ({ signal }) => adminListGet<AliasRow>('/admin/aliases', signal),
@@ -52,12 +54,12 @@ export function AdminAliases() {
         source_address: f.source_address.trim(),
         target_address: f.target_address.trim(),
       }),
-    successMsg: (f) => `Alias "${f.source_address.trim()}" added`,
+    successMsg: (f) => t('admin.aliases.added', { address: f.source_address.trim() }),
   })
 
   const deleteAlias = useAdminMutation({
     invalidateKey: adminKeys.aliases(),
-    successMsg: 'Alias deleted',
+    successMsg: t('admin.aliases.deleted'),
     mutationFn: (id: string) => adminDelete(`/admin/aliases/${encodeURIComponent(id)}`),
   })
 
@@ -81,7 +83,7 @@ export function AdminAliases() {
 
   const columns: Column<AliasRow>[] = [
     {
-      header: 'Source',
+      header: t('admin.aliases.source'),
       key: 'source',
       cell: (a) => (
         <Copyable value={a.source_address}>
@@ -90,18 +92,18 @@ export function AdminAliases() {
       ),
     },
     {
-      header: 'Target',
+      header: t('admin.aliases.target'),
       key: 'target',
       cell: (a) => <span className="text-fg-secondary">{a.target_address}</span>,
     },
     {
-      header: 'Domain',
+      header: t('admin.col.domain'),
       key: 'domain',
       cell: (a) => <span className="text-fg-secondary">{a.domain}</span>,
     },
     {
       align: 'end',
-      header: 'Actions',
+      header: t('admin.col.actions'),
       hideHeader: true,
       key: 'actions',
       cell: (a) => (
@@ -110,27 +112,42 @@ export function AdminAliases() {
           onClick={() => setDeleteTarget(a)}
           type="button"
         >
-          Delete
+          {t('admin.delete')}
         </button>
       ),
     },
   ]
 
   const renderList = () => {
-    if (isPending) return <AdminTableSkeleton cols={4} headers={HEADERS} rows={5} />
+    if (isPending) {
+      return <AdminTableSkeleton cols={4} headers={[...HEADERS.map((h) => t(h)), '']} rows={5} />
+    }
     if (error) {
-      return <AdminErrorState error={error} onRetry={() => refetch()} what="the alias list" />
+      return (
+        <AdminErrorState
+          error={error}
+          onRetry={() => refetch()}
+          what={t('admin.aliases.listName')}
+        />
+      )
     }
     if (aliases.length === 0 && !adding) {
       return (
         <AdminEmptyState
-          description="An alias delivers mail sent to one address into another mailbox. A source of @example.com catches every address in that domain that has no mailbox or alias of its own"
+          description={t('admin.aliases.emptyHelp')}
           icon={<AtSign className="h-10 w-10" />}
-          title="No aliases yet"
+          title={t('admin.aliases.empty')}
         />
       )
     }
-    return <AdminTable columns={columns} label="Aliases" rowKey={(a) => a.id} rows={aliases} />
+    return (
+      <AdminTable
+        columns={columns}
+        label={t('admin.aliases.title')}
+        rowKey={(a) => a.id}
+        rows={aliases}
+      />
+    )
   }
 
   return (
@@ -141,17 +158,17 @@ export function AdminAliases() {
             className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:opacity-90"
             onClick={() => setAdding(true)}
           >
-            Add alias
+            {t('admin.aliases.add')}
           </button>
         )
       }
-      title="Aliases"
+      title={t('admin.aliases.title')}
     >
       {adding && (
         <div className="border-border mb-4 space-y-2 rounded-lg border p-4">
           <div className="flex gap-2">
             <input
-              aria-label="Source address"
+              aria-label={t('admin.aliases.sourceAddress')}
               autoFocus
               className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
               onChange={(e) => setForm({ ...form, source_address: e.target.value })}
@@ -159,7 +176,7 @@ export function AdminAliases() {
               value={form.source_address}
             />
             <input
-              aria-label="Target address"
+              aria-label={t('admin.aliases.targetAddress')}
               className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
               onChange={(e) => setForm({ ...form, target_address: e.target.value })}
               placeholder="user@example.com"
@@ -172,7 +189,7 @@ export function AdminAliases() {
               disabled={!formValid || addAlias.isPending}
               onClick={handleAdd}
             >
-              {pendingLabel(addAlias.isPending, 'Saving...', 'Save')}
+              {t(pendingLabel(addAlias.isPending, 'admin.saving', 'admin.save'))}
             </button>
             <button
               className="text-fg-secondary hover:bg-bg-secondary rounded-md px-3 py-1.5 text-sm transition-colors"
@@ -181,7 +198,7 @@ export function AdminAliases() {
                 setAdding(false)
               }}
             >
-              Cancel
+              {t('common.cancel')}
             </button>
           </div>
         </div>
@@ -191,12 +208,14 @@ export function AdminAliases() {
 
       {deleteTarget && (
         <ConfirmAction
-          confirmLabel={pendingLabel(deleteAlias.isPending, 'Deleting...', 'Delete alias')}
-          consequence={aliasDeleteConsequence(deleteTarget)}
+          confirmLabel={t(
+            pendingLabel(deleteAlias.isPending, 'admin.deleting', 'admin.aliases.delete')
+          )}
+          consequence={aliasDeleteConsequence(deleteTarget, t)}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={() => handleDelete(deleteTarget.id)}
           pending={deleteAlias.isPending}
-          title={`Delete ${deleteTarget.source_address}?`}
+          title={t('admin.deleteTitle', { name: deleteTarget.source_address })}
         />
       )}
     </AdminPageShell>
@@ -207,15 +226,15 @@ export function AdminAliases() {
  * Delivery tries the address's own mailbox, then an exact alias, then the
  * domain's `@domain` catch-all, then an email group with that address.
  */
-function aliasDeleteConsequence(alias: AliasRow): string {
+function aliasDeleteConsequence(alias: AliasRow, t: ReturnType<typeof useT>): string {
   const { source_address: source, target_address: target } = alias
   if (source.startsWith('@')) {
-    return `Mail to addresses at ${source.slice(1)} that have no mailbox or alias of their own stops going to ${target}. Mail already in ${target} is kept`
+    return t('admin.aliases.deleteCatchAll', { domain: source.slice(1), target })
   }
-  return `Mail to ${source} stops going to ${target}. If ${alias.domain} has a catch-all alias, that alias receives it instead. Mail already in ${target} is kept`
+  return t('admin.aliases.deleteOne', { domain: alias.domain, source, target })
 }
 
-function pendingLabel(pending: boolean, busy: string, idle: string): string {
+function pendingLabel(pending: boolean, busy: Key, idle: Key): Key {
   if (pending) return busy
   return idle
 }

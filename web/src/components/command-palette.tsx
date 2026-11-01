@@ -21,6 +21,7 @@ import { useConversationActions } from '@/hooks/use-conversation-actions'
 import { useConversationRows, useSelectedThreadId } from '@/hooks/use-current-list'
 import { useSearchMail } from '@/hooks/use-search-mail'
 import { useSignOut } from '@/hooks/use-sign-out'
+import { type Key, useT } from '@/i18n'
 import { ACTIONS, rowActions, rowStateOf, viewOf } from '@/lib/actions'
 import { authAtom } from '@/store/auth'
 import { themeModeAtom } from '@/store/theme'
@@ -46,6 +47,7 @@ type GroupedCommands = {
 }
 
 export function CommandPalette() {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -139,12 +141,12 @@ export function CommandPalette() {
             aria-autocomplete="list"
             aria-controls={listboxId}
             aria-expanded
-            aria-label="Search commands"
+            aria-label={t('palette.search')}
             autoComplete="off"
             className="text-fg placeholder:text-fg-muted w-full bg-transparent px-3 py-3 text-lg outline-none"
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Type a command or search..."
+            placeholder={t('palette.placeholder')}
             ref={inputRef}
             role="combobox"
             type="text"
@@ -160,19 +162,21 @@ export function CommandPalette() {
 
         {/* results */}
         <div
-          aria-label="Commands"
+          aria-label={t('palette.commands')}
           className="max-h-80 overflow-y-auto py-2"
           id={listboxId}
           ref={listRef}
           role="listbox"
         >
           {commands.length === 0 ? (
-            <div className="text-fg-muted px-4 py-8 text-center text-sm">No results found</div>
+            <div className="text-fg-muted px-4 py-8 text-center text-sm">
+              {t('list.search.empty')}
+            </div>
           ) : (
             groups.map((group) => (
               <div key={group.category} role="group">
                 <div className="text-fg-muted px-4 py-1.5 text-xs font-medium tracking-wider uppercase">
-                  {group.category}
+                  {t(CATEGORY_LABELS[group.category])}
                 </div>
                 {group.commands.map((cmd) => {
                   const idx = flatIndex++
@@ -218,6 +222,13 @@ export function CommandPalette() {
   )
 }
 
+const CATEGORY_LABELS: Record<string, Key> = {
+  Actions: 'palette.actions',
+  Conversation: 'palette.conversation',
+  Navigation: 'palette.navigation',
+  Search: 'palette.searchCategory',
+}
+
 function groupByCategory(commands: Command[]): GroupedCommands[] {
   const order: Command['category'][] = ['Conversation', 'Navigation', 'Actions', 'Search']
   const groups: GroupedCommands[] = []
@@ -235,6 +246,7 @@ function groupByCategory(commands: Command[]): GroupedCommands[] {
 const ADMIN_COMMANDS = new Set(['nav-admin', 'nav-protocol'])
 
 function useCommands(query: string, onClose: () => void): Command[] {
+  const t = useT()
   const navigate = useNavigate()
   const signOut = useSignOut()
   const searchMail = useSearchMail()
@@ -251,7 +263,7 @@ function useCommands(query: string, onClose: () => void): Command[] {
         category: 'Navigation',
         icon: <Home size={16} />,
         id: 'nav-home',
-        label: 'Go to Home',
+        label: t('palette.goHome'),
         action: () => {
           navigate('/')
           onClose()
@@ -261,7 +273,7 @@ function useCommands(query: string, onClose: () => void): Command[] {
         category: 'Navigation',
         icon: <Inbox size={16} />,
         id: 'nav-inbox',
-        label: 'Go to Inbox',
+        label: t('palette.goInbox'),
         action: () => {
           navigate('/mail')
           onClose()
@@ -271,7 +283,7 @@ function useCommands(query: string, onClose: () => void): Command[] {
         category: 'Navigation',
         icon: <Send size={16} />,
         id: 'nav-sent',
-        label: 'Go to Sent',
+        label: t('palette.goSent'),
         action: () => {
           navigate('/mail?folder=Sent')
           onClose()
@@ -281,7 +293,7 @@ function useCommands(query: string, onClose: () => void): Command[] {
         category: 'Navigation',
         icon: <Settings size={16} />,
         id: 'nav-settings',
-        label: 'Go to Settings',
+        label: t('palette.goSettings'),
         shortcut: '',
         action: () => {
           navigate('/settings')
@@ -292,7 +304,7 @@ function useCommands(query: string, onClose: () => void): Command[] {
         category: 'Navigation',
         icon: <Shield size={16} />,
         id: 'nav-admin',
-        label: 'Go to Admin',
+        label: t('palette.goAdmin'),
         action: () => {
           navigate('/admin')
           onClose()
@@ -302,7 +314,7 @@ function useCommands(query: string, onClose: () => void): Command[] {
         category: 'Navigation',
         icon: <Monitor size={16} />,
         id: 'nav-protocol',
-        label: 'Go to Protocol Monitor',
+        label: t('palette.goProtocol'),
         action: () => {
           navigate('/protocol')
           onClose()
@@ -312,7 +324,7 @@ function useCommands(query: string, onClose: () => void): Command[] {
         category: 'Navigation',
         icon: <FlaskConical size={16} />,
         id: 'nav-mock',
-        label: 'Go to Mock Mail',
+        label: t('palette.goMock'),
         action: () => {
           navigate('/mock')
           onClose()
@@ -322,7 +334,7 @@ function useCommands(query: string, onClose: () => void): Command[] {
         category: 'Actions',
         icon: <PenSquare size={16} />,
         id: 'action-compose',
-        label: 'Compose New Email',
+        label: t('home.composeNew'),
         shortcut: 'C',
         action: () => {
           setComposeReplySource(null)
@@ -335,7 +347,7 @@ function useCommands(query: string, onClose: () => void): Command[] {
         category: 'Actions',
         icon: theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />,
         id: 'action-toggle-theme',
-        label: 'Toggle Theme',
+        label: t('palette.toggleTheme'),
         action: () => {
           const next = theme === 'dark' ? 'light' : theme === 'light' ? 'system' : 'dark'
           setTheme(next)
@@ -346,7 +358,7 @@ function useCommands(query: string, onClose: () => void): Command[] {
         category: 'Actions',
         icon: <Moon size={16} />,
         id: 'action-dark-mode',
-        label: 'Toggle Dark Mode',
+        label: t('palette.toggleDark'),
         action: () => {
           setTheme(theme === 'dark' ? 'light' : 'dark')
           onClose()
@@ -356,16 +368,15 @@ function useCommands(query: string, onClose: () => void): Command[] {
         category: 'Actions',
         icon: <LogOut size={16} />,
         id: 'action-logout',
-        label: 'Logout',
+        label: t('nav.signOut'),
         action: () => {
-          if (!window.confirm('Sign out? You will need to sign in again to access your mailbox.'))
-            return
+          if (!window.confirm(t('palette.signOutConfirm'))) return
           onClose()
           void signOut()
         },
       },
     ],
-    [navigate, onClose, setComposeReplySource, setComposing, setTheme, signOut, theme]
+    [navigate, onClose, setComposeReplySource, setComposing, setTheme, signOut, t, theme]
   )
   const conversation = useConversationCommands(onClose)
   // the server refuses these to everyone else; do not offer them
@@ -390,7 +401,7 @@ function useCommands(query: string, onClose: () => void): Command[] {
           category: 'Search' as const,
           icon: <Search size={16} />,
           id: 'search-query',
-          label: `Search emails for: ${query.trim()}`,
+          label: t('palette.searchFor', { query: query.trim() }),
           action: () => {
             searchMail(query)
             onClose()
@@ -400,12 +411,13 @@ function useCommands(query: string, onClose: () => void): Command[] {
     }
 
     return filtered
-  }, [query, staticCommands, searchMail, onClose])
+  }, [query, staticCommands, searchMail, onClose, t])
 }
 
 /// The open conversation's actions, from the action table: what the row's
 /// menu offers, with the same keys. Deleting asks in the reading pane.
 function useConversationCommands(onClose: () => void): Command[] {
+  const t = useT()
   const threadId = useSelectedThreadId()
   const { rows } = useConversationRows()
   const folder = useAtomValue(folderAtom)
@@ -422,7 +434,7 @@ function useConversationCommands(onClose: () => void): Command[] {
         category: 'Conversation' as const,
         icon: <Icon size={16} />,
         id: `conversation-${id}`,
-        label: spec.label,
+        label: t(spec.label),
         shortcut: spec.keys[0],
         action: () => {
           onClose()
@@ -434,5 +446,5 @@ function useConversationCommands(onClose: () => void): Command[] {
         },
       }
     })
-  }, [act, askThread, folder, onClose, row, threadId])
+  }, [act, askThread, folder, onClose, row, t, threadId])
 }

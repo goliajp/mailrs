@@ -5,6 +5,7 @@ import { Pin, Star } from 'lucide-react'
 
 import { CategoryBadge } from '@/components/category-badge'
 import { SenderAvatar } from '@/components/sender-avatar'
+import { useT } from '@/i18n'
 import { extractEmail } from '@/lib/avatar'
 import { cn } from '@/lib/cn'
 import { authAtom } from '@/store/auth'
@@ -18,6 +19,7 @@ export function ConversationRow({
   conversation: ConversationSummary
   onClick: () => void
 }) {
+  const t = useT()
   const auth = useAtomValue(authAtom)
   const myEmail = auth?.address ?? ''
   // show the OTHER side of the conversation, never bare "Me" (same
@@ -39,9 +41,14 @@ export function ConversationRow({
           </span>
           <CategoryBadge category={c.category} />
           {c.flagged && (
-            <Star aria-label="Starred" className="h-3 w-3 shrink-0 fill-amber-500 text-amber-500" />
+            <Star
+              aria-label={t('list.starred')}
+              className="h-3 w-3 shrink-0 fill-amber-500 text-amber-500"
+            />
           )}
-          {c.pinned && <Pin aria-label="Pinned" className="text-fg-muted h-3 w-3 shrink-0" />}
+          {c.pinned && (
+            <Pin aria-label={t('home.pinned')} className="text-fg-muted h-3 w-3 shrink-0" />
+          )}
         </div>
         <p
           className={cn('truncate text-xs', isUnread ? 'text-fg font-medium' : 'text-fg-secondary')}

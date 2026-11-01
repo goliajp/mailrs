@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { AuthCard } from '@/components/auth/auth-card'
 import { AuthField } from '@/components/auth/auth-field'
 import { BrandHeader } from '@/components/auth/brand-header'
+import { type Key, useT } from '@/i18n'
 import { contactText, type ResetContact } from '@/lib/password-clear'
 import { wireResetPasswordWithCode } from '@/wire/endpoints/auth'
 import { WireErrorException } from '@/wire/errors'
@@ -24,6 +25,7 @@ type Props = {
  * person signs in afterwards with the new password.
  */
 export function ResetWithCode({ address: initialAddress, contact, onCancel, onDone }: Props) {
+  const t = useT()
   const [address, setAddress] = useState(initialAddress)
   const [code, setCode] = useState('')
   const [password, setPassword] = useState('')
@@ -34,7 +36,7 @@ export function ResetWithCode({ address: initialAddress, contact, onCancel, onDo
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     if (password !== repeat) {
-      setError('The two passwords are not the same')
+      setError(t('reset.mismatch'))
       return
     }
     setError('')
@@ -43,7 +45,7 @@ export function ResetWithCode({ address: initialAddress, contact, onCancel, onDo
       await wireResetPasswordWithCode(address.trim(), code, password)
       onDone(address.trim())
     } catch (err) {
-      setError(failureText(err, contact))
+      setError(failureText(err, contactText(contact, t('reset.anAdmin')), t))
     } finally {
       setLoading(false)
     }
@@ -51,11 +53,10 @@ export function ResetWithCode({ address: initialAddress, contact, onCancel, onDo
 
   return (
     <AuthCard onSubmit={submit}>
-      <BrandHeader subtitle="Set a new password" />
+      <BrandHeader subtitle={t('reset.setNew')} />
 
       <Alert role="status" variant="info">
-        Your password was reset by an administrator. Ask {contactText(contact)} for a reset code,
-        then set a new password here.
+        {t('reset.byAdmin', { contact: contactText(contact, t('reset.anAdmin')) })}
       </Alert>
 
       {error && (
@@ -67,7 +68,7 @@ export function ResetWithCode({ address: initialAddress, contact, onCancel, onDo
       <AuthField
         autoComplete="email"
         id="reset-email"
-        label="Email"
+        label={t('login.email')}
         onChange={setAddress}
         required
         type="email"
@@ -76,18 +77,18 @@ export function ResetWithCode({ address: initialAddress, contact, onCancel, onDo
       <AuthField
         autoComplete="one-time-code"
         autoFocus
-        helperText="10 characters, given to you in person"
+        helperText={t('reset.codeHelp')}
         id="reset-code"
-        label="Reset code"
+        label={t('reset.code')}
         onChange={setCode}
         required
         value={code}
       />
       <AuthField
         autoComplete="new-password"
-        helperText="At least 12 characters. Leave out your name and the company name"
+        helperText={t('reset.passwordHelp')}
         id="reset-password"
-        label="New password"
+        label={t('reset.newPassword')}
         onChange={setPassword}
         passwordToggle
         required
@@ -97,7 +98,7 @@ export function ResetWithCode({ address: initialAddress, contact, onCancel, onDo
       <AuthField
         autoComplete="new-password"
         id="reset-repeat"
-        label="New password again"
+        label={t('reset.newPasswordAgain')}
         onChange={setRepeat}
         passwordToggle
         required
@@ -112,12 +113,12 @@ export function ResetWithCode({ address: initialAddress, contact, onCancel, onDo
         type="submit"
         variant="primary"
       >
-        Set new password
+        {t('reset.setNewButton')}
       </Button>
 
       <div className="text-center">
         <button className="text-accent text-sm hover:underline" onClick={onCancel} type="button">
-          Back to sign in
+          {t('reset.backToSignIn')}
         </button>
       </div>
     </AuthCard>
@@ -125,11 +126,15 @@ export function ResetWithCode({ address: initialAddress, contact, onCancel, onDo
 }
 
 /** What a refused reset says. */
-function failureText(e: unknown, contact: null | ResetContact): string {
-  if (!(e instanceof WireErrorException)) return 'Network error'
+function failureText(
+  e: unknown,
+  contact: string,
+  t: (key: Key, vars?: Record<string, string>) => string
+): string {
+  if (!(e instanceof WireErrorException)) return t('compose.networkError')
   const d = e.detail
   if (d.kind === 'server' && d.message === 'invalid_reset_code') {
-    return `That code does not work: it may be mistyped, used up, or replaced by a newer one. Ask ${contactText(contact)} for a new code.`
+    return t('reset.badCode', { contact })
   }
   if (d.kind === 'server') return d.message
   return e.message

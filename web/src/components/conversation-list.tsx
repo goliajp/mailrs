@@ -1,3 +1,5 @@
+import { type Key, useT } from '@/i18n'
+import { errorText } from '@/lib/error-text'
 export { DateDivider } from '@/components/conversation-list-virtual'
 
 import type { BatchAction } from '@/components/conversation-actions'
@@ -43,6 +45,7 @@ import {
 import { wireBatchMutation, wireMarkAllRead } from '@/wire/endpoints/mutations'
 
 export function ConversationList({ onSelectConversation }: { onSelectConversation?: () => void }) {
+  const t = useT()
   const auth = useAtomValue(authAtom)
   const myEmail = auth?.address ?? ''
   // The rows and the current one both come from `use-current-list`, so
@@ -221,12 +224,12 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
         // list is fetched again, not the next page of this one
         invalidateBucketMove()
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : 'Batch operation failed')
+        toast.error(errorText(err, t('list.batchFailed')))
       } finally {
         setBatchLoading(false)
       }
     },
-    [exitBatchMode]
+    [exitBatchMode, t]
   )
 
   const handleBatchAction = useCallback(
@@ -298,16 +301,13 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
 
   return (
     <div className="relative flex h-full flex-col select-none">
-      <ListSearchInput
-        label="Search conversations"
-        placeholder="Search, or from: to: subject: has:attachment in: is: label:"
-      >
+      <ListSearchInput label={t('list.searchLabel')} placeholder={t('list.searchPlaceholder')}>
         {isSearching && <SaveSearchButton />}
         {isSearching && <CreateRuleButton />}
         {/* batch select toggle — hidden during search */}
         {!isSearching && (
           <button
-            aria-label={batchMode ? 'Exit batch select mode' : 'Enter batch select mode'}
+            aria-label={t(batchToggleLabel(batchMode))}
             aria-pressed={batchMode}
             className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-all duration-150 ${
               batchMode ? 'bg-accent/10 text-accent' : 'text-fg-muted hover:bg-bg-secondary'
@@ -319,7 +319,7 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
                 setBatchMode(true)
               }
             }}
-            title="Batch select"
+            title={t('list.batchSelect')}
           >
             <CheckCircle aria-hidden="true" className="h-4 w-4" />
           </button>
@@ -327,7 +327,7 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
 
         {sortedConversations.some((c) => c.unread_count > 0) && (
           <button
-            aria-label="Mark all as read"
+            aria-label={t('list.markAllRead')}
             className="text-fg-muted hover:bg-bg-secondary flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-all duration-150"
             onClick={async () => {
               try {
@@ -342,25 +342,25 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
                 // the only honest local state is the one it asks for
                 // again.
                 await queryClient.invalidateQueries({ queryKey: conversationKeys.infinites() })
-                toast.success(`Marked ${resp.flipped ?? 0} as read`)
+                toast.success(t('list.markedRead', { count: resp.flipped ?? 0 }))
               } catch {
-                toast.error('Failed')
+                toast.error(t('common.failed'))
               }
             }}
-            title="Mark all as read"
+            title={t('list.markAllRead')}
           >
             <MailCheck aria-hidden="true" className="h-4 w-4" />
           </button>
         )}
 
         <button
-          aria-label="New conversation"
+          aria-label={t('list.newConversation')}
           className="text-fg-muted hover:bg-bg-secondary flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-all duration-150"
           onClick={() => {
             setComposeReplySource(null)
             setComposingNew(true)
           }}
-          title="New conversation"
+          title={t('list.newConversation')}
         >
           <SquarePen aria-hidden="true" className="h-4 w-4" />
         </button>
@@ -419,6 +419,11 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
 // under the same Today / Yesterday / weekday pills.
 
 /** The action table's view of the list on screen. */
+function batchToggleLabel(on: boolean): Key {
+  if (on) return 'list.batchExit'
+  return 'list.batchEnter'
+}
+
 function listView(trash: boolean, folder: null | string): RowState['view'] {
   if (trash) return 'trash'
   return viewOf(folder)

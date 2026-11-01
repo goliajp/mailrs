@@ -1,3 +1,5 @@
+import type { Translate } from './format'
+import type { Key } from '@/i18n'
 import type { AdminFlow } from '@/wire/schemas/admin-flow'
 
 import { count, uptime } from './format'
@@ -23,28 +25,33 @@ const SPOOL_WARN = 20
 const MOCK_FULL = 0.8
 
 /** Only what needs a person; empty when all is well. */
-export function attentionItems(flow: AdminFlow, kevyUp: boolean | null): Item[] {
+export function attentionItems(flow: AdminFlow, kevyUp: boolean | null, t: Translate): Item[] {
   const items: Item[] = []
   if (kevyUp === false) {
-    items.push({ text: 'kevy is not answering: sessions, queues and settings are unavailable' })
+    items.push({ text: t('admin.flow.attn.kevy') })
   }
   // older failures are history: their bounces went out long ago
   if (flow.outbound !== null && flow.outbound.failed_recent > 0) {
     items.push({
-      text: `${plural(flow.outbound.failed_recent, 'outbound message')} failed for good in the last 7 days`,
+      text: plural(
+        flow.outbound.failed_recent,
+        'admin.flow.attn.failedOne',
+        'admin.flow.attn.failedMany',
+        t
+      ),
       to: '/admin/queues?status=failed',
     })
   }
   if (flow.spool_backlog !== null && flow.spool_backlog >= SPOOL_WARN) {
     items.push({
-      text: `${plural(flow.spool_backlog, 'message')} waiting in the spool; check that fastcore is delivering`,
+      text: plural(flow.spool_backlog, 'admin.flow.attn.spoolOne', 'admin.flow.attn.spoolMany', t),
     })
   }
   if (flow.receiving === null) {
-    items.push({ text: 'The receiver has not reported its counters yet', to: '/protocol' })
+    items.push({ text: t('admin.flow.attn.noReceiver'), to: '/protocol' })
   }
   if (flow.mock !== null && flow.mock.bytes >= flow.mock.max_bytes * MOCK_FULL) {
-    items.push({ text: 'Mock mail storage is over 80% full', to: '/admin/mock' })
+    items.push({ text: t('admin.flow.attn.mockFull'), to: '/admin/mock' })
   }
   return items
 }
@@ -62,10 +69,18 @@ export function bytes(n: number): string {
  * spooled and delivered here; mail people send waits in the outbound
  * queue until a remote server takes it or it fails for good.
  */
-export function lanesOf(flow: AdminFlow): Lane[] {
+export function lanesOf(flow: AdminFlow, t: Translate): Lane[] {
   return [
-    { name: 'Inbound', note: 'Mail arriving from other servers', stages: inboundStages(flow) },
-    { name: 'Outbound', note: 'Mail people here send', stages: outboundStages(flow) },
+    {
+      name: t('admin.flow.inbound'),
+      note: t('admin.flow.inboundNote'),
+      stages: inboundStages(flow, t),
+    },
+    {
+      name: t('admin.flow.outbound'),
+      note: t('admin.flow.outboundNote'),
+      stages: outboundStages(flow, t),
+    },
   ]
 }
 
@@ -74,32 +89,35 @@ function failedTone(failed: null | number): Tone {
   return 'plain'
 }
 
-function inboundStages(flow: AdminFlow): Stage[] {
+function inboundStages(flow: AdminFlow, t: Translate): Stage[] {
   const stages: Stage[] = [
     {
-      caption: 'connections open now',
-      details: receivingDetails(flow),
-      name: 'Receiving',
+      caption: t('admin.flow.receiving.caption'),
+      details: receivingDetails(flow, t),
+      name: t('admin.flow.receiving'),
       to: '/protocol',
       tone: 'plain',
       value: nullable(flow.receiving, (x) => x.active_connections),
     },
     {
-      caption: 'waiting to be delivered',
-      details: ['Delivered every 15 seconds'],
-      name: 'Spool',
+      caption: t('admin.flow.spool.caption'),
+      details: [t('admin.flow.spool.detail')],
+      name: t('admin.flow.spool'),
       tone: spoolTone(flow.spool_backlog),
       value: flow.spool_backlog,
     },
   ]
   if (flow.mock !== null) {
     stages.push({
-      caption: 'test messages kept now',
+      caption: t('admin.flow.mock.caption'),
       details: [
-        `${bytes(flow.mock.bytes)} of ${bytes(flow.mock.max_bytes)} used`,
-        `${count(flow.mock.received)} received since mock mail started`,
+        t('admin.flow.mock.used', {
+          max: bytes(flow.mock.max_bytes),
+          used: bytes(flow.mock.bytes),
+        }),
+        t('admin.flow.mock.received', { n: count(flow.mock.received) }),
       ],
-      name: 'Mock mail',
+      name: t('admin.audit.group.mock'),
       to: '/admin/mock',
       tone: 'plain',
       value: flow.mock.stored,
@@ -113,32 +131,32 @@ function nullable<T>(value: null | T, pick: (v: T) => number): null | number {
   return pick(value)
 }
 
-function outboundStages(flow: AdminFlow): Stage[] {
+function outboundStages(flow: AdminFlow, t: Translate): Stage[] {
   const out = flow.outbound
   return [
     {
-      caption: 'waiting to be sent',
-      details: [`${count(nullable(out, (x) => x.scheduled))} scheduled for later`],
-      name: 'Queued',
+      caption: t('admin.flow.queued.caption'),
+      details: [t('admin.flow.queued.scheduled', { n: count(nullable(out, (x) => x.scheduled)) })],
+      name: t('admin.flow.queued'),
       to: '/admin/queues',
       tone: 'plain',
       value: nullable(out, (x) => x.queued),
     },
     {
-      caption: 'deferred by the remote server',
-      details: ['Retried with growing gaps for up to 5 days'],
-      name: 'Retrying',
+      caption: t('admin.flow.retrying.caption'),
+      details: [t('admin.flow.retrying.detail')],
+      name: t('admin.flow.retrying'),
       to: '/admin/queues',
       tone: 'plain',
       value: nullable(out, (x) => x.retrying),
     },
     {
-      caption: 'failed for good in the last 7 days',
+      caption: t('admin.flow.failed.caption'),
       details: [
-        `${count(nullable(out, (x) => x.failed))} in all`,
-        'Each one sent a bounce to its sender',
+        t('admin.flow.failed.all', { n: count(nullable(out, (x) => x.failed)) }),
+        t('admin.flow.failed.bounce'),
       ],
-      name: 'Failed',
+      name: t('admin.flow.failed'),
       to: '/admin/queues?status=failed',
       tone: failedTone(nullable(out, (x) => x.failed_recent)),
       value: nullable(out, (x) => x.failed_recent),
@@ -146,17 +164,20 @@ function outboundStages(flow: AdminFlow): Stage[] {
   ]
 }
 
-function plural(n: number, noun: string): string {
-  if (n === 1) return `1 ${noun}`
-  return `${count(n)} ${noun}s`
+function plural(n: number, one: Key, many: Key, t: Translate): string {
+  if (n === 1) return t(one)
+  return t(many, { n: count(n) })
 }
 
-function receivingDetails(flow: AdminFlow): string[] {
+function receivingDetails(flow: AdminFlow, t: Translate): string[] {
   const r = flow.receiving
-  if (r === null) return ['The receiver has not reported yet']
+  if (r === null) return [t('admin.flow.receiving.none')]
   return [
-    `${count(r.spooled)} accepted in the ${uptime(r.uptime_secs)} since the receiver started`,
-    `${count(r.connections)} connections in that time`,
+    t('admin.flow.receiving.accepted', {
+      n: count(r.spooled),
+      uptime: uptime(r.uptime_secs, t),
+    }),
+    t('admin.flow.receiving.connections', { n: count(r.connections) }),
   ]
 }
 

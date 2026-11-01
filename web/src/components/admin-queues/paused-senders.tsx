@@ -5,6 +5,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { ConfirmAction } from '@/components/admin-page'
+import { type Key, useT } from '@/i18n'
 import { formatFullDate } from '@/lib/format'
 import { queryClient } from '@/lib/query-client'
 import { adminKeys } from '@/lib/query-keys'
@@ -19,6 +20,7 @@ type Paused = WireOutboundPaused['items'][number]
  * discards what it held. Nothing shows while no account is paused.
  */
 export function PausedSenders() {
+  const t = useT()
   const [target, setTarget] = useState<null | { account: Paused; choice: Choice }>(null)
   const paused = useQuery({
     queryKey: adminKeys.outboundPaused(),
@@ -39,19 +41,28 @@ export function PausedSenders() {
   if (items.length === 0 && !resume.data) return null
 
   return (
-    <section aria-label="Paused senders" className="mb-4 flex flex-col gap-2">
+    <section aria-label={t('admin.paused.label')} className="mb-4 flex flex-col gap-2">
       {resume.data && (
         <Alert role="status" variant="success">
-          Released: {resume.data.sent} sent, {resume.data.discarded} discarded.
+          {t('admin.paused.released', {
+            discarded: resume.data.discarded,
+            sent: resume.data.sent,
+          })}
         </Alert>
       )}
       {items.map((p) => (
         <Alert key={p.address} role="alert" variant="warning">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
-              <p className="font-medium break-all">Outbound mail from {p.address} is paused</p>
+              <p className="font-medium break-all">
+                {t('admin.paused.title', { address: p.address })}
+              </p>
               <p className="text-sm">
-                {p.reason}. Since {formatFullDate(p.since)}; {p.held} messages held.
+                {t('admin.paused.detail', {
+                  held: p.held,
+                  reason: p.reason,
+                  since: formatFullDate(p.since),
+                })}
               </p>
             </div>
             <div className="flex gap-2">
@@ -60,14 +71,14 @@ export function PausedSenders() {
                 size="sm"
                 variant="secondary"
               >
-                Release and send
+                {t('admin.paused.send')}
               </Button>
               <Button
                 onClick={() => setTarget({ account: p, choice: 'discard' })}
                 size="sm"
                 variant="danger"
               >
-                Release and discard
+                {t('admin.paused.discard')}
               </Button>
             </div>
           </div>
@@ -75,27 +86,25 @@ export function PausedSenders() {
       ))}
       {target && (
         <ConfirmAction
-          confirmLabel={confirmLabel(target.choice, resume.isPending)}
-          consequence={consequence(target)}
+          confirmLabel={t(confirmLabel(target.choice, resume.isPending))}
+          consequence={t(consequence(target.choice), { held: target.account.held })}
           onCancel={() => setTarget(null)}
           onConfirm={() => resume.mutate(target)}
           pending={resume.isPending}
-          title={`Release ${target.account.address}?`}
+          title={t('admin.paused.confirmTitle', { address: target.account.address })}
         />
       )}
     </section>
   )
 }
 
-function confirmLabel(choice: Choice, pending: boolean): string {
-  if (pending) return 'Releasing...'
-  if (choice === 'send') return 'Release and send'
-  return 'Release and discard'
+function confirmLabel(choice: Choice, pending: boolean): Key {
+  if (pending) return 'admin.paused.releasing'
+  if (choice === 'send') return 'admin.paused.send'
+  return 'admin.paused.discard'
 }
 
-function consequence(t: { account: Paused; choice: Choice }): string {
-  if (t.choice === 'send') {
-    return `The ${t.account.held} held messages go out, and the account sends again. Check first that the mail it was sending is its own.`
-  }
-  return `The ${t.account.held} held messages are deleted unsent, and the account sends again.`
+function consequence(choice: Choice): Key {
+  if (choice === 'send') return 'admin.paused.sendConsequence'
+  return 'admin.paused.discardConsequence'
 }
