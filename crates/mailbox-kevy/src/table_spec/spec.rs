@@ -185,14 +185,13 @@ fn columns() -> Vec<(Vec<u8>, ValType)> {
 /// Whether the flag reads key on the marker indexes (`ix_<column>`) rather
 /// than the full-row indexes on the columns themselves.
 ///
-/// Off until the markers are known to be complete: the writers keep them
-/// from the release that declared them, but rows written before that carry
-/// none until `maintenance:rewrite-threaduser-markers` has run, and a read
-/// of a marker index before then misses those rows without any error. It
-/// is turned on in a later release, once `maintenance:threaduser-marker-check`
-/// reports no mismatch on production; turning it off again is the rollback
-/// for as long as the full-row indexes are still declared.
-pub(crate) const READ_FLAG_AXES_FROM_MARKERS: bool = false;
+/// Rows written before the markers were declared carry none until
+/// `maintenance:rewrite-threaduser-markers` has run over them, and a read of
+/// a marker index misses such rows without any error; so on a store that
+/// predates the markers this is on only after `maintenance:threaduser-marker-check`
+/// reports no mismatch. Turning it off is the rollback for as long as the
+/// full-row indexes are still declared.
+pub(crate) const READ_FLAG_AXES_FROM_MARKERS: bool = true;
 
 /// Whether the full-row indexes on the marked columns themselves stay
 /// declared beside the marker indexes.

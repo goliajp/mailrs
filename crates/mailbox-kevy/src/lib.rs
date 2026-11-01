@@ -80,6 +80,9 @@ pub use mailrs_mailbox::labels::{LABEL_COLORS, Label, LabelError, label_color, l
 pub mod ledger;
 mod list_threads;
 mod mark_seen;
+mod marker_compare;
+#[cfg(test)]
+mod marker_compare_tests;
 #[cfg(test)]
 mod marker_tests;
 mod marker_upkeep;
@@ -106,6 +109,7 @@ pub use mailrs_mailbox::rules;
 pub use mailrs_mailbox::scope;
 pub use mailrs_mailbox::section;
 pub use mailrs_mailbox::threading::normalize_subject;
+pub use marker_compare::ReadCompare;
 pub use marker_upkeep::{MarkerColumnCheck, MarkerRewrite};
 pub use message_arrival::MessageArrival;
 pub use messages::{OwnedUserMessageFacts, UserMessageFacts};

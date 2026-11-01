@@ -18,7 +18,7 @@ use crate::{KevyMailboxStore, MessageArrival, SectionArrival, keys};
 
 const U: &str = "me@x.test";
 
-fn store() -> KevyMailboxStore {
+pub(crate) fn store() -> KevyMailboxStore {
     let s = KevyMailboxStore::new(Arc::new(
         Store::open(Config::default()).expect("open in-memory kevy"),
     ));
@@ -220,7 +220,7 @@ fn is_sender_follows_the_row_writer_both_ways() {
 }
 
 /// A spread of rows over two users, with every marked column set on some.
-fn varied(st: &KevyMailboxStore) {
+pub(crate) fn varied(st: &KevyMailboxStore) {
     for user in [U, "other@x.test"] {
         for i in 0..8 {
             let tid = format!("t{i}");

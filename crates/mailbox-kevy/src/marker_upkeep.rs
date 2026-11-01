@@ -45,7 +45,7 @@ const SAMPLES: usize = 5;
 
 impl KevyMailboxStore {
     /// Every membership row's key, in a stable order so offsets page.
-    fn thread_user_keys(&self) -> Vec<Vec<u8>> {
+    pub(crate) fn thread_user_keys(&self) -> Vec<Vec<u8>> {
         let pattern = format!("{}*", String::from_utf8_lossy(keys::THREAD_USER_PREFIX));
         let mut all = self.store.keys(Some(pattern.as_bytes()), None);
         all.sort();
