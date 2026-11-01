@@ -267,6 +267,11 @@ pub trait Account: Send + Sync + 'static {
     /// are filed, and anything filed in a mailbox named Trash.
     fn trashed(&self) -> impl Future<Output = Result<Trashed<Self::Mailbox, Self::Key>>> + Send;
 
+    /// The messages of the user's conversations held for review as
+    /// suspected fraud, wherever they are filed. Every core says, so a held
+    /// conversation never stays in a client's INBOX.
+    fn held(&self) -> impl Future<Output = Result<Trashed<Self::Mailbox, Self::Key>>> + Send;
+
     /// Move the conversation `message` belongs to into the Trash, or back
     /// out. The message stays where it is filed. `Ok(false)` when it belongs
     /// to no conversation (a file nothing indexed).

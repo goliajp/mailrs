@@ -36,6 +36,7 @@ fn list() -> Vec<String> {
         "Junk",
         "Sent",
         "Trash",
+        "Review",
         super::harness::LABEL,
     ]
     .iter()

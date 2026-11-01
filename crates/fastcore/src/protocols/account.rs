@@ -201,6 +201,17 @@ impl Account for FastcoreAccount {
         }
     }
 
+    async fn held(&self) -> Result<Trashed<FcMailbox, PathBuf>> {
+        match self {
+            Self::Real(a) => a.held(),
+            // the mock namespace holds nothing
+            Self::Mock(_) => Ok(Trashed {
+                messages: Vec::new(),
+                latest: 0,
+            }),
+        }
+    }
+
     async fn set_trashed(
         &self,
         _: &FcMailbox,
