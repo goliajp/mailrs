@@ -3,11 +3,13 @@ import type { Key } from './en'
 import { adminOpsJa } from './admin-ops/ja'
 import { adminJa } from './admin/ja'
 import { appJa } from './app/ja'
+import { mockJa } from './mock/ja'
 import { settingsJa } from './settings/ja'
 
 export const ja: Record<Key, string> = {
   ...appJa,
   ...settingsJa,
+  ...mockJa,
   ...adminJa,
   ...adminOpsJa,
   'lang.name.en': 'English',
@@ -394,6 +396,7 @@ export const ja: Record<Key, string> = {
   'source.loading': 'ソースを読み込んでいます…',
   'source.view': 'ソースを表示',
   'structured.details': '詳細',
+  'structured.order': '注文',
   'structured.reservation': '{kind}の予約',
   'structured.title': '構造化データ',
   'structured.total': '合計: {amount}',

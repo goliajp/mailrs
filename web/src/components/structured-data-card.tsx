@@ -75,7 +75,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
           <div className="border-border bg-bg-secondary rounded-lg border p-4" key={`ord-${i}`}>
             <div className="flex items-center gap-2">
               <ShoppingBag className="text-success h-4 w-4" />
-              <span className="text-fg-secondary text-xs font-medium">Order</span>
+              <span className="text-fg-secondary text-xs font-medium">{t('structured.order')}</span>
               {o.order_number && (
                 <Copyable value={o.order_number}>
                   <span className="bg-border text-fg-secondary md:text-mini rounded px-1.5 py-0.5 font-mono text-xs">
