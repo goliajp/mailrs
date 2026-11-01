@@ -460,6 +460,9 @@ export const zh: Record<Key, string> = {
   'thread.markedRead': '已标为已读',
   'thread.me': '我',
   'thread.showEarlier': '显示更早的 {count} 封',
+  'trackers.blocked': '已阻止追踪器 {count} 个',
+  'trackers.explain':
+    '这些图片的唯一作用是告诉发件人你打开了这封信。它们没有被加载过，服务器也没有替你加载',
   'trash.confirmBody': '里面的所有会话都会被删除，无法恢复。',
   'trash.confirmTitle': '清空废纸篓？',
   'trash.deleted.one': '已永久删除 1 个会话',

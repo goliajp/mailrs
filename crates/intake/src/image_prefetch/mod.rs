@@ -17,6 +17,7 @@
 //! Bounded: 50 images a message, 30 a minute per sending domain, 20000 a
 //! day in all, and the cache under a size cap, oldest-read first out.
 
+mod trackers;
 mod worker;
 
 use std::io;
@@ -120,7 +121,8 @@ impl PrefetchQueue for NetworkQueue {
 }
 
 /// The `src` of every `<img>` that names an http or https URL, as the
-/// browser will read it: HTML entities decoded.
+/// browser will read it: HTML entities decoded. Trackers are left out:
+/// fetching one, even ahead of time, tells its sender the mail arrived.
 pub fn image_urls(html: &str) -> Vec<String> {
     let lower = html.to_ascii_lowercase();
     let mut out = Vec::new();
@@ -147,7 +149,9 @@ pub fn image_urls(html: &str) -> Vec<String> {
             .get(..8)
             .map(str::to_ascii_lowercase)
             .unwrap_or_default();
-        if scheme.starts_with("http://") || scheme.starts_with("https://") {
+        if (scheme.starts_with("http://") || scheme.starts_with("https://"))
+            && !trackers::is_tracking_image(&url, tag_lower)
+        {
             out.push(url);
         }
     }
@@ -223,7 +227,7 @@ mod tests {
 
     #[test]
     fn image_sources_are_read_as_a_browser_reads_them() {
-        let html = r#"<p><IMG width=1 SRC="https://t.example/o.gif?u=1&amp;m=2"></p>
+        let html = r#"<p><IMG width=600 SRC="https://t.example/o.gif?u=1&amp;m=2"></p>
             <img alt='x' src='http://cdn.example/a.png'>
             <img data-src="https://no.example/x.png" src=https://bare.example/b.jpg>
             <img src="cid:part1@x"> <img src="data:image/png;base64,AAAA">
@@ -236,6 +240,17 @@ mod tests {
                 "https://bare.example/b.jpg",
             ]
         );
+    }
+
+    /// A tracker is never fetched, not even ahead of time: the fetch is the
+    /// report the sender wants.
+    #[test]
+    fn trackers_are_not_fetched() {
+        let html = r#"<img src="https://cdn.shop.test/hero.jpg" width="600">
+            <img src="https://cdn.shop.test/p.gif" width="1" height="1">
+            <img src="https://mailtrack.io/trace/mail/abc.png">
+            <img src="https://u1.ct.sendgrid.net/wf/open?upn=x" alt="">"#;
+        assert_eq!(image_urls(html), vec!["https://cdn.shop.test/hero.jpg"]);
     }
 
     #[test]

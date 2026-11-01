@@ -71,7 +71,7 @@ export function invalidateBucketMove() {
 // metadata are identical pre- and post-mutation. Invalidating the thread
 // query forced a refetch that returned byte-identical data, which then
 // fed the HtmlFrame `srcDoc` through DOMPurify + proxyExternalUrls +
-// injectCjkFonts + stripTrackingPixels a second time (50-300ms each
+// injectCjkFonts and the tracker pass a second time (50-300ms each
 // iteration on newsletter bodies) and made every mark-as-read feel like
 // the email was reloading. Thread cache invalidation lives in
 // `use-mail-events.ts` (NewMessage WebSocket event) where the thread
