@@ -5659,7 +5659,7 @@
     "/jmap/eventsource/": {
       "get": {
         "summary": "Get jmap eventsource",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "RFC 8620 \u00a77.3 push. Sends a `state` event (StateChange for Email, Mailbox and Thread) when the account's state moves: at once on new mail, otherwise noticed within 5 seconds. `ping` (seconds, 5 to 300; 0 for none), `closeafter=state`, `types`. At most 8 connections per account.",
         "responses": {
           "200": {
             "description": "Success",
@@ -11718,7 +11718,8 @@
                               "pop3",
                               "smtp",
                               "managesieve",
-                              "dav"
+                              "dav",
+                              "jmap"
                             ]
                           },
                           "password_logins": {
@@ -13746,6 +13747,132 @@
           }
         }
       }
+    },
+    "/jmap/upload/{account}/": {
+      "post": {
+        "summary": "Upload a JMAP blob",
+        "description": "RFC 8620 \u00a76.1. The body is the blob, at most 50 MiB; 4 uploads at once per account; an account keeps at most 1 GiB, each upload deleted a day after it was last used. A session, an agent key with the jmap scope, or an app password over HTTP Basic (HTTPS only). Another account than the caller's is 404.",
+        "tags": [
+          "JMAP"
+        ],
+        "parameters": [
+          {
+            "name": "account",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accountId": {
+                      "type": "string"
+                    },
+                    "blobId": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "size": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not the caller's account"
+          },
+          "413": {
+            "description": "Larger than maxSizeUpload"
+          },
+          "429": {
+            "description": "Too many uploads at once"
+          },
+          "507": {
+            "description": "The account's uploads are full"
+          }
+        }
+      }
+    },
+    "/jmap/download/{account}/{blob}/{name}": {
+      "get": {
+        "summary": "Download a JMAP blob",
+        "description": "RFC 8620 \u00a76.2: a message, one of its parts, or an upload. Always served as an attachment with X-Content-Type-Options: nosniff and Content-Security-Policy: sandbox; `type` is used only when it is a plain media type. A blob or account not the caller's is 404.",
+        "tags": [
+          "JMAP"
+        ],
+        "parameters": [
+          {
+            "name": "account",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "blob",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The bytes",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -13998,6 +14125,21 @@
                 "type": "boolean",
                 "nullable": true,
                 "description": "The last check is older than 36 hours; null before the first"
+              }
+            }
+          },
+          "jmap_uploads": {
+            "type": "object",
+            "description": "What JMAP clients have uploaded and not yet used for a day (MAILRS_JMAP_UPLOAD_DIR), and the space left on its volume.",
+            "properties": {
+              "bytes": {
+                "type": "integer",
+                "description": "Bytes held across all accounts; each account may hold 1 GiB"
+              },
+              "volume_free_bytes": {
+                "type": "integer",
+                "nullable": true,
+                "description": "Bytes free on the volume; null when it cannot be read"
               }
             }
           }

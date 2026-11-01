@@ -256,4 +256,30 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
         pg.get_message_by_uid_for_user(ALICE, 4).await,
         MINTED,
     );
+
+    // every message of the user's, compactly: byte for byte the same, and
+    // an unchanged index is not sent again
+    let index = |r: mailrs_core_api::error::ApiResult<
+        Option<(String, mailrs_core_api::method::message_index::MessageIndex)>,
+    >| { r.map(|o| o.map(|(tag, ix)| (tag, ix.messages.len(), ix.encode()))) };
+    let both = d.both(
+        "message_index",
+        index(fc.message_index(ALICE, None).await),
+        index(pg.message_index(ALICE, None).await),
+        &[],
+    );
+    if let Some((Some((tag, n, _)), _)) = both {
+        assert!(n > 0, "the index of a mailbox with mail lists it");
+        d.both(
+            "message_index unchanged",
+            index(fc.message_index(ALICE, Some(&tag)).await),
+            index(pg.message_index(ALICE, Some(&tag)).await),
+            &[],
+        );
+        let unchanged = fc.message_index(ALICE, Some(&tag)).await.expect("index");
+        assert!(
+            unchanged.is_none(),
+            "an index the caller holds is not sent again"
+        );
+    }
 }

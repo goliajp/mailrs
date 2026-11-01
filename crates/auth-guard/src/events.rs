@@ -39,6 +39,8 @@ pub enum Channel {
     Managesieve,
     /// CalDAV and CardDAV.
     Dav,
+    /// JMAP, with an app password over HTTP Basic.
+    Jmap,
     /// An API or agent key.
     ApiKey,
     /// An external identity provider.
@@ -278,7 +280,8 @@ pub(crate) fn day_key(unix: u64) -> String {
 /// line.
 pub fn store<O: EventOps>(ops: &mut O, e: &LoginEvent) -> io::Result<bool> {
     let retain = RETAIN_DAYS * 86_400;
-    let once_a_day = matches!(e.channel, Channel::Dav | Channel::ApiKey) && e.result == Outcome::Ok;
+    let once_a_day = matches!(e.channel, Channel::Dav | Channel::Jmap | Channel::ApiKey)
+        && e.result == Outcome::Ok;
     if once_a_day {
         let who = e.key_id.as_deref().unwrap_or(&e.account);
         let seen = format!(

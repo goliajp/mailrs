@@ -10,6 +10,7 @@ import { type Key } from '@/i18n'
  *   - `mail:send`     → send, and list the sends this key made; nothing else, no MCP.
  *                       Made on the host (`mailrs-webapi agent-key create`), not offered here
  *   - `masked_email`  → masked addresses only, REST and JMAP `MaskedEmail/*`; no mail, no send
+ *   - `jmap`          → every JMAP route (mail, send, uploads, push) and nothing else
  *   - `mock`          → only `/api/mock/*` and the `mock_*` MCP tools
  *   - `mock:{ns}`     → only that one mock namespace; cannot create or delete it
  *
@@ -19,7 +20,7 @@ import { type Key } from '@/i18n'
  * discarded by the server, so it is gone.
  */
 
-export type ScopePreset = 'full' | 'mail:read' | 'mail:write' | 'masked' | 'mock'
+export type ScopePreset = 'full' | 'jmap' | 'mail:read' | 'mail:write' | 'masked' | 'mock'
 
 export type ScopeTone = 'elevated' | 'normal'
 
@@ -38,6 +39,11 @@ export const SCOPE_PRESETS: { description: Key; label: Key; value: ScopePreset }
     description: 'settings.scope.read.help',
     label: 'settings.scope.read',
     value: 'mail:read',
+  },
+  {
+    description: 'settings.scope.jmap.help',
+    label: 'settings.scope.jmap',
+    value: 'jmap',
   },
   {
     description: 'settings.scope.masked.help',
@@ -65,6 +71,8 @@ export function presetToScopes(preset: ScopePreset): string[] {
   switch (preset) {
     case 'full':
       return ['admin']
+    case 'jmap':
+      return ['jmap']
     case 'mail:read':
       return ['mail:read']
     case 'mail:write':

@@ -133,7 +133,8 @@
 /dav	DAV; reads on GET, writes only on DAV methods
 /dav/	DAV; reads on GET, writes only on DAV methods
 /dav/{*path}	DAV; reads on GET, writes only on DAV methods
-/jmap/eventsource/	event stream; sends pings only
+/jmap/download/{account}/{blob}/{name}	blob download; the only write is an upload's last-used time, which keeps it a day longer
+/jmap/eventsource/	event stream; state changes and pings, writes only the state snapshot later /changes compare against
 /jmap/session	protocol discovery, read only
 /mail/config-v1.1.xml	protocol discovery, read only
 /metrics	read only

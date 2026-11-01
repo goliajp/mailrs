@@ -88,7 +88,7 @@ pub struct AuthEventsParams {
     /// mfa-required, mfa-failed, denied-by-allowlist, disabled.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub result: Option<String>,
-    /// Only this way in: web, verify, imap, pop3, smtp, managesieve, dav,
+    /// Only this way in: web, verify, imap, pop3, smtp, managesieve, dav, jmap,
     /// api-key, oidc.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub channel: Option<String>,

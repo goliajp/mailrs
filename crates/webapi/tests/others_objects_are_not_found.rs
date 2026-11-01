@@ -301,6 +301,28 @@ async fn jmap_mailboxes_are_the_callers(live: &live::Live, alice: &str, bob: &st
             user: ALICE,
         })
         .expect("arrival");
+    let payload = serde_json::json!({
+        "id": 0, "mailbox_id": 0, "uid": 1, "blob_ref": "m-alice",
+        "sender": "Friend <friend@partner.example>", "recipients": ALICE,
+        "subject": "for alice only", "date": 1_786_000_000, "internal_date": 1_786_000_000,
+        "size": 10, "flags": 0, "message_id": "m-alice@partner.example",
+        "in_reply_to": "", "thread_id": "t-alice", "modseq": 1,
+    });
+    live.mailbox
+        .upsert_user_message(
+            ALICE,
+            "t-alice",
+            "m-alice@partner.example",
+            1_786_000_000,
+            payload.to_string().as_bytes(),
+            &mailrs_mailbox_kevy::UserMessageFacts {
+                blob_ref: "m-alice",
+                uid: 1,
+                flags: 0,
+                modseq: 1,
+            },
+        )
+        .expect("message");
     let unread = |token: String| async move {
         let req = serde_json::json!({
             "using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:mail"],
