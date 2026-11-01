@@ -182,16 +182,29 @@ fn columns() -> Vec<(Vec<u8>, ValType)> {
     columns
 }
 
+/// Whether the flag reads key on the marker indexes (`ix_<column>`) rather
+/// than the full-row indexes on the columns themselves.
+///
+/// Off until the markers are known to be complete: the writers keep them
+/// from the release that declared them, but rows written before that carry
+/// none until `maintenance:rewrite-threaduser-markers` has run, and a read
+/// of a marker index before then misses those rows without any error. It
+/// is turned on in a later release, once `maintenance:threaduser-marker-check`
+/// reports no mismatch on production; turning it off again is the rollback
+/// for as long as the full-row indexes are still declared.
+pub(crate) const READ_FLAG_AXES_FROM_MARKERS: bool = false;
+
 /// Whether the full-row indexes on the marked columns themselves stay
 /// declared beside the marker indexes.
 ///
-/// They hold every row of the table, so they are what the markers replace;
-/// nothing reads them. They stay until `maintenance:threaduser-marker-check`
-/// has reported no mismatch on production, because until then going back
-/// is pointing the reads at these names again. Setting this to `false`
-/// changes the declaration, which rebuilds the table's indexes at the next
-/// boot.
+/// They hold every row of the table, so they are what the markers replace.
+/// They are dropped only in a release after the reads have moved to the
+/// markers and the check has passed again. Setting this to `false` changes
+/// the declaration, which rebuilds the table's indexes at the next boot.
 pub(crate) const KEEP_FULL_ROW_FLAG_INDEXES: bool = true;
+
+// the reads must always have an index to key on
+const _: () = assert!(READ_FLAG_AXES_FROM_MARKERS || KEEP_FULL_ROW_FLAG_INDEXES);
 
 fn indexes() -> Vec<TableIndex> {
     let values = stored_values();

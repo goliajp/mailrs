@@ -51,9 +51,20 @@ pub(crate) fn marker_of(column: &str) -> Option<&'static str> {
     MARKED.iter().find(|m| m.column == column).map(|m| m.marker)
 }
 
-/// The index a read of `column` keys on: the marker's where there is one.
+/// The marker index for `column`, or `None` when its index keys on the
+/// column itself. Declared whatever the read switch says.
+pub(crate) fn marker_index(column: &str) -> Option<String> {
+    marker_of(column).map(|m| format!("threaduser.{m}"))
+}
+
+/// The index a read of `column` keys on: the marker's once the reads have
+/// moved to the markers (`READ_FLAG_AXES_FROM_MARKERS`), the column's own
+/// before that.
 pub(crate) fn index_for(column: &str) -> String {
-    format!("threaduser.{}", marker_of(column).unwrap_or(column))
+    match crate::table_spec::READ_FLAG_AXES_FROM_MARKERS {
+        true => marker_index(column).unwrap_or_else(|| format!("threaduser.{column}")),
+        false => format!("threaduser.{column}"),
+    }
 }
 
 /// Whether a stored value puts the row on the marker's index: a non-zero
@@ -174,7 +185,11 @@ mod tests {
         for m in &MARKED {
             assert_eq!(m.marker, format!("ix_{}", m.column));
         }
-        assert_eq!(index_for("starred"), "threaduser.ix_starred");
+        assert_eq!(
+            marker_index("starred").as_deref(),
+            Some("threaduser.ix_starred")
+        );
+        assert_eq!(marker_index("account_id"), None);
         assert_eq!(index_for("account_id"), "threaduser.account_id");
     }
 }

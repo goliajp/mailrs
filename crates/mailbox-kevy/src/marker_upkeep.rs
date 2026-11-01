@@ -125,6 +125,7 @@ impl KevyMailboxStore {
             }
         }
         for (m, c) in MARKED.iter().zip(checks.iter_mut()) {
+            // the marker index itself, whichever index the reads use
             let index = format!("threaduser.{}", m.marker);
             c.index_entries = self.store.idx_count(
                 index.as_bytes(),

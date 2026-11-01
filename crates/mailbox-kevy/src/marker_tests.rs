@@ -9,6 +9,11 @@ use kevy_embedded::{Config, IndexValue, Store};
 use mailrs_mailbox::section::MessageFacts;
 
 use crate::thread_row::MARKED;
+
+/// The marker index, named directly rather than through the read switch.
+fn marker_index(col: &str) -> String {
+    crate::thread_row::marker_index(col).expect("a marked column")
+}
 use crate::{KevyMailboxStore, MessageArrival, SectionArrival, keys};
 
 const U: &str = "me@x.test";
@@ -262,7 +267,7 @@ fn assert_new_and_old_agree(st: &KevyMailboxStore) {
     ];
     for user in [U, "other@x.test"] {
         for flag in flags {
-            let new = crate::thread_row::index_for(flag);
+            let new = marker_index(flag);
             let old = format!("threaduser.{flag}");
             for extra in stacks {
                 let list = |ix: &str| {
@@ -299,7 +304,7 @@ fn assert_new_and_old_agree(st: &KevyMailboxStore) {
             keys
         };
         assert_eq!(
-            keys_on(crate::thread_row::index_for(col)),
+            keys_on(marker_index(col)),
             keys_on(format!("threaduser.{col}")),
             "{col}"
         );
@@ -403,4 +408,65 @@ fn the_rewrite_converges_and_the_check_reads_zero() {
         Some("2000")
     );
     assert_new_and_old_agree(&st);
+}
+
+/// A flag, the predicates stacked on it, and the threads it must list.
+type Case<'a> = (&'a str, &'a [(&'a str, &'a str)], Vec<String>);
+
+/// The reads give the right answer off either index set, so flipping
+/// `READ_FLAG_AXES_FROM_MARKERS` is covered before it is flipped: the
+/// expectations are the rows themselves, not one index checked against
+/// the other.
+#[test]
+fn flag_reads_are_right_off_either_index() {
+    let st = store();
+    varied(&st);
+    let ids = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+    let cases: [Case; 5] = [
+        ("starred", &[], ids(&["t6", "t4", "t2", "t0"])),
+        ("archived", &[], ids(&["t7", "t6", "t4", "t1"])),
+        ("unread", &[], ids(&["t4", "t2"])),
+        ("trashed", &[], ids(&["t5"])),
+        (
+            "starred",
+            &[("archived", "0"), ("trashed", "0")],
+            ids(&["t2", "t0"]),
+        ),
+    ];
+    let names: [fn(&str) -> String; 2] = [marker_index, |c| format!("threaduser.{c}")];
+    for name in names {
+        for (flag, extra, want) in &cases {
+            let ix = name(flag);
+            let got = st
+                .list_thread_ids_on_flag_index(&ix, U, extra, 100, 0, None)
+                .unwrap();
+            assert_eq!(&got, want, "{ix} {extra:?}");
+            assert_eq!(
+                st.count_thread_ids_on_flag_index(&ix, U, extra).unwrap(),
+                want.len(),
+                "{ix} {extra:?} count"
+            );
+        }
+        for (col, tid) in [("snoozed_until", "t6"), ("trashed_at", "t5")] {
+            let ix = name(col);
+            let (rows, _) = st
+                .store()
+                .idx_query(
+                    ix.as_bytes(),
+                    &IndexValue::I64(1),
+                    &IndexValue::I64(i64::MAX),
+                    None,
+                    100,
+                )
+                .unwrap();
+            let mut got: Vec<Vec<u8>> = rows.into_iter().map(|(k, _)| k).collect();
+            got.sort();
+            let mut want = vec![
+                keys::thread_user("other@x.test", tid).into_bytes(),
+                keys::thread_user(U, tid).into_bytes(),
+            ];
+            want.sort();
+            assert_eq!(got, want, "{ix}");
+        }
+    }
 }

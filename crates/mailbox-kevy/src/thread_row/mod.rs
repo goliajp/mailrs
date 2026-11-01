@@ -60,6 +60,8 @@ mod markers;
 mod membership;
 mod store;
 pub use markers::hset_membership;
+#[cfg(test)]
+pub(crate) use markers::marker_index;
 pub(crate) use markers::{MARKED, index_for, is_set, marker_repairs};
 pub(crate) use membership::*;
 
