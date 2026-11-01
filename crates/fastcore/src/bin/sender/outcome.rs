@@ -173,6 +173,8 @@ pub(super) fn report_send_outcome(
     })() {
         tracing::warn!(err = %e, %send_id, %recipient, "send row outcome write failed");
     }
+    let (kind, code, reason) = super::webhook::event_of(outcome, attempts, cfg.max_attempts);
+    super::webhook::emit(&url, kind, &user, &send_id, recipient, code, reason);
 }
 
 /// Pull a three-digit SMTP code out of a reason string, or 0.

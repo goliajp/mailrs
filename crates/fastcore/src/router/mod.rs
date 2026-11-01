@@ -220,7 +220,13 @@ pub fn build_router_with_secret(state: Arc<FastcoreState>, secret: String) -> Ro
     // Before `with_state`: the maintenance routes take the same state,
     // and applying it first would leave them nothing to attach to.
     let business = maintenance_routes::maintenance_routes(business);
-    let business = directory_routes::directory_routes(business).with_state(state);
+    let sink = crate::thread_events::sink(state.clone());
+    let business = directory_routes::directory_routes(business)
+        .with_state(state)
+        .route_layer(axum::middleware::from_fn_with_state(
+            sink,
+            mailrs_core_api::server::thread_events,
+        ));
 
     if secret.is_empty() {
         tracing::warn!(

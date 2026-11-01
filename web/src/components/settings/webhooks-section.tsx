@@ -17,6 +17,22 @@ import {
   SectionHeader,
 } from './_shared'
 
+/** The events a subscription can name (crates/core-api/src/webhook_events.rs, `ALL`). */
+const EVENTS = [
+  'mail.received',
+  'mail.held',
+  'mail.sent',
+  'mail.delivered',
+  'mail.deferred',
+  'mail.bounced',
+  'thread.read',
+  'thread.archived',
+  'thread.trashed',
+  'thread.starred',
+  'thread.labelled',
+  'calendar.invite_answered',
+] as const
+
 export function WebhooksSection() {
   const t = useT()
   const { data: webhooks = [] } = useQuery({
@@ -25,7 +41,7 @@ export function WebhooksSection() {
   })
   const [adding, setAdding] = useState(false)
   const [form, setForm] = useState({
-    event_type: 'new_message',
+    event_type: 'mail.received',
     filter_sender: '',
     filter_thread_id: '',
     url: '',
@@ -49,7 +65,7 @@ export function WebhooksSection() {
       toast.success(t('settings.webhooks.created'))
       setCreatedSecret(data.signing_secret)
       setForm({
-        event_type: 'new_message',
+        event_type: 'mail.received',
         filter_sender: '',
         filter_thread_id: '',
         url: '',
@@ -130,9 +146,11 @@ export function WebhooksSection() {
               onChange={(e) => setForm({ ...form, event_type: e.target.value })}
               value={form.event_type}
             >
-              <option value="new_message">new_message</option>
-              <option value="message_read">message_read</option>
-              <option value="message_deleted">message_deleted</option>
+              {EVENTS.map((ev) => (
+                <option key={ev} value={ev}>
+                  {ev}
+                </option>
+              ))}
             </select>
           </div>
           <input

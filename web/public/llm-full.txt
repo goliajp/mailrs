@@ -120,7 +120,7 @@ Config for Claude Code or any MCP client:
 | Tool | Permission | Description |
 |------|-----------|-------------|
 | list_webhooks | any authenticated | List your webhook subscriptions |
-| create_webhook | any authenticated | Subscribe to new_message events. Returns signing secret (shown only once) |
+| create_webhook | any authenticated | Subscribe to one event type (mail.received, mail.sent, mail.bounced, thread.archived, calendar.invite_answered, ...; see section 4). Returns signing secret (shown only once) |
 | delete_webhook | any authenticated | Delete a webhook subscription by ID |
 
 ### Signature Management
@@ -325,12 +325,12 @@ Returns `{"id": "team@golia.jp"}`: an alias is identified by its source address.
 ```json
 {
   "url": "https://your-server.com/webhook",
-  "event_type": "new_message",
+  "event_type": "mail.received",
   "filter_sender": "important@example.com",
   "filter_thread_id": "optional-thread-id"
 }
 ```
-`event_type` defaults to `"new_message"`. `filter_sender` and `filter_thread_id` are optional.
+`event_type` is one of the event types in section 4. `filter_sender` and `filter_thread_id` are optional.
 
 #### Thread operations (mark_thread_read, star_thread, archive_thread, delete_thread, etc.)
 ```json
@@ -1237,12 +1237,40 @@ curl -X POST https://mail.golia.ai/api/agent/webhooks \
   -H "Authorization: Bearer mlrs_..." \
   -H "Content-Type: application/json" \
   -d '{
-    "callback_url": "https://your-server.com/webhook",
-    "event_type": "new_message",
-    "filter_contact": "important@example.com",
+    "url": "https://your-server.com/webhook",
+    "event_type": "mail.received",
+    "filter_sender": "important@example.com",
     "filter_thread_id": "optional-thread-id"
   }'
 ```
+
+One subscription is one event type; subscribe several times for several.
+An unknown `event_type` is refused (400). `filter_sender` applies to
+`mail.received` and `mail.held`; `filter_thread_id` to events that carry a
+thread. A subscription with a filter never matches an event without that
+field.
+
+Event types:
+
+| event_type | when | data |
+|---|---|---|
+| `mail.received` | a message arrived (not held) | thread_id, message_id, sender, subject, snippet (always empty) |
+| `mail.held` | a message arrived and was held as suspected fraud | same as mail.received |
+| `mail.sent` | your sent copy was filed | thread_id, message_id, subject, recipients |
+| `mail.delivered` | one recipient of a send accepted it | send_id, recipient, code |
+| `mail.deferred` | one recipient failed for now; it will be retried | send_id, recipient, code, reason |
+| `mail.bounced` | one recipient failed for good | send_id, recipient, code, reason |
+| `thread.read` | a conversation was marked read or unread | thread_id, read |
+| `thread.archived` | archived or unarchived | thread_id, archived |
+| `thread.trashed` | moved to or out of the Trash | thread_id, trashed |
+| `thread.starred` | starred or unstarred | thread_id, starred |
+| `thread.labelled` | a label put on or taken off | thread_id, label_id, labelled |
+| `calendar.invite_answered` | you answered an invitation | message_uid, event_uid, partstat |
+
+`new_message` is the old name of `mail.received`; subscriptions under it keep
+working and their payloads keep saying `new_message`. Thread events come from
+changes made through the web, the API, MCP and JMAP, not from an IMAP client
+changing flags directly.
 
 Response:
 ```json
@@ -1252,7 +1280,7 @@ Response:
 }
 ```
 
-### Webhook payload (POST to your callback_url)
+### Webhook payload (POST to your url)
 
 Headers:
 - `X-Mailrs-Signature`: HMAC-SHA256 hex digest
@@ -1262,12 +1290,17 @@ Headers:
 Body:
 ```json
 {
-  "event": "new_message",
-  "message_id": "abc@mail.golia.ai",
-  "uid": 12345,
-  "from": "sender@example.com",
-  "subject": "New email subject",
-  "timestamp": 1710000000
+  "event": "mail.received",
+  "version": 1,
+  "timestamp": "2026-11-01T09:00:00+00:00",
+  "data": {
+    "user": "you@golia.jp",
+    "thread_id": "abc@mail.example",
+    "message_id": "abc@mail.example",
+    "sender": "Sender <sender@example.com>",
+    "subject": "New email subject",
+    "snippet": ""
+  }
 }
 ```
 
@@ -1277,7 +1310,7 @@ Body:
 HMAC-SHA256(signing_secret, request_body) == X-Mailrs-Signature
 ```
 
-Payload contains metadata only. Call `GET /api/mail/messages/{uid}` for full content.
+Payload contains metadata only: never a body, an attachment or a credential.
 Failed deliveries retry with exponential backoff (60s -> 6h, max 8 attempts).
 
 ### List webhooks

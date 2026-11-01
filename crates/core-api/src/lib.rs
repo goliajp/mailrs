@@ -32,6 +32,7 @@ pub mod error;
 pub mod memory;
 pub mod method;
 pub mod types;
+pub mod webhook_events;
 
 #[cfg(feature = "client")]
 pub mod client;

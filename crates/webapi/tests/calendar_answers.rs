@@ -6,6 +6,7 @@
 mod live;
 
 use mailrs_core_sidestate::families::calendar_events::{self, StoredEvent};
+use mailrs_core_sidestate::families::{webhook_outbox, webhooks};
 use reqwest::Method;
 
 const KEVY: &str = "mem://webapi-calendar-answers";
@@ -143,7 +144,27 @@ async fn an_answer_is_on_the_calendar_and_a_decline_is_no_conflict() {
         ["standup"]
     );
 
+    webhooks::create(
+        &mut kv,
+        webhooks::NewWebhook {
+            account_address: ALICE.into(),
+            url: "https://hooks.example/in".into(),
+            event_type: "calendar.invite_answered".into(),
+            filter_sender: None,
+            filter_thread_id: None,
+        },
+    )
+    .expect("subscribe");
     answer(&live, &alice, "ACCEPTED").await;
+    // the answer is a webhook event, with the message, the event and the answer
+    let queued = webhook_outbox::claim_due(&mut kv, i64::MAX, 10).expect("claim");
+    assert_eq!(queued.len(), 1);
+    let hook: serde_json::Value = serde_json::from_str(&queued[0].payload).expect("json");
+    assert_eq!(hook["event"], "calendar.invite_answered");
+    assert_eq!(hook["data"]["user"], ALICE);
+    assert_eq!(hook["data"]["message_uid"], "9");
+    assert_eq!(hook["data"]["event_uid"], "board-1");
+    assert_eq!(hook["data"]["partstat"], "ACCEPTED");
     let rows = get(&live, SEPTEMBER_FIRST, &alice).await;
     assert_eq!(uids(&rows), ["board-1", "standup"], "{rows}");
     assert_eq!(rows[0]["partstat"], "ACCEPTED", "{rows}");

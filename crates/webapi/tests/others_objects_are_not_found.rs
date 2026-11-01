@@ -210,7 +210,7 @@ async fn webhooks_over_mcp_stay_in_the_callers_account(live: &live::Live, bob: &
     let made = mcp
         .tool(
             "create_webhook",
-            serde_json::json!({ "account_address": ALICE, "url": "https://x.example", "event_type": "new_mail" }),
+            serde_json::json!({ "account_address": ALICE, "url": "https://x.example", "event_type": "mail.received" }),
         )
         .await;
     assert!(
@@ -332,7 +332,7 @@ async fn webhooks_are_deleted_only_by_their_owner(live: &live::Live, alice: &str
             Method::POST,
             "/api/agent/webhooks",
             alice,
-            Some(serde_json::json!({ "url": "https://hooks.example/a", "event_type": "new_mail" })),
+            Some(serde_json::json!({ "url": "https://hooks.example/a", "event_type": "mail.received" })),
         )
         .await;
     assert!((200..300).contains(&status), "create: {status} {created}");

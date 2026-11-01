@@ -21,6 +21,9 @@ use axum::{
 
 use crate::types::HealthResponse;
 
+mod thread_events;
+pub use thread_events::{ThreadEventHit, ThreadEventSink, thread_events};
+
 /// Trait the backend implements to host a `mailrs-core-api` server.
 ///
 /// `core` (PG-backed) and `fastcore` (KV-backed) each impl this with

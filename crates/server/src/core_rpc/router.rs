@@ -119,7 +119,11 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
             th_paths::PATH_DELETE_THREAD,
             delete(handlers::thread::delete_thread),
         )
-        .with_state(state.clone());
+        .with_state(state.clone())
+        .route_layer(axum::middleware::from_fn_with_state(
+            super::thread_events::sink(state.clone()),
+            mailrs_core_api::server::thread_events,
+        ));
 
     // ── message read ─────────────────────────────────────────────────
     let msg = Router::new()
