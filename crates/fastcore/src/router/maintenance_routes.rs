@@ -256,6 +256,10 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
             "/v1/admin/maintenance:threaduser-marker-check",
             post(crate::maintenance::threaduser_marker_check_route),
         )
+        .route(
+            "/v1/admin/maintenance:threaduser-read-compare",
+            post(crate::maintenance::threaduser_read_compare_route),
+        )
         // Writes the group column onto rows that predate it, so the shadow
         // above can start reporting a defect rather than a debt.
         .route(
