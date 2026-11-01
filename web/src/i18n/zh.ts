@@ -3,6 +3,7 @@ import type { Key } from './en'
 import { adminOpsZh } from './admin-ops/zh'
 import { adminZh } from './admin/zh'
 import { appZh } from './app/zh'
+import { calendarZh } from './calendar/zh'
 import { composerZh } from './composer/zh'
 import { mockZh } from './mock/zh'
 import { settingsZh } from './settings/zh'
@@ -10,6 +11,7 @@ import { settingsZh } from './settings/zh'
 export const zh: Record<Key, string> = {
   ...appZh,
   ...composerZh,
+  ...calendarZh,
   ...settingsZh,
   ...mockZh,
   ...adminZh,
@@ -341,6 +343,7 @@ export const zh: Record<Key, string> = {
   'monitor.disconnected': '已断开',
   'monitor.session': '会话 #{id}：{addr}',
   'nav.admin': '管理',
+  'nav.calendar': '日历',
   'nav.home': '首页',
   'nav.mail': '邮件',
   'nav.mock': '测试邮箱',

@@ -238,6 +238,7 @@ fn apply(state: &Arc<FastcoreState>, user: &str, feed_id: &str, text: &str) -> u
             source: format!("feed:{feed_id}"),
             sequence: parsed.sequence,
             ics: None,
+            partstat: None,
         };
         if ev::put(&mut conn, user, &row).is_err() {
             continue;

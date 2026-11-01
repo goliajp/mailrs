@@ -5,6 +5,7 @@ import { cx } from '@goliapkg/gds'
 import { useAtom, useAtomValue } from 'jotai'
 import {
   Activity,
+  CalendarDays,
   FlaskConical,
   Home,
   Inbox,
@@ -103,6 +104,12 @@ export function AppSidebar() {
 
         {/* other nav */}
         <nav className="flex flex-col items-center gap-1.5">
+          <SidebarLink
+            active={section === 'calendar'}
+            href="/calendar"
+            icon={CalendarDays}
+            label={t('nav.calendar')}
+          />
           {showsAdmin(auth) && (
             <SidebarLink
               active={section === 'server'}
@@ -178,6 +185,12 @@ export function AppSidebar() {
           href="/mail"
           icon={Inbox}
           label={t('nav.mail')}
+        />
+        <MobileNavLink
+          active={section === 'calendar'}
+          href="/calendar"
+          icon={CalendarDays}
+          label={t('nav.calendar')}
         />
         {showsAdmin(auth) && (
           <MobileNavLink
@@ -313,5 +326,6 @@ function sidebarSection(pathname: string): string {
   if (pathname.startsWith('/settings')) return 'settings'
   if (pathname.startsWith('/mail')) return 'mail'
   if (pathname.startsWith('/mock')) return 'mock'
+  if (pathname.startsWith('/calendar')) return 'calendar'
   return 'home'
 }

@@ -329,6 +329,7 @@ pub(super) fn mail_routes() -> axum::Router<Arc<WebState>> {
             "/api/calendar/conflicts",
             get(handlers::calendar::get_conflicts),
         )
+        .route("/api/calendar/events", get(handlers::calendar::get_events))
         .route(
             "/api/invites/{message_id}/rsvp",
             post(handlers::invites::submit_rsvp),

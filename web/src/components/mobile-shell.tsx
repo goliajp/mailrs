@@ -1,5 +1,5 @@
 import { useAtomValue } from 'jotai'
-import { Home, Inbox, Server, Settings } from 'lucide-react'
+import { CalendarDays, Home, Inbox, Server, Settings } from 'lucide-react'
 import { Link, useLocation } from 'react-router'
 
 import { useCurrentUnreadCount } from '@/hooks/use-current-mail-filters'
@@ -40,6 +40,7 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
 const NAV_ITEMS = [
   { adminOnly: false, href: '/', icon: Home, label: 'nav.home' },
   { adminOnly: false, href: '/mail', icon: Inbox, label: 'nav.mail' },
+  { adminOnly: false, href: '/calendar', icon: CalendarDays, label: 'nav.calendar' },
   { adminOnly: true, href: '/admin', icon: Server, label: 'nav.admin' },
   { adminOnly: false, href: '/settings', icon: Settings, label: 'nav.settings' },
 ] as const
@@ -51,13 +52,8 @@ function MobileNav() {
   const admin = showsAdmin(useAtomValue(authAtom))
   const items = NAV_ITEMS.filter((item) => admin || !item.adminOnly)
 
-  const activeSection = pathname.startsWith('/admin')
-    ? '/admin'
-    : pathname.startsWith('/settings')
-      ? '/settings'
-      : pathname.startsWith('/mail')
-        ? '/mail'
-        : '/'
+  const activeSection =
+    NAV_ITEMS.find((item) => item.href !== '/' && pathname.startsWith(item.href))?.href ?? '/'
 
   return (
     <nav

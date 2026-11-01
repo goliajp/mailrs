@@ -115,6 +115,9 @@ pub async fn submit_rsvp(
             }),
         );
     }
+    if let Err(why) = file_answer(&state, &user, &message_id, &answer).await {
+        tracing::warn!(%user, %message_id, %why, "rsvp: the answer is not on the calendar");
+    }
     match send_reply(&state, &user, &message_id, &answer).await {
         Ok(()) => (
             StatusCode::OK,
@@ -135,6 +138,51 @@ pub async fn submit_rsvp(
             }),
         ),
     }
+}
+
+/// Put the reader's answer on the event the invitation filed, filing the
+/// event first when the invitation arrived before delivery did that.
+///
+/// The answer is recorded and the reply goes out whether or not this
+/// works; the caller logs why it did not.
+async fn file_answer(
+    state: &Arc<WebState>,
+    user: &str,
+    message_uid: &str,
+    partstat: &str,
+) -> Result<(), String> {
+    use mailrs_core_sidestate::families::calendar_events as ev;
+
+    let uid: u32 = message_uid
+        .parse()
+        .map_err(|_| "this message has no uid".to_string())?;
+    let invite = state
+        .core
+        .get_invite(user, uid)
+        .await
+        .map_err(|_| "the invitation is no longer stored".to_string())?;
+    let text = |field: &str| {
+        invite
+            .get(field)
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+    };
+    let event_uid = text("uid").to_string();
+    if event_uid.is_empty() {
+        return Err("the invitation has no UID".into());
+    }
+    let method = text("method").to_uppercase();
+    let sequence = invite.get("sequence").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+    let row = ev::from_invite(&event_uid, &method, sequence, &invite);
+    let user = user.to_string();
+    let partstat = partstat.to_string();
+    with_kevy(move |c| {
+        if ev::get(c, &user, &row.uid)?.is_none() {
+            ev::file_invite(c, &user, &row)?;
+        }
+        ev::set_partstat(c, &user, &row.uid, &partstat).map(|_| ())
+    })
+    .map_err(|s| format!("the calendar could not be written ({s})"))
 }
 
 /// Build the iTIP REPLY and put it on the outbound queue.
