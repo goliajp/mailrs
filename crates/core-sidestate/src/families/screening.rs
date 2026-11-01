@@ -4,6 +4,7 @@
 //! ```text
 //! rep:obs            hash  id → mailrs_reputation::Observation (JSON)
 //! rep:obs:seq        counter the ids are taken from
+//! notify:reputation  channel: each new observation's id, for the re-judge
 //! scan:hashobs       hash  id → mailrs_attachment_scan::HashObservation (JSON)
 //! scan:hashobs:seq   counter
 //! screening:rules    hash  report → RulesReport (JSON): the rule bundle the
@@ -23,6 +24,9 @@ use mailrs_reputation::{NeverList, Observation, Set};
 
 const OBS: &[u8] = b"rep:obs";
 const OBS_SEQ: &[u8] = b"rep:obs:seq";
+/// Where each new observation's id is published, so the mail it concerns
+/// is judged again at once rather than at the next poll of the counter.
+pub const REPUTATION_CHANNEL: &[u8] = b"notify:reputation";
 const HASHES: &[u8] = b"scan:hashobs";
 const HASHES_SEQ: &[u8] = b"scan:hashobs:seq";
 const RULES: &[u8] = b"screening:rules";
@@ -40,7 +44,37 @@ pub fn add_observation(
     o.id = format!("r{}", conn.incr(OBS_SEQ)?);
     let bytes = serde_json::to_vec(&o).map_err(std::io::Error::other)?;
     conn.hset(OBS, &[(o.id.as_bytes(), bytes.as_slice())])?;
+    // the observation is stored; a lost announcement is caught by the
+    // re-judge reading the counter
+    if let Err(e) = conn.publish(REPUTATION_CHANNEL, o.id.as_bytes()) {
+        tracing::warn!(error = %e, id = %o.id, "a new observation was not announced");
+    }
     Ok(o.id)
+}
+
+/// The highest observation id handed out: `r<n>` for every `n` up to it.
+///
+/// # Errors
+/// The store could not be read.
+pub fn observation_seq(conn: &mut kevy_client::Connection) -> std::io::Result<u64> {
+    Ok(conn
+        .get(OBS_SEQ)?
+        .and_then(|v| String::from_utf8(v).ok())
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(0))
+}
+
+/// One observation by its id.
+///
+/// # Errors
+/// The store could not be read, or the stored row does not parse.
+pub fn observation(
+    conn: &mut kevy_client::Connection,
+    id: &str,
+) -> std::io::Result<Option<Observation>> {
+    conn.hget(OBS, id.as_bytes())?
+        .map(|v| serde_json::from_slice(&v).map_err(std::io::Error::other))
+        .transpose()
 }
 
 /// Record a file-hash observation. Returns its id.

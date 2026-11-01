@@ -39,6 +39,7 @@ pub(super) fn spawn_workers(state: &Arc<FastcoreState>, kevy_dir: &str) {
     crate::image_prefetch::spawn(state.clone());
     crate::routes::trash::spawn_purge(state.clone());
     crate::ledger::spawn_link_prune(state.clone());
+    crate::rejudge::spawn(state.clone());
     // Say now whether push is on, rather than at the first delivery.
     push::warm();
     aof_compact::spawn(state.clone(), kevy_dir.to_string());

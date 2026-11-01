@@ -54,6 +54,7 @@ auth:events:;crates/auth-guard/src/events.rs
 app_pw:;crates/auth-guard/src/app_passwords.rs
 auth:alerts:;crates/auth-guard/src/alerts.rs
 notify:new-mail;crates/core/src/event_bus.rs
+notify:reputation;crates/core-sidestate/src/families/screening.rs
 notify:account-signout;crates/core-sidestate/src/keys/signout.rs
 agent:keys:;crates/core-sidestate/src/keys/credentials.rs
 totp:;crates/core-sidestate/src/keys/credentials.rs
