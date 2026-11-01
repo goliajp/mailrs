@@ -34,6 +34,8 @@ pub(super) fn spawn_workers(state: &Arc<FastcoreState>, kevy_dir: &str) {
     // retention sweep: mock mail past 3 days
     crate::mock_sweep::spawn(state.clone());
     snooze_wake::spawn(state.clone());
+    // read state, moves and deletes reach open web clients
+    crate::mailbox_watch::spawn(state.clone());
     crate::fraud_backfill::spawn(state.clone(), kevy_dir);
     crate::attachment_text::spawn(state.clone());
     crate::image_prefetch::spawn(state.clone());

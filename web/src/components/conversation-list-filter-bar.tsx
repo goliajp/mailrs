@@ -142,7 +142,11 @@ export const FilterBar = memo(function FilterBar() {
           refinements you open a panel to change. It renders nothing
           until there is a second account to leave out. */}
 
-      <div className="relative" ref={panelRef}>
+      {/* Kept at the right edge at every width. From xl the tabs give
+          way to the folder column and this was left as the row's only
+          child, at its left end, where the panel — anchored to the
+          button's right edge — opened under the folder column. */}
+      <div className="relative ml-auto" ref={panelRef}>
         <button
           aria-label={t('filters.toggle')}
           className={`relative flex h-7 w-7 items-center justify-center rounded-md transition-all duration-150 ${filterBtnClass}`}

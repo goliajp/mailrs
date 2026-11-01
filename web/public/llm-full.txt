@@ -1211,9 +1211,13 @@ not accepted (401): a token in a URL ends up in logs and history.
 wss://mail.golia.ai/api/events
 ```
 
-Inbox changes — `NewMessage`, `InviteReceived`. Durable: served from
-kevy's change feed, so a client that reconnects does not miss what
-landed while it was away. Used by the web UI for live updates.
+Inbox changes — `NewMessage`, `InviteReceived`, and
+`MailboxChanged` (`{"type":"MailboxChanged","user":"<address>"}`): something
+in the mailbox was read, moved, starred or deleted, from any client —
+the web UI, another tab, IMAP, a phone. It names no thread; refetch what
+you show. At most one per second per user. Served from kevy's change
+feed and kept five minutes; a client away longer should refetch
+everything when it reconnects. Used by the web UI for live updates.
 
 ```
 wss://mail.golia.ai/api/events/smtp

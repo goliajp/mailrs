@@ -18,30 +18,6 @@ import {
 } from '@/lib/query-keys'
 
 describe('mailKeys', () => {
-  it('is stable across repeat calls with equivalent filters', () => {
-    const a = mailKeys.conversations({ archived: true, unread: true })
-    const b = mailKeys.conversations({ archived: true, unread: true })
-    expect(a).toEqual(b)
-  })
-
-  it('normalizes domain order', () => {
-    const a = mailKeys.conversations({ domains: ['b.com', 'a.com'] })
-    const b = mailKeys.conversations({ domains: ['a.com', 'b.com'] })
-    expect(a).toEqual(b)
-  })
-
-  it('drops false-y filter values from the normalized key', () => {
-    const empty = mailKeys.conversations({})
-    const withFalse = mailKeys.conversations({ archived: false, unread: false })
-    expect(empty).toEqual(withFalse)
-  })
-
-  it('produces distinct keys for distinct filters', () => {
-    const inbox = mailKeys.conversations({ folder: 'INBOX' })
-    const sent = mailKeys.conversations({ folder: 'SENT' })
-    expect(inbox).not.toEqual(sent)
-  })
-
   it('exposes thread / search / category factories', () => {
     expect(mailKeys.thread('t1')).toEqual(['mail', 'thread', 't1'])
     expect(mailKeys.thread(null)).toEqual(['mail', 'thread', ''])
@@ -103,7 +79,6 @@ describe('settingsKeys', () => {
 describe('dashboardKeys', () => {
   it('namespaces every dashboard entry under dashboard/', () => {
     expect(dashboardKeys.all()).toEqual(['dashboard'])
-    expect(dashboardKeys.conversations()).toEqual(['dashboard', 'conversations'])
     expect(dashboardKeys.stats()).toEqual(['dashboard', 'stats'])
     expect(dashboardKeys.folders()).toEqual(['dashboard', 'folders'])
   })

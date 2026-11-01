@@ -234,6 +234,15 @@ mod tests {
     }
 
     #[test]
+    fn a_mailbox_change_reaches_only_its_own_user() {
+        let frame =
+            mailrs_core_sidestate::families::live_events::mailbox_changed_frame("Bob@Golia.jp");
+        let ev = std::str::from_utf8(&frame).unwrap();
+        assert!(addressed_to(ev, "bob@golia.jp"));
+        assert!(!addressed_to(ev, "alice@golia.jp"));
+    }
+
+    #[test]
     fn a_session_names_its_user() {
         assert_eq!(
             normalized_user(" Bob@Golia.jp ").as_deref(),

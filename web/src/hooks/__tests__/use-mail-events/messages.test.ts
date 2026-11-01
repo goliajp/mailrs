@@ -43,10 +43,10 @@ vi.mock('@/lib/query-client', () => ({
   },
 }))
 vi.mock('@/lib/query-keys', () => ({
+  dashboardKeys: { all: () => ['dashboard'] },
   mailKeys: {
     all: () => ['mail'],
     categories: () => ['mail', 'categories'],
-    conversations: () => ['mail', 'conversations'],
     thread: (tid: string) => ['mail', 'thread', tid],
   },
 }))
@@ -256,7 +256,26 @@ describe('useMailEvents — messages', () => {
 
     fireDoc('visibilitychange')
 
-    expect(mockInvalidateQueries).toHaveBeenCalled()
+    // the prefixes the badge and the scrolling list live under; a refresh
+    // aimed anywhere else refreshes nothing on screen
+    const keys = mockInvalidateQueries.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey))
+    expect(keys).toContain(JSON.stringify(['conversation', 'list']))
+    expect(keys).toContain(JSON.stringify(['conversation', 'infinite']))
+  })
+
+  it('refetches on a mailbox change made elsewhere', async () => {
+    await renderMailEvents('alice@example.com')
+    mockInvalidateQueries.mockClear()
+
+    const ws = mockWs!
+    act(() => {
+      ws.onmessage?.({
+        data: JSON.stringify({ type: 'MailboxChanged', user: 'Alice@Example.com' }),
+      })
+    })
+
+    const keys = mockInvalidateQueries.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey))
+    expect(keys).toContain(JSON.stringify(['conversation', 'list']))
   })
 
   it('skips refresh on visibility change when hidden', async () => {

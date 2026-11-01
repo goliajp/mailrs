@@ -22,6 +22,7 @@ import {
   sendMail,
 } from '@/lib/send-mail'
 import { authAtom } from '@/store/auth'
+import { conversationKeys } from '@/store/query-keys-v21'
 import { wireDeletePendingSend } from '@/wire/endpoints/mail'
 import { wireListTemplates } from '@/wire/endpoints/templates'
 
@@ -180,7 +181,7 @@ export function useComposer(start: ComposerStart, opts: Options) {
       const draftId = draftIdRef.current
       draftIdRef.current = null
       if (draftId !== null) deleteDraftMut.mutate(draftId)
-      void queryClient.invalidateQueries({ queryKey: mailKeys.conversations() })
+      void queryClient.invalidateQueries({ queryKey: conversationKeys.all() })
       editorRef.current?.clearCompose()
       setScheduledAt('')
       lastSavedRef.current = ''

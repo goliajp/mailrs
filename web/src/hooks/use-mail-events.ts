@@ -1,4 +1,9 @@
-import type { ConversationSummary, NewMessageEvent, SmtpEvent } from '@/lib/types'
+import type {
+  ConversationSummary,
+  MailboxChangedEvent,
+  NewMessageEvent,
+  SmtpEvent,
+} from '@/lib/types'
 
 import { useAtomValue, useSetAtom } from 'jotai'
 import { useEffect, useRef } from 'react'
@@ -6,11 +11,12 @@ import { useEffect, useRef } from 'react'
 import { useSelectedThreadId } from '@/hooks/use-current-list'
 import { langAtom, translate } from '@/i18n'
 import { announce } from '@/lib/announce'
+import { lastLocalChangeAt } from '@/lib/mail-cache'
 import { showNewMailNotice } from '@/lib/new-mail-notice'
 import { playNotificationSound } from '@/lib/notification-sound'
 import { queryClient } from '@/lib/query-client'
 import { mailKeys } from '@/lib/query-keys'
-import { onNewMessage } from '@/reducers/events/conversation'
+import { onMailboxChanged, onNewMessage, refreshMailState } from '@/reducers/events/conversation'
 import { notificationsAtom, notificationSoundAtom } from '@/store/settings'
 import { connectionStatusAtom } from '@/store/ui'
 
@@ -73,11 +79,15 @@ export function useMailEvents(user: string, onOpen?: (threadId: string) => void)
     let closed = false
     let reconnectDelay = RECONNECT_BASE
 
-    // Invalidate cached mail queries so any subscribed component triggers
-    // a quiet refetch. RQ deduplicates concurrent calls, so a burst of
-    // events still collapses to one network round-trip per query.
+    // Refetch everything the reader is shown. RQ deduplicates concurrent
+    // calls, so a burst still collapses to one round-trip per query.
+    //
+    // This invalidated `mailKeys.conversations()` until 2026-11-02, a key
+    // no query had used since the lists moved to `conversationKeys`: a
+    // reconnect, a return to the tab and the offline poll all refreshed
+    // nothing, and the unread badge kept the count it loaded with.
     const invalidateAllMail = () => {
-      queryClient.invalidateQueries({ queryKey: mailKeys.conversations() }).catch(() => {})
+      refreshMailState(queryClient, { lists: true })
       const tid = selectedRef.current
       if (tid) {
         queryClient.invalidateQueries({ queryKey: mailKeys.thread(tid) }).catch(() => {})
@@ -129,12 +139,19 @@ export function useMailEvents(user: string, onOpen?: (threadId: string) => void)
           ) {
             return
           }
-          const event = parsed as NewMessageEvent | SmtpEvent
+          const event = parsed as MailboxChangedEvent | NewMessageEvent | SmtpEvent
+          if (event.type === 'MailboxChanged') {
+            // the server addresses it by the stored, lowercased address
+            if (event.user.toLowerCase() === user.toLowerCase()) {
+              onMailboxChanged(queryClient, Date.now(), lastLocalChangeAt())
+            }
+            return
+          }
           if (event.type === 'NewMessage') {
             const msg = event
             if (msg.user === user) {
               // Surgical cache update instead of a blanket
-              // `invalidateQueries({ queryKey: mailKeys.conversations() })`
+              // `invalidateQueries` over every conversation list
               // — that variant marks every cached filter stale and
               // refetches all loaded pages of the active filter on every
               // received mail. For existing threads (the common case
