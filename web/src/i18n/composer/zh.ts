@@ -12,4 +12,7 @@ export const composerZh: Record<ComposerKey, string> = {
   'composer.format.toolbar': '格式',
   'composer.from': '发件人',
   'composer.hideFields': '收起收件人和主题',
+  'composer.window.expand': '放大为整页',
+  'composer.window.minimize': '最小化',
+  'composer.window.restore': '还原',
 }

@@ -11,6 +11,9 @@ export const composerEn = {
   'composer.format.toolbar': 'Formatting',
   'composer.from': 'From',
   'composer.hideFields': 'Hide recipients and subject',
+  'composer.window.expand': 'Open as a full page',
+  'composer.window.minimize': 'Minimize',
+  'composer.window.restore': 'Restore',
 } as const
 
 export type ComposerKey = keyof typeof composerEn

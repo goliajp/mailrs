@@ -81,7 +81,7 @@ export function useComposer(start: ComposerStart, opts: Options) {
 
   // the inline reply's mode is its parent's: switching it starts the
   // recipients and subject over for the new mode
-  const mode = start.kind === 'inline' ? start.mode : null
+  const mode = inlineMode(start)
   const lastMode = useRef(mode)
   useEffect(() => {
     if (start.kind !== 'inline' || lastMode.current === start.mode) return
@@ -298,6 +298,16 @@ function forwardSource(s: ComposerStart): null | { messageId?: string; uid?: num
   return { messageId, uid }
 }
 
+function inlineMode(s: ComposerStart) {
+  if (s.kind === 'inline') return s.mode
+  return null
+}
+
+function inlineThread(s: ComposerStart): string {
+  if (s.kind === 'inline') return s.ctx.threadId
+  return ''
+}
+
 function pick(cond: boolean, yes: string, no: string): string {
   if (cond) return yes
   return no
@@ -347,7 +357,7 @@ function useRestoreInlineDraft(
   const inline = start.kind === 'inline'
   const { data: drafts = [] } = useDraftsQuery(inline)
   const restored = useRef(false)
-  const threadId = start.kind === 'inline' ? start.ctx.threadId : ''
+  const threadId = inlineThread(start)
   useEffect(() => {
     if (!inline || restored.current || drafts.length === 0) return
     const mine = drafts.find((d) => d.reply_to_thread_id === threadId)

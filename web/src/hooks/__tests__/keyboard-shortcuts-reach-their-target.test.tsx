@@ -37,6 +37,7 @@ vi.mock('@/hooks/use-conversation-actions', () => ({
 }))
 
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
+import { composerWindowsAtom } from '@/store/composer-windows'
 import {
   batchModeAtom,
   composingNewAtom,
@@ -128,10 +129,12 @@ describe('list shortcuts', () => {
     expect([...store.get(selectedThreadIdsAtom)]).toEqual([])
   })
 
+  // a desktop: the new message is a floating window, not the page
   it('c starts a new message, as the palette says', () => {
     const { store } = setup()
     press('c')
-    expect(store.get(composingNewAtom)).toBe(true)
+    expect(store.get(composerWindowsAtom)).toHaveLength(1)
+    expect(store.get(composingNewAtom)).toBe(false)
   })
 
   // Alt+C, Ctrl+C and Cmd+C are copy, not c
@@ -142,6 +145,7 @@ describe('list shortcuts', () => {
       press('e', false, held)
     }
     expect(store.get(composingNewAtom)).toBe(false)
+    expect(store.get(composerWindowsAtom)).toHaveLength(0)
     expect(acted).toEqual([])
   })
 

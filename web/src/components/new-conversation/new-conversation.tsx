@@ -32,7 +32,7 @@ export function NewConversation() {
   const setRedraftSource = useSetAtom(composeRedraftSourceAtom)
   const setCarrySource = useSetAtom(composeCarrySourceAtom)
   const start = usePageStart()
-  const redraft = start.kind === 'redraft' ? start.redraft : null
+  const redraft = redraftOf(start)
   // which carried attachments survive this edit; all of them to begin with
   const [kept, setKept] = useState<Set<number>>(
     () => new Set((redraft?.attachments ?? []).map((a) => a.index))
@@ -104,6 +104,11 @@ export function NewConversation() {
 function headerLabel(s: ComposerStart): Key {
   if (s.kind === 'reply') return 'compose.replyHeader'
   return 'compose.newHeader'
+}
+
+function redraftOf(s: ComposerStart) {
+  if (s.kind === 'redraft') return s.redraft
+  return null
 }
 
 /** Immutable set toggle — the codebase creates, it does not mutate. */
