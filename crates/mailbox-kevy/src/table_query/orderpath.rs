@@ -52,9 +52,14 @@ impl KevyMailboxStore {
     /// and it is not for a request path. There is no ORDERPATH that spans
     /// buckets, so the alternative would be a union over every bucket, which
     /// costs the same and can miss a bucket nobody remembered to list.
+    ///
+    /// Sorted: `KEYS` answers in hash order, which changes when the keyspace
+    /// grows, and the backfills page through this list by `skip`. In hash
+    /// order a backfill that wrote as it went visited some threads twice and
+    /// others not at all, and a second pass found work the first had missed.
     pub fn all_thread_ids_for_user(&self, user: &str) -> io::Result<Vec<String>> {
         let prefix = format!("mailrs:threaduser:{user}:");
-        Ok(self
+        let mut ids: Vec<String> = self
             .store()
             .keys(Some(format!("{prefix}*").as_bytes()), None)
             .into_iter()
@@ -62,7 +67,9 @@ impl KevyMailboxStore {
                 let k = String::from_utf8(k).ok()?;
                 k.strip_prefix(&prefix).map(str::to_string)
             })
-            .collect())
+            .collect();
+        ids.sort();
+        Ok(ids)
     }
 
     pub fn list_thread_ids_by_category_via_table(
