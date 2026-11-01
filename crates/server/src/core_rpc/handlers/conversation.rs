@@ -39,10 +39,6 @@ pub(crate) fn thread_query<'a>(user: &'a str, f: &'a ConversationFilter) -> Thre
     // the Trash shows what was moved there whether or not it had been
     // archived first; every other list leaves the Trash out
     // and a snoozed thread is archived while it is away
-    let archived = match f.trashed || snoozed {
-        true => None,
-        false => Some(f.archived),
-    };
     let own_mail_excluded = f
         .accounts
         .as_ref()
@@ -51,6 +47,11 @@ pub(crate) fn thread_query<'a>(user: &'a str, f: &'a ConversationFilter) -> Thre
         Scope::Contradiction
     } else {
         scope(folder, f.category.as_deref())
+    };
+    // All Mail is the one list that reads both sides of the archive
+    let archived = match f.trashed || snoozed || scope == Scope::AllMail {
+        true => None,
+        false => Some(f.archived),
     };
     ThreadQuery {
         scope,

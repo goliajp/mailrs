@@ -51,6 +51,29 @@ fn views() -> Vec<(&'static str, ConversationFilter)> {
             },
         ),
         (
+            "all mail",
+            ConversationFilter {
+                folder: Some("all".into()),
+                ..base.clone()
+            },
+        ),
+        (
+            "all mail, starred",
+            ConversationFilter {
+                folder: Some("all".into()),
+                starred: Some(true),
+                ..base.clone()
+            },
+        ),
+        (
+            "all mail, first page of two",
+            ConversationFilter {
+                folder: Some("all".into()),
+                limit: 2,
+                ..base.clone()
+            },
+        ),
+        (
             "junk",
             ConversationFilter {
                 folder: Some("Junk".into()),

@@ -8,6 +8,7 @@ import {
   FileText,
   Inbox,
   MailOpen,
+  Mails,
   Pin,
   Send,
   ShieldAlert,
@@ -26,6 +27,7 @@ import { rovingKeyDown } from '@/lib/roving'
 import { activeLabelAtom, activeListAtom, selectLabelAtom } from '@/store/ui'
 
 const ICONS: Record<MailListId, LucideIcon> = {
+  all: Mails,
   archived: Archive,
   draft: FileText,
   inbox: Inbox,

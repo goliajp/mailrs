@@ -36,6 +36,7 @@ export type MailList = {
  * not about the UI — the screen treats all eight the same way.
  */
 export type MailListId =
+  | 'all'
   | 'archived'
   | 'draft'
   | 'inbox'
@@ -83,6 +84,15 @@ export type ThreadListAxes = Pick<
  * it is allowed to have.
  */
 export const MAIL_LISTS: Record<MailListId, MailList> = {
+  // Gmail's All Mail: everything but Junk and the Trash, archived and
+  // sent-only conversations included. The server reads both sides of the
+  // archive for this folder.
+  all: {
+    emptyLabel: 'list.all.empty',
+    label: 'list.all',
+    selectable: true,
+    source: { filters: { folder: 'all' }, kind: 'threads' },
+  },
   archived: {
     emptyLabel: 'list.archived.empty',
     label: 'list.archived',
@@ -194,6 +204,7 @@ export const MAIL_LIST_TABS: MailListId[] = [
   'snoozed',
   'send',
   'draft',
+  'all',
   'archived',
   'junk',
   'quarantine',
