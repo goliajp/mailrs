@@ -15,6 +15,7 @@ import {
 import { ConfigField } from '@/components/admin-system-config/config-field'
 import { resetVerb } from '@/components/admin-system-config/entry'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
+import { type Key, useT } from '@/i18n'
 import { adminKeys } from '@/lib/query-keys'
 import { adminDelete, adminObjectGet, adminPut } from '@/wire/endpoints/admin'
 
@@ -29,14 +30,15 @@ type SystemConfigResponse = {
 // the one setting that can change here first, keys nothing reads last
 const GROUP_ORDER = ['smtp', 'imap', 'security', 'custom']
 
-const GROUP_LABELS: Record<string, string> = {
-  custom: 'Stored keys nothing reads',
-  imap: 'IMAP',
-  security: 'Security',
-  smtp: 'SMTP',
+const GROUP_LABELS: Record<string, Key> = {
+  custom: 'admin.config.group.custom',
+  imap: 'admin.proto.imap',
+  security: 'admin.config.group.security',
+  smtp: 'admin.proto.smtp',
 }
 
 export function AdminSystemConfig() {
+  const t = useT()
   const {
     data: response,
     error: queryError,
@@ -48,13 +50,13 @@ export function AdminSystemConfig() {
   })
 
   const entries = response?.entries ?? EMPTY_ENTRIES
-  const error = loadError(queryError, response)
+  const error = loadError(queryError, response, t('admin.config.noSettingsAnswer'))
 
   const saveConfig = useAdminMutation({
     invalidateKey: adminKeys.systemConfig(),
     mutationFn: (vars: { key: string; value: string }) =>
       adminPut(`/admin/system-config/${encodeURIComponent(vars.key)}`, { value: vars.value }),
-    successMsg: (vars) => `"${vars.key}" saved`,
+    successMsg: (vars) => t('admin.config.saved', { key: vars.key }),
   })
 
   const [resetTarget, setResetTarget] = useState<ConfigEntry | null>(null)
@@ -62,7 +64,7 @@ export function AdminSystemConfig() {
     invalidateKey: adminKeys.systemConfig(),
     mutationFn: (entry: ConfigEntry) =>
       adminDelete(`/admin/system-config/${encodeURIComponent(entry.key)}`),
-    successMsg: (entry) => resetDone(entry),
+    successMsg: (entry) => t(resetDone(entry), { key: entry.key }),
   })
 
   const handleSave = (key: string, value: string) => {
@@ -84,14 +86,20 @@ export function AdminSystemConfig() {
   const renderBody = () => {
     if (isPending) return <PanelGroupSkeleton />
     if (error) {
-      return <AdminErrorState error={error} onRetry={() => refetch()} what="the server settings" />
+      return (
+        <AdminErrorState
+          error={error}
+          onRetry={() => refetch()}
+          what={t('admin.config.listName')}
+        />
+      )
     }
     if (entries.length === 0) {
       return (
         <AdminEmptyState
-          description="Settings this server's processes read are listed here, with where each one is set"
+          description={t('admin.config.emptyHelp')}
           icon={<Settings2 className="h-10 w-10" />}
-          title="No settings yet"
+          title={t('admin.config.empty')}
         />
       )
     }
@@ -116,18 +124,18 @@ export function AdminSystemConfig() {
 
   return (
     <AdminPageShell
-      subtitle="Ports, hostname and TLS are set in compose and read when each process starts. Local domains are managed on the Domains page"
-      title="System config"
+      subtitle={t('admin.config.subtitle')}
+      title={t('admin.audit.group.systemConfig')}
     >
       {renderBody()}
       {resetTarget && (
         <ConfirmAction
-          confirmLabel={confirmLabel(resetConfig.isPending, resetTarget)}
-          consequence={resetConsequence(resetTarget)}
+          confirmLabel={t(confirmLabel(resetConfig.isPending, resetTarget))}
+          consequence={resetConsequence(resetTarget, t)}
           onCancel={() => setResetTarget(null)}
           onConfirm={() => handleReset(resetTarget)}
           pending={resetConfig.isPending}
-          title={confirmTitle(resetTarget)}
+          title={t(confirmTitle(resetTarget), { key: resetTarget.key })}
         />
       )}
     </AdminPageShell>
@@ -136,25 +144,36 @@ export function AdminSystemConfig() {
 
 const EMPTY_ENTRIES: ConfigEntry[] = []
 
-function confirmLabel(pending: boolean, entry: ConfigEntry): string {
+function confirmLabel(pending: boolean, entry: ConfigEntry): Key {
   if (!pending) return resetVerb(entry)
-  if (entry.editable) return 'Resetting...'
-  return 'Removing...'
+  if (entry.editable) return 'admin.config.resetting'
+  return 'admin.removing'
 }
 
-function confirmTitle(entry: ConfigEntry): string {
-  if (entry.editable) return `Reset ${entry.key}?`
-  return `Remove ${entry.key}?`
+function confirmTitle(entry: ConfigEntry): Key {
+  if (entry.editable) return 'admin.config.resetTitle'
+  return 'admin.config.removeTitle'
 }
 
 function GroupCard({ children, group }: { children: ReactNode; group: string }) {
-  return <AdminSection title={GROUP_LABELS[group] ?? group}>{children}</AdminSection>
+  const t = useT()
+  return <AdminSection title={groupLabel(group, t)}>{children}</AdminSection>
 }
 
-function loadError(queryError: unknown, response: SystemConfigResponse | undefined): Error | null {
+function groupLabel(group: string, t: ReturnType<typeof useT>): string {
+  const key = GROUP_LABELS[group]
+  if (key) return t(key)
+  return group
+}
+
+function loadError(
+  queryError: unknown,
+  response: SystemConfigResponse | undefined,
+  noAnswer: string
+): Error | null {
   if (queryError instanceof Error) return queryError
   if (response && !response.success) {
-    return new Error(response.message ?? 'The server answered without its settings')
+    return new Error(response.message ?? noAnswer)
   }
   return null
 }
@@ -180,8 +199,8 @@ function PanelGroupSkeleton() {
 }
 
 // who picks up a reset, for the keys a running process reads
-const READERS: Record<string, string> = {
-  max_message_size_bytes: 'The receiver uses it for new connections within a minute',
+const READERS: Record<string, Key> = {
+  max_message_size_bytes: 'admin.config.reader.maxSize',
 }
 
 function groupRank(group: string): number {
@@ -192,20 +211,23 @@ function groupRank(group: string): number {
 
 // what DELETE /api/admin/system-config/{key} does: drop the stored value and
 // its saved-by line, and write a `system_config.reset` audit row
-function resetConsequence(entry: ConfigEntry): string {
-  const logged = 'The change is recorded in the audit log'
+function resetConsequence(entry: ConfigEntry, t: ReturnType<typeof useT>): string {
+  const logged = t('admin.config.logged')
   if (entry.editable) {
     const parts = [
-      `${entry.value ?? ''} is removed and the built-in ${entry.default_value ?? ''} applies again`,
+      t('admin.config.resetValue', {
+        default: entry.default_value ?? '',
+        value: entry.value ?? '',
+      }),
     ]
-    if (READERS[entry.key]) parts.push(READERS[entry.key])
+    if (READERS[entry.key]) parts.push(t(READERS[entry.key]))
     parts.push(logged)
-    return parts.join('. ')
+    return parts.join(t('admin.config.sentenceJoin'))
   }
-  return `No process reads ${entry.key}, so removing the stored value changes nothing on the server. ${logged}`
+  return t('admin.config.removeUnread', { key: entry.key, logged })
 }
 
-function resetDone(entry: ConfigEntry): string {
-  if (entry.editable) return `"${entry.key}" reset to default`
-  return `"${entry.key}" removed`
+function resetDone(entry: ConfigEntry): Key {
+  if (entry.editable) return 'admin.config.resetDone'
+  return 'admin.config.removed'
 }

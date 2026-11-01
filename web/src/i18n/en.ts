@@ -1,3 +1,5 @@
+import { adminOpsEn } from './admin-ops/en'
+import { adminEn } from './admin/en'
 import { settingsEn } from './settings/en'
 
 /**
@@ -7,6 +9,8 @@ import { settingsEn } from './settings/en'
  */
 export const en = {
   ...settingsEn,
+  ...adminEn,
+  ...adminOpsEn,
   'lang.name.en': 'English',
   'lang.name.ja': '日本語',
   'lang.name.zh': '简体中文',

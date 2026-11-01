@@ -2,7 +2,15 @@ import type { AdminFlow } from '@/wire/schemas/admin-flow'
 
 import { describe, expect, it } from 'vitest'
 
-import { attentionItems, bytes, lanesOf } from '../flow-model'
+import { translate } from '@/i18n'
+
+import { attentionItems as attentionItemsIn, bytes, lanesOf as lanesOfIn } from '../flow-model'
+
+const en = (key: Parameters<typeof translate>[1], vars?: Record<string, number | string>) =>
+  translate('en', key, vars)
+const lanesOf = (flow: AdminFlow) => lanesOfIn(flow, en)
+const attentionItems = (flow: AdminFlow, kevyUp: boolean | null) =>
+  attentionItemsIn(flow, kevyUp, en)
 
 const OUT = { failed: 0, failed_recent: 0, queued: 2, retrying: 1, scheduled: 0 }
 
