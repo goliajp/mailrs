@@ -10,6 +10,7 @@ mod handlers;
 mod operator_clear;
 mod router;
 mod router_views;
+mod thread_events;
 // Not re-exported wider than it is: `build_full_router` is `pub(super)` in
 // `router.rs`, which already reaches this module and the `tests` submodules
 // that call it. A `pub(crate) use` here widens past that and is E0364.

@@ -48,7 +48,7 @@ fn guarded() -> Vec<(Method, String, Option<Value>)> {
         (
             Method::POST,
             "/api/agent/webhooks".into(),
-            Some(json!({ "url": "https://hooks.example/a", "event_type": "new_mail" })),
+            Some(json!({ "url": "https://hooks.example/a", "event_type": "mail.received" })),
         ),
         (Method::GET, "/api/mail/export".into(), None),
         // pointing mail at a new address elsewhere
@@ -281,7 +281,7 @@ async fn a_recent_confirmation_guards_what_a_stolen_session_could_abuse() {
         (
             Method::POST,
             "/api/agent/webhooks".into(),
-            Some(json!({ "url": "https://h.example/", "event_type": "new_mail" })),
+            Some(json!({ "url": "https://h.example/", "event_type": "mail.received" })),
         ),
         (Method::GET, "/api/admin/audit/accounts".into(), None),
         (

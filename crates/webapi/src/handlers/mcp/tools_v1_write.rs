@@ -274,6 +274,16 @@ impl MailrsMcpService {
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
         self.require_confirmed()?;
+        if !mailrs_core_api::webhook_events::is_known(&params.event_type) {
+            return Err(McpError::invalid_params(
+                format!(
+                    "unknown event_type {:?}; one of {}",
+                    params.event_type,
+                    mailrs_core_api::webhook_events::ALL.join(", ")
+                ),
+                None,
+            ));
+        }
         let resp = if user == params.account_address {
             let new = mailrs_core_sidestate::families::webhooks::NewWebhook {
                 account_address: user.clone(),

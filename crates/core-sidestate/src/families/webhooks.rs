@@ -238,66 +238,33 @@ pub fn migrate_agent_namespace(
     Ok((moved, addresses.len()))
 }
 
-/// Whether a subscription's filters admit this message.
+/// Whether a subscription's filters admit an event carrying `sender` and
+/// `thread_id`. A filter on a field the event does not carry does not match:
+/// a subscription scoped to one sender is not about delivery receipts.
 ///
 /// Addresses are compared by [`mailrs_rfc5322::addr_key`], not by string
 /// equality. The monolith's matcher used `!=` on the raw values, so a filter
 /// stored as `a@b.com` never matched a sender header written
 /// `Name <a@b.com>` — the form most mail actually arrives in, which made a
 /// sender-filtered subscription silently fire for nobody.
-pub fn matches(sub: &WebhookSubWire, sender: &str, thread_id: &str) -> bool {
+pub fn matches(sub: &WebhookSubWire, sender: Option<&str>, thread_id: Option<&str>) -> bool {
     if !sub.active {
         return false;
     }
-    if let Some(ref f) = sub.filter_sender
-        && mailrs_rfc5322::addr_key(f) != mailrs_rfc5322::addr_key(sender)
-    {
-        return false;
+    if let Some(ref f) = sub.filter_sender {
+        let Some(sender) = sender else {
+            return false;
+        };
+        if mailrs_rfc5322::addr_key(f) != mailrs_rfc5322::addr_key(sender) {
+            return false;
+        }
     }
     if let Some(ref f) = sub.filter_thread_id
-        && f != thread_id
+        && thread_id != Some(f.as_str())
     {
         return false;
     }
     true
-}
-
-/// The body POSTed for a newly arrived message.
-///
-/// `timestamp` is passed in rather than read from the clock so the payload
-/// is assertable.
-pub fn new_message_payload(
-    user: &str,
-    thread_id: &str,
-    sender: &str,
-    subject: &str,
-    snippet: &str,
-    timestamp: &str,
-) -> serde_json::Value {
-    serde_json::json!({
-        "event": "new_message",
-        "timestamp": timestamp,
-        "data": {
-            "user": user,
-            "thread_id": thread_id,
-            "sender": sender,
-            "subject": subject,
-            "snippet": snippet,
-        }
-    })
-}
-
-/// The subscriptions of `address` that admit this message.
-pub fn matching(
-    conn: &mut Connection,
-    address: &str,
-    sender: &str,
-    thread_id: &str,
-) -> std::io::Result<Vec<WebhookSubWire>> {
-    Ok(list(conn, address)?
-        .into_iter()
-        .filter(|s| s.event_type == "new_message" && matches(s, sender, thread_id))
-        .collect())
 }
 
 #[cfg(test)]
@@ -356,34 +323,33 @@ mod tests {
     #[test]
     fn a_sender_filter_matches_either_mailbox_form() {
         let s = sub(Some("nagata@nagatax.tokyo.jp"), None);
-        assert!(matches(&s, "nagata@nagatax.tokyo.jp", "t1"));
-        assert!(matches(&s, "Nagata <Nagata@NagataX.Tokyo.JP>", "t1"));
+        assert!(matches(&s, Some("nagata@nagatax.tokyo.jp"), Some("t1")));
+        assert!(matches(
+            &s,
+            Some("Nagata <Nagata@NagataX.Tokyo.JP>"),
+            Some("t1")
+        ));
         // Still not a substring match.
-        assert!(!matches(&s, "notnagata@nagatax.tokyo.jp", "t1"));
+        assert!(!matches(&s, Some("notnagata@nagatax.tokyo.jp"), Some("t1")));
+        // an event without a sender is not one the filter is about
+        assert!(!matches(&s, None, Some("t1")));
     }
 
     #[test]
     fn no_filter_admits_everything_and_a_thread_filter_binds() {
-        assert!(matches(&sub(None, None), "anyone@x.com", "any"));
+        assert!(matches(&sub(None, None), Some("anyone@x.com"), Some("any")));
+        assert!(matches(&sub(None, None), None, None));
         let t = sub(None, Some("t1"));
-        assert!(matches(&t, "anyone@x.com", "t1"));
-        assert!(!matches(&t, "anyone@x.com", "t2"));
+        assert!(matches(&t, Some("anyone@x.com"), Some("t1")));
+        assert!(!matches(&t, Some("anyone@x.com"), Some("t2")));
+        assert!(!matches(&t, Some("anyone@x.com"), None));
     }
 
     #[test]
     fn an_inactive_subscription_never_matches() {
         let mut s = sub(None, None);
         s.active = false;
-        assert!(!matches(&s, "anyone@x.com", "t1"));
-    }
-
-    #[test]
-    fn the_payload_names_the_event_the_worker_reads() {
-        let p = new_message_payload("u@x", "t1", "a@b", "Subj", "snip", "2026-07-31T00:00:00Z");
-        // The worker reads `event` for the X-Mailrs-Event header.
-        assert_eq!(p["event"], "new_message");
-        assert_eq!(p["data"]["thread_id"], "t1");
-        assert_eq!(p["data"]["subject"], "Subj");
+        assert!(!matches(&s, Some("anyone@x.com"), Some("t1")));
     }
 
     /// A row missing its secret gets a fresh one rather than an empty

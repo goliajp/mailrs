@@ -182,6 +182,10 @@ pub async fn create_agent_webhook(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Json(req): Json<CreateAgentWebhookRequest>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
+    // a subscription to a name nothing raises would never fire
+    if !mailrs_core_api::webhook_events::is_known(&req.event_type) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
     let u = user.clone();
     let w = with_kevy(move |c| {
         mailrs_core_sidestate::families::webhooks::create(

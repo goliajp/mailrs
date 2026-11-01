@@ -115,9 +115,14 @@ pub async fn submit_rsvp(
             }),
         );
     }
-    if let Err(why) = file_answer(&state, &user, &message_id, &answer).await {
-        tracing::warn!(%user, %message_id, %why, "rsvp: the answer is not on the calendar");
-    }
+    let event_uid = match file_answer(&state, &user, &message_id, &answer).await {
+        Ok(uid) => Some(uid),
+        Err(why) => {
+            tracing::warn!(%user, %message_id, %why, "rsvp: the answer is not on the calendar");
+            None
+        }
+    };
+    announce_answer(&user, &message_id, event_uid.as_deref(), &answer);
     match send_reply(&state, &user, &message_id, &answer).await {
         Ok(()) => (
             StatusCode::OK,
@@ -140,8 +145,33 @@ pub async fn submit_rsvp(
     }
 }
 
+/// The `calendar.invite_answered` webhook event: the message answered, the
+/// event when it is known, and the answer.
+fn announce_answer(user: &str, message_uid: &str, event_uid: Option<&str>, partstat: &str) {
+    use mailrs_core_sidestate::families::webhook_events::{self, Event, kinds};
+    let mut data = serde_json::json!({ "message_uid": message_uid, "partstat": partstat });
+    if let Some(uid) = event_uid {
+        data["event_uid"] = uid.into();
+    }
+    let user = user.to_string();
+    let written = with_kevy(move |c| {
+        let event = Event {
+            kind: kinds::CALENDAR_INVITE_ANSWERED,
+            user: &user,
+            sender: None,
+            thread_id: None,
+            data,
+        };
+        webhook_events::enqueue(c, &event, now_secs())
+    });
+    if let Err(s) = written {
+        tracing::warn!(status = %s, "rsvp: webhook event not queued");
+    }
+}
+
 /// Put the reader's answer on the event the invitation filed, filing the
-/// event first when the invitation arrived before delivery did that.
+/// event first when the invitation arrived before delivery did that; the
+/// event's UID.
 ///
 /// The answer is recorded and the reply goes out whether or not this
 /// works; the caller logs why it did not.
@@ -150,7 +180,7 @@ async fn file_answer(
     user: &str,
     message_uid: &str,
     partstat: &str,
-) -> Result<(), String> {
+) -> Result<String, String> {
     use mailrs_core_sidestate::families::calendar_events as ev;
 
     let uid: u32 = message_uid
@@ -193,7 +223,8 @@ async fn file_answer(
         }
         ev::set_partstat(c, &user, &row.uid, &partstat).map(|_| ())
     })
-    .map_err(|s| format!("the calendar could not be written ({s})"))
+    .map_err(|s| format!("the calendar could not be written ({s})"))?;
+    Ok(event_uid)
 }
 
 /// Build the iTIP REPLY and put it on the outbound queue.
