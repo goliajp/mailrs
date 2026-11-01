@@ -25,6 +25,8 @@ export type InfinitePages = {
 /** What a mail mutation keeps to roll its optimistic patch back. */
 export type MutationContext = { snapshots: Array<[QueryKey, InfinitePages | undefined]> }
 
+let localChangeAt = 0
+
 // ---- delete (single + batch share the same backend) ----
 
 export function addStickyUnread(threadId: string) {
@@ -36,30 +38,26 @@ export function addStickyUnread(threadId: string) {
 
 /** Stop in-flight list fetches so they do not overwrite an optimistic patch. */
 export async function cancelConversationFetches() {
-  // Cancel both the legacy key (still used by any not-yet-migrated
-  // caller during Phase 3) AND the new v2.1 key that
-  // `useConversationsQuery` moved onto.
   await Promise.all([
-    queryClient.cancelQueries({ queryKey: mailKeys.conversations() }),
     queryClient.cancelQueries({ queryKey: conversationKeys.infinites() }),
     queryClient.cancelQueries({ queryKey: conversationKeys.lists() }),
   ])
 }
 
-// ---- batch operations ----
-
 /** The conversation `threadId` as any cached list holds it, or null. */
 export function findConversation(threadId: string): ConversationSummary | null {
-  for (const prefix of [mailKeys.conversations(), conversationKeys.infinites()]) {
-    for (const [, data] of queryClient.getQueriesData<InfinitePages>({ queryKey: prefix })) {
-      for (const page of data?.pages ?? []) {
-        const hit = page.find((c) => c.thread_id === threadId)
-        if (hit) return hit
-      }
+  for (const [, data] of queryClient.getQueriesData<InfinitePages>({
+    queryKey: conversationKeys.infinites(),
+  })) {
+    for (const page of data?.pages ?? []) {
+      const hit = page.find((c) => c.thread_id === threadId)
+      if (hit) return hit
     }
   }
   return null
 }
+
+// ---- batch operations ----
 
 // A bucket move (junk / not-junk / notification / promotion / inbox)
 // changes WHICH list a thread belongs to, so the destination list — a
@@ -90,7 +88,6 @@ export function invalidateBucketMove() {
 // `use-mail-events.ts` (NewMessage WebSocket event) where the thread
 // content actually does change.
 export function invalidateMail() {
-  queryClient.invalidateQueries({ queryKey: mailKeys.conversations() }).catch(() => {})
   queryClient.invalidateQueries({ queryKey: mailKeys.categories([]) }).catch(() => {})
   // Deleting/archiving a thread that has sent mail in it also removes
   // rows from the per-message Send view — refetch so SendList doesn't
@@ -121,6 +118,16 @@ export function invalidateMailAggregatesOnly() {
 }
 
 /**
+ * When this tab last patched a list optimistically, in epoch ms. The
+ * server reports that change back as `MailboxChanged`, and refetching
+ * the list for this tab's own change would drop a row the reader is
+ * still looking at (the sticky-unread row in the Unread list).
+ */
+export function lastLocalChangeAt(): number {
+  return localChangeAt
+}
+
+/**
  * Apply a **field** patch to every cached list, then let each list drop
  * the rows that no longer belong in it.
  *
@@ -138,8 +145,9 @@ export function invalidateMailAggregatesOnly() {
 export function patchConversationFields(
   patch: (c: ConversationSummary) => ConversationSummary
 ): Array<[QueryKey, InfinitePages | undefined]> {
+  localChangeAt = Date.now()
   const snapshots: Array<[QueryKey, InfinitePages | undefined]> = []
-  for (const prefix of [mailKeys.conversations(), conversationKeys.infinites()]) {
+  for (const prefix of [conversationKeys.infinites()]) {
     for (const [key, data] of queryClient.getQueriesData<InfinitePages>({ queryKey: prefix })) {
       snapshots.push([key, data])
       if (!data) continue
@@ -158,12 +166,7 @@ export function patchConversationFields(
 export function patchConversations(
   patch: (c: ConversationSummary) => ConversationSummary | null
 ): Array<[QueryKey, InfinitePages | undefined]> {
-  // v2.1 phase-3: patch every cache line under both the legacy
-  // `mailKeys.conversations()` prefix AND the new
-  // `conversationKeys.infinites()` prefix. `useConversationsQuery`
-  // (the mail-list) moved onto the new key; the old key survives only
-  // for callers not yet migrated. Both are snapshotted so rollback
-  // returns each cache line to its exact pre-mutation state.
+  localChangeAt = Date.now()
   const applyPatch = (old: InfinitePages | undefined): InfinitePages | undefined => {
     if (!old) return old
     return {
@@ -179,7 +182,7 @@ export function patchConversations(
     }
   }
   const snapshots: Array<[QueryKey, InfinitePages | undefined]> = []
-  for (const prefix of [mailKeys.conversations(), conversationKeys.infinites()]) {
+  for (const prefix of [conversationKeys.infinites()]) {
     const entries = queryClient.getQueriesData<InfinitePages>({ queryKey: prefix })
     for (const [key, data] of entries) {
       snapshots.push([key, data])
@@ -205,11 +208,9 @@ export function rollbackConversations(snapshots: Array<[QueryKey, InfinitePages 
 /**
  * The axes a cache line was fetched with, read back off its own key.
  *
- * Both key shapes end in the filter object — `conversationKeys.infinite`
- * with `canonicaliseFilter`'s output, `mailKeys.conversations` with
- * `normalizeFilters`' — and both spell these four the same way. A key
- * whose tail is neither returns null, and such a line is patched without
- * being pruned rather than being emptied on a guess.
+ * `conversationKeys.infinite` ends in `canonicaliseFilter`'s output. A key
+ * whose tail is not an object returns null, and such a line is patched
+ * without being pruned rather than being emptied on a guess.
  */
 function axesOfCacheKey(key: QueryKey): ListAxes | null {
   const tail = key[key.length - 1]

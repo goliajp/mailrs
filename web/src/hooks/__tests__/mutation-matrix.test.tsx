@@ -2,8 +2,7 @@
  * Cross-screen mutation matrix — v2.7.3 §Phase 12 §12.8.
  *
  * Every mail mutation runs an optimistic-patch + rollback dance over
- * EVERY conversations cache line (legacy `mailKeys.conversations()`
- * prefix + v2.1 `conversationKeys.infinites()` prefix). A mutation
+ * EVERY conversations cache line (`conversationKeys.infinites()`). A mutation
  * fired from any screen must patch the caches that every other
  * screen reads — that is the cross-screen consistency contract this
  * matrix locks down.
@@ -11,7 +10,6 @@
  * Screens simulated as cache lines:
  *   - inbox infinite list   (mail-list screen)
  *   - junk infinite list    (junk-view screen)
- *   - legacy conversations  (dashboard / not-yet-migrated callers)
  *
  * For each mutation the matrix asserts:
  *   1. optimistic patch lands on ALL cache lines (field change or drop)
@@ -27,7 +25,6 @@ import { renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { queryClient } from '@/lib/query-client'
-import { mailKeys } from '@/lib/query-keys'
 import { conversationKeys } from '@/store/query-keys-v21'
 
 import {
@@ -106,7 +103,6 @@ const TRASH_KEY = conversationKeys.infinite({ trashed: true } as never)
 const SCREEN_KEYS = [
   conversationKeys.infinite({}), // mail-list, unscoped
   JUNK_KEY,
-  mailKeys.conversations(), // legacy dashboard callers
 ] as const
 
 type Pages = { pageParams: (number | undefined)[]; pages: ConversationSummary[][] }

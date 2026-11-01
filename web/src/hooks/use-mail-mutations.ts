@@ -18,6 +18,7 @@ import {
 } from '@/lib/mail-cache'
 import { queryClient } from '@/lib/query-client'
 import { mailKeys } from '@/lib/query-keys'
+import { conversationKeys } from '@/store/query-keys-v21'
 // v2.1 §7 batch 1 (2026-07-08): every mutation path routes through
 // the wire adapter — Zod-parsed responses, structured errors, 204
 // handled explicitly.
@@ -234,7 +235,7 @@ export function applyOptimisticSent(msg: {
     dedupeSentByMessageId(placeholder, old)
   )
   void queryClient.invalidateQueries({ queryKey: mailKeys.sent() })
-  void queryClient.invalidateQueries({ queryKey: mailKeys.conversations() })
+  void queryClient.invalidateQueries({ queryKey: conversationKeys.all() })
   // A reply/forward drops a new message into a thread the user is
   // watching. Kick that thread's query too so the reply shows up in
   // the open timeline without waiting on the WS event or the 30 s

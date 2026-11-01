@@ -29,6 +29,7 @@ import { sectionForPath } from '@/components/status-bar-model'
 import { useCurrentUnreadCount } from '@/hooks/use-current-mail-filters'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import { useMailEvents } from '@/hooks/use-mail-events'
+import { useReloadOnNewBuild } from '@/hooks/use-reload-on-new-build'
 import { syncDocumentLang, useT } from '@/i18n'
 import { MPane } from '@/layouts/pane'
 import { http } from '@/lib/http'
@@ -295,6 +296,7 @@ function PageSettings() {
  */
 function RootLayout() {
   useDocumentTitle()
+  useReloadOnNewBuild()
   useThemeEffect()
   // no `useFonts()`: it loads CJK fonts from Google, which hands every
   // reader's address to a third party on each page load and is outside the
