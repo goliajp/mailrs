@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { MemoryRouter } from 'react-router'
+import { MemoryRouter, useLocation } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { Calendar } from '@/pages/calendar'
@@ -27,6 +27,7 @@ function rows() {
       source: 'mail:board-1',
       status: 'CONFIRMED',
       summary: 'Board meeting',
+      thread_id: 't-board@partner.example',
       uid: 'board-1',
     },
     {
@@ -41,13 +42,24 @@ function rows() {
   ]
 }
 
+let navigated: string[] = []
+
+/** Records where the page sent the reader. */
+function Location() {
+  const where = useLocation()
+  if (where.pathname !== '/calendar') navigated.push(where.pathname)
+  return null
+}
+
 function show(path: string) {
+  navigated = []
   render(
     <QueryClientProvider
       client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
     >
       <MemoryRouter initialEntries={[path]}>
         <Calendar />
+        <Location />
       </MemoryRouter>
     </QueryClientProvider>
   )
@@ -91,6 +103,16 @@ describe('Calendar', () => {
     expect(await screen.findByText('Invitation in your mail')).toBeDefined()
     expect(screen.getByText('Declined')).toBeDefined()
     expect(screen.getByText('chair@partner.example')).toBeDefined()
+    fireEvent.click(screen.getByRole('button', { name: 'Open the invitation' }))
+    expect(navigated).toEqual(['/mail'])
+  })
+
+  it('offers to open the mail only when there is one', async () => {
+    events.mockResolvedValue(rows())
+    show('/calendar?date=2026-09-02')
+    fireEvent.click(await screen.findByText('Standup'))
+    expect(await screen.findByText('Subscribed calendar')).toBeDefined()
+    expect(screen.queryByRole('button', { name: 'Open the invitation' })).toBeNull()
   })
 
   it('says the calendar could not be loaded rather than showing an empty week', async () => {

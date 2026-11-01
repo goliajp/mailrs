@@ -87,7 +87,7 @@ pub(crate) fn store_arrival(
     let invite = crate::invites::find(body);
     if let Some(found) = &invite {
         crate::invites::store(state, &a.message_id, found);
-        crate::invites::file_event(state, addr, found);
+        crate::invites::file_event(state, addr, found, &a.message_id);
     }
     let wire = mailrs_core_api::method::message::MessageWire {
         id: 0,

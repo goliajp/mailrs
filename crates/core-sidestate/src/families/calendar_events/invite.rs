@@ -49,6 +49,7 @@ pub fn from_invite(
         sequence,
         ics: None,
         partstat: None,
+        message_id: None,
     }
 }
 
@@ -90,6 +91,24 @@ pub fn set_partstat(
     Ok(true)
 }
 
+/// Link the event to the mail it came in. `false` when there is no such
+/// event.
+pub fn set_message_id(
+    conn: &mut kevy_client::Connection,
+    user: &str,
+    uid: &str,
+    message_id: &str,
+) -> io::Result<bool> {
+    if get(conn, user, uid)?.is_none() {
+        return Ok(false);
+    }
+    conn.hset(
+        event_key(user, uid).as_bytes(),
+        &[(b"message_id" as &[u8], message_id.as_bytes())],
+    )?;
+    Ok(true)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -106,6 +125,30 @@ mod tests {
             "organizer": { "email": "chair@example.com" },
             "status": "CONFIRMED",
         })
+    }
+
+    /// The link to the mail survives what rewrites the row: a later copy
+    /// of the invitation without one, and a CalDAV client's PUT.
+    #[test]
+    fn the_mail_link_survives_an_update_and_a_caldav_copy() {
+        let mut c = conn("mail-link");
+        let mut row = from_invite("u2", "REQUEST", 0, &invite("Review"));
+        row.message_id = Some("inv@chair.example".into());
+        assert!(file_invite(&mut c, "a@x", &row).unwrap());
+        let newer = from_invite("u2", "REQUEST", 1, &invite("Review, moved"));
+        assert!(file_invite(&mut c, "a@x", &newer).unwrap());
+        let caldav = StoredEvent {
+            source: "caldav".into(),
+            ..from_invite("u2", "REQUEST", 2, &invite("Review, mine"))
+        };
+        crate::families::calendar_events::put(&mut c, "a@x", &caldav).unwrap();
+        let ev = get(&mut c, "a@x", "u2").unwrap().unwrap();
+        assert_eq!(ev.summary, "Review, mine");
+        assert_eq!(ev.message_id.as_deref(), Some("inv@chair.example"));
+        assert!(set_message_id(&mut c, "a@x", "u2", "again@chair.example").unwrap());
+        assert!(!set_message_id(&mut c, "a@x", "missing", "x@y").unwrap());
+        let ev = get(&mut c, "a@x", "u2").unwrap().unwrap();
+        assert_eq!(ev.message_id.as_deref(), Some("again@chair.example"));
     }
 
     #[test]

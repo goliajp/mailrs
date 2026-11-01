@@ -2,9 +2,12 @@ import type { Key } from '@/i18n'
 import type { WireCalendarEvent } from '@/wire/schemas/calendar'
 
 import { cx } from '@goliapkg/gds'
+import { useSetAtom } from 'jotai'
+import { useNavigate } from 'react-router'
 
 import { useLocale, useT } from '@/i18n'
 import { eventsOn, sameDay, spanOf } from '@/lib/calendar-grid'
+import { openThreadAtom } from '@/store/ui'
 
 /** Events shown in a month cell before the rest collapse into "+N more". */
 const MONTH_CELL_LIMIT = 3
@@ -57,6 +60,7 @@ export function EventDetail({ ev, onClose }: { ev: WireCalendarEvent; onClose: (
           </>
         )}
       </dl>
+      {ev.thread_id && <OpenMail threadId={ev.thread_id} />}
     </section>
   )
 }
@@ -198,6 +202,25 @@ function EventChip({
 /** A meeting the reader declined or the organiser cancelled is drawn struck through. */
 function isStruck(ev: WireCalendarEvent): boolean {
   return ev.partstat === 'DECLINED' || ev.status === 'CANCELLED'
+}
+
+/** The mail the invitation came in, opened in the mail view. */
+function OpenMail({ threadId }: { threadId: string }) {
+  const t = useT()
+  const openThread = useSetAtom(openThreadAtom)
+  const navigate = useNavigate()
+  return (
+    <button
+      className="text-accent mt-3 text-xs hover:underline"
+      onClick={() => {
+        openThread({ list: 'inbox', threadId, uid: null })
+        navigate('/mail')
+      }}
+      type="button"
+    >
+      {t('calendar.openMail')}
+    </button>
+  )
 }
 
 function sourceLabel(source: null | string): Key {

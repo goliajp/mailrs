@@ -31,7 +31,7 @@ pub mod invite;
 pub mod names;
 
 pub use ics::{from_ics, to_ics};
-pub use invite::{ANSWERS, file_invite, from_invite, set_partstat};
+pub use invite::{ANSWERS, file_invite, from_invite, set_message_id, set_partstat};
 
 /// An event as stored, and as the conflicts reader wants it.
 ///
@@ -81,6 +81,11 @@ pub struct StoredEvent {
     /// from the organiser or a CalDAV client's copy keeps it.
     #[serde(default)]
     pub partstat: Option<String>,
+    /// The Message-ID of the mail the invitation came in, so the calendar
+    /// can open it. Written only when known, so a CalDAV client's copy of
+    /// the meeting keeps it.
+    #[serde(default)]
+    pub message_id: Option<String>,
 }
 
 /// The hash key for one event.
@@ -106,6 +111,9 @@ pub fn fields(ev: &StoredEvent) -> Vec<(&'static str, String)> {
         ("sequence", ev.sequence.to_string()),
         ("ics", ev.ics.clone().unwrap_or_default()),
     ]
+    .into_iter()
+    .chain(ev.message_id.clone().map(|m| ("message_id", m)))
+    .collect()
 }
 
 /// The index score: the start as epoch seconds, when there is one.
@@ -198,6 +206,7 @@ pub fn from_flat(uid: &str, flat: &[Vec<u8>]) -> StoredEvent {
             "sequence" => ev.sequence = v.parse().unwrap_or(0),
             "ics" => ev.ics = Some(v).filter(|s| !s.is_empty()),
             "partstat" => ev.partstat = Some(v).filter(|s| !s.is_empty()),
+            "message_id" => ev.message_id = Some(v).filter(|s| !s.is_empty()),
             "json" => {
                 if let Ok(legacy) = serde_json::from_str::<StoredEvent>(&v) {
                     let seq = ev.sequence;
@@ -245,6 +254,7 @@ mod tests {
             sequence: 9,
             ics: Some("BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n".into()),
             partstat: None,
+            message_id: None,
         };
         let written = fields(&ev);
         let pairs: Vec<(&str, &str)> = written.iter().map(|(k, v)| (*k, v.as_str())).collect();

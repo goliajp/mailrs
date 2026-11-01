@@ -7,6 +7,7 @@ export const calendarEn = {
   'calendar.more': '+{n} more',
   'calendar.next': 'Next',
   'calendar.noEvents': 'No events in this period',
+  'calendar.openMail': 'Open the invitation',
   'calendar.organizer': 'Organizer',
   'calendar.previous': 'Previous',
   'calendar.source.feed': 'Subscribed calendar',

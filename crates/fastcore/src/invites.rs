@@ -71,6 +71,11 @@ pub fn payload_json(state: &Arc<FastcoreState>, message_id: &str) -> Option<Stri
 }
 
 /// File the invitation as an event; see `mailrs_intake::invite::file_event`.
-pub(crate) fn file_event(state: &Arc<FastcoreState>, user: &str, found: &FoundInvite) {
-    mailrs_intake::invite::file_event(state.net_conn(), user, found);
+pub(crate) fn file_event(
+    state: &Arc<FastcoreState>,
+    user: &str,
+    found: &FoundInvite,
+    message_id: &str,
+) {
+    mailrs_intake::invite::file_event(state.net_conn(), user, found, message_id);
 }
