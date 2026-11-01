@@ -54,7 +54,12 @@ export function ThreadStack(p: Props) {
   const items = stackItems(p.messages, expanded, showingAll)
   return (
     <MPane className="min-w-0 flex-1">
-      <StackHeader controls={p.controls} count={p.messages.length} subject={p.subject} />
+      <StackHeader
+        controls={p.controls}
+        count={p.messages.length}
+        subject={p.subject}
+        threadId={p.threadId}
+      />
       <div className="relative min-h-0 flex-1 overflow-y-auto" ref={p.scrollRef}>
         {p.loadingThread && p.messages.length === 0 && <StackSkeleton />}
         <div

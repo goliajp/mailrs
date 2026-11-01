@@ -31,6 +31,11 @@ const ForwardingSection = lazy(() =>
     default: m.ForwardingSection,
   }))
 )
+const NotificationsSection = lazy(() =>
+  import('@/components/settings/notifications-section').then((m) => ({
+    default: m.NotificationsSection,
+  }))
+)
 const ResetCodesSection = lazy(() =>
   import('@/components/settings/reset-codes-section').then((m) => ({
     default: m.ResetCodesSection,
@@ -69,6 +74,7 @@ type Category =
   | 'calendar-feeds'
   | 'forwarding'
   | 'keys'
+  | 'notifications'
   | 'reset-codes'
   | 'rules'
   | 'security'
@@ -98,6 +104,7 @@ const CATEGORIES: { group: Group; key: Category; label: Key }[] = [
   { group: 'mail', key: 'rules', label: 'settings.cat.rules' },
   { group: 'mail', key: 'forwarding', label: 'settings.cat.forwarding' },
   { group: 'mail', key: 'senders', label: 'settings.cat.senders' },
+  { group: 'mail', key: 'notifications', label: 'settings.cat.notifications' },
   { group: 'appearance', key: 'appearance', label: 'settings.cat.appearance' },
   { group: 'developer', key: 'api-keys', label: 'settings.cat.api-keys' },
   { group: 'developer', key: 'webhooks', label: 'settings.cat.webhooks' },
@@ -214,6 +221,7 @@ export function Settings() {
               {active === 'rules' && <RulesSection />}
               {active === 'forwarding' && <ForwardingSection />}
               {active === 'senders' && <SendersSection />}
+              {active === 'notifications' && <NotificationsSection />}
               {active === 'keys' && <EncryptionKeysSection />}
               {active === 'api-keys' && <ApiKeysSection />}
               {active === 'webhooks' && <WebhooksSection />}
