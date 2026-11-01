@@ -20,6 +20,7 @@ mod intake_rules;
 mod labels;
 mod mail;
 mod operator;
+mod placement;
 mod search;
 mod sections;
 mod sender_rules;

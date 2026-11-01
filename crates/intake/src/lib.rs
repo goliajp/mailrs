@@ -46,6 +46,7 @@ pub mod sieve;
 pub mod spool;
 pub mod web_push;
 pub mod webhook_delivery;
+pub mod why;
 
 pub use drain::{Copies, Core, Inbound, drain_once};
 

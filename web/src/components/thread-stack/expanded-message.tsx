@@ -15,7 +15,7 @@ import { MessageSource } from '@/components/message-source'
 import { RecipientList } from '@/components/recipient-list'
 import { SenderAvatar } from '@/components/sender-avatar'
 import { SenderClaimBadge } from '@/components/sender-claim-badge'
-import { SenderTrustBadge } from '@/components/sender-trust-badge'
+import { SenderChecks, SenderTrustBadge } from '@/components/sender-trust-badge'
 import { StructuredDataCard } from '@/components/structured-data-card'
 import { FeedbackMenu, SmBtn } from '@/components/thread-view-bubble'
 import { UnsubscribeFooter } from '@/components/unsubscribe-footer'
@@ -119,6 +119,7 @@ export function ExpandedMessage({
               <RecipientList label={t('read.cc')} value={m.cc} />
             </p>
           )}
+          {isSpoofSuspected(m.sender_trust) && <SenderChecks checks={m.sender_checks} />}
           <MessageTags message={m} />
         </div>
       </div>
@@ -139,6 +140,7 @@ export function ExpandedMessage({
             imagesFrom={verifiedSender(m)}
             imagesOf={threadId}
             isOwn={false}
+            linkWarnings={m.link_warnings}
             textBody={null}
             uid={m.uid}
           />

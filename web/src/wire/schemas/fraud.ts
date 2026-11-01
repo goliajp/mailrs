@@ -7,24 +7,34 @@
  * owned by `mailrs_inbound::verdict::FraudVerdict` (crates/inbound/src/
  * verdict.rs), which has the round-trip test.
  *
- * Verified 2026-08-28 against that struct's serde derive.
+ * Verified 2026-11-01 against that struct's serde derive.
  *
  * `null` is the ordinary answer and means *nobody suspected this
- * message* — not *it was examined and cleared*. Two different facts,
+ * message and nothing sorted it* — not *it was examined and cleared*. Two different facts,
  * and the panel must not draw them the same way.
  */
 
 import { z } from '@/lib/zod'
 
+import { wireReasonSchema } from './reason'
+
 export const wireFraudLayerSchema = z.object({
+  // English, for the log and for a code this client has no sentence for
   detail: z.string(),
   name: z.string(),
   outcome: z.enum(['pass', 'fail', 'not_applicable']),
+  // absent on verdicts stored before reasons existed
+  reasons: z.array(wireReasonSchema).default([]),
   score: z.number(),
 })
 
 export const wireFraudVerdictSchema = z.object({
+  // empty on a record that exists only to say why mail nobody suspected
+  // was filed where it was
   layers: z.array(wireFraudLayerSchema),
+  // why it was filed where it was: Junk, a sender rule, the classifier,
+  // a filter; left out when empty
+  placement: z.array(wireReasonSchema).default([]),
   quarantined: z.boolean(),
   rules_version: z.string(),
   // Reported, not decided on. What holds a conversation is any fraud

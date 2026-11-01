@@ -34,12 +34,18 @@ pub fn asks_for_the_readers_line(parsed: &mailrs_mime::Part<'_>) -> bool {
 /// as the `shown_links` fact: one `shown target` pair per line. The same
 /// parts as [`offers_the_reader_a_sum`]; only the HTML ones have links.
 pub fn shown_links(parsed: &mailrs_mime::Part<'_>) -> String {
-    let texts = texts(parsed);
-    links::shown_links(bodies(&texts))
+    shown_link_pairs(parsed)
         .iter()
         .map(|l| format!("{} {}", l.shown, l.target))
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+/// The links whose text shows an address with a path on another host
+/// than the one they go to.
+pub fn shown_link_pairs(parsed: &mailrs_mime::Part<'_>) -> Vec<links::ShownLink> {
+    let texts = texts(parsed);
+    links::shown_links(bodies(&texts))
 }
 
 /// Whether a link target carries a kit's unfilled `[[name(...)]]`.

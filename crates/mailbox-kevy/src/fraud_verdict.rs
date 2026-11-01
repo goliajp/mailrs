@@ -44,6 +44,32 @@ impl KevyMailboxStore {
             .map_err(io::Error::from)?;
         Ok(raw.map(|b| String::from_utf8_lossy(&b).into_owned()))
     }
+
+    /// Record why `user`'s copy of `message_id` was filed where it was.
+    pub fn set_message_placement(
+        &self,
+        user: &str,
+        message_id: &str,
+        placement_json: &str,
+    ) -> io::Result<()> {
+        self.store()
+            .set(
+                keys::message_placement(user, message_id).as_bytes(),
+                placement_json.as_bytes(),
+            )
+            .map_err(io::Error::from)?;
+        Ok(())
+    }
+
+    /// Why `user`'s copy of `message_id` was filed where it was, if
+    /// anything but the plain inbox filed it.
+    pub fn message_placement(&self, user: &str, message_id: &str) -> io::Result<Option<String>> {
+        let raw = self
+            .store()
+            .get(keys::message_placement(user, message_id).as_bytes())
+            .map_err(io::Error::from)?;
+        Ok(raw.map(|b| String::from_utf8_lossy(&b).into_owned()))
+    }
 }
 
 #[cfg(test)]

@@ -6,6 +6,7 @@ import { appZh } from './app/zh'
 import { calendarZh } from './calendar/zh'
 import { composerZh } from './composer/zh'
 import { mockZh } from './mock/zh'
+import { reasonsZh } from './reasons/zh'
 import { sectionsZh } from './sections/zh'
 import { settingsZh } from './settings/zh'
 
@@ -14,6 +15,7 @@ export const zh: Record<Key, string> = {
   ...composerZh,
   ...calendarZh,
   ...sectionsZh,
+  ...reasonsZh,
   ...settingsZh,
   ...mockZh,
   ...adminZh,
@@ -219,11 +221,6 @@ export const zh: Record<Key, string> = {
   'filters.sort.unread': '未读优先',
   'filters.title': '筛选',
   'filters.toggle': '显示或隐藏筛选',
-  'fraud.examined': '已检查：有可疑之处',
-  'fraud.kept': '保留、不删除：举报滥用时要用它作证据。',
-  'fraud.notFraud': '这不是诈骗',
-  'fraud.releasing': '正在放行…',
-  'fraud.rules': '规则 {version}',
   'images.alwaysFrom': '总是显示 {sender} 的图片',
   'images.heldNote': '垃圾邮件和待审的信不加载图片：加载图片会让发件人知道这个地址有人在看。',
   'images.hidden': '这封信的图片已隐藏。',

@@ -3,6 +3,8 @@
 //! line, whether the recipient wrote it, and the folder category it is
 //! filed under.
 
+use mailrs_inbound::reason::{self, Reason};
+
 use crate::headers::{
     body_text_for_search, extract_headers, extract_sender_trust, maildir_filename_epoch,
     message_id_or_file_id, sort_date,
@@ -36,6 +38,10 @@ pub struct Arrival<'a> {
     /// The recipient wrote it: it is filed as sent, and read.
     pub is_own: bool,
     pub category: &'static str,
+    /// Why it was filed where it was, beyond what the receiver's verdict
+    /// says: the rule or classifier that chose `category`, or the
+    /// recipient's filter that put it in Junk. Stored with the verdict.
+    pub placement: Vec<Reason>,
     /// The line under the subject in the list.
     pub preview: String,
     /// The searchable text: the plain part, else the html part flattened.
@@ -75,9 +81,15 @@ pub fn derive<'a, T: Threads + ?Sized>(
         &subject,
     );
     let is_own = mailrs_rfc5322::list_contains(&from, addr);
-    let category_of = match sender_rule_category(net.as_mut(), addr, &from, target_folder) {
+    let rule = sender_rule_category(net.as_mut(), addr, &from, target_folder);
+    let category_of = match rule {
         Some(c) => c,
         None => category(net.as_mut(), target_folder, body),
+    };
+    // the user's own mail is filed as sent; nobody judged where it goes
+    let placement = match is_own {
+        true => Vec::new(),
+        false => placement(rule.is_some(), category_of, target_folder),
     };
     let facts =
         crate::section_facts::facts(net.as_mut(), addr, &from, &to, head, category_of, is_own);
@@ -99,6 +111,7 @@ pub fn derive<'a, T: Threads + ?Sized>(
         thread_id,
         is_own,
         category,
+        placement,
         preview,
         body_text,
         sender_trust: extract_sender_trust(body),
@@ -192,6 +205,28 @@ fn ancestry<T: Threads + ?Sized>(
         }
         _ => Ancestry::Joins(tid),
     }
+}
+
+/// Who filed the arrival out of the plain inbox: the reader's rule for the
+/// sender, the classifier, or the reader's filter putting it in Junk.
+/// Nothing for mail left in the plain inbox, whoever left it there: a
+/// record is stored per recipient for each of these, and the inbox is
+/// where most mail goes.
+pub fn placement(by_rule: bool, category: &str, target_folder: &str) -> Vec<Reason> {
+    let mut out = Vec::new();
+    if category != "inbox" && category != "spam" {
+        let code = match by_rule {
+            true => reason::SORTED_BY_YOUR_RULE,
+            false => reason::SORTED_BY_CLASSIFIER,
+        };
+        out.push(Reason::new(code).with("class", category));
+    }
+    if target_folder.eq_ignore_ascii_case("junk") {
+        // the receiver's own Junk reason, when it gave one, outranks this:
+        // see `why::stored`
+        out.push(Reason::new(reason::JUNK_YOUR_FILTER));
+    }
+    out
 }
 
 /// The category the reader's own rule for this sender files it under,
