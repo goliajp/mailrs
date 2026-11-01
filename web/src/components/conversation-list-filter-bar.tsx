@@ -1,10 +1,11 @@
-import { useAtom, useAtomValue, useSetAtom } from 'jotai'
+import { useAtom, useAtomValue } from 'jotai'
 import { SlidersHorizontal } from 'lucide-react'
 import { memo, useEffect, useRef, useState } from 'react'
 
 import { useCategoriesQuery } from '@/hooks/use-mail-queries'
+import { useOpenList } from '@/hooks/use-open-list'
 import { type Key, useT } from '@/i18n'
-import { MAIL_LIST_TABS, MAIL_LISTS, type MailListId } from '@/lib/mail-lists'
+import { MAIL_LIST_TABS, MAIL_LISTS } from '@/lib/mail-lists'
 import { rovingKeyDown } from '@/lib/roving'
 import {
   activeListAtom,
@@ -13,7 +14,6 @@ import {
   importanceSectionAtom,
   searchQueryAtom,
   selectedDomainsAtom,
-  selectMailListAtom,
   type SortOrder,
   sortOrderAtom,
 } from '@/store/ui'
@@ -74,7 +74,6 @@ function tabStop(active: boolean): number {
 // atom-backed state is identical.
 export const FilterBar = memo(function FilterBar() {
   const activeList = useAtomValue(activeListAtom)
-  const selectList = useSetAtom(selectMailListAtom)
   const [section, setSection] = useAtom(importanceSectionAtom)
   const [sortOrder, setSortOrder] = useAtom(sortOrderAtom)
   const searchQuery = useAtomValue(searchQueryAtom)
@@ -98,17 +97,7 @@ export const FilterBar = memo(function FilterBar() {
     return () => document.removeEventListener('mousedown', handler)
   }, [filtersOpen])
 
-  // Switching lists resets the refinements stacked on the old one: a
-  // category chosen inside Inbox is not a question about Junk, and
-  // leaving it applied is how a tab could open empty for no visible
-  // reason. `selectMailListAtom` owns the list and the pick; these two
-  // are the filter bar's own state and it clears them here.
-  const handleTab = (id: MailListId) => {
-    if (id === activeList) return
-    setActiveCategory(null)
-    setSection(null)
-    selectList(id)
-  }
+  const handleTab = useOpenList()
 
   const hasAdvancedFilters =
     sortOrder !== 'newest' ||
@@ -129,7 +118,7 @@ export const FilterBar = memo(function FilterBar() {
           put the second row's three under the first row's three. */}
       <div
         aria-label={t('list.tabs')}
-        className="grid flex-1 grid-cols-5 gap-1"
+        className="grid flex-1 grid-cols-5 gap-1 xl:hidden"
         onKeyDown={(e) => rovingKeyDown(e, '[role="tab"]', 'horizontal')}
         role="tablist"
       >
