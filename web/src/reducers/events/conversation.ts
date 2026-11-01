@@ -17,25 +17,23 @@ import type { InfiniteData, QueryClient } from '@tanstack/react-query'
 
 import { extractEmail } from '@/lib/avatar'
 import { patchCachedList } from '@/lib/patch-cached-list'
-import { mailKeys } from '@/lib/query-keys'
+import { dashboardKeys, mailKeys } from '@/lib/query-keys'
 import { conversationKeys } from '@/store/query-keys-v21'
 
 type ThreadLocation = { readonly idx: number; readonly page: number }
 
-/**
- * `ConversationRead` — the server acknowledged (or another device
- * initiated) marking a thread as read. Sync every cached list line
- * containing the thread to `unread_count = 0`.
- */
-export function onConversationRead(qc: QueryClient, threadId: string): void {
-  patchListsForThread(qc, threadId, (c) => ({ ...c, unread_count: 0 }))
-  // Also broaden invalidation to the single-page `list` prefix so the
-  // dashboard's `conversationKeys.list({folder:'INBOX'})` reader
-  // recomputes its derived unread count on the next tick.
-  qc.invalidateQueries({ queryKey: conversationKeys.lists() }).catch(() => {})
-}
+/** Within this long of the tab's own change, an echo of it is presumed. */
+export const LOCAL_ECHO_MS = 5000
 
-// ── local helpers ───────────────────────────────────────────────────
+/**
+ * `MailboxChanged` — the mailbox moved under the reader, from wherever.
+ * The counts always refetch. The scrolling lists refetch too, unless this
+ * tab patched them itself a moment ago: then the event is most likely the
+ * echo of that change, which the patch already shows.
+ */
+export function onMailboxChanged(qc: QueryClient, now: number, localChangeAt: number): void {
+  refreshMailState(qc, { lists: now - localChangeAt > LOCAL_ECHO_MS })
+}
 
 /**
  * `NewMessage` arrived for the current user.
@@ -53,19 +51,14 @@ export function onConversationRead(qc: QueryClient, threadId: string): void {
  * thread to the top of the Inbox and marked it unread until the next
  * refresh put the server's answer back.
  *
- * Iterates BOTH the legacy `mailKeys.conversations()` prefix and the
- * v2.1 `conversationKeys.infinites()` prefix so every reader across
- * the migration transition sees the same live update.
+ * The badge and the other single-page lists count unread mail, so they
+ * refetch: the event says a message arrived, not what the counts are.
  */
 export function onNewMessage(qc: QueryClient, event: NewMessageEvent): void {
-  const entries = [
-    ...qc.getQueriesData<InfiniteData<ConversationSummary[]>>({
-      queryKey: mailKeys.conversations(),
-    }),
-    ...qc.getQueriesData<InfiniteData<ConversationSummary[]>>({
-      queryKey: conversationKeys.infinites(),
-    }),
-  ]
+  qc.invalidateQueries({ queryKey: conversationKeys.lists() }).catch(() => {})
+  const entries = qc.getQueriesData<InfiniteData<ConversationSummary[]>>({
+    queryKey: conversationKeys.infinites(),
+  })
   for (const [key, data] of entries) {
     if (!data) continue
     const location = locateThread(data, event.thread_id)
@@ -74,6 +67,22 @@ export function onNewMessage(qc: QueryClient, event: NewMessageEvent): void {
       continue
     }
     patchCachedList(qc, key, liftAndPatch(data, location, event))
+  }
+}
+
+// ── local helpers ───────────────────────────────────────────────────
+
+/**
+ * Refetch what the reader is shown from the server: the badge and the
+ * other single-page lists, the category and dashboard counts, and — with
+ * `lists` — the scrolling lists too.
+ */
+export function refreshMailState(qc: QueryClient, opts: { lists: boolean }): void {
+  qc.invalidateQueries({ queryKey: conversationKeys.lists() }).catch(() => {})
+  qc.invalidateQueries({ queryKey: mailKeys.categories([]) }).catch(() => {})
+  qc.invalidateQueries({ queryKey: dashboardKeys.all() }).catch(() => {})
+  if (opts.lists) {
+    qc.invalidateQueries({ queryKey: conversationKeys.infinites() }).catch(() => {})
   }
 }
 
@@ -146,31 +155,4 @@ function locateThread(
     if (idx >= 0) return { idx, page: p }
   }
   return null
-}
-
-function patchListsForThread(
-  qc: QueryClient,
-  threadId: string,
-  patch: (c: ConversationSummary) => ConversationSummary
-): void {
-  const prefixes = [mailKeys.conversations(), conversationKeys.infinites()]
-  for (const prefix of prefixes) {
-    for (const [key, old] of qc.getQueriesData<InfiniteData<ConversationSummary[]>>({
-      queryKey: prefix,
-    })) {
-      if (!old) continue
-      let touched = false
-      const pages = old.pages.map((page) => {
-        let pageTouched = false
-        const next = page.map((c) => {
-          if (c.thread_id !== threadId) return c
-          pageTouched = true
-          touched = true
-          return patch(c)
-        })
-        return pageTouched ? next : page
-      })
-      if (touched) patchCachedList(qc, key, { ...old, pages })
-    }
-  }
 }

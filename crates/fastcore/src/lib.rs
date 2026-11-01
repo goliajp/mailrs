@@ -34,6 +34,7 @@ mod ingest_loop;
 pub mod invites;
 mod keywords;
 pub mod live_sync;
+mod mailbox_watch;
 mod maildir_scan;
 mod maintenance;
 mod mock_sweep;

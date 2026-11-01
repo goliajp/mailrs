@@ -14,30 +14,30 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { mailKeys } from '@/lib/query-keys'
+import { conversationKeys } from '@/store/query-keys-v21'
 
 describe('the fraud axes participate in the cache key', () => {
   it('showing held conversations is a different list from hiding them', () => {
-    const hidden = mailKeys.conversations({ folder: 'INBOX' })
-    const shown = mailKeys.conversations({ folder: 'INBOX', includeQuarantined: true })
+    const hidden = conversationKeys.infinite({ folder: 'INBOX' })
+    const shown = conversationKeys.infinite({ folder: 'INBOX', includeQuarantined: true })
     expect(shown).not.toEqual(hidden)
   })
 
   it('the review list is a different list from the inbox', () => {
-    const inbox = mailKeys.conversations({ folder: 'INBOX' })
-    const review = mailKeys.conversations({ quarantined: true })
+    const inbox = conversationKeys.infinite({ folder: 'INBOX' })
+    const review = conversationKeys.infinite({ quarantined: true })
     expect(review).not.toEqual(inbox)
   })
 
   it('and the two fraud axes are not each other', () => {
-    const including = mailKeys.conversations({ includeQuarantined: true })
-    const only = mailKeys.conversations({ quarantined: true })
+    const including = conversationKeys.infinite({ includeQuarantined: true })
+    const only = conversationKeys.infinite({ quarantined: true })
     expect(including).not.toEqual(only)
   })
 
   it('still keys the same for two callers asking the same thing', () => {
-    expect(mailKeys.conversations({ folder: 'INBOX', includeQuarantined: true })).toEqual(
-      mailKeys.conversations({ folder: 'INBOX', includeQuarantined: true })
+    expect(conversationKeys.infinite({ folder: 'INBOX', includeQuarantined: true })).toEqual(
+      conversationKeys.infinite({ folder: 'INBOX', includeQuarantined: true })
     )
   })
 })
