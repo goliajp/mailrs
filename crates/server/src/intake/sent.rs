@@ -32,4 +32,19 @@ impl SentStore for PgCore {
         self.announce(user, a);
         Ok(())
     }
+
+    /// Into INBOX, where `mailrs_intake::import` wrote it, whoever wrote it.
+    fn index_arrival(
+        &self,
+        user: &str,
+        blob_ref: &str,
+        body: &[u8],
+        a: &Arrival<'_>,
+    ) -> io::Result<()> {
+        self.dir
+            .rt
+            .block_on(self.store(user, "INBOX", blob_ref, body, a, None, None))
+            .map_err(io::Error::other)?;
+        Ok(())
+    }
 }

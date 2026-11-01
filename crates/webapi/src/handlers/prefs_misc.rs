@@ -146,35 +146,46 @@ pub(crate) fn default_contacts_limit() -> u32 {
 }
 
 /// GET /api/contacts?q=&limit= — returns `Vec<String>` where each
-/// entry is a `Name <email>` formatted contact. Backed by the
-/// `mailrs:user:<u>:contacts` kevy hash (email -> `Name <email>`),
-/// populated by `mailrs-fastcore-backfill-contacts` on first run
-/// and kept in sync by future `record_message_arrival` writes.
+/// entry is a `Name <email>` formatted contact, from the autocomplete hash
+/// (`contact_cards::autocomplete_key`). Every match is ranked before the
+/// list is cut: people before automated senders, the most written to
+/// first (`contacts::rank`).
 pub(crate) async fn get_contacts(
     State(_state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     axum::extract::Query(q): axum::extract::Query<ContactsQuery>,
 ) -> Result<Json<Vec<String>>, StatusCode> {
+    use mailrs_core_sidestate::families::contacts;
     let key = mailrs_core_sidestate::families::contact_cards::autocomplete_key(&user);
     let query = q.q.to_lowercase();
     let limit = q.limit.max(1) as usize;
-    let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::from))?;
-    // hgetall returns [field, value, field, value, ...] — extract pairs.
-    let mut matches: Vec<String> = Vec::new();
-    let mut i = 0;
-    while i + 1 < flat.len() {
-        let email = String::from_utf8_lossy(&flat[i]).to_lowercase();
-        let display = String::from_utf8_lossy(&flat[i + 1]).to_string();
-        if email.contains(&query) || display.to_lowercase().contains(&query) {
-            matches.push(display);
+    let ranked = with_kevy(move |c| {
+        let flat = c.hgetall(key.as_bytes()).map_err(std::io::Error::from)?;
+        // hgetall returns [field, value, field, value, ...]
+        let mut emails: Vec<String> = Vec::new();
+        let mut shown: Vec<String> = Vec::new();
+        for pair in flat.chunks_exact(2) {
+            let email = String::from_utf8_lossy(&pair[0]).to_lowercase();
+            let display = String::from_utf8_lossy(&pair[1]).to_string();
+            if email.contains(&query) || display.to_lowercase().contains(&query) {
+                emails.push(email);
+                shown.push(display);
+            }
         }
-        i += 2;
-        if matches.len() >= limit * 4 {
+        let standings = contacts::standings(c, &user, &emails)?;
+        let mut entries: Vec<(String, contacts::Standing)> =
+            shown.into_iter().zip(standings).collect();
+        contacts::rank(&mut entries);
+        Ok(entries)
+    })?;
+    let mut out: Vec<String> = Vec::with_capacity(limit);
+    for (display, _) in ranked {
+        if !out.contains(&display) {
+            out.push(display);
+        }
+        if out.len() == limit {
             break;
         }
     }
-    matches.sort();
-    matches.dedup();
-    matches.truncate(limit);
-    Ok(Json(matches))
+    Ok(Json(out))
 }

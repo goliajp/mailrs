@@ -168,7 +168,13 @@ pub(super) fn mail_routes() -> axum::Router<Arc<WebState>> {
             "/api/mail/spam-feedback",
             post(handlers::misc::spam_feedback),
         )
-        .route("/api/mail/export", get(handlers::misc::export_mbox))
+        .route("/api/mail/export", get(handlers::mbox::export::export_mbox))
+        .route(
+            "/api/mail/import",
+            // streamed, message by message: an mbox is as large as a mailbox
+            post(handlers::mbox::import::import_mbox)
+                .layer(axum::extract::DefaultBodyLimit::disable()),
+        )
         .route(
             "/api/conversations/search",
             get(handlers::misc::search_conversations),

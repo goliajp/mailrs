@@ -26,6 +26,7 @@ pub mod effects;
 pub mod headers;
 pub mod idle_backoff;
 pub mod image_prefetch;
+pub mod import;
 pub mod importance;
 pub mod invite;
 pub mod live_sync;

@@ -6,8 +6,23 @@ export const settingsEn = {
   'settings.account.displayName': 'Display Name',
   'settings.account.domains': 'Domains',
   'settings.account.export': 'Export Mailbox',
-  'settings.account.exportHelp': 'Download all your emails as an MBOX file',
+  'settings.account.exportHelp':
+    'Download everything in All mail as an MBOX file, with each message’s folder and read state. Junk and Trash are left out',
   'settings.account.exportMbox': 'Export as MBOX',
+  'settings.account.import': 'Import mail',
+  'settings.account.importDone':
+    'Imported {imported} into the Inbox ({archived} of them archived) and {sent} into Sent',
+  'settings.account.importFailed': '{failed} could not be filed and {tooLarge} were too large',
+  'settings.account.importFile': 'MBOX file',
+  'settings.account.importHelp':
+    'Upload an MBOX file: a Gmail Takeout, another mail app’s export, or an export from here. Folders and read state are kept, a message already here is skipped, and Junk and Trash are left behind',
+  'settings.account.importIncomplete':
+    'The upload stopped before the end of the file. Upload it again: messages already imported are skipped',
+  'settings.account.importing': 'Importing…',
+  'settings.account.importMbox': 'Choose an MBOX file',
+  'settings.account.importSkipped':
+    'Skipped {duplicate} already here and {junk} from Junk or Trash',
+  'settings.account.importUploadFailed': 'The file could not be uploaded',
   'settings.account.mismatch': 'New passwords do not match',
   'settings.account.notConfigured': 'Not configured',
   'settings.account.passwordFailed': 'Failed to update password',
