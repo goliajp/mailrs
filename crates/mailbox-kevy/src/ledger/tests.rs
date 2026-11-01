@@ -257,3 +257,48 @@ fn what_is_written_reads_back() {
     );
     assert!(st.relationship("a@x", "nobody@y").unwrap().is_none());
 }
+
+#[test]
+fn every_thread_of_a_reader_is_listed_in_one_stable_order() {
+    let st = store();
+    st.ensure_thread_table();
+    for tid in ["t-c", "t-a", "t-b"] {
+        st.record_message_arrival(&crate::MessageArrival {
+            thread_id: tid,
+            user: "a@x",
+            subject: "s",
+            senders_csv: "b@y",
+            latest_date: 100,
+            latest_preview: "p",
+            category: "inbox",
+            unread: true,
+            is_own: false,
+        })
+        .unwrap();
+    }
+    assert_eq!(
+        st.all_thread_ids_for_user("a@x").unwrap(),
+        ["t-a", "t-b", "t-c"]
+    );
+}
+
+#[test]
+fn a_message_id_with_the_separator_in_it_is_still_found() {
+    let st = store();
+    st.record_ledger(&facts(
+        "odd|id@x",
+        "a@x",
+        "shop.example",
+        &["pay.example"],
+        &["aa"],
+    ))
+    .unwrap();
+    assert_eq!(
+        st.ledger_by_link_host("pay.example").unwrap(),
+        [("odd|id@x".into(), "a@x".into())]
+    );
+    assert_eq!(
+        st.ledger_by_attachment("aa").unwrap(),
+        [("odd|id@x".into(), "a@x".into())]
+    );
+}
