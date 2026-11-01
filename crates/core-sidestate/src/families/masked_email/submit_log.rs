@@ -17,6 +17,9 @@ use super::SUBMIT_LOG;
 /// Rows kept.
 pub const CAP: i64 = 20_000;
 
+/// The span the log is meant to cover; a trim that keeps less says so.
+pub const MIN_DAYS: i64 = 90;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Submission {
     /// Unix seconds.
@@ -40,6 +43,20 @@ pub fn append(c: &mut Connection, row: &Submission) -> io::Result<()> {
         c.del(&[SUBMIT_LOG])?;
         for row in keep.iter().rev() {
             c.lpush(SUBMIT_LOG, &[row.as_slice()])?;
+        }
+        // newest first, so the last row kept is the oldest
+        if let Some(days) = keep
+            .last()
+            .and_then(|r| serde_json::from_slice::<Submission>(r).ok())
+            .map(|oldest| (row.at - oldest.at) / 86_400)
+        {
+            match days < MIN_DAYS {
+                true => tracing::warn!(
+                    oldest_kept_days = days,
+                    "masked submit log trimmed: it now covers less than {MIN_DAYS} days"
+                ),
+                false => tracing::info!(oldest_kept_days = days, "masked submit log trimmed"),
+            }
         }
     }
     Ok(())
