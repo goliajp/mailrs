@@ -5661,6 +5661,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/mail/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import an mbox
+         * @description The request body is an mbox file (mboxrd or mboxo), read as it arrives and filed message by message. X-Mailrs-Folder (from an export here) or X-Gmail-Labels (a Gmail Takeout) decides the folder and read state; Status: R marks a message read in any other mbox. Mail the user wrote is filed as a sent copy, the rest into the Inbox and then read and archived as the file says. Junk and Trash are skipped, and a Message-ID already in the mailbox is not filed twice, so an interrupted import can be run again. Nothing a delivery sets off runs: no filters, forwarding, webhooks or notifications.
+         */
+        post: operations["importMbox"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -13935,6 +13955,43 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    importMbox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/mbox": string;
+            };
+        };
+        responses: {
+            /** @description What the upload did */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Filed into the Inbox, archived or not */
+                        imported: number;
+                        /** @description Filed as sent copies */
+                        sent: number;
+                        /** @description Of imported, archived afterwards */
+                        archived: number;
+                        skipped_duplicate: number;
+                        skipped_junk_or_trash: number;
+                        too_large: number;
+                        failed: number;
+                        /** @description False when the upload ended before the file did */
+                        complete: boolean;
+                    };
+                };
             };
         };
     };

@@ -21,7 +21,7 @@ pub const SENT_FOLDER: &str = ".Sent";
 /// Contacts kept per user; the least recently written-to are dropped past it.
 const CONTACTS_CAP: usize = 2000;
 
-/// A core's store, as filing a sent copy writes to it.
+/// A core's store, as filing a sent copy or an imported message writes to it.
 pub trait SentStore: Threads {
     fn maildir_root(&self) -> &str;
     fn net_conn(&self) -> Option<Connection>;
@@ -29,6 +29,15 @@ pub trait SentStore: Threads {
     /// user's own message.
     fn index_own(&self, user: &str, blob_ref: &str, body: &[u8], a: &Arrival<'_>)
     -> io::Result<()>;
+    /// Index the arrival `a`, already written into INBOX as `blob_ref`, as
+    /// a message the user received (`crate::import`).
+    fn index_arrival(
+        &self,
+        user: &str,
+        blob_ref: &str,
+        body: &[u8],
+        a: &Arrival<'_>,
+    ) -> io::Result<()>;
 }
 
 /// Where a filed copy landed.
