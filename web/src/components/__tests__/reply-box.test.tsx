@@ -186,6 +186,8 @@ describe('ReplyBox', () => {
     // forward mode should render the ContactAutocomplete input
     const input = screen.getByPlaceholderText('recipient@example.com')
     expect(input).toBeDefined()
+    // one address: no From choice to make
+    expect(screen.queryByLabelText('From')).toBeNull()
   })
 
   it('hides recipient preview in forward mode', () => {
@@ -205,7 +207,7 @@ describe('ReplyBox', () => {
       </Wrapper>
     )
 
-    const sendButton = screen.getByRole('button', { name: /send/i })
+    const sendButton = screen.getByRole('button', { name: /^send$/i })
     expect(sendButton).toBeDefined()
   })
 
@@ -267,5 +269,43 @@ describe('ReplyBox', () => {
       </Wrapper>
     )
     expect(document.activeElement).toBe(screen.getByLabelText('To'))
+  })
+
+  it('opens the recipients for editing and sends to what was typed', () => {
+    render(
+      <Wrapper store={store}>
+        <ReplyBox {...defaultProps} mode="reply" />
+      </Wrapper>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Edit recipients and subject' }))
+    const to = screen.getByLabelText('To') as HTMLInputElement
+    expect(to.value).toBe('alice@example.com')
+    fireEvent.change(to, { target: { value: 'carol@example.com' } })
+    expect(screen.getByText('to carol@example.com')).toBeDefined()
+    expect((screen.getByLabelText('Subject') as HTMLInputElement).value).toBe('Re: Test Subject')
+  })
+
+  it('can schedule a reply', () => {
+    render(
+      <Wrapper store={store}>
+        <ReplyBox {...defaultProps} />
+      </Wrapper>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Schedule send' }))
+    expect(screen.getByLabelText('Schedule send time')).toBeDefined()
+  })
+
+  it('offers a From choice only when there is more than one address', () => {
+    store.set(authAtom, { ...store.get(authAtom)!, send_as: ['team@example.com'] })
+    render(
+      <Wrapper store={store}>
+        <ReplyBox {...defaultProps} mode="forward" />
+      </Wrapper>
+    )
+    const from = screen.getByLabelText('From') as HTMLSelectElement
+    expect(Array.from(from.options).map((o) => o.value)).toEqual([
+      'user@example.com',
+      'team@example.com',
+    ])
   })
 })

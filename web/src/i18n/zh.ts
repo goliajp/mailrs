@@ -3,11 +3,13 @@ import type { Key } from './en'
 import { adminOpsZh } from './admin-ops/zh'
 import { adminZh } from './admin/zh'
 import { appZh } from './app/zh'
+import { composerZh } from './composer/zh'
 import { mockZh } from './mock/zh'
 import { settingsZh } from './settings/zh'
 
 export const zh: Record<Key, string> = {
   ...appZh,
+  ...composerZh,
   ...settingsZh,
   ...mockZh,
   ...adminZh,

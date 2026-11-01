@@ -3,7 +3,9 @@ import type { TextBlockData } from '../types'
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 
 import { uploadInlineImage } from '@/components/composer/editor-extensions'
+import { FormatToolbar } from '@/components/composer/format-toolbar'
 import { useT } from '@/i18n'
+import { applyFormat, formatForKey, type FormatKind } from '@/lib/markdown-format'
 
 // path lean.
 
@@ -34,9 +36,28 @@ export function TextBlock({ data, disabled, onChange, onSubmit, placeholder }: P
     el.style.height = `${Math.max(el.scrollHeight, MIN_HEIGHT_PX)}px`
   }, [])
 
+  // the selection a format asked for, put back once the new value is rendered
+  const pendingSelection = useRef<null | { end: number; start: number }>(null)
   useLayoutEffect(() => {
     resize()
+    const el = textareaRef.current
+    const sel = pendingSelection.current
+    if (!el || !sel) return
+    pendingSelection.current = null
+    el.setSelectionRange(sel.start, sel.end)
   }, [data.content, resize])
+
+  const format = useCallback(
+    (kind: FormatKind) => {
+      const el = textareaRef.current
+      if (!el) return
+      const edit = applyFormat(el.value, el.selectionStart, el.selectionEnd, kind)
+      pendingSelection.current = { end: edit.end, start: edit.start }
+      onChange({ content: edit.value, format: 'markdown', html: '' })
+      el.focus()
+    },
+    [onChange]
+  )
 
   const emitChange = useCallback(() => {
     const el = textareaRef.current
@@ -54,6 +75,12 @@ export function TextBlock({ data, disabled, onChange, onSubmit, placeholder }: P
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      const kind = formatForKey(e.key)
+      if ((e.ctrlKey || e.metaKey) && kind) {
+        e.preventDefault()
+        format(kind)
+        return
+      }
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault()
         onSubmitRef.current()
@@ -91,7 +118,7 @@ export function TextBlock({ data, disabled, onChange, onSubmit, placeholder }: P
         emitChange()
       }
     },
-    [emitChange]
+    [emitChange, format]
   )
 
   // image paste → upload, insert markdown image syntax at caret
@@ -137,7 +164,10 @@ export function TextBlock({ data, disabled, onChange, onSubmit, placeholder }: P
   return (
     <div className="flex flex-col">
       <div className="border-border flex shrink-0 items-center gap-1 border-b px-3 py-1.5">
-        <span className="text-fg-muted text-mini ml-auto">{t('composer.markdownHint')}</span>
+        <FormatToolbar disabled={disabled} onFormat={format} />
+        <span className="text-fg-muted text-mini ml-auto min-w-0 truncate whitespace-nowrap">
+          {t('composer.markdownHint')}
+        </span>
       </div>
 
       <textarea

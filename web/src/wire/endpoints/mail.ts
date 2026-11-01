@@ -125,8 +125,10 @@ export type WireSaveDraftRequest = {
   bcc?: string
   body?: string
   cc?: string
+  from?: string
   id?: number
   reply_to_thread_id?: string
+  scheduled_at?: number
   subject?: string
   to?: string
 }

@@ -17,6 +17,8 @@ export type AuthInfo = {
    */
   is_super: boolean
   permissions: string[]
+  /** Other addresses this account may send as, from `/auth/me`. */
+  send_as?: string[]
 }
 
 const STORAGE_KEY = 'mailrs_auth'

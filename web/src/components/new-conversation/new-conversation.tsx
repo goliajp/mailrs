@@ -1,243 +1,47 @@
-import type { TemplateInfo } from './types'
-import type { StructuredComposeHandle } from '@/components/structured-compose'
-import type { ComposeDraftSource, ComposeRedraftSource, ComposeReplySource } from '@/store/ui'
+import type { ComposerStart } from '@/components/composer/start'
 
-import { toast } from '@goliapkg/gds'
-import { useQuery } from '@tanstack/react-query'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { X } from 'lucide-react'
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 
-import { AutosaveWarning } from '@/components/autosave-warning'
-import { ComposerSkeleton } from '@/components/composer-skeleton'
-import { useAutosaveStatus } from '@/hooks/use-autosave-status'
-import { useDefaultSignature } from '@/hooks/use-default-signature'
-import { useDeleteDraftMutation, useSaveDraftMutation } from '@/hooks/use-drafts'
-import { applyOptimisticSent } from '@/hooks/use-mail-mutations'
+import { ComposerView } from '@/components/composer/composer'
+import { useComposer } from '@/components/composer/use-composer'
+import { useComposerAi } from '@/components/composer/use-composer-ai'
 import { type Key, useT } from '@/i18n'
-import { formatFullDate } from '@/lib/format'
-import { escapeHtml } from '@/lib/html-utils'
-import { queryClient } from '@/lib/query-client'
-import { mailKeys } from '@/lib/query-keys'
-import { epochSecondsFromLocalInput, parseAddressList, sendMail } from '@/lib/send-mail'
-import { authAtom } from '@/store/auth'
 import {
+  composeCarrySourceAtom,
   composeDraftSourceAtom,
   composeRedraftSourceAtom,
   composeReplySourceAtom,
   composingNewAtom,
 } from '@/store/ui'
-import { adminListGet } from '@/wire/endpoints/admin'
-import { wireGenerateSubject, wirePolishText } from '@/wire/endpoints/ai'
-import { wireDeletePendingSend } from '@/wire/endpoints/mail'
 
-import { ActionBar } from './action-bar'
-import { AddressFields } from './address-fields'
 import { CarriedAttachments } from './carried-attachments'
 import { carriedSelection } from './carried-model'
 
-const StructuredCompose = lazy(() =>
-  import('@/components/structured-compose').then((m) => ({ default: m.StructuredCompose }))
-)
-
+/**
+ * The page shell: the composer filling the reading pane. It opens new, as a
+ * reply from the thread's Reply button, from a saved draft, from a failed
+ * send, or from a floating window that was expanded.
+ */
 export function NewConversation() {
   const t = useT()
-  const auth = useAtomValue(authAtom)
-  // From the server, not from `localStorage`: the atom that used to
-  // feed this was written by no UI anywhere, so the composer's
-  // signature was permanently empty while Settings → Signatures saved
-  // one to the server that nothing ever read.
-  const { html: signature } = useDefaultSignature()
-  const signatureEnabled = signature.trim().length > 0
   const setComposingNew = useSetAtom(composingNewAtom)
-  const replySource = useAtomValue(composeReplySourceAtom)
   const setReplySource = useSetAtom(composeReplySourceAtom)
-  const draftSource = useAtomValue(composeDraftSourceAtom)
   const setDraftSource = useSetAtom(composeDraftSourceAtom)
-  const redraftSource = useAtomValue(composeRedraftSourceAtom)
   const setRedraftSource = useSetAtom(composeRedraftSourceAtom)
-  const isReply = replySource !== null
-
-  // the server draft id for this compose session. starts from a reopened
-  // draft, otherwise null until the first autosave allocates one.
-  const draftIdRef = useRef<null | number>(draftSource?.id ?? null)
-  // set once the message is sent so a trailing autosave / close can't
-  // resurrect the just-deleted draft.
-  const sentRef = useRef(false)
-  const saveDraftMut = useSaveDraftMutation()
-  const deleteDraftMut = useDeleteDraftMutation()
-
-  const [to, setTo] = useState(() => initialTo(draftSource, redraftSource, replySource))
-  const [cc, setCc] = useState(() => draftSource?.cc ?? redraftSource?.cc ?? '')
-  const [bcc, setBcc] = useState(() => draftSource?.bcc ?? redraftSource?.bcc ?? '')
-  const [showCcBcc, setShowCcBcc] = useState(() =>
-    Boolean(draftSource?.cc || draftSource?.bcc || redraftSource?.cc || redraftSource?.bcc)
+  const setCarrySource = useSetAtom(composeCarrySourceAtom)
+  const start = usePageStart()
+  const redraft = redraftOf(start)
+  // which carried attachments survive this edit; all of them to begin with
+  const [kept, setKept] = useState<Set<number>>(
+    () => new Set((redraft?.attachments ?? []).map((a) => a.index))
   )
-  const [subject, setSubject] = useState(() =>
-    initialSubject(draftSource, redraftSource, replySource)
-  )
-  // Which carried attachments survive this edit. Seeded to all of them —
-  // a re-edit that dropped the files by default would lose them exactly
-  // as going through the drafts table would have.
-  const [keptCarried, setKeptCarried] = useState<Set<number>>(
-    () => new Set((redraftSource?.attachments ?? []).map((a) => a.index))
-  )
-  const [sending, setSending] = useState(false)
-  const [polishing, setPolishing] = useState(false)
-  const [generatingSubject, setGeneratingSubject] = useState(false)
-  const [error, setError] = useState('')
-  const [scheduledAt, setScheduledAt] = useState('')
-  const [showSchedulePicker, setShowSchedulePicker] = useState(false)
-  const composeRef = useRef<StructuredComposeHandle>(null)
-  const { data: templates = [] } = useQuery({
-    queryKey: mailKeys.templates(),
-    staleTime: 5 * 60 * 1000,
-    queryFn: () => adminListGet<TemplateInfo>('/mail/templates'),
-  })
 
-  // latest field values, read by the bind-once autosave interval below.
-  const latest = useRef({ bcc, cc, subject, to })
-  latest.current = { bcc, cc, subject, to }
-
-  // upsert the current compose state as a server draft, deduped so an
-  // unchanged tick is a no-op. the first save allocates an id; later
-  // saves reuse it via draftIdRef.
-  const lastSavedRef = useRef('')
-  const autosave = useAutosaveStatus()
-  const saveNow = useCallback(async () => {
-    if (sentRef.current) return
-    const body = composeRef.current?.getMarkdown() ?? ''
-    const { bcc, cc, subject, to } = latest.current
-    if (!to.trim() && !subject.trim() && !body.trim()) return
-    const snapshot = JSON.stringify({ bcc, body, cc, subject, to })
-    if (snapshot === lastSavedRef.current) return
-    // A failure retries on the next tick, and says so once retrying has
-    // stopped being an explanation — see use-autosave-status.
-    await autosave.record(async () => {
-      const res = await saveDraftMut.mutateAsync({
-        bcc,
-        body,
-        cc,
-        id: draftIdRef.current ?? undefined,
-        reply_to_thread_id: replySource?.threadId,
-        subject,
-        to,
-      })
-      if (res.id !== undefined) draftIdRef.current = Number(res.id)
-      lastSavedRef.current = snapshot
-    })
-  }, [autosave, replySource, saveDraftMut])
-
-  // bind the interval once; read the latest saveNow through a ref.
-  const saveNowRef = useRef(saveNow)
-  saveNowRef.current = saveNow
-  useEffect(() => {
-    const timer = setInterval(() => void saveNowRef.current(), 3000)
-    return () => clearInterval(timer)
-  }, [])
-
-  // prefill the editor body when reopening a saved draft (the editor is
-  // lazy — wait a tick for it to mount, like the reply-box restore).
-  useEffect(() => {
-    if (!draftSource?.body) return
-    const t = setTimeout(() => composeRef.current?.setMarkdown(draftSource.body), 250)
-    return () => clearTimeout(t)
-  }, [draftSource])
-
-  // same for a re-edit of a failed send — its body comes from the stored
-  // envelope, parsed server-side.
-  useEffect(() => {
-    if (!redraftSource?.body) return
-    const t = setTimeout(() => composeRef.current?.setMarkdown(redraftSource.body), 250)
-    return () => clearTimeout(t)
-  }, [redraftSource])
-
-  // this compose session's draft source is consumed on mount; clear it so
-  // the next fresh compose doesn't reopen it.
-  useEffect(() => {
-    return () => setDraftSource(null)
-  }, [setDraftSource])
-
-  useEffect(() => {
-    return () => setRedraftSource(null)
-  }, [setRedraftSource])
-
-  // composer opens by flipping an atom, which doesn't push a history entry.
-  // without this, browser Back leaves /mail entirely. push a sentinel on
-  // mount so Back can pop it.
-  useEffect(() => {
-    window.history.pushState({ composerSentinel: true }, '')
-
-    const onPop = () => {
-      setComposingNew(false)
-      setReplySource(null)
-    }
-    window.addEventListener('popstate', onPop)
-
-    return () => {
-      window.removeEventListener('popstate', onPop)
-    }
-  }, [setComposingNew, setReplySource])
-
-  const applyTemplate = (t: TemplateInfo) => {
-    setSubject(t.subject)
-    if (t.text_body) composeRef.current?.setMarkdown(t.text_body)
-    else if (t.html_body) composeRef.current?.setComposeContent(t.html_body)
-  }
-
-  const polish = async () => {
-    const handle = composeRef.current
-    if (!handle) return
-    const text = handle.getMarkdown()
-    if (!text.trim()) return
-    setPolishing(true)
-    try {
-      const result = await wirePolishText(text)
-      if (result.success && result.polished) {
-        handle.setMarkdown(result.polished)
-        toast.success(t('compose.polished'))
-      } else {
-        toast.error(result.message ?? t('compose.polishFailed'))
-      }
-    } catch {
-      toast.error(t('compose.aiUnavailable'))
-    } finally {
-      setPolishing(false)
-    }
-  }
-
-  const generateSubject = async () => {
-    const content = composeRef.current?.getContent()
-    if (!content?.compose.text.trim()) {
-      toast.error(t('compose.writeFirst'))
-      return
-    }
-    setGeneratingSubject(true)
-    try {
-      const result = await wireGenerateSubject({
-        body: content.compose.text,
-        context: to ? `To: ${to}` : undefined,
-      })
-      if (result.success && result.subject) {
-        setSubject(result.subject)
-        toast.success(t('compose.subjectGenerated'))
-      } else {
-        toast.error(result.message ?? t('common.failed'))
-      }
-    } catch {
-      toast.error(t('compose.aiUnavailable'))
-    } finally {
-      setGeneratingSubject(false)
-    }
-  }
-
-  const closeComposer = () => {
-    // persist whatever's typed as a draft before leaving (no-op if empty
-    // or already sent). the request outlives this component's unmount.
-    void saveNow()
-    // when our sentinel is still on top, pop it so Back afterwards lands on
-    // the thread underneath. popstate will re-run the close handlers, which
-    // is idempotent.
+  const close = () => {
+    // what is typed is kept as a draft; the request outlives the unmount
+    void c.saveNow()
+    // with our history entry still on top, going back closes through popstate
     const state = window.history.state as null | { composerSentinel?: boolean }
     if (state?.composerSentinel) {
       window.history.back()
@@ -247,236 +51,64 @@ export function NewConversation() {
     setReplySource(null)
   }
 
-  const send = async () => {
-    if (sending) return
-    const recipients = parseAddressList(to)
-    if (recipients.length === 0) {
-      setError(t('compose.needRecipient'))
-      return
-    }
-    const content = composeRef.current?.getContent()
-    if (!content || !content.compose.text.trim()) {
-      setError(t('compose.needBody'))
-      return
-    }
+  const c = useComposer(start, { onSent: close, redraftKeep: carriedSelection(redraft, kept) })
+  const ai = useComposerAi(c)
 
-    setError('')
-    setSending(true)
-    try {
-      const result = await sendMail({
-        attachments: content.attachments,
-        bcc: parseAddressList(bcc),
-        body: content.fullText,
-        cc: parseAddressList(cc),
-        from: auth?.address ?? '',
-        htmlBody: content.fullHtml,
-        inReplyTo: replySource?.messageId ?? redraftSource?.inReplyTo,
-        redraftKeep: carriedSelection(redraftSource, keptCarried),
-        redraftOf: redraftSource?.redraftOf,
-        // A reply reopened from the Draft tab has no `replySource`, so
-        // `inReplyTo` above is undefined and the thread is the only link
-        // left. The server resolves the parent message from it.
-        replyToThreadId: replySource?.threadId ?? draftSource?.replyToThreadId,
-        scheduledAt: epochSecondsFromLocalInput(scheduledAt),
-        subject,
-        to: recipients,
-      })
-
-      if (result.success) {
-        const sentMessageId = result.message_id
-        // Optimistic: prepend a placeholder into the Sent cache so the
-        // row appears before the server refetch lands. Backend's
-        // mirror_send_to_sender_view writes synchronously, so the
-        // real row swaps in within one network RTT (see
-        // hooks/use-mail-mutations::applyOptimisticSent).
-        if (sentMessageId) {
-          applyOptimisticSent({
-            message_id: sentMessageId,
-            subject,
-            thread_id: replySource?.threadId ?? '',
-            to: recipients.join(', '),
-          })
-        }
-        toast.success(t('compose.sent'), {
-          ...(sentMessageId
-            ? {
-                action: {
-                  label: t('common.undo'),
-                  onClick: async () => {
-                    try {
-                      await wireDeletePendingSend(sentMessageId)
-                      toast.success(t('compose.sendCancelled'))
-                    } catch {
-                      toast.error(t('compose.undoTooLate'))
-                    }
-                  },
-                },
-                duration: 8000,
-              }
-            : {}),
-        })
-        // the message is out — drop the autosaved draft (best effort) and
-        // block any trailing autosave from recreating it.
-        sentRef.current = true
-        if (draftIdRef.current !== null) {
-          await deleteDraftMut.mutateAsync(draftIdRef.current).catch(() => undefined)
-          draftIdRef.current = null
-        }
-        await queryClient.invalidateQueries({ queryKey: mailKeys.conversations() })
-        closeComposer()
-      } else {
-        setError(result.message ?? t('compose.sendFailed'))
-      }
-    } catch {
-      setError(t('compose.networkError'))
-    } finally {
-      setSending(false)
+  // the sources are read once, at the start; the next compose starts clean
+  useEffect(() => {
+    return () => {
+      setDraftSource(null)
+      setRedraftSource(null)
+      setCarrySource(null)
     }
-  }
+  }, [setCarrySource, setDraftSource, setRedraftSource])
+
+  // opening is an atom flip, not a navigation: push an entry so Back closes
+  // the composer instead of leaving /mail
+  useEffect(() => {
+    window.history.pushState({ composerSentinel: true }, '')
+    const onPop = () => {
+      setComposingNew(false)
+      setReplySource(null)
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [setComposingNew, setReplySource])
 
   return (
-    // `min-h-0` and `h-full`, not just `flex-1`: a flex child's default
-    // `min-height:auto` lets it grow past its parent, so a long message
-    // pushed the action bar off the bottom of the window and Send could
-    // not be reached at all. The reply box beside this one has had the
-    // pair since it was written; this composer never did.
+    // bounded, not only flex-1: a flex child's min-height:auto would let a
+    // long message push Send off the bottom of the window
     <div className="flex h-full min-h-0 flex-1 flex-col">
-      {/* header — subtle, not shouty */}
       <div className="border-border flex shrink-0 items-center justify-between border-b px-4 py-2">
-        <span className="text-fg-muted text-xs font-medium">{t(headerLabel(isReply))}</span>
+        <span className="text-fg-muted text-xs font-medium">{t(headerLabel(start))}</span>
         <button
           aria-label={t('common.close')}
           className="text-fg-muted hover:bg-bg-secondary rounded-md p-1 transition-colors"
-          onClick={closeComposer}
+          onClick={close}
           type="button"
         >
           <X className="h-4 w-4" />
         </button>
       </div>
-
-      {error && (
-        <div
-          className="bg-danger/10 text-danger mx-4 mt-2 rounded-md px-3 py-1.5 text-xs"
-          role="alert"
-        >
-          {error}
-        </div>
-      )}
-
-      <AddressFields
-        bcc={bcc}
-        cc={cc}
-        generatingSubject={generatingSubject}
-        onBccChange={setBcc}
-        onCcChange={setCc}
-        onGenerateSubject={generateSubject}
-        onShowCcBcc={() => setShowCcBcc(true)}
-        onSubjectChange={setSubject}
-        onToChange={setTo}
-        sending={sending}
-        showCcBcc={showCcBcc}
-        subject={subject}
-        to={to}
-      />
-
-      <CarriedAttachments
-        items={redraftSource?.attachments ?? []}
-        kept={keptCarried}
-        onToggle={(index) => setKeptCarried(toggleIndex(keptCarried, index))}
-      />
-
-      {/* block-based composer */}
-      {/* The scroll lives here, on the part that grows. Everything
-          above and below it is `shrink-0`, so the addresses stay put
-          and Send stays reachable however long the message gets. */}
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <Suspense fallback={<ComposerSkeleton />}>
-          <StructuredCompose
-            disabled={sending}
-            mode={isReply ? 'reply' : 'new'}
-            onSubmit={send}
-            placeholder={t(bodyPlaceholder(isReply))}
-            quotedHeader={
-              replySource
-                ? `${t('compose.quoteHeader', { date: formatFullDate(replySource.internalDate), sender: replySource.sender })}\n\n`
-                : undefined
-            }
-            quotedHeaderHtml={
-              replySource
-                ? `<p style="color:#888">${escapeHtml(t('compose.quoteHeader', { date: formatFullDate(replySource.internalDate), sender: replySource.sender }))}</p>`
-                : undefined
-            }
-            quotedHtml={
-              replySource ? (replySource.htmlBody ?? replySource.textBody ?? undefined) : undefined
-            }
-            ref={composeRef}
-            signature={signature}
-            signatureEnabled={signatureEnabled}
-          />
-        </Suspense>
-      </div>
-
-      <AutosaveWarning error={autosave.lastError} show={autosave.shouldWarn} />
-
-      <ActionBar
-        onCancel={closeComposer}
-        onPolish={polish}
-        onScheduleChange={setScheduledAt}
-        onScheduleClear={() => {
-          setScheduledAt('')
-          setShowSchedulePicker(false)
-        }}
-        onSend={send}
-        onTemplateSelect={applyTemplate}
-        onToggleSchedulePicker={() => setShowSchedulePicker((v) => !v)}
-        polishing={polishing}
-        scheduledAt={scheduledAt}
-        sending={sending}
-        showSchedulePicker={showSchedulePicker}
-        templates={templates}
-      />
+      <ComposerView ai={ai} c={c} fieldsOpen focusTo onCancel={close}>
+        <CarriedAttachments
+          items={redraft?.attachments ?? []}
+          kept={kept}
+          onToggle={(index) => setKept(toggleIndex(kept, index))}
+        />
+      </ComposerView>
     </div>
   )
 }
 
-function bodyPlaceholder(isReply: boolean): Key {
-  if (isReply) return 'compose.replyPlaceholder'
-  return 'compose.bodyPlaceholder'
-}
-
-function extractReplyAddress(sender: string): string {
-  const match = sender.match(/<([^>]+)>/)
-  if (match) return match[1].trim()
-  return sender.trim()
-}
-
-function headerLabel(isReply: boolean): Key {
-  if (isReply) return 'compose.replyHeader'
+function headerLabel(s: ComposerStart): Key {
+  if (s.kind === 'reply') return 'compose.replyHeader'
   return 'compose.newHeader'
 }
 
-function initialSubject(
-  draft: ComposeDraftSource | null,
-  redraft: ComposeRedraftSource | null,
-  reply: ComposeReplySource | null
-): string {
-  if (draft) return draft.subject
-  // No `Re:` prefix: a re-edit is the same message being fixed, not a
-  // reply to it.
-  if (redraft) return redraft.subject
-  if (reply) return withReplyPrefix(reply.subject)
-  return ''
-}
-
-function initialTo(
-  draft: ComposeDraftSource | null,
-  redraft: ComposeRedraftSource | null,
-  reply: ComposeReplySource | null
-): string {
-  if (draft) return draft.to
-  if (redraft) return redraft.to
-  if (reply) return extractReplyAddress(reply.sender)
-  return ''
+function redraftOf(s: ComposerStart) {
+  if (s.kind === 'redraft') return s.redraft
+  return null
 }
 
 /** Immutable set toggle — the codebase creates, it does not mutate. */
@@ -490,8 +122,18 @@ function toggleIndex(current: ReadonlySet<number>, index: number): Set<number> {
   return next
 }
 
-function withReplyPrefix(subject: string): string {
-  const trimmed = subject.trim()
-  if (/^re:/i.test(trimmed)) return trimmed
-  return `Re: ${trimmed}`
+/** The start, from whichever source opened the page; read once. */
+function usePageStart(): ComposerStart {
+  const reply = useAtomValue(composeReplySourceAtom)
+  const draft = useAtomValue(composeDraftSourceAtom)
+  const redraft = useAtomValue(composeRedraftSourceAtom)
+  const carry = useAtomValue(composeCarrySourceAtom)
+  const [start] = useState<ComposerStart>(() => {
+    if (carry) return { carry, kind: 'carry' }
+    if (draft) return { draft, kind: 'draft' }
+    if (redraft) return { kind: 'redraft', redraft }
+    if (reply) return { kind: 'reply', reply }
+    return { kind: 'new' }
+  })
+  return start
 }

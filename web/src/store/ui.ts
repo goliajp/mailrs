@@ -1,3 +1,4 @@
+import type { ComposerCarry } from '@/components/composer/start'
 import type { PickedItem, SelectableRow } from '@/lib/list-selection'
 import type { WireSendStatus } from '@/wire/schemas/sends'
 
@@ -214,6 +215,8 @@ export type ComposeDraftSource = {
   bcc: string
   body: string
   cc: string
+  /** The address chosen to send from; empty is the account's own. */
+  from: string
   id: number
   /**
    * The conversation this draft is a reply inside, if any.
@@ -224,6 +227,8 @@ export type ComposeDraftSource = {
    * every trace of what it was replying to.
    */
   replyToThreadId: null | string
+  /** When it is set to go, in epoch seconds. */
+  scheduledAt: null | number
   subject: string
   to: string
 }
@@ -249,3 +254,7 @@ export type ComposeRedraftSource = {
   to: string
 }
 export const composeRedraftSourceAtom = atom<ComposeRedraftSource | null>(null)
+
+// when non-null, the page composer opens with what a floating window held
+// when it was expanded. cleared when the composer closes.
+export const composeCarrySourceAtom = atom<ComposerCarry | null>(null)

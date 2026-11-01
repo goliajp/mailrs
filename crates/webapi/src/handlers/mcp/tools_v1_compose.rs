@@ -50,6 +50,8 @@ impl MailrsMcpService {
             subject: params.subject.clone(),
             body: params.body,
             reply_to_thread_id: params.reply_to_thread_id,
+            from: String::new(),
+            scheduled_at: None,
         };
         let resp = self
             .state

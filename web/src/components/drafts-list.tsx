@@ -50,7 +50,9 @@ export function DraftsList() {
       // Without this a reply reopened from here loses its threading: the
       // subject still says `Re:` and nothing tells the server what it is a
       // reply to.
+      from: d.from ?? '',
       replyToThreadId: d.reply_to_thread_id ?? null,
+      scheduledAt: d.scheduled_at ?? null,
       subject: d.subject,
       to: d.to,
     })

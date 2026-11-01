@@ -33,6 +33,11 @@ const MOBILE_QUERY = '(max-width: 767px)'
  * last autosave. Both trees persisting was the only thing the old
  * approach was better at.
  */
+/** The same answer, once, for code outside a component. */
+export function isMobileScreen(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia(MOBILE_QUERY).matches
+}
+
 export function useIsMobile(): boolean {
   const [isMobile, setIsMobile] = useState(
     () => typeof window !== 'undefined' && window.matchMedia(MOBILE_QUERY).matches
