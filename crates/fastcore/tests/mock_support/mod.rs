@@ -86,7 +86,10 @@ pub fn keys(c: &mut Connection) -> BTreeSet<String> {
 /// would count the report as something the mail under test wrote.
 pub fn wait_for_rules_report(c: &mut Connection) {
     for _ in 0..200 {
-        if keys(c).contains("screening:rules") {
+        if mailrs_core_sidestate::families::screening::rules_report(c)
+            .unwrap()
+            .is_some()
+        {
             return;
         }
         std::thread::sleep(std::time::Duration::from_millis(50));
