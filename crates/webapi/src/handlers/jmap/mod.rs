@@ -40,6 +40,12 @@ use crate::WebState;
 use crate::handlers::conversations::AuthedUser;
 
 pub use blob::{download, health as upload_health, spawn_sweep as spawn_upload_sweep, upload};
+
+/// Read JMAP's configuration now, so a bad value stops the start rather
+/// than the first request: `MAILRS_JMAP_SNAPSHOTS_KEPT`.
+pub fn read_config() {
+    tracing::info!(snapshots_kept = *state::KEEP, "jmap");
+}
 pub use push::eventsource;
 pub use session::session;
 
