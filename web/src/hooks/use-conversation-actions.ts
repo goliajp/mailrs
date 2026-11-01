@@ -1,7 +1,7 @@
 import type { SingleAction } from '@/components/conversation-actions'
 
 import { toast } from '@goliapkg/gds'
-import { useSetAtom } from 'jotai'
+import { getDefaultStore, useSetAtom } from 'jotai'
 import { useCallback, useRef, useState } from 'react'
 
 import {
@@ -29,6 +29,8 @@ import {
 import { tNow, useT } from '@/i18n'
 import { ACTIONS } from '@/lib/actions'
 import { errorText } from '@/lib/error-text'
+import { offerSenderCorrection } from '@/lib/sender-correction'
+import { authAtom } from '@/store/auth'
 import { labelPickerAtom, lastUndoAtom } from '@/store/ui'
 
 // One place that turns an action into the mutation serving it. What the
@@ -103,6 +105,7 @@ export function useConversationActions(): ConversationActions {
         return
       }
       run(threadId, action, () => {
+        offerSenderCorrection(threadId, action, getDefaultStore().get(authAtom)?.address ?? '')
         const undo = spec.undo
         if (undo) setLastUndo({ action: undo, threadId })
         if (!spec.done) return

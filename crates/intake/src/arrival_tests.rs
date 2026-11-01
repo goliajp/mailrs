@@ -46,3 +46,29 @@ fn with_no_known_ancestor_the_headers_name_the_root() {
     assert_eq!(root("q7@x", &[], "anything"), "q7@x");
     assert_eq!(root("", &[], "anything"), "new@x");
 }
+
+/// The reader's rule for a sender files the mail ahead of the classifier,
+/// but never pulls mail out of Junk.
+#[test]
+fn a_sender_rule_files_the_mail_ahead_of_the_classifier() {
+    use mailrs_core_sidestate::families::sender_rules::{SenderRule, put};
+    let mut c = kevy_client::Connection::connect("mem://intake-sender-rule").unwrap();
+    let rule = SenderRule {
+        bucket: Some("promotions".into()),
+        ..Default::default()
+    };
+    put(&mut c, "me@x.test", "news@shop.example", &rule).unwrap();
+    let from = "Shop <News@Shop.example>";
+    assert_eq!(
+        crate::arrival::sender_rule_category(Some(&mut c), "me@x.test", from, "INBOX"),
+        Some("promotion")
+    );
+    assert_eq!(
+        crate::arrival::sender_rule_category(Some(&mut c), "me@x.test", from, "Junk"),
+        None
+    );
+    assert_eq!(
+        crate::arrival::sender_rule_category(Some(&mut c), "me@x.test", "other@x.example", "INBOX"),
+        None
+    );
+}

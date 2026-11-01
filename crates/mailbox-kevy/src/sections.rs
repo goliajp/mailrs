@@ -28,7 +28,7 @@ pub struct SectionArrival<'a> {
 }
 
 /// The declared columns this module writes and nothing else does.
-pub(crate) const COLUMNS: [&str; 2] = ["section", "awaiting_since"];
+pub(crate) const COLUMNS: [&str; 3] = ["section", "awaiting_since", "sec_in_from"];
 
 const OWN_AT: &[u8] = b"sec_own_at";
 const OWN_TO_OTHERS: &[u8] = b"sec_own_to_others";

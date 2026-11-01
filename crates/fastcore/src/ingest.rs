@@ -67,6 +67,10 @@ pub(crate) fn ingest_delivered_file(
             == mailrs_mailbox_kevy::scope::Bucket::Junk;
     let actions = mailrs_intake::rules::matching(state.net_conn(), addr, &a, held, in_junk);
     crate::rules::apply(state, addr, &a.thread_id, &actions);
+    // a sender kept to its newest few may now have one too many
+    if !a.is_own && !held && !in_junk {
+        crate::senders::after_delivery(state, addr, &a.from);
+    }
     effects::after_store(state.net_conn(), addr, &a, held);
 }
 

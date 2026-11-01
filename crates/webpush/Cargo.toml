@@ -1,0 +1,21 @@
+[package]
+name = "mailrs-webpush"
+version = "0.0.0"
+edition = "2024"
+publish = false
+description = "Web Push for mail notifications: RFC 8291 message encryption, RFC 8292 VAPID, and the push services a subscription may name."
+license = "Apache-2.0 OR MIT"
+
+[lints]
+workspace = true
+
+[dependencies]
+aws-lc-rs = "1"
+base64 = "0.22"
+hkdf = "0.12"
+sha2 = "0.10"
+serde_json = { workspace = true }
+url = "2"
+reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
+tokio = { workspace = true }
+mailrs-fetch = { path = "../fetch" }

@@ -64,21 +64,67 @@ pub fn warm() {
     if client().is_none() {
         tracing::info!("apns: not configured — push disabled");
     }
+    if crate::web_push::vapid().is_none() {
+        tracing::info!("web push: not configured — disabled");
+    }
 }
 
-/// Announce one delivered message to the recipient's devices.
+/// Announce one delivered message to the recipient's devices, if the
+/// reader's push policy (`crate::push_policy`) wants it, and count the
+/// decision.
 ///
 /// `is_own` and the spam category are excluded here rather than at the
 /// call site so the rule cannot be forgotten by a second caller: your
 /// own sent copy is not news, and pushing junk would make the junk
-/// filter pointless.
-pub fn maybe_notify(addr: &str, sender: &str, subject: &str, category: &str, is_own: bool) {
-    if is_own || category == "spam" || category == "scam" {
-        tracing::debug!(%addr, %category, is_own, "apns: not news, no push");
+/// filter pointless. Nothing is counted while no push channel is
+/// configured: a decision nothing could carry out is not one.
+pub fn maybe_notify(
+    net: Option<&mut kevy_client::Connection>,
+    addr: &str,
+    a: &crate::arrival::Arrival<'_>,
+) {
+    let (sender, subject, category) = (a.from.as_str(), a.subject.as_str(), a.category);
+    if a.is_own || category == "spam" || category == "scam" {
+        tracing::debug!(%addr, %category, is_own = a.is_own, "push: not news, no push");
         return;
     }
-    let Some(apns) = client() else {
-        tracing::debug!("apns: no client, no push");
+    let apns = client();
+    let web = crate::web_push::vapid();
+    let channels: Vec<&str> = [("apns", apns.is_some()), ("web", web.is_some())]
+        .into_iter()
+        .filter(|(_, on)| *on)
+        .map(|(c, _)| c)
+        .collect();
+    if channels.is_empty() {
+        tracing::debug!("push: no channel configured, no push");
+        return;
+    }
+    let now = chrono::Utc::now().timestamp();
+    let Some(conn) = net else {
+        tracing::warn!(%addr, "push: no network kevy, the push policy cannot be read; no push");
+        return;
+    };
+    let decision =
+        crate::push_policy::should_notify(conn, addr, sender, &a.thread_id, a.facts, category, now);
+    if decision.verdict != crate::push_policy::Verdict::Push {
+        for channel in &channels {
+            let _ = mailrs_core_sidestate::families::notify::count(
+                conn,
+                addr,
+                channel,
+                decision.verdict.outcome(),
+                now,
+            );
+        }
+        tracing::debug!(%addr, ?decision, "push: held back by the push policy");
+        return;
+    }
+    if let Some(vapid) = web {
+        let payload =
+            crate::web_push::payload(&a.thread_id, sender, subject, decision.hide_content);
+        crate::web_push::spawn(vapid, addr, payload, now);
+    }
+    let Some(apns) = apns else {
         return;
     };
     let Ok(handle) = tokio::runtime::Handle::try_current() else {
@@ -89,8 +135,11 @@ pub fn maybe_notify(addr: &str, sender: &str, subject: &str, category: &str, is_
     };
     let user = addr.to_string();
     // Header values arrive attacker-sized; the APNs payload cap is 4KB.
-    let title = truncated(sender, 200);
-    let body = truncated(subject, 300);
+    // With the content hidden a lock screen shows only that mail came.
+    let (title, body) = match decision.hide_content {
+        true => ("New mail".to_string(), String::new()),
+        false => (truncated(sender, 200), truncated(subject, 300)),
+    };
     handle.spawn(async move {
         let tokens = match tokio::task::spawn_blocking({
             let user = user.clone();
@@ -115,7 +164,14 @@ pub fn maybe_notify(addr: &str, sender: &str, subject: &str, category: &str, is_
             tracing::info!(%user, "apns: nothing registered for this account");
         }
         for token in tokens {
-            match apns.send_alert(&token, &title, &body).await {
+            let outcome = apns.send_alert(&token, &title, &body).await;
+            let counted = match &outcome {
+                Ok(Outcome::Sent) => "sent",
+                _ => "failed",
+            };
+            let who = user.clone();
+            let _ = tokio::task::spawn_blocking(move || count(&who, "apns", counted, now)).await;
+            match outcome {
                 Ok(Outcome::Sent) => {
                     // The success path used to log nothing, so a push
                     // that worked and a push that never happened read
@@ -154,6 +210,16 @@ fn load_tokens(user: &str) -> std::io::Result<Vec<String>> {
         .collect())
 }
 
+pub(crate) fn count(user: &str, channel: &str, outcome: &str, now: i64) {
+    let Ok(url) = std::env::var("MAILRS_KEVY_URL") else {
+        return;
+    };
+    let Ok(mut conn) = kevy_client::Connection::connect(&url) else {
+        return;
+    };
+    let _ = mailrs_core_sidestate::families::notify::count(&mut conn, user, channel, outcome, now);
+}
+
 fn prune_token(user: &str, token: &str) {
     let Ok(url) = std::env::var("MAILRS_KEVY_URL") else {
         return;
@@ -164,7 +230,7 @@ fn prune_token(user: &str, token: &str) {
     let _ = conn.hdel(tokens_key(user).as_bytes(), &[token.as_bytes()]);
 }
 
-fn truncated(text: &str, max_chars: usize) -> String {
+pub(crate) fn truncated(text: &str, max_chars: usize) -> String {
     if text.chars().count() <= max_chars {
         return text.to_string();
     }

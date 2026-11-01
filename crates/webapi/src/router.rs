@@ -13,12 +13,14 @@ use crate::*;
 mod mail;
 mod masked;
 mod mock;
+mod notify;
 mod rest;
 mod rules;
 
 use mail::*;
 use masked::*;
 use mock::*;
+use notify::*;
 use rest::*;
 use rules::*;
 
@@ -51,6 +53,7 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         .merge(mail)
         .merge(rule_routes())
         .merge(masked_routes())
+        .merge(sender_and_notify_routes())
         .merge(auth_routes)
         .merge(admin_routes)
         .merge(jmap_routes)
