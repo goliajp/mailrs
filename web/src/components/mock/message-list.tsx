@@ -1,15 +1,17 @@
 import type { MockDirection, MockMessageMeta } from '@/wire/schemas/mock'
 
+import { type Key, useT } from '@/i18n'
 import { cn } from '@/lib/cn'
 
 import { formatReceived, subjectLabel } from './format'
 
 export function DirectionBadge({ direction }: { direction: MockDirection }) {
+  const t = useT()
   const { className, label, title } = directionLook(direction)
   return (
     <span
       className={cn('text-tiny shrink-0 rounded px-1.5 py-0.5 font-semibold uppercase', className)}
-      title={title}
+      title={t(title)}
     >
       {label}
     </span>
@@ -28,19 +30,16 @@ export function MessageList({
   onSelect: (id: string) => void
   selected: null | string
 }) {
+  const t = useT()
   return (
     <div className="space-y-1">
       {dropped > 0 && (
-        <p className="text-warning text-xs">
-          {dropped} older messages were dropped to stay under the namespace cap
-        </p>
+        <p className="text-warning text-xs">{t('mock.list.dropped', { count: dropped })}</p>
       )}
       {messages.length === 0 && (
-        <p className="text-fg-muted py-8 text-center text-sm">
-          No mail yet. This list refreshes every 5 seconds
-        </p>
+        <p className="text-fg-muted py-8 text-center text-sm">{t('mock.list.empty')}</p>
       )}
-      <ul aria-label="Messages" className="space-y-1">
+      <ul aria-label={t('mock.list.label')} className="space-y-1">
         {messages.map((m) => (
           <li key={m.id}>
             <button
@@ -76,20 +75,20 @@ export function MessageList({
 function directionLook(direction: MockDirection): {
   className: string
   label: string
-  title: string
+  title: Key
 } {
   switch (direction) {
     case 'captured-out':
       return {
         className: 'bg-warning/15 text-warning',
         label: 'captured-out',
-        title: 'Sent by this sandbox and kept here instead of being delivered',
+        title: 'mock.dir.capturedOut',
       }
     case 'in':
       return {
         className: 'bg-accent/10 text-accent',
         label: 'in',
-        title: 'Received at a mock address',
+        title: 'mock.dir.in',
       }
   }
 }
