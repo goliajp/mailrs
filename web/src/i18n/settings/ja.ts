@@ -7,7 +7,8 @@ export const settingsJa: Record<SettingsKey, string> = {
   'settings.account.displayName': '表示名',
   'settings.account.domains': 'ドメイン',
   'settings.account.export': 'メールボックスのエクスポート',
-  'settings.account.exportHelp': 'すべてのメールを MBOX ファイルとしてダウンロードします',
+  'settings.account.exportHelp':
+    '「すべてのメール」を MBOX ファイルとしてダウンロードします。各メールのフォルダーと既読状態も含みます。迷惑メールとゴミ箱は含みません',
   'settings.account.exportMbox': 'MBOX でエクスポート',
   'settings.account.mismatch': '新しいパスワードが一致しません',
   'settings.account.notConfigured': '未設定',

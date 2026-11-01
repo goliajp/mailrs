@@ -1,5 +1,5 @@
 //! Miscellaneous fastcore-native handlers — keys, deliverability
-//! check, spam-feedback, mbox export, search.
+//! check, spam-feedback, search.
 
 use std::sync::Arc;
 
@@ -8,7 +8,6 @@ use axum::{
     Json,
     extract::{Extension, Query, State},
     http::StatusCode,
-    response::IntoResponse,
 };
 
 use crate::WebState;
@@ -88,136 +87,6 @@ pub async fn spam_feedback(
         Ok(())
     })?;
     Ok(StatusCode::NO_CONTENT)
-}
-
-// ── Mbox export ──────────────────────────────────────────────────
-
-/// GET /api/mail/export — stream every message in the user's inbox as
-/// a single mbox file. Walks the activity zset and concatenates each
-/// message's maildir bytes prefixed with `From ...` per RFC 4155.
-pub async fn export_mbox(
-    _: crate::session::confirm::Confirmed,
-    State(state): State<Arc<WebState>>,
-    Extension(AuthedUser(user)): Extension<AuthedUser>,
-) -> Result<axum::response::Response, StatusCode> {
-    use mailrs_message_store::MessageStore;
-    let maildir_root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
-    if !user.contains('@') {
-        return Err(StatusCode::BAD_REQUEST);
-    }
-    let store = mailrs_message_store::MaildirStore;
-
-    // Pull the full list of thread_ids via fastcore (single conversation
-    // list call with a large limit).
-    let req = mailrs_core_api::method::conversation::ListConversationsRequest {
-        filter: mailrs_core_api::types::ConversationFilter {
-            label: None,
-            accounts: None,
-            limit: 10_000,
-            before_ts: None,
-            category: None,
-            domains: None,
-            archived: false,
-            trashed: false,
-            include_quarantined: false,
-            folder: None,
-            unread: None,
-            starred: None,
-            pinned: None,
-            snoozed: None,
-            section: None,
-        },
-    };
-    let convs = state
-        .core
-        .list_conversations(&user, &req)
-        .await
-        .map_err(map_core_err)?;
-
-    let mut out = Vec::<u8>::new();
-    for c in convs.items {
-        // Every message in each thread — fetch via list_thread_messages RPC.
-        if let Ok(resp) = state.core.list_thread_messages(&user, &c.thread_id).await {
-            for w in resp.items {
-                let Some((path, id)) =
-                    crate::handlers::messages::blob_ref_location(&maildir_root, &user, &w.blob_ref)
-                else {
-                    continue;
-                };
-                if let Ok(Some(bytes)) = store.fetch(&path, &id).await {
-                    out.extend_from_slice(b"From MAILER-DAEMON ");
-                    let _ = writeln_epoch(&mut out, w.internal_date);
-                    out.extend_from_slice(&bytes);
-                    if !bytes.ends_with(b"\n") {
-                        out.push(b'\n');
-                    }
-                }
-            }
-        }
-    }
-    Ok((
-        [
-            ("content-type", "application/mbox"),
-            ("content-disposition", "attachment; filename=inbox.mbox"),
-        ],
-        out,
-    )
-        .into_response())
-}
-
-fn writeln_epoch(out: &mut Vec<u8>, epoch: i64) -> std::io::Result<()> {
-    use std::io::Write;
-    // POSIX asctime shape for the mbox From-line: `YYYY Mon  D HH:MM:SS`.
-    // Prior version hard-coded 1970-01-01 so every exported message
-    // sorted identically in downstream mbox clients. Compute the real
-    // Gregorian date from the epoch.
-    static MONTHS: [&str; 12] = [
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-    ];
-    let secs = epoch.max(0) as u64;
-    let mut days = secs / 86_400;
-    let sec_of_day = secs % 86_400;
-    let hour = (sec_of_day / 3600) as u32;
-    let minute = ((sec_of_day % 3600) / 60) as u32;
-    let second = (sec_of_day % 60) as u32;
-    let mut year: u32 = 1970;
-    loop {
-        let leap =
-            (year.is_multiple_of(4) && !year.is_multiple_of(100)) || year.is_multiple_of(400);
-        let ydays: u64 = if leap { 366 } else { 365 };
-        if days < ydays {
-            break;
-        }
-        days -= ydays;
-        year += 1;
-    }
-    let leap = (year.is_multiple_of(4) && !year.is_multiple_of(100)) || year.is_multiple_of(400);
-    let ml = [
-        31u64,
-        if leap { 29 } else { 28 },
-        31,
-        30,
-        31,
-        30,
-        31,
-        31,
-        30,
-        31,
-        30,
-        31,
-    ];
-    let mut month = 0usize;
-    while month < 12 && days >= ml[month] {
-        days -= ml[month];
-        month += 1;
-    }
-    let day = days + 1;
-    writeln!(
-        out,
-        "{year} {mon} {day:>2} {hour:02}:{minute:02}:{second:02}",
-        mon = MONTHS[month.min(11)]
-    )?;
-    Ok(())
 }
 
 // ── Search ────────────────────────────────────────────────────────

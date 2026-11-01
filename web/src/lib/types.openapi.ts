@@ -776,7 +776,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Autocomplete contacts from message history */
+        /**
+         * Autocomplete contacts from message history
+         * @description Matches on address or name, ranked: people before automated senders and mailing lists, then by how often the user wrote to them (counted three times) and heard from them, then by how recently the user wrote to them.
+         */
         get: operations["getContacts"];
         put?: never;
         post?: never;
@@ -1453,7 +1456,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Export mailbox as mbox format */
+        /**
+         * Export All Mail as mbox
+         * @description Every message in All Mail (everything but Junk and the Trash), streamed as mboxrd. Each message carries X-Mailrs-Folder (INBOX, Sent or Archive) and Status: RO when read, which an import reads back. Needs a recent password confirmation.
+         */
         get: operations["exportMbox"];
         put?: never;
         post?: never;
@@ -9057,10 +9063,7 @@ export interface operations {
     };
     exportMbox: {
         parameters: {
-            query?: {
-                /** @description Folder to export (default: INBOX) */
-                folder?: string;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
