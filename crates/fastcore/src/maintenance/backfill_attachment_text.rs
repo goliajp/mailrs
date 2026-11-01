@@ -8,6 +8,7 @@
 //! here since the outage on 2026-08-26, and dry by default.
 
 use super::prelude::*;
+use super::thread_cursor::{After, next, threads_after, users_from};
 
 /// Messages between pauses.
 const PAUSE_EVERY: u64 = 100;
@@ -17,8 +18,9 @@ pub(crate) struct BackfillQuery {
     /// Report without queueing. **Default true.**
     #[serde(default = "yes")]
     dry_run: bool,
-    #[serde(default)]
-    skip: u64,
+    /// The last thread the previous page finished: its `next_after`.
+    after_user: Option<String>,
+    after_thread: Option<String>,
     #[serde(default = "default_limit")]
     limit: u64,
     #[serde(default = "default_pause_ms")]
@@ -60,7 +62,6 @@ fn walk(
     hangup: &super::hangup::Hangup,
 ) -> std::io::Result<serde_json::Value> {
     let users = state.mailbox.list_account_addresses()?;
-    let mut seen = 0u64;
     let mut walked = 0u64;
     let mut files_read = 0u64;
     let mut no_file = 0u64;
@@ -77,28 +78,23 @@ fn walk(
     let mut done_truncated = 0u64;
     let mut stopped_early = false;
 
-    'walk: for user in &users {
+    let after = After::from_query(q.after_user.as_deref(), q.after_thread.as_deref());
+    let mut last: Option<After> = None;
+    'walk: for user in &users_from(users.clone(), after.as_ref()) {
         // one directory scan per mailbox: finding a flagged file by its id
         // lists cur/ each time, which made a full walk take half an hour
         let on_disk = crate::maildir_scan::paths_on_disk(state, user);
-        for tid in state
-            .mailbox
-            .all_thread_ids_for_user(user)
-            .unwrap_or_default()
-        {
+        for tid in threads_after(state, user, after.as_ref()) {
+            // a page ends between threads, so the cursor names a whole one
+            if walked >= q.limit {
+                stopped_early = true;
+                break 'walk;
+            }
             for mid in state
                 .mailbox
                 .user_thread_message_ids(user, &tid)
                 .unwrap_or_default()
             {
-                seen += 1;
-                if seen <= q.skip {
-                    continue;
-                }
-                if walked >= q.limit {
-                    stopped_early = true;
-                    break 'walk;
-                }
                 if hangup.hung_up() {
                     tracing::warn!(
                         walked,
@@ -162,6 +158,10 @@ fn walk(
                     Err(e) => tracing::warn!(error = %e, %user, %mid, "queueing pdf text failed"),
                 }
             }
+            last = Some(After {
+                user: user.clone(),
+                thread: tid.clone(),
+            });
         }
     }
 
@@ -177,7 +177,7 @@ fn walk(
     );
     Ok(serde_json::json!({
         "done": !stopped_early,
-        "next_skip": q.skip + walked,
+        "next_after": next(&last),
         "dry_run": q.dry_run,
         "accounts": users.len(),
         "messages_walked": walked,
@@ -212,7 +212,8 @@ mod tests {
         let state = crate::tests::fresh_state();
         let q = BackfillQuery {
             dry_run: false,
-            skip: 0,
+            after_user: None,
+            after_thread: None,
             limit: 10,
             pause_ms: 0,
         };
@@ -236,7 +237,8 @@ mod tests {
         seed(&state, "u@x", 5);
         let q = BackfillQuery {
             dry_run: true,
-            skip: 0,
+            after_user: None,
+            after_thread: None,
             limit: 100,
             pause_ms: 0,
         };
