@@ -61,15 +61,30 @@ fn every_mutation_keeps_the_membership_row_in_step() {
 
     st.set_starred(u, "t", true).unwrap();
     assert_eq!(field("starred"), "1", "set_starred must update the row");
+    assert_eq!(field("ix_starred"), "1", "and the marker its index keys on");
 
     st.set_archived(u, "t", true).unwrap();
     assert_eq!(field("archived"), "1", "set_archived must update the row");
+    assert_eq!(
+        field("ix_archived"),
+        "1",
+        "and the marker its index keys on"
+    );
 
     st.set_pinned(u, "t", true).unwrap();
     assert_eq!(field("pinned"), "1", "set_pinned must update the row");
+    assert_eq!(field("ix_pinned"), "1", "and the marker its index keys on");
 
     st.mark_seen(u, "t").unwrap();
     assert_eq!(field("unread"), "0", "mark_seen must update the row");
+    let row = st
+        .store()
+        .hgetall(crate::keys::thread_user(u, "t").as_bytes())
+        .unwrap();
+    assert!(
+        !row.iter().any(|(f, _)| f == b"ix_unread"),
+        "and remove the marker rather than zero it"
+    );
 
     st.move_category(u, "t", "spam").unwrap();
     assert_eq!(

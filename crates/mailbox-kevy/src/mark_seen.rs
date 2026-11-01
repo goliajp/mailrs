@@ -46,7 +46,7 @@ impl KevyMailboxStore {
             if !ctx.hexists(user_key.as_bytes(), b"tid")? {
                 return Ok(false);
             }
-            ctx.hset(user_key.as_bytes(), &[(b"unread" as &[u8], b"0" as &[u8])])?;
+            crate::thread_row::hset_membership(ctx, user_key.as_bytes(), &[(b"unread", b"0")])?;
             Ok(true)
         })?;
         // only somebody in the thread speaks for its shared copies, which

@@ -10,6 +10,7 @@ use std::io;
 
 use super::KevyMailboxStore;
 use super::keys;
+use crate::thread_row::hset_membership;
 
 impl KevyMailboxStore {
     /// Flip `archived` on or off for `thread_id`. Toggles both the
@@ -126,7 +127,8 @@ impl KevyMailboxStore {
                     thread_key.as_bytes(),
                     &[(b"category" as &[u8], new_category), (b"archived", b"0")],
                 )?;
-                ctx.hset(
+                hset_membership(
+                    ctx,
                     user_key.as_bytes(),
                     &[
                         (b"bucket".as_slice(), bucket.name().as_bytes()),
@@ -174,7 +176,7 @@ impl KevyMailboxStore {
                 if !ctx.hexists(user_key.as_bytes(), b"tid")? {
                     return Ok(false);
                 }
-                ctx.hset(user_key.as_bytes(), &[(field.as_bytes(), val)])?;
+                hset_membership(ctx, user_key.as_bytes(), &[(field.as_bytes(), val)])?;
                 Ok(true)
             })
             .map_err(std::io::Error::from)
@@ -198,7 +200,7 @@ impl KevyMailboxStore {
                 // now: the counter that used to be written beside it is
                 // derived from the per-user message rows instead, so
                 // there is nothing here to read back or bump.
-                ctx.hset(user_key.as_bytes(), &[(b"unread" as &[u8], b"1" as &[u8])])?;
+                hset_membership(ctx, user_key.as_bytes(), &[(b"unread", b"1")])?;
                 Ok(true)
             })
             .map_err(std::io::Error::from)
@@ -234,7 +236,8 @@ impl KevyMailboxStore {
                 if !ctx.hexists(key.as_bytes(), b"tid")? {
                     return Ok(false);
                 }
-                ctx.hset(
+                hset_membership(
+                    ctx,
                     key.as_bytes(),
                     &[
                         (b"snoozed_until" as &[u8], val.as_bytes()),
@@ -255,7 +258,7 @@ impl KevyMailboxStore {
     /// when nothing is due, as anything on a timer should.
     pub fn wake_snoozed(&self, now: i64) -> io::Result<usize> {
         let (rows, _) = self.store().idx_query(
-            b"threaduser.snoozed_until",
+            crate::thread_row::index_for("snoozed_until").as_bytes(),
             &kevy_embedded::IndexValue::I64(1),
             &kevy_embedded::IndexValue::I64(now),
             None,
@@ -278,7 +281,8 @@ impl KevyMailboxStore {
                 if due == 0 || due > now {
                     return Ok(false);
                 }
-                ctx.hset(
+                hset_membership(
+                    ctx,
                     key.as_bytes(),
                     &[
                         (b"snoozed_until" as &[u8], b"0" as &[u8]),
