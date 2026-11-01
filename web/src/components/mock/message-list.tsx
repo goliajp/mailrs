@@ -1,6 +1,6 @@
 import type { MockDirection, MockMessageMeta } from '@/wire/schemas/mock'
 
-import { type Key, useT } from '@/i18n'
+import { type Key, useLocale, useT } from '@/i18n'
 import { cn } from '@/lib/cn'
 
 import { formatReceived, subjectLabel } from './format'
@@ -31,6 +31,7 @@ export function MessageList({
   selected: null | string
 }) {
   const t = useT()
+  const locale = useLocale()
   return (
     <div className="space-y-1">
       {dropped > 0 && (
@@ -55,10 +56,10 @@ export function MessageList({
               <span className="flex items-center gap-2">
                 <DirectionBadge direction={m.direction} />
                 <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                  {subjectLabel(m.subject)}
+                  {subjectLabel(m.subject, t('mobile.noSubject'))}
                 </span>
                 <span className="text-fg-muted shrink-0 text-xs">
-                  {formatReceived(m.received_at)}
+                  {formatReceived(m.received_at, locale)}
                 </span>
               </span>
               <span className="text-fg-muted mt-0.5 block truncate text-xs">
