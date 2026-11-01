@@ -34,7 +34,13 @@ fn now() -> i64 {
     chrono::Utc::now().timestamp()
 }
 
-/// Keep this process's view of the sets current, for health.
+/// The reputation set this process holds, once `spawn_refresh` has run.
+pub fn reputation() -> Option<Arc<mailrs_reputation::Set>> {
+    LIVE.get().map(Live::reputation)
+}
+
+/// Keep this process's view of the sets current, for health and for the
+/// warnings shown beside links.
 pub fn spawn_refresh() {
     let own = std::env::var("MAILRS_LOCAL_DOMAINS")
         .unwrap_or_default()

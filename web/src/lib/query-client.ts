@@ -1,6 +1,8 @@
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
 import { keepPreviousData, QueryClient } from '@tanstack/react-query'
 
+import { WIRE_SCHEMA_VERSION } from '@/lib/wire-schema-version'
+
 // Single shared QueryClient. Imported by main.tsx (for the
 // PersistQueryClientProvider) and by use-mail-events.ts (for imperative
 // invalidateQueries / setQueryData calls outside the React tree).
@@ -34,14 +36,8 @@ export const queryClient = new QueryClient({
   },
 })
 
-// Build buster so a deploy of incompatible cache shape doesn't blow up on
-// users with old localStorage. Vite injects __APP_BUILD_ID__ at build time;
-// in dev / tests this is undefined → we fall back to a constant.
-declare const __APP_BUILD_ID__: string | undefined
-const buildId = typeof __APP_BUILD_ID__ !== 'undefined' ? __APP_BUILD_ID__ : 'dev'
-
 /**
- * One key, forever — the build id is the *buster*, not part of the name.
+ * One key, forever — the version is the *buster*, not part of the name.
  *
  * It used to be `mailrs:rq:v1:${buildId}`, which changed on every
  * deploy and left the previous snapshot behind: nothing ever deleted a
@@ -56,6 +52,10 @@ const buildId = typeof __APP_BUILD_ID__ !== 'undefined' ? __APP_BUILD_ID__ : 'de
  * the one in the stored blob and throws the blob away when they
  * differ. That is the same protection the old name gave, minus the
  * leak.
+ *
+ * The buster was the build id until 2026-11-01, which dropped every
+ * cached list and thread on every deploy, wire change or not; it is the
+ * wire schema version now (`wire-schema-version.ts`).
  */
 export const PERSIST_KEY = 'mailrs:rq:v1'
 
@@ -67,8 +67,8 @@ export const persister = createSyncStoragePersister({
   throttleTime: 1000,
 })
 
-/** The buster: a new build discards the previous build's cache. */
-export const persistBuster = buildId
+/** The buster: a change in the wire shapes discards the cache written with the old ones. */
+export const persistBuster = `wire-${WIRE_SCHEMA_VERSION}`
 
 /**
  * Delete the snapshots earlier builds left behind.

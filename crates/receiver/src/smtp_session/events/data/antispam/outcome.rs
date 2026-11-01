@@ -73,6 +73,7 @@ pub(super) fn from_decision(
         DeliveryDecision::Junk {
             auth_header,
             reason,
+            ..
         } => {
             ctx.metrics.inbound_junk();
             metrics::counter!("mailrs_inbound_verdict_total", "verdict" => "junk").increment(1);

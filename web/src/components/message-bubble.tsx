@@ -1,3 +1,4 @@
+import type { LinkWarning } from '@/lib/link-warnings'
 import type { AttachmentInfo } from '@/lib/types'
 
 import { File } from 'lucide-react'
@@ -29,6 +30,7 @@ export const MessageBubble = memo(function MessageBubble({
   imagesFrom,
   imagesOf,
   isOwn,
+  linkWarnings,
   textBody,
   uid,
 }: {
@@ -39,6 +41,8 @@ export const MessageBubble = memo(function MessageBubble({
   /** The thread, so images the server has no copy of are fetched on request. */
   imagesOf?: string
   isOwn: boolean
+  /** Links the server flagged, marked where they appear in the html. */
+  linkWarnings?: readonly LinkWarning[]
   textBody: null | string
   uid: number
 }) {
@@ -73,6 +77,7 @@ export const MessageBubble = memo(function MessageBubble({
               html={parts.body}
               imagesFrom={imagesFrom}
               imagesOf={imagesOf}
+              linkWarnings={linkWarnings}
               uid={uid}
             />
           </div>
@@ -110,6 +115,7 @@ export const MessageBubble = memo(function MessageBubble({
                   html={parts.quoted}
                   imagesFrom={imagesFrom}
                   imagesOf={imagesOf}
+                  linkWarnings={linkWarnings}
                   uid={uid}
                 />
               </div>
