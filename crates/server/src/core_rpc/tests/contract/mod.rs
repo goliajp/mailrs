@@ -21,6 +21,7 @@ mod labels;
 mod mail;
 mod operator;
 mod search;
+mod sections;
 mod sent;
 mod side;
 mod threads;
@@ -43,6 +44,7 @@ async fn the_two_cores_answer_every_client_call_alike() {
     side::run(&cores, &mut d).await;
     sent::run(&cores, &mut d).await;
     import::run(&cores, &mut d).await;
+    sections::run(&cores, &mut d).await;
     accounts::teardown(&cores, &mut d).await;
     d.both(
         "healthz",

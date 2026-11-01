@@ -91,6 +91,7 @@ pub(super) fn deliver_req(
         unread: true,
         uid,
         payload_wire_json: wire.to_string(),
+        section_facts: None,
     }
 }
 

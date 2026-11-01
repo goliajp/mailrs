@@ -258,6 +258,12 @@ mod table_spec_tests {
                 .iter()
                 .map(|f| f.as_bytes().to_vec()),
         );
+        // and the section writer's two, absent until a message is recorded
+        written.extend(
+            crate::sections::COLUMNS
+                .iter()
+                .map(|c| c.as_bytes().to_vec()),
+        );
         for (col, _) in &thread_user_spec().columns {
             assert!(
                 written.contains(col),

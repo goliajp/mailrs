@@ -53,7 +53,7 @@ pub(crate) fn thread_query<'a>(user: &'a str, f: &'a ConversationFilter) -> Thre
         true => None,
         false => Some(f.archived),
     };
-    ThreadQuery {
+    let q = ThreadQuery {
         scope,
         sent: is_sent_folder(folder),
         archived,
@@ -70,6 +70,29 @@ pub(crate) fn thread_query<'a>(user: &'a str, f: &'a ConversationFilter) -> Thre
         before_ts: f.before_ts,
         limit: Some(i64::from(f.limit)),
         ..ThreadQuery::all(user)
+    };
+    in_section(q, f)
+}
+
+/// One section of the sectioned inbox: the live list across folders, as
+/// the kevy core reads it off its own axis. `q` unchanged without one.
+fn in_section<'a>(q: ThreadQuery<'a>, f: &ConversationFilter) -> ThreadQuery<'a> {
+    let Some(section) = f
+        .section
+        .as_deref()
+        .and_then(mailrs_mailbox::section::Section::named)
+    else {
+        return q;
+    };
+    ThreadQuery {
+        scope: Scope::All,
+        sent: false,
+        archived: Some(false),
+        trashed: Some(false),
+        held: Held::Hide,
+        section: Some(section),
+        awaiting_due_by: f.followup_due_by,
+        ..q
     }
 }
 

@@ -55,6 +55,7 @@ fn deliver(message_id: &str, uid: u32, thread_id: &str, date: i64) -> DeliverMes
         unread: true,
         uid,
         payload_wire_json: wire.to_string(),
+        section_facts: None,
     }
 }
 

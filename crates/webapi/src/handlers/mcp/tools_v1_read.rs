@@ -45,6 +45,7 @@ impl MailrsMcpService {
                 pinned: None,
                 snoozed: None,
                 section: None,
+                followup_due_by: None,
             },
         };
         let resp = self

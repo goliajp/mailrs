@@ -38,6 +38,7 @@ pub mod push;
 pub mod reports;
 pub mod route;
 pub mod rules;
+pub mod section_facts;
 pub mod sent;
 pub mod sieve;
 pub mod spool;

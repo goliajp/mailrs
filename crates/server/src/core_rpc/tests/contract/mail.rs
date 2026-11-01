@@ -2,7 +2,7 @@
 //! flags, analysis, invitations.
 
 use mailrs_core_api::method::admin::SetMessageFlagsRequest;
-use mailrs_core_api::method::thread::DeliverMessageRequest;
+use mailrs_core_api::method::thread::{DeliverMessageRequest, SectionFactsWire};
 
 use super::harness::{Cores, Diffs};
 use super::{ALICE, BOB};
@@ -62,6 +62,25 @@ impl Arrival<'_> {
             unread: self.unread,
             uid: self.uid,
             payload_wire_json: wire.to_string(),
+            section_facts: Some(self.section_facts()),
+        }
+    }
+
+    /// What delivery would have recorded: the user's own mail went to
+    /// someone; the shop and the billing robot are not people; a stranger
+    /// is a first contact; everyone else wrote to the user directly.
+    fn section_facts(&self) -> SectionFactsWire {
+        if self.sender == self.user {
+            return SectionFactsWire {
+                to_others: true,
+                ..SectionFactsWire::default()
+            };
+        }
+        SectionFactsWire {
+            direct: true,
+            from_person: self.sender != SHOP && self.sender != BILLING,
+            first_contact: self.sender == STRANGER,
+            to_others: false,
         }
     }
 }
@@ -69,6 +88,7 @@ impl Arrival<'_> {
 const FRIEND: &str = "Friend <friend@partner.test>";
 const SHOP: &str = "Shop <news@shop.test>";
 const BILLING: &str = "Billing <noreply@billing.test>";
+pub(super) const STRANGER: &str = "Eve <eve@far.test>";
 
 /// The mailbox every later scenario reads: inbox mail in a two-message
 /// thread, a notification, a promotion, junk, mail Alice sent, and one
@@ -160,6 +180,18 @@ pub(super) fn arrivals() -> Vec<Arrival<'static>> {
             sender: FRIEND,
             subject: "Both of you",
             date: 1_700_000_700,
+            category: "inbox",
+            unread: true,
+        },
+        // a first contact, for the sectioned inbox's New section
+        Arrival {
+            message_id: "m8@far.test",
+            uid: 8,
+            thread_id: "t-intro@far.test",
+            user: ALICE,
+            sender: STRANGER,
+            subject: "Introduction",
+            date: 1_700_000_050,
             category: "inbox",
             unread: true,
         },

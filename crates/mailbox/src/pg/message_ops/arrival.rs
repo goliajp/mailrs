@@ -15,6 +15,11 @@ pub struct ArrivalFacts<'a> {
     pub sender_trust: &'a str,
     /// Attachments in the message, or `None` when not counted.
     pub attachments: Option<u32>,
+    /// What delivery recorded for the sectioned inbox, or `None` for a
+    /// message carried over without them (its columns stay NULL).
+    pub section: Option<crate::section::MessageFacts>,
+    /// The sender's bare address, lowercased: what an acceptance matches.
+    pub from_addr: &'a str,
 }
 
 impl PgMailboxStore {
@@ -27,12 +32,21 @@ impl PgMailboxStore {
         facts: ArrivalFacts<'_>,
     ) -> Result<Inserted, StoreError> {
         let inserted = MailboxStore::insert_message(self, input).await?;
+        let section = facts.section;
         sqlx::query(
-            "UPDATE messages SET snippet = $1, sender_trust = $2, attachments = $3 WHERE id = $4",
+            "UPDATE messages SET snippet = $1, sender_trust = $2, attachments = $3,
+                    direct = $4, from_person = $5, first_contact = $6, to_others = $7,
+                    from_addr = $8
+              WHERE id = $9",
         )
         .bind(facts.snippet)
         .bind(facts.sender_trust)
         .bind(facts.attachments.map(|n| n as i32))
+        .bind(section.map(|s| s.direct))
+        .bind(section.map(|s| s.from_person))
+        .bind(section.map(|s| s.first_contact))
+        .bind(section.map(|s| s.to_others))
+        .bind(facts.from_addr)
         .bind(inserted.id)
         .execute(&self.pool)
         .await?;
@@ -67,5 +81,29 @@ impl PgMailboxStore {
             return Ok(inbound.map(|(s,)| s));
         }
         self.thread_root_subject(user, thread_id).await
+    }
+}
+
+impl PgMailboxStore {
+    /// Record that `user` accepted each of `addresses` at `at`: a fact per
+    /// sender, appended; one already there keeps its first time.
+    pub async fn accept_senders(
+        &self,
+        user: &str,
+        addresses: &[String],
+        at: i64,
+    ) -> Result<(), sqlx::Error> {
+        for address in addresses {
+            sqlx::query(
+                "INSERT INTO accepted_senders (account_address, address, accepted_at)
+                 VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
+            )
+            .bind(user)
+            .bind(address)
+            .bind(at)
+            .execute(&self.pool)
+            .await?;
+        }
+        Ok(())
     }
 }

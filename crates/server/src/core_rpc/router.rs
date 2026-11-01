@@ -24,6 +24,7 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
     use mailrs_core_api::method::import as import_paths;
     use mailrs_core_api::method::mailbox as mb_paths;
     use mailrs_core_api::method::message as msg_paths;
+    use mailrs_core_api::method::senders as senders_paths;
     use mailrs_core_api::method::sent as sent_paths;
     use mailrs_core_api::method::thread as th_paths;
 
@@ -65,6 +66,10 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
         .route(
             th_paths::PATH_LIST_THREAD_MESSAGES,
             get(handlers::thread::list_thread_messages).post(handlers::deliver::deliver_message),
+        )
+        .route(
+            senders_paths::PATH_ACCEPT_SENDERS,
+            post(handlers::senders::accept_senders),
         )
         .route(
             import_paths::PATH_IMPORT_MESSAGE,

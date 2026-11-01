@@ -136,6 +136,7 @@ pub(crate) fn store_arrival(
     if let Err(e) = state.mailbox.record_message_arrival(&arrival) {
         tracing::warn!(error = %e, %addr, %root, "drain ingest: record_message_arrival failed");
     }
+    crate::sections::record(state, addr, root, a.date, a.is_own, a.facts, &a.from);
     let held = hold_if_fraud(state, addr, root, &a.message_id, fraud_verdict);
     // register this message's id → thread so future replies that cite it
     // (In-Reply-To / References) resolve into the same conversation.

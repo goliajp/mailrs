@@ -100,6 +100,10 @@ fn stored_values() -> Vec<Vec<u8>> {
         "has_action",
         "snoozed_until",
         "trashed_at",
+        // the sectioned inbox stacks on every flag list: "unread, and
+        // waiting for my answer"
+        "section",
+        "awaiting_since",
         // Stored beside every index as well as keyed by its own, so
         // "Starred, and only this mailbox" is one walk. Without it
         // here, the account could be keyed on but never filtered on,
@@ -155,6 +159,17 @@ fn columns() -> Vec<(Vec<u8>, ValType)> {
         // A flag would need that sweep, and a sweep that flips one
         // bit per thread per minute never converges.
         col("snoozed_until", ValType::I64),
+        // Which part of the sectioned inbox the conversation is in for
+        // this reader (`mailrs_mailbox::section`), derived from its last
+        // messages by the writers that change them. Absent on a row no
+        // writer has reached since the column existed, which keeps it out
+        // of every section until the backfill does.
+        col("section", ValType::Str),
+        // Epoch seconds the reader's last message went out while the
+        // conversation is waiting on a person, or 0. Keyed like
+        // `snoozed_until`: "due for a follow-up" is the range
+        // `[1, now - N days]`, so nothing has to sweep a row into it.
+        col("awaiting_since", ValType::I64),
     ]
 }
 
@@ -180,6 +195,8 @@ fn indexes() -> Vec<TableIndex> {
         // Keyed on when a thread went to the Trash, the same way: the
         // purge asks for `[1, cutoff]`, empty until something is due.
         "trashed_at",
+        // When the reader started waiting on a reply; see the column.
+        "awaiting_since",
         // Which connected mailbox the conversation arrived at.
         // Keyed like the flags rather than folded into an
         // ORDERPATH: "only these accounts" is N walks on this
@@ -225,6 +242,19 @@ fn orderpaths() -> Vec<OrderPath> {
                 ("user", false),
                 ("bucket", false),
                 ("sent_only", false),
+                ("archived", false),
+                ("quarantined", false),
+                ("trashed", false),
+                ("activity", true),
+                ("ord", false),
+            ],
+        ),
+        // The sectioned inbox: one section of the live list, newest first.
+        path(
+            "by_user_section",
+            &[
+                ("user", false),
+                ("section", false),
                 ("archived", false),
                 ("quarantined", false),
                 ("trashed", false),

@@ -151,6 +151,37 @@ pub fn record_engagement(
 
 /// Read one sender's scoring record.
 ///
+/// Whether anything has passed between `user` and `email`: a message
+/// received from them, one sent to them, or an acceptance. `false` for a
+/// sender never seen; read before the arriving message is recorded, so a
+/// message is never evidence of its own history.
+pub fn known(conn: &mut kevy_client::Connection, user: &str, email: &str) -> bool {
+    let key = contact_key(user, email);
+    hget_u32(conn, &key, "received_count") > 0
+        || hget_u32(conn, &key, "sent_count") > 0
+        || hget_str(conn, &key, "accepted_at").is_some()
+}
+
+/// Record that `user` accepted `email` as a sender, at `now`. A fact of its
+/// own: what delivery recorded about earlier messages stays as it was.
+pub fn accept(
+    conn: &mut kevy_client::Connection,
+    user: &str,
+    email: &str,
+    now: i64,
+) -> std::io::Result<()> {
+    conn.hset(
+        contact_key(user, email).as_bytes(),
+        &[(b"accepted_at" as &[u8], now.to_string().as_bytes())],
+    )?;
+    Ok(())
+}
+
+/// Whether `user` has accepted `email` as a sender.
+pub fn accepted(conn: &mut kevy_client::Connection, user: &str, email: &str) -> bool {
+    hget_str(conn, &contact_key(user, email), "accepted_at").is_some()
+}
+
 /// A sender with no record yields the all-false / zero default, which is
 /// the correct reading: no relationship is known yet.
 pub fn scoring_for(conn: &mut kevy_client::Connection, user: &str, email: &str) -> ContactScoring {

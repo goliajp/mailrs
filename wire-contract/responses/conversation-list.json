@@ -22,6 +22,8 @@
     "unread_count": 0,
     "quarantined": false,
     "trashed_at": 0,
-    "labels": []
+    "labels": [],
+    "section": "reply",
+    "awaiting_since": 0
   }
 ]

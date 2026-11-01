@@ -45,6 +45,7 @@ mod push;
 mod router;
 mod routes;
 mod rules;
+mod sections;
 mod sent;
 mod snooze_wake;
 mod store_motion;
