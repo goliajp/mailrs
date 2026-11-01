@@ -5269,17 +5269,92 @@
     "/api/calendar/conflicts": {
       "get": {
         "summary": "Get calendar conflicts",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Events overlapping the window, other than one named by exclude_uid. An event the reader declined is not a conflict.",
         "responses": {
           "200": {
             "description": "Success",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CalendarEvent"
+                  }
                 }
               }
             }
+          }
+        },
+        "parameters": [
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ISO-8601 UTC start of the window"
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ISO-8601 UTC end of the window"
+          },
+          {
+            "name": "exclude_uid",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/calendar/events": {
+      "get": {
+        "summary": "List calendar events",
+        "description": "Every event overlapping the window, in start order: the reader's own, invitations filed from mail (with the reader's answer), and each subscribed feed's. Declined events are included. 400 when either bound is not an instant.",
+        "parameters": [
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ISO-8601 UTC start of the window"
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ISO-8601 UTC end of the window"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CalendarEvent"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "start or end is not an instant"
           }
         }
       }
@@ -14215,6 +14290,65 @@
           "version": {
             "type": "integer",
             "readOnly": true
+          }
+        }
+      },
+      "CalendarEvent": {
+        "type": "object",
+        "required": [
+          "uid",
+          "summary"
+        ],
+        "properties": {
+          "uid": {
+            "type": "string",
+            "description": "iCalendar UID"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "dtstart": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "RFC 3339 instant"
+          },
+          "dtend": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "RFC 3339 instant; absent means one hour"
+          },
+          "organizer": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "CONFIRMED / TENTATIVE / CANCELLED"
+          },
+          "source": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "feed:{id} for a subscribed feed, mail:{uid} for an invitation filed from mail, caldav for an event a CalDAV client saved"
+          },
+          "partstat": {
+            "type": "string",
+            "enum": [
+              "ACCEPTED",
+              "TENTATIVE",
+              "DECLINED"
+            ],
+            "description": "The reader's answer to an invitation; absent when none was given"
           }
         }
       }

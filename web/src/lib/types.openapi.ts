@@ -2978,11 +2978,17 @@ export interface paths {
         };
         /**
          * Get calendar conflicts
-         * @description Stub — full schema TBD.
+         * @description Events overlapping the window, other than one named by exclude_uid. An event the reader declined is not a conflict.
          */
         get: {
             parameters: {
-                query?: never;
+                query: {
+                    /** @description ISO-8601 UTC start of the window */
+                    start: string;
+                    /** @description ISO-8601 UTC end of the window */
+                    end: string;
+                    exclude_uid?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -2995,8 +3001,59 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": Record<string, never>;
+                        "application/json": components["schemas"]["CalendarEvent"][];
                     };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/calendar/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List calendar events
+         * @description Every event overlapping the window, in start order: the reader's own, invitations filed from mail (with the reader's answer), and each subscribed feed's. Declined events are included. 400 when either bound is not an instant.
+         */
+        get: {
+            parameters: {
+                query: {
+                    /** @description ISO-8601 UTC start of the window */
+                    start: string;
+                    /** @description ISO-8601 UTC end of the window */
+                    end: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CalendarEvent"][];
+                    };
+                };
+                /** @description start or end is not an instant */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
                 };
             };
         };
@@ -6389,6 +6446,25 @@ export interface components {
             /** @description One reply per sender within this many days */
             days: number;
             readonly version?: number;
+        };
+        CalendarEvent: {
+            /** @description iCalendar UID */
+            uid: string;
+            summary: string;
+            /** @description RFC 3339 instant */
+            dtstart?: string | null;
+            /** @description RFC 3339 instant; absent means one hour */
+            dtend?: string | null;
+            organizer?: string | null;
+            /** @description CONFIRMED / TENTATIVE / CANCELLED */
+            status?: string | null;
+            /** @description feed:{id} for a subscribed feed, mail:{uid} for an invitation filed from mail, caldav for an event a CalDAV client saved */
+            source?: string | null;
+            /**
+             * @description The reader's answer to an invitation; absent when none was given
+             * @enum {string}
+             */
+            partstat?: "ACCEPTED" | "TENTATIVE" | "DECLINED";
         };
     };
     responses: never;

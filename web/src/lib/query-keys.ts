@@ -157,6 +157,8 @@ export const calendarKeys = {
   all: () => ['calendar'] as const,
   conflicts: (startIso: string, endIso: string, excludeUid: string) =>
     [...calendarKeys.all(), 'conflicts', startIso, endIso, excludeUid] as const,
+  events: (startIso: string, endIso: string) =>
+    [...calendarKeys.all(), 'events', startIso, endIso] as const,
 }
 
 export const messageKeys = {

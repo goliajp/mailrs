@@ -39,6 +39,7 @@ pub fn from_ics(ics: &str, source: &str) -> Result<StoredEvent, String> {
         source: source.to_string(),
         sequence: parsed.sequence,
         ics: Some(ics.to_string()),
+        partstat: None,
     })
 }
 
@@ -141,6 +142,7 @@ mod tests {
             source: "mail:m1".into(),
             sequence: 3,
             ics: None,
+            partstat: None,
         };
         let text = to_ics(&ev);
         assert_eq!(text, to_ics(&ev));

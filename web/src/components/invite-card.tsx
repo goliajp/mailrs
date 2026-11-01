@@ -143,9 +143,9 @@ export function InviteCard({
         return
       }
       setRsvp('sent')
-      // Reload detail so the persisted rsvp_status pill shows up
-      // immediately rather than on next refresh.
+      // the persisted rsvp_status pill and the calendar event both changed
       void queryClient.invalidateQueries({ queryKey: messageKeys.detail(messageUid) })
+      void queryClient.invalidateQueries({ queryKey: calendarKeys.all() })
     } catch (e) {
       setRsvp({ error: e instanceof Error ? e.message : 'failed' })
     }
