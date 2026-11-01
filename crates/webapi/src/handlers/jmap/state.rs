@@ -12,6 +12,7 @@
 //! and the client syncs from scratch, which RFC 8620 §5.2 allows.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::sync::LazyLock;
 use std::time::Duration;
 
 use mailrs_core_api::method::message_index::fnv64;
@@ -20,9 +21,25 @@ use serde_json::Value;
 
 use super::view::View;
 
-/// Snapshots kept per user: the one number that bounds what JMAP keeps in
-/// the network kevy, at most `KEEP` × 16 bytes × messages per account.
-pub const KEEP: usize = 32;
+/// Snapshots kept per user, from `MAILRS_JMAP_SNAPSHOTS_KEPT` (16 when
+/// unset): the one number that bounds what JMAP keeps in the network kevy,
+/// at most this × 16 bytes × messages per account. A value that is not a
+/// positive whole number stops the process when it is first read, at start.
+pub static KEEP: LazyLock<usize> =
+    LazyLock::new(|| match std::env::var("MAILRS_JMAP_SNAPSHOTS_KEPT") {
+        Err(_) => DEFAULT_KEEP,
+        Ok(raw) => match parse_keep(&raw) {
+            Some(n) => n,
+            None => panic!("MAILRS_JMAP_SNAPSHOTS_KEPT: {raw:?} is not a positive whole number"),
+        },
+    });
+
+const DEFAULT_KEEP: usize = 16;
+
+fn parse_keep(raw: &str) -> Option<usize> {
+    raw.trim().parse().ok().filter(|n| *n > 0)
+}
+
 /// How long a snapshot is kept at most.
 pub const TTL: Duration = Duration::from_secs(30 * 24 * 3600);
 
@@ -222,7 +239,7 @@ pub fn remember(user: &str, state: &str, snap: &Snapshot) -> Result<(), JmapMeth
         }
         states.retain(|s| *s != state);
         states.insert(0, state.clone());
-        let gone: Vec<String> = states.split_off(states.len().min(KEEP));
+        let gone: Vec<String> = states.split_off(states.len().min(*KEEP));
         c.set_with_ttl(snapshot_key(&user, &state).as_bytes(), &bytes, TTL)?;
         c.set_with_ttl(order_key.as_bytes(), states.join("\n").as_bytes(), TTL)?;
         if !gone.is_empty() {
@@ -369,6 +386,14 @@ mod tests {
             .expect("VmRSS")
     }
 
+    #[test]
+    fn the_kept_count_is_a_positive_whole_number() {
+        assert_eq!(parse_keep(" 16 "), Some(16));
+        assert_eq!(parse_keep("0"), None);
+        assert_eq!(parse_keep("-3"), None);
+        assert_eq!(parse_keep("sixteen"), None);
+    }
+
     /// What snapshots of a 30,000-message mailbox cost in a real
     /// kevy-server: one, then [`KEEP`] of them. A measurement, run by hand
     /// on a Linux host with docker:
@@ -412,7 +437,7 @@ mod tests {
         );
         let user = "measure@x.test".to_string();
         tokio::task::spawn_blocking(move || {
-            for salt in 1..=KEEP as u32 {
+            for salt in 1..=*KEEP as u32 {
                 let s = snapshot(salt);
                 remember(&user, &s.state(), &s).expect("kept");
             }
@@ -422,7 +447,8 @@ mod tests {
         let rss2 = server_rss_kib(container.id());
         let info = resp(&url, &["INFO", "memory"]);
         println!(
-            "{KEEP} kept: server RSS {rss1} -> {rss2} KiB (+{} KiB); INFO memory -> {info:?}",
+            "{} kept: server RSS {rss1} -> {rss2} KiB (+{} KiB); INFO memory -> {info:?}",
+            *KEEP,
             rss2.saturating_sub(rss1)
         );
     }

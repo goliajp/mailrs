@@ -18,6 +18,37 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### JMAP works with ordinary mail clients
+
+- Email ids are stable (`M` + the message's uid, unchanged by a move),
+  so `Email/get` by id works; `state` is real and `Email/changes`,
+  `Mailbox/changes`, `Thread/changes` and `Email/queryChanges` answer
+  from snapshots of the account's mail kept in the shared kevy (the
+  last `MAILRS_JMAP_SNAPSHOTS_KEPT`, 16 by default, at most 30 days; a
+  state older than that answers `cannotCalculateChanges`, and the
+  client syncs again).
+- `/jmap/eventsource/` sends `StateChange` at once on new mail and
+  within 5 seconds for any other change, whoever made it.
+- Uploads (`/jmap/upload/{account}/`, 50 MiB each, 1 GiB per account,
+  deleted a day after last use, under `MAILRS_JMAP_UPLOAD_DIR`,
+  `/data/jmap-uploads` by default) and downloads
+  (`/jmap/download/...`, always as an attachment, `nosniff`, sandboxed).
+  `/api/health` reports `jmap_uploads`.
+- `Email/import`, `Email/set` (keywords, moves, new messages, destroy),
+  `Mailbox/set` (labels), `Identity/get`, and `EmailSubmission/set`
+  with `onSuccessUpdateEmail`: a client can file a draft in Drafts,
+  send it, and move it to Sent. Sending checks the From address as the
+  web client does and records the send in the same list.
+- Mailboxes are the places a conversation can be (Inbox, Archive,
+  Sent, Drafts, Junk, Trash) and one per label; moving a message moves
+  its conversation, as in the web client.
+- Mail clients sign in with an app password over HTTP Basic, which is
+  accepted over HTTPS only and follows the account's app-passwords-only
+  setting and lockout like IMAP. Agent keys have a new `jmap` scope.
+- The session document's URLs come from `MAILRS_PUBLIC_BASE_URL`
+  (`https://` + `MAILRS_HOSTNAME` when unset), never from the request.
+- The limits the session document declares are enforced.
+
 ### Undo send works, and cancelling a send no longer disturbs anyone else's (2.135.5)
 
 - The Undo in the "sent" toast almost never stopped anything: the
