@@ -52,6 +52,9 @@ pub(crate) fn ingest_delivered_file(
     }
     effects::before_store(state.net_conn(), addr, &a, body.len());
     let held = store_arrival(state, addr, blob_ref, body, &a, fraud_verdict);
+    if !a.is_own {
+        crate::ledger::record_delivery(state, addr, &a.message_id, body);
+    }
     // remote images are fetched now, as the mail arrives, not when it is
     // read; mail in Junk or held as fraud is not fetched for
     if target_folder != "Junk" && !held {
@@ -287,6 +290,51 @@ four days on, still blocked\r\n";
         assert!(
             sent.contains(&"ticket1@example.com".to_string()),
             "the user replied in this thread and it is not on the Sent axis: {sent:?}"
+        );
+    }
+
+    /// Mail from outside goes into the fact ledger with the sender's
+    /// relationship counted; the reader's own reply does not.
+    #[test]
+    fn delivered_mail_is_recorded_in_the_ledger_and_own_mail_is_not() {
+        const INBOUND: &[u8] = b"From: Support <support@vendor.example>\r\n\
+To: bob@golia.jp\r\n\
+Subject: Ledger check\r\n\
+Message-ID: <ledger-in@vendor.example>\r\n\
+Date: Mon, 4 Aug 2026 10:00:00 +0900\r\n\
+\r\n\
+see https://pay.vendor.example/invoice\r\n";
+        const OWN: &[u8] = b"From: Bob <bob@golia.jp>\r\n\
+To: support@vendor.example\r\n\
+Subject: RE: Ledger check\r\n\
+Message-ID: <ledger-own@golia.jp>\r\n\
+In-Reply-To: <ledger-in@vendor.example>\r\n\
+Date: Tue, 5 Aug 2026 10:00:00 +0900\r\n\
+\r\n\
+thanks\r\n";
+        let state = fresh_state();
+        state.mailbox.ensure_ledger_tables().unwrap();
+        let user = "bob@golia.jp";
+        ingest_delivered_file(&state, user, "in.eml", INBOUND, "INBOX", None);
+        ingest_delivered_file(&state, user, "own.eml", OWN, "INBOX", None);
+
+        let from_vendor = state.mailbox.ledger_by_domain("vendor.example").unwrap();
+        assert_eq!(from_vendor.len(), 1, "{from_vendor:?}");
+        assert_eq!(from_vendor[0].1, user);
+        assert_eq!(
+            state
+                .mailbox
+                .ledger_by_link_host("pay.vendor.example")
+                .unwrap()
+                .len(),
+            1
+        );
+        assert!(
+            state
+                .mailbox
+                .ledger_by_domain("golia.jp")
+                .unwrap()
+                .is_empty()
         );
     }
 

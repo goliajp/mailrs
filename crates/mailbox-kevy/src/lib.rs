@@ -77,6 +77,7 @@ pub mod keys;
 mod labels;
 pub use labels::LabelOpError;
 pub use mailrs_mailbox::labels::{LABEL_COLORS, Label, LabelError, label_color, label_name};
+pub mod ledger;
 mod list_threads;
 mod mark_seen;
 pub mod mbid;
