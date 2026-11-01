@@ -7,7 +7,8 @@ export const settingsZh: Record<SettingsKey, string> = {
   'settings.account.displayName': '显示名称',
   'settings.account.domains': '域名',
   'settings.account.export': '导出邮箱',
-  'settings.account.exportHelp': '把你的全部邮件下载为一个 MBOX 文件',
+  'settings.account.exportHelp':
+    '把「全部邮件」下载为一个 MBOX 文件，每封信带着所在文件夹和已读状态，不含垃圾邮件和废纸篓',
   'settings.account.exportMbox': '导出为 MBOX',
   'settings.account.mismatch': '两次输入的新密码不一样',
   'settings.account.notConfigured': '未设置',

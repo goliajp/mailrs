@@ -1747,8 +1747,7 @@
             "in": "query",
             "schema": {
               "type": "integer",
-              "default": 20,
-              "maximum": 100
+              "default": 5
             }
           }
         ],
@@ -1766,7 +1765,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Matches on address or name, ranked: people before automated senders and mailing lists, then by how often the user wrote to them (counted three times) and heard from them, then by how recently the user wrote to them."
       }
     },
     "/api/agent/keys": {
@@ -3697,19 +3697,9 @@
     "/api/mail/export": {
       "get": {
         "operationId": "exportMbox",
-        "summary": "Export mailbox as mbox format",
+        "summary": "Export All Mail as mbox",
         "tags": [
           "Export"
-        ],
-        "parameters": [
-          {
-            "name": "folder",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            },
-            "description": "Folder to export (default: INBOX)"
-          }
         ],
         "responses": {
           "200": {
@@ -3723,7 +3713,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Every message in All Mail (everything but Junk and the Trash), streamed as mboxrd. Each message carries X-Mailrs-Folder (INBOX, Sent or Archive) and Status: RO when read, which an import reads back. Needs a recent password confirmation."
       }
     },
     "/api/mail/pending/{message_id}": {

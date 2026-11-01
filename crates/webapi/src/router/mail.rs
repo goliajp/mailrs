@@ -168,7 +168,7 @@ pub(super) fn mail_routes() -> axum::Router<Arc<WebState>> {
             "/api/mail/spam-feedback",
             post(handlers::misc::spam_feedback),
         )
-        .route("/api/mail/export", get(handlers::misc::export_mbox))
+        .route("/api/mail/export", get(handlers::mbox::export::export_mbox))
         .route(
             "/api/conversations/search",
             get(handlers::misc::search_conversations),

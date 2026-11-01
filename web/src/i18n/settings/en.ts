@@ -6,7 +6,8 @@ export const settingsEn = {
   'settings.account.displayName': 'Display Name',
   'settings.account.domains': 'Domains',
   'settings.account.export': 'Export Mailbox',
-  'settings.account.exportHelp': 'Download all your emails as an MBOX file',
+  'settings.account.exportHelp':
+    'Download everything in All mail as an MBOX file, with each message’s folder and read state. Junk and Trash are left out',
   'settings.account.exportMbox': 'Export as MBOX',
   'settings.account.mismatch': 'New passwords do not match',
   'settings.account.notConfigured': 'Not configured',
