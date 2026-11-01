@@ -1,6 +1,8 @@
 //! Refusals at RCPT for local addresses: `550 5.1.1` for one nobody
 //! receives, and `550 5.7.1` for an SRS address reached by anything but a
-//! bounce.
+//! bounce. Past ten unknown recipients in an hour, an IP that has not
+//! signed in gets `421` for every local address and is disconnected (see
+//! `probe_guard`).
 //!
 //! Only addresses on a domain the receiver lists as local are asked about,
 //! signed-in submission included; remote recipients, mock addresses and a
@@ -44,8 +46,25 @@ where
         return Some(handle_reply(framed, session, resp, ctx, conn_id).await);
     }
     let check = ctx.recipient_check.as_ref()?;
-    if !is_asked_about(&rcpt, &session.state, ctx) || !check.is_unknown(&rcpt).await {
+    if !is_asked_about(&rcpt, &session.state, ctx) {
         return None;
+    }
+    let guarded = !signed_in(&session.state);
+    let now = std::time::Instant::now();
+    if guarded && ctx.unknown_rcpt.is_blocked(client_ip, now) {
+        let resp = Response::new(
+            421,
+            Some(code(4, 7, 0)),
+            "Too many unknown recipients, try again later",
+        );
+        handle_reply(framed, session, resp, ctx, conn_id).await;
+        return Some(SessionAction::Close);
+    }
+    if !check.is_unknown(&rcpt).await {
+        return None;
+    }
+    if guarded {
+        ctx.unknown_rcpt.record_unknown(client_ip, now);
     }
     let resp = Response::new(550, Some(code(5, 1, 1)), format!("<{rcpt}>: no such user"));
     Some(handle_reply(framed, session, resp, ctx, conn_id).await)
@@ -83,6 +102,20 @@ fn is_local(rcpt: &str, ctx: &ConnectionContext) -> bool {
         .current()
         .iter()
         .any(|d| d.eq_ignore_ascii_case(domain))
+}
+
+/// A signed-in sender is known and not counted as a guesser.
+fn signed_in(state: &State) -> bool {
+    matches!(
+        state,
+        State::MailFrom {
+            username: Some(_),
+            ..
+        } | State::RcptTo {
+            username: Some(_),
+            ..
+        }
+    )
 }
 
 fn in_sandbox(state: &State) -> bool {

@@ -247,3 +247,14 @@ fn the_words_name_no_role_and_repeat_nothing() {
         }
     }
 }
+
+#[test]
+fn a_candidate_is_two_words_and_six_digits() {
+    let a = candidate("X.JP", |n| n - 1);
+    let (local, domain) = a.split_once('@').unwrap();
+    assert_eq!(domain, "x.jp");
+    let parts: Vec<&str> = local.split('.').collect();
+    assert_eq!(parts.len(), 3, "{a}");
+    assert_eq!(parts[2], "999999", "the largest pick fills six digits");
+    assert!(candidate("x.jp", |_| 0).ends_with(".000000@x.jp"));
+}

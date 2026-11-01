@@ -345,7 +345,7 @@ impl MailStore for JmapAdapter {
     }
 }
 
-/// GET /.well-known/jmap — session document.
+/// GET /.well-known/jmap and GET /jmap/session — session document.
 pub async fn jmap_session(
     Extension(AuthedUser(address)): Extension<AuthedUser>,
 ) -> impl IntoResponse {

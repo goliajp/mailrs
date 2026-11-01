@@ -15,6 +15,7 @@ use super::super::{ConnectionContext, DATA_TIMEOUT, SessionAction};
 use super::reply::{code, send_reply};
 
 mod antispam;
+mod mask_audit;
 mod mock_gate;
 mod sender_gate;
 mod spool_accept;
@@ -51,7 +52,7 @@ where
     match tokio::time::timeout(DATA_TIMEOUT, framed.next()).await {
         Ok(Some(Ok(SmtpInput::Data(raw)))) => {
             let body = unstuff_data(&raw);
-            let masked = match sender_gate::check(
+            let mask = match sender_gate::check(
                 &session.state,
                 &reverse_path,
                 &body,
@@ -61,17 +62,20 @@ where
             .await
             {
                 sender_gate::SenderGate::Refuse(resp) => return send_reply(framed, resp).await,
-                sender_gate::SenderGate::Pass { masked, envelope } => {
-                    if let Some(mask) = envelope {
-                        reverse_path = mask;
+                sender_gate::SenderGate::Pass { mask, envelope } => {
+                    if let Some(queue_as) = envelope {
+                        reverse_path = queue_as;
                     }
-                    masked
+                    mask
                 }
             };
+            if let (Some(mask), Some(user)) = (&mask, &auth_user) {
+                mask_audit::record(ctx, user, mask, addr.ip()).await;
+            }
             let first_rcpt = forward_paths.first().map(|s| s.as_str()).unwrap_or("");
-            let received = match masked {
-                true => format_masked_received_header(&ctx.hostname, first_rcpt),
-                false => format_received_header(
+            let received = match mask {
+                Some(_) => format_masked_received_header(&ctx.hostname, first_rcpt),
+                None => format_received_header(
                     session.client_domain(),
                     &ctx.hostname,
                     first_rcpt,

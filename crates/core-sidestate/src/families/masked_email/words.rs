@@ -1,4 +1,4 @@
-//! The words a masked address is made of: `<adjective>.<noun>.<4 digits>`.
+//! The words a masked address is made of: `<adjective>.<noun>.<6 digits>`.
 //!
 //! Reviewed by hand, in `adjectives.txt` and `nouns.txt`. Nothing there names
 //! a role, a department or anything an organisation would answer mail at

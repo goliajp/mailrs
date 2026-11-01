@@ -99,6 +99,7 @@ pub async fn spawn_receiving_server(
             mailrs_receiver::smtp_session::spool_sink::MaildirSpoolSink::new(&spool_root),
         ),
         signins: Default::default(),
+        unknown_rcpt: Default::default(),
     });
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")

@@ -32,7 +32,7 @@ const MASK = {
   createdAt: 1_700_000_000,
   createdBy: 'web',
   description: 'orders',
-  email: 'amber.otter.0042@golia.jp',
+  email: 'amber.otter.000042@golia.jp',
   forDomain: 'shop.example',
   id: 'me-amber.otter.0042',
   lastMessageAt: null,
@@ -54,7 +54,7 @@ describe('masked addresses', () => {
     vi.mocked(wireListMaskedEmails).mockResolvedValue([MASK])
     vi.mocked(wireCreateMaskedEmail).mockResolvedValue({
       ...MASK,
-      email: 'brave.heron.0001@golia.jp',
+      email: 'brave.heron.000001@golia.jp',
     })
     show()
     expect(await screen.findByText(MASK.email)).toBeDefined()
@@ -74,7 +74,7 @@ describe('masked addresses', () => {
   it('turns a mask off and on', async () => {
     vi.mocked(wireListMaskedEmails).mockResolvedValue([
       MASK,
-      { ...MASK, email: 'x.y.0002@golia.jp', state: 'disabled' },
+      { ...MASK, email: 'x.y.000002@golia.jp', state: 'disabled' },
     ])
     vi.mocked(wireSetMaskedEmailState).mockResolvedValue(MASK)
     show()
@@ -84,7 +84,7 @@ describe('masked addresses', () => {
     )
     fireEvent.click(screen.getByText('Turn on'))
     await vi.waitFor(() =>
-      expect(wireSetMaskedEmailState).toHaveBeenCalledWith('x.y.0002@golia.jp', 'enabled')
+      expect(wireSetMaskedEmailState).toHaveBeenCalledWith('x.y.000002@golia.jp', 'enabled')
     )
   })
 

@@ -12,7 +12,7 @@ describe('masked address request bodies match the shared contract', () => {
     expect(create).toEqual(fixture('masked-email-create'))
     expect(capturedRequest().method).toBe('POST')
     const update = await bodyOf(() =>
-      wireSetMaskedEmailState('amber.otter.0042@golia.jp', 'disabled')
+      wireSetMaskedEmailState('amber.otter.000042@golia.jp', 'disabled')
     )
     expect(update).toEqual(fixture('masked-email-update'))
     expect(capturedRequest().method).toBe('PATCH')

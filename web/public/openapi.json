@@ -4325,6 +4325,60 @@
         }
       }
     },
+    "/jmap/api/": {
+      "post": {
+        "operationId": "jmapApiFastmailPath",
+        "summary": "JMAP API endpoint at the path Fastmail serves it",
+        "tags": [
+          "JMAP"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "JMAP request object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "JMAP response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jmap/session": {
+      "get": {
+        "operationId": "jmapSessionFastmailPath",
+        "summary": "JMAP session resource at the path Fastmail serves it",
+        "tags": [
+          "JMAP"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "JMAP session object",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/.well-known/caldav": {
       "get": {
         "operationId": "wellKnownCaldav",

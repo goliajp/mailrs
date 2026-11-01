@@ -78,6 +78,8 @@ pub struct ConnectionContext {
     /// Submission connections signed in, so that ending an account's
     /// sign-ins (its password cleared) closes the ones already open.
     pub signins: mailrs_auth_guard::signins::Signins,
+    /// Unknown local recipients per IP, to slow down address guessing.
+    pub unknown_rcpt: probe_guard::ProbeGuard,
 }
 
 mod address;
@@ -87,6 +89,7 @@ pub(crate) mod credentials;
 mod drive;
 mod events;
 mod headers;
+pub mod probe_guard;
 pub mod spool_sink;
 mod trace_line;
 
