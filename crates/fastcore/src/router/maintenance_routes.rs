@@ -106,6 +106,12 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
         )
         // Read-only: what the fact ledger would take in memory, measured
         // by writing its entries for real mail into a throwaway store.
+        // Read-only: the audit chain recomputed, and compared with its
+        // replica, now rather than at the daily check.
+        .route(
+            "/v1/admin/maintenance:audit-verify",
+            post(crate::maintenance::audit_verify_route),
+        )
         .route(
             "/v1/admin/maintenance:ledger-estimate",
             post(crate::maintenance::ledger_estimate_route),

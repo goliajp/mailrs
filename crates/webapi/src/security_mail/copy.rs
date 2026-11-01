@@ -147,6 +147,17 @@ fn zh(a: &Alert, s: &str, account: &str) -> Copy {
             ]),
             link: None,
         },
+        Kind::AuditChainBroken => Copy {
+            level: Level::Act,
+            title: format!("{s} 的审计日志校验没有通过"),
+            meaning: "每天的审计日志校验发现，有记录在写入之后被改过、删掉或插入，或者和保存在服务器外的副本对不上，或者副本没能写出。审计日志是管理操作的唯一记录，这通常意味着有人动过存储。".into(),
+            steps: v(&[
+                "看下面的详情：写着从哪一条开始对不上、原因是什么。",
+                "用服务器外保存的副本核对那一段时间的管理操作，查清是谁、什么时候改的。",
+                "如果是副本没能写出，检查 MAILRS_AUDIT_REPLICA_DIR 指向的目录是否存在、可写。",
+            ]),
+            link: Some(("/admin/audit-log".into(), "打开审计日志")),
+        },
         Kind::ComplaintLimit => Copy {
             level: Level::Check,
             title: format!("{s} 今天转来的投诉超过了上限"),
@@ -263,6 +274,17 @@ fn en(a: &Alert, s: &str, account: &str) -> Copy {
                 "Once fixed, the reminders stop with the next successful backup.",
             ]),
             link: None,
+        },
+        Kind::AuditChainBroken => Copy {
+            level: Level::Act,
+            title: format!("The audit log of {s} failed its check"),
+            meaning: "The daily check of the audit log found a record changed, removed or added after it was written, or the log disagreeing with the copy kept off the server, or that copy could not be written. The audit log is the only record of admin actions, so this usually means someone touched the store.".into(),
+            steps: v(&[
+                "Read the details below: they say from which record it disagrees, and why.",
+                "Compare that period with the copy kept off the server to find who changed what, and when.",
+                "If the copy could not be written, check that the directory MAILRS_AUDIT_REPLICA_DIR names exists and is writable.",
+            ]),
+            link: Some(("/admin/audit-log".into(), "Open the audit log")),
         },
         Kind::ComplaintLimit => Copy {
             level: Level::Check,
