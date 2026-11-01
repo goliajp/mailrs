@@ -58,10 +58,10 @@ struct Counts {
     threads: u64,
     messages: u64,
     no_file: u64,
-    /// Threads whose section this walk would set or change.
+    /// Threads without a section that this walk would decide.
     changed: u64,
-    /// Of `changed`, those that had none before.
-    undecided: u64,
+    /// Threads already decided, by delivery or an earlier walk: left alone.
+    decided: u64,
     sections: std::collections::BTreeMap<&'static str, u64>,
 }
 
@@ -89,6 +89,18 @@ fn walk(
             c.threads += 1;
             if c.threads.is_multiple_of(PAUSE_EVERY) {
                 std::thread::sleep(std::time::Duration::from_millis(q.pause_ms));
+            }
+            // a section delivery decided stands: it read the facts as they
+            // were then (first contact above all), which a backfill can only
+            // approximate, so going over it would undo the better record
+            let (have, _) = state.mailbox.section_fields(user, &tid)?;
+            if !have.is_empty() {
+                c.decided += 1;
+                last = Some(After {
+                    user: user.clone(),
+                    thread: tid.clone(),
+                });
+                continue;
             }
             let category = state
                 .mailbox
@@ -137,11 +149,9 @@ fn walk(
                 mailrs_mailbox_kevy::scope::Bucket::Junk => "",
                 _ => section_of(&latest).name(),
             };
-            let (have, _) = state.mailbox.section_fields(user, &tid)?;
             *c.sections.entry(want).or_default() += 1;
-            if have != want {
+            if !want.is_empty() {
                 c.changed += 1;
-                c.undecided += u64::from(have.is_empty());
                 if !q.dry_run {
                     for (at, own, facts, from) in &arrivals {
                         crate::sections::record(state, user, &tid, *at, *own, *facts, from);
@@ -167,7 +177,7 @@ fn walk(
         "messages_walked": c.messages,
         "no_file": c.no_file,
         "changed": c.changed,
-        "were_undecided": c.undecided,
+        "already_decided": c.decided,
         "by_section": c.sections,
         "next_after": next(&last),
         "done": !stopped_early,
@@ -197,6 +207,36 @@ mod tests {
         assert_eq!(out["no_file"], 3, "{out}");
         assert_eq!(out["changed"], 0, "{out}");
         assert_eq!(out["done"], true, "{out}");
+    }
+
+    /// What delivery decided stands: the walk skips it, says so, and finds
+    /// nothing to change, so a second walk has the zero a converged
+    /// backfill must be able to show.
+    #[test]
+    fn a_section_delivery_decided_is_left_alone() {
+        let state = crate::tests::fresh_state();
+        seed(&state, "u@x", 2);
+        let facts = mailrs_mailbox_kevy::section::MessageFacts {
+            direct: true,
+            from_person: true,
+            first_contact: true,
+            to_others: false,
+        };
+        crate::sections::record(&state, "u@x", "t0", 100, false, facts, "a@x");
+        let before = state.mailbox.section_fields("u@x", "t0").unwrap();
+        assert!(!before.0.is_empty(), "delivery decided it");
+        let q = BackfillQuery {
+            dry_run: false,
+            after_user: None,
+            after_thread: None,
+            limit: 100,
+            pause_ms: 0,
+        };
+        let out = walk(&state, &q, &Hangup::never()).unwrap();
+        assert_eq!(out["already_decided"], 1, "{out}");
+        assert_eq!(out["threads_walked"], 2, "{out}");
+        assert_eq!(out["changed"], 0, "{out}");
+        assert_eq!(state.mailbox.section_fields("u@x", "t0").unwrap(), before);
     }
 
     #[test]
