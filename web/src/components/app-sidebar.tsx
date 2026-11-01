@@ -197,7 +197,7 @@ export function AppSidebar() {
           onClick={() => setShowLogoutConfirm(true)}
         >
           <LogOut className="h-5 w-5" />
-          <span>Sign out</span>
+          <span>{t('nav.signOut')}</span>
         </button>
 
         {showLogoutConfirm && (
@@ -215,24 +215,23 @@ function LogoutConfirmDialog({
   onCancel: () => void
   onConfirm: () => void
 }) {
+  const t = useT()
   return (
     <BottomSheet onClose={onCancel} open>
-      <h3 className="text-fg text-base font-semibold">Sign out?</h3>
-      <p className="text-fg-secondary mt-2 text-sm">
-        You will need to sign in again to access your mailbox.
-      </p>
+      <h3 className="text-fg text-base font-semibold">{t('sidebar.signOutTitle')}</h3>
+      <p className="text-fg-secondary mt-2 text-sm">{t('sidebar.signOutBody')}</p>
       <div className="mt-5 flex justify-end gap-2">
         <button
           className="text-fg-secondary hover:bg-bg-secondary rounded-md px-3 py-2 text-sm transition-colors"
           onClick={onCancel}
         >
-          Cancel
+          {t('common.cancel')}
         </button>
         <button
           className="bg-danger rounded-md px-3 py-2 text-sm font-medium text-white transition-colors hover:opacity-90"
           onClick={onConfirm}
         >
-          Sign out
+          {t('nav.signOut')}
         </button>
       </div>
     </BottomSheet>

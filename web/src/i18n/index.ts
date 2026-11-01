@@ -15,6 +15,9 @@ export type { Key } from './en'
 
 export type Lang = 'en' | 'ja' | 'zh'
 
+/** `t`'s shape, for code that is handed one rather than calling `useT`. */
+export type Translate = (key: Key, vars?: Record<string, number | string>) => string
+
 export const LANGS: Lang[] = ['en', 'ja', 'zh']
 
 const DICTS: Record<Lang, Record<Key, string>> = { en, ja, zh }
