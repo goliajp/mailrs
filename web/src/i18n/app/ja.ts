@@ -118,6 +118,8 @@ export const appJa: Record<AppKey, string> = {
   'monitor.total': '総接続数',
   'monitor.uptime': '受信サービスの稼働時間',
   'monitor.waiting': 'コマンドを待っています…',
+  'office.truncated': '最初の部分だけを表示しています。全体はファイルをダウンロードしてください。',
+  'office.unreadable': 'このファイルはここでは表示できません。ダウンロードして開いてください。',
   'palette.actions': '操作',
   'palette.commands': 'コマンド',
   'palette.conversation': '会話',

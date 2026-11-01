@@ -5,10 +5,12 @@ import { useState } from 'react'
 
 import { Copyable, CopyButton } from '@/components/copy-button'
 import { MobileModal } from '@/components/mobile-modal'
+import { OfficePreview } from '@/components/office-preview'
 import { PdfPreview } from '@/components/pdf-preview'
 import { useT } from '@/i18n'
 import { formatSize } from '@/lib/format'
 import { visibleAttachments } from '@/lib/inline-attachments'
+import { isOfficeFile } from '@/lib/office'
 
 const IMAGE_EXTENSIONS = new Set(['bmp', 'gif', 'ico', 'jpeg', 'jpg', 'png', 'svg', 'webp'])
 
@@ -109,6 +111,7 @@ function FileRow({ att, index, uid }: { att: AttachmentInfo; index: number; uid:
         <Download className="h-4 w-4" />
       </a>
       {att.content_type === 'application/pdf' && <PdfPreview filename={att.filename} url={url} />}
+      {isOfficeFile(att.content_type, att.filename) && <OfficePreview index={index} uid={uid} />}
     </div>
   )
 }
