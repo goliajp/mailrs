@@ -7,7 +7,7 @@
 
 use std::io;
 
-use super::{PER_USER_FLAGS, ThreadRow, thread_user_pairs};
+use super::{PER_USER_FLAGS, ThreadRow, hset_membership, thread_user_pairs};
 use crate::KevyMailboxStore;
 use crate::keys;
 
@@ -54,35 +54,15 @@ impl KevyMailboxStore {
             .iter()
             .map(|(k, v)| (k.as_slice(), v.as_slice()))
             .collect();
-        self.store().hset(key.as_bytes(), &refs)?;
-        if !missing.is_empty() {
-            self.plant_thread_user_defaults(&key, &missing)?;
-        }
+        let zeros = zeros_for(&missing);
+        self.store().atomic(|ctx| {
+            hset_membership(ctx, key.as_bytes(), &refs)?;
+            if !zeros.is_empty() {
+                hset_membership(ctx, key.as_bytes(), &zeros)?;
+            }
+            Ok(())
+        })?;
         Ok(true)
-    }
-
-    /// Give a membership row the per-user flags it is missing, all off.
-    ///
-    /// A conversation you have just received is not starred, archived or
-    /// pinned **by you**, whatever the shared hash says about whoever else
-    /// has it. Seeding from there is the leak this migration closes, so
-    /// the seed is zero.
-    ///
-    /// The columns have to exist rather than be absent: they are declared,
-    /// and `written_fields_cover_declared_columns` holds the write path to
-    /// producing every one of them.
-    ///
-    /// Only the absent ones, so a row that has already been read or
-    /// starred does not get that flag reset by a later arrival — and so
-    /// this stays convergent when `backfill_thread_user` sweeps a mailbox
-    /// twice.
-    fn plant_thread_user_defaults(&self, key: &str, flags: &[&str]) -> io::Result<()> {
-        let zeros: Vec<(&[u8], &[u8])> = flags
-            .iter()
-            .map(|f| (f.as_bytes(), b"0".as_slice()))
-            .collect();
-        self.store().hset(key.as_bytes(), &zeros)?;
-        Ok(())
     }
 
     /// Write the thread aggregate hash + bump it to head of every index
@@ -127,13 +107,9 @@ impl KevyMailboxStore {
                 // zero, in the same closure, so no reader can catch it
                 // between the two writes with the columns missing.
                 let fresh = !ctx.hexists(tu_key.as_bytes(), b"tid")?;
-                ctx.hset(tu_key.as_bytes(), &tu_refs)?;
+                hset_membership(ctx, tu_key.as_bytes(), &tu_refs)?;
                 if fresh {
-                    let zeros: Vec<(&[u8], &[u8])> = PER_USER_FLAGS
-                        .iter()
-                        .map(|f| (f.as_bytes(), b"0".as_slice()))
-                        .collect();
-                    ctx.hset(tu_key.as_bytes(), &zeros)?;
+                    hset_membership(ctx, tu_key.as_bytes(), &zeros_for(&PER_USER_FLAGS))?;
                 }
 
                 Ok(())
@@ -187,4 +163,19 @@ impl KevyMailboxStore {
         }
         Ok(Some(row))
     }
+}
+
+/// A membership row's per-user flags, all off.
+///
+/// A conversation you have just received is not starred, archived or
+/// pinned **by you**, whatever the shared hash says about whoever else
+/// has it. Seeding from there is the leak the membership row closed, so
+/// the seed is zero. The columns have to exist rather than be absent:
+/// `written_fields_cover_declared_columns` holds the write path to
+/// producing every declared one.
+fn zeros_for<'a>(flags: &[&'a str]) -> Vec<(&'a [u8], &'static [u8])> {
+    flags
+        .iter()
+        .map(|f| (f.as_bytes(), b"0".as_slice()))
+        .collect()
 }

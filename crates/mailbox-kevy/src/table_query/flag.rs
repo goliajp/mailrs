@@ -49,8 +49,23 @@ impl KevyMailboxStore {
         offset: usize,
         before_ts: Option<i64>,
     ) -> io::Result<Vec<String>> {
+        let index = crate::thread_row::index_for(flag);
+        self.list_thread_ids_on_flag_index(&index, user, extra, limit, offset, before_ts)
+    }
+
+    /// The flag list read off a named index. Apart from the call above so
+    /// the marker index and the full-row index it replaces can be asked
+    /// the same question while both are declared.
+    pub(crate) fn list_thread_ids_on_flag_index(
+        &self,
+        index: &str,
+        user: &str,
+        extra: &[(&str, &str)],
+        limit: usize,
+        offset: usize,
+        before_ts: Option<i64>,
+    ) -> io::Result<Vec<String>> {
         use kevy_embedded::{IndexValue, ScalarQueryOpts, ValueFilter};
-        let index = format!("threaduser.{flag}");
         let (lo, hi);
         let mut filters = vec![ValueFilter::Eq {
             field: b"user",
@@ -131,8 +146,19 @@ impl KevyMailboxStore {
         flag: &str,
         extra: &[(&str, &str)],
     ) -> io::Result<usize> {
+        let index = crate::thread_row::index_for(flag);
+        self.count_thread_ids_on_flag_index(&index, user, extra)
+    }
+
+    /// The count read off a named index; see
+    /// [`Self::list_thread_ids_on_flag_index`].
+    pub(crate) fn count_thread_ids_on_flag_index(
+        &self,
+        index: &str,
+        user: &str,
+        extra: &[(&str, &str)],
+    ) -> io::Result<usize> {
         use kevy_embedded::{IndexValue, ValueFilter};
-        let index = format!("threaduser.{flag}");
         let mut filters = vec![ValueFilter::Eq {
             field: b"user",
             value: user.as_bytes(),

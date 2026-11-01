@@ -31,7 +31,7 @@ impl KevyMailboxStore {
         let mut cursor = None;
         loop {
             let (hits, next) = self.store().idx_query(
-                b"threaduser.snoozed_until",
+                crate::thread_row::index_for("snoozed_until").as_bytes(),
                 &IndexValue::I64(now.saturating_add(1)),
                 &IndexValue::I64(i64::MAX),
                 cursor.as_ref(),

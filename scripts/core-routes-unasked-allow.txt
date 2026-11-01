@@ -66,3 +66,5 @@ POST /v1/admin/maintenance:ledger-estimate | read-only measurement of the fact l
 POST /v1/admin/maintenance:backfill-ledger | operator: records mail delivered before the fact ledger existed, run by hand on a copy first, then on prod
 GET /v1/admin/maintenance:rejudge-status | read-only counts of the shadow re-judge: observations seen, mail judged again, verdicts changed, what acting would have done
 POST /v1/admin/maintenance:rejudge-now | operator: one shadow re-judge round now instead of at the next announcement, for timing the path on a copy; records verdicts, moves nothing
+POST /v1/admin/maintenance:rewrite-threaduser-markers | write the sparse index markers onto membership rows written before they existed (paged by offset)
+POST /v1/admin/maintenance:threaduser-marker-check | read-only: every index marker against its column, before the full-row flag indexes are dropped

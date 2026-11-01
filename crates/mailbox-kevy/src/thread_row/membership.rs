@@ -162,7 +162,7 @@ pub(crate) fn thread_user_pairs(
         // `toggle_flag`, `mark_seen`, `mark_unread`,
         // `record_message_arrival` for `unread` — so leaving them out
         // removes a write rather than losing one.
-        // [`KevyMailboxStore::plant_thread_user_defaults`] gives a row its
+        // `write_thread_user_if_changed` and `upsert_thread` give a row its
         // first zeros so the declared columns exist from the start.
         // Display payload, so a list page can be served from this row
         // alone instead of joining back to the shared thread hash

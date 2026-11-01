@@ -167,7 +167,11 @@ pub(crate) fn heal_membership_rows(
                     // flag is how a thread stayed out of Sent while the
                     // hash said the user had written in it — the defect
                     // the zadd here used to paper over.
-                    ctx.hset(tu_key.as_bytes(), &[(b"is_sender" as &[u8], b"1" as &[u8])])?;
+                    mailrs_mailbox_kevy::hset_membership(
+                        ctx,
+                        tu_key.as_bytes(),
+                        &[(b"is_sender", b"1")],
+                    )?;
                     changed = true;
                 }
                 Ok(changed)
