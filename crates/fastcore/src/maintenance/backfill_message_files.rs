@@ -40,7 +40,8 @@ pub(crate) async fn backfill_message_files_route(
     };
     let root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
     let dry_run = q.dry_run;
-    let report = tokio::task::spawn_blocking(move || walk(&state, &root, &users, dry_run)).await;
+    let report =
+        super::hangup::run_blocking(move |h| walk(&state, &root, &users, dry_run, h)).await;
     match report {
         Ok(Ok(r)) => Json(r).into_response(),
         Ok(Err(e)) => {
@@ -59,12 +60,19 @@ fn walk(
     root: &str,
     users: &[String],
     dry_run: bool,
+    hangup: &super::hangup::Hangup,
 ) -> std::io::Result<serde_json::Value> {
     let mut total = Counts::default();
     let mut by_user: BTreeMap<String, Counts> = BTreeMap::new();
+    let mut stopped_early = false;
     for user in users {
         let mut c = Counts::default();
         for (mid, files) in user_files_by_message_id(root, user) {
+            if hangup.hung_up() {
+                tracing::warn!(user = %user, "backfill-message-files: the caller hung up, stopping");
+                stopped_early = true;
+                break;
+            }
             c.walked += files.len() as u64;
             let Some(facts) = state.mailbox.user_message_facts(user, &mid)? else {
                 c.no_row += files.len() as u64;
@@ -93,9 +101,13 @@ fn walk(
         if c.walked > 0 {
             by_user.insert(user.clone(), c);
         }
+        if stopped_early {
+            break;
+        }
     }
     Ok(serde_json::json!({
         "dry_run": dry_run,
+        "stopped_early": stopped_early,
         "users": users.len(),
         "total": total,
         "by_user": by_user,
@@ -120,5 +132,34 @@ impl Counts {
         self.no_row += o.no_row;
         self.messages_with_several_files += o.messages_with_several_files;
         self.rows_without_tid += o.rows_without_tid;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::hangup::Hangup;
+    use super::*;
+
+    #[test]
+    fn a_walk_stops_soon_after_the_caller_hangs_up() {
+        let state = crate::tests::fresh_state();
+        let tmp = tempfile::tempdir().unwrap();
+        let cur = tmp.path().join("x/u/cur");
+        std::fs::create_dir_all(&cur).unwrap();
+        for i in 0..5 {
+            std::fs::write(
+                cur.join(format!("1700000000.M{i}P1.host:2,S")),
+                format!("Message-ID: <m{i}@x>\r\nSubject: s\r\n\r\nbody\r\n"),
+            )
+            .unwrap();
+        }
+        let root = tmp.path().to_str().unwrap();
+        let users = vec!["u@x".to_string()];
+        let all = walk(&state, root, &users, true, &Hangup::never()).unwrap();
+        assert_eq!(all["total"]["walked"], 5, "{all}");
+        assert_eq!(all["stopped_early"], false, "{all}");
+        let cut = walk(&state, root, &users, true, &Hangup::after(2)).unwrap();
+        assert_eq!(cut["total"]["walked"], 2, "{cut}");
+        assert_eq!(cut["stopped_early"], true, "{cut}");
     }
 }
