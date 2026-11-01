@@ -31,6 +31,10 @@
 # who signs outbound mail: fastcore-sender signs with it, and webapi-fc's
 # domain check reports the selector each domain is signed with. one
 # definition so the check cannot drift from the signer.
+# kevy-server's container limit, also handed to webapi-fc so /api/health
+# can say how close kevy-server is to it
+x-kevy-server-memory-limit: &kevy-server-memory-limit 1g
+
 x-dkim-identity: &dkim-identity
   MAILRS_DKIM_DOMAIN: golia.jp
   MAILRS_DKIM_SELECTOR: mail
@@ -262,6 +266,8 @@ services:
       MAILRS_CORE_RPC_BASE: ${MAILRS_CORE_RPC_BASE:-http://mailrs-fastcore:3301}
       # /api/health core_memory.high: the core's cgroup at or past this percent
       MAILRS_MEMORY_HIGH_PERCENT: ${MAILRS_MEMORY_HIGH_PERCENT:-80}
+      # /api/health kevy_server_memory: the limit its resident size is read against
+      MAILRS_KEVY_SERVER_MEMORY_LIMIT: *kevy-server-memory-limit
       MAILRS_CORE_API_SECRET: ${MAILRS_CORE_API_SECRET}
       # what reset codes are signed with; webapi-fc alone issues and checks them
       MAILRS_RESET_CODE_KEY: ${MAILRS_RESET_CODE_KEY:-}
@@ -440,7 +446,7 @@ services:
     # before this swap.
     image: ghcr.io/goliajp/kevy:6.4.0
     pull_policy: always
-    mem_limit: 1g
+    mem_limit: *kevy-server-memory-limit
     volumes:
       - kevy-server-data:/data
       - /apps/mailrs/kevy.toml:/etc/kevy/kevy.toml:ro
