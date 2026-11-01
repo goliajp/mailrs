@@ -98,10 +98,13 @@ describe('MobileShell admin tab', () => {
     expect(screen.getByText('Settings')).toBeTruthy()
   })
 
-  it('is not offered to an administrator who is not a super administrator', () => {
+  // the server opens the overview to any admin permission, and each page
+  // to its own; the pages a partial administrator cannot use are hidden
+  // inside the admin area, not the whole area
+  it('is offered to an administrator who is not a super administrator', () => {
     withViewport(844)
     renderShell(true, false)
-    expect(screen.queryByText('Admin')).toBeNull()
+    expect(screen.getByText('Admin')).toBeTruthy()
   })
 
   it('is offered to a super administrator', () => {
