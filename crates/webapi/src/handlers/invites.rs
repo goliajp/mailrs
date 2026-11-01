@@ -173,12 +173,23 @@ async fn file_answer(
     }
     let method = text("method").to_uppercase();
     let sequence = invite.get("sequence").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
-    let row = ev::from_invite(&event_uid, &method, sequence, &invite);
+    let mut row = ev::from_invite(&event_uid, &method, sequence, &invite);
+    // the mail the answer came from, so the calendar can open it
+    row.message_id = state
+        .core
+        .get_message_by_uid_for_user(user, uid)
+        .await
+        .ok()
+        .map(|m| m.message_id)
+        .filter(|m| !m.is_empty());
     let user = user.to_string();
     let partstat = partstat.to_string();
     with_kevy(move |c| {
         if ev::get(c, &user, &row.uid)?.is_none() {
             ev::file_invite(c, &user, &row)?;
+        }
+        if let Some(mid) = &row.message_id {
+            ev::set_message_id(c, &user, &row.uid, mid)?;
         }
         ev::set_partstat(c, &user, &row.uid, &partstat).map(|_| ())
     })

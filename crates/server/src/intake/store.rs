@@ -57,7 +57,12 @@ impl PgCore {
             let payload: serde_json::Value = serde_json::from_str(&found.payload_json)?;
             mb.update_invite_payload(addr, mailbox, inserted.uid, &payload, &found.method)
                 .await?;
-            mailrs_intake::invite::file_event(mailrs_intake::Core::net_conn(self), addr, &found);
+            mailrs_intake::invite::file_event(
+                mailrs_intake::Core::net_conn(self),
+                addr,
+                &found,
+                &a.message_id,
+            );
         }
         self.index_contents(inserted.id, body, importance).await?;
         self.hold_if_fraud(addr, &a.thread_id, &a.message_id, fraud_verdict)
