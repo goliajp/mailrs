@@ -2,7 +2,7 @@ import type { ConfigEntry } from './entry'
 
 import { useEffect, useState } from 'react'
 
-import { type Key, useT } from '@/i18n'
+import { currentLocale, type Key, useT } from '@/i18n'
 
 import { resetVerb } from './entry'
 import { ReadOnlyField } from './read-only-field'
@@ -101,7 +101,7 @@ export function ConfigField({
 
 function savedBy(entry: ConfigEntry, t: ReturnType<typeof useT>): null | string {
   if (entry.updated_at === undefined) return null
-  const on = new Date(entry.updated_at * 1000).toLocaleString()
+  const on = new Date(entry.updated_at * 1000).toLocaleString(currentLocale())
   if (entry.updated_by) return t('admin.config.savedBy', { by: entry.updated_by, on })
   return t('admin.config.savedOn', { on })
 }

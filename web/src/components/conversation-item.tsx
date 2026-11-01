@@ -10,7 +10,7 @@ import { CategoryBadge, ImportanceBadge } from '@/components/category-badge'
 import { ActionSheet, ContextMenu, useContextMenu } from '@/components/context-menu'
 import { RowLabels } from '@/components/label-chip'
 import { SenderAvatar } from '@/components/sender-avatar'
-import { type Key, useT } from '@/i18n'
+import { currentLocale, type Key, useT } from '@/i18n'
 import { ACTIONS, rowActions, toggle } from '@/lib/actions'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { formatFullDate } from '@/lib/format'
@@ -196,10 +196,12 @@ export const ConversationItem = memo(function ConversationItem({
               {isSnoozed && (
                 <span
                   className="bg-bg-secondary text-fg-muted md:text-tiny flex items-center gap-0.5 rounded px-1 py-px text-xs"
-                  title={`Snoozed until ${new Date(snoozedUntil * 1000).toLocaleString()}`}
+                  title={t('row.snoozedUntil', {
+                    when: new Date(snoozedUntil * 1000).toLocaleString(currentLocale()),
+                  })}
                 >
                   <Clock className="h-3 w-3" />
-                  {new Date(snoozedUntil * 1000).toLocaleDateString(undefined, {
+                  {new Date(snoozedUntil * 1000).toLocaleDateString(currentLocale(), {
                     day: 'numeric',
                     month: 'short',
                   })}
