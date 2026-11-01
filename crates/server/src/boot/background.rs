@@ -40,8 +40,13 @@ pub(super) fn spawn_spool_drain(
         mailrs_intake::notice::spawn_drain(core.clone(), url.clone());
         // remote images of arriving mail, queued on the network kevy
         mailrs_intake::image_prefetch::spawn(Arc::new(
-            mailrs_intake::image_prefetch::NetworkQueue { url },
+            mailrs_intake::image_prefetch::NetworkQueue { url: url.clone() },
         ));
+        // the audit chain is sealed and checked by whichever core runs
+        mailrs_core_sidestate::families::audit_chain::spawn(
+            move || kevy_client::Connection::connect(&url).ok(),
+            mailrs_core_sidestate::families::audit::CAP,
+        );
     }
     crate::intake::spawn_drain(
         core,

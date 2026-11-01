@@ -12125,6 +12125,50 @@
           "pg": {
             "type": "null",
             "description": "Always null: this lane has no PostgreSQL backend"
+          },
+          "audit_chain": {
+            "type": "object",
+            "nullable": true,
+            "description": "The last daily check of the audit hash chain; null before the first. Each audit row is sealed into a SHA-256 chain a few seconds after it is written; once a day (MAILRS_AUDIT_VERIFY_AT, 03:30 UTC by default) the chain is recomputed and compared with the replica in MAILRS_AUDIT_REPLICA_DIR. ok false means a row was changed, removed or added after it was sealed, or the store disagrees with the replica; an alert is raised.",
+            "required": [
+              "verified_at",
+              "ok",
+              "rows",
+              "replica"
+            ],
+            "properties": {
+              "verified_at": {
+                "type": "integer",
+                "description": "Unix seconds"
+              },
+              "ok": {
+                "type": "boolean"
+              },
+              "rows": {
+                "type": "integer",
+                "description": "Sealed rows checked"
+              },
+              "first_bad_id": {
+                "type": "integer",
+                "description": "The first audit row found wrong"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "replica": {
+                "type": "string",
+                "enum": [
+                  "off",
+                  "ok",
+                  "failed"
+                ],
+                "description": "off when no replica directory is configured"
+              },
+              "replica_error": {
+                "type": "string",
+                "description": "Why the replica could not be read or written"
+              }
+            }
           }
         },
         "required": [

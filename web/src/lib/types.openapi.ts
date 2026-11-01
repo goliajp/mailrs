@@ -5792,6 +5792,24 @@ export interface components {
             kevy: boolean;
             /** @description Always null: this lane has no PostgreSQL backend */
             pg: null;
+            /** @description The last daily check of the audit hash chain; null before the first. Each audit row is sealed into a SHA-256 chain a few seconds after it is written; once a day (MAILRS_AUDIT_VERIFY_AT, 03:30 UTC by default) the chain is recomputed and compared with the replica in MAILRS_AUDIT_REPLICA_DIR. ok false means a row was changed, removed or added after it was sealed, or the store disagrees with the replica; an alert is raised. */
+            audit_chain?: {
+                /** @description Unix seconds */
+                verified_at: number;
+                ok: boolean;
+                /** @description Sealed rows checked */
+                rows: number;
+                /** @description The first audit row found wrong */
+                first_bad_id?: number;
+                reason?: string;
+                /**
+                 * @description off when no replica directory is configured
+                 * @enum {string}
+                 */
+                replica: "off" | "ok" | "failed";
+                /** @description Why the replica could not be read or written */
+                replica_error?: string;
+            } | null;
         };
         LoginRequest: {
             address: string;

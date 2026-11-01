@@ -144,6 +144,7 @@ fn every_kind_is_written() {
         Kind::ComplaintLimit,
         Kind::EgressRefused,
         Kind::EgressListed,
+        Kind::AuditChainBroken,
     ] {
         for lang in [Lang::Zh, Lang::En] {
             let mut a = reset_code();

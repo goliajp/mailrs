@@ -4,6 +4,7 @@
 pub mod account_names;
 pub mod admin_state;
 pub mod audit;
+pub mod audit_chain;
 pub mod calendar_events;
 pub mod calendar_feeds;
 pub mod contact_cards;
