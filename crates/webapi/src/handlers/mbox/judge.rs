@@ -84,8 +84,10 @@ impl Judge {
     /// lets the message through, as it does on the receive path.
     pub fn check(&mut self, user: &str, raw: &[u8]) -> Checked {
         self.screen(user, raw);
-        let judged = match mailrs_fraud_lua::stored::judge(
+        // judged before the core files it: this message is not counted yet
+        let judged = match mailrs_fraud_lua::stored::judge_for(
             raw,
+            Some((user, mailrs_fraud_lua::stored::relation::Counted::Before)),
             self.our_stamp.as_deref(),
             &[],
             &self.policy,

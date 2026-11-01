@@ -40,3 +40,41 @@ rule('dated-in-the-future', 'provenance', 6, true, function(m)
         return 'dated ' .. math.floor(m.date_ahead / 86400) .. ' days after it arrived, so it sorts above every letter that follows'
     end
 end)
+-- Business email compromise, by structure only.  "Pay us" and "our bank
+-- details changed" are words; what a message can prove is a payment
+-- identifier whose own check digits pass (an IBAN, a Bitcoin address)
+-- and the reader's history with the sender: a first contact, a domain a
+-- letter or two away from one the reader writes to, a correspondent's
+-- name at an address that has never written, a reply sent elsewhere.
+--
+-- **Scored, never held.**  Every one of these leans on the reader's
+-- history, and familiarity convicts nobody: a new supplier's first
+-- invoice carries an IBAN too.  Together they can reach the Junk
+-- threshold; none of them alone can hide mail.
+local function pays(m) return m.has_iban or m.has_crypto_address end
+rule('bec-pay-to-a-stranger', 'provenance', 3, false, function(m)
+    if pays(m) and m.first_contact then
+        return 'the first message from this address carries a payment account'
+    end
+end)
+rule('bec-pay-to-a-lookalike', 'provenance', 4, false, function(m)
+    if pays(m) and m.looks_like_correspondent then
+        return 'a payment account, from a domain one or two letters away from one you write to'
+    end
+end)
+rule('bec-name-borrowed', 'provenance', 4, false, function(m)
+    if m.name_borrowed and (m.reply_to_outside or pays(m)) then
+        return "a correspondent's name at an address that has never written to you, sending replies elsewhere or carrying a payment account"
+    end
+end)
+rule('bec-lookalike-reply-diverted', 'provenance', 3, false, function(m)
+    if m.looks_like_correspondent and m.reply_to_outside then
+        return 'from a domain one or two letters away from one you write to, with replies sent to another domain'
+    end
+end)
+rule('bec-reply-diverted-unauthenticated', 'provenance', 4, false, function(m)
+    if m.from_correspondent_domain and m.reply_to_outside
+        and m.dmarc ~= '' and m.dmarc ~= 'pass' then
+        return "claims a domain you write to without passing that domain's DMARC, and sends replies elsewhere"
+    end
+end)

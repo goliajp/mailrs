@@ -130,4 +130,15 @@ pub struct Facts<'a> {
     /// A link target still carries a kit's `[[name(...)]]` template call
     /// — [`crate::links::has_kit_placeholder`].
     pub link_has_kit_placeholder: bool,
+    /// Check-digit-valid IBANs and Bitcoin addresses in the text and the
+    /// attachment text — [`crate::payment::find`].
+    pub payment: crate::payment::PaymentIds,
+    /// What the HTML and SVG attachments are built to do —
+    /// [`crate::html_attachment::scan`].
+    pub html: crate::html_attachment::HtmlFeatures,
+    /// The reader's history with the sender — [`crate::relation::assess`].
+    /// All false where the history cannot be read.
+    pub relation: crate::relation::Relation,
+    /// A `Reply-To` on another registrable domain than the `From:`.
+    pub reply_to_outside: bool,
 }
