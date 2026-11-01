@@ -117,6 +117,8 @@ export const appZh: Record<AppKey, string> = {
   'monitor.total': '总连接数',
   'monitor.uptime': '接收服务运行时间',
   'monitor.waiting': '等待命令…',
+  'office.truncated': '只显示了开头部分，完整内容请下载文件。',
+  'office.unreadable': '这个文件无法在这里显示，请下载后打开。',
   'palette.actions': '操作',
   'palette.commands': '命令',
   'palette.conversation': '会话',
