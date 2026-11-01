@@ -24,6 +24,9 @@ type Inbox = Arc<Mutex<Vec<(u32, Vec<Flag>, Vec<u8>)>>>;
 /// conversation here), and a clock that ticks once per move there.
 type Trash = Arc<Mutex<(Vec<u32>, i64)>>;
 
+/// Uids whose conversation is held for review as suspected fraud.
+type Held = Arc<Mutex<Vec<u32>>>;
+
 /// Labels: `(id, name, uids)`, each message its own conversation.
 type Labels = Arc<Mutex<Vec<(String, String, Vec<u32>)>>>;
 
@@ -33,6 +36,7 @@ pub(crate) struct Memory {
     inbox: Inbox,
     script: Arc<Mutex<Option<String>>>,
     trash: Trash,
+    held: Held,
     labels: Labels,
 }
 
@@ -44,6 +48,11 @@ impl Memory {
     pub(crate) fn add_label(&self, id: &str, name: &str) {
         let mut labels = self.labels.lock().unwrap();
         labels.push((id.to_string(), name.to_string(), Vec::new()));
+    }
+
+    /// Hold the conversation of `uid`, as a fraud verdict does.
+    pub(crate) fn hold(&self, uid: u32) {
+        self.held.lock().unwrap().push(uid);
     }
 
     pub(crate) fn deliver(&self, raw: &str) {
@@ -85,6 +94,7 @@ impl Directory for Memory {
             inbox: self.inbox.clone(),
             script: self.script.clone(),
             trash: self.trash.clone(),
+            held: self.held.clone(),
             labels: self.labels.clone(),
         }))
     }
@@ -94,6 +104,7 @@ pub(crate) struct MemoryAccount {
     inbox: Inbox,
     script: Arc<Mutex<Option<String>>>,
     trash: Trash,
+    held: Held,
     labels: Labels,
 }
 
@@ -250,6 +261,24 @@ impl Account for MemoryAccount {
             })
             .collect();
         Ok(Trashed { messages, latest })
+    }
+
+    async fn held(&self) -> Result<Trashed<(), u32>> {
+        let uids = self.held.lock().unwrap().clone();
+        let messages = self
+            .listing()
+            .into_iter()
+            .filter(|m| uids.contains(&m.uid))
+            .map(|m| ShownMessage {
+                mailbox: (),
+                uid: m.uid,
+                message: m,
+            })
+            .collect();
+        Ok(Trashed {
+            messages,
+            latest: 0,
+        })
     }
 
     async fn labels(&self) -> Result<Vec<LabelFolder<(), u32>>> {
