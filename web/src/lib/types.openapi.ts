@@ -5994,6 +5994,10 @@ export interface components {
                 limit_bytes?: number | null;
                 /** @description used_bytes at or past MAILRS_MEMORY_HIGH_PERCENT (80 by default) of limit_bytes; null without a limit */
                 high?: boolean | null;
+                /** @description The core's embedded key-value store, by its own count (fastcore); null for a core without one */
+                kevy_used_bytes?: number | null;
+                /** @description Keys in that store; null for a core without one */
+                kevy_keys?: number | null;
             } | null;
             /** @description The receiver's counters since it started, from its stats frame (every ten seconds); null until a frame has arrived. A counter is null when the receiver does not report it. */
             receiver?: {

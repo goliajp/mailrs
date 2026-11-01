@@ -13200,6 +13200,16 @@
                 "type": "boolean",
                 "nullable": true,
                 "description": "used_bytes at or past MAILRS_MEMORY_HIGH_PERCENT (80 by default) of limit_bytes; null without a limit"
+              },
+              "kevy_used_bytes": {
+                "type": "integer",
+                "nullable": true,
+                "description": "The core's embedded key-value store, by its own count (fastcore); null for a core without one"
+              },
+              "kevy_keys": {
+                "type": "integer",
+                "nullable": true,
+                "description": "Keys in that store; null for a core without one"
               }
             }
           },

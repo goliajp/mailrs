@@ -15,6 +15,8 @@ fn from_dir(dir: &std::path::Path) -> Option<MemoryWire> {
     Some(MemoryWire {
         used_bytes,
         limit_bytes,
+        kevy_used_bytes: None,
+        kevy_keys: None,
     })
 }
 
@@ -31,7 +33,9 @@ mod tests {
             from_dir(tmp.path()),
             Some(MemoryWire {
                 used_bytes: 2_147_483_648,
-                limit_bytes: Some(4_294_967_296)
+                limit_bytes: Some(4_294_967_296),
+                kevy_used_bytes: None,
+                kevy_keys: None,
             })
         );
         std::fs::write(tmp.path().join("memory.max"), "max\n").unwrap();
