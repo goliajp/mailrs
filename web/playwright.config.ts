@@ -65,7 +65,7 @@ export default defineConfig({
     // axe-core over the built bundle, on the same preview server
     {
       name: 'a11y',
-      testMatch: /accessibility\.spec\.ts/,
+      testMatch: /(accessibility|keyboard)\.spec\.ts/,
       use: { baseURL: 'http://localhost:6038' },
     },
   ],
