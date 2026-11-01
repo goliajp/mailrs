@@ -57,7 +57,10 @@ INCREMENTAL_DAYS="${INCREMENTAL_DAYS:-2}"
 # days of builds), release 5. Every `-p` selection unifies dependency
 # features differently and builds its own copy; that is the working set
 # of building one crate at a time, not rot.
-CEILING_GB="${CEILING_GB:-180}"
+#
+# 2026-11-01: 208 GB after a deploy, `cargo sweep --dry-run --time 3`
+# would reclaim 0.86 GB: debug 206, release 2. The working set again.
+CEILING_GB="${CEILING_GB:-220}"
 
 cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
