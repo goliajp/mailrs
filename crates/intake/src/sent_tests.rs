@@ -6,6 +6,7 @@ use super::*;
 struct Recorder {
     root: String,
     indexed: RefCell<Vec<(String, bool, String)>>,
+    arrivals: RefCell<Vec<(String, bool, String)>>,
 }
 
 impl Threads for Recorder {
@@ -30,6 +31,12 @@ impl SentStore for Recorder {
             .push((blob_ref.to_string(), a.is_own, a.thread_id.clone()));
         Ok(())
     }
+    fn index_arrival(&self, _: &str, blob_ref: &str, _: &[u8], a: &Arrival<'_>) -> io::Result<()> {
+        self.arrivals
+            .borrow_mut()
+            .push((blob_ref.to_string(), a.is_own, a.thread_id.clone()));
+        Ok(())
+    }
 }
 
 /// Sent as an alias the user may use: `From:` is not their address, and
@@ -48,6 +55,7 @@ fn a_sent_copy_is_filed_in_sent_read_and_indexed_as_the_users_own() {
     let core = Recorder {
         root: tmp.path().to_string_lossy().into_owned(),
         indexed: RefCell::default(),
+        arrivals: RefCell::default(),
     };
     let filed = file(&core, "alice@example.test", REPLY, &[]).expect("filed");
 
@@ -78,6 +86,7 @@ fn a_sent_copy_for_no_address_is_refused() {
     let core = Recorder {
         root: tmp.path().to_string_lossy().into_owned(),
         indexed: RefCell::default(),
+        arrivals: RefCell::default(),
     };
     assert!(file(&core, "nobody", REPLY, &[]).is_err());
     assert!(core.indexed.borrow().is_empty());
@@ -106,5 +115,45 @@ fn every_envelope_recipient_joins_the_contacts_under_its_address() {
             (b"carol@x.test".to_vec(), b"Carol <carol@x.test>".to_vec()),
             (b"hidden@x.test".to_vec(), b"hidden@x.test".to_vec()),
         ]
+    );
+}
+
+const RECEIVED: &[u8] = b"From: Carol <carol@x.test>\r\n\
+To: alice@example.test\r\n\
+Subject: Re: Plans\r\n\
+Message-ID: <theirs@x.test>\r\n\
+In-Reply-To: <parent@x.test>\r\n\
+\r\n\
+See you then.\r\n";
+
+/// An imported message lands in INBOX, out of new/ and unread, and is
+/// indexed as one the user received, in the thread it answers.
+#[test]
+fn an_imported_message_is_filed_in_the_inbox_as_received() {
+    let tmp = tempfile::tempdir().expect("tmp");
+    let core = Recorder {
+        root: tmp.path().to_string_lossy().into_owned(),
+        indexed: RefCell::default(),
+        arrivals: RefCell::default(),
+    };
+    let filed = crate::import::file(&core, "alice@example.test", RECEIVED).expect("filed");
+    assert_eq!(filed.message_id, "theirs@x.test");
+    assert_eq!(filed.thread_id, "t-parent");
+    let inbox = tmp.path().join("example.test/alice");
+    assert!(
+        inbox
+            .join("cur")
+            .join(format!("{}:2,", filed.blob_ref))
+            .is_file(),
+        "not in cur/ unread"
+    );
+    assert!(
+        core.indexed.borrow().is_empty(),
+        "not indexed as the user's own"
+    );
+    let (blob, own, tid) = core.arrivals.borrow()[0].clone();
+    assert_eq!(
+        (blob.as_str(), own, tid.as_str()),
+        (filed.blob_ref.as_str(), false, "t-parent")
     );
 }

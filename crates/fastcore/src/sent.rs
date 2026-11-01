@@ -13,7 +13,7 @@ use mailrs_intake::sent::SentStore;
 
 use crate::FastcoreState;
 
-struct Store(Arc<FastcoreState>);
+pub(crate) struct Store(pub(crate) Arc<FastcoreState>);
 
 impl Threads for Store {
     fn thread_for_message_id(&self, user: &str, message_id: &str) -> Option<String> {
@@ -35,6 +35,16 @@ impl SentStore for Store {
     /// store cannot make is logged there, and the maildir self-heal indexes
     /// the file later, as for any delivered file.
     fn index_own(
+        &self,
+        user: &str,
+        blob_ref: &str,
+        body: &[u8],
+        a: &Arrival<'_>,
+    ) -> io::Result<()> {
+        crate::ingest::store_arrival(&self.0, user, blob_ref, body, a, None);
+        Ok(())
+    }
+    fn index_arrival(
         &self,
         user: &str,
         blob_ref: &str,

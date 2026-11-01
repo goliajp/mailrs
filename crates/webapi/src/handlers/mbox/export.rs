@@ -124,15 +124,20 @@ async fn conversation(
             tracing::warn!(%user, uid = m.uid, "mbox export: message file missing, skipped");
             continue;
         };
-        let folder = folder_of(user, &m.sender, conv.archived);
+        let folder = folder_of(user, &m.sender, &m.blob_ref, conv.archived);
         let seen = m.flags & mailrs_core_api::method::message::FLAG_SEEN != 0;
         write_message(&mut out, &raw, m.internal_date, folder, seen);
     }
     Ok(out)
 }
 
-/// What the user wrote is Sent; the rest follows the conversation.
-fn folder_of(user: &str, from_header: &str, archived: bool) -> Folder {
+/// What is filed in Sent, or what the user wrote, is Sent; the rest
+/// follows the conversation. Filed in Sent covers mail imported from
+/// another address, which an import files there.
+fn folder_of(user: &str, from_header: &str, blob_ref: &str, archived: bool) -> Folder {
+    if blob_ref.starts_with(".Sent/") {
+        return Folder::Sent;
+    }
     let addr = match from_header.rsplit_once('<') {
         Some((_, rest)) => rest.trim_end_matches('>').trim(),
         None => from_header.trim(),
@@ -153,9 +158,10 @@ mod tests {
     #[test]
     fn the_users_own_mail_is_sent_whatever_the_conversation() {
         let u = "me@x.jp";
-        assert_eq!(folder_of(u, "Me <ME@x.jp>", true), Folder::Sent);
-        assert_eq!(folder_of(u, "me@x.jp", false), Folder::Sent);
-        assert_eq!(folder_of(u, "A <a@y>", true), Folder::Archive);
-        assert_eq!(folder_of(u, "a@y", false), Folder::Inbox);
+        assert_eq!(folder_of(u, "Me <ME@x.jp>", "f1", true), Folder::Sent);
+        assert_eq!(folder_of(u, "me@x.jp", "f1", false), Folder::Sent);
+        assert_eq!(folder_of(u, "A <a@y>", ".Sent/f1", false), Folder::Sent);
+        assert_eq!(folder_of(u, "A <a@y>", "f1", true), Folder::Archive);
+        assert_eq!(folder_of(u, "a@y", "f1", false), Folder::Inbox);
     }
 }

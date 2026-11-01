@@ -10,6 +10,20 @@ export const settingsJa: Record<SettingsKey, string> = {
   'settings.account.exportHelp':
     '「すべてのメール」を MBOX ファイルとしてダウンロードします。各メールのフォルダーと既読状態も含みます。迷惑メールとゴミ箱は含みません',
   'settings.account.exportMbox': 'MBOX でエクスポート',
+  'settings.account.import': 'メールのインポート',
+  'settings.account.importDone':
+    '受信トレイに {imported} 件（うち {archived} 件はアーカイブ済み）、送信済みに {sent} 件を取り込みました',
+  'settings.account.importFailed': '{failed} 件は保存できず、{tooLarge} 件は大きすぎました',
+  'settings.account.importFile': 'MBOX ファイル',
+  'settings.account.importHelp':
+    'MBOX ファイルをアップロードします。Gmail Takeout、他のメールアプリのエクスポート、ここからのエクスポートに対応します。フォルダーと既読状態は保たれ、既にあるメールはスキップし、迷惑メールとゴミ箱のものは取り込みません',
+  'settings.account.importIncomplete':
+    'ファイルの途中でアップロードが止まりました。もう一度アップロードしてください。取り込み済みのメールはスキップされます',
+  'settings.account.importing': 'インポート中…',
+  'settings.account.importMbox': 'MBOX ファイルを選択',
+  'settings.account.importSkipped':
+    '既にある {duplicate} 件と、迷惑メール・ゴミ箱の {junk} 件をスキップしました',
+  'settings.account.importUploadFailed': 'ファイルをアップロードできませんでした',
   'settings.account.mismatch': '新しいパスワードが一致しません',
   'settings.account.notConfigured': '未設定',
   'settings.account.passwordFailed': 'パスワードを更新できませんでした',

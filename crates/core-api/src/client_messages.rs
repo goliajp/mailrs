@@ -34,6 +34,18 @@ impl Client {
         self.post_authed_json(path, &req, "file_sent").await
     }
 
+    /// POST /v1/users/{user}/import — file a message brought over from
+    /// another mailbox into INBOX, unread, without running delivery.
+    pub async fn import_message(
+        &self,
+        user: &str,
+        message: &[u8],
+    ) -> ApiResult<method::sent::FileSentResponse> {
+        let path = format!("/v1/users/{}/import", Self::enc(user));
+        let req = method::import::ImportMessageRequest::new(message);
+        self.post_authed_json(path, &req, "import_message").await
+    }
+
     /// GET /v1/users/{user}/mailboxes
     pub async fn list_mailboxes(
         &self,

@@ -14,6 +14,7 @@ mod accounts;
 mod coverage;
 mod deletes;
 mod harness;
+mod import;
 mod intake;
 mod intake_rules;
 mod labels;
@@ -41,6 +42,7 @@ async fn the_two_cores_answer_every_client_call_alike() {
     threads::run(&cores, &mut d).await;
     side::run(&cores, &mut d).await;
     sent::run(&cores, &mut d).await;
+    import::run(&cores, &mut d).await;
     accounts::teardown(&cores, &mut d).await;
     d.both(
         "healthz",

@@ -11842,6 +11842,79 @@
           }
         }
       }
+    },
+    "/api/mail/import": {
+      "post": {
+        "operationId": "importMbox",
+        "summary": "Import an mbox",
+        "tags": [
+          "Export"
+        ],
+        "description": "The request body is an mbox file (mboxrd or mboxo), read as it arrives and filed message by message. X-Mailrs-Folder (from an export here) or X-Gmail-Labels (a Gmail Takeout) decides the folder and read state; Status: R marks a message read in any other mbox. Mail the user wrote is filed as a sent copy, the rest into the Inbox and then read and archived as the file says. Junk and Trash are skipped, and a Message-ID already in the mailbox is not filed twice, so an interrupted import can be run again. Nothing a delivery sets off runs: no filters, forwarding, webhooks or notifications.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/mbox": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "What the upload did",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "imported",
+                    "sent",
+                    "archived",
+                    "skipped_duplicate",
+                    "skipped_junk_or_trash",
+                    "too_large",
+                    "failed",
+                    "complete"
+                  ],
+                  "properties": {
+                    "imported": {
+                      "type": "integer",
+                      "description": "Filed into the Inbox, archived or not"
+                    },
+                    "sent": {
+                      "type": "integer",
+                      "description": "Filed as sent copies"
+                    },
+                    "archived": {
+                      "type": "integer",
+                      "description": "Of imported, archived afterwards"
+                    },
+                    "skipped_duplicate": {
+                      "type": "integer"
+                    },
+                    "skipped_junk_or_trash": {
+                      "type": "integer"
+                    },
+                    "too_large": {
+                      "type": "integer"
+                    },
+                    "failed": {
+                      "type": "integer"
+                    },
+                    "complete": {
+                      "type": "boolean",
+                      "description": "False when the upload ended before the file did"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {

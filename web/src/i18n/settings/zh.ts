@@ -10,6 +10,18 @@ export const settingsZh: Record<SettingsKey, string> = {
   'settings.account.exportHelp':
     '把「全部邮件」下载为一个 MBOX 文件，每封信带着所在文件夹和已读状态，不含垃圾邮件和废纸篓',
   'settings.account.exportMbox': '导出为 MBOX',
+  'settings.account.import': '导入邮件',
+  'settings.account.importDone':
+    '已导入收件箱 {imported} 封（其中 {archived} 封已归档），已发送 {sent} 封',
+  'settings.account.importFailed': '{failed} 封没能存入，{tooLarge} 封太大',
+  'settings.account.importFile': 'MBOX 文件',
+  'settings.account.importHelp':
+    '上传一个 MBOX 文件：Gmail Takeout、别的邮件软件导出的文件，或者从这里导出的文件。文件夹和已读状态会保留，这里已有的信会跳过，垃圾邮件和废纸篓里的不导入',
+  'settings.account.importIncomplete': '上传在文件结束前中断了。再上传一次即可，已导入的信会跳过',
+  'settings.account.importing': '正在导入…',
+  'settings.account.importMbox': '选择 MBOX 文件',
+  'settings.account.importSkipped': '跳过 {duplicate} 封已有的，{junk} 封来自垃圾邮件或废纸篓',
+  'settings.account.importUploadFailed': '文件没能上传',
   'settings.account.mismatch': '两次输入的新密码不一样',
   'settings.account.notConfigured': '未设置',
   'settings.account.passwordFailed': '密码更新失败',

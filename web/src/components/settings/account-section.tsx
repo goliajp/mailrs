@@ -26,6 +26,7 @@ import {
   SectionHeader,
 } from './_shared'
 import { RevokeAllAppPasswords } from './app-passwords-card'
+import { MboxImportCard } from './mbox-import-card'
 
 export function AccountSection() {
   const t = useT()
@@ -214,6 +215,8 @@ export function AccountSection() {
           {t('settings.account.exportMbox')}
         </button>
       </div>
+
+      <MboxImportCard />
 
       <div className="border-border border-t pt-4">
         <button className={btnDanger} onClick={() => setShowLogoutConfirm(true)}>
