@@ -68,3 +68,4 @@ GET /v1/admin/maintenance:rejudge-status | read-only counts of the shadow re-jud
 POST /v1/admin/maintenance:rejudge-now | operator: one shadow re-judge round now instead of at the next announcement, for timing the path on a copy; records verdicts, moves nothing
 POST /v1/admin/maintenance:rewrite-threaduser-markers | write the sparse index markers onto membership rows written before they existed (paged by offset)
 POST /v1/admin/maintenance:threaduser-marker-check | read-only: every index marker against its column, before the full-row flag indexes are dropped
+POST /v1/admin/maintenance:threaduser-read-compare | read-only: every flag read for every user off the marker and the full-row index, while both are declared

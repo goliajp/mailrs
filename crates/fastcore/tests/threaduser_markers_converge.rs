@@ -83,6 +83,11 @@ async fn markers_are_filled_in_once_and_checked() {
     assert_eq!(before["rows_walked"], 5, "{before}");
     // five unread, one starred, one trashed with its time
     assert_eq!(before["mismatches"], 8, "{before}");
+    let reads_before = post(&state, "/v1/admin/maintenance:threaduser-read-compare").await;
+    assert!(
+        reads_before["differences"].as_u64().expect("differences") > 0,
+        "{reads_before}"
+    );
 
     let first = post(
         &state,
@@ -109,6 +114,13 @@ async fn markers_are_filled_in_once_and_checked() {
 
     let after = post(&state, "/v1/admin/maintenance:threaduser-marker-check").await;
     assert_eq!(after["mismatches"], 0, "{after}");
+    let reads_after = post(&state, "/v1/admin/maintenance:threaduser-read-compare").await;
+    assert_eq!(reads_after["differences"], 0, "{reads_after}");
+    assert_eq!(reads_after["users"], 1, "{reads_after}");
+    assert!(
+        reads_after["rows_returned"].as_u64().expect("rows") > 0,
+        "{reads_after}"
+    );
     let unread = after["columns"]
         .as_array()
         .expect("columns")
