@@ -335,7 +335,7 @@ services:
       # empty: the zone check is off and says so once; refusals that name
       # a blocklist are still recorded. Zones whose terms allow free
       # commercial use are picked by devops.
-      MAILRS_EGRESS_DNSBL_ZONES: ""
+      MAILRS_EGRESS_DNSBL_ZONES: ${MAILRS_EGRESS_DNSBL_ZONES:-}
       # mail to the mock domain is stored under /data/mock, never sent
       MAILRS_MOCK_DOMAIN: mock.golia.jp
       RUST_LOG: info
