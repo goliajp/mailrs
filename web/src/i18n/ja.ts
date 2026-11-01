@@ -2,10 +2,12 @@ import type { Key } from './en'
 
 import { adminOpsJa } from './admin-ops/ja'
 import { adminJa } from './admin/ja'
+import { mockJa } from './mock/ja'
 import { settingsJa } from './settings/ja'
 
 export const ja: Record<Key, string> = {
   ...settingsJa,
+  ...mockJa,
   ...adminJa,
   ...adminOpsJa,
   'lang.name.en': 'English',

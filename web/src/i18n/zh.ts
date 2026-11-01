@@ -2,10 +2,12 @@ import type { Key } from './en'
 
 import { adminOpsZh } from './admin-ops/zh'
 import { adminZh } from './admin/zh'
+import { mockZh } from './mock/zh'
 import { settingsZh } from './settings/zh'
 
 export const zh: Record<Key, string> = {
   ...settingsZh,
+  ...mockZh,
   ...adminZh,
   ...adminOpsZh,
   'lang.name.en': 'English',

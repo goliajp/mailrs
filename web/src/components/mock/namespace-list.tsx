@@ -6,6 +6,7 @@ import { Trash2 } from 'lucide-react'
 import { useState } from 'react'
 
 import { bytes } from '@/components/admin-overview/flow-model'
+import { useT } from '@/i18n'
 import { cn } from '@/lib/cn'
 import { mockKeys } from '@/lib/query-keys'
 import { wireCreateMockNamespace, wireDeleteMockNamespace } from '@/wire/endpoints/mock'
@@ -26,6 +27,7 @@ export function NamespaceList({
   onSelect: (name: null | string) => void
   selected: null | string
 }) {
+  const t = useT()
   const queryClient = useQueryClient()
   const [name, setName] = useState('')
   const [deleting, setDeleting] = useState<null | string>(null)
@@ -33,7 +35,7 @@ export function NamespaceList({
 
   const create = useMutation({
     mutationFn: (n: string) => wireCreateMockNamespace(n),
-    onError: (e) => toast.error(errorText(e, 'Could not create the namespace')),
+    onError: (e) => toast.error(errorText(e, t('mock.ns.createFailed'))),
     onSuccess: (created) => {
       setName('')
       onSelect(created.name)
@@ -43,14 +45,14 @@ export function NamespaceList({
 
   const remove = useMutation({
     mutationFn: (n: string) => wireDeleteMockNamespace(n),
-    onError: (e) => toast.error(errorText(e, 'Could not delete the namespace')),
+    onError: (e) => toast.error(errorText(e, t('mock.ns.deleteFailed'))),
     onSettled: () => {
       setDeleting(null)
       void invalidate()
     },
     onSuccess: (_, n) => {
       if (n === selected) onSelect(null)
-      toast.success(`Deleted ${n}`)
+      toast.success(t('mock.ns.deleted', { name: n }))
     },
   })
 
@@ -62,12 +64,12 @@ export function NamespaceList({
   }
 
   return (
-    <section aria-label="Namespaces" className="space-y-3">
+    <section aria-label={t('mock.ns.list')} className="space-y-3">
       {!everyone && (
         <>
           <form className="flex gap-2" onSubmit={submit}>
             <input
-              aria-label="New namespace name"
+              aria-label={t('mock.ns.newName')}
               className={inputClass}
               onChange={(e) => setName(e.target.value)}
               placeholder="my-app"
@@ -78,12 +80,10 @@ export function NamespaceList({
               disabled={name.trim() === '' || create.isPending}
               type="submit"
             >
-              Create
+              {t('settings.create')}
             </button>
           </form>
-          <p className="text-fg-muted text-mini">
-            3–32 characters of a-z, 0-9 and -, unique across the server
-          </p>
+          <p className="text-fg-muted text-mini">{t('mock.ns.nameRule')}</p>
         </>
       )}
 
@@ -102,7 +102,7 @@ export function NamespaceList({
 
       {deleting !== null && (
         <ConfirmDialog
-          message={`Delete namespace ${deleting} and every message in it? Its addresses stop receiving mail.`}
+          message={t('mock.ns.deleteConfirm', { name: deleting })}
           onCancel={() => setDeleting(null)}
           onConfirm={() => remove.mutate(deleting)}
         />
@@ -124,6 +124,7 @@ function NamespaceRow({
   onSelect: () => void
   showOwner: boolean
 }) {
+  const t = useT()
   return (
     <li
       className={cn(
@@ -144,11 +145,15 @@ function NamespaceRow({
           <span className="text-fg-secondary block truncate text-xs">{namespace.owner}</span>
         )}
         <span className="text-fg-muted text-mini block">
-          {namespace.messages} messages, {bytes(namespace.bytes)}, {namespace.dropped} dropped
+          {t('mock.ns.stats', {
+            bytes: bytes(namespace.bytes),
+            dropped: namespace.dropped,
+            messages: namespace.messages,
+          })}
         </span>
       </button>
       <button
-        aria-label={`Delete namespace ${namespace.name}`}
+        aria-label={t('mock.ns.delete', { name: namespace.name })}
         className="text-fg-muted hover:text-danger hover:bg-bg-secondary rounded-md p-1 transition-colors"
         onClick={onDelete}
         type="button"
