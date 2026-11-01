@@ -4,11 +4,10 @@ import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { Mail } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { DeleteThreadConfirm } from '@/components/delete-thread-confirm'
 import { type ReplyMode } from '@/components/reply-box'
-import { ThreadContentPane } from '@/components/thread-content-pane'
-import { ThreadConversationPane, VISIBLE_RECENT } from '@/components/thread-conversation-pane'
 import { type ThreadReplyContext } from '@/components/thread-reply-box'
-import { ThreadViewDialogs } from '@/components/thread-view-dialogs'
+import { ThreadStack } from '@/components/thread-stack/thread-stack'
 import { useConversationActions } from '@/hooks/use-conversation-actions'
 import {
   useConversationRows,
@@ -25,16 +24,12 @@ import { toggle } from '@/lib/actions'
 import { extractEmail } from '@/lib/avatar'
 import { formatFullDate } from '@/lib/format'
 import { splitAddressList } from '@/lib/recipients'
-import { defaultReadingTarget } from '@/lib/thread-reading'
 import { authAtom } from '@/store/auth'
 import {
   composeReplySourceAtom,
   composingNewAtom,
-  mobileReplyOpenAtom,
-  mobileThreadTabAtom,
   selectedDomainsAtom,
   threadShortcutAtom,
-  timelineCollapsedAtom,
 } from '@/store/ui'
 
 type ForwardSource = {
@@ -52,7 +47,7 @@ type ForwardSource = {
 // always says "props changed", undoing the memo wrap entirely.
 const EMPTY_MESSAGES: readonly ThreadMessage[] = []
 
-export function ThreadView({ onBack }: { onBack?: () => void }) {
+export function ThreadView() {
   const t = useT()
   const auth = useAtomValue(authAtom)
   const selection = useCurrentSelection()
@@ -94,14 +89,9 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     if (hasNext) setSelectedId(rows[currentIdx + 1]?.threadId ?? null)
   }, [hasNext, rows, currentIdx, setSelectedId])
   const selectedDomains = useAtomValue(selectedDomainsAtom)
-  const bottomRef = useRef<HTMLDivElement>(null)
   const contentScrollRef = useRef<HTMLDivElement>(null)
-  const [mobileThreadTab, setMobileThreadTab] = useAtom(mobileThreadTabAtom)
-  const [timelineCollapsed, setTimelineCollapsed] = useAtom(timelineCollapsedAtom)
-  const [mobileReplyOpen, setMobileReplyOpen] = useAtom(mobileReplyOpenAtom)
   const setComposingNew = useSetAtom(composingNewAtom)
   const setComposeReplySource = useSetAtom(composeReplySourceAtom)
-  const [selectedMsgIdx, setSelectedMsgIdx] = useState<null | number>(null)
   // The message to scroll to, when the selected row named one — a Send
   // row is one message, a conversation row is a whole thread. It used to
   // be a separate atom the Send list wrote and this cleared, which meant
@@ -113,17 +103,15 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [replyMode, setReplyMode] = useState<ReplyMode>('reply')
   const [forwardSource, setForwardSource] = useState<ForwardSource | null>(null)
-  const [showAllMessages, setShowAllMessages] = useState(false)
   // Tracks the threadId we've already auto-marked-read this entry. Set on
   // first run for a given selectedId; cleared when selectedId changes. Any
   // thread messages now live in react-query; we bridge to the legacy
   // threadMessagesAtom for downstream consumers. The bridge is structured
   // to eliminate the thread-switch flash: while a new thread is fetching
   // (selectedId already pointed at B but threadQuery.data still resolving),
-  // we leave `messages` and `selectedMsgIdx` AS-IS — i.e. keep displaying
+  // we leave `messages` AS-IS — i.e. keep displaying
   // the previous thread — and swap atomically when the new data arrives.
-  // No eager reset means no intermediate "Select a message to preview"
-  // empty state, no flicker.
+  // No eager reset means no intermediate empty state, no flicker.
   const threadQuery = useThreadQuery(selectedId, selectedDomains)
   const loadingThread = threadQuery.isPending && !!selectedId
   // `messages` is the RQ query result directly — no mirror, no bridge,
@@ -132,35 +120,20 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   // loading frames.
   const messages: readonly ThreadMessage[] = threadQuery.data ?? EMPTY_MESSAGES
 
-  // On selectedId change, drop the highlighted message pointer so the
-  // next paint of the timeline doesn't briefly point at the previous
-  // thread's msg index. The auto-pick effect below re-seeks to the
-  // last message once the new thread's data arrives.
-  useEffect(() => {
-    setSelectedMsgIdx(null)
-  }, [selectedId])
-
-  // Scroll to the bottom when a thread's data first resolves. Scrolling
-  // is an action, so it belongs in an effect and is latched per thread.
-  // *Which message is being read* is not an action and no longer lives
-  // here — see `currentMsgIdx` below. It used to be written by this same
-  // effect behind this same latch, and the two disagreed: leaving a
-  // thread and coming back moves `selectedId` A -> null -> A, which
-  // resets the pointer, while the latch still said "A already picked"
-  // and skipped the re-pick. The result was a thread whose header and
-  // timeline were both showing it and whose pane said "Select a message
-  // to preview" — a state the app should not have been able to hold.
+  // When a conversation's messages first arrive, bring its first open
+  // message to the top: the reply box is at the end of the stack, so the
+  // bottom would show the box and not what is to be read. Latched per
+  // thread: scrolling is an action, not a state.
   const scrolledFor = useRef<null | string>(null)
   useEffect(() => {
     if (!selectedId || !threadQuery.data) return
     if (scrolledFor.current === selectedId) return
     scrolledFor.current = selectedId
-    if (typeof contentScrollRef.current?.scrollTo === 'function') {
-      contentScrollRef.current.scrollTo(0, 0)
-    }
-    if (typeof bottomRef.current?.scrollIntoView === 'function') {
-      requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: 'instant' }))
-    }
+    requestAnimationFrame(() => {
+      contentScrollRef.current
+        ?.querySelector('[data-stack-header][aria-expanded="true"]')
+        ?.scrollIntoView?.({ behavior: 'instant', block: 'start' })
+    })
   }, [threadQuery.data, selectedId])
 
   // invalidate the active thread (used after Reply / Forward send so the
@@ -215,16 +188,12 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
 
   useEffect(() => {
     if (!selectedId) {
-      setSelectedMsgIdx(null)
       setShowDeleteConfirm(false)
       setForwardSource(null)
       return
     }
     setForwardSource(null)
     setReplyMode('reply')
-    setShowAllMessages(false)
-    setMobileThreadTab('content')
-    setMobileReplyOpen(false)
     // v2.1 phase-5b: imperative lookup used to read
     // `store.get(conversationsAtom).find(...)`. Now walks the RQ cache
     // directly — one flatten over the current `conversationKeys.infinites`
@@ -234,7 +203,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     setIsRead(!existing || existing.unread_count === 0)
     setIsFlagged(existing?.flagged ?? false)
     // thread fetch is owned by useThreadQuery; nothing imperative to do here
-  }, [selectedId, currentConversations, setMobileThreadTab, setMobileReplyOpen])
+  }, [selectedId, currentConversations])
 
   // archiving runs through the same dispatcher as the list's row, so the
   // toast, its undo and `z` behave alike
@@ -275,23 +244,13 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
         handleTrash()
         break
       case 'forward':
-        setTimelineCollapsed(false)
         handleForwardMsg(newest)
         break
       case 'reply':
         handleReplyMsg(newest)
         break
     }
-  }, [
-    shortcut,
-    selectedId,
-    messages,
-    setShortcut,
-    setTimelineCollapsed,
-    handleForwardMsg,
-    handleReplyMsg,
-    handleTrash,
-  ])
+  }, [shortcut, selectedId, messages, setShortcut, handleForwardMsg, handleReplyMsg, handleTrash])
 
   // Showing is unconditionally true here: this component only renders
   // when the desktop reading pane is on screen. The mobile view passes
@@ -299,50 +258,41 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   // question.
   useMarkReadOnOpen(selectedId, true, () => setIsRead(true))
 
-  // Smooth-scroll to the bottom of the conversation timeline only when an
-  // actually-new message arrives (last message's uid changed). Previously
-  // depended on the `messages` array reference, which flipped on every WS
-  // refetch — even when the data was unchanged — and caused a smooth scroll
-  // ~every minute the tab was open. Now: stable across refetches that don't
-  // introduce a new tail message.
+  // A message that arrives while the conversation is open is scrolled to.
+  // Keyed on the newest uid, not the array: a refetch that brings nothing
+  // new hands back a new array and must not scroll.
   const lastMessageUid = messages[messages.length - 1]?.uid
+  const arrivedFor = useRef<null | string>(null)
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [lastMessageUid])
+    if (lastMessageUid === undefined || !selectedId) return
+    const mark = `${selectedId}:${lastMessageUid}`
+    if (arrivedFor.current === null || !arrivedFor.current.startsWith(`${selectedId}:`)) {
+      arrivedFor.current = mark
+      return
+    }
+    if (arrivedFor.current === mark) return
+    arrivedFor.current = mark
+    document
+      .getElementById(`msg-${lastMessageUid}`)
+      ?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+  }, [lastMessageUid, selectedId])
 
-  // hooks for the timeline render. Must live above the early-return below —
-  // moving them after the `if (!selectedId) return …` makes the hook call
-  // order vary between renders (React hooks after an early return).
-  // Both work for `!selectedId`: handleSelectMsg
-  // captures only the setter, timelineItems short-circuits on `messages`
-  // being empty.
-  const hasCollapsedTimeline = messages.length > 5 && !showAllMessages
-  const handleSelectMsg = useCallback((idx: number) => setSelectedMsgIdx(idx), [])
-
-  // Focus a specific message when the selected row names one: expand the
-  // timeline if it is collapsed away, mark it selected, and scroll it
-  // into view.
-  //
-  // Scrolling is an action, so it is guarded on the pair it was last run
-  // for rather than by clearing the value that asked for it — that value
-  // is now derived, and clearing a derivation only makes it come back.
+  // A row that names one message (a Send row) scrolls to it; the stack
+  // opens it. Scrolling is an action, so it is guarded on the pair it last
+  // ran for rather than by clearing the value that asked for it.
   const scrolledToRef = useRef<null | string>(null)
   useEffect(() => {
     if (focusedMsgUid === null || selectedId === null || messages.length === 0) return
     const mark = `${selectedId}:${focusedMsgUid}`
     if (scrolledToRef.current === mark) return
-    const idx = messages.findIndex((m) => m.uid === focusedMsgUid)
-    if (idx === -1) return
+    if (!messages.some((m) => m.uid === focusedMsgUid)) return
     scrolledToRef.current = mark
-    if (hasCollapsedTimeline && idx < messages.length - VISIBLE_RECENT) {
-      setShowAllMessages(true)
-    }
-    setSelectedMsgIdx(idx)
-    const el = document.getElementById(`msg-${focusedMsgUid}`)
-    if (el) {
-      window.setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 120)
-    }
-  }, [focusedMsgUid, selectedId, messages, hasCollapsedTimeline])
+    window.setTimeout(() => {
+      document
+        .getElementById(`msg-${focusedMsgUid}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 120)
+  }, [focusedMsgUid, selectedId, messages])
 
   // empty state
   if (!selectedId) {
@@ -360,14 +310,6 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const subject = messages[0]?.subject ?? ''
   const lastMsg = messages[messages.length - 1]
   const myEmail = auth?.address ?? ''
-  // The reading target, derived rather than stored. `selectedMsgIdx` is
-  // "the message the reader clicked", and `null` there means "they have
-  // not clicked one" — not "none is shown". A thread that has messages
-  // always has one to show, so the pane's empty state is reachable only
-  // when the thread is genuinely empty.
-  const currentMsgIdx = selectedMsgIdx ?? defaultReadingTarget(messages, auth?.address ?? '')
-  const selectedMsg = currentMsgIdx !== null ? messages[currentMsgIdx] : null
-
   const replyRecipients = lastMsg ? extractEmail(lastMsg.sender) : ''
   const replyAllRecipients = lastMsg
     ? (() => {
@@ -384,7 +326,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const fwdOriginalFrom = forwardSource?.sender ?? lastMsg?.sender ?? ''
   const fwdOriginalDate = forwardSource?.date ?? lastMsgDate
   const fwdSubject = forwardSource?.subject ?? subject
-  const fwdMsg = forwardSource ? null : (selectedMsg ?? lastMsg)
+  const fwdMsg = forwardSource ? null : lastMsg
   const fwdOriginalBody =
     forwardSource?.body ?? fwdMsg?.text_body ?? fwdMsg?.clean_text ?? lastMsgBody
   const fwdOriginalHtml = forwardSource?.htmlBody ?? fwdMsg?.html_body ?? null
@@ -408,70 +350,49 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
 
   return (
     <MPaneGroup>
-      <ThreadContentPane
-        auth={auth}
-        contentScrollRef={contentScrollRef}
-        goToNext={goToNext}
-        goToPrev={goToPrev}
-        handleArchive={handleArchive}
-        handleForwardMsg={handleForwardMsg}
-        handleMarkRead={handleMarkRead}
-        handleMarkUnread={handleMarkUnread}
-        handleReplyMsg={handleReplyMsg}
-        handleStar={handleStar}
-        handleTrash={handleTrash}
-        handleUnstar={handleUnstar}
-        handleUntrash={handleUntrash}
-        hasNext={hasNext}
-        hasPrev={hasPrev}
-        isArchived={isArchived}
-        isFlagged={isFlagged}
-        isRead={isRead}
-        isTrashed={isTrashed}
+      <ThreadStack
+        controls={{
+          goToNext,
+          goToPrev,
+          hasNext,
+          hasPrev,
+          isArchived,
+          isFlagged,
+          isRead,
+          isTrashed,
+          onArchive: handleArchive,
+          onMarkRead: handleMarkRead,
+          onMarkUnread: handleMarkUnread,
+          onStar: handleStar,
+          onTrash: handleTrash,
+          onUnstar: handleUnstar,
+          onUntrash: handleUntrash,
+        }}
+        focusedUid={focusedMsgUid}
         loadingThread={loadingThread}
         messages={messages}
-        mobileThreadTab={mobileThreadTab}
         myEmail={myEmail}
-        onBack={onBack}
-        selectedMsg={selectedMsg}
-        selectedMsgIdx={currentMsgIdx}
-        setMobileReplyOpen={setMobileReplyOpen}
-        setMobileThreadTab={setMobileThreadTab}
-        setTimelineCollapsed={setTimelineCollapsed}
-        subject={subject}
-        timelineCollapsed={timelineCollapsed}
-      />
-      <ThreadConversationPane
-        bottomRef={bottomRef}
-        displayName={auth?.display_name}
-        handleSelectMsg={handleSelectMsg}
-        hasCollapsedTimeline={hasCollapsedTimeline}
-        loadingThread={loadingThread}
-        messages={messages}
-        mobileThreadTab={mobileThreadTab}
-        myEmail={myEmail}
-        refetchThread={refetchThread}
+        myName={auth?.display_name}
+        onForward={handleForwardMsg}
+        onReply={handleReplyMsg}
+        onReplyModeChange={(m) => {
+          setReplyMode(m)
+          if (m !== 'forward') setForwardSource(null)
+        }}
+        onReplySent={() => {
+          setForwardSource(null)
+          refetchThread()
+        }}
         replyCtx={replyCtx}
         replyMode={replyMode}
-        selectedMsgIdx={currentMsgIdx}
-        setForwardSource={setForwardSource}
-        setMobileThreadTab={setMobileThreadTab}
-        setReplyMode={setReplyMode}
-        setShowAllMessages={setShowAllMessages}
-        timelineCollapsed={timelineCollapsed}
-      />
-      <ThreadViewDialogs
-        handleDelete={handleDelete}
-        mobileReplyOpen={mobileReplyOpen}
-        refetchThread={refetchThread}
-        replyCtx={replyCtx}
-        replyMode={replyMode}
-        setForwardSource={setForwardSource}
-        setMobileReplyOpen={setMobileReplyOpen}
-        setReplyMode={setReplyMode}
-        setShowDeleteConfirm={setShowDeleteConfirm}
-        showDeleteConfirm={showDeleteConfirm}
+        scrollRef={contentScrollRef}
         subject={subject}
+        threadId={selectedId}
+      />
+      <DeleteThreadConfirm
+        onCancel={() => setShowDeleteConfirm(false)}
+        onConfirm={handleDelete}
+        open={showDeleteConfirm}
       />
     </MPaneGroup>
   )

@@ -177,19 +177,6 @@ export const lastUndoAtom = atom<LastUndo | null>(null)
 export type ConnectionStatus = 'connected' | 'connecting' | 'offline'
 export const connectionStatusAtom = atom<ConnectionStatus>('connecting')
 
-// mobile thread view: toggle between email content and conversation timeline
-export type MobileThreadTab = 'content' | 'conversation'
-export const mobileThreadTabAtom = atom<MobileThreadTab>('content')
-
-// mobile full-screen reply composer
-export const mobileReplyOpenAtom = atom(false)
-
-// desktop: collapse the conversation timeline / reply pane on the right.
-// initial value is auto-derived from viewport width (collapsed below xl
-// breakpoint, ~1280px) so narrow desktops aren't crammed by default. user
-// can toggle anytime via the thread header button.
-export const timelineCollapsedAtom = atom(typeof window !== 'undefined' && window.innerWidth < 1280)
-
 // when non-null, the full-screen composer (NewConversation) opens pre-filled
 // as a reply to this message. set alongside composingNewAtom=true by the
 // Reply button; cleared when the composer closes or after send
