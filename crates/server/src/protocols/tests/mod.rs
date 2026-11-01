@@ -12,6 +12,7 @@ mod bodies;
 mod checks;
 mod folders;
 mod harness;
+mod held;
 mod labelled;
 mod limits;
 mod moves;
@@ -194,6 +195,23 @@ async fn both_cores_hold_the_same_mail_conversations() {
         report.push(format!("fastcore: {diff}"));
     }
     for diff in conversations(backends.pg.clone(), backends.home(1)).await {
+        report.push(format!("pg-core: {diff}"));
+    }
+    let state = backends.fastcore_state.clone();
+    let hold_fc = |tid: String| async move {
+        state
+            .mailbox
+            .set_quarantined(harness::USER, &tid, true)
+            .unwrap();
+    };
+    for diff in held::held(backends.fastcore.clone(), hold_fc).await {
+        report.push(format!("fastcore: {diff}"));
+    }
+    let pg_store = backends.pg.mailbox.clone();
+    let hold_pg = |tid: String| async move {
+        pg_store.hold_thread(harness::USER, &tid).await.unwrap();
+    };
+    for diff in held::held(backends.pg.clone(), hold_pg).await {
         report.push(format!("pg-core: {diff}"));
     }
     assert!(

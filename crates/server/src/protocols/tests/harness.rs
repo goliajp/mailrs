@@ -76,6 +76,9 @@ async fn database() -> (Box<dyn std::any::Any + Send>, crate::pg::BackendPool) {
 
 pub(super) struct Backends {
     pub fastcore: Arc<FastcoreDirectory>,
+    /// The fastcore side's store, for what no protocol does: holding a
+    /// conversation, as a fraud verdict does.
+    pub fastcore_state: Arc<FastcoreState>,
     pub pg: Arc<PgDirectory>,
     // a `mem://` store lives only while something has it open
     _kevy: (kevy_client::Connection, kevy_client::Connection),
@@ -96,7 +99,7 @@ fn passwordless_accounts() -> [(&'static str, &'static str); 2] {
     [(BLANK, ""), (CLEAR, CLEAR_VALUE)]
 }
 
-fn fastcore(net_url: &str, root: &std::path::Path) -> Arc<FastcoreDirectory> {
+fn fastcore(net_url: &str, root: &std::path::Path) -> (Arc<FastcoreDirectory>, Arc<FastcoreState>) {
     let store = Arc::new(kevy_embedded::Store::open(kevy_embedded::Config::default()).unwrap());
     store.set(b"hostname", HOST.as_bytes()).unwrap();
     let mut state = FastcoreState::new(mailrs_mailbox_kevy::KevyMailboxStore::new(store));
@@ -115,7 +118,11 @@ fn fastcore(net_url: &str, root: &std::path::Path) -> Arc<FastcoreDirectory> {
             std::fs::create_dir_all(home.join(folder).join(leaf)).unwrap();
         }
     }
-    Arc::new(FastcoreDirectory::new(Arc::new(state), root.to_path_buf()))
+    let state = Arc::new(state);
+    (
+        Arc::new(FastcoreDirectory::new(state.clone(), root.to_path_buf())),
+        state,
+    )
 }
 
 async fn pg(
@@ -173,10 +180,11 @@ pub(super) async fn start() -> Backends {
         kevy_client::Connection::connect(pg_url).unwrap(),
     );
     let maildirs = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
-    let fastcore = fastcore(fc_url, maildirs.0.path());
+    let (fastcore, fastcore_state) = fastcore(fc_url, maildirs.0.path());
     let (pg, db) = pg(pg_url, maildirs.1.path()).await;
     Backends {
         fastcore,
+        fastcore_state,
         pg,
         _kevy: kevy,
         _maildirs: maildirs,

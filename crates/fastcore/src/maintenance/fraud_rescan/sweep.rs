@@ -178,6 +178,14 @@ impl Sweep<'_> {
             return;
         }
         let findings = scan.findings;
+        // the rules' new view of the message, for the ledger: derived, and
+        // written only when the sweep is applied
+        if !self.q.dry_run {
+            let v = crate::ledger::judged_verdict(&findings, &scan.version, Vec::new());
+            if let Err(e) = self.state.mailbox.record_verdict(user, &message_id, &v) {
+                tracing::warn!(%user, error = %e, "fraud rescan: the ledger verdict was not recorded");
+            }
+        }
         // The one definition of "this is held", shared with the
         // verdict this sweep is about to store. `findings.any()`
         // here and a score threshold there is what left 43 held

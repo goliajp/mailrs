@@ -107,12 +107,7 @@ fn read_and_judge(
         users.insert(user.clone());
         let facts = crate::ledger::facts_of(user, &mid, &raw);
         let verdict = match fraud.judge(state, &mid, &raw) {
-            Ok(j) => mailrs_mailbox_kevy::ledger::LedgerVerdict {
-                rules: j.findings.rules().iter().map(|r| r.to_string()).collect(),
-                score: j.findings.score(),
-                rules_version: j.version.clone(),
-                judged_at: facts.arrived,
-            },
+            Ok(j) => crate::ledger::judged_verdict(&j.findings, &j.version, Vec::new()),
             Err(_) => mailrs_mailbox_kevy::ledger::LedgerVerdict::default(),
         };
         let name = mailrs_inbound::from_header(&raw);
@@ -285,12 +280,14 @@ mod tests {
                     attachment_sha256: vec![format!("{i:064x}")],
                     auth: "pass/pass/pass".into(),
                     arrived: chrono::Utc::now().timestamp() - i,
+                    from_reg: "sender.example".into(),
                 },
                 verdict: mailrs_mailbox_kevy::ledger::LedgerVerdict {
                     rules: vec!["rule_a".into()],
                     score: 1.0,
                     rules_version: "v1".into(),
                     judged_at: 1_700_000_000,
+                    ..Default::default()
                 },
                 name: format!("Sender {i}"),
             })

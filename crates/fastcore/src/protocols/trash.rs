@@ -20,6 +20,10 @@ fn folder_of(blob_ref: &str) -> &str {
     }
 }
 
+/// Far above any mailbox's held count (439 at the most, 2026-08-31), so the
+/// whole range is read.
+const HELD_CEILING: usize = 1_000_000;
+
 impl RealAccount {
     /// Read from the files of each conversation in the Trash, so only the
     /// mailboxes holding one are listed; with nothing in the Trash, nothing
@@ -39,6 +43,25 @@ impl RealAccount {
         }
         let messages = self.shown(&tids, Some("Trash"))?;
         Ok(Trashed { messages, latest })
+    }
+
+    /// The messages of the conversations held for review, wherever they are
+    /// filed: off the held range the review screen reads.
+    pub(crate) fn held(&self) -> Result<Trashed<FcMailbox, PathBuf>> {
+        let filter = mailrs_mailbox_kevy::ListThreadsFilter {
+            quarantine: mailrs_mailbox_kevy::QuarantineScope::Only,
+            ..Default::default()
+        };
+        let (rows, _) = self
+            .state
+            .mailbox
+            .list_threads_by_activity(&self.user, &filter, 0, HELD_CEILING)
+            .map_err(Error::Io)?;
+        let tids: Vec<String> = rows.into_iter().map(|r| r.thread_id).collect();
+        Ok(Trashed {
+            messages: self.shown(&tids, None)?,
+            latest: 0,
+        })
     }
 
     /// Each label with the messages of its conversations not in the Trash.
