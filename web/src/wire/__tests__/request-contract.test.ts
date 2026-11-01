@@ -132,8 +132,10 @@ describe('request bodies match the shared contract', () => {
         bcc: '',
         body: 'Confirming Thursday at 3pm.',
         cc: 'someone@example.com',
+        from: 'alias@golia.jp',
         id: 42,
         reply_to_thread_id: 'a48529b44b1b190f@golia.jp',
+        scheduled_at: 1_800_000_000,
         subject: 'Re: Meeting',
         to: 'nagata@nagatax.tokyo.jp',
       })

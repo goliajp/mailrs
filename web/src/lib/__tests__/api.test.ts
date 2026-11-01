@@ -212,8 +212,11 @@ describe('listDrafts', () => {
         body: '',
         cc: '',
         created_at: 1720392000,
+        // a draft saved before it carried these reads as the account's own address, sent at once
+        from: '',
         id: '1',
         reply_to_thread_id: null,
+        scheduled_at: null,
         subject: 'Draft 1',
         to: '',
         updated_at: 1720392000,
