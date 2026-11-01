@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use kevy_embedded::{Config, Store};
 
-use super::{LedgerFacts, LedgerVerdict};
+use super::{IndexedLink, LedgerFacts, LedgerVerdict};
 use crate::KevyMailboxStore;
 
 fn store() -> KevyMailboxStore {
@@ -22,6 +22,7 @@ fn facts(mid: &str, user: &str, domain: &str, hosts: &[&str], files: &[&str]) ->
         attachment_sha256: files.iter().map(|f| f.to_string()).collect(),
         auth: "pass/pass/pass".into(),
         arrived: 1_700_000_000,
+        from_reg: domain.into(),
     }
 }
 
@@ -99,6 +100,7 @@ fn deleting_a_message_takes_its_rows_and_verdict_out_of_every_index() {
             score: 2.5,
             rules_version: "v1".into(),
             judged_at: 1,
+            ..Default::default()
         },
     )
     .unwrap();
@@ -237,6 +239,8 @@ fn what_is_written_reads_back() {
         score: 4.5,
         rules_version: "lua:abc".into(),
         judged_at: 9,
+        holds: true,
+        screening: vec!["s1".into()],
     };
     st.record_verdict("a@x", "m1", &v).unwrap();
     let got = st.ledger_verdict("a@x", "m1").unwrap().unwrap();
@@ -244,6 +248,8 @@ fn what_is_written_reads_back() {
     assert_eq!(got.score, v.score);
     assert_eq!(got.rules_version, v.rules_version);
     assert_eq!(got.judged_at, v.judged_at);
+    assert!(got.holds);
+    assert_eq!(got.screening, ["s1"]);
 
     st.record_inbound_relationship("a@x", "b@y", "Bee", 100)
         .unwrap();
@@ -316,7 +322,11 @@ fn a_due_link_row_is_pruned_out_of_its_index() {
         &[],
     );
     let now = chrono::Utc::now().timestamp();
-    st.record_ledger_indexed(&f, &["pay.example".to_string()], Some(now + 100))
+    let pay = IndexedLink {
+        host: "pay.example".into(),
+        reg: "pay.example".into(),
+    };
+    st.record_ledger_indexed(&f, &[pay], Some(now + 100))
         .unwrap();
     st.record_ledger(&facts("m2", "a@x", "shop.example", &["pay.example"], &[]))
         .unwrap();
@@ -345,9 +355,83 @@ fn mail_past_the_retention_gets_no_link_rows() {
     let f = facts("m1", "a@x", "shop.example", &["pay.example"], &[]);
     let past = chrono::Utc::now().timestamp() - 1;
     assert!(
-        st.record_ledger_indexed(&f, &f.link_hosts, Some(past))
-            .unwrap()
+        st.record_ledger_indexed(
+            &f,
+            &[IndexedLink {
+                host: "pay.example".into(),
+                reg: "pay.example".into(),
+            }],
+            Some(past)
+        )
+        .unwrap()
     );
     assert!(st.ledger_by_link_host("pay.example").unwrap().is_empty());
     assert_eq!(st.ledger_by_domain("shop.example").unwrap().len(), 1);
+}
+
+/// An observation names a domain: the tree lookups find mail from it and
+/// from its subdomains, and links to it and its subdomains, and nothing
+/// that merely shares the registrable domain's suffix in its name.
+#[test]
+fn a_domain_finds_its_subdomains_and_not_its_neighbours() {
+    let st = store();
+    let mut a = facts("m1", "a@x", "mail.shop.example", &[], &[]);
+    a.from_reg = "shop.example".into();
+    let mut b = facts("m2", "a@x", "shop.example", &[], &[]);
+    b.from_reg = "shop.example".into();
+    let mut c = facts("m3", "a@x", "news.shop.example", &[], &[]);
+    c.from_reg = "shop.example".into();
+    for f in [&a, &b, &c] {
+        st.record_ledger(f).unwrap();
+    }
+    let mids = |v: Vec<(String, String)>| {
+        let mut m: Vec<String> = v.into_iter().map(|(mid, _)| mid).collect();
+        m.sort();
+        m
+    };
+    assert_eq!(
+        mids(
+            st.ledger_by_domain_tree("shop.example", "shop.example")
+                .unwrap()
+        ),
+        ["m1", "m2", "m3"]
+    );
+    assert_eq!(
+        mids(
+            st.ledger_by_domain_tree("mail.shop.example", "shop.example")
+                .unwrap()
+        ),
+        ["m1"]
+    );
+
+    let link = |host: &str| IndexedLink {
+        host: host.into(),
+        reg: "pay.example".into(),
+    };
+    let f = facts("m4", "b@x", "other.example", &[], &[]);
+    st.record_ledger_indexed(&f, &[link("pay.example"), link("cdn.pay.example")], None)
+        .unwrap();
+    let g = facts("m5", "b@x", "other.example", &[], &[]);
+    st.record_ledger_indexed(&g, &[link("cdn.pay.example")], None)
+        .unwrap();
+    assert_eq!(
+        mids(
+            st.ledger_by_link_tree("pay.example", "pay.example")
+                .unwrap()
+        ),
+        ["m4", "m5"],
+        "once each"
+    );
+    assert_eq!(
+        mids(
+            st.ledger_by_link_tree("cdn.pay.example", "pay.example")
+                .unwrap()
+        ),
+        ["m4", "m5"]
+    );
+    assert!(
+        st.ledger_by_link_tree("evilpay.example", "evilpay.example")
+            .unwrap()
+            .is_empty()
+    );
 }

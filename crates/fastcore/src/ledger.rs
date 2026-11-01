@@ -3,7 +3,7 @@
 use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 
-use mailrs_mailbox_kevy::ledger::LedgerFacts;
+use mailrs_mailbox_kevy::ledger::{IndexedLink, LedgerFacts, LedgerVerdict};
 
 use crate::FastcoreState;
 
@@ -31,12 +31,15 @@ static NEVER: LazyLock<mailrs_reputation::NeverList> = LazyLock::new(|| {
 
 /// The link hosts worth a row: not the sender's own domain (its domain index
 /// already finds that mail) and not on the never-list.
-pub(crate) fn indexed_link_hosts(f: &LedgerFacts) -> Vec<String> {
+pub(crate) fn indexed_link_hosts(f: &LedgerFacts) -> Vec<IndexedLink> {
     let sender = mailrs_reputation::registrable(&f.from_domain);
     f.link_hosts
         .iter()
         .filter(|h| mailrs_reputation::registrable(h) != sender && !NEVER.contains(h))
-        .cloned()
+        .map(|h| IndexedLink {
+            host: h.clone(),
+            reg: mailrs_reputation::registrable(h),
+        })
         .collect()
 }
 
@@ -114,12 +117,13 @@ pub(crate) fn facts_of(user: &str, message_id: &str, raw: &[u8]) -> LedgerFacts 
         message_id: message_id.to_string(),
         user: user.to_string(),
         from_addr,
-        from_domain,
         reply_to: mailrs_inbound::identity::reply_to_address(raw),
         link_hosts: mailrs_inbound::scan_input::link_hosts(&parsed),
         attachment_sha256,
         auth: format!("{spf}/{dkim}/{dmarc}"),
         arrived: mailrs_inbound::dates::received_epoch(raw).unwrap_or(0),
+        from_reg: mailrs_reputation::registrable(&from_domain),
+        from_domain,
     }
 }
 
@@ -153,7 +157,59 @@ pub(crate) fn record_delivery(
     {
         tracing::warn!(%user, error = %e, "ledger: could not count the relationship");
     }
+    let verdict = delivered_verdict(state, message_id, facts.arrived);
+    if let Err(e) = state.mailbox.record_verdict(user, message_id, &verdict) {
+        tracing::warn!(%user, error = %e, "ledger: could not record the verdict");
+    }
     true
+}
+
+/// What the receiver made of a message, as a ledger verdict. Its verdict
+/// names layers, not rules, so the rules recorded are the layers that
+/// failed; a re-judge records rules. No stored verdict is the receiver
+/// having found nothing, which is a verdict too.
+fn delivered_verdict(state: &FastcoreState, message_id: &str, arrived: i64) -> LedgerVerdict {
+    let stored = state
+        .mailbox
+        .fraud_verdict(message_id)
+        .ok()
+        .flatten()
+        .and_then(|json| serde_json::from_str::<mailrs_inbound::FraudVerdict>(&json).ok());
+    let Some(v) = stored else {
+        return LedgerVerdict {
+            judged_at: arrived,
+            ..Default::default()
+        };
+    };
+    LedgerVerdict {
+        rules: v
+            .layers
+            .iter()
+            .filter(|l| l.outcome == mailrs_inbound::Outcome::Fail)
+            .map(|l| format!("layer:{}", l.name))
+            .collect(),
+        score: v.score,
+        rules_version: v.rules_version,
+        judged_at: arrived,
+        holds: v.quarantined,
+        screening: Vec::new(),
+    }
+}
+
+/// A verdict the fraud rules gave just now, with what screening matched.
+pub(crate) fn judged_verdict(
+    findings: &mailrs_fraud::Findings,
+    rules_version: &str,
+    screening: Vec<String>,
+) -> LedgerVerdict {
+    LedgerVerdict {
+        rules: findings.rules().iter().map(|r| r.to_string()).collect(),
+        score: findings.score(),
+        rules_version: rules_version.to_string(),
+        judged_at: chrono::Utc::now().timestamp(),
+        holds: mailrs_inbound::holds(findings),
+        screening,
+    }
 }
 
 /// Whether `user` wrote this message, the way delivery decides it.
@@ -177,6 +233,7 @@ mod link_tests {
             attachment_sha256: Vec::new(),
             auth: String::new(),
             arrived,
+            from_reg: mailrs_reputation::registrable(domain),
         }
     }
 
@@ -194,7 +251,13 @@ mod link_tests {
             ],
             1,
         );
-        assert_eq!(indexed_link_hosts(&f), vec!["pay-here.example"]);
+        assert_eq!(
+            indexed_link_hosts(&f),
+            vec![IndexedLink {
+                host: "pay-here.example".into(),
+                reg: "pay-here.example".into(),
+            }]
+        );
     }
 
     #[test]
