@@ -29,6 +29,7 @@
 #![allow(missing_docs)]
 
 pub mod error;
+pub mod memory;
 pub mod method;
 pub mod types;
 

@@ -12507,6 +12507,26 @@
                 "description": "Why the replica could not be read or written"
               }
             }
+          },
+          "core_memory": {
+            "type": "object",
+            "nullable": true,
+            "description": "The core's container memory from its cgroup (the OCR worker included). Null when the core does not answer within two seconds or cannot read its cgroup.",
+            "properties": {
+              "used_bytes": {
+                "type": "integer"
+              },
+              "limit_bytes": {
+                "type": "integer",
+                "nullable": true,
+                "description": "Null when the cgroup sets no limit"
+              },
+              "high": {
+                "type": "boolean",
+                "nullable": true,
+                "description": "used_bytes at or past MAILRS_MEMORY_HIGH_PERCENT (80 by default) of limit_bytes; null without a limit"
+              }
+            }
           }
         },
         "required": [

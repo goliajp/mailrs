@@ -23,6 +23,19 @@ pub struct HealthResponse {
     pub backend: BackendKind,
     /// `true` if all dependencies are reachable.
     pub ready: bool,
+    /// The core's container memory, from its cgroup; `None` where the
+    /// cgroup cannot be read (not in a container, cgroup v1).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub memory: Option<MemoryWire>,
+}
+
+/// A container's memory, as its cgroup counts it: the process and every
+/// child it starts (the OCR worker), page cache included.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub struct MemoryWire {
+    pub used_bytes: u64,
+    /// `None` when the cgroup sets no limit.
+    pub limit_bytes: Option<u64>,
 }
 
 /// Which storage backend a `mailrs-core-api` server is wrapping.
