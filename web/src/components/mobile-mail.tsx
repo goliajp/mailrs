@@ -287,7 +287,7 @@ function MobileThreadView() {
         <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">{subject}</h2>
         {messages.length > 1 && (
           <button
-            aria-label={`View conversation (${messages.length} messages)`}
+            aria-label={t('mobile.viewConversation', { count: messages.length })}
             className="touch-target text-fg-muted hover:text-fg flex items-center gap-1 rounded-md px-2 py-1 text-xs"
             onClick={() => setMobileView('conversation')}
             type="button"

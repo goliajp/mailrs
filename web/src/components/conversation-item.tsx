@@ -188,7 +188,10 @@ export const ConversationItem = memo(function ConversationItem({
               {convo.message_count > 1 && (
                 <span
                   className="bg-bg-secondary text-fg-muted md:text-tiny rounded px-1 py-px text-xs tabular-nums"
-                  title={`${convo.received_count} received · ${convo.sent_count} sent`}
+                  title={t('row.receivedSent', {
+                    received: convo.received_count,
+                    sent: convo.sent_count,
+                  })}
                 >
                   {convo.sent_count > 0 && convo.received_count > 0 ? (
                     <>

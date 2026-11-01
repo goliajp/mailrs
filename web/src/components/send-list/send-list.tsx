@@ -110,7 +110,10 @@ export function SendList() {
         }
         if (r.already_delivered > 0) {
           toast.success(
-            `Stopped ${r.recipients_cancelled}; ${r.already_delivered} had already been delivered`
+            t('sends.partlyStopped', {
+              delivered: r.already_delivered,
+              stopped: r.recipients_cancelled,
+            })
           )
           return
         }

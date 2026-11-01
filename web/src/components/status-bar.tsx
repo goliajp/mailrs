@@ -94,7 +94,7 @@ export function StatusBarView({
         )}
         <span
           className="whitespace-nowrap"
-          title={`webapp: ${webVersion} · backend: ${apiVersion}`}
+          title={t('status.versions', { api: apiVersion, web: webVersion })}
         >
           <span className="text-fg-muted">web </span>
           <span data-testid="web-version">{webVersion}</span>
