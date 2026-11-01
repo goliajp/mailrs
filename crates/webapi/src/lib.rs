@@ -147,6 +147,11 @@ async fn health_handler(
     let kevy_ok =
         handlers::kevy_util::with_kevy(|c| c.ping().map_err(std::io::Error::from)).is_ok();
     let screening = handlers::screening_admin::health();
+    // the last daily check of the audit hash chain; null before the first
+    let audit_chain =
+        handlers::kevy_util::with_kevy(mailrs_core_sidestate::families::audit_chain::read_status)
+            .ok()
+            .flatten();
     axum::Json(serde_json::json!({
         "status": if kevy_ok { "healthy" } else { "degraded" },
         "ok": kevy_ok,
@@ -158,6 +163,7 @@ async fn health_handler(
         "reputation": screening["reputation"],
         "attachment_scan": screening["attachment_scan"],
         "screening_rules": screening["screening_rules"],
+        "audit_chain": audit_chain,
     }))
 }
 

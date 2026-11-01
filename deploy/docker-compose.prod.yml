@@ -199,6 +199,13 @@ services:
       # through TestFlight or the App Store.
       # MAILRS_APNS_ENDPOINT: https://api.push.apple.com
       MAILRS_ALIAS_STORE_BACKEND: network
+      # The audit hash chain, sealed by this core (the SQL core too, which
+      # replaces this service): checked daily at this UTC time, and the
+      # sealed rows copied into this directory inside the container for
+      # taking off the server. Unset directory = no replica, and health
+      # says `replica: off`; a directory needs a volume mounted there.
+      MAILRS_AUDIT_VERIFY_AT: ${MAILRS_AUDIT_VERIFY_AT:-03:30}
+      MAILRS_AUDIT_REPLICA_DIR: ${MAILRS_AUDIT_REPLICA_DIR:-}
       MAILRS_TLS_CERT: /certs/fullchain.pem
       MAILRS_TLS_KEY: /certs/privkey.pem
       RUST_LOG: info

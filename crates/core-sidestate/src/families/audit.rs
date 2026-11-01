@@ -2,7 +2,7 @@
 //! whichever process took it. Newest first, capped at [`CAP`] rows; a
 //! counter gives each row a stable id.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::keys::admin::{AUDIT_LOG, AUDIT_LOG_COUNTER};
 
@@ -10,7 +10,7 @@ use crate::keys::admin::{AUDIT_LOG, AUDIT_LOG_COUNTER};
 pub const CAP: i64 = 50_000;
 
 /// One immutable audit fact.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AuditFact {
     /// Monotonic row id.
     pub id: i64,
