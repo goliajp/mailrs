@@ -6,13 +6,14 @@ import { createRoot } from 'react-dom/client'
 
 import { App } from '@/app'
 import { dropOrphanedCaches, persistBuster, persister, queryClient } from '@/lib/query-client'
+import { keepOnlyPushWorker } from '@/lib/web-push'
 
 // Unregister any previously-installed service worker so cached chunks
 // from the old PWA cycle don't keep serving stale code after this build.
+// The Web Push worker is the one kept: it has its own scope and no fetch
+// handler, so it serves nothing.
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then((regs) => {
-    for (const r of regs) r.unregister()
-  })
+  void keepOnlyPushWorker(navigator.serviceWorker)
 }
 
 // Before React mounts, and before the persister writes anything: every

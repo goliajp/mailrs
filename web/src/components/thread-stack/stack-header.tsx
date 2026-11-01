@@ -6,6 +6,8 @@ import { HdrBtn } from '@/components/thread-view-bubble'
 import { useT } from '@/i18n'
 import { ACTIONS, toggle } from '@/lib/actions'
 
+import { PushMenu } from './push-menu'
+
 export type ConversationControls = {
   goToNext: () => void
   goToPrev: () => void
@@ -29,10 +31,12 @@ export function StackHeader({
   controls: c,
   count,
   subject,
+  threadId,
 }: {
   controls: ConversationControls
   count: number
   subject: string
+  threadId: string
 }) {
   const t = useT()
   return (
@@ -74,6 +78,7 @@ export function StackHeader({
         >
           <Star className="h-4 w-4" fill={starFill(c.isFlagged)} />
         </HdrBtn>
+        <PushMenu threadId={threadId} />
         {c.isTrashed && <ActionBtn id="untrash" onClick={c.onUntrash} />}
         <ActionBtn
           className="hover:text-danger"

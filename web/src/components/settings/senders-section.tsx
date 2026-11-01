@@ -13,6 +13,7 @@ import {
 } from '@/wire/endpoints/settings'
 
 import { btnPrimary, btnSecondary, cardClass, inputClass, SectionHeader } from './_shared'
+import { SenderRulesCard } from './sender-rules-card'
 
 const LISTS: { blurb: Key; name: SenderListName; title: Key }[] = [
   { blurb: 'settings.senders.allowedBlurb', name: 'whitelist', title: 'settings.senders.allowed' },
@@ -34,6 +35,7 @@ const sendersKey = (list: SenderListName) => ['settings', 'senders', list] as co
 export function SendersSection() {
   return (
     <div className="space-y-6">
+      <SenderRulesCard />
       {LISTS.map((list) => (
         <SenderList key={list.name} {...list} />
       ))}
