@@ -61,6 +61,11 @@ struct Counts {
     own: u64,
     no_file: u64,
     recorded: u64,
+    /// Of the messages read this walk, those that arrived in the last 90
+    /// days, and those with no arrival time at all: the growth rate a
+    /// memory projection needs.
+    last_90_days: u64,
+    no_arrival: u64,
 }
 
 fn walk(
@@ -70,6 +75,7 @@ fn walk(
 ) -> std::io::Result<serde_json::Value> {
     let users = state.mailbox.list_account_addresses()?;
     let mut c = Counts::default();
+    let since = chrono::Utc::now().timestamp() - 90 * 86_400;
     let mut stopped_early = false;
     let after = After::from_query(q.after_user.as_deref(), q.after_thread.as_deref());
     let mut last: Option<After> = None;
@@ -121,6 +127,11 @@ fn walk(
                     c.own += 1;
                     continue;
                 }
+                match mailrs_inbound::dates::received_epoch(&raw) {
+                    Some(at) if at >= since => c.last_90_days += 1,
+                    Some(_) => {}
+                    None => c.no_arrival += 1,
+                }
                 if q.dry_run {
                     c.recorded += 1;
                     continue;
@@ -154,6 +165,8 @@ fn walk(
         "own_mail": c.own,
         "no_file": c.no_file,
         "recorded": c.recorded,
+        "read_arrived_last_90_days": c.last_90_days,
+        "read_without_arrival_time": c.no_arrival,
         "next_after": next(&last),
         "done": !stopped_early,
     }))
