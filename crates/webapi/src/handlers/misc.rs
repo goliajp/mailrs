@@ -123,6 +123,8 @@ pub async fn export_mbox(
             folder: None,
             unread: None,
             starred: None,
+            pinned: None,
+            snoozed: None,
             section: None,
         },
     };

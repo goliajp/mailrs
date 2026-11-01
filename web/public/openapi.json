@@ -1099,6 +1099,38 @@
             "schema": {
               "type": "boolean"
             }
+          },
+          {
+            "name": "unread",
+            "in": "query",
+            "description": "Only conversations with unread mail",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "starred",
+            "in": "query",
+            "description": "Only starred conversations",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "pinned",
+            "in": "query",
+            "description": "Only pinned conversations, across folders",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "snoozed",
+            "in": "query",
+            "description": "Only conversations snoozed until a time still to come, across folders",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {

@@ -126,6 +126,8 @@ pub(crate) async fn run_ingest_once(
                 folder: None,
                 unread: None,
                 starred: None,
+                pinned: None,
+                snoozed: None,
                 section: None,
             },
         };

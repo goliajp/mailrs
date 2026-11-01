@@ -35,7 +35,7 @@ pub(crate) fn threads_filter(
     ListThreadsFilter {
         category: f.category.as_deref(),
         folder,
-        pinned: false,
+        pinned: f.pinned.unwrap_or(false),
         archived: f.archived,
         trashed: f.trashed,
         has_unread: f.unread.unwrap_or(false),
@@ -71,6 +71,7 @@ pub(crate) async fn list_conversations(
     // not store, and that is a wiring mistake, not an empty page.
     let listed = match f.label.as_deref() {
         Some(id) => crate::routes::labels::rows_with_label(&state, &user, id, &filter, limit),
+        None if f.snoozed == Some(true) => snoozed_page(&state, &user, &filter, f.before_ts, limit),
         None => state
             .mailbox
             .list_threads_by_activity(&user, &filter, 0, limit)
@@ -84,6 +85,23 @@ pub(crate) async fn list_conversations(
     let items = rows.into_iter().map(row_to_wire).collect();
     let items = crate::routes::labels::with_labels(&state, &user, items);
     Json(conv::ListConversationsResponse { items })
+}
+
+/// The Snoozed list, paged the way every list is: by `before_ts`, then `limit`.
+fn snoozed_page(
+    state: &FastcoreState,
+    user: &str,
+    filter: &ListThreadsFilter<'_>,
+    before_ts: Option<i64>,
+    limit: usize,
+) -> std::io::Result<Vec<mailrs_mailbox_kevy::ThreadRow>> {
+    let now = chrono::Utc::now().timestamp();
+    let rows = state.mailbox.list_snoozed(user, now, filter)?;
+    Ok(rows
+        .into_iter()
+        .filter(|r| before_ts.is_none_or(|ts| r.latest_date < ts))
+        .take(limit)
+        .collect())
 }
 
 /// `GET /v1/users/{user}/conversations/categories` — histogram of

@@ -79,6 +79,20 @@ fn views() -> Vec<(&'static str, ConversationFilter)> {
             },
         ),
         (
+            "pinned",
+            ConversationFilter {
+                pinned: Some(true),
+                ..base.clone()
+            },
+        ),
+        (
+            "snoozed",
+            ConversationFilter {
+                snoozed: Some(true),
+                ..base.clone()
+            },
+        ),
+        (
             "archived",
             ConversationFilter {
                 archived: true,
@@ -292,6 +306,10 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
             MINTED,
         );
         compare_views(c, d, &format!("{name} {thread}")).await;
+        if name == "pin_thread" {
+            // equal and empty on both sides would pass the comparison
+            listed_in(c, "pinned", SALE, HELLO).await;
+        }
     }
 
     let req = SnoozeRequest {
@@ -304,6 +322,7 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
         &[],
     );
     compare_views(c, d, "snooze").await;
+    listed_in(c, "snoozed", SHARED, HELLO).await;
     d.both(
         "unsnooze_thread",
         fc.unsnooze_thread(ALICE, SHARED).await,
@@ -389,6 +408,32 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
         pg.empty_trash(BOB).await,
         &[],
     );
+}
+
+/// Both cores list `thread` in the view called `view`, and not `other`:
+/// a filter both cores ignored would list everything and still compare equal.
+async fn listed_in(c: &Cores, view: &str, thread: &str, other: &str) {
+    let (_, filter) = views().into_iter().find(|(n, _)| *n == view).unwrap();
+    let req = ListConversationsRequest { filter };
+    for (core, got) in [
+        ("fastcore", c.fastcore.list_conversations(ALICE, &req).await),
+        ("pg-core", c.pg_core.list_conversations(ALICE, &req).await),
+    ] {
+        let ids: Vec<String> = got
+            .unwrap()
+            .items
+            .into_iter()
+            .map(|i| i.thread_id)
+            .collect();
+        assert!(
+            ids.iter().any(|t| t == thread),
+            "{core} [{view}] lacks {thread}: {ids:?}"
+        );
+        assert!(
+            !ids.iter().any(|t| t == other),
+            "{core} [{view}] has {other}: {ids:?}"
+        );
+    }
 }
 
 async fn act(
