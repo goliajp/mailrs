@@ -70,6 +70,35 @@ pub fn client_ip(headers: &HeaderMap, peer: Option<IpAddr>, trusted: &[IpNet]) -
     }
 }
 
+/// Whether the client reached us over TLS. This process serves plain HTTP
+/// only, so a request is TLS when a trusted proxy terminated it and says
+/// so in the last `X-Forwarded-Proto` hop; from any other address it is
+/// not, whatever the header claims.
+pub fn https(headers: &HeaderMap, peer: Option<IpAddr>, trusted: &[IpNet]) -> bool {
+    let said = || {
+        headers
+            .get_all("x-forwarded-proto")
+            .iter()
+            .next_back()
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.rsplit(',').next())
+            .is_some_and(|p| p.trim().eq_ignore_ascii_case("https"))
+    };
+    match peer.map(|p| p.to_canonical()) {
+        Some(p) => trusted.iter().any(|n| n.contains(&p)) && said(),
+        // no connection info: a router driven in-process, as tests do
+        None => said(),
+    }
+}
+
+/// [`https`] for a whole request.
+pub fn request_is_https(headers: &HeaderMap, extensions: &Extensions) -> bool {
+    let peer = extensions
+        .get::<ConnectInfo<SocketAddr>>()
+        .map(|c| c.0.ip());
+    https(headers, peer, &TRUSTED)
+}
+
 /// A private address sending `X-Forwarded-For` without being trusted is
 /// most likely the proxy itself at a new address (a recreated network), and
 /// then every client is being counted as that one address. Said once per
@@ -238,6 +267,21 @@ mod tests {
 
     fn ip(s: &str) -> IpAddr {
         s.parse().unwrap()
+    }
+
+    #[test]
+    fn only_a_trusted_proxy_can_say_the_client_used_tls() {
+        let trusted = parse_proxies("172.16.0.0/12").unwrap();
+        let mut h = HeaderMap::new();
+        h.insert("x-forwarded-proto", "https".parse().unwrap());
+        let proxy: IpAddr = "172.18.0.2".parse().unwrap();
+        let stranger: IpAddr = "203.0.113.9".parse().unwrap();
+        assert!(https(&h, Some(proxy), &trusted));
+        assert!(!https(&h, Some(stranger), &trusted));
+        assert!(!https(&HeaderMap::new(), Some(proxy), &trusted));
+        let mut plain = HeaderMap::new();
+        plain.insert("x-forwarded-proto", "https, http".parse().unwrap());
+        assert!(!https(&plain, Some(proxy), &trusted));
     }
 
     #[test]

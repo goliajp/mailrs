@@ -4,7 +4,9 @@
 //! /api/admin), `mail:read` (GET/HEAD only, no /api/admin), `mail:send`
 //! (send, and list the sends this key made; nothing else), `masked_email`
 //! (the account's masked addresses over REST and JMAP `MaskedEmail/*`;
-//! no mail, no send, no settings), `mock` (only
+//! no mail, no send, no settings), `jmap` (JMAP only, all of it: mail
+//! read and write, sending, uploads, push; for mail clients and
+//! scripts), `mock` (only
 //! /api/mock/…), `mock:{ns}` (only that one mock namespace, cannot create
 //! or delete it). A key with no scope is refused everywhere; full owner
 //! access is the `admin` scope, named. A key with several scopes gets the
@@ -44,7 +46,9 @@ pub fn masked_only(scopes: &[String]) -> bool {
 /// True when `scope` is in the vocabulary `create_agent_key` accepts.
 pub fn is_known_scope(scope: &str) -> bool {
     match scope {
-        "admin" | "mail:read" | "mail:write" | "mail:send" | "masked_email" | "mock" => true,
+        "admin" | "mail:read" | "mail:write" | "mail:send" | "masked_email" | "jmap" | "mock" => {
+            true
+        }
         _ => scope
             .strip_prefix("mock:")
             .is_some_and(|ns| mailrs_mock::validate_namespace(ns).is_ok()),
@@ -119,6 +123,7 @@ fn scope_allows(scope: &str, method: &Method, path: &str) -> bool {
                         "/jmap" | "/jmap/api/" | "/api/alias/random/new" | "/api/v1/aliases"
                     ))
         }
+        "jmap" => path == "/.well-known/jmap" || under(path, "/jmap"),
         "mock" => under(path, MOCK_PREFIX),
         _ => match scope.strip_prefix("mock:") {
             Some(ns) if mailrs_mock::validate_namespace(ns).is_ok() => {
@@ -153,6 +158,31 @@ mod tests {
 
     fn s(v: &[&str]) -> Vec<String> {
         v.iter().map(|x| x.to_string()).collect()
+    }
+
+    /// A `jmap` key reaches every JMAP route and nothing else.
+    #[test]
+    fn a_jmap_key_reaches_jmap_only() {
+        let k = s(&["jmap"]);
+        assert!(validate_agent_scopes(&k).is_ok());
+        for (m, p) in [
+            (Method::GET, "/.well-known/jmap"),
+            (Method::POST, "/jmap"),
+            (Method::POST, "/jmap/api/"),
+            (Method::POST, "/jmap/upload/a@b.jp/"),
+            (Method::GET, "/jmap/download/a@b.jp/B1/x.eml"),
+            (Method::GET, "/jmap/eventsource/"),
+        ] {
+            assert!(agent_scopes_allow(&k, &m, p), "{m} {p}");
+        }
+        for (m, p) in [
+            (Method::GET, "/api/conversations"),
+            (Method::POST, "/api/mail/send"),
+            (Method::GET, "/jmapx"),
+            (Method::POST, "/api/agent/keys"),
+        ] {
+            assert!(!agent_scopes_allow(&k, &m, p), "{m} {p}");
+        }
     }
 
     #[test]

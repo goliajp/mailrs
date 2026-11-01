@@ -1,7 +1,7 @@
 //! Message, mailbox and analysis RPCs.
 
 use crate::client::Client;
-use crate::error::ApiResult;
+use crate::error::{ApiResult, CoreApiError};
 use crate::method;
 
 impl Client {
@@ -120,5 +120,41 @@ impl Client {
     ) -> ApiResult<()> {
         let path = format!("/v1/users/{}/messages/{}/flags", Self::enc(user), uid);
         self.post_authed_json(path, req, "set_message_flags").await
+    }
+
+    /// GET /v1/users/{user}/messages/index — every message of the user's,
+    /// compactly. With `known` (the ETag of an index the caller holds),
+    /// `Ok(None)` means it is still current and nothing was sent.
+    pub async fn message_index(
+        &self,
+        user: &str,
+        known: Option<&str>,
+    ) -> ApiResult<Option<(String, method::message_index::MessageIndex)>> {
+        const CONTEXT: &str = "message_index";
+        let path = format!("/v1/users/{}/messages/index", Self::enc(user));
+        let mut req = self
+            .inner
+            .get(self.url(&path))
+            .bearer_auth(&self.auth_bearer);
+        if let Some(tag) = known {
+            req = req.header(reqwest::header::IF_NONE_MATCH, format!("\"{tag}\""));
+        }
+        let resp = req
+            .send()
+            .await
+            .map_err(|e| crate::client::transport(CONTEXT, e))?;
+        if resp.status() == reqwest::StatusCode::NOT_MODIFIED {
+            return Ok(None);
+        }
+        if !resp.status().is_success() {
+            return Self::map_status_unit(resp, CONTEXT).await.map(|()| None);
+        }
+        let body = resp
+            .bytes()
+            .await
+            .map_err(|e| CoreApiError::Internal(format!("{CONTEXT} read: {e}")))?;
+        let index = method::message_index::MessageIndex::decode(&body)
+            .ok_or_else(|| CoreApiError::Internal(format!("{CONTEXT} decode")))?;
+        Ok(Some((method::message_index::etag(&body), index)))
     }
 }

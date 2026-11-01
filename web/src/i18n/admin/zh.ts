@@ -219,6 +219,7 @@ export const adminZh: Record<AdminKey, string> = {
   'admin.prev': '上一页',
   'admin.previous': '上一页',
   'admin.proto.imap': 'IMAP',
+  'admin.proto.jmap': 'JMAP',
   'admin.proto.managesieve': 'ManageSieve',
   'admin.proto.pop3': 'POP3',
   'admin.proto.smtp': 'SMTP',

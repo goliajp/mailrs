@@ -11,8 +11,8 @@ use mailrs_core_sidestate::families::masked_email::{Mask, NewMask, Patch, State 
 use mailrs_jmap::error::JmapMethodError;
 use serde_json::{Map, Value, json};
 
-use super::masked_email::{self as ops, MaskError};
 use crate::WebState;
+use crate::handlers::masked_email::{self as ops, MaskError};
 
 /// Fastmail's masked-email capability URI.
 pub const MASKED_CAP: &str = "https://www.fastmail.com/dev/maskedemail";

@@ -41,7 +41,6 @@ pub mod imap_import;
 pub mod inline;
 pub mod invites;
 pub mod jmap;
-pub mod jmap_masked;
 pub mod kevy_util;
 pub mod keys;
 pub mod labels;

@@ -28,6 +28,7 @@
 //!
 //!   /v1/users/{u}/mailboxes                       # messages
 //!   /v1/users/{u}/messages/by-uid/{uid}
+//!   /v1/users/{u}/messages/index                  # every message, compact
 //!   /v1/users/{u}/messages/by-message-id/{mid}
 //!   /v1/users/{u}/messages/{uid}/flags
 //!   /v1/users/{u}/messages/{mid}/fraud-verdict
@@ -53,6 +54,7 @@ pub mod import;
 pub mod label;
 pub mod mailbox;
 pub mod message;
+pub mod message_index;
 pub mod outbound;
 pub mod senders;
 pub mod sent;

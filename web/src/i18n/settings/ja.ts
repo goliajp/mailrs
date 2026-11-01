@@ -370,6 +370,9 @@ export const settingsJa: Record<SettingsKey, string> = {
   'settings.scope.admin': 'フルアクセス · 管理者',
   'settings.scope.full': 'フルアクセス',
   'settings.scope.full.help': 'このアカウントが使えるすべての API（管理用 API を含む）。',
+  'settings.scope.jmap': 'JMAP メールクライアント',
+  'settings.scope.jmap.help':
+    'JMAP のメールクライアントやスクリプト向け：JMAP でのメールの閲覧・整理・送信だけができます。ほかの API の利用や設定の変更はできません。',
   'settings.scope.masked': 'マスクアドレスのみ',
   'settings.scope.masked.help':
     'パスワードマネージャー向け：マスクアドレスの作成と管理だけができます。メールの閲覧・送信や設定の変更はできません。',

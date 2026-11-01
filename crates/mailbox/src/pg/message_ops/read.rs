@@ -220,4 +220,25 @@ impl PgMailboxStore {
 
         Ok(row.map(row_to_message_meta))
     }
+
+    /// Every message of the user's as `(uid, thread_id, flags, sender)`,
+    /// whichever mailbox it is in.
+    pub async fn user_message_index(
+        &self,
+        user: &str,
+    ) -> Result<Vec<(u32, String, u32, String)>, sqlx::Error> {
+        let rows = sqlx::query_as::<_, (i32, String, i32, String)>(
+            "SELECT m.uid, m.thread_id, m.flags, m.sender
+             FROM messages m
+             JOIN mailboxes mb ON m.mailbox_id = mb.id
+             WHERE mb.user_address = $1",
+        )
+        .bind(user)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|(uid, tid, flags, sender)| (uid as u32, tid, flags as u32, sender))
+            .collect())
+    }
 }
