@@ -217,6 +217,13 @@ export const settingsJa: Record<SettingsKey, string> = {
   'settings.loadingDots': '読み込み中…',
   'settings.masked.blurb':
     'サイトごとに専用のランダムなアドレスを作り、メールはここに届きます。オフにするとそのサイトからは届かなくなり、削除すると完全に無効になって二度と誰にも割り当てられません。マスクアドレス宛てのメールへの返信は、そのアドレスから送信されます。',
+  'settings.masked.bw.domain': 'メールドメイン（Email domain）',
+  'settings.masked.bw.intro':
+    '先に「API キー」で「マスクアドレスのみ」のプリセットを使ってキーを作成します。次に Bitwarden のジェネレーターで「Forwarded email alias」（転送メールエイリアス）を選び、サービスに SimpleLogin か addy.io を選んで、次のように入力します：',
+  'settings.masked.bw.key': 'API キー（API key）',
+  'settings.masked.bw.keyValue': '作成したキー',
+  'settings.masked.bw.server': 'セルフホストサーバーの URL（Self-host server URL）',
+  'settings.masked.bw.title': 'Bitwarden でマスクアドレスを作る',
   'settings.masked.confirmDelete':
     '{email} を削除しますか？今後メールは届かず、二度と割り当てられません。',
   'settings.masked.create': 'マスクアドレスを作成',

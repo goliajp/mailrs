@@ -218,6 +218,13 @@ export const settingsEn = {
   'settings.loadingDots': 'Loading...',
   'settings.masked.blurb':
     'Give each site its own random address that delivers here. Turn one off and that site can no longer reach you; delete it and it is gone for good and never given to anyone again. Replies to mail sent to a masked address go out from it.',
+  'settings.masked.bw.domain': 'Email domain',
+  'settings.masked.bw.intro':
+    'First make an API key with the "Masked addresses only" preset under API keys. Then in the Bitwarden generator choose "Forwarded email alias", pick SimpleLogin or addy.io as the service, and fill in:',
+  'settings.masked.bw.key': 'API key',
+  'settings.masked.bw.keyValue': 'the key you made',
+  'settings.masked.bw.server': 'Self-host server URL',
+  'settings.masked.bw.title': 'Make masked addresses from Bitwarden',
   'settings.masked.confirmDelete':
     'Delete {email}? It will take no more mail and will never be given out again.',
   'settings.masked.create': 'New masked address',

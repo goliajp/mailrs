@@ -1,36 +1,50 @@
-//! Whole SMTP conversations against `handle_plain_connection`.
-//!
-//! Guessing local addresses at RCPT: after ten unknown recipients an IP
-//! gets `421` for every local address, existing or not, and is
-//! disconnected. Submitting from a masked address: the message names
-//! neither the client's IP nor its EHLO name, and the audit log records
-//! both the account and the IP.
+//! A receiver on a local port with a stand-in core, and a line-at-a-time
+//! SMTP client.
 
+use std::net::IpAddr;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
-use base64::Engine as _;
 use mailrs_auth_guard::login::MemoryLoginGuard;
 use mailrs_core::event_bus::EventBus;
 use mailrs_core::users::UserStore;
 use mailrs_core_api::method::admin::EffectivePermissionsResponse;
-use mailrs_core_sidestate::families::audit::AuditFact;
-use mailrs_core_sidestate::keys::admin::AUDIT_LOG;
 use mailrs_receiver::inbound::rate_limit::{InMemoryRateLimitStore, TokenBucketConfig};
 use mailrs_receiver::kevy_net::KevyNetClient;
-use mailrs_receiver::smtp_session::probe_guard::LIMIT;
 use mailrs_receiver::smtp_session::spool_sink::MaildirSpoolSink;
 use mailrs_receiver::smtp_session::{ConnectionContext, handle_plain_connection};
 use mailrs_receiver::{AccountStoreError, CredentialStore, RecipientCheck};
 use mailrs_smtp_codec::SmuggleProtection;
+use mailrs_spf::{SpfError, SpfResolver};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
 
-const ME: &str = "me@golia.test";
-const MASK: &str = "amber.otter.000042@golia.test";
+pub const ME: &str = "me@golia.test";
+pub const MASK: &str = "amber.otter.000042@golia.test";
+/// The one local address the stand-in core knows.
+pub const REAL: &str = "real.word.123456@golia.test";
+/// A domain whose SPF allows 127.0.0.1.
+pub const SPF_DOMAIN: &str = "shop.example";
 
-struct NoMetrics;
+/// The two counters `/api/health` reports; the rest are not looked at.
+#[derive(Default)]
+pub struct Counts {
+    pub tripped: AtomicU64,
+    pub log_failed: AtomicU64,
+}
 
-impl mailrs_receiver::ConnectionMetrics for NoMetrics {
+impl Counts {
+    pub fn tripped(&self) -> u64 {
+        self.tripped.load(Ordering::Relaxed)
+    }
+    pub fn log_failed(&self) -> u64 {
+        self.log_failed.load(Ordering::Relaxed)
+    }
+}
+
+struct Metrics(Arc<Counts>);
+
+impl mailrs_receiver::ConnectionMetrics for Metrics {
     fn on_connect(&self) {}
     fn on_disconnect(&self) {}
     fn on_message_delivered(&self) {}
@@ -38,6 +52,12 @@ impl mailrs_receiver::ConnectionMetrics for NoMetrics {
     fn inbound_reject(&self) {}
     fn inbound_defer(&self) {}
     fn inbound_junk(&self) {}
+    fn probe_guard_tripped(&self) {
+        self.0.tripped.fetch_add(1, Ordering::Relaxed);
+    }
+    fn mask_submit_log_failed(&self) {
+        self.0.log_failed.fetch_add(1, Ordering::Relaxed);
+    }
 }
 
 /// The core's answer for [`ME`]: an ordinary account with one mask.
@@ -66,7 +86,29 @@ impl CredentialStore for OneMask {
     }
 }
 
-/// A core that knows exactly one address, `real.word.123456@golia.test`.
+/// DNS where only [`SPF_DOMAIN`] publishes SPF, allowing 127.0.0.1.
+struct Dns;
+
+#[async_trait::async_trait]
+impl SpfResolver for Dns {
+    async fn lookup_txt(&self, domain: &str) -> Result<Vec<String>, SpfError> {
+        match domain.trim_end_matches('.') == SPF_DOMAIN {
+            true => Ok(vec!["v=spf1 ip4:127.0.0.1 -all".into()]),
+            false => Ok(Vec::new()),
+        }
+    }
+    async fn lookup_a(&self, _: &str) -> Result<Vec<IpAddr>, SpfError> {
+        Ok(Vec::new())
+    }
+    async fn lookup_aaaa(&self, _: &str) -> Result<Vec<IpAddr>, SpfError> {
+        Ok(Vec::new())
+    }
+    async fn lookup_mx(&self, _: &str) -> Result<Vec<(u16, String)>, SpfError> {
+        Ok(Vec::new())
+    }
+}
+
+/// A core that knows exactly one address, [`REAL`].
 async fn spawn_core() -> String {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -90,12 +132,24 @@ async fn spawn_core() -> String {
     format!("http://{addr}")
 }
 
-struct Setup {
-    recipient_check: Option<RecipientCheck>,
-    kevy: Option<Arc<KevyNetClient>>,
+pub struct Receiver {
+    pub port: u16,
+    pub counts: Arc<Counts>,
+    pub spool: std::path::PathBuf,
 }
 
-async fn spawn_receiver(setup: Setup, spool: &std::path::Path) -> u16 {
+impl Drop for Receiver {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.spool);
+    }
+}
+
+/// A receiver for `golia.test` asking the stand-in core about local
+/// recipients, with the network kevy at `kevy` (none when `None`).
+pub async fn receiver(name: &str, kevy: Option<&str>) -> Receiver {
+    let spool = std::env::temp_dir().join(format!("{name}-{}", std::process::id()));
+    std::fs::create_dir_all(&spool).unwrap();
+    let counts = Arc::new(Counts::default());
     let ctx = Arc::new(ConnectionContext {
         hostname: "mx.golia.test".into(),
         tls_state: None,
@@ -104,7 +158,7 @@ async fn spawn_receiver(setup: Setup, spool: &std::path::Path) -> u16 {
             "pw".into(),
         )])),
         event_bus: EventBus::new(64),
-        metrics: Arc::new(NoMetrics),
+        metrics: Arc::new(Metrics(counts.clone())),
         rate_limiter: Arc::new(InMemoryRateLimitStore::new(TokenBucketConfig {
             capacity: 100_000,
             refill_rate: 100_000.0,
@@ -122,13 +176,14 @@ async fn spawn_receiver(setup: Setup, spool: &std::path::Path) -> u16 {
         auth_guard: Arc::new(MemoryLoginGuard::default()),
         account_store: None,
         credential_store: Some(Arc::new(OneMask)),
-        recipient_check: setup.recipient_check,
+        recipient_check: Some(RecipientCheck::new(spawn_core().await, "secret".into())),
         ldap_config: None,
         inbound_pipeline: mailrs_inbound::Pipeline::builder().build(),
-        spam_lists_client: setup.kevy,
+        spam_lists_client: kevy.map(|url| Arc::new(KevyNetClient::new(url))),
         spool_sink: Arc::new(MaildirSpoolSink::new(spool.to_str().unwrap())),
         signins: Default::default(),
         unknown_rcpt: Default::default(),
+        rcpt_spf: Some(Arc::new(Dns)),
     });
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
@@ -138,16 +193,21 @@ async fn spawn_receiver(setup: Setup, spool: &std::path::Path) -> u16 {
             tokio::spawn(handle_plain_connection(stream, peer, ctx.clone()));
         }
     });
-    port
+    Receiver {
+        port,
+        counts,
+        spool,
+    }
 }
 
-struct Client {
+pub struct Client {
     r: BufReader<tokio::net::tcp::OwnedReadHalf>,
     w: tokio::net::tcp::OwnedWriteHalf,
 }
 
 impl Client {
-    async fn connect(port: u16) -> Self {
+    /// Connected and past EHLO.
+    pub async fn connect(port: u16) -> Self {
         let (r, w) = TcpStream::connect(("127.0.0.1", port))
             .await
             .unwrap()
@@ -161,8 +221,18 @@ impl Client {
         c
     }
 
+    /// Signed in as [`ME`].
+    pub async fn signed_in(port: u16) -> Self {
+        use base64::Engine as _;
+        let mut c = Client::connect(port).await;
+        let creds = base64::engine::general_purpose::STANDARD.encode(format!("\0{ME}\0pw"));
+        let r = c.say(&format!("AUTH PLAIN {creds}")).await;
+        assert!(r.starts_with("235"), "{r}");
+        c
+    }
+
     /// The last line of the reply; empty once the server has hung up.
-    async fn reply(&mut self) -> String {
+    pub async fn reply(&mut self) -> String {
         loop {
             let mut line = String::new();
             if self.r.read_line(&mut line).await.unwrap() == 0 {
@@ -174,7 +244,7 @@ impl Client {
         }
     }
 
-    async fn say(&mut self, cmd: &str) -> String {
+    pub async fn say(&mut self, cmd: &str) -> String {
         self.w
             .write_all(format!("{cmd}\r\n").as_bytes())
             .await
@@ -183,14 +253,8 @@ impl Client {
     }
 }
 
-fn temp_dir(name: &str) -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!("{name}-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    dir
-}
-
 /// Every file under `dir`, read whole.
-fn files_under(dir: &std::path::Path) -> Vec<Vec<u8>> {
+pub fn files_under(dir: &std::path::Path) -> Vec<Vec<u8>> {
     let mut out = Vec::new();
     for entry in std::fs::read_dir(dir).unwrap() {
         let path = entry.unwrap().path();
@@ -201,107 +265,4 @@ fn files_under(dir: &std::path::Path) -> Vec<Vec<u8>> {
         }
     }
     out
-}
-
-#[tokio::test]
-async fn guessing_local_addresses_is_cut_off_after_ten_misses() {
-    let spool = temp_dir("rcpt-probing");
-    let setup = Setup {
-        recipient_check: Some(RecipientCheck::new(spawn_core().await, "secret".into())),
-        kevy: None,
-    };
-    let port = spawn_receiver(setup, &spool).await;
-
-    let mut c = Client::connect(port).await;
-    c.say("MAIL FROM:<x@probe.example>").await;
-    assert!(
-        c.say("RCPT TO:<real.word.123456@golia.test>")
-            .await
-            .starts_with("250"),
-        "an existing address is accepted"
-    );
-    for i in 0..LIMIT {
-        let r = c.say(&format!("RCPT TO:<guess.{i}@golia.test>")).await;
-        assert!(r.starts_with("550 5.1.1"), "miss {i}: {r}");
-    }
-    let r = c.say("RCPT TO:<real.word.123456@golia.test>").await;
-    assert!(
-        r.starts_with("421 4.7.0"),
-        "once blocked, an existing address gets the same answer: {r}"
-    );
-    assert_eq!(c.reply().await, "", "the connection is closed");
-
-    let mut again = Client::connect(port).await;
-    again.say("MAIL FROM:<x@probe.example>").await;
-    let r = again.say("RCPT TO:<someone@remote.example>").await;
-    assert!(
-        !r.is_empty() && !r.starts_with("421"),
-        "a remote recipient is not guarded: {r}"
-    );
-    let r = again.say("RCPT TO:<guess.x@golia.test>").await;
-    assert!(
-        r.starts_with("421"),
-        "a new connection from the same IP: {r}"
-    );
-    std::fs::remove_dir_all(spool).unwrap();
-}
-
-#[tokio::test]
-async fn a_submission_from_a_mask_is_audited_and_names_no_client() {
-    let spool = temp_dir("mask-submit");
-    let url = format!("mem://mask-submit-{}", std::process::id());
-    // held for the whole test: the in-process store goes with its last
-    // connection
-    let mut kv = kevy_client::Connection::connect(&url).unwrap();
-    let setup = Setup {
-        recipient_check: None,
-        kevy: Some(Arc::new(KevyNetClient::new(url.clone()))),
-    };
-    let port = spawn_receiver(setup, &spool).await;
-
-    let mut c = Client::connect(port).await;
-    let creds = base64::engine::general_purpose::STANDARD.encode(format!("\0{ME}\0pw"));
-    let r = c.say(&format!("AUTH PLAIN {creds}")).await;
-    assert!(r.starts_with("235"), "{r}");
-    assert!(c.say(&format!("MAIL FROM:<{ME}>")).await.starts_with("250"));
-    assert!(
-        c.say("RCPT TO:<shop@remote.example>")
-            .await
-            .starts_with("250")
-    );
-    assert!(c.say("DATA").await.starts_with("354"));
-    let r = c
-        .say(&format!(
-            "From: Shopper <{MASK}>\r\nTo: shop@remote.example\r\nSubject: order\r\n\r\nwhere is it\r\n."
-        ))
-        .await;
-    assert!(r.starts_with("250"), "{r}");
-
-    let spooled = files_under(&spool);
-    assert_eq!(spooled.len(), 1, "one spooled message");
-    let (envelope, body) = mailrs_core::spool::decode_spool_blob(&spooled[0]).unwrap();
-    assert_eq!(envelope.reverse_path, MASK, "queued under the mask");
-    let text = String::from_utf8_lossy(body);
-    let head = text.split("\r\n\r\n").next().unwrap();
-    assert!(head.contains("Received: by mx.golia.test"), "{head}");
-    assert!(!head.contains("127.0.0.1"), "the client IP leaked:\n{head}");
-    assert!(
-        !head.contains("probe-host"),
-        "the EHLO name leaked:\n{head}"
-    );
-    assert!(!head.contains(ME), "the account leaked:\n{head}");
-
-    let rows = kv.lrange(AUDIT_LOG, 0, -1).unwrap();
-    let facts: Vec<AuditFact> = rows
-        .iter()
-        .map(|r| serde_json::from_slice(r).unwrap())
-        .collect();
-    assert_eq!(facts.len(), 1, "{facts:?}");
-    let f = &facts[0];
-    assert_eq!(f.actor, ME);
-    assert_eq!(f.action, "mask.submit");
-    assert_eq!(f.target, "amber.ot");
-    assert_eq!(f.detail, "ip=127.0.0.1");
-    assert!(f.occurred_at > 0);
-    std::fs::remove_dir_all(spool).unwrap();
 }

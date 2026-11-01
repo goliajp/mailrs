@@ -18,4 +18,10 @@ pub trait ConnectionMetrics: Send + Sync {
     fn inbound_defer(&self);
     /// The inbound pipeline routed a message to Junk.
     fn inbound_junk(&self);
+    /// An RCPT was refused because its sender had guessed too many
+    /// unknown local addresses.
+    fn probe_guard_tripped(&self);
+    /// A submission from a masked address could not be written to the
+    /// submission log (the mail went on).
+    fn mask_submit_log_failed(&self);
 }

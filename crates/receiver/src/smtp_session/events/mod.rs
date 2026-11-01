@@ -15,6 +15,7 @@ pub(super) use rcpt_gate::refuse_unknown_rcpt;
 
 mod data;
 mod paused_gate;
+mod probe_key;
 mod rcpt_gate;
 mod reply;
 mod shutdown;

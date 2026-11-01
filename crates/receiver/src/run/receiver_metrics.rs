@@ -35,4 +35,12 @@ impl ConnectionMetrics for ReceiverMetrics {
     fn inbound_junk(&self) {
         metrics::counter!("mailrs_receiver_inbound_total", "verdict" => "junk").increment(1);
     }
+    fn probe_guard_tripped(&self) {
+        self.counters.on_probe_guard_tripped();
+        metrics::counter!("mailrs_receiver_probe_guard_tripped_total").increment(1);
+    }
+    fn mask_submit_log_failed(&self) {
+        self.counters.on_mask_submit_log_failed();
+        metrics::counter!("mailrs_receiver_mask_submit_log_failed_total").increment(1);
+    }
 }

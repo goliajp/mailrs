@@ -113,7 +113,11 @@ fn scope_allows(scope: &str, method: &Method, path: &str) -> bool {
         "masked_email" => {
             under(path, MASKED_EMAILS)
                 || (*method == Method::GET && matches!(path, "/.well-known/jmap" | "/jmap/session"))
-                || (*method == Method::POST && matches!(path, "/jmap" | "/jmap/api/"))
+                || (*method == Method::POST
+                    && matches!(
+                        path,
+                        "/jmap" | "/jmap/api/" | "/api/alias/random/new" | "/api/v1/aliases"
+                    ))
         }
         "mock" => under(path, MOCK_PREFIX),
         _ => match scope.strip_prefix("mock:") {
@@ -177,6 +181,8 @@ mod tests {
             (Method::POST, "/jmap"),
             (Method::GET, "/jmap/session"),
             (Method::POST, "/jmap/api/"),
+            (Method::POST, "/api/alias/random/new"),
+            (Method::POST, "/api/v1/aliases"),
         ] {
             assert!(agent_scopes_allow(&k, &m, p), "{m} {p}");
         }
