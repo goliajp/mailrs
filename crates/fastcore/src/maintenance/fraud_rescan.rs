@@ -120,7 +120,7 @@ pub(crate) fn judge_outgoing(raw: &[u8]) -> Result<mailrs_fraud_lua::Scan, Strin
         allowed_domains: config::csv_env("MAILRS_ORG_NAME_ALLOWED_DOMAINS"),
         account_names: Vec::new(),
     };
-    mailrs_fraud_lua::scan(&reading.facts(0, 0), &policy)
+    mailrs_fraud_lua::scan(&reading.facts(0, 0, Default::default()), &policy)
 }
 
 /// `POST /v1/admin/maintenance:fraud-rescan?dry_run=false`

@@ -12,8 +12,12 @@ publish = false
 workspace = true
 
 [dependencies]
+rqrr = { version = "0.11", default-features = false }
 hayro = "0.8"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "tiff", "bmp"] }
 rten = "0.27"
 rten-tensor = "0.27"
 serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+qrcode = { version = "0.14", default-features = false }

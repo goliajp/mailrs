@@ -78,6 +78,10 @@ pub(super) struct Evidence {
     subject: String,
     to_display: String,
     reply_rotation: u32,
+    payment: mailrs_fraud::payment::PaymentIds,
+    html: mailrs_fraud::html_attachment::HtmlFeatures,
+    reply_to_outside: bool,
+    relation: mailrs_fraud::relation::Relation,
 }
 
 impl Evidence {
@@ -133,6 +137,17 @@ impl Evidence {
             &reply_to,
         )
         .await;
+        let payment = mailrs_inbound::body::payment_ids(&parsed, "");
+        let html = mailrs_inbound::body::html_attachments(&parsed, &sender_host);
+        let reply_to_outside = mailrs_fraud::reply_rotation::is_off_domain(&sender_host, &reply_to);
+        // the first recipient's history, as the recipient lists above are
+        // read for: one verdict per message
+        let relation = crate::spam_lists::relation_async(
+            ctx.spam_lists_client.clone(),
+            &receive_ctx.recipient,
+            &decoded_from,
+        )
+        .await;
         Self {
             decoded_from,
             sender_host,
@@ -148,6 +163,10 @@ impl Evidence {
             subject,
             to_display,
             reply_rotation,
+            payment,
+            html,
+            reply_to_outside,
+            relation,
         }
     }
 
@@ -179,6 +198,10 @@ impl Evidence {
             is_bulk: mailrs_inbound::body::is_bulk(&receive_ctx.message),
             to_display: &self.to_display,
             reply_rotation: self.reply_rotation,
+            payment: self.payment,
+            html: self.html,
+            reply_to_outside: self.reply_to_outside,
+            relation: self.relation,
             date_ahead: mailrs_inbound::dates::date_ahead_of(
                 &receive_ctx.message,
                 Some(chrono::Utc::now().timestamp()),

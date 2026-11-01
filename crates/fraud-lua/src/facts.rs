@@ -90,6 +90,22 @@ fn fill(lua: &mut Lua, t: LuaTable, f: &Facts<'_>, p: &Policy) -> Result<(), Str
             "attachment_offers_the_reader_a_sum",
             f.attachment_offers_the_reader_a_sum,
         ),
+        ("has_iban", f.payment.iban),
+        ("has_crypto_address", f.payment.crypto),
+        ("html_builds_a_download", f.html.builds_a_download),
+        ("svg_runs_script", f.html.svg_runs_script),
+        ("attachment_login_form_offsite", f.html.offsite_login_form),
+        ("first_contact", f.relation.first_contact),
+        (
+            "from_correspondent_domain",
+            f.relation.from_correspondent_domain,
+        ),
+        (
+            "looks_like_correspondent",
+            f.relation.looks_like_correspondent,
+        ),
+        ("name_borrowed", f.relation.name_borrowed),
+        ("reply_to_outside", f.reply_to_outside),
     ] {
         t.set(lua, k, v).map_err(|e| lua.vm().error_text(&e))?;
     }

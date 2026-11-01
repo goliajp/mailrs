@@ -122,13 +122,15 @@ enum Got {
 /// they embed; the outcome then says [`VERSION_PDF_ONLY`] (with [`WITH_OFFICE`]).
 ///
 /// Returns each stored text with its position among the readable parts,
-/// and the counts that say what happened to the rest.
+/// the counts that say what happened to the rest, and the web addresses
+/// of the QR codes OCR found.
 pub(crate) fn extract_all(
     raw: &[u8],
     ocr: Option<&OcrSetup>,
-) -> (Vec<(usize, String)>, AttachmentTextState) {
+) -> (Vec<(usize, String)>, AttachmentTextState, Vec<String>) {
     let parsed = mailrs_mime::parse(raw);
     let mut texts = Vec::new();
+    let mut qr = Vec::new();
     let mut state = AttachmentTextState {
         version: VERSION_PDF_ONLY | WITH_OFFICE,
         ..Default::default()
@@ -141,11 +143,11 @@ pub(crate) fn extract_all(
         let got = match kind {
             Kind::Pdf => {
                 state.pdfs += 1;
-                read_pdf(&part.body, ocr, n)
+                read_pdf(&part.body, ocr, n, &mut qr)
             }
             Kind::Image => {
                 state.images += 1;
-                read_image(&part.body, ocr, n)
+                read_image(&part.body, ocr, n, &mut qr)
             }
             Kind::Office(kind) => read_office(kind, &part.body),
         };
@@ -165,7 +167,7 @@ pub(crate) fn extract_all(
             Got::Failed => state.failed += 1,
         }
     }
-    (texts, state)
+    (texts, state, qr)
 }
 
 /// An Office file's text, in process: the archive's size is capped by the
@@ -186,12 +188,12 @@ fn read_office(kind: mailrs_attachment_extract::office::OfficeKind, body: &[u8])
     }
 }
 
-fn read_pdf(body: &[u8], ocr: Option<&OcrSetup>, n: usize) -> Got {
+fn read_pdf(body: &[u8], ocr: Option<&OcrSetup>, n: usize, qr: &mut Vec<String>) -> Got {
     if body.len() > MAX_OCR_PDF_BYTES {
         return Got::TooLarge;
     }
     let Some(pages) = embedded_pages(body, n) else {
-        return unreadable_pdf(body, ocr, n);
+        return unreadable_pdf(body, ocr, n, qr);
     };
     let mut parts: Vec<String> = pages
         .iter()
@@ -206,7 +208,7 @@ fn read_pdf(body: &[u8], ocr: Option<&OcrSetup>, n: usize) -> Got {
     let mut by_ocr = false;
     if let Some(setup) = ocr
         && !thin.is_empty()
-        && let Some(read) = ocr_text(setup, Job::Pdf(&thin), body, n)
+        && let Some(read) = ocr_text(setup, Job::Pdf(&thin), body, n, qr)
         && !read.trim().is_empty()
     {
         parts.push(read.trim().to_string());
@@ -246,7 +248,7 @@ fn embedded_pages(body: &[u8], n: usize) -> Option<Vec<String>> {
 
 /// A PDF the in-process extractor could not open: rendering it may still
 /// get at the pages.
-fn unreadable_pdf(body: &[u8], ocr: Option<&OcrSetup>, n: usize) -> Got {
+fn unreadable_pdf(body: &[u8], ocr: Option<&OcrSetup>, n: usize, qr: &mut Vec<String>) -> Got {
     let Some(setup) = ocr else {
         if body.len() > MAX_PDF_BYTES {
             return Got::TooLarge;
@@ -254,7 +256,7 @@ fn unreadable_pdf(body: &[u8], ocr: Option<&OcrSetup>, n: usize) -> Got {
         return Got::Failed;
     };
     let first: Vec<usize> = (0..MAX_OCR_PAGES).collect();
-    let Some(read) = ocr_text(setup, Job::Pdf(&first), body, n) else {
+    let Some(read) = ocr_text(setup, Job::Pdf(&first), body, n, qr) else {
         return Got::Failed;
     };
     if read.trim().is_empty() {
@@ -266,7 +268,7 @@ fn unreadable_pdf(body: &[u8], ocr: Option<&OcrSetup>, n: usize) -> Got {
     }
 }
 
-fn read_image(body: &[u8], ocr: Option<&OcrSetup>, n: usize) -> Got {
+fn read_image(body: &[u8], ocr: Option<&OcrSetup>, n: usize, qr: &mut Vec<String>) -> Got {
     if body.len() < MIN_IMAGE_BYTES {
         return Got::TooSmall;
     }
@@ -276,7 +278,11 @@ fn read_image(body: &[u8], ocr: Option<&OcrSetup>, n: usize) -> Got {
     let Some(setup) = ocr else {
         return Got::Nothing;
     };
-    match super::ocr::run(setup, Job::Image, body) {
+    let answer = super::ocr::run(setup, Job::Image, body);
+    if let Ok(a) = &answer {
+        qr.extend(a.qr.iter().cloned());
+    }
+    match answer {
         Ok(a) if a.too_small => Got::TooSmall,
         Ok(a) if a.text.trim().is_empty() => Got::Nothing,
         Ok(a) => Got::Text {
@@ -290,9 +296,18 @@ fn read_image(body: &[u8], ocr: Option<&OcrSetup>, n: usize) -> Got {
     }
 }
 
-fn ocr_text(setup: &OcrSetup, job: Job<'_>, body: &[u8], n: usize) -> Option<String> {
+fn ocr_text(
+    setup: &OcrSetup,
+    job: Job<'_>,
+    body: &[u8],
+    n: usize,
+    qr: &mut Vec<String>,
+) -> Option<String> {
     match super::ocr::run(setup, job, body) {
-        Ok(a) => Some(a.text),
+        Ok(a) => {
+            qr.extend(a.qr);
+            Some(a.text)
+        }
         Err(error) => {
             tracing::info!(%error, attachment = n, "attachment text: ocr failed on a pdf");
             None
@@ -431,7 +446,7 @@ mod tests {
     #[test]
     fn an_oversized_pdf_is_counted_and_not_read() {
         let big = "x".repeat(MAX_OCR_PDF_BYTES + 1);
-        let (texts, state) = extract_all(
+        let (texts, state, _) = extract_all(
             with_part("application/pdf", "big.pdf", &big).as_bytes(),
             None,
         );
@@ -447,7 +462,7 @@ mod tests {
             "{}--B\r\nContent-Type: image/png; name=a.png\r\n\r\n{image}\r\n--B--\r\n",
             pdf.trim_end_matches("--B--\r\n"),
         );
-        let (texts, state) = extract_all(raw.as_bytes(), None);
+        let (texts, state, _) = extract_all(raw.as_bytes(), None);
         assert!(texts.is_empty());
         assert_eq!((state.parts, state.pdfs, state.images), (2, 1, 1));
         assert_eq!((state.failed, state.stored, state.too_small), (1, 0, 0));
@@ -456,7 +471,7 @@ mod tests {
 
     #[test]
     fn a_tiny_image_is_too_small_to_read() {
-        let (_, state) = extract_all(with_part("image/png", "dot.png", "x").as_bytes(), None);
+        let (_, state, _) = extract_all(with_part("image/png", "dot.png", "x").as_bytes(), None);
         assert_eq!((state.images, state.too_small), (1, 1));
     }
 }

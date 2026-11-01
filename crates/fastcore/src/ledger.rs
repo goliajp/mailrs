@@ -19,7 +19,7 @@ fn link_days() -> i64 {
 
 /// The never-list with this server's domains: a host on it never gets an
 /// automatic reputation change, so mail is never found by it.
-static NEVER: LazyLock<mailrs_reputation::NeverList> = LazyLock::new(|| {
+pub(crate) static NEVER: LazyLock<mailrs_reputation::NeverList> = LazyLock::new(|| {
     let own: Vec<String> = std::env::var("MAILRS_LOCAL_DOMAINS")
         .unwrap_or_default()
         .split(',')
