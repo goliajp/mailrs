@@ -3,8 +3,9 @@
 //! Read-only on the store: the newest message of up to `limit`
 //! conversations is read, and the entries the ledger design gives one
 //! message are written into a fresh in-memory store that is dropped
-//! afterwards. The answer is the growth of this process's resident memory
-//! across the writes, and the raw bytes written, for comparison.
+//! afterwards. The answer is the store's own byte count per family (the
+//! families written one after another, the count read between them), and
+//! the process's resident growth across the writes as a second reading.
 //!
 //! What it writes is what delivery will write: the ledger tables as
 //! `mailrs_mailbox_kevy::ledger` declares them (the message, one row per
@@ -53,32 +54,46 @@ pub(crate) async fn ledger_estimate_route(
     }
 }
 
-#[derive(Default)]
-struct Tally {
-    messages: u64,
-    raw_bytes: u64,
-    keys: u64,
+/// One message's entries, read and judged before anything is measured.
+struct Entry {
+    facts: mailrs_mailbox_kevy::ledger::LedgerFacts,
+    verdict: mailrs_mailbox_kevy::ledger::LedgerVerdict,
+    name: String,
 }
 
-fn estimate(
+/// A fresh store holding nothing but what is written into it here.
+fn fresh() -> Result<
+    (
+        Arc<kevy_embedded::Store>,
+        mailrs_mailbox_kevy::KevyMailboxStore,
+    ),
+    String,
+> {
+    let store = Arc::new(
+        kevy_embedded::Store::open(kevy_embedded::Config::default()).map_err(|e| e.to_string())?,
+    );
+    let ledger = mailrs_mailbox_kevy::KevyMailboxStore::new(store.clone());
+    ledger.ensure_ledger_tables().map_err(|e| e.to_string())?;
+    Ok((store, ledger))
+}
+
+/// Read and judge first, so the measured part is the writes alone: the
+/// files, the parse and the rules' VM grow the heap too, and measured
+/// together they hid the ledger's own size.
+fn read_and_judge(
     state: &Arc<FastcoreState>,
     limit: u64,
     budget: std::time::Duration,
     hangup: &super::hangup::Hangup,
-) -> Result<serde_json::Value, String> {
+) -> Result<(Vec<Entry>, u64, bool, usize), String> {
     let started = std::time::Instant::now();
     let (mut walked, mut stopped_early) = (0u64, false);
     let targets = super::fraud_rescan::snapshot(state).map_err(|e| e.to_string())?;
     let mut fraud = super::fraud_rescan::FraudJudge::new(state);
-    let before = rss();
-    let ledger = mailrs_mailbox_kevy::KevyMailboxStore::new(std::sync::Arc::new(
-        kevy_embedded::Store::open(kevy_embedded::Config::default()).map_err(|e| e.to_string())?,
-    ));
-    ledger.ensure_ledger_tables().map_err(|e| e.to_string())?;
-    let mut t = Tally::default();
     let mut users = std::collections::HashSet::new();
+    let mut entries = Vec::new();
     for (user, tid) in &targets {
-        if t.messages >= limit {
+        if entries.len() as u64 >= limit {
             break;
         }
         if hangup.hung_up() || started.elapsed() >= budget {
@@ -89,7 +104,6 @@ fn estimate(
         let Some((mid, raw)) = newest_raw(state, user, tid) else {
             continue;
         };
-        t.messages += 1;
         users.insert(user.clone());
         let facts = crate::ledger::facts_of(user, &mid, &raw);
         let verdict = match fraud.judge(state, &mid, &raw) {
@@ -101,58 +115,127 @@ fn estimate(
             },
             Err(_) => mailrs_mailbox_kevy::ledger::LedgerVerdict::default(),
         };
-        t.raw_bytes += (facts.message_id.len()
-            + facts.user.len()
-            + facts.from_addr.len()
-            + facts.from_domain.len()
-            + facts.reply_to.len()
-            + facts.auth.len()
-            + facts
-                .link_hosts
-                .iter()
-                .map(|h| h.len() + mid.len())
-                .sum::<usize>()
-            + facts
-                .attachment_sha256
-                .iter()
-                .map(|h| h.len() + mid.len())
-                .sum::<usize>()
-            + verdict.rules.iter().map(|r| r.len()).sum::<usize>()
-            + verdict.rules_version.len()) as u64;
-        t.keys += 2 + facts.link_hosts.len() as u64 + facts.attachment_sha256.len() as u64;
-        ledger.record_ledger(&facts).map_err(|e| e.to_string())?;
-        ledger
-            .record_verdict(user, &mid, &verdict)
-            .map_err(|e| e.to_string())?;
         let name = mailrs_inbound::from_header(&raw);
-        ledger
-            .record_inbound_relationship(user, &facts.from_addr, &name, facts.arrived)
-            .map_err(|e| e.to_string())?;
-        t.keys += 1;
+        entries.push(Entry {
+            facts,
+            verdict,
+            name,
+        });
     }
-    let after = rss();
+    Ok((entries, walked, stopped_early, users.len()))
+}
+
+/// Bytes per 10,000 messages, from a total over `n`.
+fn per_10k(bytes: u64, n: u64) -> Option<u64> {
+    (n > 0).then(|| bytes * 10_000 / n)
+}
+
+fn estimate(
+    state: &Arc<FastcoreState>,
+    limit: u64,
+    budget: std::time::Duration,
+    hangup: &super::hangup::Hangup,
+) -> Result<serde_json::Value, String> {
+    let (entries, walked, stopped_early, users) = read_and_judge(state, limit, budget, hangup)?;
+    let mut out = measure(&entries)?;
+    out["walked"] = walked.into();
+    out["stopped_early"] = stopped_early.into();
+    out["users"] = users.into();
+    Ok(out)
+}
+
+/// The writes alone, into fresh stores, measured.
+fn measure(entries: &[Entry]) -> Result<serde_json::Value, String> {
+    let n = entries.len() as u64;
+    let links: u64 = entries
+        .iter()
+        .map(|e| e.facts.link_hosts.len() as u64)
+        .sum();
+    let files: u64 = entries
+        .iter()
+        .map(|e| e.facts.attachment_sha256.len() as u64)
+        .sum();
+
+    // Store one: the families one after another, the store's own count
+    // read between them.
+    let rss_before = rss();
+    let (store, ledger) = fresh()?;
+    let used = || store.info().used_memory;
+    let empty = used();
+    for e in entries {
+        let bare = mailrs_mailbox_kevy::ledger::LedgerFacts {
+            link_hosts: Vec::new(),
+            attachment_sha256: Vec::new(),
+            ..e.facts.clone()
+        };
+        ledger.record_ledger(&bare).map_err(|e| e.to_string())?;
+    }
+    let after_msg = used();
+    for e in entries {
+        ledger
+            .record_verdict(&e.facts.user, &e.facts.message_id, &e.verdict)
+            .map_err(|e| e.to_string())?;
+    }
+    let after_verdict = used();
+    for e in entries {
+        ledger
+            .record_inbound_relationship(
+                &e.facts.user,
+                &e.facts.from_addr,
+                &e.name,
+                e.facts.arrived,
+            )
+            .map_err(|e| e.to_string())?;
+    }
+    let after_rel = used();
+    let keys_one = store.info().keys as u64;
+    let rss_after = rss();
     drop(ledger);
-    let dropped = rss();
-    let delta = match (before, after) {
+    drop(store);
+
+    // Store two: whole facts, so links and files are the difference.
+    let (store, ledger) = fresh()?;
+    let empty_two = store.info().used_memory;
+    for e in entries {
+        ledger.record_ledger(&e.facts).map_err(|e| e.to_string())?;
+    }
+    let whole = store.info().used_memory - empty_two;
+    drop(ledger);
+    drop(store);
+
+    let msg = after_msg - empty;
+    let verdict = after_verdict - after_msg;
+    let relationship = after_rel - after_verdict;
+    let links_files = whole.saturating_sub(msg);
+    let total = msg + verdict + relationship + links_files;
+    let rss_growth = match (rss_before, rss_after) {
         (Some(b), Some(a)) => Some(a.saturating_sub(b)),
         _ => None,
     };
-    let per_10k = delta
-        .filter(|_| t.messages > 0)
-        .map(|d| d * 10_000 / t.messages);
     Ok(serde_json::json!({
-        "walked": walked,
-        "stopped_early": stopped_early,
-        "messages": t.messages,
-        "users": users.len(),
-        "keys": t.keys,
-        "raw_bytes": t.raw_bytes,
-        "raw_bytes_per_message": t.raw_bytes.checked_div(t.messages),
-        "rss_before": before,
-        "rss_after": after,
-        "rss_after_drop": dropped,
-        "rss_growth": delta,
-        "rss_growth_per_10k_messages": per_10k,
+        "messages": n,
+        "link_rows": links,
+        "file_rows": files,
+        "keys_without_links_and_files": keys_one,
+        // what the store counts as its own, per family
+        "kevy_bytes": {
+            "messages": msg,
+            "verdicts": verdict,
+            "relationships": relationship,
+            "links_and_files": links_files,
+            "total": total,
+        },
+        "kevy_bytes_per_10k_messages": {
+            "messages": per_10k(msg, n),
+            "verdicts": per_10k(verdict, n),
+            "relationships": per_10k(relationship, n),
+            "links_and_files": per_10k(links_files, n),
+            "total": per_10k(total, n),
+        },
+        // the process's growth across store one's writes: a second reading
+        // that fails differently from the store's own count
+        "rss_growth_writes_only": rss_growth,
+        "rss_growth_writes_only_per_10k": rss_growth.and_then(|g| per_10k(g, n)),
     }))
 }
 
@@ -172,6 +255,47 @@ mod tests {
         let cut = estimate(&state, 100, budget, &Hangup::after(2)).unwrap();
         assert_eq!(cut["walked"], 2, "{cut}");
         assert_eq!(cut["stopped_early"], true, "{cut}");
+    }
+
+    /// The families are measured on the store's own count, and each one
+    /// written is non-zero: a zero would read as "costs nothing".
+    #[test]
+    fn each_family_written_is_counted() {
+        let entries: Vec<Entry> = (0..5)
+            .map(|i| Entry {
+                facts: mailrs_mailbox_kevy::ledger::LedgerFacts {
+                    message_id: format!("m{i}@x"),
+                    user: "u@x".into(),
+                    from_addr: format!("a{i}@sender.example"),
+                    from_domain: "sender.example".into(),
+                    reply_to: String::new(),
+                    link_hosts: vec!["pay.example".into(), "cdn.example".into()],
+                    attachment_sha256: vec![format!("{i:064x}")],
+                    auth: "pass/pass/pass".into(),
+                    arrived: 1_700_000_000 + i,
+                },
+                verdict: mailrs_mailbox_kevy::ledger::LedgerVerdict {
+                    rules: vec!["rule_a".into()],
+                    score: 1.0,
+                    rules_version: "v1".into(),
+                    judged_at: 1_700_000_000,
+                },
+                name: format!("Sender {i}"),
+            })
+            .collect();
+        let out = measure(&entries).unwrap();
+        assert_eq!(out["messages"], 5, "{out}");
+        assert_eq!(out["link_rows"], 10, "{out}");
+        for family in [
+            "messages",
+            "verdicts",
+            "relationships",
+            "links_and_files",
+            "total",
+        ] {
+            let bytes = out["kevy_bytes"][family].as_u64().unwrap();
+            assert!(bytes > 0, "{family}: {out}");
+        }
     }
 
     #[test]
