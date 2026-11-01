@@ -11,11 +11,13 @@ use std::sync::Arc;
 use crate::*;
 
 mod mail;
+mod masked;
 mod mock;
 mod rest;
 mod rules;
 
 use mail::*;
+use masked::*;
 use mock::*;
 use rest::*;
 use rules::*;
@@ -48,6 +50,7 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
     let authenticated = convo
         .merge(mail)
         .merge(rule_routes())
+        .merge(masked_routes())
         .merge(auth_routes)
         .merge(admin_routes)
         .merge(jmap_routes)

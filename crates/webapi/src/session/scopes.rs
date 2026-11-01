@@ -2,7 +2,9 @@
 //!
 //! Vocabulary: `admin` (everything), `mail:write` (read + write, no
 //! /api/admin), `mail:read` (GET/HEAD only, no /api/admin), `mail:send`
-//! (send, and list the sends this key made; nothing else), `mock` (only
+//! (send, and list the sends this key made; nothing else), `masked_email`
+//! (the account's masked addresses over REST and JMAP `MaskedEmail/*`;
+//! no mail, no send, no settings), `mock` (only
 //! /api/mock/…), `mock:{ns}` (only that one mock namespace, cannot create
 //! or delete it). A key with no scope is refused everywhere; full owner
 //! access is the `admin` scope, named. A key with several scopes gets the
@@ -33,10 +35,16 @@ pub fn send_only(scopes: &[String]) -> bool {
     !scopes.is_empty() && scopes.iter().all(|s| s == "mail:send")
 }
 
+/// True when the key may only manage masked addresses: JMAP answers it
+/// `MaskedEmail/*` and nothing else.
+pub fn masked_only(scopes: &[String]) -> bool {
+    !scopes.is_empty() && scopes.iter().all(|s| s == "masked_email")
+}
+
 /// True when `scope` is in the vocabulary `create_agent_key` accepts.
 pub fn is_known_scope(scope: &str) -> bool {
     match scope {
-        "admin" | "mail:read" | "mail:write" | "mail:send" | "mock" => true,
+        "admin" | "mail:read" | "mail:write" | "mail:send" | "masked_email" | "mock" => true,
         _ => scope
             .strip_prefix("mock:")
             .is_some_and(|ns| mailrs_mock::validate_namespace(ns).is_ok()),
@@ -74,6 +82,9 @@ pub fn mock_ns_restriction(scopes: &[String]) -> Option<Vec<String>> {
     )
 }
 
+/// The masked-address routes a `masked_email` key reaches, beside JMAP.
+const MASKED_EMAILS: &str = "/api/masked-emails";
+
 /// Where keys are made and revoked.
 const AGENT_KEYS: &str = "/api/agent/keys";
 
@@ -99,6 +110,11 @@ fn scope_allows(scope: &str, method: &Method, path: &str) -> bool {
         "mail:write" => !admin_path,
         "mail:read" => !admin_path && matches!(*method, Method::GET | Method::HEAD),
         "mail:send" => SEND_ONLY.iter().any(|(m, p)| m == method && *p == path),
+        "masked_email" => {
+            under(path, MASKED_EMAILS)
+                || (*method == Method::GET && path == "/.well-known/jmap")
+                || (*method == Method::POST && path == "/jmap")
+        }
         "mock" => under(path, MOCK_PREFIX),
         _ => match scope.strip_prefix("mock:") {
             Some(ns) if mailrs_mock::validate_namespace(ns).is_ok() => {
@@ -143,6 +159,34 @@ mod tests {
             "/api/admin/domains"
         ));
         assert!(!agent_scopes_allow(&[], &Method::GET, "/api/conversations"));
+    }
+
+    /// A masked-address key manages masks over REST and JMAP, and reaches
+    /// no mail, no send and no settings.
+    #[test]
+    fn a_masked_email_key_reaches_masks_only() {
+        let k = s(&["masked_email"]);
+        assert!(masked_only(&k));
+        assert!(!masked_only(&s(&["masked_email", "mail:read"])));
+        assert!(validate_agent_scopes(&k).is_ok());
+        for (m, p) in [
+            (Method::GET, "/api/masked-emails"),
+            (Method::POST, "/api/masked-emails"),
+            (Method::PATCH, "/api/masked-emails/a.b.0001@x.jp"),
+            (Method::GET, "/.well-known/jmap"),
+            (Method::POST, "/jmap"),
+        ] {
+            assert!(agent_scopes_allow(&k, &m, p), "{m} {p}");
+        }
+        for (m, p) in [
+            (Method::GET, "/api/conversations"),
+            (Method::POST, "/api/mail/send"),
+            (Method::GET, "/api/settings/prefs"),
+            (Method::POST, "/api/agent/keys"),
+            (Method::GET, "/jmap/eventsource/"),
+        ] {
+            assert!(!agent_scopes_allow(&k, &m, p), "{m} {p}");
+        }
     }
 
     #[test]

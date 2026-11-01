@@ -21,6 +21,7 @@ pub mod identity_link;
 pub mod image_prefetch;
 pub mod imap_import;
 pub mod local_forward;
+pub mod masked_email;
 pub mod mock;
 pub mod outbound;
 pub mod password_clear;

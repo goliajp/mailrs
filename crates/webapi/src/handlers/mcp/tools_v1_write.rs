@@ -53,6 +53,9 @@ impl MailrsMcpService {
             .map_err(|_| McpError::invalid_request("admin.accounts permission required", None))?;
         mailrs_auth_guard::password::check_new(&params.password, &params.address)
             .map_err(|weak| McpError::invalid_params(weak.to_string(), None))?;
+        crate::handlers::masked_email::refuse_if_masked(&params.address).map_err(|_| {
+            McpError::invalid_params("that address is or was a masked address", None)
+        })?;
         let req = mailrs_core_api::method::admin::AddAccountRequest {
             address: params.address.clone(),
             display_name: params.display_name,

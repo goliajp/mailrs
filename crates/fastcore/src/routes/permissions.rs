@@ -46,8 +46,10 @@ pub(crate) async fn effective_permissions(
         groups: Vec::new(),
         is_super: false,
         send_as: Vec::new(),
+        masks: Vec::new(),
     });
     perms.send_as = send_as::union(&perms.send_as, derived.aliases, derived.groups);
+    perms.masks = derived.masks;
     perms.permissions.extend(member.permissions);
     perms.permissions.sort();
     perms.permissions.dedup();
@@ -88,6 +90,7 @@ async fn group_membership(state: &Arc<FastcoreState>, address: &str) -> Membersh
 struct DerivedSendAs {
     aliases: Vec<String>,
     groups: Vec<String>,
+    masks: Vec<String>,
 }
 
 /// The aliases pointing at `address` and the email groups it belongs to.
@@ -102,19 +105,27 @@ async fn derived_send_as(state: &Arc<FastcoreState>, address: &str) -> DerivedSe
         let pairs = aliases.list()?;
         let aliases =
             send_as::alias_sources_for(pairs.iter().map(|(s, t)| (s.as_str(), t.as_str())), &addr);
-        let groups = match url {
+        let (groups, masks) = match url {
             Some(url) => {
                 let mut conn = kevy_client::Connection::connect(&url)?;
-                email_groups::addresses_with_member(&mut conn, &addr)?
+                (
+                    email_groups::addresses_with_member(&mut conn, &addr)?,
+                    mailrs_core_sidestate::families::masked_email::sendable(&mut conn, &addr)?,
+                )
             }
-            None => Vec::new(),
+            None => (Vec::new(), Vec::new()),
         };
-        Ok(DerivedSendAs { aliases, groups })
+        Ok(DerivedSendAs {
+            aliases,
+            groups,
+            masks,
+        })
     })
     .await;
     let empty = DerivedSendAs {
         aliases: Vec::new(),
         groups: Vec::new(),
+        masks: Vec::new(),
     };
     match read {
         Ok(Ok(d)) => d,
@@ -198,6 +209,7 @@ fn own_blob(
             groups: Vec::new(),
             is_super: false,
             send_as: Vec::new(),
+            masks: Vec::new(),
         }),
         Err(e) => {
             tracing::warn!(error = %e, %address, "get_permissions_blob failed");

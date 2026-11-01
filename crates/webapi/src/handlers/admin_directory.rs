@@ -105,6 +105,7 @@ pub(crate) async fn store_alias(
     source: &str,
     target: &str,
 ) -> Result<(), StatusCode> {
+    super::masked_email::refuse_if_masked(source)?;
     state
         .core
         .upsert_local_alias(source, target)
