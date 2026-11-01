@@ -23,6 +23,8 @@ export const en = {
   'lang.setting': 'Language',
   'lang.setting.browser': 'Same as the browser',
 
+  'list.all': 'All mail',
+  'list.all.empty': 'No mail',
   'list.archived': 'Archived',
   'list.archived.empty': 'No archived conversations',
   'list.draft': 'Draft',
