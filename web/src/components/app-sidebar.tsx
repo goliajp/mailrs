@@ -22,6 +22,7 @@ import { BottomSheet } from '@/components/bottom-sheet'
 import { useCurrentUnreadCount } from '@/hooks/use-current-mail-filters'
 import { useSignOut } from '@/hooks/use-sign-out'
 import { useT } from '@/i18n'
+import { showsAdmin } from '@/lib/admin-access'
 import { authAtom } from '@/store/auth'
 import { themeModeAtom } from '@/store/theme'
 import { selectedDomainsAtom } from '@/store/ui'
@@ -102,21 +103,22 @@ export function AppSidebar() {
 
         {/* other nav */}
         <nav className="flex flex-col items-center gap-1.5">
+          {showsAdmin(auth) && (
+            <SidebarLink
+              active={section === 'server'}
+              href="/admin"
+              icon={Server}
+              label={t('nav.server')}
+            />
+          )}
+          {/* the monitor shows other people's mail traffic: super administrators only */}
           {auth?.is_super && (
-            <>
-              <SidebarLink
-                active={section === 'server'}
-                href="/admin"
-                icon={Server}
-                label={t('nav.server')}
-              />
-              <SidebarLink
-                active={section === 'monitor'}
-                href="/protocol"
-                icon={Activity}
-                label={t('nav.monitor')}
-              />
-            </>
+            <SidebarLink
+              active={section === 'monitor'}
+              href="/protocol"
+              icon={Activity}
+              label={t('nav.monitor')}
+            />
           )}
           <SidebarLink
             active={section === 'mock'}
@@ -177,7 +179,7 @@ export function AppSidebar() {
           icon={Inbox}
           label={t('nav.mail')}
         />
-        {auth?.is_super && (
+        {showsAdmin(auth) && (
           <MobileNavLink
             active={section === 'server'}
             href="/admin"

@@ -5,6 +5,7 @@ import { Link, useLocation } from 'react-router'
 import { useCurrentUnreadCount } from '@/hooks/use-current-mail-filters'
 import { useVisualViewport } from '@/hooks/use-visual-viewport'
 import { useT } from '@/i18n'
+import { showsAdmin } from '@/lib/admin-access'
 import { authAtom } from '@/store/auth'
 
 /**
@@ -47,9 +48,8 @@ function MobileNav() {
   const t = useT()
   const { pathname } = useLocation()
   const unreadCount = useCurrentUnreadCount()
-  // the server pages show other people's mail traffic: super administrators only
-  const isSuper = useAtomValue(authAtom)?.is_super ?? false
-  const items = NAV_ITEMS.filter((item) => isSuper || !item.adminOnly)
+  const admin = showsAdmin(useAtomValue(authAtom))
+  const items = NAV_ITEMS.filter((item) => admin || !item.adminOnly)
 
   const activeSection = pathname.startsWith('/admin')
     ? '/admin'
