@@ -302,3 +302,52 @@ fn a_message_id_with_the_separator_in_it_is_still_found() {
         [("odd|id@x".into(), "a@x".into())]
     );
 }
+
+/// A link row is an index with a retention: pruning takes it out of the
+/// host's index once it is due, and the message row keeps every host.
+#[test]
+fn a_due_link_row_is_pruned_out_of_its_index() {
+    let st = store();
+    let f = facts(
+        "m1",
+        "a@x",
+        "shop.example",
+        &["pay.example", "cdn.example"],
+        &[],
+    );
+    let now = chrono::Utc::now().timestamp();
+    st.record_ledger_indexed(&f, &["pay.example".to_string()], Some(now + 100))
+        .unwrap();
+    st.record_ledger(&facts("m2", "a@x", "shop.example", &["pay.example"], &[]))
+        .unwrap();
+    let mids = |host: &str| st.ledger_by_link_host(host).unwrap();
+    assert_eq!(mids("pay.example").len(), 2);
+    assert!(mids("cdn.example").is_empty(), "not indexed");
+    assert_eq!(
+        st.prune_expired_links(now, 100).unwrap(),
+        0,
+        "nothing due yet"
+    );
+    assert_eq!(st.prune_expired_links(now + 100, 100).unwrap(), 1);
+    // the row kept without a retention stays
+    assert_eq!(
+        mids("pay.example"),
+        vec![("m2".to_string(), "a@x".to_string())]
+    );
+    let back = st.ledger_facts("a@x", "m1").unwrap().unwrap();
+    assert_eq!(back.link_hosts, vec!["pay.example", "cdn.example"]);
+}
+
+/// Mail past the retention gets no link rows at all, and is still recorded.
+#[test]
+fn mail_past_the_retention_gets_no_link_rows() {
+    let st = store();
+    let f = facts("m1", "a@x", "shop.example", &["pay.example"], &[]);
+    let past = chrono::Utc::now().timestamp() - 1;
+    assert!(
+        st.record_ledger_indexed(&f, &f.link_hosts, Some(past))
+            .unwrap()
+    );
+    assert!(st.ledger_by_link_host("pay.example").unwrap().is_empty());
+    assert_eq!(st.ledger_by_domain("shop.example").unwrap().len(), 1);
+}
