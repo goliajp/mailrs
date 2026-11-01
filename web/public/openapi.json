@@ -13972,6 +13972,34 @@
                 "description": "Mail submitted from a masked address whose submission-log row could not be written; the mail was sent"
               }
             }
+          },
+          "egress": {
+            "type": "object",
+            "nullable": true,
+            "description": "The daily check of this server's sending addresses against the configured blocklists. Null when the store cannot be read.",
+            "properties": {
+              "listed": {
+                "type": "boolean",
+                "nullable": true,
+                "description": "An address is on a list; null before the first check"
+              },
+              "zones_listed": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "checked_at": {
+                "type": "integer",
+                "nullable": true,
+                "description": "Unix seconds of the last check"
+              },
+              "stale": {
+                "type": "boolean",
+                "nullable": true,
+                "description": "The last check is older than 36 hours; null before the first"
+              }
+            }
           }
         },
         "required": [
