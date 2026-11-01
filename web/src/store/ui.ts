@@ -1,3 +1,4 @@
+import type { ComposerCarry } from '@/components/composer/start'
 import type { PickedItem, SelectableRow } from '@/lib/list-selection'
 import type { WireSendStatus } from '@/wire/schemas/sends'
 
@@ -249,3 +250,7 @@ export type ComposeRedraftSource = {
   to: string
 }
 export const composeRedraftSourceAtom = atom<ComposeRedraftSource | null>(null)
+
+// when non-null, the page composer opens with what a floating window held
+// when it was expanded. cleared when the composer closes.
+export const composeCarrySourceAtom = atom<ComposerCarry | null>(null)
