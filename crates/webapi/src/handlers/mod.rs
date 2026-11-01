@@ -36,6 +36,7 @@ pub mod grants;
 pub mod groups;
 pub mod icon;
 pub mod id_token;
+pub mod imap_import;
 pub mod inline;
 pub mod invites;
 pub mod jmap;

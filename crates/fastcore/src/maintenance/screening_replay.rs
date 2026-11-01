@@ -19,8 +19,9 @@
 
 use std::collections::BTreeMap;
 
-use super::fraud_rescan::reading::{header_value, newest_raw};
+use super::fraud_rescan::reading::newest_raw;
 use super::prelude::*;
+use mailrs_fraud_lua::stored::header_value;
 
 const PAUSE_EVERY: u64 = 25;
 const DAY: i64 = 86_400;
@@ -275,13 +276,6 @@ fn judge(
     own: &[String],
     raw: &[u8],
 ) -> Result<Vec<mailrs_screening_lua::Hit>, String> {
-    let parsed = mailrs_mime::parse(raw);
-    let (spf, _, dmarc) = mailrs_inbound::identity::auth_results_tokens(raw);
-    let from = mailrs_inbound::identity::from_address(raw).to_ascii_lowercase();
-    let header_domain = from
-        .rsplit_once('@')
-        .map(|(_, d)| d.to_string())
-        .unwrap_or_default();
     let envelope_domain = header_value(raw, b"return-path")
         .and_then(|v| {
             v.trim()
@@ -290,33 +284,14 @@ fn judge(
                 .map(|(_, d)| d.to_ascii_lowercase())
         })
         .unwrap_or_default();
-    let m = mailrs_reputation::Message {
-        client_ip: mailrs_inbound::identity::first_received_peer_ip(raw),
-        envelope_domain,
-        header_domain: header_domain.clone(),
-        link_hosts: mailrs_inbound::scan_input::link_hosts(&parsed),
-        auth: mailrs_reputation::Auth {
-            dmarc_fail: dmarc.eq_ignore_ascii_case("fail"),
-            spf_fail: spf.eq_ignore_ascii_case("fail"),
-        },
-    };
-    let reputation = set.facts(&m);
-    let parts = mailrs_inbound::scan_input::attachments(&parsed);
-    let atts: Vec<mailrs_attachment_scan::Attachment> = parts
-        .iter()
-        .map(|p| mailrs_attachment_scan::Attachment {
-            name: &p.name,
-            declared_type: &p.declared_type,
-            bytes: p.bytes,
-        })
-        .collect();
-    let parts = inspector.inspect(&atts);
-    let ours = own.contains(&header_domain) && dmarc.eq_ignore_ascii_case("pass");
-    let e = rules.evaluate(&mailrs_screening_lua::Input {
-        outside: !ours,
-        parts: &parts,
-        reputation: &reputation,
-    });
+    let e = mailrs_screening_lua::stored::with_input(
+        set,
+        inspector,
+        own,
+        raw,
+        &envelope_domain,
+        |input| rules.evaluate(input),
+    );
     match e.errors.is_empty() {
         true => Ok(e.hits),
         false => Err(e.errors.join("; ")),

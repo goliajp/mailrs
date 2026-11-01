@@ -10,17 +10,39 @@ export const settingsJa: Record<SettingsKey, string> = {
   'settings.account.exportHelp':
     '「すべてのメール」を MBOX ファイルとしてダウンロードします。各メールのフォルダーと既読状態も含みます。迷惑メールとゴミ箱は含みません',
   'settings.account.exportMbox': 'MBOX でエクスポート',
+  'settings.account.imapCancel': '停止',
+  'settings.account.imapCancelled': 'インポートを停止しました',
+  'settings.account.imapDone': '{host} からのインポートが完了しました',
+  'settings.account.imapFailed': 'インポートが停止しました：{reason}',
+  'settings.account.imapHelp':
+    'IMAP で別のメールサーバーにサインインし、メールをここに移します。受信トレイ、送信済み、その他のフォルダーを既読状態とともに取り込みます。迷惑メール、ゴミ箱、下書きは取り込まず、ここに既にあるメールはスキップします。Gmail や Outlook は通常のパスワードを受け付けないことが多いため、各サービスでアプリパスワードを作成して入力してください。Google や Microsoft のアカウントによるサインイン（OAuth）にはまだ対応していません。パスワードはこのインポートにのみ使い、保存しません',
+  'settings.account.imapHost': 'IMAP サーバー',
+  'settings.account.imapImport': '他のメールサービスからインポート',
+  'settings.account.imapInterrupted':
+    '{host} からのインポートが中断されました。パスワードを再入力すると、中断したところから続けます',
+  'settings.account.imapPassword': 'パスワードまたはアプリパスワード',
+  'settings.account.imapPort': '接続方式',
+  'settings.account.imapPortStarttls': '143、STARTTLS',
+  'settings.account.imapPortTls': '993、TLS',
+  'settings.account.imapQueued': '{host} からのインポートの順番を待っています',
+  'settings.account.imapRunning': '{host} からインポート中：{folder}',
+  'settings.account.imapStart': 'インポートを開始',
+  'settings.account.imapStartFailed': 'インポートを開始できませんでした',
+  'settings.account.imapUsername': 'ユーザー名',
   'settings.account.import': 'メールのインポート',
   'settings.account.importDone':
     '受信トレイに {imported} 件（うち {archived} 件はアーカイブ済み）、送信済みに {sent} 件を取り込みました',
   'settings.account.importFailed': '{failed} 件は保存できず、{tooLarge} 件は大きすぎました',
   'settings.account.importFile': 'MBOX ファイル',
+  'settings.account.importHeld': 'うち {held} 件は受信時と同じく詐欺の疑いで保留しました',
   'settings.account.importHelp':
     'MBOX ファイルをアップロードします。Gmail Takeout、他のメールアプリのエクスポート、ここからのエクスポートに対応します。フォルダーと既読状態は保たれ、既にあるメールはスキップし、迷惑メールとゴミ箱のものは取り込みません',
   'settings.account.importIncomplete':
     'ファイルの途中でアップロードが止まりました。もう一度アップロードしてください。取り込み済みのメールはスキップされます',
   'settings.account.importing': 'インポート中…',
   'settings.account.importMbox': 'MBOX ファイルを選択',
+  'settings.account.importOverQuota':
+    'メールボックスが容量の上限に達したため、それ以降のメールは取り込まれていません',
   'settings.account.importSkipped':
     '既にある {duplicate} 件と、迷惑メール・ゴミ箱の {junk} 件をスキップしました',
   'settings.account.importUploadFailed': 'ファイルをアップロードできませんでした',

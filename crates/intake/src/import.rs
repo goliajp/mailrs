@@ -15,8 +15,22 @@ use crate::sent::{Filed, SentStore};
 
 /// File `body` into `user`'s INBOX, unread. Whether it was read, and
 /// whether it was archived, the caller sets afterwards through the same
-/// calls a reader makes.
-pub fn file<S: SentStore + ?Sized>(core: &S, user: &str, body: &[u8]) -> io::Result<Filed> {
+/// calls a reader makes. `fraud_verdict` is what the caller judged it to
+/// be, the way the receiver hands one to a delivery: the hold it implies
+/// is applied here, by the core, exactly as for delivered mail.
+pub fn file<S: SentStore + ?Sized>(
+    core: &S,
+    user: &str,
+    body: &[u8],
+    fraud_verdict: Option<&str>,
+) -> io::Result<Filed> {
+    // an import counts against the quota like any mail, and stops at it
+    if crate::live_sync::quota_exceeded(user) {
+        return Err(io::Error::new(
+            io::ErrorKind::QuotaExceeded,
+            format!("{user} is over quota"),
+        ));
+    }
     let root = core.maildir_root();
     let md = mailrs_maildir::Maildir::create(&inbox_dir(root, user)?)?;
     let id = md.deliver(body)?;
@@ -24,7 +38,7 @@ pub fn file<S: SentStore + ?Sized>(core: &S, user: &str, body: &[u8]) -> io::Res
     let a = derive(core, core.net_conn(), user, &blob_ref, body, "INBOX");
     crate::live_sync::adjust_usage_bytes(user, body.len() as i64);
     crate::live_sync::upsert_contacts(user, &a.from);
-    core.index_arrival(user, &blob_ref, body, &a)?;
+    core.index_arrival(user, &blob_ref, body, &a, fraud_verdict)?;
     // out of new/: an imported message is not one IMAP should call recent
     md.mark_processed(&id, &[])?;
     Ok(Filed {

@@ -18,6 +18,7 @@ pub async fn import_message(
     Json(req): Json<ImportMessageRequest>,
 ) -> Result<Json<FileSentResponse>, StatusCode> {
     let body = req.message().map_err(|_| StatusCode::BAD_REQUEST)?;
+    let verdict = req.fraud_verdict;
     // built here, on a runtime thread: the directory keeps its handle
     let core = PgCore {
         dir: PgDirectory::new(
@@ -29,10 +30,11 @@ pub async fn import_message(
         event_bus: state.event_bus.clone(),
     };
     let filed = tokio::task::spawn_blocking(move || {
-        mailrs_intake::import::file(&core, &user, &body).map_err(|e| {
+        mailrs_intake::import::file(&core, &user, &body, verdict.as_deref()).map_err(|e| {
             tracing::error!(error = %e, %user, "importing a message failed");
             match e.kind() {
                 std::io::ErrorKind::InvalidInput => StatusCode::BAD_REQUEST,
+                std::io::ErrorKind::QuotaExceeded => StatusCode::INSUFFICIENT_STORAGE,
                 _ => StatusCode::INTERNAL_SERVER_ERROR,
             }
         })

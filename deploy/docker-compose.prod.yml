@@ -55,8 +55,8 @@ x-password-reset: &password-reset
   MAILRS_RESET_ISSUERS: ${MAILRS_RESET_ISSUERS:-}
 
 # how fraud is judged: the receiver on arrival, fastcore's re-scan sweep,
-# and fastcore-sender on outgoing mail. one definition, so a sweep or the
-# outgoing check never judges by different rules than the receive path.
+# fastcore-sender on outgoing mail, and webapi-fc on imported mail. one
+# definition, so no path judges by different rules than the receive path.
 x-fraud-policy: &fraud-policy
   MAILRS_LOCAL_DOMAINS: golia.jp,golia.ai,dadaya.jp,marspot.com,bitreits.com,doracawl.com,madcawl.com,mock.golia.jp
   # Somebody sending as this company from an address that is not it
@@ -256,10 +256,12 @@ services:
       MAILRS_MOCK_DOMAIN: mock.golia.jp
       MAILRS_HOSTNAME: mail.golia.ai
       # the domain check reads only domain and selector, never the key files
-      <<: [*dkim-identity, *imap-listeners, *password-reset]
+      <<: [*dkim-identity, *imap-listeners, *password-reset, *fraud-policy]
       RUST_LOG: info
     volumes:
       - mailrs-data:/data
+      # imported mail is judged by the rules the receiver runs
+      - /apps/mailrs/fraud-rules:/fraud-rules:ro
       # web UI owned by the web-v* lane; release-web.yml rsyncs into
       # this host dir and the container picks it up without a restart
       - /apps/mailrs/web:/opt/mailrs/web:ro

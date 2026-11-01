@@ -15,8 +15,8 @@ const BOB: &str = "bob@example.test";
 /// quoted as an mbox writes it.
 const TAKEOUT: &str = "From 1@xxx Mon Jan 02 09:00:00 +0000 2023\n\
 X-Gmail-Labels: Inbox,Unread\n\
-Message-ID: <a@old.test>\n\
-From: Erin <erin@old.test>\n\
+Message-ID: <a@oldmail.net>\n\
+From: Erin <erin@oldmail.net>\n\
 To: alice@example.test\n\
 Subject: Unread one\n\
 Date: Mon, 02 Jan 2023 09:00:00 +0000\n\
@@ -25,8 +25,8 @@ Date: Mon, 02 Jan 2023 09:00:00 +0000\n\
 \n\
 From 2@xxx Tue Jan 03 09:00:00 +0000 2023\n\
 X-Gmail-Labels: Inbox,Important\n\
-Message-ID: <b@old.test>\n\
-From: Frank <frank@old.test>\n\
+Message-ID: <b@oldmail.net>\n\
+From: Frank <frank@oldmail.net>\n\
 To: alice@example.test\n\
 Subject: Read one\n\
 Date: Tue, 03 Jan 2023 09:00:00 +0000\n\
@@ -35,8 +35,8 @@ Seen already.\n\
 \n\
 From 3@xxx Wed Jan 04 09:00:00 +0000 2023\n\
 X-Gmail-Labels: Opened,\"Category Updates\"\n\
-Message-ID: <c@old.test>\n\
-From: Shop <orders@shop.test>\n\
+Message-ID: <c@oldmail.net>\n\
+From: Shop <orders@shopmail.net>\n\
 To: alice@example.test\n\
 Subject: Receipt\n\
 Date: Wed, 04 Jan 2023 09:00:00 +0000\n\
@@ -45,7 +45,7 @@ Archived long ago.\n\
 \n\
 From 4@xxx Thu Jan 05 09:00:00 +0000 2023\n\
 X-Gmail-Labels: Sent\n\
-Message-ID: <d@old.test>\n\
+Message-ID: <d@oldmail.net>\n\
 From: Alice <alice@example.test>\n\
 To: Carol <carol@partner.test>\n\
 Subject: Lunch?\n\
@@ -55,7 +55,7 @@ Friday?\n\
 \n\
 From 5@xxx Fri Jan 06 09:00:00 +0000 2023\n\
 X-Gmail-Labels: Spam,Unread\n\
-Message-ID: <e@old.test>\n\
+Message-ID: <e@oldmail.net>\n\
 From: Prize <win@spam.test>\n\
 To: alice@example.test\n\
 Subject: You won\n\
@@ -116,7 +116,7 @@ async fn an_import_exports_and_imports_back_unchanged() {
     assert_eq!(
         first,
         serde_json::json!({
-            "imported": 3, "sent": 1, "archived": 1, "skipped_duplicate": 0,
+            "imported": 3, "sent": 1, "archived": 1, "held": 0, "skipped_duplicate": 0, "over_quota": false,
             "skipped_junk_or_trash": 1, "too_large": 0, "failed": 0, "complete": true,
         })
     );

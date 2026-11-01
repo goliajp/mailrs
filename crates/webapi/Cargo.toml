@@ -21,6 +21,15 @@ mailrs-core-api = { path = "../core-api", features = ["client"] }
 # (v2 job hash + pending-idx); the primitives live in core-sidestate
 # so the stone's RPC handler and webapi write via the same routine.
 mailrs-core-sidestate = { path = "../core-sidestate" }
+mailrs-fraud = { path = "../fraud", version = "0" }
+mailrs-fraud-lua = { path = "../fraud-lua", version = "0" }
+mailrs-screening-lua = { path = "../screening-lua", version = "0" }
+mailrs-imap-codec = { path = "../imap-codec", version = "1" }
+mailrs-fetch = { path = "../fetch", version = "0" }
+mailrs-smtp-client = { path = "../smtp-client", version = "3" }
+tokio-util = { version = "0.7", features = ["codec"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "logging", "tls12"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "logging", "tls12", "std"] }
 mailrs-mailbox = { path = "../mailbox", default-features = false }
 mailrs-reputation = { path = "../reputation", version = "0.1" }
 mailrs-attachment-scan = { path = "../attachment-scan", version = "0.1" }
