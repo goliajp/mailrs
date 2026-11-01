@@ -152,6 +152,7 @@ async fn health_handler(
         handlers::kevy_util::with_kevy(mailrs_core_sidestate::families::audit_chain::read_status)
             .ok()
             .flatten();
+    let core_memory = core_memory(&state).await;
     axum::Json(serde_json::json!({
         "status": if kevy_ok { "healthy" } else { "degraded" },
         "ok": kevy_ok,
@@ -164,7 +165,37 @@ async fn health_handler(
         "attachment_scan": screening["attachment_scan"],
         "screening_rules": screening["screening_rules"],
         "audit_chain": audit_chain,
+        "core_memory": core_memory,
     }))
+}
+
+/// The core's container memory, and whether it is at or past
+/// `MAILRS_MEMORY_HIGH_PERCENT` (80 by default) of its limit, for a watch
+/// that compares one value; null when the core does not answer within two
+/// seconds or cannot read its cgroup, and `high` null without a limit.
+async fn core_memory(state: &WebState) -> serde_json::Value {
+    let answer =
+        tokio::time::timeout(std::time::Duration::from_secs(2), state.core.healthz()).await;
+    let Ok(Ok(health)) = answer else {
+        return serde_json::Value::Null;
+    };
+    let Some(m) = health.memory else {
+        return serde_json::Value::Null;
+    };
+    let percent: u64 = std::env::var("MAILRS_MEMORY_HIGH_PERCENT")
+        .ok()
+        .and_then(|v| v.trim().parse().ok())
+        .unwrap_or(80);
+    serde_json::json!({
+        "used_bytes": m.used_bytes,
+        "limit_bytes": m.limit_bytes,
+        "high": m.limit_bytes.map(|limit| is_high(m.used_bytes, limit, percent)),
+    })
+}
+
+/// At or past `percent` of `limit`.
+fn is_high(used: u64, limit: u64, percent: u64) -> bool {
+    u128::from(used) * 100 >= u128::from(limit) * u128::from(percent)
 }
 
 /// /api/readiness — deep probe: does core RPC answer?
@@ -448,5 +479,18 @@ mod router_tests {
                 "{path} is not registered"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod memory_tests {
+    #[test]
+    fn high_is_at_or_past_the_percentage() {
+        let gib = 1u64 << 30;
+        assert!(!super::is_high(3 * gib, 4 * gib, 80));
+        assert!(super::is_high(8 * gib, 10 * gib, 80));
+        assert!(!super::is_high(8 * gib - 1, 10 * gib, 80));
+        assert!(super::is_high(4 * gib, 4 * gib, 80));
+        assert!(!super::is_high(2 * gib, 4 * gib, 90));
     }
 }

@@ -5832,6 +5832,14 @@ export interface components {
                 /** @description Why the replica could not be read or written */
                 replica_error?: string;
             } | null;
+            /** @description The core's container memory from its cgroup (the OCR worker included). Null when the core does not answer within two seconds or cannot read its cgroup. */
+            core_memory?: {
+                used_bytes?: number;
+                /** @description Null when the cgroup sets no limit */
+                limit_bytes?: number | null;
+                /** @description used_bytes at or past MAILRS_MEMORY_HIGH_PERCENT (80 by default) of limit_bytes; null without a limit */
+                high?: boolean | null;
+            } | null;
         };
         LoginRequest: {
             address: string;
