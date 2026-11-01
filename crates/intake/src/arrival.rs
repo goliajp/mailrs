@@ -41,6 +41,8 @@ pub struct Arrival<'a> {
     /// The searchable text: the plain part, else the html part flattened.
     pub body_text: Option<String>,
     pub sender_trust: String,
+    /// What the sectioned inbox reads from this message.
+    pub facts: mailrs_mailbox::section::MessageFacts,
     /// The first 16 KB, where the headers are.
     pub head: &'a [u8],
     pub parsed: mailrs_mime::Part<'a>,
@@ -51,7 +53,7 @@ pub struct Arrival<'a> {
 /// `target_folder` is where the receiver's verdict or sieve filed it.
 pub fn derive<'a, T: Threads + ?Sized>(
     threads: &T,
-    net: Option<kevy_client::Connection>,
+    mut net: Option<kevy_client::Connection>,
     addr: &str,
     blob_ref: &str,
     body: &'a [u8],
@@ -73,7 +75,10 @@ pub fn derive<'a, T: Threads + ?Sized>(
         &subject,
     );
     let is_own = mailrs_rfc5322::list_contains(&from, addr);
-    let category = category(net, target_folder, body);
+    let category_of = category(net.as_mut(), target_folder, body);
+    let facts =
+        crate::section_facts::facts(net.as_mut(), addr, &from, &to, head, category_of, is_own);
+    let category = category_of;
     let parsed = mailrs_mime::parse(body);
     let body_text = body_text_for_search(&parsed);
     let preview = body_text
@@ -94,6 +99,7 @@ pub fn derive<'a, T: Threads + ?Sized>(
         preview,
         body_text,
         sender_trust: extract_sender_trust(body),
+        facts,
         head,
         parsed,
     }
@@ -190,7 +196,7 @@ fn ancestry<T: Threads + ?Sized>(
 /// notification or promotion by the shared triage corpus, inbox when it is
 /// cold or unsure.
 pub fn category(
-    net: Option<kevy_client::Connection>,
+    net: Option<&mut kevy_client::Connection>,
     target_folder: &str,
     body: &[u8],
 ) -> &'static str {
@@ -201,6 +207,6 @@ pub fn category(
     if tokens.is_empty() {
         return "inbox";
     }
-    net.and_then(|mut conn| mailrs_triage::classify(&mut conn, &tokens))
+    net.and_then(|conn| mailrs_triage::classify(conn, &tokens))
         .unwrap_or("inbox")
 }

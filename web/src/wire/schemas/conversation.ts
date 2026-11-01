@@ -65,6 +65,10 @@ export const wireThreadSummarySchema = z.object({
   trashed_at: z.number().int().min(0).default(0),
   // this reader's label ids on it
   labels: z.array(z.string()).default([]),
+  // the sectioned inbox's section, '' when not decided yet
+  section: z.string().default(''),
+  // epoch seconds the reader started waiting on a person's reply, 0 when not waiting
+  awaiting_since: z.number().int().min(0).default(0),
   unread_count: z.number().int().min(0).default(0),
 })
 

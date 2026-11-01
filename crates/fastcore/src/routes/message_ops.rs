@@ -177,6 +177,17 @@ pub(crate) async fn deliver_message(
         tracing::error!(err = %e, %user, %thread_id, "record_message_arrival failed");
         return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
+    if let Some(facts) = req.section_facts {
+        crate::sections::record(
+            &state,
+            &user,
+            &thread_id,
+            req.latest_date,
+            arrival.is_own,
+            facts.into(),
+            &req.senders_csv,
+        );
+    }
 
     crate::live_sync::publish_new_mail(
         &user,
@@ -419,6 +430,9 @@ pub(crate) fn row_to_wire(r: ThreadRow) -> ConversationSummaryWire {
         // could ever say a thread is asleep.
         snoozed_until: r.snoozed_until,
         trashed_at: r.trashed_at,
+        // the reader's section, read beside the row by `with_sections`
+        section: String::new(),
+        awaiting_since: 0,
     }
 }
 

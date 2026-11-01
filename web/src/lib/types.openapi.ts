@@ -5760,6 +5760,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/senders/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept first contacts
+         * @description Records that the reader accepted these senders. Conversations whose last message came from one of them leave the New section of the sectioned inbox, and their later mail is not a first contact.
+         */
+        post: operations["acceptSenders"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -5988,6 +6008,10 @@ export interface components {
             importance_level: string;
             /** Format: float */
             importance_score: number;
+            /** @description The sectioned inbox's section (reply, awaiting, new, feed, other), empty when not decided yet. */
+            section?: string;
+            /** @description Epoch seconds the reader started waiting on a person's reply, 0 when not waiting. */
+            awaiting_since?: number;
         };
         ThreadMessageResponse: {
             uid: number;
@@ -7226,6 +7250,10 @@ export interface operations {
                 pinned?: boolean;
                 /** @description Only conversations snoozed until a time still to come, across folders */
                 snoozed?: boolean;
+                /** @description One section of the sectioned inbox. awaiting spans the Inbox and Sent, is ordered by awaiting_since and pages by before against it; the others are the live list in that section, newest first. */
+                section?: "reply" | "awaiting" | "new" | "feed" | "other";
+                /** @description With section=awaiting: only conversations waiting since this epoch second or earlier. */
+                followup_due_by?: number;
             };
             header?: never;
             path?: never;
@@ -14291,6 +14319,42 @@ export interface operations {
             };
             /** @description No import to stop */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    acceptSenders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Bare addresses, compared case-insensitively */
+                    addresses: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description How many distinct addresses were recorded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        accepted: number;
+                    };
+                };
+            };
+            /** @description No addresses, or more than 500 */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };

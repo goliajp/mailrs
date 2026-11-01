@@ -309,6 +309,8 @@ mod tests {
             sent_count: 0,
             snoozed_until: 0,
             trashed_at: 0,
+            section: String::new(),
+            awaiting_since: 0,
             quarantined: false,
         };
         let cloned = cs.clone();
@@ -342,6 +344,8 @@ mod tests {
             sent_count: 0,
             snoozed_until: 0,
             trashed_at: 0,
+            section: String::new(),
+            awaiting_since: 0,
             quarantined: false,
         };
         let debug = format!("{:?}", cs);

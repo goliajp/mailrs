@@ -21,6 +21,7 @@ mod permissions;
 mod quarantine;
 mod reads;
 mod search;
+pub(crate) mod section_list;
 pub(crate) mod thread_actions;
 mod thread_park;
 pub(crate) mod trash;

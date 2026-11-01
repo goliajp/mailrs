@@ -129,6 +129,7 @@ pub(crate) async fn run_ingest_once(
                 pinned: None,
                 snoozed: None,
                 section: None,
+                followup_due_by: None,
             },
         };
         // Try monolith. If it's down, skip the ingest step but STILL

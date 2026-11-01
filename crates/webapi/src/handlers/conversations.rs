@@ -61,7 +61,13 @@ pub struct ListQuery {
     pub pinned: Option<bool>,
     /// The Snoozed list: conversations put away until a time still to come.
     pub snoozed: Option<bool>,
+    /// One section of the sectioned inbox: `reply`, `awaiting`, `new`,
+    /// `feed` or `other`.
     pub section: Option<String>,
+    /// With `section=awaiting`: only conversations waiting since this epoch
+    /// second or earlier. The client works it out from the reader's
+    /// follow-up setting.
+    pub followup_due_by: Option<i64>,
     /// Comma-separated account ids to narrow the list to.
     ///
     /// A query string, so the empty string is a real value and means
@@ -205,6 +211,10 @@ pub struct ConversationResponse {
     pub trashed_at: i64,
     /// Ids of this reader's labels on it.
     pub labels: Vec<String>,
+    /// The sectioned inbox's section, empty when not decided yet.
+    pub section: String,
+    /// Epoch seconds the reader started waiting on a person's reply, or 0.
+    pub awaiting_since: i64,
 }
 
 impl From<mailrs_core_api::types::ConversationSummaryWire> for ConversationResponse {
@@ -237,6 +247,8 @@ impl From<mailrs_core_api::types::ConversationSummaryWire> for ConversationRespo
             sent_count: w.sent_count,
             trashed_at: w.trashed_at,
             labels: w.labels,
+            section: w.section,
+            awaiting_since: w.awaiting_since,
         }
     }
 }
@@ -263,6 +275,7 @@ pub async fn get_conversations(
             pinned: q.pinned,
             snoozed: q.snoozed,
             section: q.section,
+            followup_due_by: q.followup_due_by,
         },
     };
     let resp = state

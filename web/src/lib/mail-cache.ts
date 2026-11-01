@@ -205,11 +205,23 @@ function axesOfCacheKey(key: QueryKey): ListAxes | null {
   return {
     archived: f.archived === true || f.archived === 1,
     folder: typeof f.folder === 'string' ? f.folder : null,
+    followupDueBy: numberOrUndefined(f.followupDueBy),
     label: typeof f.label === 'string' ? f.label : null,
     pinned: f.pinned === true || f.pinned === 1 ? true : null,
+    section: textOrNull(f.section),
     snoozed: f.snoozed === true || f.snoozed === 1,
     starred: f.starred === true || f.starred === 1 ? true : null,
     trashed: f.trashed === true || f.trashed === 1,
     unread: f.unread === true || f.unread === 1 ? true : null,
   }
+}
+
+function numberOrUndefined(v: unknown): number | undefined {
+  if (typeof v === 'number') return v
+  return undefined
+}
+
+function textOrNull(v: unknown): null | string {
+  if (typeof v === 'string') return v
+  return null
 }

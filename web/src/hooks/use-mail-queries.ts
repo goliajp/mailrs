@@ -56,9 +56,11 @@ export function useConversationsQuery(filters: MailListFilters, enabled: boolean
       // /conversations/search endpoint when filters.query is set, but
       // without query in the key a search reuses the non-search inbox
       // cache and never refetches — search silently shows the inbox.
+      followupDueBy: filters.followupDueBy,
       label: filters.label,
       pinned: filters.pinned,
       query: filters.query,
+      section: filters.section,
       snoozed: filters.snoozed,
       starred: filters.starred,
       trashed: filters.trashed,
@@ -67,6 +69,8 @@ export function useConversationsQuery(filters: MailListFilters, enabled: boolean
     getNextPageParam: (lastPage) => {
       if (lastPage.length < PAGE_SIZE) return undefined
       const last = lastPage[lastPage.length - 1]
+      // the waiting list is ordered, and paged, by when the wait began
+      if (filters.section === 'awaiting') return last?.awaiting_since
       return last?.last_date
     },
     queryFn: async ({ pageParam, signal }) => {
@@ -223,6 +227,7 @@ function listPath(filters: MailListFilters, before?: number): string {
   if (filters.pinned) p += '&pinned=true'
   if (filters.snoozed) p += '&snoozed=true'
   if (filters.section) p += `&section=${encodeURIComponent(filters.section)}`
+  if (filters.followupDueBy) p += `&followup_due_by=${filters.followupDueBy}`
   p += accountsParam(filters)
   return p
 }

@@ -11,6 +11,12 @@ import { SwipeableRow } from '@/components/swipeable-row'
 import { type Key, useT } from '@/i18n'
 import { toggle } from '@/lib/actions'
 import { MAIL_LISTS, type MailListId } from '@/lib/mail-lists'
+import {
+  followupDaysAtom,
+  type InboxSection,
+  inboxSectionAtom,
+  sectionedInboxAtom,
+} from '@/store/inbox-sections'
 import { activeListAtom } from '@/store/ui'
 
 export type VirtualListItem =
@@ -86,6 +92,10 @@ export function VirtualConversationList({
 }) {
   const t = useT()
   const activeList = useAtomValue(activeListAtom)
+  const sectioned = useAtomValue(sectionedInboxAtom)
+  const shownSection = useAtomValue(inboxSectionAtom)
+  const followupDays = useAtomValue(followupDaysAtom)
+  const inboxSection = sectionShown(sectioned, shownSection)
   // build flat list of items. Search results are relevance-ordered, not
   // date-monotonic — date group pills would repeat and read as noise, so
   // skip them entirely while searching.
@@ -241,7 +251,9 @@ export function VirtualConversationList({
       >
         <div className="text-fg-muted flex flex-col items-center justify-center p-8 text-center">
           <Mail aria-hidden="true" className="text-fg-muted mb-3 h-10 w-10" strokeWidth={1} />
-          <p className="text-sm font-medium">{t(emptyLabel(isSearching, activeList))}</p>
+          <p className="text-sm font-medium">
+            {t(emptyLabel(isSearching, activeList, inboxSection), { days: followupDays })}
+          </p>
           {hint && <p className="mt-1 text-xs">{t(hint)}</p>}
         </div>
       </div>
@@ -378,13 +390,27 @@ function emptyHint(isSearching: boolean): Key | null {
  * messages" for a folder the Send tab no longer sets, and had no arm at
  * all for Starred or N & P, so both said "All caught up!".
  */
-function emptyLabel(isSearching: boolean, list: MailListId): Key {
+function emptyLabel(isSearching: boolean, list: MailListId, section: InboxSection | null): Key {
   if (isSearching) return 'list.search.empty'
+  if (list === 'inbox' && section) return SECTION_EMPTY[section]
   return MAIL_LISTS[list].emptyLabel
+}
+
+const SECTION_EMPTY: Record<InboxSection, Key> = {
+  followup: 'sections.followup.empty',
+  new: 'sections.new.empty',
+  other: 'sections.other.empty',
+  reply: 'sections.reply.empty',
 }
 
 /// What went wrong, in a sentence, without leaking an object.
 function listErrorMessage(error: unknown, noAnswer: string): string {
   if (error instanceof Error && error.message.length > 0) return error.message
   return noAnswer
+}
+
+/** The Inbox section on screen, or none while the Inbox is shown whole. */
+function sectionShown(sectioned: boolean, section: InboxSection): InboxSection | null {
+  if (!sectioned) return null
+  return section
 }

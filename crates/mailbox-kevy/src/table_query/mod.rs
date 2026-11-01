@@ -19,6 +19,7 @@ use super::table_spec::thread_user_spec;
 mod account;
 mod flag;
 mod orderpath;
+mod section;
 
 /// Whether a read over an ORDERPATH includes archived threads.
 ///

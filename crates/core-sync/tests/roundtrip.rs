@@ -82,6 +82,7 @@ async fn seed(c: &Client, user: &str, n_threads: usize, n_msgs: usize) {
                 unread: true,
                 uid,
                 payload_wire_json: wire.to_string(),
+                section_facts: None,
             };
             c.deliver_message(user, &thread_id, &req).await.unwrap();
             uid += 1;
@@ -199,6 +200,7 @@ async fn sync_dedupes_on_blob_ref_not_message_id() {
                 unread: true,
                 uid,
                 payload_wire_json: wire.to_string(),
+                section_facts: None,
             },
         )
         .await

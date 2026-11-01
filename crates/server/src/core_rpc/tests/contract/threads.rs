@@ -27,7 +27,7 @@ fn views() -> Vec<(&'static str, ConversationFilter)> {
         limit: 50,
         ..Default::default()
     };
-    vec![
+    let mut views = vec![
         ("default", base.clone()),
         (
             "inbox",
@@ -140,10 +140,12 @@ fn views() -> Vec<(&'static str, ConversationFilter)> {
             "older than the third",
             ConversationFilter {
                 before_ts: Some(1_700_000_400),
-                ..base
+                ..base.clone()
             },
         ),
-    ]
+    ];
+    views.extend(super::sections::views(&base));
+    views
 }
 
 /// Every view, the unread count and the category counts, after `step`.

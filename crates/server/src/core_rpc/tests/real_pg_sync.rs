@@ -141,6 +141,7 @@ fn deliver_req(mid: &str, uid: u32, thread: &str, user: &str) -> DeliverMessageR
         unread: true,
         uid,
         payload_wire_json: wire.to_string(),
+        section_facts: None,
     }
 }
 

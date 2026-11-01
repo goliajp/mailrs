@@ -137,6 +137,13 @@ impl KevyMailboxStore {
                 Ok(true)
             })
             .map_err(std::io::Error::from)
+            .and_then(|found| {
+                // in or out of Junk changes whether it has a section
+                if found {
+                    self.rewrite_section(&user_key)?;
+                }
+                Ok(found)
+            })
     }
 
     /// Common path: hset the boolean field on **this user's** membership

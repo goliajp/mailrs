@@ -12,6 +12,7 @@
 
 use crate::pg::PgMailboxStore;
 use crate::scope::{Bucket, CATEGORY_BUCKETS, Scope};
+use crate::section::Section;
 use crate::types::ConversationSummary;
 
 /// Which of a user's conversations to read.
@@ -44,6 +45,11 @@ pub struct ThreadQuery<'a> {
     pub before_ts: Option<i64>,
     /// At most this many rows.
     pub limit: Option<i64>,
+    /// One section of the sectioned inbox. With [`Section::Awaiting`] the
+    /// rows are ordered by `awaiting_since` and `before_ts` pages on it.
+    pub section: Option<Section>,
+    /// With [`Section::Awaiting`]: waiting since this epoch second or earlier.
+    pub awaiting_due_by: Option<i64>,
 }
 
 /// How a view treats conversations held for review.
@@ -74,6 +80,8 @@ impl<'a> ThreadQuery<'a> {
             thread_ids: None,
             before_ts: None,
             limit: None,
+            section: None,
+            awaiting_due_by: None,
         }
     }
 }
@@ -100,6 +108,8 @@ struct Row {
     snoozed_until: i64,
     trashed_at: i64,
     quarantined: bool,
+    section: String,
+    awaiting_since: i64,
 }
 
 /// A message counted once even when it sits in two mailboxes.
@@ -139,7 +149,7 @@ fn thread_rows_sql(ids_param: Option<usize>) -> String {
                 COALESCE(MAX(CAST(EXTRACT(EPOCH FROM sc.snoozed_until) AS BIGINT)), 0) AS snoozed_until,
                 BOOL_OR(q.thread_id IS NOT NULL) AS quarantined,
                 BOOL_OR(tr.thread_id IS NOT NULL) AS trashed,
-                COALESCE(MAX(tr.trashed_at), 0) AS trashed_at
+                COALESCE(MAX(tr.trashed_at), 0) AS trashed_at{}
            FROM messages m
                 JOIN mailboxes mb ON m.mailbox_id = mb.id
                 LEFT JOIN email_analysis ea ON ea.message_id = m.id
@@ -150,7 +160,8 @@ fn thread_rows_sql(ids_param: Option<usize>) -> String {
                 LEFT JOIN trashed_conversations tr
                        ON tr.thread_id = m.thread_id AND tr.account_address = mb.user_address
           WHERE mb.user_address = $1 AND m.thread_id != ''{ids}
-          GROUP BY m.thread_id"
+          GROUP BY m.thread_id",
+        super::sections::AGGREGATES
     )
 }
 
@@ -236,6 +247,8 @@ impl From<Row> for ConversationSummary {
             snoozed_until: r.snoozed_until,
             trashed_at: r.trashed_at,
             quarantined: r.quarantined,
+            section: r.section,
+            awaiting_since: r.awaiting_since,
         }
     }
 }
@@ -286,20 +299,38 @@ impl PgMailboxStore {
         if let Some(p) = snoozed_param {
             wheres.push(format!("t.snoozed_until > ${p}"));
         }
+        let awaiting = q.section == Some(Section::Awaiting);
+        if let Some(section) = q.section {
+            wheres.push(format!("t.section = '{}'", section.name()));
+        }
+        let due_param = q.awaiting_due_by.filter(|_| awaiting).map(|_| {
+            next += 1;
+            next - 1
+        });
+        if let Some(p) = due_param {
+            wheres.push(format!("t.awaiting_since <= ${p}"));
+        }
+        let (cursor_col, order) = match awaiting {
+            true => ("t.awaiting_since", "t.awaiting_since DESC, t.thread_id"),
+            false => ("t.last_date", "t.last_date DESC, t.thread_id"),
+        };
         let before_param = q.before_ts.map(|_| {
             next += 1;
             next - 1
         });
         if let Some(p) = before_param {
-            wheres.push(format!("t.last_date < ${p}"));
+            wheres.push(format!("{cursor_col} < ${p}"));
         }
         let limit = q
             .limit
             .map(|_| format!(" LIMIT ${next}"))
             .unwrap_or_default();
+        let rows = super::sections::with_sections(
+            &thread_rows_sql(ids_param),
+            &bucket_sql().replace("t.category", "v.category"),
+        );
         let sql = format!(
-            "SELECT * FROM ({}) t WHERE {} ORDER BY t.last_date DESC, t.thread_id{limit}",
-            thread_rows_sql(ids_param),
+            "SELECT * FROM ({rows}) t WHERE {} ORDER BY {order}{limit}",
             wheres.join(" AND ")
         );
         let mut query = sqlx::query_as::<_, Row>(&sql).bind(q.user);
@@ -311,6 +342,9 @@ impl PgMailboxStore {
         }
         if let Some(now) = q.snoozed_after {
             query = query.bind(now);
+        }
+        if let Some(due) = q.awaiting_due_by.filter(|_| awaiting) {
+            query = query.bind(due);
         }
         if let Some(ts) = q.before_ts {
             query = query.bind(ts);

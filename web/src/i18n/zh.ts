@@ -6,12 +6,14 @@ import { appZh } from './app/zh'
 import { calendarZh } from './calendar/zh'
 import { composerZh } from './composer/zh'
 import { mockZh } from './mock/zh'
+import { sectionsZh } from './sections/zh'
 import { settingsZh } from './settings/zh'
 
 export const zh: Record<Key, string> = {
   ...appZh,
   ...composerZh,
   ...calendarZh,
+  ...sectionsZh,
   ...settingsZh,
   ...mockZh,
   ...adminZh,

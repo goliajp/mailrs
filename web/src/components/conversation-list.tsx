@@ -14,6 +14,7 @@ import { BatchActionBar } from '@/components/conversation-list-batch-action-bar'
 import { FilterBar } from '@/components/conversation-list-filter-bar'
 import { VirtualConversationList } from '@/components/conversation-list-virtual'
 import { DeleteThreadConfirm } from '@/components/delete-thread-confirm'
+import { InboxSectionBar } from '@/components/inbox-section-bar'
 import { LabelBar } from '@/components/label-bar'
 import { ListSearchInput } from '@/components/list-search-input'
 import { CreateRuleButton, SavedSearchBar, SaveSearchButton } from '@/components/saved-search-bar'
@@ -364,6 +365,7 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
       </ListSearchInput>
 
       <FilterBar />
+      <InboxSectionBar />
       <LabelBar />
       <SavedSearchBar />
 
