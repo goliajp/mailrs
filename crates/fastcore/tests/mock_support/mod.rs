@@ -81,6 +81,19 @@ pub fn keys(c: &mut Connection) -> BTreeSet<String> {
         .collect()
 }
 
+/// Waits for the receiver's first screening-rules report. It writes one as
+/// it starts, from a background task, so a key snapshot taken before it lands
+/// would count the report as something the mail under test wrote.
+pub fn wait_for_rules_report(c: &mut Connection) {
+    for _ in 0..200 {
+        if keys(c).contains("screening:rules") {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    panic!("the receiver wrote no screening-rules report within 10 s");
+}
+
 pub fn spool_files(dir: &Path) -> Vec<std::path::PathBuf> {
     std::fs::read_dir(dir)
         .map(|d| d.flatten().map(|e| e.path()).collect())
