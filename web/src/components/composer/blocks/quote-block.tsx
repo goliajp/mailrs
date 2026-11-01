@@ -3,6 +3,7 @@ import type { QuoteBlockData } from '../types'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 
 import { HtmlFrame } from '@/components/html-frame'
+import { type Key, useT } from '@/i18n'
 
 type Props = {
   data: QuoteBlockData
@@ -11,6 +12,7 @@ type Props = {
 }
 
 export function QuoteBlock({ data, mode, onChange }: Props) {
+  const t = useT()
   const collapsed = data.collapsed
   // stitch the "On Date, Sender wrote:" header onto the body so the
   // preview matches what will actually be sent
@@ -24,7 +26,7 @@ export function QuoteBlock({ data, mode, onChange }: Props) {
         type="button"
       >
         {collapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-        {collapsed ? `Show original${mode === 'forward' ? ' (forwarded)' : ''}` : 'Hide original'}
+        {t(quoteToggle(collapsed, mode === 'forward'))}
       </button>
       {!collapsed && previewHtml && (
         <div className="border-border border-l-2">
@@ -37,4 +39,10 @@ export function QuoteBlock({ data, mode, onChange }: Props) {
       )}
     </div>
   )
+}
+
+function quoteToggle(collapsed: boolean, forwarded: boolean): Key {
+  if (!collapsed) return 'composer.hideOriginal'
+  if (forwarded) return 'composer.showOriginalForwarded'
+  return 'composer.showOriginal'
 }

@@ -1,7 +1,6 @@
 import { toast } from '@goliapkg/gds'
-import { getDefaultStore } from 'jotai'
 
-import { langAtom, translate } from '@/i18n'
+import { tNow } from '@/i18n'
 
 /**
  * Writes to the clipboard and reports the outcome. Resolves `false` when
@@ -11,10 +10,10 @@ import { langAtom, translate } from '@/i18n'
 export async function copyText(value: string, label: string): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(value)
-    toast.success(translate(getDefaultStore().get(langAtom), 'settings.copiedNamed', { label }))
+    toast.success(tNow('settings.copiedNamed', { label }))
     return true
   } catch {
-    toast.error(translate(getDefaultStore().get(langAtom), 'settings.copyFailedNamed', { label }))
+    toast.error(tNow('settings.copyFailedNamed', { label }))
     return false
   }
 }

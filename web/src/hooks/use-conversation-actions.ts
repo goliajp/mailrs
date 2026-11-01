@@ -26,8 +26,9 @@ import {
   useTrashMutation,
   useUntrashMutation,
 } from '@/hooks/use-trash-mutations'
-import { useT } from '@/i18n'
+import { tNow, useT } from '@/i18n'
 import { ACTIONS } from '@/lib/actions'
+import { errorText } from '@/lib/error-text'
 import { labelPickerAtom, lastUndoAtom } from '@/store/ui'
 
 // One place that turns an action into the mutation serving it. What the
@@ -75,7 +76,7 @@ export function useConversationActions(): ConversationActions {
   const run = useCallback((threadId: string, action: SingleAction, onSuccess: () => void) => {
     const m = latest.current
     const onError = (err: unknown) => {
-      toast.error(err instanceof Error ? err.message : 'Action failed')
+      toast.error(errorText(err, tNow('action.failed')))
     }
     const opts = { onError, onSuccess }
     switch (action) {

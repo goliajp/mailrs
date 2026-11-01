@@ -147,3 +147,43 @@ test('the mail list tabs are a tab list the arrow keys move through', async ({ p
   expect(focused).toBe('tab')
   expect(await page.evaluate(() => document.activeElement?.textContent)).not.toBe(before)
 })
+
+// Who sees the admin entry, at the four widths the layout changes at: the
+// phone's bottom bar, the tablet, the narrow desktop, the wide desktop.
+const WIDTHS = [390, 768, 1024, 1440]
+
+async function signedInAs(page: Page, who: { is_admin: boolean; permissions: string[] }) {
+  await page.route('**/api/**', (route) => route.fulfill({ json: [], status: 200 }))
+  await page.addInitScript((w) => {
+    localStorage.setItem(
+      'mailrs_auth',
+      JSON.stringify({
+        accessible_domains: ['golia.jp'],
+        address: 'a@golia.jp',
+        display_name: 'A',
+        is_super: false,
+        token: 'stub',
+        ...w,
+      })
+    )
+  }, who)
+}
+
+for (const width of WIDTHS) {
+  test(`at ${width}px an account without admin permissions has no admin entry`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ height: 800, width })
+    await signedInAs(page, { is_admin: false, permissions: [] })
+    await page.goto('/settings')
+    await expect(page.getByRole('link', { name: 'Settings' }).first()).toBeVisible()
+    await expect(page.locator('a[href="/admin"]')).toHaveCount(0)
+  })
+
+  test(`at ${width}px a partial administrator has the admin entry`, async ({ page }) => {
+    await page.setViewportSize({ height: 800, width })
+    await signedInAs(page, { is_admin: true, permissions: ['admin.aliases'] })
+    await page.goto('/settings')
+    await expect(page.locator('a[href="/admin"]').first()).toBeVisible()
+  })
+}

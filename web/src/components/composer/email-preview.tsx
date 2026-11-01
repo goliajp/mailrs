@@ -2,6 +2,8 @@ import type { AnyBlock } from './types'
 
 import { useMemo } from 'react'
 
+import { useT } from '@/i18n'
+
 import { previewHtml } from './preview'
 
 /**
@@ -21,12 +23,13 @@ import { previewHtml } from './preview'
  * able to run anything.
  */
 export function EmailPreview({ blocks }: { blocks: ReadonlyArray<AnyBlock> }) {
+  const t = useT()
   const html = useMemo(() => previewHtml(blocks), [blocks])
 
   if (!html) {
     return (
       <div className="flex min-h-[240px] items-center justify-center px-4">
-        <p className="text-fg-muted text-sm">Nothing to preview yet.</p>
+        <p className="text-fg-muted text-sm">{t('composer.nothingToPreview')}</p>
       </div>
     )
   }
@@ -36,7 +39,7 @@ export function EmailPreview({ blocks }: { blocks: ReadonlyArray<AnyBlock> }) {
       className="min-h-[240px] w-full flex-1 border-0 bg-white"
       sandbox=""
       srcDoc={html}
-      title="Preview of the message as the recipient will see it"
+      title={t('compose.previewTitle')}
     />
   )
 }

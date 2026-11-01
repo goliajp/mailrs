@@ -11,8 +11,10 @@ import {
 } from 'lucide-react'
 
 import { Copyable } from '@/components/copy-button'
+import { currentLocale, useT } from '@/i18n'
 
 export function StructuredDataCard({ data }: { data: StructuredData }) {
+  const t = useT()
   const reservations = data.reservations ?? []
   const orders = data.orders ?? []
   const events = data.events ?? []
@@ -26,7 +28,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
   return (
     <div className="border-border px-5 py-3">
       <p className="text-fg-muted mb-2 text-xs font-medium tracking-wider uppercase">
-        Structured Data
+        {t('structured.title')}
       </p>
       <div className="space-y-2">
         {reservations.map((r, i) => (
@@ -34,7 +36,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
             <div className="flex items-center gap-2">
               <ReservationIcon kind={r.type} />
               <span className="text-fg-secondary text-xs font-medium capitalize">
-                {r.type} Reservation
+                {t('structured.reservation', { kind: r.type })}
               </span>
               {r.reservation_id && (
                 <Copyable value={r.reservation_id}>
@@ -73,7 +75,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
           <div className="border-border bg-bg-secondary rounded-lg border p-4" key={`ord-${i}`}>
             <div className="flex items-center gap-2">
               <ShoppingBag className="text-success h-4 w-4" />
-              <span className="text-fg-secondary text-xs font-medium">Order</span>
+              <span className="text-fg-secondary text-xs font-medium">{t('structured.order')}</span>
               {o.order_number && (
                 <Copyable value={o.order_number}>
                   <span className="bg-border text-fg-secondary md:text-mini rounded px-1.5 py-0.5 font-mono text-xs">
@@ -98,8 +100,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
             )}
             {o.total && (
               <p className="text-fg-secondary mt-1.5 text-xs font-medium select-text">
-                Total: {o.currency && `${o.currency} `}
-                {o.total}
+                {t('structured.total', { amount: money(o.currency, o.total) })}
               </p>
             )}
           </div>
@@ -126,7 +127,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
                   rel="noopener noreferrer"
                   target="_blank"
                 >
-                  Details
+                  {t('structured.details')}
                 </a>
               )}
             </div>
@@ -138,7 +139,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
             <div className="flex items-center gap-2">
               <ExternalLink className="text-accent h-4 w-4" />
               <span className="text-fg-secondary text-xs font-medium">
-                {a.type || 'Action'}: {a.name}
+                {a.type || t('structured.action')}: {a.name}
               </span>
             </div>
             {a.url && isSafeUrl(a.url) && (
@@ -148,7 +149,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
                 rel="noopener noreferrer"
                 target="_blank"
               >
-                {a.name || 'Open'}
+                {a.name || t('drafts.open')}
               </a>
             )}
           </div>
@@ -162,7 +163,7 @@ function formatSchemaDate(dateStr: string): string {
   try {
     const d = new Date(dateStr)
     if (isNaN(d.getTime())) return dateStr
-    return d.toLocaleDateString(undefined, {
+    return d.toLocaleDateString(currentLocale(), {
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
@@ -182,6 +183,11 @@ function isSafeUrl(url: string): boolean {
   } catch {
     return false
   }
+}
+
+function money(currency: null | string | undefined, total: number | string): string {
+  if (currency) return `${currency} ${total}`
+  return String(total)
 }
 
 function ReservationIcon({ kind }: { kind: string }) {

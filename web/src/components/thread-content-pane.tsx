@@ -43,6 +43,7 @@ import { htmlBodyPaintsNothing } from '@/lib/email-split'
 import { formatFullDate } from '@/lib/format'
 import { highlightMentions } from '@/lib/mention'
 import { downloadEml, printMessage } from '@/lib/message-export'
+import { ownName } from '@/lib/own-name'
 import { isOwnMessage, isSpoofSuspected, verifiedSender } from '@/lib/sender-identity'
 
 const EMPTY_ATTACHMENTS: never[] = []
@@ -147,7 +148,7 @@ export function ThreadContentPane({
           )}
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <h2 className="text-fg truncate text-sm font-semibold select-text">
-              {subject || '(no subject)'}
+              {subject || t('mobile.noSubject')}
             </h2>
             {messages.length > 1 && (
               <span className="text-fg-muted shrink-0 text-xs">
@@ -273,13 +274,14 @@ export function ThreadContentPane({
                           }`}
                         >
                           <span className="truncate">
-                            {isOwnMessage(
-                              extractEmail(selectedMsg.sender),
-                              myEmail,
-                              selectedMsg.sender_trust
-                            )
-                              ? 'Me'
-                              : extractName(selectedMsg.sender)}
+                            {ownName(
+                              isOwnMessage(
+                                extractEmail(selectedMsg.sender),
+                                myEmail,
+                                selectedMsg.sender_trust
+                              ),
+                              extractName(selectedMsg.sender)
+                            )}
                           </span>
                           {/* The reading pane is where a message is actually
                               read, and it showed no verdict at all — the

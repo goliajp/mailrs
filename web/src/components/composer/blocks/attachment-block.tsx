@@ -3,6 +3,7 @@ import type { AttachmentBlockData } from '../types'
 import { File as FileIcon, X } from 'lucide-react'
 import { useEffect, useMemo, useRef } from 'react'
 
+import { useT } from '@/i18n'
 import { formatFileSize } from '@/lib/html-utils'
 
 type Props = {
@@ -11,6 +12,7 @@ type Props = {
 }
 
 export function AttachmentBlock({ data, onRemove }: Props) {
+  const t = useT()
   const isImage = data.mimeType.startsWith('image/')
 
   const previewUrl = useMemo(
@@ -43,7 +45,7 @@ export function AttachmentBlock({ data, onRemove }: Props) {
         <p className="text-fg-muted text-xs">{formatFileSize(data.size)}</p>
       </div>
       <button
-        aria-label={`Remove ${data.name}`}
+        aria-label={t('composer.removeNamed', { name: data.name })}
         className="text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary shrink-0 rounded-full p-1 transition-colors"
         onClick={onRemove}
       >

@@ -1,3 +1,4 @@
+import { Button } from '@goliapkg/gds'
 /**
  * Route-level error fallback — v2.1 §13.4 (2026-07-08).
  *
@@ -6,13 +7,13 @@
  * `WireErrorException` for wire-specific messages from arbitrary
  * runtime errors.
  */
-
-import { Button } from '@goliapkg/gds'
 import { useNavigate, useRouteError } from 'react-router'
 
+import { useT } from '@/i18n'
 import { WireErrorException } from '@/wire/errors'
 
 export function RouteErrorFallback() {
+  const t = useT()
   const err = useRouteError()
   const navigate = useNavigate()
 
@@ -21,20 +22,20 @@ export function RouteErrorFallback() {
 
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-6 text-center">
-      <h1 className="text-fg text-2xl font-semibold">Something went wrong</h1>
+      <h1 className="text-fg text-2xl font-semibold">{t('error.title')}</h1>
       <p className="text-fg-secondary max-w-md text-sm">{message}</p>
       <div className="flex gap-2">
         {isAuth ? (
           <Button onClick={() => navigate('/login')} variant="primary">
-            Sign in
+            {t('login.signIn')}
           </Button>
         ) : (
           <>
             <Button onClick={() => location.reload()} variant="primary">
-              Reload
+              {t('error.reload')}
             </Button>
             <Button onClick={() => navigate('/')} variant="secondary">
-              Home
+              {t('nav.home')}
             </Button>
           </>
         )}

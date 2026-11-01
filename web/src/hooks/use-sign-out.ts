@@ -3,6 +3,7 @@ import { useSetAtom } from 'jotai'
 import { useCallback } from 'react'
 import { useNavigate } from 'react-router'
 
+import { tNow } from '@/i18n'
 import { persister, queryClient } from '@/lib/query-client'
 import { authAtom } from '@/store/auth'
 import { wireLogout } from '@/wire/endpoints/auth'
@@ -24,7 +25,7 @@ export function useSignOut(): () => Promise<void> {
     try {
       await wireLogout()
     } catch {
-      toast.error('Could not sign out. Check your connection and try again')
+      toast.error(tNow('signOut.failed'))
       return
     }
     queryClient.clear()

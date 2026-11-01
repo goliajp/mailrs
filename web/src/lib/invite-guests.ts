@@ -5,16 +5,21 @@
 
 import type { Attendee } from '@/lib/invite-types'
 
+import { tNow } from '@/i18n'
+
 /// The one-word verdict on a timeline row, where there is space for a
 /// pill and not for a sentence.
 export function compactStatusLabel(partstat: string): null | { className: string; label: string } {
   switch (partstat) {
     case 'ACCEPTED':
-      return { className: 'bg-emerald-500/15 text-emerald-300', label: 'Accepted' }
+      return {
+        className: 'bg-emerald-500/15 text-emerald-300',
+        label: tNow('invite.guest.accepted'),
+      }
     case 'DECLINED':
-      return { className: 'bg-red-500/15 text-red-300', label: 'Declined' }
+      return { className: 'bg-red-500/15 text-red-300', label: tNow('invite.guest.declined') }
     case 'TENTATIVE':
-      return { className: 'bg-amber-500/15 text-amber-300', label: 'Tentative' }
+      return { className: 'bg-amber-500/15 text-amber-300', label: tNow('invite.guest.tentative') }
     default:
       return null
   }
@@ -22,15 +27,16 @@ export function compactStatusLabel(partstat: string): null | { className: string
 
 export function guestSummary(attendees: Attendee[]): string {
   const n = attendees.length
-  const head = `${n} guest${n === 1 ? '' : 's'}`
+  const head = guestCount(n)
   const yes = attendees.filter((a) => a.partstat.toUpperCase() === 'ACCEPTED').length
   const no = attendees.filter((a) => a.partstat.toUpperCase() === 'DECLINED').length
   const waiting = attendees.filter((a) => a.partstat.toUpperCase() === 'NEEDS-ACTION').length
   const parts: string[] = []
-  if (yes) parts.push(`${yes} yes`)
-  if (no) parts.push(`${no} no`)
-  if (waiting) parts.push(`${waiting} awaiting`)
-  return parts.length > 0 ? `${head} · ${parts.join(', ')}` : head
+  if (yes) parts.push(tNow('invite.guest.yesCount', { n: yes }))
+  if (no) parts.push(tNow('invite.guest.noCount', { n: no }))
+  if (waiting) parts.push(tNow('invite.guest.awaitingCount', { n: waiting }))
+  if (parts.length === 0) return head
+  return `${head} · ${parts.join(tNow('invite.guest.separator'))}`
 }
 
 export function partstatDot(partstat: string): string {
@@ -49,12 +55,17 @@ export function partstatDot(partstat: string): string {
 export function partstatWord(partstat: string): string {
   switch (partstat.toUpperCase()) {
     case 'ACCEPTED':
-      return 'yes'
+      return tNow('invite.guest.yes')
     case 'DECLINED':
-      return 'no'
+      return tNow('invite.guest.no')
     case 'TENTATIVE':
-      return 'maybe'
+      return tNow('invite.guest.maybe')
     default:
-      return 'awaiting'
+      return tNow('invite.guest.awaiting')
   }
+}
+
+function guestCount(n: number): string {
+  if (n === 1) return tNow('invite.guest.one')
+  return tNow('invite.guest.many', { n })
 }

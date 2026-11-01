@@ -2,6 +2,8 @@ import type { ComposeRedraftSource } from '@/store/ui'
 
 import { Paperclip, X } from 'lucide-react'
 
+import { useT } from '@/i18n'
+
 type Carried = ComposeRedraftSource['attachments'][number]
 
 /**
@@ -21,13 +23,14 @@ export function CarriedAttachments({
   kept: ReadonlySet<number>
   onToggle: (index: number) => void
 }) {
+  const t = useT()
   if (items.length === 0) return null
 
   return (
     <div className="border-border/60 flex flex-wrap items-center gap-1.5 border-t px-3 py-2">
       <span className="text-fg-muted text-mini mr-1 inline-flex items-center gap-1">
         <Paperclip aria-hidden className="h-3 w-3" />
-        From the original
+        {t('compose.fromOriginal')}
       </span>
       {items.map((item) => (
         <Chip

@@ -1,9 +1,9 @@
 import type { ThreadMessage } from '@/lib/types'
+
+import { useAtomValue, useSetAtom } from 'jotai'
 // mobile-mail.tsx — complete mobile email experience
 // replaces desktop Chat (MPaneGroup/MPane) with full-screen view switching
 // shares data layer (atoms, API) but independent UI
-
-import { useAtomValue, useSetAtom } from 'jotai'
 import { ArrowLeft, Mail, MessageSquare, Reply } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
@@ -22,6 +22,7 @@ import { useMarkReadOnOpen } from '@/hooks/use-mark-read-on-open'
 import { useT } from '@/i18n'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { formatDate, formatFullDate } from '@/lib/format'
+import { ownName } from '@/lib/own-name'
 import { verifiedSender } from '@/lib/sender-identity'
 import { authAtom } from '@/store/auth'
 import { mobileViewAtom, selectedDomainsAtom } from '@/store/ui'
@@ -108,7 +109,7 @@ function MobileConversationView() {
                     <span
                       className={`truncate text-xs font-medium ${isOwn ? 'text-accent' : 'text-fg'}`}
                     >
-                      {isOwn ? 'Me' : name}
+                      {ownName(isOwn, name)}
                     </span>
                     <span className="text-fg-muted text-tiny shrink-0">
                       {formatDate(msg.internal_date)}
@@ -286,7 +287,7 @@ function MobileThreadView() {
         <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">{subject}</h2>
         {messages.length > 1 && (
           <button
-            aria-label={`View conversation (${messages.length} messages)`}
+            aria-label={t('mobile.viewConversation', { count: messages.length })}
             className="touch-target text-fg-muted hover:text-fg flex items-center gap-1 rounded-md px-2 py-1 text-xs"
             onClick={() => setMobileView('conversation')}
             type="button"

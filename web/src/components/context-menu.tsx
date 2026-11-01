@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import { MobileModal } from '@/components/mobile-modal'
+import { useT } from '@/i18n'
 import { rovingKeyDown } from '@/lib/roving'
 
 export type ContextMenuItem = {
@@ -23,6 +24,7 @@ export function ActionSheet({
   onClose: () => void
   open: boolean
 }) {
+  const t = useT()
   if (!open) return null
 
   return (
@@ -58,7 +60,7 @@ export function ActionSheet({
             className="text-fg-muted active:bg-bg-secondary w-full rounded-lg px-4 py-3 text-center text-sm font-medium transition-colors"
             onClick={onClose}
           >
-            Cancel
+            {t('common.cancel')}
           </button>
         </div>
       </div>

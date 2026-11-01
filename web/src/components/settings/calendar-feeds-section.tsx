@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
-import { type Key, useT } from '@/i18n'
+import { currentLocale, type Key, useT } from '@/i18n'
 import { errorText } from '@/lib/error-text'
 import { queryClient } from '@/lib/query-client'
 import { settingsKeys } from '@/lib/query-keys'
@@ -182,7 +182,7 @@ function syncText(
 ): string {
   if (lastSyncedAt === null) return t('settings.feeds.neverSynced')
   // epoch seconds from the backend; Date takes ms
-  const at = new Date(lastSyncedAt * 1000).toLocaleString(undefined, {
+  const at = new Date(lastSyncedAt * 1000).toLocaleString(currentLocale(), {
     dateStyle: 'short',
     timeStyle: 'short',
   })

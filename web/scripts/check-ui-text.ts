@@ -1,21 +1,22 @@
 /**
  * Interface text written straight into a component, not looked up with
- * `t()`: JSX text, and the `aria-label`, `placeholder`, `title`, `label`,
- * `alt` and `helperText` attributes given as a string literal. Read from
- * the syntax tree, so comments, generics and comparisons never count.
- * Counted per file against `ui-text-baseline.txt`; a file over its count,
- * or a new file with any, fails. Moving a file to `t()` lowers its count:
- * run with `--update` to write the lower counts (an update never raises
- * one).
+ * `t()`: JSX text; the `aria-label`, `placeholder`, `title`, `label`, `alt`
+ * and `helperText` attributes given as a string literal; a string that is
+ * itself a JSX child (directly or as a branch of `?:`, `&&`, `||`, `??`);
+ * a string given to a `label`, `title`, `placeholder`, `description`,
+ * `text` or `message` property; and a string passed to `toast.*`,
+ * `setError`, `confirm` or `alert`. Read from the syntax tree, so comments,
+ * generics and comparisons never count.
+ * Any hit fails, with its file, line and text. `--list <file>...` prints
+ * the hits in those files without failing.
  */
 
-import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import ts from 'typescript'
 
 const ROOT = join(import.meta.dir, '..')
 const SRC = join(ROOT, 'src')
-const BASELINE = join(import.meta.dir, 'ui-text-baseline.txt')
 
 // words that read the same in every language: product and protocol names
 const KEEP = new Set([
@@ -31,13 +32,33 @@ const KEEP = new Set([
   'DMARC',
   'MBOX',
   'mailrs',
+  // status-bar and monitor labels
+  'PG',
+  'Kevy',
+  'TLS',
+  'web',
+  'api',
+  'CIDR',
+  'ESC',
+  'Esc',
+  'HTML',
+  // a key name on a shortcut hint
+  'Ctrl+',
+  // mock mail's direction code, shown as is like `captured-out`
+  'in',
 ])
+
+// example input shown as a placeholder: code and query syntax, not prose
+const SAMPLES = new Set(['require "fileinto"; ...', 'from:news@shop.example has:attachment'])
+
+// sample content for the component showcase, not interface text
+const EXEMPT = new Set(['src/pages/playground.tsx'])
 
 function files(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const path = join(dir, name)
     if (statSync(path).isDirectory()) return name === '__tests__' ? [] : files(path)
-    return path.endsWith('.tsx') ? [path] : []
+    return /\.tsx?$/.test(path) && !path.endsWith('.d.ts') ? [path] : []
   })
 }
 
@@ -46,10 +67,48 @@ function isText(s: string): boolean {
   if (!/[A-Za-z]{2,}/.test(words)) return false
   // an example address reads the same in every language
   if (/^[^\s@]+@[^\s@]+$/.test(words)) return false
+  // one technical token: a domain, URL, identifier or HTML entity
+  if (/^\S+$/.test(words) && /[.:/_&;-]/.test(words)) return false
+  if (SAMPLES.has(words)) return false
   return !words.split(/\s+/).every((w) => KEEP.has(w))
 }
 
 const ATTRS = new Set(['alt', 'aria-label', 'helperText', 'label', 'placeholder', 'title'])
+
+const PROPS = new Set(['description', 'label', 'message', 'placeholder', 'text', 'title'])
+const CALLS = /^(toast(\.\w+)?|setError|(window\.)?(confirm|alert))$/
+
+/** Whether a string literal is shown to the reader, by where it sits. */
+function shown(node: ts.Node): boolean {
+  let child = node
+  let parent = node.parent
+  while (
+    ts.isConditionalExpression(parent) ||
+    ts.isParenthesizedExpression(parent) ||
+    (ts.isBinaryExpression(parent) &&
+      [
+        ts.SyntaxKind.AmpersandAmpersandToken,
+        ts.SyntaxKind.BarBarToken,
+        ts.SyntaxKind.QuestionQuestionToken,
+      ].includes(parent.operatorToken.kind))
+  ) {
+    if (ts.isConditionalExpression(parent) && parent.condition === child) return false
+    child = parent
+    parent = parent.parent
+  }
+  if (ts.isJsxExpression(parent) && ts.isJsxElement(parent.parent)) return true
+  if (ts.isJsxExpression(parent) && ts.isJsxFragment(parent.parent)) return true
+  if (ts.isJsxExpression(parent) && ts.isJsxAttribute(parent.parent)) {
+    return ATTRS.has(parent.parent.name.getText())
+  }
+  if (ts.isPropertyAssignment(parent) && parent.initializer === child) {
+    return PROPS.has(parent.name.getText())
+  }
+  if (ts.isCallExpression(parent) && parent.arguments.includes(child as ts.Expression)) {
+    return CALLS.test(parent.expression.getText())
+  }
+  return false
+}
 
 /** Each piece of written-in text in `source`, with its line. */
 export function found(source: string): { line: number; text: string }[] {
@@ -67,6 +126,13 @@ export function found(source: string): { line: number; text: string }[] {
       isText(node.initializer.text)
     ) {
       add(node, `${node.name.getText(file)}="${node.initializer.text}"`)
+    }
+    if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+      if (isText(node.text) && shown(node)) add(node, node.text)
+    }
+    if (ts.isTemplateExpression(node)) {
+      const words = [node.head.text, ...node.templateSpans.map((sp) => sp.literal.text)].join(' ')
+      if (isText(words) && shown(node)) add(node, node.getText(file))
     }
     ts.forEachChild(node, visit)
   }
@@ -89,57 +155,15 @@ if (listAt >= 0) {
   process.exit(0)
 }
 
-function read(): Map<string, number> {
-  const out = new Map<string, number>()
-  let text = ''
-  try {
-    text = readFileSync(BASELINE, 'utf8')
-  } catch {
-    return out
-  }
-  for (const line of text.split('\n')) {
-    const [path, n] = line.trim().split(/\s+/)
-    if (path && n) out.set(path, Number(n))
-  }
-  return out
-}
-
-const baseline = read()
-const now = new Map<string, number>()
+let hits = 0
 for (const f of files(SRC)) {
-  const n = count(readFileSync(f, 'utf8'))
-  if (n > 0) now.set(relative(ROOT, f), n)
+  const path = relative(ROOT, f)
+  if (EXEMPT.has(path)) continue
+  for (const { line, text } of found(readFileSync(f, 'utf8'))) {
+    if (hits === 0)
+      console.error('!! interface text written into components; look it up with t() instead:')
+    console.error(`   ${path}:${line}: ${text}`)
+    hits++
+  }
 }
-
-function write() {
-  const lines = [...now].sort(([a], [b]) => a.localeCompare(b)).map(([p, n]) => `${p} ${n}`)
-  writeFileSync(BASELINE, lines.join('\n') + '\n')
-  console.log(
-    `baseline: ${now.size} files, ${[...now.values()].reduce((a, b) => a + b, 0)} strings`
-  )
-}
-
-// the first baseline is whatever is there today
-if (baseline.size === 0 && process.argv.includes('--update')) {
-  write()
-  process.exit(0)
-}
-
-const over = [...now].filter(([path, n]) => n > (baseline.get(path) ?? 0))
-if (over.length > 0) {
-  console.error('!! interface text written into components; look it up with t() instead:')
-  for (const [path, n] of over)
-    console.error(`   ${path}: ${n} (allowed ${baseline.get(path) ?? 0})`)
-  process.exit(1)
-}
-
-const lower = [...baseline].filter(([path, n]) => (now.get(path) ?? 0) < n)
-if (process.argv.includes('--update')) {
-  write()
-} else if (lower.length > 0) {
-  console.error(
-    '!! fewer written-in strings than the baseline says; run `bun scripts/check-ui-text.ts --update`:'
-  )
-  for (const [path, n] of lower) console.error(`   ${path}: ${now.get(path) ?? 0} (baseline ${n})`)
-  process.exit(1)
-}
+if (hits > 0) process.exit(1)

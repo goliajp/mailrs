@@ -51,7 +51,7 @@ export function InsightsColumn({
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-fg truncate text-sm font-medium">
-                    {c.subject || '(no subject)'}
+                    {c.subject || t('mobile.noSubject')}
                   </p>
                   <p className="text-danger truncate text-xs">{c.category}</p>
                 </div>

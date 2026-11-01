@@ -7,9 +7,7 @@
  * unknown and rendered as an em dash rather than as 1970.
  */
 
-import { getDefaultStore } from 'jotai'
-
-import { type Key, langAtom, translate } from '@/i18n'
+import { type Key, tNow } from '@/i18n'
 
 const MINUTE = 60
 const HOUR = 60 * MINUTE
@@ -44,7 +42,7 @@ export function parseEpochSeconds(raw: string): Date | null {
 }
 
 function ago(key: Key, count: number): string {
-  return translate(getDefaultStore().get(langAtom), key, { count })
+  return tNow(key, { count })
 }
 
 function pad(value: number): string {

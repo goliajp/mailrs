@@ -74,7 +74,12 @@ export function AppPasswordsCard() {
           placeholder={t('appPasswords.devicePlaceholder')}
           value={name}
         />
-        <button className={btnPrimary} disabled={!name.trim()} onClick={create} type="button">
+        <button
+          className={`${btnPrimary} shrink-0 whitespace-nowrap`}
+          disabled={!name.trim()}
+          onClick={create}
+          type="button"
+        >
           {t('appPasswords.create')}
         </button>
       </div>

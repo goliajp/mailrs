@@ -10,7 +10,9 @@ import { ListSearchInput } from '@/components/list-search-input'
 import { SenderAvatar } from '@/components/sender-avatar'
 import { useCurrentSelection, useSendRows } from '@/hooks/use-current-list'
 import { useCancelSendMutation, useDeleteSendMutation, useResendMutation } from '@/hooks/use-sends'
+import { either, useT } from '@/i18n'
 import { extractEmail, extractName } from '@/lib/avatar'
+import { errorText } from '@/lib/error-text'
 import { dateGroupLabel, formatFullDate } from '@/lib/format'
 import { mailRowClass } from '@/lib/list-row-class'
 import { splitAddressList } from '@/lib/recipients'
@@ -46,6 +48,7 @@ type Item = { label: string; type: 'divider' } | { row: SendRow; type: 'row' }
  * on 2026-07-30.
  */
 export function SendList() {
+  const t = useT()
   const { all: rows, loading: isLoading, rows: visible } = useSendRows()
   const selectedThreadId = useCurrentSelection()?.threadId ?? null
   const pickRow = useSetAtom(pickInListAtom)
@@ -91,55 +94,58 @@ export function SendList() {
       })
       setComposingNew(true)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Could not open this send for editing')
+      toast.error(errorText(err, t('sends.openFailed')))
     }
   }
 
   const handleCancel = (sendId: string) => {
     cancel.mutate(sendId, {
-      onError: (err) => toast.error(err instanceof Error ? err.message : 'Could not cancel'),
+      onError: (err) => toast.error(errorText(err, t('sends.cancelFailed'))),
       onSuccess: (r) => {
         // The one outcome the button's own wording would get wrong.
         // Say it plainly rather than showing a success that is not one.
         if (r.already_delivered > 0 && r.recipients_cancelled === 0) {
-          toast.error('Already delivered — too late to cancel')
+          toast.error(t('sends.tooLate'))
           return
         }
         if (r.already_delivered > 0) {
           toast.success(
-            `Stopped ${r.recipients_cancelled}; ${r.already_delivered} had already been delivered`
+            t('sends.partlyStopped', {
+              delivered: r.already_delivered,
+              stopped: r.recipients_cancelled,
+            })
           )
           return
         }
-        toast.success('Cancelled')
+        toast.success(t('sends.cancelled'))
       },
     })
   }
 
   const handleDelete = (sendId: string) => {
     remove.mutate(sendId, {
-      onError: (err) => toast.error(err instanceof Error ? err.message : 'Could not delete'),
+      onError: (err) => toast.error(errorText(err, t('sends.deleteFailed'))),
       onSuccess: () => {
         setExpanded(null)
-        toast.success('Deleted')
+        toast.success(t('sends.deleted'))
       },
     })
   }
 
   const handleResend = (sendId: string) => {
     resend.mutate(sendId, {
-      onError: (err) => toast.error(err instanceof Error ? err.message : 'Could not resend'),
-      onSuccess: () => toast.success('Sending again'),
+      onError: (err) => toast.error(errorText(err, t('sends.resendFailed'))),
+      onSuccess: () => toast.success(t('sends.resending')),
     })
   }
 
   const renderBody = () => {
-    if (isLoading) return <div className="text-fg-muted p-4 text-xs">Loading…</div>
+    if (isLoading) return <div className="text-fg-muted p-4 text-xs">{t('common.loading')}</div>
     if (rows.length === 0) {
-      return <div className="text-fg-muted p-8 text-center text-sm">Nothing sent yet</div>
+      return <div className="text-fg-muted p-8 text-center text-sm">{t('list.send.empty')}</div>
     }
     if (visible.length === 0) {
-      return <div className="text-fg-muted p-8 text-center text-sm">No matching messages</div>
+      return <div className="text-fg-muted p-8 text-center text-sm">{t('sends.noMatch')}</div>
     }
     return (
       <div className="flex flex-col">
@@ -173,7 +179,7 @@ export function SendList() {
 
   return (
     <div className="flex h-full flex-col">
-      <ListSearchInput label="Search send" placeholder="Search send…" />
+      <ListSearchInput label={t('sends.search')} placeholder={t('sends.searchPlaceholder')} />
       <FilterBar />
       <StatusFilter attention={attention} onChange={setStatus} value={status} />
       <div className="min-h-0 flex-1 overflow-y-auto">{renderBody()}</div>
@@ -208,6 +214,7 @@ const SendRowView = memo(function SendRowView({
   row: SendRow
   selected: boolean
 }) {
+  const t = useT()
   const flagged = needsAttention(row)
   // Only what has not gone out. A delivered row has nothing to stop,
   // and offering the control there would promise a recall.
@@ -242,13 +249,13 @@ const SendRowView = memo(function SendRowView({
           away than opening the message. */}
         {stoppable && (
           <button
-            aria-label="Cancel this send"
+            aria-label={t('sends.cancelThis')}
             className="text-fg-muted hover:text-danger hover:bg-bg-secondary shrink-0 px-3 text-xs font-medium disabled:opacity-50"
             disabled={cancelling}
             onClick={() => onCancel(row.send?.send_id ?? '')}
             type="button"
           >
-            {cancelling ? '…' : 'Cancel'}
+            {t(either(cancelling, 'sends.cancelling', 'common.cancel'))}
           </button>
         )}
       </div>

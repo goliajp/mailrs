@@ -1,3 +1,4 @@
+import type { StatusBarHealth } from './status-bar'
 /**
  * Pure logic behind the status bar: no React, no hooks, no DOM.
  *
@@ -12,7 +13,7 @@
  * the test asserts it. React rendering is a thin wrapper around them.
  */
 
-import type { StatusBarHealth } from './status-bar'
+import { type Translate } from '@/i18n'
 
 export type ConnectionState = 'connected' | 'connecting' | 'disconnected' | 'offline'
 
@@ -28,32 +29,38 @@ const DOT_OK = 'bg-success'
 const DOT_WARN = 'bg-warning'
 const DOT_BAD = 'bg-danger'
 
-export function computeBackendState(health: null | StatusBarHealth | undefined): IndicatorState {
+export function computeBackendState(
+  health: null | StatusBarHealth | undefined,
+  t: Translate
+): IndicatorState {
+  const label = t('status.backend')
   if (health == null) {
-    return { dot: DOT_NEUTRAL, label: 'Backend', title: 'Backend: contacting…' }
+    return { dot: DOT_NEUTRAL, label, title: t('status.backendContacting') }
   }
   const status = (health.status ?? '').toLowerCase()
   if (status === 'healthy' || status === 'ok') {
-    return { dot: DOT_OK, label: 'Backend', title: 'Backend: healthy' }
+    return { dot: DOT_OK, label, title: t('status.backendHealthy') }
   }
   if (status === 'degraded' || status === 'warning' || status === 'warn') {
-    return { dot: DOT_WARN, label: 'Backend', title: `Backend: ${status}` }
+    return { dot: DOT_WARN, label, title: t('status.backendState', { status }) }
   }
   if (status.length === 0) {
-    return { dot: DOT_NEUTRAL, label: 'Backend', title: 'Backend: unknown' }
+    return { dot: DOT_NEUTRAL, label, title: t('status.backendUnknown') }
   }
-  return { dot: DOT_BAD, label: 'Backend', title: `Backend: ${status}` }
+  return { dot: DOT_BAD, label, title: t('status.backendState', { status }) }
 }
 
-export function computeRealtimeState(state: ConnectionState): IndicatorState {
+export function computeRealtimeState(state: ConnectionState, t: Translate): IndicatorState {
+  const label = t('status.realtime')
   switch (state) {
     case 'connected':
-      return { dot: DOT_OK, label: 'Realtime', title: 'Realtime updates: connected' }
+      return { dot: DOT_OK, label, title: t('status.realtimeConnected') }
     case 'connecting':
-      return { dot: DOT_WARN, label: 'Realtime', title: 'Realtime updates: connecting' }
+      return { dot: DOT_WARN, label, title: t('status.realtimeConnecting') }
     case 'disconnected':
+      return { dot: DOT_BAD, label, title: t('status.realtimeDisconnected') }
     case 'offline':
-      return { dot: DOT_BAD, label: 'Realtime', title: `Realtime updates: ${state}` }
+      return { dot: DOT_BAD, label, title: t('status.realtimeOffline') }
   }
 }
 
@@ -61,11 +68,11 @@ export function computeRealtimeState(state: ConnectionState): IndicatorState {
  * Map a browser pathname → the section label rendered in the status bar.
  * Kept alongside the indicator helpers so it too gets test coverage.
  */
-export function sectionForPath(pathname: string): string {
-  if (pathname.startsWith('/admin')) return 'Admin'
-  if (pathname.startsWith('/protocol')) return 'Monitor'
-  if (pathname.startsWith('/settings')) return 'Settings'
-  if (pathname.startsWith('/mail')) return 'Mail'
-  if (pathname.startsWith('/mock')) return 'Mock mail'
-  return 'Home'
+export function sectionForPath(pathname: string, t: Translate): string {
+  if (pathname.startsWith('/admin')) return t('nav.admin')
+  if (pathname.startsWith('/protocol')) return t('nav.monitor')
+  if (pathname.startsWith('/settings')) return t('nav.settings')
+  if (pathname.startsWith('/mail')) return t('nav.mail')
+  if (pathname.startsWith('/mock')) return t('nav.mock')
+  return t('nav.home')
 }
