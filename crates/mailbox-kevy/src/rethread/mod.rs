@@ -255,7 +255,7 @@ impl KevyMailboxStore {
         };
         self.store().atomic(|ctx| {
             if ctx.hexists(key.as_bytes(), b"tid")? {
-                ctx.hset(key.as_bytes(), &[(b"unread" as &[u8], value)])?;
+                crate::thread_row::hset_membership(ctx, key.as_bytes(), &[(b"unread", value)])?;
             }
             Ok(())
         })?;

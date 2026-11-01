@@ -246,6 +246,16 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
             "/v1/admin/maintenance:backfill-thread-user",
             post(backfill_thread_user_route),
         )
+        // The flag indexes key on markers present only while a column is
+        // non-zero; these fill them in on older rows and check they agree.
+        .route(
+            "/v1/admin/maintenance:rewrite-threaduser-markers",
+            post(crate::maintenance::rewrite_threaduser_markers_route),
+        )
+        .route(
+            "/v1/admin/maintenance:threaduser-marker-check",
+            post(crate::maintenance::threaduser_marker_check_route),
+        )
         // Writes the group column onto rows that predate it, so the shadow
         // above can start reporting a defect rather than a debt.
         .route(

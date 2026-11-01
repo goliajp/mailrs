@@ -80,6 +80,9 @@ pub use mailrs_mailbox::labels::{LABEL_COLORS, Label, LabelError, label_color, l
 pub mod ledger;
 mod list_threads;
 mod mark_seen;
+#[cfg(test)]
+mod marker_tests;
+mod marker_upkeep;
 pub mod mbid;
 mod message_arrival;
 mod messages;
@@ -103,11 +106,12 @@ pub use mailrs_mailbox::rules;
 pub use mailrs_mailbox::scope;
 pub use mailrs_mailbox::section;
 pub use mailrs_mailbox::threading::normalize_subject;
+pub use marker_upkeep::{MarkerColumnCheck, MarkerRewrite};
 pub use message_arrival::MessageArrival;
 pub use messages::{OwnedUserMessageFacts, UserMessageFacts};
 pub use sections::SectionArrival;
 pub use table_query::ArchiveScope;
-pub use thread_row::{ThreadRow, display_message, senders_csv_contains_user};
+pub use thread_row::{ThreadRow, display_message, hset_membership, senders_csv_contains_user};
 
 /// Experimental kevy-backed implementation of `MailboxStore`.
 ///

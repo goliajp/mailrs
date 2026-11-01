@@ -8,6 +8,7 @@
 //! the boot path.
 
 use super::keys;
+use crate::thread_row::MARKED;
 use kevy_embedded::{IndexKind, IndexValType as ValType, OrderPath, TableIndex, TableSpec};
 
 /// The `threaduser` table declaration.
@@ -118,7 +119,7 @@ fn stored_values() -> Vec<Vec<u8>> {
 }
 
 fn columns() -> Vec<(Vec<u8>, ValType)> {
-    vec![
+    let mut columns = vec![
         col("user", ValType::Str),
         col("tid", ValType::Str),
         col("ord", ValType::I64),
@@ -174,33 +175,58 @@ fn columns() -> Vec<(Vec<u8>, ValType)> {
         // the sectioned inbox records it: what "this sender's
         // conversations" keys on, for reclassifying and keeping a sender.
         col("sec_in_from", ValType::Str),
-    ]
+    ];
+    // The markers the flag indexes key on; see `thread_row::markers`.
+    // Absent from most rows by design, which is NULL to the engine.
+    columns.extend(MARKED.iter().map(|m| col(m.marker, ValType::I64)));
+    columns
 }
+
+/// Whether the flag reads key on the marker indexes (`ix_<column>`) rather
+/// than the full-row indexes on the columns themselves.
+///
+/// Off until the markers are known to be complete: the writers keep them
+/// from the release that declared them, but rows written before that carry
+/// none until `maintenance:rewrite-threaduser-markers` has run, and a read
+/// of a marker index before then misses those rows without any error. It
+/// is turned on in a later release, once `maintenance:threaduser-marker-check`
+/// reports no mismatch on production; turning it off again is the rollback
+/// for as long as the full-row indexes are still declared.
+pub(crate) const READ_FLAG_AXES_FROM_MARKERS: bool = false;
+
+/// Whether the full-row indexes on the marked columns themselves stay
+/// declared beside the marker indexes.
+///
+/// They hold every row of the table, so they are what the markers replace.
+/// They are dropped only in a release after the reads have moved to the
+/// markers and the check has passed again. Setting this to `false` changes
+/// the declaration, which rebuilds the table's indexes at the next boot.
+pub(crate) const KEEP_FULL_ROW_FLAG_INDEXES: bool = true;
+
+// the reads must always have an index to key on
+const _: () = assert!(READ_FLAG_AXES_FROM_MARKERS || KEEP_FULL_ROW_FLAG_INDEXES);
 
 fn indexes() -> Vec<TableIndex> {
     let values = stored_values();
-    [
-        "starred",
-        "archived",
-        // the Trash list keys on it, like Archived
-        "trashed",
-        "pinned",
-        "unread",
-        "has_action",
-        // The Sent axis has the same shape: key on the flag,
-        // filter to the user, sort by recency.
-        "is_sender",
-        // Not a flag: keyed on the epoch second a thread is due
-        // back. Every ordinary row stores 0, so asking for
-        // `[1, now]` is an empty scan until something is actually
-        // due — which is what makes waking cost nothing on the
-        // calls where nothing has to happen.
-        "snoozed_until",
-        // Keyed on when a thread went to the Trash, the same way: the
-        // purge asks for `[1, cutoff]`, empty until something is due.
-        "trashed_at",
-        // When the reader started waiting on a reply; see the column.
-        "awaiting_since",
+    // The per-user flags and timestamps, each keyed on its marker
+    // (`thread_row::MARKED`): present only while the column is non-zero,
+    // so the index holds only rows a read can return. The reads ask for
+    // `[1, 1]` on a flag and `[1, now]` on a timestamp.
+    //
+    // `is_sender` has the same shape as the flags: the Sent axis keys on
+    // it, filters to the user and sorts by recency.
+    //
+    // `snoozed_until` and `trashed_at` are not flags: they are keyed on the
+    // epoch second a thread is due back or due for purge, so asking for
+    // `[1, now]` is an empty scan until something is due, which is what
+    // makes waking and purging cost nothing on the calls where nothing has
+    // to happen. `awaiting_since` is when the reader started waiting on a
+    // reply; see the column.
+    let mut keyed: Vec<&str> = MARKED.iter().map(|m| m.marker).collect();
+    if KEEP_FULL_ROW_FLAG_INDEXES {
+        keyed.extend(MARKED.iter().map(|m| m.column));
+    }
+    keyed.extend([
         // A sender's conversations; see the column.
         "sec_in_from",
         // Which connected mailbox the conversation arrived at.
@@ -211,14 +237,15 @@ fn indexes() -> Vec<TableIndex> {
         // so one walk answers the page and its count the way the
         // flag axes already do.
         "account_id",
-    ]
-    .iter()
-    .map(|c| TableIndex {
-        column: c.as_bytes().to_vec(),
-        kind: IndexKind::Range,
-        values: values.clone(),
-    })
-    .collect()
+    ]);
+    keyed
+        .iter()
+        .map(|c| TableIndex {
+            column: c.as_bytes().to_vec(),
+            kind: IndexKind::Range,
+            values: values.clone(),
+        })
+        .collect()
 }
 
 fn orderpaths() -> Vec<OrderPath> {
