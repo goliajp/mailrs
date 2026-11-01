@@ -1131,6 +1131,29 @@
             "schema": {
               "type": "boolean"
             }
+          },
+          {
+            "name": "section",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "reply",
+                "awaiting",
+                "new",
+                "feed",
+                "other"
+              ]
+            },
+            "description": "One section of the sectioned inbox. awaiting spans the Inbox and Sent, is ordered by awaiting_since and pages by before against it; the others are the live list in that section, newest first."
+          },
+          {
+            "name": "followup_due_by",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "With section=awaiting: only conversations waiting since this epoch second or earlier."
           }
         ],
         "responses": {
@@ -12328,6 +12351,63 @@
           }
         }
       }
+    },
+    "/api/senders/accept": {
+      "post": {
+        "operationId": "acceptSenders",
+        "summary": "Accept first contacts",
+        "tags": [
+          "Conversations"
+        ],
+        "description": "Records that the reader accepted these senders. Conversations whose last message came from one of them leave the New section of the sectioned inbox, and their later mail is not a first contact.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "addresses"
+                ],
+                "properties": {
+                  "addresses": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "maxItems": 500,
+                    "description": "Bare addresses, compared case-insensitively"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "How many distinct addresses were recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "accepted"
+                  ],
+                  "properties": {
+                    "accepted": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No addresses, or more than 500"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -13029,6 +13109,14 @@
           "importance_score": {
             "type": "number",
             "format": "float"
+          },
+          "section": {
+            "type": "string",
+            "description": "The sectioned inbox's section (reply, awaiting, new, feed, other), empty when not decided yet."
+          },
+          "awaiting_since": {
+            "type": "integer",
+            "description": "Epoch seconds the reader started waiting on a person's reply, 0 when not waiting."
           }
         },
         "required": [

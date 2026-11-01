@@ -46,11 +46,15 @@ impl PgCore {
                 false => 0,
             },
         };
+        let from_addr = mailrs_core_sidestate::families::correspondent::first_address(&a.from)
+            .to_ascii_lowercase();
         let facts = ArrivalFacts {
             snippet: &a.preview,
             category: a.category,
             sender_trust: &a.sender_trust,
             attachments: Some(a.parsed.shown_attachment_count() as u32),
+            section: Some(a.facts),
+            from_addr: &from_addr,
         };
         let inserted = mb.record_arrival(input, facts).await?;
         if let Some(found) = mailrs_intake::invite::find(body) {

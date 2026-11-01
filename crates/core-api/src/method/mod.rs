@@ -22,6 +22,7 @@
 //!   /v1/users/{u}/threads/{tid}/{action}
 //!   /v1/users/{u}/sent                            # file a sent copy
 //!   /v1/users/{u}/import                          # file an imported message
+//!   /v1/users/{u}/senders:accept                  # accept first contacts
 //!   /v1/users/{u}/sent-messages
 //!   /v1/users/{u}/quarantine
 //!
@@ -53,5 +54,6 @@ pub mod label;
 pub mod mailbox;
 pub mod message;
 pub mod outbound;
+pub mod senders;
 pub mod sent;
 pub mod thread;

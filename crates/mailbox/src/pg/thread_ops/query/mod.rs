@@ -10,5 +10,6 @@
 //! what `impl` blocks in sibling modules give you for free.
 
 mod rows;
+mod sections;
 
 pub use rows::{Held, ThreadQuery};

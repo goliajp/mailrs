@@ -219,6 +219,10 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
             "/v1/admin/maintenance:backfill-attachment-text",
             post(crate::maintenance::backfill_attachment_text_route),
         )
+        .route(
+            "/v1/admin/maintenance:backfill-sections",
+            post(crate::maintenance::backfill_sections_route),
+        )
         // Counts the attachments of mail stored before they were counted.
         .route(
             "/v1/admin/maintenance:backfill-attachment-counts",

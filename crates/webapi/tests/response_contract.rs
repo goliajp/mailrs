@@ -61,6 +61,8 @@ fn conversation_list_keys_match() {
         account_id: String::new(),
         trashed_at: 0,
         labels: Vec::new(),
+        section: "reply".into(),
+        awaiting_since: 0,
     };
     let serialized = serde_json::to_value(&sample).expect("serialize");
 

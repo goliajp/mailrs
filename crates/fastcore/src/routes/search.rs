@@ -41,6 +41,7 @@ pub(crate) async fn search_conversations(
         .map(row_to_wire)
         .collect();
     let items = crate::routes::labels::with_labels(&state, &user, items);
+    let items = crate::sections::with_sections(&state, &user, items);
     Json(conv::SearchConversationsResponse { items })
 }
 

@@ -51,6 +51,13 @@ impl KevyMailboxStore {
                 Ok(true)
             })
             .map_err(std::io::Error::from)
+            .and_then(|found| {
+                // in or out of Junk changes whether it has a section
+                if found {
+                    self.rewrite_section(&keys::thread_user(user, thread_id))?;
+                }
+                Ok(found)
+            })
     }
 }
 

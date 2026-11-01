@@ -35,6 +35,12 @@ fn snooze_body_matches() {
 }
 
 #[test]
+fn senders_accept_body_matches() {
+    let v: handlers::senders::AcceptBody = parse("senders-accept");
+    assert_eq!(v.addresses, vec!["eve@far.test", "zed@far.test"]);
+}
+
+#[test]
 fn label_bodies_match() {
     let v: mailrs_core_api::method::label::CreateLabelRequest = parse("label-create");
     assert_eq!((v.name.as_str(), v.color.as_str()), ("Work", "blue"));
@@ -404,6 +410,7 @@ fn every_fixture_has_a_test() {
         "key-upload",
         "label-create",
         "label-update",
+        "senders-accept",
         "forwarding-request",
         "forwarding-verify",
         "rule-create",

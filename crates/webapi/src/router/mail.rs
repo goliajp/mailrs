@@ -176,6 +176,10 @@ pub(super) fn mail_routes() -> axum::Router<Arc<WebState>> {
                 .delete(handlers::imap_import::cancel),
         )
         .route(
+            "/api/senders/accept",
+            post(handlers::senders::accept_senders),
+        )
+        .route(
             "/api/mail/import",
             // streamed, message by message: an mbox is as large as a mailbox
             post(handlers::mbox::import::import_mbox)

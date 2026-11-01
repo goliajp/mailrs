@@ -72,10 +72,19 @@ pub(crate) async fn list_conversations(
     let listed = match f.label.as_deref() {
         Some(id) => crate::routes::labels::rows_with_label(&state, &user, id, &filter, limit),
         None if f.snoozed == Some(true) => snoozed_page(&state, &user, &filter, f.before_ts, limit),
-        None => state
-            .mailbox
-            .list_threads_by_activity(&user, &filter, 0, limit)
-            .map(|(rows, _)| rows),
+        None => match f
+            .section
+            .as_deref()
+            .and_then(mailrs_mailbox_kevy::section::Section::named)
+        {
+            Some(section) => {
+                crate::routes::section_list::section_page(&state, &user, section, f, limit)
+            }
+            None => state
+                .mailbox
+                .list_threads_by_activity(&user, &filter, 0, limit)
+                .map(|(rows, _)| rows),
+        },
     };
     let rows = listed.unwrap_or_else(|e| {
         tracing::warn!(%user, error = %e, "conversation list failed; serving empty");
@@ -84,6 +93,7 @@ pub(crate) async fn list_conversations(
 
     let items = rows.into_iter().map(row_to_wire).collect();
     let items = crate::routes::labels::with_labels(&state, &user, items);
+    let items = crate::sections::with_sections(&state, &user, items);
     Json(conv::ListConversationsResponse { items })
 }
 
@@ -296,5 +306,6 @@ pub(crate) async fn conversations_by_thread_ids(
         })
         .collect();
     let items = crate::routes::labels::with_labels(&state, &user, items);
+    let items = crate::sections::with_sections(&state, &user, items);
     Json(conv::ConversationsByIdsResponse { items })
 }

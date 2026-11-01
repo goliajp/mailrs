@@ -86,6 +86,7 @@ mod messages;
 mod move_category;
 mod mutations;
 mod rethread;
+mod sections;
 mod table_query;
 mod table_query_tests;
 mod table_spec;
@@ -100,9 +101,11 @@ pub use mailrs_mailbox::query;
 pub use mailrs_mailbox::rules;
 /// Which conversations a view shows; shared with every store.
 pub use mailrs_mailbox::scope;
+pub use mailrs_mailbox::section;
 pub use mailrs_mailbox::threading::normalize_subject;
 pub use message_arrival::MessageArrival;
 pub use messages::{OwnedUserMessageFacts, UserMessageFacts};
+pub use sections::SectionArrival;
 pub use table_query::ArchiveScope;
 pub use thread_row::{ThreadRow, display_message, senders_csv_contains_user};
 

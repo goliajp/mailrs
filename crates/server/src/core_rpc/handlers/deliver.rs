@@ -114,11 +114,15 @@ pub async fn deliver_message(
         "" => "inbox",
         c => c,
     };
+    let from_addr = mailrs_core_sidestate::families::correspondent::first_address(&req.senders_csv)
+        .to_ascii_lowercase();
     let facts = mailrs_mailbox::pg::ArrivalFacts {
         snippet: &req.latest_preview,
         category,
         sender_trust: &wire.sender_trust,
         attachments: wire.attachments,
+        section: req.section_facts.map(Into::into),
+        from_addr: &from_addr,
     };
     state
         .mailbox

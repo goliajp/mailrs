@@ -20,13 +20,19 @@ import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import { type MailListId, threadAxesOf, type ThreadListAxes } from '@/lib/mail-lists'
 import { type MailListFilters } from '@/lib/query-keys'
 import { z } from '@/lib/zod'
+import {
+  followupDaysAtom,
+  followupDueBy,
+  type InboxSection,
+  inboxSectionAtom,
+  sectionedInboxAtom,
+} from '@/store/inbox-sections'
 import { conversationKeys } from '@/store/query-keys-v21'
 import { hideSuspectedFraudAtom } from '@/store/settings'
 import {
   activeLabelAtom,
   activeListAtom,
   categoryFilterAtom,
-  importanceSectionAtom,
   searchQueryAtom,
   selectedAccountsAtom,
   selectedDomainsAtom,
@@ -42,13 +48,19 @@ export function useCurrentMailFilters(): MailListFilters | null {
   const categoryFilter = useAtomValue(categoryFilterAtom)
   const selectedDomains = useAtomValue(selectedDomainsAtom)
   const selectedAccounts = useAtomValue(selectedAccountsAtom)
-  const importanceSection = useAtomValue(importanceSectionAtom)
   const searchQuery = useAtomValue(searchQueryAtom)
+  const sectioned = useAtomValue(sectionedInboxAtom)
+  const inboxSection = useAtomValue(inboxSectionAtom)
+  const followupDays = useAtomValue(followupDaysAtom)
   const hideSuspectedFraud = useAtomValue(hideSuspectedFraudAtom)
   const debouncedSearch = useDebouncedValue(searchQuery, SEARCH_DEBOUNCE_MS)
 
   return useMemo<MailListFilters | null>(() => {
-    const axes = labelAxes(threadAxesOf(list), list, activeLabel)
+    const axes = sectionAxes(labelAxes(threadAxesOf(list), list, activeLabel), list, {
+      days: followupDays,
+      on: sectioned,
+      section: inboxSection,
+    })
     if (!axes) return null
     // The list fixes its axes; category, section, search and domains are
     // refinements stacked on top of whichever list is showing.
@@ -66,7 +78,6 @@ export function useCurrentMailFilters(): MailListFilters | null {
       // is held, marked, in place.
       includeQuarantined: !hideSuspectedFraud,
       query: debouncedSearch || undefined,
-      section: importanceSection,
     }
   }, [
     list,
@@ -75,8 +86,10 @@ export function useCurrentMailFilters(): MailListFilters | null {
     selectedAccounts,
     selectedDomains,
     debouncedSearch,
-    importanceSection,
     hideSuspectedFraud,
+    sectioned,
+    inboxSection,
+    followupDays,
   ])
 }
 
@@ -110,4 +123,21 @@ function labelAxes(
   if (list !== 'label' || !axes) return axes
   if (!label) return null
   return { ...axes, label }
+}
+
+/**
+ * With the sectioned inbox on, the Inbox shows one section rather than the
+ * folder: the server reads it off its own axis, across folders. A
+ * follow-up is a waiting conversation older than the reader's days.
+ */
+function sectionAxes(
+  axes: null | ThreadListAxes,
+  list: MailListId,
+  inbox: { days: number; on: boolean; section: InboxSection }
+): null | ThreadListAxes {
+  if (list !== 'inbox' || !inbox.on || !axes) return axes
+  if (inbox.section === 'followup') {
+    return { followupDueBy: followupDueBy(inbox.days, Date.now()), section: 'awaiting' }
+  }
+  return { section: inbox.section }
 }

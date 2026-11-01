@@ -28,6 +28,7 @@ pub mod rules;
 /// Which conversations a view shows: triage buckets and the scope a
 /// request's folder and category reconcile to, shared by every store.
 pub mod scope;
+pub mod section;
 /// Portable [`MailboxStore`] trait — the IMAP/JMAP-shaped abstraction
 /// backend implementations must satisfy.
 pub mod store;

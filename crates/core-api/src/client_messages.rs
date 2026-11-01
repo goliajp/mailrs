@@ -47,6 +47,16 @@ impl Client {
         self.post_authed_json(path, &req, "import_message").await
     }
 
+    /// POST /v1/users/{user}/senders:accept — accept first contacts.
+    pub async fn accept_senders(
+        &self,
+        user: &str,
+        req: &method::senders::AcceptSendersRequest,
+    ) -> ApiResult<method::senders::AcceptSendersResponse> {
+        let path = format!("/v1/users/{}/senders:accept", Self::enc(user));
+        self.post_authed_json(path, req, "accept_senders").await
+    }
+
     /// GET /v1/users/{user}/mailboxes
     pub async fn list_mailboxes(
         &self,

@@ -221,6 +221,36 @@ pub struct DeliverMessageRequest {
     /// Pre-serialized `MessageWire` (JSON). Stored verbatim as the
     /// message blob.
     pub payload_wire_json: String,
+    /// What delivery recorded about the message for the sectioned inbox.
+    /// Absent for mail carried over without them (a sync from the other
+    /// core): the conversation's section is then left undecided, as for
+    /// mail from before sections existed, until a backfill decides it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub section_facts: Option<SectionFactsWire>,
+}
+
+/// [`mailrs_mailbox::section::MessageFacts`] on the wire.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct SectionFactsWire {
+    /// The reader's address is in `To:`.
+    pub direct: bool,
+    /// A person wrote it, not a machine or a list.
+    pub from_person: bool,
+    /// Nothing had passed between the reader and the sender before it.
+    pub first_contact: bool,
+    /// The reader's own message went to someone besides the reader.
+    pub to_others: bool,
+}
+
+impl From<SectionFactsWire> for mailrs_mailbox::section::MessageFacts {
+    fn from(w: SectionFactsWire) -> Self {
+        Self {
+            direct: w.direct,
+            from_person: w.from_person,
+            first_contact: w.first_contact,
+            to_others: w.to_others,
+        }
+    }
 }
 
 /// Response body for `DeliverMessageRequest`. Currently just echoes
