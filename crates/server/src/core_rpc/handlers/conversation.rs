@@ -29,15 +29,17 @@ use crate::core_rpc::handlers::failed;
 /// the empty string: an account filter that does not name it selects
 /// nothing.
 pub(crate) fn thread_query<'a>(user: &'a str, f: &'a ConversationFilter) -> ThreadQuery<'a> {
-    // the Trash too: a list of its own across folders
-    let folder = if f.archived || f.trashed {
+    let snoozed = f.snoozed == Some(true);
+    // the Trash and Snoozed too: lists of their own across folders
+    let folder = if f.archived || f.trashed || snoozed {
         None
     } else {
         f.folder.as_deref()
     };
     // the Trash shows what was moved there whether or not it had been
     // archived first; every other list leaves the Trash out
-    let archived = match f.trashed {
+    // and a snoozed thread is archived while it is away
+    let archived = match f.trashed || snoozed {
         true => None,
         false => Some(f.archived),
     };
@@ -57,6 +59,8 @@ pub(crate) fn thread_query<'a>(user: &'a str, f: &'a ConversationFilter) -> Thre
         trashed: Some(f.trashed),
         unread: f.unread.unwrap_or(false),
         starred: f.starred.unwrap_or(false),
+        pinned: f.pinned.unwrap_or(false),
+        snoozed_after: snoozed.then(|| chrono::Utc::now().timestamp()),
         held: if f.include_quarantined {
             Held::Include
         } else {

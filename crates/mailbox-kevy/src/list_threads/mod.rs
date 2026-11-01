@@ -438,6 +438,7 @@ impl KevyMailboxStore {
 }
 
 mod paths;
+mod snoozed;
 
 #[cfg(test)]
 mod tests;

@@ -118,7 +118,7 @@ export const FilterBar = memo(function FilterBar() {
           put the second row's three under the first row's three. */}
       <div
         aria-label={t('list.tabs')}
-        className="grid flex-1 grid-cols-5 gap-1 xl:hidden"
+        className="grid flex-1 grid-cols-4 gap-1 sm:grid-cols-6 xl:hidden"
         onKeyDown={(e) => rovingKeyDown(e, '[role="tab"]', 'horizontal')}
         role="tablist"
       >

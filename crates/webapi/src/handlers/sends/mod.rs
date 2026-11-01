@@ -184,6 +184,8 @@ pub async fn shadow_sends(
             folder: Some("Sent".to_string()),
             unread: None,
             starred: None,
+            pinned: None,
+            snoozed: None,
             section: None,
         },
     };
