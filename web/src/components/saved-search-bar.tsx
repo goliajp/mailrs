@@ -57,7 +57,7 @@ export function SavedSearchBar() {
             <span className="max-w-32 truncate">{s.name}</span>
           </button>
           <button
-            aria-label={`Delete saved search ${s.name}`}
+            aria-label={t('search.deleteNamed', { name: s.name })}
             className="text-fg-muted hover:text-fg rounded"
             onClick={() => remove.mutate(s.id, { onError: (e) => toast.error(errorText(e)) })}
             type="button"

@@ -130,6 +130,10 @@ export function found(source: string): { line: number; text: string }[] {
     if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
       if (isText(node.text) && shown(node)) add(node, node.text)
     }
+    if (ts.isTemplateExpression(node)) {
+      const words = [node.head.text, ...node.templateSpans.map((sp) => sp.literal.text)].join(' ')
+      if (isText(words) && shown(node)) add(node, node.getText(file))
+    }
     ts.forEachChild(node, visit)
   }
   visit(file)

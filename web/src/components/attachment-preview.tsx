@@ -142,6 +142,7 @@ function ImageLightbox({ alt, onClose, src }: { alt: string; onClose: () => void
 
 // single image thumbnail with click-to-expand
 function ImageThumbnail({ att, index, uid }: { att: AttachmentInfo; index: number; uid: number }) {
+  const t = useT()
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const url = attachmentUrl(uid, index)
 
@@ -151,7 +152,7 @@ function ImageThumbnail({ att, index, uid }: { att: AttachmentInfo; index: numbe
         <button
           className="border-border block overflow-hidden rounded-md border transition-shadow hover:shadow-md"
           onClick={() => setLightboxOpen(true)}
-          title={`${att.filename} - click to enlarge`}
+          title={t('attachment.enlarge', { name: att.filename })}
         >
           <img
             alt={att.filename}
