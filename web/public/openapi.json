@@ -14000,6 +14000,32 @@
                 "description": "The last check is older than 36 hours; null before the first"
               }
             }
+          },
+          "kevy_server_memory": {
+            "type": "object",
+            "nullable": true,
+            "description": "kevy-server's memory against its container limit. Null when kevy-server does not answer.",
+            "properties": {
+              "used_bytes": {
+                "type": "integer",
+                "description": "Resident size as INFO memory reports it (process_rss_bytes)"
+              },
+              "limit_bytes": {
+                "type": "integer",
+                "nullable": true,
+                "description": "Container limit; null when not configured"
+              },
+              "kevy_used_bytes": {
+                "type": "integer",
+                "nullable": true,
+                "description": "kevy's own count (used_memory)"
+              },
+              "high": {
+                "type": "boolean",
+                "nullable": true,
+                "description": "At or past MAILRS_MEMORY_HIGH_PERCENT of the limit; null without a limit"
+              }
+            }
           }
         },
         "required": [

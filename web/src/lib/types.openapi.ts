@@ -6790,6 +6790,17 @@ export interface components {
                 /** @description The last check is older than 36 hours; null before the first */
                 stale?: boolean | null;
             } | null;
+            /** @description kevy-server's memory against its container limit. Null when kevy-server does not answer. */
+            kevy_server_memory?: {
+                /** @description Resident size as INFO memory reports it (process_rss_bytes) */
+                used_bytes?: number;
+                /** @description Container limit; null when not configured */
+                limit_bytes?: number | null;
+                /** @description kevy's own count (used_memory) */
+                kevy_used_bytes?: number | null;
+                /** @description At or past MAILRS_MEMORY_HIGH_PERCENT of the limit; null without a limit */
+                high?: boolean | null;
+            } | null;
         };
         LoginRequest: {
             address: string;
