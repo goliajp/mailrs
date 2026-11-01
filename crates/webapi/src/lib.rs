@@ -190,6 +190,8 @@ async fn core_memory(state: &WebState) -> serde_json::Value {
     serde_json::json!({
         "used_bytes": m.used_bytes,
         "limit_bytes": m.limit_bytes,
+        "kevy_used_bytes": m.kevy_used_bytes,
+        "kevy_keys": m.kevy_keys,
         "high": m.limit_bytes.map(|limit| is_high(m.used_bytes, limit, percent)),
     })
 }
