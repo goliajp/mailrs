@@ -165,13 +165,26 @@ impl mailrs_core_sidestate::NetKevy for FastcoreState {
     }
 }
 
+impl FastcoreState {
+    /// The container's memory, with the embedded store's own count of
+    /// what it holds beside it.
+    fn memory(&self) -> Option<mailrs_core_api::types::MemoryWire> {
+        let info = self.mailbox.store_ref().info();
+        mailrs_core_api::memory::cgroup().map(|m| mailrs_core_api::types::MemoryWire {
+            kevy_used_bytes: Some(info.used_memory),
+            kevy_keys: Some(info.keys as u64),
+            ..m
+        })
+    }
+}
+
 impl Handler for FastcoreState {
     async fn healthz(&self) -> HealthResponse {
         HealthResponse {
             version: mailrs_core_api::API_VERSION.into(),
             backend: BackendKind::Kevy,
             ready: self.boot_intact,
-            memory: mailrs_core_api::memory::cgroup(),
+            memory: self.memory(),
         }
     }
 
@@ -184,7 +197,7 @@ impl Handler for FastcoreState {
             version: mailrs_core_api::API_VERSION.into(),
             backend: BackendKind::Kevy,
             ready: self.boot_intact,
-            memory: mailrs_core_api::memory::cgroup(),
+            memory: self.memory(),
         }
     }
 }

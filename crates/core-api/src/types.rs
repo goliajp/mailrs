@@ -36,6 +36,12 @@ pub struct MemoryWire {
     pub used_bytes: u64,
     /// `None` when the cgroup sets no limit.
     pub limit_bytes: Option<u64>,
+    /// The core's own key-value store, by its own count: bytes it holds
+    /// and keys. `None` for a core without one (the SQL core).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kevy_used_bytes: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kevy_keys: Option<u64>,
 }
 
 /// Which storage backend a `mailrs-core-api` server is wrapping.
