@@ -4326,6 +4326,60 @@
         }
       }
     },
+    "/jmap/api/": {
+      "post": {
+        "operationId": "jmapApiFastmailPath",
+        "summary": "JMAP API endpoint at the path Fastmail serves it",
+        "tags": [
+          "JMAP"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "JMAP request object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "JMAP response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jmap/session": {
+      "get": {
+        "operationId": "jmapSessionFastmailPath",
+        "summary": "JMAP session resource at the path Fastmail serves it",
+        "tags": [
+          "JMAP"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "JMAP session object",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/.well-known/caldav": {
       "get": {
         "operationId": "wellKnownCaldav",
@@ -12410,6 +12464,545 @@
           }
         }
       }
+    },
+    "/api/masked-emails": {
+      "get": {
+        "operationId": "listMaskedEmails",
+        "summary": "The account's masked addresses, newest first",
+        "tags": [
+          "Masked addresses"
+        ],
+        "responses": {
+          "200": {
+            "description": "Live masks (deleted ones are not listed)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MaskedEmail"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createMaskedEmail",
+        "summary": "Make a masked address",
+        "tags": [
+          "Masked addresses"
+        ],
+        "description": "At most 1000 live masks per account and 50 made per UTC day. The address is drawn from a reviewed word list and is never one that is or was an account, alias, group or mask. A masked_email agent key may call this.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "forDomain": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string"
+                  },
+                  "domain": {
+                    "type": "string",
+                    "description": "One of the account's domains (its own, or those of addresses it may send as); its own when absent"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The new mask",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaskedEmail"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/masked-emails/{email}": {
+      "parameters": [
+        {
+          "name": "email",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "patch": {
+        "operationId": "updateMaskedEmail",
+        "summary": "Turn a masked address off or on, or change its site or note",
+        "tags": [
+          "Masked addresses"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "enabled",
+                      "disabled",
+                      "deleted"
+                    ]
+                  },
+                  "forDomain": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "null clears it"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The mask as it now is",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaskedEmail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteMaskedEmail",
+        "summary": "Delete a masked address for good: it takes no more mail and is never issued again",
+        "tags": [
+          "Masked addresses"
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "404": {
+            "description": "Refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/alias/random/new": {
+      "post": {
+        "operationId": "simpleLoginNewAlias",
+        "summary": "Make a masked address through SimpleLogin's alias-creation call",
+        "description": "For password managers whose SimpleLogin forwarder takes a server address (Bitwarden). The key goes bare in an `Authentication` header, as SimpleLogin's clients send it; only an agent key with the `masked_email` scope is accepted. Same rules and limits as POST /api/masked-emails.",
+        "tags": [
+          "Masked addresses"
+        ],
+        "parameters": [
+          {
+            "name": "hostname",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The site the address is for; kept as forDomain"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "note": {
+                    "type": "string",
+                    "description": "Kept as the description"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Made",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "alias"
+                  ],
+                  "properties": {
+                    "alias": {
+                      "type": "string",
+                      "description": "The new address"
+                    },
+                    "email": {
+                      "type": "string"
+                    },
+                    "note": {
+                      "type": "string"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "creation_timestamp": {
+                      "type": "integer",
+                      "description": "Unix seconds"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No key, or not an agent key"
+          },
+          "403": {
+            "description": "A key without the masked_email scope; {error}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "As many masked addresses as the account may hold; {error}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "As many made today as the account may; {error}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/aliases": {
+      "post": {
+        "operationId": "addyIoCreateAlias",
+        "summary": "Make a masked address through addy.io's alias-creation call",
+        "description": "For password managers whose addy.io forwarder takes a server address (Bitwarden). Bearer key with the `masked_email` scope only. `domain` must be one the account may use. Same rules and limits as POST /api/masked-emails.",
+        "tags": [
+          "Masked addresses"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "domain"
+                ],
+                "properties": {
+                  "domain": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Made",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "email"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "email": {
+                          "type": "string",
+                          "description": "The new address"
+                        },
+                        "local_part": {
+                          "type": "string"
+                        },
+                        "domain": {
+                          "type": "string"
+                        },
+                        "description": {
+                          "type": "string"
+                        },
+                        "active": {
+                          "type": "boolean"
+                        },
+                        "created_at": {
+                          "type": "string",
+                          "description": "YYYY-MM-DD HH:MM:SS, UTC"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No key"
+          },
+          "403": {
+            "description": "A key without the masked_email scope; {message}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "As many masked addresses as the account may hold; {message}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "domain missing or not one the account may use, as addy.io reports a validation error: {message, errors: {domain: [..]}}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "As many made today as the account may; {message}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/masked-submissions": {
+      "get": {
+        "operationId": "listMaskedSubmissions",
+        "summary": "Mail submitted over SMTP from masked addresses",
+        "description": "Newest first: the account signed in, the mask's first eight characters, and the client IP, which the message headers leave out. Super administrators only. Its own log, capped apart from the audit log.",
+        "tags": [
+          "Audit"
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 100,
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rows",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "at",
+                      "account",
+                      "mask",
+                      "ip"
+                    ],
+                    "properties": {
+                      "at": {
+                        "type": "integer",
+                        "description": "Unix seconds"
+                      },
+                      "account": {
+                        "type": "string"
+                      },
+                      "mask": {
+                        "type": "string",
+                        "description": "First eight characters"
+                      },
+                      "ip": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a super administrator"
+          },
+          "503": {
+            "description": "The store could not be reached"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -12607,6 +13200,23 @@
                 "type": "boolean",
                 "nullable": true,
                 "description": "used_bytes at or past MAILRS_MEMORY_HIGH_PERCENT (80 by default) of limit_bytes; null without a limit"
+              }
+            }
+          },
+          "receiver": {
+            "type": "object",
+            "nullable": true,
+            "description": "The receiver's counters since it started, from its stats frame (every ten seconds); null until a frame has arrived. A counter is null when the receiver does not report it.",
+            "properties": {
+              "probe_guard_tripped": {
+                "type": "integer",
+                "nullable": true,
+                "description": "RCPTs refused with 421 because the sender (an account, an IP with an SPF-passing MAIL FROM domain, or an IP) passed its limit of unknown local recipients in an hour. Each refusal is also logged as event probe_guard_tripped"
+              },
+              "mask_submit_log_failed": {
+                "type": "integer",
+                "nullable": true,
+                "description": "Mail submitted from a masked address whose submission-log row could not be written; the mail was sent"
               }
             }
           }
@@ -14910,6 +15520,65 @@
           "thread_id": {
             "type": "string",
             "description": "The conversation that mail is in now, looked up when the events are listed. Absent when there is no mail to open."
+          }
+        }
+      },
+      "MaskedEmail": {
+        "type": "object",
+        "description": "A masked address: a random address for one site that delivers to the account. Field names follow Fastmail's MaskedEmail object.",
+        "required": [
+          "id",
+          "email",
+          "owner",
+          "state",
+          "forDomain",
+          "description",
+          "createdAt",
+          "createdBy"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "description": "<adjective>.<noun>.<4 digits>@<domain>, from a reviewed word list"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "enabled",
+              "disabled",
+              "deleted"
+            ],
+            "description": "pending and enabled take mail; pending becomes enabled with its first message; disabled refuses it; deleted refuses it for good and the address is never issued again"
+          },
+          "forDomain": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "integer",
+            "description": "Epoch seconds"
+          },
+          "createdBy": {
+            "type": "string",
+            "description": "web, jmap, or the prefix of the key that made it"
+          },
+          "lastMessageAt": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Epoch seconds of the last message delivered to it"
           }
         }
       }

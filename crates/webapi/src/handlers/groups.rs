@@ -167,6 +167,7 @@ pub async fn create_email_group(
     _: crate::session::confirm::Confirmed,
     Json(req): Json<CreateEmailGroupRequest>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
+    crate::handlers::masked_email::refuse_if_masked(&req.address)?;
     let id = with_kevy(|c| next_id(c, EG_CTR))?;
     // members live only in the member set, never in the row
     let g = serde_json::json!({

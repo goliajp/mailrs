@@ -1,6 +1,8 @@
 //! Refusals at RCPT for local addresses: `550 5.1.1` for one nobody
 //! receives, and `550 5.7.1` for an SRS address reached by anything but a
-//! bounce.
+//! bounce. Past the limit of unknown recipients in an hour, the sender
+//! gets `421` for every local address and is disconnected (who counts as
+//! one sender, and the limits: `probe_guard`).
 //!
 //! Only addresses on a domain the receiver lists as local are asked about,
 //! signed-in submission included; remote recipients, mock addresses and a
@@ -16,6 +18,7 @@ use mailrs_smtp_proto::response::Response;
 use mailrs_smtp_proto::session::{Session, State};
 
 use super::super::{ConnectionContext, SessionAction};
+use super::probe_key;
 use super::reply::{code, handle_reply};
 
 /// `Some` when this RCPT was refused and the reply already written.
@@ -44,9 +47,25 @@ where
         return Some(handle_reply(framed, session, resp, ctx, conn_id).await);
     }
     let check = ctx.recipient_check.as_ref()?;
-    if !is_asked_about(&rcpt, &session.state, ctx) || !check.is_unknown(&rcpt).await {
+    if !is_asked_about(&rcpt, &session.state, ctx) {
         return None;
     }
+    let now = std::time::Instant::now();
+    let key = probe_key::of(session, ctx, client_ip, now).await;
+    if ctx.unknown_rcpt.is_blocked(&key, now) {
+        probe_key::tripped(ctx, &key, client_ip, now);
+        let resp = Response::new(
+            421,
+            Some(code(4, 7, 0)),
+            "Too many unknown recipients, try again later",
+        );
+        handle_reply(framed, session, resp, ctx, conn_id).await;
+        return Some(SessionAction::Close);
+    }
+    if !check.is_unknown(&rcpt).await {
+        return None;
+    }
+    ctx.unknown_rcpt.record_unknown(&key, now);
     let resp = Response::new(550, Some(code(5, 1, 1)), format!("<{rcpt}>: no such user"));
     Some(handle_reply(framed, session, resp, ctx, conn_id).await)
 }

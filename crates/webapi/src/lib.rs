@@ -166,6 +166,7 @@ async fn health_handler(
         "screening_rules": screening["screening_rules"],
         "audit_chain": audit_chain,
         "core_memory": core_memory,
+        "receiver": handlers::smtp_monitor::health(&state.receiver_stats),
     }))
 }
 

@@ -1,6 +1,9 @@
 import type { Key } from '@/i18n'
 import type { ComposeDraftSource, ComposeRedraftSource, ComposeReplySource } from '@/store/ui'
 
+import { extractEmail } from '@/lib/avatar'
+import { splitAddressList } from '@/lib/recipients'
+
 /** What a floating window hands the page when it is expanded. */
 export type ComposerCarry = {
   bcc: string
@@ -37,6 +40,8 @@ export type ReplyContext = {
   originalDate: string
   originalFrom: string
   originalHtmlBody: null | string
+  /** The To and Cc of the message replied to, as written. */
+  originalTo?: string
   replyAllRecipients: string
   replyRecipients: string
   subject: string
@@ -142,6 +147,16 @@ export function modeTo(ctx: ReplyContext, mode: ReplyMode): string {
     case 'reply-all':
       return ctx.replyAllRecipients
   }
+}
+
+/**
+ * The user's masked address the message replied to was sent to, if any: a
+ * reply goes out from it, so the site never learns the real address.
+ */
+export function replyMaskOf(s: ComposerStart, masks: readonly string[]): string {
+  if (s.kind !== 'inline' || s.mode === 'forward') return ''
+  const sentTo = splitAddressList(s.ctx.originalTo ?? '').map((a) => extractEmail(a).toLowerCase())
+  return masks.find((m) => sentTo.includes(m.toLowerCase())) ?? ''
 }
 
 /** The conversation a sent message joins; the server resolves the parent from it. */

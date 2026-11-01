@@ -1696,6 +1696,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/jmap/api/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** JMAP API endpoint at the path Fastmail serves it */
+        post: operations["jmapApiFastmailPath"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jmap/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** JMAP session resource at the path Fastmail serves it */
+        get: operations["jmapSessionFastmailPath"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/.well-known/caldav": {
         parameters: {
             query?: never;
@@ -5780,6 +5814,107 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/masked-emails": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The account's masked addresses, newest first */
+        get: operations["listMaskedEmails"];
+        put?: never;
+        /**
+         * Make a masked address
+         * @description At most 1000 live masks per account and 50 made per UTC day. The address is drawn from a reviewed word list and is never one that is or was an account, alias, group or mask. A masked_email agent key may call this.
+         */
+        post: operations["createMaskedEmail"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/masked-emails/{email}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                email: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a masked address for good: it takes no more mail and is never issued again */
+        delete: operations["deleteMaskedEmail"];
+        options?: never;
+        head?: never;
+        /** Turn a masked address off or on, or change its site or note */
+        patch: operations["updateMaskedEmail"];
+        trace?: never;
+    };
+    "/api/alias/random/new": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Make a masked address through SimpleLogin's alias-creation call
+         * @description For password managers whose SimpleLogin forwarder takes a server address (Bitwarden). The key goes bare in an `Authentication` header, as SimpleLogin's clients send it; only an agent key with the `masked_email` scope is accepted. Same rules and limits as POST /api/masked-emails.
+         */
+        post: operations["simpleLoginNewAlias"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/aliases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Make a masked address through addy.io's alias-creation call
+         * @description For password managers whose addy.io forwarder takes a server address (Bitwarden). Bearer key with the `masked_email` scope only. `domain` must be one the account may use. Same rules and limits as POST /api/masked-emails.
+         */
+        post: operations["addyIoCreateAlias"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/masked-submissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Mail submitted over SMTP from masked addresses
+         * @description Newest first: the account signed in, the mask's first eight characters, and the client IP, which the message headers leave out. Super administrators only. Its own log, capped apart from the audit log.
+         */
+        get: operations["listMaskedSubmissions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -5859,6 +5994,13 @@ export interface components {
                 limit_bytes?: number | null;
                 /** @description used_bytes at or past MAILRS_MEMORY_HIGH_PERCENT (80 by default) of limit_bytes; null without a limit */
                 high?: boolean | null;
+            } | null;
+            /** @description The receiver's counters since it started, from its stats frame (every ten seconds); null until a frame has arrived. A counter is null when the receiver does not report it. */
+            receiver?: {
+                /** @description RCPTs refused with 421 because the sender (an account, an IP with an SPF-passing MAIL FROM domain, or an IP) passed its limit of unknown local recipients in an hour. Each refusal is also logged as event probe_guard_tripped */
+                probe_guard_tripped?: number | null;
+                /** @description Mail submitted from a masked address whose submission-log row could not be written; the mail was sent */
+                mask_submit_log_failed?: number | null;
             } | null;
         };
         LoginRequest: {
@@ -6564,6 +6706,27 @@ export interface components {
             message_id?: string;
             /** @description The conversation that mail is in now, looked up when the events are listed. Absent when there is no mail to open. */
             thread_id?: string;
+        };
+        /** @description A masked address: a random address for one site that delivers to the account. Field names follow Fastmail's MaskedEmail object. */
+        MaskedEmail: {
+            id: string;
+            /** @description <adjective>.<noun>.<4 digits>@<domain>, from a reviewed word list */
+            email: string;
+            owner: string;
+            /**
+             * @description pending and enabled take mail; pending becomes enabled with its first message; disabled refuses it; deleted refuses it for good and the address is never issued again
+             * @enum {string}
+             */
+            state: "pending" | "enabled" | "disabled" | "deleted";
+            forDomain: string;
+            description: string;
+            url?: string | null;
+            /** @description Epoch seconds */
+            createdAt: number;
+            /** @description web, jmap, or the prefix of the key that made it */
+            createdBy: string;
+            /** @description Epoch seconds of the last message delivered to it */
+            lastMessageAt?: number | null;
         };
     };
     responses: never;
@@ -9640,6 +9803,50 @@ export interface operations {
         };
         responses: {
             /** @description JMAP response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    jmapApiFastmailPath: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description JMAP response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    jmapSessionFastmailPath: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description JMAP session object */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14353,6 +14560,383 @@ export interface operations {
             };
             /** @description No addresses, or more than 500 */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listMaskedEmails: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Live masks (deleted ones are not listed) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaskedEmail"][];
+                };
+            };
+        };
+    };
+    createMaskedEmail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    forDomain?: string;
+                    description?: string;
+                    url?: string;
+                    /** @description One of the account's domains (its own, or those of addresses it may send as); its own when absent */
+                    domain?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The new mask */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaskedEmail"];
+                };
+            };
+            /** @description Refused */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error?: string;
+                    };
+                };
+            };
+            /** @description Refused */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error?: string;
+                    };
+                };
+            };
+            /** @description Refused */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error?: string;
+                    };
+                };
+            };
+        };
+    };
+    deleteMaskedEmail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                email: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Refused */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error?: string;
+                    };
+                };
+            };
+            /** @description Refused */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error?: string;
+                    };
+                };
+            };
+        };
+    };
+    updateMaskedEmail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                email: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    state?: "enabled" | "disabled" | "deleted";
+                    forDomain?: string;
+                    description?: string;
+                    /** @description null clears it */
+                    url?: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description The mask as it now is */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaskedEmail"];
+                };
+            };
+            /** @description Refused */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error?: string;
+                    };
+                };
+            };
+            /** @description Refused */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error?: string;
+                    };
+                };
+            };
+        };
+    };
+    simpleLoginNewAlias: {
+        parameters: {
+            query?: {
+                /** @description The site the address is for; kept as forDomain */
+                hostname?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Kept as the description */
+                    note?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Made */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description The new address */
+                        alias: string;
+                        email?: string;
+                        note?: string;
+                        enabled?: boolean;
+                        /** @description Unix seconds */
+                        creation_timestamp?: number;
+                    };
+                };
+            };
+            /** @description No key, or not an agent key */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A key without the masked_email scope; {error} */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description As many masked addresses as the account may hold; {error} */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description As many made today as the account may; {error} */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    addyIoCreateAlias: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    domain: string;
+                    description?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Made */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            id?: string;
+                            /** @description The new address */
+                            email: string;
+                            local_part?: string;
+                            domain?: string;
+                            description?: string;
+                            active?: boolean;
+                            /** @description YYYY-MM-DD HH:MM:SS, UTC */
+                            created_at?: string;
+                        };
+                    };
+                };
+            };
+            /** @description No key */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A key without the masked_email scope; {message} */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description As many masked addresses as the account may hold; {message} */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description domain missing or not one the account may use, as addy.io reports a validation error: {message, errors: {domain: [..]}} */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description As many made today as the account may; {message} */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    listMaskedSubmissions: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Rows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Unix seconds */
+                        at: number;
+                        account: string;
+                        /** @description First eight characters */
+                        mask: string;
+                        ip: string;
+                    }[];
+                };
+            };
+            /** @description Not a super administrator */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The store could not be reached */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

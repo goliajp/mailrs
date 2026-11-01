@@ -79,6 +79,10 @@ pub async fn start() -> Receiver {
     let users = core_link::users(&cfg);
     let credential_store = core_link::credential_store(&cfg);
     let recipient_check = core_link::recipient_check(&cfg);
+    let rcpt_spf = resolver.as_ref().map(|r| {
+        Arc::new(mailrs_spf::HickoryResolver::new((**r).clone()))
+            as Arc<dyn mailrs_spf::SpfResolver>
+    });
     let runtime = core_link::runtime_settings(&cfg, &kevy_client, greylist_local).await;
 
     let counters: SharedCounters = Arc::new(ReceiverCounters::default());
@@ -122,8 +126,20 @@ pub async fn start() -> Receiver {
         spam_lists_client: Some(kevy_client.clone()),
         spool_sink,
         signins: Default::default(),
+        unknown_rcpt: Default::default(),
+        rcpt_spf,
     });
     listen_for_signouts(&cfg.kevy_url, ctx.clone());
+    // the map holds only IPs refused an unknown recipient within the last
+    // hour, so a pass costs as many entries as there were guessers
+    let guard_ctx = ctx.clone();
+    tokio::spawn(async move {
+        let mut every = tokio::time::interval(std::time::Duration::from_secs(600));
+        loop {
+            every.tick().await;
+            guard_ctx.unknown_rcpt.prune(std::time::Instant::now());
+        }
+    });
 
     crate::listeners::listen(ctx, &cfg).await
 }

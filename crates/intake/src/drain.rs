@@ -73,6 +73,20 @@ impl Copies {
 }
 
 impl<C: Core + ?Sized> Inbound<'_, C> {
+    /// A mask took a message: when, for its owner's list, and a pending
+    /// mask is enabled. The mail is delivered whether or not this is written.
+    fn touch_mask(&self, mask: &str) {
+        let Some(mut conn) = self.core.net_conn() else {
+            return;
+        };
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs() as i64);
+        if let Err(e) = mailrs_core_sidestate::families::masked_email::touch(&mut conn, mask, now) {
+            tracing::warn!(%mask, error = %e, "masked address: last message not recorded");
+        }
+    }
+
     /// One envelope recipient's copy. `raw` is the recipient as received,
     /// `fwd` its canonical form.
     pub fn deliver_to(&self, raw: &str, fwd: &str) -> Copies {
@@ -103,6 +117,10 @@ impl<C: Core + ?Sized> Inbound<'_, C> {
             Route::Alias(target) => {
                 tracing::info!(orig = %fwd, aliased = %target, "spool alias resolved");
                 target
+            }
+            Route::Mask { mask, owner } => {
+                self.touch_mask(&mask);
+                owner
             }
         };
         match ensure_maildir(self.core.maildir_root(), &mailbox)

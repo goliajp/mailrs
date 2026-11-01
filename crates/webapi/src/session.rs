@@ -34,7 +34,7 @@ mod seen;
 use legacy::move_legacy_session;
 use scopes::agent_scopes_allow;
 pub use scopes::{
-    AgentScopes, is_known_scope, mock_ns_restriction, send_only, validate_agent_scopes,
+    AgentScopes, is_known_scope, masked_only, mock_ns_restriction, send_only, validate_agent_scopes,
 };
 use seen::seen_now;
 
@@ -246,6 +246,22 @@ pub(crate) fn session_token(headers: &HeaderMap) -> Option<String> {
     extract_token_with_source(headers).map(|(t, _)| t)
 }
 
+/// SimpleLogin's clients send the key bare in an `Authentication` header.
+/// Taken on SimpleLogin's one path only, and only an agent key, which a
+/// cross-site request cannot attach.
+fn simplelogin_key(req: &Request) -> Option<(String, TokenSource)> {
+    if req.uri().path() != crate::handlers::forwarders::SIMPLELOGIN_NEW
+        || req
+            .headers()
+            .contains_key(axum::http::header::AUTHORIZATION)
+    {
+        return None;
+    }
+    let v = req.headers().get("authentication")?.to_str().ok()?.trim();
+    v.starts_with(AGENT_KEY_PREFIX)
+        .then(|| (v.to_string(), TokenSource::Header))
+}
+
 fn extract_token_with_source(headers: &HeaderMap) -> Option<(String, TokenSource)> {
     if let Some(auth) = headers.get(axum::http::header::AUTHORIZATION) {
         let v = auth.to_str().ok()?.strip_prefix("Bearer ")?.trim();
@@ -319,7 +335,8 @@ pub async fn session_auth_middleware(
     }
     let _ = &state; // reserved for future enrichment via core_client
 
-    let (token, token_source) = match extract_token_with_source(req.headers()) {
+    let found = simplelogin_key(&req).or_else(|| extract_token_with_source(req.headers()));
+    let (token, token_source) = match found {
         Some(t) => t,
         None => {
             tracing::debug!(reason = "no_token", path = %req.uri().path(), "request rejected");

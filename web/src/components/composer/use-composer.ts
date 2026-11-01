@@ -41,6 +41,7 @@ import {
   replyThreadOf,
   sentLabel,
 } from './start'
+import { useReplyMask } from './use-reply-mask'
 
 export type Composer = ReturnType<typeof useComposer>
 
@@ -82,7 +83,11 @@ export function useComposer(start: ComposerStart, opts: Options) {
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
 
-  const fromOptions = sendAddresses(auth?.address, auth?.send_as)
+  const replyMask = useReplyMask(start, from, auth?.address ?? '', { setCc, setFrom, setTo })
+  const fromOptions = sendAddresses(auth?.address, [
+    ...(auth?.send_as ?? []),
+    ...[replyMask].filter((m) => m !== ''),
+  ])
 
   // the inline reply's mode is its parent's: switching it starts the
   // recipients and subject over for the new mode

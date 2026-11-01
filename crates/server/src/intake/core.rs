@@ -33,6 +33,9 @@ impl Directory for PgCore {
     fn local_domains(&self) -> Arc<Vec<String>> {
         self.dir.local_domains()
     }
+    fn mask(&self, addr: &str) -> std::io::Result<Option<Option<String>>> {
+        self.dir.mask(addr)
+    }
 }
 
 impl Core for PgCore {

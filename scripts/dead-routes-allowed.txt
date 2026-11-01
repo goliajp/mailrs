@@ -83,3 +83,12 @@
 # ---- called by the browser itself ----
 
 /api/csp-report             # the browser posts here when the content security policy names it in `report-uri`; no client code calls it.
+
+# ---- called by password managers ----
+
+/api/alias/random/new       # SimpleLogin's alias-creation call; Bitwarden's SimpleLogin forwarder sends it to the server the user names. The web makes masks through /api/masked-emails.
+/api/v1/aliases             # addy.io's alias-creation call, from Bitwarden's addy.io forwarder; as above.
+
+# ---- read by an operator during abuse handling ----
+
+/api/admin/masked-submissions  # who submitted mail from a mask and from which IP, which the message headers leave out. No admin page has been asked for; read with curl.

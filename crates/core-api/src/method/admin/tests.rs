@@ -39,6 +39,7 @@ fn effective_permissions_roundtrip() {
         groups: vec![],
         is_super: true,
         send_as: vec!["billing@x.com".into()],
+        masks: Vec::new(),
     };
     let s = serde_json::to_string(&p).unwrap();
     let back: EffectivePermissionsResponse = serde_json::from_str(&s).unwrap();

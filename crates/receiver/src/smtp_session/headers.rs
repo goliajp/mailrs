@@ -20,6 +20,14 @@ pub(super) fn format_received_header(
     out
 }
 
+/// The trace for mail a signed-in account sends from one of its masked
+/// addresses: no client name, no client address, no account. Those would
+/// tie the mask to the person it hides.
+pub(super) fn format_masked_received_header(server_hostname: &str, recipient: &str) -> String {
+    let now = chrono::Utc::now().to_rfc2822();
+    format!("Received: by {server_hostname} with ESMTPSA\r\n\tfor <{recipient}>; {now}\r\n")
+}
+
 /// The client's EHLO name as it may stand in the trace. The client
 /// chooses it, and the first `(` of this line is where the peer address
 /// is read back from, so only what a host name or address literal is made
@@ -51,6 +59,21 @@ mod tests {
         assert_eq!(
             mailrs_inbound::identity::first_received_peer_ip(line.as_bytes()),
             Some(addr.ip())
+        );
+    }
+
+    /// A mask's trace names neither the client nor where it connected from.
+    #[test]
+    fn a_masked_send_traces_no_client() {
+        let line = format_masked_received_header("mail.golia.ai", "friend@example.org");
+        assert!(
+            line.starts_with("Received: by mail.golia.ai with ESMTPSA"),
+            "{line}"
+        );
+        assert!(!line.contains("from "), "{line}");
+        assert_eq!(
+            mailrs_inbound::identity::first_received_peer_ip(line.as_bytes()),
+            None
         );
     }
 

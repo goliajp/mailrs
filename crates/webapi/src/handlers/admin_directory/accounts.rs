@@ -47,6 +47,7 @@ pub async fn add_account(
     if let Err(weak) = mailrs_auth_guard::password::check_new(&req.password, &req.address) {
         return Ok(crate::handlers::auth::password::refused(weak));
     }
+    crate::handlers::masked_email::refuse_if_masked(&req.address)?;
     let req = wire::AddAccountRequest {
         address: req.address,
         display_name: req.display_name,

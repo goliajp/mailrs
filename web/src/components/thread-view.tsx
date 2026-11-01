@@ -342,6 +342,7 @@ export function ThreadView() {
     originalDate: fwdOriginalDate,
     originalFrom: fwdOriginalFrom,
     originalHtmlBody: fwdOriginalHtml,
+    originalTo: lastMsg?.recipients ?? '',
     replyAllRecipients: replyAllRecipients || extractEmail(messages[0]?.sender ?? ''),
     replyRecipients: replyRecipients || extractEmail(messages[0]?.sender ?? ''),
     subject: fwdSubject,

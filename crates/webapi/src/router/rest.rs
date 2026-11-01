@@ -47,6 +47,11 @@ pub(super) fn jmap_routes() -> axum::Router<Arc<WebState>> {
     axum::Router::new()
         .route("/.well-known/jmap", get(handlers::jmap::jmap_session))
         .route("/jmap", post(handlers::jmap::jmap_api))
+        // Fastmail's own paths, which password managers that make masked
+        // addresses call directly instead of following the session's
+        // apiUrl; they do not follow the /.well-known redirect either
+        .route("/jmap/session", get(handlers::jmap::jmap_session))
+        .route("/jmap/api/", post(handlers::jmap::jmap_api))
         .route("/jmap/eventsource/", get(handlers::jmap::jmap_eventsource))
 }
 

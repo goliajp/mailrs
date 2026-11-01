@@ -345,7 +345,7 @@ impl MailStore for JmapAdapter {
     }
 }
 
-/// GET /.well-known/jmap — session document.
+/// GET /.well-known/jmap and GET /jmap/session — session document.
 pub async fn jmap_session(
     Extension(AuthedUser(address)): Extension<AuthedUser>,
 ) -> impl IntoResponse {
@@ -378,6 +378,7 @@ pub async fn jmap_session(
                 "mayCreateTopLevelMailbox": true,
             },
             JMAP_SUBMISSION_CAP: {},
+            super::jmap_masked::MASKED_CAP: {},
         },
         "accounts": {
             &address: {
@@ -388,6 +389,7 @@ pub async fn jmap_session(
                     JMAP_CORE_CAP: {},
                     JMAP_MAIL_CAP: {},
                     JMAP_SUBMISSION_CAP: {},
+                    super::jmap_masked::MASKED_CAP: {},
                 }
             }
         },
@@ -395,6 +397,7 @@ pub async fn jmap_session(
             JMAP_CORE_CAP: &address,
             JMAP_MAIL_CAP: &address,
             JMAP_SUBMISSION_CAP: &address,
+            super::jmap_masked::MASKED_CAP: &address,
         },
         "username": &address,
         "apiUrl": api_url,
@@ -405,15 +408,48 @@ pub async fn jmap_session(
     }))
 }
 
-/// POST /jmap — request dispatcher.
+/// POST /jmap — request dispatcher. `MaskedEmail/*` is answered here;
+/// everything else goes to `mailrs_jmap`. A key that may only manage masks
+/// is refused every other method.
 pub async fn jmap_api(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(address)): Extension<AuthedUser>,
+    scopes: Option<Extension<crate::session::AgentScopes>>,
+    key: Option<Extension<crate::session::AgentKey>>,
     Json(req): Json<JmapRequest>,
 ) -> impl IntoResponse {
-    let adapter = JmapAdapter::new(state, address.clone());
-    let response = mailrs_jmap::dispatch_request(req, &address, &adapter).await;
-    Json(response)
+    let masked_only = scopes
+        .as_ref()
+        .is_some_and(|Extension(s)| crate::session::masked_only(&s.0));
+    let created_by = match &key {
+        Some(Extension(k)) => format!("key {}", k.prefix),
+        None => "jmap".to_string(),
+    };
+    let adapter = JmapAdapter::new(state.clone(), address.clone());
+    let mut responses: Vec<(String, serde_json::Value, String)> = Vec::new();
+    for (method, mut args, call_id) in req.method_calls {
+        mailrs_jmap::refs::resolve_references(&mut args, &responses);
+        let answered =
+            match super::jmap_masked::dispatch(&state, &address, &created_by, &method, &args).await
+            {
+                Some(done) => done,
+                None if masked_only => Err(mailrs_jmap::error::JmapMethodError::Other {
+                    kind: "forbidden".into(),
+                    description: "this key may only manage masked addresses".into(),
+                }),
+                None => {
+                    mailrs_jmap::dispatch::dispatch_method(&method, &args, &address, &adapter).await
+                }
+            };
+        match answered {
+            Ok((name, value)) => responses.push((name, value, call_id)),
+            Err(e) => responses.push(("error".to_string(), e.to_json(), call_id)),
+        }
+    }
+    Json(mailrs_jmap::dispatch::JmapResponse {
+        method_responses: responses,
+        session_state: "0".into(),
+    })
 }
 
 #[derive(Deserialize)]
