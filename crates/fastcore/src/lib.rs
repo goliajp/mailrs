@@ -16,6 +16,7 @@ pub mod attachment_text;
 mod backfill_decode;
 mod bayes_train;
 pub mod boot;
+mod ledger;
 pub use boot::run;
 pub mod bounce;
 pub mod bounce_queue;

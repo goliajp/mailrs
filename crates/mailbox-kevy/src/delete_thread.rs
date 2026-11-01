@@ -157,6 +157,10 @@ impl KevyMailboxStore {
         files.dedup();
         // and leaves every label of this user
         self.drop_thread_labels(user, thread_id)?;
+        // and this user's ledger records of its messages
+        for (mid, _, _) in &per_msg {
+            self.delete_ledger(user, mid)?;
+        }
         Ok((existed, files))
     }
 }

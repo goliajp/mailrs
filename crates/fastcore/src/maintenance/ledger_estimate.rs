@@ -6,18 +6,10 @@
 //! afterwards. The answer is the growth of this process's resident memory
 //! across the writes, and the raw bytes written, for comparison.
 //!
-//! Entries per message, as the sub-RFC lays them out:
-//!
-//! ```text
-//! L:m:<message id>          hash  user, from, from domain, reply-to, link
-//!                                 hosts, attachment hashes, auth, arrived,
-//!                                 verdict (rules, score, rule version)
-//! L:d:<from domain>         zset  message id → arrived
-//! L:s:<from address>        zset  message id → arrived
-//! L:l:<link host>           zset  message id → arrived, per host
-//! L:h:<attachment sha256>   zset  message id → arrived, per file
-//! L:r:<user>:<from address> hash  first_at, inbound (counted), name
-//! ```
+//! What it writes is what delivery will write: the ledger tables as
+//! `mailrs_mailbox_kevy::ledger` declares them (the message, one row per
+//! link host and per attachment, each indexed), the verdict beside them,
+//! and the running relationship with the sender.
 
 use super::fraud_rescan::reading::newest_raw;
 use super::prelude::*;
@@ -65,41 +57,7 @@ pub(crate) async fn ledger_estimate_route(
 struct Tally {
     messages: u64,
     raw_bytes: u64,
-    keys: std::collections::HashSet<String>,
-}
-
-impl Tally {
-    fn hset(
-        &mut self,
-        s: &kevy_embedded::Store,
-        key: &str,
-        pairs: &[(&str, String)],
-    ) -> Result<(), String> {
-        let p: Vec<(&[u8], &[u8])> = pairs
-            .iter()
-            .map(|(f, v)| (f.as_bytes(), v.as_bytes()))
-            .collect();
-        self.raw_bytes +=
-            (key.len() + pairs.iter().map(|(f, v)| f.len() + v.len()).sum::<usize>()) as u64;
-        self.keys.insert(key.to_string());
-        s.hset(key.as_bytes(), &p)
-            .map(|_| ())
-            .map_err(|e| e.to_string())
-    }
-
-    fn zadd(
-        &mut self,
-        s: &kevy_embedded::Store,
-        key: &str,
-        member: &str,
-        score: f64,
-    ) -> Result<(), String> {
-        self.raw_bytes += (key.len() + member.len() + 8) as u64;
-        self.keys.insert(key.to_string());
-        s.zadd(key.as_bytes(), &[(score, member.as_bytes())])
-            .map(|_| ())
-            .map_err(|e| e.to_string())
-    }
+    keys: u64,
 }
 
 fn estimate(
@@ -113,8 +71,10 @@ fn estimate(
     let targets = super::fraud_rescan::snapshot(state).map_err(|e| e.to_string())?;
     let mut fraud = super::fraud_rescan::FraudJudge::new(state);
     let before = rss();
-    let store =
-        kevy_embedded::Store::open(kevy_embedded::Config::default()).map_err(|e| e.to_string())?;
+    let ledger = mailrs_mailbox_kevy::KevyMailboxStore::new(std::sync::Arc::new(
+        kevy_embedded::Store::open(kevy_embedded::Config::default()).map_err(|e| e.to_string())?,
+    ));
+    ledger.ensure_ledger_tables().map_err(|e| e.to_string())?;
     let mut t = Tally::default();
     let mut users = std::collections::HashSet::new();
     for (user, tid) in &targets {
@@ -131,73 +91,47 @@ fn estimate(
         };
         t.messages += 1;
         users.insert(user.clone());
-        let parsed = mailrs_mime::parse(&raw);
-        let from = mailrs_inbound::identity::from_address(&raw).to_ascii_lowercase();
-        let domain = from
-            .rsplit_once('@')
-            .map(|(_, d)| d.to_string())
-            .unwrap_or_default();
-        let reply_to = mailrs_inbound::identity::reply_to_address(&raw);
-        let links = mailrs_inbound::scan_input::link_hosts(&parsed);
-        let hashes: Vec<String> = mailrs_inbound::scan_input::attachments(&parsed)
-            .iter()
-            .map(|a| {
-                use sha2::Digest as _;
-                sha2::Sha256::digest(a.bytes)
-                    .iter()
-                    .map(|b| format!("{b:02x}"))
-                    .collect()
-            })
-            .collect();
-        let (spf, dkim, dmarc) = mailrs_inbound::identity::auth_results_tokens(&raw);
-        let at = mailrs_inbound::dates::received_epoch(&raw).unwrap_or(0);
+        let facts = crate::ledger::facts_of(user, &mid, &raw);
         let verdict = match fraud.judge(state, &mid, &raw) {
-            Ok(j) => serde_json::json!({
-                "rules": j.findings.rules(),
-                "score": j.findings.score(),
-                "v": &j.version[..j.version.len().min(16)],
-            })
-            .to_string(),
-            Err(e) => format!("error: {e}"),
+            Ok(j) => mailrs_mailbox_kevy::ledger::LedgerVerdict {
+                rules: j.findings.rules().iter().map(|r| r.to_string()).collect(),
+                score: j.findings.score(),
+                rules_version: j.version.clone(),
+                judged_at: facts.arrived,
+            },
+            Err(_) => mailrs_mailbox_kevy::ledger::LedgerVerdict::default(),
         };
-        t.hset(
-            &store,
-            &format!("L:m:{mid}"),
-            &[
-                ("u", user.clone()),
-                ("f", from.clone()),
-                ("fd", domain.clone()),
-                ("rt", reply_to),
-                ("ln", links.join(",")),
-                ("ah", hashes.join(",")),
-                ("au", format!("{spf}/{dkim}/{dmarc}")),
-                ("at", at.to_string()),
-                ("vd", verdict),
-            ],
-        )?;
-        let score = at as f64;
-        t.zadd(&store, &format!("L:d:{domain}"), &mid, score)?;
-        t.zadd(&store, &format!("L:s:{from}"), &mid, score)?;
-        for host in &links {
-            t.zadd(&store, &format!("L:l:{host}"), &mid, score)?;
-        }
-        for h in &hashes {
-            t.zadd(&store, &format!("L:h:{h}"), &mid, score)?;
-        }
-        let rel = format!("L:r:{user}:{from}");
+        t.raw_bytes += (facts.message_id.len()
+            + facts.user.len()
+            + facts.from_addr.len()
+            + facts.from_domain.len()
+            + facts.reply_to.len()
+            + facts.auth.len()
+            + facts
+                .link_hosts
+                .iter()
+                .map(|h| h.len() + mid.len())
+                .sum::<usize>()
+            + facts
+                .attachment_sha256
+                .iter()
+                .map(|h| h.len() + mid.len())
+                .sum::<usize>()
+            + verdict.rules.iter().map(|r| r.len()).sum::<usize>()
+            + verdict.rules_version.len()) as u64;
+        t.keys += 2 + facts.link_hosts.len() as u64 + facts.attachment_sha256.len() as u64;
+        ledger.record_ledger(&facts).map_err(|e| e.to_string())?;
+        ledger
+            .record_verdict(user, &mid, &verdict)
+            .map_err(|e| e.to_string())?;
         let name = mailrs_inbound::from_header(&raw);
-        t.hset(
-            &store,
-            &rel,
-            &[
-                ("first_at", at.to_string()),
-                ("in", "1".into()),
-                ("name", name),
-            ],
-        )?;
+        ledger
+            .record_inbound_relationship(user, &facts.from_addr, &name, facts.arrived)
+            .map_err(|e| e.to_string())?;
+        t.keys += 1;
     }
     let after = rss();
-    drop(store);
+    drop(ledger);
     let dropped = rss();
     let delta = match (before, after) {
         (Some(b), Some(a)) => Some(a.saturating_sub(b)),
@@ -211,7 +145,7 @@ fn estimate(
         "stopped_early": stopped_early,
         "messages": t.messages,
         "users": users.len(),
-        "keys": t.keys.len(),
+        "keys": t.keys,
         "raw_bytes": t.raw_bytes,
         "raw_bytes_per_message": t.raw_bytes.checked_div(t.messages),
         "rss_before": before,

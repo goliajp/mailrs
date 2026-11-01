@@ -20,6 +20,9 @@ pub(super) fn open_state(kevy_dir: &str) -> Arc<FastcoreState> {
     // (Until 2026-08-01 this comment still said the zsets were authoritative
     // and nothing read the table, which had been false since the cutover.)
     mailbox.ensure_thread_table();
+    if let Err(e) = mailbox.ensure_ledger_tables() {
+        tracing::error!(error = %e, "ledger tables could not be declared");
+    }
 
     // Publish who holds an account here, for the receiver — which has
     // no account store and has to know, or a stranger wearing one of

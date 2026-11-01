@@ -219,6 +219,10 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
             post(crate::maintenance::backfill_attachment_counts_route),
         )
         .route(
+            "/v1/admin/maintenance:backfill-ledger",
+            post(crate::maintenance::backfill_ledger_route),
+        )
+        .route(
             "/v1/admin/maintenance:backfill-thread-user",
             post(backfill_thread_user_route),
         )
