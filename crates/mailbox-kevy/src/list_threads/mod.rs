@@ -46,7 +46,8 @@ pub struct ListThreadsFilter<'a> {
     pub category: Option<&'a str>,
     /// Match monolith's `folder` query: `inbox`, `junk`, `notifications`,
     /// `promotions`, `np` (the merged notifications+promotions view),
-    /// `nonjunk` (every bucket but Junk — see `Scope::NotJunk`) or
+    /// `nonjunk` (every bucket but Junk — see `Scope::NotJunk`), `all`
+    /// (All Mail: `Scope::AllMail`, archived threads included) or
     /// `sent`, case-insensitively. Anything else is no scope at all.
     pub folder: Option<&'a str>,
     /// Only threads with `pinned = true`.
@@ -183,10 +184,11 @@ pub(super) fn not_trashed() -> (&'static str, String) {
 pub(super) fn bucket_predicates<'a>(
     bucket: &'a str,
     extra: &[(&'a str, String)],
+    sent: SentOnly,
 ) -> Vec<(&'a str, String)> {
     let mut out = extra.to_vec();
     out.push(("bucket", bucket.to_string()));
-    if bucket == "inbox" {
+    if bucket == "inbox" && sent == SentOnly::Excluded {
         out.push(("sent_only", "0".to_string()));
     }
     out
@@ -203,13 +205,42 @@ impl KevyMailboxStore {
         let mut total = 0usize;
         let live = [not_archived(), not_trashed()];
         for bucket in NON_JUNK_BUCKETS {
-            let scoped = bucket_predicates(bucket, &live);
+            let scoped = bucket_predicates(bucket, &live, SentOnly::Excluded);
             let refs: Vec<(&str, &str)> = scoped.iter().map(|(c, v)| (*c, v.as_str())).collect();
             total += self.count_thread_ids_by_flag_filtered(user, flag, &refs)?;
         }
         Ok(total)
     }
 }
+
+/// Whether a multi-bucket read lists the threads the user only sent
+/// into. Every Inbox-shaped list leaves them out; All Mail does not.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum SentOnly {
+    Excluded,
+    Included,
+}
+
+/// The buckets a multi-bucket list reads, and whether its Inbox part
+/// takes the threads the user only sent into.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct BucketSet {
+    pub(super) names: &'static [&'static str],
+    pub(super) sent: SentOnly,
+}
+
+const NP_SET: BucketSet = BucketSet {
+    names: &NP_BUCKETS,
+    sent: SentOnly::Excluded,
+};
+const NON_JUNK_SET: BucketSet = BucketSet {
+    names: &NON_JUNK_BUCKETS,
+    sent: SentOnly::Excluded,
+};
+const ALL_MAIL_SET: BucketSet = BucketSet {
+    names: &NON_JUNK_BUCKETS,
+    sent: SentOnly::Included,
+};
 
 /// The two buckets the "N & P" tab merges.
 const NP_BUCKETS: [&str; 2] = ["notifications", "promotions"];
@@ -280,7 +311,7 @@ impl KevyMailboxStore {
         let (mut rows, _) = self.hydrate_page(user, &tids, total)?;
         // The multi-bucket scopes, applied where the rows are.
         let keep: Option<&[&str]> = match scope {
-            Scope::NotJunk => Some(&NON_JUNK_BUCKETS),
+            Scope::NotJunk | Scope::AllMail => Some(&NON_JUNK_BUCKETS),
             Scope::Np => Some(&NP_BUCKETS),
             _ => None,
         };
@@ -302,7 +333,23 @@ impl KevyMailboxStore {
         if filter.quarantine == QuarantineScope::Include {
             return self.merge_held_into_live(user, filter, offset, limit);
         }
+        // All Mail reads both sides of the archive: the same question
+        // asked once per side and merged. See `merge_archived_into_live`.
+        if filter.scope() == Scope::AllMail && !filter.archived && !filter.trashed {
+            return self.merge_archived_into_live(user, filter, offset, limit);
+        }
+        self.list_one_side(user, filter, offset, limit)
+    }
 
+    /// One side of the archive: what `filter.archived` says, and nothing
+    /// merged across it.
+    pub(super) fn list_one_side(
+        &self,
+        user: &str,
+        filter: &ListThreadsFilter<'_>,
+        offset: usize,
+        limit: usize,
+    ) -> io::Result<(Vec<ThreadRow>, usize)> {
         // Narrowed to some of the connected mailboxes, this is the same
         // question asked once per account and merged by recency — the
         // shape `list_buckets_via_table` already uses for the two-bucket
@@ -323,17 +370,7 @@ impl KevyMailboxStore {
                 total += n;
                 merged.extend(rows);
             }
-            merged.sort_by(|a, b| {
-                b.latest_date
-                    .cmp(&a.latest_date)
-                    .then_with(|| a.thread_id.cmp(&b.thread_id))
-            });
-            if offset >= merged.len() {
-                return Ok((Vec::new(), total));
-            }
-            merged.drain(..offset);
-            merged.truncate(limit);
-            return Ok((merged, total));
+            return Ok(merge::page_of(merged, total, offset, limit));
         }
 
         // One dispatcher, total over the filter space. Every branch ends
@@ -360,9 +397,12 @@ impl KevyMailboxStore {
                 Scope::Bucket(b) => {
                     self.list_bucket_via_table(user, b.name(), filter, offset, limit)
                 }
-                Scope::Np => self.list_buckets_via_table(user, &NP_BUCKETS, filter, offset, limit),
+                Scope::Np => self.list_buckets_via_table(user, NP_SET, filter, offset, limit),
                 Scope::NotJunk => {
-                    self.list_buckets_via_table(user, &NON_JUNK_BUCKETS, filter, offset, limit)
+                    self.list_buckets_via_table(user, NON_JUNK_SET, filter, offset, limit)
+                }
+                Scope::AllMail => {
+                    self.list_buckets_via_table(user, ALL_MAIL_SET, filter, offset, limit)
                 }
                 Scope::Category(cat) => {
                     self.list_category_via_table(user, &cat, filter, offset, limit)
@@ -408,28 +448,19 @@ impl KevyMailboxStore {
                     flag: key_flag,
                     extra: &extra,
                 };
-                return self.list_buckets_flagged_via_table(
-                    user,
-                    &NP_BUCKETS,
-                    key,
-                    filter,
-                    offset,
-                    limit,
-                );
+                return self
+                    .list_buckets_flagged_via_table(user, NP_SET, key, filter, offset, limit);
             }
-            Scope::NotJunk => {
+            Scope::NotJunk | Scope::AllMail => {
                 let key = FlagKey {
                     flag: key_flag,
                     extra: &extra,
                 };
-                return self.list_buckets_flagged_via_table(
-                    user,
-                    &NON_JUNK_BUCKETS,
-                    key,
-                    filter,
-                    offset,
-                    limit,
-                );
+                let set = match scope {
+                    Scope::AllMail => ALL_MAIL_SET,
+                    _ => NON_JUNK_SET,
+                };
+                return self.list_buckets_flagged_via_table(user, set, key, filter, offset, limit);
             }
             Scope::Contradiction => unreachable!("returned above"),
         }
@@ -437,6 +468,7 @@ impl KevyMailboxStore {
     }
 }
 
+mod merge;
 mod paths;
 mod snoozed;
 

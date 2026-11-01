@@ -81,6 +81,11 @@ pub enum Scope {
     /// and Starred, which are attributes of a thread rather than places;
     /// junk mail has exactly one surface.
     NotJunk,
+    /// All Mail: every bucket but Junk, the threads the user only sent
+    /// into included. The one list that also shows what was archived —
+    /// each core reads both sides of the archive for it; the Trash stays
+    /// out as it does everywhere but its own list.
+    AllMail,
     /// One bucket.
     Bucket(Bucket),
     /// Notifications and promotions together.
@@ -108,11 +113,16 @@ pub fn scope(folder: Option<&str>, category: Option<&str>) -> Scope {
     } else {
         None
     };
-    if named("nonjunk") {
+    if named("nonjunk") || named("all") {
+        let whole = if named("all") {
+            Scope::AllMail
+        } else {
+            Scope::NotJunk
+        };
         return match category {
             Some(c) if bucket_of(c) == Bucket::Junk => Scope::Contradiction,
             Some(c) => Scope::Category(c.to_string()),
-            None => Scope::NotJunk,
+            None => whole,
         };
     }
     let np = named("np");
@@ -153,6 +163,7 @@ impl Scope {
         match self {
             Scope::All => true,
             Scope::NotJunk => NON_JUNK.into_iter().any(in_bucket),
+            Scope::AllMail => bucket != Bucket::Junk,
             Scope::Bucket(b) => in_bucket(*b),
             Scope::Np => in_bucket(Bucket::Notifications) || in_bucket(Bucket::Promotions),
             Scope::Category(c) => t.category.eq_ignore_ascii_case(c),
@@ -176,6 +187,8 @@ mod tests {
         );
         assert_eq!(scope(Some("NP"), None), Scope::Np);
         assert_eq!(scope(Some("nonjunk"), None), Scope::NotJunk);
+        assert_eq!(scope(Some("ALL"), None), Scope::AllMail);
+        assert_eq!(scope(Some("all"), Some("spam")), Scope::Contradiction);
         assert_eq!(scope(Some("Drafts"), None), Scope::All);
         assert_eq!(scope(None, None), Scope::All);
     }
@@ -189,6 +202,12 @@ mod tests {
         assert!(!Scope::Bucket(Bucket::Inbox).admits(sent));
         assert!(!Scope::NotJunk.admits(sent));
         assert!(Scope::All.admits(sent));
+        assert!(Scope::AllMail.admits(sent));
+        let junk = ThreadFacts {
+            category: "spam",
+            sent_only: false,
+        };
+        assert!(!Scope::AllMail.admits(junk));
         let note = ThreadFacts {
             category: "notification",
             sent_only: true,
