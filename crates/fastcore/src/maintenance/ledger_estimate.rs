@@ -196,8 +196,18 @@ fn measure(entries: &[Entry]) -> Result<serde_json::Value, String> {
     // Store two: whole facts, so links and files are the difference.
     let (store, ledger) = fresh()?;
     let empty_two = store.info().used_memory;
+    let mut link_rows = 0u64;
     for e in entries {
-        ledger.record_ledger(&e.facts).map_err(|e| e.to_string())?;
+        // the rows delivery would write: the hosts it indexes, and none for
+        // mail past the retention
+        let hosts = crate::ledger::indexed_link_hosts(&e.facts);
+        let until = crate::ledger::links_until(&e.facts);
+        if until > chrono::Utc::now().timestamp() {
+            link_rows += hosts.len() as u64;
+        }
+        ledger
+            .record_ledger_indexed(&e.facts, &hosts, Some(until))
+            .map_err(|e| e.to_string())?;
     }
     let whole = store.info().used_memory - empty_two;
     drop(ledger);
@@ -214,7 +224,9 @@ fn measure(entries: &[Entry]) -> Result<serde_json::Value, String> {
     };
     Ok(serde_json::json!({
         "messages": n,
-        "link_rows": links,
+        // every link host the messages carry, and the rows kept for them
+        "link_hosts": links,
+        "link_rows": link_rows,
         "file_rows": files,
         "keys_without_links_and_files": keys_one,
         // what the store counts as its own, per family
@@ -272,7 +284,7 @@ mod tests {
                     link_hosts: vec!["pay.example".into(), "cdn.example".into()],
                     attachment_sha256: vec![format!("{i:064x}")],
                     auth: "pass/pass/pass".into(),
-                    arrived: 1_700_000_000 + i,
+                    arrived: chrono::Utc::now().timestamp() - i,
                 },
                 verdict: mailrs_mailbox_kevy::ledger::LedgerVerdict {
                     rules: vec!["rule_a".into()],

@@ -92,8 +92,12 @@ pub(crate) fn specs() -> [TableSpec; 3] {
         table(
             "ledger_link",
             LINK_PREFIX,
-            vec![col("id", ValType::Str), col("host", ValType::Str)],
-            &["host"],
+            vec![
+                col("id", ValType::Str),
+                col("host", ValType::Str),
+                col("until", ValType::I64),
+            ],
+            &["host", "until"],
         ),
         table(
             "ledger_file",
@@ -139,9 +143,33 @@ impl KevyMailboxStore {
         Ok(())
     }
 
-    /// Records what a delivered message was, for its reader. Written once: a
-    /// second call for the same reader and message leaves the first record.
+    /// Records what a delivered message was, for its reader, with a link row
+    /// for every host and none of them expiring. Written once: a second call
+    /// for the same reader and message leaves the first record.
     pub fn record_ledger(&self, f: &LedgerFacts) -> io::Result<bool> {
+        self.record_ledger_indexed(f, &f.link_hosts, None)
+    }
+
+    /// [`Self::record_ledger`], with link rows for `indexed_hosts` only, each
+    /// kept until `links_until` (epoch seconds) when given, for
+    /// [`Self::prune_expired_links`] to remove; none at all when that has
+    /// already passed. Not a key TTL: an expired key leaves its entry in the
+    /// table's index, so the rows are deleted, which keeps the index in step.
+    ///
+    /// The message row keeps every host: that is the fact. A link row is an
+    /// index for re-judging, kept for the hosts and the span where finding
+    /// mail by host is worth its memory.
+    pub fn record_ledger_indexed(
+        &self,
+        f: &LedgerFacts,
+        indexed_hosts: &[String],
+        links_until: Option<i64>,
+    ) -> io::Result<bool> {
+        let now = chrono::Utc::now().timestamp();
+        let indexed: &[String] = match links_until {
+            Some(until) if until <= now => &[],
+            _ => indexed_hosts,
+        };
         let (user, mid) = (f.user.as_str(), f.message_id.as_str());
         let at = f.arrived.to_string();
         self.store()
@@ -165,15 +193,17 @@ impl KevyMailboxStore {
                         (b"files", f.attachment_sha256.join(" ").as_bytes()),
                     ],
                 )?;
-                for host in &f.link_hosts {
+                let until = links_until.map(|u| u.to_string());
+                for host in indexed {
                     let k = link_key(user, mid, host);
-                    ctx.hset(
-                        k.as_bytes(),
-                        &[
-                            (b"id" as &[u8], &k.as_bytes()[4..]),
-                            (b"host", host.as_bytes()),
-                        ],
-                    )?;
+                    let mut row: Vec<(&[u8], &[u8])> = vec![
+                        (b"id" as &[u8], &k.as_bytes()[4..]),
+                        (b"host", host.as_bytes()),
+                    ];
+                    if let Some(u) = &until {
+                        row.push((b"until", u.as_bytes()));
+                    }
+                    ctx.hset(k.as_bytes(), &row)?;
                 }
                 for sha in &f.attachment_sha256 {
                     let k = file_key(user, mid, sha);
@@ -188,6 +218,23 @@ impl KevyMailboxStore {
                 Ok(true)
             })
             .map_err(io::Error::from)
+    }
+
+    /// Delete up to `limit` link rows kept until `now` or earlier; how many.
+    /// Nothing due is one index read and no write.
+    pub fn prune_expired_links(&self, now: i64, limit: usize) -> io::Result<usize> {
+        let (hits, _) = self.store().idx_query(
+            b"ledger_link.until",
+            &kevy_embedded::IndexValue::I64(i64::MIN),
+            &kevy_embedded::IndexValue::I64(now),
+            None,
+            limit,
+        )?;
+        if hits.is_empty() {
+            return Ok(0);
+        }
+        let keys: Vec<&[u8]> = hits.iter().map(|(k, _)| k.as_slice()).collect();
+        Ok(self.store().del(&keys)?)
     }
 
     /// Whether `user`'s copy of a message is in the ledger.
