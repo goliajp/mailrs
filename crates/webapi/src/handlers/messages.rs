@@ -220,6 +220,9 @@ pub async fn get_attachment_content(
     let Some(att) = attachments.get(index) else {
         return Err(StatusCode::NOT_FOUND);
     };
+    if let Some(preview) = super::attachment_preview::office(att) {
+        return Ok(Json(preview));
+    }
     let mt = att.content_type.mime_type();
     let extracted =
         if mt.starts_with("text/") || mt == "application/json" || mt == "application/xml" {

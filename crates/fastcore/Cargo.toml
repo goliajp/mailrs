@@ -117,6 +117,7 @@ mailrs-ical = { path = "../ical", version = "2", features = ["mime"] }
 mailrs-webhook-signature = { path = "../webhook-signature", version = "1" }
 
 [dev-dependencies]
+zip = { version = "9.0.4", default-features = false, features = ["deflate"] }
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
 tempfile = "3"

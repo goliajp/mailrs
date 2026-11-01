@@ -3771,9 +3771,11 @@ dependencies = [
  "encoding_rs",
  "image",
  "lopdf",
+ "quick-xml",
  "serde",
  "serde_json",
  "tempfile",
+ "zip",
 ]
 
 [[package]]
@@ -4086,6 +4088,7 @@ dependencies = [
  "tower",
  "tracing",
  "tracing-subscriber",
+ "zip",
 ]
 
 [[package]]
@@ -4831,6 +4834,7 @@ dependencies = [
  "jsonwebtoken",
  "kevy-client",
  "kevy-embedded",
+ "mailrs-attachment-extract",
  "mailrs-attachment-scan",
  "mailrs-auth-guard",
  "mailrs-clean",
@@ -4880,6 +4884,7 @@ dependencies = [
  "tracing-subscriber",
  "url",
  "uuid",
+ "zip",
 ]
 
 [[package]]

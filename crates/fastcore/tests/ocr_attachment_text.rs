@@ -302,7 +302,13 @@ async fn words_in_images_and_scans_find_the_conversation() {
         .unwrap();
     assert_eq!(
         (scan.version, scan.pdfs, scan.stored, scan.ocr),
-        (2, 1, 1, 1)
+        (
+            mailrs_fastcore::attachment_text::VERSION_WITH_OCR
+                | mailrs_fastcore::attachment_text::WITH_OFFICE,
+            1,
+            1,
+            1
+        )
     );
     let bomb = m
         .attachment_text_state("bomb1@example.org")
@@ -344,7 +350,12 @@ async fn words_in_images_and_scans_find_the_conversation() {
         (Some(1), Some(1)),
         "{report}"
     );
-    assert_eq!(report["version"], 2, "{report}");
+    assert_eq!(
+        report["version"],
+        mailrs_fastcore::attachment_text::VERSION_WITH_OCR
+            | mailrs_fastcore::attachment_text::WITH_OFFICE,
+        "{report}"
+    );
     assert_eq!(
         mailrs_fastcore::attachment_text::run_once(&state).await.ocr,
         1
