@@ -352,6 +352,9 @@ export const settingsZh: Record<SettingsKey, string> = {
   'settings.scope.admin': '完全访问 · 管理员',
   'settings.scope.full': '完全访问',
   'settings.scope.full.help': '这个账号能访问的所有接口，包括管理接口。',
+  'settings.scope.jmap': 'JMAP 邮件客户端',
+  'settings.scope.jmap.help':
+    '给 JMAP 邮件客户端或脚本用：只能通过 JMAP 读信、整理和发信，不能访问其他接口，也不能改设置。',
   'settings.scope.masked': '只管理掩码地址',
   'settings.scope.masked.help':
     '给密码管理器用：只能创建和管理掩码地址，不能读信、发信，也不能改设置。',

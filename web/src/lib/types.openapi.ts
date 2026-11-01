@@ -3548,7 +3548,7 @@ export interface paths {
         };
         /**
          * Get jmap eventsource
-         * @description Stub — full schema TBD.
+         * @description RFC 8620 §7.3 push. Sends a `state` event (StateChange for Email, Mailbox and Thread) when the account's state moves: at once on new mail, otherwise noticed within 5 seconds. `ping` (seconds, 5 to 300; 0 for none), `closeafter=state`, `types`. At most 8 connections per account.
          */
         get: {
             parameters: {
@@ -6689,6 +6689,136 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/jmap/upload/{account}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload a JMAP blob
+         * @description RFC 8620 §6.1. The body is the blob, at most 50 MiB; 4 uploads at once per account; an account keeps at most 1 GiB, each upload deleted a day after it was last used. A session, an agent key with the jmap scope, or an app password over HTTP Basic (HTTPS only). Another account than the caller's is 404.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    account: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            responses: {
+                /** @description Stored */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            accountId?: string;
+                            blobId?: string;
+                            type?: string;
+                            size?: number;
+                        };
+                    };
+                };
+                /** @description Not the caller's account */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Larger than maxSizeUpload */
+                413: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Too many uploads at once */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description The account's uploads are full */
+                507: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jmap/download/{account}/{blob}/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download a JMAP blob
+         * @description RFC 8620 §6.2: a message, one of its parts, or an upload. Always served as an attachment with X-Content-Type-Options: nosniff and Content-Security-Policy: sandbox; `type` is used only when it is a plain media type. A blob or account not the caller's is 404.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    type?: string;
+                };
+                header?: never;
+                path: {
+                    account: string;
+                    blob: string;
+                    name: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The bytes */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/octet-stream": string;
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -6790,6 +6920,13 @@ export interface components {
                 /** @description The last check is older than 36 hours; null before the first */
                 stale?: boolean | null;
             } | null;
+            /** @description What JMAP clients have uploaded and not yet used for a day (MAILRS_JMAP_UPLOAD_DIR), and the space left on its volume. */
+            jmap_uploads?: {
+                /** @description Bytes held across all accounts; each account may hold 1 GiB */
+                bytes?: number;
+                /** @description Bytes free on the volume; null when it cannot be read */
+                volume_free_bytes?: number | null;
+            };
             /** @description kevy-server's memory against its container limit. Null when kevy-server does not answer. */
             kevy_server_memory?: {
                 /** @description Resident size as INFO memory reports it (process_rss_bytes) */
@@ -14960,7 +15097,7 @@ export interface operations {
                         items?: {
                             account?: string;
                             /** @enum {string} */
-                            channel?: "imap" | "pop3" | "smtp" | "managesieve" | "dav";
+                            channel?: "imap" | "pop3" | "smtp" | "managesieve" | "dav" | "jmap";
                             password_logins?: number;
                             password_last?: number | null;
                             app_password_logins?: number;

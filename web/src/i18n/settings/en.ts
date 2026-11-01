@@ -370,6 +370,9 @@ export const settingsEn = {
   'settings.scope.admin': 'Full access · admin',
   'settings.scope.full': 'Full access',
   'settings.scope.full.help': 'Every route this account can reach, including admin APIs.',
+  'settings.scope.jmap': 'JMAP mail client',
+  'settings.scope.jmap.help':
+    'For a JMAP mail client or script: read, file and send mail over JMAP only. Cannot reach the rest of the API or change settings.',
   'settings.scope.masked': 'Masked addresses only',
   'settings.scope.masked.help':
     'For a password manager: make and manage masked addresses. Cannot read or send mail or change settings.',

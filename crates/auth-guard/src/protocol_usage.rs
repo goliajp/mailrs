@@ -32,6 +32,7 @@ fn protocol(c: Channel) -> Option<&'static str> {
         Channel::Smtp => Some("smtp"),
         Channel::Managesieve => Some("managesieve"),
         Channel::Dav => Some("dav"),
+        Channel::Jmap => Some("jmap"),
         _ => None,
     }
 }

@@ -41,18 +41,33 @@ pub(super) fn auth_routes() -> axum::Router<Arc<WebState>> {
 
 /// JMAP.
 pub(super) fn jmap_routes() -> axum::Router<Arc<WebState>> {
-    use crate::handlers;
+    use crate::handlers::jmap;
+    use axum::extract::DefaultBodyLimit;
     use axum::routing::{get, post};
 
     axum::Router::new()
-        .route("/.well-known/jmap", get(handlers::jmap::jmap_session))
-        .route("/jmap", post(handlers::jmap::jmap_api))
+        .route("/.well-known/jmap", get(jmap::session))
+        .route(
+            "/jmap",
+            post(jmap::api).layer(DefaultBodyLimit::max(jmap::MAX_SIZE_REQUEST + 1)),
+        )
         // Fastmail's own paths, which password managers that make masked
         // addresses call directly instead of following the session's
         // apiUrl; they do not follow the /.well-known redirect either
-        .route("/jmap/session", get(handlers::jmap::jmap_session))
-        .route("/jmap/api/", post(handlers::jmap::jmap_api))
-        .route("/jmap/eventsource/", get(handlers::jmap::jmap_eventsource))
+        .route("/jmap/session", get(jmap::session))
+        .route(
+            "/jmap/api/",
+            post(jmap::api).layer(DefaultBodyLimit::max(jmap::MAX_SIZE_REQUEST + 1)),
+        )
+        .route("/jmap/eventsource/", get(jmap::eventsource))
+        .route(
+            "/jmap/upload/{account}/",
+            post(jmap::upload).layer(DefaultBodyLimit::max(jmap::MAX_SIZE_UPLOAD + 1)),
+        )
+        .route(
+            "/jmap/download/{account}/{blob}/{name}",
+            get(jmap::download),
+        )
 }
 
 /// CalDAV and CardDAV.

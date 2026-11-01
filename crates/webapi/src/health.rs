@@ -71,6 +71,7 @@ pub(crate) async fn health_handler(
         "kevy_server_memory": kevy_server_memory,
         "egress": egress,
         "receiver": handlers::smtp_monitor::health(&state.receiver_stats),
+        "jmap_uploads": handlers::jmap::upload_health(),
     }))
 }
 

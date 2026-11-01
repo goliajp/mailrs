@@ -67,7 +67,7 @@ fn normalized_user(address: &str) -> Option<String> {
 /// every socket: each signed-in browser received the sender and subject
 /// of everybody's new mail and dropped what was not its own. An event
 /// with no recipient goes to nobody.
-fn addressed_to(event: &str, user: &str) -> bool {
+pub(crate) fn addressed_to(event: &str, user: &str) -> bool {
     serde_json::from_str::<serde_json::Value>(event)
         .ok()
         .and_then(|v| {
@@ -105,7 +105,7 @@ async fn handle_ws(socket: WebSocket, bus: EventBus, user: String) {
 
 /// Get the shared broadcast::Sender, initializing (+ spawning the kevy
 /// subscribe loop) if this is the first caller.
-async fn get_or_init_bus(state: Arc<WebState>) -> EventBus {
+pub(crate) async fn get_or_init_bus(state: Arc<WebState>) -> EventBus {
     if let Some(existing) = state.event_bus.get() {
         return existing.clone();
     }

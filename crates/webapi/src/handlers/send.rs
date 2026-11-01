@@ -320,7 +320,7 @@ pub(crate) async fn send_message_multipart(
 
 /// A send made with an agent key leaves an audit line before anything is
 /// filed or queued; when the line cannot be written, nothing is sent.
-fn record_key_send(
+pub(crate) fn record_key_send(
     key: Option<&AgentKey>,
     user: &str,
     headers: &HeaderMap,

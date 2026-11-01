@@ -289,6 +289,11 @@ services:
       MAILRS_MAILDIR: /data/maildir
       MAILRS_MOCK_DOMAIN: mock.golia.jp
       MAILRS_HOSTNAME: mail.golia.ai
+      # where JMAP clients are sent by the session document; never taken
+      # from a request's Host header
+      MAILRS_PUBLIC_BASE_URL: https://mail.golia.ai
+      # JMAP uploads, a day after last use deleted; 1 GiB per account
+      MAILRS_JMAP_UPLOAD_DIR: /data/jmap-uploads
       # the domain check reads only domain and selector, never the key files
       <<: [*dkim-identity, *imap-listeners, *password-reset, *fraud-policy, *web-push]
       RUST_LOG: info
