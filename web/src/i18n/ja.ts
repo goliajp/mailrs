@@ -3,6 +3,7 @@ import type { Key } from './en'
 import { adminOpsJa } from './admin-ops/ja'
 import { adminJa } from './admin/ja'
 import { appJa } from './app/ja'
+import { calendarJa } from './calendar/ja'
 import { composerJa } from './composer/ja'
 import { mockJa } from './mock/ja'
 import { settingsJa } from './settings/ja'
@@ -10,6 +11,7 @@ import { settingsJa } from './settings/ja'
 export const ja: Record<Key, string> = {
   ...appJa,
   ...composerJa,
+  ...calendarJa,
   ...settingsJa,
   ...mockJa,
   ...adminJa,
@@ -350,6 +352,7 @@ export const ja: Record<Key, string> = {
   'monitor.disconnected': '切断',
   'monitor.session': 'セッション #{id}: {addr}',
   'nav.admin': '管理',
+  'nav.calendar': 'カレンダー',
   'nav.home': 'ホーム',
   'nav.mail': 'メール',
   'nav.mock': 'テスト用メール',

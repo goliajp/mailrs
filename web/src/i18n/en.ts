@@ -1,6 +1,7 @@
 import { adminOpsEn } from './admin-ops/en'
 import { adminEn } from './admin/en'
 import { appEn } from './app/en'
+import { calendarEn } from './calendar/en'
 import { composerEn } from './composer/en'
 import { mockEn } from './mock/en'
 import { settingsEn } from './settings/en'
@@ -13,6 +14,7 @@ import { settingsEn } from './settings/en'
 export const en = {
   ...appEn,
   ...composerEn,
+  ...calendarEn,
   ...settingsEn,
   ...mockEn,
   ...adminEn,
@@ -351,6 +353,7 @@ export const en = {
   'monitor.disconnected': 'disconnected',
   'monitor.session': 'Session #{id} — {addr}',
   'nav.admin': 'Admin',
+  'nav.calendar': 'Calendar',
   'nav.home': 'Home',
   'nav.mail': 'Mail',
   'nav.mock': 'Mock mail',
