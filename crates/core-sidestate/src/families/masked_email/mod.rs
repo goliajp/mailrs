@@ -12,12 +12,15 @@
 //!   `mailrs:masked:addr:{address}`   hash, the mask (tombstones included)
 //!   `mailrs:masked:user:{owner}`     hash, address → mask JSON (live masks)
 //!   `mailrs:masked:day:{owner}:{d}`  counter, masks created that UTC day
+//!   `mailrs:masked:submit_log`       list, mail submitted over SMTP from a
+//!                                    mask (see [`submit_log`])
 
 use std::io;
 
 use kevy_client::Connection;
 use serde::{Deserialize, Serialize};
 
+pub mod submit_log;
 mod words;
 
 /// Most live masks one account may hold.
@@ -32,6 +35,9 @@ pub fn addr_key(address: &str) -> String {
 pub fn user_key(owner: &str) -> String {
     format!("mailrs:masked:user:{}", owner.to_ascii_lowercase())
 }
+
+/// The log of mail submitted from masks, apart from the admin audit log.
+pub const SUBMIT_LOG: &[u8] = b"mailrs:masked:submit_log";
 
 fn day_key(owner: &str, day: i64) -> String {
     format!("mailrs:masked:day:{}:{day}", owner.to_ascii_lowercase())

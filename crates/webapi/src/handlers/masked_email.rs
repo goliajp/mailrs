@@ -245,7 +245,7 @@ pub struct CreateBody {
 }
 
 /// What made a mask: a key's prefix, or the web.
-fn made_by(key: Option<&AgentKey>, web: &str) -> String {
+pub(crate) fn made_by(key: Option<&AgentKey>, web: &str) -> String {
     match key {
         Some(k) => format!("key {}", k.prefix),
         None => web.to_string(),
@@ -355,4 +355,27 @@ pub(crate) fn refuse_if_masked(address: &str) -> Result<(), StatusCode> {
         true => Err(StatusCode::CONFLICT),
         false => Ok(()),
     }
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct SubmissionsQuery {
+    #[serde(default = "default_limit")]
+    pub limit: i64,
+}
+
+fn default_limit() -> i64 {
+    100
+}
+
+/// GET /api/admin/masked-submissions?limit= — the newest mail submitted
+/// over SMTP from masks, with the account and client IP its headers leave
+/// out; super administrators only (`route_permissions`), for abuse
+/// handling.
+pub async fn list_submissions(
+    axum::extract::Query(q): axum::extract::Query<SubmissionsQuery>,
+) -> Result<Json<Vec<store::submit_log::Submission>>, StatusCode> {
+    let limit = q.limit.clamp(1, store::submit_log::CAP);
+    with_kevy(move |c| store::submit_log::recent(c, limit))
+        .map(Json)
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)
 }

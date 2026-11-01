@@ -207,6 +207,13 @@ export const settingsZh: Record<SettingsKey, string> = {
   'settings.loadingDots': '正在加载…',
   'settings.masked.blurb':
     '给每个网站一个单独的随机地址，信照样送到这里。停用后那个网站就联系不到你；删除后永久失效，也不会再分配给任何人。回复寄到掩码地址的信时，会用这个掩码地址发出。',
+  'settings.masked.bw.domain': '邮件域名（Email domain）',
+  'settings.masked.bw.intro':
+    '先在「API key」里用「只管理掩码地址」预设建一个 key。然后在 Bitwarden 的生成器里选「Forwarded email alias」（转发邮件别名），服务选 SimpleLogin 或 addy.io，按下面填写：',
+  'settings.masked.bw.key': 'API key',
+  'settings.masked.bw.keyValue': '刚建的 key',
+  'settings.masked.bw.server': '自托管服务器地址（Self-host server URL）',
+  'settings.masked.bw.title': '在 Bitwarden 里生成掩码地址',
   'settings.masked.confirmDelete': '删除 {email}？它将不再收信，也永远不会再分配出去。',
   'settings.masked.create': '新建掩码地址',
   'settings.masked.created': '已创建 {email}',

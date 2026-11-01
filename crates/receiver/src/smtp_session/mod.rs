@@ -80,6 +80,10 @@ pub struct ConnectionContext {
     pub signins: mailrs_auth_guard::signins::Signins,
     /// Unknown local recipients per IP, to slow down address guessing.
     pub unknown_rcpt: probe_guard::ProbeGuard,
+    /// Asked whether MAIL FROM's domain passes SPF for the client, to
+    /// count unknown recipients per sender rather than per IP; `None`
+    /// counts per IP.
+    pub rcpt_spf: Option<Arc<dyn mailrs_spf::SpfResolver>>,
 }
 
 mod address;

@@ -1,44 +1,44 @@
 //! Mail submitted from a masked address carries no trace of the client: no
 //! IP and no EHLO name in its `Received:` header. What the header leaves
-//! out is kept here instead, in the audit log: the account, the mask (its
-//! first eight characters, as the mask's other audit rows name it), the
-//! client's IP, and the time.
+//! out is kept in the masks' own submission log instead
+//! (`masked_email::submit_log`): the account, the mask (its first eight
+//! characters, as the mask's audit rows name it), the client's IP, and the
+//! time.
 
 use std::net::IpAddr;
 
-use mailrs_core_sidestate::families::audit;
+use mailrs_core_sidestate::families::masked_email::submit_log::{self, Submission};
 
 use super::super::super::ConnectionContext;
 
-pub(super) const ACTION: &str = "mask.submit";
-
-fn target(mask: &str) -> String {
-    mask.chars().take(8).collect()
+fn row(user: &str, mask: &str, client: IpAddr, at: i64) -> Submission {
+    Submission {
+        at,
+        account: user.to_string(),
+        mask: mask.chars().take(8).collect(),
+        ip: client.to_string(),
+    }
 }
 
-fn detail(client: IpAddr) -> String {
-    format!("ip={client}")
-}
-
-/// Append the row. A store that cannot be reached is logged and the mail
-/// goes on: sending comes before its record, as everywhere on this path.
+/// Append the row. A store that cannot be reached is counted, logged, and
+/// the mail goes on: sending comes before its record, as everywhere on
+/// this path.
 pub(super) async fn record(ctx: &ConnectionContext, user: &str, mask: &str, client: IpAddr) {
     let Some(kevy) = ctx.spam_lists_client.clone() else {
+        ctx.metrics.mask_submit_log_failed();
+        tracing::warn!(%client, "masked submission: no store to log it in");
         return;
     };
-    let (user, target, detail) = (user.to_string(), target(mask), detail(client));
-    let now = chrono::Utc::now().timestamp();
-    let written = tokio::task::spawn_blocking(move || {
-        kevy.with_conn(|c| audit::append(c, &user, ACTION, &target, &detail, now))
-    })
-    .await;
-    match written {
-        Ok(Ok(())) => {}
-        Ok(Err(e)) => {
-            tracing::warn!(error = %e, %client, "masked submission: audit row not written")
-        }
-        Err(e) => tracing::warn!(error = %e, %client, "masked submission: audit task failed"),
-    }
+    let row = row(user, mask, client, chrono::Utc::now().timestamp());
+    let written =
+        tokio::task::spawn_blocking(move || kevy.with_conn(|c| submit_log::append(c, &row))).await;
+    let error = match written {
+        Ok(Ok(())) => return,
+        Ok(Err(e)) => e.to_string(),
+        Err(e) => e.to_string(),
+    };
+    ctx.metrics.mask_submit_log_failed();
+    tracing::warn!(%error, %client, "masked submission: log row not written");
 }
 
 #[cfg(test)]
@@ -47,7 +47,14 @@ mod tests {
 
     #[test]
     fn the_row_names_the_mask_by_prefix_and_keeps_the_ip() {
-        assert_eq!(target("amber.otter.000042@golia.jp"), "amber.ot");
-        assert_eq!(detail("203.0.113.9".parse().unwrap()), "ip=203.0.113.9");
+        let r = row(
+            "me@golia.jp",
+            "amber.otter.000042@golia.jp",
+            "203.0.113.9".parse().unwrap(),
+            7,
+        );
+        assert_eq!(r.mask, "amber.ot");
+        assert_eq!(r.ip, "203.0.113.9");
+        assert_eq!((r.account.as_str(), r.at), ("me@golia.jp", 7));
     }
 }

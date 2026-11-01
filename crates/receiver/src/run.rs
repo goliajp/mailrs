@@ -79,6 +79,10 @@ pub async fn start() -> Receiver {
     let users = core_link::users(&cfg);
     let credential_store = core_link::credential_store(&cfg);
     let recipient_check = core_link::recipient_check(&cfg);
+    let rcpt_spf = resolver.as_ref().map(|r| {
+        Arc::new(mailrs_spf::HickoryResolver::new((**r).clone()))
+            as Arc<dyn mailrs_spf::SpfResolver>
+    });
     let runtime = core_link::runtime_settings(&cfg, &kevy_client, greylist_local).await;
 
     let counters: SharedCounters = Arc::new(ReceiverCounters::default());
@@ -123,6 +127,7 @@ pub async fn start() -> Receiver {
         spool_sink,
         signins: Default::default(),
         unknown_rcpt: Default::default(),
+        rcpt_spf,
     });
     listen_for_signouts(&cfg.kevy_url, ctx.clone());
     // the map holds only IPs refused an unknown recipient within the last

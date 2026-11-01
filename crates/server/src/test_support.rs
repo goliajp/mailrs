@@ -31,6 +31,8 @@ impl mailrs_receiver::ConnectionMetrics for NoMetrics {
     fn inbound_reject(&self) {}
     fn inbound_defer(&self) {}
     fn inbound_junk(&self) {}
+    fn probe_guard_tripped(&self) {}
+    fn mask_submit_log_failed(&self) {}
 }
 
 /// Wire the receiving path in one process: a `ConnectionContext` whose DATA
@@ -100,6 +102,7 @@ pub async fn spawn_receiving_server(
         ),
         signins: Default::default(),
         unknown_rcpt: Default::default(),
+        rcpt_spf: None,
     });
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")

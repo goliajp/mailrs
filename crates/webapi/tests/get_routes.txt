@@ -42,6 +42,7 @@
 /api/admin/groups	read only
 /api/admin/groups/{id}/members	read only
 /api/admin/groups/{id}/permissions	read only
+/api/admin/masked-submissions	read only
 /api/admin/mock	read only
 /api/admin/oauth-clients	read only
 /api/admin/outbound/paused	read only

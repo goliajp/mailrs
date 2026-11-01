@@ -39,6 +39,15 @@ pub struct ReceiverStats {
     pub total_connections: u64,
     pub total_messages: u64,
     pub uptime_secs: u64,
+    /// RCPTs refused since start because the sender guessed too many
+    /// unknown local addresses. `None` from a receiver older than the
+    /// field: unknown, not zero.
+    #[serde(default)]
+    pub probe_guard_tripped: Option<u64>,
+    /// Submissions from a masked address the submission log could not
+    /// record since start; `None` as above.
+    #[serde(default)]
+    pub mask_submit_log_failed: Option<u64>,
 }
 
 #[cfg(test)]
@@ -55,6 +64,8 @@ mod tests {
             total_connections: 483,
             total_messages: 17,
             uptime_secs: 18_346,
+            probe_guard_tripped: Some(3),
+            mask_submit_log_failed: Some(1),
         };
         let bytes = serde_json::to_vec(&sent).unwrap();
         let got: ReceiverStats = serde_json::from_slice(&bytes).unwrap();

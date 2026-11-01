@@ -25,6 +25,7 @@ import {
   inputClass,
   SectionHeader,
 } from './_shared'
+import { MaskedForwardersHelp } from './masked-forwarders-help'
 
 const EMPTY: WireMaskedEmail[] = []
 
@@ -55,6 +56,7 @@ export function MaskedEmailsSection() {
           ))}
         </ul>
       </div>
+      <MaskedForwardersHelp />
     </div>
   )
 }

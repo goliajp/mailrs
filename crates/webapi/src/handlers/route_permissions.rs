@@ -75,6 +75,7 @@ pub const ADMIN_ROUTES: &[(&str, Need)] = &[
     ("/api/admin/groups/{id}/members", GROUPS),
     ("/api/admin/groups/{id}/members/{address}", GROUPS),
     ("/api/admin/groups/{id}/permissions", GROUPS),
+    ("/api/admin/masked-submissions", Super),
     ("/api/admin/mock", SYSTEM),
     ("/api/admin/mock/settings", SYSTEM),
     ("/api/admin/oauth-clients", OAUTH),
