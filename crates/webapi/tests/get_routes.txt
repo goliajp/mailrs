@@ -91,6 +91,7 @@
 /api/settings/forwarding	read only, never the code
 /api/mail/drafts	read only
 /api/mail/export	read only
+/api/mail/import/imap	read only
 /api/mail/folders	read only
 /api/mail/folders/{name}/messages	read only
 /api/mail/image/{name}	read only; touches the cached file's mtime as its last read

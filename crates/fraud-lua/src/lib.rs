@@ -4,6 +4,7 @@
 
 mod facts;
 mod reload;
+pub mod stored;
 pub use reload::{Scan, scan};
 
 use luna_jit::runtime::Value;

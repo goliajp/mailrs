@@ -31,7 +31,14 @@ impl SentStore for Recorder {
             .push((blob_ref.to_string(), a.is_own, a.thread_id.clone()));
         Ok(())
     }
-    fn index_arrival(&self, _: &str, blob_ref: &str, _: &[u8], a: &Arrival<'_>) -> io::Result<()> {
+    fn index_arrival(
+        &self,
+        _: &str,
+        blob_ref: &str,
+        _: &[u8],
+        a: &Arrival<'_>,
+        _: Option<&str>,
+    ) -> io::Result<()> {
         self.arrivals
             .borrow_mut()
             .push((blob_ref.to_string(), a.is_own, a.thread_id.clone()));
@@ -136,7 +143,7 @@ fn an_imported_message_is_filed_in_the_inbox_as_received() {
         indexed: RefCell::default(),
         arrivals: RefCell::default(),
     };
-    let filed = crate::import::file(&core, "alice@example.test", RECEIVED).expect("filed");
+    let filed = crate::import::file(&core, "alice@example.test", RECEIVED, None).expect("filed");
     assert_eq!(filed.message_id, "theirs@x.test");
     assert_eq!(filed.thread_id, "t-parent");
     let inbox = tmp.path().join("example.test/alice");

@@ -1,4 +1,4 @@
-//! What the sweep reads off one stored message for the rules.
+//! What is read off one stored message for the rules.
 //!
 //! The same facts the receive path assembles, from the same extractors.
 //! Two assemblies of one message is how a folded header came to be
@@ -6,11 +6,15 @@
 
 /// Everything read off one message, owned, so [`Reading::facts`] can lend
 /// it to the rules.
-pub(super) struct Reading {
-    pub(super) from: String,
-    pub(super) subject: String,
-    pub(super) host: String,
-    pub(super) reply_to: String,
+pub struct Reading {
+    /// `From:`, decoded.
+    pub from: String,
+    /// `Subject:`, decoded.
+    pub subject: String,
+    /// The host of the `From:` address.
+    pub host: String,
+    /// The `Reply-To:` address.
+    pub reply_to: String,
     registrable: String,
     x_mailer: Option<String>,
     to_display: String,
@@ -34,7 +38,7 @@ pub(super) struct Reading {
 impl Reading {
     /// Read `raw`. `attachment_texts` is what extraction stored for this
     /// message, empty when it has none or has not been processed.
-    pub(super) fn of(raw: &[u8], our_stamp: Option<&str>, attachment_texts: &[String]) -> Self {
+    pub fn of(raw: &[u8], our_stamp: Option<&str>, attachment_texts: &[String]) -> Self {
         let from = mailrs_inbound::from_header(raw);
         let host = from
             .rfind('@')
@@ -93,7 +97,7 @@ impl Reading {
     }
 
     /// The facts, with the two that come from the history store.
-    pub(super) fn facts(&self, domain_seen: u64, reply_rotation: u32) -> mailrs_fraud::Facts<'_> {
+    pub fn facts(&self, domain_seen: u64, reply_rotation: u32) -> mailrs_fraud::Facts<'_> {
         mailrs_fraud::Facts {
             from: &self.from,
             subject: &self.subject,

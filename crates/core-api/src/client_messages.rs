@@ -40,9 +40,10 @@ impl Client {
         &self,
         user: &str,
         message: &[u8],
+        fraud_verdict: Option<String>,
     ) -> ApiResult<method::sent::FileSentResponse> {
         let path = format!("/v1/users/{}/import", Self::enc(user));
-        let req = method::import::ImportMessageRequest::new(message);
+        let req = method::import::ImportMessageRequest::new(message, fraud_verdict);
         self.post_authed_json(path, &req, "import_message").await
     }
 

@@ -19,6 +19,7 @@ pub mod email_groups;
 pub mod forwarding;
 pub mod identity_link;
 pub mod image_prefetch;
+pub mod imap_import;
 pub mod local_forward;
 pub mod mock;
 pub mod outbound;
