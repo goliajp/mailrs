@@ -54,6 +54,10 @@ pub enum Kind {
     /// One of our sending addresses is on a DNS blocklist the deployment
     /// checks daily.
     EgressListed,
+    /// The daily audit chain check found a row changed, removed or added
+    /// after it was sealed, or the chain disagreeing with its replica, or
+    /// the replica could not be written.
+    AuditChainBroken,
 }
 
 impl Kind {

@@ -41,6 +41,12 @@ pub(super) fn spawn_workers(state: &Arc<FastcoreState>, kevy_dir: &str) {
     // Say now whether push is on, rather than at the first delivery.
     push::warm();
     aof_compact::spawn(state.clone(), kevy_dir.to_string());
+    // the audit chain is sealed and checked by whichever core runs
+    let audit_state = state.clone();
+    mailrs_core_sidestate::families::audit_chain::spawn(
+        move || audit_state.net_conn(),
+        mailrs_core_sidestate::families::audit::CAP,
+    );
 
     // ACME renewal task. Reads MAILRS_ACME_EMAIL/DOMAINS; noop if
     // either is unset. Binds port 80 for the HTTP-01 challenge server
