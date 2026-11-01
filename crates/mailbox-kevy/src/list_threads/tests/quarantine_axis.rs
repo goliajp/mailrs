@@ -324,3 +324,34 @@ fn a_held_thread_is_on_no_unread_axis_even_while_unread() {
     assert_eq!(tids(&live), ["live"], "held mail reached the ordinary list");
     assert_eq!(live_total, 1);
 }
+
+/// A flagged list keys on its flag's index, and held mail stays out of it
+/// as it stays out of the rest; asking for held mail as well lists each
+/// conversation once, archived ones included.
+#[test]
+fn flagged_lists_leave_held_mail_out_and_list_it_once_when_asked() {
+    let st = store();
+    let u = "alice@x.com";
+    for (tid, at) in [("held", 300), ("filed", 200), ("plain", 100)] {
+        st.upsert_thread(u, &row(tid, at)).unwrap();
+        st.set_starred(u, tid, true).unwrap();
+    }
+    st.set_quarantined(u, "held", true).unwrap();
+    st.set_archived(u, "filed", true).unwrap();
+    let starred = ListThreadsFilter {
+        starred: true,
+        ..Default::default()
+    };
+    let (rows, total) = st.list_threads_by_activity(u, &starred, 0, 10).unwrap();
+    assert_eq!((tids(&rows), total), (vec!["plain"], 1));
+
+    let all_with_held = ListThreadsFilter {
+        folder: Some("all"),
+        quarantine: QuarantineScope::Include,
+        ..Default::default()
+    };
+    let (rows, total) = st
+        .list_threads_by_activity(u, &all_with_held, 0, 10)
+        .unwrap();
+    assert_eq!((tids(&rows), total), (vec!["held", "filed", "plain"], 3));
+}
