@@ -6780,6 +6780,16 @@ export interface components {
                 /** @description Mail submitted from a masked address whose submission-log row could not be written; the mail was sent */
                 mask_submit_log_failed?: number | null;
             } | null;
+            /** @description The daily check of this server's sending addresses against the configured blocklists. Null when the store cannot be read. */
+            egress?: {
+                /** @description An address is on a list; null before the first check */
+                listed?: boolean | null;
+                zones_listed?: string[];
+                /** @description Unix seconds of the last check */
+                checked_at?: number | null;
+                /** @description The last check is older than 36 hours; null before the first */
+                stale?: boolean | null;
+            } | null;
         };
         LoginRequest: {
             address: string;
