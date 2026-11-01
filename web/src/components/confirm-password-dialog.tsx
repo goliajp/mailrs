@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { MobileModal } from '@/components/mobile-modal'
 import { btnPrimary, btnSecondary, inputClass } from '@/components/settings/_shared'
 import { useSignOut } from '@/hooks/use-sign-out'
+import { useT } from '@/i18n'
 import { registerConfirmAsker } from '@/lib/confirm-asker'
 import { wireConfirm, type WireConfirmOutcome } from '@/wire/endpoints/auth'
 
@@ -41,6 +42,7 @@ function codeToSend(needsCode: boolean, code: string): string | undefined {
 }
 
 function ConfirmPasswordDialog({ onDone }: { onDone: (confirmed: boolean) => void }) {
+  const t = useT()
   const [password, setPassword] = useState('')
   const [code, setCode] = useState('')
   const [needsCode, setNeedsCode] = useState(false)
@@ -53,13 +55,13 @@ function ConfirmPasswordDialog({ onDone }: { onDone: (confirmed: boolean) => voi
     setBusy(true)
     setError(null)
     const outcome = await wireConfirm(password, codeToSend(needsCode, code)).catch(
-      (): WireConfirmOutcome => ({ kind: 'refused', message: 'Could not reach the server' })
+      (): WireConfirmOutcome => ({ kind: 'refused', message: t('confirm.unreachable') })
     )
     setBusy(false)
     switch (outcome.kind) {
       case 'code-needed':
         setNeedsCode(true)
-        setError('Enter the code from your authenticator app')
+        setError(t('confirm.needCode'))
         return
       case 'confirmed':
         onDone(true)
@@ -88,14 +90,12 @@ function ConfirmPasswordDialog({ onDone }: { onDone: (confirmed: boolean) => voi
       >
         <div className="space-y-1">
           <h2 className="text-base font-semibold" id="confirm-password-title">
-            Confirm it’s you
+            {t('confirm.title')}
           </h2>
-          <p className="text-fg-secondary text-sm">
-            Enter your password to continue. You won’t be asked again for 10 minutes.
-          </p>
+          <p className="text-fg-secondary text-sm">{t('confirm.body')}</p>
         </div>
         <label className="block space-y-1">
-          <span className="text-fg-secondary text-sm font-medium">Password</span>
+          <span className="text-fg-secondary text-sm font-medium">{t('login.password')}</span>
           <input
             autoComplete="current-password"
             autoFocus
@@ -107,7 +107,7 @@ function ConfirmPasswordDialog({ onDone }: { onDone: (confirmed: boolean) => voi
         </label>
         {needsCode && (
           <label className="block space-y-1">
-            <span className="text-fg-secondary text-sm font-medium">Authenticator code</span>
+            <span className="text-fg-secondary text-sm font-medium">{t('confirm.code')}</span>
             <input
               autoComplete="one-time-code"
               className={`${inputClass} w-full`}
@@ -124,10 +124,10 @@ function ConfirmPasswordDialog({ onDone }: { onDone: (confirmed: boolean) => voi
         )}
         <div className="flex justify-end gap-2">
           <button className={btnSecondary} onClick={() => onDone(false)} type="button">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button className={btnPrimary} disabled={busy || password === ''} type="submit">
-            Continue
+            {t('confirm.continue')}
           </button>
         </div>
       </form>

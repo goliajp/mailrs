@@ -31,7 +31,16 @@ const KEEP = new Set([
   'DMARC',
   'MBOX',
   'mailrs',
+  // status-bar and monitor labels
+  'PG',
+  'Kevy',
+  'TLS',
+  'web',
+  'api',
 ])
+
+// sample content for the component showcase, not interface text
+const EXEMPT = new Set(['src/pages/playground.tsx'])
 
 function files(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -107,6 +116,7 @@ function read(): Map<string, number> {
 const baseline = read()
 const now = new Map<string, number>()
 for (const f of files(SRC)) {
+  if (EXEMPT.has(relative(ROOT, f))) continue
   const n = count(readFileSync(f, 'utf8'))
   if (n > 0) now.set(relative(ROOT, f), n)
 }

@@ -2,6 +2,8 @@ import type { WireSend } from '@/wire/schemas/sends'
 
 import { Pencil, RotateCw, Trash2 } from 'lucide-react'
 
+import { type Key, useT } from '@/i18n'
+
 import { failedRecipients } from './send-model'
 
 /**
@@ -27,6 +29,7 @@ export function FailureDetail({
   resending: boolean
   send: WireSend
 }) {
+  const t = useT()
   const failed = failedRecipients(send)
 
   return (
@@ -62,7 +65,7 @@ export function FailureDetail({
               type="button"
             >
               <Pencil aria-hidden className="h-3.5 w-3.5" />
-              Edit and send again
+              {t('sends.redraft')}
             </button>
           </>
         )}
@@ -73,23 +76,18 @@ export function FailureDetail({
           type="button"
         >
           <Trash2 aria-hidden className="h-3.5 w-3.5" />
-          {deleteLabel(deleting)}
+          {t(deleteLabel(deleting))}
         </button>
       </div>
 
-      {!send.can_resend && (
-        <p className="text-fg-muted text-mini mt-2">
-          The stored copy of this message is missing, so it cannot be resent or edited. Its text is
-          still in the conversation.
-        </p>
-      )}
+      {!send.can_resend && <p className="text-fg-muted text-mini mt-2">{t('sends.noCopy')}</p>}
     </div>
   )
 }
 
-function deleteLabel(deleting: boolean): string {
-  if (deleting) return 'Deleting…'
-  return 'Delete'
+function deleteLabel(deleting: boolean): Key {
+  if (deleting) return 'sends.deleting'
+  return 'labels.delete'
 }
 
 /** `550 5.1.1 no such user`, or just the code when the remote said nothing. */

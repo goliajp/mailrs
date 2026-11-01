@@ -28,7 +28,7 @@ import { sectionForPath } from '@/components/status-bar-model'
 import { useCurrentUnreadCount } from '@/hooks/use-current-mail-filters'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import { useMailEvents } from '@/hooks/use-mail-events'
-import { syncDocumentLang } from '@/i18n'
+import { syncDocumentLang, useT } from '@/i18n'
 import { MPane } from '@/layouts/pane'
 import { http } from '@/lib/http'
 import { dashboardLoader, mailListLoader } from '@/lib/route-loaders'
@@ -306,6 +306,7 @@ declare const __WEB_VERSION__: string | undefined
  * lives here; anything visible lives in the presentational component.
  */
 function StatusBar() {
+  const t = useT()
   const auth = useAtomValue(authAtom)
   const wsStatus = useAtomValue(connectionStatusAtom)
   const location = useLocation()
@@ -336,7 +337,7 @@ function StatusBar() {
       backend={health}
       identity={auth?.address}
       realtime={wsStatus as never}
-      section={sectionForPath(location.pathname)}
+      section={sectionForPath(location.pathname, t)}
       webVersion={webVersion}
     />
   )

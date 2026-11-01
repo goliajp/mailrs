@@ -3,6 +3,7 @@ import type { ConnectionInfo, SmtpEvent } from '@/lib/types'
 import { useEffect, useRef, useState } from 'react'
 
 import { useSmtpEvents } from '@/hooks/use-smtp-events'
+import { type Key, useT } from '@/i18n'
 import { formatUptime } from '@/lib/format'
 
 // Format a counter that may legitimately be `null` from the backend.
@@ -25,6 +26,7 @@ const EVENT_COLORS: Record<string, string> = {
 }
 
 export function Protocol() {
+  const t = useT()
   const { connected, connections, events, status } = useSmtpEvents()
   const [selectedId, setSelectedId] = useState<null | number>(null)
 
@@ -36,10 +38,8 @@ export function Protocol() {
       {/* header */}
       <div className="border-border flex items-center justify-between border-b px-4 py-3">
         <div>
-          <h1 className="text-lg font-semibold">SMTP Live Monitor</h1>
-          <p className="text-fg-muted mt-0.5 text-sm">
-            real-time SMTP session status and event stream
-          </p>
+          <h1 className="text-lg font-semibold">{t('monitor.title')}</h1>
+          <p className="text-fg-muted mt-0.5 text-sm">{t('monitor.subtitle')}</p>
         </div>
         <div aria-live="polite" className="flex items-center gap-2" role="status">
           <div className={`h-2.5 w-2.5 rounded-full ${connected ? 'bg-success' : 'bg-danger'}`} />
@@ -54,22 +54,22 @@ export function Protocol() {
       <div className="border-border grid grid-cols-2 gap-3 border-b px-6 py-3 md:grid-cols-4">
         <StatusCard
           color="text-success"
-          label="Active Connections"
+          label={t('monitor.active')}
           value={fmt(status?.active_connections)}
         />
         <StatusCard
           color="text-accent"
-          label="Total Connections"
+          label={t('monitor.total')}
           value={fmt(status?.total_connections)}
         />
         <StatusCard
           color="text-warning"
-          label="Messages Delivered"
+          label={t('monitor.delivered')}
           value={fmt(status?.total_messages)}
         />
         <StatusCard
           color="text-fg-secondary"
-          label="Receiver Uptime"
+          label={t('monitor.uptime')}
           value={formatUptime(status?.receiver_uptime_secs)}
         />
       </div>
@@ -77,11 +77,11 @@ export function Protocol() {
       <div className="flex flex-1 overflow-hidden">
         {/* left: connection list */}
         <section
-          aria-label="Active SMTP sessions"
+          aria-label={t('monitor.sessionsLabel')}
           className="border-border flex w-72 shrink-0 flex-col border-r"
         >
           <div className="border-border text-fg-muted border-b px-4 py-2 text-xs font-medium tracking-wider uppercase">
-            Active Sessions ({connList.length})
+            {t('monitor.sessions', { count: connList.length })}
           </div>
           <div className="flex-1 space-y-1 overflow-y-auto p-2">
             {connList.map((conn) => (
@@ -93,13 +93,15 @@ export function Protocol() {
               />
             ))}
             {connList.length === 0 && (
-              <div className="text-fg-muted p-4 text-center text-xs">no active connections</div>
+              <div className="text-fg-muted p-4 text-center text-xs">
+                {t('monitor.noConnections')}
+              </div>
             )}
           </div>
         </section>
 
         {/* center: conversation */}
-        <section aria-label="Session conversation" className="flex flex-1 flex-col">
+        <section aria-label={t('monitor.conversation')} className="flex flex-1 flex-col">
           <div className="border-border text-fg-muted border-b px-4 py-2 text-xs font-medium tracking-wider uppercase">
             {selectedConn ? `Session #${selectedConn.id} — ${selectedConn.addr}` : 'Conversation'}
           </div>
@@ -110,11 +112,11 @@ export function Protocol() {
 
         {/* right: event log */}
         <section
-          aria-label="Event stream"
+          aria-label={t('monitor.eventsLabel')}
           className="border-border flex w-96 shrink-0 flex-col border-l"
         >
           <div className="border-border text-fg-muted border-b px-4 py-2 text-xs font-medium tracking-wider uppercase">
-            Event Stream ({events.length})
+            {t('monitor.events', { count: events.length })}
           </div>
           <div className="flex-1 overflow-hidden">
             <EventLog events={events} />
@@ -163,6 +165,7 @@ function ConnectionRow({
 }
 
 function ConversationView({ conn }: { conn: ConnectionInfo | null }) {
+  const t = useT()
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -175,7 +178,7 @@ function ConversationView({ conn }: { conn: ConnectionInfo | null }) {
   if (!conn) {
     return (
       <div className="text-fg-muted flex h-full items-center justify-center text-sm">
-        select a connection to view its SMTP conversation
+        {t('monitor.selectConnection')}
       </div>
     )
   }
@@ -187,7 +190,7 @@ function ConversationView({ conn }: { conn: ConnectionInfo | null }) {
         return (
           <div className={`flex gap-2 ${isServer ? '' : 'flex-row-reverse'}`} key={i}>
             <div
-              aria-label={isServer ? 'Server' : 'Client'}
+              aria-label={t(sideLabel(isServer))}
               className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
                 isServer ? 'bg-success/10 text-success' : 'bg-accent/10 text-accent'
               }`}
@@ -207,7 +210,7 @@ function ConversationView({ conn }: { conn: ConnectionInfo | null }) {
         )
       })}
       {conn.lines.length === 0 && (
-        <div className="text-fg-muted text-sm">waiting for commands...</div>
+        <div className="text-fg-muted text-sm">{t('monitor.waiting')}</div>
       )}
     </div>
   )
@@ -222,6 +225,7 @@ function EventBadge({ type }: { type: string }) {
 }
 
 function EventLog({ events }: { events: SmtpEvent[] }) {
+  const t = useT()
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -244,11 +248,7 @@ function EventLog({ events }: { events: SmtpEvent[] }) {
             <span className="text-fg-muted truncate">{formatEvent(event)}</span>
           </div>
         ))}
-      {events.length === 0 && (
-        <div className="text-fg-muted text-xs">
-          no events yet — connect to the SMTP server to see real-time activity
-        </div>
-      )}
+      {events.length === 0 && <div className="text-fg-muted text-xs">{t('monitor.noEvents')}</div>}
     </div>
   )
 }
@@ -276,6 +276,11 @@ function formatEvent(event: SmtpEvent): string {
     default:
       return ''
   }
+}
+
+function sideLabel(server: boolean): Key {
+  if (server) return 'monitor.server'
+  return 'monitor.client'
 }
 
 function StatusCard({
