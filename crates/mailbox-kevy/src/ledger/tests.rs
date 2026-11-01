@@ -92,6 +92,7 @@ fn deleting_a_message_takes_its_rows_and_verdict_out_of_every_index() {
     ))
     .unwrap();
     st.record_verdict(
+        "a@x",
         "m1",
         &LedgerVerdict {
             rules: vec!["r1".into()],
@@ -101,11 +102,11 @@ fn deleting_a_message_takes_its_rows_and_verdict_out_of_every_index() {
         },
     )
     .unwrap();
-    st.delete_ledger("m1").unwrap();
+    st.delete_ledger("a@x", "m1").unwrap();
     assert!(st.ledger_by_domain("shop.example").unwrap().is_empty());
     assert!(st.ledger_by_link_host("pay.example").unwrap().is_empty());
     assert!(st.ledger_by_attachment("aa").unwrap().is_empty());
-    assert!(st.store().hgetall(b"L:v:m1").unwrap().is_empty());
+    assert!(st.store().hgetall(b"L:v:a@x|m1").unwrap().is_empty());
 }
 
 #[test]
@@ -134,4 +135,125 @@ fn a_relationship_keeps_its_first_time_and_counts_every_message() {
     assert_eq!(get("first_at").as_deref(), Some("100"));
     assert_eq!(get("in").as_deref(), Some("2"));
     assert_eq!(get("name").as_deref(), Some("B. Y."));
+}
+
+#[test]
+fn the_same_message_to_two_readers_is_two_records() {
+    let st = store();
+    assert!(
+        st.record_ledger(&facts("m1", "a@x", "shop.example", &[], &[]))
+            .unwrap()
+    );
+    assert!(
+        st.record_ledger(&facts("m1", "b@x", "shop.example", &[], &[]))
+            .unwrap()
+    );
+    let mut readers: Vec<String> = st
+        .ledger_by_domain("shop.example")
+        .unwrap()
+        .into_iter()
+        .map(|(_, u)| u)
+        .collect();
+    readers.sort();
+    assert_eq!(readers, ["a@x", "b@x"]);
+    st.delete_ledger("a@x", "m1").unwrap();
+    assert_eq!(
+        st.ledger_by_domain("shop.example").unwrap(),
+        [("m1".into(), "b@x".into())]
+    );
+}
+
+#[test]
+fn deleting_a_thread_forgets_its_messages_in_the_ledger() {
+    let st = store();
+    st.ensure_thread_table();
+    st.record_message_arrival(&crate::MessageArrival {
+        thread_id: "t1",
+        user: "a@x",
+        subject: "s",
+        senders_csv: "billing@shop.example",
+        latest_date: 100,
+        latest_preview: "p",
+        category: "inbox",
+        unread: true,
+        is_own: false,
+    })
+    .unwrap();
+    let wire = serde_json::json!({
+        "uid": 1, "sender": "billing@shop.example", "recipients": "a@x", "subject": "s",
+        "date": 1, "internal_date": 1, "size": 1, "flags": 0,
+        "message_id": "m1", "in_reply_to": "", "thread_id": "t1", "modseq": 0,
+    });
+    let facts_row = crate::UserMessageFacts {
+        blob_ref: "f1",
+        uid: 1,
+        flags: 0,
+        modseq: 0,
+    };
+    st.upsert_user_message(
+        "a@x",
+        "t1",
+        "m1",
+        1,
+        &serde_json::to_vec(&wire).unwrap(),
+        &facts_row,
+    )
+    .unwrap();
+    st.record_ledger(&facts("m1", "a@x", "shop.example", &["pay.example"], &[]))
+        .unwrap();
+    st.delete_thread("a@x", "t1").unwrap();
+    assert!(st.ledger_by_domain("shop.example").unwrap().is_empty());
+    assert!(st.ledger_by_link_host("pay.example").unwrap().is_empty());
+}
+
+#[test]
+fn what_is_written_reads_back() {
+    let st = store();
+    let f = LedgerFacts {
+        reply_to: "refunds@elsewhere.example".into(),
+        ..facts(
+            "m1",
+            "a@x",
+            "shop.example",
+            &["pay.example", "cdn.example"],
+            &["aa", "bb"],
+        )
+    };
+    st.record_ledger(&f).unwrap();
+    let back = st.ledger_facts("a@x", "m1").unwrap().unwrap();
+    assert_eq!(back.message_id, "m1");
+    assert_eq!(back.user, "a@x");
+    assert_eq!(back.from_addr, f.from_addr);
+    assert_eq!(back.from_domain, "shop.example");
+    assert_eq!(back.reply_to, "refunds@elsewhere.example");
+    assert_eq!(back.auth, "pass/pass/pass");
+    assert_eq!(back.arrived, 1_700_000_000);
+    assert_eq!(back.link_hosts, ["pay.example", "cdn.example"]);
+    assert_eq!(back.attachment_sha256, ["aa", "bb"]);
+    assert!(st.ledger_facts("b@x", "m1").unwrap().is_none());
+
+    let v = LedgerVerdict {
+        rules: vec!["r1".into(), "r2".into()],
+        score: 4.5,
+        rules_version: "lua:abc".into(),
+        judged_at: 9,
+    };
+    st.record_verdict("a@x", "m1", &v).unwrap();
+    let got = st.ledger_verdict("a@x", "m1").unwrap().unwrap();
+    assert_eq!(got.rules, v.rules);
+    assert_eq!(got.score, v.score);
+    assert_eq!(got.rules_version, v.rules_version);
+    assert_eq!(got.judged_at, v.judged_at);
+
+    st.record_inbound_relationship("a@x", "b@y", "Bee", 100)
+        .unwrap();
+    assert_eq!(
+        st.relationship("a@x", "b@y").unwrap(),
+        Some(super::Relationship {
+            first_at: 100,
+            inbound: 1,
+            name: "Bee".into()
+        })
+    );
+    assert!(st.relationship("a@x", "nobody@y").unwrap().is_none());
 }

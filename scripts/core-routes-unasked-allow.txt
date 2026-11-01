@@ -61,3 +61,4 @@ POST /v1/admin/password-clear | the operator clears passwords on the host (127.0
 POST /v1/admin/password-clear:preview | what the operator's clearing would cut off, run on the host before clearing
 POST /v1/admin/maintenance:screening-replay | read-only replay of the screening rules over stored mail, run by hand on the host before a rule bundle is approved
 POST /v1/admin/maintenance:ledger-estimate | read-only measurement of the fact ledger's memory on real mail, run by hand on a copy before the ledger is built
+POST /v1/admin/maintenance:backfill-ledger | operator: records mail delivered before the fact ledger existed, run by hand on a copy first, then on prod
