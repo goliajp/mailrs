@@ -4916,7 +4916,7 @@ export interface paths {
         put?: never;
         /**
          * Create a webhook subscription for any account
-         * @description Admin counterpart of POST /api/agent/webhooks with a different shape: the owning account is named in the body, event_type is required, and the URL and event type are stored as given without validation. Records a `webhook.create` audit row.
+         * @description Admin counterpart of POST /api/agent/webhooks with a different shape: the owning account is named in the body, event_type is required, and the URL is stored as given and the event type must be a known one. Records a `webhook.create` audit row.
          */
         post: operations["adminCreateWebhook"];
         delete?: never;
@@ -6241,11 +6241,8 @@ export interface components {
         CreateWebhookRequest: {
             /** @description Webhook endpoint URL (must be https, or http for localhost) */
             url: string;
-            /**
-             * @default new_message
-             * @enum {string}
-             */
-            event_type: "new_message";
+            /** @description One of: mail.received, mail.held, mail.sent, mail.delivered, mail.deferred, mail.bounced, thread.read, thread.archived, thread.trashed, thread.starred, thread.labelled, calendar.invite_answered (new_message is the old name of mail.received). Anything else is refused with 400. */
+            event_type?: string;
             /** @description Optional sender email filter */
             filter_sender?: string;
             /** @description Optional thread ID filter */
@@ -11800,6 +11797,7 @@ export interface operations {
                     /** @description Account that owns the subscription */
                     account_address: string;
                     url: string;
+                    /** @description One of: mail.received, mail.held, mail.sent, mail.delivered, mail.deferred, mail.bounced, thread.read, thread.archived, thread.trashed, thread.starred, thread.labelled, calendar.invite_answered (new_message is the old name of mail.received). Anything else is refused with 400. */
                     event_type: string;
                     filter_sender?: string;
                     filter_thread_id?: string;

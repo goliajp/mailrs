@@ -19,6 +19,10 @@ pub async fn create_webhook<S: NetKevy>(
     State(state): State<Arc<S>>,
     Json(req): Json<CreateWebhookRequest>,
 ) -> Result<Json<CreateWebhookResponse>, StatusCode> {
+    // a subscription to a name nothing raises would never fire
+    if !mailrs_core_api::webhook_events::is_known(&req.event_type) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
     let mut conn = state.net_conn().ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
     let w = crate::families::webhooks::create(
         &mut conn,

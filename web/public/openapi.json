@@ -1907,7 +1907,8 @@
           "400": {
             "description": "Invalid URL or event type"
           }
-        }
+        },
+        "description": ""
       },
       "get": {
         "operationId": "listWebhooks",
@@ -8806,7 +8807,7 @@
         "tags": [
           "Webhooks"
         ],
-        "description": "Admin counterpart of POST /api/agent/webhooks with a different shape: the owning account is named in the body, event_type is required, and the URL and event type are stored as given without validation. Records a `webhook.create` audit row.",
+        "description": "Admin counterpart of POST /api/agent/webhooks with a different shape: the owning account is named in the body, event_type is required, and the URL is stored as given and the event type must be a known one. Records a `webhook.create` audit row.",
         "requestBody": {
           "required": true,
           "content": {
@@ -8822,7 +8823,8 @@
                     "type": "string"
                   },
                   "event_type": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "One of: mail.received, mail.held, mail.sent, mail.delivered, mail.deferred, mail.bounced, thread.read, thread.archived, thread.trashed, thread.starred, thread.labelled, calendar.invite_answered (new_message is the old name of mail.received). Anything else is refused with 400."
                   },
                   "filter_sender": {
                     "type": "string"
@@ -13923,10 +13925,7 @@
           },
           "event_type": {
             "type": "string",
-            "default": "new_message",
-            "enum": [
-              "new_message"
-            ]
+            "description": "One of: mail.received, mail.held, mail.sent, mail.delivered, mail.deferred, mail.bounced, thread.read, thread.archived, thread.trashed, thread.starred, thread.labelled, calendar.invite_answered (new_message is the old name of mail.received). Anything else is refused with 400."
           },
           "filter_sender": {
             "type": "string",

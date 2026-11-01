@@ -26,6 +26,7 @@ mod sent;
 mod side;
 mod threads;
 mod trash;
+mod webhooks;
 
 const DOMAIN: &str = "example.test";
 const ALICE: &str = "alice@example.test";
@@ -45,6 +46,7 @@ async fn the_two_cores_answer_every_client_call_alike() {
     sent::run(&cores, &mut d).await;
     import::run(&cores, &mut d).await;
     sections::run(&cores, &mut d).await;
+    webhooks::run(&cores, &mut d).await;
     accounts::teardown(&cores, &mut d).await;
     d.both(
         "healthz",

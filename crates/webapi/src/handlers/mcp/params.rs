@@ -172,12 +172,18 @@ pub struct CreateWebhookParams {
     pub account_address: String,
     /// HTTPS URL webhook events are POSTed to.
     pub url: String,
-    /// Event class the webhook fires on (e.g. `mail.new`, `mail.bounce`).
+    /// The event the webhook fires on: `mail.received`, `mail.held`,
+    /// `mail.sent`, `mail.delivered`, `mail.deferred`, `mail.bounced`,
+    /// `thread.read`, `thread.archived`, `thread.trashed`, `thread.starred`,
+    /// `thread.labelled` or `calendar.invite_answered` (`new_message` is the
+    /// old name of `mail.received`).
     pub event_type: String,
-    /// Optional: only fire when the sender address matches (glob-free).
+    /// Optional: only fire for mail from this address (`mail.received`,
+    /// `mail.held`); other events never match a sender filter.
     #[serde(default)]
     pub filter_sender: Option<String>,
-    /// Optional: only fire for events on this thread id.
+    /// Optional: only fire for events on this thread id; events without a
+    /// conversation never match it.
     #[serde(default)]
     pub filter_thread_id: Option<String>,
 }

@@ -50,7 +50,7 @@ pub(crate) fn ingest_delivered_file(
     if !a.is_own {
         crate::importance::score_inbound(state, addr, &a.thread_id, &a.from, a.head, body);
     }
-    effects::before_store(state.net_conn(), addr, &a, body.len());
+    effects::before_store(addr, &a, body.len());
     let held = store_arrival(state, addr, blob_ref, body, &a, fraud_verdict);
     if !a.is_own {
         crate::ledger::record_delivery(state, addr, &a.message_id, body);
@@ -67,7 +67,7 @@ pub(crate) fn ingest_delivered_file(
             == mailrs_mailbox_kevy::scope::Bucket::Junk;
     let actions = mailrs_intake::rules::matching(state.net_conn(), addr, &a, held, in_junk);
     crate::rules::apply(state, addr, &a.thread_id, &actions);
-    effects::after_store(addr, &a, held);
+    effects::after_store(state.net_conn(), addr, &a, held);
 }
 
 /// The writes to this store. Returns whether the thread was held as fraud.

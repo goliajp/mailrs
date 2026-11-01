@@ -63,7 +63,7 @@ describe('request bodies match the shared contract', () => {
     const { wireCreateWebhook } = await import('../endpoints/settings')
     const body = await bodyOf(() =>
       wireCreateWebhook({
-        event_type: 'message.received',
+        event_type: 'mail.received',
         filter_sender: 'alerts@example.com',
         filter_thread_id: null,
         url: 'https://hooks.example.com/mailrs',

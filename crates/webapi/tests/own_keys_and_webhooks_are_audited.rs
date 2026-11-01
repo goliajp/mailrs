@@ -46,7 +46,7 @@ async fn own_keys_and_webhooks_leave_an_audit_row() {
             Method::POST,
             "/api/agent/webhooks",
             &alice,
-            Some(json!({ "url": "https://hooks.example/in?token=SECRET-IN-URL", "event_type": "new_mail" })),
+            Some(json!({ "url": "https://hooks.example/in?token=SECRET-IN-URL", "event_type": "mail.received" })),
         )
         .await;
     assert!((200..300).contains(&status), "{hook}");
