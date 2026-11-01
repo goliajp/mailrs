@@ -5,14 +5,14 @@ import { lazy, type ReactNode, Suspense, useState } from 'react'
 
 import { AutosaveWarning } from '@/components/autosave-warning'
 import { ComposerSkeleton } from '@/components/composer-skeleton'
-import { PreviewDialog } from '@/components/reply-box/preview-dialog'
-import { SuggestionsRow } from '@/components/reply-box/suggestions-row'
 import { type Key, useT } from '@/i18n'
 
 import { ComposerActions } from './composer-actions'
 import { ComposerFields } from './composer-fields'
+import { PreviewDialog } from './preview-dialog'
 import { quoteOf } from './quote'
 import { isReplyLike } from './start'
+import { SuggestionsRow } from './suggestions-row'
 
 const StructuredCompose = lazy(() =>
   import('@/components/structured-compose').then((m) => ({ default: m.StructuredCompose }))
