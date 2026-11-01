@@ -18,6 +18,13 @@ describe('request bodies match the shared contract', () => {
     expect(update).toEqual(fixture('label-update'))
   })
 
+  it('senders-accept', async () => {
+    const { wireAcceptSenders } = await import('../endpoints/senders')
+    const body = await bodyOf(() => wireAcceptSenders(['eve@far.test', 'zed@far.test']))
+    expect(body).toEqual(fixture('senders-accept'))
+    expect(capturedRequest().method).toBe('POST')
+  })
+
   it('feedback', async () => {
     const { wireRecordFeedback } = await import('../endpoints/mail')
     const body = await bodyOf(() => wireRecordFeedback('someone@example.com', 'block'))

@@ -51,6 +51,8 @@ export type ConversationFilter = {
   readonly category?: Category
   readonly domains?: readonly string[]
   readonly folder?: Folder
+  /** With section `awaiting`: only what has waited since this epoch second or earlier. */
+  readonly followupDueBy?: number
   /**
    * Show conversations held as suspected fraud, marked, in place.
    *
@@ -70,6 +72,8 @@ export type ConversationFilter = {
   // /conversations/search endpoint — so it MUST participate in the
   // query key or a search silently reuses the non-search list cache.
   readonly query?: string
+  /** One section of the sectioned inbox. */
+  readonly section?: null | string
   /** The Snoozed list: what is put away until a time still to come. */
   readonly snoozed?: boolean
   readonly starred?: boolean

@@ -21,6 +21,8 @@ export type MailListFilters = {
   category?: null | string
   domains?: string[]
   folder?: null | string
+  /** With `section: 'awaiting'`: only what has waited since this epoch second or earlier. */
+  followupDueBy?: number
   /**
    * Show conversations held as suspected fraud, marked, in place.
    *
@@ -44,6 +46,7 @@ export type MailListFilters = {
    */
   quarantined?: boolean
   query?: string
+  /** One section of the sectioned inbox (`reply`, `awaiting`, `new`, `feed`, `other`). */
   section?: null | string
   /** The Snoozed list: what is put away until a time still to come. */
   snoozed?: boolean
@@ -71,6 +74,7 @@ function normalizeFilters(f: MailListFilters): Record<string, boolean | number |
   if (f.quarantined) out.quarantined = 1
   if (f.query) out.query = f.query
   if (f.section) out.section = f.section
+  if (f.followupDueBy) out.followupDueBy = f.followupDueBy
   if (f.starred) out.starred = 1
   if (f.pinned) out.pinned = 1
   if (f.snoozed) out.snoozed = 1

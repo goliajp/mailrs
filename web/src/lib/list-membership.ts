@@ -25,9 +25,12 @@ export type Bucket = 'inbox' | 'junk' | 'notifications' | 'promotions'
 export type ListAxes = {
   archived: boolean
   folder: null | string
+  followupDueBy?: number
   /** One label's list: what carries it, archived or not. */
   label?: null | string
   pinned?: boolean | null
+  /** One section of the sectioned inbox, and for a follow-up, by when the wait began. */
+  section?: null | string
   /** The Snoozed list, which takes archived threads: they are archived while away. */
   snoozed?: boolean
   starred: boolean | null
@@ -43,6 +46,11 @@ export function belongsTo(axes: ListAxes, row: ConversationSummary): boolean {
   if (axes.trashed) return true
   if (axes.label) return (row.labels ?? []).includes(axes.label)
   if (axes.snoozed) return (row.snoozed_until ?? 0) > Date.now() / 1000
+  // a section is a part of the live list, across folders
+  if (axes.section) {
+    if (row.archived || (row.section ?? '') !== axes.section) return false
+    return !axes.followupDueBy || (row.awaiting_since ?? 0) <= axes.followupDueBy
+  }
   // Archived is exclusive in both directions: it is a list of its own,
   // so an archived thread is in it and in nothing else but All Mail,
   // which takes both sides of the archive.

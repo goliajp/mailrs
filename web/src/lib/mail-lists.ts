@@ -38,6 +38,7 @@ export type MailList = {
 export type MailListId =
   | 'all'
   | 'archived'
+  | 'awaiting'
   | 'draft'
   | 'inbox'
   | 'junk'
@@ -67,9 +68,11 @@ export type ThreadListAxes = Pick<
   MailListFilters,
   | 'archived'
   | 'folder'
+  | 'followupDueBy'
   | 'label'
   | 'pinned'
   | 'quarantined'
+  | 'section'
   | 'snoozed'
   | 'starred'
   | 'trashed'
@@ -93,6 +96,8 @@ export const MAIL_LISTS: Record<MailListId, MailList> = {
     selectable: true,
     source: { filters: { folder: 'all' }, kind: 'threads' },
   },
+  // Across the Inbox and Sent: the reader wrote last and no person has
+  // answered since. Ordered, and paged, by when the wait began.
   archived: {
     emptyLabel: 'list.archived.empty',
     label: 'list.archived',
@@ -100,6 +105,12 @@ export const MAIL_LISTS: Record<MailListId, MailList> = {
     // "archived within Inbox" is not what the tab means.
     selectable: true,
     source: { filters: { archived: true }, kind: 'threads' },
+  },
+  awaiting: {
+    emptyLabel: 'list.awaiting.empty',
+    label: 'list.awaiting',
+    selectable: true,
+    source: { filters: { section: 'awaiting' }, kind: 'threads' },
   },
   draft: {
     emptyLabel: 'list.draft.empty',
@@ -202,6 +213,7 @@ export const MAIL_LIST_TABS: MailListId[] = [
   'starred',
   'pinned',
   'snoozed',
+  'awaiting',
   'send',
   'draft',
   'all',

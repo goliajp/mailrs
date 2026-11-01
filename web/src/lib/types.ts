@@ -78,6 +78,8 @@ export type ConversationSummary = {
    */
   account_id?: string
   archived: boolean
+  /** Epoch seconds the reader started waiting on a reply; 0 or absent when not waiting. */
+  awaiting_since?: number
   category: string
   flagged: boolean
   importance_level: string
@@ -91,6 +93,8 @@ export type ConversationSummary = {
   quarantined?: boolean
   received_count: number
   requires_action: boolean
+  /** The sectioned inbox's section; '' or absent when not decided. */
+  section?: string
   sent_count: number
   snippet: string
   // Epoch seconds this reader put the thread away until, or 0.

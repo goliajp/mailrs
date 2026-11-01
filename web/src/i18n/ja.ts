@@ -6,12 +6,14 @@ import { appJa } from './app/ja'
 import { calendarJa } from './calendar/ja'
 import { composerJa } from './composer/ja'
 import { mockJa } from './mock/ja'
+import { sectionsJa } from './sections/ja'
 import { settingsJa } from './settings/ja'
 
 export const ja: Record<Key, string> = {
   ...appJa,
   ...composerJa,
   ...calendarJa,
+  ...sectionsJa,
   ...settingsJa,
   ...mockJa,
   ...adminJa,

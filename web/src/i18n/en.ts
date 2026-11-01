@@ -4,6 +4,7 @@ import { appEn } from './app/en'
 import { calendarEn } from './calendar/en'
 import { composerEn } from './composer/en'
 import { mockEn } from './mock/en'
+import { sectionsEn } from './sections/en'
 import { settingsEn } from './settings/en'
 
 /**
@@ -15,6 +16,7 @@ export const en = {
   ...appEn,
   ...composerEn,
   ...calendarEn,
+  ...sectionsEn,
   ...settingsEn,
   ...mockEn,
   ...adminEn,
