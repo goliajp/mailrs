@@ -7064,6 +7064,14 @@ export interface operations {
                 folder?: string;
                 /** @description Show conversations held as suspected fraud in place, marked. Default false; the exclusion lives in the query shape, so held conversations are out of the totals too. */
                 include_quarantined?: boolean;
+                /** @description Only conversations with unread mail */
+                unread?: boolean;
+                /** @description Only starred conversations */
+                starred?: boolean;
+                /** @description Only pinned conversations, across folders */
+                pinned?: boolean;
+                /** @description Only conversations snoozed until a time still to come, across folders */
+                snoozed?: boolean;
             };
             header?: never;
             path?: never;

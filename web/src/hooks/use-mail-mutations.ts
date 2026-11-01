@@ -401,6 +401,17 @@ export function useUnpinMutation() {
 export function useUnsnoozeMutation() {
   return useMutation<unknown, Error, { threadId: string }, Context>({
     mutationFn: ({ threadId }) => unsnoozeApi(threadId),
+    onError: (_e, _vars, ctx) => {
+      if (ctx) rollbackConversations(ctx.snapshots)
+    },
+    // what the endpoint writes: back in its list, with no time set
+    onMutate: async ({ threadId }) => {
+      await cancelConversationFetches()
+      const snapshots = patchConversationFields((c) =>
+        c.thread_id === threadId ? { ...c, archived: false, snoozed_until: 0 } : c
+      )
+      return { snapshots }
+    },
     onSettled: () => invalidateMail(),
   })
 }

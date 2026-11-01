@@ -2,11 +2,13 @@ import type { LucideIcon } from 'lucide-react'
 
 import { useAtomValue, useSetAtom } from 'jotai'
 import {
+  AlarmClock,
   Archive,
   Bell,
   FileText,
   Inbox,
   MailOpen,
+  Pin,
   Send,
   ShieldAlert,
   ShieldQuestion,
@@ -23,15 +25,17 @@ import { MAIL_LIST_TABS, MAIL_LISTS, type MailListId } from '@/lib/mail-lists'
 import { rovingKeyDown } from '@/lib/roving'
 import { activeLabelAtom, activeListAtom, selectLabelAtom } from '@/store/ui'
 
-const ICONS: Record<(typeof MAIL_LIST_TABS)[number], LucideIcon> = {
+const ICONS: Record<MailListId, LucideIcon> = {
   archived: Archive,
   draft: FileText,
   inbox: Inbox,
   junk: ShieldAlert,
   label: Inbox,
   np: Bell,
+  pinned: Pin,
   quarantine: ShieldQuestion,
   send: Send,
+  snoozed: AlarmClock,
   starred: Star,
   trash: Trash2,
   unread: MailOpen,

@@ -180,6 +180,8 @@ async fn main() {
                     folder: None,
                     unread: None,
                     starred: None,
+                    pinned: None,
+                    snoozed: None,
                     section: None,
                 },
             };

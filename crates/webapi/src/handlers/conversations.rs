@@ -57,6 +57,10 @@ pub struct ListQuery {
     pub label: Option<String>,
     pub unread: Option<bool>,
     pub starred: Option<bool>,
+    /// The Pinned list.
+    pub pinned: Option<bool>,
+    /// The Snoozed list: conversations put away until a time still to come.
+    pub snoozed: Option<bool>,
     pub section: Option<String>,
     /// Comma-separated account ids to narrow the list to.
     ///
@@ -256,6 +260,8 @@ pub async fn get_conversations(
             folder: q.folder,
             unread: q.unread,
             starred: q.starred,
+            pinned: q.pinned,
+            snoozed: q.snoozed,
             section: q.section,
         },
     };

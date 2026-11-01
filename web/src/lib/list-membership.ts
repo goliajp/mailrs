@@ -27,6 +27,9 @@ export type ListAxes = {
   folder: null | string
   /** One label's list: what carries it, archived or not. */
   label?: null | string
+  pinned?: boolean | null
+  /** The Snoozed list, which takes archived threads: they are archived while away. */
+  snoozed?: boolean
   starred: boolean | null
   trashed: boolean
   unread: boolean | null
@@ -39,10 +42,12 @@ export function belongsTo(axes: ListAxes, row: ConversationSummary): boolean {
   if (trashed !== axes.trashed) return false
   if (axes.trashed) return true
   if (axes.label) return (row.labels ?? []).includes(axes.label)
+  if (axes.snoozed) return (row.snoozed_until ?? 0) > Date.now() / 1000
   // Archived is exclusive in both directions: it is a list of its own,
   // so an archived thread is in it and in nothing else.
   if (row.archived !== axes.archived) return false
   if (axes.starred === true && !row.flagged) return false
+  if (axes.pinned === true && !row.pinned) return false
 
   const bucket = bucketOf(row.category)
   // Case-insensitively, as the server reads it

@@ -32,6 +32,10 @@ pub struct ThreadQuery<'a> {
     pub unread: bool,
     /// Only starred threads.
     pub starred: bool,
+    /// Only pinned threads.
+    pub pinned: bool,
+    /// Only threads snoozed until after this epoch second.
+    pub snoozed_after: Option<i64>,
     /// Held threads: hidden, shown alongside the rest, or the only ones.
     pub held: Held,
     /// Only these threads, whatever their scope.
@@ -64,6 +68,8 @@ impl<'a> ThreadQuery<'a> {
             trashed: Some(false),
             unread: false,
             starred: false,
+            pinned: false,
+            snoozed_after: None,
             held: Held::Hide,
             thread_ids: None,
             before_ts: None,
@@ -269,6 +275,16 @@ impl PgMailboxStore {
         if q.starred {
             wheres.push("t.flagged".into());
         }
+        if q.pinned {
+            wheres.push("t.pinned".into());
+        }
+        let snoozed_param = q.snoozed_after.map(|_| {
+            next += 1;
+            next - 1
+        });
+        if let Some(p) = snoozed_param {
+            wheres.push(format!("t.snoozed_until > ${p}"));
+        }
         let before_param = q.before_ts.map(|_| {
             next += 1;
             next - 1
@@ -291,6 +307,9 @@ impl PgMailboxStore {
         }
         if let Some(c) = category {
             query = query.bind(c);
+        }
+        if let Some(now) = q.snoozed_after {
+            query = query.bind(now);
         }
         if let Some(ts) = q.before_ts {
             query = query.bind(ts);

@@ -32,6 +32,7 @@ export type MailListFilters = {
   includeQuarantined?: boolean
   /** One label's conversations, by label id. */
   label?: string
+  pinned?: boolean
   /**
    * The review list: what was held as suspected fraud, and nothing
    * else.
@@ -44,6 +45,8 @@ export type MailListFilters = {
   quarantined?: boolean
   query?: string
   section?: null | string
+  /** The Snoozed list: what is put away until a time still to come. */
+  snoozed?: boolean
   starred?: boolean
   /** The Trash; the server ignores `archived` and `folder` with it. */
   trashed?: boolean
@@ -69,6 +72,8 @@ function normalizeFilters(f: MailListFilters): Record<string, boolean | number |
   if (f.query) out.query = f.query
   if (f.section) out.section = f.section
   if (f.starred) out.starred = 1
+  if (f.pinned) out.pinned = 1
+  if (f.snoozed) out.snoozed = 1
   if (f.trashed) out.trashed = 1
   if (f.label) out.label = f.label
   if (f.unread) out.unread = 1
