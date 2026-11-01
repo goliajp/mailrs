@@ -193,10 +193,10 @@ pub(super) fn unauth_routes() -> axum::Router<Arc<WebState>> {
     use axum::routing::{get, post};
 
     axum::Router::new()
-        .route("/_health", get(health_handler))
-        .route("/api/health", get(health_handler))
-        .route("/api/readiness", get(readiness_handler))
-        .route("/api/status", get(status_handler))
+        .route("/_health", get(crate::health::health_handler))
+        .route("/api/health", get(crate::health::health_handler))
+        .route("/api/readiness", get(crate::health::readiness_handler))
+        .route("/api/status", get(crate::health::status_handler))
         .route("/api/auth/login", post(handlers::auth::login))
         // a browser reports on its own, with no session token to check
         .route("/api/csp-report", post(handlers::csp_report::receive))
