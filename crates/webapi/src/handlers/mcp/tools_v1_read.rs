@@ -42,6 +42,8 @@ impl MailrsMcpService {
                 folder: params.folder,
                 unread: params.unread_only,
                 starred: None,
+                pinned: None,
+                snoozed: None,
                 section: None,
             },
         };

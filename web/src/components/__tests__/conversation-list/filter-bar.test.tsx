@@ -371,7 +371,7 @@ describe('FilterBar — archived tab', () => {
     expect(screen.getByText('Ordinary')).toBeTruthy()
   })
 
-  it('lays the tabs out as one five-column grid', () => {
+  it('lays the tabs out as one grid, four wide on a phone and six wider', () => {
     flatStub.conversations = [makeConversation()]
 
     render(
@@ -382,7 +382,8 @@ describe('FilterBar — archived tab', () => {
 
     const inbox = screen.getByText('Inbox')
     const grid = inbox.parentElement
-    expect(grid?.className).toContain('grid-cols-5')
+    expect(grid?.className).toContain('grid-cols-4')
+    expect(grid?.className).toContain('sm:grid-cols-6')
     // Every tab in one container, not the overflow in a second row of
     // its own. Derived from the registry rather than counted: the
     // number was `8` until a ninth tab was added, and a test that

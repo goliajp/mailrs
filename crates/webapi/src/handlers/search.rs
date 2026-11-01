@@ -123,6 +123,8 @@ pub async fn semantic_search(
             folder: None,
             unread: None,
             starred: None,
+            pinned: None,
+            snoozed: None,
             section: None,
         },
     };

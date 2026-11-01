@@ -57,7 +57,9 @@ export function useConversationsQuery(filters: MailListFilters, enabled: boolean
       // without query in the key a search reuses the non-search inbox
       // cache and never refetches — search silently shows the inbox.
       label: filters.label,
+      pinned: filters.pinned,
       query: filters.query,
+      snoozed: filters.snoozed,
       starred: filters.starred,
       trashed: filters.trashed,
       unread: filters.unread,
@@ -218,6 +220,8 @@ function listPath(filters: MailListFilters, before?: number): string {
   if (filters.folder) p += `&folder=${encodeURIComponent(filters.folder)}`
   if (filters.unread) p += '&unread=true'
   if (filters.starred) p += '&starred=true'
+  if (filters.pinned) p += '&pinned=true'
+  if (filters.snoozed) p += '&snoozed=true'
   if (filters.section) p += `&section=${encodeURIComponent(filters.section)}`
   p += accountsParam(filters)
   return p

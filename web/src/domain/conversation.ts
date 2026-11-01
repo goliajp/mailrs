@@ -63,12 +63,15 @@ export type ConversationFilter = {
   /** One label's conversations, by label id. */
   readonly label?: string
   readonly limit?: number
+  readonly pinned?: boolean
   /** The review list: what was held, and nothing else. */
   readonly quarantined?: boolean
   // Full-text search term. When set, the list read switches to the
   // /conversations/search endpoint — so it MUST participate in the
   // query key or a search silently reuses the non-search list cache.
   readonly query?: string
+  /** The Snoozed list: what is put away until a time still to come. */
+  readonly snoozed?: boolean
   readonly starred?: boolean
   /** The Trash: what this reader deleted, from every list. */
   readonly trashed?: boolean

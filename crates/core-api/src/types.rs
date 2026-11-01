@@ -205,6 +205,14 @@ pub struct ConversationFilter {
     /// `Some(true)` = starred only, etc.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub starred: Option<bool>,
+    /// `Some(true)` = pinned only, across folders as Starred is.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pinned: Option<bool>,
+    /// `Some(true)` = only conversations put away until a time still to
+    /// come, across folders. They are archived while away, so this list
+    /// ignores `archived`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub snoozed: Option<bool>,
     /// One of: `important` / `other` / `null` (UI section tabs).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub section: Option<String>,
@@ -297,11 +305,15 @@ mod tests {
             folder: Some("INBOX".into()),
             unread: Some(true),
             starred: Some(false),
+            pinned: Some(true),
+            snoozed: Some(true),
             section: Some("important".into()),
         };
         let s = serde_json::to_string(&f).unwrap();
         let back: ConversationFilter = serde_json::from_str(&s).unwrap();
         assert_eq!(back.limit, f.limit);
+        assert_eq!(back.pinned, Some(true));
+        assert_eq!(back.snoozed, Some(true));
         assert_eq!(back.before_ts, f.before_ts);
         assert_eq!(back.domains.as_ref().map(|v| v.len()), Some(2));
     }

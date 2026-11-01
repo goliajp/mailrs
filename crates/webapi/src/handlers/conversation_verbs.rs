@@ -149,6 +149,8 @@ pub async fn mark_all_read(
             folder: q.folder,
             unread: q.unread,
             starred: q.starred,
+            pinned: None,
+            snoozed: None,
             section: q.section,
         };
         state

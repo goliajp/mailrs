@@ -26,11 +26,18 @@ describe('MAIL_LISTS', () => {
     for (const id of MAIL_LIST_TABS) expect(isMailListId(id)).toBe(true)
   })
 
-  // The grid is five wide, so this is where the second row starts. A
-  // list added without thinking about it would push `send` up beside
-  // `junk` and leave the row below looking arbitrary.
-  it('the first row is the five reading lists', () => {
-    expect(MAIL_LIST_TABS.slice(0, 5)).toEqual(['inbox', 'np', 'unread', 'starred', 'junk'])
+  // The grid is six wide, so this is where the second row starts. A
+  // list added without thinking about it would push `send` up into the
+  // reading row and leave the row below looking arbitrary.
+  it('the first row is the six reading lists', () => {
+    expect(MAIL_LIST_TABS.slice(0, 6)).toEqual([
+      'inbox',
+      'np',
+      'unread',
+      'starred',
+      'pinned',
+      'snoozed',
+    ])
   })
 
   it('every list says what it is and what it says when empty', () => {
