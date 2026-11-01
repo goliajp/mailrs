@@ -44,6 +44,7 @@ pub(crate) async fn health_handler(
             .ok()
             .flatten();
     let core_memory = core_memory(&state).await;
+    let kevy_server_memory = kevy_server_memory();
     // the daily check of this server's sending addresses against blocklists
     let egress =
         handlers::kevy_util::with_kevy(mailrs_core_sidestate::families::egress::read_zone_check)
@@ -67,6 +68,7 @@ pub(crate) async fn health_handler(
         "screening_rules": screening["screening_rules"],
         "audit_chain": audit_chain,
         "core_memory": core_memory,
+        "kevy_server_memory": kevy_server_memory,
         "egress": egress,
         "receiver": handlers::smtp_monitor::health(&state.receiver_stats),
     }))
@@ -85,10 +87,7 @@ async fn core_memory(state: &WebState) -> serde_json::Value {
     let Some(m) = health.memory else {
         return serde_json::Value::Null;
     };
-    let percent: u64 = std::env::var("MAILRS_MEMORY_HIGH_PERCENT")
-        .ok()
-        .and_then(|v| v.trim().parse().ok())
-        .unwrap_or(80);
+    let percent = high_percent();
     serde_json::json!({
         "used_bytes": m.used_bytes,
         "limit_bytes": m.limit_bytes,
@@ -96,6 +95,69 @@ async fn core_memory(state: &WebState) -> serde_json::Value {
         "kevy_keys": m.kevy_keys,
         "high": m.limit_bytes.map(|limit| is_high(m.used_bytes, limit, percent)),
     })
+}
+
+/// kevy-server's memory: its resident size and its own count as `INFO
+/// memory` reports them, the container limit the compose file hands this
+/// process as `MAILRS_KEVY_SERVER_MEMORY_LIMIT` (the same value as that
+/// service's `mem_limit`, e.g. `1g`), and whether the resident size is at
+/// or past `MAILRS_MEMORY_HIGH_PERCENT` of it. Null when kevy-server does
+/// not answer; `limit_bytes` and `high` null without a readable limit.
+fn kevy_server_memory() -> serde_json::Value {
+    use kevy_client::Reply;
+    let info = handlers::kevy_util::with_kevy(|c| {
+        c.pipeline(|p| {
+            p.cmd(&[b"INFO", b"memory"]);
+        })
+        .map_err(std::io::Error::from)
+    });
+    let text = match info.as_deref() {
+        Ok([Reply::Bulk(b)]) => String::from_utf8_lossy(b).into_owned(),
+        _ => return serde_json::Value::Null,
+    };
+    let field = |name: &str| info_field(&text, name);
+    let Some(used) = field("process_rss_bytes") else {
+        return serde_json::Value::Null;
+    };
+    let limit = std::env::var("MAILRS_KEVY_SERVER_MEMORY_LIMIT")
+        .ok()
+        .and_then(|v| parse_size(&v));
+    let percent = high_percent();
+    serde_json::json!({
+        "used_bytes": used,
+        "limit_bytes": limit,
+        "kevy_used_bytes": field("used_memory"),
+        "high": limit.map(|l| is_high(used, l, percent)),
+    })
+}
+
+/// The percentage of a limit at which memory reads as high.
+fn high_percent() -> u64 {
+    std::env::var("MAILRS_MEMORY_HIGH_PERCENT")
+        .ok()
+        .and_then(|v| v.trim().parse().ok())
+        .unwrap_or(80)
+}
+
+/// One `name:value` line of an `INFO` reply, as a number.
+fn info_field(info: &str, name: &str) -> Option<u64> {
+    info.lines()
+        .filter_map(|l| l.trim_end().split_once(':'))
+        .find(|(k, _)| *k == name)
+        .and_then(|(_, v)| v.trim().parse().ok())
+}
+
+/// A compose-style size: bytes, or a number with `k`, `m` or `g` (binary).
+fn parse_size(v: &str) -> Option<u64> {
+    let v = v.trim().to_ascii_lowercase();
+    let v = v.strip_suffix('b').unwrap_or(&v);
+    let (num, shift) = match v.as_bytes().last()? {
+        b'k' => (&v[..v.len() - 1], 10),
+        b'm' => (&v[..v.len() - 1], 20),
+        b'g' => (&v[..v.len() - 1], 30),
+        _ => (v, 0),
+    };
+    num.parse::<u64>().ok()?.checked_mul(1 << shift)
 }
 
 /// At or past `percent` of `limit`.
@@ -150,6 +212,29 @@ pub(crate) async fn status_handler(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_compose_size_reads_as_bytes() {
+        assert_eq!(super::parse_size("1g"), Some(1 << 30));
+        assert_eq!(super::parse_size("512m"), Some(512 << 20));
+        assert_eq!(super::parse_size("256K"), Some(256 << 10));
+        assert_eq!(super::parse_size("1048576"), Some(1 << 20));
+        assert_eq!(super::parse_size("1gb"), Some(1 << 30));
+        assert_eq!(super::parse_size(""), None);
+        assert_eq!(super::parse_size("lots"), None);
+    }
+
+    #[test]
+    fn an_info_field_is_read_by_its_exact_name() {
+        let info = "# Memory\r\nused_memory:15367747\r\nused_memory_peak:20000000\r\n\
+                    process_rss_bytes:47800320\r\n";
+        assert_eq!(super::info_field(info, "used_memory"), Some(15_367_747));
+        assert_eq!(
+            super::info_field(info, "process_rss_bytes"),
+            Some(47_800_320)
+        );
+        assert_eq!(super::info_field(info, "maxmemory"), None);
+    }
+
     #[test]
     fn high_is_at_or_past_the_percentage() {
         let gib = 1u64 << 30;
