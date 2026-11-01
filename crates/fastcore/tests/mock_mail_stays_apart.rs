@@ -11,7 +11,9 @@ use std::sync::Arc;
 
 use kevy_client::Connection;
 use mailrs_core_sidestate::families::mock;
-use mock_support::{Smtp, all, files_under, keys, mail_files_under, spool_files};
+use mock_support::{
+    Smtp, all, files_under, keys, mail_files_under, spool_files, wait_for_rules_report,
+};
 
 const KEVY: &str = "mem://mock-mail-stays-apart";
 const DOMAIN: &str = "mock.example.test";
@@ -49,6 +51,7 @@ async fn mock_mail_arrives_once_and_touches_nothing_real() {
     // race, and two racing opens of one mem:// name can each get a store.
     let mut kv = Connection::connect(KEVY).unwrap();
     let receiver = mailrs_receiver::start().await;
+    wait_for_rules_report(&mut kv);
 
     mock::create_namespace(&mut kv, "dev@golia.example.test", "e2e").unwrap();
     let bob = maildir.join("golia.example.test/bob");
