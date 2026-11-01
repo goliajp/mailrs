@@ -136,12 +136,22 @@ pub(crate) fn run(setup: &OcrSetup, job: Job<'_>, bytes: &[u8]) -> Result<Answer
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::os::unix::fs::PermissionsExt;
 
+    /// Written by a `sh` child, never opened in this process: a parallel
+    /// test forking while this process held the file open for writing
+    /// would carry that descriptor into its child, and exec of the script
+    /// then fails with "Text file busy" on Linux.
     fn script(dir: &std::path::Path, body: &str) -> PathBuf {
         let path = dir.join("child.sh");
-        std::fs::write(&path, format!("#!/bin/sh\n{body}\n")).unwrap();
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let ok = Command::new("/bin/sh")
+            .arg("-c")
+            .arg(r#"printf '%s\n' "$1" > "$0" && chmod 755 "$0""#)
+            .arg(&path)
+            .arg(format!("#!/bin/sh\n{body}"))
+            .status()
+            .unwrap()
+            .success();
+        assert!(ok);
         path
     }
 
