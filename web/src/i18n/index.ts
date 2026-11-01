@@ -76,6 +76,11 @@ export function translate(lang: Lang, key: Key, vars?: Record<string, number | s
 
 const LOCALE: Record<Lang, string> = { en: 'en-US', ja: 'ja-JP', zh: 'zh-CN' }
 
+/** The interface language's locale, read at the call, for formatting outside components. */
+export function currentLocale(): string {
+  return LOCALE[getDefaultStore().get(langAtom)]
+}
+
 /** Unix seconds as a date, in the current language. */
 export function useDate() {
   const lang = useAtomValue(langAtom)
@@ -90,6 +95,9 @@ export function useDateTime() {
   const lang = useAtomValue(langAtom)
   return useCallback((unix: number) => new Date(unix * 1000).toLocaleString(LOCALE[lang]), [lang])
 }
+
+/** `t` for code outside components: the interface language at the moment of the call. */
+export const tNow: Translate = (key, vars) => translate(getDefaultStore().get(langAtom), key, vars)
 
 /** The BCP 47 locale of the current language, for `Intl` formatting. */
 export function useLocale(): string {

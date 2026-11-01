@@ -2,7 +2,7 @@ import type { TemplateInfo } from './types'
 
 import { Clock, Loader2, Send, X } from 'lucide-react'
 
-import { useT } from '@/i18n'
+import { currentLocale, useT } from '@/i18n'
 import { sendLabel } from '@/lib/compose-labels'
 
 type ActionBarProps = {
@@ -39,7 +39,7 @@ export function ActionBar({
     <div className="border-border flex shrink-0 flex-wrap items-center gap-1 border-t px-4 py-2 select-none">
       {scheduledAt && (
         <span className="bg-accent/10 text-accent inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs">
-          {new Date(scheduledAt).toLocaleString(undefined, {
+          {new Date(scheduledAt).toLocaleString(currentLocale(), {
             day: 'numeric',
             hour: 'numeric',
             minute: '2-digit',

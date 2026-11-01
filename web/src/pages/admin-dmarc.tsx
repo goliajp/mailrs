@@ -12,7 +12,7 @@ import {
   AdminTable,
   AdminTableSkeleton,
 } from '@/components/admin-page'
-import { type Key, useT } from '@/i18n'
+import { currentLocale, type Key, useT } from '@/i18n'
 import { adminKeys } from '@/lib/query-keys'
 import { fetchDmarcReports, fetchDmarcSources } from '@/wire/endpoints/dmarc'
 
@@ -207,7 +207,7 @@ export function AdminDmarc() {
 /** Unix seconds to a short local date. */
 function formatDay(unixSeconds: number): string {
   if (unixSeconds === 0) return '—'
-  return new Date(unixSeconds * 1000).toLocaleDateString(undefined, {
+  return new Date(unixSeconds * 1000).toLocaleDateString(currentLocale(), {
     day: '2-digit',
     month: 'short',
   })

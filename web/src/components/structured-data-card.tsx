@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 
 import { Copyable } from '@/components/copy-button'
-import { useT } from '@/i18n'
+import { currentLocale, useT } from '@/i18n'
 
 export function StructuredDataCard({ data }: { data: StructuredData }) {
   const t = useT()
@@ -163,7 +163,7 @@ function formatSchemaDate(dateStr: string): string {
   try {
     const d = new Date(dateStr)
     if (isNaN(d.getTime())) return dateStr
-    return d.toLocaleDateString(undefined, {
+    return d.toLocaleDateString(currentLocale(), {
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit',

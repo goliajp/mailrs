@@ -1,7 +1,6 @@
 import { toast } from '@goliapkg/gds'
-import { getDefaultStore } from 'jotai'
 
-import { type Key, langAtom, translate } from '@/i18n'
+import { type Key, tNow as now } from '@/i18n'
 import { invalidateMail } from '@/lib/mail-cache'
 import { wireUndoRuleRun } from '@/wire/endpoints/rules'
 
@@ -38,9 +37,4 @@ export const PLAIN_ACTIONS: { label: Key; value: string }[] = [
 export function errorText(err: unknown): string {
   if (err instanceof Error) return err.message
   return now('settings.somethingWrong')
-}
-
-/** `key` in the interface language at the moment of the call, for code outside components. */
-function now(key: Key, vars?: Record<string, number | string>): string {
-  return translate(getDefaultStore().get(langAtom), key, vars)
 }
