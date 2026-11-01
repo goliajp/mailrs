@@ -1,3 +1,4 @@
+import { useT } from '@/i18n'
 const styles: Record<string, { bg: string; label: string; text: string }> = {
   finance: {
     bg: 'bg-warning/10',
@@ -134,9 +135,10 @@ const importanceStyles: Record<string, { bg: string; icon: string; label: string
   }
 
 export function ActionBadge() {
+  const t = useT()
   return (
     <span className="bg-accent/10 text-accent inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-xs font-medium select-none">
-      Action
+      {t('badge.action')}
     </span>
   )
 }

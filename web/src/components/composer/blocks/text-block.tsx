@@ -3,6 +3,7 @@ import type { TextBlockData } from '../types'
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 
 import { uploadInlineImage } from '@/components/composer/editor-extensions'
+import { useT } from '@/i18n'
 
 // path lean.
 
@@ -17,6 +18,7 @@ type Props = {
 const MIN_HEIGHT_PX = 240
 
 export function TextBlock({ data, disabled, onChange, onSubmit, placeholder }: Props) {
+  const t = useT()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const onSubmitRef = useRef(onSubmit)
@@ -135,7 +137,7 @@ export function TextBlock({ data, disabled, onChange, onSubmit, placeholder }: P
   return (
     <div className="flex flex-col">
       <div className="border-border flex shrink-0 items-center gap-1 border-b px-3 py-1.5">
-        <span className="text-fg-muted text-mini ml-auto">Markdown · Cmd+Enter to send</span>
+        <span className="text-fg-muted text-mini ml-auto">{t('composer.markdownHint')}</span>
       </div>
 
       <textarea

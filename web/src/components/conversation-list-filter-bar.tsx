@@ -213,7 +213,7 @@ export const FilterBar = memo(function FilterBar() {
                     className={panelChipClass(activeCategory === null, '')}
                     onClick={() => setActiveCategory(null)}
                   >
-                    All
+                    {t('sends.all')}
                   </button>
                   {categories.map((cat) => (
                     <button
@@ -242,7 +242,7 @@ export const FilterBar = memo(function FilterBar() {
                   setFiltersOpen(false)
                 }}
               >
-                Reset filters
+                {t('filters.reset')}
               </button>
             )}
           </div>

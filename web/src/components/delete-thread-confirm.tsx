@@ -1,4 +1,5 @@
 import { BottomSheet } from '@/components/bottom-sheet'
+import { useT } from '@/i18n'
 
 /**
  * The question asked before a thread is deleted for good.
@@ -19,27 +20,26 @@ export function DeleteThreadConfirm({
   onConfirm: () => void
   open: boolean
 }) {
+  const t = useT()
   if (!open) return null
   return (
     <BottomSheet onClose={onCancel} open>
       <h3 className="text-fg text-sm font-semibold">{deleteTitle(count)}</h3>
-      <p className="text-fg-muted mt-1.5 text-sm">
-        The messages are deleted and cannot be restored.
-      </p>
+      <p className="text-fg-muted mt-1.5 text-sm">{t('deleteThread.body')}</p>
       <div className="mt-4 flex justify-end gap-2">
         <button
           className="border-border text-fg-secondary hover:bg-bg-secondary rounded-md border px-3 py-2 text-sm transition-colors"
           onClick={onCancel}
           type="button"
         >
-          Cancel
+          {t('common.cancel')}
         </button>
         <button
           className="bg-danger focus-visible:ring-danger/50 rounded-md px-3 py-2 text-sm font-medium text-white transition-colors hover:opacity-90 focus-visible:ring-2 focus-visible:outline-none"
           onClick={onConfirm}
           type="button"
         >
-          Delete forever
+          {t('action.deleteForever')}
         </button>
       </div>
     </BottomSheet>

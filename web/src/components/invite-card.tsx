@@ -272,7 +272,7 @@ export function InviteCard({
         )}
         {payload.organizer && (
           <div className="text-fg-muted mt-1 text-xs">
-            Organizer:{' '}
+            {t('invite.organizer')}{' '}
             {payload.organizer.cn
               ? `${payload.organizer.cn} <${payload.organizer.email}>`
               : payload.organizer.email}

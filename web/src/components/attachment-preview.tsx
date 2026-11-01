@@ -26,6 +26,7 @@ export function AttachmentPreview({
   html?: null | string
   uid: number
 }) {
+  const t = useT()
   const visible = visibleAttachments(attachments, html)
   if (visible.length === 0) return null
 
@@ -36,7 +37,7 @@ export function AttachmentPreview({
     <div className="px-4 py-3">
       <div className="mb-2 flex items-center gap-2">
         <span className="text-fg-muted text-xs font-medium tracking-wide uppercase select-none">
-          Attachments ({visible.length})
+          {t('attachment.count', { count: visible.length })}
         </span>
       </div>
 

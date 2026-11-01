@@ -10,6 +10,7 @@ import { useMemo } from 'react'
 import { ThreadReplyBox } from '@/components/thread-reply-box'
 import { ThreadTimelineItem } from '@/components/thread-view-bubble'
 import { bubbleDateLabel } from '@/components/thread-view-helpers'
+import { type Translate, useT } from '@/i18n'
 import { MPane } from '@/layouts/pane'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { isOwnMessage } from '@/lib/sender-identity'
@@ -57,6 +58,7 @@ export function ThreadConversationPane({
   setShowAllMessages,
   timelineCollapsed,
 }: ConversationPaneProps) {
+  const t = useT()
   const timelineItems = useMemo(() => {
     const visible = hasCollapsedTimeline ? messages.slice(-VISIBLE_RECENT) : messages
     // when collapsed we slice off the tail; the global index of the first
@@ -103,12 +105,12 @@ export function ThreadConversationPane({
           <button
             className="text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary shrink-0 rounded-md p-1 md:hidden"
             onClick={() => setMobileThreadTab('content')}
-            title="Back to email"
+            title={t('thread.backToEmail')}
           >
             <ArrowLeft className="h-4 w-4" />
           </button>
           <span className="text-fg-muted text-xs font-medium">
-            Conversation{messages.length > 1 ? ` (${messages.length})` : ''}
+            {conversationTitle(messages.length, t)}
           </span>
         </div>
         {/* timeline + reply box */}
@@ -136,7 +138,7 @@ export function ThreadConversationPane({
                   className="text-accent hover:text-accent-hover mx-auto mb-2 block text-xs font-medium"
                   onClick={() => setShowAllMessages(true)}
                 >
-                  Show {messages.length - VISIBLE_RECENT} earlier messages
+                  {t('thread.showEarlier', { count: messages.length - VISIBLE_RECENT })}
                 </button>
               )}
               {timelineItems.map((item) => (
@@ -178,4 +180,9 @@ export function ThreadConversationPane({
       </MPane>
     </>
   )
+}
+
+function conversationTitle(count: number, t: Translate): string {
+  if (count > 1) return t('thread.conversationCount', { count })
+  return t('thread.conversation')
 }
