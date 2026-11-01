@@ -6077,7 +6077,7 @@
     "/api/messages/{message_id}/fraud-verdict": {
       "get": {
         "summary": "The four layers that decided one message",
-        "description": "transport / identity / provenance / content, as they were decided, with the rule-set version. `{\"verdict\": null}` when nothing was found \u2014 which is not the same as examined and cleared.",
+        "description": "transport / identity / provenance / content, as they were decided, with the rule-set version; each layer carries `reasons` (codes and values), and `placement` says why it was filed where it was (Junk, a sender rule, the classifier, a filter). `{\"verdict\": null}` when nothing was found and nothing sorted it \u2014 which is not the same as examined and cleared.",
         "tags": [
           "Mail"
         ],
@@ -14766,6 +14766,20 @@
           },
           "structured_data": {
             "type": "object"
+          },
+          "sender_checks": {
+            "type": "array",
+            "description": "What SPF, DKIM and DMARC each said (code auth-check), and sender-bidi when the name renders reordered; empty for mail with no verdict of ours",
+            "items": {
+              "$ref": "#/components/schemas/Reason"
+            }
+          },
+          "link_warnings": {
+            "type": "array",
+            "description": "Links whose text shows another host than they go to, or whose host is listed for fraud",
+            "items": {
+              "$ref": "#/components/schemas/LinkWarning"
+            }
           }
         },
         "required": [
@@ -16502,6 +16516,48 @@
             "type": "integer",
             "nullable": true,
             "description": "Epoch seconds of the last message delivered to it"
+          }
+        }
+      },
+      "Reason": {
+        "type": "object",
+        "description": "Why a message was judged as it was: a code from the reasons table every client words in the reader's language, and the values its sentence names.",
+        "required": [
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "A fraud rule id, or a code such as junk-score, sorted-by-your-rule, auth-check, link-shows-another-host"
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "LinkWarning": {
+        "type": "object",
+        "required": [
+          "host",
+          "reasons"
+        ],
+        "properties": {
+          "host": {
+            "type": "string",
+            "description": "The host the link goes to, lower-case"
+          },
+          "shown": {
+            "type": "string",
+            "description": "The host the link's text shows, when it is another one"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Reason"
+            }
           }
         }
       }

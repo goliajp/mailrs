@@ -67,6 +67,9 @@ pub enum DeliveryDecision {
         /// Free-form reason text (e.g. `"DMARC policy quarantine"` or
         /// `"score 12.5 >= 8.0 (content=4.5, ptr=3.0, ai=5.0, list-id)"`).
         reason: String,
+        /// The same, as the code and values stored with the message for
+        /// the reader.
+        why: crate::Reason,
     },
     /// Reject at SMTP time. The pipeline picks the code + message; common
     /// pairs are `(550, "5.7.1 ...")` for hard rejects and `(451, "...")`
@@ -259,6 +262,7 @@ pub fn make_delivery_decision(input: &PipelineInput) -> DeliveryDecision {
         return DeliveryDecision::Junk {
             auth_header,
             reason: "claims our domain and fails DMARC".into(),
+            why: crate::Reason::new(crate::reason::JUNK_CLAIMS_OUR_DOMAIN),
         };
     }
 
@@ -300,6 +304,7 @@ pub fn make_delivery_decision(input: &PipelineInput) -> DeliveryDecision {
         return DeliveryDecision::Junk {
             auth_header,
             reason: format!("recipient blacklist: {listed}"),
+            why: crate::Reason::new(crate::reason::JUNK_YOUR_BLOCKLIST).with("sender", listed),
         };
     }
 
@@ -307,6 +312,7 @@ pub fn make_delivery_decision(input: &PipelineInput) -> DeliveryDecision {
         return DeliveryDecision::Junk {
             auth_header,
             reason: "DMARC policy quarantine".into(),
+            why: crate::Reason::new(crate::reason::JUNK_DMARC_QUARANTINE),
         };
     }
 
@@ -344,6 +350,7 @@ pub fn make_delivery_decision(input: &PipelineInput) -> DeliveryDecision {
         return DeliveryDecision::Junk {
             auth_header,
             reason: build_junk_reason(input, total_score, suspicious_score),
+            why: junk_reason::score_reason(input, total_score, suspicious_score, padding_score),
         };
     }
 

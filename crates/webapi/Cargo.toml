@@ -22,6 +22,7 @@ mailrs-core-api = { path = "../core-api", features = ["client"] }
 # so the stone's RPC handler and webapi write via the same routine.
 mailrs-core-sidestate = { path = "../core-sidestate" }
 mailrs-fraud = { path = "../fraud", version = "0" }
+mailrs-inbound = { path = "../inbound", version = "2" }
 mailrs-fraud-lua = { path = "../fraud-lua", version = "0" }
 mailrs-screening-lua = { path = "../screening-lua", version = "0" }
 mailrs-imap-codec = { path = "../imap-codec", version = "1" }

@@ -4944,6 +4944,7 @@ dependencies = [
  "mailrs-fraud-lua",
  "mailrs-ical",
  "mailrs-imap-codec",
+ "mailrs-inbound",
  "mailrs-intelligence",
  "mailrs-jmap",
  "mailrs-mail-builder",

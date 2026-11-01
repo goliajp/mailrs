@@ -138,7 +138,11 @@ services:
     # same limit, up to 540MB measured on one page, while fastcore itself
     # sits at about 2GB. At the limit the kernel kills the largest process,
     # which is fastcore, not the child.
-    mem_limit: 4g
+    # 6g, not 4g: the store's indexes are built in full on the first query
+    # after boot and cost about twice the keys they cover (2.5GB resident
+    # at 45k messages, growing about 56KB per message), so 4g left no room
+    # for the OCR child.
+    mem_limit: 6g
     healthcheck:
       disable: true
     ports:

@@ -15,6 +15,7 @@
 use crate::AuthResults;
 use crate::context::DmarcPolicy;
 use crate::decision::{PipelineInput, SUSPICIOUS_SENDER_SCORE, UNJUSTIFIED_ZERO_WIDTH_SCORE};
+use crate::reason::{self, Reason};
 use serde::{Deserialize, Serialize};
 
 /// The rule set that produced a verdict.
@@ -47,9 +48,14 @@ pub struct Layer {
     pub outcome: Outcome,
     /// This layer's contribution to the total. Zero on a pass.
     pub score: f64,
-    /// What it actually saw, in the words a person needs when asking
-    /// why their mail is here.
+    /// What it actually saw, in English, for the log and for a client
+    /// that has no sentence for one of `reasons`.
     pub detail: String,
+    /// What it saw, as codes a client words in the reader's language.
+    /// Transport always lists its three checks; the other layers list
+    /// nothing on a pass. Empty on a verdict stored before reasons existed.
+    #[serde(default)]
+    pub reasons: Vec<Reason>,
 }
 
 /// The whole finding about one message.
@@ -68,7 +74,28 @@ pub struct FraudVerdict {
     pub quarantined: bool,
     /// The four reviews, always all four and always in this order, so
     /// a reader comparing two verdicts is comparing like with like.
+    /// Empty only on a record that exists for `placement` alone: mail
+    /// sorted by a rule or the classifier, which nobody suspected.
     pub layers: Vec<Layer>,
+    /// Why it was filed where it was: Junk and the reason the receiver
+    /// gave, or the rule or classifier that chose its category.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub placement: Vec<Reason>,
+}
+
+impl FraudVerdict {
+    /// A record of where a message was filed and why, for mail no
+    /// layer found anything in.
+    #[must_use]
+    pub fn placement_only(placement: Vec<Reason>) -> Self {
+        Self {
+            rules_version: RULES_VERSION.to_string(),
+            score: 0.0,
+            quarantined: false,
+            layers: Vec::new(),
+            placement,
+        }
+    }
 }
 
 /// Whether these findings take a conversation out of every list.
@@ -156,6 +183,7 @@ pub fn assess(input: &PipelineInput) -> FraudVerdict {
         // was taken over still authenticates
         quarantined: holds(&input.fraud),
         layers,
+        placement: Vec::new(),
     }
 }
 
@@ -188,7 +216,23 @@ fn transport(auth: &AuthResults) -> Layer {
         outcome,
         score: 0.0,
         detail,
+        reasons: auth_checks(&auth.spf, &auth.dkim, &auth.dmarc),
     }
+}
+
+/// What SPF, DKIM and DMARC each said, in that order. Every one is
+/// listed, passes included: the wave this exists for passed all three,
+/// and the reader has to see that they were checked.
+#[must_use]
+pub fn auth_checks(spf: &str, dkim: &str, dmarc: &str) -> Vec<Reason> {
+    [("SPF", spf), ("DKIM", dkim), ("DMARC", dmarc)]
+        .into_iter()
+        .map(|(check, result)| {
+            Reason::new(reason::AUTH_CHECK)
+                .with("check", check)
+                .with("result", result)
+        })
+        .collect()
 }
 
 /// Layers 2 and 3 — and any other a rule files itself under.
@@ -206,9 +250,11 @@ fn transport(auth: &AuthResults) -> Layer {
 fn from_findings(input: &PipelineInput, layer: mailrs_fraud::Layer) -> Layer {
     let mut score = 0.0;
     let mut found: Vec<String> = Vec::new();
+    let mut reasons: Vec<Reason> = Vec::new();
     for f in input.fraud.in_layer(layer) {
         score += f.score;
         found.push(f.detail.clone());
+        reasons.push(Reason::new(f.rule.clone()));
     }
     if layer == mailrs_fraud::Layer::Identity {
         // The host's own signals, and they are scored rather than
@@ -223,12 +269,14 @@ fn from_findings(input: &PipelineInput, layer: mailrs_fraud::Layer) -> Layer {
         if input.deception.unjustified_zero_width {
             score += UNJUSTIFIED_ZERO_WIDTH_SCORE;
             found.push("zero-width padding in the identifying text (scored, not held)".into());
+            reasons.push(Reason::new(reason::ZERO_WIDTH_PADDING));
         }
         if input.auth.sender_trust_with(input.deception)
             == crate::auth_header::SenderTrust::Suspicious
         {
             score += SUSPICIOUS_SENDER_SCORE;
             found.push("sender trust: suspicious (scored, not held)".into());
+            reasons.push(Reason::new(reason::SENDER_SUSPICIOUS));
         }
     }
     let clean = match layer {
@@ -236,7 +284,7 @@ fn from_findings(input: &PipelineInput, layer: mailrs_fraud::Layer) -> Layer {
         mailrs_fraud::Layer::Provenance => "nothing unusual in the headers",
         _ => "nothing found",
     };
-    layer_from(layer.as_str(), score, found, clean)
+    layer_from(layer.as_str(), score, found, clean, reasons)
 }
 
 /// Layer 4 — does it read like the fraud it is?
@@ -255,11 +303,21 @@ fn content(input: &PipelineInput) -> Layer {
             input.matched_rules.join(", ")
         )
     };
+    let mut reasons = Vec::new();
+    if score > 0.0 {
+        reasons.push(
+            Reason::new(reason::CONTENT_SCORE)
+                .with_score("content", input.content_score)
+                .with_score("classifier", input.ai_score)
+                .with("rules", input.matched_rules.join(", ")),
+        );
+    }
     Layer {
         name: "content".to_string(),
         outcome: outcome_for(score),
         score,
         detail,
+        reasons,
     }
 }
 
@@ -271,7 +329,13 @@ fn outcome_for(score: f64) -> Outcome {
     }
 }
 
-fn layer_from(name: &str, score: f64, found: Vec<String>, clean: &str) -> Layer {
+fn layer_from(
+    name: &str,
+    score: f64,
+    found: Vec<String>,
+    clean: &str,
+    reasons: Vec<Reason>,
+) -> Layer {
     let detail = if found.is_empty() {
         clean.to_string()
     } else {
@@ -282,6 +346,7 @@ fn layer_from(name: &str, score: f64, found: Vec<String>, clean: &str) -> Layer 
         outcome: outcome_for(score),
         score,
         detail,
+        reasons,
     }
 }
 

@@ -108,6 +108,25 @@ pub(super) fn hold_if_fraud(
     held
 }
 
+/// Record why this recipient's copy was filed where it was, when anything
+/// but the plain inbox filed it. Beside the verdict, per recipient.
+pub(super) fn record_placement(
+    state: &Arc<FastcoreState>,
+    addr: &str,
+    message_id: &str,
+    fraud_verdict: Option<&str>,
+    placement: &[mailrs_inbound::Reason],
+) {
+    let mine = mailrs_intake::why::recipient_placement(fraud_verdict, placement);
+    if mine.is_empty() {
+        return;
+    }
+    let json = serde_json::to_string(&mine).expect("reasons serialise");
+    if let Err(e) = state.mailbox.set_message_placement(addr, message_id, &json) {
+        tracing::warn!(error = %e, %addr, %message_id, "storing the placement failed");
+    }
+}
+
 /// Index the body text for search and queue readable attachments.
 pub(super) fn index_contents(
     state: &Arc<FastcoreState>,

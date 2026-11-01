@@ -1,6 +1,10 @@
+import type { WireReason } from '@/wire/schemas/reason'
+
+import { useAtomValue } from 'jotai'
 import { ShieldAlert } from 'lucide-react'
 
-import { useT } from '@/i18n'
+import { langAtom, useT } from '@/i18n'
+import { reasonText } from '@/lib/reasons'
 
 /**
  * Sender-authentication badge, from the message's `sender_trust` field
@@ -43,4 +47,31 @@ export function SenderTrustBadge({ trust }: { trust: string }) {
     default:
       return null
   }
+}
+
+const EMPTY_CHECKS: readonly WireReason[] = []
+
+/**
+ * Why the sender is suspicious: what SPF, DKIM and DMARC each said, and
+ * whether the name renders reordered. Shown beside the warning badge, so
+ * the reader sees which check failed rather than only that one did.
+ */
+export function SenderChecks({ checks = EMPTY_CHECKS }: { checks?: readonly WireReason[] }) {
+  const t = useT()
+  const lang = useAtomValue(langAtom)
+  if (checks.length === 0) return null
+  return (
+    <p className="flex min-h-4 flex-wrap items-center gap-x-2" data-testid="sender-checks">
+      {checks.map((r) => (
+        <span className={checkClass(r)} key={`${r.code}:${r.params?.check ?? ''}`}>
+          {reasonText(r, lang, t) ?? r.code}
+        </span>
+      ))}
+    </p>
+  )
+}
+
+function checkClass(r: WireReason): string {
+  if (r.code === 'auth-check' && r.params?.result === 'pass') return 'text-fg-muted'
+  return 'text-danger'
 }

@@ -69,8 +69,15 @@ impl PgCore {
             );
         }
         self.index_contents(inserted.id, body, importance).await?;
-        self.hold_if_fraud(addr, &a.thread_id, &a.message_id, fraud_verdict)
-            .await
+        let held = self
+            .hold_if_fraud(addr, &a.thread_id, &a.message_id, fraud_verdict)
+            .await?;
+        let mine = mailrs_intake::why::recipient_placement(fraud_verdict, &a.placement);
+        if !mine.is_empty() {
+            mb.record_message_placement(addr, &a.message_id, &serde_json::to_value(&mine)?)
+                .await?;
+        }
+        Ok(held)
     }
 
     /// Move the file at `blob_ref` into the maildir folder of `mailbox`, and

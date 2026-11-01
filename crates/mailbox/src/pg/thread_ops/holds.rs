@@ -44,6 +44,47 @@ impl PgMailboxStore {
             .map_err(|e| sqlx::Error::Decode(Box::new(e)))
     }
 
+    /// Record why `user`'s copy of `message_id` was filed where it was. The
+    /// first one stands, as for the verdict.
+    pub async fn record_message_placement(
+        &self,
+        user: &str,
+        message_id: &str,
+        placement: &serde_json::Value,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "INSERT INTO message_placements (account_address, message_id, placement)
+             VALUES ($1, $2, CAST($3 AS JSONB))
+             ON CONFLICT (account_address, message_id) DO NOTHING",
+        )
+        .bind(user)
+        .bind(message_id)
+        .bind(placement.to_string())
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Why `user`'s copy of `message_id` was filed where it was, if anything
+    /// but the plain inbox filed it.
+    pub async fn message_placement(
+        &self,
+        user: &str,
+        message_id: &str,
+    ) -> Result<Option<serde_json::Value>, sqlx::Error> {
+        let row: Option<(String,)> = sqlx::query_as(
+            "SELECT CAST(placement AS TEXT) FROM message_placements
+              WHERE account_address = $1 AND message_id = $2",
+        )
+        .bind(user)
+        .bind(message_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        row.map(|(v,)| serde_json::from_str(&v))
+            .transpose()
+            .map_err(|e| sqlx::Error::Decode(Box::new(e)))
+    }
+
     /// The messages of `user`'s held conversations, wherever they are filed.
     pub async fn held_messages(&self, user: &str) -> Result<Vec<MessageMeta>, sqlx::Error> {
         let rows = sqlx::query_as::<_, (i64, i64, i32, String, String, String, String, i64, i32, i32, i64, String, String, String, i64)>(

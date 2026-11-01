@@ -4050,7 +4050,7 @@ export interface paths {
         };
         /**
          * The four layers that decided one message
-         * @description transport / identity / provenance / content, as they were decided, with the rule-set version. `{"verdict": null}` when nothing was found — which is not the same as examined and cleared.
+         * @description transport / identity / provenance / content, as they were decided, with the rule-set version; each layer carries `reasons` (codes and values), and `placement` says why it was filed where it was (Junk, a sender rule, the classifier, a filter). `{"verdict": null}` when nothing was found and nothing sorted it — which is not the same as examined and cleared.
          */
         get: {
             parameters: {
@@ -7112,6 +7112,10 @@ export interface components {
             sender_intent: string;
             action_deadline?: string;
             structured_data?: Record<string, never>;
+            /** @description What SPF, DKIM and DMARC each said (code auth-check), and sender-bidi when the name renders reordered; empty for mail with no verdict of ours */
+            sender_checks?: components["schemas"]["Reason"][];
+            /** @description Links whose text shows another host than they go to, or whose host is listed for fraud */
+            link_warnings?: components["schemas"]["LinkWarning"][];
         };
         CategoryCount: {
             category: string;
@@ -7652,6 +7656,21 @@ export interface components {
             createdBy: string;
             /** @description Epoch seconds of the last message delivered to it */
             lastMessageAt?: number | null;
+        };
+        /** @description Why a message was judged as it was: a code from the reasons table every client words in the reader's language, and the values its sentence names. */
+        Reason: {
+            /** @description A fraud rule id, or a code such as junk-score, sorted-by-your-rule, auth-check, link-shows-another-host */
+            code: string;
+            params?: {
+                [key: string]: string;
+            };
+        };
+        LinkWarning: {
+            /** @description The host the link goes to, lower-case */
+            host: string;
+            /** @description The host the link's text shows, when it is another one */
+            shown?: string;
+            reasons: components["schemas"]["Reason"][];
         };
     };
     responses: never;

@@ -62,6 +62,12 @@ pub struct ThreadMessageResponse {
     /// mailbox has one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unsubscribe: Option<UnsubscribeWire>,
+    /// What SPF, DKIM and DMARC each said, as reason codes; empty for
+    /// mail with no verdict of ours on it.
+    pub sender_checks: Vec<mailrs_inbound::Reason>,
+    /// Links worth a second look: their text shows another host than
+    /// they go to, or the host is listed for fraud.
+    pub link_warnings: Vec<super::message_reasons::LinkWarning>,
 }
 
 /// The unsubscribe targets a message advertises.
@@ -127,6 +133,8 @@ impl ThreadMessageResponse {
             sender_intent: String::new(),
             action_deadline: None,
             unsubscribe: None,
+            sender_checks: Vec::new(),
+            link_warnings: Vec::new(),
         }
     }
 }
@@ -365,6 +373,12 @@ pub(crate) async fn enrich_with_body(
         r.html_body = h;
         r.attachments = a;
         r.cc = extract_cc_header(&bytes);
+        r.sender_checks = super::message_reasons::sender_checks(&bytes);
+        let set = super::screening_admin::reputation();
+        r.link_warnings = super::message_reasons::link_warnings(&bytes, |host| {
+            set.as_ref()
+                .is_some_and(|s| !s.link_listings(host).is_empty())
+        });
         r.unsubscribe = extract_header(&bytes, b"list-unsubscribe:")
             .and_then(|v| {
                 let post = extract_header(&bytes, b"list-unsubscribe-post:");
