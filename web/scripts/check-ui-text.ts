@@ -37,7 +37,13 @@ const KEEP = new Set([
   'TLS',
   'web',
   'api',
+  'CIDR',
+  'ESC',
+  'Esc',
 ])
+
+// example input shown as a placeholder: code and query syntax, not prose
+const SAMPLES = new Set(['require "fileinto"; ...', 'from:news@shop.example has:attachment'])
 
 // sample content for the component showcase, not interface text
 const EXEMPT = new Set(['src/pages/playground.tsx'])
@@ -55,6 +61,9 @@ function isText(s: string): boolean {
   if (!/[A-Za-z]{2,}/.test(words)) return false
   // an example address reads the same in every language
   if (/^[^\s@]+@[^\s@]+$/.test(words)) return false
+  // one technical token: a domain, URL, identifier or HTML entity
+  if (/^\S+$/.test(words) && /[.:/_&;-]/.test(words)) return false
+  if (SAMPLES.has(words)) return false
   return !words.split(/\s+/).every((w) => KEEP.has(w))
 }
 

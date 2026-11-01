@@ -4,12 +4,14 @@ import { ChevronDown, ChevronRight } from 'lucide-react'
 import { useState } from 'react'
 
 import { Copyable } from '@/components/copy-button'
+import { useT } from '@/i18n'
 
 type Props = {
   message: ThreadMessage
 }
 
 export function AiAnalysisPanel({ message }: Props) {
+  const t = useT()
   const [expanded, setExpanded] = useState(false)
 
   if (!message.ai_analyzed) return null
@@ -20,7 +22,6 @@ export function AiAnalysisPanel({ message }: Props) {
   const actions = Array.isArray(message.action_items)
     ? message.action_items.filter((s) => typeof s === 'string' && s.trim())
     : []
-  const hasDeadline = !!message.action_deadline
   const hasDetails =
     people.length > 0 || dates.length > 0 || amounts.length > 0 || actions.length > 0
 
@@ -42,19 +43,21 @@ export function AiAnalysisPanel({ message }: Props) {
           {message.summary ? (
             <p className="text-fg-secondary text-sm select-text">{message.summary}</p>
           ) : hasDetails ? (
-            <p className="text-fg-muted text-xs">AI analysis details</p>
+            <p className="text-fg-muted text-xs">{t('ai.details')}</p>
           ) : null}
 
           {/* deadline */}
-          {hasDeadline && (
+          {message.action_deadline && (
             <p className="text-danger mt-1 text-xs font-medium select-text">
-              Deadline: {message.action_deadline}
+              {t('ai.deadline', { deadline: message.action_deadline })}
             </p>
           )}
 
           {/* risk reason */}
           {message.risk_score > 0 && message.risk_reason && (
-            <p className="text-warning mt-1 text-xs select-text">Risk: {message.risk_reason}</p>
+            <p className="text-warning mt-1 text-xs select-text">
+              {t('ai.risk', { reason: message.risk_reason })}
+            </p>
           )}
         </div>
       </button>
@@ -64,7 +67,7 @@ export function AiAnalysisPanel({ message }: Props) {
           {people.length > 0 && (
             <div className="min-w-0">
               <span className="text-fg-muted text-xs font-medium tracking-wide uppercase">
-                People
+                {t('ai.people')}
               </span>
               <div className="mt-0.5 flex flex-wrap gap-1">
                 {people.map((p, i) => (
@@ -88,7 +91,7 @@ export function AiAnalysisPanel({ message }: Props) {
           {dates.length > 0 && (
             <div className="min-w-0">
               <span className="text-fg-muted text-xs font-medium tracking-wide uppercase">
-                Dates
+                {t('ai.dates')}
               </span>
               <div className="mt-0.5 flex flex-wrap gap-1">
                 {dates.map((d, i) => (
@@ -107,7 +110,7 @@ export function AiAnalysisPanel({ message }: Props) {
           {amounts.length > 0 && (
             <div className="min-w-0">
               <span className="text-fg-muted text-xs font-medium tracking-wide uppercase">
-                Amounts
+                {t('ai.amounts')}
               </span>
               <div className="mt-0.5 flex flex-wrap gap-1">
                 {amounts.map((a, i) => (
@@ -126,7 +129,7 @@ export function AiAnalysisPanel({ message }: Props) {
           {actions.length > 0 && (
             <div className="min-w-0">
               <span className="text-fg-muted text-xs font-medium tracking-wide uppercase">
-                Action Items
+                {t('ai.actionItems')}
               </span>
               <ul className="mt-0.5 space-y-0.5">
                 {actions.map((item, i) => (

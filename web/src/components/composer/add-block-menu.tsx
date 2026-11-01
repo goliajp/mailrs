@@ -3,6 +3,8 @@ import type { BlockType } from './types'
 import { Minus, Paperclip, Plus, Type } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
+import { useT } from '@/i18n'
+
 const BLOCK_OPTIONS: { icon: typeof Type; label: string; type: BlockType }[] = [
   { icon: Type, label: 'Text', type: 'text' },
   { icon: Minus, label: 'Divider', type: 'divider' },
@@ -14,6 +16,7 @@ type Props = {
 }
 
 export function AddBlockMenu({ onAdd, onAddFile }: Props) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -33,7 +36,7 @@ export function AddBlockMenu({ onAdd, onAddFile }: Props) {
         onClick={() => setOpen((v) => !v)}
         type="button"
       >
-        <Plus className="h-3.5 w-3.5" /> Add block
+        <Plus className="h-3.5 w-3.5" /> {t('composer.addBlock')}
       </button>
       {open && (
         <div className="border-border bg-surface absolute bottom-full left-0 z-50 mb-1 w-40 rounded-lg border py-1 shadow-lg">
@@ -58,7 +61,7 @@ export function AddBlockMenu({ onAdd, onAddFile }: Props) {
             }}
           >
             <Paperclip className="text-fg-muted h-3.5 w-3.5 shrink-0" />
-            Attachment
+            {t('composer.attachment')}
           </button>
         </div>
       )}
