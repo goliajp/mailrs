@@ -181,7 +181,7 @@ impl KevyMailboxStore {
             // arrival that is the user's own send has no bearing on
             // whether they have read the thread.
             if m.unread && !m.is_own {
-                ctx.hset(tu_key.as_bytes(), &[(b"unread" as &[u8], b"1" as &[u8])])?;
+                crate::thread_row::hset_membership(ctx, tu_key.as_bytes(), &[(b"unread", b"1")])?;
             }
 
             Ok(())

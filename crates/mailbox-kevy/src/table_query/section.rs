@@ -96,7 +96,7 @@ impl KevyMailboxStore {
         let mut cursor = None;
         loop {
             let (hits, next) = self.store().idx_query(
-                b"threaduser.awaiting_since",
+                crate::thread_row::index_for("awaiting_since").as_bytes(),
                 &IndexValue::I64(1),
                 &IndexValue::I64(due_by.unwrap_or(i64::MAX)),
                 cursor.as_ref(),

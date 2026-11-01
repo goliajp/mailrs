@@ -180,13 +180,16 @@ impl KevyMailboxStore {
         if same(b"section", section) && same(b"awaiting_since", &since) {
             return Ok(());
         }
-        self.store().hset(
-            key.as_bytes(),
-            &[
-                (b"section" as &[u8], section.as_bytes()),
-                (b"awaiting_since", since.as_bytes()),
-            ],
-        )?;
+        self.store().atomic(|ctx| {
+            crate::thread_row::hset_membership(
+                ctx,
+                key.as_bytes(),
+                &[
+                    (b"section" as &[u8], section.as_bytes()),
+                    (b"awaiting_since", since.as_bytes()),
+                ],
+            )
+        })?;
         Ok(())
     }
 }

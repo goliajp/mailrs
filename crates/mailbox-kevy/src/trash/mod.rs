@@ -32,7 +32,8 @@ impl KevyMailboxStore {
                 if !ctx.hexists(key.as_bytes(), b"tid")? {
                     return Ok(false);
                 }
-                ctx.hset(
+                crate::thread_row::hset_membership(
+                    ctx,
                     key.as_bytes(),
                     &[
                         (b"trashed" as &[u8], crate::thread_row::flag(trashed)),
@@ -48,7 +49,7 @@ impl KevyMailboxStore {
     /// before `cutoff`. An empty range scan when nothing is due.
     pub fn trashed_before(&self, cutoff: i64, limit: usize) -> io::Result<Vec<(String, String)>> {
         let (rows, _) = self.store().idx_query(
-            b"threaduser.trashed_at",
+            crate::thread_row::index_for("trashed_at").as_bytes(),
             &kevy_embedded::IndexValue::I64(1),
             &kevy_embedded::IndexValue::I64(cutoff),
             None,

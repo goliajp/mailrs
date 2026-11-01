@@ -12,7 +12,7 @@ use super::keys;
 
 mod indexes;
 mod spec;
-pub(crate) use spec::thread_user_spec;
+pub(crate) use spec::{READ_FLAG_AXES_FROM_MARKERS, thread_user_spec};
 
 impl KevyMailboxStore {
     /// Declare the `threaduser` table — the access paths the engine
@@ -133,7 +133,8 @@ impl KevyMailboxStore {
                 .iter()
                 .map(|f| (f.as_bytes(), b"0".as_slice()))
                 .collect();
-            self.store.hset(&key, &zeros)?;
+            self.store
+                .atomic(|ctx| crate::thread_row::hset_membership(ctx, &key, &zeros))?;
             planted += 1;
         }
         Ok((scanned, planted))
@@ -199,19 +200,30 @@ mod table_spec_tests {
     #[test]
     fn is_sender_is_the_only_flag_that_must_be_the_key() {
         let spec = thread_user_spec();
+        // A marker index answers for its source column: filtering on a
+        // flag means filtering on the column, which is what is stored.
+        let source = |c: &[u8]| -> Vec<u8> {
+            thread_row::MARKED
+                .iter()
+                .find(|m| m.marker.as_bytes() == c)
+                .map(|m| m.column.as_bytes().to_vec())
+                .unwrap_or_else(|| c.to_vec())
+        };
         let mut key_only: Vec<String> = Vec::new();
         for ix in &spec.indexes {
+            let col = source(&ix.column);
             let stored_everywhere = spec
                 .indexes
                 .iter()
-                .all(|other| other.column == ix.column || other.values.contains(&ix.column));
+                .all(|other| source(&other.column) == col || other.values.contains(&col));
             // a lookup key, not a list filter: "this sender's
             // conversations" is never stacked on a flag list, and an
             // address stored beside every other index would cost memory
             // on every row for nothing
-            let lookup_only = ix.column.as_slice() == b"sec_in_from";
-            if !stored_everywhere && !lookup_only {
-                key_only.push(String::from_utf8_lossy(&ix.column).into_owned());
+            let lookup_only = col.as_slice() == b"sec_in_from";
+            let name = String::from_utf8_lossy(&col).into_owned();
+            if !stored_everywhere && !lookup_only && !key_only.contains(&name) {
+                key_only.push(name);
             }
         }
         assert_eq!(
@@ -220,6 +232,42 @@ mod table_spec_tests {
             "exactly one flag may be key-only; add it to every index's \
              `values`, or teach `flags_on` which of the two to key on"
         );
+    }
+
+    /// Every marked column's index keys on its marker, and nothing else
+    /// keys on a marker: a read that names the column reaches the sparse
+    /// index, and the full-row one is only declared while the switch keeps
+    /// it.
+    #[test]
+    fn every_marked_column_is_indexed_on_its_marker() {
+        let spec = thread_user_spec();
+        let keyed: Vec<String> = spec
+            .indexes
+            .iter()
+            .map(|ix| String::from_utf8_lossy(&ix.column).into_owned())
+            .collect();
+        for m in &thread_row::MARKED {
+            assert!(
+                keyed.iter().any(|k| k == m.marker),
+                "{} has no index",
+                m.marker
+            );
+            assert_eq!(
+                keyed.iter().any(|k| k == m.column),
+                spec::KEEP_FULL_ROW_FLAG_INDEXES,
+                "the full-row index on {} follows the switch",
+                m.column
+            );
+            let read = match spec::READ_FLAG_AXES_FROM_MARKERS {
+                true => format!("threaduser.{}", m.marker),
+                false => format!("threaduser.{}", m.column),
+            };
+            assert_eq!(
+                thread_row::index_for(m.column),
+                read,
+                "the switch picks the read"
+            );
+        }
     }
 
     /// The membership rows the write path produces must carry every
@@ -268,6 +316,13 @@ mod table_spec_tests {
             crate::sections::COLUMNS
                 .iter()
                 .map(|c| c.as_bytes().to_vec()),
+        );
+        // and the markers, which `hset_membership` writes beside any of
+        // those columns while it is non-zero and removes otherwise
+        written.extend(
+            thread_row::MARKED
+                .iter()
+                .map(|m| m.marker.as_bytes().to_vec()),
         );
         for (col, _) in &thread_user_spec().columns {
             assert!(

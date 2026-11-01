@@ -56,8 +56,13 @@ pub fn display_message(wires: &[Vec<u8>], user: &str) -> Option<serde_json::Valu
     inbound.or_else(|| parsed.last().cloned())
 }
 
+mod markers;
 mod membership;
 mod store;
+pub use markers::hset_membership;
+#[cfg(test)]
+pub(crate) use markers::marker_index;
+pub(crate) use markers::{MARKED, index_for, is_set, marker_repairs};
 pub(crate) use membership::*;
 
 /// Aggregated thread state — one row in `mailrs:thread:<tid>`.
