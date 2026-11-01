@@ -13,11 +13,13 @@ import {
   AdminSection,
 } from '@/components/admin-page'
 import { MockSettingsForm } from '@/components/mock/settings-form'
+import { useT } from '@/i18n'
 import { adminKeys } from '@/lib/query-keys'
 import { wireAdminMockOverview } from '@/wire/endpoints/mock'
 
 /** How much mock mail the server holds, and the rules it keeps it by. */
 export function AdminMock() {
+  const t = useT()
   const navigate = useNavigate()
   const overview = useQuery({
     queryKey: adminKeys.mock(),
@@ -28,11 +30,11 @@ export function AdminMock() {
     <AdminPageShell
       actions={
         <Button onClick={() => navigate('/mock?scope=all')} size="sm" variant="secondary">
-          Open namespaces
+          {t('admin.mock.open')}
         </Button>
       }
-      subtitle="Usage and settings for disposable test mailboxes. To create or read namespaces, use Open namespaces"
-      title="Mock mail"
+      subtitle={t('admin.mock.subtitle')}
+      title={t('admin.audit.group.mock')}
     >
       <Body
         data={overview.data ?? null}
@@ -52,25 +54,26 @@ function Body({
   error: Error | null
   onRetry: () => void
 }) {
+  const t = useT()
   if (error) {
-    return <AdminErrorState error={error} onRetry={onRetry} what="mock mail usage and settings" />
+    return <AdminErrorState error={error} onRetry={onRetry} what={t('admin.mock.listName')} />
   }
   if (data === null) return <div aria-busy className="bg-surface h-40 animate-pulse rounded-lg" />
   if (data.domain === '') {
     return (
       <AdminEmptyState
-        description="Set MAILRS_MOCK_DOMAIN on the receiver, fastcore, webapi and sender, and point that domain's MX at this server"
+        description={t('admin.mock.noDomainHelp')}
         icon={<FlaskConical className="h-10 w-10" />}
-        title="No mock domain yet"
+        title={t('admin.mock.noDomain')}
       />
     )
   }
   return (
     <div className="space-y-6">
-      <AdminSection title="Usage">
+      <AdminSection title={t('admin.mock.usage')}>
         <Usage data={data} />
       </AdminSection>
-      <AdminSection title="Settings">
+      <AdminSection title={t('admin.mock.settings')}>
         <div className="px-4 py-4">
           <MockSettingsForm saved={data.settings} />
         </div>
@@ -96,6 +99,7 @@ function meterTone(share: number): string {
 }
 
 function Usage({ data }: { data: MockAdminOverview }) {
+  const t = useT()
   const max = data.settings.max_total_mb * 1024 * 1024
   const share = Math.min(1, data.usage.bytes / max)
   const u = data.usage
@@ -104,14 +108,15 @@ function Usage({ data }: { data: MockAdminOverview }) {
       <div>
         <div className="flex items-baseline justify-between text-sm">
           <span className="text-fg">
-            Storage on <span className="font-mono">{data.domain}</span>
+            {t('admin.mock.storageOn')}
+            <span className="font-mono">{data.domain}</span>
           </span>
           <span className="text-fg-secondary tabular-nums">
-            {bytes(u.bytes)} of {bytes(max)}
+            {t('admin.mock.usedOf', { max: bytes(max), used: bytes(u.bytes) })}
           </span>
         </div>
         <div
-          aria-label="Storage used"
+          aria-label={t('admin.mock.storageUsed')}
           aria-valuemax={100}
           aria-valuemin={0}
           aria-valuenow={Math.round(share * 100)}
@@ -122,14 +127,18 @@ function Usage({ data }: { data: MockAdminOverview }) {
         </div>
       </div>
       <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
-        <Figure detail={`${u.owners} owners`} label="Namespaces" value={`${u.namespaces}`} />
         <Figure
-          detail="Received and captured outgoing"
-          label="Messages stored"
+          detail={t('admin.mock.owners', { n: u.owners })}
+          label={t('admin.mock.namespaces')}
+          value={`${u.namespaces}`}
+        />
+        <Figure
+          detail={t('admin.mock.storedDetail')}
+          label={t('admin.mock.stored')}
           value={`${u.received}`}
         />
-        <Figure label="Dropped at the per-namespace limit" value={`${u.dropped}`} />
-        <Figure label="Refused, no such namespace" value={`${u.rejected_unknown_ns}`} />
+        <Figure label={t('admin.mock.dropped')} value={`${u.dropped}`} />
+        <Figure label={t('admin.mock.refused')} value={`${u.rejected_unknown_ns}`} />
       </dl>
     </div>
   )

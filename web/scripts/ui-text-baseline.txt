@@ -111,7 +111,6 @@ src/pages/admin-greylist.tsx 1
 src/pages/admin-groups.tsx 2
 src/pages/admin-mail-audit-views.tsx 1
 src/pages/admin-mail-audit.tsx 2
-src/pages/admin-mock.tsx 11
 src/pages/admin-overview.tsx 3
 src/pages/admin-password-clear.tsx 3
 src/pages/admin-queues.tsx 1
