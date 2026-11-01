@@ -3,11 +3,13 @@ import type { Key } from './en'
 import { adminOpsJa } from './admin-ops/ja'
 import { adminJa } from './admin/ja'
 import { appJa } from './app/ja'
+import { composerJa } from './composer/ja'
 import { mockJa } from './mock/ja'
 import { settingsJa } from './settings/ja'
 
 export const ja: Record<Key, string> = {
   ...appJa,
+  ...composerJa,
   ...settingsJa,
   ...mockJa,
   ...adminJa,

@@ -79,6 +79,14 @@ export function epochSecondsFromLocalInput(value: string): null | number {
   return Math.floor(ms / 1000)
 }
 
+/** Epoch seconds as the `datetime-local` input's value, in local time. */
+export function localInputFromEpochSeconds(seconds: null | number): string {
+  if (seconds === null) return ''
+  const d = new Date(seconds * 1000)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 // Comma/semicolon-separated address list → trimmed non-empty entries.
 export function parseAddressList(input: string): string[] {
   return input

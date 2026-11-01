@@ -37,6 +37,7 @@ export const authMeSchema = z.object({
   is_reset_issuer: z.boolean().default(false),
   is_super: z.boolean().default(false),
   permissions: z.array(z.string()).default([]),
+  send_as: z.array(z.string()).default([]),
 })
 
 export type WireAuthMe = z.infer<typeof authMeSchema>

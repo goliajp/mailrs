@@ -22,6 +22,8 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
         subject: "Draft".into(),
         body: "text".into(),
         reply_to_thread_id: None,
+        from: "alias@golia.test".into(),
+        scheduled_at: Some(1_800_000_000),
     };
     let saved = d.both(
         "save_draft",
@@ -29,12 +31,14 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
         pg.save_draft(ALICE, &req).await,
         MINTED,
     );
-    d.both(
-        "list_drafts",
-        fc.list_drafts(ALICE).await,
-        pg.list_drafts(ALICE).await,
-        MINTED,
-    );
+    let (fc_list, pg_list) = (fc.list_drafts(ALICE).await, pg.list_drafts(ALICE).await);
+    // the comparison passes when both drop the fields alike
+    for (core, list) in [("fastcore", &fc_list), ("pg-core", &pg_list)] {
+        let draft = &list.as_ref().unwrap().items[0];
+        assert_eq!(draft.from, "alias@golia.test", "{core}");
+        assert_eq!(draft.scheduled_at, Some(1_800_000_000), "{core}");
+    }
+    d.both("list_drafts", fc_list, pg_list, MINTED);
     if let Some((a, b)) = saved {
         d.both(
             "delete_draft",

@@ -1,5 +1,6 @@
 import { type Key, useT } from '@/i18n'
 import { errorText } from '@/lib/error-text'
+import { openNewMessageAtom } from '@/store/composer-windows'
 export { DateDivider } from '@/components/conversation-list-virtual'
 
 import type { BatchAction } from '@/components/conversation-actions'
@@ -32,7 +33,6 @@ import { conversationKeys } from '@/store/query-keys-v21'
 import { activeListAtom, labelPickerAtom } from '@/store/ui'
 import {
   batchModeAtom,
-  composeReplySourceAtom,
   composingNewAtom,
   folderAtom,
   pickInListAtom,
@@ -66,7 +66,7 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
   const selectedId = useCurrentSelection()?.threadId ?? null
   const pickRow = useSetAtom(pickInListAtom)
   const setComposingNew = useSetAtom(composingNewAtom)
-  const setComposeReplySource = useSetAtom(composeReplySourceAtom)
+  const openNewMessage = useSetAtom(openNewMessageAtom)
   const searchQuery = useAtomValue(searchQueryAtom)
 
   // batch mode state
@@ -356,10 +356,7 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
         <button
           aria-label={t('list.newConversation')}
           className="text-fg-muted hover:bg-bg-secondary flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-all duration-150"
-          onClick={() => {
-            setComposeReplySource(null)
-            setComposingNew(true)
-          }}
+          onClick={() => openNewMessage()}
           title={t('list.newConversation')}
         >
           <SquarePen aria-hidden="true" className="h-4 w-4" />

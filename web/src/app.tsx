@@ -15,6 +15,7 @@ import { createBrowserRouter, Outlet, RouterProvider, useLocation, useNavigate }
 
 import { AppSidebar } from '@/components/app-sidebar'
 import { CommandPalette } from '@/components/command-palette'
+import { FloatingComposers } from '@/components/composer/floating-composers'
 import { ConfirmPasswordHost } from '@/components/confirm-password-dialog'
 import { DashboardShellSkeleton } from '@/components/dashboard-skeleton'
 import { ShortcutsHost } from '@/components/keyboard-shortcuts-dialog'
@@ -153,6 +154,7 @@ function AuthShellLayout() {
       <AppShell gap={6} padded sidebar={<AppSidebar />} sidebarWidth={56} statusBar={<StatusBar />}>
         <Outlet />
       </AppShell>
+      <FloatingComposers />
     </RequireAuth>
   )
 }

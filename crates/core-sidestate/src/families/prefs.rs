@@ -132,6 +132,8 @@ pub async fn save_draft<S: NetKevy>(
         subject: req.subject,
         body: req.body,
         reply_to_thread_id: req.reply_to_thread_id,
+        from: req.from,
+        scheduled_at: req.scheduled_at,
         created_at: now,
         updated_at: now,
     };

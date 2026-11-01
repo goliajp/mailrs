@@ -17,18 +17,15 @@ import {
   todayStart,
   useGreeting,
 } from '@/components/dashboard'
+import { isMobileScreen } from '@/hooks/use-is-mobile'
 import { useSearchMail } from '@/hooks/use-search-mail'
 import { useLocale, useT } from '@/i18n'
 import { cn } from '@/lib/cn'
 import { dashboardKeys } from '@/lib/query-keys'
 import { authAtom } from '@/store/auth'
+import { openNewMessageAtom } from '@/store/composer-windows'
 import { conversationKeys } from '@/store/query-keys-v21'
-import {
-  composeReplySourceAtom,
-  composingNewAtom,
-  openThreadAtom,
-  selectMailListAtom,
-} from '@/store/ui'
+import { openThreadAtom, selectMailListAtom } from '@/store/ui'
 import { adminListGet, adminObjectGet } from '@/wire/endpoints/admin'
 
 type DashboardData = {
@@ -55,8 +52,7 @@ export function Dashboard() {
   const greeting = useGreeting()
   const navigate = useNavigate()
   const openThread = useSetAtom(openThreadAtom)
-  const setComposingNew = useSetAtom(composingNewAtom)
-  const setComposeReplySource = useSetAtom(composeReplySourceAtom)
+  const openNewMessage = useSetAtom(openNewMessageAtom)
   const searchMail = useSearchMail()
   const selectList = useSetAtom(selectMailListAtom)
   const [searchInput, setSearchInput] = useState('')
@@ -125,10 +121,10 @@ export function Dashboard() {
   )
 
   const handleCompose = useCallback(() => {
-    setComposeReplySource(null)
-    setComposingNew(true)
-    navigate('/mail')
-  }, [navigate, setComposingNew, setComposeReplySource])
+    openNewMessage()
+    // a phone opens the page, which lives on the mail screen
+    if (isMobileScreen()) navigate('/mail')
+  }, [navigate, openNewMessage])
 
   const handleOpenInbox = useCallback(() => {
     navigate('/mail')
