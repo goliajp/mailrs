@@ -141,7 +141,7 @@ export function Chat() {
         </MPane>
       )
     }
-    return <ThreadView onBack={() => setMobileView('list')} />
+    return <ThreadView />
   }
 
   // One layout, not both with one hidden. The shell above already picks
