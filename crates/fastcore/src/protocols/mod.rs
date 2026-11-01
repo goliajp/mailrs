@@ -16,6 +16,7 @@ mod trash;
 mod watch;
 
 use mailrs_mail_protocols::trash_view::TrashView;
+use mailrs_mail_protocols::trash_view::held::HeldView;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -82,7 +83,7 @@ impl FastcoreDirectory {
 }
 
 impl Directory for FastcoreDirectory {
-    type Account = TrashView<FastcoreAccount>;
+    type Account = TrashView<HeldView<FastcoreAccount>>;
 
     async fn password_cleared(&self, account: &str) -> bool {
         let Ok(Some(blob)) = self.state.mailbox.get_account_blob(account) else {
@@ -111,7 +112,7 @@ impl Directory for FastcoreDirectory {
     ) -> Result<Option<Self::Account>> {
         if protocol == Protocol::Imap && mock_store::is_mock(user) {
             let account = mock::login(&self.state, user, password).await?;
-            return Ok(account.map(TrashView::new));
+            return Ok(account.map(|a| TrashView::new(HeldView::new(a))));
         }
         if !backend::verify_password(&self.state, user, password) {
             return Ok(None);
@@ -126,12 +127,12 @@ impl Directory for FastcoreDirectory {
         {
             return Ok(None);
         }
-        Ok(Some(TrashView::new(FastcoreAccount::Real(
+        Ok(Some(TrashView::new(HeldView::new(FastcoreAccount::Real(
             real::RealAccount {
                 state: self.state.clone(),
                 user: user.to_string(),
                 maildir_root: self.maildir_root.clone(),
             },
-        ))))
+        )))))
     }
 }

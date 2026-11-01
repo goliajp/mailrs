@@ -32,6 +32,34 @@ impl PgAccount {
         Ok(Trashed { messages, latest })
     }
 
+    /// The messages of the conversations held for review, by row id as in
+    /// `Trash`.
+    pub(super) async fn held_view(&self) -> Result<Trashed<Mailbox, String>> {
+        let rows = self
+            .mailbox
+            .held_messages(&self.user)
+            .await
+            .map_err(store)?;
+        let mailboxes = self.mailboxes().await?;
+        let mut messages = Vec::with_capacity(rows.len());
+        for row in rows {
+            let Some(mb) = mailboxes.iter().find(|m| m.id == row.mailbox_id) else {
+                continue;
+            };
+            let uid = u32::try_from(row.id)
+                .map_err(|_| Error::Store(format!("message id {} is past a uid", row.id)))?;
+            messages.push(ShownMessage {
+                mailbox: mb.clone(),
+                uid,
+                message: to_message(0, row),
+            });
+        }
+        Ok(Trashed {
+            messages,
+            latest: 0,
+        })
+    }
+
     /// Each label with its messages, by row id as in `Trash`.
     pub(super) async fn labels_view(&self) -> Result<Vec<LabelFolder<Mailbox, String>>> {
         let mailboxes = self.mailboxes().await?;

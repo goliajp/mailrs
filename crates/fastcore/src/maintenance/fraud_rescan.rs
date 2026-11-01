@@ -57,24 +57,24 @@ pub(crate) fn snapshot(state: &FastcoreState) -> std::io::Result<Vec<(String, St
 
 /// Stored mail through the fraud rules exactly as the sweep reads it, for
 /// evaluation: nothing is held, moved or recorded.
-pub(in crate::maintenance) struct FraudJudge {
+pub(crate) struct FraudJudge {
     policy: mailrs_fraud::Policy,
     our_stamp: Option<String>,
     hist: Option<kevy_client::Connection>,
 }
 
 /// What the fraud rules make of one message.
-pub(in crate::maintenance) struct FraudJudgement {
-    pub(in crate::maintenance) findings: mailrs_fraud::Findings,
+pub(crate) struct FraudJudgement {
+    pub(crate) findings: mailrs_fraud::Findings,
     /// The rules would hold it.
-    pub(in crate::maintenance) holds: bool,
+    pub(crate) holds: bool,
     /// Not held, but scored into Junk.
-    pub(in crate::maintenance) junks: bool,
-    pub(in crate::maintenance) version: String,
+    pub(crate) junks: bool,
+    pub(crate) version: String,
 }
 
 impl FraudJudge {
-    pub(in crate::maintenance) fn new(state: &Arc<FastcoreState>) -> Self {
+    pub(crate) fn new(state: &Arc<FastcoreState>) -> Self {
         Self {
             policy: policy_from_env(state),
             our_stamp: our_authserv_id(),
@@ -83,7 +83,7 @@ impl FraudJudge {
         }
     }
 
-    pub(in crate::maintenance) fn judge(
+    pub(crate) fn judge(
         &mut self,
         state: &Arc<FastcoreState>,
         message_id: &str,

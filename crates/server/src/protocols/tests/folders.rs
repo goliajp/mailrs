@@ -6,12 +6,13 @@ use super::Step;
 use super::steps::{logout, signed_in, step};
 
 // the account's label is listed after the mailboxes
-const FOLDERS: [&str; 6] = [
+const FOLDERS: [&str; 7] = [
     "INBOX",
     "Drafts",
     "Junk",
     "Sent",
     "Trash",
+    "Review",
     super::harness::LABEL,
 ];
 

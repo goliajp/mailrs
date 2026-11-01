@@ -234,6 +234,10 @@ impl Account for PgAccount {
         self.trashed_view().await
     }
 
+    async fn held(&self) -> Result<Trashed<Mailbox, String>> {
+        self.held_view().await
+    }
+
     async fn set_trashed(
         &self,
         mailbox: &Mailbox,

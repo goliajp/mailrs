@@ -12,6 +12,7 @@
 use std::collections::HashSet;
 
 mod filing;
+pub mod held;
 mod labels;
 
 use crate::backend::{
@@ -60,7 +61,7 @@ pub struct ViewKey<M, K> {
 
 type Inner<A> = Message<<A as Account>::Key>;
 
-fn wrap<M, K>(m: Message<K>) -> Message<ViewKey<M, K>> {
+pub(super) fn wrap<M, K>(m: Message<K>) -> Message<ViewKey<M, K>> {
     Message {
         uid: m.uid,
         seqno: m.seqno,
@@ -107,7 +108,7 @@ fn is_trash(name: &str) -> bool {
 /// `Trash`'s UIDVALIDITY, from when the latest conversation went there.
 /// Never 0, which RFC 3501 does not allow, and different for an empty
 /// Trash than for any moment something went there.
-fn trash_uidvalidity(latest: i64) -> u32 {
+pub(super) fn trash_uidvalidity(latest: i64) -> u32 {
     u32::try_from(latest)
         .unwrap_or(u32::MAX - 1)
         .min(u32::MAX - 1)
@@ -387,6 +388,22 @@ impl<A: Account> Account for TrashView<A> {
                 })
                 .collect(),
             latest: trashed.latest,
+        })
+    }
+
+    async fn held(&self) -> Result<Trashed<Self::Mailbox, Self::Key>> {
+        let held = self.inner.held().await?;
+        Ok(Trashed {
+            messages: held
+                .messages
+                .into_iter()
+                .map(|t| ShownMessage {
+                    mailbox: ViewMailbox::Filed(t.mailbox),
+                    uid: t.uid,
+                    message: wrap(t.message),
+                })
+                .collect(),
+            latest: held.latest,
         })
     }
 

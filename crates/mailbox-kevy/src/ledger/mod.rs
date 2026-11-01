@@ -15,9 +15,11 @@ use kevy_embedded::{IndexKind, IndexValType as ValType, TableIndex, TableSpec};
 
 use crate::KevyMailboxStore;
 
-const MSG_PREFIX: &[u8] = b"L:m:";
-const LINK_PREFIX: &[u8] = b"L:l:";
-const FILE_PREFIX: &[u8] = b"L:f:";
+mod lookup;
+
+pub(crate) const MSG_PREFIX: &[u8] = b"L:m:";
+pub(crate) const LINK_PREFIX: &[u8] = b"L:l:";
+pub(crate) const FILE_PREFIX: &[u8] = b"L:f:";
 
 /// What one delivered message was, as delivery read it.
 #[derive(Debug, Clone, Default)]
@@ -33,6 +35,16 @@ pub struct LedgerFacts {
     pub auth: String,
     /// Epoch seconds the message arrived.
     pub arrived: i64,
+    /// The registrable domain of `from_domain`, which the row is indexed
+    /// by, so an observation on a domain finds mail from its subdomains.
+    pub from_reg: String,
+}
+
+/// A link host to index the message by, with its registrable domain.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IndexedLink {
+    pub host: String,
+    pub reg: String,
 }
 
 /// What the rules made of a message: derived, recomputed at will.
@@ -42,6 +54,10 @@ pub struct LedgerVerdict {
     pub score: f64,
     pub rules_version: String,
     pub judged_at: i64,
+    /// The fraud rules hold the conversation.
+    pub holds: bool,
+    /// What the screening rules matched, in whichever mode they run.
+    pub screening: Vec<String>,
 }
 
 fn col(name: &str, t: ValType) -> (Vec<u8>, ValType) {
@@ -86,8 +102,9 @@ pub(crate) fn specs() -> [TableSpec; 3] {
                 col("arrived", ValType::I64),
                 col("from_domain", ValType::Str),
                 col("from_addr", ValType::Str),
+                col("reg", ValType::Str),
             ],
-            &["from_domain", "from_addr"],
+            &["from_domain", "from_addr", "reg"],
         ),
         table(
             "ledger_link",
@@ -96,8 +113,9 @@ pub(crate) fn specs() -> [TableSpec; 3] {
                 col("id", ValType::Str),
                 col("host", ValType::Str),
                 col("until", ValType::I64),
+                col("reg", ValType::Str),
             ],
-            &["host", "until"],
+            &["host", "until", "reg"],
         ),
         table(
             "ledger_file",
@@ -147,7 +165,15 @@ impl KevyMailboxStore {
     /// for every host and none of them expiring. Written once: a second call
     /// for the same reader and message leaves the first record.
     pub fn record_ledger(&self, f: &LedgerFacts) -> io::Result<bool> {
-        self.record_ledger_indexed(f, &f.link_hosts, None)
+        let every: Vec<IndexedLink> = f
+            .link_hosts
+            .iter()
+            .map(|h| IndexedLink {
+                host: h.clone(),
+                reg: h.clone(),
+            })
+            .collect();
+        self.record_ledger_indexed(f, &every, None)
     }
 
     /// [`Self::record_ledger`], with link rows for `indexed_hosts` only, each
@@ -162,11 +188,11 @@ impl KevyMailboxStore {
     pub fn record_ledger_indexed(
         &self,
         f: &LedgerFacts,
-        indexed_hosts: &[String],
+        indexed_hosts: &[IndexedLink],
         links_until: Option<i64>,
     ) -> io::Result<bool> {
         let now = chrono::Utc::now().timestamp();
-        let indexed: &[String] = match links_until {
+        let indexed: &[IndexedLink] = match links_until {
             Some(until) if until <= now => &[],
             _ => indexed_hosts,
         };
@@ -187,6 +213,7 @@ impl KevyMailboxStore {
                         (b"arrived", at.as_bytes()),
                         (b"from_domain", f.from_domain.as_bytes()),
                         (b"from_addr", f.from_addr.as_bytes()),
+                        (b"reg", f.from_reg.as_bytes()),
                         (b"reply_to", f.reply_to.as_bytes()),
                         (b"auth", f.auth.as_bytes()),
                         (b"links", f.link_hosts.join(" ").as_bytes()),
@@ -194,11 +221,12 @@ impl KevyMailboxStore {
                     ],
                 )?;
                 let until = links_until.map(|u| u.to_string());
-                for host in indexed {
-                    let k = link_key(user, mid, host);
+                for link in indexed {
+                    let k = link_key(user, mid, &link.host);
                     let mut row: Vec<(&[u8], &[u8])> = vec![
                         (b"id" as &[u8], &k.as_bytes()[4..]),
-                        (b"host", host.as_bytes()),
+                        (b"host", link.host.as_bytes()),
+                        (b"reg", link.reg.as_bytes()),
                     ];
                     if let Some(u) = &until {
                         row.push((b"until", u.as_bytes()));
@@ -255,6 +283,8 @@ impl KevyMailboxStore {
                     (b"score", v.score.to_string().as_bytes()),
                     (b"version", v.rules_version.as_bytes()),
                     (b"at", v.judged_at.to_string().as_bytes()),
+                    (b"holds", flag(v.holds)),
+                    (b"screening", v.screening.join(" ").as_bytes()),
                 ],
             )
             .map(|_| ())
@@ -304,79 +334,6 @@ impl KevyMailboxStore {
             })
             .map_err(io::Error::from)
     }
-
-    /// The messages from a sender domain, as `(message id, user)`.
-    pub fn ledger_by_domain(&self, domain: &str) -> io::Result<Vec<(String, String)>> {
-        let rows = self.ledger_hits(b"ledger_msg.from_domain", domain)?;
-        self.ledger_messages(rows.into_iter().map(|k| k[MSG_PREFIX.len()..].to_string()))
-    }
-
-    /// The messages that linked to a host.
-    pub fn ledger_by_link_host(&self, host: &str) -> io::Result<Vec<(String, String)>> {
-        self.ledger_by_part(b"ledger_link.host", LINK_PREFIX, host)
-    }
-
-    /// The messages that carried a file.
-    pub fn ledger_by_attachment(&self, sha256: &str) -> io::Result<Vec<(String, String)>> {
-        self.ledger_by_part(b"ledger_file.sha", FILE_PREFIX, sha256)
-    }
-
-    /// The messages a link or file row points to: its id is the message
-    /// row's id, `|`, then the value it is keyed on.
-    fn ledger_by_part(
-        &self,
-        index: &[u8],
-        prefix: &[u8],
-        value: &str,
-    ) -> io::Result<Vec<(String, String)>> {
-        let suffix = format!("|{value}");
-        let rows = self.ledger_hits(index, value)?;
-        self.ledger_messages(
-            rows.into_iter()
-                .filter_map(|k| k[prefix.len()..].strip_suffix(&suffix).map(str::to_string)),
-        )
-    }
-
-    /// The keys of the rows an index holds for `value`.
-    fn ledger_hits(&self, index: &[u8], value: &str) -> io::Result<Vec<String>> {
-        let v = kevy_embedded::IndexValue::Str(value.as_bytes().to_vec());
-        let mut out = Vec::new();
-        let mut cursor = None;
-        loop {
-            let (hits, next) = self
-                .store()
-                .idx_query(index, &v, &v, cursor.as_ref(), 10_000)?;
-            out.extend(
-                hits.into_iter()
-                    .map(|(k, _)| String::from_utf8_lossy(&k).into_owned()),
-            );
-            match next {
-                Some(c) => cursor = Some(c),
-                None => break,
-            }
-        }
-        Ok(out)
-    }
-
-    /// `(message id, user)` of each message row named by its id.
-    fn ledger_messages(
-        &self,
-        ids: impl Iterator<Item = String>,
-    ) -> io::Result<Vec<(String, String)>> {
-        let mut out = Vec::new();
-        for id in ids {
-            let key = format!("L:m:{id}");
-            let read = |field: &[u8]| -> io::Result<String> {
-                Ok(self
-                    .store()
-                    .hget(key.as_bytes(), field)?
-                    .map(|v| String::from_utf8_lossy(&v).into_owned())
-                    .unwrap_or_default())
-            };
-            out.push((read(b"mid")?, read(b"user")?));
-        }
-        Ok(out)
-    }
 }
 
 /// A reader's running relationship with one correspondent.
@@ -385,6 +342,13 @@ pub struct Relationship {
     pub first_at: i64,
     pub inbound: i64,
     pub name: String,
+}
+
+fn flag(on: bool) -> &'static [u8] {
+    match on {
+        true => b"1",
+        false => b"0",
+    }
 }
 
 fn text(v: &[u8]) -> String {
@@ -408,6 +372,7 @@ impl LedgerFacts {
                 "user" => f.user = text(v),
                 "from_addr" => f.from_addr = text(v),
                 "from_domain" => f.from_domain = text(v),
+                "reg" => f.from_reg = text(v),
                 "reply_to" => f.reply_to = text(v),
                 "auth" => f.auth = text(v),
                 "arrived" => f.arrived = number(v),
@@ -429,6 +394,8 @@ impl LedgerVerdict {
                 "score" => d.score = number(v),
                 "version" => d.rules_version = text(v),
                 "at" => d.judged_at = number(v),
+                "holds" => d.holds = v.as_slice() == b"1",
+                "screening" => d.screening = words(v),
                 _ => {}
             }
         }
