@@ -19,14 +19,27 @@ const THIN_PAGE: usize = 50;
 /// Pages of one PDF that go through OCR.
 const MAX_OCR_PAGES: usize = 20;
 
-/// Extractor generations, stored with each message's outcome.
+/// Extractor generations, stored with each message's outcome. Two
+/// independent things: how far PDFs and images were read (the low bits:
+/// 1 embedded PDF text only, 2 with OCR), and whether Office files were
+/// read (the `WITH_OFFICE` bit). A message is read again when either falls
+/// short of what this process does; see `covers`.
 pub const VERSION_PDF_ONLY: u32 = 1;
 pub const VERSION_WITH_OCR: u32 = 2;
+pub const WITH_OFFICE: u32 = 4;
+
+/// Whether a message read at `done` already has everything a read at `now`
+/// would give. Not `done >= now`: a process without OCR would then read a
+/// message again that was read with OCR, and replace its text with less.
+pub(crate) fn covers(done: u32, now: u32) -> bool {
+    done & WITH_OFFICE >= now & WITH_OFFICE && done & !WITH_OFFICE >= now & !WITH_OFFICE
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Kind {
     Pdf,
     Image,
+    Office(mailrs_attachment_extract::office::OfficeKind),
 }
 
 const IMAGE_TYPES: [&str; 8] = [
@@ -36,7 +49,7 @@ const IMAGE_NAMES: [&str; 8] = [
     ".png", ".jpg", ".jpeg", ".gif", ".webp", ".tif", ".tiff", ".bmp",
 ];
 
-/// The message's PDFs and images, in MIME order. Images shown inline
+/// The message's PDFs, images and Office files, in MIME order. Images shown inline
 /// through `cid:` count as much as attached ones.
 ///
 /// `application/octet-stream` counts when the file name says what it is:
@@ -53,6 +66,11 @@ pub(crate) fn readable_parts<'p, 'a>(
                 .attachment_filename()
                 .map(str::to_ascii_lowercase)
                 .unwrap_or_default();
+            if let Some(office) =
+                mailrs_attachment_extract::office::office_kind(&ct.mime_type(), &name)
+            {
+                return Some((Kind::Office(office), p));
+            }
             match (ct.type_.as_str(), ct.subtype.as_str()) {
                 ("application", "pdf") => Some((Kind::Pdf, p)),
                 ("image", sub) if IMAGE_TYPES.contains(&sub) => Some((Kind::Image, p)),
@@ -71,11 +89,15 @@ pub(crate) fn readable_parts<'p, 'a>(
 /// before a full MIME parse. An octet-stream part counts: its file name
 /// may be an encoded word that hides the extension.
 pub(crate) fn may_carry_readable(raw: &[u8]) -> bool {
-    const NEEDLES: [&[u8]; 4] = [
+    const NEEDLES: [&[u8]; 8] = [
         b"application/pdf",
         b"application/octet-stream",
         b".pdf",
         b"image/",
+        b"officedocument",
+        b".docx",
+        b".xlsx",
+        b".pptx",
     ];
     NEEDLES.iter().any(|n| contains_ignore_case(raw, n))
 }
@@ -97,7 +119,7 @@ enum Got {
 /// Read every readable part of `raw`. Blocking: CPU-bound and unbounded
 /// in time on a hostile document, so callers run it off the async runtime.
 /// Without `ocr`, images are passed over and scans keep only what text
-/// they embed; the outcome then says [`VERSION_PDF_ONLY`].
+/// they embed; the outcome then says [`VERSION_PDF_ONLY`] (with [`WITH_OFFICE`]).
 ///
 /// Returns each stored text with its position among the readable parts,
 /// and the counts that say what happened to the rest.
@@ -108,11 +130,11 @@ pub(crate) fn extract_all(
     let parsed = mailrs_mime::parse(raw);
     let mut texts = Vec::new();
     let mut state = AttachmentTextState {
-        version: VERSION_PDF_ONLY,
+        version: VERSION_PDF_ONLY | WITH_OFFICE,
         ..Default::default()
     };
     if ocr.is_some() {
-        state.version = VERSION_WITH_OCR;
+        state.version = VERSION_WITH_OCR | WITH_OFFICE;
     }
     for (n, (kind, part)) in readable_parts(&parsed).enumerate() {
         state.parts += 1;
@@ -125,6 +147,7 @@ pub(crate) fn extract_all(
                 state.images += 1;
                 read_image(&part.body, ocr, n)
             }
+            Kind::Office(kind) => read_office(kind, &part.body),
         };
         match got {
             Got::Text { text, by_ocr } => {
@@ -143,6 +166,24 @@ pub(crate) fn extract_all(
         }
     }
     (texts, state)
+}
+
+/// An Office file's text, in process: the archive's size is capped by the
+/// extractor, and it parses XML, nothing that renders.
+fn read_office(kind: mailrs_attachment_extract::office::OfficeKind, body: &[u8]) -> Got {
+    match mailrs_attachment_extract::office::office_text(kind, body) {
+        Ok(sections) => {
+            let text: Vec<String> = sections.into_iter().flat_map(|s| s.lines).collect();
+            match text.is_empty() {
+                true => Got::Nothing,
+                false => Got::Text {
+                    text: text.join("\n"),
+                    by_ocr: false,
+                },
+            }
+        }
+        Err(_) => Got::Failed,
+    }
 }
 
 fn read_pdf(body: &[u8], ocr: Option<&OcrSetup>, n: usize) -> Got {
@@ -279,6 +320,62 @@ mod tests {
     }
 
     #[test]
+    fn a_read_covers_another_only_when_it_did_everything_that_one_would() {
+        let ocr_office = VERSION_WITH_OCR | WITH_OFFICE;
+        let pdf_office = VERSION_PDF_ONLY | WITH_OFFICE;
+        // read before Office files were: read again
+        assert!(!covers(VERSION_WITH_OCR, ocr_office));
+        assert!(!covers(VERSION_PDF_ONLY, pdf_office));
+        // read with OCR: a process without OCR leaves it alone
+        assert!(covers(ocr_office, pdf_office));
+        // read without OCR: a process with OCR reads it again
+        assert!(!covers(pdf_office, ocr_office));
+        assert!(covers(ocr_office, ocr_office));
+    }
+
+    #[test]
+    fn office_files_are_known_by_their_type_or_their_name() {
+        use mailrs_attachment_extract::office::OfficeKind;
+        let docx = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        assert_eq!(
+            kinds(&with_part(docx, "a.bin", "x")),
+            vec![Kind::Office(OfficeKind::Word)]
+        );
+        assert_eq!(
+            kinds(&with_part("application/octet-stream", "Q3.XLSX", "x")),
+            vec![Kind::Office(OfficeKind::Excel)]
+        );
+        assert!(may_carry_readable(with_part(docx, "a.bin", "x").as_bytes()));
+    }
+
+    #[test]
+    fn an_office_file_reads_as_its_text() {
+        use std::io::Write as _;
+        let mut out = std::io::Cursor::new(Vec::new());
+        let mut zip = zip::ZipWriter::new(&mut out);
+        zip.start_file(
+            "word/document.xml",
+            zip::write::SimpleFileOptions::default(),
+        )
+        .unwrap();
+        zip.write_all(b"<w:document><w:body><w:p><w:r><w:t>Wire the deposit</w:t></w:r></w:p></w:body></w:document>")
+            .unwrap();
+        zip.finish().unwrap();
+        let got = read_office(
+            mailrs_attachment_extract::office::OfficeKind::Word,
+            &out.into_inner(),
+        );
+        assert!(matches!(got, Got::Text { ref text, by_ocr: false } if text == "Wire the deposit"));
+        assert!(matches!(
+            read_office(
+                mailrs_attachment_extract::office::OfficeKind::Word,
+                b"not a zip"
+            ),
+            Got::Failed
+        ));
+    }
+
+    #[test]
     fn parts_are_known_by_their_type_or_their_name() {
         assert_eq!(
             kinds(&with_part("application/pdf", "a.bin", "x")),
@@ -354,7 +451,7 @@ mod tests {
         assert!(texts.is_empty());
         assert_eq!((state.parts, state.pdfs, state.images), (2, 1, 1));
         assert_eq!((state.failed, state.stored, state.too_small), (1, 0, 0));
-        assert_eq!(state.version, VERSION_PDF_ONLY);
+        assert_eq!(state.version, VERSION_PDF_ONLY | WITH_OFFICE);
     }
 
     #[test]

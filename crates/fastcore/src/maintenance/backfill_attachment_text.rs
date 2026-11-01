@@ -137,7 +137,7 @@ fn walk(
                 with_readable += 1;
                 let done = state.mailbox.attachment_text_state(&mid).ok().flatten();
                 if let Some(done) = &done
-                    && done.version >= version
+                    && crate::attachment_text::covers(done.version, version)
                 {
                     already_done += 1;
                     done_failed += u64::from(done.failed);

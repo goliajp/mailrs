@@ -26,7 +26,8 @@ use crate::FastcoreState;
 mod extract;
 mod ocr;
 
-pub use extract::{MAX_PDF_BYTES, VERSION_PDF_ONLY, VERSION_WITH_OCR};
+pub(crate) use extract::covers;
+pub use extract::{MAX_PDF_BYTES, VERSION_PDF_ONLY, VERSION_WITH_OCR, WITH_OFFICE};
 pub(crate) use extract::{may_carry_readable, readable_parts};
 pub(crate) use ocr::OcrSetup;
 
@@ -141,7 +142,7 @@ async fn process(
         return;
     };
     if let Ok(Some(done)) = state.mailbox.attachment_text_state(mid)
-        && done.version >= current_version(ocr)
+        && extract::covers(done.version, current_version(ocr))
     {
         round.already_done += 1;
         return;
@@ -182,9 +183,9 @@ async fn process(
 /// older one is read again.
 fn current_version(ocr: Option<&OcrSetup>) -> u32 {
     if ocr.is_some() {
-        return VERSION_WITH_OCR;
+        return VERSION_WITH_OCR | extract::WITH_OFFICE;
     }
-    VERSION_PDF_ONLY
+    VERSION_PDF_ONLY | extract::WITH_OFFICE
 }
 
 /// Run [`run_once`] for the life of the process, backing off while the
