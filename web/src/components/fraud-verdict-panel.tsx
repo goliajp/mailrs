@@ -1,3 +1,4 @@
+import type { WireFraudLayer } from '@/wire/schemas/fraud'
 /**
  * Why this conversation was held, in the four layers that decided it.
  *
@@ -11,13 +12,12 @@
  * arrived, with the rule-set version beside it, because what a reader
  * needs to know is what was decided then.
  */
-
-import type { WireFraudLayer } from '@/wire/schemas/fraud'
 import type { LucideIcon } from 'lucide-react'
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CircleCheck, CircleMinus, ShieldAlert, TriangleAlert } from 'lucide-react'
 
+import { either, useT } from '@/i18n'
 import { conversationKeys } from '@/store/query-keys-v21'
 import { fetchFraudVerdict, releaseQuarantined } from '@/wire/endpoints/fraud'
 
@@ -43,6 +43,7 @@ export function FraudVerdictPanel({
   messageId: string
   threadId: string
 }) {
+  const t = useT()
   const qc = useQueryClient()
   const { data: verdict } = useQuery({
     enabled: messageId !== '',
@@ -72,14 +73,14 @@ export function FraudVerdictPanel({
         <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
         <div className="min-w-0 flex-1">
           <p className="text-fg text-xs font-semibold">
-            {verdict.quarantined ? 'Held: suspected fraud' : 'Examined: something looked wrong'}
+            {t(either(verdict.quarantined, 'list.held', 'fraud.examined'))}
           </p>
           <p className="text-fg-muted text-[11px] leading-snug">
             {/* The layers below name the check that convicted.
                 Repeating a number here invited the reader to do the
                 arithmetic instead — and on production the arithmetic
                 disagreed with the hold on 43 of 51 conversations. */}
-            Kept, not deleted — this is the evidence an abuse report is built from.
+            {t('fraud.kept')}
           </p>
         </div>
       </div>
@@ -91,14 +92,16 @@ export function FraudVerdictPanel({
       </ul>
 
       <div className="border-border flex items-center justify-between gap-2 border-t px-3 py-1.5">
-        <span className="text-fg-muted font-mono text-[10px]">rules {verdict.rules_version}</span>
+        <span className="text-fg-muted font-mono text-[10px]">
+          {t('fraud.rules', { version: verdict.rules_version })}
+        </span>
         {verdict.quarantined && (
           <button
             className="border-border text-fg hover:bg-bg rounded-md border px-2 py-1 text-[11px] font-medium disabled:opacity-50"
             disabled={release.isPending}
             onClick={() => release.mutate()}
           >
-            {release.isPending ? 'Releasing…' : 'This is not fraud'}
+            {t(either(release.isPending, 'fraud.releasing', 'fraud.notFraud'))}
           </button>
         )}
       </div>

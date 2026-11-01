@@ -1,3 +1,5 @@
+import { tNow } from '@/i18n'
+
 // What kind of invitation this is, and whether it wants an answer.
 // Rules, not components — the file they came from cannot export them.
 
@@ -31,19 +33,19 @@ export function inviteBadge(
 ): { className: string; label: string } {
   switch (method.toUpperCase()) {
     case 'CANCEL':
-      return { className: 'bg-red-500/15 text-red-300', label: 'Cancelled' }
+      return { className: 'bg-red-500/15 text-red-300', label: tNow('invite.badge.cancelled') }
     case 'COUNTER':
-      return { className: 'bg-amber-500/15 text-amber-300', label: 'Counter-proposed' }
+      return { className: 'bg-amber-500/15 text-amber-300', label: tNow('invite.badge.counter') }
     case 'PUBLISH':
-      return { className: 'bg-zinc-500/15 text-zinc-300', label: 'Event' }
+      return { className: 'bg-zinc-500/15 text-zinc-300', label: tNow('invite.badge.event') }
     case 'REPLY':
-      return { className: 'bg-blue-500/15 text-blue-300', label: 'Reply' }
+      return { className: 'bg-blue-500/15 text-blue-300', label: tNow('invite.badge.reply') }
     case 'REQUEST':
       return sequence > 0
-        ? { className: 'bg-sky-500/15 text-sky-300', label: 'Updated invite' }
-        : { className: 'bg-emerald-500/15 text-emerald-300', label: 'New invite' }
+        ? { className: 'bg-sky-500/15 text-sky-300', label: tNow('invite.badge.updated') }
+        : { className: 'bg-emerald-500/15 text-emerald-300', label: tNow('invite.badge.new') }
     case 'UPDATE':
-      return { className: 'bg-sky-500/15 text-sky-300', label: 'Updated invite' }
+      return { className: 'bg-sky-500/15 text-sky-300', label: tNow('invite.badge.updated') }
     default:
       return { className: 'bg-zinc-500/15 text-zinc-300', label: method }
   }

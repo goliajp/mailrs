@@ -1,5 +1,6 @@
 import { HelpCircle } from 'lucide-react'
 
+import { useT } from '@/i18n'
 import { contradictedDomain } from '@/lib/sender-claim'
 
 /**
@@ -18,12 +19,13 @@ import { contradictedDomain } from '@/lib/sender-claim'
  * attacker owns passes every check and still trips this.
  */
 export function SenderClaimBadge({ sender }: { sender: string }) {
+  const t = useT()
   const actual = contradictedDomain(sender, sender)
   if (!actual) return null
   return (
     <span
       className="bg-warning/10 text-warning inline-flex max-w-[12rem] items-center gap-0.5 rounded px-1 py-0.5 text-[10px] font-medium"
-      title={`This message was sent from ${actual}, which is not the domain its sender's name claims`}
+      title={t('badge.claimMismatch', { domain: actual })}
     >
       <HelpCircle className="h-3 w-3 shrink-0" />
       <span className="truncate">{actual}</span>

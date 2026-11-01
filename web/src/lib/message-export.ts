@@ -3,6 +3,7 @@ import type { ThreadMessage } from '@/lib/types'
 import { toast } from '@goliapkg/gds'
 import DOMPurify from 'dompurify'
 
+import { tNow } from '@/i18n'
 import { formatFullDate } from '@/lib/format'
 import { http } from '@/lib/http'
 
@@ -10,7 +11,7 @@ export async function downloadEml(uid: number, subject: string) {
   try {
     const res = await http(`/api/mail/messages/${uid}/raw`)
     if (!res.ok) {
-      toast.error('Download failed')
+      toast.error(tNow('export.failed'))
       return
     }
     const blob = await res.blob()
@@ -27,7 +28,7 @@ export async function downloadEml(uid: number, subject: string) {
       setTimeout(() => URL.revokeObjectURL(url), 1000)
     }
   } catch {
-    toast.error('Download failed')
+    toast.error(tNow('export.failed'))
   }
 }
 

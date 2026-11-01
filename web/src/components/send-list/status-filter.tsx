@@ -1,5 +1,7 @@
 import type { WireSendStatus } from '@/wire/schemas/sends'
 
+import { useT } from '@/i18n'
+
 import { statusLabel } from './send-model'
 
 const OPTIONS: WireSendStatus[] = ['sending', 'failed', 'partial', 'delivered', 'scheduled']
@@ -22,10 +24,11 @@ export function StatusFilter({
   onChange: (status: null | WireSendStatus) => void
   value: null | WireSendStatus
 }) {
+  const t = useT()
   return (
     <div className="border-border/60 flex flex-wrap items-center gap-1 border-b px-3 py-1.5">
       <button className={chipClass(value === null)} onClick={() => onChange(null)} type="button">
-        All
+        {t('sends.all')}
       </button>
       {OPTIONS.map((status) => (
         <button

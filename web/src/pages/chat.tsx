@@ -5,6 +5,7 @@ import { useSearchParams } from 'react-router'
 import { ConversationList } from '@/components/conversation-list'
 import { DraftsList } from '@/components/drafts-list'
 import { LabelPicker } from '@/components/label-picker'
+import { MailFolders } from '@/components/mail-folders'
 import { MobileMail } from '@/components/mobile-mail'
 import { NewConversation } from '@/components/new-conversation'
 import { SendList } from '@/components/send-list/send-list'
@@ -158,6 +159,9 @@ export function Chat() {
   return (
     <>
       <MPaneGroup className="flex">
+        <MPane className="hidden xl:flex" width={200}>
+          <MailFolders />
+        </MPane>
         <MPane width={480}>{renderList()}</MPane>
 
         <MPaneGroup>{renderDesktopMain()}</MPaneGroup>

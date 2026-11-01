@@ -1,82 +1,19 @@
-import {
-  ArrowLeftRight,
-  Eye,
-  Filter,
-  FlaskConical,
-  Globe,
-  KeyRound,
-  LayoutGrid,
-  ListOrdered,
-  LockKeyhole,
-  Mail,
-  ScrollText,
-  Settings,
-  Shield,
-  ShieldAlert,
-  ShieldCheck,
-  Users,
-} from 'lucide-react'
+import { useAtomValue } from 'jotai'
 import { NavLink } from 'react-router'
 
-type NavItem = { icon: React.ReactNode; label: string; to: string }
+import { useT } from '@/i18n'
+import { canOpenAdminPage } from '@/lib/admin-access'
+import { authAtom } from '@/store/auth'
 
-// grouped by what an operator comes to do: watch mail move, manage who
-// and what the server hosts, look back at what happened, change settings
-const navGroups: { items: NavItem[]; label: string }[] = [
-  {
-    items: [
-      { icon: <LayoutGrid className="h-4 w-4" />, label: 'Overview', to: '/admin/overview' },
-      { icon: <ListOrdered className="h-4 w-4" />, label: 'Queues', to: '/admin/queues' },
-      { icon: <ShieldCheck className="h-4 w-4" />, label: 'DMARC', to: '/admin/dmarc' },
-      { icon: <Filter className="h-4 w-4" />, label: 'Sender lists', to: '/admin/greylist' },
-      { icon: <FlaskConical className="h-4 w-4" />, label: 'Mock mail', to: '/admin/mock' },
-    ],
-    label: 'Mail flow',
-  },
-  {
-    items: [
-      { icon: <Globe className="h-4 w-4" />, label: 'Domains', to: '/admin/domains' },
-      { icon: <Users className="h-4 w-4" />, label: 'Accounts', to: '/admin/accounts' },
-      {
-        icon: <LockKeyhole className="h-4 w-4" />,
-        label: 'Clear passwords',
-        to: '/admin/password-clear',
-      },
-      { icon: <ArrowLeftRight className="h-4 w-4" />, label: 'Aliases', to: '/admin/aliases' },
-      { icon: <Mail className="h-4 w-4" />, label: 'Email groups', to: '/admin/email-groups' },
-      { icon: <Shield className="h-4 w-4" />, label: 'Permission groups', to: '/admin/groups' },
-    ],
-    label: 'Directory',
-  },
-  {
-    items: [
-      { icon: <Eye className="h-4 w-4" />, label: 'Mail audit', to: '/admin/mail-audit' },
-      { icon: <ScrollText className="h-4 w-4" />, label: 'Audit log', to: '/admin/audit-log' },
-      { icon: <KeyRound className="h-4 w-4" />, label: 'Sign-ins', to: '/admin/sign-ins' },
-      { icon: <ShieldAlert className="h-4 w-4" />, label: 'Screening', to: '/admin/screening' },
-      {
-        icon: <KeyRound className="h-4 w-4" />,
-        label: 'Protocol sign-ins',
-        to: '/admin/protocol-sign-ins',
-      },
-    ],
-    label: 'Oversight',
-  },
-  {
-    items: [
-      {
-        icon: <Settings className="h-4 w-4" />,
-        label: 'System config',
-        to: '/admin/system-config',
-      },
-    ],
-    label: 'Settings',
-  },
-]
-
-const allItems = navGroups.flatMap((g) => g.items)
+import { navGroups } from './admin-nav'
 
 export function AdminSidebar() {
+  const t = useT()
+  const who = useAtomValue(authAtom)
+  const groups = navGroups
+    .map((g) => ({ ...g, items: g.items.filter((i) => canOpenAdminPage(who, i.to)) }))
+    .filter((g) => g.items.length > 0)
+  const allItems = groups.flatMap((g) => g.items)
   return (
     <>
       {/* mobile: one scrolling row of every page */}
@@ -88,16 +25,16 @@ export function AdminSidebar() {
             to={item.to}
           >
             <span className="text-fg-muted">{item.icon}</span>
-            <span>{item.label}</span>
+            <span>{t(item.label)}</span>
           </NavLink>
         ))}
       </nav>
 
       {/* desktop: grouped column */}
       <aside className="border-border hidden h-full w-52 shrink-0 flex-col overflow-y-auto border-r py-3 select-none md:flex">
-        {navGroups.map((group) => (
-          <nav aria-label={group.label} className="mb-4 px-3" key={group.label}>
-            <p className="text-fg-muted mb-1 px-3 text-xs">{group.label}</p>
+        {groups.map((group) => (
+          <nav aria-label={t(group.label)} className="mb-4 px-3" key={group.label}>
+            <p className="text-fg-muted mb-1 px-3 text-xs">{t(group.label)}</p>
             {group.items.map((item) => (
               <NavLink
                 className={({ isActive }) => linkClass(isActive, false)}
@@ -105,7 +42,7 @@ export function AdminSidebar() {
                 to={item.to}
               >
                 <span className="text-fg-muted">{item.icon}</span>
-                <span>{item.label}</span>
+                <span>{t(item.label)}</span>
               </NavLink>
             ))}
           </nav>

@@ -68,15 +68,7 @@ export function KeyboardShortcutsDialog({ onClose, open }: Props) {
         </div>
 
         <p className="text-fg-muted mt-5 text-center text-xs">
-          Press{' '}
-          <kbd className="border-border bg-surface text-fg-secondary inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded border px-1 font-mono text-xs">
-            ?
-          </kbd>{' '}
-          or{' '}
-          <kbd className="border-border bg-surface text-fg-secondary inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded border px-1 font-mono text-xs">
-            Esc
-          </kbd>{' '}
-          to close
+          {closeHint(t('shortcuts.closeHint'))}
         </p>
       </div>
     </MobileModal>
@@ -99,4 +91,26 @@ export function ShortcutsHost() {
     return () => window.removeEventListener('keydown', onKey)
   }, [setOpen])
   return <KeyboardShortcutsDialog onClose={() => setOpen(false)} open={open} />
+}
+
+const KBD =
+  'border-border bg-surface text-fg-secondary inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded border px-1 font-mono text-xs'
+
+/** The sentence with its `{help}` and `{close}` slots drawn as keys. */
+function closeHint(text: string) {
+  return text.split(/(\{help\}|\{close\})/).map((part, i) => {
+    if (part === '{help}')
+      return (
+        <kbd className={KBD} key={i}>
+          ?
+        </kbd>
+      )
+    if (part === '{close}')
+      return (
+        <kbd className={KBD} key={i}>
+          Esc
+        </kbd>
+      )
+    return part
+  })
 }

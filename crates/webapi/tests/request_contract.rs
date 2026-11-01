@@ -123,6 +123,16 @@ fn signature_save_body_matches() {
     assert_eq!(v.html, "<p>Regards</p>");
 }
 
+/// Every field is defaulted on the server, so a misnamed one would save an
+/// empty template without an error: each value is checked, not only the parse.
+#[test]
+fn template_save_body_matches() {
+    let v: mailrs_core_api::method::admin::SaveTemplateRequest = parse("template-save");
+    assert_eq!(v.name, "Weekly report");
+    assert_eq!(v.subject, "Report");
+    assert_eq!(v.text_body, "Hello team");
+}
+
 /// The address the client sends is the field the handler reads.
 ///
 #[test]
@@ -408,6 +418,7 @@ fn every_fixture_has_a_test() {
         "signature-save",
         "snooze",
         "system-config-set",
+        "template-save",
         "unsubscribe",
         "vacation-set",
         "totp-code",

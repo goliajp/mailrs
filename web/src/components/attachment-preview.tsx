@@ -26,6 +26,7 @@ export function AttachmentPreview({
   html?: null | string
   uid: number
 }) {
+  const t = useT()
   const visible = visibleAttachments(attachments, html)
   if (visible.length === 0) return null
 
@@ -36,7 +37,7 @@ export function AttachmentPreview({
     <div className="px-4 py-3">
       <div className="mb-2 flex items-center gap-2">
         <span className="text-fg-muted text-xs font-medium tracking-wide uppercase select-none">
-          Attachments ({visible.length})
+          {t('attachment.count', { count: visible.length })}
         </span>
       </div>
 
@@ -141,6 +142,7 @@ function ImageLightbox({ alt, onClose, src }: { alt: string; onClose: () => void
 
 // single image thumbnail with click-to-expand
 function ImageThumbnail({ att, index, uid }: { att: AttachmentInfo; index: number; uid: number }) {
+  const t = useT()
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const url = attachmentUrl(uid, index)
 
@@ -150,7 +152,7 @@ function ImageThumbnail({ att, index, uid }: { att: AttachmentInfo; index: numbe
         <button
           className="border-border block overflow-hidden rounded-md border transition-shadow hover:shadow-md"
           onClick={() => setLightboxOpen(true)}
-          title={`${att.filename} - click to enlarge`}
+          title={t('attachment.enlarge', { name: att.filename })}
         >
           <img
             alt={att.filename}

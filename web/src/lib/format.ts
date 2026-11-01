@@ -1,13 +1,15 @@
+import { currentLocale, tNow } from '@/i18n'
+
 export function dateGroupLabel(epoch: number): string {
   const d = new Date(epoch * 1000)
   const now = new Date()
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const msgDate = new Date(d.getFullYear(), d.getMonth(), d.getDate())
   const diffDays = Math.floor((today.getTime() - msgDate.getTime()) / 86400000)
-  if (diffDays === 0) return 'Today'
-  if (diffDays === 1) return 'Yesterday'
-  if (diffDays < 7) return d.toLocaleDateString(undefined, { weekday: 'long' })
-  return d.toLocaleDateString(undefined, {
+  if (diffDays === 0) return tNow('date.today')
+  if (diffDays === 1) return tNow('date.yesterday')
+  if (diffDays < 7) return d.toLocaleDateString(currentLocale(), { weekday: 'long' })
+  return d.toLocaleDateString(currentLocale(), {
     day: 'numeric',
     month: 'short',
     year: now.getFullYear() !== d.getFullYear() ? 'numeric' : undefined,
@@ -20,26 +22,26 @@ export function formatDate(ts: number): string {
 
   // today: show time
   if (d.toDateString() === now.toDateString()) {
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    return d.toLocaleTimeString(currentLocale(), { hour: '2-digit', minute: '2-digit' })
   }
 
   // yesterday
   if (isYesterday(d, now)) {
-    return 'Yesterday'
+    return tNow('date.yesterday')
   }
 
   // same week (but not today/yesterday): show weekday
   if (isSameWeek(d, now)) {
-    return d.toLocaleDateString([], { weekday: 'short' })
+    return d.toLocaleDateString(currentLocale(), { weekday: 'short' })
   }
 
   // same year: month + day
   if (d.getFullYear() === now.getFullYear()) {
-    return d.toLocaleDateString([], { day: 'numeric', month: 'short' })
+    return d.toLocaleDateString(currentLocale(), { day: 'numeric', month: 'short' })
   }
 
   // older: abbreviated year
-  return d.toLocaleDateString([], {
+  return d.toLocaleDateString(currentLocale(), {
     day: 'numeric',
     month: 'short',
     year: '2-digit',
@@ -47,7 +49,7 @@ export function formatDate(ts: number): string {
 }
 
 export function formatFullDate(ts: number): string {
-  return new Date(ts * 1000).toLocaleString([], {
+  return new Date(ts * 1000).toLocaleString(currentLocale(), {
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
@@ -69,7 +71,7 @@ export function formatSize(bytes: number): string {
 /// (today→time / yesterday / weekday / month-day) output here would
 /// duplicate the divider's "4月16日" label for every same-day message.
 export function formatTimeOfDay(ts: number): string {
-  return new Date(ts * 1000).toLocaleTimeString([], {
+  return new Date(ts * 1000).toLocaleTimeString(currentLocale(), {
     hour: '2-digit',
     minute: '2-digit',
   })

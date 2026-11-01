@@ -53,7 +53,7 @@ export function ConversationRow({
         <p
           className={cn('truncate text-xs', isUnread ? 'text-fg font-medium' : 'text-fg-secondary')}
         >
-          {c.subject || '(no subject)'}
+          {c.subject || t('mobile.noSubject')}
         </p>
         {c.snippet && <p className="text-fg-muted mt-0.5 truncate text-xs">{c.snippet}</p>}
       </div>

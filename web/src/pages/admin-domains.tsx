@@ -16,7 +16,7 @@ import {
 import { Copyable } from '@/components/copy-button'
 import { DomainHealthCard } from '@/components/domain-health-card'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
-import { type Key, useT } from '@/i18n'
+import { currentLocale, type Key, useT } from '@/i18n'
 import { adminKeys } from '@/lib/query-keys'
 import { adminDelete, adminListGet, adminObjectGet, adminPost } from '@/wire/endpoints/admin'
 
@@ -117,7 +117,7 @@ export function AdminDomains() {
       key: 'created',
       cell: (d) => (
         <span className="text-fg-secondary">
-          {new Date(d.created_at * 1000).toLocaleDateString()}
+          {new Date(d.created_at * 1000).toLocaleDateString(currentLocale())}
         </span>
       ),
     },

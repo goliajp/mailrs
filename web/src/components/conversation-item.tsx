@@ -10,7 +10,7 @@ import { CategoryBadge, ImportanceBadge } from '@/components/category-badge'
 import { ActionSheet, ContextMenu, useContextMenu } from '@/components/context-menu'
 import { RowLabels } from '@/components/label-chip'
 import { SenderAvatar } from '@/components/sender-avatar'
-import { type Key, useT } from '@/i18n'
+import { currentLocale, type Key, type Translate, useT } from '@/i18n'
 import { ACTIONS, rowActions, toggle } from '@/lib/actions'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { formatFullDate } from '@/lib/format'
@@ -139,7 +139,14 @@ export const ConversationItem = memo(function ConversationItem({
         // option / tab / row / gridcell and was ignored here. "The one the
         // reading pane is showing" is what current means.
         aria-current={selected && !batchMode}
-        aria-label={`${name}: ${convo.subject || '(no subject)'}${hasUnread ? `, ${convo.unread_count} unread` : ''}${isPinned ? ', pinned' : ''}`}
+        aria-label={rowLabel(
+          name,
+          convo.subject || t('mobile.noSubject'),
+          hasUnread,
+          convo.unread_count,
+          isPinned,
+          t
+        )}
         // h-24 (96px) — HARD-FIXED row height. The previous design let
         // the row collapse when convo.snippet was empty, which mixed
         // two row-heights into the same list and broke the virtualizer's
@@ -181,7 +188,10 @@ export const ConversationItem = memo(function ConversationItem({
               {convo.message_count > 1 && (
                 <span
                   className="bg-bg-secondary text-fg-muted md:text-tiny rounded px-1 py-px text-xs tabular-nums"
-                  title={`${convo.received_count} received · ${convo.sent_count} sent`}
+                  title={t('row.receivedSent', {
+                    received: convo.received_count,
+                    sent: convo.sent_count,
+                  })}
                 >
                   {convo.sent_count > 0 && convo.received_count > 0 ? (
                     <>
@@ -196,10 +206,12 @@ export const ConversationItem = memo(function ConversationItem({
               {isSnoozed && (
                 <span
                   className="bg-bg-secondary text-fg-muted md:text-tiny flex items-center gap-0.5 rounded px-1 py-px text-xs"
-                  title={`Snoozed until ${new Date(snoozedUntil * 1000).toLocaleString()}`}
+                  title={t('row.snoozedUntil', {
+                    when: new Date(snoozedUntil * 1000).toLocaleString(currentLocale()),
+                  })}
                 >
                   <Clock className="h-3 w-3" />
-                  {new Date(snoozedUntil * 1000).toLocaleDateString(undefined, {
+                  {new Date(snoozedUntil * 1000).toLocaleDateString(currentLocale(), {
                     day: 'numeric',
                     month: 'short',
                   })}
@@ -273,7 +285,7 @@ export const ConversationItem = memo(function ConversationItem({
             <p
               className={`min-w-0 flex-1 truncate text-sm ${hasUnread ? 'text-fg font-medium' : 'text-fg-muted'}`}
             >
-              {convo.subject || '(no subject)'}
+              {convo.subject || t('mobile.noSubject')}
             </p>
             <RowLabels ids={convo.labels ?? []} />
             {/* A held conversation is only ever on screen because the
@@ -362,6 +374,21 @@ function listView(isJunkView: boolean, isNpView: boolean): RowState['view'] {
   if (isJunkView) return 'junk'
   if (isNpView) return 'np'
   return 'other'
+}
+
+/** What a screen reader hears for a row: who, what, and its state. */
+function rowLabel(
+  name: string,
+  subject: string,
+  unread: boolean,
+  unreadCount: number,
+  pinned: boolean,
+  t: Translate
+): string {
+  let label = t('row.label', { name, subject })
+  if (unread) label += t('row.unreadSuffix', { count: unreadCount })
+  if (pinned) label += t('row.pinnedSuffix')
+  return label
 }
 
 function starAction(flagged: boolean): SingleAction {

@@ -15,6 +15,9 @@ export type { Key } from './en'
 
 export type Lang = 'en' | 'ja' | 'zh'
 
+/** `t`'s shape, for code that is handed one rather than calling `useT`. */
+export type Translate = (key: Key, vars?: Record<string, number | string>) => string
+
 export const LANGS: Lang[] = ['en', 'ja', 'zh']
 
 const DICTS: Record<Lang, Record<Key, string>> = { en, ja, zh }
@@ -73,6 +76,17 @@ export function translate(lang: Lang, key: Key, vars?: Record<string, number | s
 
 const LOCALE: Record<Lang, string> = { en: 'en-US', ja: 'ja-JP', zh: 'zh-CN' }
 
+/** The interface language's locale, read at the call, for formatting outside components. */
+export function currentLocale(): string {
+  return LOCALE[getDefaultStore().get(langAtom)]
+}
+
+/** `yes` when `cond` holds, else `no`: picks between two keys without a `?:`. */
+export function either(cond: boolean, yes: Key, no: Key): Key {
+  if (cond) return yes
+  return no
+}
+
 /** Unix seconds as a date, in the current language. */
 export function useDate() {
   const lang = useAtomValue(langAtom)
@@ -87,6 +101,9 @@ export function useDateTime() {
   const lang = useAtomValue(langAtom)
   return useCallback((unix: number) => new Date(unix * 1000).toLocaleString(LOCALE[lang]), [lang])
 }
+
+/** `t` for code outside components: the interface language at the moment of the call. */
+export const tNow: Translate = (key, vars) => translate(getDefaultStore().get(langAtom), key, vars)
 
 /** The BCP 47 locale of the current language, for `Intl` formatting. */
 export function useLocale(): string {

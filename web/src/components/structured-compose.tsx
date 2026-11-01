@@ -25,6 +25,7 @@ import { QuoteBlock } from '@/components/composer/blocks/quote-block'
 import { TextBlock } from '@/components/composer/blocks/text-block'
 import { EmailPreview } from '@/components/composer/email-preview'
 import { useBlockComposer } from '@/components/composer/use-block-composer'
+import { either, useT } from '@/i18n'
 import { renderMarkdownToHtml } from '@/lib/render-markdown'
 
 // SignatureBlock pulls in tiptap + prosemirror + lowlight + highlight.js
@@ -88,6 +89,7 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
     },
     ref
   ) {
+    const t = useT()
     const fileInputRef = useRef<HTMLInputElement>(null)
     const scrollAreaRef = useRef<HTMLDivElement>(null)
 
@@ -246,7 +248,7 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
         <div className={`group relative ${className}`}>
           {children}
           <button
-            aria-label="Remove block"
+            aria-label={t('composer.removeBlock')}
             className="touch-target bg-surface text-fg-muted hover:bg-danger/10 hover:text-danger absolute top-1 right-2 z-10 rounded-full p-1 opacity-100 shadow-sm transition-opacity md:p-0.5 md:opacity-0 md:group-hover:opacity-100"
             onClick={() => removeBlock(id)}
             type="button"
@@ -255,7 +257,7 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
           </button>
         </div>
       ),
-      [removeBlock]
+      [removeBlock, t]
     )
 
     const renderBlock = (block: AnyBlock, index: number) => {
@@ -282,7 +284,7 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
                 <DividerBlock />
               </div>
               <button
-                aria-label="Remove divider"
+                aria-label={t('composer.removeDivider')}
                 className="touch-target bg-surface text-fg-muted hover:bg-danger/10 hover:text-danger ml-2 shrink-0 rounded-full p-1 opacity-100 shadow-sm transition-opacity md:p-0.5 md:opacity-0 md:group-hover:opacity-100"
                 onClick={() => removeBlock(block.id)}
                 type="button"
@@ -321,7 +323,7 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
                 disabled={disabled}
                 onChange={(data) => updateBlock(block.id, data)}
                 onSubmit={onSubmit}
-                placeholder="Continue writing…"
+                placeholder={t('composer.continue')}
               />
             </Removable>
           ) : (
@@ -350,7 +352,7 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
       >
         {dragging && (
           <div className="border-accent bg-accent/10 absolute inset-0 z-10 flex items-center justify-center rounded-lg border-2 border-dashed">
-            <p className="text-accent text-sm font-medium">Drop files to attach</p>
+            <p className="text-accent text-sm font-medium">{t('composer.drop')}</p>
           </div>
         )}
         {/* block content area — or the whole mail, as it will arrive */}
@@ -381,7 +383,7 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
             onClick={() => setPreviewing((v) => !v)}
             type="button"
           >
-            {previewing ? 'Back to editing' : 'Preview'}
+            {t(either(previewing, 'composer.backToEditing', 'compose.preview'))}
           </button>
         </div>
       </div>

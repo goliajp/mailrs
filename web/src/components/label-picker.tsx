@@ -158,7 +158,7 @@ function ManageRow({ label }: { label: WireLabel }) {
     <li className="border-border rounded-md border p-2">
       <div className="flex items-center gap-2">
         <input
-          aria-label={`Name of ${label.name}`}
+          aria-label={t('labels.nameOf', { name: label.name })}
           className="border-border bg-bg flex-1 rounded-md border px-2 py-1 text-sm"
           onBlur={() => {
             if (name.trim() && name !== label.name) save({ name })
@@ -167,7 +167,7 @@ function ManageRow({ label }: { label: WireLabel }) {
           value={name}
         />
         <button
-          aria-label={`Delete ${label.name}`}
+          aria-label={t('labels.deleteNamed', { name: label.name })}
           className="text-fg-muted hover:text-danger rounded-md p-1"
           onClick={() => setAsking(true)}
           type="button"

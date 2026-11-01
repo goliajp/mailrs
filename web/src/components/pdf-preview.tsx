@@ -1,11 +1,14 @@
 import { useState } from 'react'
 
+import { either, useT } from '@/i18n'
+
 /// A PDF attachment shown in place, on request. Not sandboxed: Chrome
 /// shows no PDF in a sandboxed frame, and the server serves the part as
 /// `application/pdf` with `nosniff`, framed only by this site. Callers
 /// offer it only for a part declared `application/pdf`; a name ending in
 /// `.pdf` is the sender's word and would be served as whatever it says.
 export function PdfPreview({ filename, url }: { filename: string; url: string }) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   return (
     <>
@@ -15,7 +18,7 @@ export function PdfPreview({ filename, url }: { filename: string; url: string })
         onClick={() => setOpen((v) => !v)}
         type="button"
       >
-        {open ? 'Hide preview' : 'Preview'}
+        {t(either(open, 'pdf.hidePreview', 'compose.preview'))}
       </button>
       {open && (
         <iframe

@@ -2,6 +2,7 @@ import { toast } from '@goliapkg/gds'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Clock } from 'lucide-react'
 
+import { useT } from '@/i18n'
 import { formatFullDate } from '@/lib/format'
 import { queryClient } from '@/lib/query-client'
 import { wireCancelScheduled, wireListScheduled } from '@/wire/endpoints/sends'
@@ -18,6 +19,7 @@ const scheduledKey = ['sends', 'scheduled'] as const
  * cancel, so nothing could offer to.
  */
 export function ScheduledSection() {
+  const t = useT()
   const { data: items = [] } = useQuery({
     queryKey: scheduledKey,
     queryFn: () => wireListScheduled().then((rows) => [...rows]),
@@ -25,9 +27,9 @@ export function ScheduledSection() {
 
   const cancel = useMutation({
     mutationFn: (id: string) => wireCancelScheduled(id),
-    onError: (e: Error) => toast.error(e.message || 'Could not cancel that send'),
+    onError: (e: Error) => toast.error(e.message || t('sends.cancelThatFailed')),
     onSuccess: () => {
-      toast.success('Cancelled')
+      toast.success(t('sends.cancelled'))
       void queryClient.invalidateQueries({ queryKey: scheduledKey })
     },
   })
@@ -37,13 +39,13 @@ export function ScheduledSection() {
   return (
     <div className="border-border border-b">
       <h2 className="text-fg-muted px-3 pt-3 pb-1 text-xs font-medium tracking-wide uppercase">
-        Scheduled
+        {t('sends.scheduled')}
       </h2>
       {items.map((item) => (
         <div className="hover:bg-bg-secondary flex items-center gap-2 px-3 py-2" key={item.id}>
           <Clock className="text-fg-muted h-4 w-4 shrink-0" />
           <div className="min-w-0 flex-1">
-            <div className="text-fg truncate text-sm">{item.subject || '(no subject)'}</div>
+            <div className="text-fg truncate text-sm">{item.subject || t('mobile.noSubject')}</div>
             <div className="text-fg-muted truncate text-xs">
               {item.recipient} · {formatFullDate(item.scheduledAt)}
             </div>
@@ -53,7 +55,7 @@ export function ScheduledSection() {
             disabled={cancel.isPending}
             onClick={() => cancel.mutate(item.id)}
           >
-            Cancel
+            {t('common.cancel')}
           </button>
         </div>
       ))}

@@ -2,10 +2,12 @@ import { useAtomValue, useSetAtom } from 'jotai'
 
 import { LabelDot } from '@/components/label-chip'
 import { useLabels } from '@/hooks/use-labels'
+import { useT } from '@/i18n'
 import { activeLabelAtom, activeListAtom, selectLabelAtom } from '@/store/ui'
 
 /** The user's labels under the tabs; each opens that label's conversations. */
 export function LabelBar() {
+  const t = useT()
   const { data } = useLabels()
   const activeList = useAtomValue(activeListAtom)
   const activeLabel = useAtomValue(activeLabelAtom)
@@ -13,8 +15,8 @@ export function LabelBar() {
   if (!data || data.length === 0) return null
   return (
     <div
-      aria-label="Labels"
-      className="border-border flex gap-1 overflow-x-auto border-b px-3 py-1.5 text-xs"
+      aria-label={t('labels.title')}
+      className="border-border flex gap-1 overflow-x-auto border-b px-3 py-1.5 text-xs xl:hidden"
       role="toolbar"
     >
       {data.map((l) => (

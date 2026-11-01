@@ -1,4 +1,4 @@
-import { type Key } from '@/i18n'
+import { currentLocale, type Key } from '@/i18n'
 // shared pure helpers + color maps used by multiple dashboard widgets.
 import { decodeMimeHeader } from '@/lib/avatar'
 
@@ -32,7 +32,7 @@ export function formatRelative(ts: number): string {
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
   if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`
-  return new Date(ts * 1000).toLocaleDateString('en', {
+  return new Date(ts * 1000).toLocaleDateString(currentLocale(), {
     day: 'numeric',
     month: 'short',
   })

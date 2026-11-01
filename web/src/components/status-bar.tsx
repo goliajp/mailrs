@@ -1,3 +1,4 @@
+import { useT } from '@/i18n'
 /**
  * Bottom status bar — the fixed 40 px strip below the AppShell.
  *
@@ -53,12 +54,13 @@ export function StatusBarView({
   section,
   webVersion,
 }: StatusBarViewProps) {
-  const backendState = computeBackendState(backend)
-  const realtimeState = computeRealtimeState(realtime)
-  const apiVersion = backend?.version ?? 'contacting…'
+  const t = useT()
+  const backendState = computeBackendState(backend, t)
+  const realtimeState = computeRealtimeState(realtime, t)
+  const apiVersion = backend?.version ?? t('status.contacting')
   return (
     <div
-      aria-label="System status"
+      aria-label={t('status.label')}
       className="text-fg-secondary flex h-full w-full items-center justify-between gap-4 px-4 text-xs"
       role="status"
     >
@@ -92,7 +94,7 @@ export function StatusBarView({
         )}
         <span
           className="whitespace-nowrap"
-          title={`webapp: ${webVersion} · backend: ${apiVersion}`}
+          title={t('status.versions', { api: apiVersion, web: webVersion })}
         >
           <span className="text-fg-muted">web </span>
           <span data-testid="web-version">{webVersion}</span>

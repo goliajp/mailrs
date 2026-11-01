@@ -1,3 +1,4 @@
+import { currentLocale } from '@/i18n'
 // Turning an iCalendar date-time into something a person reads. Split out
 // of invite-card on 2026-08-02; the component is JSX, this is not.
 
@@ -15,7 +16,7 @@ export type CalDateTime =
   | { Zoned: { local: string; tz_name: string } }
 
 export function fmtHm(d: Date): string {
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  return d.toLocaleTimeString(currentLocale(), { hour: '2-digit', minute: '2-digit' })
 }
 
 /// Narrow timeline render: drop the year, and if start and end fall on the
@@ -47,9 +48,9 @@ export function formatDateTime(dt: CalDateTime | null | undefined): string {
   // A date is a date. An all-day event has no offset, and giving it one
   // is how it lands on the wrong day for readers west of the organiser.
   if (isDateOnly(dt)) {
-    return d.toLocaleDateString(undefined, { dateStyle: 'medium' })
+    return d.toLocaleDateString(currentLocale(), { dateStyle: 'medium' })
   }
-  return d.toLocaleString(undefined, {
+  return d.toLocaleString(currentLocale(), {
     dateStyle: 'medium',
     timeStyle: 'short',
   })
@@ -67,7 +68,7 @@ export function formatEpochOrIso(v: null | string | undefined): string {
     const d = new Date(Number(v) * 1000)
     return isNaN(d.getTime())
       ? ''
-      : d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+      : d.toLocaleString(currentLocale(), { dateStyle: 'medium', timeStyle: 'short' })
   }
   return formatDateTime(v)
 }

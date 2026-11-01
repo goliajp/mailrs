@@ -38,6 +38,14 @@ describe('request bodies match the shared contract', () => {
     expect(body).toEqual(fixture('signature-save'))
   })
 
+  it('template save', async () => {
+    const { wireCreateTemplate } = await import('../endpoints/templates')
+    const body = await bodyOf(() =>
+      wireCreateTemplate({ name: 'Weekly report', subject: 'Report', text_body: 'Hello team' })
+    )
+    expect(body).toEqual(fixture('template-save'))
+  })
+
   it('unsubscribe', async () => {
     const { wireUnsubscribe } = await import('../endpoints/mail')
     const body = await bodyOf(() => wireUnsubscribe('a48529b44b1b190f@golia.jp', 41))

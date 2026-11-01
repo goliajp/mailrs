@@ -22,6 +22,7 @@ import { BottomSheet } from '@/components/bottom-sheet'
 import { useCurrentUnreadCount } from '@/hooks/use-current-mail-filters'
 import { useSignOut } from '@/hooks/use-sign-out'
 import { useT } from '@/i18n'
+import { showsAdmin } from '@/lib/admin-access'
 import { authAtom } from '@/store/auth'
 import { themeModeAtom } from '@/store/theme'
 import { selectedDomainsAtom } from '@/store/ui'
@@ -102,21 +103,22 @@ export function AppSidebar() {
 
         {/* other nav */}
         <nav className="flex flex-col items-center gap-1.5">
+          {showsAdmin(auth) && (
+            <SidebarLink
+              active={section === 'server'}
+              href="/admin"
+              icon={Server}
+              label={t('nav.server')}
+            />
+          )}
+          {/* the monitor shows other people's mail traffic: super administrators only */}
           {auth?.is_super && (
-            <>
-              <SidebarLink
-                active={section === 'server'}
-                href="/admin"
-                icon={Server}
-                label={t('nav.server')}
-              />
-              <SidebarLink
-                active={section === 'monitor'}
-                href="/protocol"
-                icon={Activity}
-                label={t('nav.monitor')}
-              />
-            </>
+            <SidebarLink
+              active={section === 'monitor'}
+              href="/protocol"
+              icon={Activity}
+              label={t('nav.monitor')}
+            />
           )}
           <SidebarLink
             active={section === 'mock'}
@@ -177,7 +179,7 @@ export function AppSidebar() {
           icon={Inbox}
           label={t('nav.mail')}
         />
-        {auth?.is_super && (
+        {showsAdmin(auth) && (
           <MobileNavLink
             active={section === 'server'}
             href="/admin"
@@ -197,7 +199,7 @@ export function AppSidebar() {
           onClick={() => setShowLogoutConfirm(true)}
         >
           <LogOut className="h-5 w-5" />
-          <span>Sign out</span>
+          <span>{t('nav.signOut')}</span>
         </button>
 
         {showLogoutConfirm && (
@@ -215,24 +217,23 @@ function LogoutConfirmDialog({
   onCancel: () => void
   onConfirm: () => void
 }) {
+  const t = useT()
   return (
     <BottomSheet onClose={onCancel} open>
-      <h3 className="text-fg text-base font-semibold">Sign out?</h3>
-      <p className="text-fg-secondary mt-2 text-sm">
-        You will need to sign in again to access your mailbox.
-      </p>
+      <h3 className="text-fg text-base font-semibold">{t('sidebar.signOutTitle')}</h3>
+      <p className="text-fg-secondary mt-2 text-sm">{t('sidebar.signOutBody')}</p>
       <div className="mt-5 flex justify-end gap-2">
         <button
           className="text-fg-secondary hover:bg-bg-secondary rounded-md px-3 py-2 text-sm transition-colors"
           onClick={onCancel}
         >
-          Cancel
+          {t('common.cancel')}
         </button>
         <button
           className="bg-danger rounded-md px-3 py-2 text-sm font-medium text-white transition-colors hover:opacity-90"
           onClick={onConfirm}
         >
-          Sign out
+          {t('nav.signOut')}
         </button>
       </div>
     </BottomSheet>
