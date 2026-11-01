@@ -12,7 +12,7 @@ use super::keys;
 
 mod indexes;
 mod spec;
-pub(crate) use spec::thread_user_spec;
+pub(crate) use spec::{READ_FLAG_AXES_FROM_MARKERS, thread_user_spec};
 
 impl KevyMailboxStore {
     /// Declare the `threaduser` table — the access paths the engine
@@ -258,9 +258,14 @@ mod table_spec_tests {
                 "the full-row index on {} follows the switch",
                 m.column
             );
+            let read = match spec::READ_FLAG_AXES_FROM_MARKERS {
+                true => format!("threaduser.{}", m.marker),
+                false => format!("threaduser.{}", m.column),
+            };
             assert_eq!(
                 thread_row::index_for(m.column),
-                format!("threaduser.{}", m.marker)
+                read,
+                "the switch picks the read"
             );
         }
     }
