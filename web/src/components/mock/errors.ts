@@ -1,9 +1,6 @@
 import { isWireError } from '@/wire/errors'
 
-export function errorText(error: unknown, fallback: string): string {
-  if (error instanceof Error) return error.message
-  return fallback
-}
+export { errorText } from '@/lib/error-text'
 
 /**
  * The namespace list answers 404 when the deployment has no mock domain

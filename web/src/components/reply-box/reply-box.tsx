@@ -6,12 +6,15 @@ import { useAtomValue } from 'jotai'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 
 import { AutosaveWarning } from '@/components/autosave-warning'
+import { ComposerSkeleton } from '@/components/composer-skeleton'
 import { ContactAutocomplete } from '@/components/contact-autocomplete'
 import { useAutosaveStatus } from '@/hooks/use-autosave-status'
 import { useCurrentThreadMessages } from '@/hooks/use-current-list'
 import { useDefaultSignature } from '@/hooks/use-default-signature'
 import { useDeleteDraftMutation, useDraftsQuery, useSaveDraftMutation } from '@/hooks/use-drafts'
 import { applyOptimisticSent } from '@/hooks/use-mail-mutations'
+import { type Key, useT } from '@/i18n'
+import { errorText } from '@/lib/error-text'
 import { buildForwardHeaderHtml, escapeHtml } from '@/lib/html-utils'
 import { parseAddressList, sendMail } from '@/lib/send-mail'
 import { authAtom } from '@/store/auth'
@@ -65,6 +68,7 @@ export function ReplyBox({
   subject,
   threadId,
 }: ReplyBoxProps) {
+  const t = useT()
   const auth = useAtomValue(authAtom)
   // From the server, not from `localStorage`: the atom that used to
   // feed this was written by no UI anywhere, so the composer's
@@ -162,10 +166,10 @@ export function ReplyBox({
       const handle = composeRef.current
       if (handle && !handle.getMarkdown().trim()) {
         handle.setMarkdown(mine.body)
-        toast.info('Draft restored', { duration: 2000 })
+        toast.info(t('compose.draftRestored'), { duration: 2000 })
       }
     }, 200)
-  }, [serverDrafts, threadId])
+  }, [serverDrafts, threadId, t])
 
   // periodic save while typing — bind the interval ONCE; the latest
   // closure is read through a ref.
@@ -198,13 +202,13 @@ export function ReplyBox({
 
     const to = resolveRecipients()
     if (modeRef.current === 'forward' && to.length === 0) {
-      setError('Please enter at least one recipient')
+      setError(t('compose.needRecipient'))
       return
     }
 
     const content = composeRef.current?.getContent()
     if (!content || !content.compose.text.trim()) {
-      toast.error('Message body is required')
+      toast.error(t('compose.needBody'))
       return
     }
 
@@ -245,7 +249,7 @@ export function ReplyBox({
       })
 
       if (!result.success) {
-        toast.error(result.message ?? 'Send failed')
+        toast.error(result.message ?? t('compose.sendFailed'))
         return
       }
       const sentMessageId = result.message_id
@@ -262,18 +266,17 @@ export function ReplyBox({
 
       composeRef.current?.clearCompose()
       setForwardTo('')
-      const label = currentMode === 'forward' ? 'Forwarded' : 'Reply sent'
-      toast.success(label, {
+      toast.success(t(sentLabel(currentMode === 'forward')), {
         ...(sentMessageId
           ? {
               action: {
-                label: 'Undo',
+                label: t('common.undo'),
                 onClick: async () => {
                   try {
                     await wireDeletePendingSend(sentMessageId)
-                    toast.success('Send cancelled')
+                    toast.success(t('compose.sendCancelled'))
                   } catch {
-                    toast.error('Too late to undo — already sent')
+                    toast.error(t('compose.undoTooLate'))
                   }
                 },
               },
@@ -289,8 +292,8 @@ export function ReplyBox({
       onSent()
     } catch (err) {
       void saveDraftServer()
-      toast.error(err instanceof Error ? err.message : 'Network error — draft saved', {
-        action: { label: 'Retry', onClick: () => send() },
+      toast.error(errorText(err, t('compose.networkDraftSaved')), {
+        action: { label: t('common.retry'), onClick: () => send() },
         duration: 10000,
       })
     } finally {
@@ -309,9 +312,9 @@ export function ReplyBox({
       const result = await wirePolishText(text, tone ?? polishTone)
       if (result.success && result.polished) {
         handle.setMarkdown(result.polished)
-        toast.success('Text polished', {
+        toast.success(t('compose.polished'), {
           action: {
-            label: 'Undo',
+            label: t('common.undo'),
             onClick: () => {
               if (prePolishRef.current != null) {
                 handle.setMarkdown(prePolishRef.current)
@@ -322,11 +325,11 @@ export function ReplyBox({
           duration: 8000,
         })
       } else {
-        toast.error(result.message ?? 'Polish failed')
+        toast.error(result.message ?? t('compose.polishFailed'))
         prePolishRef.current = null
       }
     } catch {
-      toast.error('AI unavailable')
+      toast.error(t('compose.aiUnavailable'))
       prePolishRef.current = null
     } finally {
       setPolishing(false)
@@ -353,10 +356,10 @@ export function ReplyBox({
       if (result.success && result.suggestions.length > 0) {
         setSuggestions(result.suggestions)
       } else {
-        toast.error(result.message ?? 'No suggestions')
+        toast.error(result.message ?? t('compose.noSuggestions'))
       }
     } catch {
-      toast.error('AI unavailable')
+      toast.error(t('compose.aiUnavailable'))
     } finally {
       setSuggesting(false)
     }
@@ -365,7 +368,7 @@ export function ReplyBox({
   const applySuggestion = (suggestion: string) => {
     composeRef.current?.setMarkdown(suggestion)
     setSuggestions([])
-    toast.success('Suggestion applied')
+    toast.success(t('compose.suggestionApplied'))
   }
 
   const openPreview = () => {
@@ -379,16 +382,16 @@ export function ReplyBox({
     mode === 'forward'
       ? buildForwardHeaderHtml(originalFrom, originalDate, subject)
       : originalFrom
-        ? `<p style="color:#888">On ${escapeHtml(originalDate)}, ${escapeHtml(originalFrom)} wrote:</p>`
+        ? `<p style="color:#888">${escapeHtml(t('compose.quoteHeader', { date: originalDate, sender: originalFrom }))}</p>`
         : undefined
   const quotedHeader =
     mode === 'forward'
       ? `---------- Forwarded message ----------\nFrom: ${originalFrom}\nDate: ${originalDate}\nSubject: ${subject}\n\n`
       : originalFrom
-        ? `On ${originalDate}, ${originalFrom} wrote:\n\n`
+        ? `${t('compose.quoteHeader', { date: originalDate, sender: originalFrom })}\n\n`
         : ''
 
-  const placeholder = mode === 'forward' ? 'Add a message...' : 'Type a reply...'
+  const placeholder = t(replyPlaceholder(mode === 'forward'))
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -407,7 +410,7 @@ export function ReplyBox({
         <div className="border-border shrink-0 border-b px-4 py-2">
           <div className="flex items-center gap-2">
             <label className="text-fg-muted w-16 shrink-0 text-xs" htmlFor="forward-to-input">
-              To
+              {t('compose.to')}
             </label>
             {/* mounted by switching to forward, from the toggle or the
                 `f` key: the caret goes to whom it is forwarded to */}
@@ -482,12 +485,12 @@ export function ReplyBox({
   )
 }
 
-function ComposerSkeleton() {
-  return (
-    <div aria-busy="true" className="flex h-full flex-col gap-2 p-4">
-      <div className="bg-bg-secondary h-4 w-3/4 animate-pulse rounded" />
-      <div className="bg-bg-secondary h-4 w-1/2 animate-pulse rounded" />
-      <div className="bg-bg-secondary mt-2 h-24 w-full animate-pulse rounded" />
-    </div>
-  )
+function replyPlaceholder(forward: boolean): Key {
+  if (forward) return 'compose.forwardPlaceholder'
+  return 'compose.replyPlaceholder'
+}
+
+function sentLabel(forward: boolean): Key {
+  if (forward) return 'compose.forwarded'
+  return 'compose.replySent'
 }

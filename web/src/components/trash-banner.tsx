@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { BottomSheet } from '@/components/bottom-sheet'
 import { useEmptyTrashMutation } from '@/hooks/use-trash-mutations'
 import { type Key, useT } from '@/i18n'
+import { errorText } from '@/lib/error-text'
 
 /**
  * The line above the Trash: how long it keeps things, and the one way
@@ -59,9 +60,4 @@ export function TrashBanner({ empty }: { empty: boolean }) {
 function deletedLine(n: number): Key {
   if (n === 1) return 'trash.deleted.one'
   return 'trash.deleted.other'
-}
-
-function errorText(err: unknown, fallback: string): string {
-  if (err instanceof Error) return err.message
-  return fallback
 }

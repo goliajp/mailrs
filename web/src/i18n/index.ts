@@ -88,6 +88,11 @@ export function useDateTime() {
   return useCallback((unix: number) => new Date(unix * 1000).toLocaleString(LOCALE[lang]), [lang])
 }
 
+/** The BCP 47 locale of the current language, for `Intl` formatting. */
+export function useLocale(): string {
+  return LOCALE[useAtomValue(langAtom)]
+}
+
 /** `t` for the current language. */
 export function useT() {
   const lang = useAtomValue(langAtom)

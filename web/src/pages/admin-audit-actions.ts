@@ -4,28 +4,30 @@
  * events (`mail.bounce`, `mail.send_failed`). A filter value is a prefix
  * that includes the dot, so `group.` does not also match `email_group.`
  */
-export const ACTION_GROUPS: { label: string; prefixes: string[]; value: string }[] = [
-  { label: 'All actions', prefixes: [], value: '' },
-  { label: 'Sign-ins and linked identities', prefixes: ['auth.'], value: 'auth' },
-  { label: 'Domains', prefixes: ['domain.'], value: 'domain' },
-  { label: 'Accounts', prefixes: ['account.', 'overrides.'], value: 'account' },
-  { label: 'Aliases', prefixes: ['alias.'], value: 'alias' },
-  { label: 'Permission groups', prefixes: ['group.'], value: 'group' },
-  { label: 'Email groups', prefixes: ['email_group.'], value: 'email_group' },
-  { label: 'Webhooks', prefixes: ['webhook.'], value: 'webhook' },
-  { label: 'Sieve filters', prefixes: ['sieve.'], value: 'sieve' },
-  { label: 'Delivery failures and bounces', prefixes: ['mail.'], value: 'mail' },
-  { label: 'Suppressions', prefixes: ['suppressions.'], value: 'suppressions' },
-  { label: 'Cache', prefixes: ['cache.'], value: 'cache' },
-  { label: 'System config', prefixes: ['system_config.'], value: 'system_config' },
-  { label: 'Greylist', prefixes: ['greylist.'], value: 'greylist' },
-  { label: 'Mock mail', prefixes: ['mock.'], value: 'mock' },
+import type { Key } from '@/i18n'
+
+export const ACTION_GROUPS: { label: Key; prefixes: string[]; value: string }[] = [
+  { label: 'admin.audit.group.all', prefixes: [], value: '' },
+  { label: 'admin.audit.group.auth', prefixes: ['auth.'], value: 'auth' },
+  { label: 'admin.domains.title', prefixes: ['domain.'], value: 'domain' },
+  { label: 'admin.accounts.title', prefixes: ['account.', 'overrides.'], value: 'account' },
+  { label: 'admin.aliases.title', prefixes: ['alias.'], value: 'alias' },
+  { label: 'admin.permissionGroups', prefixes: ['group.'], value: 'group' },
+  { label: 'admin.emailGroups.title', prefixes: ['email_group.'], value: 'email_group' },
+  { label: 'admin.audit.group.webhooks', prefixes: ['webhook.'], value: 'webhook' },
+  { label: 'admin.audit.group.sieve', prefixes: ['sieve.'], value: 'sieve' },
+  { label: 'admin.audit.group.mail', prefixes: ['mail.'], value: 'mail' },
+  { label: 'admin.audit.group.suppressions', prefixes: ['suppressions.'], value: 'suppressions' },
+  { label: 'admin.audit.group.cache', prefixes: ['cache.'], value: 'cache' },
+  { label: 'admin.audit.group.systemConfig', prefixes: ['system_config.'], value: 'system_config' },
+  { label: 'admin.audit.group.greylist', prefixes: ['greylist.'], value: 'greylist' },
+  { label: 'admin.audit.group.mock', prefixes: ['mock.'], value: 'mock' },
   {
-    label: 'Drafts, signatures and templates',
+    label: 'admin.audit.group.userContent',
     prefixes: ['draft.', 'signature.', 'template.'],
     value: 'user_content',
   },
-  { label: "Reads of other people's mail", prefixes: ['audit.'], value: 'audit' },
+  { label: 'admin.audit.group.reads', prefixes: ['audit.'], value: 'audit' },
 ]
 
 export function actionColor(action: string): string {

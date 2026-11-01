@@ -1,13 +1,14 @@
+import { useT } from '@/i18n'
 const NOTE = 'border-border bg-bg-secondary text-fg-secondary border-b px-3 py-2 text-xs'
 
 /** Above mail in Junk or held, whose images are not fetched unless asked. */
 export function ImagesHeldNote({ onShow }: { onShow: () => void }) {
+  const t = useT()
   return (
     <p className={NOTE}>
-      Images are not loaded for mail in Junk or held for review: loading them tells the sender the
-      address is read.{' '}
+      {t('images.heldNote')}{' '}
       <button className="text-accent hover:underline" onClick={onShow} type="button">
-        Show images anyway
+        {t('images.showAnyway')}
       </button>
     </p>
   )
@@ -25,20 +26,21 @@ export function ImagesHiddenNote({
   onTrust?: () => void
   sender?: string
 }) {
+  const t = useT()
   if (mode === 'never') {
-    return <p className={NOTE}>Images are hidden by your settings</p>
+    return <p className={NOTE}>{t('images.hiddenBySettings')}</p>
   }
   return (
     <p className={NOTE}>
-      Images in this message are hidden.{' '}
+      {t('images.hidden')}{' '}
       <button className="text-accent hover:underline" onClick={onShow} type="button">
-        Show images
+        {t('images.show')}
       </button>
       {onTrust && sender && (
         <>
           {' · '}
           <button className="text-accent hover:underline" onClick={onTrust} type="button">
-            Always show from {sender}
+            {t('images.alwaysFrom', { sender })}
           </button>
         </>
       )}

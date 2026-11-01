@@ -1,5 +1,7 @@
 import type { ReplyMode } from './types'
 
+import { useT } from '@/i18n'
+
 import { MODE_LABELS } from './types'
 
 type ModeToggleProps = {
@@ -15,6 +17,7 @@ export function ModeToggle({
   replyAllRecipients,
   replyRecipients,
 }: ModeToggleProps) {
+  const t = useT()
   const toLabel = mode === 'reply' ? replyRecipients : replyAllRecipients
 
   return (
@@ -31,12 +34,12 @@ export function ModeToggle({
           onClick={() => onChange(m)}
           type="button"
         >
-          {MODE_LABELS[m]}
+          {t(MODE_LABELS[m])}
         </button>
       ))}
       {mode !== 'forward' && (
         <span className="text-fg-muted ml-auto min-w-0 truncate text-xs" title={toLabel}>
-          to {toLabel}
+          {t('compose.toRecipients', { recipients: toLabel })}
         </span>
       )}
     </div>

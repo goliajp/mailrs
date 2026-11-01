@@ -1,22 +1,12 @@
 import { toast } from '@goliapkg/gds'
 import { useState } from 'react'
 
+import { type Key, useT } from '@/i18n'
+import { errorText } from '@/lib/error-text'
 import { wireGetMessageSource } from '@/wire/endpoints/mail'
 
-/**
- * The message as it arrived, headers and all.
- *
- * The one view in this app that shows what the server was given rather
- * than what it made of it — which is where the answer lives when a
- * message landed in Junk, or claims to be from someone it is not.
- * `Authentication-Results` is the line worth finding, and it is near
- * the top.
- *
- * The route has been live since before this client existed and no web
- * page ever called it; iOS gained a viewer this week and this is the
- * other half.
- */
 export function MessageSource({ uid }: { uid: number }) {
+  const t = useT()
   const [source, setSource] = useState<null | string>(null)
   const [loading, setLoading] = useState(false)
 
@@ -25,7 +15,7 @@ export function MessageSource({ uid }: { uid: number }) {
     try {
       setSource(await wireGetMessageSource(uid))
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Could not read the source')
+      toast.error(errorText(e, t('source.failed')))
     } finally {
       setLoading(false)
     }
@@ -39,16 +29,16 @@ export function MessageSource({ uid }: { uid: number }) {
             className="text-fg-muted hover:text-fg text-xs underline"
             onClick={() => setSource(null)}
           >
-            Hide source
+            {t('source.hide')}
           </button>
           <button
             className="text-fg-muted hover:text-fg text-xs underline"
             onClick={() => {
               void navigator.clipboard.writeText(source)
-              toast.success('Copied')
+              toast.success(t('common.copied'))
             }}
           >
-            Copy
+            {t('common.copy')}
           </button>
         </div>
         {/* Monospaced and not re-wrapped: a folded header means
@@ -67,7 +57,26 @@ export function MessageSource({ uid }: { uid: number }) {
       disabled={loading}
       onClick={() => void load()}
     >
-      {loading ? 'Loading source…' : 'View source'}
+      {t(viewLabel(loading))}
     </button>
   )
+}
+
+/**
+ * The message as it arrived, headers and all.
+ *
+ * The one view in this app that shows what the server was given rather
+ * than what it made of it — which is where the answer lives when a
+ * message landed in Junk, or claims to be from someone it is not.
+ * `Authentication-Results` is the line worth finding, and it is near
+ * the top.
+ *
+ * The route has been live since before this client existed and no web
+ * page ever called it; iOS gained a viewer this week and this is the
+ * other half.
+ */
+
+function viewLabel(loading: boolean): Key {
+  if (loading) return 'source.loading'
+  return 'source.view'
 }

@@ -1,5 +1,5 @@
+import { type Key } from '@/i18n'
 // shared pure helpers + color maps used by multiple dashboard widgets.
-
 import { decodeMimeHeader } from '@/lib/avatar'
 
 export function extractEmail(sender: string): string {
@@ -64,12 +64,12 @@ export function todayStart(): number {
   return Math.floor(d.getTime() / 1000)
 }
 
-export function useGreeting() {
+export function useGreeting(): Key {
   const hour = new Date().getHours()
-  if (hour < 6) return 'Good night'
-  if (hour < 12) return 'Good morning'
-  if (hour < 18) return 'Good afternoon'
-  return 'Good evening'
+  if (hour < 6) return 'home.greeting.night'
+  if (hour < 12) return 'home.greeting.morning'
+  if (hour < 18) return 'home.greeting.afternoon'
+  return 'home.greeting.evening'
 }
 
 export const COLOR_MAP = {

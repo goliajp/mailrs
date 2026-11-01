@@ -9,7 +9,9 @@ import { InviteCard } from '@/components/invite-card'
 import { SenderAvatar } from '@/components/sender-avatar'
 import { SenderClaimBadge } from '@/components/sender-claim-badge'
 import { SenderTrustBadge } from '@/components/sender-trust-badge'
+import { type Key, useT } from '@/i18n'
 import { type FeedbackAction, recordFeedback } from '@/lib/api'
+import { errorText } from '@/lib/error-text'
 import { formatTimeOfDay } from '@/lib/format'
 import { highlightMentions } from '@/lib/mention'
 
@@ -116,6 +118,7 @@ const BubbleBody = memo(function BubbleBody({
   myName?: string
   subject: string
 }) {
+  const t = useT()
   // 1) AI summary is always clean — use it when present
   if (msg.summary) {
     return (
@@ -144,9 +147,7 @@ const BubbleBody = memo(function BubbleBody({
   // 3) html-only or empty — show a clear placeholder; the open thread on
   //    the left already renders the rich version
   return (
-    <p className="text-fg-muted text-xs italic">
-      {msg.html_body ? 'Rich HTML message — click to view full content' : 'No preview available'}
-    </p>
+    <p className="text-fg-muted text-xs italic">{t(placeholderLabel(Boolean(msg.html_body)))}</p>
   )
 })
 
@@ -270,6 +271,11 @@ export function SmBtn({
   )
 }
 
+function confirmLabel(action: FeedbackAction): Key {
+  if (action === 'block') return 'feedback.confirmBlock'
+  return 'feedback.confirmSpam'
+}
+
 // extract a clean reading-order preview from html.
 // the simple "strip all tags, keep textContent" approach pulled in url
 // soup: anchors whose visible text is the URL itself, footer-style
@@ -339,6 +345,11 @@ function looksLikeHtmlDump(text: string): boolean {
   return lines.some((l) => (l.match(/\|/g) || []).length >= 4)
 }
 
+function placeholderLabel(hasHtml: boolean): Key {
+  if (hasHtml) return 'read.richPreview'
+  return 'read.noPreview'
+}
+
 // truncate at nearest sentence/paragraph boundary instead of hard character cut
 function smartTruncate(text: string, maxLen: number): string {
   if (text.length <= maxLen) return text
@@ -358,15 +369,16 @@ function smartTruncate(text: string, maxLen: number): string {
 const FEEDBACK_ITEMS: {
   action: FeedbackAction
   icon: string
-  label: string
+  label: Key
 }[] = [
-  { action: 'mark_important', icon: '!', label: 'Mark Important' },
-  { action: 'mark_vip', icon: '\u2605', label: 'Mark VIP' },
-  { action: 'mark_spam', icon: '\u26A0', label: 'Report Spam' },
-  { action: 'block', icon: '\u2718', label: 'Block Sender' },
+  { action: 'mark_important', icon: '!', label: 'feedback.important' },
+  { action: 'mark_vip', icon: '\u2605', label: 'feedback.vip' },
+  { action: 'mark_spam', icon: '\u26A0', label: 'feedback.spam' },
+  { action: 'block', icon: '\u2718', label: 'feedback.block' },
 ]
 
 export function FeedbackMenu({ senderEmail }: { senderEmail: string }) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const [confirming, setConfirming] = useState<FeedbackAction | null>(null)
   const ref = useRef<HTMLDivElement>(null)
@@ -390,12 +402,12 @@ export function FeedbackMenu({ senderEmail }: { senderEmail: string }) {
     try {
       const result = await recordFeedback(senderEmail, action)
       if (result.success) {
-        toast.success(result.message ?? 'Feedback recorded')
+        toast.success(result.message ?? t('feedback.recorded'))
       } else {
-        toast.error(result.message ?? 'Failed')
+        toast.error(result.message ?? t('common.failed'))
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed')
+      toast.error(errorText(err, t('common.failed')))
     }
   }
 
@@ -412,7 +424,7 @@ export function FeedbackMenu({ senderEmail }: { senderEmail: string }) {
       <button
         className="text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary rounded-md p-1 transition-colors"
         onClick={() => setOpen((p) => !p)}
-        title="Sender feedback"
+        title={t('feedback.title')}
       >
         <MoreVertical className="h-3.5 w-3.5" />
       </button>
@@ -420,21 +432,19 @@ export function FeedbackMenu({ senderEmail }: { senderEmail: string }) {
         <div className="border-border bg-surface absolute top-full right-0 z-50 mt-1 w-48 rounded-lg border py-1 shadow-lg">
           {confirming ? (
             <div className="px-3 py-2">
-              <p className="text-fg-secondary text-xs">
-                {confirming === 'block' ? 'Block this sender?' : 'Report as spam?'}
-              </p>
+              <p className="text-fg-secondary text-xs">{t(confirmLabel(confirming))}</p>
               <div className="mt-2 flex gap-2">
                 <button
                   className="text-fg-muted hover:bg-bg-secondary rounded px-2 py-1 text-xs"
                   onClick={() => setConfirming(null)}
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
                 <button
                   className="bg-danger rounded px-2 py-1 text-xs text-white hover:opacity-90"
                   onClick={() => executeAction(confirming)}
                 >
-                  Confirm
+                  {t('common.confirm')}
                 </button>
               </div>
             </div>
@@ -452,7 +462,7 @@ export function FeedbackMenu({ senderEmail }: { senderEmail: string }) {
                   onClick={() => handleAction(item.action)}
                 >
                   <span className="w-4 text-center">{item.icon}</span>
-                  {item.label}
+                  {t(item.label)}
                 </button>
               ))}
             </>

@@ -2,6 +2,7 @@ import { toast } from '@goliapkg/gds'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 
+import { useT } from '@/i18n'
 import { queryClient } from '@/lib/query-client'
 import { wireGetVacation, wireSetVacation } from '@/wire/endpoints/mail-settings'
 
@@ -42,6 +43,7 @@ function VacationForm({
     subject: string
   }
 }) {
+  const t = useT()
   const [enabled, setEnabled] = useState(initial.enabled)
   const [subject, setSubject] = useState(initial.subject)
   const [body, setBody] = useState(initial.body)
@@ -58,7 +60,7 @@ function VacationForm({
         start: epoch(start),
         subject,
       })
-      toast.success('Vacation reply saved')
+      toast.success(t('settings.vacation.saved'))
     } catch (e) {
       toast.error(errorText(e))
     } finally {
@@ -74,11 +76,11 @@ function VacationForm({
       }}
     >
       <div className="flex items-center justify-between">
-        <h3 className="font-medium">Vacation reply</h3>
+        <h3 className="font-medium">{t('settings.vacation.title')}</h3>
         <Toggle checked={enabled} onChange={setEnabled} />
       </div>
       <label className="block space-y-1">
-        <span className="text-fg-secondary">Subject</span>
+        <span className="text-fg-secondary">{t('settings.vacation.subject')}</span>
         <input
           className={inputClass}
           maxLength={200}
@@ -87,7 +89,7 @@ function VacationForm({
         />
       </label>
       <label className="block space-y-1">
-        <span className="text-fg-secondary">Message</span>
+        <span className="text-fg-secondary">{t('settings.vacation.message')}</span>
         <textarea
           className={inputClass}
           onChange={(e) => setBody(e.target.value)}
@@ -97,7 +99,7 @@ function VacationForm({
       </label>
       <div className="flex flex-wrap gap-3">
         <label className="space-y-1">
-          <span className="text-fg-secondary block">From (UTC)</span>
+          <span className="text-fg-secondary block">{t('settings.vacation.from')}</span>
           <input
             className={inputClass}
             onChange={(e) => setStart(e.target.value)}
@@ -106,7 +108,7 @@ function VacationForm({
           />
         </label>
         <label className="space-y-1">
-          <span className="text-fg-secondary block">Until (UTC)</span>
+          <span className="text-fg-secondary block">{t('settings.vacation.until')}</span>
           <input
             className={inputClass}
             onChange={(e) => setEnd(e.target.value)}
@@ -115,7 +117,7 @@ function VacationForm({
           />
         </label>
         <label className="space-y-1">
-          <span className="text-fg-secondary block">Once per sender every</span>
+          <span className="text-fg-secondary block">{t('settings.vacation.every')}</span>
           <select
             className={inputClass}
             onChange={(e) => setDays(Number(e.target.value))}
@@ -123,18 +125,16 @@ function VacationForm({
           >
             {[1, 3, 7, 14, 30].map((d) => (
               <option key={d} value={d}>
-                {d} days
+                {t('settings.vacation.days', { count: d })}
               </option>
             ))}
           </select>
         </label>
       </div>
-      <p className="text-fg-muted text-xs">
-        No reply goes to mail in Junk, held mail, mailing lists or automatic mail.
-      </p>
+      <p className="text-fg-muted text-xs">{t('settings.vacation.note')}</p>
       <div className="flex justify-end">
         <button className={btnPrimary} type="submit">
-          Save
+          {t('settings.save')}
         </button>
       </div>
     </form>

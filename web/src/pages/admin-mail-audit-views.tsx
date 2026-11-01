@@ -10,6 +10,7 @@ import {
   AdminTableSkeleton,
   type Column,
 } from '@/components/admin-page'
+import { type Key, useT } from '@/i18n'
 import { formatDate, formatFullDate } from '@/lib/format'
 import { adminKeys } from '@/lib/query-keys'
 import { adminListGet } from '@/wire/endpoints/admin'
@@ -28,7 +29,12 @@ export type AuditConversation = {
 }
 
 const enc = encodeURIComponent
-const HEADERS = ['Conversation', 'Participants', 'Messages', 'Last message', '']
+const HEADERS: Key[] = [
+  'admin.mailAudit.conversation',
+  'admin.mailAudit.participants',
+  'admin.mailAudit.messages',
+  'admin.mailAudit.lastMessage',
+]
 const NO_CONVERSATIONS: AuditConversation[] = []
 
 /** Another account's newest conversations. Listing them writes an `audit.list_conversations` row. */
@@ -41,6 +47,7 @@ export function AuditConversations({
   onBack: () => void
   onOpen: (threadId: string) => void
 }) {
+  const t = useT()
   const { data, error, isFetching, isPending, refetch } = useQuery({
     queryKey: adminKeys.mailAuditConversations(account),
     queryFn: ({ signal }) =>
@@ -53,26 +60,31 @@ export function AuditConversations({
 
   const columns: Column<AuditConversation>[] = [
     {
-      header: 'Conversation',
+      header: t('admin.mailAudit.conversation'),
       key: 'subject',
       cell: (c) => (
         <div className="max-w-md min-w-0">
-          <p className="truncate font-medium">{c.subject || '(no subject)'}</p>
+          <p className="truncate font-medium">{c.subject || t('admin.noSubject')}</p>
           <p className="text-fg-muted truncate text-xs">{c.snippet}</p>
         </div>
       ),
     },
     {
-      header: 'Participants',
+      header: t('admin.mailAudit.participants'),
       key: 'participants',
       cell: (c) => (
         <span className="text-fg-secondary block max-w-xs truncate text-xs">{c.participants}</span>
       ),
     },
-    { align: 'end', header: 'Messages', key: 'count', cell: (c) => c.message_count },
     {
       align: 'end',
-      header: 'Last message',
+      header: t('admin.mailAudit.messages'),
+      key: 'count',
+      cell: (c) => c.message_count,
+    },
+    {
+      align: 'end',
+      header: t('admin.mailAudit.lastMessage'),
       key: 'last',
       cell: (c) => (
         <span className="text-fg-secondary whitespace-nowrap" title={formatFullDate(c.last_date)}>
@@ -82,7 +94,7 @@ export function AuditConversations({
     },
     {
       align: 'end',
-      header: 'Actions',
+      header: t('admin.col.actions'),
       hideHeader: true,
       key: 'actions',
       cell: (c) => (
@@ -91,37 +103,39 @@ export function AuditConversations({
           onClick={() => onOpen(c.thread_id)}
           type="button"
         >
-          Open
+          {t('admin.open')}
         </button>
       ),
     },
   ]
 
   const renderBody = () => {
-    if (isPending) return <AdminTableSkeleton cols={5} headers={HEADERS} rows={6} />
+    if (isPending) {
+      return <AdminTableSkeleton cols={5} headers={[...HEADERS.map((h) => t(h)), '']} rows={6} />
+    }
     if (error) {
       return (
         <AdminErrorState
           error={error}
           onRetry={() => refetch()}
           retryDisabled={isFetching}
-          what={`${account}'s conversations`}
+          what={t('admin.mailAudit.conversationsOf', { account })}
         />
       )
     }
     if (conversations.length === 0) {
       return (
         <AdminEmptyState
-          description={`Mail ${account} sends or receives will be listed here`}
+          description={t('admin.mailAudit.noConversationsHelp', { account })}
           icon={<Inbox className="h-10 w-10" />}
-          title="No conversations yet"
+          title={t('admin.mailAudit.noConversations')}
         />
       )
     }
     return (
       <AdminTable
         columns={columns}
-        label={`${account}'s conversations`}
+        label={t('admin.mailAudit.conversationsOf', { account })}
         rowKey={(c) => c.thread_id}
         rows={conversations}
       />
@@ -130,8 +144,8 @@ export function AuditConversations({
 
   return (
     <AdminPageShell
-      actions={<BackButton label="Back to accounts" onBack={onBack} />}
-      subtitle="Up to 50 conversations. Each time this list or a conversation is opened, the audit log records it under your address first; if it cannot, nothing is shown"
+      actions={<BackButton label={t('admin.mailAudit.backToAccounts')} onBack={onBack} />}
+      subtitle={t('admin.mailAudit.listSubtitle')}
       title={account}
     >
       {renderBody()}

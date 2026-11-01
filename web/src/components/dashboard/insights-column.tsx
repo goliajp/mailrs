@@ -3,6 +3,7 @@ import type { CategoryCount, ConversationSummary } from '@/lib/types'
 import { AlertTriangle, Mail, ShieldAlert, TrendingUp, Users } from 'lucide-react'
 
 import { SenderAvatar } from '@/components/sender-avatar'
+import { useT } from '@/i18n'
 
 import { formatBytes } from './_shared'
 import { CategoryBar } from './category-bar'
@@ -32,10 +33,11 @@ export function InsightsColumn({
   totalCategorized,
   totalMessages,
 }: InsightsColumnProps) {
+  const t = useT()
   return (
     <div className="space-y-6">
       {securityAlerts.length > 0 && (
-        <Section icon={ShieldAlert} title="Security Alerts">
+        <Section icon={ShieldAlert} title={t('home.securityAlerts')}>
           <div className="space-y-0.5">
             {securityAlerts.map((c) => (
               <button
@@ -60,7 +62,7 @@ export function InsightsColumn({
       )}
 
       {categoryData.length > 0 && (
-        <Section icon={TrendingUp} title="Categories">
+        <Section icon={TrendingUp} title={t('home.categories')}>
           <div className="space-y-2.5">
             {categoryData.map((cat) => (
               <CategoryBar
@@ -75,7 +77,7 @@ export function InsightsColumn({
       )}
 
       {topSenders.length > 0 && (
-        <Section icon={Users} title="Top Contacts">
+        <Section icon={Users} title={t('home.topContacts')}>
           <div className="space-y-0.5">
             {topSenders.map((s, idx) => (
               <div
@@ -97,16 +99,16 @@ export function InsightsColumn({
       )}
 
       {totalMessages > 0 && (
-        <Section icon={Mail} title="Mailbox">
+        <Section icon={Mail} title={t('home.mailbox')}>
           <div className="space-y-2 px-2 text-sm">
             <div className="flex items-center justify-between">
-              <span className="text-fg-muted">Total emails</span>
+              <span className="text-fg-muted">{t('home.totalEmails')}</span>
               <span className="text-fg font-medium tabular-nums">
                 {totalMessages.toLocaleString()}
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-fg-muted">Storage</span>
+              <span className="text-fg-muted">{t('home.storage')}</span>
               <span className="text-fg font-medium tabular-nums">{formatBytes(storageBytes)}</span>
             </div>
           </div>
@@ -114,7 +116,7 @@ export function InsightsColumn({
       )}
 
       {folders.length > 0 && (
-        <Section icon={Mail} title="Folders">
+        <Section icon={Mail} title={t('home.folders')}>
           <div className="space-y-0.5">
             {folders
               .filter((f) => f.total > 0)

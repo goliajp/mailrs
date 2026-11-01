@@ -1,5 +1,7 @@
 import { useEffect } from 'react'
 
+import { useT } from '@/i18n'
+
 type PreviewDialogProps = {
   html: string
   onClose: () => void
@@ -11,6 +13,7 @@ const IFRAME_BASE =
   '<!doctype html><html><head><meta charset="utf-8"><style>body{font-family:system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.5;color:#222;background:#fff;padding:16px;margin:0}*{max-width:100%}</style></head><body>'
 
 export function PreviewDialog({ html, onClose, onSend, sending }: PreviewDialogProps) {
+  const t = useT()
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -31,16 +34,16 @@ export function PreviewDialog({ html, onClose, onSend, sending }: PreviewDialogP
         onClick={(e) => e.stopPropagation()}
       >
         <div className="border-border flex items-center justify-between border-b px-4 py-2">
-          <div className="text-fg text-sm font-medium">Preview — receiver&apos;s view</div>
+          <div className="text-fg text-sm font-medium">{t('compose.previewHeading')}</div>
           <button className="text-fg-muted hover:text-fg text-xs" onClick={onClose} type="button">
-            Close
+            {t('common.close')}
           </button>
         </div>
         <iframe
           className="bg-bg-secondary min-h-[60vh] flex-1 rounded-b-lg"
           sandbox=""
           srcDoc={`${IFRAME_BASE}${html}</body></html>`}
-          title="Message preview"
+          title={t('compose.previewFrame')}
         />
         <div className="border-border flex items-center justify-end gap-2 border-t px-4 py-2">
           <button
@@ -48,7 +51,7 @@ export function PreviewDialog({ html, onClose, onSend, sending }: PreviewDialogP
             onClick={onClose}
             type="button"
           >
-            Back to edit
+            {t('compose.backToEdit')}
           </button>
           <button
             className="bg-accent hover:bg-accent-hover rounded-md px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
@@ -56,7 +59,7 @@ export function PreviewDialog({ html, onClose, onSend, sending }: PreviewDialogP
             onClick={onSend}
             type="button"
           >
-            Send
+            {t('compose.send')}
           </button>
         </div>
       </div>

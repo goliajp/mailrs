@@ -2,6 +2,8 @@ import type { ScopePreset } from './scopes'
 
 import { useState } from 'react'
 
+import { useT } from '@/i18n'
+
 import { btnPrimary, btnSecondary, inputClass } from '../_shared'
 import { SCOPE_PRESETS } from './scopes'
 
@@ -20,6 +22,7 @@ export function CreateKeyForm({
   onCancel: () => void
   onCreate: (values: { name: string; preset: ScopePreset }) => void
 }) {
+  const t = useT()
   const [name, setName] = useState('')
   const [preset, setPreset] = useState<ScopePreset>('mail:write')
 
@@ -38,7 +41,9 @@ export function CreateKeyForm({
     >
       <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
         <label className="block">
-          <span className="text-fg-secondary mb-1.5 block text-xs font-medium">Name</span>
+          <span className="text-fg-secondary mb-1.5 block text-xs font-medium">
+            {t('settings.rules.name')}
+          </span>
           <input
             autoFocus
             className={inputClass}
@@ -47,19 +52,21 @@ export function CreateKeyForm({
             value={name}
           />
           <span className="text-fg-muted text-mini mt-1.5 block">
-            Shown in this table and in audit entries. Name it after the thing that holds it.
+            {t('settings.apiKeys.nameHelp')}
           </span>
         </label>
 
         <fieldset>
-          <legend className="text-fg-secondary mb-1.5 block text-xs font-medium">Access</legend>
+          <legend className="text-fg-secondary mb-1.5 block text-xs font-medium">
+            {t('settings.apiKeys.access')}
+          </legend>
           <div className="space-y-1">
             {SCOPE_PRESETS.map((option) => (
               <ScopeOption
                 checked={option.value === preset}
-                description={option.description}
+                description={t(option.description)}
                 key={option.value}
-                label={option.label}
+                label={t(option.label)}
                 onSelect={() => setPreset(option.value)}
               />
             ))}
@@ -69,10 +76,10 @@ export function CreateKeyForm({
 
       <div className="mt-4 flex gap-2">
         <button className={btnPrimary} disabled={!canSubmit} type="submit">
-          Create key
+          {t('settings.apiKeys.createKey')}
         </button>
         <button className={btnSecondary} onClick={onCancel} type="button">
-          Cancel
+          {t('common.cancel')}
         </button>
       </div>
     </form>

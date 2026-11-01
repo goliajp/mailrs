@@ -12,49 +12,53 @@ import {
   AdminTable,
   AdminTableSkeleton,
 } from '@/components/admin-page'
+import { type Key, useT } from '@/i18n'
 import { adminKeys } from '@/lib/query-keys'
 import { fetchDmarcReports, fetchDmarcSources } from '@/wire/endpoints/dmarc'
 
 const WINDOW_OPTIONS = [7, 30, 90] as const
 const DEFAULT_DAYS = 30
 
-const SOURCE_HEADERS = ['Source IP', 'Messages', 'Passing', 'Pass rate', 'Domains']
+const SOURCE_HEADERS: Key[] = [
+  'admin.dmarc.sourceIp',
+  'admin.mailAudit.messages',
+  'admin.dmarc.passing',
+  'admin.dmarc.passRate',
+  'admin.domains.title',
+]
 const NO_REPORTS: DmarcReport[] = []
 
-const SUBTITLE =
-  'What mail providers report about mail sent as your domains. Providers send a daily aggregate report to the rua= address in each DMARC record; reports addressed to dmarc@ any domain here are stored as they arrive'
-
-const sourceColumns: Column<DmarcSource>[] = [
+const sourceColumns = (t: ReturnType<typeof useT>): Column<DmarcSource>[] => [
   {
-    header: 'Source IP',
+    header: t('admin.dmarc.sourceIp'),
     key: 'ip',
     cell: (s) => <span className="font-mono text-xs">{s.sourceIp}</span>,
   },
-  { align: 'end', header: 'Messages', key: 'total', cell: (s) => s.total },
-  { align: 'end', header: 'Passing', key: 'passing', cell: (s) => s.passing },
+  { align: 'end', header: t('admin.mailAudit.messages'), key: 'total', cell: (s) => s.total },
+  { align: 'end', header: t('admin.dmarc.passing'), key: 'passing', cell: (s) => s.passing },
   {
     align: 'end',
-    header: 'Pass rate',
+    header: t('admin.dmarc.passRate'),
     key: 'rate',
     cell: (s) => <PassRate passing={s.passing} total={s.total} />,
   },
   {
-    header: 'Domains',
+    header: t('admin.domains.title'),
     key: 'domains',
     cell: (s) => <span className="text-fg-muted text-xs">{s.domains.join(', ')}</span>,
   },
 ]
 
-const reportColumns: Column<DmarcReport>[] = [
-  { header: 'Reporter', key: 'org', cell: (r) => r.orgName },
+const reportColumns = (t: ReturnType<typeof useT>): Column<DmarcReport>[] => [
+  { header: t('admin.dmarc.reporter'), key: 'org', cell: (r) => r.orgName },
   {
-    header: 'Domain',
+    header: t('admin.col.domain'),
     key: 'domain',
     cell: (r) => <span className="text-fg-muted text-xs">{r.policyDomain}</span>,
   },
   {
     align: 'end',
-    header: 'Window',
+    header: t('admin.dmarc.window'),
     key: 'window',
     cell: (r) => (
       <span className="text-fg-muted text-xs whitespace-nowrap">
@@ -63,20 +67,21 @@ const reportColumns: Column<DmarcReport>[] = [
     ),
   },
   {
-    header: 'Policy',
+    header: t('admin.dmarc.policy'),
     key: 'policy',
     cell: (r) => <span className="text-fg-muted text-xs">{r.policy}</span>,
   },
-  { align: 'end', header: 'Messages', key: 'total', cell: (r) => r.total },
+  { align: 'end', header: t('admin.mailAudit.messages'), key: 'total', cell: (r) => r.total },
   {
     align: 'end',
-    header: 'Pass rate',
+    header: t('admin.dmarc.passRate'),
     key: 'rate',
     cell: (r) => <PassRate passing={r.passing} total={r.total} />,
   },
 ]
 
 export function AdminDmarc() {
+  const t = useT()
   const [searchParams, setSearchParams] = useSearchParams()
   const days = parseDays(searchParams.get('days'))
 
@@ -109,7 +114,7 @@ export function AdminDmarc() {
           onClick={() => setDays(option)}
           type="button"
         >
-          {option}d
+          {t('admin.dmarc.days', { n: option })}
         </button>
       ))}
     </div>
@@ -117,14 +122,19 @@ export function AdminDmarc() {
 
   const renderSources = () => {
     if (sourcesQuery.isPending) {
-      return <AdminTableSkeleton cols={SOURCE_HEADERS.length} headers={SOURCE_HEADERS} />
+      return (
+        <AdminTableSkeleton
+          cols={SOURCE_HEADERS.length}
+          headers={SOURCE_HEADERS.map((h) => t(h))}
+        />
+      )
     }
     if (sourcesQuery.isError) {
       return (
         <AdminErrorState
           error={sourcesQuery.error}
           onRetry={() => void sourcesQuery.refetch()}
-          what="the sending sources"
+          what={t('admin.dmarc.sourcesName')}
         />
       )
     }
@@ -132,20 +142,16 @@ export function AdminDmarc() {
     return (
       <>
         <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <SummaryTile label="Messages reported" value={String(rollup.total)} />
-          <SummaryTile label="Passing DMARC" value={String(rollup.passing)} />
+          <SummaryTile label={t('admin.dmarc.reported')} value={String(rollup.total)} />
+          <SummaryTile label={t('admin.dmarc.passingDmarc')} value={String(rollup.passing)} />
           <SummaryTile
-            label="Pass rate"
+            label={t('admin.dmarc.passRate')}
             value={formatRate(passRate(rollup.total, rollup.passing))}
           />
-          <SummaryTile label="Reports" value={String(rollup.reports)} />
+          <SummaryTile label={t('admin.dmarc.reports')} value={String(rollup.reports)} />
         </div>
-        <h3 className="text-fg mb-2 text-sm font-medium">Sending sources</h3>
-        <p className="text-fg-muted mb-3 text-xs">
-          Every IP that providers saw sending mail as one of your domains, in reports whose window
-          began in the last {days} days. A source passing 0% is either a sender of yours whose SPF
-          or DKIM does not align with the domain, or someone spoofing it
-        </p>
+        <h3 className="text-fg mb-2 text-sm font-medium">{t('admin.dmarc.sources')}</h3>
+        <p className="text-fg-muted mb-3 text-xs">{t('admin.dmarc.sourcesHelp', { days })}</p>
         <SourcesBody
           days={days}
           olderOnly={reports.length > 0 && rollup.reports === 0}
@@ -156,29 +162,31 @@ export function AdminDmarc() {
   }
 
   const renderReports = () => {
-    if (reportsQuery.isPending) return <AdminTableSkeleton cols={reportColumns.length} rows={3} />
+    if (reportsQuery.isPending) {
+      return <AdminTableSkeleton cols={reportColumns(t).length} rows={3} />
+    }
     if (reportsQuery.isError) {
       return (
         <AdminErrorState
           error={reportsQuery.error}
           onRetry={() => void reportsQuery.refetch()}
-          what="the report list"
+          what={t('admin.dmarc.reportsName')}
         />
       )
     }
     if (reports.length === 0) {
       return (
         <AdminEmptyState
-          description="Set rua=mailto:dmarc@ one of your domains in each domain's DMARC record. Providers usually send their first report within a day or two"
+          description={t('admin.dmarc.noReportsHelp')}
           icon={<ShieldCheck className="h-10 w-10" />}
-          title="No DMARC reports yet"
+          title={t('admin.dmarc.noReports')}
         />
       )
     }
     return (
       <AdminTable
-        columns={reportColumns}
-        label="DMARC reports"
+        columns={reportColumns(t)}
+        label={t('admin.dmarc.reportsLabel')}
         rowKey={(r) => r.sid}
         rows={reports}
       />
@@ -186,10 +194,10 @@ export function AdminDmarc() {
   }
 
   return (
-    <AdminPageShell actions={windowPicker} subtitle={SUBTITLE} title="DMARC">
+    <AdminPageShell actions={windowPicker} subtitle={t('admin.dmarc.subtitle')} title="DMARC">
       <section className="mb-8">{renderSources()}</section>
       <section>
-        <h3 className="text-fg mb-2 text-sm font-medium">Reports received</h3>
+        <h3 className="text-fg mb-2 text-sm font-medium">{t('admin.dmarc.received')}</h3>
         {renderReports()}
       </section>
     </AdminPageShell>
@@ -244,11 +252,12 @@ function SourcesBody({
   olderOnly: boolean
   sources: DmarcSource[]
 }) {
+  const t = useT()
   if (sources.length > 0) {
     return (
       <AdminTable
-        columns={sourceColumns}
-        label="Sending sources"
+        columns={sourceColumns(t)}
+        label={t('admin.dmarc.sources')}
         rowKey={(s) => s.sourceIp}
         rows={sources}
       />
@@ -257,17 +266,17 @@ function SourcesBody({
   if (olderOnly) {
     return (
       <AdminEmptyState
-        description="Every stored report began before this window. Choose a longer window to include them"
+        description={t('admin.dmarc.olderOnlyHelp')}
         icon={<ShieldCheck className="h-10 w-10" />}
-        title={`No sending sources in the last ${days} days`}
+        title={t('admin.dmarc.noSourcesIn', { days })}
       />
     )
   }
   return (
     <AdminEmptyState
-      description="Sources appear once the first aggregate report arrives. Each report lists the IPs that sent mail as your domain and whether that mail passed DMARC"
+      description={t('admin.dmarc.noSourcesHelp')}
       icon={<ShieldCheck className="h-10 w-10" />}
-      title="No sending sources yet"
+      title={t('admin.dmarc.noSources')}
     />
   )
 }

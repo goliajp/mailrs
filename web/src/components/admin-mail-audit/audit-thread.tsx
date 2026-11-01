@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import { AdminErrorState, AdminPageShell } from '@/components/admin-page'
 import { HtmlFrame } from '@/components/html-frame'
+import { useT } from '@/i18n'
 import { formatFullDate, formatSize } from '@/lib/format'
 import { adminKeys } from '@/lib/query-keys'
 import { adminListGet } from '@/wire/endpoints/admin'
@@ -36,6 +37,7 @@ export function AuditThread({
   onBack: () => void
   threadId: string
 }) {
+  const t = useT()
   const { data, error, isFetching, isPending, refetch } = useQuery({
     queryKey: adminKeys.mailAuditThread(account, threadId),
     queryFn: ({ signal }) =>
@@ -47,20 +49,22 @@ export function AuditThread({
   const messages = data ?? NO_MESSAGES
 
   const renderBody = () => {
-    if (isPending) return <p className="text-fg-muted py-8 text-center text-sm">Loading…</p>
+    if (isPending) {
+      return <p className="text-fg-muted py-8 text-center text-sm">{t('common.loading')}</p>
+    }
     if (error) {
       return (
         <AdminErrorState
           error={error}
           onRetry={() => refetch()}
           retryDisabled={isFetching}
-          what="this conversation"
+          what={t('admin.mailAudit.thisConversation')}
         />
       )
     }
     if (messages.length === 0) {
       return (
-        <p className="text-fg-muted py-8 text-center text-sm">This conversation has no messages</p>
+        <p className="text-fg-muted py-8 text-center text-sm">{t('admin.mailAudit.noMessages')}</p>
       )
     }
     return messages.map((msg) => <MessageView key={msg.uid} msg={msg} targetUser={account} />)
@@ -68,9 +72,9 @@ export function AuditThread({
 
   return (
     <AdminPageShell
-      actions={<BackButton label="Back to conversations" onBack={onBack} />}
-      subtitle={`${account}'s mail. Each time this conversation is opened, the audit log records it under your address`}
-      title={messages[0]?.subject || '(no subject)'}
+      actions={<BackButton label={t('admin.mailAudit.backToConversations')} onBack={onBack} />}
+      subtitle={t('admin.mailAudit.threadSubtitle', { account })}
+      title={messages[0]?.subject || t('admin.noSubject')}
     >
       {renderBody()}
     </AdminPageShell>
@@ -78,6 +82,7 @@ export function AuditThread({
 }
 
 function MessageBody({ msg }: { msg: AuditMessage }) {
+  const t = useT()
   // html mail is drawn for a white page, as senders design it
   if (msg.html_body) {
     return (
@@ -93,10 +98,11 @@ function MessageBody({ msg }: { msg: AuditMessage }) {
       </pre>
     )
   }
-  return <p className="text-fg-muted p-3 text-sm">This message has no body</p>
+  return <p className="text-fg-muted p-3 text-sm">{t('admin.mailAudit.noBody')}</p>
 }
 
 function MessageView({ msg, targetUser }: { msg: AuditMessage; targetUser: string }) {
+  const t = useT()
   const attachments = msg.attachments ?? []
 
   return (
@@ -104,23 +110,27 @@ function MessageView({ msg, targetUser }: { msg: AuditMessage; targetUser: strin
       <div className="mb-2 flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium">{msg.sender}</p>
-          <p className="text-fg-muted truncate text-xs">To {msg.recipients}</p>
+          <p className="text-fg-muted truncate text-xs">
+            {t('admin.mailAudit.to', { recipients: msg.recipients })}
+          </p>
         </div>
         <div className="flex shrink-0 items-center gap-3 text-xs">
           <span className="text-fg-muted tabular-nums">{formatFullDate(msg.internal_date)}</span>
           <a
-            aria-label="Download as .eml"
+            aria-label={t('admin.mailAudit.downloadLabel')}
             className="text-accent hover:opacity-80"
             href={`/api/admin/audit/messages/${msg.uid}/raw?user=${enc(targetUser)}`}
-            title="The download is also recorded in the audit log"
+            title={t('admin.mailAudit.downloadRecorded')}
           >
-            Download .eml
+            {t('admin.mailAudit.download')}
           </a>
         </div>
       </div>
 
       {msg.risk_score > 0 && (
-        <p className="text-danger mb-2 text-xs">Risk score {msg.risk_score}</p>
+        <p className="text-danger mb-2 text-xs">
+          {t('admin.mailAudit.risk', { score: msg.risk_score })}
+        </p>
       )}
 
       <div className="border-border rounded-lg border">
@@ -134,7 +144,7 @@ function MessageView({ msg, targetUser }: { msg: AuditMessage; targetUser: strin
               {att.filename} ({formatSize(att.size)})
             </span>
           ))}
-          <span className="text-fg-muted">Attachments are in the .eml download</span>
+          <span className="text-fg-muted">{t('admin.mailAudit.attachmentsInEml')}</span>
         </div>
       )}
     </div>

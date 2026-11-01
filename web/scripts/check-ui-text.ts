@@ -1,14 +1,17 @@
 /**
  * Interface text written straight into a component, not looked up with
- * `t()`: JSX text and the `aria-label`, `placeholder`, `title` and `label`
- * attributes given as a literal. Counted per file against
- * `ui-text-baseline.txt`; a file over its count, or a new file with any,
- * fails. Moving a file to `t()` lowers its count: run with `--update` to
- * write the lower counts (an update never raises one).
+ * `t()`: JSX text, and the `aria-label`, `placeholder`, `title`, `label`,
+ * `alt` and `helperText` attributes given as a string literal. Read from
+ * the syntax tree, so comments, generics and comparisons never count.
+ * Counted per file against `ui-text-baseline.txt`; a file over its count,
+ * or a new file with any, fails. Moving a file to `t()` lowers its count:
+ * run with `--update` to write the lower counts (an update never raises
+ * one).
  */
 
 import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
+import ts from 'typescript'
 
 const ROOT = join(import.meta.dir, '..')
 const SRC = join(ROOT, 'src')
@@ -41,16 +44,49 @@ function files(dir: string): string[] {
 function isText(s: string): boolean {
   const words = s.trim()
   if (!/[A-Za-z]{2,}/.test(words)) return false
+  // an example address reads the same in every language
+  if (/^[^\s@]+@[^\s@]+$/.test(words)) return false
   return !words.split(/\s+/).every((w) => KEEP.has(w))
 }
 
-export function count(source: string): number {
-  let n = 0
-  for (const m of source.matchAll(/>([^<>{}]+)</g)) if (isText(m[1])) n++
-  for (const m of source.matchAll(/\b(?:aria-label|placeholder|title|label)="([^"]*)"/g)) {
-    if (isText(m[1])) n++
+const ATTRS = new Set(['alt', 'aria-label', 'helperText', 'label', 'placeholder', 'title'])
+
+/** Each piece of written-in text in `source`, with its line. */
+export function found(source: string): { line: number; text: string }[] {
+  const file = ts.createSourceFile('x.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const out: { line: number; text: string }[] = []
+  const add = (node: ts.Node, text: string) =>
+    out.push({ line: file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1, text })
+  const visit = (node: ts.Node) => {
+    if (ts.isJsxText(node) && isText(node.text)) add(node, node.text.trim().replace(/\s+/g, ' '))
+    if (
+      ts.isJsxAttribute(node) &&
+      ATTRS.has(node.name.getText(file)) &&
+      node.initializer &&
+      ts.isStringLiteral(node.initializer) &&
+      isText(node.initializer.text)
+    ) {
+      add(node, `${node.name.getText(file)}="${node.initializer.text}"`)
+    }
+    ts.forEachChild(node, visit)
   }
-  return n
+  visit(file)
+  return out
+}
+
+export function count(source: string): number {
+  return found(source).length
+}
+
+// `--list <file>...` prints what would be counted in those files
+const listAt = process.argv.indexOf('--list')
+if (listAt >= 0) {
+  for (const path of process.argv.slice(listAt + 1)) {
+    console.log(`== ${path}`)
+    for (const { line, text } of found(readFileSync(path, 'utf8')))
+      console.log(`  ${line}: ${text}`)
+  }
+  process.exit(0)
 }
 
 function read(): Map<string, number> {

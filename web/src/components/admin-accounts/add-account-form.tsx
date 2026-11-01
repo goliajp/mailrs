@@ -1,12 +1,14 @@
 import { useState } from 'react'
 
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
+import { type Key, useT } from '@/i18n'
 import { adminKeys } from '@/lib/query-keys'
 import { adminPost } from '@/wire/endpoints/admin'
 
 const EMPTY_FORM = { address: '', displayName: '', domain: '', password: '' }
 
 export function AddAccountForm({ onDone }: { onDone: () => void }) {
+  const t = useT()
   const [form, setForm] = useState(EMPTY_FORM)
 
   const addAccount = useAdminMutation({
@@ -18,7 +20,7 @@ export function AddAccountForm({ onDone }: { onDone: () => void }) {
         display_name: vars.displayName,
         password: vars.password,
       }),
-    successMsg: (vars) => `Account "${vars.address}" added`,
+    successMsg: (vars) => t('admin.accounts.added', { address: vars.address }),
   })
 
   const handleAdd = () => {
@@ -46,15 +48,15 @@ export function AddAccountForm({ onDone }: { onDone: () => void }) {
     <div className="border-border mb-4 space-y-2 rounded-lg border p-4">
       <div className="flex gap-2">
         <input
-          aria-label="Username"
+          aria-label={t('admin.username')}
           autoFocus
           className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
           onChange={(e) => setForm({ ...form, address: e.target.value })}
-          placeholder="username"
+          placeholder={t('admin.usernamePlaceholder')}
           value={form.address}
         />
         <input
-          aria-label="Domain"
+          aria-label={t('admin.col.domain')}
           className="border-border bg-bg-secondary w-40 rounded-md border px-3 py-1.5 text-sm"
           onChange={(e) => setForm({ ...form, domain: e.target.value })}
           placeholder="example.com"
@@ -63,18 +65,18 @@ export function AddAccountForm({ onDone }: { onDone: () => void }) {
       </div>
       <div className="flex gap-2">
         <input
-          aria-label="Display name"
+          aria-label={t('admin.displayName')}
           className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
           onChange={(e) => setForm({ ...form, displayName: e.target.value })}
-          placeholder="Display name"
+          placeholder={t('admin.displayName')}
           value={form.displayName}
         />
         <input
-          aria-label="Password"
+          aria-label={t('admin.password')}
           autoComplete="new-password"
           className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
           onChange={(e) => setForm({ ...form, password: e.target.value })}
-          placeholder="Password"
+          placeholder={t('admin.password')}
           type="password"
           value={form.password}
         />
@@ -85,7 +87,7 @@ export function AddAccountForm({ onDone }: { onDone: () => void }) {
           disabled={incomplete || addAccount.isPending}
           onClick={handleAdd}
         >
-          {saveLabel(addAccount.isPending)}
+          {t(saveLabel(addAccount.isPending))}
         </button>
         <button
           className="text-fg-secondary hover:bg-bg-secondary rounded-md px-3 py-1.5 text-sm transition-colors"
@@ -94,14 +96,14 @@ export function AddAccountForm({ onDone }: { onDone: () => void }) {
             onDone()
           }}
         >
-          Cancel
+          {t('common.cancel')}
         </button>
       </div>
     </div>
   )
 }
 
-function saveLabel(pending: boolean): string {
-  if (pending) return 'Saving...'
-  return 'Save'
+function saveLabel(pending: boolean): Key {
+  if (pending) return 'admin.saving'
+  return 'admin.save'
 }

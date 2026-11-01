@@ -1,3 +1,5 @@
+import type { Key } from '@/i18n'
+
 /**
  * A status dot, and the word beside it.
  *
@@ -14,9 +16,9 @@
  */
 
 /// Whether an account is in use.
-export function activeLabel(active: boolean): string {
-  if (active) return 'Active'
-  return 'Inactive'
+export function activeLabel(active: boolean): Key {
+  if (active) return 'admin.active'
+  return 'admin.inactive'
 }
 
 /// Whether a service is answering.

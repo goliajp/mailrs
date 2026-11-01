@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { useT } from '@/i18n'
+import { errorText } from '@/lib/error-text'
 import { queryClient } from '@/lib/query-client'
 import { settingsKeys } from '@/lib/query-keys'
 import {
@@ -175,12 +176,6 @@ export function SecuritySection() {
       <SessionsCard />
     </div>
   )
-}
-
-/** The server's message when there is one, else ours. */
-function errorText(e: unknown, fallback: string): string {
-  if (e instanceof Error) return e.message
-  return fallback
 }
 
 function pick(busy: boolean, busyKey: Key, idleKey: Key): Key {

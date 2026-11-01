@@ -7,12 +7,12 @@ export function confirmPhrase(n: number): string {
   return `clear ${n} accounts`
 }
 
-/** Whom to ask, as a sentence part: "Li Hao (lihao@golia.jp)", or an administrator. */
-export function contactText(contact: null | ResetContact): string {
-  if (!contact) return 'an administrator'
+/** Whom to ask, as a sentence part: "Li Hao (lihao@golia.jp)", or `anyone` when nobody is named. */
+export function contactText(contact: null | ResetContact, anyone: string): string {
+  if (!contact) return anyone
   const { address, name } = contact
   if (name && address) return `${name} (${address})`
-  return name || address || 'an administrator'
+  return name || address || anyone
 }
 
 /** The addresses typed, one per line or separated by commas, once each. */
