@@ -6,6 +6,12 @@ pub fn tokens_key(user: &str) -> String {
     format!("push:tokens:{user}")
 }
 
+/// One user's Web Push subscriptions: hash, field = the endpoint's
+/// sha256, value = the subscription JSON.
+pub fn web_subscriptions_key(user: &str) -> String {
+    format!("push:web:{}", user.to_lowercase())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

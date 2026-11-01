@@ -63,6 +63,18 @@ pub fn build_router_with_secret(state: Arc<FastcoreState>, secret: String) -> Ro
         .route("/v1/admin/threads:split-message", post(split_message_route))
         .route(th::PATH_DELIVER_MESSAGE, post(deliver_message))
         .route(
+            senders_paths::PATH_RECLASSIFY_SENDER,
+            post(crate::senders::reclassify),
+        )
+        .route(
+            senders_paths::PATH_RESTORE_SENDER,
+            post(crate::senders::restore),
+        )
+        .route(
+            senders_paths::PATH_RETAIN_SENDER,
+            post(crate::senders::retain),
+        )
+        .route(
             senders_paths::PATH_ACCEPT_SENDERS,
             post(crate::sections::accept_senders),
         )

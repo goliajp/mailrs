@@ -15,6 +15,7 @@ mod core;
 mod directory;
 mod ingest;
 mod rules;
+mod senders;
 mod sent;
 mod store;
 

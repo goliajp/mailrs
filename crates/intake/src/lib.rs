@@ -35,13 +35,16 @@ pub mod mock;
 pub mod notice;
 pub mod outbound;
 pub mod push;
+pub mod push_policy;
 pub mod reports;
 pub mod route;
 pub mod rules;
 pub mod section_facts;
+pub mod sender_ops;
 pub mod sent;
 pub mod sieve;
 pub mod spool;
+pub mod web_push;
 pub mod webhook_delivery;
 
 pub use drain::{Copies, Core, Inbound, drain_once};

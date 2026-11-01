@@ -170,6 +170,10 @@ fn columns() -> Vec<(Vec<u8>, ValType)> {
         // `snoozed_until`: "due for a follow-up" is the range
         // `[1, now - N days]`, so nothing has to sweep a row into it.
         col("awaiting_since", ValType::I64),
+        // The address the newest message from someone else came from, as
+        // the sectioned inbox records it: what "this sender's
+        // conversations" keys on, for reclassifying and keeping a sender.
+        col("sec_in_from", ValType::Str),
     ]
 }
 
@@ -197,6 +201,8 @@ fn indexes() -> Vec<TableIndex> {
         "trashed_at",
         // When the reader started waiting on a reply; see the column.
         "awaiting_since",
+        // A sender's conversations; see the column.
+        "sec_in_from",
         // Which connected mailbox the conversation arrived at.
         // Keyed like the flags rather than folded into an
         // ORDERPATH: "only these accounts" is N walks on this
