@@ -42,7 +42,7 @@ export type Composer = ReturnType<typeof useComposer>
 type Options = {
   onSent: () => void
   /** Kept files of a re-edited send, by index; the server re-extracts them. */
-  redraftKeep?: number[]
+  redraftKeep?: null | number[]
 }
 
 /** The login address first, then what the server lets this account send as. */
