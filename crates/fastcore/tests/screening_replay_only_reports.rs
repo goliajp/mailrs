@@ -222,10 +222,15 @@ async fn the_replay_reports_both_samples_and_moves_nothing() {
     )
     .unwrap();
     assert_eq!(est["messages"], 2);
-    // per message: its hash, domain and sender indexes, relationship;
-    // the bad one adds a hash index (no links in either letter)
-    assert!(est["keys"].as_u64().unwrap() >= 6, "{est}");
-    assert!(est["raw_bytes"].as_u64().unwrap() > 200, "{est}");
+    // two rows, two verdicts, and one relationship: both letters are from
+    // the same sender
+    assert_eq!(est["keys_without_links_and_files"], 5, "{est}");
+    for family in ["messages", "verdicts", "relationships", "total"] {
+        assert!(
+            est["kevy_bytes"][family].as_u64().unwrap() > 0,
+            "{family}: {est}"
+        );
+    }
     let after: Vec<String> = threads
         .iter()
         .map(|t| {
