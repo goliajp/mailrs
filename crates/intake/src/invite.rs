@@ -85,7 +85,12 @@ pub fn find(body: &[u8]) -> Option<FoundInvite> {
 /// never overwrites a higher, so re-reading old copies of a re-sent
 /// meeting — which is exactly what a backfill does — cannot walk the
 /// event backwards.
-pub fn file_event(net: Option<kevy_client::Connection>, user: &str, found: &FoundInvite) {
+pub fn file_event(
+    net: Option<kevy_client::Connection>,
+    user: &str,
+    found: &FoundInvite,
+    message_id: &str,
+) {
     use mailrs_core_sidestate::families::calendar_events as ev;
 
     let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&found.payload_json) else {
@@ -94,7 +99,8 @@ pub fn file_event(net: Option<kevy_client::Connection>, user: &str, found: &Foun
     let Some(mut conn) = net else {
         return;
     };
-    let row = ev::from_invite(&found.uid, &found.method, found.sequence, &parsed);
+    let mut row = ev::from_invite(&found.uid, &found.method, found.sequence, &parsed);
+    row.message_id = Some(message_id.to_string()).filter(|m| !m.is_empty());
     if let Err(e) = ev::file_invite(&mut conn, user, &row) {
         tracing::warn!(err = %e, %user, uid = %found.uid, "invite: cannot file event");
     }

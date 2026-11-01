@@ -13,11 +13,14 @@
 //! ships the same wire shapes so the UI's invite card + weekly view
 //! render identically.
 
+use std::sync::Arc;
+
 use axum::Json;
-use axum::extract::{Extension, Path, Query};
+use axum::extract::{Extension, Path, Query, State};
 use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
 
+use crate::WebState;
 use crate::handlers::conversations::AuthedUser;
 use crate::handlers::kevy_util::with_kevy;
 
@@ -58,6 +61,14 @@ pub struct EventRow {
     /// absent when they have not given one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub partstat: Option<String>,
+    /// The Message-ID of the mail the invitation came in.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub message_id: Option<String>,
+    /// The conversation that mail is in now, for the calendar to open:
+    /// looked up when the events are listed, since threading can move it.
+    /// Absent when the mail is gone or the event did not come by mail.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thread_id: Option<String>,
 }
 
 fn parse_iso(s: &str) -> Option<i64> {
@@ -124,13 +135,26 @@ pub struct EventsQuery {
 /// not an instant, 5xx when the store cannot be read — an empty week and
 /// an unreadable one must not look the same.
 pub async fn get_events(
+    State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Query(q): Query<EventsQuery>,
 ) -> Result<Json<Vec<EventRow>>, StatusCode> {
     let (Some(start_ts), Some(end_ts)) = (parse_iso(&q.start), parse_iso(&q.end)) else {
         return Err(StatusCode::BAD_REQUEST);
     };
-    rows_in_window(&user, start_ts, end_ts).map(Json)
+    let mut rows = rows_in_window(&user, start_ts, end_ts)?;
+    for row in &mut rows {
+        let Some(mid) = row.message_id.as_deref() else {
+            continue;
+        };
+        row.thread_id = state
+            .core
+            .find_by_message_id_for_user(&user, mid)
+            .await
+            .ok()
+            .map(|m| m.thread_id.to_string());
+    }
+    Ok(Json(rows))
 }
 
 /// The user's events overlapping `[start_ts, end_ts)`, in start order.
@@ -172,6 +196,8 @@ impl From<mailrs_core_sidestate::families::calendar_events::StoredEvent> for Eve
             status: stored.status,
             source: Some(stored.source).filter(|s| !s.is_empty()),
             partstat: stored.partstat,
+            message_id: stored.message_id,
+            thread_id: None,
         }
     }
 }

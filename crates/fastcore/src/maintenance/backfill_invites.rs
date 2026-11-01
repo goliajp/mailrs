@@ -138,7 +138,7 @@ pub(crate) async fn backfill_invites_route(
                     continue;
                 }
                 crate::invites::store(&state, &wire.message_id, &found);
-                crate::invites::file_event(&state, user, &found);
+                crate::invites::file_event(&state, user, &found, &wire.message_id);
                 wire.invite_method = found.method.clone();
                 let Ok(payload) = serde_json::to_vec(&wire) else {
                     errors += 1;

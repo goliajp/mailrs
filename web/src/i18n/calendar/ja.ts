@@ -8,6 +8,7 @@ export const calendarJa: Record<CalendarKey, string> = {
   'calendar.more': 'ほか {n} 件',
   'calendar.next': '次へ',
   'calendar.noEvents': 'この期間の予定はありません',
+  'calendar.openMail': '招待メールを開く',
   'calendar.organizer': '主催者',
   'calendar.previous': '前へ',
   'calendar.source.feed': '購読中のカレンダー',

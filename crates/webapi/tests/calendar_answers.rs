@@ -150,6 +150,13 @@ async fn an_answer_is_on_the_calendar_and_a_decline_is_no_conflict() {
     assert_eq!(rows[0]["summary"], "Board meeting", "{rows}");
     assert_eq!(rows[0]["source"], "mail:board-1", "{rows}");
     assert_eq!(rows[1]["source"], "feed:team", "{rows}");
+    // the answer links the event to its mail, and the list says where it is
+    assert_eq!(rows[0]["message_id"], MID, "{rows}");
+    assert_eq!(rows[0]["thread_id"], TID, "{rows}");
+    assert!(
+        rows[1].get("thread_id").is_none(),
+        "a feed event has no mail: {rows}"
+    );
     assert!(
         rows[1].get("partstat").is_none(),
         "no answer is absent, not null: {rows}"

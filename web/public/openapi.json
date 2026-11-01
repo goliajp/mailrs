@@ -14413,6 +14413,14 @@
               "DECLINED"
             ],
             "description": "The reader's answer to an invitation; absent when none was given"
+          },
+          "message_id": {
+            "type": "string",
+            "description": "The Message-ID of the mail the invitation came in. Absent for events that did not come by mail."
+          },
+          "thread_id": {
+            "type": "string",
+            "description": "The conversation that mail is in now, looked up when the events are listed. Absent when there is no mail to open."
           }
         }
       }
