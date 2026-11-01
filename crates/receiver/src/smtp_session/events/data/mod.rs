@@ -10,7 +10,7 @@ use mailrs_smtp_proto::unstuff_data;
 
 use mailrs_smtp_codec::{SmtpCodec, SmtpInput};
 
-use super::super::headers::format_received_header;
+use super::super::headers::{format_masked_received_header, format_received_header};
 use super::super::{ConnectionContext, DATA_TIMEOUT, SessionAction};
 use super::reply::{code, send_reply};
 
@@ -24,7 +24,7 @@ use antispam::{AntiSpamOutcome, run_antispam};
 pub(super) async fn handle_need_data<S>(
     framed: &mut Framed<S, SmtpCodec>,
     session: &mut Session,
-    reverse_path: String,
+    mut reverse_path: String,
     forward_paths: Vec<String>,
     addr: SocketAddr,
     ctx: &ConnectionContext,
@@ -51,17 +51,33 @@ where
     match tokio::time::timeout(DATA_TIMEOUT, framed.next()).await {
         Ok(Some(Ok(SmtpInput::Data(raw)))) => {
             let body = unstuff_data(&raw);
-            if let sender_gate::SenderGate::Refuse(resp) =
-                sender_gate::check(&session.state, &reverse_path, &body, addr.ip(), ctx).await
+            let masked = match sender_gate::check(
+                &session.state,
+                &reverse_path,
+                &body,
+                addr.ip(),
+                ctx,
+            )
+            .await
             {
-                return send_reply(framed, resp).await;
-            }
-            let received = format_received_header(
-                session.client_domain(),
-                &ctx.hostname,
-                forward_paths.first().map(|s| s.as_str()).unwrap_or(""),
-                &addr,
-            );
+                sender_gate::SenderGate::Refuse(resp) => return send_reply(framed, resp).await,
+                sender_gate::SenderGate::Pass { masked, envelope } => {
+                    if let Some(mask) = envelope {
+                        reverse_path = mask;
+                    }
+                    masked
+                }
+            };
+            let first_rcpt = forward_paths.first().map(|s| s.as_str()).unwrap_or("");
+            let received = match masked {
+                true => format_masked_received_header(&ctx.hostname, first_rcpt),
+                false => format_received_header(
+                    session.client_domain(),
+                    &ctx.hostname,
+                    first_rcpt,
+                    &addr,
+                ),
+            };
             let mut full_message = received.into_bytes();
             full_message.extend_from_slice(&body);
 

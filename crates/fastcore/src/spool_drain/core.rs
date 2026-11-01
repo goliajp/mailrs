@@ -49,4 +49,13 @@ impl Directory for Fastcore {
     fn local_domains(&self) -> Arc<Vec<String>> {
         super::relay::local_domains(&self.state)
     }
+
+    /// Masks live in the network kevy; none configured means none exist.
+    fn mask(&self, addr: &str) -> io::Result<Option<Option<String>>> {
+        let Some(url) = self.state.net_url.as_deref() else {
+            return Ok(None);
+        };
+        let mut conn = kevy_client::Connection::connect(url).map_err(io::Error::other)?;
+        mailrs_core_sidestate::families::masked_email::delivery(&mut conn, addr)
+    }
 }

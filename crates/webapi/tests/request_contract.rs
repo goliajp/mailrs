@@ -41,6 +41,17 @@ fn senders_accept_body_matches() {
 }
 
 #[test]
+fn masked_email_bodies_match() {
+    let v: handlers::masked_email::CreateBody = parse("masked-email-create");
+    assert_eq!(v.for_domain, "shop.example");
+    assert_eq!(v.description, "orders");
+    assert_eq!(v.domain, None);
+    let v: handlers::masked_email::UpdateBody = parse("masked-email-update");
+    assert_eq!(v.state.as_deref(), Some("disabled"));
+    assert_eq!(v.url, None, "absent url is no change");
+}
+
+#[test]
 fn label_bodies_match() {
     let v: mailrs_core_api::method::label::CreateLabelRequest = parse("label-create");
     assert_eq!((v.name.as_str(), v.color.as_str()), ("Work", "blue"));
@@ -411,6 +422,8 @@ fn every_fixture_has_a_test() {
         "label-create",
         "label-update",
         "senders-accept",
+        "masked-email-create",
+        "masked-email-update",
         "forwarding-request",
         "forwarding-verify",
         "rule-create",

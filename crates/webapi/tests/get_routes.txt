@@ -83,6 +83,7 @@
 /api/keys/{address}/smime	read only
 /api/labels	read only
 /api/saved-searches	read only
+/api/masked-emails	read only
 /api/rules	read only
 /api/settings/vacation	read only
 /api/auth/sessions	read only, ids are hash prefixes

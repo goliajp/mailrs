@@ -34,7 +34,7 @@ mod seen;
 use legacy::move_legacy_session;
 use scopes::agent_scopes_allow;
 pub use scopes::{
-    AgentScopes, is_known_scope, mock_ns_restriction, send_only, validate_agent_scopes,
+    AgentScopes, is_known_scope, masked_only, mock_ns_restriction, send_only, validate_agent_scopes,
 };
 use seen::seen_now;
 

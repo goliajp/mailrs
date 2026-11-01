@@ -12408,6 +12408,254 @@
           }
         }
       }
+    },
+    "/api/masked-emails": {
+      "get": {
+        "operationId": "listMaskedEmails",
+        "summary": "The account's masked addresses, newest first",
+        "tags": [
+          "Masked addresses"
+        ],
+        "responses": {
+          "200": {
+            "description": "Live masks (deleted ones are not listed)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MaskedEmail"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createMaskedEmail",
+        "summary": "Make a masked address",
+        "tags": [
+          "Masked addresses"
+        ],
+        "description": "At most 1000 live masks per account and 50 made per UTC day. The address is drawn from a reviewed word list and is never one that is or was an account, alias, group or mask. A masked_email agent key may call this.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "forDomain": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string"
+                  },
+                  "domain": {
+                    "type": "string",
+                    "description": "One of the account's domains (its own, or those of addresses it may send as); its own when absent"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The new mask",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaskedEmail"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/masked-emails/{email}": {
+      "parameters": [
+        {
+          "name": "email",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "patch": {
+        "operationId": "updateMaskedEmail",
+        "summary": "Turn a masked address off or on, or change its site or note",
+        "tags": [
+          "Masked addresses"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "enabled",
+                      "disabled",
+                      "deleted"
+                    ]
+                  },
+                  "forDomain": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "null clears it"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The mask as it now is",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaskedEmail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteMaskedEmail",
+        "summary": "Delete a masked address for good: it takes no more mail and is never issued again",
+        "tags": [
+          "Masked addresses"
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "404": {
+            "description": "Refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -14911,6 +15159,65 @@
           "thread_id": {
             "type": "string",
             "description": "The conversation that mail is in now, looked up when the events are listed. Absent when there is no mail to open."
+          }
+        }
+      },
+      "MaskedEmail": {
+        "type": "object",
+        "description": "A masked address: a random address for one site that delivers to the account. Field names follow Fastmail's MaskedEmail object.",
+        "required": [
+          "id",
+          "email",
+          "owner",
+          "state",
+          "forDomain",
+          "description",
+          "createdAt",
+          "createdBy"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "description": "<adjective>.<noun>.<4 digits>@<domain>, from a reviewed word list"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "enabled",
+              "disabled",
+              "deleted"
+            ],
+            "description": "pending and enabled take mail; pending becomes enabled with its first message; disabled refuses it; deleted refuses it for good and the address is never issued again"
+          },
+          "forDomain": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "integer",
+            "description": "Epoch seconds"
+          },
+          "createdBy": {
+            "type": "string",
+            "description": "web, jmap, or the prefix of the key that made it"
+          },
+          "lastMessageAt": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Epoch seconds of the last message delivered to it"
           }
         }
       }
