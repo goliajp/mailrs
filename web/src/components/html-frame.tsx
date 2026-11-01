@@ -4,10 +4,17 @@ import DOMPurify from 'dompurify'
 import { useAtom, useAtomValue } from 'jotai'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
-import { ImagesHeldNote, ImagesHiddenNote } from '@/components/images-note'
+import { ImagesHeldNote, ImagesHiddenNote, TrackersNote } from '@/components/images-note'
 import { cjkFonts, cjkLang, injectCjkFonts } from '@/lib/cjk-fonts'
 import { fitHeight, fitScale, shouldReflowTable } from '@/lib/fit-to-width'
 import { markRemoteImage, reload, showPrefetched, watchMissing } from '@/lib/remote-images'
+import {
+  disarmTracker,
+  isTrackingImage,
+  stripTrackingParams,
+  trackerCount,
+  trackersIn,
+} from '@/lib/trackers'
 import { imageSendersAtom, remoteImagesAtom } from '@/store/settings'
 import { wirePrefetchThreadImages } from '@/wire/endpoints/mail'
 
@@ -35,16 +42,15 @@ function decodeHtmlEntities(s: string): string {
 // 302s to the URL, nothing more. What the hop actually buys today is
 // that the destination does not appear in the browser's referrer or
 // status bar until it is followed — worth knowing before anyone relies
-// on it as a filter. Left in place; the claim is what changed. Image URLs are NOT proxied —
-// the Shadow DOM mount sets `referrerpolicy="no-referrer"` on every <img>,
-// the browser fetches the external URL directly in parallel (5-10× faster
-// than serialising them through the server), and `stripTrackingPixels`
-// has already deleted 1×1 beacons before this point.
+// on it as a filter. Left in place; the claim is what changed. The query
+// parameters that only identify who clicked are taken off first. Images are
+// not handled here: they are shown from the server's prefetched copies, and
+// a tracker has no address left to load (`disarmTracker`).
 function proxyLinks(html: string): string {
   return html.replace(
     /(<a\b[^>]*\bhref\s*=\s*["'])(https?:\/\/[^"']+)(["'])/gi,
     (_match, before, url, after) => {
-      const cleanUrl = decodeHtmlEntities(url)
+      const cleanUrl = stripTrackingParams(decodeHtmlEntities(url))
       return `${before}/api/proxy/link?url=${encodeURIComponent(cleanUrl)}${after}`
     }
   )
@@ -80,19 +86,6 @@ function rewriteCidImages(html: string, uid: number, attachments: AttachmentInfo
   )
 }
 
-// drop common 1×1 tracking-pixel images (open-rate beacons). matches
-// the explicit width/height attributes a tracker writes alongside a
-// remote-loaded image. defensive only: real content images are never
-// authored at width=1 height=1.
-function stripTrackingPixels(html: string): string {
-  return html.replace(/<img\b[^>]*>/gi, (tag) => {
-    const w = /\bwidth\s*=\s*["']?\s*1\s*["']?/i.test(tag)
-    const h = /\bheight\s*=\s*["']?\s*1\s*["']?/i.test(tag)
-    const inlineSize = /\bstyle\s*=\s*["'][^"']*\b(?:width|height)\s*:\s*1px[^"']*["']/i.test(tag)
-    return w && h ? '' : inlineSize && (w || h) ? '' : tag
-  })
-}
-
 // dedicated DOMPurify instance avoids global hook race conditions in
 // concurrent renders
 const emailPurifier = DOMPurify()
@@ -101,6 +94,8 @@ emailPurifier.addHook('afterSanitizeAttributes', (node) => {
     node.setAttribute('target', '_blank')
     node.setAttribute('rel', 'noopener noreferrer')
   }
+  // before the image is marked as remote: a tracker is never asked for
+  if (node.tagName === 'IMG' && isTrackingImage(node)) disarmTracker(node)
   markRemoteImage(node)
 })
 
@@ -199,6 +194,7 @@ const SHADOW_STYLES = `
     overflow-wrap: break-word;
   }
   img { max-width: 100%; height: auto; }
+  img[data-tracker] { display: none; }
   a { color: #2563eb; }
   pre { overflow-x: auto; }
   blockquote {
@@ -284,6 +280,10 @@ export function HtmlFrame({
   const sanitized = useMemo(() => cachedSanitize(preprocessed), [preprocessed])
   const remoteCount = useMemo(
     () => (sanitized.match(/data-remote-src=/g) ?? []).length,
+    [sanitized]
+  )
+  const trackers = useMemo(
+    () => ({ count: trackerCount(sanitized), hosts: trackersIn(sanitized) }),
     [sanitized]
   )
   const shown =
@@ -442,6 +442,7 @@ export function HtmlFrame({
   return (
     <>
       {imagesHeld && <ImagesHeldNote onShow={showAnyway} />}
+      {trackers.count > 0 && <TrackersNote count={trackers.count} hosts={trackers.hosts} />}
       {!shown && remoteCount > 0 && (
         <ImagesHiddenNote
           mode={remoteImages}
@@ -487,5 +488,5 @@ function sanitizeEmail(html: string): string {
     ALLOW_UNKNOWN_PROTOCOLS: false,
     FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input'],
   })
-  return proxyLinks(injectCjkFonts(stripTrackingPixels(clean), cjkLang(clean)))
+  return proxyLinks(injectCjkFonts(clean, cjkLang(clean)))
 }

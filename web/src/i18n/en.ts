@@ -471,6 +471,9 @@ export const en = {
   'thread.markedRead': 'Marked as read',
   'thread.me': 'Me',
   'thread.showEarlier': 'Show {count} earlier messages',
+  'trackers.blocked': 'Trackers blocked: {count}',
+  'trackers.explain':
+    'These images only tell the sender that you opened the message. They were never loaded, not even by the server',
   'trash.confirmBody': 'Every conversation in it is deleted and cannot be restored.',
   'trash.confirmTitle': 'Empty the Trash?',
   'trash.deleted.one': '1 conversation deleted forever',
