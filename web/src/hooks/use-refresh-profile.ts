@@ -30,6 +30,7 @@ export function useRefreshProfile(): boolean {
           is_reset_issuer: me.is_reset_issuer,
           is_super: me.is_super,
           permissions: me.permissions,
+          send_as: me.send_as,
         })
       )
       .catch(() => {})

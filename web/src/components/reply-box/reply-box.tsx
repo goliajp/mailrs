@@ -1,496 +1,121 @@
 import type { ReplyMode } from './types'
-import type { StructuredComposeHandle } from '@/components/structured-compose'
+import type { ComposerStart, ReplyContext } from '@/components/composer/start'
 
-import { toast } from '@goliapkg/gds'
-import { useAtomValue } from 'jotai'
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 
-import { AutosaveWarning } from '@/components/autosave-warning'
-import { ComposerSkeleton } from '@/components/composer-skeleton'
-import { ContactAutocomplete } from '@/components/contact-autocomplete'
-import { useAutosaveStatus } from '@/hooks/use-autosave-status'
-import { useCurrentThreadMessages } from '@/hooks/use-current-list'
-import { useDefaultSignature } from '@/hooks/use-default-signature'
-import { useDeleteDraftMutation, useDraftsQuery, useSaveDraftMutation } from '@/hooks/use-drafts'
-import { applyOptimisticSent } from '@/hooks/use-mail-mutations'
-import { type Key, useT } from '@/i18n'
-import { errorText } from '@/lib/error-text'
-import { buildForwardHeaderHtml, escapeHtml } from '@/lib/html-utils'
-import { parseAddressList, sendMail } from '@/lib/send-mail'
-import { authAtom } from '@/store/auth'
-import { wirePolishText, wireReplySuggest } from '@/wire/endpoints/ai'
-import { wireDeletePendingSend } from '@/wire/endpoints/mail'
+import { ComposerView } from '@/components/composer/composer'
+import { useComposer } from '@/components/composer/use-composer'
+import { useComposerAi } from '@/components/composer/use-composer-ai'
 
-const StructuredCompose = lazy(() =>
-  import('@/components/structured-compose').then((m) => ({ default: m.StructuredCompose }))
-)
-
-import { ActionBar } from './action-bar'
 import { ModeToggle } from './mode-toggle'
-import { PreviewDialog } from './preview-dialog'
-import { SuggestionsRow } from './suggestions-row'
 
-type ReplyBoxProps = {
-  /**
-   * The connected mailbox this conversation arrived at, empty or
-   * absent for this server's own. It decides which address the reply
-   * leaves by — a reply sent from anywhere else lands in the thread as
-   * a stranger, and half the time the recipient's provider refuses it.
-   */
+type ReplyBoxProps = Omit<
+  ReplyContext,
+  'forwardAttachmentsUid' | 'forwardMessageId' | 'originalHtmlBody'
+> & {
   forwardAttachmentsUid?: null | number
   forwardMessageId?: null | string
-  lastMessageId: string
   mode: ReplyMode
   onModeChange: (mode: ReplyMode) => void
   onSent: () => void
-  originalBody: string
-  originalDate: string
-  originalFrom: string
   originalHtmlBody?: null | string
-  replyAllRecipients: string
-  replyRecipients: string
-  subject: string
-  threadId: string
 }
-export function ReplyBox({
-  forwardAttachmentsUid,
-  forwardMessageId,
-  lastMessageId,
-  mode,
-  onModeChange,
-  onSent,
-  originalBody,
-  originalDate,
-  originalFrom,
-  originalHtmlBody,
-  replyAllRecipients,
-  replyRecipients,
-  subject,
-  threadId,
-}: ReplyBoxProps) {
-  const t = useT()
-  const auth = useAtomValue(authAtom)
-  // From the server, not from `localStorage`: the atom that used to
-  // feed this was written by no UI anywhere, so the composer's
-  // signature was permanently empty while Settings → Signatures saved
-  // one to the server that nothing ever read.
-  const { html: signature } = useDefaultSignature()
-  const signatureEnabled = signature.trim().length > 0
-  // v2.1 phase-5d: read thread messages from RQ but pin the value into
-  // a ref so the suggest() callback reads the latest without subscribing
-  // the whole component to every WS refetch of the open thread (which
-  // would re-render TipTap on every arrive/change).
-  const threadMessages = useCurrentThreadMessages()
-  const threadMessagesRef = useRef(threadMessages)
-  threadMessagesRef.current = threadMessages
-  const [forwardTo, setForwardTo] = useState('')
-  const [sending, setSending] = useState(false)
-  // MRS-15: preview-before-send. After the broken-list incident where
-  // TipTap's getHTML() output looked clean in the compose pane but wrapped
-  // the signature into a bullet list when rendered by the recipient, we
-  // surface the actual to-send HTML in a sandboxed iframe.
-  const [previewHtml, setPreviewHtml] = useState<null | string>(null)
-  // refs to avoid stale closures in send callback
-  const forwardMessageIdRef = useRef(forwardMessageId)
-  forwardMessageIdRef.current = forwardMessageId
-  const forwardAttachmentsUidRef = useRef(forwardAttachmentsUid)
-  forwardAttachmentsUidRef.current = forwardAttachmentsUid
-  const modeRef = useRef(mode)
-  modeRef.current = mode
-  const [polishing, setPolishing] = useState(false)
-  const [suggesting, setSuggesting] = useState(false)
-  const [suggestions, setSuggestions] = useState<string[]>([])
-  const [polishTone, setPolishTone] = useState('professional')
-  const [error, setError] = useState('')
-  const composeRef = useRef<StructuredComposeHandle>(null)
-  const prePolishRef = useRef<null | string>(null)
 
-  // server-backed autosave (2026-07-17): the inline reply used to keep
-  // its draft in localStorage only, so it never appeared in the Draft
-  // tab and didn't survive across browsers. Same upsert dance as the
-  // full-screen composer: first save allocates an id, later saves reuse
-  // it, send deletes it.
-  const draftIdRef = useRef<null | number>(null)
-  const sentRef = useRef(false)
-  const restoredRef = useRef(false)
-  const lastSavedRef = useRef('')
-  const saveDraftMut = useSaveDraftMutation()
-  const autosave = useAutosaveStatus()
-  const deleteDraftMut = useDeleteDraftMutation()
-  const { data: serverDrafts = [] } = useDraftsQuery()
+/**
+ * The inline shell: the composer at the foot of a conversation. Reply,
+ * reply all and forward are its modes; the recipients, Cc/Bcc, From and
+ * subject fold away until asked for, and forwarding opens them.
+ */
+export function ReplyBox(props: ReplyBoxProps) {
+  // another conversation is another compose session
+  return <InlineReply key={props.threadId} {...props} />
+}
 
-  const recipientsRef = useRef({ forwardTo, mode, replyAllRecipients, replyRecipients })
-  recipientsRef.current = { forwardTo, mode, replyAllRecipients, replyRecipients }
-
-  const currentTo = useCallback(() => {
-    const r = recipientsRef.current
-    switch (r.mode) {
-      case 'forward':
-        return r.forwardTo
-      case 'reply-all':
-        return r.replyAllRecipients
-      default:
-        return r.replyRecipients
-    }
-  }, [])
-
-  const saveDraftServer = useCallback(async () => {
-    if (sentRef.current) return
-    const body = composeRef.current?.getMarkdown() ?? ''
-    if (!body.trim()) return
-    const snapshot = body
-    if (snapshot === lastSavedRef.current) return
-    // Same contract as the full-screen composer: retry quietly, then say so.
-    await autosave.record(async () => {
-      const res = await saveDraftMut.mutateAsync({
-        body,
-        id: draftIdRef.current ?? undefined,
-        reply_to_thread_id: threadId,
-        subject,
-        to: currentTo(),
-      })
-      if (res.id !== undefined) draftIdRef.current = Number(res.id)
-      lastSavedRef.current = snapshot
-    })
-  }, [autosave, saveDraftMut, threadId, subject, currentTo])
-
-  // restore this thread's reply draft once the server list arrives
-  useEffect(() => {
-    if (restoredRef.current || serverDrafts.length === 0) return
-    const mine = serverDrafts.find((d) => d.reply_to_thread_id === threadId)
-    if (!mine || !mine.body.trim()) return
-    restoredRef.current = true
-    draftIdRef.current = Number(mine.id)
-    lastSavedRef.current = mine.body
-    setTimeout(() => {
-      const handle = composeRef.current
-      if (handle && !handle.getMarkdown().trim()) {
-        handle.setMarkdown(mine.body)
-        toast.info(t('compose.draftRestored'), { duration: 2000 })
-      }
-    }, 200)
-  }, [serverDrafts, threadId, t])
-
-  // periodic save while typing — bind the interval ONCE; the latest
-  // closure is read through a ref.
-  const saveDraftServerRef = useRef(saveDraftServer)
-  saveDraftServerRef.current = saveDraftServer
-  useEffect(() => {
-    const timer = setInterval(() => void saveDraftServerRef.current(), 3000)
-    return () => clearInterval(timer)
-  }, [])
-
-  const handleModeChange = (newMode: ReplyMode) => {
-    onModeChange(newMode)
-    setSuggestions([])
-    setError('')
+function InlineReply({ mode, onModeChange, onSent, ...rest }: ReplyBoxProps) {
+  const ctx: ReplyContext = {
+    ...rest,
+    forwardAttachmentsUid: rest.forwardAttachmentsUid ?? null,
+    forwardMessageId: rest.forwardMessageId ?? null,
+    originalHtmlBody: rest.originalHtmlBody ?? null,
   }
-
-  const resolveRecipients = (): string[] => {
-    if (mode === 'reply') return parseAddressList(replyRecipients)
-    if (mode === 'reply-all') return parseAddressList(replyAllRecipients)
-    return parseAddressList(forwardTo)
-  }
-
-  const resolveSubject = (): string => {
-    if (mode === 'forward') return subject.startsWith('Fwd:') ? subject : `Fwd: ${subject}`
-    return subject.startsWith('Re:') ? subject : `Re: ${subject}`
-  }
-
-  const send = async () => {
-    if (sending) return
-
-    const to = resolveRecipients()
-    if (modeRef.current === 'forward' && to.length === 0) {
-      setError(t('compose.needRecipient'))
-      return
-    }
-
-    const content = composeRef.current?.getContent()
-    if (!content || !content.compose.text.trim()) {
-      toast.error(t('compose.needBody'))
-      return
-    }
-
-    setError('')
-    setSending(true)
-
-    const resolvedSubject = resolveSubject()
-    const currentMode = modeRef.current
-    const inReplyTo = currentMode === 'forward' ? undefined : lastMessageId
-
-    try {
-      const fwdMid = currentMode === 'forward' ? forwardMessageIdRef.current : null
-      const fwdUid = currentMode === 'forward' ? forwardAttachmentsUidRef.current : null
-      // when forwarding via backend (forward_message_id) AND there are no
-      // user-added attachments, the body field should carry only the user's
-      // typed text — backend appends the original body / attachments from
-      // the raw .eml. With attachments we use fullText/fullHtml as normal.
-      const isBackendForward =
-        currentMode === 'forward' && (fwdMid || fwdUid) && content.attachments.length === 0
-      const body = isBackendForward ? content.compose.text : content.fullText
-      const htmlBody = isBackendForward ? content.compose.html : content.fullHtml
-
-      const result = await sendMail({
-        attachments: content.attachments,
-        body,
-        forwardAttachmentsFrom: fwdUid && fwdUid > 0 ? fwdUid : undefined,
-        forwardMessageId: fwdMid && fwdMid.length > 0 ? fwdMid : undefined,
-        from: auth?.address ?? '',
-        htmlBody,
-        inReplyTo,
-        // Always sent, even when `inReplyTo` is set: the server prefers the
-        // message id and falls back to resolving the thread's newest message
-        // when it is absent. A reply must not depend on the client having
-        // remembered a parent message id.
-        replyToThreadId: currentMode === 'forward' ? undefined : threadId,
-        subject: resolvedSubject,
-        to,
-      })
-
-      if (!result.success) {
-        toast.error(result.message ?? t('compose.sendFailed'))
-        return
-      }
-      const sentMessageId = result.message_id
-      // Optimistic: put the reply/forward into the Sent cache instantly
-      // + invalidate so the open thread and any list views refetch.
-      if (sentMessageId) {
-        applyOptimisticSent({
-          message_id: sentMessageId,
-          subject: resolvedSubject,
-          thread_id: threadId,
-          to: to.join(', '),
-        })
-      }
-
-      composeRef.current?.clearCompose()
-      setForwardTo('')
-      toast.success(t(sentLabel(currentMode === 'forward')), {
-        ...(sentMessageId
-          ? {
-              action: {
-                label: t('common.undo'),
-                onClick: async () => {
-                  try {
-                    await wireDeletePendingSend(sentMessageId)
-                    toast.success(t('compose.sendCancelled'))
-                  } catch {
-                    toast.error(t('compose.undoTooLate'))
-                  }
-                },
-              },
-              duration: 8000,
-            }
-          : {}),
-      })
-      sentRef.current = true
-      if (draftIdRef.current !== null) {
-        deleteDraftMut.mutate(draftIdRef.current)
-        draftIdRef.current = null
-      }
+  const start = useInlineStart(ctx, mode)
+  const [open, setOpen] = useState(false)
+  const c = useComposer(start, {
+    onSent: () => {
+      setOpen(false)
       onSent()
-    } catch (err) {
-      void saveDraftServer()
-      toast.error(errorText(err, t('compose.networkDraftSaved')), {
-        action: { label: t('common.retry'), onClick: () => send() },
-        duration: 10000,
-      })
-    } finally {
-      setSending(false)
-    }
-  }
-
-  const polish = async (tone?: string) => {
-    const handle = composeRef.current
-    if (!handle) return
-    const text = handle.getMarkdown()
-    if (!text.trim()) return
-    prePolishRef.current = text
-    setPolishing(true)
-    try {
-      const result = await wirePolishText(text, tone ?? polishTone)
-      if (result.success && result.polished) {
-        handle.setMarkdown(result.polished)
-        toast.success(t('compose.polished'), {
-          action: {
-            label: t('common.undo'),
-            onClick: () => {
-              if (prePolishRef.current != null) {
-                handle.setMarkdown(prePolishRef.current)
-                prePolishRef.current = null
-              }
-            },
-          },
-          duration: 8000,
-        })
-      } else {
-        toast.error(result.message ?? t('compose.polishFailed'))
-        prePolishRef.current = null
-      }
-    } catch {
-      toast.error(t('compose.aiUnavailable'))
-      prePolishRef.current = null
-    } finally {
-      setPolishing(false)
-    }
-  }
-
-  const suggest = async () => {
-    setSuggesting(true)
-    try {
-      // build thread context from prior messages (up to 3, excluding the latest)
-      const priorMessages = threadMessagesRef.current.slice(0, -1).slice(-3)
-      const threadContext =
-        priorMessages.length > 0
-          ? priorMessages
-              .map((m) => `From: ${m.sender}\n${m.clean_text || m.text_body || ''}`)
-              .join('\n---\n')
-          : undefined
-      const result = await wireReplySuggest({
-        original_body: originalBody,
-        original_sender: originalFrom,
-        original_subject: subject,
-        thread_context: threadContext,
-      })
-      if (result.success && result.suggestions.length > 0) {
-        setSuggestions(result.suggestions)
-      } else {
-        toast.error(result.message ?? t('compose.noSuggestions'))
-      }
-    } catch {
-      toast.error(t('compose.aiUnavailable'))
-    } finally {
-      setSuggesting(false)
-    }
-  }
-
-  const applySuggestion = (suggestion: string) => {
-    composeRef.current?.setMarkdown(suggestion)
-    setSuggestions([])
-    toast.success(t('compose.suggestionApplied'))
-  }
-
-  const openPreview = () => {
-    const content = composeRef.current?.getContent()
-    setPreviewHtml(content?.fullHtml ?? '')
-  }
-
-  const quotedHtml =
-    mode === 'forward' && originalHtmlBody ? originalHtmlBody : originalBody || undefined
-  const quotedHeaderHtml =
-    mode === 'forward'
-      ? buildForwardHeaderHtml(originalFrom, originalDate, subject)
-      : originalFrom
-        ? `<p style="color:#888">${escapeHtml(t('compose.quoteHeader', { date: originalDate, sender: originalFrom }))}</p>`
-        : undefined
-  const quotedHeader =
-    mode === 'forward'
-      ? `---------- Forwarded message ----------\nFrom: ${originalFrom}\nDate: ${originalDate}\nSubject: ${subject}\n\n`
-      : originalFrom
-        ? `${t('compose.quoteHeader', { date: originalDate, sender: originalFrom })}\n\n`
-        : ''
-
-  const placeholder = t(replyPlaceholder(mode === 'forward'))
-
+    },
+  })
+  const ai = useComposerAi(c)
+  const fieldsOpen = open || mode === 'forward'
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <ModeToggle
+        fieldsOpen={fieldsOpen}
         mode={mode}
-        onChange={handleModeChange}
-        replyAllRecipients={replyAllRecipients}
-        replyRecipients={replyRecipients}
+        onChange={(m) => {
+          onModeChange(m)
+          ai.dismissSuggestions()
+          c.setError('')
+        }}
+        onToggleFields={() => setOpen((v) => !v)}
+        recipients={c.to}
       />
-
-      {/* Renders nothing until there is a second address, so a person
-          with one mailbox never sees a control with one option in it. */}
-      <div className="empty:hidden"></div>
-
-      {mode === 'forward' && (
-        <div className="border-border shrink-0 border-b px-4 py-2">
-          <div className="flex items-center gap-2">
-            <label className="text-fg-muted w-16 shrink-0 text-xs" htmlFor="forward-to-input">
-              {t('compose.to')}
-            </label>
-            {/* mounted by switching to forward, from the toggle or the
-                `f` key: the caret goes to whom it is forwarded to */}
-            <ContactAutocomplete
-              autoFocus
-              className="border-border text-fg placeholder-fg-muted focus:border-accent w-full rounded-md border bg-transparent px-2 py-1 text-sm outline-none"
-              id="forward-to-input"
-              onChange={setForwardTo}
-              placeholder="recipient@example.com"
-              value={forwardTo}
-            />
-          </div>
-          {error && (
-            <p className="text-danger mt-1 text-xs" role="alert">
-              {error}
-            </p>
-          )}
-        </div>
-      )}
-
-      <SuggestionsRow
-        onApply={applySuggestion}
-        onDismiss={() => setSuggestions([])}
-        suggestions={suggestions}
-      />
-
-      {/* block-based composer */}
-      <div className="min-h-0 flex-1 overflow-hidden">
-        <Suspense fallback={<ComposerSkeleton />}>
-          <StructuredCompose
-            disabled={sending}
-            mode={mode === 'forward' ? 'forward' : 'reply'}
-            onSubmit={send}
-            placeholder={placeholder}
-            quotedHeader={quotedHeader}
-            quotedHeaderHtml={quotedHeaderHtml}
-            quotedHtml={quotedHtml}
-            ref={composeRef}
-            signature={signature}
-            signatureEnabled={signatureEnabled}
-          />
-        </Suspense>
-      </div>
-
-      <AutosaveWarning error={autosave.lastError} show={autosave.shouldWarn} />
-
-      <ActionBar
-        mode={mode}
-        onPolish={() => void polish()}
-        onPreview={openPreview}
-        onSend={() => void send()}
-        onSuggest={() => void suggest()}
-        onToneChange={setPolishTone}
-        polishing={polishing}
-        sending={sending}
-        suggesting={suggesting}
-        tone={polishTone}
-      />
-
-      {previewHtml !== null && (
-        <PreviewDialog
-          html={previewHtml}
-          onClose={() => setPreviewHtml(null)}
-          onSend={() => {
-            setPreviewHtml(null)
-            void send()
-          }}
-          sending={sending}
-        />
-      )}
+      <ComposerView ai={ai} c={c} compact fieldsOpen={fieldsOpen} focusTo />
     </div>
   )
 }
 
-function replyPlaceholder(forward: boolean): Key {
-  if (forward) return 'compose.forwardPlaceholder'
-  return 'compose.replyPlaceholder'
-}
-
-function sentLabel(forward: boolean): Key {
-  if (forward) return 'compose.forwarded'
-  return 'compose.replySent'
+// one start per mode and thread: a new object every render would read as a
+// mode change and reset what was typed into the fields
+function useInlineStart(ctx: ReplyContext, mode: ReplyMode): ComposerStart {
+  const {
+    accountId,
+    forwardAttachmentsUid,
+    forwardMessageId,
+    lastMessageId,
+    originalBody,
+    originalDate,
+    originalFrom,
+    originalHtmlBody,
+    replyAllRecipients,
+    replyRecipients,
+    subject,
+    threadId,
+  } = ctx
+  return useMemo(
+    () => ({
+      ctx: {
+        accountId,
+        forwardAttachmentsUid,
+        forwardMessageId,
+        lastMessageId,
+        originalBody,
+        originalDate,
+        originalFrom,
+        originalHtmlBody,
+        replyAllRecipients,
+        replyRecipients,
+        subject,
+        threadId,
+      },
+      kind: 'inline',
+      mode,
+    }),
+    [
+      accountId,
+      forwardAttachmentsUid,
+      forwardMessageId,
+      lastMessageId,
+      mode,
+      originalBody,
+      originalDate,
+      originalFrom,
+      originalHtmlBody,
+      replyAllRecipients,
+      replyRecipients,
+      subject,
+      threadId,
+    ]
+  )
 }
