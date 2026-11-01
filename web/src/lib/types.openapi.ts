@@ -6491,6 +6491,10 @@ export interface components {
              * @enum {string}
              */
             partstat?: "ACCEPTED" | "TENTATIVE" | "DECLINED";
+            /** @description The Message-ID of the mail the invitation came in. Absent for events that did not come by mail. */
+            message_id?: string;
+            /** @description The conversation that mail is in now, looked up when the events are listed. Absent when there is no mail to open. */
+            thread_id?: string;
         };
     };
     responses: never;

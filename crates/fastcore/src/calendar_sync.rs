@@ -239,6 +239,7 @@ fn apply(state: &Arc<FastcoreState>, user: &str, feed_id: &str, text: &str) -> u
             sequence: parsed.sequence,
             ics: None,
             partstat: None,
+            message_id: None,
         };
         if ev::put(&mut conn, user, &row).is_err() {
             continue;
