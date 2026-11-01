@@ -6,6 +6,7 @@ import {
   Archive,
   Bell,
   FileText,
+  Hourglass,
   Inbox,
   MailOpen,
   Mails,
@@ -29,6 +30,7 @@ import { activeLabelAtom, activeListAtom, selectLabelAtom } from '@/store/ui'
 const ICONS: Record<MailListId, LucideIcon> = {
   all: Mails,
   archived: Archive,
+  awaiting: Hourglass,
   draft: FileText,
   inbox: Inbox,
   junk: ShieldAlert,

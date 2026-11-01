@@ -14,6 +14,7 @@ import {
 import { themeModeAtom } from '@/store/theme'
 
 import { cardClass, Field, SectionHeader, Toggle } from './_shared'
+import { InboxSectionsCard } from './inbox-sections-card'
 import { LanguageField } from './language-field'
 
 const REMOTE_IMAGE_OPTIONS: { label: Key; value: RemoteImages }[] = [
@@ -123,6 +124,8 @@ export function AppearanceSection() {
           <p className="text-fg-muted text-xs">{t('settings.appearance.imagesHelp')}</p>
         </div>
       </div>
+
+      <InboxSectionsCard />
 
       <div className={cardClass}>
         <div className="space-y-1">
