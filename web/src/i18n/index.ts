@@ -81,6 +81,12 @@ export function currentLocale(): string {
   return LOCALE[getDefaultStore().get(langAtom)]
 }
 
+/** `yes` when `cond` holds, else `no`: picks between two keys without a `?:`. */
+export function either(cond: boolean, yes: Key, no: Key): Key {
+  if (cond) return yes
+  return no
+}
+
 /** Unix seconds as a date, in the current language. */
 export function useDate() {
   const lang = useAtomValue(langAtom)

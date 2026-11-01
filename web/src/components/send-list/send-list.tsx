@@ -10,7 +10,7 @@ import { ListSearchInput } from '@/components/list-search-input'
 import { SenderAvatar } from '@/components/sender-avatar'
 import { useCurrentSelection, useSendRows } from '@/hooks/use-current-list'
 import { useCancelSendMutation, useDeleteSendMutation, useResendMutation } from '@/hooks/use-sends'
-import { useT } from '@/i18n'
+import { either, useT } from '@/i18n'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { errorText } from '@/lib/error-text'
 import { dateGroupLabel, formatFullDate } from '@/lib/format'
@@ -94,7 +94,7 @@ export function SendList() {
       })
       setComposingNew(true)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Could not open this send for editing')
+      toast.error(errorText(err, t('sends.openFailed')))
     }
   }
 
@@ -252,7 +252,7 @@ const SendRowView = memo(function SendRowView({
             onClick={() => onCancel(row.send?.send_id ?? '')}
             type="button"
           >
-            {cancelling ? '…' : 'Cancel'}
+            {t(either(cancelling, 'sends.cancelling', 'common.cancel'))}
           </button>
         )}
       </div>

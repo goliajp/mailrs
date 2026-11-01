@@ -3,6 +3,8 @@ import type { QueryKey, UseMutationOptions } from '@tanstack/react-query'
 import { toast } from '@goliapkg/gds'
 import { useMutation } from '@tanstack/react-query'
 
+import { tNow } from '@/i18n'
+import { errorText } from '@/lib/error-text'
 import { queryClient } from '@/lib/query-client'
 
 // Generic admin-mutation template. All admin pages share the same shape:
@@ -29,7 +31,7 @@ export function useAdminMutation<TVars, TResult = unknown>(opts: {
   return useMutation<TResult, Error, TVars>({
     mutationFn: opts.mutationFn,
     onError: (err) => {
-      toast.error(err instanceof Error ? err.message : (opts.errorMsg ?? 'Operation failed'))
+      toast.error(errorText(err, opts.errorMsg ?? tNow('admin.opFailed')))
     },
     onSuccess: (result, vars) => {
       const msg =

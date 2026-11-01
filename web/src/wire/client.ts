@@ -1,3 +1,4 @@
+import { tNow } from '@/i18n'
 /**
  * Wire-layer transport client — layer 2 (see RFC §2.2).
  *
@@ -10,7 +11,6 @@
  * `fetchJson<T>` in `lib/api.ts` still exists during the migration; it
  * will be deleted once every screen reads through `wire/endpoints/`.
  */
-
 import { redirectToLogin } from '@/lib/api'
 import { http } from '@/lib/http'
 import { z } from '@/lib/zod'
@@ -120,7 +120,7 @@ async function handleResponse<T>(
   if (res.status === 503)
     throw new WireErrorException({
       kind: 'server',
-      message: 'The server is restarting. Try again in a moment',
+      message: tNow('wire.restarting'),
       status: 503,
     })
 

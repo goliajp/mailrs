@@ -18,65 +18,96 @@ import {
 } from 'lucide-react'
 import { NavLink } from 'react-router'
 
-type NavItem = { icon: React.ReactNode; label: string; to: string }
+import { type Key, useT } from '@/i18n'
+
+type NavItem = { icon: React.ReactNode; label: Key; to: string }
 
 // grouped by what an operator comes to do: watch mail move, manage who
 // and what the server hosts, look back at what happened, change settings
-const navGroups: { items: NavItem[]; label: string }[] = [
+const navGroups: { items: NavItem[]; label: Key }[] = [
   {
     items: [
-      { icon: <LayoutGrid className="h-4 w-4" />, label: 'Overview', to: '/admin/overview' },
-      { icon: <ListOrdered className="h-4 w-4" />, label: 'Queues', to: '/admin/queues' },
-      { icon: <ShieldCheck className="h-4 w-4" />, label: 'DMARC', to: '/admin/dmarc' },
-      { icon: <Filter className="h-4 w-4" />, label: 'Sender lists', to: '/admin/greylist' },
-      { icon: <FlaskConical className="h-4 w-4" />, label: 'Mock mail', to: '/admin/mock' },
+      {
+        icon: <LayoutGrid className="h-4 w-4" />,
+        label: 'admin.nav.overview',
+        to: '/admin/overview',
+      },
+      { icon: <ListOrdered className="h-4 w-4" />, label: 'admin.nav.queues', to: '/admin/queues' },
+      { icon: <ShieldCheck className="h-4 w-4" />, label: 'admin.nav.dmarc', to: '/admin/dmarc' },
+      {
+        icon: <Filter className="h-4 w-4" />,
+        label: 'admin.nav.senderLists',
+        to: '/admin/greylist',
+      },
+      { icon: <FlaskConical className="h-4 w-4" />, label: 'admin.nav.mock', to: '/admin/mock' },
     ],
-    label: 'Mail flow',
+    label: 'admin.nav.groupFlow',
   },
   {
     items: [
-      { icon: <Globe className="h-4 w-4" />, label: 'Domains', to: '/admin/domains' },
-      { icon: <Users className="h-4 w-4" />, label: 'Accounts', to: '/admin/accounts' },
+      { icon: <Globe className="h-4 w-4" />, label: 'admin.nav.domains', to: '/admin/domains' },
+      { icon: <Users className="h-4 w-4" />, label: 'admin.nav.accounts', to: '/admin/accounts' },
       {
         icon: <LockKeyhole className="h-4 w-4" />,
-        label: 'Clear passwords',
+        label: 'admin.nav.clearPasswords',
         to: '/admin/password-clear',
       },
-      { icon: <ArrowLeftRight className="h-4 w-4" />, label: 'Aliases', to: '/admin/aliases' },
-      { icon: <Mail className="h-4 w-4" />, label: 'Email groups', to: '/admin/email-groups' },
-      { icon: <Shield className="h-4 w-4" />, label: 'Permission groups', to: '/admin/groups' },
+      {
+        icon: <ArrowLeftRight className="h-4 w-4" />,
+        label: 'admin.nav.aliases',
+        to: '/admin/aliases',
+      },
+      {
+        icon: <Mail className="h-4 w-4" />,
+        label: 'admin.nav.emailGroups',
+        to: '/admin/email-groups',
+      },
+      {
+        icon: <Shield className="h-4 w-4" />,
+        label: 'admin.nav.permissionGroups',
+        to: '/admin/groups',
+      },
     ],
-    label: 'Directory',
+    label: 'admin.nav.groupDirectory',
   },
   {
     items: [
-      { icon: <Eye className="h-4 w-4" />, label: 'Mail audit', to: '/admin/mail-audit' },
-      { icon: <ScrollText className="h-4 w-4" />, label: 'Audit log', to: '/admin/audit-log' },
-      { icon: <KeyRound className="h-4 w-4" />, label: 'Sign-ins', to: '/admin/sign-ins' },
-      { icon: <ShieldAlert className="h-4 w-4" />, label: 'Screening', to: '/admin/screening' },
+      { icon: <Eye className="h-4 w-4" />, label: 'admin.nav.mailAudit', to: '/admin/mail-audit' },
+      {
+        icon: <ScrollText className="h-4 w-4" />,
+        label: 'admin.nav.auditLog',
+        to: '/admin/audit-log',
+      },
+      { icon: <KeyRound className="h-4 w-4" />, label: 'admin.nav.signIns', to: '/admin/sign-ins' },
+      {
+        icon: <ShieldAlert className="h-4 w-4" />,
+        label: 'admin.nav.screening',
+        to: '/admin/screening',
+      },
       {
         icon: <KeyRound className="h-4 w-4" />,
-        label: 'Protocol sign-ins',
+        label: 'admin.nav.protocolSignIns',
         to: '/admin/protocol-sign-ins',
       },
     ],
-    label: 'Oversight',
+    label: 'admin.nav.groupOversight',
   },
   {
     items: [
       {
         icon: <Settings className="h-4 w-4" />,
-        label: 'System config',
+        label: 'admin.nav.systemConfig',
         to: '/admin/system-config',
       },
     ],
-    label: 'Settings',
+    label: 'admin.nav.groupSettings',
   },
 ]
 
 const allItems = navGroups.flatMap((g) => g.items)
 
 export function AdminSidebar() {
+  const t = useT()
   return (
     <>
       {/* mobile: one scrolling row of every page */}
@@ -88,7 +119,7 @@ export function AdminSidebar() {
             to={item.to}
           >
             <span className="text-fg-muted">{item.icon}</span>
-            <span>{item.label}</span>
+            <span>{t(item.label)}</span>
           </NavLink>
         ))}
       </nav>
@@ -96,8 +127,8 @@ export function AdminSidebar() {
       {/* desktop: grouped column */}
       <aside className="border-border hidden h-full w-52 shrink-0 flex-col overflow-y-auto border-r py-3 select-none md:flex">
         {navGroups.map((group) => (
-          <nav aria-label={group.label} className="mb-4 px-3" key={group.label}>
-            <p className="text-fg-muted mb-1 px-3 text-xs">{group.label}</p>
+          <nav aria-label={t(group.label)} className="mb-4 px-3" key={group.label}>
+            <p className="text-fg-muted mb-1 px-3 text-xs">{t(group.label)}</p>
             {group.items.map((item) => (
               <NavLink
                 className={({ isActive }) => linkClass(isActive, false)}
@@ -105,7 +136,7 @@ export function AdminSidebar() {
                 to={item.to}
               >
                 <span className="text-fg-muted">{item.icon}</span>
-                <span>{item.label}</span>
+                <span>{t(item.label)}</span>
               </NavLink>
             ))}
           </nav>

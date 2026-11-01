@@ -4,6 +4,7 @@ import { Link, useLocation } from 'react-router'
 
 import { useCurrentUnreadCount } from '@/hooks/use-current-mail-filters'
 import { useVisualViewport } from '@/hooks/use-visual-viewport'
+import { useT } from '@/i18n'
 import { authAtom } from '@/store/auth'
 
 /**
@@ -36,13 +37,14 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
 }
 
 const NAV_ITEMS = [
-  { adminOnly: false, href: '/', icon: Home, label: 'Home' },
-  { adminOnly: false, href: '/mail', icon: Inbox, label: 'Mail' },
-  { adminOnly: true, href: '/admin', icon: Server, label: 'Admin' },
-  { adminOnly: false, href: '/settings', icon: Settings, label: 'Settings' },
+  { adminOnly: false, href: '/', icon: Home, label: 'nav.home' },
+  { adminOnly: false, href: '/mail', icon: Inbox, label: 'nav.mail' },
+  { adminOnly: true, href: '/admin', icon: Server, label: 'nav.admin' },
+  { adminOnly: false, href: '/settings', icon: Settings, label: 'nav.settings' },
 ] as const
 
 function MobileNav() {
+  const t = useT()
   const { pathname } = useLocation()
   const unreadCount = useCurrentUnreadCount()
   // the server pages show other people's mail traffic: super administrators only
@@ -74,7 +76,7 @@ function MobileNav() {
             to={item.href}
           >
             <item.icon className="h-5 w-5" />
-            <span>{item.label}</span>
+            <span>{t(item.label)}</span>
             {item.href === '/mail' && unreadCount > 0 && (
               <span className="bg-danger text-tiny absolute top-1 left-1/2 ml-2 grid h-4 min-w-4 place-items-center rounded-full px-0.5 leading-none font-bold text-white">
                 {unreadCount > 99 ? '99+' : unreadCount}

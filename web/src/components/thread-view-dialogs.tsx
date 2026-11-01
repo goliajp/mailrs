@@ -6,6 +6,7 @@ import { X } from 'lucide-react'
 import { DeleteThreadConfirm } from '@/components/delete-thread-confirm'
 import { MobileModal } from '@/components/mobile-modal'
 import { ThreadReplyBox } from '@/components/thread-reply-box'
+import { tNow } from '@/i18n'
 
 type DialogProps = {
   handleDelete: () => void
@@ -55,7 +56,7 @@ export function ThreadViewDialogs({
                 <X className="h-5 w-5" />
               </button>
               <span className="text-fg truncate text-sm font-medium">
-                {subject || '(no subject)'}
+                {subject || tNow('mobile.noSubject')}
               </span>
               <div className="w-5" />
             </div>

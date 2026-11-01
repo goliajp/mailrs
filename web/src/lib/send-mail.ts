@@ -1,3 +1,4 @@
+import { tNow } from '@/i18n'
 import { wireSendMailJson, wireSendMailMultipart } from '@/wire/endpoints/mail'
 import { WireErrorException } from '@/wire/errors'
 
@@ -154,6 +155,6 @@ export async function sendMail(p: SendMailParams): Promise<SendResult> {
     if (e instanceof WireErrorException && e.detail.kind === 'server') {
       return { message: e.detail.message ?? `Send failed (${e.detail.status})`, success: false }
     }
-    return { message: 'Send failed', success: false }
+    return { message: tNow('compose.sendFailed'), success: false }
   }
 }

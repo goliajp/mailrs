@@ -1,8 +1,12 @@
 /**
  * Interface text written straight into a component, not looked up with
- * `t()`: JSX text, and the `aria-label`, `placeholder`, `title`, `label`,
- * `alt` and `helperText` attributes given as a string literal. Read from
- * the syntax tree, so comments, generics and comparisons never count.
+ * `t()`: JSX text; the `aria-label`, `placeholder`, `title`, `label`, `alt`
+ * and `helperText` attributes given as a string literal; a string that is
+ * itself a JSX child (directly or as a branch of `?:`, `&&`, `||`, `??`);
+ * a string given to a `label`, `title`, `placeholder`, `description`,
+ * `text` or `message` property; and a string passed to `toast.*`,
+ * `setError`, `confirm` or `alert`. Read from the syntax tree, so comments,
+ * generics and comparisons never count.
  * Any hit fails, with its file, line and text. `--list <file>...` prints
  * the hits in those files without failing.
  */
@@ -38,6 +42,10 @@ const KEEP = new Set([
   'ESC',
   'Esc',
   'HTML',
+  // a key name on a shortcut hint
+  'Ctrl+',
+  // mock mail's direction code, shown as is like `captured-out`
+  'in',
 ])
 
 // example input shown as a placeholder: code and query syntax, not prose
@@ -50,7 +58,7 @@ function files(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const path = join(dir, name)
     if (statSync(path).isDirectory()) return name === '__tests__' ? [] : files(path)
-    return path.endsWith('.tsx') ? [path] : []
+    return /\.tsx?$/.test(path) && !path.endsWith('.d.ts') ? [path] : []
   })
 }
 
@@ -66,6 +74,41 @@ function isText(s: string): boolean {
 }
 
 const ATTRS = new Set(['alt', 'aria-label', 'helperText', 'label', 'placeholder', 'title'])
+
+const PROPS = new Set(['description', 'label', 'message', 'placeholder', 'text', 'title'])
+const CALLS = /^(toast(\.\w+)?|setError|(window\.)?(confirm|alert))$/
+
+/** Whether a string literal is shown to the reader, by where it sits. */
+function shown(node: ts.Node): boolean {
+  let child = node
+  let parent = node.parent
+  while (
+    ts.isConditionalExpression(parent) ||
+    ts.isParenthesizedExpression(parent) ||
+    (ts.isBinaryExpression(parent) &&
+      [
+        ts.SyntaxKind.AmpersandAmpersandToken,
+        ts.SyntaxKind.BarBarToken,
+        ts.SyntaxKind.QuestionQuestionToken,
+      ].includes(parent.operatorToken.kind))
+  ) {
+    if (ts.isConditionalExpression(parent) && parent.condition === child) return false
+    child = parent
+    parent = parent.parent
+  }
+  if (ts.isJsxExpression(parent) && ts.isJsxElement(parent.parent)) return true
+  if (ts.isJsxExpression(parent) && ts.isJsxFragment(parent.parent)) return true
+  if (ts.isJsxExpression(parent) && ts.isJsxAttribute(parent.parent)) {
+    return ATTRS.has(parent.parent.name.getText())
+  }
+  if (ts.isPropertyAssignment(parent) && parent.initializer === child) {
+    return PROPS.has(parent.name.getText())
+  }
+  if (ts.isCallExpression(parent) && parent.arguments.includes(child as ts.Expression)) {
+    return CALLS.test(parent.expression.getText())
+  }
+  return false
+}
 
 /** Each piece of written-in text in `source`, with its line. */
 export function found(source: string): { line: number; text: string }[] {
@@ -83,6 +126,9 @@ export function found(source: string): { line: number; text: string }[] {
       isText(node.initializer.text)
     ) {
       add(node, `${node.name.getText(file)}="${node.initializer.text}"`)
+    }
+    if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+      if (isText(node.text) && shown(node)) add(node, node.text)
     }
     ts.forEachChild(node, visit)
   }
