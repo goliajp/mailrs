@@ -34,6 +34,7 @@ pub(crate) use duplicate_blob_census::duplicate_blob_census_route;
 pub(crate) use duplicate_blob_repair::duplicate_blob_repair_route;
 mod backfill_message_files;
 mod backfill_read_state;
+mod hangup;
 mod ledger_estimate;
 pub(crate) mod recompute_sender_trust;
 pub(crate) use ledger_estimate::ledger_estimate_route;
