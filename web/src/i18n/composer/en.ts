@@ -12,6 +12,7 @@ export const composerEn = {
   'composer.from': 'From',
   'composer.hideFields': 'Hide recipients and subject',
   'composer.window.expand': 'Open as a full page',
+  'composer.window.expandBusy': 'Close the message open on the page first',
   'composer.window.minimize': 'Minimize',
   'composer.window.restore': 'Restore',
 } as const
