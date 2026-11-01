@@ -1,6 +1,7 @@
 import { adminOpsEn } from './admin-ops/en'
 import { adminEn } from './admin/en'
 import { appEn } from './app/en'
+import { composerEn } from './composer/en'
 import { mockEn } from './mock/en'
 import { settingsEn } from './settings/en'
 
@@ -11,6 +12,7 @@ import { settingsEn } from './settings/en'
  */
 export const en = {
   ...appEn,
+  ...composerEn,
   ...settingsEn,
   ...mockEn,
   ...adminEn,
