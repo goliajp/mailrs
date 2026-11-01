@@ -25,7 +25,7 @@ import { QuoteBlock } from '@/components/composer/blocks/quote-block'
 import { TextBlock } from '@/components/composer/blocks/text-block'
 import { EmailPreview } from '@/components/composer/email-preview'
 import { useBlockComposer } from '@/components/composer/use-block-composer'
-import { useT } from '@/i18n'
+import { either, useT } from '@/i18n'
 import { renderMarkdownToHtml } from '@/lib/render-markdown'
 
 // SignatureBlock pulls in tiptap + prosemirror + lowlight + highlight.js
@@ -383,7 +383,7 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
             onClick={() => setPreviewing((v) => !v)}
             type="button"
           >
-            {previewing ? 'Back to editing' : 'Preview'}
+            {t(either(previewing, 'composer.backToEditing', 'compose.preview'))}
           </button>
         </div>
       </div>

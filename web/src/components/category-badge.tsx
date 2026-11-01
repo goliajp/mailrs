@@ -1,13 +1,13 @@
-import { useT } from '@/i18n'
-const styles: Record<string, { bg: string; label: string; text: string }> = {
+import { type Key, type Translate, useT } from '@/i18n'
+const styles: Record<string, { bg: string; label: Key; text: string }> = {
   finance: {
     bg: 'bg-warning/10',
-    label: 'Finance',
+    label: 'category.finance',
     text: 'text-warning',
   },
   general: {
     bg: 'bg-border-strong',
-    label: 'General',
+    label: 'category.general',
     text: 'text-fg',
   },
   // a row is `surface`, and in the dark theme `bg-tertiary` is the same
@@ -15,32 +15,32 @@ const styles: Record<string, { bg: string; label: string; text: string }> = {
   // strongest neutral fill and text
   inbox: {
     bg: 'bg-border-strong',
-    label: 'Inbox',
+    label: 'category.inbox',
     text: 'text-fg',
   },
   newsletter: {
     bg: 'bg-danger/10',
-    label: 'Newsletter',
+    label: 'category.newsletter',
     text: 'text-danger',
   },
   notification: {
     bg: 'bg-accent/10',
-    label: 'Notification',
+    label: 'category.notification',
     text: 'text-accent',
   },
   personal: {
     bg: 'bg-success/10',
-    label: 'Personal',
+    label: 'category.personal',
     text: 'text-success',
   },
   promotion: {
     bg: 'bg-warning/10',
-    label: 'Promotion',
+    label: 'category.promotion',
     text: 'text-warning',
   },
   receipt: {
     bg: 'bg-success/10',
-    label: 'Receipt',
+    label: 'category.receipt',
     text: 'text-success',
   },
   // v2.4.2 Phase 4.3 — terminology sweep: the category axis keeps
@@ -52,42 +52,40 @@ const styles: Record<string, { bg: string; label: string; text: string }> = {
   // split the UI.
   scam: {
     bg: 'bg-danger/10',
-    label: 'Junk',
+    label: 'list.junk',
     text: 'text-danger',
   },
   shipping: {
     bg: 'bg-info/10',
-    label: 'Shipping',
+    label: 'category.shipping',
     text: 'text-info',
   },
   spam: {
     bg: 'bg-warning/10',
-    label: 'Junk',
+    label: 'list.junk',
     text: 'text-warning',
   },
   travel: {
     bg: 'bg-info/10',
-    label: 'Travel',
+    label: 'category.travel',
     text: 'text-info',
   },
   work: {
     bg: 'bg-accent/10',
-    label: 'Work',
+    label: 'category.work',
     text: 'text-accent',
   },
 }
 
 export function CategoryBadge({ category }: { category: string }) {
-  const s = styles[category] ?? {
-    bg: 'bg-border-strong',
-    label: category,
-    text: 'text-fg',
-  }
+  const t = useT()
+  const s = styles[category]
+  const tone = s ?? { bg: 'bg-border-strong', text: 'text-fg' }
   return (
     <span
-      className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-xs font-medium capitalize select-none ${s.bg} ${s.text}`}
+      className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-xs font-medium capitalize select-none ${tone.bg} ${tone.text}`}
     >
-      {s.label}
+      {categoryName(s, category, t)}
     </span>
   )
 }
@@ -100,39 +98,38 @@ export function riskColor(score: number): string {
   return 'text-success'
 }
 
-const importanceStyles: Record<string, { bg: string; icon: string; label: string; text: string }> =
-  {
-    critical: {
-      bg: 'bg-danger/10',
-      icon: '!!',
-      label: 'Critical',
-      text: 'text-danger',
-    },
-    important: {
-      bg: 'bg-warning/10',
-      icon: '!',
-      label: 'Important',
-      text: 'text-warning',
-    },
-    low: {
-      bg: 'bg-bg-secondary',
-      icon: '',
-      label: 'Low',
-      text: 'text-fg-muted',
-    },
-    noise: {
-      bg: 'bg-bg-secondary',
-      icon: '',
-      label: 'Noise',
-      text: 'text-fg-muted',
-    },
-    normal: {
-      bg: 'bg-surface',
-      icon: '',
-      label: 'Normal',
-      text: 'text-fg-muted',
-    },
-  }
+const importanceStyles: Record<string, { bg: string; icon: string; label: Key; text: string }> = {
+  critical: {
+    bg: 'bg-danger/10',
+    icon: '!!',
+    label: 'importance.critical',
+    text: 'text-danger',
+  },
+  important: {
+    bg: 'bg-warning/10',
+    icon: '!',
+    label: 'importance.important',
+    text: 'text-warning',
+  },
+  low: {
+    bg: 'bg-bg-secondary',
+    icon: '',
+    label: 'importance.low',
+    text: 'text-fg-muted',
+  },
+  noise: {
+    bg: 'bg-bg-secondary',
+    icon: '',
+    label: 'importance.noise',
+    text: 'text-fg-muted',
+  },
+  normal: {
+    bg: 'bg-surface',
+    icon: '',
+    label: 'importance.normal',
+    text: 'text-fg-muted',
+  },
+}
 
 export function ActionBadge() {
   const t = useT()
@@ -144,6 +141,7 @@ export function ActionBadge() {
 }
 
 export function ImportanceBadge({ level }: { level: string }) {
+  const t = useT()
   if (!level || level === 'normal' || level === 'low' || level === 'noise') return null
   const s = importanceStyles[level] ?? importanceStyles.normal
   return (
@@ -151,7 +149,7 @@ export function ImportanceBadge({ level }: { level: string }) {
       className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-xs font-medium select-none ${s.bg} ${s.text}`}
     >
       {s.icon && <span className="font-bold">{s.icon}</span>}
-      {s.label}
+      {t(s.label)}
     </span>
   )
 }
@@ -187,4 +185,10 @@ export function IntentBadge({ intent }: { intent: string }) {
       {intent}
     </span>
   )
+}
+
+/** A category we draw by its name; one we do not know, as the server sent it. */
+function categoryName(style: undefined | { label: Key }, category: string, t: Translate): string {
+  if (style) return t(style.label)
+  return category
 }

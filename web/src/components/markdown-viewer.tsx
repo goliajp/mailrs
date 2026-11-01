@@ -1,16 +1,18 @@
+import { useState } from 'react'
 // lazy split-out: react-markdown + remark-gfm + rehype-highlight together
 // weigh ~150-200 kB minified once highlight.js's language pack is dragged in.
 // most received emails are plain-text and never hit this code path, so
 // loading it on demand keeps the chat hot path lean. consumers should wrap
 // the import in React.lazy + <Suspense> and only render this when a
 // `looksLikeMarkdown` heuristic actually flips to true.
-
-import { useState } from 'react'
 import Markdown from 'react-markdown'
 import rehypeHighlight from 'rehype-highlight'
 import remarkGfm from 'remark-gfm'
 
+import { either, useT } from '@/i18n'
+
 function CodeBlock({ children, className, ...props }: React.HTMLAttributes<HTMLElement>) {
+  const t = useT()
   const [copied, setCopied] = useState(false)
   const code = String(children).replace(/\n$/, '')
   const lang = className?.replace('language-', '') ?? ''
@@ -29,11 +31,11 @@ function CodeBlock({ children, className, ...props }: React.HTMLAttributes<HTMLE
         </span>
       )}
       <button
-        aria-label={copied ? 'Copied to clipboard' : 'Copy code'}
+        aria-label={t(either(copied, 'copy.toClipboard', 'copy.code'))}
         className="touch-target text-fg-muted hover:bg-bg-secondary hover:text-fg md:text-mini absolute top-2 right-2 rounded-md px-1.5 py-0.5 text-xs opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100"
         onClick={copy}
       >
-        {copied ? 'Copied!' : 'Copy'}
+        {t(either(copied, 'copy.copiedBang', 'copy.short'))}
       </button>
       <code className={className} {...props}>
         {children}

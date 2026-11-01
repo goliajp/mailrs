@@ -3,11 +3,11 @@ import type { BlockType } from './types'
 import { Minus, Paperclip, Plus, Type } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
-import { useT } from '@/i18n'
+import { type Key, useT } from '@/i18n'
 
-const BLOCK_OPTIONS: { icon: typeof Type; label: string; type: BlockType }[] = [
-  { icon: Type, label: 'Text', type: 'text' },
-  { icon: Minus, label: 'Divider', type: 'divider' },
+const BLOCK_OPTIONS: { icon: typeof Type; label: Key; type: BlockType }[] = [
+  { icon: Type, label: 'composer.block.text', type: 'text' },
+  { icon: Minus, label: 'composer.block.divider', type: 'divider' },
 ]
 
 type Props = {
@@ -50,7 +50,7 @@ export function AddBlockMenu({ onAdd, onAddFile }: Props) {
               }}
             >
               <Icon className="text-fg-muted h-3.5 w-3.5 shrink-0" />
-              {label}
+              {t(label)}
             </button>
           ))}
           <button

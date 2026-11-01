@@ -27,7 +27,7 @@ export function ScheduledSection() {
 
   const cancel = useMutation({
     mutationFn: (id: string) => wireCancelScheduled(id),
-    onError: (e: Error) => toast.error(e.message || 'Could not cancel that send'),
+    onError: (e: Error) => toast.error(e.message || t('sends.cancelThatFailed')),
     onSuccess: () => {
       toast.success(t('sends.cancelled'))
       void queryClient.invalidateQueries({ queryKey: scheduledKey })

@@ -3,7 +3,7 @@ import type { ConnectionInfo, SmtpEvent } from '@/lib/types'
 import { useEffect, useRef, useState } from 'react'
 
 import { useSmtpEvents } from '@/hooks/use-smtp-events'
-import { type Key, useT } from '@/i18n'
+import { either, type Key, type Translate, useT } from '@/i18n'
 import { formatUptime } from '@/lib/format'
 
 // Format a counter that may legitimately be `null` from the backend.
@@ -43,7 +43,9 @@ export function Protocol() {
         </div>
         <div aria-live="polite" className="flex items-center gap-2" role="status">
           <div className={`h-2.5 w-2.5 rounded-full ${connected ? 'bg-success' : 'bg-danger'}`} />
-          <span className="text-fg-muted text-xs">{connected ? 'connected' : 'disconnected'}</span>
+          <span className="text-fg-muted text-xs">
+            {t(either(connected, 'monitor.connected', 'monitor.disconnected'))}
+          </span>
         </div>
       </div>
 
@@ -103,7 +105,7 @@ export function Protocol() {
         {/* center: conversation */}
         <section aria-label={t('monitor.conversation')} className="flex flex-1 flex-col">
           <div className="border-border text-fg-muted border-b px-4 py-2 text-xs font-medium tracking-wider uppercase">
-            {selectedConn ? `Session #${selectedConn.id} — ${selectedConn.addr}` : 'Conversation'}
+            {sessionTitle(selectedConn, t)}
           </div>
           <div className="flex-1 overflow-hidden">
             <ConversationView conn={selectedConn} />
@@ -276,6 +278,11 @@ function formatEvent(event: SmtpEvent): string {
     default:
       return ''
   }
+}
+
+function sessionTitle(conn: ConnectionInfo | null | undefined, t: Translate): string {
+  if (conn) return t('monitor.session', { addr: conn.addr, id: conn.id })
+  return t('monitor.conversationTitle')
 }
 
 function sideLabel(server: boolean): Key {

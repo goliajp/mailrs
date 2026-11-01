@@ -14,6 +14,7 @@ import { type FeedbackAction, recordFeedback } from '@/lib/api'
 import { errorText } from '@/lib/error-text'
 import { formatTimeOfDay } from '@/lib/format'
 import { highlightMentions } from '@/lib/mention'
+import { ownName } from '@/lib/own-name'
 
 type ThreadTimelineItemProps = {
   dateLabel: string
@@ -77,7 +78,7 @@ export const ThreadTimelineItem = memo(function ThreadTimelineItem({
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex items-center gap-2">
             <span className={`text-sm font-semibold ${isOwn ? 'text-accent' : 'text-fg'}`}>
-              {isOwn ? 'Me' : displayName}
+              {ownName(isOwn, displayName)}
             </span>
             {!isOwn && <SenderTrustBadge trust={msg.sender_trust} />}
             {!isOwn && <SenderClaimBadge sender={msg.sender} />}

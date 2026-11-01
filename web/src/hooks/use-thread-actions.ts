@@ -8,6 +8,8 @@ import {
   useUnstarMutation,
 } from '@/hooks/use-mail-mutations'
 import { useDeleteForeverMutation } from '@/hooks/use-trash-mutations'
+import { tNow } from '@/i18n'
+import { errorText } from '@/lib/error-text'
 import { queryClient } from '@/lib/query-client'
 import { mailKeys } from '@/lib/query-keys'
 
@@ -45,8 +47,8 @@ export function useThreadActions({
     markUnreadMutation.mutate(
       { threadId: selectedId },
       {
-        onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed'),
-        onSuccess: () => toast.success('Marked as unread'),
+        onError: (err) => toast.error(errorText(err, tNow('common.failed'))),
+        onSuccess: () => toast.success(tNow('action.unread.done')),
       }
     )
   }, [selectedId, markUnreadMutation, setIsRead])
@@ -57,8 +59,8 @@ export function useThreadActions({
     markReadMutation.mutate(
       { threadId: selectedId },
       {
-        onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed'),
-        onSuccess: () => toast.success('Marked as read'),
+        onError: (err) => toast.error(errorText(err, tNow('common.failed'))),
+        onSuccess: () => toast.success(tNow('thread.markedRead')),
       }
     )
   }, [selectedId, markReadMutation, setIsRead])
@@ -68,7 +70,7 @@ export function useThreadActions({
     setIsFlagged(true)
     starMutation.mutate(
       { threadId: selectedId },
-      { onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed') }
+      { onError: (err) => toast.error(errorText(err, tNow('common.failed'))) }
     )
   }, [selectedId, starMutation, setIsFlagged])
 
@@ -77,7 +79,7 @@ export function useThreadActions({
     setIsFlagged(false)
     unstarMutation.mutate(
       { threadId: selectedId },
-      { onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed') }
+      { onError: (err) => toast.error(errorText(err, tNow('common.failed'))) }
     )
   }, [selectedId, unstarMutation, setIsFlagged])
 
@@ -87,11 +89,11 @@ export function useThreadActions({
       { threadId: selectedId },
       {
         onError: (err) => {
-          toast.error(err instanceof Error ? err.message : 'Failed')
+          toast.error(errorText(err, tNow('common.failed')))
           setShowDeleteConfirm(false)
         },
         onSuccess: () => {
-          toast.success('Deleted forever')
+          toast.success(tNow('action.deleteForever.done'))
           setSelectedId(null)
           setShowDeleteConfirm(false)
           // messages come from RQ; invalidation happens via

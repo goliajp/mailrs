@@ -1,6 +1,8 @@
 import { Eye, EyeOff } from 'lucide-react'
 import { useId, useState } from 'react'
 
+import { either, useT } from '@/i18n'
+
 type AuthFieldProps = {
   autoComplete?: string
   autoFocus?: boolean
@@ -34,6 +36,7 @@ export function AuthField({
   type = 'text',
   value,
 }: AuthFieldProps) {
+  const t = useT()
   const generatedId = useId()
   const id = idProp ?? generatedId
   const helperId = `${id}-helper`
@@ -71,7 +74,7 @@ export function AuthField({
         />
         {passwordToggle && (
           <button
-            aria-label={revealed ? 'Hide password' : 'Show password'}
+            aria-label={t(either(revealed, 'auth.hidePassword', 'auth.showPassword'))}
             className="text-fg-muted hover:text-fg-secondary absolute top-1/2 right-2 -translate-y-1/2"
             onClick={() => setRevealed((v) => !v)}
             tabIndex={-1}

@@ -17,7 +17,7 @@ import type { LucideIcon } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CircleCheck, CircleMinus, ShieldAlert, TriangleAlert } from 'lucide-react'
 
-import { useT } from '@/i18n'
+import { either, useT } from '@/i18n'
 import { conversationKeys } from '@/store/query-keys-v21'
 import { fetchFraudVerdict, releaseQuarantined } from '@/wire/endpoints/fraud'
 
@@ -73,7 +73,7 @@ export function FraudVerdictPanel({
         <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
         <div className="min-w-0 flex-1">
           <p className="text-fg text-xs font-semibold">
-            {verdict.quarantined ? 'Held: suspected fraud' : 'Examined: something looked wrong'}
+            {t(either(verdict.quarantined, 'list.held', 'fraud.examined'))}
           </p>
           <p className="text-fg-muted text-[11px] leading-snug">
             {/* The layers below name the check that convicted.
@@ -101,7 +101,7 @@ export function FraudVerdictPanel({
             disabled={release.isPending}
             onClick={() => release.mutate()}
           >
-            {release.isPending ? 'Releasing…' : 'This is not fraud'}
+            {t(either(release.isPending, 'fraud.releasing', 'fraud.notFraud'))}
           </button>
         )}
       </div>

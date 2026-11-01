@@ -148,7 +148,7 @@ export function TextBlock({ data, disabled, onChange, onSubmit, placeholder }: P
         onInput={resize}
         onKeyDown={handleKeyDown}
         onPaste={handlePaste}
-        placeholder={placeholder ?? 'Write your message in markdown…'}
+        placeholder={placeholder ?? t('composer.markdownPlaceholder')}
         ref={textareaRef}
         spellCheck
         style={{ minHeight: `${MIN_HEIGHT_PX}px` }}

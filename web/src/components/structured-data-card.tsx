@@ -139,7 +139,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
             <div className="flex items-center gap-2">
               <ExternalLink className="text-accent h-4 w-4" />
               <span className="text-fg-secondary text-xs font-medium">
-                {a.type || 'Action'}: {a.name}
+                {a.type || t('structured.action')}: {a.name}
               </span>
             </div>
             {a.url && isSafeUrl(a.url) && (
@@ -149,7 +149,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
                 rel="noopener noreferrer"
                 target="_blank"
               >
-                {a.name || 'Open'}
+                {a.name || t('drafts.open')}
               </a>
             )}
           </div>
