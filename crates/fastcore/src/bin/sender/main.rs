@@ -39,6 +39,7 @@ mod recover;
 mod retry;
 mod retry_queue;
 mod stop;
+mod webhook;
 
 use config::*;
 use deliver::*;
@@ -259,6 +260,21 @@ async fn process_one(cfg: Cfg, id: String) {
                     "queue lifetime reached — moving to failed"
                 );
                 enqueue_bounce_dsn(&cfg, &sender, &recipient, &reason, &message_bytes).await;
+                // past its age with tries left: the outcome above said
+                // deferred, and this is where it ends
+                if attempts < cfg.max_attempts
+                    && let Some(send_id) = envelope.get("send_id").and_then(|v| v.as_str())
+                {
+                    webhook::emit(
+                        &cfg.kevy_url,
+                        mailrs_core_sidestate::families::webhook_events::kinds::MAIL_BOUNCED,
+                        &sender,
+                        send_id,
+                        &recipient,
+                        outcome::extract_code(&reason),
+                        Some(&reason),
+                    );
+                }
                 let _ = move_to_failed(cfg, id, reason, sender, recipient).await;
                 return;
             }

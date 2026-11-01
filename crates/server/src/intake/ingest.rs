@@ -66,7 +66,7 @@ impl PgCore {
                 body,
             ),
         };
-        effects::before_store(self.net_conn(), addr, &a, body.len());
+        effects::before_store(addr, &a, body.len());
         let mailbox = mailbox_for(a.is_own, folder);
         let stored = self.dir.rt.block_on(self.store(
             addr,
@@ -100,7 +100,7 @@ impl PgCore {
         self.dir
             .rt
             .block_on(self.apply_rules(addr, &a.thread_id, &actions));
-        effects::after_store(addr, &a, held);
+        effects::after_store(self.net_conn(), addr, &a, held);
         self.announce(addr, &a);
         true
     }

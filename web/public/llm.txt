@@ -109,7 +109,7 @@ Addresses `{namespace}.{any-tag}@mock.golia.jp` receive mail that never reaches 
 
 ### Agent
 - POST/GET/DELETE /api/agent/keys — API key management (scopes: admin, mail:read, mail:write, mail:send, mock, mock:{namespace}; a key with no scope is refused)
-- POST/GET/DELETE /api/agent/webhooks — webhook subscriptions
+- POST/GET/DELETE /api/agent/webhooks — webhook subscriptions, one event type each: mail.received, mail.held, mail.sent, mail.delivered, mail.deferred, mail.bounced, thread.read, thread.archived, thread.trashed, thread.starred, thread.labelled, calendar.invite_answered (payload `{event, version, timestamp, data}`, metadata only)
 
 ### Status
 - GET /api/status, /api/health, /api/readiness

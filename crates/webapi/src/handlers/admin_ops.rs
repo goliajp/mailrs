@@ -25,6 +25,10 @@ pub async fn create_webhook(
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Json(req): Json<wire::CreateWebhookRequest>,
 ) -> Result<Json<wire::CreateWebhookResponse>, StatusCode> {
+    // a subscription to a name nothing raises would never fire
+    if !mailrs_core_api::webhook_events::is_known(&req.event_type) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
     let address = req.account_address.clone();
     let w = with_kevy(move |c| {
         mailrs_core_sidestate::families::webhooks::create(

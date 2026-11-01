@@ -49,6 +49,7 @@ mod sections;
 mod sent;
 mod snooze_wake;
 mod store_motion;
+mod thread_events;
 pub use store_motion::store_motion_probe;
 mod threadstate;
 mod uidlist;
