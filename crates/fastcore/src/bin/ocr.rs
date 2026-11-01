@@ -33,6 +33,8 @@ const MAX_SIDE: u32 = 2000;
 struct Answer {
     text: String,
     too_small: bool,
+    /// Web addresses carried by QR codes in the image or the pages.
+    qr: Vec<String>,
 }
 
 fn main() {
@@ -108,17 +110,21 @@ fn engine(models: &std::path::Path) -> Result<mailrs_ocr::Engine, mailrs_ocr::Oc
 
 fn image(models: &std::path::Path, bytes: &[u8]) -> Result<Answer, mailrs_ocr::OcrError> {
     let img = mailrs_ocr::input::decode_image(bytes, MAX_IMAGE_SIDE, MAX_DECODE_BYTES)?;
+    let img = bounded(img);
+    // a code can be smaller than text worth reading
+    let qr = mailrs_ocr::qr::urls(&img);
     if u64::from(img.width()) * u64::from(img.height()) < MIN_PIXELS {
         return Ok(Answer {
             too_small: true,
+            qr,
             ..Answer::default()
         });
     }
-    let img = bounded(img);
     let lines = engine(models)?.read(&img)?;
     Ok(Answer {
         text: mailrs_ocr::text_of(&lines),
         too_small: false,
+        qr,
     })
 }
 
@@ -145,6 +151,7 @@ fn pdf(
     let doc = mailrs_ocr::input::PdfPages::open(bytes)?;
     let engine = engine(models)?;
     let mut texts = Vec::new();
+    let mut qr = Vec::new();
     for page in pages
         .split(',')
         .filter_map(|p| p.trim().parse::<usize>().ok())
@@ -153,6 +160,7 @@ fn pdf(
             continue;
         }
         let img = doc.render(page, PDF_DPI, MAX_SIDE)?;
+        qr.extend(mailrs_ocr::qr::urls(&img));
         let text = mailrs_ocr::text_of(&engine.read(&img)?);
         if !text.is_empty() {
             texts.push(text);
@@ -161,5 +169,6 @@ fn pdf(
     Ok(Answer {
         text: texts.join("\n\n"),
         too_small: false,
+        qr,
     })
 }

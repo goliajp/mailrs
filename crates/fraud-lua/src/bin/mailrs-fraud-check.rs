@@ -202,6 +202,14 @@ fn compare(baseline: &str, candidate: &str, root: &str, limit: usize) -> Result<
             dmarc: &dmarc,
             unauthenticated,
             peer_is_private,
+            // the reader's history is not in a maildir: the `bec-` rules
+            // that need it cannot fire here
+            payment: mailrs_inbound::body::payment_ids(&parsed, ""),
+            html: mailrs_inbound::body::html_attachments(&parsed, host),
+            reply_to_outside: mailrs_fraud::reply_rotation::is_off_domain(
+                host,
+                &mailrs_inbound::identity::reply_to_address(&raw),
+            ),
             ..Facts::default()
         };
         let old = match &mut before {

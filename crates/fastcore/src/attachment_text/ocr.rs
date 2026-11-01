@@ -66,6 +66,9 @@ pub(crate) enum Job<'a> {
 pub(crate) struct Answer {
     pub text: String,
     pub too_small: bool,
+    /// Web addresses carried by QR codes the child found.
+    #[serde(default)]
+    pub qr: Vec<String>,
 }
 
 /// Run the child on `bytes`. Blocking; call it off the async runtime.

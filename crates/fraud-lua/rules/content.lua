@@ -109,3 +109,22 @@ rule('subject-names-the-recipient', 'identity', 5, false, function(m)
         return 'the subject names the recipient\'s own address, ' .. address
     end
 end)
+-- An HTML or SVG attachment built to do something a page has no business
+-- doing in mail: assemble a file in the browser and make it save it
+-- (HTML smuggling), run script from an image, or post a password to a
+-- host that is not the sender's.  All three are the attachment's own
+-- structure, read as bytes by `mailrs_fraud::html_attachment`; nothing
+-- here depends on what the letter says or who sent it.
+rule('html-builds-a-download', 'content', 6, true, function(m)
+    if m.html_builds_a_download then
+        return 'an attached page assembles a file from data it carries and makes the browser save it'
+    end
+end)
+rule('svg-runs-script', 'content', 6, true, function(m)
+    if m.svg_runs_script then return 'an attached image runs script' end
+end)
+rule('attachment-is-a-login-page', 'content', 6, true, function(m)
+    if m.attachment_login_form_offsite then
+        return "an attached page asks for a password and sends it to another site than the sender's"
+    end
+end)

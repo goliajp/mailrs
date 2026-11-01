@@ -17,6 +17,7 @@ mod geom;
 pub mod input;
 mod onnx_meta;
 mod prep;
+pub mod qr;
 mod rec;
 
 pub use geom::Pt;

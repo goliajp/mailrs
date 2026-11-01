@@ -25,6 +25,7 @@ use crate::FastcoreState;
 
 mod extract;
 mod ocr;
+mod qr_shadow;
 
 pub(crate) use extract::covers;
 pub use extract::{MAX_PDF_BYTES, VERSION_PDF_ONLY, VERSION_WITH_OCR, WITH_OFFICE};
@@ -100,6 +101,12 @@ pub struct Round {
     pub already_done: u64,
     /// Items whose copy or file is gone.
     pub no_file: u64,
+    /// Messages with a QR code carrying a web address.
+    pub qr_codes: u64,
+    /// Of those, a code to a host the message never names.
+    pub qr_host_not_in_message: u64,
+    /// Of those, the image prints a domain the code does not go to.
+    pub qr_text_mismatch: u64,
 }
 
 /// Take one bounded batch off the queue and process it, with OCR as this
@@ -152,20 +159,23 @@ async fn process(
         return;
     };
     let setup = ocr.cloned();
-    let (texts, outcome) =
-        match tokio::task::spawn_blocking(move || extract::extract_all(&raw, setup.as_ref())).await
-        {
-            Ok(done) => done,
-            Err(e) => {
-                tracing::warn!(error = %e, %user, %mid, "attachment text: extraction task failed");
-                let failed = mailrs_mailbox_kevy::AttachmentTextState {
-                    version: current_version(ocr),
-                    failed: 1,
-                    ..Default::default()
-                };
-                (Vec::new(), failed)
-            }
-        };
+    let read = move || {
+        let (texts, outcome, urls) = extract::extract_all(&raw, setup.as_ref());
+        let qr = qr_shadow::assess(&raw, &texts, &urls);
+        (texts, outcome, qr)
+    };
+    let (texts, outcome, qr) = match tokio::task::spawn_blocking(read).await {
+        Ok(done) => done,
+        Err(e) => {
+            tracing::warn!(error = %e, %user, %mid, "attachment text: extraction task failed");
+            let failed = mailrs_mailbox_kevy::AttachmentTextState {
+                version: current_version(ocr),
+                failed: 1,
+                ..Default::default()
+            };
+            (Vec::new(), failed, None)
+        }
+    };
     if let Err(e) = state.mailbox.store_attachment_texts(mid, &texts, &outcome) {
         tracing::warn!(error = %e, %user, %mid, "attachment text: storing failed");
         return;
@@ -177,6 +187,20 @@ async fn process(
     round.too_large += u64::from(outcome.too_large);
     round.too_small += u64::from(outcome.too_small);
     round.truncated += u64::from(outcome.truncated);
+    if let Some(qr) = qr {
+        tracing::info!(
+            event = "qr_shadow",
+            %user,
+            %mid,
+            codes = qr.codes,
+            host_not_in_message = qr.host_not_in_message,
+            text_mismatch = qr.text_mismatch,
+            "attachment text: qr codes"
+        );
+        round.qr_codes += 1;
+        round.qr_host_not_in_message += u64::from(qr.host_not_in_message);
+        round.qr_text_mismatch += u64::from(qr.text_mismatch);
+    }
 }
 
 /// The extractor generation written with `ocr`: a message stored by an

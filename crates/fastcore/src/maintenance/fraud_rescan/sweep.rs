@@ -161,7 +161,15 @@ impl Sweep<'_> {
         // domains" depend on how often the sweep had run.
         let reply_rotation =
             mailrs_fraud_lua::stored::reply_rotation(&mut self.hist, &msg.host, &msg.reply_to);
-        let facts = msg.facts(seen, reply_rotation);
+        // the reader's history counts this message already: a sweep
+        // reads stored mail
+        let rel = mailrs_fraud_lua::stored::relation::relation(
+            self.hist.as_mut(),
+            user,
+            &msg.from,
+            mailrs_fraud_lua::stored::relation::Counted::After,
+        );
+        let facts = msg.facts(seen, reply_rotation, rel);
         let scan = match mailrs_fraud_lua::scan(&facts, self.policy) {
             Ok(scan) => scan,
             Err(error) => {
