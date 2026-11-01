@@ -9,17 +9,40 @@ export const settingsEn = {
   'settings.account.exportHelp':
     'Download everything in All mail as an MBOX file, with each message’s folder and read state. Junk and Trash are left out',
   'settings.account.exportMbox': 'Export as MBOX',
+  'settings.account.imapCancel': 'Stop',
+  'settings.account.imapCancelled': 'The import was stopped',
+  'settings.account.imapDone': 'Finished importing from {host}',
+  'settings.account.imapFailed': 'The import stopped: {reason}',
+  'settings.account.imapHelp':
+    'Signs in to another mail server over IMAP and brings your mail here: Inbox, Sent and other folders, with read state. Junk, Trash and drafts are left behind, and mail already here is skipped. Gmail and Outlook often refuse your normal password here: create an app password with them and use that. Signing in with a Google or Microsoft account (OAuth) is not supported yet. The password is used for this import only and is not kept',
+  'settings.account.imapHost': 'IMAP server',
+  'settings.account.imapImport': 'Import from another provider',
+  'settings.account.imapInterrupted':
+    'An import from {host} was interrupted. Enter the password again to continue where it stopped',
+  'settings.account.imapPassword': 'Password or app password',
+  'settings.account.imapPort': 'Connection',
+  'settings.account.imapPortStarttls': '143, STARTTLS',
+  'settings.account.imapPortTls': '993, TLS',
+  'settings.account.imapQueued': 'Waiting for its turn to import from {host}',
+  'settings.account.imapRunning': 'Importing from {host}: {folder}',
+  'settings.account.imapStart': 'Start importing',
+  'settings.account.imapStartFailed': 'The import could not be started',
+  'settings.account.imapUsername': 'User name',
   'settings.account.import': 'Import mail',
   'settings.account.importDone':
     'Imported {imported} into the Inbox ({archived} of them archived) and {sent} into Sent',
   'settings.account.importFailed': '{failed} could not be filed and {tooLarge} were too large',
   'settings.account.importFile': 'MBOX file',
+  'settings.account.importHeld':
+    '{held} of them were held as suspected fraud, as they would be on arrival',
   'settings.account.importHelp':
     'Upload an MBOX file: a Gmail Takeout, another mail app’s export, or an export from here. Folders and read state are kept, a message already here is skipped, and Junk and Trash are left behind',
   'settings.account.importIncomplete':
     'The upload stopped before the end of the file. Upload it again: messages already imported are skipped',
   'settings.account.importing': 'Importing…',
   'settings.account.importMbox': 'Choose an MBOX file',
+  'settings.account.importOverQuota':
+    'The mailbox reached its quota; nothing after that was imported',
   'settings.account.importSkipped':
     'Skipped {duplicate} already here and {junk} from Junk or Trash',
   'settings.account.importUploadFailed': 'The file could not be uploaded',

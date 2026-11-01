@@ -30,13 +30,15 @@ pub trait SentStore: Threads {
     fn index_own(&self, user: &str, blob_ref: &str, body: &[u8], a: &Arrival<'_>)
     -> io::Result<()>;
     /// Index the arrival `a`, already written into INBOX as `blob_ref`, as
-    /// a message the user received (`crate::import`).
+    /// a message the user received (`crate::import`), holding it as the
+    /// delivery path does when `fraud_verdict` says so.
     fn index_arrival(
         &self,
         user: &str,
         blob_ref: &str,
         body: &[u8],
         a: &Arrival<'_>,
+        fraud_verdict: Option<&str>,
     ) -> io::Result<()>;
 }
 

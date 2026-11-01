@@ -76,6 +76,7 @@ function ImportReport({ report }: { report: WireMailImportReport }) {
           junk: report.skipped_junk_or_trash,
         })}
       </p>
+      {report.held > 0 && <p>{t('settings.account.importHeld', { held: report.held })}</p>}
       {report.too_large + report.failed > 0 && (
         <p className="text-red-400">
           {t('settings.account.importFailed', {
@@ -84,6 +85,7 @@ function ImportReport({ report }: { report: WireMailImportReport }) {
           })}
         </p>
       )}
+      {report.over_quota && <p className="text-red-400">{t('settings.account.importOverQuota')}</p>}
       {!report.complete && <p className="text-red-400">{t('settings.account.importIncomplete')}</p>}
     </div>
   )

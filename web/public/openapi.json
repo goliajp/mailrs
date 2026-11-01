@@ -11925,7 +11925,7 @@
         "tags": [
           "Export"
         ],
-        "description": "The request body is an mbox file (mboxrd or mboxo), read as it arrives and filed message by message. X-Mailrs-Folder (from an export here) or X-Gmail-Labels (a Gmail Takeout) decides the folder and read state; Status: R marks a message read in any other mbox. Mail the user wrote is filed as a sent copy, the rest into the Inbox and then read and archived as the file says. Junk and Trash are skipped, and a Message-ID already in the mailbox is not filed twice, so an interrupted import can be run again. Nothing a delivery sets off runs: no filters, forwarding, webhooks or notifications.",
+        "description": "The request body is an mbox file (mboxrd or mboxo), read as it arrives and filed message by message. X-Mailrs-Folder (from an export here) or X-Gmail-Labels (a Gmail Takeout) decides the folder and read state; Status: R marks a message read in any other mbox. Mail the user wrote is filed as a sent copy, the rest into the Inbox and then read and archived as the file says. Junk and Trash are skipped, and a Message-ID already in the mailbox is not filed twice, so an interrupted import can be run again. Nothing a delivery sets off runs: no filters, forwarding, webhooks or notifications. Received mail is judged by the fraud rules the receiver runs and held when they say so; the screening rules run in the mode they run in on arrival. Nothing is recorded about the senders.",
         "requestBody": {
           "required": true,
           "content": {
@@ -11952,7 +11952,9 @@
                     "skipped_junk_or_trash",
                     "too_large",
                     "failed",
-                    "complete"
+                    "complete",
+                    "held",
+                    "over_quota"
                   ],
                   "properties": {
                     "imported": {
@@ -11982,11 +11984,347 @@
                     "complete": {
                       "type": "boolean",
                       "description": "False when the upload ended before the file did"
+                    },
+                    "held": {
+                      "type": "integer",
+                      "description": "Of imported, held as suspected fraud, as a delivery would be"
+                    },
+                    "over_quota": {
+                      "type": "boolean",
+                      "description": "The mailbox reached its quota; nothing after that was filed"
                     }
                   }
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/mail/import/imap": {
+      "get": {
+        "operationId": "imapImportStatus",
+        "summary": "Where the IMAP import stands",
+        "tags": [
+          "Export"
+        ],
+        "responses": {
+          "200": {
+            "description": "The running import, the last finished one, or one a restart interrupted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "state",
+                    "host",
+                    "port",
+                    "username",
+                    "folder",
+                    "report",
+                    "error"
+                  ],
+                  "properties": {
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "queued",
+                        "running",
+                        "done",
+                        "failed",
+                        "cancelled",
+                        "interrupted",
+                        "none"
+                      ],
+                      "description": "interrupted: a restart cut it short; starting again with the same source and the password resumes it"
+                    },
+                    "host": {
+                      "type": "string"
+                    },
+                    "port": {
+                      "type": "integer"
+                    },
+                    "username": {
+                      "type": "string"
+                    },
+                    "folder": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "The folder being read"
+                    },
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "imported",
+                        "sent",
+                        "archived",
+                        "skipped_duplicate",
+                        "skipped_junk_or_trash",
+                        "too_large",
+                        "failed",
+                        "complete",
+                        "held",
+                        "over_quota"
+                      ],
+                      "properties": {
+                        "imported": {
+                          "type": "integer",
+                          "description": "Filed into the Inbox, archived or not"
+                        },
+                        "sent": {
+                          "type": "integer",
+                          "description": "Filed as sent copies"
+                        },
+                        "archived": {
+                          "type": "integer",
+                          "description": "Of imported, archived afterwards"
+                        },
+                        "skipped_duplicate": {
+                          "type": "integer"
+                        },
+                        "skipped_junk_or_trash": {
+                          "type": "integer"
+                        },
+                        "too_large": {
+                          "type": "integer"
+                        },
+                        "failed": {
+                          "type": "integer"
+                        },
+                        "complete": {
+                          "type": "boolean",
+                          "description": "False when the upload ended before the file did"
+                        },
+                        "held": {
+                          "type": "integer",
+                          "description": "Of imported, held as suspected fraud, as a delivery would be"
+                        },
+                        "over_quota": {
+                          "type": "boolean",
+                          "description": "The mailbox reached its quota; nothing after that was filed"
+                        }
+                      }
+                    },
+                    "error": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "Why it failed, plain text, the remote server's words cut short"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "startImapImport",
+        "summary": "Import mail from another provider over IMAP",
+        "tags": [
+          "Export"
+        ],
+        "description": "Signs in to the given server and files its mail the way an mbox import does: Inbox, Sent and other folders, read state kept; Junk, Trash and drafts left behind; duplicates skipped; received mail judged by the fraud rules. Ports 993 (TLS) and 143 (STARTTLS) only, certificates verified, public addresses only. One import per user at a time, two server-wide (the rest queue), five starts per user per day, failed ones included. The password is used for this import only and never stored; progress is, so an interrupted import resumes when started again with the same source.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "host",
+                  "port",
+                  "username",
+                  "password"
+                ],
+                "properties": {
+                  "host": {
+                    "type": "string"
+                  },
+                  "port": {
+                    "type": "integer",
+                    "enum": [
+                      993,
+                      143
+                    ]
+                  },
+                  "username": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string",
+                    "format": "password"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Started or queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "state",
+                    "host",
+                    "port",
+                    "username",
+                    "folder",
+                    "report",
+                    "error"
+                  ],
+                  "properties": {
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "queued",
+                        "running",
+                        "done",
+                        "failed",
+                        "cancelled",
+                        "interrupted",
+                        "none"
+                      ],
+                      "description": "interrupted: a restart cut it short; starting again with the same source and the password resumes it"
+                    },
+                    "host": {
+                      "type": "string"
+                    },
+                    "port": {
+                      "type": "integer"
+                    },
+                    "username": {
+                      "type": "string"
+                    },
+                    "folder": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "The folder being read"
+                    },
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "imported",
+                        "sent",
+                        "archived",
+                        "skipped_duplicate",
+                        "skipped_junk_or_trash",
+                        "too_large",
+                        "failed",
+                        "complete",
+                        "held",
+                        "over_quota"
+                      ],
+                      "properties": {
+                        "imported": {
+                          "type": "integer",
+                          "description": "Filed into the Inbox, archived or not"
+                        },
+                        "sent": {
+                          "type": "integer",
+                          "description": "Filed as sent copies"
+                        },
+                        "archived": {
+                          "type": "integer",
+                          "description": "Of imported, archived afterwards"
+                        },
+                        "skipped_duplicate": {
+                          "type": "integer"
+                        },
+                        "skipped_junk_or_trash": {
+                          "type": "integer"
+                        },
+                        "too_large": {
+                          "type": "integer"
+                        },
+                        "failed": {
+                          "type": "integer"
+                        },
+                        "complete": {
+                          "type": "boolean",
+                          "description": "False when the upload ended before the file did"
+                        },
+                        "held": {
+                          "type": "integer",
+                          "description": "Of imported, held as suspected fraud, as a delivery would be"
+                        },
+                        "over_quota": {
+                          "type": "boolean",
+                          "description": "The mailbox reached its quota; nothing after that was filed"
+                        }
+                      }
+                    },
+                    "error": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "Why it failed, plain text, the remote server's words cut short"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not a host, an unoffered port, or a missing user name or password",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "An import is already running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Five imports were started today",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "cancelImapImport",
+        "summary": "Stop the IMAP import after the message in hand",
+        "tags": [
+          "Export"
+        ],
+        "responses": {
+          "204": {
+            "description": "Asked to stop"
+          },
+          "404": {
+            "description": "No import to stop"
           }
         }
       }

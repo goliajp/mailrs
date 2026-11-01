@@ -40,10 +40,11 @@ impl SentStore for PgCore {
         blob_ref: &str,
         body: &[u8],
         a: &Arrival<'_>,
+        fraud_verdict: Option<&str>,
     ) -> io::Result<()> {
         self.dir
             .rt
-            .block_on(self.store(user, "INBOX", blob_ref, body, a, None, None))
+            .block_on(self.store(user, "INBOX", blob_ref, body, a, None, fraud_verdict))
             .map_err(io::Error::other)?;
         Ok(())
     }

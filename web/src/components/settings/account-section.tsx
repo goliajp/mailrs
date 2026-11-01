@@ -26,6 +26,7 @@ import {
   SectionHeader,
 } from './_shared'
 import { RevokeAllAppPasswords } from './app-passwords-card'
+import { ImapImportCard } from './imap-import-card'
 import { MboxImportCard } from './mbox-import-card'
 
 export function AccountSection() {
@@ -217,6 +218,8 @@ export function AccountSection() {
       </div>
 
       <MboxImportCard />
+
+      <ImapImportCard />
 
       <div className="border-border border-t pt-4">
         <button className={btnDanger} onClick={() => setShowLogoutConfirm(true)}>

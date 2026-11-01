@@ -346,6 +346,14 @@ fn invite_rsvp_body_matches() {
 }
 
 #[test]
+fn imap_import_start_body_matches() {
+    let v: handlers::imap_import::StartRequest = parse("imap-import-start");
+    assert_eq!((v.host.as_str(), v.port), ("imap.gmail.com", 993));
+    assert_eq!(v.username, "me@gmail.com");
+    assert!(!v.password.is_empty());
+}
+
+#[test]
 fn password_clear_body_matches() {
     let v: handlers::admin_password_clear::Addresses = parse("password-clear");
     assert_eq!(v.addresses, ["ws@golia.jp", "sakai@golia.jp"]);
@@ -408,6 +416,7 @@ fn every_fixture_has_a_test() {
         "mock-address-create",
         "mock-namespace-create",
         "invite-counter",
+        "imap-import-start",
         "invite-rsvp",
         "mock-send",
         "mock-settings-save",

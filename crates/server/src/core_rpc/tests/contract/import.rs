@@ -32,6 +32,20 @@ Content-Type: text/plain; charset=utf-8\r\n\
 \r\n\
 Kept for years.\r\n";
 
+const SUSPECT: &[u8] = b"Date: Wed, 04 Jan 2023 09:00:00 +0000\r\n\
+From: Bank <security@bank.test>\r\n\
+To: Alice <alice@example.test>\r\n\
+Subject: Verify your account\r\n\
+Message-ID: <imported3@old.test>\r\n\
+MIME-Version: 1.0\r\n\
+Content-Type: text/plain; charset=utf-8\r\n\
+\r\n\
+Click here.\r\n";
+
+/// What the importer hands the core when the rules hold a message, as the
+/// receiver hands one to a delivery.
+const HOLDS: &str = r#"{"rules_version":"contract","score":9.0,"quarantined":true,"layers":[]}"#;
+
 const FILED: &[u8] = b"Date: Tue, 03 Jan 2023 09:00:00 +0000\r\n\
 From: Frank <frank@old.test>\r\n\
 To: Alice <alice@example.test>\r\n\
@@ -57,14 +71,22 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
     for (name, raw) in [("unread", OLD), ("to archive", FILED)] {
         let filed = d.both(
             &format!("import_message {name}"),
-            fc.import_message(ALICE, raw).await,
-            pg.import_message(ALICE, raw).await,
+            fc.import_message(ALICE, raw, None).await,
+            pg.import_message(ALICE, raw, None).await,
             &["blob_ref"],
         );
         if let Some((a, _)) = &filed {
             assert!(!a.blob_ref.contains('/'), "not in INBOX: {}", a.blob_ref);
         }
     }
+
+    let held = d.both(
+        "import_message held as fraud",
+        fc.import_message(ALICE, SUSPECT, Some(HOLDS.into())).await,
+        pg.import_message(ALICE, SUSPECT, Some(HOLDS.into())).await,
+        &["blob_ref"],
+    );
+    let held_tid = held.map(|(a, _)| a.thread_id).unwrap_or_default();
 
     // read, then archived: what the web import does after filing
     for core in [fc, pg] {
@@ -103,7 +125,30 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
                 folder == "all",
                 "[{folder}] the archived import"
             );
+            assert!(!has(&held_tid), "[{folder}] lists the held import");
         }
+    }
+    let with_held = ListConversationsRequest {
+        filter: ConversationFilter {
+            folder: Some("all".into()),
+            include_quarantined: true,
+            limit: 50,
+            ..Default::default()
+        },
+    };
+    let rows = d.both(
+        "list_conversations [all, held included] after import",
+        fc.list_conversations(ALICE, &with_held).await,
+        pg.list_conversations(ALICE, &with_held).await,
+        MINTED,
+    );
+    if let Some((rows, _)) = rows {
+        let row = rows
+            .items
+            .iter()
+            .find(|r| r.thread_id == held_tid)
+            .expect("the held import is there when held mail is asked for");
+        assert!(row.quarantined, "the import was not held");
     }
     d.both(
         "unseen_count after import",

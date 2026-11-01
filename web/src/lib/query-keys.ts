@@ -139,6 +139,7 @@ export const settingsKeys = {
   encryptionKeysStatus: () => [...settingsKeys.all(), 'encryption-keys-status'] as const,
   externalAccounts: () => [...settingsKeys.all(), 'external-accounts'] as const,
   externalSettings: (email: string) => [...settingsKeys.all(), 'external-settings', email] as const,
+  imapImport: () => [...settingsKeys.all(), 'imap-import'] as const,
   recoveryEmail: () => [...settingsKeys.all(), 'recovery-email'] as const,
   resetCode: (address: string) => [...settingsKeys.all(), 'reset-code', address] as const,
   signatures: () => [...settingsKeys.all(), 'signatures'] as const,

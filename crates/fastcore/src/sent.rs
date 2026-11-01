@@ -50,8 +50,9 @@ impl SentStore for Store {
         blob_ref: &str,
         body: &[u8],
         a: &Arrival<'_>,
+        fraud_verdict: Option<&str>,
     ) -> io::Result<()> {
-        crate::ingest::store_arrival(&self.0, user, blob_ref, body, a, None);
+        crate::ingest::store_arrival(&self.0, user, blob_ref, body, a, fraud_verdict);
         Ok(())
     }
 }

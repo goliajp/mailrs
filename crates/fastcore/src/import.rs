@@ -18,12 +18,14 @@ pub(crate) async fn import_message(
     Json(req): Json<ImportMessageRequest>,
 ) -> Result<Json<FileSentResponse>, StatusCode> {
     let body = req.message().map_err(|_| StatusCode::BAD_REQUEST)?;
+    let verdict = req.fraud_verdict;
     let store = crate::sent::Store(state);
     let filed = tokio::task::spawn_blocking(move || {
-        mailrs_intake::import::file(&store, &user, &body).map_err(|e| {
+        mailrs_intake::import::file(&store, &user, &body, verdict.as_deref()).map_err(|e| {
             tracing::error!(error = %e, %user, "importing a message failed");
             match e.kind() {
                 io::ErrorKind::InvalidInput => StatusCode::BAD_REQUEST,
+                io::ErrorKind::QuotaExceeded => StatusCode::INSUFFICIENT_STORAGE,
                 _ => StatusCode::INTERNAL_SERVER_ERROR,
             }
         })

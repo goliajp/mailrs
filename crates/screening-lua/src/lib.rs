@@ -5,6 +5,7 @@
 
 mod facts;
 mod reload;
+pub mod stored;
 pub use reload::{active_version, evaluate};
 
 use luna_jit::runtime::Value;
