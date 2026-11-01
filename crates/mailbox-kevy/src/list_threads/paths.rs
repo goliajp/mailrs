@@ -11,7 +11,7 @@ use crate::KevyMailboxStore;
 use crate::keys;
 use crate::thread_row::ThreadRow;
 
-use super::{FlagKey, ListThreadsFilter, QuarantineScope};
+use super::{BucketSet, FlagKey, ListThreadsFilter, QuarantineScope, SentOnly};
 use crate::table_query::ArchiveScope;
 
 /// Which of the two ranges this pass is reading.
@@ -82,14 +82,15 @@ impl KevyMailboxStore {
     pub(super) fn list_buckets_via_table(
         &self,
         user: &str,
-        buckets: &[&str],
+        set: BucketSet,
         filter: &ListThreadsFilter<'_>,
         offset: usize,
         limit: usize,
     ) -> io::Result<(Vec<ThreadRow>, usize)> {
         let mut total = 0usize;
-        for b in buckets {
-            total += if *b == "inbox" {
+        let unsent_inbox = |b: &str| b == "inbox" && set.sent == SentOnly::Excluded;
+        for b in set.names {
+            total += if unsent_inbox(b) {
                 self.count_thread_ids_by_bucket_unsent_via_table(user, b, scope(filter))?
             } else {
                 self.count_thread_ids_by_bucket_via_table(user, b, scope(filter))?
@@ -100,29 +101,29 @@ impl KevyMailboxStore {
         }
         let want = offset + limit;
         let mut merged: Vec<ThreadRow> = Vec::new();
-        for bucket in buckets.iter().copied() {
-            let tids = match (bucket, filter.before_ts) {
-                ("inbox", Some(ts)) => self.list_thread_ids_by_bucket_unsent_before_via_table(
+        for bucket in set.names.iter().copied() {
+            let tids = match (unsent_inbox(bucket), filter.before_ts) {
+                (true, Some(ts)) => self.list_thread_ids_by_bucket_unsent_before_via_table(
                     user,
                     bucket,
                     scope(filter),
                     ts - 1,
                     want,
                 )?,
-                ("inbox", None) => self.list_thread_ids_by_bucket_unsent_via_table(
+                (true, None) => self.list_thread_ids_by_bucket_unsent_via_table(
                     user,
                     bucket,
                     scope(filter),
                     want,
                 )?,
-                (_, Some(ts)) => self.list_thread_ids_by_bucket_before_via_table(
+                (false, Some(ts)) => self.list_thread_ids_by_bucket_before_via_table(
                     user,
                     bucket,
                     scope(filter),
                     ts - 1,
                     want,
                 )?,
-                (_, None) => {
+                (false, None) => {
                     self.list_thread_ids_by_bucket_via_table(user, bucket, scope(filter), want)?
                 }
             };
@@ -152,7 +153,7 @@ impl KevyMailboxStore {
     pub(super) fn list_buckets_flagged_via_table(
         &self,
         user: &str,
-        buckets: &[&str],
+        set: BucketSet,
         key: FlagKey<'_>,
         filter: &ListThreadsFilter<'_>,
         offset: usize,
@@ -162,8 +163,8 @@ impl KevyMailboxStore {
         let want = offset + limit;
         let mut total = 0usize;
         let mut merged: Vec<ThreadRow> = Vec::new();
-        for bucket in buckets.iter().copied() {
-            let scoped = super::bucket_predicates(bucket, extra);
+        for bucket in set.names.iter().copied() {
+            let scoped = super::bucket_predicates(bucket, extra, set.sent);
             let refs: Vec<(&str, &str)> = scoped.iter().map(|(c, v)| (*c, v.as_str())).collect();
             total += self.count_thread_ids_by_flag_filtered(user, flag, &refs)?;
             if limit == 0 {
@@ -423,47 +424,5 @@ impl KevyMailboxStore {
             }
         }
         Ok((rows, total))
-    }
-
-    /// The live page and the held one, merged by recency.
-    ///
-    /// Two index reads and two index counts, with the total their sum.
-    /// The alternative — fetching the live page and pasting held rows
-    /// onto it — would be filtering a page that had already been
-    /// counted, which is the exact defect the `archived` axis was
-    /// fixed for on 2026-08-05.
-    ///
-    /// Taking `offset + limit` from each side guarantees the merged
-    /// prefix is right however the two interleave; the same argument
-    /// `list_buckets_via_table` makes.
-    pub(super) fn merge_held_into_live(
-        &self,
-        user: &str,
-        filter: &ListThreadsFilter<'_>,
-        offset: usize,
-        limit: usize,
-    ) -> io::Result<(Vec<ThreadRow>, usize)> {
-        let mut merged: Vec<ThreadRow> = Vec::new();
-        let mut total = 0usize;
-        for pass in [QuarantineScope::Hide, QuarantineScope::Only] {
-            let one = ListThreadsFilter {
-                quarantine: pass,
-                ..filter.clone()
-            };
-            let (rows, n) = self.list_threads_by_activity(user, &one, 0, offset + limit)?;
-            total += n;
-            merged.extend(rows);
-        }
-        merged.sort_by(|a, b| {
-            b.latest_date
-                .cmp(&a.latest_date)
-                .then_with(|| a.thread_id.cmp(&b.thread_id))
-        });
-        if offset >= merged.len() {
-            return Ok((Vec::new(), total));
-        }
-        merged.drain(..offset);
-        merged.truncate(limit);
-        Ok((merged, total))
     }
 }

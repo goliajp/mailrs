@@ -196,7 +196,8 @@ pub struct ConversationFilter {
     /// prefs.
     #[serde(default)]
     pub include_quarantined: bool,
-    /// Restrict to a single mailbox name (e.g. `INBOX`, `Sent`).
+    /// Restrict to a single mailbox name (e.g. `INBOX`, `Sent`). `all` is
+    /// All Mail: every folder but Junk, archived conversations included.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub folder: Option<String>,
     /// `Some(true)` = unread only, `Some(false)` = read only, `None` = both.

@@ -57,6 +57,16 @@ describe('belongsTo', () => {
     expect(belongsTo(axes({ archived: true }), row())).toBe(false)
   })
 
+  it('All Mail holds both sides of the archive, and no Junk or Trash', () => {
+    const all = axes({ folder: 'all' })
+    expect(belongsTo(all, row())).toBe(true)
+    expect(belongsTo(all, row({ archived: true }))).toBe(true)
+    expect(belongsTo(all, row({ category: 'notification' }))).toBe(true)
+    expect(belongsTo(all, row({ category: 'spam' }))).toBe(false)
+    expect(belongsTo(all, row({ trashed_at: 1 }))).toBe(false)
+    expect(belongsTo(axes({ folder: 'all', starred: true }), row({ archived: true }))).toBe(false)
+  })
+
   it('the Trash is exclusive, and holds deleted threads from every list', () => {
     const trashed = { trashed_at: 1_793_427_570 }
     for (const folder of [null, 'Inbox', 'Junk', 'NP', 'NonJunk']) {

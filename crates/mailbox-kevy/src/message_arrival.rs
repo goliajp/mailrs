@@ -642,6 +642,24 @@ mod tests {
         assert!(inbox_ids(&s, u).is_empty());
     }
 
+    /// Gmail's All Mail lists what the user sent even when nobody has
+    /// answered yet; the Inbox does not.
+    #[test]
+    fn a_sent_only_thread_is_in_all_mail() {
+        let s = store();
+        let u = "u@x.com";
+        deliver(&s, &arr("t1", u, "Outgoing", 100, false), "m16@x");
+        assert!(inbox_ids(&s, u).is_empty());
+        let all = ListThreadsFilter {
+            folder: Some("all"),
+            ..Default::default()
+        };
+        let (rows, total) = s.list_threads_by_activity(u, &all, 0, 10).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(total, 1);
+        assert_eq!(rows[0].thread_id, "t1");
+    }
+
     #[test]
     fn list_after_arrivals_returns_newest_first() {
         let s = store();

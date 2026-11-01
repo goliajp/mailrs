@@ -20,6 +20,8 @@ export const zh: Record<Key, string> = {
   'lang.setting': '语言',
   'lang.setting.browser': '跟随浏览器',
 
+  'list.all': '全部邮件',
+  'list.all.empty': '没有邮件',
   'list.archived': '已归档',
   'list.archived.empty': '没有归档的会话',
   'list.draft': '草稿',

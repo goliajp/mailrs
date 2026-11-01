@@ -20,6 +20,8 @@ export const ja: Record<Key, string> = {
   'lang.setting': '言語',
   'lang.setting.browser': 'ブラウザの設定に合わせる',
 
+  'list.all': 'すべてのメール',
+  'list.all.empty': 'メールはありません',
   'list.archived': 'アーカイブ',
   'list.archived.empty': 'アーカイブした会話はありません',
   'list.draft': '下書き',

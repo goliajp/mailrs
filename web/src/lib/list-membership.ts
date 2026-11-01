@@ -44,8 +44,10 @@ export function belongsTo(axes: ListAxes, row: ConversationSummary): boolean {
   if (axes.label) return (row.labels ?? []).includes(axes.label)
   if (axes.snoozed) return (row.snoozed_until ?? 0) > Date.now() / 1000
   // Archived is exclusive in both directions: it is a list of its own,
-  // so an archived thread is in it and in nothing else.
-  if (row.archived !== axes.archived) return false
+  // so an archived thread is in it and in nothing else but All Mail,
+  // which takes both sides of the archive.
+  const allMail = axes.folder?.toLowerCase() === 'all'
+  if (!allMail && row.archived !== axes.archived) return false
   if (axes.starred === true && !row.flagged) return false
   if (axes.pinned === true && !row.pinned) return false
 
@@ -55,6 +57,8 @@ export function belongsTo(axes: ListAxes, row: ConversationSummary): boolean {
   // every arm). The UI spells these capitalised and the wire does not
   // care, so neither should this.
   switch (axes.folder?.toLowerCase()) {
+    case 'all':
+      return bucket !== 'junk'
     case 'inbox':
       return bucket === 'inbox'
     case 'junk':
