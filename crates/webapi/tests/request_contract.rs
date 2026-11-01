@@ -266,6 +266,9 @@ fn draft_save_body_matches() {
         v.reply_to_thread_id.as_deref(),
         Some("a48529b44b1b190f@golia.jp")
     );
+    // both defaulted on the server, so a misnamed field would drop silently
+    assert_eq!(v.from, "alias@golia.jp");
+    assert_eq!(v.scheduled_at, Some(1_800_000_000));
 }
 
 /// Alias creation — the admin write with the worst failure mode.

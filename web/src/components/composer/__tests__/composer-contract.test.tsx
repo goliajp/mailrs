@@ -55,8 +55,11 @@ const DRAFT = {
   body: 'saved earlier',
   cc: '',
   created_at: null,
+  from: 'alias@example.com',
   id: 7,
   reply_to_thread_id: 'thread-1',
+  // a whole minute: the schedule field holds minutes
+  scheduled_at: 1_899_999_960,
   subject: 'Re: Test Subject',
   to: 'alice@example.com',
   updated_at: null,
@@ -92,7 +95,12 @@ const SHELLS: Shell[] = [
     recipient: 'carol@example.com',
     mount: (store, fromDraft) => {
       store.set(composingNewAtom, true)
-      if (fromDraft) store.set(composeDraftSourceAtom, { ...DRAFT, replyToThreadId: 'thread-1' })
+      if (fromDraft)
+        store.set(composeDraftSourceAtom, {
+          ...DRAFT,
+          replyToThreadId: 'thread-1',
+          scheduledAt: DRAFT.scheduled_at,
+        })
       return <NewConversation />
     },
   },
@@ -206,6 +214,18 @@ describe.each(SHELLS)('the composer in the $name', (shell) => {
     await waitFor(() => expect(editor.value).toBe('saved earlier'), { timeout: 5_000 })
   })
 
+  it('comes back to who a saved draft is from and when it goes', async () => {
+    net.listDrafts.mockResolvedValue([DRAFT])
+    setup(shell, true)
+    const editor = await body()
+    await waitFor(() => expect(editor.value).toBe('saved earlier'), { timeout: 5_000 })
+    clickSend()
+    await waitFor(() => expect(net.sendMail).toHaveBeenCalledTimes(1))
+    const sent = net.sendMail.mock.calls[0][0]
+    expect(sent.from).toBe('alias@example.com')
+    expect(sent.scheduledAt).toBe(1_899_999_960)
+  })
+
   it('keeps the draft when the send fails, and offers to try again', async () => {
     net.sendMail.mockRejectedValue(new Error('offline'))
     setup(shell)
@@ -235,6 +255,10 @@ describe.each(SHELLS)('the composer in the $name', (shell) => {
 })
 
 function windowStart(fromDraft: boolean): ComposerStart {
-  if (fromDraft) return { draft: { ...DRAFT, replyToThreadId: 'thread-1' }, kind: 'draft' }
+  if (fromDraft)
+    return {
+      draft: { ...DRAFT, replyToThreadId: 'thread-1', scheduledAt: DRAFT.scheduled_at },
+      kind: 'draft',
+    }
   return { kind: 'new' }
 }

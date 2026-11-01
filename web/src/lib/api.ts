@@ -9,8 +9,12 @@ export type Draft = {
   body: string
   cc: string
   created_at: null | number | string
+  /** The address chosen to send from; empty is the account's own. */
+  from: string
   id: number | string
   reply_to_thread_id: null | string
+  /** When it is set to go, in epoch seconds. */
+  scheduled_at: null | number
   subject: string
   to: string
   updated_at: null | number | string
@@ -23,10 +27,12 @@ export type SaveDraftRequest = {
   bcc?: string
   body?: string
   cc?: string
+  from?: string
   // when set, the backend upserts that draft in place (keeps its id)
   // instead of creating a new one — lets autosave update one draft.
   id?: number
   reply_to_thread_id?: string
+  scheduled_at?: number
   subject?: string
   to?: string
 }

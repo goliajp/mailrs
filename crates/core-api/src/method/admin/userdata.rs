@@ -55,6 +55,12 @@ pub struct DraftWire {
     pub body: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reply_to_thread_id: Option<String>,
+    /// The address chosen to send from; empty is the account's own.
+    #[serde(default)]
+    pub from: String,
+    /// When the message is set to go, in epoch seconds; absent sends at once.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scheduled_at: Option<i64>,
     /// Epoch seconds.
     pub created_at: i64,
     /// Epoch seconds.
@@ -89,6 +95,12 @@ pub struct SaveDraftRequest {
     pub body: String,
     #[serde(default)]
     pub reply_to_thread_id: Option<String>,
+    /// The address chosen to send from; empty is the account's own.
+    #[serde(default)]
+    pub from: String,
+    /// When the message is set to go, in epoch seconds.
+    #[serde(default)]
+    pub scheduled_at: Option<i64>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]

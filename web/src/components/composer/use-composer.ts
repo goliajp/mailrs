@@ -15,7 +15,12 @@ import { useT } from '@/i18n'
 import { errorText } from '@/lib/error-text'
 import { queryClient } from '@/lib/query-client'
 import { mailKeys } from '@/lib/query-keys'
-import { epochSecondsFromLocalInput, parseAddressList, sendMail } from '@/lib/send-mail'
+import {
+  epochSecondsFromLocalInput,
+  localInputFromEpochSeconds,
+  parseAddressList,
+  sendMail,
+} from '@/lib/send-mail'
 import { authAtom } from '@/store/auth'
 import { wireDeletePendingSend } from '@/wire/endpoints/mail'
 import { wireListTemplates } from '@/wire/endpoints/templates'
@@ -106,9 +111,15 @@ export function useComposer(start: ComposerStart, opts: Options) {
     saveNow,
     sentRef,
     threadId,
-  } = useComposerDraft(start, editorRef, { bcc, cc, subject, to })
+  } = useComposerDraft(start, editorRef, { bcc, cc, from, scheduledAt, subject, to })
 
-  useRestoreInlineDraft(start, editorRef, draftIdRef, lastSavedRef, { setBcc, setCc, setTo })
+  useRestoreInlineDraft(start, editorRef, draftIdRef, lastSavedRef, {
+    setBcc,
+    setCc,
+    setFrom,
+    setScheduledAt,
+    setTo,
+  })
 
   const send = async () => {
     if (sending) return
@@ -238,11 +249,13 @@ export function useComposer(start: ComposerStart, opts: Options) {
 
 function carriedFrom(s: ComposerStart): string {
   if (s.kind === 'carry') return s.carry.from
+  if (s.kind === 'draft') return s.draft.from
   return ''
 }
 
 function carriedSchedule(s: ComposerStart): string {
   if (s.kind === 'carry') return s.carry.scheduledAt
+  if (s.kind === 'draft') return localInputFromEpochSeconds(s.draft.scheduledAt)
   return ''
 }
 
@@ -306,7 +319,14 @@ function undoOption(sentId: string | undefined, t: ReturnType<typeof useT>) {
 function useComposerDraft(
   start: ComposerStart,
   editorRef: React.RefObject<null | StructuredComposeHandle>,
-  fields: { bcc: string; cc: string; subject: string; to: string }
+  fields: {
+    bcc: string
+    cc: string
+    from: string
+    scheduledAt: string
+    subject: string
+    to: string
+  }
 ) {
   const draftIdRef = useRef<null | number>(initialDraftId(start))
   const sentRef = useRef(false)
@@ -322,10 +342,10 @@ function useComposerDraft(
   const saveNow = useCallback(async () => {
     if (sentRef.current) return
     const body = editorRef.current?.getMarkdown() ?? ''
-    const { bcc, cc, subject, to } = latest.current
+    const { bcc, cc, from, scheduledAt, subject, to } = latest.current
     const fieldsTyped = !prefilled && Boolean(to.trim() || subject.trim())
     if (!body.trim() && !fieldsTyped) return
-    const snapshot = JSON.stringify({ bcc, body, cc, subject, to })
+    const snapshot = JSON.stringify({ bcc, body, cc, from, scheduledAt, subject, to })
     if (snapshot === lastSavedRef.current) return
     // a failure retries on the next tick, and says so once retrying has
     // stopped being an explanation — see use-autosave-status
@@ -334,8 +354,10 @@ function useComposerDraft(
         bcc,
         body,
         cc,
+        from,
         id: draftIdRef.current ?? undefined,
         reply_to_thread_id: threadId,
+        scheduled_at: epochSecondsFromLocalInput(scheduledAt) ?? undefined,
         subject,
         to,
       })
@@ -375,14 +397,21 @@ function useComposerDraft(
 
 /**
  * The inline reply comes back to the draft this thread already has: its
- * body, and its recipients when they were changed.
+ * body, its recipients when they were changed, and who it is from and when
+ * it is set to go.
  */
 function useRestoreInlineDraft(
   start: ComposerStart,
   editorRef: React.RefObject<null | StructuredComposeHandle>,
   draftIdRef: React.RefObject<null | number>,
   lastSavedRef: React.RefObject<string>,
-  set: { setBcc: (v: string) => void; setCc: (v: string) => void; setTo: (v: string) => void }
+  set: {
+    setBcc: (v: string) => void
+    setCc: (v: string) => void
+    setFrom: (v: string) => void
+    setScheduledAt: (v: string) => void
+    setTo: (v: string) => void
+  }
 ) {
   const t = useT()
   const inline = start.kind === 'inline'
@@ -395,13 +424,19 @@ function useRestoreInlineDraft(
     if (!mine || !mine.body.trim()) return
     restored.current = true
     draftIdRef.current = Number(mine.id)
+    const scheduledAt = localInputFromEpochSeconds(mine.scheduled_at ?? null)
+    // the same shape `saveNow` compares, so a restore is not taken for an edit
     lastSavedRef.current = JSON.stringify({
       bcc: mine.bcc ?? '',
       body: mine.body,
       cc: mine.cc ?? '',
+      from: mine.from ?? '',
+      scheduledAt,
       subject: mine.subject,
       to: mine.to,
     })
+    if (mine.from) set.setFrom(mine.from)
+    if (scheduledAt) set.setScheduledAt(scheduledAt)
     if (mine.to) set.setTo(mine.to)
     if (mine.cc) set.setCc(mine.cc)
     if (mine.bcc) set.setBcc(mine.bcc)

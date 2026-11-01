@@ -215,6 +215,8 @@ export type ComposeDraftSource = {
   bcc: string
   body: string
   cc: string
+  /** The address chosen to send from; empty is the account's own. */
+  from: string
   id: number
   /**
    * The conversation this draft is a reply inside, if any.
@@ -225,6 +227,8 @@ export type ComposeDraftSource = {
    * every trace of what it was replying to.
    */
   replyToThreadId: null | string
+  /** When it is set to go, in epoch seconds. */
+  scheduledAt: null | number
   subject: string
   to: string
 }
