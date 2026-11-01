@@ -1,3 +1,5 @@
+import type { Key } from '@/i18n'
+
 // the states `GET /api/admin/queues` lists; delivered jobs are not in it
 export const ALL_STATUSES = ['pending', 'retrying', 'inflight', 'failed'] as const
 
@@ -15,6 +17,13 @@ export type QueueRow = {
 }
 
 export type QueueStatus = (typeof ALL_STATUSES)[number]
+
+export const statusLabels: Record<QueueStatus, Key> = {
+  failed: 'admin.queue.status.failed',
+  inflight: 'admin.queue.status.inflight',
+  pending: 'admin.queue.status.pending',
+  retrying: 'admin.queue.status.retrying',
+}
 
 export const statusStyles: Record<QueueStatus, string> = {
   failed: 'bg-danger/10 text-danger',

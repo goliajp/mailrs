@@ -12,6 +12,7 @@ import {
   AdminTableSkeleton,
   type Column,
 } from '@/components/admin-page'
+import { type Key, useT } from '@/i18n'
 import { formatDate, formatFullDate } from '@/lib/format'
 import { adminKeys } from '@/lib/query-keys'
 import { adminListGet } from '@/wire/endpoints/admin'
@@ -29,10 +30,17 @@ type AuditEntry = {
 
 // the page asks for this many and filters them in the browser
 const LIMIT = 200
-const HEADERS = ['Action', 'Actor', 'Target', 'Detail', 'Time', '']
+const HEADERS: Key[] = [
+  'admin.audit.action',
+  'admin.audit.actor',
+  'admin.aliases.target',
+  'admin.audit.detail',
+  'admin.time',
+]
 const NO_ENTRIES: AuditEntry[] = []
 
 export function AdminAuditLog() {
+  const t = useT()
   const [params, setParams] = useSearchParams()
   const actionFilter = params.get('action') ?? ''
   const actorFilter = params.get('actor') ?? ''
@@ -75,18 +83,22 @@ export function AdminAuditLog() {
 
   const columns: Column<AuditEntry>[] = [
     {
-      header: 'Action',
+      header: t('admin.audit.action'),
       key: 'action',
       cell: (e) => <span className={`font-mono text-xs ${actionColor(e.action)}`}>{e.action}</span>,
     },
-    { header: 'Actor', key: 'actor', cell: (e) => <span className="font-medium">{e.actor}</span> },
     {
-      header: 'Target',
+      header: t('admin.audit.actor'),
+      key: 'actor',
+      cell: (e) => <span className="font-medium">{e.actor}</span>,
+    },
+    {
+      header: t('admin.aliases.target'),
       key: 'target',
       cell: (e) => <span className="text-fg-secondary break-all">{e.target}</span>,
     },
     {
-      header: 'Detail',
+      header: t('admin.audit.detail'),
       key: 'detail',
       cell: (e) => (
         <span className="text-fg-muted block max-w-xs truncate" title={e.detail}>
@@ -96,7 +108,7 @@ export function AdminAuditLog() {
     },
     {
       align: 'end',
-      header: 'Time',
+      header: t('admin.time'),
       key: 'time',
       cell: (e) => (
         <span className="text-fg-secondary whitespace-nowrap" title={formatFullDate(e.timestamp)}>
@@ -106,7 +118,7 @@ export function AdminAuditLog() {
     },
     {
       align: 'end',
-      header: 'Actions',
+      header: t('admin.col.actions'),
       hideHeader: true,
       key: 'actions',
       cell: (e) => <DetailToggle entry={e} onToggle={toggle} open={open.has(e.id)} />,
@@ -123,32 +135,34 @@ export function AdminAuditLog() {
   }
 
   const renderBody = () => {
-    if (isPending) return <AdminTableSkeleton cols={6} headers={HEADERS} rows={6} />
+    if (isPending) {
+      return <AdminTableSkeleton cols={6} headers={[...HEADERS.map((h) => t(h)), '']} rows={6} />
+    }
     if (error) {
       return (
         <AdminErrorState
           error={error}
           onRetry={() => refetch()}
           retryDisabled={isFetching}
-          what="the audit log"
+          what={t('admin.audit.listName')}
         />
       )
     }
     if (entries.length === 0) {
       return (
         <AdminEmptyState
-          description="Sign-ins, admin changes and reads of other people's mail are recorded here as they happen"
+          description={t('admin.audit.emptyHelp')}
           icon={<ScrollText className="h-10 w-10" />}
-          title="No audit entries yet"
+          title={t('admin.audit.empty')}
         />
       )
     }
     if (filtered.length === 0) {
       return (
         <AdminEmptyState
-          description={`None of the newest ${entries.length} entries match. Clear the action or actor filter to see them all`}
+          description={t('admin.audit.noMatchHelp', { n: entries.length })}
           icon={<ScrollText className="h-10 w-10" />}
-          title="No entries match these filters"
+          title={t('admin.audit.noMatch')}
         />
       )
     }
@@ -156,7 +170,7 @@ export function AdminAuditLog() {
       <AdminTable
         columns={columns}
         detail={detailOf}
-        label="Audit log"
+        label={t('admin.auditLog')}
         rowKey={(e) => String(e.id)}
         rows={filtered}
       />
@@ -173,34 +187,34 @@ export function AdminAuditLog() {
           size="sm"
           variant="secondary"
         >
-          Refresh
+          {t('admin.refresh')}
         </Button>
       }
-      subtitle={`The newest ${LIMIT} entries, newest first. The filters search these ${LIMIT} only`}
-      title="Audit log"
+      subtitle={t('admin.audit.subtitle', { n: LIMIT })}
+      title={t('admin.auditLog')}
     >
       <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
         <select
-          aria-label="Filter by action"
+          aria-label={t('admin.audit.filterAction')}
           className="border-border bg-bg-secondary rounded-md border px-2 py-1.5 text-sm"
           onChange={(e) => setParam('action', e.target.value)}
           value={actionFilter}
         >
           {ACTION_GROUPS.map((g) => (
             <option key={g.value} value={g.value}>
-              {g.label}
+              {t(g.label)}
             </option>
           ))}
         </select>
         <input
-          aria-label="Filter by actor"
+          aria-label={t('admin.audit.filterActor')}
           className="border-border bg-bg-secondary w-64 max-w-full rounded-md border px-3 py-1.5 text-sm"
           onChange={(e) => setParam('actor', e.target.value)}
-          placeholder="Actor, e.g. lihao@golia.jp"
+          placeholder={t('admin.audit.actorPlaceholder')}
           value={actorFilter}
         />
         <span className="text-fg-muted ml-auto text-xs tabular-nums">
-          {filtered.length} of {entries.length}
+          {t('admin.nOfTotal', { n: filtered.length, total: entries.length })}
         </span>
       </div>
       {renderBody()}
@@ -223,6 +237,7 @@ function DetailToggle({
   onToggle: (id: number) => void
   open: boolean
 }) {
+  const t = useT()
   if (entry.detail.length <= 40 && prettyJson(entry.detail) === null) return null
   return (
     <button
@@ -230,7 +245,7 @@ function DetailToggle({
       onClick={() => onToggle(entry.id)}
       type="button"
     >
-      {toggleLabel(open)}
+      {t(toggleLabel(open))}
     </button>
   )
 }
@@ -245,7 +260,7 @@ function prettyJson(detail: string): null | string {
   }
 }
 
-function toggleLabel(open: boolean): string {
-  if (open) return 'Hide detail'
-  return 'Show detail'
+function toggleLabel(open: boolean): Key {
+  if (open) return 'admin.audit.hideDetail'
+  return 'admin.audit.showDetail'
 }

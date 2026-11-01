@@ -3,10 +3,12 @@ import type { AccountInfo } from '@/lib/types'
 import { useState } from 'react'
 
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
+import { type Key, useT } from '@/i18n'
 import { adminKeys } from '@/lib/query-keys'
 import { adminPut } from '@/wire/endpoints/admin'
 
 export function DisplayNameCell({ account }: { account: AccountInfo }) {
+  const t = useT()
   const [editing, setEditing] = useState(false)
   const [value, setValue] = useState(account.display_name)
 
@@ -16,7 +18,7 @@ export function DisplayNameCell({ account }: { account: AccountInfo }) {
       adminPut(`/admin/accounts/${encodeURIComponent(account.address)}`, {
         display_name: displayName,
       }),
-    successMsg: () => `Display name updated for "${account.address}"`,
+    successMsg: () => t('admin.accounts.nameUpdated', { address: account.address }),
   })
 
   const handleSave = () => {
@@ -36,7 +38,7 @@ export function DisplayNameCell({ account }: { account: AccountInfo }) {
           setValue(account.display_name)
           setEditing(true)
         }}
-        title="Click to edit"
+        title={t('admin.clickToEdit')}
       >
         {account.display_name || '—'}
       </button>
@@ -46,7 +48,7 @@ export function DisplayNameCell({ account }: { account: AccountInfo }) {
   return (
     <div className="flex items-center gap-1.5">
       <input
-        aria-label="Display name"
+        aria-label={t('admin.displayName')}
         autoFocus
         className="border-border bg-bg-secondary w-32 rounded-md border px-2 py-0.5 text-sm"
         disabled={updateName.isPending}
@@ -62,20 +64,20 @@ export function DisplayNameCell({ account }: { account: AccountInfo }) {
         disabled={updateName.isPending}
         onClick={handleSave}
       >
-        {saveLabel(updateName.isPending)}
+        {t(saveLabel(updateName.isPending))}
       </button>
       <button
         className="text-fg-muted hover:text-fg-secondary text-xs transition-colors"
         disabled={updateName.isPending}
         onClick={() => setEditing(false)}
       >
-        Cancel
+        {t('common.cancel')}
       </button>
     </div>
   )
 }
 
-function saveLabel(pending: boolean): string {
-  if (pending) return '...'
-  return 'Save'
+function saveLabel(pending: boolean): Key {
+  if (pending) return 'admin.busyDots'
+  return 'admin.save'
 }

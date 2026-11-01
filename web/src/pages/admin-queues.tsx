@@ -17,17 +17,27 @@ import {
 } from '@/components/admin-page'
 import { PausedSenders } from '@/components/admin-queues/paused-senders'
 import { QueuePager, QueueStatusFilter } from '@/components/admin-queues/queue-controls'
-import { ALL_STATUSES, statusStyles } from '@/components/admin-queues/queue-row'
+import { ALL_STATUSES, statusLabels, statusStyles } from '@/components/admin-queues/queue-row'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
+import { type Key, useT } from '@/i18n'
 import { formatDate } from '@/lib/format'
 import { adminKeys } from '@/lib/query-keys'
 import { adminListGet, adminPost } from '@/wire/endpoints/admin'
 
 const PAGE_SIZE = 20
 
-const HEADERS = ['From', 'To', 'Domain', 'Status', 'Since', 'Attempts', 'Last error', '']
+const HEADERS: Key[] = [
+  'admin.queue.from',
+  'admin.queue.to',
+  'admin.col.domain',
+  'admin.col.status',
+  'admin.queue.since',
+  'admin.queue.attempts',
+  'admin.queue.lastError',
+]
 
 export function AdminQueues() {
+  const t = useT()
   const [searchParams, setSearchParams] = useSearchParams()
   const statusFilter = parseStatus(searchParams.get('status'))
   const currentPage = Math.max(1, Number.parseInt(searchParams.get('page') ?? '1', 10) || 1)
@@ -62,7 +72,7 @@ export function AdminQueues() {
   const retryQueueItem = useAdminMutation({
     invalidateKey: adminKeys.queues(),
     mutationFn: (id: number) => adminPost(`/queue/${id}/retry`, {}),
-    successMsg: (id) => `Job #${id} released for delivery`,
+    successMsg: (id) => t('admin.queue.released', { id }),
   })
 
   const filtered = useMemo(() => {
@@ -76,33 +86,33 @@ export function AdminQueues() {
 
   const columns: Column<QueueRow>[] = [
     {
-      header: 'From',
+      header: t('admin.queue.from'),
       key: 'from',
       cell: (q) => <span className="font-medium">{q.sender || '—'}</span>,
     },
-    { header: 'To', key: 'to', cell: (q) => q.recipient || '—' },
+    { header: t('admin.queue.to'), key: 'to', cell: (q) => q.recipient || '—' },
     {
-      header: 'Domain',
+      header: t('admin.col.domain'),
       key: 'domain',
       cell: (q) => <span className="text-fg-secondary">{domainOf(q.recipient)}</span>,
     },
     {
-      header: 'Status',
+      header: t('admin.col.status'),
       key: 'status',
       cell: (q) => (
         <span className={`rounded px-1.5 py-0.5 text-xs ${statusStyles[q.status]}`}>
-          {q.status}
+          {t(statusLabels[q.status])}
         </span>
       ),
     },
     {
-      header: 'Since',
+      header: t('admin.queue.since'),
       key: 'since',
       cell: (q) => <span className="text-fg-secondary text-xs tabular-nums">{since(q)}</span>,
     },
-    { align: 'end', header: 'Attempts', key: 'attempts', cell: (q) => attempts(q) },
+    { align: 'end', header: t('admin.queue.attempts'), key: 'attempts', cell: (q) => attempts(q) },
     {
-      header: 'Last error',
+      header: t('admin.queue.lastError'),
       key: 'error',
       cell: (q) => (
         <span className="text-fg-muted block max-w-48 truncate text-xs" title={q.last_error ?? ''}>
@@ -112,7 +122,7 @@ export function AdminQueues() {
     },
     {
       align: 'end',
-      header: 'Actions',
+      header: t('admin.col.actions'),
       hideHeader: true,
       key: 'actions',
       cell: (q) => <RetryButton onRetry={() => setRetryTarget(q)} row={q} />,
@@ -120,34 +130,40 @@ export function AdminQueues() {
   ]
 
   const renderBody = () => {
-    if (isPending) return <AdminTableSkeleton cols={8} headers={HEADERS} rows={6} />
+    if (isPending) {
+      return <AdminTableSkeleton cols={8} headers={[...HEADERS.map((h) => t(h)), '']} rows={6} />
+    }
     if (error) {
       return (
         <AdminErrorState
           error={error}
           onRetry={() => refetch()}
           retryDisabled={isFetching}
-          what="the outbound queue"
+          what={t('admin.queue.listName')}
         />
       )
     }
     if (queue.length === 0) {
       return (
         <AdminEmptyState
-          description="Nothing is waiting to be sent. Outbound mail shows here while it waits for delivery or between attempts"
+          description={t('admin.queue.emptyHelp')}
           icon={<Inbox className="h-10 w-10" />}
-          title="The queue is empty"
+          title={t('admin.queue.empty')}
         />
       )
     }
     if (pageItems.length === 0) {
-      return <p className="text-fg-muted py-8 text-center text-sm">No {statusFilter} jobs</p>
+      return (
+        <p className="text-fg-muted py-8 text-center text-sm">
+          {t('admin.queue.noneOf', { status: statusName(statusFilter, t) })}
+        </p>
+      )
     }
     return (
       <>
         <AdminTable
           columns={columns}
-          label="Outbound queue"
+          label={t('admin.queue.title')}
           rowKey={(q) => String(q.id)}
           rows={pageItems}
         />
@@ -172,11 +188,11 @@ export function AdminQueues() {
           size="sm"
           variant="secondary"
         >
-          Refresh
+          {t('admin.refresh')}
         </Button>
       }
-      subtitle="Mail waiting to leave this server, up to 100 jobs per state. Delivered mail leaves the list; mail that failed for good stays under Failed"
-      title="Outbound queue"
+      subtitle={t('admin.queue.subtitle')}
+      title={t('admin.queue.title')}
     >
       <PausedSenders />
 
@@ -186,14 +202,19 @@ export function AdminQueues() {
 
       {retryTarget && (
         <ConfirmAction
-          confirmLabel={pendingLabel(retryQueueItem.isPending, 'Retrying...', 'Retry now')}
-          consequence={retryConsequence(retryTarget)}
+          confirmLabel={t(
+            pendingLabel(retryQueueItem.isPending, 'admin.queue.retrying', 'admin.queue.retryNow')
+          )}
+          consequence={t('admin.queue.retryConsequence', {
+            recipient: retryTarget.recipient,
+            sender: retryTarget.sender,
+          })}
           onCancel={() => setRetryTarget(null)}
           onConfirm={() =>
             retryQueueItem.mutate(retryTarget.id, { onSettled: () => setRetryTarget(null) })
           }
           pending={retryQueueItem.isPending}
-          title={`Retry job #${retryTarget.id} now?`}
+          title={t('admin.queue.retryTitle', { id: retryTarget.id })}
         />
       )}
     </AdminPageShell>
@@ -218,28 +239,25 @@ function parseStatus(raw: null | string): null | QueueStatus {
   return null
 }
 
-function pendingLabel(pending: boolean, busy: string, idle: string): string {
+function pendingLabel(pending: boolean, busy: Key, idle: Key): Key {
   if (pending) return busy
   return idle
 }
 
 // only a job waiting between attempts can be released; the backend answers 409 for the rest
 function RetryButton({ onRetry, row }: { onRetry: () => void; row: QueueRow }) {
+  const t = useT()
   if (row.status !== 'retrying') return null
   return (
     <button
       className="text-accent text-xs transition-colors hover:opacity-70"
       onClick={onRetry}
-      title="Send now instead of waiting for the next attempt"
+      title={t('admin.queue.retryHint')}
       type="button"
     >
-      Retry now
+      {t('admin.queue.retryNow')}
     </button>
   )
-}
-
-function retryConsequence(row: QueueRow): string {
-  return `The message to ${row.recipient} stops waiting out its backoff and joins the send queue now. It still counts as an attempt: a temporary failure parks it again with a longer wait, a permanent one moves it to failed and sends ${row.sender} a bounce notice`
 }
 
 // when the job failed for good, or when it was queued
@@ -248,4 +266,9 @@ function since(q: QueueRow): string {
   if (q.status === 'failed') at = q.failed_at
   if (!at) return '—'
   return formatDate(at)
+}
+
+function statusName(status: null | QueueStatus, t: ReturnType<typeof useT>): string {
+  if (status === null) return ''
+  return t(statusLabels[status])
 }

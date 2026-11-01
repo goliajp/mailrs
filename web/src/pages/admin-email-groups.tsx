@@ -17,14 +17,21 @@ import {
 } from '@/components/admin-page'
 import { Copyable } from '@/components/copy-button'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
+import { type Key, useT } from '@/i18n'
 import { adminKeys } from '@/lib/query-keys'
 import { adminDelete, adminListGet, adminPost } from '@/wire/endpoints/admin'
 
-const HEADERS = ['Address', 'Domain', 'Name', 'Description', '']
+const HEADERS: Key[] = [
+  'admin.col.address',
+  'admin.col.domain',
+  'admin.col.name',
+  'admin.col.description',
+]
 
 const EMPTY_FORM = { address: '', description: '', domain: '', name: '' }
 
 export function AdminEmailGroups() {
+  const t = useT()
   const { data, error, isPending, refetch } = useQuery({
     queryKey: adminKeys.emailGroups(),
     queryFn: ({ signal }) => adminListGet<EmailGroupInfo>('/admin/email-groups', signal),
@@ -51,12 +58,12 @@ export function AdminEmailGroups() {
         domain: vars.domain,
         name: vars.name.trim(),
       }),
-    successMsg: (vars) => `Email group "${vars.name.trim()}" added`,
+    successMsg: (vars) => t('admin.emailGroups.added', { name: vars.name.trim() }),
   })
 
   const deleteGroup = useAdminMutation({
     invalidateKey: adminKeys.emailGroups(),
-    successMsg: 'Email group deleted',
+    successMsg: t('admin.emailGroups.deleted'),
     mutationFn: (id: number) => adminDelete(`/admin/email-groups/${id}`),
   })
 
@@ -88,7 +95,7 @@ export function AdminEmailGroups() {
 
   const columns: Column<EmailGroupInfo>[] = [
     {
-      header: 'Address',
+      header: t('admin.col.address'),
       key: 'address',
       cell: (g) => (
         <Copyable value={g.address}>
@@ -97,23 +104,23 @@ export function AdminEmailGroups() {
       ),
     },
     {
-      header: 'Domain',
+      header: t('admin.col.domain'),
       key: 'domain',
       cell: (g) => <span className="text-fg-secondary">{g.domain}</span>,
     },
     {
-      header: 'Name',
+      header: t('admin.col.name'),
       key: 'name',
       cell: (g) => <span className="text-fg-secondary">{g.name}</span>,
     },
     {
-      header: 'Description',
+      header: t('admin.col.description'),
       key: 'description',
       cell: (g) => <span className="text-fg-secondary">{g.description}</span>,
     },
     {
       align: 'end',
-      header: 'Actions',
+      header: t('admin.col.actions'),
       hideHeader: true,
       key: 'actions',
       cell: (g) => (
@@ -123,14 +130,14 @@ export function AdminEmailGroups() {
             onClick={() => toggle(g.id)}
             type="button"
           >
-            {membersLabel(expandedId === g.id)}
+            {t(membersLabel(expandedId === g.id))}
           </button>
           <button
             className="text-danger hover:opacity-70"
             onClick={() => setDeleteTarget(g)}
             type="button"
           >
-            Delete
+            {t('admin.delete')}
           </button>
         </div>
       ),
@@ -143,16 +150,24 @@ export function AdminEmailGroups() {
   }
 
   const renderList = () => {
-    if (isPending) return <AdminTableSkeleton cols={5} headers={HEADERS} rows={4} />
+    if (isPending) {
+      return <AdminTableSkeleton cols={5} headers={[...HEADERS.map((h) => t(h)), '']} rows={4} />
+    }
     if (error) {
-      return <AdminErrorState error={error} onRetry={() => refetch()} what="the email group list" />
+      return (
+        <AdminErrorState
+          error={error}
+          onRetry={() => refetch()}
+          what={t('admin.emailGroups.listName')}
+        />
+      )
     }
     if (groups.length === 0 && !adding) {
       return (
         <AdminEmptyState
-          description="An email group is one address that delivers each message to every member, inside or outside this server. Add a group, then add its members"
+          description={t('admin.emailGroups.emptyHelp')}
           icon={<Mailbox className="h-10 w-10" />}
-          title="No email groups yet"
+          title={t('admin.emailGroups.empty')}
         />
       )
     }
@@ -160,7 +175,7 @@ export function AdminEmailGroups() {
       <AdminTable
         columns={columns}
         detail={membersOf}
-        label="Email groups"
+        label={t('admin.emailGroups.title')}
         rowKey={(g) => String(g.id)}
         rows={groups}
       />
@@ -175,17 +190,17 @@ export function AdminEmailGroups() {
             className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:opacity-90"
             onClick={() => setAdding(true)}
           >
-            Add email group
+            {t('admin.emailGroups.add')}
           </button>
         )
       }
-      title="Email groups"
+      title={t('admin.emailGroups.title')}
     >
       {adding && (
         <div className="border-border mb-4 space-y-2 rounded-lg border p-4">
           <div className="flex gap-2">
             <input
-              aria-label="Email address"
+              aria-label={t('admin.emailAddress')}
               autoFocus
               className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
               onChange={(e) => setForm({ ...form, address: e.target.value })}
@@ -193,12 +208,12 @@ export function AdminEmailGroups() {
               value={form.address}
             />
             <select
-              aria-label="Domain"
+              aria-label={t('admin.col.domain')}
               className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
               onChange={(e) => setForm({ ...form, domain: e.target.value })}
               value={form.domain}
             >
-              <option value="">Select domain...</option>
+              <option value="">{t('admin.selectDomain')}</option>
               {domains.map((d) => (
                 <option key={d.name} value={d.name}>
                   {d.name}
@@ -208,17 +223,17 @@ export function AdminEmailGroups() {
           </div>
           <div className="flex gap-2">
             <input
-              aria-label="Group name"
+              aria-label={t('admin.groups.name')}
               className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
               onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder="Group name"
+              placeholder={t('admin.groups.name')}
               value={form.name}
             />
             <input
-              aria-label="Description"
+              aria-label={t('admin.col.description')}
               className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
               onChange={(e) => setForm({ ...form, description: e.target.value })}
-              placeholder="Description"
+              placeholder={t('admin.col.description')}
               value={form.description}
             />
           </div>
@@ -228,7 +243,7 @@ export function AdminEmailGroups() {
               disabled={!formValid || addGroup.isPending}
               onClick={handleAdd}
             >
-              {pendingLabel(addGroup.isPending, 'Saving...', 'Save')}
+              {t(pendingLabel(addGroup.isPending, 'admin.saving', 'admin.save'))}
             </button>
             <button
               className="text-fg-secondary hover:bg-bg-secondary rounded-md px-3 py-1.5 text-sm transition-colors"
@@ -237,7 +252,7 @@ export function AdminEmailGroups() {
                 setAdding(false)
               }}
             >
-              Cancel
+              {t('common.cancel')}
             </button>
           </div>
         </div>
@@ -247,24 +262,26 @@ export function AdminEmailGroups() {
 
       {deleteTarget && (
         <ConfirmAction
-          confirmLabel={pendingLabel(deleteGroup.isPending, 'Deleting...', 'Delete email group')}
-          consequence={`Mail sent to ${deleteTarget.address} stops reaching its members, and the member list is deleted with the group. Mail the members already received is kept`}
+          confirmLabel={t(
+            pendingLabel(deleteGroup.isPending, 'admin.deleting', 'admin.emailGroups.delete')
+          )}
+          consequence={t('admin.emailGroups.deleteConsequence', { address: deleteTarget.address })}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={() => handleDelete(deleteTarget.id)}
           pending={deleteGroup.isPending}
-          title={`Delete ${deleteTarget.address}?`}
+          title={t('admin.deleteTitle', { name: deleteTarget.address })}
         />
       )}
     </AdminPageShell>
   )
 }
 
-function membersLabel(open: boolean): string {
-  if (open) return 'Hide'
-  return 'Members'
+function membersLabel(open: boolean): Key {
+  if (open) return 'admin.hide'
+  return 'admin.members'
 }
 
-function pendingLabel(pending: boolean, busy: string, idle: string): string {
+function pendingLabel(pending: boolean, busy: Key, idle: Key): Key {
   if (pending) return busy
   return idle
 }

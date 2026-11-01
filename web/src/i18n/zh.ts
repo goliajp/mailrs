@@ -1,9 +1,13 @@
 import type { Key } from './en'
 
+import { adminOpsZh } from './admin-ops/zh'
+import { adminZh } from './admin/zh'
 import { settingsZh } from './settings/zh'
 
 export const zh: Record<Key, string> = {
   ...settingsZh,
+  ...adminZh,
+  ...adminOpsZh,
   'lang.name.en': 'English',
   'lang.name.ja': '日本語',
   'lang.name.zh': '简体中文',

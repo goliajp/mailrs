@@ -11,13 +11,21 @@ import {
   AdminTableSkeleton,
   type Column,
 } from '@/components/admin-page'
+import { type Key, useT } from '@/i18n'
 import { formatFullDate } from '@/lib/format'
 import { adminKeys } from '@/lib/query-keys'
 import { withdraw } from '@/lib/screening-withdraw'
 import { HashForm, ObservationForm } from '@/pages/admin-screening-forms'
 import { wireListScreening } from '@/wire/endpoints/screening'
 
-const HEADERS = ['When', 'Source', 'Stance', 'Subject', 'Reason', 'By', '']
+const HEADERS: Key[] = [
+  'admin.screening.when',
+  'admin.aliases.source',
+  'admin.screening.stance',
+  'admin.screening.subject',
+  'admin.screening.reason',
+  'admin.greylist.by',
+]
 
 /**
  * The server's own observations: what the reputation judgement and the
@@ -26,6 +34,7 @@ const HEADERS = ['When', 'Source', 'Stance', 'Subject', 'Reason', 'By', '']
  * shadow until their replay report has been reviewed.
  */
 export function AdminScreening() {
+  const t = useT()
   const { data, error, isFetching, isPending, refetch } = useQuery({
     queryKey: [...adminKeys.all(), 'screening'],
     queryFn: ({ signal }) => wireListScreening(signal),
@@ -36,35 +45,41 @@ export function AdminScreening() {
   )
   const columns = (isHash: boolean): Column<WireHashObservation | WireObservation>[] => [
     {
-      header: 'When',
+      header: t('admin.screening.when'),
       key: 'at',
       cell: (r) => <span className="text-xs">{formatFullDate(r.at)}</span>,
     },
     {
-      header: 'Source',
+      header: t('admin.aliases.source'),
       key: 'source',
       cell: (r) => <span className="text-xs">{sourceOf(r)}</span>,
     },
     {
-      header: 'Stance',
+      header: t('admin.screening.stance'),
       key: 'stance',
       cell: (r) => <span className="font-mono text-xs">{r.stance}</span>,
     },
     {
-      header: 'Subject',
+      header: t('admin.screening.subject'),
       key: 'subject',
       cell: (r) => (
         <span className="font-mono text-xs break-all">
           {subjectOf(r)}
-          {r.retracts && ` → withdraws ${r.retracts}`}
+          {r.retracts && ` → ${t('admin.screening.withdraws', { id: r.retracts })}`}
         </span>
       ),
     },
-    { header: 'Reason', key: 'reason', cell: (r) => <span className="text-xs">{r.reason}</span> },
     {
-      header: 'By',
+      header: t('admin.screening.reason'),
+      key: 'reason',
+      cell: (r) => <span className="text-xs">{r.reason}</span>,
+    },
+    {
+      header: t('admin.greylist.by'),
       key: 'by',
-      cell: (r) => <span className="text-fg-muted text-xs">{r.actor ?? 'the server'}</span>,
+      cell: (r) => (
+        <span className="text-fg-muted text-xs">{r.actor ?? t('admin.screening.theServer')}</span>
+      ),
     },
     {
       header: '',
@@ -74,10 +89,10 @@ export function AdminScreening() {
         return (
           <button
             className="text-accent text-xs hover:underline"
-            onClick={() => withdraw(r.id, isHash, reload)}
+            onClick={() => withdraw(r.id, isHash, reload, t)}
             type="button"
           >
-            Withdraw
+            {t('admin.screening.withdraw')}
           </button>
         )
       },
@@ -88,7 +103,9 @@ export function AdminScreening() {
     isHash: boolean,
     what: string
   ) => {
-    if (isPending) return <AdminTableSkeleton cols={7} headers={HEADERS} rows={4} />
+    if (isPending) {
+      return <AdminTableSkeleton cols={7} headers={[...HEADERS.map((h) => t(h)), '']} rows={4} />
+    }
     if (error)
       return (
         <AdminErrorState error={error} onRetry={reload} retryDisabled={isFetching} what={what} />
@@ -96,28 +113,25 @@ export function AdminScreening() {
     if (rows.length === 0) {
       return (
         <AdminEmptyState
-          description="Nothing recorded yet"
+          description={t('admin.screening.nothingYet')}
           icon={<ShieldAlert className="h-10 w-10" />}
-          title={`No ${what}`}
+          title={t('admin.screening.noneOf', { what })}
         />
       )
     }
     return <AdminTable columns={columns(isHash)} label={what} rowKey={(r) => r.id} rows={rows} />
   }
   return (
-    <AdminPageShell
-      subtitle="What the reputation judgement and the attachment scan rest on. Both run in shadow for now: they are logged, not acted on."
-      title="Screening"
-    >
+    <AdminPageShell subtitle={t('admin.screening.subtitle')} title={t('admin.screening.title')}>
       <section className="space-y-3">
-        <h3 className="text-sm font-semibold">Addresses and domains</h3>
+        <h3 className="text-sm font-semibold">{t('admin.screening.addresses')}</h3>
         <ObservationForm onDone={reload} />
-        {renderTable(data?.observations ?? [], false, 'observations')}
+        {renderTable(data?.observations ?? [], false, t('admin.screening.observations'))}
       </section>
       <section className="mt-8 space-y-3">
-        <h3 className="text-sm font-semibold">Files</h3>
+        <h3 className="text-sm font-semibold">{t('admin.screening.files')}</h3>
         <HashForm onDone={reload} />
-        {renderTable(data?.hashes ?? [], true, 'file hashes')}
+        {renderTable(data?.hashes ?? [], true, t('admin.screening.hashes'))}
       </section>
     </AdminPageShell>
   )

@@ -2,6 +2,8 @@ import type { ConfigEntry } from './entry'
 
 import { useEffect, useState } from 'react'
 
+import { type Key, useT } from '@/i18n'
+
 import { resetVerb } from './entry'
 import { ReadOnlyField } from './read-only-field'
 
@@ -13,11 +15,11 @@ const SOURCE_STYLES: Record<string, string> = {
 }
 
 // "database" is the wire name; the value is kept in the network kevy hash
-const SOURCE_LABELS: Record<string, string> = {
-  database: 'Saved here',
-  default: 'Default',
-  env: 'Environment',
-  unknown: 'Not visible here',
+const SOURCE_LABELS: Record<string, Key> = {
+  database: 'admin.config.source.database',
+  default: 'admin.config.source.default',
+  env: 'admin.config.source.env',
+  unknown: 'admin.config.source.unknown',
 }
 
 /** One setting: an input when a running process reads it, otherwise where it is set. */
@@ -32,6 +34,7 @@ export function ConfigField({
   onSave: (key: string, value: string) => void
   saving: boolean
 }) {
+  const t = useT()
   const [localValue, setLocalValue] = useState(entry.value ?? '')
 
   // a draft follows the stored value whenever that changes
@@ -40,7 +43,7 @@ export function ConfigField({
   }, [entry.value])
 
   const dirty = localValue !== (entry.value ?? '')
-  const saved = savedBy(entry)
+  const saved = savedBy(entry, t)
 
   const resetButton = entry.source === 'database' && (
     <button
@@ -48,7 +51,7 @@ export function ConfigField({
       onClick={() => onReset(entry)}
       type="button"
     >
-      {resetVerb(entry)}
+      {t(resetVerb(entry))}
     </button>
   )
 
@@ -88,7 +91,7 @@ export function ConfigField({
           onClick={() => onSave(entry.key, localValue)}
           type="button"
         >
-          {saveLabel(saving)}
+          {t(saveLabel(saving))}
         </button>
         {resetButton}
       </div>
@@ -96,20 +99,27 @@ export function ConfigField({
   )
 }
 
-function savedBy(entry: ConfigEntry): null | string {
+function savedBy(entry: ConfigEntry, t: ReturnType<typeof useT>): null | string {
   if (entry.updated_at === undefined) return null
   const on = new Date(entry.updated_at * 1000).toLocaleString()
-  if (entry.updated_by) return `Saved by ${entry.updated_by} on ${on}`
-  return `Saved on ${on}`
+  if (entry.updated_by) return t('admin.config.savedBy', { by: entry.updated_by, on })
+  return t('admin.config.savedOn', { on })
 }
 
-function saveLabel(saving: boolean): string {
-  if (saving) return 'Saving...'
-  return 'Save'
+function saveLabel(saving: boolean): Key {
+  if (saving) return 'admin.saving'
+  return 'admin.save'
 }
 
 function SourceBadge({ source }: { source: string }) {
+  const t = useT()
   const style = SOURCE_STYLES[source] ?? SOURCE_STYLES.default
-  const label = SOURCE_LABELS[source] ?? source
+  const label = sourceLabel(source, t)
   return <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${style}`}>{label}</span>
+}
+
+function sourceLabel(source: string, t: ReturnType<typeof useT>): string {
+  const key = SOURCE_LABELS[source]
+  if (key) return t(key)
+  return source
 }

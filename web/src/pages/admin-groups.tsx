@@ -15,14 +15,16 @@ import {
   ConfirmAction,
 } from '@/components/admin-page'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
+import { type Key, useT } from '@/i18n'
 import { adminKeys } from '@/lib/query-keys'
 import { adminDelete, adminListGet, adminPost, adminStringListGet } from '@/wire/endpoints/admin'
 
-const HEADERS = ['Name', 'Type', 'Description', '']
+const HEADERS: Key[] = ['admin.col.name', 'admin.col.type', 'admin.col.description']
 
 const EMPTY_FORM = { description: '', name: '' }
 
 export function AdminGroups() {
+  const t = useT()
   const { data, error, isPending, refetch } = useQuery({
     queryKey: adminKeys.groups(),
     queryFn: ({ signal }) => adminListGet<GroupInfo>('/admin/groups', signal),
@@ -43,12 +45,12 @@ export function AdminGroups() {
   const addGroup = useAdminMutation({
     invalidateKey: adminKeys.groups(),
     mutationFn: (vars: { description: string; name: string }) => adminPost('/admin/groups', vars),
-    successMsg: (vars) => `Group "${vars.name}" added`,
+    successMsg: (vars) => t('admin.groups.added', { name: vars.name }),
   })
 
   const deleteGroup = useAdminMutation({
     invalidateKey: adminKeys.groups(),
-    successMsg: 'Group deleted',
+    successMsg: t('admin.groups.deleted'),
     mutationFn: (id: number) => adminDelete(`/admin/groups/${id}`),
   })
 
@@ -83,20 +85,24 @@ export function AdminGroups() {
   }
 
   const columns: Column<GroupInfo>[] = [
-    { header: 'Name', key: 'name', cell: (g) => <span className="font-medium">{g.name}</span> },
     {
-      header: 'Type',
-      key: 'type',
-      cell: (g) => <span className="text-fg-secondary">{builtinLabel(g)}</span>,
+      header: t('admin.col.name'),
+      key: 'name',
+      cell: (g) => <span className="font-medium">{g.name}</span>,
     },
     {
-      header: 'Description',
+      header: t('admin.col.type'),
+      key: 'type',
+      cell: (g) => <span className="text-fg-secondary">{t(builtinLabel(g))}</span>,
+    },
+    {
+      header: t('admin.col.description'),
       key: 'description',
       cell: (g) => <span className="text-fg-secondary">{g.description}</span>,
     },
     {
       align: 'end',
-      header: 'Actions',
+      header: t('admin.col.actions'),
       hideHeader: true,
       key: 'actions',
       cell: (g) => (
@@ -106,7 +112,7 @@ export function AdminGroups() {
             onClick={() => toggle(g.id)}
             type="button"
           >
-            {manageLabel(expandedId === g.id)}
+            {t(manageLabel(expandedId === g.id))}
           </button>
           {!g.is_builtin && (
             <button
@@ -114,7 +120,7 @@ export function AdminGroups() {
               onClick={() => setDeleteTarget(g)}
               type="button"
             >
-              Delete
+              {t('admin.delete')}
             </button>
           )}
         </div>
@@ -128,18 +134,24 @@ export function AdminGroups() {
   }
 
   const renderList = () => {
-    if (isPending) return <AdminTableSkeleton cols={4} headers={HEADERS} rows={4} />
+    if (isPending) {
+      return <AdminTableSkeleton cols={4} headers={[...HEADERS.map((h) => t(h)), '']} rows={4} />
+    }
     if (error) {
       return (
-        <AdminErrorState error={error} onRetry={() => refetch()} what="the permission group list" />
+        <AdminErrorState
+          error={error}
+          onRetry={() => refetch()}
+          what={t('admin.groups.listName')}
+        />
       )
     }
     if (groups.length === 0 && !adding) {
       return (
         <AdminEmptyState
-          description="A permission group lets several accounts share a set of permissions. Add a group, tick its permissions, then add its members"
+          description={t('admin.groups.emptyHelp')}
           icon={<ShieldCheck className="h-10 w-10" />}
-          title="No permission groups yet"
+          title={t('admin.groups.empty')}
         />
       )
     }
@@ -147,7 +159,7 @@ export function AdminGroups() {
       <AdminTable
         columns={columns}
         detail={detailOf}
-        label="Permission groups"
+        label={t('admin.permissionGroups')}
         rowKey={(g) => String(g.id)}
         rows={groups}
       />
@@ -162,28 +174,28 @@ export function AdminGroups() {
             className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:opacity-90"
             onClick={() => setAdding(true)}
           >
-            Add group
+            {t('admin.groups.add')}
           </button>
         )
       }
-      subtitle="A member gets every permission of every group it belongs to, on top of its own, on every domain"
-      title="Permission groups"
+      subtitle={t('admin.groups.subtitle')}
+      title={t('admin.permissionGroups')}
     >
       {adding && (
         <div className="border-border mb-4 space-y-2 rounded-lg border p-4">
           <input
-            aria-label="Group name"
+            aria-label={t('admin.groups.name')}
             autoFocus
             className="border-border bg-bg-secondary w-full rounded-md border px-3 py-1.5 text-sm"
             onChange={(e) => setForm({ ...form, name: e.target.value })}
-            placeholder="Group name"
+            placeholder={t('admin.groups.name')}
             value={form.name}
           />
           <input
-            aria-label="Description"
+            aria-label={t('admin.col.description')}
             className="border-border bg-bg-secondary w-full rounded-md border px-3 py-1.5 text-sm"
             onChange={(e) => setForm({ ...form, description: e.target.value })}
-            placeholder="Description"
+            placeholder={t('admin.col.description')}
             value={form.description}
           />
           <div className="flex gap-2">
@@ -192,7 +204,7 @@ export function AdminGroups() {
               disabled={!form.name.trim() || addGroup.isPending}
               onClick={handleAdd}
             >
-              {pendingLabel(addGroup.isPending, 'Saving...', 'Save')}
+              {t(pendingLabel(addGroup.isPending, 'admin.saving', 'admin.save'))}
             </button>
             <button
               className="text-fg-secondary hover:bg-bg-secondary rounded-md px-3 py-1.5 text-sm transition-colors"
@@ -201,7 +213,7 @@ export function AdminGroups() {
                 setAdding(false)
               }}
             >
-              Cancel
+              {t('common.cancel')}
             </button>
           </div>
         </div>
@@ -211,29 +223,31 @@ export function AdminGroups() {
 
       {deleteTarget && (
         <ConfirmAction
-          confirmLabel={pendingLabel(deleteGroup.isPending, 'Deleting...', 'Delete group')}
-          consequence="The group, its permission list and its member list are deleted. Its members lose the permissions it granted, unless their own account or another group grants them too. The member accounts are kept"
+          confirmLabel={t(
+            pendingLabel(deleteGroup.isPending, 'admin.deleting', 'admin.groups.delete')
+          )}
+          consequence={t('admin.groups.deleteConsequence')}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={() => handleDelete(deleteTarget.id)}
           pending={deleteGroup.isPending}
-          title={`Delete ${deleteTarget.name}?`}
+          title={t('admin.deleteTitle', { name: deleteTarget.name })}
         />
       )}
     </AdminPageShell>
   )
 }
 
-function builtinLabel(g: GroupInfo): string {
-  if (g.is_builtin) return 'Built-in'
-  return 'Custom'
+function builtinLabel(g: GroupInfo): Key {
+  if (g.is_builtin) return 'admin.groups.builtin'
+  return 'admin.groups.custom'
 }
 
-function manageLabel(open: boolean): string {
-  if (open) return 'Hide'
-  return 'Manage'
+function manageLabel(open: boolean): Key {
+  if (open) return 'admin.hide'
+  return 'admin.groups.manage'
 }
 
-function pendingLabel(pending: boolean, busy: string, idle: string): string {
+function pendingLabel(pending: boolean, busy: Key, idle: Key): Key {
   if (pending) return busy
   return idle
 }

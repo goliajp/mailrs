@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react'
 
+import { useT } from '@/i18n'
+
 /** A setting nothing reads while it runs: shown with where it is set, never as an input. */
 export function ReadOnlyField({
   badge,
@@ -18,12 +20,13 @@ export function ReadOnlyField({
   reset?: ReactNode
   value: null | string
 }) {
+  const t = useT()
   return (
     <div className="border-border border-b px-4 py-4 last:border-0">
       <div className="mb-1.5 flex flex-wrap items-center gap-2">
         <code className="text-fg text-sm font-medium">{label}</code>
         {badge}
-        <span className="text-fg-muted text-xs">Read-only</span>
+        <span className="text-fg-muted text-xs">{t('admin.readOnly')}</span>
       </div>
       {description && <p className="text-fg-secondary mb-2 text-xs">{description}</p>}
       <div className="flex flex-wrap items-center gap-2">

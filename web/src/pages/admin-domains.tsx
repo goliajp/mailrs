@@ -16,14 +16,16 @@ import {
 import { Copyable } from '@/components/copy-button'
 import { DomainHealthCard } from '@/components/domain-health-card'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
+import { type Key, useT } from '@/i18n'
 import { adminKeys } from '@/lib/query-keys'
 import { adminDelete, adminListGet, adminObjectGet, adminPost } from '@/wire/endpoints/admin'
 
-const HEADERS = ['Domain', 'Added', '']
+const HEADERS: Key[] = ['admin.col.domain', 'admin.domains.added']
 
 type SystemConfigEntry = { key: string; value: null | string }
 
 export function AdminDomains() {
+  const t = useT()
   const { data, error, isPending, refetch } = useQuery({
     queryKey: adminKeys.domains(),
     queryFn: ({ signal }) => adminListGet<DomainInfo>('/admin/domains', signal),
@@ -35,7 +37,9 @@ export function AdminDomains() {
     queryFn: ({ signal }) =>
       adminObjectGet<{ entries?: SystemConfigEntry[] }>('/admin/system-config', signal),
   })
-  const steps = setupSteps(mailHost(systemConfig?.entries))
+  const steps = t('admin.domains.steps', {
+    host: mailHost(systemConfig?.entries) ?? t('admin.domains.thisHost'),
+  })
 
   const [adding, setAdding] = useState(false)
   const [newDomain, setNewDomain] = useState('')
@@ -46,13 +50,13 @@ export function AdminDomains() {
   const addDomain = useAdminMutation({
     invalidateKey: adminKeys.domains(),
     mutationFn: (name: string) => adminPost('/admin/domains', { name }),
-    successMsg: (name) => `Domain "${name}" added`,
+    successMsg: (name) => t('admin.domains.addedToast', { name }),
   })
 
   const deleteDomain = useAdminMutation({
     invalidateKey: adminKeys.domains(),
     mutationFn: (name: string) => adminDelete(`/admin/domains/${encodeURIComponent(name)}`),
-    successMsg: (name) => `Domain "${name}" removed`,
+    successMsg: (name) => t('admin.domains.removedToast', { name }),
   })
 
   const handleAdd = () => {
@@ -100,7 +104,7 @@ export function AdminDomains() {
 
   const columns: Column<DomainInfo>[] = [
     {
-      header: 'Domain',
+      header: t('admin.col.domain'),
       key: 'name',
       cell: (d) => (
         <Copyable value={d.name}>
@@ -109,7 +113,7 @@ export function AdminDomains() {
       ),
     },
     {
-      header: 'Added',
+      header: t('admin.domains.added'),
       key: 'created',
       cell: (d) => (
         <span className="text-fg-secondary">
@@ -119,7 +123,7 @@ export function AdminDomains() {
     },
     {
       align: 'end',
-      header: 'Actions',
+      header: t('admin.col.actions'),
       hideHeader: true,
       key: 'actions',
       cell: (d) => (
@@ -130,14 +134,14 @@ export function AdminDomains() {
             onClick={() => toggleReport(d.name)}
             type="button"
           >
-            {checkLabel(checking === d.name, Boolean(reports[d.name]))}
+            {t(checkLabel(checking === d.name, Boolean(reports[d.name])))}
           </button>
           <button
             className="text-danger hover:opacity-70"
             onClick={() => setDeleteTarget(d.name)}
             type="button"
           >
-            Delete
+            {t('admin.delete')}
           </button>
         </div>
       ),
@@ -157,16 +161,24 @@ export function AdminDomains() {
   }
 
   const renderList = () => {
-    if (isPending) return <AdminTableSkeleton cols={3} headers={HEADERS} rows={5} />
+    if (isPending) {
+      return <AdminTableSkeleton cols={3} headers={[...HEADERS.map((h) => t(h)), '']} rows={5} />
+    }
     if (error) {
-      return <AdminErrorState error={error} onRetry={() => refetch()} what="the domain list" />
+      return (
+        <AdminErrorState
+          error={error}
+          onRetry={() => refetch()}
+          what={t('admin.domains.listName')}
+        />
+      )
     }
     if (domains.length === 0 && !adding) {
       return (
         <AdminEmptyState
           description={steps}
           icon={<Globe className="h-10 w-10" />}
-          title="No domains yet"
+          title={t('admin.domains.empty')}
         />
       )
     }
@@ -174,7 +186,7 @@ export function AdminDomains() {
       <AdminTable
         columns={columns}
         detail={reportOf}
-        label="Domains"
+        label={t('admin.domains.title')}
         rowKey={(d) => d.name}
         rows={domains}
       />
@@ -189,17 +201,17 @@ export function AdminDomains() {
             className="bg-fg text-bg rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:opacity-90"
             onClick={() => setAdding(true)}
           >
-            Add domain
+            {t('admin.domains.add')}
           </button>
         )
       }
-      subtitle={domainsSubtitle(domains.length, steps)}
-      title="Domains"
+      subtitle={domainsSubtitle(domains.length, steps, t)}
+      title={t('admin.domains.title')}
     >
       {adding && (
         <div className="mb-4 flex gap-2">
           <input
-            aria-label="New domain name"
+            aria-label={t('admin.domains.newName')}
             autoFocus
             className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
             onChange={(e) => setNewDomain(e.target.value)}
@@ -215,13 +227,13 @@ export function AdminDomains() {
             disabled={addDomain.isPending || !newDomain.trim()}
             onClick={handleAdd}
           >
-            {pendingLabel(addDomain.isPending, 'Saving...', 'Save')}
+            {t(pendingLabel(addDomain.isPending, 'admin.saving', 'admin.save'))}
           </button>
           <button
             className="text-fg-secondary hover:bg-bg-secondary rounded-md px-3 py-1.5 text-sm transition-colors"
             onClick={() => setAdding(false)}
           >
-            Cancel
+            {t('common.cancel')}
           </button>
         </div>
       )}
@@ -230,40 +242,42 @@ export function AdminDomains() {
 
       {deleteTarget && (
         <ConfirmAction
-          confirmLabel={pendingLabel(deleteDomain.isPending, 'Deleting...', 'Delete domain')}
-          consequence={`${deleteTarget} leaves this list. Unless MAILRS_LOCAL_DOMAINS also names it, mail for it is refused within a minute. Its accounts, aliases and stored mail are kept`}
+          confirmLabel={t(
+            pendingLabel(deleteDomain.isPending, 'admin.deleting', 'admin.domains.delete')
+          )}
+          consequence={t('admin.domains.deleteConsequence', { name: deleteTarget })}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={() => handleDelete(deleteTarget)}
           pending={deleteDomain.isPending}
-          title={`Delete ${deleteTarget}?`}
+          title={t('admin.deleteTitle', { name: deleteTarget })}
         />
       )}
     </AdminPageShell>
   )
 }
 
-function checkLabel(running: boolean, shown: boolean): string {
-  if (running) return 'Checking...'
-  if (shown) return 'Hide'
-  return 'Check'
+function checkLabel(running: boolean, shown: boolean): Key {
+  if (running) return 'admin.domains.checking'
+  if (shown) return 'admin.hide'
+  return 'admin.domains.check'
 }
 
-function domainsSubtitle(count: number, steps: string): string | undefined {
+function domainsSubtitle(
+  count: number,
+  steps: string,
+  t: ReturnType<typeof useT>
+): string | undefined {
   if (count === 0) return undefined
-  return `${steps}. A domain added here is accepted within a minute`
+  return t('admin.domains.subtitle', { steps })
 }
 
-function mailHost(entries: SystemConfigEntry[] | undefined): string {
+function mailHost(entries: SystemConfigEntry[] | undefined): string | undefined {
   const host = entries?.find((e) => e.key === 'hostname')?.value
   if (host) return host
-  return "this server's mail hostname"
+  return undefined
 }
 
-function pendingLabel(pending: boolean, busy: string, idle: string): string {
+function pendingLabel(pending: boolean, busy: Key, idle: Key): Key {
   if (pending) return busy
   return idle
-}
-
-function setupSteps(host: string): string {
-  return `To receive mail for a domain: add it here, point its MX record at ${host}, then use Check to verify SPF, DKIM, DMARC and MX`
 }

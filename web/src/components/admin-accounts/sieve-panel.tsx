@@ -3,11 +3,13 @@ import { useEffect, useState } from 'react'
 
 import { ConfirmAction } from '@/components/admin-page'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
+import { type Key, useT } from '@/i18n'
 import { adminKeys } from '@/lib/query-keys'
 import { adminDelete, adminObjectGet, adminPost } from '@/wire/endpoints/admin'
 
 /** The account's sieve script, editable under its row. */
 export function SievePanel({ address, onClose }: { address: string; onClose: () => void }) {
+  const t = useT()
   const [script, setScript] = useState('')
   const [confirming, setConfirming] = useState(false)
 
@@ -34,14 +36,14 @@ export function SievePanel({ address, onClose }: { address: string; onClose: () 
 
   const saveScript = useAdminMutation({
     invalidateKey: sieveKey,
-    successMsg: 'Sieve script saved',
+    successMsg: t('admin.sieve.saved'),
     mutationFn: (text: string) =>
       adminPost(`/admin/accounts/${encodeURIComponent(address)}/sieve`, { script: text }),
   })
 
   const deleteScript = useAdminMutation({
     invalidateKey: sieveKey,
-    successMsg: 'Sieve script deleted',
+    successMsg: t('admin.sieve.deleted'),
     mutationFn: () => adminDelete(`/admin/accounts/${encodeURIComponent(address)}/sieve`),
   })
 
@@ -56,7 +58,7 @@ export function SievePanel({ address, onClose }: { address: string; onClose: () 
   }
 
   if (isPending) {
-    return <span className="text-fg-muted text-xs">Loading...</span>
+    return <span className="text-fg-muted text-xs">{t('admin.loading')}</span>
   }
 
   const busy = saveScript.isPending || deleteScript.isPending
@@ -64,7 +66,7 @@ export function SievePanel({ address, onClose }: { address: string; onClose: () 
   return (
     <div className="space-y-2">
       <textarea
-        aria-label="Sieve script"
+        aria-label={t('admin.sieve.script')}
         className="border-border bg-bg-secondary w-full rounded-md border px-2 py-1.5 font-mono text-xs"
         disabled={busy}
         onChange={(e) => setScript(e.target.value)}
@@ -82,7 +84,7 @@ export function SievePanel({ address, onClose }: { address: string; onClose: () 
           onClick={() => saveScript.mutate(script)}
           type="button"
         >
-          {pendingLabel(saveScript.isPending, 'Saving...', 'Save script')}
+          {t(pendingLabel(saveScript.isPending, 'admin.saving', 'admin.sieve.save'))}
         </button>
         <button
           className="text-danger hover:opacity-70 disabled:opacity-50"
@@ -90,27 +92,29 @@ export function SievePanel({ address, onClose }: { address: string; onClose: () 
           onClick={() => setConfirming(true)}
           type="button"
         >
-          Delete script
+          {t('admin.sieve.delete')}
         </button>
         <button className="text-fg-muted hover:text-fg-secondary" onClick={onClose} type="button">
-          Close
+          {t('common.close')}
         </button>
       </div>
       {confirming && (
         <ConfirmAction
-          confirmLabel={pendingLabel(deleteScript.isPending, 'Deleting...', 'Delete script')}
-          consequence={`New mail to ${address} is no longer run through this script. Mail it already filed stays where it is`}
+          confirmLabel={t(
+            pendingLabel(deleteScript.isPending, 'admin.deleting', 'admin.sieve.delete')
+          )}
+          consequence={t('admin.sieve.deleteConsequence', { address })}
           onCancel={() => setConfirming(false)}
           onConfirm={handleDelete}
           pending={deleteScript.isPending}
-          title={`Delete the sieve script of ${address}?`}
+          title={t('admin.sieve.deleteTitle', { address })}
         />
       )}
     </div>
   )
 }
 
-function pendingLabel(pending: boolean, busy: string, idle: string): string {
+function pendingLabel(pending: boolean, busy: Key, idle: Key): Key {
   if (pending) return busy
   return idle
 }
