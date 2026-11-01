@@ -39,6 +39,7 @@ mod backfill_read_state;
 mod hangup;
 mod ledger_estimate;
 pub(crate) mod recompute_sender_trust;
+mod thread_cursor;
 pub(crate) use ledger_estimate::ledger_estimate_route;
 mod screening_replay;
 pub(crate) use screening_replay::screening_replay_route;
