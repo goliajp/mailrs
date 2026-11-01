@@ -32,10 +32,22 @@ async fn lists(c: &Cores, d: &mut Diffs, step: &str) -> (Vec<String>, Vec<String
             &format!("list_conversations trashed={trashed} after {step}"),
             c.fastcore.list_conversations(ALICE, &req).await,
             c.pg_core.list_conversations(ALICE, &req).await,
-            &["id", "mailbox_id", "created_at", "modseq"],
+            // each core stamps trashed_at from its own clock, so the two
+            // can straddle a second; what must agree is that it is set
+            &["id", "mailbox_id", "created_at", "modseq", "trashed_at"],
         );
         let mut ids: Vec<String> = got
-            .map(|(fc, _)| fc.items.into_iter().map(|r| r.thread_id).collect())
+            .map(|(fc, pg)| {
+                for row in fc.items.iter().chain(pg.items.iter()) {
+                    assert_eq!(
+                        row.trashed_at > 0,
+                        trashed,
+                        "trashed_at on {} after {step}",
+                        row.thread_id
+                    );
+                }
+                fc.items.into_iter().map(|r| r.thread_id).collect()
+            })
             .unwrap_or_default();
         ids.sort();
         out.push(ids);
