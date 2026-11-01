@@ -2,9 +2,10 @@
 //! password managers speak (capability [`MASKED_CAP`]). The operations are
 //! the REST ones in `masked_email`; this is only the wire shape.
 //!
-//! `emailPrefix` on create is not honoured: a mask's words come from the
-//! reviewed list, so no caller can choose one that reads like an official
-//! address of the domain.
+//! `emailPrefix` on create is accepted and ignored: the address is drawn
+//! as usual and returned, since a mask's words come from the reviewed list
+//! and no caller may choose one that reads like an official address of
+//! the domain. Refusing it would fail the password managers that send it.
 
 use mailrs_core_sidestate::families::masked_email::{Mask, NewMask, Patch, State as MaskState};
 use mailrs_jmap::error::JmapMethodError;
@@ -216,7 +217,7 @@ mod tests {
     fn mask(state: MaskState) -> Mask {
         Mask {
             id: "me-amber.otter.0042".into(),
-            email: "amber.otter.0042@x.jp".into(),
+            email: "amber.otter.000042@x.jp".into(),
             owner: "me@x.jp".into(),
             state,
             for_domain: "https://shop.example".into(),
@@ -235,7 +236,7 @@ mod tests {
         assert_eq!(o["forDomain"], "https://shop.example");
         assert_eq!(o["createdAt"], "2023-11-14T22:13:20Z");
         assert_eq!(o["lastMessageAt"], Value::Null);
-        assert_eq!(o["email"], "amber.otter.0042@x.jp");
+        assert_eq!(o["email"], "amber.otter.000042@x.jp");
     }
 
     #[test]

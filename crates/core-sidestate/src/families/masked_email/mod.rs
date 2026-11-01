@@ -184,13 +184,13 @@ fn save(conn: &mut Connection, m: &Mask) -> io::Result<()> {
 }
 
 /// A fresh address on `domain` from `pick` (a source of random numbers),
-/// `<adjective>.<noun>.<dddd>`.
+/// `<adjective>.<noun>.<dddddd>`.
 pub fn candidate(domain: &str, mut pick: impl FnMut(usize) -> usize) -> String {
     let adj = words::ADJECTIVES[pick(words::ADJECTIVES.len())];
     let noun = words::NOUNS[pick(words::NOUNS.len())];
     format!(
-        "{adj}.{noun}.{:04}@{}",
-        pick(10_000),
+        "{adj}.{noun}.{:06}@{}",
+        pick(1_000_000),
         domain.to_ascii_lowercase()
     )
 }

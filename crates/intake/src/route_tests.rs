@@ -232,21 +232,21 @@ fn a_mask_is_asked_before_the_catch_all() {
     let mut d = dir();
     d.aliases.insert("@golia.jp", "bob@golia.jp");
     d.masks
-        .insert("amber.otter.0042@golia.jp", Some("BOB@golia.jp"));
-    d.masks.insert("brave.heron.0001@golia.jp", None);
+        .insert("amber.otter.000042@golia.jp", Some("BOB@golia.jp"));
+    d.masks.insert("brave.heron.000001@golia.jp", None);
     d.masks
-        .insert("calm.lake.0002@golia.jp", Some("gone@golia.jp"));
+        .insert("calm.lake.000002@golia.jp", Some("gone@golia.jp"));
     assert_eq!(
-        routed(&d, "amber.otter.0042@golia.jp"),
-        "mask amber.otter.0042@golia.jp -> bob@golia.jp"
+        routed(&d, "amber.otter.000042@golia.jp"),
+        "mask amber.otter.000042@golia.jp -> bob@golia.jp"
     );
-    assert_eq!(routed(&d, "brave.heron.0001@golia.jp"), "nobody");
-    assert_eq!(routed(&d, "brave.heron.0001+x@golia.jp"), "nobody");
+    assert_eq!(routed(&d, "brave.heron.000001@golia.jp"), "nobody");
+    assert_eq!(routed(&d, "brave.heron.000001+x@golia.jp"), "nobody");
     assert_eq!(
-        routed(&d, "amber.otter.0042+shop@golia.jp"),
-        "mask amber.otter.0042@golia.jp -> bob@golia.jp"
+        routed(&d, "amber.otter.000042+shop@golia.jp"),
+        "mask amber.otter.000042@golia.jp -> bob@golia.jp"
     );
     // an owner whose account is gone: nobody, not the catch-all
-    assert_eq!(routed(&d, "calm.lake.0002@golia.jp"), "nobody");
+    assert_eq!(routed(&d, "calm.lake.000002@golia.jp"), "nobody");
     assert_eq!(routed(&d, "else@golia.jp"), "alias bob@golia.jp");
 }

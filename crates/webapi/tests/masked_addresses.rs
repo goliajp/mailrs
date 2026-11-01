@@ -162,7 +162,7 @@ async fn a_mask_delivers_sends_without_the_account_and_is_kept_apart() {
             Some(json!({
                 "using": ["urn:ietf:params:jmap:core", "https://www.fastmail.com/dev/maskedemail"],
                 "methodCalls": [
-                    ["MaskedEmail/set", { "accountId": OWNER, "create": { "k1": { "forDomain": "news.example" } } }, "0"],
+                    ["MaskedEmail/set", { "accountId": OWNER, "create": { "k1": { "forDomain": "news.example", "emailPrefix": "newsletter" } } }, "0"],
                     ["MaskedEmail/get", { "accountId": OWNER, "ids": null }, "1"]
                 ]
             })),
@@ -171,6 +171,15 @@ async fn a_mask_delivers_sends_without_the_account_and_is_kept_apart() {
     assert_eq!(status, 200, "{answer}");
     let created = &answer["methodResponses"][0][1]["created"]["k1"];
     assert_eq!(created["forDomain"], "news.example", "{answer}");
+    let made = created["email"].as_str().expect("email");
+    assert!(
+        !made.contains("newsletter"),
+        "emailPrefix is ignored: {made}"
+    );
+    assert_eq!(
+        made.split('.').nth(2).map(str::len),
+        Some(6 + "@example".len())
+    );
     let listed = &answer["methodResponses"][1][1]["list"];
     assert_eq!(listed[0]["email"], created["email"], "{answer}");
 
@@ -216,4 +225,65 @@ async fn a_mask_delivers_sends_without_the_account_and_is_kept_apart() {
         answer["methodResponses"][1][0], "MaskedEmail/get",
         "{answer}"
     );
+
+    bitwarden_makes_a_mask(&live, &key).await;
+}
+
+const MASKED_CAP: &str = "https://www.fastmail.com/dev/maskedemail";
+
+/// The two requests Bitwarden's Fastmail forwarder sends, as written in
+/// bitwarden/clients `libs/tools/generator/core/src/integration/fastmail.ts`:
+/// the session read from `/jmap/session` (it does not follow the
+/// `/.well-known/jmap` redirect) for the masked-email primary account, then
+/// one `MaskedEmail/set` posted to `/jmap/api/`, read back from
+/// `created["new-masked-email"].email`. The key is sent as a bearer token.
+async fn bitwarden_makes_a_mask(live: &live::Live, key: &str) {
+    let (status, session) = live.call(Method::GET, "/jmap/session", key, None).await;
+    assert_eq!(status, 200, "{session}");
+    let account = session["primaryAccounts"][MASKED_CAP]
+        .as_str()
+        .expect("a masked-email primary account")
+        .to_string();
+    assert_eq!(account, OWNER);
+
+    let (status, answer) = live
+        .call(
+            Method::POST,
+            "/jmap/api/",
+            key,
+            Some(json!({
+                "using": [MASKED_CAP, "urn:ietf:params:jmap:core"],
+                "methodCalls": [[
+                    "MaskedEmail/set",
+                    {
+                        "accountId": account,
+                        "create": {
+                            "new-masked-email": {
+                                "state": "enabled",
+                                "description": "",
+                                "forDomain": "accounts.example.org",
+                                "emailPrefix": "bwprefix",
+                            }
+                        }
+                    },
+                    "0"
+                ]]
+            })),
+        )
+        .await;
+    assert_eq!(status, 200, "{answer}");
+    assert_eq!(
+        answer["methodResponses"][0][0], "MaskedEmail/set",
+        "{answer}"
+    );
+    let made = &answer["methodResponses"][0][1]["created"]["new-masked-email"];
+    let email = made["email"].as_str().expect("created email");
+    assert!(email.ends_with("@example.test"), "{answer}");
+    assert!(
+        !email.contains("bwprefix"),
+        "emailPrefix is accepted and ignored: {email}"
+    );
+    assert_eq!(made["forDomain"], "accounts.example.org");
+    assert_eq!(made["state"], "enabled");
+    assert!(live.core.recipient_deliverable(email).await.expect("check"));
 }

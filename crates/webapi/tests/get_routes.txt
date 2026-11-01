@@ -133,6 +133,7 @@
 /dav/	DAV; reads on GET, writes only on DAV methods
 /dav/{*path}	DAV; reads on GET, writes only on DAV methods
 /jmap/eventsource/	event stream; sends pings only
+/jmap/session	protocol discovery, read only
 /mail/config-v1.1.xml	protocol discovery, read only
 /metrics	read only
 /oauth/authorize	issues an authorization code; registering clients is closed until a consent step exists

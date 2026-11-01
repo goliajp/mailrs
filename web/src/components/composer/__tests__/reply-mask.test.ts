@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest'
 
 import { replyMaskOf } from '../start'
 
-const MASK = 'amber.otter.0042@golia.jp'
+const MASK = 'amber.otter.000042@golia.jp'
 
 function ctx(originalTo: string): ReplyContext {
   return {

@@ -122,8 +122,19 @@ pub async fn start() -> Receiver {
         spam_lists_client: Some(kevy_client.clone()),
         spool_sink,
         signins: Default::default(),
+        unknown_rcpt: Default::default(),
     });
     listen_for_signouts(&cfg.kevy_url, ctx.clone());
+    // the map holds only IPs refused an unknown recipient within the last
+    // hour, so a pass costs as many entries as there were guessers
+    let guard_ctx = ctx.clone();
+    tokio::spawn(async move {
+        let mut every = tokio::time::interval(std::time::Duration::from_secs(600));
+        loop {
+            every.tick().await;
+            guard_ctx.unknown_rcpt.prune(std::time::Instant::now());
+        }
+    });
 
     crate::listeners::listen(ctx, &cfg).await
 }

@@ -24,13 +24,14 @@ use super::super::reply::code;
 use crate::config::SubmissionFromCheck;
 
 pub(super) enum SenderGate {
-    /// `masked` when the envelope or `From:` is one of the account's masked
-    /// addresses: the trace must then not name the client or its address.
+    /// `mask` when the envelope or `From:` is one of the account's masked
+    /// addresses (the one in `From:` first): the trace must then not name
+    /// the client or its address.
     /// `envelope` is the sender to queue under instead of the one given:
     /// the mask in `From:`, so the recipient's Return-Path does not name the
     /// account it hides.
     Pass {
-        masked: bool,
+        mask: Option<String>,
         envelope: Option<String>,
     },
     Refuse(Response),
@@ -53,13 +54,14 @@ pub(super) async fn check(
 ) -> SenderGate {
     let Some(user) = username(state) else {
         return SenderGate::Pass {
-            masked: false,
+            mask: None,
             envelope: None,
         };
     };
     let envelope = reverse_path.trim().trim_matches(['<', '>']).trim();
     let header = mailrs_inbound::identity::from_address(message);
-    let (verdict, masked, header_is_mask) = decide(user, envelope, &header, ctx).await;
+    let (verdict, mask) = decide(user, envelope, &header, ctx).await;
+    let header_is_mask = mask.as_deref() == Some(header.as_str());
     let queue_as = queue_as(envelope, &header, header_is_mask);
     let enforce = ctx.submission_from_check == SubmissionFromCheck::Enforce;
     match &verdict {
@@ -93,7 +95,7 @@ pub(super) async fn check(
     }
     match (verdict, enforce) {
         (Verdict::Allowed, _) | (_, false) => SenderGate::Pass {
-            masked,
+            mask,
             envelope: queue_as,
         },
         (Verdict::Refused(reason), true) => SenderGate::Refuse(refusal(user, reason)),
@@ -125,16 +127,16 @@ fn username(state: &State) -> Option<&str> {
     }
 }
 
-/// The verdict, whether either address is one of the account's masks, and
-/// whether `From:` is.
+/// The verdict, and which of the two addresses is one of the account's
+/// masks: `From:` if it is one, else the envelope if that is.
 async fn decide(
     user: &str,
     envelope: &str,
     header: &str,
     ctx: &ConnectionContext,
-) -> (Verdict, bool, bool) {
+) -> (Verdict, Option<String>) {
     if crate::smtp_session::credentials::sandbox_namespace(user).is_some() {
-        return (judge(user, envelope, header, Ok(None)), false, false);
+        return (judge(user, envelope, header, Ok(None)), None);
     }
     let perms = match &ctx.credential_store {
         Some(store) => store
@@ -143,15 +145,14 @@ async fn decide(
             .map_err(|e| e.to_string()),
         None => Ok(None),
     };
-    let (env_mask, header_mask) = match &perms {
-        Ok(Some(p)) => (is_mask(p, envelope), is_mask(p, header)),
-        _ => (false, false),
+    let mask = match &perms {
+        Ok(Some(p)) => [header, envelope]
+            .into_iter()
+            .find(|a| is_mask(p, a))
+            .map(str::to_string),
+        _ => None,
     };
-    (
-        judge(user, envelope, header, perms),
-        env_mask || header_mask,
-        header_mask,
-    )
+    (judge(user, envelope, header, perms), mask)
 }
 
 /// The sender to queue under when `From:` is the account's mask and the
@@ -229,7 +230,7 @@ mod tests {
     /// Return-Path does not name the account; anything else is left alone.
     #[test]
     fn a_mask_in_from_is_queued_as_the_envelope() {
-        let mask = "amber.otter.0042@golia.jp";
+        let mask = "amber.otter.000042@golia.jp";
         assert_eq!(queue_as(ME, mask, true).as_deref(), Some(mask));
         assert_eq!(queue_as(mask, mask, true), None);
         assert_eq!(queue_as(ME, "team@golia.jp", false), None);
@@ -238,7 +239,7 @@ mod tests {
             masks: vec![mask.into()],
             ..p
         };
-        assert!(is_mask(&p, "Amber.Otter.0042@golia.jp"));
+        assert!(is_mask(&p, "Amber.Otter.000042@golia.jp"));
         assert!(!is_mask(&p, ME));
         assert_eq!(judge(ME, ME, mask, Ok(Some(p))), Verdict::Allowed);
     }

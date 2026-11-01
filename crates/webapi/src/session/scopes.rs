@@ -112,8 +112,8 @@ fn scope_allows(scope: &str, method: &Method, path: &str) -> bool {
         "mail:send" => SEND_ONLY.iter().any(|(m, p)| m == method && *p == path),
         "masked_email" => {
             under(path, MASKED_EMAILS)
-                || (*method == Method::GET && path == "/.well-known/jmap")
-                || (*method == Method::POST && path == "/jmap")
+                || (*method == Method::GET && matches!(path, "/.well-known/jmap" | "/jmap/session"))
+                || (*method == Method::POST && matches!(path, "/jmap" | "/jmap/api/"))
         }
         "mock" => under(path, MOCK_PREFIX),
         _ => match scope.strip_prefix("mock:") {
@@ -172,9 +172,11 @@ mod tests {
         for (m, p) in [
             (Method::GET, "/api/masked-emails"),
             (Method::POST, "/api/masked-emails"),
-            (Method::PATCH, "/api/masked-emails/a.b.0001@x.jp"),
+            (Method::PATCH, "/api/masked-emails/a.b.000001@x.jp"),
             (Method::GET, "/.well-known/jmap"),
             (Method::POST, "/jmap"),
+            (Method::GET, "/jmap/session"),
+            (Method::POST, "/jmap/api/"),
         ] {
             assert!(agent_scopes_allow(&k, &m, p), "{m} {p}");
         }
