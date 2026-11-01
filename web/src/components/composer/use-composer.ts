@@ -97,60 +97,16 @@ export function useComposer(start: ComposerStart, opts: Options) {
     queryFn: ({ signal }) => wireListTemplates(signal),
   })
 
-  // server draft: the first save allocates an id, later saves reuse it,
-  // a send deletes it; `sent` stops a trailing tick from bringing it back
-  const draftIdRef = useRef<null | number>(initialDraftId(start))
-  const sentRef = useRef(false)
-  const lastSavedRef = useRef('')
-  const saveDraftMut = useSaveDraftMutation()
-  const deleteDraftMut = useDeleteDraftMutation()
-  const autosave = useAutosaveStatus()
-  const latest = useRef({ bcc, cc, subject, to })
-  latest.current = { bcc, cc, subject, to }
-  const prefilled = isPrefilled(start)
-  const threadId = replyThreadOf(start)
-
-  const saveNow = useCallback(async () => {
-    if (sentRef.current) return
-    const body = editorRef.current?.getMarkdown() ?? ''
-    const { bcc, cc, subject, to } = latest.current
-    const fieldsTyped = !prefilled && Boolean(to.trim() || subject.trim())
-    if (!body.trim() && !fieldsTyped) return
-    const snapshot = JSON.stringify({ bcc, body, cc, subject, to })
-    if (snapshot === lastSavedRef.current) return
-    // a failure retries on the next tick, and says so once retrying has
-    // stopped being an explanation — see use-autosave-status
-    await autosave.record(async () => {
-      const res = await saveDraftMut.mutateAsync({
-        bcc,
-        body,
-        cc,
-        id: draftIdRef.current ?? undefined,
-        reply_to_thread_id: threadId,
-        subject,
-        to,
-      })
-      if (res.id !== undefined) draftIdRef.current = Number(res.id)
-      lastSavedRef.current = snapshot
-    })
-  }, [autosave, prefilled, saveDraftMut, threadId])
-
-  const saveNowRef = useRef(saveNow)
-  saveNowRef.current = saveNow
-  useEffect(() => {
-    const timer = setInterval(() => void saveNowRef.current(), 3000)
-    return () => clearInterval(timer)
-  }, [])
-
-  // a reopened session's body goes in once the lazy editor has mounted
-  useEffect(() => {
-    const body = initialBody(start)
-    if (!body) return
-    const timer = setTimeout(() => editorRef.current?.setMarkdown(body), 250)
-    return () => clearTimeout(timer)
-    // the start is read once, as the fields' initial state is
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  const {
+    autosave,
+    deleteDraftMut,
+    draftIdRef,
+    lastSavedRef,
+    prefilled,
+    saveNow,
+    sentRef,
+    threadId,
+  } = useComposerDraft(start, editorRef, { bcc, cc, subject, to })
 
   useRestoreInlineDraft(start, editorRef, draftIdRef, lastSavedRef, { setBcc, setCc, setTo })
 
@@ -339,6 +295,81 @@ function undoOption(sentId: string | undefined, t: ReturnType<typeof useT>) {
       },
     },
     duration: 8000,
+  }
+}
+
+/**
+ * The server draft of a session: the first save allocates an id, later
+ * saves reuse it, a send deletes it; `sent` stops a trailing tick from
+ * bringing it back. Saved every three seconds while something changed.
+ */
+function useComposerDraft(
+  start: ComposerStart,
+  editorRef: React.RefObject<null | StructuredComposeHandle>,
+  fields: { bcc: string; cc: string; subject: string; to: string }
+) {
+  const draftIdRef = useRef<null | number>(initialDraftId(start))
+  const sentRef = useRef(false)
+  const lastSavedRef = useRef('')
+  const saveDraftMut = useSaveDraftMutation()
+  const deleteDraftMut = useDeleteDraftMutation()
+  const autosave = useAutosaveStatus()
+  const latest = useRef(fields)
+  latest.current = fields
+  const prefilled = isPrefilled(start)
+  const threadId = replyThreadOf(start)
+
+  const saveNow = useCallback(async () => {
+    if (sentRef.current) return
+    const body = editorRef.current?.getMarkdown() ?? ''
+    const { bcc, cc, subject, to } = latest.current
+    const fieldsTyped = !prefilled && Boolean(to.trim() || subject.trim())
+    if (!body.trim() && !fieldsTyped) return
+    const snapshot = JSON.stringify({ bcc, body, cc, subject, to })
+    if (snapshot === lastSavedRef.current) return
+    // a failure retries on the next tick, and says so once retrying has
+    // stopped being an explanation — see use-autosave-status
+    await autosave.record(async () => {
+      const res = await saveDraftMut.mutateAsync({
+        bcc,
+        body,
+        cc,
+        id: draftIdRef.current ?? undefined,
+        reply_to_thread_id: threadId,
+        subject,
+        to,
+      })
+      if (res.id !== undefined) draftIdRef.current = Number(res.id)
+      lastSavedRef.current = snapshot
+    })
+  }, [autosave, editorRef, prefilled, saveDraftMut, threadId])
+
+  const saveNowRef = useRef(saveNow)
+  saveNowRef.current = saveNow
+  useEffect(() => {
+    const timer = setInterval(() => void saveNowRef.current(), 3000)
+    return () => clearInterval(timer)
+  }, [])
+
+  // a reopened session's body goes in once the lazy editor has mounted
+  useEffect(() => {
+    const body = initialBody(start)
+    if (!body) return
+    const timer = setTimeout(() => editorRef.current?.setMarkdown(body), 250)
+    return () => clearTimeout(timer)
+    // the start is read once, as the fields' initial state is
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  return {
+    autosave,
+    deleteDraftMut,
+    draftIdRef,
+    lastSavedRef,
+    prefilled,
+    saveNow,
+    sentRef,
+    threadId,
   }
 }
 
