@@ -50,6 +50,9 @@ pub struct ThreadQuery<'a> {
     pub section: Option<Section>,
     /// With [`Section::Awaiting`]: waiting since this epoch second or earlier.
     pub awaiting_due_by: Option<i64>,
+    /// Only conversations whose newest message from someone else came from
+    /// this address (lowercased): a sender's conversations.
+    pub in_from: Option<&'a str>,
 }
 
 /// How a view treats conversations held for review.
@@ -82,6 +85,7 @@ impl<'a> ThreadQuery<'a> {
             limit: None,
             section: None,
             awaiting_due_by: None,
+            in_from: None,
         }
     }
 }
@@ -310,6 +314,13 @@ impl PgMailboxStore {
         if let Some(p) = due_param {
             wheres.push(format!("t.awaiting_since <= ${p}"));
         }
+        let from_param = q.in_from.map(|_| {
+            next += 1;
+            next - 1
+        });
+        if let Some(p) = from_param {
+            wheres.push(format!("t.s_in_from = ${p}"));
+        }
         let (cursor_col, order) = match awaiting {
             true => ("t.awaiting_since", "t.awaiting_since DESC, t.thread_id"),
             false => ("t.last_date", "t.last_date DESC, t.thread_id"),
@@ -345,6 +356,9 @@ impl PgMailboxStore {
         }
         if let Some(due) = q.awaiting_due_by.filter(|_| awaiting) {
             query = query.bind(due);
+        }
+        if let Some(from) = q.in_from {
+            query = query.bind(from);
         }
         if let Some(ts) = q.before_ts {
             query = query.bind(ts);

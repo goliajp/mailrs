@@ -100,6 +100,17 @@ impl PgCore {
         self.dir
             .rt
             .block_on(self.apply_rules(addr, &a.thread_id, &actions));
+        // a sender kept to its newest few may now have one too many
+        if !a.is_own && !held && !in_junk {
+            let now = chrono::Utc::now().timestamp();
+            mailrs_intake::sender_ops::after_delivery(
+                self,
+                self.net_conn().as_mut(),
+                addr,
+                &a.from,
+                now,
+            );
+        }
         effects::after_store(self.net_conn(), addr, &a, held);
         self.announce(addr, &a);
         true

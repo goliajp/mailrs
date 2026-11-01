@@ -46,6 +46,7 @@ mod router;
 mod routes;
 mod rules;
 mod sections;
+mod senders;
 mod sent;
 mod snooze_wake;
 mod store_motion;

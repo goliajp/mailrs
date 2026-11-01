@@ -26,6 +26,7 @@ mailrs-fraud-lua = { path = "../fraud-lua", version = "0" }
 mailrs-screening-lua = { path = "../screening-lua", version = "0" }
 mailrs-imap-codec = { path = "../imap-codec", version = "1" }
 mailrs-fetch = { path = "../fetch", version = "0" }
+mailrs-webpush = { path = "../webpush" }
 mailrs-smtp-client = { path = "../smtp-client", version = "3" }
 tokio-util = { version = "0.7", features = ["codec"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "logging", "tls12"] }

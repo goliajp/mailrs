@@ -443,6 +443,13 @@ fn every_fixture_has_a_test() {
         "totp-code",
         "confirm",
         "webhook-create",
+        "notify-prefs-set",
+        "notify-override",
+        "important-set",
+        "sender-reclassify",
+        "sender-rule-set",
+        "web-push-subscribe",
+        "web-push-unsubscribe",
     ];
     let dir = format!(
         "{}/../../wire-contract/requests",

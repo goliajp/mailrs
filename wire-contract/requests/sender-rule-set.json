@@ -1,0 +1,6 @@
+{
+  "bucket": "promotions",
+  "disposal": "trash",
+  "keep_latest": 3,
+  "older_than_days": 30
+}
