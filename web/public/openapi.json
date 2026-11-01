@@ -1747,8 +1747,7 @@
             "in": "query",
             "schema": {
               "type": "integer",
-              "default": 20,
-              "maximum": 100
+              "default": 5
             }
           }
         ],
@@ -1766,7 +1765,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Matches on address or name, ranked: people before automated senders and mailing lists, then by how often the user wrote to them (counted three times) and heard from them, then by how recently the user wrote to them."
       }
     },
     "/api/agent/keys": {
@@ -3697,19 +3697,9 @@
     "/api/mail/export": {
       "get": {
         "operationId": "exportMbox",
-        "summary": "Export mailbox as mbox format",
+        "summary": "Export All Mail as mbox",
         "tags": [
           "Export"
-        ],
-        "parameters": [
-          {
-            "name": "folder",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            },
-            "description": "Folder to export (default: INBOX)"
-          }
         ],
         "responses": {
           "200": {
@@ -3723,7 +3713,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Every message in All Mail (everything but Junk and the Trash), streamed as mboxrd. Each message carries X-Mailrs-Folder (INBOX, Sent or Archive) and Status: RO when read, which an import reads back. Needs a recent password confirmation."
       }
     },
     "/api/mail/pending/{message_id}": {
@@ -11848,6 +11839,79 @@
           },
           "403": {
             "description": "Not a super administrator"
+          }
+        }
+      }
+    },
+    "/api/mail/import": {
+      "post": {
+        "operationId": "importMbox",
+        "summary": "Import an mbox",
+        "tags": [
+          "Export"
+        ],
+        "description": "The request body is an mbox file (mboxrd or mboxo), read as it arrives and filed message by message. X-Mailrs-Folder (from an export here) or X-Gmail-Labels (a Gmail Takeout) decides the folder and read state; Status: R marks a message read in any other mbox. Mail the user wrote is filed as a sent copy, the rest into the Inbox and then read and archived as the file says. Junk and Trash are skipped, and a Message-ID already in the mailbox is not filed twice, so an interrupted import can be run again. Nothing a delivery sets off runs: no filters, forwarding, webhooks or notifications.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/mbox": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "What the upload did",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "imported",
+                    "sent",
+                    "archived",
+                    "skipped_duplicate",
+                    "skipped_junk_or_trash",
+                    "too_large",
+                    "failed",
+                    "complete"
+                  ],
+                  "properties": {
+                    "imported": {
+                      "type": "integer",
+                      "description": "Filed into the Inbox, archived or not"
+                    },
+                    "sent": {
+                      "type": "integer",
+                      "description": "Filed as sent copies"
+                    },
+                    "archived": {
+                      "type": "integer",
+                      "description": "Of imported, archived afterwards"
+                    },
+                    "skipped_duplicate": {
+                      "type": "integer"
+                    },
+                    "skipped_junk_or_trash": {
+                      "type": "integer"
+                    },
+                    "too_large": {
+                      "type": "integer"
+                    },
+                    "failed": {
+                      "type": "integer"
+                    },
+                    "complete": {
+                      "type": "boolean",
+                      "description": "False when the upload ended before the file did"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }

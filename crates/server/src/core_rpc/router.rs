@@ -21,6 +21,7 @@ use super::*;
 pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
     use mailrs_core_api::method::admin as adm_paths;
     use mailrs_core_api::method::conversation as conv_paths;
+    use mailrs_core_api::method::import as import_paths;
     use mailrs_core_api::method::mailbox as mb_paths;
     use mailrs_core_api::method::message as msg_paths;
     use mailrs_core_api::method::sent as sent_paths;
@@ -64,6 +65,12 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
         .route(
             th_paths::PATH_LIST_THREAD_MESSAGES,
             get(handlers::thread::list_thread_messages).post(handlers::deliver::deliver_message),
+        )
+        .route(
+            import_paths::PATH_IMPORT_MESSAGE,
+            post(handlers::import::import_message).layer(axum::extract::DefaultBodyLimit::max(
+                import_paths::MAX_REQUEST_BYTES,
+            )),
         )
         .route(
             sent_paths::PATH_FILE_SENT,

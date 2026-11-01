@@ -177,6 +177,77 @@ pub fn has_sent_to_addr(conn: &mut kevy_client::Connection, user: &str, email: &
     hget_u32(conn, &contact_key(user, email), "sent_count") > 0
 }
 
+/// What ranks one address in recipient autocomplete.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct Standing {
+    pub sent: u32,
+    pub received: u32,
+    /// An automated sender or a mailing list: ranked after every person.
+    pub automated: bool,
+    /// How recently `user` last wrote to it, as a rank: higher is more
+    /// recent, 0 is never.
+    pub last_sent: f64,
+}
+
+impl Standing {
+    /// A message written to someone says more than one received from them.
+    fn weight(&self) -> u64 {
+        u64::from(self.sent) * 3 + u64::from(self.received)
+    }
+}
+
+/// [`Standing`] for each of `emails`, in order: one read of the send-time
+/// set, then one per address. Not a pipeline, which the embedded store
+/// does not serve.
+pub fn standings(
+    conn: &mut kevy_client::Connection,
+    user: &str,
+    emails: &[String],
+) -> std::io::Result<Vec<Standing>> {
+    // members come back oldest first, so a position orders by recency
+    let by_time = conn.zrange(
+        super::contact_cards::autocomplete_ts_key(user).as_bytes(),
+        0,
+        -1,
+    )?;
+    let order: std::collections::HashMap<Vec<u8>, usize> = by_time
+        .into_iter()
+        .enumerate()
+        .map(|(i, m)| (m, i + 1))
+        .collect();
+    let mut out = Vec::with_capacity(emails.len());
+    for email in emails {
+        let flat = conn.hgetall(contact_key(user, email).as_bytes())?;
+        let mut st = Standing {
+            last_sent: order.get(email.as_bytes()).copied().unwrap_or(0) as f64,
+            ..Standing::default()
+        };
+        for pair in flat.chunks_exact(2) {
+            let value = String::from_utf8_lossy(&pair[1]);
+            match pair[0].as_slice() {
+                b"sent_count" => st.sent = value.parse().unwrap_or(0),
+                b"received_count" => st.received = value.parse().unwrap_or(0),
+                b"is_automated" | b"is_mailing_list" => st.automated |= value == "1",
+                _ => {}
+            }
+        }
+        out.push(st);
+    }
+    Ok(out)
+}
+
+/// People before automated senders, then the most written to, then the
+/// most recently written to, then by what is shown.
+pub fn rank(entries: &mut [(String, Standing)]) {
+    entries.sort_by(|(a_name, a), (b_name, b)| {
+        a.automated
+            .cmp(&b.automated)
+            .then_with(|| b.weight().cmp(&a.weight()))
+            .then_with(|| b.last_sent.total_cmp(&a.last_sent))
+            .then_with(|| a_name.to_lowercase().cmp(&b_name.to_lowercase()))
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::{contact_key, is_self};
@@ -201,5 +272,77 @@ mod tests {
         assert!(!is_self("lihao@golia.jp", "alice@x.com"));
         // a substring / same local-part on another domain is not self
         assert!(!is_self("lihao@golia.jp", "lihao@other.jp"));
+    }
+}
+
+#[cfg(test)]
+mod rank_tests {
+    use super::*;
+
+    fn s(sent: u32, received: u32, automated: bool, last_sent: f64) -> Standing {
+        Standing {
+            sent,
+            received,
+            automated,
+            last_sent,
+        }
+    }
+
+    /// Read off what the writers store: the contact hash and the send-time set.
+    #[test]
+    fn standings_read_the_stored_counts_and_recency() {
+        let mut c = kevy_client::Connection::connect("mem://contacts-standings").unwrap();
+        let u = "me@x";
+        c.hset(
+            contact_key(u, "c@x").as_bytes(),
+            &[
+                (b"sent_count" as &[u8], b"5" as &[u8]),
+                (b"received_count", b"2"),
+            ],
+        )
+        .unwrap();
+        c.hset(
+            contact_key(u, "bot@x").as_bytes(),
+            &[
+                (b"received_count" as &[u8], b"40" as &[u8]),
+                (b"is_automated", b"1"),
+            ],
+        )
+        .unwrap();
+        let ts = super::super::contact_cards::autocomplete_ts_key(u);
+        c.zadd(ts.as_bytes(), &[(100.0, b"c@x" as &[u8]), (50.0, b"old@x")])
+            .unwrap();
+        let got = standings(
+            &mut c,
+            u,
+            &["c@x".to_string(), "bot@x".to_string(), "none@x".to_string()],
+        )
+        .unwrap();
+        assert_eq!(got[0], s(5, 2, false, 2.0));
+        assert_eq!(got[1], s(0, 40, true, 0.0));
+        assert_eq!(got[2], Standing::default());
+    }
+
+    #[test]
+    fn the_most_written_to_come_first_and_robots_last() {
+        let mut v = vec![
+            ("Alpha <a@x>".to_string(), s(0, 1, false, 0.0)),
+            ("Bot <noreply@x>".to_string(), s(0, 90, true, 0.0)),
+            ("Carol <c@x>".to_string(), s(5, 0, false, 10.0)),
+            ("Dan <d@x>".to_string(), s(0, 9, false, 0.0)),
+            ("Erin <e@x>".to_string(), s(5, 0, false, 20.0)),
+        ];
+        rank(&mut v);
+        let order: Vec<&str> = v.iter().map(|(n, _)| n.as_str()).collect();
+        assert_eq!(
+            order,
+            vec![
+                "Erin <e@x>",
+                "Carol <c@x>",
+                "Dan <d@x>",
+                "Alpha <a@x>",
+                "Bot <noreply@x>"
+            ]
+        );
     }
 }

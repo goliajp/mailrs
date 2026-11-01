@@ -13,6 +13,7 @@ pub mod deliver;
 pub mod filing;
 pub mod holds;
 pub mod images;
+pub mod import;
 pub mod labels;
 pub mod mailbox;
 pub mod message;

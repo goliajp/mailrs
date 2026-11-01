@@ -21,6 +21,7 @@
 //!   /v1/users/{u}/threads/{tid}/messages
 //!   /v1/users/{u}/threads/{tid}/{action}
 //!   /v1/users/{u}/sent                            # file a sent copy
+//!   /v1/users/{u}/import                          # file an imported message
 //!   /v1/users/{u}/sent-messages
 //!   /v1/users/{u}/quarantine
 //!
@@ -47,6 +48,7 @@ pub mod admin;
 pub mod contact;
 pub mod conversation;
 pub mod health;
+pub mod import;
 pub mod label;
 pub mod mailbox;
 pub mod message;
