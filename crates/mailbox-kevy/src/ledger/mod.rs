@@ -63,45 +63,42 @@ fn table(name: &str, prefix: &[u8], columns: Vec<(Vec<u8>, ValType)>, keyed: &[&
             .map(|k| TableIndex {
                 column: bytes(k),
                 kind: IndexKind::Range,
-                values: vec![bytes("arrived"), bytes("user"), bytes("mid")],
+                // nothing beside the key: a lookup reads the row anyway
+                values: Vec::new(),
             })
             .collect(),
         orderpaths: Vec::new(),
     }
 }
 
-/// The three ledger tables, as declared.
+/// The three ledger tables, as declared. A link or file row holds only its
+/// id (the message row's id, `|`, the host or hash) and the value it is
+/// keyed on; who and when are on the message row it points to.
 pub(crate) fn specs() -> [TableSpec; 3] {
-    let with = |extra: Vec<(Vec<u8>, ValType)>| {
-        let mut v = vec![
-            col("id", ValType::Str),
-            col("mid", ValType::Str),
-            col("user", ValType::Str),
-            col("arrived", ValType::I64),
-        ];
-        v.extend(extra);
-        v
-    };
     [
         table(
             "ledger_msg",
             MSG_PREFIX,
-            with(vec![
+            vec![
+                col("id", ValType::Str),
+                col("mid", ValType::Str),
+                col("user", ValType::Str),
+                col("arrived", ValType::I64),
                 col("from_domain", ValType::Str),
                 col("from_addr", ValType::Str),
-            ]),
+            ],
             &["from_domain", "from_addr"],
         ),
         table(
             "ledger_link",
             LINK_PREFIX,
-            with(vec![col("host", ValType::Str)]),
+            vec![col("id", ValType::Str), col("host", ValType::Str)],
             &["host"],
         ),
         table(
             "ledger_file",
             FILE_PREFIX,
-            with(vec![col("sha", ValType::Str)]),
+            vec![col("id", ValType::Str), col("sha", ValType::Str)],
             &["sha"],
         ),
     ]
@@ -174,9 +171,6 @@ impl KevyMailboxStore {
                         k.as_bytes(),
                         &[
                             (b"id" as &[u8], &k.as_bytes()[4..]),
-                            (b"mid", mid.as_bytes()),
-                            (b"user", f.user.as_bytes()),
-                            (b"arrived", at.as_bytes()),
                             (b"host", host.as_bytes()),
                         ],
                     )?;
@@ -187,9 +181,6 @@ impl KevyMailboxStore {
                         k.as_bytes(),
                         &[
                             (b"id" as &[u8], &k.as_bytes()[4..]),
-                            (b"mid", mid.as_bytes()),
-                            (b"user", f.user.as_bytes()),
-                            (b"arrived", at.as_bytes()),
                             (b"sha", sha.as_bytes()),
                         ],
                     )?;
@@ -269,20 +260,38 @@ impl KevyMailboxStore {
 
     /// The messages from a sender domain, as `(message id, user)`.
     pub fn ledger_by_domain(&self, domain: &str) -> io::Result<Vec<(String, String)>> {
-        self.ledger_lookup(b"ledger_msg.from_domain", domain)
+        let rows = self.ledger_hits(b"ledger_msg.from_domain", domain)?;
+        self.ledger_messages(rows.into_iter().map(|k| k[MSG_PREFIX.len()..].to_string()))
     }
 
     /// The messages that linked to a host.
     pub fn ledger_by_link_host(&self, host: &str) -> io::Result<Vec<(String, String)>> {
-        self.ledger_lookup(b"ledger_link.host", host)
+        self.ledger_by_part(b"ledger_link.host", LINK_PREFIX, host)
     }
 
     /// The messages that carried a file.
     pub fn ledger_by_attachment(&self, sha256: &str) -> io::Result<Vec<(String, String)>> {
-        self.ledger_lookup(b"ledger_file.sha", sha256)
+        self.ledger_by_part(b"ledger_file.sha", FILE_PREFIX, sha256)
     }
 
-    fn ledger_lookup(&self, index: &[u8], value: &str) -> io::Result<Vec<(String, String)>> {
+    /// The messages a link or file row points to: its id is the message
+    /// row's id, `|`, then the value it is keyed on.
+    fn ledger_by_part(
+        &self,
+        index: &[u8],
+        prefix: &[u8],
+        value: &str,
+    ) -> io::Result<Vec<(String, String)>> {
+        let suffix = format!("|{value}");
+        let rows = self.ledger_hits(index, value)?;
+        self.ledger_messages(
+            rows.into_iter()
+                .filter_map(|k| k[prefix.len()..].strip_suffix(&suffix).map(str::to_string)),
+        )
+    }
+
+    /// The keys of the rows an index holds for `value`.
+    fn ledger_hits(&self, index: &[u8], value: &str) -> io::Result<Vec<String>> {
         let v = kevy_embedded::IndexValue::Str(value.as_bytes().to_vec());
         let mut out = Vec::new();
         let mut cursor = None;
@@ -290,24 +299,34 @@ impl KevyMailboxStore {
             let (hits, next) = self
                 .store()
                 .idx_query(index, &v, &v, cursor.as_ref(), 10_000)?;
-            for (key, _) in hits {
-                let key = String::from_utf8_lossy(&key).into_owned();
-                let mid = self
-                    .store()
-                    .hget(key.as_bytes(), b"mid")?
-                    .map(|m| String::from_utf8_lossy(&m).into_owned())
-                    .unwrap_or_default();
-                let user = self
-                    .store()
-                    .hget(key.as_bytes(), b"user")?
-                    .map(|u| String::from_utf8_lossy(&u).into_owned())
-                    .unwrap_or_default();
-                out.push((mid, user));
-            }
+            out.extend(
+                hits.into_iter()
+                    .map(|(k, _)| String::from_utf8_lossy(&k).into_owned()),
+            );
             match next {
                 Some(c) => cursor = Some(c),
                 None => break,
             }
+        }
+        Ok(out)
+    }
+
+    /// `(message id, user)` of each message row named by its id.
+    fn ledger_messages(
+        &self,
+        ids: impl Iterator<Item = String>,
+    ) -> io::Result<Vec<(String, String)>> {
+        let mut out = Vec::new();
+        for id in ids {
+            let key = format!("L:m:{id}");
+            let read = |field: &[u8]| -> io::Result<String> {
+                Ok(self
+                    .store()
+                    .hget(key.as_bytes(), field)?
+                    .map(|v| String::from_utf8_lossy(&v).into_owned())
+                    .unwrap_or_default())
+            };
+            out.push((read(b"mid")?, read(b"user")?));
         }
         Ok(out)
     }
