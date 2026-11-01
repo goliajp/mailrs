@@ -6,6 +6,7 @@ import { useState } from 'react'
 
 import { AdminPageShell, AdminTable, type Column } from '@/components/admin-page'
 import { inputClass } from '@/components/settings/_shared'
+import { type Key, useT } from '@/i18n'
 import { confirmPhrase, parseAddresses } from '@/lib/password-clear'
 import { wirePasswordClear, wirePasswordClearPreview } from '@/wire/endpoints/admin'
 
@@ -16,51 +17,63 @@ function runsSomething(r: Row): boolean {
   return r.agent_keys.length > 0 || r.smtp_password_logins_7d > 0
 }
 
-function yesNo(v: boolean): string {
-  if (v) return 'yes'
+function stateClass(r: Row): string {
+  if (!r.exists) return 'text-danger text-xs'
+  if (r.cleared_at !== null) return 'text-fg-muted text-xs'
+  return 'text-fg-secondary text-xs'
+}
+
+function stateLabel(r: Row): Key {
+  if (!r.exists) return 'admin.clear.noAccount'
+  if (r.cleared_at !== null) return 'admin.clear.already'
+  return 'admin.clear.active'
+}
+
+function yesNo(v: boolean, t: ReturnType<typeof useT>): string {
+  if (v) return t('admin.clear.yes')
   return '—'
 }
 
-const columns: Column<Row>[] = [
+const columns = (t: ReturnType<typeof useT>): Column<Row>[] => [
   {
-    header: 'Account',
+    header: t('admin.signIns.account'),
     key: 'address',
     cell: (r) => <span className="font-medium break-all">{r.address}</span>,
   },
   {
-    header: 'State',
+    header: t('admin.col.status'),
     key: 'state',
-    cell: (r) => {
-      if (!r.exists) return <span className="text-danger text-xs">no such account</span>
-      if (r.cleared_at !== null)
-        return <span className="text-fg-muted text-xs">already cleared</span>
-      return <span className="text-fg-secondary text-xs">active</span>
-    },
+    cell: (r) => <span className={stateClass(r)}>{t(stateLabel(r))}</span>,
   },
-  { align: 'end', header: 'Sessions', key: 'sessions', cell: (r) => r.sessions },
+  { align: 'end', header: t('admin.clear.sessions'), key: 'sessions', cell: (r) => r.sessions },
   {
-    header: 'Agent keys (keep working)',
+    header: t('admin.clear.agentKeys'),
     key: 'keys',
     cell: (r) => {
       if (r.agent_keys.length === 0) return '—'
       return (
         <span className="text-warning text-xs">
-          {r.agent_keys.map((k) => `${k.name || 'unnamed'} (${k.prefix}…)`).join(', ')}
+          {r.agent_keys.map((k) => `${k.name || t('admin.unnamed')} (${k.prefix}…)`).join(', ')}
         </span>
       )
     },
   },
   {
     align: 'end',
-    header: 'SMTP password sign-ins, 7 days',
+    header: t('admin.clear.smtpSignIns'),
     key: 'smtp',
     cell: (r) => {
       if (r.smtp_password_logins_7d === 0) return '—'
       return <span className="text-warning">{r.smtp_password_logins_7d}</span>
     },
   },
-  { header: 'Authenticator', key: 'totp', cell: (r) => yesNo(r.totp) },
-  { align: 'end', header: 'Linked sign-ins', key: 'ext', cell: (r) => r.external_logins },
+  { header: t('admin.clear.authenticator'), key: 'totp', cell: (r) => yesNo(r.totp, t) },
+  {
+    align: 'end',
+    header: t('admin.clear.linked'),
+    key: 'ext',
+    cell: (r) => r.external_logins,
+  },
 ]
 
 /**
@@ -69,6 +82,7 @@ const columns: Column<Row>[] = [
  * their open mail connections close; agent keys keep working.
  */
 export function AdminPasswordClear() {
+  const t = useT()
   const [text, setText] = useState('')
   const [typed, setTyped] = useState('')
   const preview = useMutation({ mutationFn: wirePasswordClearPreview })
@@ -85,15 +99,14 @@ export function AdminPasswordClear() {
   }
 
   return (
-    <AdminPageShell
-      subtitle="Nobody can sign in to a cleared account with a password until its owner sets a new one with a reset code. Its sessions end and its open mail connections close; agent keys keep working."
-      title="Clear passwords"
-    >
+    <AdminPageShell subtitle={t('admin.clear.subtitle')} title={t('admin.clear.title')}>
       <div className="flex flex-col gap-4">
         <label className="flex flex-col gap-1">
-          <span className="text-fg-secondary text-xs font-medium">Accounts, one per line</span>
+          <span className="text-fg-secondary text-xs font-medium">
+            {t('admin.clear.onePerLine')}
+          </span>
           <textarea
-            aria-label="Accounts"
+            aria-label={t('admin.accounts.title')}
             className={inputClass}
             onChange={(e) => setText(e.target.value)}
             placeholder="someone@golia.jp"
@@ -108,7 +121,7 @@ export function AdminPasswordClear() {
             onClick={runPreview}
             variant="secondary"
           >
-            Preview
+            {t('admin.clear.preview')}
           </Button>
         </div>
 
@@ -122,20 +135,17 @@ export function AdminPasswordClear() {
           <>
             {!preview.data.issuers_configured && (
               <Alert role="alert" variant="warning">
-                Nobody can hand out reset codes: MAILRS_RESET_ISSUERS is empty. A cleared account
-                would have no way back in.
+                {t('admin.clear.noIssuers')}
               </Alert>
             )}
             {rows.some(runsSomething) && (
               <Alert role="status" variant="warning">
-                The highlighted accounts have agent keys or signed in to SMTP with their password in
-                the last 7 days: something runs on them. Clearing stops the SMTP sign-ins; agent
-                keys keep working.
+                {t('admin.clear.runsSomething')}
               </Alert>
             )}
             <AdminTable
-              columns={columns}
-              label="Accounts to clear"
+              columns={columns(t)}
+              label={t('admin.clear.toClear')}
               rowKey={(r) => r.address}
               rows={rows}
             />
@@ -144,10 +154,12 @@ export function AdminPasswordClear() {
               <div className="flex flex-col gap-2">
                 <label className="flex flex-col gap-1">
                   <span className="text-fg-secondary text-xs font-medium">
-                    Type <span className="text-fg font-mono">{phrase}</span> to clear
+                    {t('admin.clear.typeBefore')}
+                    <span className="text-fg font-mono">{phrase}</span>
+                    {t('admin.clear.typeAfter')}
                   </span>
                   <input
-                    aria-label="Confirmation"
+                    aria-label={t('admin.clear.confirmation')}
                     className={inputClass}
                     onChange={(e) => setTyped(e.target.value)}
                     value={typed}
@@ -160,7 +172,7 @@ export function AdminPasswordClear() {
                     onClick={() => clear.mutate(clearable)}
                     variant="danger"
                   >
-                    Clear {clearable.length} passwords
+                    {t('admin.clear.submit', { n: clearable.length })}
                   </Button>
                 </div>
               </div>
@@ -175,8 +187,10 @@ export function AdminPasswordClear() {
         )}
         {clear.data && (
           <Alert role="status" variant="success">
-            Cleared {clear.data.items.filter((i) => i.result === 'cleared').length} accounts;{' '}
-            {clear.data.items.reduce((n, i) => n + i.sessions_revoked, 0)} sessions ended.
+            {t('admin.clear.done', {
+              accounts: clear.data.items.filter((i) => i.result === 'cleared').length,
+              sessions: clear.data.items.reduce((n, i) => n + i.sessions_revoked, 0),
+            })}
           </Alert>
         )}
       </div>
