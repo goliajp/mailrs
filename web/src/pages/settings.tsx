@@ -53,6 +53,11 @@ const SignaturesSection = lazy(() =>
     default: m.SignaturesSection,
   }))
 )
+const TemplatesSection = lazy(() =>
+  import('@/components/settings/templates-section').then((m) => ({
+    default: m.TemplatesSection,
+  }))
+)
 const WebhooksSection = lazy(() =>
   import('@/components/settings/webhooks-section').then((m) => ({ default: m.WebhooksSection }))
 )
@@ -69,22 +74,34 @@ type Category =
   | 'security'
   | 'senders'
   | 'signatures'
+  | 'templates'
   | 'webhooks'
 
-const CATEGORIES: { key: Category; label: Key }[] = [
-  { key: 'account', label: 'settings.cat.account' },
-  { key: 'security', label: 'settings.cat.security' },
-  { key: 'signatures', label: 'settings.cat.signatures' },
-  { key: 'rules', label: 'settings.cat.rules' },
-  { key: 'forwarding', label: 'settings.cat.forwarding' },
-  { key: 'senders', label: 'settings.cat.senders' },
-  { key: 'keys', label: 'settings.cat.keys' },
-  { key: 'api-keys', label: 'settings.cat.api-keys' },
-  { key: 'webhooks', label: 'settings.cat.webhooks' },
-  { key: 'calendar-feeds', label: 'settings.cat.calendar-feeds' },
-  { key: 'appearance', label: 'settings.cat.appearance' },
+type Group = 'account' | 'appearance' | 'developer' | 'mail'
+
+const GROUPS: { key: Group; label: Key }[] = [
+  { key: 'account', label: 'settings.group.account' },
+  { key: 'mail', label: 'settings.group.mail' },
+  { key: 'appearance', label: 'settings.group.appearance' },
+  { key: 'developer', label: 'settings.group.developer' },
+]
+
+// in display order, group by group
+const CATEGORIES: { group: Group; key: Category; label: Key }[] = [
+  { group: 'account', key: 'account', label: 'settings.cat.account' },
+  { group: 'account', key: 'security', label: 'settings.cat.security' },
+  { group: 'account', key: 'keys', label: 'settings.cat.keys' },
   // issuers only
-  { key: 'reset-codes', label: 'settings.cat.reset-codes' },
+  { group: 'account', key: 'reset-codes', label: 'settings.cat.reset-codes' },
+  { group: 'mail', key: 'signatures', label: 'settings.cat.signatures' },
+  { group: 'mail', key: 'templates', label: 'settings.cat.templates' },
+  { group: 'mail', key: 'rules', label: 'settings.cat.rules' },
+  { group: 'mail', key: 'forwarding', label: 'settings.cat.forwarding' },
+  { group: 'mail', key: 'senders', label: 'settings.cat.senders' },
+  { group: 'appearance', key: 'appearance', label: 'settings.cat.appearance' },
+  { group: 'developer', key: 'api-keys', label: 'settings.cat.api-keys' },
+  { group: 'developer', key: 'webhooks', label: 'settings.cat.webhooks' },
+  { group: 'developer', key: 'calendar-feeds', label: 'settings.cat.calendar-feeds' },
 ]
 
 const CATEGORY_KEYS = new Set(CATEGORIES.map((c) => c.key))
@@ -127,7 +144,6 @@ export function Settings() {
         {/* sidebar - horizontal on mobile, vertical on desktop */}
         <nav
           aria-label={t('settings.sections')}
-          aria-orientation="vertical"
           className="border-border flex shrink-0 gap-1 overflow-x-auto border-b p-2 sm:w-48 sm:flex-col sm:overflow-x-visible sm:overflow-y-auto sm:border-r sm:border-b-0 sm:p-3"
           onKeyDown={(e) => {
             const from = shown.findIndex((c) => c.key === active)
@@ -137,26 +153,49 @@ export function Settings() {
             setActive(shown[to].key)
             tabRefs.current[to]?.focus()
           }}
-          role="tablist"
         >
-          {shown.map((cat, i) => (
-            <button
-              aria-controls={`${tabIds}-panel`}
-              aria-selected={active === cat.key}
-              className={tabClass(active === cat.key)}
-              id={`${tabIds}-tab-${cat.key}`}
-              key={cat.key}
-              onClick={() => setActive(cat.key)}
-              ref={(el) => {
-                tabRefs.current[i] = el
-              }}
-              role="tab"
-              tabIndex={active === cat.key ? 0 : -1}
-              type="button"
-            >
-              {t(cat.label)}
-            </button>
-          ))}
+          {GROUPS.map((group) => {
+            const tabs = shown.filter((c) => c.group === group.key)
+            if (tabs.length === 0) return null
+            return (
+              <div className="flex shrink-0 gap-1 sm:flex-col" key={group.key}>
+                <p
+                  className="text-fg-muted hidden px-3 pt-2 text-xs sm:block"
+                  id={`${tabIds}-group-${group.key}`}
+                >
+                  {t(group.label)}
+                </p>
+                <div
+                  aria-labelledby={`${tabIds}-group-${group.key}`}
+                  aria-orientation="vertical"
+                  className="flex gap-1 sm:flex-col"
+                  role="tablist"
+                >
+                  {tabs.map((cat) => {
+                    const i = shown.indexOf(cat)
+                    return (
+                      <button
+                        aria-controls={`${tabIds}-panel`}
+                        aria-selected={active === cat.key}
+                        className={tabClass(active === cat.key)}
+                        id={`${tabIds}-tab-${cat.key}`}
+                        key={cat.key}
+                        onClick={() => setActive(cat.key)}
+                        ref={(el) => {
+                          tabRefs.current[i] = el
+                        }}
+                        role="tab"
+                        tabIndex={active === cat.key ? 0 : -1}
+                        type="button"
+                      >
+                        {t(cat.label)}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
         </nav>
 
         {/* content panel */}
@@ -171,6 +210,7 @@ export function Settings() {
               {active === 'account' && <AccountSection />}
               {active === 'security' && <SecuritySection />}
               {active === 'signatures' && <SignaturesSection />}
+              {active === 'templates' && <TemplatesSection />}
               {active === 'rules' && <RulesSection />}
               {active === 'forwarding' && <ForwardingSection />}
               {active === 'senders' && <SendersSection />}
