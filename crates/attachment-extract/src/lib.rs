@@ -7,6 +7,7 @@ use std::process::Command;
 
 use serde::Serialize;
 
+pub mod office;
 mod pdf;
 
 /// Result of an extraction attempt — text content + provenance metadata

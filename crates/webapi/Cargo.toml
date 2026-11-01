@@ -14,6 +14,7 @@ name = "mailrs-webapi"
 path = "src/main.rs"
 
 [dependencies]
+mailrs-attachment-extract = { path = "../attachment-extract", version = "1" }
 mailrs-oauth-client = { path = "../oauth-client", version = "0.2" }
 mailrs-core-api = { path = "../core-api", features = ["client"] }
 # webapi enqueues outbound directly against the shared network kevy
@@ -90,6 +91,7 @@ metrics-exporter-prometheus = { version = "0.18", default-features = false }
 metrics = "0.24"
 
 [dev-dependencies]
+zip = { version = "9.0.4", default-features = false, features = ["deflate"] }
 aws-lc-rs = "1"
 tempfile = "3"
 # Router exercising: `oneshot` on the built router, so the assist routes

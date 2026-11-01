@@ -12,6 +12,7 @@ pub mod admin_password_clear;
 pub mod ai;
 pub mod app_passwords;
 pub mod apps_keys;
+mod attachment_preview;
 pub mod audit;
 pub mod audit_read;
 pub mod auth;
