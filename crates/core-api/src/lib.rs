@@ -45,6 +45,8 @@ mod client_labels;
 #[cfg(feature = "client")]
 mod client_messages;
 #[cfg(feature = "client")]
+mod client_senders;
+#[cfg(feature = "client")]
 mod client_sidestate;
 #[cfg(feature = "client")]
 mod client_threads;
@@ -108,6 +110,7 @@ pub const SECRET_ENVS: &[&str] = &[
     "MAILRS_RESET_CODE_KEY",
     "MAILRS_SRS_SECRET",
     "MAILRS_TLS_KEY",
+    "MAILRS_VAPID_PRIVATE_KEY_PATH",
     "MAILRS_WEBHOOK_API_KEY",
 ];
 

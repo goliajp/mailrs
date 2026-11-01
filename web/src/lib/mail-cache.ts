@@ -48,6 +48,19 @@ export async function cancelConversationFetches() {
 
 // ---- batch operations ----
 
+/** The conversation `threadId` as any cached list holds it, or null. */
+export function findConversation(threadId: string): ConversationSummary | null {
+  for (const prefix of [mailKeys.conversations(), conversationKeys.infinites()]) {
+    for (const [, data] of queryClient.getQueriesData<InfinitePages>({ queryKey: prefix })) {
+      for (const page of data?.pages ?? []) {
+        const hit = page.find((c) => c.thread_id === threadId)
+        if (hit) return hit
+      }
+    }
+  }
+  return null
+}
+
 // A bucket move (junk / not-junk / notification / promotion / inbox)
 // changes WHICH list a thread belongs to, so the destination list — a
 // different folder than the one on screen, therefore an INACTIVE query —

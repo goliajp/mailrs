@@ -17,6 +17,7 @@ pub mod import;
 pub mod labels;
 pub mod mailbox;
 pub mod message;
+pub mod sender_rules;
 pub mod senders;
 pub mod sent;
 pub mod thread;

@@ -22,6 +22,7 @@ serde_json = { workspace = true }
 base64 = "0.22"
 rand_core = { workspace = true }
 mailrs-apns = { path = "../apns", version = "1" }
+mailrs-webpush = { path = "../webpush" }
 mailrs-bayes = { path = "../bayes" }
 mailrs-clean = { path = "../clean" }
 mailrs-ical = { path = "../ical", version = "2", features = ["mime"] }

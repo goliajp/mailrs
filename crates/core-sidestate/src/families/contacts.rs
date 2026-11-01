@@ -279,6 +279,55 @@ pub fn rank(entries: &mut [(String, Standing)]) {
     });
 }
 
+/// The set listing `user`'s important contacts, beside each contact's
+/// `is_vip` field (which scoring reads); [`set_vip`] writes both.
+pub fn vips_key(user: &str) -> String {
+    format!("mailrs:contact_vips:{}", user.to_lowercase())
+}
+
+/// Mark `email` as one of `user`'s important contacts, or not. Important
+/// contacts' mail is pushed and ranks higher.
+pub fn set_vip(
+    conn: &mut kevy_client::Connection,
+    user: &str,
+    email: &str,
+    vip: bool,
+) -> std::io::Result<()> {
+    let email = email.trim().to_ascii_lowercase();
+    let key = contact_key(user, &email);
+    match vip {
+        true => {
+            conn.hset(key.as_bytes(), &[(b"is_vip" as &[u8], b"1" as &[u8])])?;
+            conn.sadd(vips_key(user).as_bytes(), &[email.as_bytes()])?;
+        }
+        false => {
+            conn.hset(key.as_bytes(), &[(b"is_vip" as &[u8], b"0" as &[u8])])?;
+            conn.srem(vips_key(user).as_bytes(), &[email.as_bytes()])?;
+        }
+    }
+    Ok(())
+}
+
+/// Whether `email` is one of `user`'s important contacts.
+pub fn is_vip(conn: &mut kevy_client::Connection, user: &str, email: &str) -> bool {
+    hget_bool(
+        conn,
+        &contact_key(user, &email.trim().to_ascii_lowercase()),
+        "is_vip",
+    )
+}
+
+/// `user`'s important contacts, sorted.
+pub fn vips(conn: &mut kevy_client::Connection, user: &str) -> std::io::Result<Vec<String>> {
+    let mut out: Vec<String> = conn
+        .smembers(vips_key(user).as_bytes())?
+        .into_iter()
+        .map(|m| String::from_utf8_lossy(&m).into_owned())
+        .collect();
+    out.sort();
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{contact_key, is_self};
@@ -375,5 +424,17 @@ mod rank_tests {
                 "Bot <noreply@x>"
             ]
         );
+    }
+
+    #[test]
+    fn an_important_contact_is_listed_and_scored() {
+        let mut c = kevy_client::Connection::connect("mem://contacts-vip").unwrap();
+        set_vip(&mut c, "me@x", " Boss@X.example ", true).unwrap();
+        assert!(is_vip(&mut c, "me@x", "boss@x.example"));
+        assert!(scoring_for(&mut c, "me@x", "boss@x.example").is_vip);
+        assert_eq!(vips(&mut c, "me@x").unwrap(), vec!["boss@x.example"]);
+        set_vip(&mut c, "me@x", "boss@x.example", false).unwrap();
+        assert!(!is_vip(&mut c, "me@x", "boss@x.example"));
+        assert!(vips(&mut c, "me@x").unwrap().is_empty());
     }
 }

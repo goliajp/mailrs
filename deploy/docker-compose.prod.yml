@@ -69,6 +69,18 @@ x-fraud-policy: &fraud-policy
   # notifications are three of the twelve messages that match.
   MAILRS_ORG_NAME_ALLOWED_DOMAINS: slack.com,github.com,atlassian.net
 
+# Web Push: the VAPID private key (PEM PKCS#8 P-256) fastcore signs pushes
+# with, and webapi-fc reads for the public key browsers subscribe with. The
+# key lives on the host in /apps/mailrs/vapid, mounted read-only into both
+# (owned by 10001:10001, like the APNs key). No file there = Web Push off,
+# and the settings page says it is not enabled. The path is fixed rather
+# than left blank: a blank secret variable stops the process at start.
+x-web-push: &web-push
+  MAILRS_VAPID_PRIVATE_KEY_PATH: /vapid/vapid-private.pem
+  # mailto: or https: contact the push services can reach; unset means
+  # mailto:postmaster@ the server's MAILRS_HOSTNAME
+  MAILRS_VAPID_SUBJECT: ${MAILRS_VAPID_SUBJECT:-}
+
 services:
   receiver:
     container_name: mailrs-receiver
@@ -150,7 +162,7 @@ services:
     networks: [default, fetch]
     environment:
       MAILRS_FASTCORE_BIND: 0.0.0.0:3301
-      <<: [*imap-listeners, *password-reset, *fraud-policy]
+      <<: [*imap-listeners, *password-reset, *fraud-policy, *web-push]
       MAILRS_KEVY_DATA_DIR: /data/kevy-fastcore
       # remote images in arriving mail, fetched by `fetch` below
       MAILRS_FETCH_URL: http://fetch:3500/fetch
@@ -229,6 +241,7 @@ services:
       #   chmod 500 /apps/mailrs/secrets
       #   chmod 400 /apps/mailrs/secrets/AuthKey_*.p8
       - /apps/mailrs/secrets:/secrets:ro
+      - /apps/mailrs/vapid:/vapid:ro
     restart: unless-stopped
 
   webapi-fc:
@@ -267,7 +280,7 @@ services:
       MAILRS_MOCK_DOMAIN: mock.golia.jp
       MAILRS_HOSTNAME: mail.golia.ai
       # the domain check reads only domain and selector, never the key files
-      <<: [*dkim-identity, *imap-listeners, *password-reset, *fraud-policy]
+      <<: [*dkim-identity, *imap-listeners, *password-reset, *fraud-policy, *web-push]
       RUST_LOG: info
     volumes:
       - mailrs-data:/data
@@ -276,6 +289,7 @@ services:
       # web UI owned by the web-v* lane; release-web.yml rsyncs into
       # this host dir and the container picks it up without a restart
       - /apps/mailrs/web:/opt/mailrs/web:ro
+      - /apps/mailrs/vapid:/vapid:ro
     restart: unless-stopped
 
   fastcore-sender:

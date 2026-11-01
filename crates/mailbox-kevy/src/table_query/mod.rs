@@ -20,6 +20,7 @@ mod account;
 mod flag;
 mod orderpath;
 mod section;
+mod sender;
 
 /// Whether a read over an ORDERPATH includes archived threads.
 ///

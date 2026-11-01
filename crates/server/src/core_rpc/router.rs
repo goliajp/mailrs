@@ -68,6 +68,18 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
             get(handlers::thread::list_thread_messages).post(handlers::deliver::deliver_message),
         )
         .route(
+            senders_paths::PATH_RECLASSIFY_SENDER,
+            post(handlers::sender_rules::reclassify),
+        )
+        .route(
+            senders_paths::PATH_RESTORE_SENDER,
+            post(handlers::sender_rules::restore),
+        )
+        .route(
+            senders_paths::PATH_RETAIN_SENDER,
+            post(handlers::sender_rules::retain),
+        )
+        .route(
             senders_paths::PATH_ACCEPT_SENDERS,
             post(handlers::senders::accept_senders),
         )

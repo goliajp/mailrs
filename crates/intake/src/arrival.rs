@@ -75,7 +75,10 @@ pub fn derive<'a, T: Threads + ?Sized>(
         &subject,
     );
     let is_own = mailrs_rfc5322::list_contains(&from, addr);
-    let category_of = category(net.as_mut(), target_folder, body);
+    let category_of = match sender_rule_category(net.as_mut(), addr, &from, target_folder) {
+        Some(c) => c,
+        None => category(net.as_mut(), target_folder, body),
+    };
     let facts =
         crate::section_facts::facts(net.as_mut(), addr, &from, &to, head, category_of, is_own);
     let category = category_of;
@@ -188,6 +191,27 @@ fn ancestry<T: Threads + ?Sized>(
             Ancestry::NewTopic
         }
         _ => Ancestry::Joins(tid),
+    }
+}
+
+/// The category the reader's own rule for this sender files it under,
+/// ahead of the classifier; never for mail the receiver or Sieve put in
+/// Junk. A rule is the reader's word, so it is not evidence to train on.
+pub fn sender_rule_category(
+    net: Option<&mut kevy_client::Connection>,
+    addr: &str,
+    from: &str,
+    target_folder: &str,
+) -> Option<&'static str> {
+    if target_folder.eq_ignore_ascii_case("junk") {
+        return None;
+    }
+    let rule = mailrs_core_sidestate::families::sender_rules::get(net?, addr, from).ok()??;
+    match rule.bucket.as_deref()? {
+        "inbox" => Some("inbox"),
+        "notifications" => Some("notification"),
+        "promotions" => Some("promotion"),
+        _ => None,
     }
 }
 

@@ -205,7 +205,12 @@ mod table_spec_tests {
                 .indexes
                 .iter()
                 .all(|other| other.column == ix.column || other.values.contains(&ix.column));
-            if !stored_everywhere {
+            // a lookup key, not a list filter: "this sender's
+            // conversations" is never stacked on a flag list, and an
+            // address stored beside every other index would cost memory
+            // on every row for nothing
+            let lookup_only = ix.column.as_slice() == b"sec_in_from";
+            if !stored_everywhere && !lookup_only {
                 key_only.push(String::from_utf8_lossy(&ix.column).into_owned());
             }
         }
@@ -258,7 +263,7 @@ mod table_spec_tests {
                 .iter()
                 .map(|f| f.as_bytes().to_vec()),
         );
-        // and the section writer's two, absent until a message is recorded
+        // and the section writer's, absent until a message is recorded
         written.extend(
             crate::sections::COLUMNS
                 .iter()

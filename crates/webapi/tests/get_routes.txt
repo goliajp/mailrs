@@ -140,3 +140,9 @@
 /oauth/authorize	issues an authorization code; registering clients is closed until a consent step exists
 /oauth/userinfo	read only
 /api/admin/screening/observations	read only, super administrators
+/api/contacts/important	read only
+/api/notify	read only
+/api/notify/overrides	read only
+/api/notify/stats	read only
+/api/push/web	read only, the public key
+/api/sender-rules	read only

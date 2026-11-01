@@ -4219,6 +4219,7 @@ dependencies = [
  "mailrs-tls-rpt",
  "mailrs-triage",
  "mailrs-webhook-signature",
+ "mailrs-webpush",
  "psl",
  "rand_core 0.6.4",
  "reqwest",
@@ -4872,6 +4873,7 @@ dependencies = [
  "mailrs-smtp-client",
  "mailrs-smtp-proto",
  "mailrs-test-docker",
+ "mailrs-webpush",
  "metrics",
  "metrics-exporter-prometheus",
  "password-hash",
@@ -4909,6 +4911,21 @@ dependencies = [
  "hex",
  "hmac 0.13.0",
  "sha2 0.11.0",
+]
+
+[[package]]
+name = "mailrs-webpush"
+version = "0.0.0"
+dependencies = [
+ "aws-lc-rs",
+ "base64 0.22.1",
+ "hkdf",
+ "mailrs-fetch",
+ "reqwest",
+ "serde_json",
+ "sha2 0.10.9",
+ "tokio",
+ "url",
 ]
 
 [[package]]
