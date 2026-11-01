@@ -275,6 +275,11 @@ pub struct ConversationSummary {
     pub trashed_at: i64,
     /// Held for review: out of every list until the reader releases it.
     pub quarantined: bool,
+    /// The sectioned inbox's section ([`crate::section::Section::name`]),
+    /// empty when not decided.
+    pub section: String,
+    /// When the reader started waiting on a person to answer, or 0.
+    pub awaiting_since: i64,
 }
 
 /// AI analysis result stored in email_analysis table

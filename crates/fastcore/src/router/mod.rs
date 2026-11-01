@@ -17,6 +17,7 @@ use axum::routing::{delete, get, post, put};
 
 use crate::*;
 use mailrs_core_api::method::import as import_paths;
+use mailrs_core_api::method::senders as senders_paths;
 use mailrs_core_api::method::sent;
 
 mod directory_routes;
@@ -61,6 +62,10 @@ pub fn build_router_with_secret(state: Arc<FastcoreState>, secret: String) -> Ro
         )
         .route("/v1/admin/threads:split-message", post(split_message_route))
         .route(th::PATH_DELIVER_MESSAGE, post(deliver_message))
+        .route(
+            senders_paths::PATH_ACCEPT_SENDERS,
+            post(crate::sections::accept_senders),
+        )
         .route(
             import_paths::PATH_IMPORT_MESSAGE,
             post(crate::import::import_message).layer(axum::extract::DefaultBodyLimit::max(

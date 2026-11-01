@@ -109,6 +109,14 @@ pub struct ConversationSummaryWire {
     /// Ids of this reader's labels on the thread.
     #[serde(default)]
     pub labels: Vec<String>,
+    /// The sectioned inbox's section for this reader (`awaiting`, `feed`,
+    /// `new`, `reply`, `other`), or empty when it has not been decided yet.
+    #[serde(default)]
+    pub section: String,
+    /// Epoch seconds the reader's last message went out while the
+    /// conversation waits on a person to answer, or `0`.
+    #[serde(default)]
+    pub awaiting_since: i64,
 }
 
 impl From<&mailrs_mailbox::types::ConversationSummary> for ConversationSummaryWire {
@@ -138,6 +146,8 @@ impl From<&mailrs_mailbox::types::ConversationSummary> for ConversationSummaryWi
             sent_count: s.sent_count,
             snoozed_until: s.snoozed_until,
             trashed_at: s.trashed_at,
+            section: s.section.clone(),
+            awaiting_since: s.awaiting_since,
         }
     }
 }
@@ -214,9 +224,17 @@ pub struct ConversationFilter {
     /// ignores `archived`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub snoozed: Option<bool>,
-    /// One of: `important` / `other` / `null` (UI section tabs).
+    /// One section of the sectioned inbox: `awaiting`, `feed`, `new`,
+    /// `reply` or `other`. `awaiting` spans the Inbox and Sent and pages by
+    /// `before_ts` against `awaiting_since`; the others are the live list's
+    /// conversations in that section, newest first. Any other value is no
+    /// section at all.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub section: Option<String>,
+    /// With `section = awaiting`: only conversations waiting since this
+    /// epoch second or earlier — the ones due a follow-up.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub followup_due_by: Option<i64>,
     /// Only conversations that arrived at these connected mailboxes.
     ///
     /// Absent is every account, which is what the unified lists mean.
@@ -285,6 +303,8 @@ mod tests {
             sent_count: 0,
             snoozed_until: 0,
             trashed_at: 0,
+            section: "awaiting".into(),
+            awaiting_since: 1_700_000_000,
         };
         let s = serde_json::to_string(&w).unwrap();
         let back: ConversationSummaryWire = serde_json::from_str(&s).unwrap();
@@ -308,7 +328,8 @@ mod tests {
             starred: Some(false),
             pinned: Some(true),
             snoozed: Some(true),
-            section: Some("important".into()),
+            section: Some("reply".into()),
+            followup_due_by: Some(1_700_000_000),
         };
         let s = serde_json::to_string(&f).unwrap();
         let back: ConversationFilter = serde_json::from_str(&s).unwrap();

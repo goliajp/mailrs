@@ -86,6 +86,13 @@ CREATE TABLE messages (
     -- row and never filtered on, so no index. See migrate-050.
     sender_trust TEXT NOT NULL DEFAULT '',
     attachments INTEGER,
+    -- what delivery recorded for the sectioned inbox; NULL for mail from
+    -- before it was recorded. See migrate-057.
+    direct BOOLEAN,
+    from_person BOOLEAN,
+    first_contact BOOLEAN,
+    to_others BOOLEAN,
+    from_addr TEXT NOT NULL DEFAULT '',
     modseq BIGINT NOT NULL DEFAULT 0,
     pinned BOOLEAN NOT NULL DEFAULT false,
     archived BOOLEAN NOT NULL DEFAULT false,
@@ -346,6 +353,14 @@ CREATE TABLE IF NOT EXISTS trashed_conversations (
     PRIMARY KEY (account_address, thread_id)
 );
 CREATE INDEX IF NOT EXISTS idx_trashed_at ON trashed_conversations(trashed_at);
+
+-- the senders a reader accepted as no longer new; see migrate-057
+CREATE TABLE IF NOT EXISTS accepted_senders (
+    account_address TEXT NOT NULL,
+    address         TEXT NOT NULL,
+    accepted_at     BIGINT NOT NULL,
+    PRIMARY KEY (account_address, address)
+);
 
 CREATE TABLE IF NOT EXISTS labels (
     account_address TEXT NOT NULL,
@@ -818,4 +833,4 @@ CREATE INDEX idx_messages_clean_text_trgm ON messages USING gin (clean_text gin_
 -- The migration this schema is equal to; the core reads it at boot and
 -- applies whatever it carries beyond it.
 CREATE TABLE schema_version (version INTEGER NOT NULL);
-INSERT INTO schema_version (version) VALUES (56);
+INSERT INTO schema_version (version) VALUES (57);

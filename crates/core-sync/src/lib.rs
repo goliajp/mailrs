@@ -361,6 +361,7 @@ async fn sync_thread(
             unread,
             uid: wire.uid,
             payload_wire_json,
+            section_facts: None,
         };
         if !opts.dry_run {
             dst.deliver_message(user, thread_id, &req).await?;
