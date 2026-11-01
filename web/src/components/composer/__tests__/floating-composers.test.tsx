@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { authAtom } from '@/store/auth'
 import { composerWindowsAtom, openNewMessageAtom } from '@/store/composer-windows'
+import { composingNewAtom } from '@/store/ui'
 
 import { FloatingComposers } from '../floating-composers'
 
@@ -17,8 +18,9 @@ vi.mock('@/lib/api', () => ({
 
 afterEach(cleanup)
 
-function renderWindows(count: number) {
+function renderWindows(count: number, pageOpen = false) {
   const store = createStore()
+  store.set(composingNewAtom, pageOpen)
   store.set(authAtom, {
     accessible_domains: [],
     address: 'user@example.com',
@@ -76,5 +78,23 @@ describe('floating composers', () => {
     const store = renderWindows(1)
     fireEvent.click(within(screen.getByRole('dialog')).getAllByRole('button', { name: 'Close' })[0])
     expect(store.get(composerWindowsAtom)).toHaveLength(0)
+  })
+
+  // the page holds one message; replacing it would lose what it has typed
+  // since its last autosave
+  it('offers no expanding while a message is open on the page', () => {
+    renderWindows(1, true)
+    const expand = within(screen.getByRole('dialog')).getByRole('button', {
+      name: 'Close the message open on the page first',
+    })
+    expect((expand as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('expands when the page is free', () => {
+    renderWindows(1)
+    const expand = within(screen.getByRole('dialog')).getByRole('button', {
+      name: 'Open as a full page',
+    })
+    expect((expand as HTMLButtonElement).disabled).toBe(false)
   })
 })

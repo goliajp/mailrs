@@ -13,6 +13,7 @@ export const composerZh: Record<ComposerKey, string> = {
   'composer.from': '发件人',
   'composer.hideFields': '收起收件人和主题',
   'composer.window.expand': '放大为整页',
+  'composer.window.expandBusy': '请先关掉整页里正在写的邮件',
   'composer.window.minimize': '最小化',
   'composer.window.restore': '还原',
 }

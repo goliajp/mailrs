@@ -37,6 +37,11 @@ function bodyClass(minimized: boolean): string {
   return 'flex min-h-0 flex-1 flex-col'
 }
 
+function expandLabel(pageOpen: boolean): Key {
+  if (pageOpen) return 'composer.window.expandBusy'
+  return 'composer.window.expand'
+}
+
 function FloatingComposer({ win }: { win: ComposerWindow }) {
   const t = useT()
   const navigate = useNavigate()
@@ -45,6 +50,9 @@ function FloatingComposer({ win }: { win: ComposerWindow }) {
   const setCarry = useSetAtom(composeCarrySourceAtom)
   const setReplySource = useSetAtom(composeReplySourceAtom)
   const setComposingNew = useSetAtom(composingNewAtom)
+  // the page holds one message; taking this window's place would lose
+  // whatever the page has typed since its last autosave
+  const pageOpen = useAtomValue(composingNewAtom)
   const c = useComposer(win.start, { onSent: () => closeWindow(win.id) })
   const ai = useComposerAi(c)
 
@@ -70,7 +78,11 @@ function FloatingComposer({ win }: { win: ComposerWindow }) {
         <WindowButton label={minimizeLabel(win.minimized)} onClick={() => toggle(win.id)}>
           <MinimizeIcon minimized={win.minimized} />
         </WindowButton>
-        <WindowButton label="composer.window.expand" onClick={() => void expand()}>
+        <WindowButton
+          disabled={pageOpen}
+          label={expandLabel(pageOpen)}
+          onClick={() => void expand()}
+        >
           <Maximize2 className="h-3.5 w-3.5" />
         </WindowButton>
         <WindowButton label="common.close" onClick={close}>
@@ -103,10 +115,12 @@ function minimizeLabel(minimized: boolean): Key {
 
 function WindowButton({
   children,
+  disabled = false,
   label,
   onClick,
 }: {
   children: React.ReactNode
+  disabled?: boolean
   label: Key
   onClick: () => void
 }) {
@@ -114,7 +128,8 @@ function WindowButton({
   return (
     <button
       aria-label={t(label)}
-      className="text-fg-muted hover:bg-bg-tertiary hover:text-fg flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors"
+      className="text-fg-muted hover:bg-bg-tertiary hover:text-fg flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+      disabled={disabled}
       onClick={onClick}
       title={t(label)}
       type="button"
