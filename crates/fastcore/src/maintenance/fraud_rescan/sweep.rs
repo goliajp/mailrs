@@ -136,7 +136,7 @@ impl Sweep<'_> {
             .mailbox
             .attachment_texts(&message_id)
             .unwrap_or_default();
-        let msg = facts::Reading::of(&raw, self.our_stamp, &attachment_texts);
+        let msg = Reading::of(&raw, self.our_stamp, &attachment_texts);
         // The count as it stands, **not** minus this message.
         //
         // It was minus one, reasoning that the sweep re-plays the
@@ -153,13 +153,14 @@ impl Sweep<'_> {
         // A threshold with a subtraction under it is a different
         // threshold, and not the one the corpus was measured
         // against.
-        let seen = domain_seen(self.hist.as_mut(), &msg.from);
+        let seen = mailrs_fraud_lua::stored::domain_seen(self.hist.as_mut(), &msg.from);
         // Read, not recorded. The sweep walks the same message
         // more than once over its life, and a set does not care
         // — but the live path is the one that owns the writing,
         // and a sweep that also wrote would make "how many
         // domains" depend on how often the sweep had run.
-        let reply_rotation = reading::reply_rotation(&mut self.hist, &msg.host, &msg.reply_to);
+        let reply_rotation =
+            mailrs_fraud_lua::stored::reply_rotation(&mut self.hist, &msg.host, &msg.reply_to);
         let facts = msg.facts(seen, reply_rotation);
         let scan = match mailrs_fraud_lua::scan(&facts, self.policy) {
             Ok(scan) => scan,
@@ -211,7 +212,7 @@ impl Sweep<'_> {
         user: &str,
         tid: &str,
         raw: &[u8],
-        msg: &facts::Reading,
+        msg: &Reading,
         findings: &mailrs_fraud::Findings,
     ) {
         // **And release it if it is still held.** The sweep
@@ -269,7 +270,7 @@ impl Sweep<'_> {
         user: &str,
         tid: &str,
         raw: &[u8],
-        msg: &facts::Reading,
+        msg: &Reading,
         findings: &mailrs_fraud::Findings,
     ) {
         // the receive path lets a whitelisted sender past

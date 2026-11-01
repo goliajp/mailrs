@@ -17,12 +17,19 @@ pub const MAX_REQUEST_BYTES: usize = crate::method::sent::MAX_REQUEST_BYTES;
 pub struct ImportMessageRequest {
     /// RFC 5322 bytes, standard base64.
     pub message_base64: String,
+    /// The fraud verdict the caller reached, as `mailrs_inbound::FraudVerdict`
+    /// JSON, the way the receiver hands one to a delivery. The core stores it
+    /// and holds the conversation when it says to; absent when the rules
+    /// found nothing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fraud_verdict: Option<String>,
 }
 
 impl ImportMessageRequest {
-    pub fn new(message: &[u8]) -> Self {
+    pub fn new(message: &[u8], fraud_verdict: Option<String>) -> Self {
         Self {
             message_base64: base64::engine::general_purpose::STANDARD.encode(message),
+            fraud_verdict,
         }
     }
 

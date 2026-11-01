@@ -30,6 +30,7 @@ use super::prelude::*;
 pub(super) mod reading;
 use config::{our_authserv_id, policy_from_env};
 use holding::move_to_junk;
+use mailrs_fraud_lua::stored::{Reading, rescan_verdict};
 use reading::*;
 
 /// Threads between pauses.
@@ -39,7 +40,6 @@ pub(crate) use decision::*;
 
 mod config;
 mod decision;
-mod facts;
 mod holding;
 mod sweep;
 pub(crate) use sweep::rescan;
@@ -93,16 +93,18 @@ impl FraudJudge {
             .mailbox
             .attachment_texts(message_id)
             .unwrap_or_default();
-        let msg = facts::Reading::of(raw, self.our_stamp.as_deref(), &texts);
-        let seen = domain_seen(self.hist.as_mut(), &msg.from);
-        let rotation = reading::reply_rotation(&mut self.hist, &msg.host, &msg.reply_to);
-        let scan = mailrs_fraud_lua::scan(&msg.facts(seen, rotation), &self.policy)?;
-        let holds = mailrs_inbound::holds(&scan.findings);
+        let j = mailrs_fraud_lua::stored::judge(
+            raw,
+            self.our_stamp.as_deref(),
+            &texts,
+            &self.policy,
+            &mut self.hist,
+        )?;
         Ok(FraudJudgement {
-            junks: !holds && junks_on_its_own(&scan.findings),
-            holds,
-            findings: scan.findings,
-            version: scan.version,
+            junks: !j.holds && junks_on_its_own(&j.findings),
+            holds: j.holds,
+            version: j.verdict.rules_version,
+            findings: j.findings,
         })
     }
 }
@@ -111,7 +113,7 @@ impl FraudJudge {
 /// reads stored mail. No account names: every one of them is ours, and
 /// a colleague's own name in their own mail is not an impersonation.
 pub(crate) fn judge_outgoing(raw: &[u8]) -> Result<mailrs_fraud_lua::Scan, String> {
-    let reading = facts::Reading::of(raw, None, &[]);
+    let reading = Reading::of(raw, None, &[]);
     let policy = mailrs_fraud::Policy {
         org_names: config::csv_env("MAILRS_ORG_NAMES"),
         our_domains: config::csv_env("MAILRS_LOCAL_DOMAINS"),
@@ -131,6 +133,7 @@ pub(crate) async fn fraud_rescan_route(
 
 #[cfg(test)]
 mod tests {
+    use mailrs_fraud_lua::stored::header_value;
 
     /// Everything the sweep reads off a stored message, in one place,
     /// so a test can hand it the bytes production stored.

@@ -431,6 +431,13 @@ impl KevyMailboxStore {
                 }
             }
         }
+        // Held mail is out of every list, flagged ones included, the way
+        // the ORDERPATHs keep it out of the rest; `Include` arrived here
+        // split into one pass of each by `merge_held_into_live`.
+        match filter.quarantine {
+            QuarantineScope::Only => extra.push(("quarantined", "1".to_string())),
+            _ => extra.push(("quarantined", "0".to_string())),
+        }
         match scope {
             Scope::All => {}
             Scope::Bucket(b) => {

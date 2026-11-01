@@ -21,6 +21,7 @@ mailrs:outbound:;crates/core-sidestate/src/families/outbound/keys.rs
 outbound:(paused|held|rate|fail|bounce|complaint);crates/core-sidestate/src/families/outbound/pause.rs
 mailrs:user:[^"]*:contacts;crates/core-sidestate/src/families/contact_cards.rs
 mailrs:contact:;crates/core-sidestate/src/families/contacts.rs
+mailrs:imap-import:;crates/core-sidestate/src/families/imap_import.rs
 mailrs:quota:;crates/core-sidestate/src/keys/quota.rs
 mailrs:dmarcrpt:;crates/core-sidestate/src/keys/dmarc.rs
 mailrs:events:notify:;crates/core-sidestate/src/keys/events.rs
