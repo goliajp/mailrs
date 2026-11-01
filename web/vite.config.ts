@@ -5,15 +5,6 @@ import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vitest/config'
 
-// Cache-buster for the React Query persister key. Stamped at config-load
-// time, so every `vite build` (and every `vite dev` restart) emits a new
-// value — guarantees a localStorage rotation on each release. Without
-// this, query-client.ts's `__APP_BUILD_ID__` was always undefined →
-// persister key never changed → `staleTime: Infinity` queries
-// (e.g. useThreadQuery) kept serving the pre-deploy JSON forever and
-// new wire fields silently never reached the UI.
-const BUILD_ID = `${Date.now()}`
-
 // Webapp version — decides what the bottom StatusBar prints as
 // `web <version>`. Sources, in priority order:
 //   1. `WEB_VERSION` env var — set by release-web.yml so a shipped
@@ -44,7 +35,6 @@ function stripTagPrefix(ref: string | undefined): string | undefined {
 
 export default defineConfig({
   define: {
-    __APP_BUILD_ID__: JSON.stringify(BUILD_ID),
     __WEB_VERSION__: JSON.stringify(WEB_VERSION),
   },
   test: {

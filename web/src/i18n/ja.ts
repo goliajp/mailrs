@@ -6,6 +6,7 @@ import { appJa } from './app/ja'
 import { calendarJa } from './calendar/ja'
 import { composerJa } from './composer/ja'
 import { mockJa } from './mock/ja'
+import { reasonsJa } from './reasons/ja'
 import { sectionsJa } from './sections/ja'
 import { settingsJa } from './settings/ja'
 
@@ -14,6 +15,7 @@ export const ja: Record<Key, string> = {
   ...composerJa,
   ...calendarJa,
   ...sectionsJa,
+  ...reasonsJa,
   ...settingsJa,
   ...mockJa,
   ...adminJa,
@@ -222,11 +224,6 @@ export const ja: Record<Key, string> = {
   'filters.sort.unread': '未読を先に',
   'filters.title': '絞り込み',
   'filters.toggle': '絞り込みの表示・非表示',
-  'fraud.examined': '確認済み: 不審な点があります',
-  'fraud.kept': '削除せずに保管しています。不正利用の報告に使う証拠です。',
-  'fraud.notFraud': 'これは詐欺ではありません',
-  'fraud.releasing': '解除しています…',
-  'fraud.rules': 'ルール {version}',
   'images.alwaysFrom': '{sender} からの画像を常に表示',
   'images.heldNote':
     '迷惑メールと確認待ちのメールでは画像を読み込みません。読み込むと、このアドレスが使われていることが送信者に伝わります。',

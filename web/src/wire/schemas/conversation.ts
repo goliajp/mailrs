@@ -9,6 +9,8 @@
 
 import { z } from '@/lib/zod'
 
+import { wireReasonSchema } from './reason'
+
 /**
  * A single participant from the wire.
  * The wire sometimes sends encoded-word MIME strings — the wire
@@ -146,6 +148,18 @@ export const wireMessageSchema = z.object({
   internal_date: z.number().default(0),
   invite_method: z.string().nullish(),
   is_bulk_sender: z.boolean().default(false),
+  // Links worth a second look, by the host they go to. Backend:
+  // `LinkWarning` in crates/webapi/src/handlers/message_reasons.rs;
+  // `shown` is left out when the link's text shows no other host.
+  link_warnings: z
+    .array(
+      z.object({
+        host: z.string(),
+        reasons: z.array(wireReasonSchema),
+        shown: z.string().optional(),
+      })
+    )
+    .default([]),
   message_id: z.string().default(''),
   new_content: z.string().nullish(),
   people: z.unknown().default([]),
@@ -154,6 +168,9 @@ export const wireMessageSchema = z.object({
   risk_reason: z.string().default(''),
   risk_score: z.number().default(0),
   sender: z.string().default(''),
+  // What SPF, DKIM and DMARC each said (code `auth-check`), and
+  // `sender-bidi`; empty for mail with no verdict of ours on it.
+  sender_checks: z.array(wireReasonSchema).default([]),
   sender_intent: z.string().default('inform'),
   sender_trust: z.string().default(''),
   structured_data: z.unknown().nullish(),

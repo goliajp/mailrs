@@ -1,6 +1,27 @@
 //! The reason string a Junk decision carries.
 
 use super::PipelineInput;
+use crate::Reason;
+use crate::reason::JUNK_SCORE;
+
+/// The Junk-by-score decision as the reader is shown it: the total, the
+/// threshold, and what each source added.
+pub(super) fn score_reason(
+    input: &PipelineInput,
+    total_score: f64,
+    suspicious_score: f64,
+    padding_score: f64,
+) -> Reason {
+    Reason::new(JUNK_SCORE)
+        .with_score("score", total_score)
+        .with_score("threshold", input.spam_threshold)
+        .with_score("content", input.content_score)
+        .with_score("ptr", input.ptr_score)
+        .with_score("classifier", input.ai_score)
+        .with_score("sender", suspicious_score)
+        .with_score("padding", padding_score)
+        .with_score("fraud", input.fraud.score())
+}
 
 /// Build the Junk-decision reason string with a single pre-sized
 /// allocation instead of the `format!` macro's geometric String growth.
