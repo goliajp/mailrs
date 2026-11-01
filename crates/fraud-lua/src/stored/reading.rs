@@ -33,6 +33,8 @@ pub struct Reading {
     unauthenticated: bool,
     peer_is_private: bool,
     attachment_text: String,
+    payment: mailrs_fraud::payment::PaymentIds,
+    html: mailrs_fraud::html_attachment::HtmlFeatures,
 }
 
 impl Reading {
@@ -91,13 +93,23 @@ impl Reading {
             peer_is_private: mailrs_inbound::identity::first_received_peer_ip(raw)
                 .is_some_and(mailrs_inbound::identity::address_is_private),
             attachment_text: mailrs_inbound::body::attachment_text_for_rules(attachment_texts),
+            payment: mailrs_inbound::body::payment_ids(
+                &parsed,
+                &mailrs_inbound::body::attachment_text_for_rules(attachment_texts),
+            ),
+            html: mailrs_inbound::body::html_attachments(&parsed, &host),
             from,
             host,
         }
     }
 
-    /// The facts, with the two that come from the history store.
-    pub fn facts(&self, domain_seen: u64, reply_rotation: u32) -> mailrs_fraud::Facts<'_> {
+    /// The facts, with the three that come from the history store.
+    pub fn facts(
+        &self,
+        domain_seen: u64,
+        reply_rotation: u32,
+        relation: mailrs_fraud::relation::Relation,
+    ) -> mailrs_fraud::Facts<'_> {
         mailrs_fraud::Facts {
             from: &self.from,
             subject: &self.subject,
@@ -126,6 +138,13 @@ impl Reading {
             attachment_text: &self.attachment_text,
             attachment_offers_the_reader_a_sum:
                 mailrs_inbound::body::attachment_offers_the_reader_a_sum(&self.attachment_text),
+            payment: self.payment,
+            html: self.html,
+            relation,
+            reply_to_outside: mailrs_fraud::reply_rotation::is_off_domain(
+                &self.host,
+                &self.reply_to,
+            ),
         }
     }
 }
@@ -143,7 +162,7 @@ please see the attached contract\r\n";
     fn stored_attachment_text_reaches_both_facts() {
         let texts = vec!["in the sum of US$10,200,000.00, split equally, 50% apiece".to_string()];
         let reading = Reading::of(RAW, None, &texts);
-        let facts = reading.facts(0, 0);
+        let facts = reading.facts(0, 0, Default::default());
         assert!(facts.attachment_text.contains("apiece"));
         assert!(facts.attachment_offers_the_reader_a_sum);
         assert!(!facts.offers_the_reader_a_sum, "the body offers nothing");
@@ -152,7 +171,7 @@ please see the attached contract\r\n";
     #[test]
     fn without_stored_text_both_are_empty() {
         let reading = Reading::of(RAW, None, &[]);
-        let facts = reading.facts(0, 0);
+        let facts = reading.facts(0, 0, Default::default());
         assert_eq!(facts.attachment_text, "");
         assert!(!facts.attachment_offers_the_reader_a_sum);
     }

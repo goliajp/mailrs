@@ -8,6 +8,7 @@
 //! message twice cannot change what it is judged against.
 
 mod reading;
+pub mod relation;
 pub use reading::Reading;
 
 /// What the rules make of one stored message.
@@ -33,10 +34,28 @@ pub fn judge(
     policy: &mailrs_fraud::Policy,
     hist: &mut Option<kevy_client::Connection>,
 ) -> Result<Judged, String> {
+    judge_for(raw, None, our_stamp, attachment_texts, policy, hist)
+}
+
+/// [`judge`], for one reader: `reader` is `(user, when the message is
+/// judged relative to its own arrival)`, which adds the reader's history
+/// with the sender. Without it those facts are all false.
+pub fn judge_for(
+    raw: &[u8],
+    reader: Option<(&str, relation::Counted)>,
+    our_stamp: Option<&str>,
+    attachment_texts: &[String],
+    policy: &mailrs_fraud::Policy,
+    hist: &mut Option<kevy_client::Connection>,
+) -> Result<Judged, String> {
     let msg = Reading::of(raw, our_stamp, attachment_texts);
     let seen = domain_seen(hist.as_mut(), &msg.from);
     let rotation = reply_rotation(hist, &msg.host, &msg.reply_to);
-    let scan = crate::scan(&msg.facts(seen, rotation), policy)?;
+    let rel = match reader {
+        Some((user, counted)) => relation::relation(hist.as_mut(), user, &msg.from, counted),
+        None => Default::default(),
+    };
+    let scan = crate::scan(&msg.facts(seen, rotation, rel), policy)?;
     let mut verdict = rescan_verdict(raw, &scan.findings);
     verdict.rules_version = scan.version;
     Ok(Judged {

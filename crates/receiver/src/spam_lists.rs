@@ -99,6 +99,33 @@ pub async fn domain_seen_async(client: Option<Arc<KevyNetClient>>, host: &str) -
     .unwrap_or(0)
 }
 
+/// `user`'s history with the sender of `from`, before this message is
+/// counted. Without a store, nothing is known: all false.
+pub async fn relation_async(
+    client: Option<Arc<KevyNetClient>>,
+    user: &str,
+    from: &str,
+) -> mailrs_fraud::relation::Relation {
+    let Some(client) = client else {
+        return Default::default();
+    };
+    let (user, from) = (user.to_ascii_lowercase(), from.to_string());
+    tokio::task::spawn_blocking(move || {
+        client
+            .with_conn(|c| {
+                Ok(mailrs_fraud_lua::stored::relation::relation(
+                    Some(c),
+                    &user,
+                    &from,
+                    mailrs_fraud_lua::stored::relation::Counted::Before,
+                ))
+            })
+            .unwrap_or_default()
+    })
+    .await
+    .unwrap_or_default()
+}
+
 /// How many registrable domains send to this message's off-domain
 /// `Reply-To`, counting this one.
 ///

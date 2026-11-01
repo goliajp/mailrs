@@ -80,6 +80,7 @@ export function ThreadStack(p: Props) {
             if (item.expanded) {
               return (
                 <ExpandedMessage
+                  conversation={p.messages}
                   key={m.uid}
                   message={m}
                   myEmail={p.myEmail}

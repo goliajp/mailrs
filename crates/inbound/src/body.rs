@@ -48,6 +48,44 @@ pub fn link_has_kit_placeholder(parsed: &mailrs_mime::Part<'_>) -> bool {
     links::has_kit_placeholder(bodies(&texts))
 }
 
+/// Check-digit-valid payment identifiers in the message's text and in
+/// `attachment_text` (what extraction stored): the same parts as
+/// [`offers_the_reader_a_sum`].
+pub fn payment_ids(
+    parsed: &mailrs_mime::Part<'_>,
+    attachment_text: &str,
+) -> mailrs_fraud::payment::PaymentIds {
+    let mut found = mailrs_fraud::payment::find(attachment_text);
+    for (_, text) in texts(parsed) {
+        let more = mailrs_fraud::payment::find(&text);
+        found.iban |= more.iban;
+        found.crypto |= more.crypto;
+    }
+    found
+}
+
+/// What the message's HTML and SVG attachments are built to do, for a
+/// sender at `sender_host`.
+pub fn html_attachments(
+    parsed: &mailrs_mime::Part<'_>,
+    sender_host: &str,
+) -> mailrs_fraud::html_attachment::HtmlFeatures {
+    let parts: Vec<(&str, String, &[u8])> = parsed
+        .attachments()
+        .map(|p| {
+            (
+                p.attachment_filename().unwrap_or(""),
+                p.content_type.mime_type().to_string(),
+                &p.body[..],
+            )
+        })
+        .collect();
+    mailrs_fraud::html_attachment::scan(
+        parts.iter().map(|(n, t, b)| (*n, t.as_str(), *b)),
+        sender_host,
+    )
+}
+
 /// Every `text/plain` and `text/html` leaf that is not an attachment,
 /// decoded, with whether it is HTML.
 fn texts(parsed: &mailrs_mime::Part<'_>) -> Vec<(bool, String)> {

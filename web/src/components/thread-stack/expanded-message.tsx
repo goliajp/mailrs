@@ -5,6 +5,7 @@ import { useMemo } from 'react'
 
 import { AiAnalysisPanel } from '@/components/ai-analysis'
 import { AttachmentPreview } from '@/components/attachment-preview'
+import { CallbackNumberNotice } from '@/components/callback-number-notice'
 import { Copyable } from '@/components/copy-button'
 import { FraudVerdictPanel } from '@/components/fraud-verdict-panel'
 import { InviteCard } from '@/components/invite-card'
@@ -30,6 +31,8 @@ import { isOwnMessage, isSpoofSuspected, verifiedSender } from '@/lib/sender-ide
 const EMPTY_ATTACHMENTS: never[] = []
 
 type Props = {
+  /** Every message of the conversation, this one among them. */
+  conversation: readonly ThreadMessage[]
   message: ThreadMessage
   myEmail: string
   myName?: string
@@ -41,6 +44,7 @@ type Props = {
 
 /** One message of the stack, open: who sent it, why it was held, and all of it. */
 export function ExpandedMessage({
+  conversation,
   message: m,
   myEmail,
   myName,
@@ -122,6 +126,7 @@ export function ExpandedMessage({
       {/* why it was held, above the body: a reader should know what they
           are looking at before they read it */}
       <FraudVerdictPanel messageId={m.message_id} threadId={threadId} />
+      {!own && <CallbackNumberNotice conversation={conversation} message={m} />}
       {m.structured_data && <StructuredDataCard data={m.structured_data} />}
       <AiAnalysisPanel message={m} />
       {m.invite_method && <InviteCard messageUid={m.uid} />}
