@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ImagesHeldNote, ImagesHiddenNote, TrackersNote } from '@/components/images-note'
 import { cjkFonts, cjkLang, injectCjkFonts } from '@/lib/cjk-fonts'
 import { fitHeight, fitScale, shouldReflowTable } from '@/lib/fit-to-width'
+import { type LinkWarning, useLinkWarningMarks } from '@/lib/link-warnings'
 import { markRemoteImage, reload, showPrefetched, watchMissing } from '@/lib/remote-images'
 import {
   disarmTracker,
@@ -235,6 +236,7 @@ export function HtmlFrame({
   html,
   imagesFrom,
   imagesOf,
+  linkWarnings,
   maxHeight,
   uid,
 }: {
@@ -258,6 +260,8 @@ export function HtmlFrame({
    */
   imagesFrom?: string
   imagesOf?: string
+  /** Links the server flagged, marked where they appear. */
+  linkWarnings?: readonly LinkWarning[]
   maxHeight?: string
   /** Message uid — needed to construct the attachment URL. */
   uid?: number
@@ -392,6 +396,7 @@ export function HtmlFrame({
       ro.disconnect()
     }
   }, [sanitized])
+  useLinkWarningMarks(hostRef, sanitized, linkWarnings)
 
   // after the effect above. A miss for mail the server never fetched is
   // fetched now and asked for again; the listeners go on before the images

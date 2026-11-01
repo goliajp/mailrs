@@ -78,6 +78,7 @@ pub(super) async fn run_antispam(
         &receive_ctx,
         ctx.inbound_pipeline.spam_threshold(),
         &rules_version,
+        &decision,
     );
     let full_message: Vec<u8> = std::mem::take(&mut receive_ctx.message);
     tracing::debug!(
@@ -123,9 +124,10 @@ fn rescan_with_alignment(
     }
 }
 
-/// The four-layer verdict for a message something was found in.
+/// The four-layer verdict for a message something was found in, or
+/// that is going to Junk, with the Junk reason as its placement.
 ///
-/// `None` when every layer came out clean, and `None` again if the
+/// `None` when every layer came out clean and it is not Junk, and `None` again if the
 /// verdict will not serialise — a receive path must not fail over
 /// bookkeeping. The failure is logged rather than swallowed, because
 /// a verdict that silently never arrives is the shape this repository
@@ -134,12 +136,18 @@ fn fraud_verdict_json(
     ctx: &mailrs_inbound::ReceiveContext,
     spam_threshold: f64,
     rules_version: &str,
+    decision: &mailrs_inbound::DeliveryDecision,
 ) -> Option<String> {
-    if !ctx.fraud.any() && !ctx.deception.unjustified_zero_width {
+    let junk = match decision {
+        mailrs_inbound::DeliveryDecision::Junk { why, .. } => Some(why.clone()),
+        _ => None,
+    };
+    if !ctx.fraud.any() && !ctx.deception.unjustified_zero_width && junk.is_none() {
         return None;
     }
     let mut verdict = mailrs_inbound::assess(&ctx.to_pipeline_input(spam_threshold));
     verdict.rules_version = rules_version.into();
+    verdict.placement.extend(junk);
     match serde_json::to_string(&verdict) {
         Ok(json) => Some(json),
         Err(e) => {

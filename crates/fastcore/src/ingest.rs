@@ -142,6 +142,7 @@ pub(crate) fn store_arrival(
     }
     crate::sections::record(state, addr, root, a.date, a.is_own, a.facts, &a.from);
     let held = hold_if_fraud(state, addr, root, &a.message_id, fraud_verdict);
+    record_placement(state, addr, &a.message_id, fraud_verdict, &a.placement);
     // register this message's id → thread so future replies that cite it
     // (In-Reply-To / References) resolve into the same conversation.
     let _ = state

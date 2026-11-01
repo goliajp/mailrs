@@ -86,7 +86,7 @@ pub async fn release_quarantined(
 /// GET /v1/users/{user}/messages/{message_id}/fraud-verdict — `null` for a
 /// message nobody suspected, which is not the same as one examined and
 /// cleared. Another account's message is a 404: the verdict is stored by
-/// Message-ID, not per recipient.
+/// Message-ID, not per recipient. The caller's own placement is joined to it.
 pub async fn fraud_verdict(
     State(state): State<Arc<CoreRpcState>>,
     Path((user, message_id)): Path<(String, String)>,
@@ -108,6 +108,17 @@ pub async fn fraud_verdict(
             tracing::warn!(error = %e, %message_id, "reading the verdict failed");
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
+    let placement = state
+        .mailbox
+        .message_placement(&user, &message_id)
+        .await
+        .map_err(|e| {
+            tracing::warn!(error = %e, %message_id, "reading the placement failed");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+        .and_then(|v| serde_json::from_value(v).ok())
+        .unwrap_or_default();
+    let verdict = mailrs_intake::why::joined(verdict, placement);
     Ok(Json(serde_json::json!({ "verdict": verdict })))
 }
 

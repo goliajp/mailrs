@@ -50,6 +50,7 @@ pub mod mail_settings;
 pub mod masked_email;
 pub mod mbox;
 pub mod mcp;
+pub mod message_reasons;
 pub mod messages;
 pub mod metrics;
 pub mod misc;

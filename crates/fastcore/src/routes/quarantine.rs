@@ -110,7 +110,9 @@ pub(crate) async fn release_quarantined(
 /// examined and cleared" are different facts.
 ///
 /// The verdict is stored by Message-ID for every recipient at once, so
-/// the caller must have the message: another account's is a 404.
+/// the caller must have the message: another account's is a 404. Where
+/// the caller's own copy was filed, and why, is stored per recipient and
+/// joined to it here.
 pub(crate) async fn get_fraud_verdict(
     State(state): State<Arc<FastcoreState>>,
     Path((user, message_id)): Path<(String, String)>,
@@ -133,5 +135,15 @@ pub(crate) async fn get_fraud_verdict(
     let verdict = stored
         .as_deref()
         .and_then(|raw| serde_json::from_str::<serde_json::Value>(raw).ok());
+    let placement = state
+        .mailbox
+        .message_placement(&user, &message_id)
+        .unwrap_or_else(|e| {
+            tracing::warn!(%message_id, error = %e, "reading the placement failed");
+            None
+        })
+        .and_then(|raw| serde_json::from_str(&raw).ok())
+        .unwrap_or_default();
+    let verdict = mailrs_intake::why::joined(verdict, placement);
     Ok(Json(serde_json::json!({ "verdict": verdict })))
 }
