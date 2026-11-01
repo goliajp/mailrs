@@ -12,8 +12,10 @@
 mod backfill_admin;
 mod backfill_attachment_counts;
 mod backfill_attachment_text;
+mod backfill_ledger;
 pub(crate) use backfill_attachment_counts::backfill_attachment_counts_route;
 pub(crate) use backfill_attachment_text::backfill_attachment_text_route;
+pub(crate) use backfill_ledger::backfill_ledger_route;
 mod backfill_messages;
 mod backfill_threading;
 mod census;

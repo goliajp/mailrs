@@ -122,7 +122,7 @@ fn estimate(
         t.keys += 2 + facts.link_hosts.len() as u64 + facts.attachment_sha256.len() as u64;
         ledger.record_ledger(&facts).map_err(|e| e.to_string())?;
         ledger
-            .record_verdict(&mid, &verdict)
+            .record_verdict(user, &mid, &verdict)
             .map_err(|e| e.to_string())?;
         let name = mailrs_inbound::from_header(&raw);
         ledger

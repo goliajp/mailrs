@@ -44,28 +44,26 @@ pub struct LedgerVerdict {
     pub judged_at: i64,
 }
 
-fn table(
-    name: &str,
-    prefix: &[u8],
-    pk: &str,
-    cols: &[(&str, ValType)],
-    keyed: &[&str],
-) -> TableSpec {
-    let col = |n: &str| n.as_bytes().to_vec();
+fn col(name: &str, t: ValType) -> (Vec<u8>, ValType) {
+    (name.as_bytes().to_vec(), t)
+}
+
+fn table(name: &str, prefix: &[u8], columns: Vec<(Vec<u8>, ValType)>, keyed: &[&str]) -> TableSpec {
+    let bytes = |n: &str| n.as_bytes().to_vec();
     TableSpec {
-        name: name.as_bytes().to_vec(),
+        name: bytes(name),
         prefix: prefix.to_vec(),
-        pk: col(pk),
+        pk: bytes("id"),
         window: None,
         autodeclare: 0,
         auto_added: Vec::new(),
-        columns: cols.iter().map(|(n, t)| (col(n), *t)).collect(),
+        columns,
         indexes: keyed
             .iter()
             .map(|k| TableIndex {
-                column: col(k),
+                column: bytes(k),
                 kind: IndexKind::Range,
-                values: vec![col("arrived"), col("user"), col("mid")],
+                values: vec![bytes("arrived"), bytes("user"), bytes("mid")],
             })
             .collect(),
         orderpaths: Vec::new(),
@@ -74,52 +72,55 @@ fn table(
 
 /// The three ledger tables, as declared.
 pub(crate) fn specs() -> [TableSpec; 3] {
-    let common = [
-        ("mid", ValType::Str),
-        ("user", ValType::Str),
-        ("arrived", ValType::I64),
-    ];
-    let with = |extra: &[(&'static str, ValType)]| {
-        let mut v: Vec<(&str, ValType)> = common.to_vec();
-        v.extend_from_slice(extra);
+    let with = |extra: Vec<(Vec<u8>, ValType)>| {
+        let mut v = vec![
+            col("id", ValType::Str),
+            col("mid", ValType::Str),
+            col("user", ValType::Str),
+            col("arrived", ValType::I64),
+        ];
+        v.extend(extra);
         v
     };
     [
         table(
             "ledger_msg",
             MSG_PREFIX,
-            "mid",
-            &with(&[("from_domain", ValType::Str), ("from_addr", ValType::Str)]),
+            with(vec![
+                col("from_domain", ValType::Str),
+                col("from_addr", ValType::Str),
+            ]),
             &["from_domain", "from_addr"],
         ),
         table(
             "ledger_link",
             LINK_PREFIX,
-            "id",
-            &with(&[("id", ValType::Str), ("host", ValType::Str)]),
+            with(vec![col("host", ValType::Str)]),
             &["host"],
         ),
         table(
             "ledger_file",
             FILE_PREFIX,
-            "id",
-            &with(&[("id", ValType::Str), ("sha", ValType::Str)]),
+            with(vec![col("sha", ValType::Str)]),
             &["sha"],
         ),
     ]
 }
 
-fn msg_key(mid: &str) -> String {
-    format!("L:m:{mid}")
+// Keyed by reader and message: the same message delivered to two people is
+// two records, because what it means — the sender's history with each of
+// them, a hold — is each reader's own.
+fn msg_key(user: &str, mid: &str) -> String {
+    format!("L:m:{user}|{mid}")
 }
-fn link_key(mid: &str, host: &str) -> String {
-    format!("L:l:{mid}|{host}")
+fn link_key(user: &str, mid: &str, host: &str) -> String {
+    format!("L:l:{user}|{mid}|{host}")
 }
-fn file_key(mid: &str, sha: &str) -> String {
-    format!("L:f:{mid}|{sha}")
+fn file_key(user: &str, mid: &str, sha: &str) -> String {
+    format!("L:f:{user}|{mid}|{sha}")
 }
-fn verdict_key(mid: &str) -> String {
-    format!("L:v:{mid}")
+fn verdict_key(user: &str, mid: &str) -> String {
+    format!("L:v:{user}|{mid}")
 }
 
 impl KevyMailboxStore {
@@ -141,21 +142,22 @@ impl KevyMailboxStore {
         Ok(())
     }
 
-    /// Records what a delivered message was. Written once: a second call
-    /// for the same message leaves the first record as it was.
+    /// Records what a delivered message was, for its reader. Written once: a
+    /// second call for the same reader and message leaves the first record.
     pub fn record_ledger(&self, f: &LedgerFacts) -> io::Result<bool> {
-        let mid = f.message_id.as_str();
+        let (user, mid) = (f.user.as_str(), f.message_id.as_str());
         let at = f.arrived.to_string();
         self.store()
             .atomic(|ctx| {
-                let key = msg_key(mid);
+                let key = msg_key(user, mid);
                 if ctx.hexists(key.as_bytes(), b"mid")? {
                     return Ok(false);
                 }
                 ctx.hset(
                     key.as_bytes(),
                     &[
-                        (b"mid" as &[u8], mid.as_bytes()),
+                        (b"id" as &[u8], &key.as_bytes()[4..]),
+                        (b"mid", mid.as_bytes()),
                         (b"user", f.user.as_bytes()),
                         (b"arrived", at.as_bytes()),
                         (b"from_domain", f.from_domain.as_bytes()),
@@ -167,11 +169,11 @@ impl KevyMailboxStore {
                     ],
                 )?;
                 for host in &f.link_hosts {
-                    let k = link_key(mid, host);
+                    let k = link_key(user, mid, host);
                     ctx.hset(
                         k.as_bytes(),
                         &[
-                            (b"id" as &[u8], k[4..].as_bytes()),
+                            (b"id" as &[u8], &k.as_bytes()[4..]),
                             (b"mid", mid.as_bytes()),
                             (b"user", f.user.as_bytes()),
                             (b"arrived", at.as_bytes()),
@@ -180,11 +182,11 @@ impl KevyMailboxStore {
                     )?;
                 }
                 for sha in &f.attachment_sha256 {
-                    let k = file_key(mid, sha);
+                    let k = file_key(user, mid, sha);
                     ctx.hset(
                         k.as_bytes(),
                         &[
-                            (b"id" as &[u8], k[4..].as_bytes()),
+                            (b"id" as &[u8], &k.as_bytes()[4..]),
                             (b"mid", mid.as_bytes()),
                             (b"user", f.user.as_bytes()),
                             (b"arrived", at.as_bytes()),
@@ -197,9 +199,16 @@ impl KevyMailboxStore {
             .map_err(io::Error::from)
     }
 
-    /// Replaces a message's verdict.
-    pub fn record_verdict(&self, mid: &str, v: &LedgerVerdict) -> io::Result<()> {
-        let key = verdict_key(mid);
+    /// Whether `user`'s copy of a message is in the ledger.
+    pub fn ledger_has(&self, user: &str, mid: &str) -> io::Result<bool> {
+        self.store()
+            .hexists(msg_key(user, mid).as_bytes(), b"mid")
+            .map_err(io::Error::from)
+    }
+
+    /// Replaces the verdict on `user`'s copy of a message.
+    pub fn record_verdict(&self, user: &str, mid: &str, v: &LedgerVerdict) -> io::Result<()> {
+        let key = verdict_key(user, mid);
         self.store()
             .hset(
                 key.as_bytes(),
@@ -240,17 +249,17 @@ impl KevyMailboxStore {
             .map_err(io::Error::from)
     }
 
-    /// Forgets a message: its facts, their rows and its verdict.
-    pub fn delete_ledger(&self, mid: &str) -> io::Result<()> {
+    /// Forgets `user`'s copy of a message: its facts, their rows and its verdict.
+    pub fn delete_ledger(&self, user: &str, mid: &str) -> io::Result<()> {
         self.store()
             .atomic(|ctx| {
-                let key = msg_key(mid);
+                let key = msg_key(user, mid);
                 let read = |v: Option<Vec<u8>>| v.map(|v| String::from_utf8_lossy(&v).into_owned());
                 let links = read(ctx.hget(key.as_bytes(), b"links")?).unwrap_or_default();
                 let files = read(ctx.hget(key.as_bytes(), b"files")?).unwrap_or_default();
-                let mut doomed = vec![key.clone(), verdict_key(mid)];
-                doomed.extend(links.split_whitespace().map(|h| link_key(mid, h)));
-                doomed.extend(files.split_whitespace().map(|s| file_key(mid, s)));
+                let mut doomed = vec![key.clone(), verdict_key(user, mid)];
+                doomed.extend(links.split_whitespace().map(|h| link_key(user, mid, h)));
+                doomed.extend(files.split_whitespace().map(|s| file_key(user, mid, s)));
                 let refs: Vec<&[u8]> = doomed.iter().map(|k| k.as_bytes()).collect();
                 ctx.del(&refs);
                 Ok(())
@@ -301,6 +310,100 @@ impl KevyMailboxStore {
             }
         }
         Ok(out)
+    }
+}
+
+/// A reader's running relationship with one correspondent.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Relationship {
+    pub first_at: i64,
+    pub inbound: i64,
+    pub name: String,
+}
+
+fn text(v: &[u8]) -> String {
+    String::from_utf8_lossy(v).into_owned()
+}
+
+fn words(v: &[u8]) -> Vec<String> {
+    text(v).split_whitespace().map(str::to_string).collect()
+}
+
+fn number<T: std::str::FromStr + Default>(v: &[u8]) -> T {
+    text(v).parse().unwrap_or_default()
+}
+
+impl LedgerFacts {
+    fn from_pairs(pairs: &[(Vec<u8>, Vec<u8>)]) -> Self {
+        let mut f = Self::default();
+        for (k, v) in pairs {
+            match text(k).as_str() {
+                "mid" => f.message_id = text(v),
+                "user" => f.user = text(v),
+                "from_addr" => f.from_addr = text(v),
+                "from_domain" => f.from_domain = text(v),
+                "reply_to" => f.reply_to = text(v),
+                "auth" => f.auth = text(v),
+                "arrived" => f.arrived = number(v),
+                "links" => f.link_hosts = words(v),
+                "files" => f.attachment_sha256 = words(v),
+                _ => {}
+            }
+        }
+        f
+    }
+}
+
+impl LedgerVerdict {
+    fn from_pairs(pairs: &[(Vec<u8>, Vec<u8>)]) -> Self {
+        let mut d = Self::default();
+        for (k, v) in pairs {
+            match text(k).as_str() {
+                "rules" => d.rules = words(v),
+                "score" => d.score = number(v),
+                "version" => d.rules_version = text(v),
+                "at" => d.judged_at = number(v),
+                _ => {}
+            }
+        }
+        d
+    }
+}
+
+impl Relationship {
+    fn from_pairs(pairs: &[(Vec<u8>, Vec<u8>)]) -> Self {
+        let mut r = Self::default();
+        for (k, v) in pairs {
+            match text(k).as_str() {
+                "first_at" => r.first_at = number(v),
+                "in" => r.inbound = number(v),
+                "name" => r.name = text(v),
+                _ => {}
+            }
+        }
+        r
+    }
+}
+
+impl KevyMailboxStore {
+    /// What `user`'s copy of a message was, as delivery recorded it.
+    pub fn ledger_facts(&self, user: &str, mid: &str) -> io::Result<Option<LedgerFacts>> {
+        let pairs = self.store().hgetall(msg_key(user, mid).as_bytes())?;
+        Ok((!pairs.is_empty()).then(|| LedgerFacts::from_pairs(&pairs)))
+    }
+
+    /// The verdict on `user`'s copy of a message, when one was recorded.
+    pub fn ledger_verdict(&self, user: &str, mid: &str) -> io::Result<Option<LedgerVerdict>> {
+        let pairs = self.store().hgetall(verdict_key(user, mid).as_bytes())?;
+        Ok((!pairs.is_empty()).then(|| LedgerVerdict::from_pairs(&pairs)))
+    }
+
+    /// `user`'s relationship with `addr`, when they have had one.
+    pub fn relationship(&self, user: &str, addr: &str) -> io::Result<Option<Relationship>> {
+        let pairs = self
+            .store()
+            .hgetall(format!("L:r:{user}:{addr}").as_bytes())?;
+        Ok((!pairs.is_empty()).then(|| Relationship::from_pairs(&pairs)))
     }
 }
 
