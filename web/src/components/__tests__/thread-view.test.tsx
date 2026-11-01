@@ -227,10 +227,9 @@ describe('ThreadView — no selection', () => {
     // derived now, so this is how "nothing is selected" is expressed.
     const store = makeStore()
     flatStub.conversations = []
-    const onBack = vi.fn()
     render(
       <Wrapper store={store}>
-        <ThreadView onBack={onBack} />
+        <ThreadView />
       </Wrapper>
     )
     expect(screen.queryByText('Back')).toBeNull()

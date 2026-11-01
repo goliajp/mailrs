@@ -187,3 +187,46 @@ for (const width of WIDTHS) {
     await expect(page.locator('a[href="/admin"]').first()).toBeVisible()
   })
 }
+
+// Seven messages, the fourth unread: the newest and the unread one open,
+// the second and third fold into one line.
+const LONG_CONVERSATION = Array.from({ length: 7 }, (_, i) => ({
+  attachments: [],
+  flags: i === 3 ? 0 : 1,
+  html_body: null,
+  internal_date: 1754400000 + i * 3600,
+  recipients: 'a@golia.jp',
+  sender: `Person ${i + 1} <p${i + 1}@example.com>`,
+  subject: 'Invoice for October',
+  text_body: `Message number ${i + 1}`,
+  uid: i + 1,
+}))
+
+test('a long conversation reads as a stack the keyboard moves through', async ({ page }) => {
+  await stubApi(page)
+  await page.route('**/api/conversations/t1', (route) =>
+    route.fulfill({ json: LONG_CONVERSATION, status: 200 })
+  )
+  await page.goto('/mail')
+  const stack = page.getByRole('group', { name: 'Messages in this conversation' })
+  const headers = stack.locator('[data-stack-header]')
+  await expect(headers.first()).toBeVisible()
+  await expect(stack.locator('[data-stack-header][aria-expanded="true"]')).toHaveCount(2)
+  await expect(stack.getByRole('button', { name: 'Show 2 earlier messages' })).toBeVisible()
+  expect(await seriousProblems(page)).toEqual([])
+
+  const five = headers.filter({ hasText: 'Person 5' })
+  await expect(five).toHaveAttribute('aria-expanded', 'false')
+  await five.click()
+  await expect(five).toHaveAttribute('aria-expanded', 'true')
+
+  await headers.first().focus()
+  await page.keyboard.press('ArrowDown')
+  await expect(headers.filter({ hasText: 'Person 4' })).toBeFocused()
+  await page.keyboard.press('j')
+  await expect(five).toBeFocused()
+  await page.keyboard.press('o')
+  await expect(five).toHaveAttribute('aria-expanded', 'false')
+  // the keys moved within the conversation, not the list to another one
+  await expect(headers.first()).toBeVisible()
+})
