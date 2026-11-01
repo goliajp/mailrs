@@ -159,6 +159,16 @@ export type GreylistLocalKind = 'cidr' | 'domain' | 'email'
 
 export type GreylistLocalListName = 'black' | 'white'
 
+/**
+ * Something in the user's mailbox changed — read, archived, moved,
+ * deleted — from any client: this browser, another tab, a phone, IMAP.
+ * It names no thread: the reader refetches what it shows.
+ */
+export type MailboxChangedEvent = {
+  type: 'MailboxChanged'
+  user: string
+}
+
 export type NewMessageEvent = {
   sender: string
   snippet: string

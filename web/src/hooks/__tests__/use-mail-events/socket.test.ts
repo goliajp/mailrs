@@ -43,10 +43,10 @@ vi.mock('@/lib/query-client', () => ({
   },
 }))
 vi.mock('@/lib/query-keys', () => ({
+  dashboardKeys: { all: () => ['dashboard'] },
   mailKeys: {
     all: () => ['mail'],
     categories: () => ['mail', 'categories'],
-    conversations: () => ['mail', 'conversations'],
     thread: (tid: string) => ['mail', 'thread', tid],
   },
 }))

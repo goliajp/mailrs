@@ -6,7 +6,12 @@ import { describe, expect, it } from 'vitest'
 
 import { conversationKeys } from '@/store/query-keys-v21'
 
-import { onConversationRead, onNewMessage } from '../events/conversation'
+import {
+  LOCAL_ECHO_MS,
+  onMailboxChanged,
+  onNewMessage,
+  refreshMailState,
+} from '../events/conversation'
 
 /**
  * Reducers for server-push events (RFC §3.2). These are pure enough to
@@ -96,26 +101,53 @@ describe('onNewMessage', () => {
   })
 })
 
-describe('onConversationRead', () => {
-  it('sets unread_count to 0 on every cached list line containing the thread', () => {
-    const qc = new QueryClient()
-    const seed: InfiniteData<ConversationSummary[]> = {
-      pageParams: [undefined],
-      pages: [[makeConvo('t-1', 3), makeConvo('t-2', 2)]],
-    }
-    qc.setQueryData(conversationKeys.infinite({ folder: 'INBOX' }), seed)
-    qc.setQueryData(conversationKeys.infinite({ folder: 'INBOX', unread: true }), seed)
+// the unread badge's key (`useCurrentUnreadCount`)
+const BADGE = [...conversationKeys.lists(), 'unseen-count']
+const INBOX = conversationKeys.infinite({ folder: 'INBOX' })
 
-    onConversationRead(qc, 't-1')
+function seeded(): QueryClient {
+  const qc = new QueryClient()
+  primeInfiniteCache(qc)
+  qc.setQueryData(BADGE, { count: 37 })
+  return qc
+}
 
-    for (const key of [
-      conversationKeys.infinite({ folder: 'INBOX' }),
-      conversationKeys.infinite({ folder: 'INBOX', unread: true }),
-    ]) {
-      const data = qc.getQueryData<InfiniteData<ConversationSummary[]>>(key)
-      const t1 = data?.pages.flat().find((c) => c.thread_id === 't-1')
-      expect(t1?.unread_count).toBe(0)
-    }
+const stale = (qc: QueryClient, key: readonly unknown[]) =>
+  qc.getQueryState(key)?.isInvalidated === true
+
+describe('the server has changed the mailbox', () => {
+  it('a full refresh reaches the badge and the scrolling lists', () => {
+    const qc = seeded()
+    refreshMailState(qc, { lists: true })
+    expect(stale(qc, BADGE)).toBe(true)
+    expect(stale(qc, INBOX)).toBe(true)
+  })
+
+  it('a change made elsewhere refetches both', () => {
+    const qc = seeded()
+    onMailboxChanged(qc, 100_000, 100_000 - LOCAL_ECHO_MS - 1)
+    expect(stale(qc, BADGE)).toBe(true)
+    expect(stale(qc, INBOX)).toBe(true)
+  })
+
+  it("the echo of this tab's own change refetches the counts and leaves the list", () => {
+    const qc = seeded()
+    onMailboxChanged(qc, 100_000, 99_000)
+    expect(stale(qc, BADGE)).toBe(true)
+    expect(stale(qc, INBOX)).toBe(false)
+  })
+
+  it('new mail refetches the badge too', () => {
+    const qc = seeded()
+    onNewMessage(qc, {
+      sender: 'x@y.z',
+      snippet: 's',
+      subject: 'new',
+      thread_id: 't-1',
+      type: 'NewMessage',
+      user: 'a@b.c',
+    } as unknown as NewMessageEvent)
+    expect(stale(qc, BADGE)).toBe(true)
   })
 })
 

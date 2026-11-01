@@ -3,8 +3,8 @@
 // All cache reads and invalidations route through these helpers — never
 // hand-write a query key inline. The factory exists so that:
 //   1. Invalidation can be done at any prefix (e.g. `mailKeys.all()` busts
-//      every mail query at once on logout, `mailKeys.conversations()` busts
-//      every conversation-list variant when a NewMessage arrives).
+//      every mail query at once on logout). Conversation lists key on
+//      `conversationKeys` in `store/query-keys-v21.ts`.
 //   2. Filter shape changes show up as type errors at the call site instead
 //      of silently mismatching keys.
 //   3. Future per-namespace gcTime / staleTime overrides are localized.
@@ -88,8 +88,6 @@ export const mailKeys = {
   all: () => ['mail'] as const,
   categories: (domains: string[]) =>
     [...mailKeys.all(), 'categories', [...domains].sort().join(',')] as const,
-  conversations: (filters?: MailListFilters) =>
-    [...mailKeys.all(), 'conversations', filters ? normalizeFilters(filters) : {}] as const,
   drafts: () => [...mailKeys.all(), 'drafts'] as const,
   search: (q: string, filters?: MailListFilters) =>
     [...mailKeys.all(), 'search', q, filters ? normalizeFilters(filters) : {}] as const,
@@ -154,7 +152,6 @@ export const settingsKeys = {
 
 export const dashboardKeys = {
   all: () => ['dashboard'] as const,
-  conversations: () => [...dashboardKeys.all(), 'conversations'] as const,
   folders: () => [...dashboardKeys.all(), 'folders'] as const,
   stats: () => [...dashboardKeys.all(), 'stats'] as const,
 }

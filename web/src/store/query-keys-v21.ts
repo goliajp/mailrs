@@ -1,10 +1,9 @@
 /**
  * v2.1 entity-oriented query keys — layer 4 (see RFC §2.4).
  *
- * The old per-screen keys (`mailKeys.conversations` /
- * `dashboardKeys.conversations`) will be deleted once every screen
- * migrates. During the transition this file coexists alongside
- * `query-keys.ts`. **New code MUST import from here.**
+ * Conversation lists key here and nowhere else: `mailKeys.conversations`
+ * stayed behind after the lists moved, and every refresh aimed at it
+ * refreshed nothing. **New code MUST import from here.**
  *
  * Rule of thumb: every key starts with the entity name, not the screen.
  * A dashboard reading a conversation list keys on

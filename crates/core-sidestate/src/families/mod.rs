@@ -20,6 +20,7 @@ pub mod forwarding;
 pub mod identity_link;
 pub mod image_prefetch;
 pub mod imap_import;
+pub mod live_events;
 pub mod local_forward;
 pub mod masked_email;
 pub mod mock;
