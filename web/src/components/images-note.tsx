@@ -47,3 +47,15 @@ export function ImagesHiddenNote({
     </p>
   )
 }
+
+/** Above a message whose trackers were taken out: who wanted to know it was read. */
+export function TrackersNote({ count, hosts }: { count: number; hosts: string[] }) {
+  const t = useT()
+  const named = hosts.filter((h) => h !== '')
+  return (
+    <p className={NOTE} title={t('trackers.explain')}>
+      {t('trackers.blocked', { count })}
+      {named.length > 0 && <> · {named.join(', ')}</>}
+    </p>
+  )
+}

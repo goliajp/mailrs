@@ -59,6 +59,30 @@ describe('remote images in mail', () => {
     }
   })
 
+  it('take trackers out, never load them, and say who they were', async () => {
+    const html = `<img src="https://mailtrack.io/trace/mail/abc.png" alt="beacon">
+      <img src="https://cdn.shop.test/p.gif" width="1" height="1" alt="pixel">
+      <img src="https://cdn.shop.test/hero.jpg" alt="hero">
+      <a href="https://shop.test/sale?id=7&amp;utm_source=mail">sale</a>`
+    const { container } = render(<HtmlFrame attachments={[]} html={html} uid={1} />)
+    expect(screen.getByText(/Trackers blocked: 2/)).toBeDefined()
+    expect(screen.getByText(/mailtrack\.io, cdn\.shop\.test/)).toBeDefined()
+    const root = container.querySelector<HTMLElement>('div[class*="isolate"]')!.shadowRoot!
+    for (const alt of ['beacon', 'pixel']) {
+      const el = root.querySelector<HTMLImageElement>(`img[alt="${alt}"]`)!
+      expect(el.hasAttribute('src')).toBe(false)
+      expect(el.hasAttribute('data-remote-src')).toBe(false)
+    }
+    await vi.waitFor(() =>
+      expect(root.querySelector('img[alt="hero"]')!.getAttribute('src')).toContain(
+        '/api/mail/image/'
+      )
+    )
+    const link = root.querySelector('a')!.getAttribute('href')!
+    expect(decodeURIComponent(link)).toContain('https://shop.test/sale?id=7')
+    expect(decodeURIComponent(link)).not.toContain('utm_source')
+  })
+
   // mail from before images were fetched on arrival: the miss asks the
   // server for them once, and the image is asked for again later
   it('a missing image is fetched on request and loaded again', async () => {
@@ -79,7 +103,7 @@ describe('remote images in mail', () => {
 
   it('says why the images of mail in Junk are not shown', async () => {
     vi.mocked(wirePrefetchThreadImages).mockResolvedValue('junk')
-    const html = '<img src="https://spam.example/pixel.gif" alt="px">'
+    const html = '<img src="https://spam.example/banner.gif" alt="px">'
     const { container } = render(<HtmlFrame html={html} imagesOf="t-junk" />)
     const root = container.querySelector<HTMLElement>('div:last-child')!.shadowRoot!
     const img = root.querySelector<HTMLImageElement>('img[alt="px"]')!

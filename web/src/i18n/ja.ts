@@ -471,6 +471,9 @@ export const ja: Record<Key, string> = {
   'thread.markedRead': '既読にしました',
   'thread.me': '自分',
   'thread.showEarlier': '以前のメッセージを {count} 件表示',
+  'trackers.blocked': 'トラッカーを {count} 件ブロックしました',
+  'trackers.explain':
+    'これらの画像は、メールを開いたことを送信者に知らせるためだけのものです。サーバーも含め、一度も読み込んでいません',
   'trash.confirmBody': '中の会話はすべて削除され、元に戻せません。',
   'trash.confirmTitle': 'ゴミ箱を空にしますか？',
   'trash.deleted.one': '1 件の会話を完全に削除しました',
