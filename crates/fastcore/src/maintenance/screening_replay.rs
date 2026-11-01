@@ -82,7 +82,7 @@ pub(crate) async fn screening_replay_route(
     body: String,
 ) -> axum::response::Response {
     // a Lua VM stays on the thread it was made on
-    match tokio::task::spawn_blocking(move || replay(&state, &q, body)).await {
+    match super::hangup::run_blocking(move |h| replay(&state, &q, body, h)).await {
         Ok(r) => r,
         Err(e) => {
             tracing::error!(error = %e, "screening replay panicked");
@@ -91,7 +91,12 @@ pub(crate) async fn screening_replay_route(
     }
 }
 
-fn replay(state: &Arc<FastcoreState>, q: &ReplayQuery, body: String) -> axum::response::Response {
+fn replay(
+    state: &Arc<FastcoreState>,
+    q: &ReplayQuery,
+    body: String,
+    hangup: &super::hangup::Hangup,
+) -> axum::response::Response {
     let source = match body.trim().is_empty() {
         true => mailrs_screening_lua::DEFAULT_SOURCE.to_string(),
         false => body,
@@ -152,6 +157,11 @@ fn replay(state: &Arc<FastcoreState>, q: &ReplayQuery, body: String) -> axum::re
             continue;
         }
         if walked >= q.limit {
+            stopped_early = true;
+            break;
+        }
+        if hangup.hung_up() {
+            tracing::warn!(walked, "screening replay: the caller hung up, stopping");
             stopped_early = true;
             break;
         }
@@ -310,5 +320,41 @@ fn judge(
     match e.errors.is_empty() {
         true => Ok(e.hits),
         false => Err(e.errors.join("; ")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::hangup::{Hangup, seed};
+    use super::*;
+
+    async fn walked(state: &Arc<FastcoreState>, hangup: &Hangup) -> serde_json::Value {
+        let q = ReplayQuery {
+            skip: 0,
+            limit: 100,
+            days: 36_500,
+            pause_ms: 0,
+        };
+        let res = replay(state, &q, String::new(), hangup);
+        assert_eq!(res.status(), axum::http::StatusCode::OK);
+        serde_json::from_slice(
+            &axum::body::to_bytes(res.into_body(), 1 << 20)
+                .await
+                .unwrap(),
+        )
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn the_replay_stops_soon_after_the_caller_hangs_up() {
+        let mut state = crate::tests::fresh_state_owned();
+        state.net_url = Some("mem://replay-hangup".into());
+        let state = Arc::new(state);
+        seed(&state, "u@x", 5);
+        let all = walked(&state, &Hangup::never()).await;
+        assert_eq!(all["walked"], 5, "{all}");
+        let cut = walked(&state, &Hangup::after(2)).await;
+        assert_eq!(cut["walked"], 2, "{cut}");
+        assert_eq!(cut["stopped_early"], true, "{cut}");
     }
 }

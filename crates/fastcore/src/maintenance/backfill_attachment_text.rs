@@ -41,7 +41,7 @@ pub(crate) async fn backfill_attachment_text_route(
     Query(q): Query<BackfillQuery>,
 ) -> axum::response::Response {
     // reading and parsing every stored file takes minutes: off the runtime
-    match tokio::task::spawn_blocking(move || walk(&state, &q)).await {
+    match super::hangup::run_blocking(move |h| walk(&state, &q, h)).await {
         Ok(Ok(report)) => Json(report).into_response(),
         Ok(Err(e)) => {
             tracing::error!(error = %e, "backfill-attachment-text: listing accounts failed");
@@ -54,7 +54,11 @@ pub(crate) async fn backfill_attachment_text_route(
     }
 }
 
-fn walk(state: &Arc<FastcoreState>, q: &BackfillQuery) -> std::io::Result<serde_json::Value> {
+fn walk(
+    state: &Arc<FastcoreState>,
+    q: &BackfillQuery,
+    hangup: &super::hangup::Hangup,
+) -> std::io::Result<serde_json::Value> {
     let users = state.mailbox.list_account_addresses()?;
     let mut seen = 0u64;
     let mut walked = 0u64;
@@ -92,6 +96,14 @@ fn walk(state: &Arc<FastcoreState>, q: &BackfillQuery) -> std::io::Result<serde_
                     continue;
                 }
                 if walked >= q.limit {
+                    stopped_early = true;
+                    break 'walk;
+                }
+                if hangup.hung_up() {
+                    tracing::warn!(
+                        walked,
+                        "backfill-attachment-text: the caller hung up, stopping"
+                    );
                     stopped_early = true;
                     break 'walk;
                 }
@@ -215,5 +227,23 @@ mod tests {
         assert_eq!(out["messages_walked"], 0, "{out}");
         assert_eq!(out["queued"], 0, "{out}");
         assert_eq!(out["done"], true, "{out}");
+    }
+
+    #[test]
+    fn a_walk_stops_soon_after_the_caller_hangs_up() {
+        use super::super::hangup::{Hangup, seed};
+        let state = crate::tests::fresh_state();
+        seed(&state, "u@x", 5);
+        let q = BackfillQuery {
+            dry_run: true,
+            skip: 0,
+            limit: 100,
+            pause_ms: 0,
+        };
+        let all = walk(&state, &q, &Hangup::never()).unwrap();
+        assert_eq!(all["messages_walked"], 5, "{all}");
+        let cut = walk(&state, &q, &Hangup::after(2)).unwrap();
+        assert_eq!(cut["messages_walked"], 2, "{cut}");
+        assert_eq!(cut["done"], false, "{cut}");
     }
 }
