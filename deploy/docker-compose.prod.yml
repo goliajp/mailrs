@@ -243,6 +243,8 @@ services:
       # whichever core runs answers here: fastcore, or the SQL core when
       # docker-compose.pg-core.yml is layered on this file
       MAILRS_CORE_RPC_BASE: ${MAILRS_CORE_RPC_BASE:-http://mailrs-fastcore:3301}
+      # /api/health core_memory.high: the core's cgroup at or past this percent
+      MAILRS_MEMORY_HIGH_PERCENT: ${MAILRS_MEMORY_HIGH_PERCENT:-80}
       MAILRS_CORE_API_SECRET: ${MAILRS_CORE_API_SECRET}
       # what reset codes are signed with; webapi-fc alone issues and checks them
       MAILRS_RESET_CODE_KEY: ${MAILRS_RESET_CODE_KEY:-}

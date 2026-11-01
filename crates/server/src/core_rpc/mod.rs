@@ -69,6 +69,7 @@ impl Handler for CoreRpcState {
             backend: BackendKind::Pg,
             // healthz is a liveness probe — process is up.
             ready: true,
+            memory: mailrs_core_api::memory::cgroup(),
         }
     }
 
@@ -98,6 +99,7 @@ impl Handler for CoreRpcState {
             version: mailrs_core_api::API_VERSION.into(),
             backend: BackendKind::Pg,
             ready,
+            memory: mailrs_core_api::memory::cgroup(),
         }
     }
 }

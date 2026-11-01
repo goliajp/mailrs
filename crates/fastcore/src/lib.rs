@@ -168,6 +168,7 @@ impl Handler for FastcoreState {
             version: mailrs_core_api::API_VERSION.into(),
             backend: BackendKind::Kevy,
             ready: self.boot_intact,
+            memory: mailrs_core_api::memory::cgroup(),
         }
     }
 
@@ -180,6 +181,7 @@ impl Handler for FastcoreState {
             version: mailrs_core_api::API_VERSION.into(),
             backend: BackendKind::Kevy,
             ready: self.boot_intact,
+            memory: mailrs_core_api::memory::cgroup(),
         }
     }
 }
