@@ -49,9 +49,10 @@ Streamable HTTP endpoint: https://mail.golia.ai/mcp
 - GET/POST /api/rules, POST/DELETE /api/rules/{id} — rules {name, query, actions, enabled}: arriving mail matching the query gets the actions (label:<id>, archive, read, star, junk, trash); POST /api/rules/preview {query} counts what a run would change; POST /api/rules/{id}/apply runs one over existing mail and returns run_id; POST /api/rules/runs/{run_id}/undo reverses it (7 days)
 - GET /api/conversations/{thread_id} — thread messages
 - GET /api/mail/messages/{uid} — read message; a meeting invitation comes back as `invite_method` + `invite_payload`
-- POST /api/invites/{uid}/rsvp — answer an invitation (ACCEPTED / TENTATIVE / DECLINED); records the choice and queues an iTIP REPLY to the organiser
+- POST /api/invites/{uid}/rsvp — answer an invitation (ACCEPTED / TENTATIVE / DECLINED); records the choice on the calendar event and queues an iTIP REPLY to the organiser
 - POST /api/invites/{uid}/counter — propose a different time
-- GET /api/calendar/conflicts?start=&end= — what else is already in the calendar over that window
+- GET /api/calendar/conflicts?start=&end= — what else is already in the calendar over that window (declined invitations are not conflicts)
+- GET /api/calendar/events?start=&end= — every event in that window: own, invitations filed from mail with the reader's answer (`partstat`), and subscribed feeds
 - POST /api/conversations/{thread_id}/read — mark read
 - POST /api/conversations/{thread_id}/star — star
 - POST /api/conversations/{thread_id}/archive — archive

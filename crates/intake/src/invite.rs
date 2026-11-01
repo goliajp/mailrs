@@ -94,47 +94,8 @@ pub fn file_event(net: Option<kevy_client::Connection>, user: &str, found: &Foun
     let Some(mut conn) = net else {
         return;
     };
-    let key = ev::event_key(user, &found.uid);
-    if let Ok(flat) = conn.hgetall(key.as_bytes()) {
-        let existing = ev::from_flat(&found.uid, &flat);
-        if !flat.is_empty() && existing.sequence > found.sequence {
-            return;
-        }
-    }
-    let dtstart = parsed
-        .get("dtstart_utc")
-        .and_then(|v| v.as_str())
-        .map(str::to_string);
-    let row = ev::StoredEvent {
-        uid: found.uid.clone(),
-        summary: parsed
-            .get("summary")
-            .and_then(|v| v.as_str())
-            .unwrap_or_default()
-            .to_string(),
-        dtstart: dtstart.clone(),
-        dtend: parsed
-            .get("dtend_utc")
-            .and_then(|v| v.as_str())
-            .map(str::to_string),
-        organizer: parsed
-            .get("organizer")
-            .and_then(|o| o.get("email"))
-            .and_then(|v| v.as_str())
-            .map(str::to_string),
-        status: if found.method == "CANCEL" {
-            Some("CANCELLED".to_string())
-        } else {
-            parsed
-                .get("status")
-                .and_then(|v| v.as_str())
-                .map(str::to_string)
-        },
-        source: format!("mail:{}", found.uid),
-        sequence: found.sequence,
-        ics: None,
-    };
-    if let Err(e) = ev::put(&mut conn, user, &row) {
+    let row = ev::from_invite(&found.uid, &found.method, found.sequence, &parsed);
+    if let Err(e) = ev::file_invite(&mut conn, user, &row) {
         tracing::warn!(err = %e, %user, uid = %found.uid, "invite: cannot file event");
     }
 }

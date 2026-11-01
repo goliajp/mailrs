@@ -39,6 +39,7 @@ import { authAtom } from '@/store/auth'
 import { connectionStatusAtom, openThreadAtom } from '@/store/ui'
 
 const Admin = lazy(() => import('@/pages/admin').then((m) => ({ default: m.Admin })))
+const Calendar = lazy(() => import('@/pages/calendar').then((m) => ({ default: m.Calendar })))
 const Chat = lazy(() => import('@/pages/chat').then((m) => ({ default: m.Chat })))
 const MockMail = lazy(() => import('@/pages/mock').then((m) => ({ default: m.MockMail })))
 const Dashboard = lazy(() => import('@/pages/dashboard').then((m) => ({ default: m.Dashboard })))
@@ -96,6 +97,7 @@ const router = createBrowserRouter([
           { element: <PageProtocol />, errorElement: <RouteErrorFallback />, path: '/protocol' },
           { element: <PageAdmin />, errorElement: <RouteErrorFallback />, path: '/admin/*' },
           { element: <PageSettings />, errorElement: <RouteErrorFallback />, path: '/settings' },
+          { element: <PageCalendar />, errorElement: <RouteErrorFallback />, path: '/calendar' },
           { element: <PageMock />, errorElement: <RouteErrorFallback />, path: '/mock' },
           {
             element: <PageChat />,
@@ -211,6 +213,16 @@ function PageAdmin() {
     <PagePane>
       <Suspense fallback={<LoadingFallback />}>
         <Admin />
+      </Suspense>
+    </PagePane>
+  )
+}
+
+function PageCalendar() {
+  return (
+    <PagePane>
+      <Suspense fallback={<LoadingFallback />}>
+        <Calendar />
       </Suspense>
     </PagePane>
   )

@@ -1,11 +1,11 @@
-//! `/api/calendar/*` endpoints — feeds CRUD + conflicts.
+//! `/api/calendar/*` endpoints — feeds CRUD, events and conflicts.
 //!
 //! Storage on network kevy:
 //!
 //! ```text
 //! calendar_feeds:<user>          hash { feed_id -> JSON CalendarFeed }
 //! calendar_events:<user>         zset  score = dtstart_epoch, member = event_uid
-//! calendar_event:<user>:<uid>    hash  { summary, dtstart, dtend, organizer, status, source }
+//! calendar_event:<user>:<uid>    hash  { summary, dtstart, dtend, organizer, status, source, partstat }
 //! ```
 //!
 //! Full recurrence expansion (RRULE / EXDATE / RECURRENCE-ID) mirrors
@@ -54,6 +54,10 @@ pub struct EventRow {
     pub status: Option<String>,
     #[serde(default)]
     pub source: Option<String>,
+    /// The reader's answer — `ACCEPTED` / `TENTATIVE` / `DECLINED` —
+    /// absent when they have not given one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub partstat: Option<String>,
 }
 
 fn parse_iso(s: &str) -> Option<i64> {
@@ -88,41 +92,78 @@ fn parse_iso(s: &str) -> Option<i64> {
 }
 
 /// GET /api/calendar/conflicts?start=&end= — overlapping events.
+///
+/// An event the reader declined is not a conflict: they are not going.
 pub async fn get_conflicts(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Query(q): Query<ConflictsQuery>,
 ) -> Json<Vec<EventRow>> {
-    let Some(start_ts) = parse_iso(&q.start) else {
+    let (Some(start_ts), Some(end_ts)) = (parse_iso(&q.start), parse_iso(&q.end)) else {
         return Json(vec![]);
     };
-    let Some(end_ts) = parse_iso(&q.end) else {
-        return Json(vec![]);
+    let rows = rows_in_window(&user, start_ts, end_ts)
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|r| Some(r.uid.as_str()) != q.exclude_uid.as_deref())
+        .filter(|r| r.partstat.as_deref() != Some("DECLINED"))
+        .collect();
+    Json(rows)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct EventsQuery {
+    /// ISO-8601 UTC start of the window.
+    pub start: String,
+    /// ISO-8601 UTC end of the window.
+    pub end: String,
+}
+
+/// GET /api/calendar/events?start=&end= — every event overlapping the
+/// window: the reader's own, invitations filed from mail, and each
+/// subscribed feed's, declined ones included. 400 when either bound is
+/// not an instant, 5xx when the store cannot be read — an empty week and
+/// an unreadable one must not look the same.
+pub async fn get_events(
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Query(q): Query<EventsQuery>,
+) -> Result<Json<Vec<EventRow>>, StatusCode> {
+    let (Some(start_ts), Some(end_ts)) = (parse_iso(&q.start), parse_iso(&q.end)) else {
+        return Err(StatusCode::BAD_REQUEST);
     };
-    let idx_key = mailrs_core_sidestate::families::calendar_events::index_key(&user);
-    let user_c = user.clone();
-    let members = with_kevy(move |c| {
-        c.zrange(idx_key.as_bytes(), 0, -1)
-            .map_err(std::io::Error::from)
-    })
-    .unwrap_or_default();
-    let mut out = Vec::new();
-    for m in members {
-        let Some(uid) = String::from_utf8(m).ok() else {
-            continue;
-        };
-        if Some(uid.as_str()) == q.exclude_uid.as_deref() {
-            continue;
-        }
-        let key = mailrs_core_sidestate::families::calendar_events::event_key(&user_c, &uid);
-        let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::from))
-            .unwrap_or_default();
-        // Through the shared reader, which is also what the writers
-        // now go through. This loop used to live here and looked only
-        // for flat fields, while the feed sync wrote the whole row into
-        // a single `json` — so a subscribed calendar's events read as
-        // blank rows and never conflicted with anything.
-        let stored = mailrs_core_sidestate::families::calendar_events::from_flat(&uid, &flat);
-        let row = EventRow {
+    rows_in_window(&user, start_ts, end_ts).map(Json)
+}
+
+/// The user's events overlapping `[start_ts, end_ts)`, in start order.
+///
+/// One reader for the conflicts check and the calendar, so the two never
+/// disagree about which events exist. A row without an end lasts an hour,
+/// as it always has for conflicts.
+fn rows_in_window(user: &str, start_ts: i64, end_ts: i64) -> Result<Vec<EventRow>, StatusCode> {
+    let user = user.to_string();
+    let stored =
+        with_kevy(move |c| mailrs_core_sidestate::families::calendar_events::list(c, &user))?;
+    Ok(stored
+        .into_iter()
+        .map(EventRow::from)
+        .filter(|row| {
+            let s_ts = row
+                .dtstart
+                .as_deref()
+                .and_then(parse_iso)
+                .unwrap_or(i64::MIN);
+            let e_ts = row
+                .dtend
+                .as_deref()
+                .and_then(parse_iso)
+                .unwrap_or(s_ts + 3600);
+            s_ts < end_ts && e_ts > start_ts
+        })
+        .collect())
+}
+
+impl From<mailrs_core_sidestate::families::calendar_events::StoredEvent> for EventRow {
+    fn from(stored: mailrs_core_sidestate::families::calendar_events::StoredEvent) -> Self {
+        Self {
             uid: stored.uid,
             summary: stored.summary,
             dtstart: stored.dtstart,
@@ -130,23 +171,9 @@ pub async fn get_conflicts(
             organizer: stored.organizer,
             status: stored.status,
             source: Some(stored.source).filter(|s| !s.is_empty()),
-        };
-        // Window overlap check.
-        let s_ts = row
-            .dtstart
-            .as_deref()
-            .and_then(parse_iso)
-            .unwrap_or(i64::MIN);
-        let e_ts = row
-            .dtend
-            .as_deref()
-            .and_then(parse_iso)
-            .unwrap_or(s_ts + 3600);
-        if s_ts < end_ts && e_ts > start_ts {
-            out.push(row);
+            partstat: stored.partstat,
         }
     }
-    Json(out)
 }
 
 // ── Feeds (subscriptions to external ICS URLs) ─────────────────────

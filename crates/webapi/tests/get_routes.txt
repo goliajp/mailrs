@@ -66,6 +66,7 @@
 /api/auth/totp/status	read only
 /api/bimi/{domain}	read only
 /api/calendar/conflicts	read only
+/api/calendar/events	read only
 /api/calendar/feeds	read only
 /api/contacts	read only
 /api/conversations	read only

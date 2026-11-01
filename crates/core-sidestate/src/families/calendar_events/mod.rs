@@ -27,9 +27,11 @@ use std::io;
 use serde::{Deserialize, Serialize};
 
 mod ics;
+pub mod invite;
 pub mod names;
 
 pub use ics::{from_ics, to_ics};
+pub use invite::{ANSWERS, file_invite, from_invite, set_partstat};
 
 /// An event as stored, and as the conflicts reader wants it.
 ///
@@ -72,6 +74,13 @@ pub struct StoredEvent {
     /// the columns without new text clears it, so the two never disagree.
     #[serde(default)]
     pub ics: Option<String>,
+    /// The reader's own answer — `ACCEPTED` / `TENTATIVE` / `DECLINED` —
+    /// or `None` when they have not given one.
+    ///
+    /// Written only by [`set_partstat`] and never by [`put`], so an update
+    /// from the organiser or a CalDAV client's copy keeps it.
+    #[serde(default)]
+    pub partstat: Option<String>,
 }
 
 /// The hash key for one event.
@@ -85,7 +94,7 @@ pub fn index_key(user: &str) -> String {
 }
 
 /// The field/value pairs to write, in the order a hash writer wants
-/// them.
+/// them. `partstat` is not among them: see [`StoredEvent::partstat`].
 pub fn fields(ev: &StoredEvent) -> Vec<(&'static str, String)> {
     vec![
         ("summary", ev.summary.clone()),
@@ -188,6 +197,7 @@ pub fn from_flat(uid: &str, flat: &[Vec<u8>]) -> StoredEvent {
             "source" => ev.source = v,
             "sequence" => ev.sequence = v.parse().unwrap_or(0),
             "ics" => ev.ics = Some(v).filter(|s| !s.is_empty()),
+            "partstat" => ev.partstat = Some(v).filter(|s| !s.is_empty()),
             "json" => {
                 if let Ok(legacy) = serde_json::from_str::<StoredEvent>(&v) {
                     let seq = ev.sequence;
@@ -234,6 +244,7 @@ mod tests {
             source: "mail:m1@example.com".into(),
             sequence: 9,
             ics: Some("BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n".into()),
+            partstat: None,
         };
         let written = fields(&ev);
         let pairs: Vec<(&str, &str)> = written.iter().map(|(k, v)| (*k, v.as_str())).collect();
