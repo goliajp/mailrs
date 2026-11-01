@@ -17,6 +17,8 @@ pub struct ReceiverCounters {
     active: AtomicU64,
     connections: AtomicU64,
     messages: AtomicU64,
+    probe_guard_tripped: AtomicU64,
+    mask_submit_log_failed: AtomicU64,
     started: Instant,
 }
 
@@ -26,6 +28,8 @@ impl Default for ReceiverCounters {
             active: AtomicU64::new(0),
             connections: AtomicU64::new(0),
             messages: AtomicU64::new(0),
+            probe_guard_tripped: AtomicU64::new(0),
+            mask_submit_log_failed: AtomicU64::new(0),
             started: Instant::now(),
         }
     }
@@ -53,12 +57,22 @@ impl ReceiverCounters {
         self.messages.fetch_add(1, Ordering::Relaxed);
     }
 
+    pub fn on_probe_guard_tripped(&self) {
+        self.probe_guard_tripped.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn on_mask_submit_log_failed(&self) {
+        self.mask_submit_log_failed.fetch_add(1, Ordering::Relaxed);
+    }
+
     pub fn snapshot(&self) -> ReceiverStats {
         ReceiverStats {
             active_connections: self.active.load(Ordering::Relaxed),
             total_connections: self.connections.load(Ordering::Relaxed),
             total_messages: self.messages.load(Ordering::Relaxed),
             uptime_secs: self.started.elapsed().as_secs(),
+            probe_guard_tripped: Some(self.probe_guard_tripped.load(Ordering::Relaxed)),
+            mask_submit_log_failed: Some(self.mask_submit_log_failed.load(Ordering::Relaxed)),
         }
     }
 }

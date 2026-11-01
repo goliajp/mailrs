@@ -143,6 +143,7 @@ export const settingsJa: Record<SettingsKey, string> = {
   'settings.cat.calendar-feeds': 'カレンダーフィード',
   'settings.cat.forwarding': '転送',
   'settings.cat.keys': '暗号化キー',
+  'settings.cat.masked': 'マスクアドレス',
   'settings.cat.reset-codes': 'リセットコード',
   'settings.cat.rules': 'ルール',
   'settings.cat.security': 'セキュリティ',
@@ -214,6 +215,30 @@ export const settingsJa: Record<SettingsKey, string> = {
   'settings.keys.smimePlaceholder': 'S/MIME 証明書を貼り付け（PEM 形式）',
   'settings.keys.title': '暗号化の鍵',
   'settings.loadingDots': '読み込み中…',
+  'settings.masked.blurb':
+    'サイトごとに専用のランダムなアドレスを作り、メールはここに届きます。オフにするとそのサイトからは届かなくなり、削除すると完全に無効になって二度と誰にも割り当てられません。マスクアドレス宛てのメールへの返信は、そのアドレスから送信されます。',
+  'settings.masked.bw.domain': 'メールドメイン（Email domain）',
+  'settings.masked.bw.intro':
+    '先に「API キー」で「マスクアドレスのみ」のプリセットを使ってキーを作成します。次に Bitwarden のジェネレーターで「Forwarded email alias」（転送メールエイリアス）を選び、サービスに SimpleLogin か addy.io を選んで、次のように入力します：',
+  'settings.masked.bw.key': 'API キー（API key）',
+  'settings.masked.bw.keyValue': '作成したキー',
+  'settings.masked.bw.server': 'セルフホストサーバーの URL（Self-host server URL）',
+  'settings.masked.bw.title': 'Bitwarden でマスクアドレスを作る',
+  'settings.masked.confirmDelete':
+    '{email} を削除しますか？今後メールは届かず、二度と割り当てられません。',
+  'settings.masked.create': 'マスクアドレスを作成',
+  'settings.masked.created': '{email} を作成しました',
+  'settings.masked.delete': '削除',
+  'settings.masked.disable': 'オフにする',
+  'settings.masked.disabled': 'オフ',
+  'settings.masked.empty': 'マスクアドレスはまだありません',
+  'settings.masked.enable': 'オンにする',
+  'settings.masked.failed': 'マスクアドレスを変更できませんでした',
+  'settings.masked.lastMessage': '最終受信 {date}',
+  'settings.masked.noMail': 'まだメールは届いていません',
+  'settings.masked.note': 'メモ',
+  'settings.masked.site': 'サイト',
+  'settings.masked.sitePlaceholder': 'サイト（例：shop.example）',
   'settings.mock.accept': 'テストメールを受け付ける',
   'settings.mock.acceptHelp':
     'オフにすると、テスト用ドメイン宛ての新しいメールを拒否し、名前空間も作成できません。保存済みのメールは引き続き読めます',
@@ -297,6 +322,9 @@ export const settingsJa: Record<SettingsKey, string> = {
   'settings.scope.admin': 'フルアクセス · 管理者',
   'settings.scope.full': 'フルアクセス',
   'settings.scope.full.help': 'このアカウントが使えるすべての API（管理用 API を含む）。',
+  'settings.scope.masked': 'マスクアドレスのみ',
+  'settings.scope.masked.help':
+    'パスワードマネージャー向け：マスクアドレスの作成と管理だけができます。メールの閲覧・送信や設定の変更はできません。',
   'settings.scope.mock': 'テスト用メールボックス',
   'settings.scope.mock.help':
     '使い捨てのテスト用メールボックスのみ。実際のメールは読めず、送信もできません。',

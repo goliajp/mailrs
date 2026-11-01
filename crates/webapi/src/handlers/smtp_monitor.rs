@@ -171,6 +171,19 @@ fn dispatch(channel: &[u8], payload: &[u8], tx: &TraceBus, stats: &StatsCache) {
     }
 }
 
+/// The receiver's counters `/api/health` reports. They arrive on the
+/// stats channel every ten seconds; null until a frame has come, which is
+/// not zero.
+pub fn health(stats: &StatsCache) -> serde_json::Value {
+    match stats.get() {
+        Some(s) => serde_json::json!({
+            "probe_guard_tripped": s.probe_guard_tripped,
+            "mask_submit_log_failed": s.mask_submit_log_failed,
+        }),
+        None => serde_json::Value::Null,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -193,6 +206,8 @@ mod tests {
             total_connections: 483,
             total_messages: 17,
             uptime_secs: 60,
+            probe_guard_tripped: Some(0),
+            mask_submit_log_failed: None,
         })
         .unwrap();
 

@@ -65,7 +65,34 @@ pub async fn effective_permissions(
         groups: Vec::new(),
         is_super: perms.is_super(),
         send_as,
+        masks: masks_of(state.net_url.clone(), &address).await,
     }))
+}
+
+/// The account's masks that take mail, from the network kevy both cores
+/// share. Degrades as the derived send-as does: unreadable costs the masks,
+/// not the permission check.
+async fn masks_of(net_url: Option<String>, address: &str) -> Vec<String> {
+    let Some(url) = net_url else {
+        return Vec::new();
+    };
+    let addr = address.to_string();
+    let read = tokio::task::spawn_blocking(move || {
+        let mut conn = kevy_client::Connection::connect(&url).map_err(std::io::Error::other)?;
+        mailrs_core_sidestate::families::masked_email::sendable(&mut conn, &addr)
+    })
+    .await;
+    match read {
+        Ok(Ok(masks)) => masks,
+        Ok(Err(e)) => {
+            tracing::warn!(error = %e, %address, "masks unreadable; own grants only");
+            Vec::new()
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, %address, "masks read panicked; own grants only");
+            Vec::new()
+        }
+    }
 }
 
 /// GET /v1/admin/accounts/{address}/send-as

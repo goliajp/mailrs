@@ -30,6 +30,10 @@ pub struct EffectivePermissionsResponse {
     pub is_super: bool,
     /// Addresses the user may "send as" (via alias + email_group fanout).
     pub send_as: Vec<String>,
+    /// The user's masked addresses that take mail, which it may also send
+    /// from. Apart from `send_as` so a From picker does not list hundreds.
+    #[serde(default)]
+    pub masks: Vec<String>,
 }
 
 impl EffectivePermissionsResponse {
@@ -45,6 +49,7 @@ impl EffectivePermissionsResponse {
             || self
                 .send_as
                 .iter()
+                .chain(&self.masks)
                 .any(|s| s.trim().eq_ignore_ascii_case(from))
     }
 }
@@ -60,6 +65,7 @@ mod tests {
             groups: Vec::new(),
             is_super,
             send_as: send_as.iter().map(|s| s.to_string()).collect(),
+            masks: vec!["amber.otter.000042@x.test".into()],
         }
     }
 
@@ -71,6 +77,7 @@ mod tests {
         assert!(p.may_send_as("TEAM@x.test"));
         assert!(!p.may_send_as("bob@x.test"));
         assert!(!p.may_send_as(""));
+        assert!(p.may_send_as("Amber.Otter.000042@x.test"), "its own mask");
     }
 
     // mail to a tagged address reaches its base mailbox, but sending

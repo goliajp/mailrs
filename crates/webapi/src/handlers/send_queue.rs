@@ -52,6 +52,28 @@ pub(crate) fn send_system_mail(
     enqueue_outbound_at(&from, &[to.to_string()], &envelope, None, None)
 }
 
+/// The envelope sender for a message `account` sends: the account itself,
+/// unless `From:` is one of its masks that takes mail, which then stands in
+/// the envelope too. The envelope sender becomes the recipient's
+/// Return-Path, and a mask that put the account there would give away the
+/// address it hides; a bounce to the mask reaches the account anyway.
+pub(crate) fn envelope_sender(account: &str, message: &[u8]) -> Result<String, StatusCode> {
+    let header = mailrs_rfc5322::Message::new(message)
+        .header_str("From")
+        .map(|v| mailrs_rfc5322::addr_spec(v).trim().to_string())
+        .unwrap_or_default();
+    if header.is_empty() || header.eq_ignore_ascii_case(account) {
+        return Ok(account.to_string());
+    }
+    let mask = header.clone();
+    let owner =
+        with_kevy(move |c| mailrs_core_sidestate::families::masked_email::delivery(c, &mask))?;
+    Ok(match owner {
+        Some(Some(o)) if o.eq_ignore_ascii_case(account) => header,
+        _ => account.to_string(),
+    })
+}
+
 /// Enqueue an outbound message and record the send.
 ///
 /// When `scheduled_at` is a future epoch, the id lands in the
@@ -73,7 +95,10 @@ pub(crate) fn enqueue_outbound_at(
     let send_at = scheduled_at.filter(|t| *t > created);
     use base64::Engine as _;
     let b64 = base64::engine::general_purpose::STANDARD.encode(envelope);
-    let sender = sender.to_string();
+    let account = sender.to_string();
+    let sender = envelope_sender(sender, envelope)?;
+    // sent from a mask: the account is still the one counted and paused
+    let account = (account != sender).then_some(account);
     // The job carries the group so the sender can report a per-recipient
     // outcome against the Send row (S2).
     let send_id_owned: Option<String> = send_meta.as_ref().map(|m| m.message_id.to_string());
@@ -92,6 +117,7 @@ pub(crate) fn enqueue_outbound_at(
         let b64_c = b64.clone();
         let rcpt_c = rcpt.clone();
         let send_id_c = send_id_owned.clone();
+        let account_c = account.clone();
         with_kevy(move |c| {
             mailrs_core_sidestate::families::outbound::write_fresh_pending(
                 c,
@@ -102,7 +128,7 @@ pub(crate) fn enqueue_outbound_at(
                     scheduled_at: send_at,
                     original_sender: None,
                     send_id: send_id_c.as_deref(),
-                    account: None,
+                    account: account_c.as_deref(),
                 },
                 created,
             )

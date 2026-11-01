@@ -27,6 +27,10 @@ pub trait Directory {
     fn group(&self, addr: &str) -> io::Result<Option<Group>>;
     /// The domains we host, in their configured order.
     fn local_domains(&self) -> Arc<Vec<String>>;
+    /// `addr` as a masked address: `Some(Some(owner))` takes mail for the
+    /// owner, `Some(None)` takes none (disabled or deleted), `None` is not a
+    /// mask. Both cores read the one store in the network kevy.
+    fn mask(&self, addr: &str) -> io::Result<Option<Option<String>>>;
 }
 
 pub enum Route {
@@ -38,6 +42,11 @@ pub enum Route {
     /// the mailbox the address's base, an alias or the domain catch-all
     /// leads to
     Alias(String),
+    /// a masked address that takes mail, and the mailbox it delivers to
+    Mask {
+        mask: String,
+        owner: String,
+    },
     Nobody,
 }
 
@@ -50,10 +59,20 @@ pub fn route<D: Directory + ?Sized>(dir: &D, raw: &str, fwd: &str) -> io::Result
     if let Some(original) = srs_original(raw) {
         return Ok(Route::Srs(original));
     }
+    // ahead of groups, aliases and the catch-all: a disabled or deleted mask
+    // reaches nobody, and must not fall into a catch-all that would take it
+    match dir.mask(fwd)? {
+        Some(Some(owner)) => return mask_route(dir, fwd, owner),
+        Some(None) => return Ok(Route::Nobody),
+        None => {}
+    }
     // `local+tag@domain` goes where `local@domain` goes, decided before the
     // catch-all can claim it; only a base that reaches nobody falls back to
     // the tagged address as written
     if let Some(base) = base_address(fwd) {
+        if matches!(dir.mask(&base)?, Some(None)) {
+            return Ok(Route::Nobody);
+        }
         match route(dir, &base, &base)? {
             Route::Nobody => {}
             Route::Own => return Ok(Route::Alias(base)),
@@ -71,6 +90,19 @@ pub fn route<D: Directory + ?Sized>(dir: &D, raw: &str, fwd: &str) -> io::Result
     Ok(match role_fallback(dir, fwd)? {
         Some(target) => Route::Alias(target),
         None => Route::Nobody,
+    })
+}
+
+/// A live mask delivers to its owner's mailbox; an owner without one (the
+/// account was removed) reaches nobody.
+fn mask_route<D: Directory + ?Sized>(dir: &D, mask: &str, owner: String) -> io::Result<Route> {
+    let owner = canonical_recipient(owner.trim());
+    Ok(match is_mailbox(dir, &owner)? {
+        true => Route::Mask {
+            mask: mask.to_string(),
+            owner,
+        },
+        false => Route::Nobody,
     })
 }
 

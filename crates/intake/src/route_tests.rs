@@ -17,6 +17,8 @@ struct Dir {
     aliases: HashMap<&'static str, &'static str>,
     groups: Vec<Group>,
     domains: Vec<String>,
+    /// address -> owner when it takes mail, `None` when disabled or deleted
+    masks: HashMap<&'static str, Option<&'static str>>,
     broken: bool,
 }
 
@@ -44,6 +46,9 @@ impl Directory for Dir {
     }
     fn local_domains(&self) -> Arc<Vec<String>> {
         Arc::new(self.domains.clone())
+    }
+    fn mask(&self, addr: &str) -> io::Result<Option<Option<String>>> {
+        Ok(self.masks.get(addr).map(|o| o.map(str::to_string)))
     }
 }
 
@@ -170,6 +175,7 @@ fn routed(d: &Dir, addr: &str) -> String {
         Route::Alias(t) => format!("alias {t}"),
         Route::Group(g) => format!("group {}", g.address),
         Route::Srs(o) => format!("srs {o}"),
+        Route::Mask { mask, owner } => format!("mask {mask} -> {owner}"),
         Route::Nobody => "nobody".into(),
     }
 }
@@ -216,4 +222,31 @@ fn an_srs_address_reverses_only_under_a_real_key() {
         Some("friend@example.com")
     );
     assert_eq!(srs_original_with(&forged, Some("k3y")), None);
+}
+
+/// A live mask delivers to its owner; a disabled or deleted one reaches
+/// nobody, tagged or not, even on a domain with a catch-all that would
+/// otherwise take every address.
+#[test]
+fn a_mask_is_asked_before_the_catch_all() {
+    let mut d = dir();
+    d.aliases.insert("@golia.jp", "bob@golia.jp");
+    d.masks
+        .insert("amber.otter.000042@golia.jp", Some("BOB@golia.jp"));
+    d.masks.insert("brave.heron.000001@golia.jp", None);
+    d.masks
+        .insert("calm.lake.000002@golia.jp", Some("gone@golia.jp"));
+    assert_eq!(
+        routed(&d, "amber.otter.000042@golia.jp"),
+        "mask amber.otter.000042@golia.jp -> bob@golia.jp"
+    );
+    assert_eq!(routed(&d, "brave.heron.000001@golia.jp"), "nobody");
+    assert_eq!(routed(&d, "brave.heron.000001+x@golia.jp"), "nobody");
+    assert_eq!(
+        routed(&d, "amber.otter.000042+shop@golia.jp"),
+        "mask amber.otter.000042@golia.jp -> bob@golia.jp"
+    );
+    // an owner whose account is gone: nobody, not the catch-all
+    assert_eq!(routed(&d, "calm.lake.000002@golia.jp"), "nobody");
+    assert_eq!(routed(&d, "else@golia.jp"), "alias bob@golia.jp");
 }

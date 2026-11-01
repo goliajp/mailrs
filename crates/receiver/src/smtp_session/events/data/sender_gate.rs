@@ -24,7 +24,16 @@ use super::super::reply::code;
 use crate::config::SubmissionFromCheck;
 
 pub(super) enum SenderGate {
-    Pass,
+    /// `mask` when the envelope or `From:` is one of the account's masked
+    /// addresses (the one in `From:` first): the trace must then not name
+    /// the client or its address.
+    /// `envelope` is the sender to queue under instead of the one given:
+    /// the mask in `From:`, so the recipient's Return-Path does not name the
+    /// account it hides.
+    Pass {
+        mask: Option<String>,
+        envelope: Option<String>,
+    },
     Refuse(Response),
 }
 
@@ -44,11 +53,16 @@ pub(super) async fn check(
     ctx: &ConnectionContext,
 ) -> SenderGate {
     let Some(user) = username(state) else {
-        return SenderGate::Pass;
+        return SenderGate::Pass {
+            mask: None,
+            envelope: None,
+        };
     };
     let envelope = reverse_path.trim().trim_matches(['<', '>']).trim();
     let header = mailrs_inbound::identity::from_address(message);
-    let verdict = decide(user, envelope, &header, ctx).await;
+    let (verdict, mask) = decide(user, envelope, &header, ctx).await;
+    let header_is_mask = mask.as_deref() == Some(header.as_str());
+    let queue_as = queue_as(envelope, &header, header_is_mask);
     let enforce = ctx.submission_from_check == SubmissionFromCheck::Enforce;
     match &verdict {
         Verdict::Allowed => tracing::info!(
@@ -80,7 +94,10 @@ pub(super) async fn check(
         ),
     }
     match (verdict, enforce) {
-        (Verdict::Allowed, _) | (_, false) => SenderGate::Pass,
+        (Verdict::Allowed, _) | (_, false) => SenderGate::Pass {
+            mask,
+            envelope: queue_as,
+        },
         (Verdict::Refused(reason), true) => SenderGate::Refuse(refusal(user, reason)),
         (Verdict::Unknown(_), true) => SenderGate::Refuse(Response::new(
             451,
@@ -110,9 +127,16 @@ fn username(state: &State) -> Option<&str> {
     }
 }
 
-async fn decide(user: &str, envelope: &str, header: &str, ctx: &ConnectionContext) -> Verdict {
+/// The verdict, and which of the two addresses is one of the account's
+/// masks: `From:` if it is one, else the envelope if that is.
+async fn decide(
+    user: &str,
+    envelope: &str,
+    header: &str,
+    ctx: &ConnectionContext,
+) -> (Verdict, Option<String>) {
     if crate::smtp_session::credentials::sandbox_namespace(user).is_some() {
-        return judge(user, envelope, header, Ok(None));
+        return (judge(user, envelope, header, Ok(None)), None);
     }
     let perms = match &ctx.credential_store {
         Some(store) => store
@@ -121,7 +145,28 @@ async fn decide(user: &str, envelope: &str, header: &str, ctx: &ConnectionContex
             .map_err(|e| e.to_string()),
         None => Ok(None),
     };
-    judge(user, envelope, header, perms)
+    let mask = match &perms {
+        Ok(Some(p)) => [header, envelope]
+            .into_iter()
+            .find(|a| is_mask(p, a))
+            .map(str::to_string),
+        _ => None,
+    };
+    (judge(user, envelope, header, perms), mask)
+}
+
+/// The sender to queue under when `From:` is the account's mask and the
+/// envelope says something else, as a client set to the account's own
+/// address would.
+fn queue_as(envelope: &str, header: &str, header_is_mask: bool) -> Option<String> {
+    (header_is_mask && !header.eq_ignore_ascii_case(envelope)).then(|| header.to_string())
+}
+
+fn is_mask(perms: &EffectivePermissionsResponse, address: &str) -> bool {
+    perms
+        .masks
+        .iter()
+        .any(|m| m.trim().eq_ignore_ascii_case(address.trim()))
 }
 
 /// `perms` is what the core says `user` may do: `Ok(None)` for a login it
@@ -175,10 +220,29 @@ mod tests {
             groups: Vec::new(),
             is_super,
             send_as: send_as.iter().map(|s| s.to_string()).collect(),
+            masks: Vec::new(),
         }))
     }
 
     const ME: &str = "xiaxi@golia.jp";
+
+    /// A mask in `From:` stands in the envelope too, so the recipient's
+    /// Return-Path does not name the account; anything else is left alone.
+    #[test]
+    fn a_mask_in_from_is_queued_as_the_envelope() {
+        let mask = "amber.otter.000042@golia.jp";
+        assert_eq!(queue_as(ME, mask, true).as_deref(), Some(mask));
+        assert_eq!(queue_as(mask, mask, true), None);
+        assert_eq!(queue_as(ME, "team@golia.jp", false), None);
+        let p = perms(false, &[]).unwrap().unwrap();
+        let p = EffectivePermissionsResponse {
+            masks: vec![mask.into()],
+            ..p
+        };
+        assert!(is_mask(&p, "Amber.Otter.000042@golia.jp"));
+        assert!(!is_mask(&p, ME));
+        assert_eq!(judge(ME, ME, mask, Ok(Some(p))), Verdict::Allowed);
+    }
 
     /// The state the DATA handler is called in, taken from the session
     /// itself rather than assumed: a gate that reads the wrong variant

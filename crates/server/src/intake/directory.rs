@@ -75,4 +75,13 @@ impl Directory for PgDirectory {
                 .map_err(io::Error::other)
         })
     }
+
+    /// The same store the kevy core reads: masks are not SQL rows.
+    fn mask(&self, addr: &str) -> io::Result<Option<Option<String>>> {
+        let Some(url) = self.net_url.as_deref() else {
+            return Ok(None);
+        };
+        let mut conn = kevy_client::Connection::connect(url).map_err(io::Error::other)?;
+        mailrs_core_sidestate::families::masked_email::delivery(&mut conn, addr)
+    }
 }
