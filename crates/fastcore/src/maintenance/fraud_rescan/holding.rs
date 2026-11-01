@@ -15,14 +15,22 @@ pub(super) fn apply(
         .get_thread_for_user(user, tid)
         .map_err(|e| e.to_string())?
         .ok_or("thread membership disappeared")?;
-    let json = serde_json::to_string(verdict).map_err(|e| e.to_string())?;
-    if state
+    let stored = state
         .mailbox
         .fraud_verdict(mid)
-        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())?;
+    // where it was filed on arrival, and why, still stands: the rescan
+    // judges the content again, not the filing
+    let mut verdict = verdict.clone();
+    if let Some(old) = stored
         .as_deref()
-        != Some(&json)
+        .and_then(|j| serde_json::from_str::<mailrs_inbound::FraudVerdict>(j).ok())
+        && verdict.placement.is_empty()
     {
+        verdict.placement = old.placement;
+    }
+    let json = serde_json::to_string(&verdict).map_err(|e| e.to_string())?;
+    if stored.as_deref() != Some(&json) {
         state
             .mailbox
             .set_fraud_verdict(mid, &json)

@@ -56,3 +56,21 @@ describe('SenderTrustBadge', () => {
     }
   })
 })
+
+describe('SenderChecks', () => {
+  it('names what each check said, and nothing for mail with no checks', async () => {
+    const { SenderChecks } = await import('../sender-trust-badge')
+    const { container, rerender } = render(<SenderChecks checks={[]} />)
+    expect(container).toBeEmptyDOMElement()
+    rerender(
+      <SenderChecks
+        checks={[
+          { code: 'auth-check', params: { check: 'SPF', result: 'pass' } },
+          { code: 'auth-check', params: { check: 'DMARC', result: 'fail' } },
+        ]}
+      />
+    )
+    expect(screen.getByText('DMARC: fail')).toHaveClass('text-danger')
+    expect(screen.getByText('SPF: pass')).not.toHaveClass('text-danger')
+  })
+})

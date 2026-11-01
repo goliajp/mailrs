@@ -4,6 +4,7 @@ import { appEn } from './app/en'
 import { calendarEn } from './calendar/en'
 import { composerEn } from './composer/en'
 import { mockEn } from './mock/en'
+import { reasonsEn } from './reasons/en'
 import { sectionsEn } from './sections/en'
 import { settingsEn } from './settings/en'
 
@@ -17,6 +18,7 @@ export const en = {
   ...composerEn,
   ...calendarEn,
   ...sectionsEn,
+  ...reasonsEn,
   ...settingsEn,
   ...mockEn,
   ...adminEn,
@@ -225,11 +227,6 @@ export const en = {
   'filters.sort.unread': 'Unread first',
   'filters.title': 'Filters',
   'filters.toggle': 'Show or hide filters',
-  'fraud.examined': 'Examined: something looked wrong',
-  'fraud.kept': 'Kept, not deleted — this is the evidence an abuse report is built from.',
-  'fraud.notFraud': 'This is not fraud',
-  'fraud.releasing': 'Releasing…',
-  'fraud.rules': 'rules {version}',
   'images.alwaysFrom': 'Always show from {sender}',
   'images.heldNote':
     'Images are not loaded for mail in Junk or held for review: loading them tells the sender the address is read.',

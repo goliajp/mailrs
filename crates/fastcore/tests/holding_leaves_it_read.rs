@@ -114,6 +114,15 @@ async fn holding_a_conversation_leaves_it_read_everywhere() {
         )
         .expect("seed");
 
+    // filed in Junk on arrival, for its score: the rescan judges the
+    // content again and must keep saying why it was filed there
+    let filed = mailrs_inbound::FraudVerdict::placement_only(vec![
+        mailrs_inbound::Reason::new("junk-score").with("score", "6.0"),
+    ]);
+    mailbox
+        .set_fraud_verdict(MID, &serde_json::to_string(&filed).expect("json"))
+        .expect("verdict");
+
     let state = Arc::new(mailrs_fastcore::FastcoreState::new(mailbox));
     let res = mailrs_fastcore::build_router(state.clone())
         .oneshot(
@@ -148,6 +157,30 @@ async fn holding_a_conversation_leaves_it_read_everywhere() {
         "the per-user row still says unread — so the review screen, \
          which counts from these rows, shows a held conversation in \
          bold. `mark_seen` alone writes the axis and not this."
+    );
+
+    // The verdict the sweep stored names the rule that held it, and keeps
+    // the reason it was filed where it was.
+    let stored: mailrs_inbound::FraudVerdict = serde_json::from_str(
+        &state
+            .mailbox
+            .fraud_verdict(MID)
+            .expect("read")
+            .expect("a verdict"),
+    )
+    .expect("parses");
+    let codes: Vec<&str> = stored
+        .layers
+        .iter()
+        .flat_map(|l| l.reasons.iter().map(|r| r.code.as_str()))
+        .collect();
+    assert!(
+        codes.contains(&"brand-is-the-display-name"),
+        "the held verdict names no rule: {codes:?}"
+    );
+    assert_eq!(
+        stored.placement, filed.placement,
+        "the rescan dropped why it was filed"
     );
 
     // The name an IMAP client reads.

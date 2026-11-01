@@ -72,6 +72,7 @@ pub mod dates;
 pub mod decision;
 pub mod identity;
 pub mod pipeline;
+pub mod reason;
 pub mod scan_input;
 pub mod stage;
 pub mod verdict;
@@ -87,5 +88,6 @@ pub use identity::{
     deception_in_display_name, deception_in_identity, from_header, subject_header, x_mailer_header,
 };
 pub use pipeline::{DEFAULT_SPAM_THRESHOLD, Pipeline, PipelineBuilder};
+pub use reason::Reason;
 pub use stage::{Stage, StageOutcome};
 pub use verdict::{FraudVerdict, Layer, Outcome, RULES_VERSION, assess, holds, unexamined};

@@ -1,3 +1,6 @@
+import type { LinkWarning } from '@/lib/link-warnings'
+import type { WireReason } from '@/wire/schemas/reason'
+
 export type AccountInfo = {
   active: boolean
   address: string
@@ -296,6 +299,8 @@ export type ThreadMessage = {
   /// an iTIP invite. Frontend uses this instead of inspecting attachments.
   invite_method?: null | string
   is_bulk_sender: boolean
+  /** Links worth a second look, by the host they go to; marked in the body. */
+  link_warnings?: readonly LinkWarning[]
   message_id: string
   new_content: null | string
   people: PersonMention[]
@@ -304,6 +309,8 @@ export type ThreadMessage = {
   risk_reason: string
   risk_score: number
   sender: string
+  /** What SPF, DKIM and DMARC each said; empty for mail with no verdict of ours. */
+  sender_checks?: readonly WireReason[]
   sender_intent: string
   sender_trust: string
   structured_data?: null | StructuredData

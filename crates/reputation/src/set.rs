@@ -243,6 +243,12 @@ impl Set {
         })
     }
 
+    /// The listings for a host a link points at; empty when it is not
+    /// listed or is allowed.
+    pub fn link_listings(&self, host: &str) -> Vec<Listing> {
+        self.hosts(&self.links, host)
+    }
+
     /// What the set knows about one message. An allowed subject has no
     /// listings and no marks.
     pub fn facts(&self, m: &Message) -> Facts {

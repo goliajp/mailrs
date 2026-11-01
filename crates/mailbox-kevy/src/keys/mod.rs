@@ -152,6 +152,14 @@ pub fn fraud_verdict(message_id: &str) -> String {
     format!("mailrs:fraudverdict:{message_id}")
 }
 
+/// Why one recipient's copy of a message was filed where it was: their
+/// sender rule, the classifier, their filter. Per recipient, unlike the
+/// verdict beside it, because two recipients of one message file it by
+/// their own rules. Written once on delivery.
+pub fn message_placement(user: &str, message_id: &str) -> String {
+    format!("mailrs:placement:{user}:{message_id}")
+}
+
 /// Mailbox hash. Fields: name, user, uidvalidity, uidnext, highest_modseq.
 pub fn mailbox(mailbox_id: i64) -> String {
     format!("mailrs:mailbox:{mailbox_id}")
