@@ -5,10 +5,11 @@
 //! Inbound mail only, the same as delivery: a reader's own messages are not
 //! facts about a sender. Facts are written once, so a message already in the
 //! ledger costs one lookup and nothing is rewritten; a second run over the
-//! same mail writes nothing. Dry run by default; paged by `skip` / `limit`.
+//! same mail writes nothing. Dry run by default; paged by `limit` and the `next_after` cursor.
 
 use super::hangup::{Hangup, run_blocking};
 use super::prelude::*;
+use super::thread_cursor::{After, next, threads_after, users_from};
 
 const PAUSE_EVERY: u64 = 100;
 
@@ -17,8 +18,9 @@ pub(crate) struct BackfillQuery {
     /// Report without writing. **Default true.**
     #[serde(default = "yes")]
     dry_run: bool,
-    #[serde(default)]
-    skip: u64,
+    /// The last thread the previous page finished: its `next_after`.
+    after_user: Option<String>,
+    after_thread: Option<String>,
     #[serde(default = "default_limit")]
     limit: u64,
     #[serde(default = "default_pause_ms")]
@@ -54,7 +56,6 @@ pub(crate) async fn backfill_ledger_route(
 
 #[derive(Default)]
 struct Counts {
-    seen: u64,
     walked: u64,
     already: u64,
     own: u64,
@@ -70,26 +71,21 @@ fn walk(
     let users = state.mailbox.list_account_addresses()?;
     let mut c = Counts::default();
     let mut stopped_early = false;
-    'walk: for user in &users {
+    let after = After::from_query(q.after_user.as_deref(), q.after_thread.as_deref());
+    let mut last: Option<After> = None;
+    'walk: for user in &users_from(users.clone(), after.as_ref()) {
         let on_disk = crate::maildir_scan::paths_on_disk(state, user);
-        for tid in state
-            .mailbox
-            .all_thread_ids_for_user(user)
-            .unwrap_or_default()
-        {
+        for tid in threads_after(state, user, after.as_ref()) {
+            // a page ends between threads, so the cursor names a whole one
+            if c.walked >= q.limit {
+                stopped_early = true;
+                break 'walk;
+            }
             for mid in state
                 .mailbox
                 .user_thread_message_ids(user, &tid)
                 .unwrap_or_default()
             {
-                c.seen += 1;
-                if c.seen <= q.skip {
-                    continue;
-                }
-                if c.walked >= q.limit {
-                    stopped_early = true;
-                    break 'walk;
-                }
                 if hangup.hung_up() {
                     tracing::warn!(
                         walked = c.walked,
@@ -135,6 +131,10 @@ fn walk(
                     c.already += 1;
                 }
             }
+            last = Some(After {
+                user: user.clone(),
+                thread: tid.clone(),
+            });
         }
     }
     tracing::info!(
@@ -154,7 +154,7 @@ fn walk(
         "own_mail": c.own,
         "no_file": c.no_file,
         "recorded": c.recorded,
-        "next_skip": q.skip + c.walked,
+        "next_after": next(&last),
         "done": !stopped_early,
     }))
 }
@@ -170,7 +170,8 @@ mod tests {
         seed(&state, "u@x", 5);
         let q = BackfillQuery {
             dry_run: true,
-            skip: 0,
+            after_user: None,
+            after_thread: None,
             limit: 100,
             pause_ms: 0,
         };
@@ -181,5 +182,45 @@ mod tests {
         let cut = walk(&state, &q, &Hangup::after(2)).unwrap();
         assert_eq!(cut["messages_walked"], 2, "{cut}");
         assert_eq!(cut["done"], false, "{cut}");
+    }
+
+    fn arrive(state: &FastcoreState, tid: &str) {
+        state
+            .mailbox
+            .record_message_arrival(&crate::tests::arr(tid, "u@x", true))
+            .unwrap();
+    }
+
+    /// A page resumes after the last thread it finished, so threads created
+    /// or deleted while the walk runs neither repeat nor shift others out.
+    #[test]
+    fn a_page_resumes_after_the_last_thread_whatever_changed_meanwhile() {
+        let state = crate::tests::fresh_state();
+        seed(&state, "u@x", 5);
+        let mut q = BackfillQuery {
+            dry_run: true,
+            after_user: None,
+            after_thread: None,
+            limit: 2,
+            pause_ms: 0,
+        };
+        let first = walk(&state, &q, &Hangup::never()).unwrap();
+        assert_eq!(first["messages_walked"], 2, "{first}");
+        assert_eq!(first["next_after"]["thread"], "t1", "{first}");
+
+        arrive(&state, "t1a");
+        arrive(&state, "t0b");
+        state.mailbox.delete_thread("u@x", "t3").unwrap();
+
+        q.after_user = Some("u@x".into());
+        q.after_thread = Some("t1".into());
+        q.limit = 100;
+        let second = walk(&state, &q, &Hangup::never()).unwrap();
+        // the messages of t2 and t4 (t1a has none yet): not t0 or t1 again,
+        // not the deleted t3, and not t0b, which arrived behind the cursor
+        // and was recorded on delivery
+        assert_eq!(second["messages_walked"], 2, "{second}");
+        assert_eq!(second["next_after"]["thread"], "t4", "{second}");
+        assert_eq!(second["done"], true, "{second}");
     }
 }
