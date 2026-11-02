@@ -196,11 +196,13 @@ pub(crate) const READ_FLAG_AXES_FROM_MARKERS: bool = true;
 /// Whether the full-row indexes on the marked columns themselves stay
 /// declared beside the marker indexes.
 ///
-/// They hold every row of the table, so they are what the markers replace.
-/// They are dropped only in a release after the reads have moved to the
-/// markers and the check has passed again. Setting this to `false` changes
-/// the declaration, which rebuilds the table's indexes at the next boot.
-pub(crate) const KEEP_FULL_ROW_FLAG_INDEXES: bool = true;
+/// They held every row of the table, which is what the markers replace;
+/// dropped once the reads had run on the markers and the check read zero
+/// on production a day later. The flag columns are still written on every
+/// row, so turning this back on (with `READ_FLAG_AXES_FROM_MARKERS` off to
+/// read them) needs no backfill: the changed declaration rebuilds the
+/// table's indexes from the rows at the next boot.
+pub(crate) const KEEP_FULL_ROW_FLAG_INDEXES: bool = false;
 
 // the reads must always have an index to key on
 const _: () = assert!(READ_FLAG_AXES_FROM_MARKERS || KEEP_FULL_ROW_FLAG_INDEXES);
