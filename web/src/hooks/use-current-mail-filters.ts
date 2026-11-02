@@ -104,15 +104,29 @@ export function useCurrentMailFilters(): MailListFilters | null {
  * whatever refreshes the lists after a read or a move refreshes this.
  */
 export function useCurrentUnreadCount(): number {
+  return useUnreadCounts().count
+}
+
+/**
+ * The unread conversations outside Junk (`count`, what the Unread list
+ * shows), and the share of them each of the Inbox and Notifications &
+ * Promotions lists.
+ */
+export function useUnreadCounts(): UnreadCounts {
   const { data } = useQuery({
     queryKey: [...conversationKeys.lists(), 'unseen-count'],
     queryFn: ({ signal }) =>
       wireFetch(unseenCountSchema, { path: '/conversations/unseen-count', signal }),
   })
-  return data?.count ?? 0
+  return data ?? NO_UNREAD
 }
 
-const unseenCountSchema = z.object({ count: z.number() })
+// Backend: crates/webapi/src/handlers/conversations.rs — fn get_unseen_count
+const unseenCountSchema = z.object({ count: z.number(), inbox: z.number(), np: z.number() })
+
+export type UnreadCounts = z.infer<typeof unseenCountSchema>
+
+const NO_UNREAD: UnreadCounts = { count: 0, inbox: 0, np: 0 }
 
 /** The `label` list's axes carry the label it shows. */
 function labelAxes(

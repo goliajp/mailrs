@@ -11914,6 +11914,16 @@ export interface operations {
                     "application/json": {
                         /** Format: int64 */
                         count: number;
+                        /**
+                         * Format: int64
+                         * @description Of `count`, the conversations the Inbox lists
+                         */
+                        inbox: number;
+                        /**
+                         * Format: int64
+                         * @description Of `count`, the conversations Notifications & Promotions lists; inbox + np = count
+                         */
+                        np: number;
                     };
                 };
             };

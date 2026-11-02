@@ -165,11 +165,23 @@ pub(crate) async fn get_unseen_count(
     // 2026-08-03, while every view it linked to was Inbox-scoped — two
     // unread promotions showed as "2 Unread" on the dashboard and as
     // an empty list everywhere that number led.
-    let count = state
-        .mailbox
-        .count_flag_non_junk(&user, "unread")
-        .unwrap_or(0) as i64;
-    Json(conv::UnseenCountResponse { count })
+    //
+    // Each folder shows its own part of it beside its name: the Inbox
+    // once showed the whole count, two unread promotions read as two
+    // unread in the Inbox.
+    let count_in = |buckets: &[&str]| {
+        state
+            .mailbox
+            .count_flag_in_buckets(&user, "unread", buckets)
+            .unwrap_or(0) as i64
+    };
+    let inbox = count_in(&["inbox"]);
+    let np = count_in(&mailrs_mailbox_kevy::NP_BUCKETS);
+    Json(conv::UnseenCountResponse {
+        count: inbox + np,
+        inbox,
+        np,
+    })
 }
 
 pub(crate) async fn list_sent_messages(
