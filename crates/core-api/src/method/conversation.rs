@@ -131,6 +131,12 @@ pub struct CategoryCount {
 pub struct UnseenCountResponse {
     /// Number of unread, non-archived, non-spam threads (excluding self-replies).
     pub count: i64,
+    /// Of those, the ones the Inbox lists.
+    #[serde(default)]
+    pub inbox: i64,
+    /// And the ones Notifications & Promotions lists; `inbox + np == count`.
+    #[serde(default)]
+    pub np: i64,
 }
 
 #[cfg(test)]

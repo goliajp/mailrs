@@ -11,7 +11,7 @@ const served = { count: 137, paths: [] as string[] }
 vi.mock('@/wire/client', () => ({
   wireFetch: (_schema: unknown, { path }: { path: string }) => {
     served.paths.push(path)
-    return Promise.resolve({ count: served.count })
+    return Promise.resolve({ count: served.count, inbox: served.count - 2, np: 2 })
   },
 }))
 // one loaded page holding a single unread conversation

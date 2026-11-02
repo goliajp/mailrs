@@ -352,8 +352,9 @@ pub(crate) async fn thread_messages_for(
     Ok(items)
 }
 
-/// GET /api/conversations/unseen-count — returns `{"count": N}` inline
-/// (monolith shape).
+/// GET /api/conversations/unseen-count — `{"count", "inbox", "np"}`: the
+/// unread conversations outside Junk, and how many of them each of the
+/// Inbox and Notifications & Promotions lists.
 pub async fn get_unseen_count(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
@@ -362,7 +363,7 @@ pub async fn get_unseen_count(
         .core
         .unseen_count(&user)
         .await
-        .map(|r| Json(serde_json::json!({ "count": r.count })))
+        .map(|r| Json(serde_json::json!({ "count": r.count, "inbox": r.inbox, "np": r.np })))
         .map_err(map_err)
 }
 
