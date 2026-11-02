@@ -7562,10 +7562,22 @@
                     "count": {
                       "type": "integer",
                       "format": "int64"
+                    },
+                    "inbox": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "Of `count`, the conversations the Inbox lists"
+                    },
+                    "np": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "Of `count`, the conversations Notifications & Promotions lists; inbox + np = count"
                     }
                   },
                   "required": [
-                    "count"
+                    "count",
+                    "inbox",
+                    "np"
                   ]
                 }
               }

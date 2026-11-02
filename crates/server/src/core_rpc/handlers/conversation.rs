@@ -16,7 +16,7 @@ use axum::{
 use mailrs_core_api::method::conversation as wire;
 use mailrs_core_api::types::{ConversationFilter, ConversationSummaryWire};
 use mailrs_mailbox::pg::{Held, ThreadQuery};
-use mailrs_mailbox::scope::{Scope, is_sent_folder, scope};
+use mailrs_mailbox::scope::{Bucket, Scope, is_sent_folder, scope};
 
 use crate::core_rpc::CoreRpcState;
 use crate::core_rpc::handlers::failed;
@@ -200,17 +200,27 @@ pub async fn unseen_count(
     State(state): State<Arc<CoreRpcState>>,
     Path(user): Path<String>,
 ) -> Result<Json<wire::UnseenCountResponse>, StatusCode> {
-    let q = ThreadQuery {
-        scope: Scope::NotJunk,
-        unread: true,
-        ..ThreadQuery::all(&user)
-    };
-    let rows = state
-        .mailbox
-        .thread_rows(&q)
-        .await
-        .map_err(failed("unseen_count", &user))?;
+    let mut counts = [0i64; 2];
+    for (n, scope) in [Scope::Bucket(Bucket::Inbox), Scope::Np]
+        .into_iter()
+        .enumerate()
+    {
+        let q = ThreadQuery {
+            scope,
+            unread: true,
+            ..ThreadQuery::all(&user)
+        };
+        let rows = state
+            .mailbox
+            .thread_rows(&q)
+            .await
+            .map_err(failed("unseen_count", &user))?;
+        counts[n] = rows.len() as i64;
+    }
+    let [inbox, np] = counts;
     Ok(Json(wire::UnseenCountResponse {
-        count: rows.len() as i64,
+        count: inbox + np,
+        inbox,
+        np,
     }))
 }

@@ -401,6 +401,18 @@ fn the_non_junk_scope_is_exactly_what_the_unread_badge_counts() {
     // The number `unseen_count` serves, from the function it calls.
     let badge = st.count_flag_non_junk(u, "unread").unwrap();
     assert_eq!(badge, total, "the badge must count what the view lists");
+
+    // and each folder's share is what that folder lists
+    let inbox = st.count_flag_in_buckets(u, "unread", &["inbox"]).unwrap();
+    let np = st
+        .count_flag_in_buckets(u, "unread", &crate::NP_BUCKETS)
+        .unwrap();
+    assert_eq!(
+        (inbox, np),
+        (1, 2),
+        "i1 is the Inbox's; p1 and n1 are N&P's"
+    );
+    assert_eq!(inbox + np, badge);
 }
 
 /// A thread the user only ever sent into is not in their Inbox, and the

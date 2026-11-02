@@ -19,10 +19,11 @@ import {
 } from 'lucide-react'
 
 import { LabelDot } from '@/components/label-chip'
-import { useCurrentUnreadCount } from '@/hooks/use-current-mail-filters'
+import { useUnreadCounts } from '@/hooks/use-current-mail-filters'
 import { useLabels } from '@/hooks/use-labels'
 import { useOpenList } from '@/hooks/use-open-list'
 import { useT } from '@/i18n'
+import { countFor } from '@/lib/folder-counts'
 import { MAIL_LIST_TABS, MAIL_LISTS, type MailListId } from '@/lib/mail-lists'
 import { rovingKeyDown } from '@/lib/roving'
 import { activeLabelAtom, activeListAtom, selectLabelAtom } from '@/store/ui'
@@ -55,7 +56,7 @@ export function MailFolders() {
   const activeLabel = useAtomValue(activeLabelAtom)
   const open = useOpenList()
   const selectLabel = useSetAtom(selectLabelAtom)
-  const unread = useCurrentUnreadCount()
+  const unread = useUnreadCounts()
   const { data: labels = [] } = useLabels()
 
   return (
@@ -100,11 +101,6 @@ export function MailFolders() {
       )}
     </nav>
   )
-}
-
-function countFor(id: MailListId, unread: number): number {
-  if (id === 'inbox') return unread
-  return 0
 }
 
 function FolderButton({
