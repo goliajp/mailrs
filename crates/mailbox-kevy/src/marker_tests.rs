@@ -18,7 +18,7 @@ use crate::{KevyMailboxStore, MessageArrival, SectionArrival, keys};
 
 const U: &str = "me@x.test";
 
-pub(crate) fn store() -> KevyMailboxStore {
+fn store() -> KevyMailboxStore {
     let s = KevyMailboxStore::new(Arc::new(
         Store::open(Config::default()).expect("open in-memory kevy"),
     ));
@@ -220,7 +220,7 @@ fn is_sender_follows_the_row_writer_both_ways() {
 }
 
 /// A spread of rows over two users, with every marked column set on some.
-pub(crate) fn varied(st: &KevyMailboxStore) {
+fn varied(st: &KevyMailboxStore) {
     for user in [U, "other@x.test"] {
         for i in 0..8 {
             let tid = format!("t{i}");
@@ -246,91 +246,6 @@ pub(crate) fn varied(st: &KevyMailboxStore) {
             }
         }
     }
-}
-
-/// Every flag axis, page and count, the same off the marker index as off
-/// the full-row index it replaces — while both are declared.
-fn assert_new_and_old_agree(st: &KevyMailboxStore) {
-    let flags = [
-        "starred",
-        "archived",
-        "trashed",
-        "pinned",
-        "unread",
-        "has_action",
-        "is_sender",
-    ];
-    let stacks: [&[(&str, &str)]; 3] = [
-        &[],
-        &[("archived", "0"), ("trashed", "0")],
-        &[("bucket", "inbox"), ("unread", "1")],
-    ];
-    for user in [U, "other@x.test"] {
-        for flag in flags {
-            let new = marker_index(flag);
-            let old = format!("threaduser.{flag}");
-            for extra in stacks {
-                let list = |ix: &str| {
-                    st.list_thread_ids_on_flag_index(ix, user, extra, 100, 0, None)
-                        .unwrap()
-                };
-                let count = |ix: &str| st.count_thread_ids_on_flag_index(ix, user, extra).unwrap();
-                assert_eq!(list(&new), list(&old), "{flag} {extra:?} list");
-                assert_eq!(count(&new), count(&old), "{flag} {extra:?} count");
-                let paged = st
-                    .list_thread_ids_on_flag_index(&new, user, extra, 2, 1, Some(106))
-                    .unwrap();
-                let paged_old = st
-                    .list_thread_ids_on_flag_index(&old, user, extra, 2, 1, Some(106))
-                    .unwrap();
-                assert_eq!(paged, paged_old, "{flag} {extra:?} page");
-            }
-        }
-    }
-    for col in ["snoozed_until", "trashed_at", "awaiting_since"] {
-        let keys_on = |ix: String| {
-            let (rows, _) = st
-                .store()
-                .idx_query(
-                    ix.as_bytes(),
-                    &IndexValue::I64(1),
-                    &IndexValue::I64(i64::MAX),
-                    None,
-                    1_000,
-                )
-                .unwrap();
-            let mut keys: Vec<Vec<u8>> = rows.into_iter().map(|(k, _)| k).collect();
-            keys.sort();
-            keys
-        };
-        assert_eq!(
-            keys_on(marker_index(col)),
-            keys_on(format!("threaduser.{col}")),
-            "{col}"
-        );
-    }
-}
-
-#[test]
-fn marker_and_full_row_indexes_answer_the_same() {
-    let st = store();
-    varied(&st);
-    // something on every flag axis, so an empty answer cannot pass
-    for flag in [
-        "starred",
-        "archived",
-        "trashed",
-        "pinned",
-        "unread",
-        "has_action",
-        "is_sender",
-    ] {
-        assert!(
-            st.count_thread_ids_by_flag_via_table(U, flag).unwrap() > 0,
-            "{flag} has no rows"
-        );
-    }
-    assert_new_and_old_agree(&st);
 }
 
 /// Rows written before the markers existed: the rewrite fills them in,
@@ -407,18 +322,16 @@ fn the_rewrite_converges_and_the_check_reads_zero() {
             .map(String::as_str),
         Some("2000")
     );
-    assert_new_and_old_agree(&st);
 }
 
 /// A flag, the predicates stacked on it, and the threads it must list.
 type Case<'a> = (&'a str, &'a [(&'a str, &'a str)], Vec<String>);
 
-/// The reads give the right answer off either index set, so flipping
-/// `READ_FLAG_AXES_FROM_MARKERS` is covered before it is flipped: the
+/// The marker indexes list exactly the rows that carry the flag: the
 /// expectations are the rows themselves, not one index checked against
-/// the other.
+/// another.
 #[test]
-fn flag_reads_are_right_off_either_index() {
+fn flag_reads_list_the_rows_that_carry_the_flag() {
     let st = store();
     varied(&st);
     let ids = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
@@ -433,8 +346,8 @@ fn flag_reads_are_right_off_either_index() {
             ids(&["t2", "t0"]),
         ),
     ];
-    let names: [fn(&str) -> String; 2] = [marker_index, |c| format!("threaduser.{c}")];
-    for name in names {
+    {
+        let name = marker_index;
         for (flag, extra, want) in &cases {
             let ix = name(flag);
             let got = st
