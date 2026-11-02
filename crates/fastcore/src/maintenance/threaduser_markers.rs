@@ -1,8 +1,8 @@
 //! The membership rows' index markers: fill them in on rows written before
 //! they existed, and check that every one agrees with its column.
 //!
-//! The check is what has to read zero mismatches on production before the
-//! full-row flag indexes are dropped (`KEEP_FULL_ROW_FLAG_INDEXES`).
+//! The reads key on the marker indexes alone, so a row whose marker
+//! disagrees with its column is listed wrongly; the check must read zero.
 
 use super::prelude::*;
 
@@ -85,29 +85,6 @@ pub(crate) async fn threaduser_marker_check_route(
         }
         Err(e) => {
             tracing::error!(error = %e, "threaduser-marker-check task failed");
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
-        }
-    }
-}
-
-/// `POST /v1/admin/maintenance:threaduser-read-compare` — read-only.
-///
-/// Every flag read, for every user, off the marker index and off the
-/// full-row index, and each timestamp index's keys off both. Answers only
-/// while the full-row indexes are declared. `differences` is zero when the
-/// two return the same; `rows_returned` says something was compared.
-pub(crate) async fn threaduser_read_compare_route(
-    State(state): State<Arc<FastcoreState>>,
-) -> axum::response::Response {
-    let work = move |_: &super::hangup::Hangup| state.mailbox.threaduser_read_compare();
-    match super::hangup::run_blocking(work).await {
-        Ok(Ok(r)) => Json(r).into_response(),
-        Ok(Err(e)) => {
-            tracing::error!(error = %e, "threaduser-read-compare failed");
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
-        }
-        Err(e) => {
-            tracing::error!(error = %e, "threaduser-read-compare task failed");
             axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }
