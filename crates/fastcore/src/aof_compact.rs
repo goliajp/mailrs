@@ -52,6 +52,13 @@ pub fn spawn(state: Arc<FastcoreState>, kevy_dir: String) {
                         tracing::warn!(err = %e, before_bytes = size, "aof-compact: rewrite failed");
                     }
                 }
+            } else {
+                // one line an hour: without it a skip and a stopped task look alike
+                tracing::info!(
+                    bytes = size,
+                    compacted_bytes = compacted,
+                    "aof-compact: not due"
+                );
             }
             sleep(TICK_INTERVAL).await;
         }
