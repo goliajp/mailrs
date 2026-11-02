@@ -17,6 +17,7 @@ use crate::handlers::compose_attach::*;
 use crate::handlers::conversations::AuthedUser;
 use crate::handlers::send_error::SendError;
 use crate::handlers::send_queue::*;
+use crate::handlers::shared_inbox::claim as team;
 use crate::session::AgentKey;
 
 /// POST /api/mail/send — JSON compose form, no attachments.
@@ -77,27 +78,33 @@ pub(crate) async fn send_message(
     let (message_id, envelope) = build_rfc5322(&parts, &from);
     let key = key.map(|Extension(k)| k);
     record_key_send(key.as_ref(), &user, &headers, &message_id)?;
-    let filed = file_sent_copy(&state, &user, &envelope, &recipients).await?;
-    // A redraft gets a **new** Message-ID, unlike a resend: the user
-    // edited the content, and a Message-ID names a particular message.
-    // `resent_from` keeps the chain back to what it repairs.
-    let send_meta = SendMeta {
-        message_id: &message_id,
-        thread_id: &filed.thread_id,
-        subject: &parts.subject,
-        to: &parts.to,
-        cc: &parts.cc,
-        envelope_ref: &filed.blob_ref,
-        resent_from: req.redraft_of.as_deref(),
-        key_id: key.as_ref().map(|k| k.id),
-    };
-    enqueue_outbound_at(
-        &user,
-        &recipients,
-        &envelope,
-        parts.scheduled_at,
-        Some(send_meta),
-    )?;
+    let claimed = team::claim_if(&state, &user, req.shared.as_ref()).await?;
+    let queued = async {
+        let filed = file_sent_copy(&state, &user, &envelope, &recipients).await?;
+        // A redraft gets a **new** Message-ID, unlike a resend: the user
+        // edited the content, and a Message-ID names a particular message.
+        // `resent_from` keeps the chain back to what it repairs.
+        let send_meta = SendMeta {
+            message_id: &message_id,
+            thread_id: &filed.thread_id,
+            subject: &parts.subject,
+            to: &parts.to,
+            cc: &parts.cc,
+            envelope_ref: &filed.blob_ref,
+            resent_from: req.redraft_of.as_deref(),
+            key_id: key.as_ref().map(|k| k.id),
+        };
+        enqueue_outbound_at(
+            &user,
+            &recipients,
+            &envelope,
+            parts.scheduled_at,
+            Some(send_meta),
+        )
+    }
+    .await;
+    team::settle(&state, &user, claimed, &message_id, queued.is_ok()).await;
+    queued?;
     Ok(Json(SendResponse {
         message_id,
         success: true,
@@ -194,6 +201,8 @@ pub(crate) async fn send_message_multipart(
     // attachment, an empty list keeps none. A form that dropped the
     // distinction would silently re-attach files the user removed.
     let mut redraft_keep: Option<Vec<usize>> = None;
+    // the team conversation the reply answers, as JSON
+    let mut shared: Option<team::SharedReply> = None;
     while let Some(field) = multipart.next_field().await.map_err(SendError::form)? {
         let name = field.name().unwrap_or("").to_string();
         match name.as_str() {
@@ -224,6 +233,10 @@ pub(crate) async fn send_message_multipart(
                 undo_seconds = field.text().await.ok().and_then(|s| s.trim().parse().ok())
             }
             "redraft_of" => redraft_of = field.text().await.ok().filter(|s| !s.is_empty()),
+            "shared" => {
+                let raw = field.text().await.map_err(SendError::form)?;
+                shared = Some(serde_json::from_str(&raw).map_err(|_| StatusCode::BAD_REQUEST)?);
+            }
             // One comma-separated field, not a repeated one. Repeating it
             // cannot express "keep none": zero occurrences and an empty
             // selection would both arrive as no field at all, and the two
@@ -286,31 +299,38 @@ pub(crate) async fn send_message_multipart(
     let (message_id, envelope) = build_rfc5322(&parts, &from);
     let key = key.map(|Extension(k)| k);
     record_key_send(key.as_ref(), &user, &headers, &message_id)?;
-    let filed = file_sent_copy(&state, &user, &envelope, &recipients)
-        .await
-        .map_err(|status| {
-            SendError::new(
-                status,
-                "the sent copy could not be filed, so the message was not sent",
-            )
-        })?;
-    let send_meta = SendMeta {
-        message_id: &message_id,
-        thread_id: &filed.thread_id,
-        subject: &parts.subject,
-        to: &parts.to,
-        cc: &parts.cc,
-        envelope_ref: &filed.blob_ref,
-        resent_from: redraft_of.as_deref(),
-        key_id: key.as_ref().map(|k| k.id),
-    };
-    enqueue_outbound_at(
-        &user,
-        &recipients,
-        &envelope,
-        parts.scheduled_at,
-        Some(send_meta),
-    )?;
+    let claimed = team::claim_if(&state, &user, shared.as_ref()).await?;
+    let queued = async {
+        let filed = file_sent_copy(&state, &user, &envelope, &recipients)
+            .await
+            .map_err(|status| {
+                SendError::new(
+                    status,
+                    "the sent copy could not be filed, so the message was not sent",
+                )
+            })?;
+        let send_meta = SendMeta {
+            message_id: &message_id,
+            thread_id: &filed.thread_id,
+            subject: &parts.subject,
+            to: &parts.to,
+            cc: &parts.cc,
+            envelope_ref: &filed.blob_ref,
+            resent_from: redraft_of.as_deref(),
+            key_id: key.as_ref().map(|k| k.id),
+        };
+        enqueue_outbound_at(
+            &user,
+            &recipients,
+            &envelope,
+            parts.scheduled_at,
+            Some(send_meta),
+        )
+        .map_err(SendError::from)
+    }
+    .await;
+    team::settle(&state, &user, claimed, &message_id, queued.is_ok()).await;
+    queued?;
     Ok(Json(SendResponse {
         message_id,
         success: true,

@@ -24,4 +24,25 @@ impl Core for Fastcore {
         crate::ingest_delivered_file(&self.state, addr, blob_ref, body, folder, fraud_verdict);
         true
     }
+
+    fn tag_shared(
+        &self,
+        addr: &str,
+        message_id: &str,
+        tag: &str,
+        assignee: &str,
+    ) -> Option<String> {
+        let mailbox = &self.state.mailbox;
+        let tid = mailbox
+            .thread_for_message_id(addr, message_id)
+            .ok()
+            .flatten()?;
+        match mailbox.set_shared_copy(addr, &tid, tag, assignee) {
+            Ok(()) => Some(tid),
+            Err(e) => {
+                tracing::warn!(%addr, %tag, error = %e, "team inbox: copy not tagged");
+                None
+            }
+        }
+    }
 }

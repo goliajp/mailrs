@@ -47,6 +47,8 @@ export type ConversationFilter = {
    */
   readonly accounts?: null | readonly string[]
   readonly archived?: boolean
+  /** Only the reader's team conversations assigned to the reader. */
+  readonly assignedToMe?: boolean
   readonly beforeTs?: number
   readonly category?: Category
   readonly domains?: readonly string[]
@@ -179,6 +181,7 @@ export function canonicaliseFilter(f: ConversationFilter | undefined): {
   /** `null` = every account; a list (even empty) = narrowed to it. */
   readonly accounts: null | string
   readonly archived: boolean
+  readonly assignedToMe: boolean
   readonly beforeTs: null | number
   readonly category: Category | null
   readonly domains: readonly string[]
@@ -199,6 +202,7 @@ export function canonicaliseFilter(f: ConversationFilter | undefined): {
   return {
     accounts,
     archived: f?.archived ?? false,
+    assignedToMe: f?.assignedToMe ?? false,
     beforeTs: f?.beforeTs ?? null,
     category: f?.category ?? null,
     domains,

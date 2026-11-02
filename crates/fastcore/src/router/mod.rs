@@ -20,6 +20,7 @@ use mailrs_core_api::method::import as import_paths;
 use mailrs_core_api::method::message_index as mix;
 use mailrs_core_api::method::senders as senders_paths;
 use mailrs_core_api::method::sent;
+use mailrs_core_api::method::shared as shared_paths;
 
 mod directory_routes;
 mod maintenance_routes;
@@ -78,6 +79,16 @@ pub fn build_router_with_secret(state: Arc<FastcoreState>, secret: String) -> Ro
         .route(
             senders_paths::PATH_ACCEPT_SENDERS,
             post(crate::sections::accept_senders),
+        )
+        .route(shared_paths::PATH_ASSIGN, post(crate::shared::assign_route))
+        .route(shared_paths::PATH_STATE, post(crate::shared::state_route))
+        .route(
+            shared_paths::PATH_CLAIM_REPLY,
+            post(crate::shared::claim_route),
+        )
+        .route(
+            shared_paths::PATH_RELEASE_REPLY,
+            post(crate::shared::release_route),
         )
         .route(
             import_paths::PATH_IMPORT_MESSAGE,

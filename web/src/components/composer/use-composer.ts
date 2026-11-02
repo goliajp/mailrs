@@ -9,7 +9,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { useAutosaveStatus } from '@/hooks/use-autosave-status'
 import { useDefaultSignature } from '@/hooks/use-default-signature'
-import { useDeleteDraftMutation, useDraftsQuery, useSaveDraftMutation } from '@/hooks/use-drafts'
+import { useDeleteDraftMutation, useSaveDraftMutation } from '@/hooks/use-drafts'
 import { applyOptimisticSent } from '@/hooks/use-mail-mutations'
 import { useT } from '@/i18n'
 import { errorText } from '@/lib/error-text'
@@ -43,6 +43,8 @@ import {
   sentLabel,
 } from './start'
 import { useReplyMask } from './use-reply-mask'
+import { useRestoreInlineDraft } from './use-restore-inline-draft'
+import { useTeamReply } from './use-team-reply'
 
 export type Composer = ReturnType<typeof useComposer>
 
@@ -84,6 +86,7 @@ export function useComposer(start: ComposerStart, opts: Options) {
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
 
+  const team = useTeamReply(replyThreadOf(start))
   const replyMask = useReplyMask(start, from, auth?.address ?? '', { setCc, setFrom, setTo })
   const fromOptions = sendAddresses(auth?.address, [
     ...(auth?.send_as ?? []),
@@ -117,7 +120,7 @@ export function useComposer(start: ComposerStart, opts: Options) {
     saveNow,
     sentRef,
     threadId,
-  } = useComposerDraft(start, editorRef, { bcc, cc, from, scheduledAt, subject, to })
+  } = useComposerDraft(start, editorRef, { bcc, cc, from, scheduledAt, subject, to }, team.saved)
 
   useRestoreInlineDraft(start, editorRef, draftIdRef, lastSavedRef, {
     setBcc,
@@ -127,7 +130,7 @@ export function useComposer(start: ComposerStart, opts: Options) {
     setTo,
   })
 
-  const send = async () => {
+  const send = async (force = false): Promise<void> => {
     if (sending) return
     const recipients = parseAddressList(to)
     if (recipients.length === 0) {
@@ -160,9 +163,16 @@ export function useComposer(start: ComposerStart, opts: Options) {
         redraftOf: redraftOf(start),
         replyToThreadId: threadId,
         scheduledAt: epochSecondsFromLocalInput(scheduledAt),
+        shared: team.shared(force),
         subject,
         to: recipients,
       })
+      if (result.alreadyReplied) {
+        setSending(false)
+        if (team.confirmSecond(result.alreadyReplied)) return send(true)
+        setError(t('team.replied.cancelled', { name: result.alreadyReplied.by }))
+        return
+      }
       if (!result.success) {
         setError(result.message ?? t('compose.sendFailed'))
         return
@@ -177,6 +187,7 @@ export function useComposer(start: ComposerStart, opts: Options) {
         })
       }
       toast.success(t(sentLabel(start)), undoOption(sentId, t))
+      team.sent()
       sentRef.current = true
       const draftId = draftIdRef.current
       draftIdRef.current = null
@@ -278,11 +289,6 @@ function inlineMode(s: ComposerStart) {
   return null
 }
 
-function inlineThread(s: ComposerStart): string {
-  if (s.kind === 'inline') return s.ctx.threadId
-  return ''
-}
-
 function pick(cond: boolean, yes: string, no: string): string {
   if (cond) return yes
   return no
@@ -332,7 +338,8 @@ function useComposerDraft(
     scheduledAt: string
     subject: string
     to: string
-  }
+  },
+  onSaved: (draftId: null | number) => void
 ) {
   const draftIdRef = useRef<null | number>(initialDraftId(start))
   const sentRef = useRef(false)
@@ -369,8 +376,9 @@ function useComposerDraft(
       })
       if (res.id !== undefined) draftIdRef.current = Number(res.id)
       lastSavedRef.current = snapshot
+      onSaved(draftIdRef.current)
     })
-  }, [autosave, editorRef, prefilled, saveDraftMut, threadId])
+  }, [autosave, editorRef, onSaved, prefilled, saveDraftMut, threadId])
 
   const saveNowRef = useRef(saveNow)
   saveNowRef.current = saveNow
@@ -399,59 +407,4 @@ function useComposerDraft(
     sentRef,
     threadId,
   }
-}
-
-/**
- * The inline reply comes back to the draft this thread already has: its
- * body, its recipients when they were changed, and who it is from and when
- * it is set to go.
- */
-function useRestoreInlineDraft(
-  start: ComposerStart,
-  editorRef: React.RefObject<null | StructuredComposeHandle>,
-  draftIdRef: React.RefObject<null | number>,
-  lastSavedRef: React.RefObject<string>,
-  set: {
-    setBcc: (v: string) => void
-    setCc: (v: string) => void
-    setFrom: (v: string) => void
-    setScheduledAt: (v: string) => void
-    setTo: (v: string) => void
-  }
-) {
-  const t = useT()
-  const inline = start.kind === 'inline'
-  const { data: drafts = [] } = useDraftsQuery(inline)
-  const restored = useRef(false)
-  const threadId = inlineThread(start)
-  useEffect(() => {
-    if (!inline || restored.current || drafts.length === 0) return
-    const mine = drafts.find((d) => d.reply_to_thread_id === threadId)
-    if (!mine || !mine.body.trim()) return
-    restored.current = true
-    draftIdRef.current = Number(mine.id)
-    const scheduledAt = localInputFromEpochSeconds(mine.scheduled_at ?? null)
-    // the same shape `saveNow` compares, so a restore is not taken for an edit
-    lastSavedRef.current = JSON.stringify({
-      bcc: mine.bcc ?? '',
-      body: mine.body,
-      cc: mine.cc ?? '',
-      from: mine.from ?? '',
-      scheduledAt,
-      subject: mine.subject,
-      to: mine.to,
-    })
-    if (mine.from) set.setFrom(mine.from)
-    if (scheduledAt) set.setScheduledAt(scheduledAt)
-    if (mine.to) set.setTo(mine.to)
-    if (mine.cc) set.setCc(mine.cc)
-    if (mine.bcc) set.setBcc(mine.bcc)
-    setTimeout(() => {
-      const handle = editorRef.current
-      if (handle && !handle.getMarkdown().trim()) {
-        handle.setMarkdown(mine.body)
-        toast.info(t('compose.draftRestored'), { duration: 2000 })
-      }
-    }, 200)
-  }, [drafts, draftIdRef, editorRef, inline, lastSavedRef, set, t, threadId])
 }

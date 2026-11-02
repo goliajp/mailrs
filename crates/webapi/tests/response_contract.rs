@@ -63,6 +63,8 @@ fn conversation_list_keys_match() {
         labels: Vec::new(),
         section: "reply".into(),
         awaiting_since: 0,
+        shared_conv: String::new(),
+        assignee: String::new(),
     };
     let serialized = serde_json::to_value(&sample).expect("serialize");
 

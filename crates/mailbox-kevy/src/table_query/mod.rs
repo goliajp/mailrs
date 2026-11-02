@@ -17,6 +17,7 @@ use super::keys;
 use super::table_spec::thread_user_spec;
 
 mod account;
+mod assignee;
 mod flag;
 mod orderpath;
 mod section;

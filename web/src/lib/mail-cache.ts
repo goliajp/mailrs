@@ -216,6 +216,8 @@ function axesOfCacheKey(key: QueryKey): ListAxes | null {
   const tail = key[key.length - 1]
   if (typeof tail !== 'object' || tail === null) return null
   const f = tail as Record<string, unknown>
+  // "assigned to me" moves only when a teammate assigns, and that refetches it
+  if (f.assignedToMe === true) return null
   return {
     archived: f.archived === true || f.archived === 1,
     folder: typeof f.folder === 'string' ? f.folder : null,

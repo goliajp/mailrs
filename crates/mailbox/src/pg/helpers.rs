@@ -311,6 +311,8 @@ mod tests {
             trashed_at: 0,
             section: String::new(),
             awaiting_since: 0,
+            shared_conv: String::new(),
+            assignee: String::new(),
             quarantined: false,
         };
         let cloned = cs.clone();
@@ -346,6 +348,8 @@ mod tests {
             trashed_at: 0,
             section: String::new(),
             awaiting_since: 0,
+            shared_conv: String::new(),
+            assignee: String::new(),
             quarantined: false,
         };
         let debug = format!("{:?}", cs);

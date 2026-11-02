@@ -79,6 +79,8 @@ Streamable HTTP endpoint: https://mail.golia.ai/mcp
 - GET/POST/DELETE /api/admin/accounts — account CRUD
 - GET/POST/DELETE /api/admin/aliases — alias CRUD
 - GET/POST/DELETE /api/admin/email-groups — email group CRUD + /members
+- PUT /api/admin/email-groups/{id}/shared — make a group a team inbox (`{"shared": true}`) or a plain list again
+- GET /api/admin/shared/{gid}/{conv}/deleted-notes/{id} — what a deleted team note said; super administrators only, each read written to the audit log
 - GET/POST/DELETE /api/admin/groups — group CRUD + /permissions + /members
 - GET /api/admin/permissions — list all permissions
 - GET /api/admin/dmarc/reports — inbound DMARC aggregate reports, newest first (?limit=) (admin.domains)
@@ -111,7 +113,7 @@ Addresses `{namespace}.{any-tag}@mock.golia.jp` receive mail that never reaches 
 
 ### Agent
 - POST/GET/DELETE /api/agent/keys — API key management (scopes: admin, mail:read, mail:write, mail:send, mock, mock:{namespace}; a key with no scope is refused)
-- POST/GET/DELETE /api/agent/webhooks — webhook subscriptions, one event type each: mail.received, mail.held, mail.sent, mail.delivered, mail.deferred, mail.bounced, thread.read, thread.archived, thread.trashed, thread.starred, thread.labelled, calendar.invite_answered (payload `{event, version, timestamp, data}`, metadata only)
+- POST/GET/DELETE /api/agent/webhooks — webhook subscriptions, one event type each: mail.received, mail.held, mail.sent, mail.delivered, mail.deferred, mail.bounced, thread.read, thread.archived, thread.trashed, thread.starred, thread.labelled, thread.assigned, calendar.invite_answered (payload `{event, version, timestamp, data}`, metadata only)
 
 ### Status
 - GET /api/status, /api/health, /api/readiness

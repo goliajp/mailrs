@@ -53,4 +53,25 @@ impl Core for PgCore {
     ) -> bool {
         self.index(addr, blob_ref, body, folder, fraud_verdict)
     }
+
+    fn tag_shared(
+        &self,
+        addr: &str,
+        message_id: &str,
+        tag: &str,
+        assignee: &str,
+    ) -> Option<String> {
+        let rt = &self.dir.rt;
+        let tid = rt
+            .block_on(self.mailbox.find_thread_id_by_message_id(addr, message_id))
+            .ok()
+            .flatten()?;
+        match rt.block_on(self.mailbox.set_shared_copy(addr, &tid, tag, assignee)) {
+            Ok(()) => Some(tid),
+            Err(e) => {
+                tracing::warn!(%addr, %tag, error = %e, "team inbox: copy not tagged");
+                None
+            }
+        }
+    }
 }

@@ -53,6 +53,8 @@ pub struct ThreadQuery<'a> {
     /// Only conversations whose newest message from someone else came from
     /// this address (lowercased): a sender's conversations.
     pub in_from: Option<&'a str>,
+    /// Only the reader's team conversations assigned to this member.
+    pub assignee: Option<&'a str>,
 }
 
 /// How a view treats conversations held for review.
@@ -86,6 +88,7 @@ impl<'a> ThreadQuery<'a> {
             section: None,
             awaiting_due_by: None,
             in_from: None,
+            assignee: None,
         }
     }
 }
@@ -114,6 +117,8 @@ struct Row {
     quarantined: bool,
     section: String,
     awaiting_since: i64,
+    shared_conv: String,
+    assignee: String,
 }
 
 /// A message counted once even when it sits in two mailboxes.
@@ -153,7 +158,9 @@ fn thread_rows_sql(ids_param: Option<usize>) -> String {
                 COALESCE(MAX(CAST(EXTRACT(EPOCH FROM sc.snoozed_until) AS BIGINT)), 0) AS snoozed_until,
                 BOOL_OR(q.thread_id IS NOT NULL) AS quarantined,
                 BOOL_OR(tr.thread_id IS NOT NULL) AS trashed,
-                COALESCE(MAX(tr.trashed_at), 0) AS trashed_at{}
+                COALESCE(MAX(tr.trashed_at), 0) AS trashed_at,
+                COALESCE(MAX(sh.shared_conv), '') AS shared_conv,
+                COALESCE(MAX(sh.assignee), '') AS assignee{}
            FROM messages m
                 JOIN mailboxes mb ON m.mailbox_id = mb.id
                 LEFT JOIN email_analysis ea ON ea.message_id = m.id
@@ -163,6 +170,8 @@ fn thread_rows_sql(ids_param: Option<usize>) -> String {
                        ON q.thread_id = m.thread_id AND q.account_address = mb.user_address
                 LEFT JOIN trashed_conversations tr
                        ON tr.thread_id = m.thread_id AND tr.account_address = mb.user_address
+                LEFT JOIN shared_thread_copies sh
+                       ON sh.thread_id = m.thread_id AND sh.account_address = mb.user_address
           WHERE mb.user_address = $1 AND m.thread_id != ''{ids}
           GROUP BY m.thread_id",
         super::sections::AGGREGATES
@@ -253,6 +262,8 @@ impl From<Row> for ConversationSummary {
             quarantined: r.quarantined,
             section: r.section,
             awaiting_since: r.awaiting_since,
+            shared_conv: r.shared_conv,
+            assignee: r.assignee,
         }
     }
 }
@@ -321,6 +332,13 @@ impl PgMailboxStore {
         if let Some(p) = from_param {
             wheres.push(format!("t.s_in_from = ${p}"));
         }
+        let assignee_param = q.assignee.map(|_| {
+            next += 1;
+            next - 1
+        });
+        if let Some(p) = assignee_param {
+            wheres.push(format!("t.assignee = ${p}"));
+        }
         let (cursor_col, order) = match awaiting {
             true => ("t.awaiting_since", "t.awaiting_since DESC, t.thread_id"),
             false => ("t.last_date", "t.last_date DESC, t.thread_id"),
@@ -359,6 +377,9 @@ impl PgMailboxStore {
         }
         if let Some(from) = q.in_from {
             query = query.bind(from);
+        }
+        if let Some(a) = q.assignee {
+            query = query.bind(a);
         }
         if let Some(ts) = q.before_ts {
             query = query.bind(ts);

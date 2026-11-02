@@ -27,6 +27,7 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
     use mailrs_core_api::method::message_index as mix;
     use mailrs_core_api::method::senders as senders_paths;
     use mailrs_core_api::method::sent as sent_paths;
+    use mailrs_core_api::method::shared as shared_paths;
     use mailrs_core_api::method::thread as th_paths;
 
     let base = mailrs_core_api::server::base_router(state.clone());
@@ -83,6 +84,16 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
         .route(
             senders_paths::PATH_ACCEPT_SENDERS,
             post(handlers::senders::accept_senders),
+        )
+        .route(shared_paths::PATH_ASSIGN, post(handlers::shared::assign))
+        .route(shared_paths::PATH_STATE, post(handlers::shared::state))
+        .route(
+            shared_paths::PATH_CLAIM_REPLY,
+            post(handlers::shared::claim),
+        )
+        .route(
+            shared_paths::PATH_RELEASE_REPLY,
+            post(handlers::shared::release),
         )
         .route(
             import_paths::PATH_IMPORT_MESSAGE,

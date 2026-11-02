@@ -1,6 +1,9 @@
 import type { SectionsKey } from './en'
 
+import { teamZh } from '../team/zh'
+
 export const sectionsZh: Record<SectionsKey, string> = {
+  ...teamZh,
   'list.awaiting': '等对方回复',
   'list.awaiting.empty': '没有等待回复的会话',
   'sections.accept': '全部接受',

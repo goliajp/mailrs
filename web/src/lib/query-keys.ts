@@ -18,6 +18,8 @@ export type MailListFilters = {
    */
   accounts?: null | string[]
   archived?: boolean
+  /** Only the reader's team conversations assigned to the reader. */
+  assignedToMe?: boolean
   category?: null | string
   domains?: string[]
   folder?: null | string
@@ -67,6 +69,7 @@ function normalizeFilters(f: MailListFilters): Record<string, boolean | number |
   // cache for "every account".
   if (f.accounts) out.accounts = `[${[...f.accounts].sort().join(',')}]`
   if (f.archived) out.archived = 1
+  if (f.assignedToMe) out.assignedToMe = 1
   if (f.category) out.category = f.category
   if (f.domains && f.domains.length > 0) out.domains = [...f.domains].sort().join(',')
   if (f.folder) out.folder = f.folder

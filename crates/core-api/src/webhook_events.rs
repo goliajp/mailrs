@@ -18,6 +18,10 @@ pub const THREAD_ARCHIVED: &str = "thread.archived";
 pub const THREAD_TRASHED: &str = "thread.trashed";
 pub const THREAD_STARRED: &str = "thread.starred";
 pub const THREAD_LABELLED: &str = "thread.labelled";
+/// A team conversation was assigned to a member, or the assignment taken
+/// back. Carries the group, the conversation and the assignee; never a
+/// note.
+pub const THREAD_ASSIGNED: &str = "thread.assigned";
 pub const CALENDAR_INVITE_ANSWERED: &str = "calendar.invite_answered";
 
 /// The old name of [`MAIL_RECEIVED`]; subscriptions stored under it keep
@@ -25,7 +29,7 @@ pub const CALENDAR_INVITE_ANSWERED: &str = "calendar.invite_answered";
 pub const NEW_MESSAGE: &str = "new_message";
 
 /// Every event type a user may subscribe to.
-pub const ALL: [&str; 12] = [
+pub const ALL: [&str; 13] = [
     MAIL_RECEIVED,
     MAIL_HELD,
     MAIL_SENT,
@@ -37,6 +41,7 @@ pub const ALL: [&str; 12] = [
     THREAD_TRASHED,
     THREAD_STARRED,
     THREAD_LABELLED,
+    THREAD_ASSIGNED,
     CALENDAR_INVITE_ANSWERED,
 ];
 

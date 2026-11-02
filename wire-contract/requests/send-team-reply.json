@@ -1,0 +1,12 @@
+{
+  "bcc": [],
+  "body": "hello",
+  "cc": [],
+  "from": "team@golia.jp",
+  "html_body": "<p>hello</p>",
+  "reply_to_thread_id": "t1",
+  "shared": { "conv": 41, "force": false, "gid": 3, "seen_seq": 2 },
+  "subject": "Re: order",
+  "to": ["customer@example.com"],
+  "undo_seconds": 10
+}

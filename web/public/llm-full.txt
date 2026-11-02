@@ -780,6 +780,42 @@ Query parameters:
 - `q` -- search keyword
 - `category` -- filter: personal, notification, promotion, general
 - `folder` -- INBOX (default), Sent
+- `assigned_to_me=true` -- only team inbox conversations assigned to you
+
+A row from a team inbox carries `shared_conv` (`"{gid}:{conv}"`, the team
+conversation it is your copy of) and `assignee` (empty for nobody).
+
+### Team Inbox
+
+An email group set to `shared` is a team inbox: every member still gets
+their own copy, and the copies of one conversation share an assignee,
+internal notes, presence and the reply being written. Only current members
+of the group can use these routes; anyone else gets 403.
+
+```
+GET    /api/shared/{gid}/{conv}                    assignee, members, reply count (reply.seq), who has it open, the reply being written
+POST   /api/shared/{gid}/{conv}/assign             {"to": "bob@example.com"}  (null takes it back; fires thread.assigned)
+POST   /api/shared/{gid}/{conv}/presence           {"state": "viewing" | "composing"}  every 20 s; lasts 60 s
+DELETE /api/shared/{gid}/{conv}/presence
+GET    /api/shared/{gid}/{conv}/notes              internal notes, oldest first
+POST   /api/shared/{gid}/{conv}/notes              {"text": "..."}
+PUT    /api/shared/{gid}/{conv}/notes/{id}         {"text": "..."}  (author only)
+DELETE /api/shared/{gid}/{conv}/notes/{id}         (author only)
+GET    /api/shared/{gid}/{conv}/draft              read the reply another member is writing
+PUT    /api/shared/{gid}/{conv}/draft              {"draft_id": 7}  say you are writing it (409 if someone else holds it)
+POST   /api/shared/{gid}/{conv}/draft/take-over    continue it in a copy in your own drafts
+DELETE /api/shared/{gid}/{conv}/draft              you threw your reply away
+```
+
+Internal notes are never part of any message: no send, forward, export,
+JMAP / IMAP / POP3 read, webhook payload or model input contains them, and
+the audit log records note ids only.
+
+Replying: send with `"shared": {"gid": 3, "conv": 41, "seen_seq": <reply.seq
+when you opened the composer>}`. If another member replied since, the send
+is refused with 409 `{"error": "already_replied", "by", "at", "seq"}`; send
+again with `"force": true` to reply a second time on purpose. Undoing the send
+(DELETE /api/mail/pending/{message_id}) gives the reply back.
 
 ### Search Emails
 
@@ -1269,6 +1305,7 @@ Event types:
 | `thread.trashed` | moved to or out of the Trash | thread_id, trashed |
 | `thread.starred` | starred or unstarred | thread_id, starred |
 | `thread.labelled` | a label put on or taken off | thread_id, label_id, labelled |
+| `thread.assigned` | a team inbox conversation was assigned, or the assignment taken back; one event per member's copy, never a note | thread_id, gid, conv, assignee (null when taken back) |
 | `calendar.invite_answered` | you answered an invitation | message_uid, event_uid, partstat |
 
 `new_message` is the old name of `mail.received`; subscriptions under it keep

@@ -79,6 +79,17 @@ export async function wireFetch<T>(schema: z.ZodType<T>, req: WireRequest): Prom
   return handleResponse(schema, res, Boolean(req.allowEmpty))
 }
 
+/** 409 `already_replied`: another team member answered first. */
+function alreadyReplied(status: number, body: Record<string, unknown>): null | WireError {
+  if (status !== 409 || body.error !== 'already_replied') return null
+  return {
+    at: Number(body.at ?? 0),
+    by: String(body.by ?? ''),
+    kind: 'already-replied',
+    seq: Number(body.seq ?? 0),
+  }
+}
+
 // a feature switched off for everyone answers 403 with
 // `{"error": "temporarily_disabled", "detail": ...}`; that is not a
 // missing permission, so the reason is shown instead
@@ -130,10 +141,13 @@ async function handleResponse<T>(
       const body = await res.json()
       if (body && typeof body === 'object') {
         const asRecord = body as Record<string, unknown>
+        const replied = alreadyReplied(res.status, asRecord)
+        if (replied) throw new WireErrorException(replied)
         if (typeof asRecord.error === 'string') message = asRecord.error
         else if (typeof asRecord.message === 'string') message = asRecord.message
       }
-    } catch {
+    } catch (e) {
+      if (e instanceof WireErrorException) throw e
       /* body wasn't json; keep the default message */
     }
     const detail: WireError = { kind: 'server', message, status: res.status }

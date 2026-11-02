@@ -24,6 +24,8 @@
     "trashed_at": 0,
     "labels": [],
     "section": "reply",
-    "awaiting_since": 0
+    "awaiting_since": 0,
+    "shared_conv": "",
+    "assignee": ""
   }
 ]

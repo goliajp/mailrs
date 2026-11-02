@@ -10,6 +10,13 @@
 import type { z } from 'zod'
 
 export type WireError =
+  /** A team reply refused: another member answered since the composer opened. */
+  | {
+      readonly at: number
+      readonly by: string
+      readonly kind: 'already-replied'
+      readonly seq: number
+    }
   | {
       readonly contact: { readonly address: string; readonly name: string }
       readonly kind: 'password-cleared'
@@ -44,6 +51,8 @@ export class WireErrorException extends Error {
     switch (detail.kind) {
       case 'aborted':
         return 'Request aborted'
+      case 'already-replied':
+        return `Already answered by ${detail.by}`
       case 'auth':
         return 'Authentication required'
       case 'disabled':

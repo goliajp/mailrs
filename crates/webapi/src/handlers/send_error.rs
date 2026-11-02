@@ -26,6 +26,11 @@ impl SendError {
         }
     }
 
+    /// A refusal that carries its own JSON body.
+    pub fn with_body(status: StatusCode, body: serde_json::Value) -> Self {
+        Self { status, body }
+    }
+
     pub fn too_large() -> Self {
         Self {
             status: StatusCode::PAYLOAD_TOO_LARGE,
