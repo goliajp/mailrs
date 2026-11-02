@@ -202,9 +202,21 @@ pub(super) fn bucket_predicates<'a>(
 /// which the badge counts threads the Unread view will not list.
 impl KevyMailboxStore {
     pub fn count_flag_non_junk(&self, user: &str, flag: &str) -> io::Result<usize> {
+        self.count_flag_in_buckets(user, flag, &NON_JUNK_BUCKETS)
+    }
+
+    /// The live threads in `buckets` with `flag` set, the threads the
+    /// user only sent into left out — what the Inbox (`["inbox"]`) or
+    /// Notifications & Promotions (`NP_BUCKETS`) list of that flag holds.
+    pub fn count_flag_in_buckets(
+        &self,
+        user: &str,
+        flag: &str,
+        buckets: &[&str],
+    ) -> io::Result<usize> {
         let mut total = 0usize;
         let live = [not_archived(), not_trashed()];
-        for bucket in NON_JUNK_BUCKETS {
+        for bucket in buckets.iter().copied() {
             let scoped = bucket_predicates(bucket, &live, SentOnly::Excluded);
             let refs: Vec<(&str, &str)> = scoped.iter().map(|(c, v)| (*c, v.as_str())).collect();
             total += self.count_thread_ids_by_flag_filtered(user, flag, &refs)?;
@@ -243,7 +255,8 @@ const ALL_MAIL_SET: BucketSet = BucketSet {
 };
 
 /// The two buckets the "N & P" tab merges.
-const NP_BUCKETS: [&str; 2] = ["notifications", "promotions"];
+/// Notifications & Promotions — see [`Scope::Np`].
+pub const NP_BUCKETS: [&str; 2] = ["notifications", "promotions"];
 
 /// Every bucket except Junk — see [`Scope::NotJunk`].
 pub const NON_JUNK_BUCKETS: [&str; 3] = ["inbox", "notifications", "promotions"];

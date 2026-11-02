@@ -102,7 +102,7 @@ mod thread_ownership;
 mod thread_row;
 mod trash;
 pub use attachment_text::AttachmentTextState;
-pub use list_threads::{ListThreadsFilter, QuarantineScope};
+pub use list_threads::{ListThreadsFilter, NP_BUCKETS, QuarantineScope};
 pub use mailrs_mailbox::query;
 pub use mailrs_mailbox::rules;
 /// Which conversations a view shows; shared with every store.
