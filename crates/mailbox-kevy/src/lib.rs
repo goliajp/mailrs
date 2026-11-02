@@ -90,6 +90,7 @@ mod move_category;
 mod mutations;
 mod rethread;
 mod sections;
+mod shared;
 mod table_query;
 mod table_query_tests;
 mod table_spec;
@@ -105,6 +106,7 @@ pub use mailrs_mailbox::rules;
 /// Which conversations a view shows; shared with every store.
 pub use mailrs_mailbox::scope;
 pub use mailrs_mailbox::section;
+pub use mailrs_mailbox::shared_reply;
 pub use mailrs_mailbox::threading::normalize_subject;
 pub use marker_upkeep::{MarkerColumnCheck, MarkerRewrite};
 pub use message_arrival::MessageArrival;

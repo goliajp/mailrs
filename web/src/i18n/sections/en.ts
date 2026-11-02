@@ -1,5 +1,8 @@
-/** The sectioned inbox, spread into `en`; kept apart to keep each file small. */
+import { teamEn } from '../team/en'
+
+/** The sectioned inbox and the team inbox, spread into `en`; kept apart to keep each file small. */
 export const sectionsEn = {
+  ...teamEn,
   'list.awaiting': 'Waiting',
   'list.awaiting.empty': 'Nothing is waiting for a reply',
   'sections.accept': 'Accept all',

@@ -99,7 +99,7 @@ vi.mock('@/hooks/use-mail-mutations', () =>
   )
 )
 vi.mock('@/lib/query-client', () => ({
-  queryClient: { invalidateQueries: vi.fn(() => Promise.resolve()) },
+  queryClient: { invalidateQueries: vi.fn(() => Promise.resolve()), getQueriesData: () => [] },
 }))
 vi.mock('@/lib/query-keys', () => ({
   mailKeys: {

@@ -47,6 +47,7 @@ export function useConversationsQuery(filters: MailListFilters, enabled: boolean
     queryKey: conversationKeys.infinite({
       accounts: filters.accounts,
       archived: filters.archived,
+      assignedToMe: filters.assignedToMe,
       category: filters.category as never,
       domains: filters.domains,
       folder: filters.folder as never,
@@ -207,6 +208,7 @@ function listPath(filters: MailListFilters, before?: number): string {
     if (filters.unread) p += '&unread=true'
     if (filters.starred) p += '&starred=true'
     if (filters.archived) p += '&archived=true'
+    if (filters.assignedToMe) p += '&assigned_to_me=true'
     if (filters.includeQuarantined) p += '&include_quarantined=1'
     p += accountsParam(filters)
     return p

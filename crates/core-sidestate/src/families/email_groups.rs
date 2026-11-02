@@ -4,7 +4,9 @@
 //!   `admin:email-group:{id}:members`  set of member addresses
 //!
 //! Members live only in the set, never in the row. webapi writes these
-//! keys; the spool drain reads them to expand a group address.
+//! keys; the spool drain reads them to expand a group address. A row with
+//! `"shared": true` is a team inbox: its local members share assignment,
+//! notes and presence on the mail it receives (`super::shared_inbox`).
 
 use kevy_client::Connection;
 
@@ -20,6 +22,51 @@ pub struct Group {
     pub id: i64,
     pub address: String,
     pub members: Vec<String>,
+    /// A team inbox, not only a distribution list.
+    pub shared: bool,
+}
+
+fn row(conn: &mut Connection, id: i64) -> std::io::Result<Option<serde_json::Value>> {
+    Ok(conn
+        .hget(GROUPS_KEY.as_bytes(), id.to_string().as_bytes())?
+        .and_then(|v| serde_json::from_slice(&v).ok()))
+}
+
+fn shared_in(row: &serde_json::Value) -> bool {
+    row.get("shared").and_then(|v| v.as_bool()) == Some(true)
+}
+
+/// Whether group `id` exists and is a team inbox.
+pub fn is_shared(conn: &mut Connection, id: i64) -> std::io::Result<bool> {
+    Ok(row(conn, id)?.is_some_and(|r| shared_in(&r)))
+}
+
+/// Turn group `id`'s team inbox on or off; false when there is no such
+/// group.
+pub fn set_shared(conn: &mut Connection, id: i64, shared: bool) -> std::io::Result<bool> {
+    let Some(mut r) = row(conn, id)? else {
+        return Ok(false);
+    };
+    r["shared"] = serde_json::Value::Bool(shared);
+    let body = serde_json::to_vec(&r).map_err(std::io::Error::other)?;
+    conn.hset(
+        GROUPS_KEY.as_bytes(),
+        &[(id.to_string().as_bytes(), body.as_slice())],
+    )?;
+    Ok(true)
+}
+
+/// Whether `user` is, right now, a member of team inbox `id`: the group is
+/// shared and its member set names the address (ASCII case-insensitively).
+/// Read on every use, so a member taken out loses the team at once.
+pub fn is_team_member(conn: &mut Connection, id: i64, user: &str) -> std::io::Result<bool> {
+    if !is_shared(conn, id)? {
+        return Ok(false);
+    }
+    Ok(conn
+        .smembers(members_key(id).as_bytes())?
+        .iter()
+        .any(|m| std::str::from_utf8(m).is_ok_and(|m| m.trim().eq_ignore_ascii_case(user.trim()))))
 }
 
 /// The group whose address is `addr` (compared ASCII case-insensitively),
@@ -52,6 +99,7 @@ pub fn find_by_address(conn: &mut Connection, addr: &str) -> std::io::Result<Opt
         id,
         address: addr.to_string(),
         members,
+        shared: shared_in(&row),
     }))
 }
 
@@ -134,6 +182,26 @@ mod tests {
             .unwrap();
         assert_eq!(g.id, 1);
         assert_eq!(g.members, ["a@example.test", "b@example.test"]);
+    }
+
+    #[test]
+    fn a_team_member_is_a_member_of_a_shared_group_now() {
+        let mut conn = Connection::connect("mem://email-groups-team").unwrap();
+        put(&mut conn, 1, "team@x.test", &["a@x.test"]);
+        assert!(!is_team_member(&mut conn, 1, "a@x.test").unwrap());
+        assert!(set_shared(&mut conn, 1, true).unwrap());
+        assert!(is_team_member(&mut conn, 1, "A@x.test").unwrap());
+        assert!(!is_team_member(&mut conn, 1, "b@x.test").unwrap());
+        assert!(
+            find_by_address(&mut conn, "team@x.test")
+                .unwrap()
+                .unwrap()
+                .shared
+        );
+        conn.srem(members_key(1).as_bytes(), &[b"a@x.test".as_slice()])
+            .unwrap();
+        assert!(!is_team_member(&mut conn, 1, "a@x.test").unwrap());
+        assert!(!set_shared(&mut conn, 9, true).unwrap());
     }
 
     #[test]

@@ -433,6 +433,8 @@ pub(crate) fn row_to_wire(r: ThreadRow) -> ConversationSummaryWire {
         // the reader's section, read beside the row by `with_sections`
         section: String::new(),
         awaiting_since: 0,
+        shared_conv: String::new(),
+        assignee: String::new(),
     }
 }
 

@@ -32,6 +32,13 @@ pub trait Core: Directory {
         folder: &str,
         fraud_verdict: Option<&str>,
     ) -> bool;
+    /// Mark `addr`'s conversation holding `message_id` as their copy of
+    /// team conversation `tag` (`"{group}:{conversation}"`), assigned to
+    /// `assignee` (empty for nobody). The conversation's thread id; `None`
+    /// when the message is not in their mailbox (a sieve script discarded
+    /// or redirected it) or the store could not be written.
+    fn tag_shared(&self, addr: &str, message_id: &str, tag: &str, assignee: &str)
+    -> Option<String>;
 }
 
 /// The spooled message being delivered.

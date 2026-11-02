@@ -43,6 +43,13 @@ export type SendMailParams = {
    * rather than a conversion being added on top.
    */
   scheduledAt?: null | number
+  /**
+   * The team conversation a team inbox reply answers. The server claims the
+   * reply before queueing it and refuses it when another member answered
+   * since the composer opened (`seenSeq`), unless `force` says to send a
+   * second reply on purpose.
+   */
+  shared?: null | SharedReply
   subject: string
   to: string[]
   /**
@@ -59,7 +66,15 @@ export type SendMailParams = {
  *  less than this so a click near the end still lands in time. */
 export const UNDO_SECONDS = 10
 
-export type SendResult = { message?: string; message_id?: string; success: boolean }
+export type SendResult = {
+  /** Refused: another team member answered first, at `at`. */
+  alreadyReplied?: { at: number; by: string }
+  message?: string
+  message_id?: string
+  success: boolean
+}
+
+export type SharedReply = { conv: number; force?: boolean; gid: number; seenSeq: number }
 
 /**
  * A `<input type="datetime-local">` value → Unix epoch seconds.
@@ -127,7 +142,14 @@ export async function sendMail(p: SendMailParams): Promise<SendResult> {
     if (p.redraftKeep !== null && p.redraftKeep !== undefined) {
       payload['redraft_keep'] = p.redraftKeep
     }
-    return wireSendMailJson(payload)
+    if (p.shared) payload['shared'] = sharedBody(p.shared)
+    try {
+      return await wireSendMailJson(payload)
+    } catch (e) {
+      const refused = repliedFirst(e)
+      if (refused) return refused
+      throw e
+    }
   }
 
   const fd = new FormData()
@@ -156,10 +178,13 @@ export async function sendMail(p: SendMailParams): Promise<SendResult> {
   if (p.redraftKeep !== null && p.redraftKeep !== undefined) {
     fd.append('redraft_keep', p.redraftKeep.join(','))
   }
+  if (p.shared) fd.append('shared', JSON.stringify(sharedBody(p.shared)))
 
   try {
     return await wireSendMailMultipart(fd)
   } catch (e) {
+    const refused = repliedFirst(e)
+    if (refused) return refused
     if (e instanceof WireErrorException && e.detail.kind === 'server') {
       return {
         message: e.detail.message ?? tNow('compose.sendFailedStatus', { status: e.detail.status }),
@@ -168,4 +193,13 @@ export async function sendMail(p: SendMailParams): Promise<SendResult> {
     }
     return { message: tNow('compose.sendFailed'), success: false }
   }
+}
+
+function repliedFirst(e: unknown): null | SendResult {
+  if (!(e instanceof WireErrorException) || e.detail.kind !== 'already-replied') return null
+  return { alreadyReplied: { at: e.detail.at, by: e.detail.by }, success: false }
+}
+
+function sharedBody(s: SharedReply) {
+  return { conv: s.conv, force: s.force ?? false, gid: s.gid, seen_seq: s.seenSeq }
 }

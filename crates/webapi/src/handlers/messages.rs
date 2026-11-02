@@ -306,6 +306,7 @@ pub async fn delete_message(
 /// there is no such send, 409 when it is already on its way: the client
 /// shows that answer, so it must not be "cancelled" when it was not.
 pub async fn cancel_pending_send(
+    State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Path(message_id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
@@ -333,6 +334,7 @@ pub async fn cancel_pending_send(
         sendfam::cancel_send(c, &u, &s, outbound::CANCELLED_REASON)
     })?;
     tracing::info!(%user, %message_id, jobs = removed.len(), cancelled, delivered, "send undone");
+    crate::handlers::shared_inbox::claim::undone(&state, &user, &message_id).await;
     Ok(StatusCode::NO_CONTENT)
 }
 

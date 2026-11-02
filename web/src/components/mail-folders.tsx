@@ -16,6 +16,7 @@ import {
   ShieldQuestion,
   Star,
   Trash2,
+  UserCheck,
 } from 'lucide-react'
 
 import { LabelDot } from '@/components/label-chip'
@@ -31,6 +32,7 @@ import { activeLabelAtom, activeListAtom, selectLabelAtom } from '@/store/ui'
 const ICONS: Record<MailListId, LucideIcon> = {
   all: Mails,
   archived: Archive,
+  assigned: UserCheck,
   awaiting: Hourglass,
   draft: FileText,
   inbox: Inbox,

@@ -127,6 +127,7 @@ pub async fn semantic_search(
             snoozed: None,
             section: None,
             followup_due_by: None,
+            assigned_to_me: false,
         },
     };
     // A core RPC failure means we genuinely cannot answer. Say so

@@ -8,6 +8,7 @@ import { useAdminMutation } from '@/hooks/use-admin-mutations'
 import { type Key, useT } from '@/i18n'
 import { adminKeys } from '@/lib/query-keys'
 import { adminDelete, adminPost, adminStringListGet } from '@/wire/endpoints/admin'
+import { wireSetGroupShared } from '@/wire/endpoints/shared'
 
 export function EmailGroupMembers({ group }: { group: EmailGroupInfo }) {
   const t = useT()
@@ -49,6 +50,7 @@ export function EmailGroupMembers({ group }: { group: EmailGroupInfo }) {
 
   return (
     <div>
+      <SharedToggle group={group} />
       <h4 className="text-fg-secondary mb-2 text-xs font-medium">{t('admin.members')}</h4>
       <div className="mb-2 flex gap-2">
         <input
@@ -125,4 +127,34 @@ function MemberList({
 function pendingLabel(pending: boolean, busy: Key, idle: Key): Key {
   if (pending) return busy
   return idle
+}
+
+function sharedLabel(on: boolean): Key {
+  if (on) return 'admin.emailGroups.sharedOn'
+  return 'admin.emailGroups.sharedOff'
+}
+
+/** Whether the group is a team inbox rather than only a distribution list. */
+function SharedToggle({ group }: { group: EmailGroupInfo }) {
+  const t = useT()
+  const setShared = useAdminMutation({
+    invalidateKey: adminKeys.emailGroups(),
+    mutationFn: (on: boolean) => wireSetGroupShared(group.id, on),
+    successMsg: (on) => t(sharedLabel(on)),
+  })
+  return (
+    <label className="mb-3 flex items-start gap-2 text-sm">
+      <input
+        checked={group.shared ?? false}
+        className="mt-0.5"
+        disabled={setShared.isPending}
+        onChange={(e) => setShared.mutate(e.target.checked)}
+        type="checkbox"
+      />
+      <span>
+        <span className="text-fg font-medium">{t('admin.emailGroups.shared')}</span>
+        <span className="text-fg-muted block text-xs">{t('admin.emailGroups.sharedHelp')}</span>
+      </span>
+    </label>
+  )
 }
