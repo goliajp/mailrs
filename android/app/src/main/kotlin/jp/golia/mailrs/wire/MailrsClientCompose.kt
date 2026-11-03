@@ -51,6 +51,61 @@ data class Template(
 )
 
 /**
+ * `POST /api/mail/send`. Every field is `#[serde(default)]` server-side, but a reply that
+ * drops its `in_reply_to` still arrives and starts a new thread — so all are sent explicitly.
+ */
+@Serializable
+data class SendRequest(
+    /**
+     * Which address this leaves by, or empty for the signed-in one.
+     *
+     * A reply to mail that arrived at a connected Gmail has to go
+     * out through that Gmail: sent from anywhere else it lands in
+     * the conversation as a stranger, and half the time the
+     * recipient's provider refuses it outright.
+     */
+    val from: String = "",
+    val to: List<String>,
+    val cc: List<String> = emptyList(),
+    val bcc: List<String> = emptyList(),
+    val subject: String,
+    val body: String,
+    @SerialName("in_reply_to") val inReplyTo: String? = null,
+    /**
+     * When it should leave, in epoch **seconds**, or null for now.
+     *
+     * An integer, not a formatted time: the handler reads anything
+     * it cannot parse as "not scheduling", which is how the web's
+     * ISO 8601 string once made every scheduled send go out at
+     * once.
+     */
+    @SerialName("scheduled_at") val scheduledAt: Long? = null,
+    /** The send this is a re-edit of; the server carries its bytes. */
+    @SerialName("redraft_of") val redraftOf: String? = null,
+    /**
+     * Which carried attachments to keep, by index.
+     *
+     * **Absent and empty mean different things** — absent keeps
+     * every carried attachment, an empty list keeps none — so this
+     * is nullable rather than defaulted, and a re-edit that removed
+     * every file must send `[]` and not nothing.
+     */
+    @SerialName("redraft_keep") val redraftKeep: List<Int>? = null,
+    /**
+     * The message being forwarded, by uid.
+     *
+     * The server re-extracts its attachments and carries them,
+     * which is the whole reason a forward does not have to
+     * download and re-upload what it is passing on — and the
+     * reason a phone can forward a message it has never opened.
+     */
+    @SerialName("forward_attachments_from") val forwardAttachmentsFrom: Int? = null,
+    @SerialName("undo_seconds") val undoSeconds: Int? = null,
+    /** The body rendered from its markdown (`MarkdownHtml`), or absent for text alone. */
+    @SerialName("html_body") val htmlBody: String? = null,
+)
+
+/**
  * What applying a template does, as the web does it: the subject only where
  * the message has none of its own yet (a reply keeps "Re: …"), and the body
  * replaced by the template's text.
@@ -83,10 +138,11 @@ suspend fun MailrsClient.send(
     redraftOf: String? = null,
     redraftKeep: List<Int>? = null,
     from: String = "",
+    htmlBody: String? = null,
 ): MailrsClient.Outcome<String> {
     val payload = json.encodeToString(
-        Wire.SendRequest.serializer(),
-        Wire.SendRequest(
+        SendRequest.serializer(),
+        SendRequest(
             from = from,
             to = to,
             cc = cc,
@@ -99,6 +155,7 @@ suspend fun MailrsClient.send(
             redraftOf = redraftOf,
             redraftKeep = redraftKeep,
             undoSeconds = SendHold.SECONDS,
+            htmlBody = htmlBody,
         ),
     )
     return sentId(post(url("/api/mail/send"), payload, authorized = true))
@@ -124,6 +181,7 @@ suspend fun MailrsClient.sendMultipart(
     redraftOf: String? = null,
     redraftKeep: List<Int>? = null,
     from: String = "",
+    htmlBody: String? = null,
 ): MailrsClient.Outcome<String> = withContext(Dispatchers.IO) {
     val s = session ?: return@withContext MailrsClient.Outcome.Err(Texts.get(R.string.error_not_signed_in))
     val form = MultipartBody.Builder().setType(MultipartBody.FORM)
@@ -135,6 +193,7 @@ suspend fun MailrsClient.sendMultipart(
     bcc.forEach { form.addFormDataPart("bcc", it) }
     form.addFormDataPart("subject", subject)
     form.addFormDataPart("body", body)
+    htmlBody?.let { form.addFormDataPart("html_body", it) }
     // Absent when it is the signed-in address, like every other optional field.
     if (from.isNotEmpty()) form.addFormDataPart("from", from)
     inReplyTo?.let { form.addFormDataPart("in_reply_to", it) }

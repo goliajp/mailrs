@@ -18,13 +18,13 @@ extension MailrsClient {
     func sendNew(
         to recipients: [String], cc: [String] = [], bcc: [String] = [],
         subject: String, body: String, scheduledAt: Int64? = nil,
-        from: String = ""
+        from: String = "", htmlBody: String? = nil
     ) async throws -> Wire.SendResponse {
         try await post(Wire.SendRequest(
             to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
             inReplyTo: nil, replyToThreadId: nil,
             forwardMessageId: nil, forwardAttachmentsFrom: nil,
-            scheduledAt: scheduledAt, from: from
+            scheduledAt: scheduledAt, from: from, htmlBody: htmlBody
         ))
     }
 
@@ -38,13 +38,13 @@ extension MailrsClient {
         body: String,
         inReplyTo: String?,
         threadId: String,
-        from: String = ""
+        from: String = "", htmlBody: String? = nil
     ) async throws -> Wire.SendResponse {
         return try await post(Wire.SendRequest(
             to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
             inReplyTo: inReplyTo, replyToThreadId: threadId,
             forwardMessageId: nil, forwardAttachmentsFrom: nil,
-            scheduledAt: nil, from: from
+            scheduledAt: nil, from: from, htmlBody: htmlBody
         ))
     }
 
@@ -68,7 +68,7 @@ extension MailrsClient {
         scheduledAt: Int64? = nil,
         redraftOf: String? = nil,
         redraftKeep: [Int]? = nil,
-        from: String = ""
+        from: String = "", htmlBody: String? = nil
     ) async throws -> Wire.SendResponse {
         let boundary = "mailrs-\(UUID().uuidString)"
         // Repeated fields, one per address, exactly as `to` is — the
@@ -78,6 +78,7 @@ extension MailrsClient {
         fields += bcc.map { ("bcc", $0) }
         fields.append(("subject", subject))
         fields.append(("body", body))
+        if let htmlBody { fields.append(("html_body", htmlBody)) }
         // Absent when it is the signed-in address, like every other
         // optional field on this route.
         if !from.isEmpty { fields.append(("from", from)) }
@@ -139,14 +140,14 @@ extension MailrsClient {
         body: String,
         forwardMessageId: String,
         forwardAttachmentsFrom: UInt32?,
-        from: String = ""
+        from: String = "", htmlBody: String? = nil
     ) async throws -> Wire.SendResponse {
         return try await post(Wire.SendRequest(
             to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
             inReplyTo: nil, replyToThreadId: nil,
             forwardMessageId: forwardMessageId,
             forwardAttachmentsFrom: forwardAttachmentsFrom,
-            scheduledAt: nil, from: from
+            scheduledAt: nil, from: from, htmlBody: htmlBody
         ))
     }
 

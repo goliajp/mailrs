@@ -51,6 +51,7 @@ class ComposeExtrasFlowTest : MailrsUiTest() {
         compose.onNodeWithTag("button.send").performClick()
         val undo = hasText(Texts.get(R.string.common_undo))
         waitUntilShown(undo, "no Undo after sending")
+        assertTrue("a send with no formatting carried html_body", !lastSent().has("html_body"))
         compose.onNode(undo).performClick()
         waitUntilShown(hasText(Texts.get(R.string.compose_send_cancelled)), "Undo did not report the send cancelled")
         val cancels = JSONObject(readStub("/debug/pending-cancels")).getJSONArray("cancels")
@@ -75,8 +76,12 @@ class ComposeExtrasFlowTest : MailrsUiTest() {
         compose.onNodeWithTag("button.format.bold").performClick()
         compose.onNodeWithTag("field.body").performTextInput("big")
         compose.onNodeWithTag("button.send").performClick()
-        val body = lastSent().optString("body")
+        val sent = lastSent()
+        val body = sent.optString("body")
         assertTrue("bold did not write Markdown marks: $body", body.startsWith("Hello **big**"))
+        val html = sent.optString("html_body")
+        assertTrue("the formatted send carried no html_body", html.startsWith("<!DOCTYPE html>"))
+        assertTrue("html_body is not the rendered markdown: $html", html.contains("<p>Hello <strong>big</strong>"))
     }
 
     @Test

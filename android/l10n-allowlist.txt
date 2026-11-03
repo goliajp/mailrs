@@ -261,6 +261,39 @@ wire/MailrsClient.kt	UTF-8
 wire/MailrsClientCompose.kt	${s.server}/api/mail/send-multipart
 wire/MailrsClientCompose.kt	Authorization
 wire/MailrsClientCompose.kt	Bearer ${s.token}
+wire/MarkdownHtml.kt	<strong>
+wire/MarkdownHtml.kt	<em>
+wire/MarkdownHtml.kt	<blockquote>\n
+wire/MarkdownHtml.kt	</blockquote>\n
+wire/MarkdownHtml.kt	 start=\"${open.start}\"
+wire/MarkdownHtml.kt	<li>
+wire/MarkdownHtml.kt	</li>\n
+wire/MarkdownHtml.kt	<$tag$start>\n$body</$tag>\n
+wire/MarkdownHtml.kt	<h$level>
+wire/MarkdownHtml.kt	</h$level>\n
+wire/MarkdownHtml.kt	<br>
+wire/MarkdownHtml.kt	&nbsp;\n\n
+wire/MarkdownHtml.kt	${held.size - 1}
+wire/MarkdownHtml.kt	<code>
+wire/MarkdownHtml.kt	</code>
+wire/MarkdownHtml.kt	<a href=\"
+wire/MarkdownHtml.kt	<a href=\"mailto:
+wire/MarkdownHtml.kt	</strong>
+wire/MarkdownHtml.kt	</em>
+wire/MarkdownHtml.kt	&amp;
+wire/MarkdownHtml.kt	&lt;
+wire/MarkdownHtml.kt	&gt;
+wire/MarkdownHtml.kt	&quot;
+wire/MarkdownHtml.kt	$UNICODE(?<![\\w/@.])((?:https?://|www\\.)[^\\s<\\x{E000}\\x{E001}]+)
+wire/MarkdownHtml.kt	$UNICODE(?<![\\w.+-])([A-Za-z0-9._+-]+@[A-Za-z0-9_-]+(?:\\.[A-Za-z0-9_-]+)+)
+wire/MarkdownHtml.kt	$UNICODE&(?!#?\\w+;)
+wire/MarkdownHtml.kt	$UNICODE\\*\\*(?=\\S)(.+?)(?<=\\S)\\*\\*
+wire/MarkdownHtml.kt	(?<![A-Za-z0-9])__(?=\\S)(.+?)(?<=\\S)__(?![A-Za-z0-9])
+wire/MarkdownHtml.kt	$UNICODE\\*(?=\\S)(.+?)(?<=\\S)\\*
+wire/MarkdownHtml.kt	(?<![A-Za-z0-9])_(?=\\S)(.+?)(?<=\\S)_(?![A-Za-z0-9])
+wire/MarkdownHtml.kt	width=device-width, initial-scale=1.0
+wire/MarkdownHtml.kt	max-width:600px;margin:0 auto;padding:16px
+wire/MarkdownHtml.kt	\n</div>\n</body>\n</html>
 wire/MailrsClientAdmin.kt	Authorization
 wire/MailrsClientAdmin.kt	Bearer ${s.token}
 wire/MailrsClientReset.kt	$name ($address)

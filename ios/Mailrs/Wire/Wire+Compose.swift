@@ -133,10 +133,14 @@ extension Wire {
         var from: String = ""
         /// Seconds the server holds an immediate send so Undo can stop it.
         var undoSeconds: Int? = SendHold.seconds
+        /// The body rendered from its markdown (`MarkdownHtml`), or absent
+        /// for text alone.
+        var htmlBody: String?
 
         enum CodingKeys: String, CodingKey {
             case from
             case undoSeconds = "undo_seconds"
+            case htmlBody = "html_body"
             case to
             case cc
             case bcc

@@ -25,7 +25,6 @@ import jp.golia.mailrs.wire.deleteDraft
 import jp.golia.mailrs.wire.drafts
 import jp.golia.mailrs.wire.saveDraft
 import jp.golia.mailrs.wire.unsubscribe
-import jp.golia.mailrs.wire.MailSignature
 import jp.golia.mailrs.wire.RecentRecipients
 import jp.golia.mailrs.wire.RecipientAutocomplete
 import jp.golia.mailrs.wire.ReplyRecipients
@@ -220,14 +219,12 @@ fun MailViewModel.send(schedule: SendSchedule = SendSchedule.Now) {
     _state.update { it.copy(sending = true, error = null) }
     viewModelScope.launch {
         val resolver = getApplication<Application>().contentResolver
+        val (body, html) = outgoing(draft)
         val r = if (draft.attachments.isEmpty()) {
             client.send(
                 recipients,
                 draft.subject,
-                // Signed on the way out, not in the composer: what
-                // was typed is what is shown, and a reply that already
-                // carries a separator is left alone.
-                MailSignature.append(draft.body, _state.value.signature),
+                body,
                 draft.inReplyTo,
                 cc = recipientsIn(draft.cc),
                 bcc = recipientsIn(draft.bcc),
@@ -236,6 +233,7 @@ fun MailViewModel.send(schedule: SendSchedule = SendSchedule.Now) {
                 redraftOf = draft.redraftOf,
                 redraftKeep = draft.keptCarried(),
                 from = draft.from,
+                htmlBody = html,
             )
         } else {
             client.sendMultipart(
@@ -243,7 +241,7 @@ fun MailViewModel.send(schedule: SendSchedule = SendSchedule.Now) {
                 cc = recipientsIn(draft.cc),
                 bcc = recipientsIn(draft.bcc),
                 subject = draft.subject,
-                body = MailSignature.append(draft.body, _state.value.signature),
+                body = body,
                 inReplyTo = draft.inReplyTo,
                 attachments = draft.attachments.map { a ->
                     MailrsClient.Upload(a.filename, ContentUriBody(resolver, a.uri))
@@ -252,6 +250,7 @@ fun MailViewModel.send(schedule: SendSchedule = SendSchedule.Now) {
                 redraftOf = draft.redraftOf,
                 redraftKeep = draft.keptCarried(),
                 from = draft.from,
+                htmlBody = html,
             )
         }
         when (r) {

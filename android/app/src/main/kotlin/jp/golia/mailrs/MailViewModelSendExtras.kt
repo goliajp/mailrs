@@ -1,7 +1,9 @@
 package jp.golia.mailrs
 
 import androidx.lifecycle.viewModelScope
+import jp.golia.mailrs.wire.MailSignature
 import jp.golia.mailrs.wire.MailrsClient
+import jp.golia.mailrs.wire.MarkdownHtml
 import jp.golia.mailrs.wire.SendAddresses
 import jp.golia.mailrs.wire.Template
 import jp.golia.mailrs.wire.TemplateApply
@@ -14,6 +16,17 @@ import kotlinx.coroutines.launch
 /** A send that landed: its id, which is what Undo names, and how Undo went. */
 data class SentNote(val messageId: String, val undo: Undo = Undo.Offered) {
     enum class Undo { Offered, Cancelling, Cancelled, TooLate }
+}
+
+/**
+ * The body as sent — signed on the way out, not in the composer, so what was
+ * typed is what is shown — and its `html_body` when the writer formatted
+ * something. A forward the server completes (no files here) carries its html
+ * unwrapped, as the web sends it.
+ */
+internal fun MailViewModel.outgoing(draft: Draft): Pair<String, String?> {
+    val body = MailSignature.append(draft.body, _state.value.signature)
+    return body to MarkdownHtml.forSend(body, wrapped = draft.forwardFrom == null || draft.attachments.isNotEmpty())
 }
 
 /** The composer closes and the list offers Undo while the server holds the send. */
