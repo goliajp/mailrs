@@ -14,29 +14,24 @@ import XCTest
 final class MailFlowTests: MailrsUITestCase {
 
 
-    /// Deleting asks first, and a cancel destroys nothing.
-    ///
-    /// The verb is irreversible — `thread_actions.rs` unlinks the maildir
-    /// files, so there is no trash and no undo to offer. The web client
-    /// reached the same verb from a swipe without asking until
-    /// 2026-08-05, and one gesture destroyed a thread outright. This app
-    /// asks from the first version that can delete.
-    func testDeleteAsksBeforeDestroyingAnything() {
+    /// Deleting is moving to the Trash, kept 30 days and restorable, so
+    /// it does not ask: the undo is the protection, and only deleting
+    /// for good (from the Trash) asks first.
+    func testMovingToTheTrashOffersUndoInsteadOfAsking() {
         let app = launch(signedIn: true)
         let row = app.buttons.containing(
             NSPredicate(format: "label CONTAINS %@", "Quarterly report")
         ).firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 15), "inbox never listed")
 
-        swipeAndTap(app, row: row, edge: .trailing, action: "Delete")
+        swipeAndTap(app, row: row, edge: .trailing, action: "Move to Trash")
 
-        XCTAssertTrue(app.staticTexts["This will permanently delete all messages."]
-            .waitForExistence(timeout: 5), "delete did not ask")
-        app.buttons["Cancel"].tap()
-        // Still there. The delete is not optimistic — the row leaves only
-        // when the server has said it is gone — so a row still on screen
-        // is proof nothing was sent.
-        XCTAssertTrue(row.waitForExistence(timeout: 5), "the thread went away on a cancel")
+        XCTAssertFalse(app.staticTexts["This will permanently delete all messages."]
+            .waitForExistence(timeout: 2), "moving to the Trash asked first")
+        let undo = app.buttons["undo-archive"]
+        XCTAssertTrue(undo.waitForExistence(timeout: 5), "no undo offered")
+        undo.tap()
+        XCTAssertTrue(row.waitForExistence(timeout: 5), "the undo did not bring it back")
     }
 
 

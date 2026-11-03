@@ -29,8 +29,7 @@ final class UnsubscribeFlowTests: MailrsUITestCase {
         // body, and a tap on an element below the fold lands somewhere
         // else entirely.
         scrollTo(app, element: button, named: "unsubscribe")
-        XCTAssertTrue(button.isHittable, "the unsubscribe button is not reachable")
-        button.tap()
+        tapWhenSteady(button, named: "the unsubscribe button")
 
         XCTAssertTrue(
             app.staticTexts["unsubscribed"].waitForExistence(timeout: 10),
@@ -68,7 +67,7 @@ final class UnsubscribeFlowTests: MailrsUITestCase {
 
         let button = app.buttons["unsubscribe"].firstMatch
         scrollTo(app, element: button, named: "unsubscribe")
-        button.tap()
+        tapWhenSteady(button, named: "the unsubscribe button")
 
         XCTAssertTrue(
             app.staticTexts["unsubscribe-failed"].waitForExistence(timeout: 10),

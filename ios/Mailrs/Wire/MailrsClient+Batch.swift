@@ -10,14 +10,19 @@ import Foundation
 @MainActor
 extension MailrsClient {
 
-    func batch(action: String, threadIds: [String]) async throws -> Set<String> {
+    /// `labelId` is the label `label` and `unlabel` put on or take off.
+    func batch(
+        action: String, threadIds: [String], labelId: String? = nil
+    ) async throws -> Set<String> {
         struct Request: Encodable {
             let action: String
             let threadIds: [String]
+            let labelId: String?
 
             enum CodingKeys: String, CodingKey {
                 case action
                 case threadIds = "thread_ids"
+                case labelId = "label_id"
             }
         }
         struct Answer: Decodable {
@@ -27,7 +32,8 @@ extension MailrsClient {
                 case failedThreadIds = "failed_thread_ids"
             }
         }
-        let body = try JSONEncoder().encode(Request(action: action, threadIds: threadIds))
+        let body = try JSONEncoder().encode(
+            Request(action: action, threadIds: threadIds, labelId: labelId))
         let (data, response) = try await send(
             "POST", "/api/conversations/batch", body: body, authorized: true)
         guard let http = response as? HTTPURLResponse else {

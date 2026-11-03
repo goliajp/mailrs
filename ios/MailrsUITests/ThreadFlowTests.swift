@@ -64,22 +64,26 @@ final class ThreadFlowTests: MailrsUITestCase {
 
 
 
-    /// Confirming does delete it. The row leaving is the assertion: the
-    /// list is not updated optimistically, so it can only have gone after
-    /// the server answered.
-    func testConfirmingDeleteRemovesTheThread() {
+    /// The swipe moves it to the Trash: the row leaves, and the server
+    /// is told `delete`, which is its word for the Trash.
+    func testTrashingBySwipeRemovesTheThread() {
         let app = launch(signedIn: true)
         let row = app.buttons.containing(
             NSPredicate(format: "label CONTAINS %@", "Quarterly report")
         ).firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 15), "inbox never listed")
 
-        swipeAndTap(app, row: row, edge: .trailing, action: "Delete")
-        // The alert's Delete, not the swipe button behind it.
-        app.alerts.buttons["Delete"].tap()
+        swipeAndTap(app, row: row, edge: .trailing, action: "Move to Trash")
 
         XCTAssertTrue(row.waitForNonExistence(timeout: 10),
-                      "the thread was still listed after a confirmed delete")
+                      "the thread was still listed after moving it to the Trash")
+        var sent: [String] = []
+        for _ in 0..<40 {
+            sent = postedVerbs()
+            if sent.contains("delete t1") { break }
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+        XCTAssertTrue(sent.contains("delete t1"), "the Trash never reached the server: \(sent)")
     }
 
 
