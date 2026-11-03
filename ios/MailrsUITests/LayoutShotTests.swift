@@ -180,6 +180,55 @@ final class LayoutShotTests: MailrsUITestCase {
 
     /// `.keepAlways`, or the bundle throws away everything that passed —
     /// which is every run of this file.
+    /// The lists and the row menu that filing added: the list menu with
+    /// the labels, the Trash and its menu, and the inbox row's menu with
+    /// the labels opened — in whichever language the run asks for, which
+    /// is where a long Japanese action name would run out of room.
+    func testPhotographsFiling() {
+        let app = launch(signedIn: true, language: language, appearance: appearance)
+        XCTAssertTrue(
+            app.staticTexts["Quarterly report and the follow-up notes"]
+                .waitForExistence(timeout: 15),
+            "inbox never listed"
+        )
+        let row = app.buttons.containing(
+            NSPredicate(format: "label CONTAINS %@", "Quarterly report")
+        ).firstMatch
+        let labels = app.buttons["row.menu.label"]
+        if longPress(row, until: labels) {
+            shoot(app, "20-row-menu")
+            labels.tap()
+            _ = app.buttons["row.menu.label.1"].waitForExistence(timeout: 5)
+            shoot(app, "21-row-labels")
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.08)).tap()
+        }
+        app.buttons["open-lists"].tap()
+        _ = app.buttons["list.label.1"].waitForExistence(timeout: 5)
+        shoot(app, "22-lists")
+        let trash = app.buttons[trashTitle]
+        if trash.waitForExistence(timeout: 5) {
+            trash.tap()
+            let doomed = app.buttons.containing(
+                NSPredicate(format: "label CONTAINS %@", "In the Trash")
+            ).firstMatch
+            if doomed.waitForExistence(timeout: 10) {
+                shoot(app, "23-trash")
+                if longPress(doomed, until: app.buttons["row.menu.deleteForever"]) {
+                    shoot(app, "24-trash-menu")
+                }
+            }
+        }
+    }
+
+    /// The Trash's name in the run's language, to find it in the menu.
+    private var trashTitle: String {
+        switch language {
+        case "ja": return "ゴミ箱"
+        case "zh-Hans": return "废纸篓"
+        default: return "Trash"
+        }
+    }
+
     private func shoot(_ app: XCUIApplication, _ name: String) {
         let shot = XCTAttachment(screenshot: app.screenshot())
         shot.name = name

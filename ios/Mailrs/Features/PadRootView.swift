@@ -138,7 +138,7 @@ struct PadRootView: View {
             await session.loadConversations()
             await session.loadLabels()
         }
-        .confirmPrompt()
+        .confirmPrompt(when: !showingSettings && !composing)
     }
 
     @ViewBuilder private var conversations: some View {
