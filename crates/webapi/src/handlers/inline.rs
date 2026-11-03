@@ -111,6 +111,125 @@ pub async fn get_inline(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
+const UPLOAD_PATH: &str = "/api/mail/inline/";
+
+/// The upload id an `<img src>` value names, when it is one of ours: a
+/// relative or absolute URL ending in `/api/mail/inline/<32 hex>`.
+fn upload_id(src: &str) -> Option<&str> {
+    let (_, id) = src.rsplit_once(UPLOAD_PATH)?;
+    match id.len() == 32 && id.bytes().all(|b| b.is_ascii_hexdigit()) {
+        true => Some(id),
+        false => None,
+    }
+}
+
+/// Every `src` value in `html` that names one of our uploads, in order,
+/// with the byte range of the value.
+fn upload_srcs(html: &str) -> Vec<(std::ops::Range<usize>, &str)> {
+    let mut out = Vec::new();
+    let mut at = 0;
+    while let Some(found) = html[at..].find("src=") {
+        let open = at + found + 4;
+        at = open;
+        let Some(quote) = html[open..]
+            .chars()
+            .next()
+            .filter(|c| *c == '"' || *c == '\'')
+        else {
+            continue;
+        };
+        let start = open + 1;
+        let Some(len) = html[start..].find(quote) else {
+            break;
+        };
+        let value = start..start + len;
+        if let Some(id) = upload_id(&html[value.clone()]) {
+            out.push((value.clone(), id));
+        }
+        at = value.end;
+    }
+    out
+}
+
+/// The Content-ID an upload travels under in a sent message.
+fn upload_cid(id: &str) -> String {
+    format!("{id}@inline")
+}
+
+/// `html` with each `src` naming an upload in `found` pointed at its
+/// Content-ID instead. A src naming an upload that is not in `found` is
+/// left as it was.
+fn point_at_cids(html: &str, found: &std::collections::HashSet<String>) -> String {
+    let mut out = String::with_capacity(html.len());
+    let mut copied = 0;
+    for (range, id) in upload_srcs(html) {
+        if !found.contains(id) {
+            continue;
+        }
+        out.push_str(&html[copied..range.start]);
+        out.push_str("cid:");
+        out.push_str(&upload_cid(id));
+        copied = range.end;
+    }
+    out.push_str(&html[copied..]);
+    out
+}
+
+/// Carry the images the user pasted into this message inside it.
+///
+/// The editor shows a pasted image from this server's upload URL, which
+/// nobody outside can open, so a recipient elsewhere saw a broken image.
+/// Each upload the HTML shows becomes a part of the message under a
+/// Content-ID, and the HTML points at that instead. An upload that is
+/// gone, or is not an image, keeps its URL.
+pub(crate) async fn embed_uploads(parts: &mut crate::handlers::compose::ComposeParts) {
+    let ids: Vec<String> = upload_srcs(&parts.html_body)
+        .into_iter()
+        .map(|(_, id)| id.to_string())
+        .collect();
+    let mut found = std::collections::HashSet::new();
+    for id in ids {
+        if found.contains(&id) {
+            continue;
+        }
+        let key = format!("inline:{id}");
+        let stored = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::from));
+        let Ok(flat) = stored else {
+            tracing::warn!("send: a pasted image could not be read; its link is kept");
+            continue;
+        };
+        let mut content_type = String::new();
+        let mut body = Vec::new();
+        for pair in flat.chunks(2) {
+            if let [k, v] = pair {
+                match k.as_slice() {
+                    b"content_type" => {
+                        content_type = String::from_utf8_lossy(v).to_ascii_lowercase()
+                    }
+                    b"body" => body = v.clone(),
+                    _ => {}
+                }
+            }
+        }
+        if body.is_empty() || !is_inert_image(&content_type) {
+            continue;
+        }
+        let ext = content_type.trim_start_matches("image/").to_string();
+        parts
+            .attachments
+            .push(crate::handlers::compose::Attachment {
+                filename: format!("image-{}.{ext}", &id[..8]),
+                content_type,
+                bytes: body,
+                content_id: Some(upload_cid(&id)),
+            });
+        found.insert(id);
+    }
+    if !found.is_empty() {
+        parts.html_body = point_at_cids(&parts.html_body, &found);
+    }
+}
+
 fn is_inert_image(content_type: &str) -> bool {
     matches!(
         content_type,
@@ -126,7 +245,28 @@ fn is_inert_image(content_type: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::is_inert_image;
+    use super::{is_inert_image, point_at_cids, upload_srcs};
+
+    const A: &str = "0123456789abcdef0123456789abcdef";
+    const B: &str = "fedcba9876543210fedcba9876543210";
+
+    #[test]
+    fn only_our_upload_links_are_pointed_at_their_content_ids() {
+        let html = format!(
+            "<p><img src=\"/api/mail/inline/{A}\"> <img src='https://mail.example.test/api/mail/inline/{B}'> \
+             <img src=\"https://cdn.example.test/logo.png\"> <img src=\"/api/mail/inline/short\"></p>"
+        );
+        let ids: Vec<&str> = upload_srcs(&html).into_iter().map(|(_, id)| id).collect();
+        assert_eq!(ids, [A, B]);
+        let found = [A.to_string()].into_iter().collect();
+        let out = point_at_cids(&html, &found);
+        assert!(out.contains(&format!("src=\"cid:{A}@inline\"")), "{out}");
+        assert!(
+            out.contains(&format!("/api/mail/inline/{B}'")),
+            "one not found keeps its link: {out}"
+        );
+        assert!(out.contains("https://cdn.example.test/logo.png"), "{out}");
+    }
 
     #[test]
     fn only_images_that_cannot_run_script_are_kept() {

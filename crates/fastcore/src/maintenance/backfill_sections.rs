@@ -115,16 +115,11 @@ fn walk(
                 .unwrap_or_default()
             {
                 c.messages += 1;
-                let Some(raw) = state
-                    .mailbox
-                    .user_message_facts(user, &mid)
-                    .ok()
-                    .flatten()
-                    .and_then(|copy| {
-                        on_disk
-                            .get(crate::maildir_scan::base_id(&copy.blob_ref))
-                            .cloned()
-                    })
+                let copy = state.mailbox.user_message_facts(user, &mid).ok().flatten();
+                let blob_ref = copy.map(|c| c.blob_ref).unwrap_or_default();
+                let Some(raw) = on_disk
+                    .get(crate::maildir_scan::base_id(&blob_ref))
+                    .cloned()
                     .and_then(|path| std::fs::read(path).ok())
                 else {
                     c.no_file += 1;
@@ -135,7 +130,7 @@ fn walk(
                 let from = message.header_str("From").unwrap_or_default().to_string();
                 let to = message.header_str("To").unwrap_or_default().to_string();
                 let at = mailrs_inbound::dates::received_epoch(&raw).unwrap_or(0);
-                let own = mailrs_rfc5322::list_contains(&from, user);
+                let own = mailrs_mailbox::sent_copy::sent_by(&from, &blob_ref, user);
                 let facts = mailrs_intake::section_facts::facts(
                     None, user, &from, &to, head, &category, own,
                 );
