@@ -162,9 +162,16 @@ impl Account for FastcoreAccount {
         }
     }
 
-    async fn remove(&self, _: &FcMailbox, m: &Message<PathBuf>) -> Result<()> {
+    async fn remove(&self, mailbox: &FcMailbox, m: &Message<PathBuf>) -> Result<()> {
         match self {
-            Self::Real(a) => Ok(backend::remove_message(&a.user, &to_imap(m))?),
+            Self::Real(a) => {
+                let known = super::forget::Doomed::read(mailbox, &m.key);
+                backend::remove_message(&a.user, &to_imap(m))?;
+                if let Some(d) = &known {
+                    a.forget(d);
+                }
+                Ok(())
+            }
             Self::Mock(_) => refused(),
         }
     }
