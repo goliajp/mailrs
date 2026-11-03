@@ -54,6 +54,35 @@ pub fn instants_of(invite: &ParsedInvite) -> (Option<DateTime<Utc>>, Option<Date
     (start, end)
 }
 
+/// The days an all-day event covers: its first day and the day after its
+/// last (the end is exclusive, as `DTEND;VALUE=DATE` is in RFC 5545).
+/// `None` for an event with a time of day.
+///
+/// With neither `DTEND` nor `DURATION` an all-day event lasts one day
+/// (RFC 5545 §3.6.1); a duration shorter than a day still covers its start.
+pub fn all_day_of(invite: &ParsedInvite) -> Option<(chrono::NaiveDate, chrono::NaiveDate)> {
+    let CalDateTime::Date(start) = invite.dtstart else {
+        return None;
+    };
+    let one_day = start + Duration::days(1);
+    let end = match (&invite.dtend, invite.duration) {
+        (Some(CalDateTime::Date(end)), _) => *end,
+        (Some(other), _) => other_date(other).unwrap_or(one_day),
+        (None, Some(d)) => start + Duration::days(d.num_days()),
+        (None, None) => one_day,
+    };
+    Some((start, end.max(one_day)))
+}
+
+fn other_date(dt: &CalDateTime) -> Option<chrono::NaiveDate> {
+    match dt {
+        CalDateTime::Date(d) => Some(*d),
+        CalDateTime::Floating(n) => Some(n.date()),
+        CalDateTime::Zoned { local, .. } => Some(local.date()),
+        CalDateTime::Utc(t) => Some(t.date_naive()),
+    }
+}
+
 /// The link a meeting is actually joined by.
 ///
 /// RFC 5545 has no field for it, so producers put it wherever: Teams

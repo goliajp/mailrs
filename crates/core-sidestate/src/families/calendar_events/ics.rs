@@ -5,10 +5,10 @@
 //! text itself is kept, so a GET returns what the PUT sent. Out: a row a
 //! feed or a mail produced has no text, so one is written from the columns.
 
-use mailrs_ical::vtimezone::caldatetime_to_utc;
 use mailrs_ical::{EventStatus, parse_invite};
 
 use super::StoredEvent;
+use super::span::{date_of, span_of};
 
 /// The row a CalDAV PUT of `ics` stores, keyed by the text's own `UID`.
 ///
@@ -17,13 +17,8 @@ use super::StoredEvent;
 /// cannot be placed on any calendar.
 pub fn from_ics(ics: &str, source: &str) -> Result<StoredEvent, String> {
     let parsed = parse_invite(ics.as_bytes()).map_err(|e| format!("{e:?}"))?;
-    let start = caldatetime_to_utc(&parsed.dtstart, &parsed.vtimezones)
+    let (start, end) = span_of(&parsed)
         .ok_or_else(|| "DTSTART names a time zone that cannot be resolved".to_string())?;
-    let end = match (&parsed.dtend, parsed.duration) {
-        (Some(end), _) => caldatetime_to_utc(end, &parsed.vtimezones),
-        (None, Some(duration)) => Some(start + duration),
-        (None, None) => None,
-    };
     let status = parsed.status.map(|s| match s {
         EventStatus::Confirmed => "CONFIRMED",
         EventStatus::Tentative => "TENTATIVE",
@@ -32,8 +27,8 @@ pub fn from_ics(ics: &str, source: &str) -> Result<StoredEvent, String> {
     Ok(StoredEvent {
         uid: parsed.uid,
         summary: parsed.summary,
-        dtstart: Some(start.to_rfc3339()),
-        dtend: end.map(|e| e.to_rfc3339()),
+        dtstart: Some(start),
+        dtend: end,
         organizer: parsed.organizer.map(|o| o.email),
         status: status.map(str::to_string),
         source: source.to_string(),
@@ -61,16 +56,18 @@ pub fn to_ics(ev: &StoredEvent) -> String {
         format!("UID:{}", escape(&ev.uid)),
         format!("SEQUENCE:{}", ev.sequence),
     ];
-    let start = ev.dtstart.as_deref().and_then(utc_basic);
-    lines.push(format!(
-        "DTSTAMP:{}",
-        start.as_deref().unwrap_or("19700101T000000Z")
-    ));
+    let start = ev.dtstart.as_deref().and_then(property_value);
+    let stamp = ev
+        .dtstart
+        .as_deref()
+        .and_then(utc_basic)
+        .unwrap_or_else(|| "19700101T000000Z".to_string());
+    lines.push(format!("DTSTAMP:{stamp}"));
     if let Some(s) = &start {
-        lines.push(format!("DTSTART:{s}"));
+        lines.push(format!("DTSTART{s}"));
     }
-    if let Some(e) = ev.dtend.as_deref().and_then(utc_basic) {
-        lines.push(format!("DTEND:{e}"));
+    if let Some(e) = ev.dtend.as_deref().and_then(property_value) {
+        lines.push(format!("DTEND{e}"));
     }
     lines.push(format!("SUMMARY:{}", escape(&ev.summary)));
     if let Some(o) = &ev.organizer {
@@ -84,8 +81,21 @@ pub fn to_ics(ev: &StoredEvent) -> String {
     lines.join("\r\n") + "\r\n"
 }
 
-/// RFC 3339 → the RFC 5545 UTC form, `20260820T090000Z`.
+/// A stored column as what follows the property name: `;VALUE=DATE:20261103`
+/// for a date, `:20260820T090000Z` for an instant.
+fn property_value(column: &str) -> Option<String> {
+    if let Some(d) = date_of(column) {
+        return Some(format!(";VALUE=DATE:{}", d.format("%Y%m%d")));
+    }
+    utc_basic(column).map(|t| format!(":{t}"))
+}
+
+/// RFC 3339 → the RFC 5545 UTC form, `20260820T090000Z`. A date stands in
+/// as its midnight.
 fn utc_basic(rfc3339: &str) -> Option<String> {
+    if let Some(d) = date_of(rfc3339) {
+        return Some(format!("{}T000000Z", d.format("%Y%m%d")));
+    }
     let t = chrono::DateTime::parse_from_rfc3339(rfc3339).ok()?;
     Some(
         t.with_timezone(&chrono::Utc)
@@ -120,6 +130,23 @@ mod tests {
         assert_eq!(ev.status.as_deref(), Some("CONFIRMED"));
         assert_eq!(ev.sequence, 2);
         assert_eq!(to_ics(&ev), ZONED);
+    }
+
+    /// An all-day event is filed as its dates and written back as dates,
+    /// not as an instant at UTC midnight.
+    #[test]
+    fn an_all_day_event_keeps_its_dates_both_ways() {
+        let text = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:h1\r\n\
+            DTSTAMP:20261101T000000Z\r\nDTSTART;VALUE=DATE:20261103\r\n\
+            SUMMARY:Holiday\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+        let ev = from_ics(text, "caldav").expect("parses");
+        assert_eq!(ev.dtstart.as_deref(), Some("2026-11-03"));
+        assert_eq!(ev.dtend.as_deref(), Some("2026-11-04"));
+        let written = to_ics(&StoredEvent { ics: None, ..ev.clone() });
+        assert!(written.contains("DTSTART;VALUE=DATE:20261103\r\n"), "{written}");
+        assert!(written.contains("DTEND;VALUE=DATE:20261104\r\n"), "{written}");
+        let back = from_ics(&written, "caldav").expect("parses");
+        assert_eq!((back.dtstart, back.dtend), (ev.dtstart, ev.dtend));
     }
 
     #[test]

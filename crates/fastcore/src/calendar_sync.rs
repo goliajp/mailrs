@@ -212,25 +212,20 @@ fn apply(state: &Arc<FastcoreState>, user: &str, feed_id: &str, text: &str) -> u
         // Zoned starts resolve through the document's own VTIMEZONE blocks;
         // one that resolves to nothing is skipped rather than filed at an
         // invented time.
-        let Some(dtstart) =
-            mailrs_ical::vtimezone::caldatetime_to_utc(&parsed.dtstart, &parsed.vtimezones)
-        else {
+        // An all-day event is filed as its dates (`span_of`).
+        use mailrs_core_sidestate::families::calendar_events as ev;
+        let Some((dtstart, dtend)) = ev::span::span_of(&parsed) else {
             continue;
         };
         // One shape, shared with the reader. This used to write the
         // whole row into a single `json` field while the conflicts
         // reader looked for flat columns, so a subscribed calendar's
         // events read as blank and conflicted with nothing.
-        use mailrs_core_sidestate::families::calendar_events as ev;
         let row = ev::StoredEvent {
             uid: parsed.uid.clone(),
             summary: parsed.summary.clone(),
-            dtstart: Some(dtstart.to_rfc3339()),
-            dtend: parsed
-                .dtend
-                .as_ref()
-                .and_then(|d| mailrs_ical::vtimezone::caldatetime_to_utc(d, &parsed.vtimezones))
-                .map(|d| d.to_rfc3339()),
+            dtstart: Some(dtstart),
+            dtend,
             organizer: parsed.organizer.as_ref().map(|o| o.email.clone()),
             status: parsed.status.as_ref().map(|s| format!("{s:?}")),
             // Which subscription put it here, so unsubscribing could remove

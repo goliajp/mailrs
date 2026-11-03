@@ -16,7 +16,8 @@ pub const ANSWERS: [&str; 3] = ["ACCEPTED", "TENTATIVE", "DECLINED"];
 ///
 /// `invite` is the typed invite as ingest stores it beside the message:
 /// `mailrs_ical::ParsedInvite` serialized, with `dtstart_utc` /
-/// `dtend_utc` resolved to instants. A `CANCEL` marks the event cancelled
+/// `dtend_utc` resolved to instants, or for an all-day event `dtstart_date`
+/// / `dtend_date` (`YYYY-MM-DD`, end exclusive). A `CANCEL` marks the event cancelled
 /// rather than removing it.
 pub fn from_invite(
     uid: &str,
@@ -37,8 +38,9 @@ pub fn from_invite(
     StoredEvent {
         uid: uid.to_string(),
         summary: text("summary").unwrap_or_default(),
-        dtstart: text("dtstart_utc"),
-        dtend: text("dtend_utc"),
+        // an all-day invitation has dates instead of instants
+        dtstart: text("dtstart_utc").or_else(|| text("dtstart_date")),
+        dtend: text("dtend_utc").or_else(|| text("dtend_date")),
         organizer: invite
             .get("organizer")
             .and_then(|o| o.get("email"))
@@ -202,6 +204,27 @@ mod tests {
         let old = from_invite("u1", "REQUEST", 1, &invite("Old"));
         assert!(!file_invite(&mut c, "a@x", &old).unwrap());
         assert_eq!(get(&mut c, "a@x", "u1").unwrap().unwrap().summary, "New");
+    }
+
+    /// An all-day invitation has no instants, only dates; it is filed by
+    /// them and listed, where it used to be stored without a start and so
+    /// left out of every listing.
+    #[test]
+    fn an_all_day_invitation_is_listed_by_its_dates() {
+        let mut c = conn("all-day");
+        let payload = serde_json::json!({
+            "summary": "Offsite",
+            "dtstart_utc": null,
+            "dtend_utc": null,
+            "dtstart_date": "2026-11-03",
+            "dtend_date": "2026-11-05",
+        });
+        let row = from_invite("d1", "REQUEST", 0, &payload);
+        assert_eq!(row.dtstart.as_deref(), Some("2026-11-03"));
+        assert_eq!(row.dtend.as_deref(), Some("2026-11-05"));
+        assert!(file_invite(&mut c, "a@x", &row).unwrap());
+        let listed = crate::families::calendar_events::list(&mut c, "a@x").unwrap();
+        assert_eq!(listed.iter().map(|e| e.uid.as_str()).collect::<Vec<_>>(), ["d1"]);
     }
 
     #[test]
