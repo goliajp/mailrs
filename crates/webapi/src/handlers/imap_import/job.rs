@@ -263,6 +263,9 @@ async fn import(
     let mut client = Client::open(opened.stream, limits, opened.greeted).await?;
     // one try: a failed sign-in ends the import with the server's reason
     client.login(&source.username, &source.password).await?;
+    // a message the source lists under several folders (Gmail's All Mail and
+    // labels, any server's archive view) is filed and counted once
+    let mut handled: std::collections::HashSet<String> = std::collections::HashSet::new();
     for (name, folder) in plan(client.list().await?) {
         job.update(|s| s.folder = Some(name.clone()));
         client.examine(&name).await?;
@@ -279,13 +282,19 @@ async fn import(
                 }
                 false => {
                     let raw = client.fetch(listed.uid).await?;
-                    filer
-                        .file(Parsed {
-                            raw,
-                            folder,
-                            seen: listed.seen,
-                        })
-                        .await
+                    let message_id = message_id_of(&raw);
+                    match message_id.is_some_and(|m| !handled.insert(m)) {
+                        true => true,
+                        false => {
+                            filer
+                                .file(Parsed {
+                                    raw,
+                                    folder,
+                                    seen: listed.seen,
+                                })
+                                .await
+                        }
+                    }
                 }
             };
             let (u, n, uid) = (user.to_string(), name.clone(), listed.uid);
@@ -301,4 +310,18 @@ async fn import(
     }
     client.logout().await;
     Ok(())
+}
+
+/// The Message-ID a raw message names, without its angle brackets.
+fn message_id_of(raw: &[u8]) -> Option<String> {
+    let head = &raw[..raw.len().min(64 * 1024)];
+    mailrs_rfc5322::Message::new(head)
+        .header_str("Message-ID")
+        .map(|v| {
+            v.trim()
+                .trim_start_matches('<')
+                .trim_end_matches('>')
+                .to_string()
+        })
+        .filter(|v| !v.is_empty())
 }
