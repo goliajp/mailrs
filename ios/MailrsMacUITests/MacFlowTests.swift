@@ -244,6 +244,37 @@ final class MacFlowTests: XCTestCase {
             "the move never reached the server: \(postedVerbs())")
     }
 
+    /// Deleting for good asks twice, as on the phone: the question,
+    /// then the password the server wants. On the Mac neither used to
+    /// happen — the row menu's Delete forever was handed no question to
+    /// ask, and the password prompt was not in this window at all, so a
+    /// refused delete waited forever with nothing on screen.
+    func testDeletingForGoodAsksForThePassword() {
+        let trash = app.descendants(matching: .any)["mailbox.trash"].firstMatch
+        XCTAssertTrue(trash.waitForExistence(timeout: 30), "no Trash in the sidebar")
+        trash.click()
+        let doomed = conversationRows().element(boundBy: 0)
+        XCTAssertTrue(doomed.waitForExistence(timeout: 15), "the Trash listed nothing")
+        doomed.rightClick()
+        let item = app.menuItems["Delete forever"].firstMatch
+        XCTAssertTrue(item.waitForExistence(timeout: 5), "the row menu offers no Delete forever")
+        item.click()
+        let ask = app.buttons["Delete forever"].firstMatch
+        XCTAssertTrue(ask.waitForExistence(timeout: 5), "deleting for good did not ask")
+        XCTAssertFalse(postedVerbs().contains("forever trash1"), "deleted before the answer")
+        ask.click()
+        let field = app.secureTextFields["field.confirmPassword"]
+        XCTAssertTrue(
+            field.waitForExistence(timeout: 10),
+            "the refused delete never asked for the password")
+        field.click()
+        field.typeText("anything")
+        app.buttons["button.confirmPassword"].click()
+        XCTAssertTrue(
+            waitUntil(timeout: 15) { postedVerbs().contains("forever trash1") },
+            "deleting for good never reached the server: \(postedVerbs())")
+    }
+
     /// Every verb the stub has been sent since it was reset.
     private func postedVerbs() -> [String] {
         guard let url = URL(string: "http://localhost:6039/debug/verbs") else { return [] }

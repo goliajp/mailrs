@@ -20,7 +20,7 @@ struct ConfirmPasswordSheet: View {
                         .accessibilityIdentifier("field.confirmPassword")
                     if prompt.needsCode {
                         TextField("Authenticator code", text: $code)
-                            .keyboardType(.numberPad)
+                            .numberKeyboard()
                             .textContentType(.oneTimeCode)
                             .accessibilityIdentifier("field.confirmCode")
                     }
@@ -34,7 +34,7 @@ struct ConfirmPasswordSheet: View {
                 }
             }
             .navigationTitle("Confirm it’s you")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { session.cancelConfirmation() }
