@@ -73,7 +73,8 @@ rule('link-shows-our-address', 'content', 6, true, function(m)
     if not external(m) then return end
     for shown, target in m.shown_links:gmatch('([^ \n]+) ([^\n]+)') do
         if owns(m.our_domains, shown) and not owns(m.our_domains, target) then
-            return 'a link shows the address ' .. shown .. '/… but goes to ' .. target
+            return found('a link shows the address ' .. shown .. '/… but goes to ' .. target,
+                {shown = shown, target = target})
         end
     end
 end)
@@ -106,7 +107,7 @@ rule('subject-names-the-recipient', 'identity', 5, false, function(m)
     if not external(m) then return end
     local address = trim(m.to_display):lower():match('^([a-z0-9._+-]+@[a-z0-9.-]+%.[a-z]+)$')
     if address and contains(m.subject:lower(), address) then
-        return 'the subject names the recipient\'s own address, ' .. address
+        return found('the subject names the recipient\'s own address, ' .. address, {address = address})
     end
 end)
 -- An HTML or SVG attachment built to do something a page has no business

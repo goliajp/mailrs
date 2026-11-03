@@ -134,11 +134,23 @@ mod tests {
                 v
             };
             let en = names(langs["en"].as_str().unwrap_or(""));
+            let with = names(langs["params"]["en"].as_str().unwrap_or(""));
             for lang in ["zh", "ja"] {
                 assert_eq!(
                     names(langs[lang].as_str().unwrap_or("")),
                     en,
                     "{code}: {lang} names different params from en"
+                );
+                assert_eq!(
+                    names(langs["params"][lang].as_str().unwrap_or("")),
+                    with,
+                    "{code}: {lang} names different params from en in the sentence with params"
+                );
+            }
+            if langs.get("params").is_some() {
+                assert!(
+                    !with.is_empty(),
+                    "{code}: a sentence with params names none"
                 );
             }
         }
