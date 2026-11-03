@@ -18,6 +18,33 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### Reporting a scam
+
+- **Report scam** on a conversation holds your copy in Review at once.
+  The server then looks for other copies of the same template from the
+  last thirty days: bodies that hash within three bits of each other once
+  names, numbers and link paths are removed, and that also share a link
+  domain, an attachment or the sender domain.
+- **Other people's copies are taken back into Review only with a
+  ground**: a super administrator reported it, two different people
+  reported it within a day (an account and the account it forwards to
+  count as one), or the message hits a hold-level fraud rule in force.
+  Even then they wait for a super administrator when more than 20 inboxes
+  would be touched, the sender's domain has been writing to us for over
+  90 days, or the sender is on the allow list. Without a ground the
+  copies also wait for an administrator.
+- Nothing is deleted. A take-back is one batch that can be put back
+  whole; each reader whose copy was taken sees a line where it was, gets
+  a push, and the `mail.held` webhook carries `reason: "reported"`.
+- The reporter is told what became of the other copies. Super
+  administrators confirm or dismiss waiting reports under Admin → Scam
+  reports, seeing the message, the sender's domain, how many inboxes hold
+  it and up to ten of the copies.
+- Each delivered message's fingerprint is now recorded, once per message
+  (not per recipient). Mail delivered before this release has none, so a
+  report finds only copies that arrived after it.
+- The SQL core gains `message_templates` (migration 061).
+
 ### Deleting in a mail client moves mail to the Trash; Sieve scripts follow the forwarding rules
 
 - **Deleting in IMAP or POP3 now moves mail to the Trash**, as Gmail's

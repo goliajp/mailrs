@@ -119,24 +119,34 @@ impl KevyMailboxStore {
 
     /// The fingerprint recorded for a message, if any.
     pub fn template_of(&self, mid: &str) -> io::Result<Option<StoredTemplate>> {
-        let key = tpl_key(mid);
-        let Some(hash) = self.store().hget(key.as_bytes(), b"hash")? else {
+        let row = self.store().hgetall(tpl_key(mid).as_bytes())?;
+        let mut hash = None;
+        let mut t = StoredTemplate {
+            template: Template::default(),
+            at: 0,
+        };
+        let words = |v: &[u8]| {
+            String::from_utf8_lossy(v)
+                .split_whitespace()
+                .map(str::to_string)
+                .collect()
+        };
+        for (f, v) in &row {
+            match f.as_slice() {
+                b"hash" => hash = Some(String::from_utf8_lossy(v).into_owned()),
+                b"at" => t.at = String::from_utf8_lossy(v).parse().unwrap_or(0),
+                b"links" => t.template.link_domains = words(v),
+                b"files" => t.template.attachments = words(v),
+                b"sender" => t.template.sender_domain = String::from_utf8_lossy(v).into_owned(),
+                _ => {}
+            }
+        }
+        let Some(hash) = hash else {
             return Ok(None);
         };
-        let simhash = u64::from_str_radix(&String::from_utf8_lossy(&hash), 16)
+        t.template.simhash = u64::from_str_radix(&hash, 16)
             .map_err(|e| io::Error::other(format!("fingerprint of {mid}: {e}")))?;
-        let field =
-            |f: &[u8]| -> io::Result<String> { Ok(text(self.store().hget(key.as_bytes(), f)?)) };
-        let words = |s: String| s.split_whitespace().map(str::to_string).collect();
-        Ok(Some(StoredTemplate {
-            template: Template {
-                simhash,
-                link_domains: words(field(b"links")?),
-                attachments: words(field(b"files")?),
-                sender_domain: field(b"sender")?,
-            },
-            at: field(b"at")?.parse().unwrap_or(0),
-        }))
+        Ok(Some(t))
     }
 
     /// Messages arrived at `since` or later that share at least one piece
