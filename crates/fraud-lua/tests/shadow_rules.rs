@@ -92,6 +92,30 @@ fn the_shadow_flag_alone_changes_the_version() {
 }
 
 #[test]
+fn the_enforced_rules_are_every_rule_but_the_shadow_ones() {
+    let rules = Rules::compile(DEFAULT_SOURCE).unwrap();
+    let enforced = rules.enforced_rules();
+    assert_eq!(
+        enforced.len() + rules.shadow_rules().len(),
+        rules.rule_count()
+    );
+    for shadow in rules.shadow_rules() {
+        assert!(!enforced.contains(shadow), "{shadow} is shadow");
+    }
+    for id in [
+        "attachment-is-a-login-page",
+        "html-builds-a-download",
+        "svg-runs-script",
+        "bec-pay-to-a-lookalike",
+        "bec-pay-to-a-stranger",
+        "new-domain-asks-for-payment",
+        "new-domain-login-link",
+    ] {
+        assert!(enforced.contains(&id.to_string()), "{id} is enforced");
+    }
+}
+
+#[test]
 fn the_three_bec_rules_ship_in_shadow() {
     let rules = Rules::compile(DEFAULT_SOURCE).unwrap();
     assert_eq!(
