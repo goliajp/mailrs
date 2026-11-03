@@ -78,14 +78,15 @@ impl State {
 /// `false` when the payload does not parse or carries no sender: a message
 /// nobody can attribute is not this user's own send.
 pub(crate) fn own_from_payload(payload: &[u8], user: &str) -> bool {
-    serde_json::from_slice::<serde_json::Value>(payload)
-        .ok()
-        .and_then(|v| {
-            v.get("sender")
-                .and_then(|s| s.as_str())
-                .map(|s| crate::senders_csv_contains_user(s, user))
-        })
-        .unwrap_or(false)
+    let Ok(v) = serde_json::from_slice::<serde_json::Value>(payload) else {
+        return false;
+    };
+    let text = |field: &str| v.get(field).and_then(|s| s.as_str()).unwrap_or("");
+    let (sender, blob_ref) = (text("sender"), text("blob_ref"));
+    if sender.is_empty() && blob_ref.is_empty() {
+        return false;
+    }
+    mailrs_mailbox::sent_copy::sent_by(sender, blob_ref, user)
 }
 
 /// `user \0 tid \0 state` — what the aggregate index groups by.
