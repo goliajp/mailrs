@@ -1,5 +1,7 @@
 package jp.golia.mailrs.ui
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
 import androidx.compose.runtime.remember
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
@@ -50,7 +52,7 @@ fun SourceScreen(state: UiState, vm: MailViewModel) {
         containerColor = theme.bg,
         topBar = {
             TopAppBar(
-                title = { Text("Source", fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
+                title = { Text(Texts.get(R.string.source_title), fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = theme.bg,
                     titleContentColor = theme.fg,
@@ -62,7 +64,7 @@ fun SourceScreen(state: UiState, vm: MailViewModel) {
                     ) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
+                            contentDescription = Texts.get(R.string.common_back),
                             tint = theme.fgSecondary,
                         )
                     }

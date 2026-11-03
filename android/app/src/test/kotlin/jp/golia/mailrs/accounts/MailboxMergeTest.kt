@@ -7,6 +7,11 @@ import org.junit.Test
 
 /** Putting several mailboxes into one list. */
 class MailboxMergeTest {
+
+    /** The app's English words, as a phone set to English shows them. */
+    @org.junit.Before
+    fun englishWords() = jp.golia.mailrs.wire.TestTexts.install()
+
     private fun row(
         account: String,
         uid: Long,

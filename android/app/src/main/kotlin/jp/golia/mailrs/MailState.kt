@@ -1,5 +1,6 @@
 package jp.golia.mailrs
 
+import jp.golia.mailrs.wire.Texts
 import jp.golia.mailrs.wire.SendJoin
 import jp.golia.mailrs.ui.AdminRow
 import jp.golia.mailrs.wire.Admin
@@ -74,6 +75,12 @@ data class UiState(
     val searchOpen: Boolean = false,
     /** Which list is showing. Its axes scope both the list and the search. */
     val list: MailList = MailList.Inbox,
+    /** Which label [MailList.Label] shows; null for every other list. */
+    val label: jp.golia.mailrs.wire.WireTriage.Label? = null,
+    /** The reader's labels, for the drawer and the label picker. */
+    val labels: List<jp.golia.mailrs.wire.WireTriage.Label> = emptyList(),
+    /** Deleting for good was asked for, and waits for the reader to say yes. */
+    val confirmForever: List<String> = emptyList(),
     /** A page is on its way; the list shows a spinner at its foot. */
     val loadingMore: Boolean = false,
     /** The last page carried nothing new, so there is no more to ask for. */
@@ -185,19 +192,23 @@ data class UiState(
  * screen, so the one place that knows what a row says is the same
  * place that knows what deleting one names.
  */
-enum class AdminSection(val title: String, val emptyMessage: String) {
-    Accounts("Accounts", "No accounts on this server."),
-    Aliases("Aliases", "Nothing forwards anywhere."),
-    Domains("Domains", "This server answers for no domain."),
-    Queue("Queue", "Nothing waiting to go out."),
-    Dmarc("DMARC", "No reports yet."),
-    Audit("Audit log", "Nothing has happened."),
-    AgentKeys("Agent keys", "No keys act as this account."),
-    Allowed("Always allowed", "Nothing skips the filter."),
-    Blocked("Always blocked", "Nothing is refused on sight."),
-    Suppressed("Suppressed", "The sender is retrying everybody."),
-    Groups("Permission groups", "No groups are defined."),
-    EmailGroups("Email groups", "No distribution addresses.");
+enum class AdminSection(
+    @androidx.annotation.StringRes val title: Int,
+    @androidx.annotation.StringRes val emptyMessage: Int,
+    @androidx.annotation.StringRes val newRow: Int,
+) {
+    Accounts(R.string.admin_accounts, R.string.admin_accounts_empty, R.string.admin_accounts_new),
+    Aliases(R.string.admin_aliases, R.string.admin_aliases_empty, R.string.admin_aliases_new),
+    Domains(R.string.admin_domains, R.string.admin_domains_empty, R.string.admin_domains_new),
+    Queue(R.string.admin_queue, R.string.admin_queue_empty, R.string.admin_queue_new),
+    Dmarc(R.string.admin_dmarc, R.string.admin_dmarc_empty, R.string.admin_dmarc_new),
+    Audit(R.string.admin_audit, R.string.admin_audit_empty, R.string.admin_audit_new),
+    AgentKeys(R.string.admin_agent_keys, R.string.admin_agent_keys_empty, R.string.admin_agent_keys_new),
+    Allowed(R.string.admin_allowed, R.string.admin_allowed_empty, R.string.admin_allowed_new),
+    Blocked(R.string.admin_blocked, R.string.admin_blocked_empty, R.string.admin_blocked_new),
+    Suppressed(R.string.admin_suppressed, R.string.admin_suppressed_empty, R.string.admin_suppressed_new),
+    Groups(R.string.admin_groups, R.string.admin_groups_empty, R.string.admin_groups_new),
+    EmailGroups(R.string.admin_email_groups, R.string.admin_email_groups_empty, R.string.admin_email_groups_new);
 
     /**
      * Offered when the server would answer this page's list: the pages
@@ -255,9 +266,9 @@ enum class AdminSection(val title: String, val emptyMessage: String) {
             val scheduled = job.scheduledAt
             val detail = when {
                 scheduled != null && scheduled > System.currentTimeMillis() / 1000 ->
-                    "scheduled for " + jp.golia.mailrs.ui.RowDate.format(scheduled)
+                    Texts.get(R.string.admin_queue_scheduled, jp.golia.mailrs.ui.RowDate.format(scheduled))
                 job.lastError != null ->
-                    "attempt ${job.attempts ?: 0} — ${job.lastError}"
+                    Texts.get(R.string.admin_queue_attempt, job.attempts ?: 0, job.lastError)
                 else -> job.status
             }
             jp.golia.mailrs.ui.AdminRow(
@@ -274,7 +285,7 @@ enum class AdminSection(val title: String, val emptyMessage: String) {
                 // Passing against total again, and the domains it sent
                 // as: a source at 0/500 is either a forwarder or an
                 // impostor, and which one depends on the domain.
-                detail = "${s.passing}/${s.total} passing · ${s.domains.joinToString(", ")}",
+                detail = Texts.get(R.string.admin_dmarc_source, s.passing, s.total, s.domains.joinToString(", ")),
                 deletable = false,
             )
         } + state.dmarc.map { r ->
@@ -284,7 +295,7 @@ enum class AdminSection(val title: String, val emptyMessage: String) {
                 // Passing against total, because that is what a
                 // report is for. A count of rows says nothing about
                 // whether anybody's mail was refused.
-                detail = "${r.passing}/${r.total} passing · p=${r.p}",
+                detail = Texts.get(R.string.admin_dmarc_report, r.passing, r.total, r.p),
                 deletable = false,
             )
         }
@@ -318,7 +329,7 @@ enum class AdminSection(val title: String, val emptyMessage: String) {
                 // away, so saying which is which is the first thing
                 // an operator needs from this list.
                 detail = listOfNotNull(
-                    if (g.isBuiltin) "built in" else g.domain,
+                    groupScope(g.isBuiltin, g.domain),
                     g.description.takeIf(String::isNotBlank),
                 ).joinToString(" · "),
                 deletable = false,
@@ -408,9 +419,19 @@ data class OpenedFile(val file: java.io.File, val mimeType: String, val filename
  * ways to get it wrong.
  */
 data class PendingTriage(
-    val conversation: Wire.Conversation,
-    val verb: MailrsClient.Verb,
+    /** The rows acted on — one for a swipe, any number for a selection. */
+    val rows: List<Wire.Conversation>,
+    val action: jp.golia.mailrs.wire.RowAction,
     val before: List<Wire.Conversation>,
+    /**
+     * Whether the server has already been told. A swipe waits out the
+     * undo window first, so undoing it costs nothing; an action from a
+     * menu is sent at once, and undoing it sends the action that takes
+     * it back.
+     */
+    val applied: Boolean = false,
+    /** The label a label action put on or took off. */
+    val labelId: String? = null,
 )
 
 /**
@@ -456,3 +477,9 @@ data class ResetPrompt(
     val failure: String? = null,
     val busy: Boolean = false,
 )
+
+/** A permission group's scope: built in for every domain, or the one it belongs to. */
+private fun groupScope(builtin: Boolean, domain: String?): String? = when (builtin) {
+    true -> Texts.get(R.string.admin_group_builtin)
+    false -> domain
+}

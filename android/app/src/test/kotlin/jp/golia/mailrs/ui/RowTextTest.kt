@@ -13,6 +13,11 @@ import org.junit.Test
  */
 class RowTextTest {
 
+    /** The app's English words, as a phone set to English shows them. */
+    @org.junit.Before
+    fun englishWords() = jp.golia.mailrs.wire.TestTexts.install()
+
+
     /**
      * Decimal units, because that is what every file manager on the
      * phone shows — a mail client disagreeing with the file manager

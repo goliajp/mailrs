@@ -70,11 +70,25 @@ class MailListTest {
      */
     @Test
     fun every_list_finishes_its_own_empty_sentence() {
-        assertTrue(MailList.entries.none { it.emptyMessage.isBlank() })
+        TestTexts.install()
+        assertTrue(MailList.entries.none { Texts.get(it.emptyMessage).isBlank() })
         // The two that must not borrow Inbox's words. "All caught up"
         // in Junk congratulates a reader on an empty spam folder, and
         // in Archived it reads as though something was lost.
-        assertEquals("No junk mail", MailList.Junk.emptyMessage)
-        assertEquals("No archived conversations", MailList.Archived.emptyMessage)
+        assertEquals("No junk mail", Texts.get(MailList.Junk.emptyMessage))
+        assertEquals("No archived conversations", Texts.get(MailList.Archived.emptyMessage))
+    }
+
+    /** The lists the web has and this app did not: each asks for what the web's does. */
+    @Test
+    fun the_new_lists_ask_for_what_the_web_asks_for() {
+        assertEquals("archived=false&folder=NonJunk&pinned=true", MailList.Pinned.axes.query())
+        assertEquals("archived=false&snoozed=true", MailList.Snoozed.axes.query())
+        assertEquals("archived=false&folder=all", MailList.All.axes.query())
+        assertEquals("archived=false&trashed=true", MailList.Trash.axes.query())
+        assertEquals("archived=false&label=7", MailList.labelAxes("7").query())
+        assertTrue("Review is its own endpoint", MailList.Review.axes.held)
+        // The drawer lists every list but the label one, which is each label.
+        assertEquals(MailList.entries.size - 1, MailList.fixed.size)
     }
 }

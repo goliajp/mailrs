@@ -1,5 +1,7 @@
 package jp.golia.mailrs.ui
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -84,8 +86,8 @@ internal fun MergedMailRow(
 private fun SwipeBackground(direction: androidx.compose.material3.SwipeToDismissBoxValue) {
     val theme = LocalTheme.current
     val text = when (direction) {
-        androidx.compose.material3.SwipeToDismissBoxValue.EndToStart -> "Delete"
-        androidx.compose.material3.SwipeToDismissBoxValue.StartToEnd -> "Unread"
+        androidx.compose.material3.SwipeToDismissBoxValue.EndToStart -> Texts.get(R.string.common_delete)
+        androidx.compose.material3.SwipeToDismissBoxValue.StartToEnd -> Texts.get(R.string.list_unread)
         else -> ""
     }
     val alignment = when (direction) {
@@ -129,7 +131,7 @@ private fun MergedMailRowBody(row: MailboxRow, account: MailAccount?, onTap: () 
             // Which mailbox, in words. The dot is a shortcut for people
             // who can see it; this line is the answer for everybody else.
             Text(
-                "${account?.title ?: "Unknown"} · ${row.folder}",
+                "${account?.title ?: Texts.get(R.string.mailboxes_unknown)} · ${row.folder}",
                 color = theme.fgMuted,
                 fontSize = 11.sp,
             )

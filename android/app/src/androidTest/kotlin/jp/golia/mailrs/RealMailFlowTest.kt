@@ -1,5 +1,6 @@
 package jp.golia.mailrs
 
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -50,7 +51,7 @@ class RealMailFlowTest : MailrsUiTest() {
         waitForTag("list.conversations", "the inbox never listed")
         compose.onNodeWithTag("button.folders").performClick()
         waitForTag("drawer.lists", "the drawer never opened")
-        compose.onNodeWithTag("drawer.item.Settings").performClick()
+        compose.onNodeWithTag("drawer.item.Settings").performScrollTo().performClick()
         scrollToTag("settings.mailAccounts", "settings never listed the mailboxes row")
         compose.onNodeWithTag("settings.mailAccounts").performClick()
         waitForTag("account.address", "the mailboxes screen never opened")

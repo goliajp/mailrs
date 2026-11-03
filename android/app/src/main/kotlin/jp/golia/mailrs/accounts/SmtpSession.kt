@@ -1,5 +1,7 @@
 package jp.golia.mailrs.accounts
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.Writer
@@ -31,7 +33,7 @@ class SmtpSession(private val host: String, private val port: Int) : AutoCloseab
          */
         class Rejected(val code: Int, val text: String, val permanent: Boolean) : Failure(text)
 
-        class Closed : Failure("the server closed the connection")
+        class Closed : Failure(Texts.get(R.string.acct_closed))
     }
 
     /**
@@ -156,11 +158,11 @@ class SmtpSession(private val host: String, private val port: Int) : AutoCloseab
      */
     private fun startTls(helo: String, greeted: Smtp.Reply) {
         if (!greeted.text.uppercase().contains("STARTTLS")) {
-            throw Failure.Refused("the server did not offer to encrypt the connection")
+            throw Failure.Refused(Texts.get(R.string.acct_no_starttls))
         }
         val upgrade = command("STARTTLS")
         if (upgrade.code != 220) {
-            throw Failure.Refused("the server refused to encrypt the connection")
+            throw Failure.Refused(Texts.get(R.string.acct_starttls_refused))
         }
     }
 
