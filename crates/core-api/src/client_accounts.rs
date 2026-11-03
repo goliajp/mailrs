@@ -172,7 +172,7 @@ impl Client {
         &self,
         dry_run: bool,
     ) -> ApiResult<method::admin::UsageDriftResponse> {
-        let path = format!("{}?dry_run={dry_run}", method::admin::PATH_USAGE_DRIFT);
+        let path = format!("/v1/admin/maintenance:usage-drift?dry_run={dry_run}");
         self.post_authed_no_body(path, "correct_usage").await
     }
 
