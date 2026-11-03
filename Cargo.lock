@@ -4940,6 +4940,7 @@ dependencies = [
  "mailrs-attachment-scan",
  "mailrs-auth-guard",
  "mailrs-clean",
+ "mailrs-core",
  "mailrs-core-api",
  "mailrs-core-sidestate",
  "mailrs-dav",

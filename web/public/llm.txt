@@ -77,6 +77,7 @@ Streamable HTTP endpoint: https://mail.golia.ai/mcp
 - POST /api/mail/import — body is an mbox (an export from here, a Gmail Takeout, or any mbox); filed message by message, mail you wrote into Sent, the rest into the Inbox, read and archived as the file says; Junk and Trash skipped, a Message-ID already here not filed twice; no filters, forwarding, webhooks or notifications run. Returns counts (imported, sent, archived, held, skipped_duplicate, ...)
 - POST /api/mail/import/imap {host, port, username, password} — import from another provider over IMAP (993, or 143 with STARTTLS; certificates verified); the password is used once and never stored; progress is, so starting again resumes. GET for where it stands, DELETE to stop after the message in hand
 - GET /api/contacts — search contacts
+- JMAP: GET /.well-known/jmap, POST /jmap/api/, WebSocket /jmap/ws/ (subprotocol jmap) — mail, submission (held sends up to 30 days, cancel while held), vacation reply, search snippets, masked addresses
 
 ### Admin (requires permissions)
 - GET/POST/DELETE /api/admin/domains — domain CRUD
