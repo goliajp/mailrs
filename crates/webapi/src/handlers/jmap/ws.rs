@@ -25,6 +25,7 @@ use super::push;
 use crate::WebState;
 use crate::handlers::conversations::AuthedUser;
 use crate::session::csrf;
+use crate::session::grant::{Held, RECHECK};
 
 pub const WEBSOCKET_CAP: &str = "urn:ietf:params:jmap:websocket";
 
@@ -87,9 +88,18 @@ pub async fn websocket(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     scopes: Option<Extension<crate::session::AgentScopes>>,
     key: Option<Extension<crate::session::AgentKey>>,
+    held: Option<Extension<Held>>,
     headers: HeaderMap,
     ws: WebSocketUpgrade,
 ) -> Response {
+    // what let it in, asked again for as long as it stays open
+    let held = match held {
+        Some(Extension(h)) => Some(h),
+        None => Held::from_headers(&user, &headers),
+    };
+    let Some(held) = held else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
     if !origin_allowed(&headers, &csrf::config().origins) {
         return (StatusCode::FORBIDDEN, "not from this site").into_response();
     }
@@ -107,6 +117,10 @@ pub async fn websocket(
         .as_ref()
         .is_some_and(|Extension(s)| crate::session::masked_only(&s.0));
     let key = key.map(|Extension(k)| k);
+    // a frame larger than a request may be is answered with the limit
+    // error and the connection closed; one far larger is cut off unread
+    let cut = super::MAX_SIZE_REQUEST * 2;
+    let ws = ws.max_message_size(cut).max_frame_size(cut);
     ws.protocols(["jmap"]).on_upgrade(move |socket| async move {
         let bus = crate::handlers::events::get_or_init_bus(state.clone())
             .await
@@ -116,6 +130,7 @@ pub async fn websocket(
             state,
             masked_only,
             key,
+            held,
             push: None,
             _slot: slot,
         };
@@ -133,8 +148,23 @@ struct Conn {
     state: Arc<WebState>,
     masked_only: bool,
     key: Option<crate::session::AgentKey>,
+    held: Held,
     push: Option<Push>,
     _slot: Slot,
+}
+
+/// Close with `code` and `reason`.
+fn close(code: u16, reason: &'static str) -> Message {
+    Message::Close(Some(CloseFrame {
+        code,
+        reason: reason.into(),
+    }))
+}
+
+/// Whether an answer refuses a request for going over a limit: the
+/// connection is closed after it is sent.
+fn over_limit(v: &Value) -> bool {
+    v["@type"] == "RequestError" && v["type"] == super::limits::LIMIT
 }
 
 fn text(v: Value) -> Message {
@@ -157,19 +187,29 @@ impl Conn {
         let (mut sink, mut stream) = socket.split();
         let mut check = tokio::time::interval(push::CHECK);
         check.set_missed_tick_behavior(MissedTickBehavior::Skip);
+        let mut recheck = tokio::time::interval(RECHECK);
+        recheck.set_missed_tick_behavior(MissedTickBehavior::Skip);
+        recheck.reset();
         loop {
             let pushing = self.push.is_some();
             let out = tokio::select! {
                 msg = stream.next() => match msg {
                     Some(Ok(Message::Text(t))) => self.answer(t.as_bytes()).await,
                     Some(Ok(Message::Binary(_))) => {
-                        let close = CloseFrame { code: 1003, reason: "JMAP is sent as text".into() };
-                        let _ = sink.send(Message::Close(Some(close))).await;
+                        let _ = sink.send(close(1003, "JMAP is sent as text")).await;
                         return;
                     }
                     Some(Ok(_)) => Vec::new(),
                     Some(Err(_)) | None => return,
                 },
+                _ = recheck.tick() => {
+                    if !self.held.still_valid(&self.state).await {
+                        tracing::info!(user = %self.ctx.user, "jmap ws: the credential no longer holds, closing");
+                        let _ = sink.send(close(1008, "signed out")).await;
+                        return;
+                    }
+                    Vec::new()
+                }
                 _ = check.tick(), if pushing => self.state_change(false).await,
                 m = bus.recv(), if pushing => match m {
                     Ok(t) if crate::handlers::events::addressed_to(&t, &self.ctx.user) => self.state_change(false).await,
@@ -178,10 +218,15 @@ impl Conn {
                     Err(broadcast::error::RecvError::Closed) => Vec::new(),
                 },
             };
+            let refused = out.iter().any(over_limit);
             for v in out {
                 if sink.send(text(v)).await.is_err() {
                     return;
                 }
+            }
+            if refused {
+                let _ = sink.send(close(1009, "over a limit")).await;
+                return;
             }
         }
     }
@@ -199,6 +244,8 @@ impl Conn {
         let id = v.get("id").cloned().unwrap_or(Value::Null);
         match v.get("@type").and_then(|t| t.as_str()) {
             Some("Request") => {
+                // the access log's line for an HTTP request
+                tracing::info!(user = %self.ctx.user, path = "/jmap/ws/", bytes = frame.len(), "jmap ws request");
                 let r = super::process(
                     &self.state,
                     &self.ctx.user,
