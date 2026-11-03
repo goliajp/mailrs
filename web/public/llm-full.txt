@@ -1318,7 +1318,9 @@ websocket, and Fastmail's maskedemail.
   (the filter's `text`, `subject` and `body` words marked with `<mark>`)
 - Email/set create takes `attachments` by `blobId`: an upload
   (`POST /jmap/upload/{accountId}/`) or a part of a message of yours; a blob
-  that is not yours answers `blobNotFound`
+  that is not yours answers `blobNotFound`, exactly as one that never existed;
+  `disposition: "inline"` with a `cid` travels beside the HTML under that
+  Content-ID
 - Email/copy: one account per session, so there is nothing to copy from
   (`fromAccountNotFound`)
 - Sending: Identity/get; EmailSubmission/set, /get, /changes. Hold a
@@ -1327,6 +1329,8 @@ websocket, and Fastmail's maskedemail.
   `undoStatus` is `pending` and an update to `canceled` stops it. Once it is
   going out it is `final` and cancelling answers `cannotUnsend`. Submissions
   are the sends `GET /api/mail/sends` lists
+- A cancel is recorded as its own event (who, when) next to the one that the
+  send was scheduled, and both go to the audit log
 - VacationResponse/get, /set: the same vacation reply as
   `/api/settings/vacation`; plain text, so `htmlBody` is always null
 - Push: `GET /jmap/eventsource/`, or the WebSocket `GET /jmap/ws/` with the
@@ -1334,6 +1338,11 @@ websocket, and Fastmail's maskedemail.
   `{"@type":"Response","requestId":...}`; `{"@type":"WebSocketPushEnable"}`
   starts `StateChange` pushes. A browser's cookie upgrade must come from this
   site's page
+- Credentials only in the `Authorization` header or the session cookie,
+  never in the URL. An open socket (this one and `/api/events`) is closed
+  within a minute of its session signing out, the password changing, its app
+  password or agent key being revoked, or the account being removed;
+  reconnect and call `Email/changes` with the state you held
 
 ## 4. Webhooks
 
