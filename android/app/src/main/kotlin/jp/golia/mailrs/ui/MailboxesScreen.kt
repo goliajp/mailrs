@@ -1,5 +1,7 @@
 package jp.golia.mailrs.ui
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -79,9 +81,9 @@ fun MailboxesScreen() {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text("Connected", color = theme.fgMuted, fontSize = 12.sp)
+        Text(Texts.get(R.string.mailboxes_connected), color = theme.fgMuted, fontSize = 12.sp)
         if (accounts.isEmpty()) {
-            Text("No other mailboxes yet.", color = theme.fgMuted, fontSize = 13.sp)
+            Text(Texts.get(R.string.mailboxes_none), color = theme.fgMuted, fontSize = 13.sp)
         }
         for (a in accounts) {
             AccountRow(a) {
@@ -91,7 +93,7 @@ fun MailboxesScreen() {
         }
 
         HorizontalDivider(color = theme.border, thickness = 0.5.dp)
-        Text("Add a mailbox", color = theme.fgMuted, fontSize = 12.sp)
+        Text(Texts.get(R.string.mailboxes_add), color = theme.fgMuted, fontSize = 12.sp)
 
         OutlinedTextField(
             value = draft.address,
@@ -123,7 +125,7 @@ fun MailboxesScreen() {
                 OutlinedTextField(
                     value = draft.name,
                     onValueChange = { draft = draft.copy(name = it) },
-                    label = { Text("Name it (optional)") },
+                    label = { Text(Texts.get(R.string.mailboxes_name)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth().testTag("account.name"),
                 )
@@ -143,9 +145,9 @@ fun MailboxesScreen() {
                 ) {
                     Text(
                         if (draft.manual) {
-                            "Discover the servers for me"
+                            Texts.get(R.string.mailboxes_discover)
                         } else {
-                            "Enter the server settings myself"
+                            Texts.get(R.string.mailboxes_manual)
                         },
                         color = theme.accent,
                         fontSize = 12.sp,
@@ -169,26 +171,26 @@ fun MailboxesScreen() {
                             }
                         }
                     }
-                    ServerField("Incoming server", draft.imapHost, "account.incoming.host") {
+                    ServerField(Texts.get(R.string.mailboxes_incoming), draft.imapHost, "account.incoming.host") {
                         draft = draft.copy(imapHost = it)
                     }
                     ServerField(
-                        "Port", draft.imapPort, "account.incoming.port", numeric = true,
+                        Texts.get(R.string.mailboxes_port), draft.imapPort, "account.incoming.port", numeric = true,
                     ) { draft = draft.copy(imapPort = it) }
                     // JMAP submits over the same API, so there is no
                     // second server to name. A box for one would be a
                     // box somebody fills in with the first server's
                     // name to get past the form.
                     if (draft.incoming != Incoming.JMAP) {
-                        ServerField("Outgoing server", draft.smtpHost, "account.outgoing.host") {
+                        ServerField(Texts.get(R.string.mailboxes_outgoing), draft.smtpHost, "account.outgoing.host") {
                             draft = draft.copy(smtpHost = it)
                         }
                         ServerField(
-                            "Port", draft.smtpPort, "account.outgoing.port", numeric = true,
+                            Texts.get(R.string.mailboxes_port), draft.smtpPort, "account.outgoing.port", numeric = true,
                         ) { draft = draft.copy(smtpPort = it) }
                     }
                     ServerField(
-                        "Login name, if it is not the address", draft.login, "account.login",
+                        Texts.get(R.string.mailboxes_login_name), draft.login, "account.login",
                     ) { draft = draft.copy(login = it) }
                 }
 
@@ -217,7 +219,7 @@ fun MailboxesScreen() {
                                     accounts = store.load()
                                     draft = AccountsDraft()
                                 } else {
-                                    failure = "The ${bad.stage.label} refused: ${bad.message}"
+                                    failure = Texts.get(R.string.mailboxes_refused, bad.stage.label, bad.message)
                                 }
                                 busy = false
                             }
@@ -225,7 +227,12 @@ fun MailboxesScreen() {
                         enabled = !busy && draft.secret.isNotEmpty(),
                         modifier = Modifier.testTag("account.add"),
                     ) {
-                        Text(if (busy) "Checking…" else "Add")
+                        Text(
+                            when (busy) {
+                                true -> Texts.get(R.string.mailboxes_checking)
+                                false -> Texts.get(R.string.common_add)
+                            },
+                        )
                     }
                     if (busy) {
                         CircularProgressIndicator(
@@ -265,18 +272,21 @@ private fun ProviderNote(
             // connection failure instead of now, from reading it.
             Column(Modifier.testTag("account.noPreset")) {
                 Text(
-                    "No preset for this domain. This will try:",
+                    Texts.get(R.string.mailboxes_no_preset),
                     color = theme.fgMuted,
                     fontSize = 12.sp,
                 )
                 Text(
-                    "${guess.imapHost}:${guess.imapPort} and " +
+                    Texts.get(
+                        R.string.mailboxes_try_hosts,
+                        "${guess.imapHost}:${guess.imapPort}",
                         "${guess.smtpHost}:${guess.smtpPort}",
+                    ),
                     color = theme.fgSecondary,
                     fontSize = 12.sp,
                 )
                 Text(
-                    "Open the settings below if that is not right.",
+                    Texts.get(R.string.mailboxes_no_preset_hint),
                     color = theme.fgMuted,
                     fontSize = 12.sp,
                 )
@@ -285,13 +295,12 @@ private fun ProviderNote(
         provider.auth == MailProvider.AuthKind.OAUTH2 ->
             Column(Modifier.testTag("account.oauthUnavailable")) {
                 Text(
-                    "${provider.label} does not accept a password for mail apps.",
+                    Texts.get(R.string.mailboxes_oauth_only, provider.label),
                     color = theme.fgMuted,
                     fontSize = 12.sp,
                 )
                 Text(
-                    "Signing in with ${provider.label} is not built yet — a mailbox that " +
-                        "takes an app password works today.",
+                    Texts.get(R.string.mailboxes_oauth_not_built, provider.label),
                     color = theme.fgMuted,
                     fontSize = 12.sp,
                 )
@@ -300,13 +309,12 @@ private fun ProviderNote(
         provider.secretHelp != null ->
             Column {
                 Text(
-                    "${provider.label} wants a ${provider.secretHelp.what}, not your login " +
-                        "password.",
+                    Texts.get(R.string.mailboxes_wants_secret, provider.label, Texts.get(provider.secretHelp.what)),
                     color = theme.fgMuted,
                     fontSize = 12.sp,
                 )
                 Text(
-                    "Get one",
+                    Texts.get(R.string.mailboxes_get_one),
                     color = theme.accent,
                     fontSize = 12.sp,
                     textDecoration = TextDecoration.Underline,
@@ -363,7 +371,7 @@ private fun AccountRow(a: MailAccount, onRemove: () -> Unit) {
             fontSize = 11.sp,
         )
         TextButton(onClick = onRemove, modifier = Modifier.testTag("account.remove.${a.id}")) {
-            Text("Remove", color = theme.danger, fontSize = 12.sp)
+            Text(Texts.get(R.string.common_remove), color = theme.danger, fontSize = 12.sp)
         }
     }
 }

@@ -1,5 +1,6 @@
 package jp.golia.mailrs
 
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -34,7 +35,7 @@ class RestartFlowTest : MailrsUiTest() {
         restarting("/api/mail/sent")
         compose.onNodeWithTag("button.folders").performClick()
         waitForTag("drawer.lists", "the drawer never opened")
-        compose.onNodeWithTag("drawer.item.Sent").performClick()
+        compose.onNodeWithTag("drawer.item.Sent").performScrollTo().performClick()
         // The stub's count, not the screen: rows drawn from a cache look
         // the same whether or not the read came back after the 503.
         compose.waitUntil(5_000) {

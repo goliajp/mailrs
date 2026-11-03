@@ -1,5 +1,6 @@
 package jp.golia.mailrs.wire
 
+import jp.golia.mailrs.R
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -22,5 +23,5 @@ suspend fun MailrsClient.role(): MailrsClient.Outcome<Role> =
 /** A 403 that is not a request for the password: the account lacks a right. */
 internal fun MailrsClient.forbidden(): MailrsClient.Outcome.Err {
     onForbidden?.invoke()
-    return MailrsClient.Outcome.Err("The server answered 403.")
+    return MailrsClient.Outcome.Err(Texts.get(R.string.error_forbidden))
 }

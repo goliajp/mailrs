@@ -1,0 +1,297 @@
+# String literals in the Android sources that look like interface text and
+# are not: protocol words and headers, file and cache names, formats, brand
+# and mail-provider folder names, time-zone ids, test tags. One per line as
+# <path under jp/golia/mailrs>, a tab, the literal as written in the source.
+# scripts/check-android-l10n.sh fails on any other such literal, and on a
+# line here that no longer matches the source.
+MailState.kt	src-${s.sourceIp}
+MailViewModelCompose.kt	attachments/$uid-$index
+MailViewModelLabels.kt	Label-
+MainActivity.kt	jp.golia.mailrs.COMPOSE
+MainActivity.kt	jp.golia.mailrs.SEARCH
+accounts/AccountSender.kt	$bytes B
+accounts/AccountStore.kt	$id/
+accounts/AccountStore.kt	$accountId/
+accounts/AccountStore.kt	secret.$id
+accounts/AccountStore.kt	AndroidKeyStore
+accounts/AccountStore.kt	AES/GCM/NoPadding
+accounts/EarlierPlan.kt	$bottom:$top
+accounts/EncodedWord.kt	=?utf-8?B?
+accounts/EncodedWord.kt	UTF-8
+accounts/EncodedWord.kt	ISO-8859-1
+accounts/EncodedWord.kt	ISO-2022-JP
+accounts/EncodedWord.kt	SHIFT-JIS
+accounts/EncodedWord.kt	Shift_JIS
+accounts/EncodedWord.kt	EUC-JP
+accounts/FetchPlan.kt	${uid + 1}:*
+accounts/FetchPlan.kt	$from:*
+accounts/FetchWhole.kt	BODY.PEEK[]
+accounts/FetchWhole.kt	BODY.PEEK[]<0.${plan.bytes}>
+accounts/ImapLine.kt	$tag 
+accounts/ImapLine.kt	LIST 
+accounts/ImapLine.kt	[CAPABILITY 
+accounts/ImapLine.kt	[$key 
+accounts/ImapLine.kt	 FETCH 
+accounts/ImapLine.kt	UID 
+accounts/ImapLine.kt	\\SEEN
+accounts/ImapLine.kt	RFC822.SIZE 
+accounts/ImapLine.kt	INVALID CREDENTIALS
+accounts/ImapLine.kt	LOGIN FAILED
+accounts/ImapSession.kt	LOGIN ${Imap.quoted(user)} ${Imap.quoted(password)}
+accounts/ImapSession.kt	$t AUTHENTICATE XOAUTH2 ${Smtp.authXOAuth2(user, token)}\r\n
+accounts/ImapSession.kt	LIST 
+accounts/ImapSession.kt	SELECT ${Imap.quoted(folder)}
+accounts/ImapSession.kt	UID FETCH
+accounts/ImapSession.kt	$t $verb $range (UID FLAGS RFC822.SIZE BODY.PEEK[HEADER])\r\n
+accounts/ImapSession.kt	$t UID FETCH $uid (${FetchWhole.bodyItem(plan)})\r\n
+accounts/ImapSession.kt	+FLAGS
+accounts/ImapSession.kt	\\Seen
+accounts/ImapSession.kt	-FLAGS
+accounts/ImapSession.kt	$t UID STORE $uid $op ($flag)\r\n
+accounts/ImapSession.kt	$t UID FETCH $batch (UID FLAGS)\r\n
+accounts/ImapSession.kt	\\Deleted
+accounts/ImapSession.kt	$t ${step.text}\r\n
+accounts/ImapSession.kt	a${++tag}
+accounts/ImapSession.kt	$t $text\r\n
+accounts/Jmap.kt	urn:ietf:params:jmap:mail
+accounts/Jmap.kt	urn:ietf:params:jmap:core
+accounts/Jmap.kt	$MAIL_CAPABILITY
+accounts/Jmap.kt	Email/query
+accounts/Jmap.kt	$accountId
+accounts/Jmap.kt	Email/get
+accounts/Jmap.kt	).replace(
+accounts/Jmap.kt	$name <$email>
+accounts/Jmap.kt	\$seen
+accounts/JmapSession.kt	Bearer $secret
+accounts/JmapSession.kt	$user:$secret
+accounts/JmapSession.kt	Basic 
+accounts/JmapSession.kt	Authorization
+accounts/JmapSession.kt	Accept
+accounts/JmapSession.kt	Content-Type
+accounts/MailAccount.kt	acct-$h
+accounts/MailDate.kt	Sun
+accounts/MailDate.kt	Mon
+accounts/MailDate.kt	Tue
+accounts/MailDate.kt	Wed
+accounts/MailDate.kt	Thu
+accounts/MailDate.kt	Fri
+accounts/MailDate.kt	Sat
+accounts/MailDate.kt	Jan
+accounts/MailDate.kt	Feb
+accounts/MailDate.kt	Mar
+accounts/MailDate.kt	Apr
+accounts/MailDate.kt	May
+accounts/MailDate.kt	Jun
+accounts/MailDate.kt	Jul
+accounts/MailDate.kt	Aug
+accounts/MailDate.kt	Sep
+accounts/MailDate.kt	Oct
+accounts/MailDate.kt	Nov
+accounts/MailDate.kt	Dec
+accounts/MailProvider.kt	Gmail
+accounts/MailProvider.kt	[Gmail]/All Mail
+accounts/MailProvider.kt	[Gmail]/Trash
+accounts/MailProvider.kt	[Gmail]/Spam
+accounts/MailProvider.kt	Outlook
+accounts/MailProvider.kt	Deleted Items
+accounts/MailProvider.kt	Junk Email
+accounts/MailProvider.kt	Yahoo! JAPAN
+accounts/MailProvider.kt	Deleted Messages
+accounts/MailProvider.kt	Junk
+accounts/MailProvider.kt	Fastmail
+accounts/MailProvider.kt	Trash
+accounts/MailProvider.kt	Spam
+accounts/MailProvider.kt	imap.$domain
+accounts/MailProvider.kt	smtp.$domain
+accounts/MailboxDatabase.kt	CREATE INDEX rows_by_date ON rows (date DESC)
+accounts/MailboxDatabase.kt	CREATE INDEX rows_by_account ON rows (account)
+accounts/MailboxDatabase.kt	CREATE INDEX rows_by_seen ON rows (seen, account)
+accounts/MailboxDatabase.kt	DROP TABLE IF EXISTS rows
+accounts/MailboxDatabase.kt	SELECT account, COUNT(*) FROM rows WHERE seen = 0 GROUP BY account
+accounts/MailboxDatabase.kt	SELECT DISTINCT folder FROM rows WHERE account = ?
+accounts/MailboxDatabase.kt	SELECT COUNT(*) FROM rows WHERE account = ?
+accounts/MailboxDatabase.kt	account IN (${accounts.joinToString(",") { "?" }})
+accounts/MailboxDatabase.kt	haystack LIKE ?
+accounts/MailboxDatabase.kt	WHERE 
+accounts/MailboxDatabase.kt	 AND 
+accounts/MailboxDatabase.kt	account = ? AND folder = ? AND uid = ?
+accounts/MailboxDatabase.kt	account = ?
+accounts/MailboxDatabase.kt	account = ? AND folder = ?
+accounts/MailboxRow.kt	$accountId/$folder/$uid
+accounts/MailboxSync.kt	\\NOSELECT
+accounts/MailboxSync.kt	\\ALL
+accounts/MailboxSync.kt	\\TRASH
+accounts/MailboxSync.kt	\\JUNK
+accounts/MailboxSync.kt	\\SENT
+accounts/MailboxSync.kt	\\DRAFTS
+accounts/MessageAttachments.kt	${type.type}/${type.subtype}
+accounts/MessageAttachments.kt	$key*
+accounts/MessageAttachments.kt	${type.type.ifEmpty { "file" }}.$extension
+accounts/MessageBody.kt	--$boundary
+accounts/MessageHeaders.kt	') && name.endsWith('
+accounts/MovePlan.kt	UID MOVE $uid ${Imap.quoted(folder)}
+accounts/MovePlan.kt	UID COPY $uid ${Imap.quoted(folder)}
+accounts/MovePlan.kt	UID EXPUNGE $uid
+accounts/OutgoingMessage.kt	--$boundary\r\n
+accounts/OutgoingMessage.kt	Content-Type: text/plain; charset=utf-8\r\n
+accounts/OutgoingMessage.kt	Content-Transfer-Encoding: 8bit\r\n\r\n
+accounts/OutgoingMessage.kt	Content-Type: ${attachment.mimeType}; name=\"$name\"\r\n
+accounts/OutgoingMessage.kt	Content-Disposition: attachment; filename=\"$name\"\r\n
+accounts/OutgoingMessage.kt	Content-Transfer-Encoding: base64\r\n\r\n
+accounts/OutgoingMessage.kt	--$boundary--\r\n
+accounts/OutgoingMessage.kt	Message-ID: <$id>
+accounts/OutgoingMessage.kt	Date: 
+accounts/OutgoingMessage.kt	From: 
+accounts/OutgoingMessage.kt	To: 
+accounts/OutgoingMessage.kt	Cc: 
+accounts/OutgoingMessage.kt	Subject: 
+accounts/OutgoingMessage.kt	In-Reply-To: 
+accounts/OutgoingMessage.kt	References: 
+accounts/OutgoingMessage.kt	MIME-Version: 1.0
+accounts/OutgoingMessage.kt	Content-Type: text/plain; charset=utf-8
+accounts/OutgoingMessage.kt	Content-Transfer-Encoding: 8bit
+accounts/OutgoingMessage.kt	Content-Type: multipart/mixed; boundary=\"
+accounts/OutgoingMessage.kt	$encoded <$email>
+accounts/OutgoingMessage.kt	\"$escaped\" <$email>
+accounts/OutgoingMessage.kt	$trimmed <$email>
+accounts/OutgoingMessage.kt	----=_mailrs_
+accounts/Pop3Line.kt	+OK
+accounts/Pop3Line.kt	-ERR
+accounts/Pop3Line.kt	AUTHENTICATION FAILED
+accounts/Pop3Line.kt	LOGIN FAILED
+accounts/Pop3Session.kt	USER $user
+accounts/Pop3Session.kt	PASS $password
+accounts/Pop3Session.kt	TOP $number 0
+accounts/Pop3Session.kt	RETR $number
+accounts/Pop3Session.kt	DELE $number
+accounts/ReplyDraft.kt	Re:
+accounts/ReplyDraft.kt	re:
+accounts/ReplyDraft.kt	re :
+accounts/ReplyDraft.kt	Re: $rest
+accounts/ReplyDraft.kt	> $line
+accounts/SmtpLine.kt	user=$user\u0001auth=Bearer $token\u0001\u0001
+accounts/SmtpLine.kt	AUTHENTICATION FAILED
+accounts/SmtpLine.kt	INVALID CREDENTIALS
+accounts/SmtpLine.kt	USERNAME AND PASSWORD NOT ACCEPTED
+accounts/SmtpSession.kt	EHLO $helo
+accounts/SmtpSession.kt	AUTH XOAUTH2 ${Smtp.authXOAuth2(user, secret)}
+accounts/SmtpSession.kt	AUTH PLAIN ${Smtp.authPlain(user, secret)}
+accounts/SmtpSession.kt	MAIL FROM:<$from>
+accounts/SmtpSession.kt	RCPT TO:<$rcpt>
+accounts/TrashFolder.kt	\\TRASH
+accounts/TrashFolder.kt	deleted items
+accounts/TrashFolder.kt	deleted messages
+ui/Attachments.kt	$bytes B
+ui/ConversationRow.kt	×${c.messageCount}
+ui/ConversationRow.kt	↓${c.receivedCount} ↑${c.sentCount}
+ui/InviteCard.kt	$local · ${wall.drop(11).take(5)} $zone
+ui/InviteCard.kt	Zoned
+ui/ListActions.kt	button.selectionMore
+ui/MailboxesScreen.kt	you@example.com
+ui/MailboxesScreen.kt	${guess.imapHost}:${guess.imapPort}
+ui/MailboxesScreen.kt	${guess.smtpHost}:${guess.smtpPort}
+ui/MergedMailRow.kt	${account?.title ?: Texts.get(R.string.mailboxes_unknown)} · ${row.folder}
+ui/MessageBody.kt	(?i)<meta[^>]*name=[\"']?viewport[\"']?[^>]*>
+ui/MessageBody.kt	$lang
+ui/MessageBody.kt	width=device-width, initial-scale=1
+ui/MessageScreen.kt	${account?.title ?: Texts.get(R.string.mailboxes_unknown)} · ${row.folder}
+ui/MessageScreen.kt	${attachment.mimeType} · ${humanSize(attachment.size.toLong())}
+ui/MessageScreen.kt	attachments/
+ui/RowDate.kt	MMMd
+ui/Screens.kt	${state.selected.size}
+ui/SignInScreen.kt	Mailrs
+ui/ThreadActions.kt	button.threadMore
+widget/InboxWidget.kt	Mailrs
+wire/CjkLang.kt	zh-Hant
+wire/CjkLang.kt	zh-Hans
+wire/ContentUriBody.kt	could not open $uri
+wire/InviteRules.kt	NEEDS-ACTION
+wire/InviteRules.kt	$head · ${parts.joinToString(Texts.get(R.string.list_separator))}
+wire/InviteRules.kt	Central Standard Time
+wire/InviteRules.kt	America/Chicago
+wire/InviteRules.kt	China Standard Time
+wire/InviteRules.kt	Asia/Shanghai
+wire/InviteRules.kt	Eastern Standard Time
+wire/InviteRules.kt	America/New_York
+wire/InviteRules.kt	GMT Standard Time
+wire/InviteRules.kt	Europe/London
+wire/InviteRules.kt	Pacific Standard Time
+wire/InviteRules.kt	America/Los_Angeles
+wire/InviteRules.kt	Tokyo Standard Time
+wire/InviteRules.kt	Asia/Tokyo
+wire/InviteRules.kt	W. Europe Standard Time
+wire/InviteRules.kt	Europe/Berlin
+wire/MailAppearance.kt	<font
+wire/MailAppearance.kt	color:
+wire/MailAppearance.kt	src=\"http
+wire/MailAppearance.kt	src='http
+wire/MailAppearance.kt	src=http
+wire/MailAppearance.kt	src=\"//
+wire/MailAppearance.kt	src='//
+wire/MailAppearance.kt	background=\"http
+wire/MailAppearance.kt	background='http
+wire/MailAppearance.kt	url(http
+wire/MailAppearance.kt	url('http
+wire/MailAppearance.kt	url(\"http
+wire/MailAppearance.kt	url(//
+wire/MailAppearance.kt	url('//
+wire/MailAppearance.kt	url(\"//
+wire/MailCache.kt	conversations-${safe(list)}.json
+wire/MailCache.kt	thread-${safe(threadId)}.json
+wire/MailList.kt	archived=$archived
+wire/MailList.kt	folder=$it
+wire/MailList.kt	unread=$it
+wire/MailList.kt	starred=$it
+wire/MailList.kt	pinned=$it
+wire/MailList.kt	snoozed=$it
+wire/MailList.kt	trashed=true
+wire/MailList.kt	label=$it
+wire/MailList.kt	accounts=
+wire/MailList.kt	Inbox
+wire/MailList.kt	NonJunk
+wire/MailList.kt	Junk
+wire/MailSignature.kt	$SEPARATOR\n$sig
+wire/MailSignature.kt	$text\n\n$SEPARATOR\n$sig
+wire/MailrsClient.kt	$base/api/auth/login
+wire/MailrsClient.kt	&before_ts=$it
+wire/MailrsClient.kt	&limit=$SEARCH_LIMIT&
+wire/MailrsClient.kt	${s.server}/api/mail/send-multipart
+wire/MailrsClient.kt	Authorization
+wire/MailrsClient.kt	Bearer ${s.token}
+wire/MailrsClient.kt	Retry-After
+wire/MailrsClient.kt	UTF-8
+wire/MailrsClientAdmin.kt	Authorization
+wire/MailrsClientAdmin.kt	Bearer ${s.token}
+wire/MailrsClientReset.kt	$name ($address)
+wire/MailrsClientReset.kt	$base/api/auth/password-reset
+wire/MailrsClientTriage.kt	$path/forever
+wire/MailrsClientTriage.kt	$path/mark-junk
+wire/MailrsClientTriage.kt	$path/mark-not-junk
+wire/MailrsClientTriage.kt	$path/mark-notification
+wire/MailrsClientTriage.kt	$path/mark-promotion
+wire/MailrsClientTriage.kt	$path/move-to-inbox
+wire/MailrsClientTriage.kt	$path/pin
+wire/MailrsClientTriage.kt	$path/unpin
+wire/MailrsClientTriage.kt	$path/snooze
+wire/MailrsClientTriage.kt	&before=$it
+wire/MailrsClientTriage.kt	Authorization
+wire/MailrsClientTriage.kt	Bearer ${s.token}
+wire/MailrsClientUser.kt	${s.server}/api/mail/messages/$uid/attachments/$index
+wire/MailrsClientUser.kt	Authorization
+wire/MailrsClientUser.kt	Bearer ${s.token}
+wire/MailrsClientUser.kt	${s.server}/api/mail/drafts/$id
+wire/MailrsClientUser.kt	${s.server}/api/icon/${enc(domain)}
+wire/NewMailWorker.kt	Mailrs
+wire/RecentRecipients.kt	jp.golia.mailrs.category.SHARE_TARGET
+wire/RecentRecipients.kt	recipient:$address
+wire/RecipientAutocomplete.kt	$email, 
+wire/ReplyRecipients.kt	Fwd:
+wire/ReplyRecipients.kt	Re:
+wire/ReplyRecipients.kt	$prefix $original
+wire/ReplyRecipients.kt	> $it
+wire/ReplyRecipients.kt	\n$quoted\n
+wire/ShareIntent.kt	UTF-8
+wire/Texts.kt	Texts used before the process set it up
+wire/TokenStore.kt	AndroidKeyStore
+wire/TokenStore.kt	AES/GCM/NoPadding
+wire/Wire.kt	NEEDS-ACTION

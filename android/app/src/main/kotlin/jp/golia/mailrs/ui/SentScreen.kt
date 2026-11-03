@@ -1,5 +1,7 @@
 package jp.golia.mailrs.ui
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -72,7 +74,7 @@ fun SentScreen(state: UiState, vm: MailViewModel) {
         snackbarHost = { SnackbarHost(snackbars) },
         topBar = {
             TopAppBar(
-                title = { Text("Sent", fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
+                title = { Text(Texts.get(R.string.list_sent), fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = theme.bg,
                     titleContentColor = theme.fg,
@@ -84,7 +86,7 @@ fun SentScreen(state: UiState, vm: MailViewModel) {
                     ) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
+                            contentDescription = Texts.get(R.string.common_back),
                             tint = theme.fgSecondary,
                         )
                     }
@@ -99,7 +101,7 @@ fun SentScreen(state: UiState, vm: MailViewModel) {
 
                 state.sentMail.isEmpty() ->
                     Text(
-                        "Nothing sent yet.",
+                        Texts.get(R.string.sent_empty),
                         color = theme.fgMuted,
                         fontSize = 13.sp,
                         modifier = Modifier.align(Alignment.Center).padding(32.dp).testTag("sent.empty"),
@@ -111,7 +113,7 @@ fun SentScreen(state: UiState, vm: MailViewModel) {
                     if (state.scheduled.isNotEmpty()) {
                         item {
                             Text(
-                                "Waiting to send",
+                                Texts.get(R.string.sent_waiting),
                                 color = theme.fgMuted,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium,
@@ -167,14 +169,14 @@ private fun ScheduledRow(send: Wire.ScheduledSend, onCancel: () -> Unit) {
     ) {
         Column(Modifier.weight(1f)) {
             Text(
-                send.subject.ifBlank { "(no subject)" },
+                send.subject.ifBlank { Texts.get(R.string.mail_no_subject) },
                 color = theme.fg,
                 fontSize = 14.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                "To ${send.recipient} · ${RowDate.format(send.scheduledAt)}",
+                Texts.get(R.string.sent_to_at, send.recipient, RowDate.format(send.scheduledAt)),
                 color = theme.warning,
                 fontSize = 11.sp,
                 maxLines = 1,
@@ -182,7 +184,7 @@ private fun ScheduledRow(send: Wire.ScheduledSend, onCancel: () -> Unit) {
             )
         }
         TextButton(onClick = onCancel, modifier = Modifier.testTag("button.cancelScheduled")) {
-            Text("Cancel", color = theme.accent, fontSize = 13.sp)
+            Text(Texts.get(R.string.common_cancel), color = theme.accent, fontSize = 13.sp)
         }
     }
 }
@@ -210,14 +212,14 @@ private fun SentRow(
                 // second meaning, and not worth a permanent button on
                 // a row that already carries two.
                 onLongClick = onSource,
-                onLongClickLabel = "View source",
+                onLongClickLabel = Texts.get(R.string.mail_view_source),
             )
             .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 6.dp)
             .testTag("row.sent"),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                row.subject.ifBlank { "(no subject)" },
+                row.subject.ifBlank { Texts.get(R.string.mail_no_subject) },
                 color = theme.fg,
                 fontSize = 14.sp,
                 maxLines = 1,
@@ -228,7 +230,7 @@ private fun SentRow(
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "To ${row.to}",
+                Texts.get(R.string.drafts_to, row.to),
                 color = theme.fgMuted,
                 fontSize = 11.sp,
                 maxLines = 1,
@@ -258,10 +260,10 @@ private fun SentRow(
                 // wrong fails again unchanged, and "Send again" sends
                 // the stored bytes exactly as they were.
                 TextButton(onClick = onRedraft, modifier = Modifier.testTag("button.redraft")) {
-                    Text("Edit", color = theme.accent, fontSize = 12.sp)
+                    Text(Texts.get(R.string.sent_edit), color = theme.accent, fontSize = 12.sp)
                 }
                 TextButton(onClick = onResend, modifier = Modifier.testTag("button.resend")) {
-                    Text("Send again", color = theme.accent, fontSize = 12.sp)
+                    Text(Texts.get(R.string.sent_send_again), color = theme.accent, fontSize = 12.sp)
                 }
             }
         }

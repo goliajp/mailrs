@@ -1,5 +1,7 @@
 package jp.golia.mailrs.wire
 
+import jp.golia.mailrs.R
+
 /**
  * Whether a check found new mail worth saying something about.
  *
@@ -39,7 +41,10 @@ object NewMailRule {
      * — and inventing a subject line from nothing is worse than a
      * number that is true.
      */
-    fun text(count: Int): String = if (count == 1) "1 new message" else "$count new messages"
+    fun text(count: Int): String = when (count) {
+        1 -> Texts.get(R.string.notify_one_new)
+        else -> Texts.get(R.string.notify_many_new, count)
+    }
 
     /**
      * Which notification channel a thread's arrival belongs in.

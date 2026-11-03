@@ -1,5 +1,7 @@
 package jp.golia.mailrs.ui
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
 import androidx.compose.runtime.remember
 import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
@@ -66,7 +68,7 @@ fun SettingsScreen(
         containerColor = theme.bg,
         topBar = {
             TopAppBar(
-                title = { Text("Settings", fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
+                title = { Text(Texts.get(R.string.settings_title), fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = theme.bg,
                     titleContentColor = theme.fg,
@@ -75,7 +77,7 @@ fun SettingsScreen(
                     IconButton(onClick = onClose, modifier = Modifier.testTag("button.closeSettings")) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
+                            contentDescription = Texts.get(R.string.common_back),
                             tint = theme.fgSecondary,
                         )
                     }
@@ -95,12 +97,12 @@ fun SettingsScreen(
                 .background(theme.bg)
                 .verticalScroll(rememberScrollState()),
         ) {
-            SectionHeading("Account")
-            Field("Signed in as", state.myAddress.ifBlank { "—" })
-            Field("Server", state.server.ifBlank { "—" })
+            SectionHeading(Texts.get(R.string.settings_account))
+            Field(Texts.get(R.string.settings_signed_in_as), state.myAddress.ifBlank { "—" })
+            Field(Texts.get(R.string.common_server), state.server.ifBlank { "—" })
 
             HorizontalDivider(color = theme.border, thickness = 0.5.dp)
-            SectionHeading("Appearance")
+            SectionHeading(Texts.get(R.string.settings_appearance))
             SingleChoiceSegmentedButtonRow(
                 Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
             ) {
@@ -117,19 +119,19 @@ fun SettingsScreen(
             }
 
             HorizontalDivider(color = theme.border, thickness = 0.5.dp)
-            SectionHeading("New mail")
+            SectionHeading(Texts.get(R.string.settings_new_mail))
             Row(
                 Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text("Tell me when mail arrives", color = theme.fg, fontSize = 14.sp)
+                    Text(Texts.get(R.string.settings_notify), color = theme.fg, fontSize = 14.sp)
                     // Said plainly rather than left to be discovered.
                     // This is a check every quarter of an hour, not
                     // push, and a person who expects instant delivery
                     // has been misled by silence.
                     Text(
-                        "Checked about every 15 minutes while the app is closed.",
+                        Texts.get(R.string.settings_notify_hint),
                         color = theme.fgMuted,
                         fontSize = 12.sp,
                     )
@@ -149,7 +151,7 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth().testTag("settings.mergedMail"),
             ) {
                 Text(
-                    "Other mail",
+                    Texts.get(R.string.merged_title),
                     color = theme.fg,
                     fontSize = 14.sp,
                     modifier = Modifier.fillMaxWidth().padding(start = 4.dp),
@@ -160,7 +162,7 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth().testTag("settings.mailAccounts"),
             ) {
                 Text(
-                    "Mail accounts",
+                    Texts.get(R.string.settings_mail_accounts),
                     color = theme.fg,
                     fontSize = 14.sp,
                     modifier = Modifier.fillMaxWidth().padding(start = 4.dp),
@@ -168,7 +170,7 @@ fun SettingsScreen(
             }
 
             HorizontalDivider(color = theme.border, thickness = 0.5.dp)
-            SectionHeading("Administration")
+            SectionHeading(Texts.get(R.string.settings_admin))
             for (section in AdminSection.entries.filter { it.offeredTo(state.role) }) {
                 TextButton(
                     onClick = { onAdmin(section) },
@@ -177,7 +179,7 @@ fun SettingsScreen(
                         .testTag("admin.${section.name}"),
                 ) {
                     Text(
-                        section.title,
+                        Texts.get(section.title),
                         color = theme.fg,
                         fontSize = 14.sp,
                         modifier = Modifier.fillMaxWidth().padding(start = 4.dp),
@@ -190,7 +192,7 @@ fun SettingsScreen(
                 onClick = onSignOut,
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp).testTag("button.signOut"),
             ) {
-                Text("Sign out", color = theme.danger, fontSize = 14.sp)
+                Text(Texts.get(R.string.settings_sign_out), color = theme.danger, fontSize = 14.sp)
             }
         }
     }

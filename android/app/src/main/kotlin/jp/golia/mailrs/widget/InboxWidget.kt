@@ -1,5 +1,7 @@
 package jp.golia.mailrs.widget
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.LocalSize
 import android.content.Context
@@ -140,7 +142,7 @@ fun InboxWidgetContent(
                         maxLines = 1,
                     )
                     Text(
-                        row.subject.ifBlank { "(no subject)" },
+                        row.subject.ifBlank { Texts.get(R.string.mail_no_subject) },
                         style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 12.sp),
                         maxLines = 1,
                     )
@@ -153,7 +155,7 @@ fun InboxWidgetContent(
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(
-                        "Nothing unread.",
+                        Texts.get(R.string.widget_nothing_unread),
                         style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 12.sp),
                     )
                 }
@@ -163,10 +165,10 @@ fun InboxWidgetContent(
 }
 
 private fun heading(snapshot: WidgetState.Snapshot): String = when {
-    !snapshot.signedIn -> "Sign in to Mailrs"
+    !snapshot.signedIn -> Texts.get(R.string.widget_sign_in)
     snapshot.unread == 0 -> "Mailrs"
-    snapshot.unread == 1 -> "1 unread"
-    else -> "${snapshot.unread} unread"
+    snapshot.unread == 1 -> Texts.get(R.string.widget_one_unread)
+    else -> Texts.get(R.string.widget_many_unread, snapshot.unread)
 }
 
 /**

@@ -1,5 +1,7 @@
 package jp.golia.mailrs.ui
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -46,11 +48,11 @@ fun ConfirmPasswordDialog(prompt: ConfirmPrompt, vm: MailViewModel) {
     AlertDialog(
         onDismissRequest = { vm.cancelConfirmation() },
         containerColor = theme.surface,
-        title = { Text("Confirm it’s you", fontSize = 16.sp, color = theme.fg) },
+        title = { Text(Texts.get(R.string.confirm_title), fontSize = 16.sp, color = theme.fg) },
         text = {
             Column {
                 Text(
-                    "Enter your password to continue. You won’t be asked again for 10 minutes.",
+                    Texts.get(R.string.confirm_body),
                     fontSize = 13.sp,
                     color = theme.fgMuted,
                     modifier = Modifier.padding(bottom = 8.dp),
@@ -58,7 +60,7 @@ fun ConfirmPasswordDialog(prompt: ConfirmPrompt, vm: MailViewModel) {
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
-                    label = { Text("Password", fontSize = 13.sp) },
+                    label = { Text(Texts.get(R.string.common_password), fontSize = 13.sp) },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(
@@ -72,7 +74,7 @@ fun ConfirmPasswordDialog(prompt: ConfirmPrompt, vm: MailViewModel) {
                     OutlinedTextField(
                         value = code,
                         onValueChange = { code = it },
-                        label = { Text("Authenticator code", fontSize = 13.sp) },
+                        label = { Text(Texts.get(R.string.confirm_code), fontSize = 13.sp) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.NumberPassword,
@@ -101,14 +103,14 @@ fun ConfirmPasswordDialog(prompt: ConfirmPrompt, vm: MailViewModel) {
                 onClick = { submit() },
                 modifier = Modifier.testTag("button.confirmPassword"),
             ) {
-                Text("Continue", color = theme.accent)
+                Text(Texts.get(R.string.common_continue), color = theme.accent)
             }
         },
         dismissButton = {
             TextButton(
                 onClick = { vm.cancelConfirmation() },
                 modifier = Modifier.testTag("button.cancelConfirm"),
-            ) { Text("Cancel", color = theme.fgSecondary) }
+            ) { Text(Texts.get(R.string.common_cancel), color = theme.fgSecondary) }
         },
     )
 }

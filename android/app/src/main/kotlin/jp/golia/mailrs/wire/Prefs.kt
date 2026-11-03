@@ -1,5 +1,6 @@
 package jp.golia.mailrs.wire
 
+import jp.golia.mailrs.R
 import android.content.Context
 
 /**
@@ -54,10 +55,13 @@ class Prefs(context: Context) {
      * when they last looked", which stops following it the moment the
      * phone changes.
      */
-    enum class Appearance(val label: String) {
-        System("System"),
-        Light("Light"),
-        Dark("Dark"),
+    enum class Appearance(@androidx.annotation.StringRes private val labelId: Int) {
+        System(R.string.appearance_system),
+        Light(R.string.appearance_light),
+        Dark(R.string.appearance_dark),
+        ;
+
+        val label: String get() = Texts.get(labelId)
     }
 
     private companion object {

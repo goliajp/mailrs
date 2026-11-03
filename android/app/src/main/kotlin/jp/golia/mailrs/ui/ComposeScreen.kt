@@ -1,5 +1,7 @@
 package jp.golia.mailrs.ui
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
 import jp.golia.mailrs.dropCarried
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.minimumInteractiveComponentSize
@@ -122,9 +124,9 @@ fun ComposeScreen(state: UiState, vm: MailViewModel) {
                 // the attachments all came from the message that did
                 // not go.
                 val what = when {
-                    draft.redraftOf != null -> "Edit"
-                    draft.inReplyTo != null -> "Reply"
-                    else -> "New message"
+                    draft.redraftOf != null -> Texts.get(R.string.compose_title_edit)
+                    draft.inReplyTo != null -> Texts.get(R.string.mail_reply)
+                    else -> Texts.get(R.string.compose_new)
                 }
                 Text(what, fontSize = 17.sp)
             },
@@ -134,7 +136,7 @@ fun ComposeScreen(state: UiState, vm: MailViewModel) {
             ),
             navigationIcon = {
                 TextButton(onClick = { vm.cancelCompose() }, modifier = Modifier.testTag("button.cancel")) {
-                    Text("Cancel", color = theme.accent, fontSize = 14.sp)
+                    Text(Texts.get(R.string.common_cancel), color = theme.accent, fontSize = 14.sp)
                 }
             },
             actions = {
@@ -142,7 +144,7 @@ fun ComposeScreen(state: UiState, vm: MailViewModel) {
                     onClick = { picker.launch(arrayOf("*/*")) },
                     modifier = Modifier.testTag("button.attach"),
                 ) {
-                    Icon(Icons.Filled.AttachFile, contentDescription = "Attach", tint = theme.fgSecondary)
+                    Icon(Icons.Filled.AttachFile, contentDescription = Texts.get(R.string.compose_attach), tint = theme.fgSecondary)
                 }
                 if (state.sending) {
                     CircularProgressIndicator(Modifier.padding(end = 16.dp).size(20.dp), color = theme.accent)
@@ -168,14 +170,14 @@ fun ComposeScreen(state: UiState, vm: MailViewModel) {
                                 enabled = ready,
                                 onClick = { vm.send() },
                                 onLongClick = { pickingTime = true },
-                                onLongClickLabel = "Choose when to send",
+                                onLongClickLabel = Texts.get(R.string.compose_choose_time),
                             )
                             .testTag("button.send"),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
                             Icons.AutoMirrored.Filled.Send,
-                            contentDescription = "Send",
+                            contentDescription = Texts.get(R.string.common_send),
                             tint = if (ready) theme.accent else theme.fgMuted,
                         )
                     }
@@ -193,7 +195,7 @@ fun ComposeScreen(state: UiState, vm: MailViewModel) {
         )
 
         CompactField(
-            label = "To",
+            label = Texts.get(R.string.compose_to),
             value = to,
             tag = "field.to",
             trailing = {
@@ -202,7 +204,7 @@ fun ComposeScreen(state: UiState, vm: MailViewModel) {
                         onClick = { extraLines = true },
                         modifier = Modifier.testTag("button.ccBcc"),
                     ) {
-                        Text("Cc/Bcc", color = theme.accent, fontSize = 12.sp)
+                        Text(Texts.get(R.string.compose_cc_bcc_short), color = theme.accent, fontSize = 12.sp)
                     }
                 }
             },
@@ -216,7 +218,7 @@ fun ComposeScreen(state: UiState, vm: MailViewModel) {
         HorizontalDivider(color = theme.border, thickness = 0.5.dp)
 
         if (extraLines) {
-            CompactField("Cc", cc, "field.cc") {
+            CompactField(Texts.get(R.string.compose_cc), cc, "field.cc") {
                 vm.editDraft(cc = it)
                 vm.suggestContacts(RecipientField.Cc, it)
             }
@@ -227,7 +229,7 @@ fun ComposeScreen(state: UiState, vm: MailViewModel) {
             // Bcc says what it does. "Blind" is the whole point and the
             // reason it is worth a word: a reader who confuses it with
             // Cc has told a mailing list who else is on it.
-            CompactField("Bcc", bcc, "field.bcc") {
+            CompactField(Texts.get(R.string.compose_bcc), bcc, "field.bcc") {
                 vm.editDraft(bcc = it)
                 vm.suggestContacts(RecipientField.Bcc, it)
             }
@@ -237,7 +239,7 @@ fun ComposeScreen(state: UiState, vm: MailViewModel) {
             HorizontalDivider(color = theme.border, thickness = 0.5.dp)
         }
 
-        CompactField("Subject", subject, "field.subject", keyboardType = KeyboardType.Text) {
+        CompactField(Texts.get(R.string.compose_subject), subject, "field.subject", keyboardType = KeyboardType.Text) {
             vm.editDraft(subject = it)
         }
         HorizontalDivider(color = theme.border, thickness = 0.5.dp)
@@ -275,7 +277,7 @@ fun ComposeScreen(state: UiState, vm: MailViewModel) {
                         ) {
                             Icon(
                                 Icons.Filled.Close,
-                                contentDescription = "Remove ${a.filename}",
+                                contentDescription = Texts.get(R.string.compose_remove_file, a.filename),
                                 tint = theme.fgMuted,
                                 modifier = Modifier.size(15.dp),
                             )
@@ -311,7 +313,7 @@ fun ComposeScreen(state: UiState, vm: MailViewModel) {
                         ) {
                             Icon(
                                 Icons.Filled.Close,
-                                contentDescription = "Remove ${a.filename}",
+                                contentDescription = Texts.get(R.string.compose_remove_file, a.filename),
                                 tint = theme.fgMuted,
                                 modifier = Modifier.size(15.dp),
                             )
@@ -337,7 +339,7 @@ fun ComposeScreen(state: UiState, vm: MailViewModel) {
         Box(Modifier.weight(1f).fillMaxWidth()) {
             if (body.isEmpty()) {
                 Text(
-                    "Message",
+                    Texts.get(R.string.compose_message),
                     color = theme.fgMuted,
                     fontSize = 15.sp,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),

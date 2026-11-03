@@ -36,7 +36,40 @@ class SystemConfiguration : ExternalResource() {
     var displaySize: String? = null
     var density: String? = null
 
+    /**
+     * The app's own language (a BCP 47 tag, `ja`, `zh-CN`), as a person
+     * sets it in the system's per-app language settings. Set before the
+     * activity launches for the same reason as the rest: changing it
+     * after recreates the activity under the compose rule.
+     */
+    var appLocale: String? = null
+
+    /** Dark mode on (`yes`) or off (`no`), as the system's own switch sets it. */
+    var night: String? = null
+
+    private fun locales(): android.app.LocaleManager =
+        InstrumentationRegistry.getInstrumentation().targetContext
+            .getSystemService(android.app.LocaleManager::class.java)
+
     override fun before() {
+        night?.let { shell("cmd uimode night $it") }
+        appLocale?.let { tag ->
+            val wanted = android.os.LocaleList.forLanguageTags(tag)
+            locales().applicationLocales = wanted
+            // Asked for is not applied: the app's own resources follow a
+            // moment later, and an activity launched in between is
+            // recreated under the compose rule. Wait for the resources.
+            val app = InstrumentationRegistry.getInstrumentation().targetContext.applicationContext
+            repeat(100) {
+                val now = app.resources.configuration.locales[0]
+                if (locales().applicationLocales == wanted && now.language == wanted[0].language) {
+                    Thread.sleep(500)
+                    return@let
+                }
+                Thread.sleep(100)
+            }
+            error("the app's language never became $tag")
+        }
         fontScale?.let {
             // Checked against the **system configuration**, not against
             // `settings get`. The setting reads back at once and the
@@ -101,6 +134,8 @@ class SystemConfiguration : ExternalResource() {
         if (fontScale != null) shell("settings put system font_scale 1.0")
         if (displaySize != null) shell("wm size reset")
         if (density != null) shell("wm density reset")
+        if (appLocale != null) locales().applicationLocales = android.os.LocaleList.getEmptyLocaleList()
+        if (night != null) shell("cmd uimode night no")
     }
 
     /**

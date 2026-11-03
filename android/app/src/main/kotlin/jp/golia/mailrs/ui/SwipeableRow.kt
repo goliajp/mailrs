@@ -1,5 +1,7 @@
 package jp.golia.mailrs.ui
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -97,9 +99,9 @@ fun SwipeableConversationRow(
             val direction = state.dismissDirection
             val (colour, icon, label, alignment) = when (direction) {
                 SwipeToDismissBoxValue.StartToEnd ->
-                    Quad(theme.success, Icons.Filled.Archive, "Archive", Alignment.CenterStart)
+                    Quad(theme.success, Icons.Filled.Archive, Texts.get(R.string.action_archive), Alignment.CenterStart)
                 SwipeToDismissBoxValue.EndToStart ->
-                    Quad(theme.accent, Icons.Filled.MarkEmailRead, "Mark read", Alignment.CenterEnd)
+                    Quad(theme.accent, Icons.Filled.MarkEmailRead, Texts.get(R.string.row_mark_read), Alignment.CenterEnd)
                 SwipeToDismissBoxValue.Settled ->
                     Quad(Color.Transparent, Icons.Filled.Archive, "", Alignment.Center)
             }

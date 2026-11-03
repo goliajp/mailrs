@@ -1,5 +1,7 @@
 package jp.golia.mailrs.ui
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -124,8 +126,7 @@ fun ComposeMailScreen(
             // sent again, and the first has already arrived looking
             // complete.
             if (files.lost.isNotEmpty()) {
-                failure = "Could not read " + files.lost.joinToString(", ") +
-                    ". Nothing was sent."
+                failure = Texts.get(R.string.compose_could_not_read, files.lost.joinToString(", "))
                 sending = false
                 return@launch
             }
@@ -147,7 +148,7 @@ fun ComposeMailScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             TextButton(onClick = onClose, modifier = Modifier.testTag("compose.cancel")) {
-                Text("Cancel", color = theme.accent, fontSize = 13.sp)
+                Text(Texts.get(R.string.common_cancel), color = theme.accent, fontSize = 13.sp)
             }
             Box(Modifier.weight(1f))
             when {
@@ -156,13 +157,13 @@ fun ComposeMailScreen(
                     onClick = { send() },
                     modifier = Modifier.testTag("compose.send"),
                 ) {
-                    Text("Send", color = theme.accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text(Texts.get(R.string.common_send), color = theme.accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
         }
 
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("From", color = theme.fgMuted, fontSize = 11.sp)
+            Text(Texts.get(R.string.compose_from), color = theme.fgMuted, fontSize = 11.sp)
             Row(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -175,7 +176,7 @@ fun ComposeMailScreen(
             OutlinedTextField(
                 value = to,
                 onValueChange = { to = it },
-                label = { Text("To") },
+                label = { Text(Texts.get(R.string.compose_to)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth().testTag("compose.to"),
             )
@@ -183,14 +184,14 @@ fun ComposeMailScreen(
                 OutlinedTextField(
                     value = cc,
                     onValueChange = { cc = it },
-                    label = { Text("Cc") },
+                    label = { Text(Texts.get(R.string.compose_cc)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth().testTag("compose.cc"),
                 )
                 OutlinedTextField(
                     value = bcc,
                     onValueChange = { bcc = it },
-                    label = { Text("Bcc") },
+                    label = { Text(Texts.get(R.string.compose_bcc)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth().testTag("compose.bcc"),
                 )
@@ -199,20 +200,20 @@ fun ComposeMailScreen(
                     onClick = { showCopies = true },
                     modifier = Modifier.testTag("compose.showCopies"),
                 ) {
-                    Text("Cc / Bcc", color = theme.accent, fontSize = 12.sp)
+                    Text(Texts.get(R.string.compose_cc_bcc), color = theme.accent, fontSize = 12.sp)
                 }
             }
             OutlinedTextField(
                 value = subject,
                 onValueChange = { subject = it },
-                label = { Text("Subject") },
+                label = { Text(Texts.get(R.string.compose_subject)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth().testTag("compose.subject"),
             )
             OutlinedTextField(
                 value = body,
                 onValueChange = { body = it },
-                label = { Text("Message") },
+                label = { Text(Texts.get(R.string.compose_message)) },
                 modifier = Modifier.fillMaxWidth().heightIn(min = 200.dp).testTag("compose.body"),
             )
 
@@ -220,7 +221,7 @@ fun ComposeMailScreen(
                 onClick = { picker.launch(arrayOf("*/*")) },
                 modifier = Modifier.testTag("compose.attach"),
             ) {
-                Text("Attach a file", color = theme.accent, fontSize = 12.sp)
+                Text(Texts.get(R.string.compose_attach_file), color = theme.accent, fontSize = 12.sp)
             }
             for (file in picked) {
                 Row(
@@ -231,7 +232,7 @@ fun ComposeMailScreen(
                     Text(humanSize(file.size), color = theme.fgMuted, fontSize = 11.sp)
                     Box(Modifier.weight(1f))
                     TextButton(onClick = { picked = picked - file }) {
-                        Text("Remove", color = theme.fgMuted, fontSize = 11.sp)
+                        Text(Texts.get(R.string.common_remove), color = theme.fgMuted, fontSize = 11.sp)
                     }
                 }
             }

@@ -171,7 +171,7 @@ class ComposeFlowTest : MailrsUiTest() {
 
         compose.onNodeWithTag("button.folders").performClick()
         waitForTag("drawer.lists", "the drawer never opened")
-        compose.onNodeWithTag("drawer.item.Drafts").performClick()
+        compose.onNodeWithTag("drawer.item.Drafts").performScrollTo().performClick()
         waitForTag("list.drafts", "the draft was not listed")
         compose.onNodeWithText("Half a thought").assertIsDisplayed()
 

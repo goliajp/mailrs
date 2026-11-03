@@ -1,5 +1,6 @@
 package jp.golia.mailrs.wire
 
+import jp.golia.mailrs.R
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -23,13 +24,16 @@ object InviteRules {
      * opposite of what happened.
      */
     fun badge(method: String, sequence: Int): String = when (method.uppercase()) {
-        "CANCEL" -> "Cancelled"
-        "COUNTER" -> "Counter-proposed"
-        "PUBLISH" -> "Event"
-        "REPLY" -> "Reply"
-        "REQUEST" -> if (sequence > 0) "Updated invite" else "New invite"
-        "UPDATE" -> "Updated invite"
-        else -> "Invitation"
+        "CANCEL" -> Texts.get(R.string.invite_cancelled)
+        "COUNTER" -> Texts.get(R.string.invite_counter)
+        "PUBLISH" -> Texts.get(R.string.invite_event)
+        "REPLY" -> Texts.get(R.string.invite_reply)
+        "REQUEST" -> when (sequence > 0) {
+            true -> Texts.get(R.string.invite_updated)
+            false -> Texts.get(R.string.invite_new)
+        }
+        "UPDATE" -> Texts.get(R.string.invite_updated)
+        else -> Texts.get(R.string.invite_invitation)
     }
 
     /**
@@ -43,24 +47,30 @@ object InviteRules {
 
     /** "4 guests · 1 yes, 2 awaiting" — the count alone does not say whether it is happening. */
     fun guests(attendees: List<Wire.InviteAttendee>): String {
-        val head = if (attendees.size == 1) "1 guest" else "${attendees.size} guests"
+        val head = when (attendees.size) {
+            1 -> Texts.get(R.string.invite_one_guest)
+            else -> Texts.get(R.string.invite_guests, attendees.size)
+        }
         val yes = attendees.count { it.partstat.uppercase() == "ACCEPTED" }
         val no = attendees.count { it.partstat.uppercase() == "DECLINED" }
         val waiting = attendees.count { it.partstat.uppercase() == "NEEDS-ACTION" }
         val parts = buildList {
-            if (yes > 0) add("$yes yes")
-            if (no > 0) add("$no no")
-            if (waiting > 0) add("$waiting awaiting")
+            if (yes > 0) add(Texts.get(R.string.invite_count_yes, yes))
+            if (no > 0) add(Texts.get(R.string.invite_count_no, no))
+            if (waiting > 0) add(Texts.get(R.string.invite_count_waiting, waiting))
         }
-        return if (parts.isEmpty()) head else "$head · ${parts.joinToString(", ")}"
+        return when (parts.isEmpty()) {
+            true -> head
+            false -> "$head · ${parts.joinToString(Texts.get(R.string.list_separator))}"
+        }
     }
 
     /** What this reader already said. */
     fun answered(partstat: String): String = when (partstat.uppercase()) {
-        "ACCEPTED" -> "You accepted"
-        "DECLINED" -> "You declined"
-        "TENTATIVE" -> "You answered maybe"
-        else -> "You answered"
+        "ACCEPTED" -> Texts.get(R.string.invite_you_accepted)
+        "DECLINED" -> Texts.get(R.string.invite_you_declined)
+        "TENTATIVE" -> Texts.get(R.string.invite_you_maybe)
+        else -> Texts.get(R.string.invite_you_answered)
     }
 
     /**
