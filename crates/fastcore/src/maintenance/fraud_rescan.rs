@@ -83,9 +83,18 @@ impl FraudJudge {
         }
     }
 
+    /// Judge `raw` as `user`'s copy: the reader's history with the sender
+    /// (the BEC rules) and whether the sender's and links' domains were new
+    /// when the message arrived are part of what the rules see.
+    ///
+    /// The history is read as it stands now, with this message already
+    /// counted (`Counted::After`): "first contact" means "the only mail
+    /// from this sender so far", not "the first at the time", which a
+    /// stored message cannot know.
     pub(crate) fn judge(
         &mut self,
         state: &Arc<FastcoreState>,
+        user: &str,
         message_id: &str,
         raw: &[u8],
     ) -> Result<FraudJudgement, String> {
@@ -93,8 +102,9 @@ impl FraudJudge {
             .mailbox
             .attachment_texts(message_id)
             .unwrap_or_default();
-        let j = mailrs_fraud_lua::stored::judge(
+        let j = mailrs_fraud_lua::stored::judge_for(
             raw,
+            Some((user, mailrs_fraud_lua::stored::relation::Counted::After)),
             self.our_stamp.as_deref(),
             &texts,
             &self.policy,

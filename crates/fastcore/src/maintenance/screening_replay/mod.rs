@@ -226,7 +226,7 @@ fn replay(
                 w.out_of_window += 1;
                 continue;
             }
-            w.message(state, which, &message_id, &raw, arrived);
+            w.message(state, which, user, &message_id, &raw, arrived);
         }
     }
     let [clean, junk, held] = w.samples;
@@ -300,6 +300,7 @@ impl Walk<'_> {
         &mut self,
         state: &Arc<FastcoreState>,
         which: usize,
+        user: &str,
         message_id: &str,
         raw: &[u8],
         arrived: i64,
@@ -310,7 +311,7 @@ impl Walk<'_> {
         if self.scope == Scope::All {
             self.coverage[which].add(&coverage::seen(raw, self.inspector));
         }
-        match self.fraud.judge(state, message_id, raw) {
+        match self.fraud.judge(state, user, message_id, raw) {
             Ok(j) => {
                 self.fraud_version = j.version;
                 sample.fraud_hold += u64::from(j.holds);
