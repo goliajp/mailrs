@@ -1,50 +1,61 @@
 package jp.golia.mailrs
 
+import androidx.lifecycle.viewModelScope
+import jp.golia.mailrs.wire.MailList
+import jp.golia.mailrs.wire.MailListAxes
+import jp.golia.mailrs.wire.MailrsClient
+import jp.golia.mailrs.wire.RowAction
+import jp.golia.mailrs.wire.Wire
+import jp.golia.mailrs.wire.act
 import jp.golia.mailrs.wire.markAllRead
 import kotlinx.coroutines.flow.update
-import androidx.lifecycle.viewModelScope
-import jp.golia.mailrs.wire.MailrsClient
-import jp.golia.mailrs.wire.Wire
 import kotlinx.coroutines.launch
 
 /**
- * Filing mail: the swipe, the selection, and the undo between them.
+ * Filing mail: the swipe, the selection, the menus, and the undo between
+ * them.
  *
- * Extensions rather than methods, for the reason the other two files
- * give — Kotlin has no partial classes and one view model had grown to
- * 1,460 lines. This is the part a person touches most, so it is worth
- * being able to read on its own.
+ * Extensions rather than methods, for the reason the other files give —
+ * Kotlin has no partial classes and one view model had grown to 1,460
+ * lines. This is the part a person touches most, so it is worth being
+ * able to read on its own.
  *
- * The undo window lives here as the whole reason the request is
- * deferred: a row leaves at once and the server is told five seconds
- * later, so undoing costs nothing and swiping four rows costs three
- * requests rather than eight.
+ * Two kinds of undo, one snackbar. A swipe holds its request for the
+ * undo window, so taking it back costs nothing; an action chosen from a
+ * menu is sent at once, as the web does, and taking it back sends the
+ * action that undoes it (the table in [RowAction]).
  */
 
 /** Long enough to notice the row left, short enough not to feel stuck. */
 internal const val UNDO_WINDOW_MS = 5_000L
 
+/** The axes the list showing asks for: a label's own, or the list's. */
+fun UiState.axes(): MailListAxes = when (val l = label) {
+    null -> list.axes
+    else -> MailList.labelAxes(l.id)
+}
+
 /**
  * Triage a row: take it off the list now, tell the server later.
  *
  * **The row leaves immediately and the request waits.** Undo is the
- * protection this screen offers instead of a confirmation — the
- * design doc's rule, and Gmail's — so a request sent at the swipe
- * would have to be undone by a second request, and a person who
- * swipes four rows and undoes one would have paid for eight round
- * trips to move three.
+ * protection this screen offers instead of a confirmation — the design
+ * doc's rule, and Gmail's — so a request sent at the swipe would have to
+ * be undone by a second request, and a person who swipes four rows and
+ * undoes one would have paid for eight round trips to move three.
  *
- * The pending action is held for [UNDO_WINDOW_MS]. Swiping another
- * row commits the previous one rather than replacing it, because a
- * queue of undoable things is a queue of things a person cannot
- * reason about — one is what a snackbar can honestly offer.
+ * The pending action is held for [UNDO_WINDOW_MS]. Swiping another row
+ * commits the previous one rather than replacing it, because a queue of
+ * undoable things is a queue of things a person cannot reason about —
+ * one is what a snackbar can honestly offer.
  */
-fun MailViewModel.triage(conversation: Wire.Conversation, verb: MailrsClient.Verb) {
+fun MailViewModel.triage(conversation: Wire.Conversation, action: RowAction) {
     pending?.let { commit(it) }
-    val remaining = _state.value.conversations.filterNot { it.threadId == conversation.threadId }
-    val action = PendingTriage(conversation, verb, _state.value.conversations)
-    pending = action
-    _state.update { it.copy(conversations = remaining, undo = action) }
+    val before = _state.value.conversations
+    val remaining = before.filterNot { it.threadId == conversation.threadId }
+    val held = PendingTriage(listOf(conversation), action, before)
+    pending = held
+    _state.update { it.copy(conversations = remaining, undo = held) }
 
     val token = ++undoToken
     viewModelScope.launch {
@@ -58,15 +69,17 @@ fun MailViewModel.triage(conversation: Wire.Conversation, verb: MailrsClient.Ver
 /**
  * Selection mode: long-press starts it, tapping adds and removes.
  *
- * Android's own pattern for acting on many rows, and the reason the
- * row tap has two meanings — while a selection is on, tapping a row
- * changes the selection rather than opening it, which is what every
- * list on the phone does and what a reader will expect after the
- * first long press.
+ * Android's own pattern for acting on many rows, and the reason the row
+ * tap has two meanings — while a selection is on, tapping a row changes
+ * the selection rather than opening it, which is what every list on the
+ * phone does and what a reader will expect after the first long press.
  */
 fun MailViewModel.toggleSelected(threadId: String) {
     val now = _state.value.selected
-    val next = if (threadId in now) now - threadId else now + threadId
+    val next = when (threadId in now) {
+        true -> now - threadId
+        false -> now + threadId
+    }
     _state.update { it.copy(selected = next) }
 }
 
@@ -76,45 +89,99 @@ fun MailViewModel.clearSelection() {
 }
 
 /**
- * Apply a verb to everything selected, in one request.
+ * Apply an action to everything selected.
  *
- * The rows leave at once and the selection ends, because a
- * selection that survived its own action would invite the same
- * action twice. Unlike a swipe there is no undo window: the
- * snackbar can honestly offer one undo, and a bulk action that
- * silently deferred would leave the list disagreeing with the
- * server for five seconds while the reader watches.
+ * The rows change at once and the selection ends, because a selection
+ * that survived its own action would invite the same action twice.
  */
-fun MailViewModel.applyToSelection(verb: MailrsClient.Verb) {
-    val ids = _state.value.selected.toList()
-    if (ids.isEmpty()) return
+fun MailViewModel.applyToSelection(action: RowAction, labelId: String? = null) {
+    val ids = _state.value.selected
+    val rows = _state.value.conversations.filter { it.threadId in ids }
+    if (rows.isEmpty()) return
+    _state.update { it.copy(selected = emptySet()) }
+    actNow(rows, action, labelId)
+}
+
+/** Apply an action from the open thread's menu, and go back to the list when it leaves. */
+fun MailViewModel.applyToOpenThread(action: RowAction, labelId: String? = null) {
+    val conversation = _state.value.open ?: return
+    if (action.leavesList) closeThread()
+    actNow(listOf(conversation), action, labelId)
+}
+
+/**
+ * Ask before deleting for good: it is the one action nothing takes back.
+ * The rows wait in [UiState.confirmForever] until the reader answers.
+ */
+fun MailViewModel.askDeleteForever(threadIds: List<String>) {
+    _state.update { it.copy(confirmForever = threadIds, selected = emptySet()) }
+}
+
+fun MailViewModel.answerDeleteForever(yes: Boolean) {
+    val ids = _state.value.confirmForever
+    _state.update { it.copy(confirmForever = emptyList()) }
+    if (!yes || ids.isEmpty()) return
+    _state.value.open?.let { open -> if (open.threadId in ids) closeThread() }
+    val rows = _state.value.conversations.filter { it.threadId in ids }
+    actNow(rows, RowAction.DeleteForever, null)
+}
+
+/**
+ * Send [action] now and show it on the list, with the undo it has.
+ *
+ * A failure puts the rows back: mail that vanished on a failed request
+ * is mail the person believes they filed and did not.
+ */
+internal fun MailViewModel.actNow(rows: List<Wire.Conversation>, action: RowAction, labelId: String?) {
+    pending?.let { commit(it) }
     val before = _state.value.conversations
-    // Read and star leave the rows where they are; the rest take
-    // them out of this list. Saying which is which here keeps the
-    // list honest about what the server was asked to do.
-    val staysInPlace = verb == MailrsClient.Verb.Read || verb == MailrsClient.Verb.Unread ||
-        verb == MailrsClient.Verb.Star || verb == MailrsClient.Verb.Unstar
-    _state.update { it.copy(
-        selected = emptySet(),
-        conversations = if (staysInPlace) before else before.filterNot { it.threadId in ids },
-    ) }
+    val ids = rows.map { it.threadId }.toSet()
+    val after = when (action.leavesList) {
+        true -> before.filterNot { it.threadId in ids }
+        false -> before.map { row -> changedBy(row, action, ids, labelId) }
+    }
+    val done = PendingTriage(rows, action, before, applied = true, labelId = labelId)
+    _state.update { it.copy(conversations = after, undo = done) }
     viewModelScope.launch {
-        when (val r = client.batch(verb, ids)) {
-            is MailrsClient.Outcome.Ok -> if (staysInPlace) refresh()
-            is MailrsClient.Outcome.Err ->
-                // It did not happen, so the rows come back. Mail
-                // that vanished on a failed request is mail the
-                // person believes they filed and did not.
-                _state.update { it.copy(conversations = before, error = r.message) }
+        // Deleting for good wants the password typed again on the server,
+        // as on the web; the prompt asks and the request is sent once more.
+        when (val r = confirmed { client.act(action, ids.toList(), labelId) }) {
+            is MailrsClient.Outcome.Ok -> Unit
+            is MailrsClient.Outcome.Err -> _state.update { it.copy(conversations = before, undo = null, error = r.message) }
         }
     }
 }
 
+/** A row as an action that keeps it in the list leaves it. */
+private fun changedBy(row: Wire.Conversation, action: RowAction, ids: Set<String>, labelId: String?): Wire.Conversation {
+    if (row.threadId !in ids) return row
+    return when (action) {
+        RowAction.Read -> row.copy(unreadCount = 0)
+        RowAction.Unread -> row.copy(unreadCount = maxOf(1, row.unreadCount))
+        RowAction.Star -> row.copy(flagged = true)
+        RowAction.Unstar -> row.copy(flagged = false)
+        RowAction.Pin -> row.copy(pinned = true)
+        RowAction.Unpin -> row.copy(pinned = false)
+        RowAction.Label -> row.copy(labels = (row.labels + listOfNotNull(labelId)).distinct())
+        else -> row
+    }
+}
+
 fun MailViewModel.undo() {
-    val action = pending ?: return
+    val action = pending ?: _state.value.undo ?: return
     undoToken++
     pending = null
     _state.update { it.copy(conversations = action.before, undo = null) }
+    if (!action.applied) return
+    val back = action.action.undo ?: return
+    viewModelScope.launch {
+        val r = client.act(back, action.rows.map { it.threadId }, action.labelId)
+        if (r is MailrsClient.Outcome.Err) {
+            // It did not go back, so the list should not say it did.
+            _state.update { it.copy(error = r.message) }
+            refresh()
+        }
+    }
 }
 
 fun MailViewModel.dismissUndo() {
@@ -125,17 +192,12 @@ private fun MailViewModel.commit(action: PendingTriage) {
     pending = null
     _state.update { it.copy(undo = null) }
     viewModelScope.launch {
-        when (val r = client.batch(action.verb, listOf(action.conversation.threadId))) {
+        when (val r = client.act(action.action, action.rows.map { it.threadId }, action.labelId)) {
             is MailrsClient.Outcome.Ok -> Unit
-            is MailrsClient.Outcome.Err -> {
-                // It did not happen, so the row comes back. A row
-                // that vanished on a failed request is mail the
-                // person believes they filed and did not.
-                _state.update { it.copy(
-                    conversations = action.before,
-                    error = r.message,
-                ) }
-            }
+            // It did not happen, so the row comes back. A row that
+            // vanished on a failed request is mail the person believes
+            // they filed and did not.
+            is MailrsClient.Outcome.Err -> _state.update { it.copy(conversations = action.before, error = r.message) }
         }
     }
 }
@@ -151,12 +213,18 @@ private fun MailViewModel.commit(action: PendingTriage) {
  */
 fun MailViewModel.toggleStar(conversation: Wire.Conversation) {
     val wanted = !conversation.flagged
-    val verb = if (wanted) MailrsClient.Verb.Star else MailrsClient.Verb.Unstar
+    val verb = when (wanted) {
+        true -> MailrsClient.Verb.Star
+        false -> MailrsClient.Verb.Unstar
+    }
     fun withFlag(state: UiState, flagged: Boolean) = state.copy(
         open = state.open?.takeIf { it.threadId == conversation.threadId }?.copy(flagged = flagged)
             ?: state.open,
-        conversations = state.conversations.map {
-            if (it.threadId == conversation.threadId) it.copy(flagged = flagged) else it
+        conversations = state.conversations.map { row ->
+            when (row.threadId == conversation.threadId) {
+                true -> row.copy(flagged = flagged)
+                false -> row
+            }
         },
     )
     _state.update { withFlag(it, wanted) }
@@ -181,8 +249,11 @@ fun MailViewModel.markOpenThreadUnread() {
     val conversation = _state.value.open ?: return
     closeThread()
     fun withUnread(state: UiState, unread: Int) = state.copy(
-        conversations = state.conversations.map {
-            if (it.threadId == conversation.threadId) it.copy(unreadCount = unread) else it
+        conversations = state.conversations.map { row ->
+            when (row.threadId == conversation.threadId) {
+                true -> row.copy(unreadCount = unread)
+                false -> row
+            }
         },
     )
     _state.update { withUnread(it, maxOf(1, conversation.unreadCount)) }
@@ -200,25 +271,25 @@ fun MailViewModel.markOpenThreadUnread() {
  * list offers it back — reading a message and filing it should cost
  * exactly what swiping past it costs.
  */
-fun MailViewModel.triageOpenThread(verb: MailrsClient.Verb) {
+fun MailViewModel.triageOpenThread(action: RowAction) {
     val conversation = _state.value.open ?: return
     closeThread()
-    triage(conversation, verb)
+    triage(conversation, action)
 }
 
 /**
  * Mark everything in the list being read.
  *
  * The list, not the mailbox: the axes travel with the request, because
- * "mark all as read" pressed inside Notifications should not silence
- * the inbox. Refreshed afterwards rather than adjusted here — the
- * server decides how many it touched, and guessing at counts is how a
- * badge and a list end up disagreeing.
+ * "mark all as read" pressed inside Notifications should not silence the
+ * inbox. Refreshed afterwards rather than adjusted here — the server
+ * decides how many it touched, and guessing at counts is how a badge and
+ * a list end up disagreeing.
  */
 fun MailViewModel.markAllRead() {
-    val list = _state.value.list
+    val axes = _state.value.axes()
     viewModelScope.launch {
-        when (val r = client.markAllRead(list)) {
+        when (val r = client.markAllRead(axes)) {
             is MailrsClient.Outcome.Ok -> refresh()
             is MailrsClient.Outcome.Err -> _state.update { it.copy(error = r.message) }
         }

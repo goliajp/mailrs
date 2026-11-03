@@ -60,6 +60,7 @@ pub(crate) async fn send_message(
     // every forward sent only the user's leading text — the recipient
     // saw "FYI." with none of the forwarded content.
     inline_forward_content(&state, &user, &mut parts).await;
+    super::inline::embed_uploads(&mut parts).await;
     // A redraft carries the failed send's attachments. Unlike the forward
     // step above it can fail the request: losing them silently is the
     // whole point of not going through the drafts table.
@@ -264,6 +265,7 @@ pub(crate) async fn send_message_multipart(
                     filename,
                     content_type,
                     bytes: bytes.to_vec(),
+                    content_id: None,
                 });
             }
             _ => {
@@ -284,6 +286,7 @@ pub(crate) async fn send_message_multipart(
     // Same fix as the JSON handler: prepend the forwarded original
     // when the request carries forward_message_id.
     inline_forward_content(&state, &user, &mut parts).await;
+    super::inline::embed_uploads(&mut parts).await;
     inline_redraft_attachments(
         &user,
         redraft_of.as_deref(),

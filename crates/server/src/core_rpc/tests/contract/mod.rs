@@ -21,6 +21,7 @@ mod labels;
 mod mail;
 mod operator;
 mod ownerless;
+mod paging;
 mod placement;
 mod search;
 mod sections;

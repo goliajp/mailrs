@@ -2,7 +2,7 @@ rule('claims-our-name', 'identity', 4.5, true, function(m)
     if not external(m) or m.display == '' then return end
     for _, n in ipairs(m.org_names) do
         if trim(n) ~= '' and contains(m.display, fold(n)) then
-            return 'display name claims this organisation'
+            return found('display name claims this organisation', {name = trim(n)})
         end
     end
 end)
@@ -10,7 +10,8 @@ rule('impersonates-one-of-us', 'identity', 6, true, function(m)
     if not external(m) or m.display == '' then return end
     for _, n in ipairs(m.account_names) do
         if trim(n) ~= '' and m.display == fold(n) then
-            return 'the display name is one of this deployment\'s own people, and the domain is not ours'
+            return found('the display name is one of this deployment\'s own people, and the domain is not ours',
+                {name = trim(n), domain = m.from_domain})
         end
     end
 end)
@@ -23,34 +24,44 @@ rule('subject-is-our-name', 'identity', 6, true, function(m)
             if a then
                 local rest = m.subject_folded:sub(1, a-1) .. m.subject_folded:sub(b+1)
                 if #chars(subject_rest(rest)) <= 4 then
-                    return 'the subject is this organisation\'s name and little else, from a domain that is not ours'
+                    return found('the subject is this organisation\'s name and little else, from a domain that is not ours',
+                        {name = n, domain = m.from_domain})
                 end
             end
         end
     end
 end)
 rule('brand-is-the-display-name', 'identity', 6, true, function(m)
-    if m.from_domain ~= '' and m.display ~= '' and brand_claim(BRANDS, bare_name(m.display), m.from_domain, true) then
-        return 'the display name is a company\'s and nothing else, and the domain is not theirs'
+    if m.from_domain == '' or m.display == '' then return end
+    local brand = brand_claim(BRANDS, bare_name(m.display), m.from_domain, true)
+    if brand then
+        return found('the display name is a company\'s and nothing else, and the domain is not theirs',
+            {brand = brand, domain = m.from_domain})
     end
 end)
 rule('impersonates-brand', 'identity', 4.5, false, function(m)
-    if m.domain_seen < 3 and m.from_domain ~= '' and m.display ~= ''
-        and brand_claim(BRANDS, m.display, m.from_domain, false) then
-        return 'display name claims a company, from a domain that is not theirs and is new here'
+    if m.domain_seen >= 3 or m.from_domain == '' or m.display == '' then return end
+    local brand = brand_claim(BRANDS, m.display, m.from_domain, false)
+    if brand then
+        return found('display name claims a company, from a domain that is not theirs and is new here',
+            {brand = brand, domain = m.from_domain})
     end
 end)
 rule('subject-claims-brand', 'identity', 4.5, false, function(m)
-    if m.domain_seen < 3 and trim(m.domain) ~= '' and m.subject_folded ~= ''
-        and brand_claim(SUBJECT_CLAIMS, m.subject_folded, trim(m.domain):lower(), false) then
-        return 'the subject claims a company, from a domain that is not theirs and is new here'
+    if m.domain_seen >= 3 or trim(m.domain) == '' or m.subject_folded == '' then return end
+    local domain = trim(m.domain):lower()
+    local brand = brand_claim(SUBJECT_CLAIMS, m.subject_folded, domain, false)
+    if brand then
+        return found('the subject claims a company, from a domain that is not theirs and is new here',
+            {brand = brand, domain = domain})
     end
 end)
 rule('hostname-claims-company', 'identity', 5, true, function(m)
     for _, b in ipairs(HOSTED_CLAIMS) do
         for label in m.host_prefix:gmatch('[^.]+') do
             if label == b.name and not owns(b.domains, m.host_registrable) then
-                return 'the sending host puts `' .. b.name .. '` in front of a domain that is not theirs'
+                return found('the sending host puts `' .. b.name .. '` in front of a domain that is not theirs',
+                    {company = b.name, domain = m.host_registrable})
             end
         end
     end
@@ -78,7 +89,8 @@ rule('claims-our-domain', 'identity', 6, true, function(m)
     if m.dmarc ~= 'fail' then return end
     if m.from_domain == '' or not owns(m.our_domains, m.from_domain) then return end
     if owns(m.allowed_domains, m.from_domain) then return end
-    return 'the From address is at this organisation\'s own domain, from a public address, and DMARC says it is not us'
+    return found('the From address is at this organisation\'s own domain, from a public address, and DMARC says it is not us',
+        {domain = m.from_domain})
 end)
 -- A From under a name reserved so that it can never be anybody's mail
 -- domain: `.invalid`, `.test`, `.example`, `.localhost` (RFC 6761) and
@@ -97,12 +109,14 @@ rule('reserved-sender-domain', 'identity', 6, true, function(m)
     local d = m.from_domain:lower()
     for _, t in ipairs(reserved_tlds) do
         if d == t or d:sub(-(#t + 1)) == '.' .. t then
-            return 'the From domain is under `.' .. t .. '`, which is reserved and cannot receive mail'
+            return found('the From domain is under `.' .. t .. '`, which is reserved and cannot receive mail',
+                {domain = d})
         end
     end
     for _, e in ipairs(reserved_domains) do
         if d == e or d:sub(-(#e + 1)) == '.' .. e then
-            return 'the From domain is `' .. e .. '`, which is reserved and cannot receive mail'
+            return found('the From domain is `' .. e .. '`, which is reserved and cannot receive mail',
+                {domain = d})
         end
     end
 end)
@@ -127,13 +141,14 @@ local not_authorised = {fail = true, softfail = true, neutral = true, none = tru
 rule('nothing-vouches-for-the-sender', 'identity', 6, true, function(m)
     if m.peer_is_private or not external(m) then return end
     if m.dmarc == 'fail' and m.dkim == 'none' and not_authorised[m.spf] then
-        return 'the From domain publishes DMARC, the message carries no DKIM signature, and SPF says `'
-            .. m.spf .. '`'
+        return found('the From domain publishes DMARC, the message carries no DKIM signature, and SPF says `'
+            .. m.spf .. '`', {domain = m.from_domain, spf = m.spf})
     end
 end)
 rule('minted-address', 'identity', 6, true, function(m)
     if minted(m.minted_local) and minted(m.minted_sld) then
-        return 'neither the mailbox nor the domain is a word anybody chose'
+        return found('neither the mailbox nor the domain is a word anybody chose',
+            {address = m.minted_local .. '@' .. m.from_domain})
     end
 end)
 local not_names = {'哈喽','你好','您好','大家好','亲爱的','親愛的','尊敬的','各位','同学','同學',
@@ -145,7 +160,8 @@ rule('greets-a-stranger', 'identity', 2, false, function(m)
             if n < 2 or n > 4 then return end
             for _, word in ipairs(not_names) do if name == word then return end end
             if not contains(m.to_display, name) then
-                return 'subject greets `' .. name .. '`, which the `To:` header does not name'
+                return found('subject greets `' .. name .. '`, which the `To:` header does not name',
+                    {name = name})
             end
             return
         end
@@ -186,6 +202,7 @@ rule('subject-cut-from-the-address', 'identity', 5, false, function(m)
     if not mailbox then return end
     word = word:lower()
     if word ~= mailbox and contains(mailbox, word) then
-        return 'the subject is only `' .. trim(m.subject) .. '`, a piece of the recipient\'s own address read as a name'
+        return found('the subject is only `' .. trim(m.subject) .. '`, a piece of the recipient\'s own address read as a name',
+            {word = trim(m.subject)})
     end
 end)

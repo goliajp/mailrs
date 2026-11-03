@@ -70,6 +70,9 @@ mod delete_thread;
 mod delete_thread_tests;
 mod deliver;
 mod domain;
+mod forget_message;
+#[cfg(test)]
+mod forget_message_tests;
 mod fraud_verdict;
 mod image_prefetch;
 mod importance;
@@ -101,6 +104,7 @@ mod thread_ownership;
 mod thread_row;
 mod trash;
 pub use attachment_text::AttachmentTextState;
+pub use forget_message::Forgotten;
 pub use list_threads::{ListThreadsFilter, NP_BUCKETS, QuarantineScope};
 pub use mailrs_mailbox::query;
 pub use mailrs_mailbox::rules;

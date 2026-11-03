@@ -1688,7 +1688,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** JMAP API endpoint (RFC 8620) */
+        /**
+         * JMAP API endpoint (RFC 8620)
+         * @description Methods: Core/echo; Mailbox/get, /query, /changes, /set; Email/get, /query, /changes, /queryChanges, /set (create takes attachments by blobId: an upload or a message or part of one in the caller's mailboxes; any other blob is blobNotFound, as one that never existed; disposition inline with a cid travels beside the HTML under that Content-ID), /import, /copy (one account per session, so another account is fromAccountNotFound); Thread/get, /changes; SearchSnippet/get (the filter's text, subject and body words marked with <mark>); Identity/get; EmailSubmission/get, /changes, /set (a submission may be held up to maxDelayedSend, 30 days, with HOLDFOR or HOLDUNTIL in envelope.mailFrom.parameters, and cancelled while held with undoStatus: canceled, which is kept beside the record that it was scheduled, with who and when, and in the audit log; one already going out answers cannotUnsend); VacationResponse/get, /set (the web's vacation reply; text only, htmlBody is null); MaskedEmail/get, /set.
+         */
         post: operations["jmapApi"];
         delete?: never;
         options?: never;
@@ -1705,7 +1708,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** JMAP API endpoint at the path Fastmail serves it */
+        /**
+         * JMAP API endpoint at the path Fastmail serves it
+         * @description Methods: Core/echo; Mailbox/get, /query, /changes, /set; Email/get, /query, /changes, /queryChanges, /set (create takes attachments by blobId: an upload or a message or part of one in the caller's mailboxes; any other blob is blobNotFound, as one that never existed; disposition inline with a cid travels beside the HTML under that Content-ID), /import, /copy (one account per session, so another account is fromAccountNotFound); Thread/get, /changes; SearchSnippet/get (the filter's text, subject and body words marked with <mark>); Identity/get; EmailSubmission/get, /changes, /set (a submission may be held up to maxDelayedSend, 30 days, with HOLDFOR or HOLDUNTIL in envelope.mailFrom.parameters, and cancelled while held with undoStatus: canceled, which is kept beside the record that it was scheduled, with who and when, and in the audit log; one already going out answers cannotUnsend); VacationResponse/get, /set (the web's vacation reply; text only, htmlBody is null); MaskedEmail/get, /set.
+         */
         post: operations["jmapApiFastmailPath"];
         delete?: never;
         options?: never;
@@ -3578,6 +3584,71 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/jmap/ws/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * JMAP over WebSocket (RFC 8887)
+         * @description Upgrade with the `jmap` subprotocol (required). Text frames carry `Request` objects, answered with `Response` (or `RequestError`) carrying the same `requestId`; `WebSocketPushEnable` (optional `dataTypes`, `pushState`) starts `StateChange` pushes with `pushState`, `WebSocketPushDisable` stops them. Same login as /jmap/api/; an upgrade the session cookie authenticates must come from one of this site's pages (Origin), and Basic credentials are refused from another site's page. At most 8 push connections per account, shared with /jmap/eventsource/. Credentials come from the Authorization header or the session cookie only, never from the URL. Every 20 seconds the connection checks that what signed it in still works (the session, agent key or app password not revoked, the password unchanged, the account still there) and closes with 1008 when not. A request over maxSizeRequest or maxCallsInRequest gets the same error as over HTTP and the connection is closed with 1009.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description switched to the jmap subprotocol */
+                101: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description the jmap subprotocol was not asked for */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description not signed in */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description a cookie or Basic upgrade from another site */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description too many push connections for this account */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/mail/config-v1.1.xml": {
         parameters: {
             query?: never;
@@ -3998,6 +4069,8 @@ export interface paths {
                 query?: {
                     limit?: number;
                     before_ts?: number;
+                    /** @description The `cursor` of the last row of the previous page. Not together with `before_ts` (400). */
+                    cursor?: string;
                 };
                 header?: never;
                 path?: never;
@@ -7147,6 +7220,15 @@ export interface components {
                 /** @description Bytes free on the volume; null when it cannot be read */
                 volume_free_bytes?: number | null;
             };
+            /** @description Domains with a first-seen time (mailrs:domfirst:), recounted at most every five minutes. Null when the shared store cannot be read. */
+            new_domains?: {
+                /** @description Domains with a first-seen time */
+                keys?: number;
+                /** @description Of those, first seen in the 24 hours before computed_at */
+                added_24h?: number;
+                /** @description Unix seconds of the count */
+                computed_at?: number;
+            } | null;
             /** @description kevy-server's memory against its container limit. Null when kevy-server does not answer. */
             kevy_server_memory?: {
                 /** @description Resident size as INFO memory reports it (process_rss_bytes) */
@@ -7315,6 +7397,8 @@ export interface components {
             shared_conv?: string;
             /** @description The team member who answers it; empty for nobody. */
             assignee?: string;
+            /** @description Hand back as `cursor` for the rows after this one. Opaque. */
+            cursor?: string;
         };
         ThreadMessageResponse: {
             uid: number;
@@ -8696,7 +8780,7 @@ export interface operations {
         parameters: {
             query?: {
                 limit?: number;
-                /** @description Unix timestamp cursor for pagination (return conversations older than this) */
+                /** @description Unix timestamp: conversations older than this. Pages by time alone and skips the rest of a second a page ends inside; use `cursor`. Not together with `cursor` (400). */
                 before?: number;
                 /** @description Filter by category (personal, notification, promotion, spam, scam, general) */
                 category?: string;
@@ -8726,6 +8810,8 @@ export interface operations {
                 followup_due_by?: number;
                 /** @description Only the reader's team conversations assigned to the reader, newest first. */
                 assigned_to_me?: boolean;
+                /** @description The `cursor` of the last row of the previous page: the rows after it, with no conversation that shares the boundary second lost or listed twice. Not together with `before` (400). */
+                cursor?: string;
             };
             header?: never;
             path?: never;

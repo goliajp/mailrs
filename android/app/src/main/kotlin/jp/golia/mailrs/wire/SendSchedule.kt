@@ -1,5 +1,6 @@
 package jp.golia.mailrs.wire
 
+import jp.golia.mailrs.R
 import java.time.DayOfWeek
 import java.time.ZonedDateTime
 
@@ -12,12 +13,14 @@ import java.time.ZonedDateTime
  * most likely to be writing mail at an hour nobody wants it delivered,
  * and it had no way to ask.
  */
-enum class SendSchedule(val label: String) {
-    Now("Send now"),
-    LaterToday("Later today"),
-    TomorrowMorning("Tomorrow morning"),
-    MondayMorning("Monday morning"),
+enum class SendSchedule(@androidx.annotation.StringRes private val labelId: Int) {
+    Now(R.string.schedule_now),
+    LaterToday(R.string.schedule_later_today),
+    TomorrowMorning(R.string.schedule_tomorrow_morning),
+    MondayMorning(R.string.schedule_monday_morning),
     ;
+
+    val label: String get() = Texts.get(labelId)
 
     /**
      * Epoch **seconds**, or null for now.

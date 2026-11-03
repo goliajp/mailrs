@@ -43,9 +43,11 @@
 
 mod delete;
 mod read;
+mod release;
 
 pub use delete::*;
 pub use read::*;
+pub use release::*;
 
 /// Message-level state, derived from the recipient rows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

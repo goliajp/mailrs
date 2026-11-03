@@ -331,6 +331,27 @@ impl<A: Account> Account for HeldView<A> {
         Ok(shown(self.inner.held().await?))
     }
 
+    async fn archived(&self) -> Result<Trashed<Self::Mailbox, Self::Key>> {
+        Ok(shown(self.inner.archived().await?))
+    }
+
+    async fn all_mail(&self) -> Result<Trashed<Self::Mailbox, Self::Key>> {
+        Ok(shown(self.inner.all_mail().await?))
+    }
+
+    async fn set_archived(
+        &self,
+        mailbox: &Self::Mailbox,
+        message: &Message<Self::Key>,
+        archived: bool,
+    ) -> Result<bool> {
+        let (msg, filed) = unwrap(message);
+        match Self::filed_in(mailbox, &filed) {
+            Some(m) => self.inner.set_archived(m, &msg, archived).await,
+            None => Err(Error::Store("not a message shown here".into())),
+        }
+    }
+
     async fn set_trashed(
         &self,
         mailbox: &Self::Mailbox,

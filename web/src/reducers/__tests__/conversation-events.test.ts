@@ -41,7 +41,7 @@ function makeConvo(id: string, unread: number, lastDate = 100): ConversationSumm
 
 function primeInfiniteCache(qc: QueryClient) {
   const seed: InfiniteData<ConversationSummary[]> = {
-    pageParams: [undefined, 100],
+    pageParams: [undefined, '100:1'],
     pages: [[makeConvo('t-1', 0), makeConvo('t-2', 0), makeConvo('t-3', 0)], [makeConvo('t-4', 0)]],
   }
   qc.setQueryData(conversationKeys.infinite({ folder: 'INBOX' }), seed)

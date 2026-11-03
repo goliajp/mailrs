@@ -1,5 +1,6 @@
 package jp.golia.mailrs
 
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -27,7 +28,7 @@ class MergedMailFlowTest : MailrsUiTest() {
         waitForTag("list.conversations", "the inbox never listed")
         compose.onNodeWithTag("button.folders").performClick()
         waitForTag("drawer.lists", "the drawer never opened")
-        compose.onNodeWithTag("drawer.item.Settings").performClick()
+        compose.onNodeWithTag("drawer.item.Settings").performScrollTo().performClick()
         scrollToTag("settings.mergedMail", "settings never listed the other-mail row")
         compose.onNodeWithTag("settings.mergedMail").performClick()
     }

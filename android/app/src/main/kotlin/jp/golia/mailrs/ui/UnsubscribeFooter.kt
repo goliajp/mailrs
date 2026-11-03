@@ -1,5 +1,7 @@
 package jp.golia.mailrs.ui
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
 import android.content.Intent
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
@@ -59,7 +61,7 @@ fun UnsubscribeFooter(threadId: String, m: Wire.Message, state: UiState, vm: Mai
             Unsubscribing.Working -> {
                 CircularProgressIndicator(Modifier.size(14.dp), color = theme.accent, strokeWidth = 2.dp)
                 Text(
-                    "Unsubscribing…",
+                    Texts.get(R.string.unsub_busy),
                     color = theme.fgMuted,
                     fontSize = 12.sp,
                     modifier = Modifier.padding(start = 8.dp),
@@ -74,7 +76,7 @@ fun UnsubscribeFooter(threadId: String, m: Wire.Message, state: UiState, vm: Mai
                     modifier = Modifier.size(14.dp),
                 )
                 Text(
-                    "Unsubscribed",
+                    Texts.get(R.string.unsub_done),
                     color = theme.fgMuted,
                     fontSize = 12.sp,
                     modifier = Modifier.padding(start = 6.dp).testTag("unsubscribed"),
@@ -97,7 +99,7 @@ fun UnsubscribeFooter(threadId: String, m: Wire.Message, state: UiState, vm: Mai
                 }
                 if (progress == Unsubscribing.Failed) {
                     Text(
-                        "That did not go through",
+                        Texts.get(R.string.unsub_failed),
                         color = theme.warning,
                         fontSize = 12.sp,
                         modifier = Modifier.testTag("unsubscribe.failed"),
@@ -122,5 +124,5 @@ private fun open(context: android.content.Context, vm: MailViewModel, uri: Strin
             Intent(Intent.ACTION_VIEW, uri.toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
         )
     }.isSuccess
-    if (!opened) vm.reportFailure("Nothing on this phone can open that link.")
+    if (!opened) vm.reportFailure(Texts.get(R.string.unsub_no_app))
 }

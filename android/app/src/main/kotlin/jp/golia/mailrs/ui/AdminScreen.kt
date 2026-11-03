@@ -1,5 +1,7 @@
 package jp.golia.mailrs.ui
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
 import jp.golia.mailrs.clearSuppressions
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
@@ -85,7 +87,7 @@ fun AdminScreen(section: AdminSection, state: UiState, vm: MailViewModel) {
 
     if (adding) {
         AddRowDialog(
-            title = section.title,
+            title = Texts.get(section.newRow),
             fields = fields,
             onDismiss = { adding = false },
             onConfirm = { values ->
@@ -103,10 +105,10 @@ fun AdminScreen(section: AdminSection, state: UiState, vm: MailViewModel) {
         AlertDialog(
             onDismissRequest = { clearing = false },
             containerColor = theme.surface,
-            title = { Text("Retry every suppressed address?", fontSize = 16.sp, color = theme.fg) },
+            title = { Text(Texts.get(R.string.admin_retry_all_title), fontSize = 16.sp, color = theme.fg) },
             text = {
                 Text(
-                    "There is no per-address undo — the sender starts trying all of them again.",
+                    Texts.get(R.string.admin_retry_all_body),
                     fontSize = 13.sp,
                     color = theme.fgMuted,
                 )
@@ -119,11 +121,11 @@ fun AdminScreen(section: AdminSection, state: UiState, vm: MailViewModel) {
                     },
                     modifier = Modifier.testTag("button.confirmClear"),
                 ) {
-                    Text("Clear all", color = theme.danger)
+                    Text(Texts.get(R.string.admin_clear_all), color = theme.danger)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { clearing = false }) { Text("Cancel", color = theme.fgSecondary) }
+                TextButton(onClick = { clearing = false }) { Text(Texts.get(R.string.common_cancel), color = theme.fgSecondary) }
             },
         )
     }
@@ -139,7 +141,7 @@ fun AdminScreen(section: AdminSection, state: UiState, vm: MailViewModel) {
         AlertDialog(
             onDismissRequest = { vm.newAgentKeySeen() },
             containerColor = theme.surface,
-            title = { Text("Copy this key now", fontSize = 16.sp, color = theme.fg) },
+            title = { Text(Texts.get(R.string.admin_copy_key_now), fontSize = 16.sp, color = theme.fg) },
             text = {
                 Column {
                     Text(
@@ -150,7 +152,7 @@ fun AdminScreen(section: AdminSection, state: UiState, vm: MailViewModel) {
                         modifier = Modifier.testTag("text.newAgentKey"),
                     )
                     Text(
-                        "It is not shown again — the server keeps only a hash.",
+                        Texts.get(R.string.admin_key_shown_once),
                         fontSize = 12.sp,
                         color = theme.fgMuted,
                         modifier = Modifier.padding(top = 8.dp),
@@ -163,7 +165,7 @@ fun AdminScreen(section: AdminSection, state: UiState, vm: MailViewModel) {
                         scope.launch {
                             clipboard.setClipEntry(
                                 androidx.compose.ui.platform.ClipEntry(
-                                    android.content.ClipData.newPlainText("Agent key", secret),
+                                    android.content.ClipData.newPlainText(Texts.get(R.string.admin_agent_key), secret),
                                 ),
                             )
                         }
@@ -171,12 +173,12 @@ fun AdminScreen(section: AdminSection, state: UiState, vm: MailViewModel) {
                     },
                     modifier = Modifier.testTag("button.copyAgentKey"),
                 ) {
-                    Text("Copy", color = theme.accent)
+                    Text(Texts.get(R.string.common_copy), color = theme.accent)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { vm.newAgentKeySeen() }) {
-                    Text("Done", color = theme.fgSecondary)
+                    Text(Texts.get(R.string.common_done), color = theme.fgSecondary)
                 }
             },
         )
@@ -196,13 +198,13 @@ fun AdminScreen(section: AdminSection, state: UiState, vm: MailViewModel) {
                     contentColor = theme.accentFg,
                     modifier = Modifier.testTag("button.addAdminRow"),
                 ) {
-                    Icon(Icons.Filled.Add, contentDescription = "Add")
+                    Icon(Icons.Filled.Add, contentDescription = Texts.get(R.string.common_add))
                 }
             }
         },
         topBar = {
             TopAppBar(
-                title = { Text(section.title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
+                title = { Text(Texts.get(section.title), fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = theme.bg,
                     titleContentColor = theme.fg,
@@ -214,7 +216,7 @@ fun AdminScreen(section: AdminSection, state: UiState, vm: MailViewModel) {
                     ) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
+                            contentDescription = Texts.get(R.string.common_back),
                             tint = theme.fgSecondary,
                         )
                     }
@@ -229,7 +231,7 @@ fun AdminScreen(section: AdminSection, state: UiState, vm: MailViewModel) {
                             onClick = { clearing = true },
                             modifier = Modifier.testTag("button.clearSuppressions"),
                         ) {
-                            Text("Clear all", color = theme.accent, fontSize = 13.sp)
+                            Text(Texts.get(R.string.admin_clear_all), color = theme.accent, fontSize = 13.sp)
                         }
                     }
                 },
@@ -252,7 +254,7 @@ fun AdminScreen(section: AdminSection, state: UiState, vm: MailViewModel) {
 
                 rows.isEmpty() ->
                     Text(
-                        section.emptyMessage,
+                        Texts.get(section.emptyMessage),
                         color = theme.fgMuted,
                         fontSize = 13.sp,
                         modifier = Modifier.align(Alignment.Center).padding(32.dp).testTag("admin.empty"),
@@ -302,7 +304,7 @@ private fun AddRowDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = theme.surface,
-        title = { Text("New ${title.trimEnd('s').lowercase()}", fontSize = 16.sp, color = theme.fg) },
+        title = { Text(title, fontSize = 16.sp, color = theme.fg) },
         text = {
             Column {
                 fields.forEachIndexed { i, label ->
@@ -333,11 +335,11 @@ private fun AddRowDialog(
                 onClick = { submit() },
                 modifier = Modifier.testTag("button.confirmAdmin"),
             ) {
-                Text("Add", color = theme.accent)
+                Text(Texts.get(R.string.common_add), color = theme.accent)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel", color = theme.fgSecondary) }
+            TextButton(onClick = onDismiss) { Text(Texts.get(R.string.common_cancel), color = theme.fgSecondary) }
         },
     )
 }
@@ -392,7 +394,7 @@ private fun AdminRow(row: AdminRow, onOpen: (() -> Unit)?, onDelete: () -> Unit)
             IconButton(onClick = onDelete, modifier = Modifier.testTag("button.deleteAdminRow")) {
                 Icon(
                     Icons.Filled.DeleteOutline,
-                    contentDescription = "Delete ${row.headline}",
+                    contentDescription = Texts.get(R.string.admin_delete_row, row.headline),
                     tint = theme.fgMuted,
                     modifier = Modifier.size(18.dp),
                 )

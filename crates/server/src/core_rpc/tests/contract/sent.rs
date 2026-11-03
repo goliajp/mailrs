@@ -149,4 +149,42 @@ Message-ID: <sent-large@example.test>\r\n\
         b.as_ref().err()
     );
     d.both("file_sent a message larger than 2 MiB", a, b, &["blob_ref"]);
+
+    // written from another address of hers (send-as, or mail imported
+    // from an old mailbox): still her own send, so not in her Inbox
+    let other_from = b"Date: Tue, 14 Nov 2023 23:10:00 +0000\r\n\
+From: Alice <alice@oldmail.test>\r\n\
+To: Carol <carol@partner.test>\r\n\
+Subject: From my old address\r\n\
+Message-ID: <sent-other-from@example.test>\r\n\
+\r\n\
+Still me.\r\n";
+    d.both(
+        "file_sent from another address",
+        fc.file_sent(ALICE, other_from, &carol).await,
+        pg.file_sent(ALICE, other_from, &carol).await,
+        &["blob_ref"],
+    );
+    for folder in ["Inbox", "Sent"] {
+        let req = ListConversationsRequest {
+            filter: ConversationFilter {
+                folder: Some(folder.into()),
+                limit: 50,
+                ..Default::default()
+            },
+        };
+        let rows = d.both(
+            &format!("list_conversations [{folder}] after a send from another address"),
+            fc.list_conversations(ALICE, &req).await,
+            pg.list_conversations(ALICE, &req).await,
+            MINTED,
+        );
+        if let Some((rows, _)) = rows {
+            let listed = rows
+                .items
+                .iter()
+                .any(|r| r.thread_id == "sent-other-from@example.test");
+            assert_eq!(listed, folder == "Sent", "{folder}: {:?}", rows.items);
+        }
+    }
 }

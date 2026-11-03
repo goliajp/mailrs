@@ -79,6 +79,28 @@ describe('links the server flagged', () => {
     expect(titles[1]).toBe('这个链接指向 bad.example，它在诈骗主机名单上。')
   })
 
+  it('say when a link goes to a domain first seen this week', () => {
+    const store = createStore()
+    store.set(chosenLangAtom, 'zh')
+    const view = render(
+      <Provider store={store}>
+        <HtmlFrame
+          html={BODY}
+          linkWarnings={[
+            {
+              host: 'fine.example',
+              reasons: [{ code: 'link-host-new', params: { host: 'fine.example' } }],
+            },
+          ]}
+        />
+      </Provider>
+    )
+    const root = view.container.firstElementChild?.shadowRoot
+    expect(root?.querySelector('.link-warning')?.getAttribute('title')).toBe(
+      '这个链接指向 fine.example，这个域名本周才第一次见到。'
+    )
+  })
+
   it('ask before they open, and stay shut when the reader says no', () => {
     const root = frame('en')
     const ask = vi.spyOn(window, 'confirm').mockReturnValue(false)

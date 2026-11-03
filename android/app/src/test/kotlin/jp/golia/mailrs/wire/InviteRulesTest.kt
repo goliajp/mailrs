@@ -8,6 +8,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class InviteRulesTest {
+
+    /** The app's English words, as a phone set to English shows them. */
+    @org.junit.Before
+    fun englishWords() = jp.golia.mailrs.wire.TestTexts.install()
+
     /**
      * The case that matters, because it is the common one: Exchange
      * does not send METHOD:UPDATE. It re-sends the whole invitation as

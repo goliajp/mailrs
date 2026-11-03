@@ -105,7 +105,7 @@ const SCREEN_KEYS = [
   JUNK_KEY,
 ] as const
 
-type Pages = { pageParams: (number | undefined)[]; pages: ConversationSummary[][] }
+type Pages = { pageParams: (string | undefined)[]; pages: ConversationSummary[][] }
 
 function findRow(key: readonly unknown[], threadId: string): ConversationSummary | undefined {
   const data = queryClient.getQueryData<Pages>(key)

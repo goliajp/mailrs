@@ -17,6 +17,8 @@
 pub mod fixtures;
 /// A user's labels and the naming rules every core applies to them.
 pub mod labels;
+/// Paging a conversation list by time and a second key every store shares.
+pub mod page_cursor;
 /// Who a conversation is with, in the order the mail arrived.
 pub mod participants;
 #[cfg(feature = "pg")]
@@ -29,6 +31,8 @@ pub mod rules;
 /// request's folder and category reconcile to, shared by every store.
 pub mod scope;
 pub mod section;
+/// Whether a message is the user's own send, decided one way everywhere.
+pub mod sent_copy;
 /// Claiming the reply to a team conversation, decided the same way by
 /// every store.
 pub mod shared_reply;

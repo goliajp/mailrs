@@ -45,9 +45,9 @@ class MailProviderTest {
     // exactly that string in its settings.
     @Test
     fun `a provider that wants a code says what it calls it`() {
-        assertEquals("授权码", MailProvider.forDomain("qq.com")?.secretHelp?.what)
+        assertEquals(jp.golia.mailrs.R.string.secret_auth_code, MailProvider.forDomain("qq.com")?.secretHelp?.what)
         assertEquals(
-            "app-specific password",
+            jp.golia.mailrs.R.string.secret_app_specific,
             MailProvider.forDomain("icloud.com")?.secretHelp?.what,
         )
         // Gmail refuses passwords entirely, so there is no code to make.

@@ -1,4 +1,5 @@
-//! `EmailSubmission/set` (create only), and building a message from an
+//! `EmailSubmission/set` (create; update and destroy are in
+//! `submission_list`), and building a message from an
 //! Email object for `Email/set` create.
 //!
 //! A submission sends the stored message as it is, Bcc header removed,
@@ -15,7 +16,7 @@ use super::identity;
 use super::ids;
 use super::import::{NotFiled, recipients};
 use super::view::View;
-use crate::handlers::compose::{ComposeParts, build_rfc5322};
+use crate::handlers::compose::{Attachment, ComposeParts, build_rfc5322};
 
 fn addresses(spec: &Value, key: &str) -> Vec<String> {
     spec.get(key)
@@ -52,14 +53,9 @@ fn body(spec: &Value, kind: &str) -> String {
 }
 
 /// RFC 5322 bytes for an Email object: from, to, cc, bcc, subject,
-/// inReplyTo and one text and/or HTML body.
-pub fn compose(spec: &Value) -> Result<Vec<u8>, String> {
-    if spec
-        .get("attachments")
-        .is_some_and(|a| a.as_array().is_some_and(|a| !a.is_empty()))
-    {
-        return Err("attachments: upload the whole message and use Email/import".into());
-    }
+/// inReplyTo, one text and/or HTML body, and the attachments its
+/// `attachments` named, already read (see `email_set::attachments_of`).
+pub fn compose(spec: &Value, attachments: Vec<Attachment>) -> Result<Vec<u8>, String> {
     let from = addresses(spec, "from")
         .into_iter()
         .next()
@@ -86,7 +82,7 @@ pub fn compose(spec: &Value) -> Result<Vec<u8>, String> {
         forward_message_id: None,
         forward_attachments_from: None,
         reply_to_thread_id: None,
-        attachments: Vec::new(),
+        attachments,
         scheduled_at: None,
     };
     // each of these becomes a header line as it is
@@ -137,8 +133,56 @@ fn refuse(kind: &'static str, why: impl Into<String>) -> NotFiled {
     NotFiled(kind, why.into())
 }
 
-/// Send one submission; its id.
-async fn submit(ctx: &Ctx, view: &View, spec: &Value) -> Result<(String, u32), NotFiled> {
+/// The longest a submission may be held, in seconds (`maxDelayedSend`).
+pub const MAX_DELAYED_SEND: i64 = 30 * 24 * 3600;
+
+/// When a submission asked to go (RFC 4865 FUTURERELEASE, as RFC 8621 §7
+/// carries it in `envelope.mailFrom.parameters`): `HOLDFOR` seconds from
+/// now, or `HOLDUNTIL` a date-time. `None` is now.
+pub fn release_at(spec: &Value, now: i64) -> Result<Option<i64>, NotFiled> {
+    let params = spec
+        .get("envelope")
+        .and_then(|e| e.get("mailFrom"))
+        .and_then(|m| m.get("parameters"))
+        .and_then(|p| p.as_object());
+    let Some(params) = params else {
+        return Ok(None);
+    };
+    let text = |v: &Value| match v {
+        Value::String(s) => Some(s.clone()),
+        Value::Number(n) => Some(n.to_string()),
+        _ => None,
+    };
+    let at = match (params.get("HOLDFOR"), params.get("HOLDUNTIL")) {
+        (None, None) => return Ok(None),
+        (Some(_), Some(_)) => {
+            return Err(refuse(
+                "invalidProperties",
+                "HOLDFOR or HOLDUNTIL, not both",
+            ));
+        }
+        (Some(v), None) => text(v)
+            .and_then(|s| s.trim().parse::<i64>().ok())
+            .filter(|n| *n >= 0)
+            .map(|n| now + n)
+            .ok_or_else(|| refuse("invalidProperties", "HOLDFOR: whole seconds"))?,
+        (None, Some(v)) => text(v)
+            .and_then(|s| chrono::DateTime::parse_from_rfc3339(s.trim()).ok())
+            .map(|t| t.timestamp())
+            .ok_or_else(|| refuse("invalidProperties", "HOLDUNTIL: an RFC 3339 date-time"))?,
+    };
+    if at - now > MAX_DELAYED_SEND {
+        return Err(refuse(
+            "invalidProperties",
+            "held longer than maxDelayedSend",
+        ));
+    }
+    Ok(Some(at).filter(|t| *t > now))
+}
+
+/// Send one submission; its id, the email it sent, and whether it is held.
+async fn submit(ctx: &Ctx, view: &View, spec: &Value) -> Result<(String, u32, bool), NotFiled> {
+    let release = release_at(spec, chrono::Utc::now().timestamp())?;
     let email_id = spec
         .get("emailId")
         .and_then(|v| v.as_str())
@@ -231,11 +275,15 @@ async fn submit(ctx: &Ctx, view: &View, spec: &Value) -> Result<(String, u32), N
         &ctx.user,
         &rcpts,
         &without_bcc(&raw),
-        None,
+        release,
         Some(meta),
     )
     .map_err(|_| refuse("serverFail", "the message could not be queued"))?;
-    Ok((format!("S{uid}"), uid))
+    Ok((
+        super::submission_list::submission_id(&message_id),
+        uid,
+        release.is_some(),
+    ))
 }
 
 fn recipients_in(head: &mailrs_rfc5322::Message<'_>, name: &str) -> Vec<String> {
@@ -256,16 +304,15 @@ pub async fn set(
     state: &str,
 ) -> Result<Vec<(String, Value)>, JmapMethodError> {
     ctx.check_account(args)?;
-    if args
-        .get("update")
-        .is_some_and(|v| v.as_object().is_some_and(|m| !m.is_empty()))
-        || args
-            .get("destroy")
-            .is_some_and(|v| v.as_array().is_some_and(|a| !a.is_empty()))
+    let before = super::submission_list::all(&ctx.user)?;
+    let old_state = super::submission_list::state_of(&ctx.user, &before)?;
+    if let Some(want) = args.get("ifInState").and_then(|v| v.as_str())
+        && want != old_state
     {
-        return Err(JmapMethodError::InvalidArguments(
-            "submissions are sent at once and cannot be changed or cancelled".into(),
-        ));
+        return Err(JmapMethodError::Other {
+            kind: "stateMismatch".into(),
+            description: String::new(),
+        });
     }
     let creates = args
         .get("create")
@@ -280,8 +327,12 @@ pub async fn set(
     let mut sent: Vec<(String, u32)> = Vec::new();
     for (cid, spec) in creates {
         match submit(ctx, view, &spec).await {
-            Ok((id, uid)) => {
-                created.insert(cid.clone(), json!({ "id": id, "undoStatus": "final" }));
+            Ok((id, uid, held)) => {
+                let undo = match held {
+                    true => "pending",
+                    false => "final",
+                };
+                created.insert(cid.clone(), json!({ "id": id, "undoStatus": undo }));
                 sent.push((cid, uid));
             }
             Err(e) => {
@@ -289,14 +340,21 @@ pub async fn set(
             }
         }
     }
+    let (updated, not_updated, not_destroyed) = super::submission_list::change(ctx, &before, args);
+    let after = super::submission_list::all(&ctx.user)?;
+    let new_state = super::submission_list::state_of(&ctx.user, &after)?;
     let mut out = vec![(
         "EmailSubmission/set".to_string(),
         json!({
             "accountId": ctx.user,
-            "oldState": state,
-            "newState": state,
+            "oldState": old_state,
+            "newState": new_state,
             "created": created,
             "notCreated": not_created,
+            "updated": updated,
+            "notUpdated": not_updated,
+            "destroyed": [],
+            "notDestroyed": not_destroyed,
         }),
     )];
     // RFC 8621 §7.5: the implicit Email/set, answered after this one
@@ -355,7 +413,7 @@ mod tests {
             "textBody": [{ "partId": "1", "type": "text/plain" }],
             "bodyValues": { "1": { "value": "the body" } },
         });
-        let bytes = compose(&spec).expect("built");
+        let bytes = compose(&spec, Vec::new()).expect("built");
         let text = String::from_utf8_lossy(&bytes);
         assert!(text.starts_with("Bcc: c@y.test\r\n"), "{text}");
         assert!(text.contains("Subject: hello"), "{text}");
@@ -364,10 +422,10 @@ mod tests {
             .find_by_content_type("text/plain")
             .and_then(|p| p.body_text());
         assert_eq!(body.as_deref().map(str::trim), Some("the body"), "{text}");
-        assert!(compose(&json!({ "from": [{ "email": "a@x.test" }] })).is_err());
-        assert!(compose(&json!({ "textBody": [] })).is_err());
+        assert!(compose(&json!({ "from": [{ "email": "a@x.test" }] }), Vec::new()).is_err());
+        assert!(compose(&json!({ "textBody": [] }), Vec::new()).is_err());
         let mut injected = spec.clone();
         injected["subject"] = json!("hi\r\nBcc: everyone@z.test");
-        assert!(compose(&injected).is_err());
+        assert!(compose(&injected, Vec::new()).is_err());
     }
 }

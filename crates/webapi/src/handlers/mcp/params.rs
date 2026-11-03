@@ -22,9 +22,14 @@ pub struct ListConversationsParams {
     /// When true, restrict to threads with any unread message.
     #[serde(default)]
     pub unread_only: Option<bool>,
-    /// Pagination cursor: return threads with `last_date < before_ts`.
+    /// Pagination by time alone: threads with `last_date < before_ts`. It
+    /// skips the rest of a second a page ends inside; prefer `cursor`.
     #[serde(default)]
     pub before_ts: Option<i64>,
+    /// Pagination: the `cursor` of the last conversation of the previous
+    /// page. Not together with `before_ts`.
+    #[serde(default)]
+    pub cursor: Option<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
