@@ -4069,6 +4069,8 @@ export interface paths {
                 query?: {
                     limit?: number;
                     before_ts?: number;
+                    /** @description The `cursor` of the last row of the previous page. Not together with `before_ts` (400). */
+                    cursor?: string;
                 };
                 header?: never;
                 path?: never;
@@ -7386,6 +7388,8 @@ export interface components {
             shared_conv?: string;
             /** @description The team member who answers it; empty for nobody. */
             assignee?: string;
+            /** @description Hand back as `cursor` for the rows after this one. Opaque. */
+            cursor?: string;
         };
         ThreadMessageResponse: {
             uid: number;
@@ -8767,7 +8771,7 @@ export interface operations {
         parameters: {
             query?: {
                 limit?: number;
-                /** @description Unix timestamp cursor for pagination (return conversations older than this) */
+                /** @description Unix timestamp: conversations older than this. Pages by time alone and skips the rest of a second a page ends inside; use `cursor`. Not together with `cursor` (400). */
                 before?: number;
                 /** @description Filter by category (personal, notification, promotion, spam, scam, general) */
                 category?: string;
@@ -8797,6 +8801,8 @@ export interface operations {
                 followup_due_by?: number;
                 /** @description Only the reader's team conversations assigned to the reader, newest first. */
                 assigned_to_me?: boolean;
+                /** @description The `cursor` of the last row of the previous page: the rows after it, with no conversation that shares the boundary second lost or listed twice. Not together with `before` (400). */
+                cursor?: string;
             };
             header?: never;
             path?: never;

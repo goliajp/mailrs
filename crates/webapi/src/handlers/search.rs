@@ -115,6 +115,7 @@ pub async fn semantic_search(
             accounts: None,
             limit: SCAN_CEILING,
             before_ts: None,
+            after_cursor: None,
             category: None,
             domains: None,
             archived: false,

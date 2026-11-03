@@ -25,6 +25,9 @@ pub(crate) struct QuarantineQuery {
     limit: Option<usize>,
     #[serde(default)]
     before_ts: Option<i64>,
+    /// The cursor of the last row of the previous page.
+    #[serde(default)]
+    cursor: Option<String>,
 }
 
 /// `GET /v1/users/{user}/quarantine` — newest first.
@@ -36,12 +39,8 @@ pub(crate) async fn list_quarantined(
     State(state): State<Arc<FastcoreState>>,
     Path(user): Path<String>,
     axum::extract::Query(q): axum::extract::Query<QuarantineQuery>,
-) -> Json<mailrs_core_api::method::thread::QuarantineListResponse> {
-    let filter = ListThreadsFilter {
-        quarantine: QuarantineScope::Only,
-        before_ts: q.before_ts,
-        ..Default::default()
-    };
+) -> Result<Json<mailrs_core_api::method::thread::QuarantineListResponse>, axum::http::StatusCode> {
+    use mailrs_core_api::paging::Paging;
     // 1000, not 200. The old ceiling was below the number actually
     // held — 439 on 2026-08-31 — and a caller who asked for more got
     // a short page with nothing to say it was short. The bound stays
@@ -54,22 +53,49 @@ pub(crate) async fn list_quarantined(
     // tab can put a number beside its name without hydrating rows it
     // is not going to show.
     let limit = q.limit.unwrap_or(50).min(1000);
-    let (rows, total) = state
-        .mailbox
-        .list_threads_by_activity(&user, &filter, 0, limit)
-        .unwrap_or_else(|e| {
-            // An error here reads as "nothing was held", which is the
-            // one answer a reader cannot tell from the true one.
-            tracing::warn!(%user, error = %e, "quarantine list failed; serving empty");
-            (Vec::new(), 0)
-        });
-    let items = rows
-        .into_iter()
-        .map(crate::routes::message_ops::row_to_wire)
-        .collect();
+    let paged = mailrs_core_api::types::ConversationFilter {
+        before_ts: q.before_ts,
+        after_cursor: q.cursor,
+        ..Default::default()
+    };
+    let fetch = |before_ts: Option<i64>, n: usize| {
+        let filter = ListThreadsFilter {
+            quarantine: QuarantineScope::Only,
+            before_ts,
+            ..Default::default()
+        };
+        let (rows, total) = state
+            .mailbox
+            .list_threads_by_activity(&user, &filter, 0, n)
+            .unwrap_or_else(|e| {
+                // An error here reads as "nothing was held", which is the
+                // one answer a reader cannot tell from the true one.
+                tracing::warn!(%user, error = %e, "quarantine list failed; serving empty");
+                (Vec::new(), 0)
+            });
+        let items: Vec<_> = rows
+            .into_iter()
+            .map(crate::routes::message_ops::row_to_wire)
+            .collect();
+        (items, total)
+    };
+    let (mut items, total) = match paged.paging(limit) {
+        Err(_) => return Err(axum::http::StatusCode::BAD_REQUEST),
+        Ok(Paging::BeforeTs(ts)) => fetch(Some(ts), limit),
+        Ok(Paging::Cursor(mut pager)) => loop {
+            let ask = pager.ask();
+            let (rows, total) = fetch(ask.before_ts, ask.limit);
+            if let Some(page) = pager.offer(rows, |r| r.last_date, |r| r.thread_id.as_str()) {
+                break (page, total);
+            }
+        },
+    };
+    paged.stamp_cursors(&mut items);
     let items = crate::routes::labels::with_labels(&state, &user, items);
     let items = crate::sections::with_sections(&state, &user, items);
-    Json(mailrs_core_api::method::thread::QuarantineListResponse { items, total })
+    Ok(Json(
+        mailrs_core_api::method::thread::QuarantineListResponse { items, total },
+    ))
 }
 
 /// `POST /v1/users/{user}/quarantine/{thread_id}/release` — it was not

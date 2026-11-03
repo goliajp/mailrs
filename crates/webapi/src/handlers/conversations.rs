@@ -78,6 +78,9 @@ pub struct ListQuery {
     /// absent rather than empty when nothing is being narrowed. Sent
     /// as `accounts=` + ids so a link can carry it.
     pub accounts: Option<String>,
+    /// The `cursor` of the last row of the previous page: the rows after
+    /// it. Not together with `before_ts`.
+    pub cursor: Option<String>,
 }
 
 fn default_limit() -> u32 {
@@ -223,6 +226,9 @@ pub struct ConversationResponse {
     pub shared_conv: String,
     /// The team member who answers it; empty for nobody.
     pub assignee: String,
+    /// Hand back as `cursor` for the rows after this one. Opaque.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub cursor: String,
 }
 
 impl From<mailrs_core_api::types::ConversationSummaryWire> for ConversationResponse {
@@ -259,6 +265,7 @@ impl From<mailrs_core_api::types::ConversationSummaryWire> for ConversationRespo
             awaiting_since: w.awaiting_since,
             shared_conv: w.shared_conv,
             assignee: w.assignee,
+            cursor: w.cursor,
         }
     }
 }
@@ -268,12 +275,16 @@ pub async fn get_conversations(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Query(q): Query<ListQuery>,
 ) -> Result<Json<Vec<ConversationResponse>>, StatusCode> {
+    if q.before_ts.is_some() && q.cursor.is_some() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
     let req = wire::ListConversationsRequest {
         filter: ConversationFilter {
             label: q.label,
             accounts: parse_accounts(q.accounts.as_deref()),
             limit: q.limit,
             before_ts: q.before_ts,
+            after_cursor: q.cursor,
             category: q.category,
             domains: None,
             archived: q.archived,
