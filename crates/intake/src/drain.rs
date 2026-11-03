@@ -39,6 +39,10 @@ pub trait Core: Directory {
     /// or redirected it) or the store could not be written.
     fn tag_shared(&self, addr: &str, message_id: &str, tag: &str, assignee: &str)
     -> Option<String>;
+    /// Whether `user` may put `from` on mail sent for it, decided as the
+    /// web send and SMTP submission decide it. A vacation reply a Sieve
+    /// script sends is held to the same rule.
+    fn may_send_as(&self, user: &str, from: &str) -> bool;
 }
 
 /// The spooled message being delivered.

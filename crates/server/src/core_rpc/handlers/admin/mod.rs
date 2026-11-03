@@ -36,9 +36,20 @@ pub async fn effective_permissions(
     State(state): State<Arc<CoreRpcState>>,
     Path(address): Path<String>,
 ) -> Result<Json<wire::EffectivePermissionsResponse>, StatusCode> {
-    let perms = state
-        .domain
-        .load_account_permissions(&address)
+    effective_permissions_of(&state.domain, state.net_url.as_deref(), &address)
+        .await
+        .map(Json)
+}
+
+/// What `address` may do, as the route answers it; the spool drain asks
+/// it too, for who a vacation reply may be sent as.
+pub(crate) async fn effective_permissions_of(
+    domain: &crate::domain_store::DomainStore,
+    net_url: Option<&str>,
+    address: &str,
+) -> Result<wire::EffectivePermissionsResponse, StatusCode> {
+    let perms = domain
+        .load_account_permissions(address)
         .await
         .map_err(|e| {
             tracing::warn!(error = %e, address = %address, "load perms failed");
@@ -46,24 +57,16 @@ pub async fn effective_permissions(
         })?;
     // degrades as the kevy core does: an unreadable alias or group store
     // costs the derived addresses, not the permission check
-    let send_as = match state
-        .domain
-        .send_as(&address, state.net_url.as_deref())
-        .await
-    {
+    let send_as = match domain.send_as(address, net_url).await {
         Ok(s) => s,
         Err(e) => {
             tracing::warn!(error = %e, address = %address, "send-as unreadable; own grants only");
-            state
-                .domain
-                .send_as_grants(&address)
-                .await
-                .unwrap_or_default()
+            domain.send_as_grants(address).await.unwrap_or_default()
         }
     };
 
-    Ok(Json(wire::EffectivePermissionsResponse {
-        address: address.clone(),
+    Ok(wire::EffectivePermissionsResponse {
+        address: address.to_string(),
         permissions: perms.permission_list(),
         // Group resolution is left for a separate RPC call to keep this
         // endpoint cheap; webapi can hit /accounts/{address}/groups when it
@@ -71,8 +74,8 @@ pub async fn effective_permissions(
         groups: Vec::new(),
         is_super: perms.is_super(),
         send_as,
-        masks: masks_of(state.net_url.clone(), &address).await,
-    }))
+        masks: masks_of(net_url.map(str::to_string), address).await,
+    })
 }
 
 /// The account's masks that take mail, from the network kevy both cores

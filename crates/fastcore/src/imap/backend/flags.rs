@@ -108,13 +108,17 @@ fn new_file_uid(state: &Arc<FastcoreState>, user: &str, base: &str, path: &Path)
     resolve_uid(state, user, &empty_cache, &empty_seen, base, path)
 }
 
-/// Remove a message file and take its size off the user's usage, the one
-/// place a removal is counted. Arrivals are counted where they are
-/// indexed (`ingest_delivered_file`).
-pub fn remove_message(user: &str, msg: &ImapMessage) -> std::io::Result<()> {
-    std::fs::remove_file(&msg.path)?;
-    crate::live_sync::adjust_usage_bytes(user, -(msg.size as i64));
-    Ok(())
+/// Remove a message file, its size taken off the user's usage by the one
+/// function that removes mail files (`mailrs_intake::mail_files`).
+/// Arrivals are counted where they are indexed (`ingest_delivered_file`).
+pub fn remove_message(state: &FastcoreState, user: &str, msg: &ImapMessage) -> std::io::Result<()> {
+    match mailrs_intake::mail_files::remove_file(state.net_conn().as_mut(), user, &msg.path)? {
+        Some(_) => Ok(()),
+        None => Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("{} is gone", msg.path.display()),
+        )),
+    }
 }
 
 /// A copy in `dest`, then the source removed: the user's usage ends where
@@ -126,7 +130,7 @@ pub fn move_to(
     dest: &MailboxInfo,
 ) -> std::io::Result<u32> {
     let uid = copy_to(state, user, msg, dest)?;
-    remove_message(user, msg)?;
+    remove_message(state, user, msg)?;
     Ok(uid)
 }
 

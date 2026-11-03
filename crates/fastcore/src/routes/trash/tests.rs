@@ -115,21 +115,17 @@ fn setup(ids: &[&str]) -> (tempfile::TempDir, Arc<FastcoreState>) {
 }
 
 /// A file that stays on disk is a conversation self-heal files again, so
-/// the delete did not happen and the answer is a 500. The removal is made
-/// to fail through the remover the route is given: no permission stops
-/// root, and the tests run as root on the build machines.
+/// the delete did not happen, and the route answers a 500 for it. The
+/// removal is made to fail through the remover the delete is given: no
+/// permission stops root, and the tests run as root on the build machines.
 #[tokio::test]
 async fn a_file_left_on_disk_fails_the_delete() {
     let (maildir, state) = setup(&["d"]);
     let refuse: crate::routes::thread_actions::RemoveFile =
         |_, _, _| Err(std::io::Error::other("unlink refused"));
-    let res = crate::routes::thread_actions::delete_thread_removing(
-        &state,
-        U,
-        "d@outside.example",
-        refuse,
-    );
-    assert_eq!(res.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    let res =
+        crate::routes::thread_actions::delete_removing(&state, U, "d@outside.example", refuse);
+    assert_eq!(res, Err(()));
     assert!(
         maildir.path().join("golia.jp/bob/new/d.eml").is_file(),
         "the file is still there"

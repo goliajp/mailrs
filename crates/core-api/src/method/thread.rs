@@ -175,6 +175,25 @@ pub struct ThreadActionResponse {
     pub new_modseq: u64,
 }
 
+/// One conversation emptying the Trash deleted for good.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DeletedThreadWire {
+    pub thread_id: String,
+    /// Message files deleted with it.
+    pub messages: u32,
+}
+
+/// Response of `POST /v1/users/{user}/trash:empty`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct EmptyTrashResponse {
+    /// Conversations deleted for good.
+    pub affected: u32,
+    pub new_modseq: u64,
+    /// Each conversation deleted, by thread id.
+    #[serde(default)]
+    pub deleted: Vec<DeletedThreadWire>,
+}
+
 /// Request body for `POST /v1/users/{user}/threads/{thread_id}/messages`.
 ///
 /// The webapi caller has already produced the RFC 5322 envelope (for
