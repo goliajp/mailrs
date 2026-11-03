@@ -169,7 +169,18 @@ impl Sweep<'_> {
             &msg.from,
             mailrs_fraud_lua::stored::relation::Counted::After,
         );
-        let facts = msg.facts(seen, reply_rotation, rel);
+        // new as of when the message arrived, as `stored::judge_for` reads it
+        let at = msg.arrived.unwrap_or_else(|| chrono::Utc::now().timestamp());
+        let novelty = mailrs_core_sidestate::families::domain_first::novelty(
+            self.hist.as_mut(),
+            &msg.host,
+            &msg.link_hosts,
+            at,
+        );
+        let facts = mailrs_fraud::Facts {
+            novelty,
+            ..msg.facts(seen, reply_rotation, rel)
+        };
         let scan = match mailrs_fraud_lua::scan(&facts, self.policy) {
             Ok(scan) => scan,
             Err(error) => {

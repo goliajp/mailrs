@@ -93,6 +93,21 @@ fn paths(root: &Path, out: &mut Vec<PathBuf>, max: usize) -> Result<(), String> 
     }
     Ok(())
 }
+/// Whose mail a file is: `<root>/<domain>/<local>/...`. Empty when the
+/// path does not say, and then the reader's history reads as empty.
+fn reader_of(root: &Path, file: &Path) -> String {
+    let mut parts = file
+        .strip_prefix(root)
+        .ok()
+        .into_iter()
+        .flat_map(|p| p.components())
+        .filter_map(|c| c.as_os_str().to_str());
+    match (parts.next(), parts.next()) {
+        (Some(domain), Some(local)) => format!("{local}@{domain}"),
+        _ => String::new(),
+    }
+}
+
 fn compare(baseline: &str, candidate: &str, root: &str, limit: usize) -> Result<(), String> {
     let mut before = if baseline == "rust" {
         None
@@ -128,6 +143,12 @@ fn compare(baseline: &str, candidate: &str, root: &str, limit: usize) -> Result<
         }
     }
     let our_stamp = std::env::var("MAILRS_HOSTNAME").ok();
+    // with the shared store: each reader's history with the sender (the
+    // `bec-` rules) and when a domain was first seen, as the core's own
+    // re-judge reads them
+    let mut hist = std::env::var("MAILRS_KEVY_URL")
+        .ok()
+        .and_then(|u| kevy_client::Connection::connect(&u).ok());
     let mut changed = 0;
     let mut added = 0;
     let mut released = 0;
@@ -163,6 +184,20 @@ fn compare(baseline: &str, candidate: &str, root: &str, limit: usize) -> Result<
         let peer_is_private = mailrs_inbound::identity::first_received_peer_ip(&raw)
             .is_some_and(mailrs_inbound::identity::address_is_private);
         let shown_links = mailrs_inbound::body::shown_links(&parsed);
+        let reader = reader_of(Path::new(root), file);
+        let relation = mailrs_fraud_lua::stored::relation::relation(
+            hist.as_mut(),
+            &reader,
+            &from,
+            mailrs_fraud_lua::stored::relation::Counted::After,
+        );
+        let arrived = mailrs_inbound::dates::received_epoch(&raw).unwrap_or(0);
+        let novelty = mailrs_core_sidestate::families::domain_first::novelty(
+            hist.as_mut(),
+            host,
+            &mailrs_inbound::scan_input::link_hosts(&parsed),
+            arrived,
+        );
         let f = Facts {
             from: &from,
             domain: host,
@@ -202,8 +237,8 @@ fn compare(baseline: &str, candidate: &str, root: &str, limit: usize) -> Result<
             dmarc: &dmarc,
             unauthenticated,
             peer_is_private,
-            // the reader's history is not in a maildir: the `bec-` rules
-            // that need it cannot fire here
+            relation,
+            novelty,
             payment: mailrs_inbound::body::payment_ids(&parsed, ""),
             html: mailrs_inbound::body::html_attachments(&parsed, host),
             reply_to_outside: mailrs_fraud::reply_rotation::is_off_domain(

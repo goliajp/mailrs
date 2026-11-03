@@ -106,7 +106,7 @@ fn read_and_judge(
         };
         users.insert(user.clone());
         let facts = crate::ledger::facts_of(user, &mid, &raw);
-        let verdict = match fraud.judge(state, &mid, &raw) {
+        let verdict = match fraud.judge(state, user, &mid, &raw) {
             Ok(j) => crate::ledger::judged_verdict(&j.findings, &j.version, Vec::new()),
             Err(_) => mailrs_mailbox_kevy::ledger::LedgerVerdict::default(),
         };

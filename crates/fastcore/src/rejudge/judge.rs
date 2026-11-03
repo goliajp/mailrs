@@ -106,7 +106,7 @@ impl Judge {
             return false;
         };
         Counts::add(&COUNTS.messages, 1);
-        let judged = match self.fraud.judge(state, mid, &raw) {
+        let judged = match self.fraud.judge(state, user, mid, &raw) {
             Ok(j) => j,
             Err(e) => {
                 tracing::warn!(error = %e, %user, %mid, "rejudge: the fraud rules could not run");
