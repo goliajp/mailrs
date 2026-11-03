@@ -57,6 +57,7 @@ pub const ADMIN_ROUTES: &[(&str, Need)] = &[
     ("/api/admin/audit/messages/{uid}/raw", Super),
     ("/api/admin/auth-events", Super),
     ("/api/admin/cache/flush-conversations", CACHE),
+    ("/api/admin/dane/tlsa", Super),
     ("/api/admin/dmarc/reports", DOMAINS),
     ("/api/admin/dmarc/sources", DOMAINS),
     ("/api/admin/domains", DOMAINS),

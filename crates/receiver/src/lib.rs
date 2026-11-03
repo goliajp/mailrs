@@ -23,6 +23,7 @@ pub use run::{run, start};
 // The inbound receiving pipeline + anti subsystems + greylist snapshot
 // loaders (S5.3). The spg-bound PG loader half of greylist_local and the
 // kevy-network adapters (inbound::kevy_backends) stay in the server crate.
+pub mod dane;
 pub mod greylist_local;
 pub mod greylist_local_sync;
 pub mod greylist_sync;

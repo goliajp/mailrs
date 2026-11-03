@@ -5883,6 +5883,34 @@
         }
       }
     },
+    "/api/admin/dane/tlsa": {
+      "get": {
+        "operationId": "getDaneTlsa",
+        "summary": "TLSA records for port 25",
+        "description": "Zone lines for the records port 25 needs: the served certificate's 3 1 1 record, then the next key's when MAILRS_DANE_NEXT_KEY is set. Super administrators only.",
+        "tags": [
+          "Audit"
+        ],
+        "responses": {
+          "200": {
+            "description": "Zone lines",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a super administrator"
+          },
+          "503": {
+            "description": "The receiver has not reported yet"
+          }
+        }
+      }
+    },
     "/api/admin/dmarc/reports": {
       "get": {
         "operationId": "listDmarcReports",
@@ -14851,6 +14879,86 @@
                 "type": "integer",
                 "nullable": true,
                 "description": "Mail submitted from a masked address whose submission-log row could not be written; the mail was sent"
+              },
+              "dane": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "description": "DANE for port 25 on the receiver's hostname. Null when the receiver serves no certificate.",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "_25._tcp.<hostname>"
+                  },
+                  "published": {
+                    "type": "integer",
+                    "description": "TLSA records both validating resolvers return with AD set"
+                  },
+                  "matches_current": {
+                    "type": "boolean",
+                    "description": "The served certificate's 3 1 1 record is published"
+                  },
+                  "matches_next": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ],
+                    "description": "The next key's record is published; null when no next key is configured"
+                  },
+                  "sources_agree": {
+                    "type": "boolean",
+                    "description": "Every server that answered returned the same records"
+                  },
+                  "checked_at": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "description": "Unix seconds of the last DNS check"
+                  },
+                  "unmatched_swaps": {
+                    "type": "integer",
+                    "description": "Certificate changes since start whose new key matched no published record"
+                  },
+                  "sources": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "server",
+                        "authenticated",
+                        "records",
+                        "error"
+                      ],
+                      "properties": {
+                        "server": {
+                          "type": "string"
+                        },
+                        "authenticated": {
+                          "type": [
+                            "boolean",
+                            "null"
+                          ],
+                          "description": "AD bit from a validating resolver; null for an authoritative server"
+                        },
+                        "records": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "usage selector matching hex"
+                        },
+                        "error": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
               }
             }
           },
