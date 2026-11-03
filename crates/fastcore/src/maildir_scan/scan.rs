@@ -57,7 +57,7 @@ pub(crate) struct MailFile {
 /// `since` bounds the walk to filenames whose maildir timestamp is at
 /// least that old; 0 means everything. An empty result means there is
 /// nothing on disk to heal from, not that nothing needed healing.
-pub(crate) fn scan_maildir(user: &str, since: i64) -> Vec<MailFile> {
+pub(crate) fn scan_maildir(user: &str, since: i64, authserv: Option<&str>) -> Vec<MailFile> {
     let Some((local, domain)) = user.split_once('@') else {
         return Vec::new();
     };
@@ -177,7 +177,7 @@ pub(crate) fn scan_maildir(user: &str, since: i64) -> Vec<MailFile> {
             to,
             seen: maildir_seen_flag(&bare),
             keywords: maildir_keyword_bits(&bare),
-            sender_trust: extract_sender_trust(&bytes),
+            sender_trust: extract_sender_trust(&bytes, authserv),
             invite: crate::invites::find(&bytes),
             attachments: mailrs_mime::parse(&bytes).shown_attachment_count() as u32,
         });

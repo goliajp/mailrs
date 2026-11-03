@@ -146,7 +146,7 @@ fn stamp_sender_trust(
     if !w.sender_trust.is_empty() {
         return;
     }
-    let trust = crate::extract_sender_trust(raw);
+    let trust = crate::extract_sender_trust(raw, state.authserv_id.as_deref());
     if trust.is_empty() {
         return;
     }

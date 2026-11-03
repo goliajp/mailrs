@@ -30,7 +30,10 @@ pub(super) fn spawn_spool_drain(
         .ok()
         .filter(|s| !s.is_empty());
     let core = Arc::new(crate::intake::PgCore {
-        dir: crate::intake::PgDirectory::new(domain, cfg.maildir_root.clone(), net_url),
+        dir: crate::intake::PgDirectory {
+            authserv_id: authserv_id(cfg),
+            ..crate::intake::PgDirectory::new(domain, cfg.maildir_root.clone(), net_url)
+        },
         mailbox,
         event_bus: event_bus.clone(),
     });

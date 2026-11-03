@@ -51,7 +51,15 @@ pub fn file<S: SentStore + ?Sized>(
         true => format!("{}/{}", crate::sent::SENT_FOLDER, id.0),
         false => id.0.clone(),
     };
-    let mut a = derive(core, core.net_conn(), user, &blob_ref, body, folder);
+    let mut a = derive(
+        core,
+        core.net_conn(),
+        user,
+        &blob_ref,
+        body,
+        folder,
+        core.authserv_id(),
+    );
     crate::live_sync::adjust_usage_bytes(user, body.len() as i64);
     crate::live_sync::upsert_contacts(user, &a.from);
     match own {

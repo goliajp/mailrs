@@ -24,18 +24,9 @@ pub struct Stamp {
 #[must_use]
 pub fn read(raw: &[u8], our_stamp: Option<&str>, from_host: &str) -> Stamp {
     let ours = our_stamp.filter(|h| mailrs_rfc5322::auth_results::written_by(raw, h).is_some());
-    let first = mailrs_inbound::identity::auth_results_authserv(raw);
-    let forged = match (our_stamp, ours, first.as_deref()) {
-        (Some(us), None, Some(named)) => named.eq_ignore_ascii_case(us),
-        _ => false,
-    };
-    let auth = match forged {
-        true => Default::default(),
-        false => mailrs_inbound::identity::auth_results_tokens(raw),
-    };
     Stamp {
         unauthenticated: ours.is_some(),
-        auth,
+        auth: mailrs_inbound::identity::auth_results_tokens_trusted(raw, our_stamp),
         dkim_from_org_passed: ours
             .and_then(|us| mailrs_inbound::dkim_results::ours(raw, us))
             .map(|sigs| mailrs_fraud::org_domain::passed_for(from_host, &sigs)),

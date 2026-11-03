@@ -106,6 +106,37 @@ pub fn written_by(raw: &[u8], authserv: &str) -> Option<String> {
     (trace.starts_with("received:") && trace.contains(&ours)).then_some(value)
 }
 
+/// Whether the first `Authentication-Results:` names `authserv` although
+/// that server's receiver did not write it ([`written_by`]): a header a
+/// reader must disregard. Every other header is read as before, and with
+/// no `authserv` nothing counts as forged.
+#[must_use]
+pub fn first_is_forged(raw: &[u8], authserv: Option<&str>) -> bool {
+    let Some(us) = authserv else {
+        return false;
+    };
+    first_value(raw).is_some_and(|v| authserv_id(&v).eq_ignore_ascii_case(us))
+        && written_by(raw, us).is_none()
+}
+
+/// The first `Authentication-Results:` value, unfolded.
+fn first_value(raw: &[u8]) -> Option<String> {
+    let end = header_end(raw);
+    let mut value: Option<String> = None;
+    for line in raw[..end].split_inclusive(|&b| b == b'\n') {
+        match (&mut value, continues(line)) {
+            (Some(v), true) => v.push_str(&String::from_utf8_lossy(line)),
+            (Some(_), false) => break,
+            (None, _) => {
+                if let Some(rest) = strip_name(line) {
+                    value = Some(String::from_utf8_lossy(rest).into_owned());
+                }
+            }
+        }
+    }
+    value.map(|v| v.replace(['\r', '\n', '\t'], " "))
+}
+
 fn continues(line: &[u8]) -> bool {
     line.first().is_some_and(|&b| b == b' ' || b == b'\t')
 }
@@ -207,5 +238,23 @@ Received: from x by mx.google.com with ESMTPS\r\n\r\nbody\r\n";
         let not_first = format!("Received: from y by mx.google.com\r\n{STAMPED}");
         assert_eq!(written_by(not_first.as_bytes(), "mail.golia.ai"), None);
         assert_eq!(written_by(STAMPED.as_bytes(), "mx.other.example"), None);
+    }
+
+    #[test]
+    fn only_a_first_header_naming_us_that_we_did_not_write_is_forged() {
+        let us = Some("mail.golia.ai");
+        assert!(!first_is_forged(STAMPED.as_bytes(), us), "ours");
+        let no_trace = b"Authentication-Results: mail.golia.ai; dmarc=pass\r\nFrom: a@b.c\r\n\r\nx";
+        assert!(first_is_forged(no_trace, us));
+        assert!(
+            !first_is_forged(no_trace, None),
+            "without our name nothing is forged"
+        );
+        let google = b"Authentication-Results: mx.google.com; dmarc=pass\r\nFrom: a@b.c\r\n\r\nx";
+        assert!(
+            !first_is_forged(google, us),
+            "another server's is read as before"
+        );
+        assert!(!first_is_forged(b"From: a@b.c\r\n\r\nx", us), "none at all");
     }
 }
