@@ -29,6 +29,11 @@ extension Wire {
         /// moves it a day.
         let startsAt: Date?
         let endsAt: Date?
+        /// An all-day event's first day, `YYYY-MM-DD`, and the day after
+        /// its last (DTEND, as RFC 5545 writes it). Absent for a timed
+        /// event, which has `startsAt` instead.
+        let firstDay: String?
+        let dayAfterLast: String?
         /// The way into the meeting, resolved on the server: RFC 5545
         /// has no field for it, so Teams writes it into the description
         /// and Zoom into the location, and one implementation of "which
@@ -77,6 +82,8 @@ extension Wire {
             case joinURL = "join_url"
             case dtstartUtc = "dtstart_utc"
             case dtendUtc = "dtend_utc"
+            case dtstartDate = "dtstart_date"
+            case dtendDate = "dtend_date"
             case dtstart
         }
 
@@ -92,6 +99,8 @@ extension Wire {
             joinURL = (try c.decodeIfPresent(String.self, forKey: .joinURL)).flatMap(URL.init)
             startsAt = Wire.Invite.instant(try c.decodeIfPresent(String.self, forKey: .dtstartUtc))
             endsAt = Wire.Invite.instant(try c.decodeIfPresent(String.self, forKey: .dtendUtc))
+            firstDay = try c.decodeIfPresent(String.self, forKey: .dtstartDate)
+            dayAfterLast = try c.decodeIfPresent(String.self, forKey: .dtendDate)
             // The original wall-clock and its zone, for the second line.
             // A `Zoned` date-time serialises as
             // `{"Zoned": {"local": …, "tz_name": …}}`.

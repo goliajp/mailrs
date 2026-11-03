@@ -25,7 +25,7 @@ mod rejudge;
 
 pub(crate) use aliases::*;
 pub(crate) use ownerless::*;
-pub(crate) use quota::quota_limits_route;
+pub(crate) use quota::{quota_limits_route, usage_drift_apply_route, usage_drift_route};
 pub(crate) use rejudge::*;
 
 /// GET /v1/admin/accounts/{address}/effective-permissions

@@ -67,6 +67,7 @@ struct InviteCard: View {
                 Label(when, systemImage: "clock")
                     .font(.caption)
                     .foregroundStyle(theme.fgSecondary)
+                    .accessibilityIdentifier("invite.when")
             }
             if let place = invite.location, !place.isEmpty {
                 Label(place, systemImage: "mappin.and.ellipse")
@@ -180,8 +181,9 @@ struct InviteCard: View {
     /// checks.
     private func whenLine(_ invite: Wire.Invite) -> String? {
         guard let starts = invite.startsAt else {
-            // An all-day event has no instant and must not be given one.
-            return nil
+            // An all-day event has no instant and must not be given one:
+            // its days, as written.
+            return InviteDays.line(firstDay: invite.firstDay, dayAfterLast: invite.dayAfterLast)
         }
         let local = starts.formatted(date: .abbreviated, time: .shortened)
         guard
