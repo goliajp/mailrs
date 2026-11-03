@@ -2,9 +2,9 @@
 use mailrs_fraud::{Facts, Findings, Policy};
 use mailrs_fraud_lua::{DEFAULT_SOURCE, MAX_SOURCE, Rules};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap},
     fs,
-    io::Read,
+    io::{BufWriter, Read, Write},
     path::{Path, PathBuf},
 };
 
@@ -93,6 +93,57 @@ impl Held {
     }
 }
 
+/// What changed between the two bundles, message by message.
+#[derive(Default)]
+struct Tally {
+    changed: usize,
+    added: usize,
+    released: usize,
+    held: usize,
+    samples: Vec<serde_json::Value>,
+    /// Every changed message's added (`+rule`) and dropped (`-rule`)
+    /// rules: the full count the fifty samples cannot give.
+    by_rule: BTreeMap<String, u64>,
+    /// One JSON line per checked message, when asked for.
+    list: Option<BufWriter<fs::File>>,
+}
+
+impl Tally {
+    fn record(
+        &mut self,
+        path: &str,
+        (from, subject): (&str, &str),
+        old: &Findings,
+        new: &Findings,
+    ) -> Result<(), String> {
+        let (old_hold, new_hold) = (old.hold_worthy(), new.hold_worthy());
+        self.held += usize::from(new_hold);
+        if let Some(list) = &mut self.list {
+            let line = serde_json::json!({"path":path,"rules_before":old.rules(),"rules_after":new.rules(),
+                "held_before":old_hold,"held_after":new_hold});
+            writeln!(list, "{line}").map_err(|e| e.to_string())?;
+        }
+        if rows(old) == rows(new) {
+            return Ok(());
+        }
+        self.changed += 1;
+        self.added += usize::from(new_hold && !old_hold);
+        self.released += usize::from(old_hold && !new_hold);
+        let before: BTreeSet<&str> = old.rules().into_iter().collect();
+        let after: BTreeSet<&str> = new.rules().into_iter().collect();
+        for r in after.difference(&before) {
+            *self.by_rule.entry(format!("+{r}")).or_default() += 1;
+        }
+        for r in before.difference(&after) {
+            *self.by_rule.entry(format!("-{r}")).or_default() += 1;
+        }
+        if self.samples.len() < 50 {
+            self.samples.push(serde_json::json!({"from":from,"subject":subject,"before":old.rules(),"after":new.rules(),"held_before":old_hold,"held_after":new_hold}));
+        }
+        Ok(())
+    }
+}
+
 /// `YYYY-MM` of the Date header, in UTC; `unknown` when there is none
 /// that parses.
 fn month_of(raw: &[u8]) -> String {
@@ -151,7 +202,13 @@ fn reader_of(root: &Path, file: &Path) -> String {
     }
 }
 
-fn compare(baseline: &str, candidate: &str, root: &str, limit: usize) -> Result<(), String> {
+fn compare(
+    baseline: &str,
+    candidate: &str,
+    root: &str,
+    limit: usize,
+    list: Option<&str>,
+) -> Result<(), String> {
     let mut before = if baseline == "rust" {
         None
     } else {
@@ -192,11 +249,13 @@ fn compare(baseline: &str, candidate: &str, root: &str, limit: usize) -> Result<
     let mut hist = std::env::var("MAILRS_KEVY_URL")
         .ok()
         .and_then(|u| kevy_client::Connection::connect(&u).ok());
-    let mut changed = 0;
-    let mut added = 0;
-    let mut released = 0;
-    let mut held = 0;
-    let mut samples = vec![];
+    let mut tally = Tally {
+        list: list
+            .map(|p| fs::File::create(p).map(BufWriter::new))
+            .transpose()
+            .map_err(|e| e.to_string())?,
+        ..Tally::default()
+    };
     let mut baseline_held = Held::default();
     let mut candidate_held = Held::default();
     for (i, file) in files.iter().enumerate() {
@@ -290,6 +349,14 @@ fn compare(baseline: &str, candidate: &str, root: &str, limit: usize) -> Result<
                 host,
                 &mailrs_inbound::identity::reply_to_address(&raw),
             ),
+            reply_to_other_org: mailrs_fraud::org_domain::reply_elsewhere(
+                host,
+                &mailrs_inbound::identity::reply_to_address(&raw),
+            ),
+            dkim_signed_by_from_org: mailrs_fraud::org_domain::signed_only_by(
+                host,
+                &mailrs_inbound::dkim_signers::of(&raw),
+            ),
             ..Facts::default()
         };
         let old = match &mut before {
@@ -309,30 +376,24 @@ fn compare(baseline: &str, candidate: &str, root: &str, limit: usize) -> Result<
         let month = month_of(&raw);
         baseline_held.add(&old, &month);
         candidate_held.add(&new.findings, &month);
-        let old_hold = old.hold_worthy();
-        let new_hold = new.findings.hold_worthy();
-        held += usize::from(new_hold);
-        if rows(&old) != rows(&new.findings) {
-            changed += 1;
-            added += usize::from(new_hold && !old_hold);
-            released += usize::from(old_hold && !new_hold);
-            if samples.len() < 50 {
-                samples.push(serde_json::json!({"from":from,"subject":subject,"before":old.rules(),"after":new.findings.rules(),"held_before":old_hold,"held_after":new_hold}));
-            }
-        }
+        let rel = file.strip_prefix(root).unwrap_or(file).to_string_lossy();
+        tally.record(&rel, (&from, &subject), &old, &new.findings)?;
+    }
+    if let Some(list) = &mut tally.list {
+        list.flush().map_err(|e| e.to_string())?;
     }
     println!(
         "{}",
-        serde_json::json!({"checked":files.len(),"changed":changed,"added_holds":added,"removed_holds":released,
-        "candidate_holds":held,"baseline":before.as_ref().map_or("rust",|r|r.version()),"candidate":after.version(),
+        serde_json::json!({"checked":files.len(),"changed":tally.changed,"added_holds":tally.added,"removed_holds":tally.released,
+        "candidate_holds":tally.held,"baseline":before.as_ref().map_or("rust",|r|r.version()),"candidate":after.version(),
         "account_names_configured":!p.account_names.is_empty(),
         "holds_by_rule":candidate_held.by_rule,"holds_by_month":candidate_held.by_month,
         "baseline_holds_by_rule":baseline_held.by_rule,"baseline_holds_by_month":baseline_held.by_month,
-        "samples":samples})
+        "changed_by_rule":tally.by_rule,"samples":tally.samples})
     );
     // A migration must preserve every decision. Intentional rule-only updates
     // compare two Lua bundles and report their diff for review.
-    if baseline == "rust" && changed != 0 {
+    if baseline == "rust" && tally.changed != 0 {
         return Err("Lua migration differs from Rust".into());
     }
     Ok(())
@@ -347,8 +408,9 @@ fn run() -> Result<(), String> {
             if !result.errors.is_empty(){return Err(format!("{:?}",result.errors));}
             println!("{}",serde_json::json!({"version":rules.version(),"rules":rules.rule_count()}));Ok(())
         },
-        [cmd,baseline,candidate,root,limit] if cmd=="compare" => compare(baseline,candidate,root,limit.parse().map_err(|_|"invalid limit")?),
-        _=>Err("usage: mailrs-fraud-check bundle | validate FILE | compare rust|builtin|BASELINE FILE|builtin MAILDIR MAX_MESSAGES".into()),
+        [cmd,baseline,candidate,root,limit] if cmd=="compare" => compare(baseline,candidate,root,limit.parse().map_err(|_|"invalid limit")?,None),
+        [cmd,baseline,candidate,root,limit,flag,list] if cmd=="compare" && flag=="--list" => compare(baseline,candidate,root,limit.parse().map_err(|_|"invalid limit")?,Some(list)),
+        _=>Err("usage: mailrs-fraud-check bundle | validate FILE | compare rust|builtin|BASELINE FILE|builtin MAILDIR MAX_MESSAGES [--list OUT.jsonl]".into()),
     }
 }
 fn main() {

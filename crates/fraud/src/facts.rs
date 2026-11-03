@@ -145,4 +145,11 @@ pub struct Facts<'a> {
     pub novelty: crate::novelty::Novelty,
     /// A `Reply-To` on another registrable domain than the `From:`.
     pub reply_to_outside: bool,
+    /// A `Reply-To` on another organisation than the `From:`, by the
+    /// public suffix list — [`crate::org_domain::reply_elsewhere`].
+    pub reply_to_other_org: bool,
+    /// Every DKIM signature on the message is by the `From:`
+    /// organisation — [`crate::org_domain::signed_only_by`]. With
+    /// [`Self::dkim`] `pass`, an aligned signature verified.
+    pub dkim_signed_by_from_org: bool,
 }

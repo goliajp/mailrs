@@ -22,11 +22,32 @@ pub struct Novelty {
     /// Whole days from the sender's domain first appearing to the message;
     /// `None` when there is no first-seen time.
     pub sender_age_days: Option<i64>,
+    /// Messages that arrived from the sender's domain before this one;
+    /// zero when the store has no count.
+    pub sender_seen: u64,
     /// The sender's registrable domain is new.
     pub sender_new: bool,
     /// The first of the message's link domains that is new.
     pub new_link_domain: Option<String>,
 }
+
+impl Novelty {
+    /// The sender's domain has a history here: first seen more than
+    /// [`ESTABLISHED_AFTER_DAYS`] days before the message, or
+    /// [`ESTABLISHED_AT_MESSAGES`] messages from it already. False when
+    /// the store could not be read.
+    #[must_use]
+    pub fn established(&self) -> bool {
+        self.sender_age_days
+            .is_some_and(|d| d > ESTABLISHED_AFTER_DAYS)
+            || self.sender_seen >= ESTABLISHED_AT_MESSAGES
+    }
+}
+
+/// See [`Novelty::established`].
+pub const ESTABLISHED_AFTER_DAYS: i64 = 30;
+/// See [`Novelty::established`].
+pub const ESTABLISHED_AT_MESSAGES: u64 = 5;
 
 /// Whether a domain first seen at `first` (`None`: never recorded) is new
 /// for a message arriving at `at`, given recording began at `since`.
@@ -53,6 +74,7 @@ pub fn assess(
     let (sender_first, sender_seen) = sender;
     Novelty {
         sender_age_days: sender_first.map(|f| (at - f).max(0) / 86_400),
+        sender_seen,
         sender_new: is_new(sender_first, sender_seen, since, at),
         new_link_domain: links
             .iter()

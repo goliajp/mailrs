@@ -108,6 +108,7 @@ fn each_bec_rule_fires_on_its_structure_and_never_holds() {
             "bec-lookalike-reply-diverted",
             Facts {
                 reply_to_outside: true,
+                reply_to_other_org: true,
                 relation: Relation {
                     looks_like_correspondent: true,
                     ..Relation::default()

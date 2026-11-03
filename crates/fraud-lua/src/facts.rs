@@ -125,6 +125,12 @@ fn fill(lua: &mut Lua, t: LuaTable, f: &Facts<'_>, p: &Policy) -> Result<(), Str
         ),
         ("name_borrowed", f.relation.name_borrowed),
         ("reply_to_outside", f.reply_to_outside),
+        ("reply_to_other_org", f.reply_to_other_org),
+        (
+            "dkim_aligned",
+            f.dkim == "pass" && f.dkim_signed_by_from_org,
+        ),
+        ("sender_domain_established", f.novelty.established()),
         ("sender_domain_new", f.novelty.sender_new),
         ("link_domain_new", f.novelty.new_link_domain.is_some()),
     ] {

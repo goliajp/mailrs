@@ -13,6 +13,7 @@ categories = ["email"]
 readme = "README.md"
 
 [dependencies]
+psl = "2"
 sha2 = "0.11"
 
 [lints]
