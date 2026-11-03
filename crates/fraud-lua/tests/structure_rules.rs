@@ -62,6 +62,7 @@ fn an_attachment_built_to_smuggle_a_file_is_held() {
 fn pays() -> PaymentIds {
     PaymentIds {
         iban: true,
+        iban_country: Some("DE"),
         crypto: false,
     }
 }

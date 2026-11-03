@@ -28,7 +28,7 @@ export function createMinimalExtensions(placeholder?: string): Extensions {
 export async function uploadInlineImage(file: File): Promise<null | string> {
   try {
     const data = await wireUploadInlineImage(file)
-    if (data.success && data.url) return data.url
+    return data.url
   } catch {
     // fallback handled by caller
   }

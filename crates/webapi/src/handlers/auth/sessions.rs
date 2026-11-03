@@ -72,15 +72,51 @@ pub async fn list(
     Ok(Json(out))
 }
 
-/// The full ref of the user's session named `id`.
-fn find(c: &mut kevy_client::Connection, user: &str, id: &str) -> std::io::Result<Option<String>> {
+/// The full ref and stored row of the user's session named `id`.
+fn find(
+    c: &mut kevy_client::Connection,
+    user: &str,
+    id: &str,
+) -> std::io::Result<Option<(String, Vec<u8>)>> {
     if id.len() != ID_LEN {
         return Ok(None);
     }
     Ok(list_sessions(c, user)?
         .into_iter()
-        .map(|(r, _)| r)
-        .find(|r| r.starts_with(id)))
+        .find(|(r, _)| r.starts_with(id)))
+}
+
+/// The leading part of an address: two octets of IPv4, four groups of IPv6.
+fn ip_prefix(ip: &str) -> String {
+    match ip.contains(':') {
+        true => ip.split(':').take(4).collect::<Vec<_>>().join(":"),
+        false => ip.split('.').take(2).collect::<Vec<_>>().join("."),
+    }
+}
+
+/// One audit line's detail for an ended session: which it was and where it
+/// came from, never anything that signs in.
+fn ended_detail(reference: &str, blob: &[u8]) -> String {
+    let s: Stored = serde_json::from_slice(blob).unwrap_or_default();
+    let ua: String = s.user_agent.chars().take(120).collect();
+    format!(
+        "id={} created={} last_used={} ip={} ua={}",
+        reference.chars().take(ID_LEN).collect::<String>(),
+        s.created_at_unix,
+        s.last_seen_unix.max(s.created_at_unix),
+        ip_prefix(&s.ip),
+        ua
+    )
+}
+
+fn audit_ended(user: &str, reference: &str, blob: &[u8]) {
+    let id: String = reference.chars().take(ID_LEN).collect();
+    crate::handlers::audit::record(
+        user,
+        "auth.session.end",
+        &id,
+        &ended_detail(reference, blob),
+    );
 }
 
 /// DELETE /api/auth/sessions/{id} — end one of the user's sessions.
@@ -91,15 +127,18 @@ pub async fn end(
 ) -> StatusCode {
     let who = user.clone();
     let ended = with_kevy(move |c| match find(c, &who, &id)? {
-        Some(reference) => end_session_by_ref(c, &who, &reference),
-        None => Ok(false),
+        Some((reference, blob)) => {
+            let gone = end_session_by_ref(c, &who, &reference)?;
+            Ok(gone.then_some((reference, blob)))
+        }
+        None => Ok(None),
     });
     match ended {
-        Ok(true) => {
-            crate::handlers::audit::record(&user, "auth.session.end", "", "");
+        Ok(Some((reference, blob))) => {
+            audit_ended(&user, &reference, &blob);
             StatusCode::NO_CONTENT
         }
-        Ok(false) => StatusCode::NOT_FOUND,
+        Ok(None) => StatusCode::NOT_FOUND,
         Err(status) => status,
     }
 }
@@ -113,14 +152,45 @@ pub async fn end_others(
     let current = current_ref(&headers).unwrap_or_default();
     let who = user.clone();
     let ended = with_kevy(move |c| {
-        let mut n = 0usize;
-        for (reference, _) in list_sessions(c, &who)? {
+        let mut gone = Vec::new();
+        for (reference, blob) in list_sessions(c, &who)? {
             if reference != current && end_session_by_ref(c, &who, &reference)? {
-                n += 1;
+                gone.push((reference, blob));
             }
         }
-        Ok(n)
+        Ok(gone)
     })?;
-    crate::handlers::audit::record(&user, "auth.session.end_others", &ended.to_string(), "");
-    Ok(Json(serde_json::json!({ "ended": ended })))
+    // one line per session, so whose sessions these were can be told later
+    for (reference, blob) in &ended {
+        audit_ended(&user, reference, blob);
+    }
+    crate::handlers::audit::record(
+        &user,
+        "auth.session.end_others",
+        &ended.len().to_string(),
+        "",
+    );
+    Ok(Json(serde_json::json!({ "ended": ended.len() })))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_ended_session_is_described_without_its_token() {
+        let blob = serde_json::to_vec(&Stored {
+            created_at_unix: 100,
+            last_seen_unix: 200,
+            ip: "114.17.3.4".into(),
+            user_agent: "curl/8.7.1".into(),
+        })
+        .unwrap();
+        let reference = "0123456789abcdef0123456789abcdef";
+        assert_eq!(
+            ended_detail(reference, &blob),
+            "id=0123456789abcdef created=100 last_used=200 ip=114.17 ua=curl/8.7.1"
+        );
+        assert_eq!(ip_prefix("2001:db8:1:2:3:4:5:6"), "2001:db8:1:2");
+    }
 }

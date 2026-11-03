@@ -54,11 +54,13 @@ function sortOptions(query: string): SortOrder[] {
 }
 
 function tabButtonClass(isActive: boolean): string {
-  // `w-full` and `truncate`: the cell decides the width now, and a
-  // label longer than its column has to cut rather than push the grid
-  // out of line. `px-2`, down from `px-3`, so the longest label —
-  // `Archived` — still fits its column in a narrow list pane.
-  const base = 'w-full cursor-pointer truncate rounded-md px-2 py-1 text-xs transition-colors'
+  // `w-full`: the cell decides the width. A label longer than its column
+  // wraps onto a second line rather than being cut: Japanese labels such
+  // as 通知・プロモーション do not fit a column at any width the tabs are
+  // shown at, and a cut label names no list. Every cell in a row takes
+  // the tallest one's height (`h-full`), so the grid stays in line.
+  const base =
+    'h-full w-full cursor-pointer rounded-md px-2 py-1 text-xs leading-tight break-words transition-colors'
   if (isActive) return `${base} bg-border-strong text-fg font-semibold`
   return `${base} bg-bg-secondary text-fg-muted hover:bg-bg-tertiary hover:text-fg-secondary font-medium`
 }
