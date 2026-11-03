@@ -123,6 +123,15 @@ async fn forwarding_and_the_vacation_reply_act_on_arriving_mail() {
             .await
             .unwrap();
     }
+    // forwarded from bob once already, and back: round a loop
+    let looped = [
+        format!("Delivered-To: {BOB}\r\n").into_bytes(),
+        mail("f3", BOB),
+    ]
+    .concat();
+    sink.write(&encode_spool_blob(&envelope(BOB, "INBOX"), &looped))
+        .await
+        .unwrap();
     let incoming = spool.join("incoming").join("new");
     let md = maildir.to_string_lossy().to_string();
     let st = state.clone();
@@ -131,20 +140,24 @@ async fn forwarding_and_the_vacation_reply_act_on_arriving_mail() {
     })
     .await
     .unwrap();
-    assert_eq!(drained, 5);
+    assert_eq!(drained, 6);
 
     let jobs = tokio::task::spawn_blocking(move || {
         let mut c = kevy_client::Connection::connect(&url).unwrap();
         let ids = c.lrange(PENDING_IDX, 0, -1).unwrap();
-        let mut jobs: Vec<(String, String)> = ids
+        let mut jobs: Vec<(String, String, Vec<u8>)> = ids
             .into_iter()
             .map(|id| {
+                use base64::Engine as _;
                 let id = String::from_utf8(id).unwrap();
                 let blob = c.hget(job_key(id).as_bytes(), b"blob").unwrap().unwrap();
                 let job: serde_json::Value = serde_json::from_slice(&blob).unwrap();
                 (
                     job["recipient"].as_str().unwrap().to_string(),
                     job["sender"].as_str().unwrap().to_string(),
+                    base64::engine::general_purpose::STANDARD
+                        .decode(job["message_data_b64"].as_str().unwrap())
+                        .unwrap(),
                 )
             })
             .collect();
@@ -161,6 +174,13 @@ async fn forwarding_and_the_vacation_reply_act_on_arriving_mail() {
     assert_eq!(jobs[1].0, AWAY);
     assert!(jobs[1].1.starts_with("SRS0="), "{jobs:?}");
     assert!(jobs[1].1.ends_with("@golia.example"), "{jobs:?}");
+    // the forward names the address it left from, so it cannot come back
+    // round and go out again
+    let forwarded = String::from_utf8_lossy(&jobs[1].2);
+    assert!(
+        forwarded.starts_with(&format!("Delivered-To: {BOB}\r\n")),
+        "{forwarded}"
+    );
 
     // forwarded without a copy here; Junk was not forwarded and stays
     let m = &state.mailbox;
@@ -173,6 +193,12 @@ async fn forwarding_and_the_vacation_reply_act_on_arriving_mail() {
         m.get_thread_for_user(BOB, "f2@sender.example")
             .unwrap()
             .is_some()
+    );
+    assert!(
+        m.get_thread_for_user(BOB, "f3@sender.example")
+            .unwrap()
+            .is_some(),
+        "the looped copy is not kept here"
     );
     assert!(
         m.get_thread_for_user(CAROL, "v1@sender.example")

@@ -7,6 +7,7 @@ use axum::http::StatusCode;
 
 use crate::WebState;
 use crate::handlers::compose::*;
+use crate::handlers::send_error::SendError;
 
 /// Prepend the original message onto a forward's body/html and copy
 /// its attachments across, so a compose whose isBackendForward path
@@ -19,40 +20,38 @@ use crate::handlers::compose::*;
 /// field, which is why every forward before 2.9.38 arrived as just
 /// the leading line (no body, no attachments).
 ///
-/// Best-effort: a lookup failure logs a warning and passes the send
-/// through unmodified rather than fail — the compose already exists
-/// on the caller's side and the operator can retry manually.
+/// A forward whose original cannot be found or read is refused rather than
+/// sent with only the user's leading line: the user believes it carries
+/// the original and its attachments, and the recipient would get neither.
 pub(crate) async fn inline_forward_content(
     state: &Arc<WebState>,
     user: &str,
     parts: &mut ComposeParts,
-) {
+) -> Result<(), SendError> {
     let mid = parts
         .forward_message_id
         .as_deref()
         .filter(|s| !s.is_empty());
     let uid = parts.forward_attachments_from;
     if mid.is_none() && uid.is_none() {
-        return;
+        return Ok(());
     }
     // Message-ID first, uid as the fallback. Not the other way round: the
     // Message-ID identifies the mail across mailboxes, while the uid is
     // per-mailbox. But a message with no Message-ID header has only a uid,
     // and that case is exactly why the client sends both.
-    let wire = match resolve_forward_source(state, user, mid, uid).await {
-        Some(w) => w,
-        None => return,
-    };
-    let raw = match super::messages::read_maildir_bytes_pub(user, &wire.blob_ref).await {
-        Ok(r) => r,
-        Err(status) => {
+    let wire = resolve_forward_source(state, user, mid, uid)
+        .await
+        .ok_or_else(|| SendError::new(StatusCode::NOT_FOUND, "forward_source_not_found"))?;
+    let raw = super::messages::read_maildir_bytes_pub(user, &wire.blob_ref)
+        .await
+        .map_err(|status| {
             tracing::warn!(
                 status = ?status, %user, blob_ref = %wire.blob_ref,
                 "forward inline: raw fetch failed"
             );
-            return;
-        }
-    };
+            SendError::new(status, "forward_source_unreadable")
+        })?;
     let (orig_text, orig_html, _atts) = super::conversations::parse_body(&raw);
 
     // Attachments: walk the parsed MIME tree, skip the multipart
@@ -98,14 +97,13 @@ pub(crate) async fn inline_forward_content(
     } else {
         user_html
     };
+    Ok(())
 }
 
 /// Carry the attachments of the send being repaired onto this compose.
 ///
-/// **Fails the send rather than degrading it.** The forward path is
-/// best-effort on purpose — a lookup failure there means the recipient
-/// sees less quoted text, and the mail is still the message the user
-/// wrote. Here a failure means a mail the user believes carries five
+/// **Fails the send rather than degrading it**, as the forward path does.
+/// Here a failure means a mail the user believes carries five
 /// images arrives with none, which is the exact silent loss this design
 /// exists to prevent.
 ///

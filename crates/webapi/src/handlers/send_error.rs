@@ -31,6 +31,11 @@ impl SendError {
         Self { status, body }
     }
 
+    /// A To, Cc, Bcc, Subject or In-Reply-To with a line break in it.
+    pub fn header_line_break() -> Self {
+        Self::new(StatusCode::BAD_REQUEST, "header_line_break")
+    }
+
     pub fn too_large() -> Self {
         Self {
             status: StatusCode::PAYLOAD_TOO_LARGE,

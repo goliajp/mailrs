@@ -68,7 +68,7 @@ pub(super) async fn seed(c: &Client) {
             // same string that is inside the payload. Setting the two
             // differently makes the request self-inconsistent, and then the
             // comparison measures the seed rather than the cores: kevy reads
-            // the top-level copy and the SQL side aggregates `MAX(m.subject)`
+            // the top-level copy and the SQL side takes the subject
             // from the rows, so any disagreement between them shows up as a
             // lane difference that no real caller would produce.
             req.subject = "Hi".to_string();

@@ -1,6 +1,8 @@
 //! The Trash answers alike on both cores: moving a conversation there
 //! takes it out of the ordinary lists and into the Trash, restoring brings
-//! it back, and emptying deletes it for good.
+//! it back, emptying deletes it for good, and a reply from somebody else
+//! brings a conversation out of the Trash, as Gmail does, rather than
+//! leaving it for the purge to delete unread.
 
 use mailrs_core_api::method::conversation::ListConversationsRequest;
 use mailrs_core_api::types::ConversationFilter;
@@ -94,6 +96,20 @@ async fn the_trash_answers_alike_on_both_cores() {
     let (live, trash) = lists(&cores, &mut d, "empty").await;
     assert_eq!(live, [tid("t1"), tid("t3")]);
     assert!(trash.is_empty());
+
+    for c in [&cores.fastcore, &cores.pg_core] {
+        c.trash_thread(ALICE, &tid("t3")).await.expect("trash");
+    }
+    let reply = "From: Carol <carol@outside.example>\r\nTo: alice@example.test\r\n\
+         Subject: Re: t3\r\nMessage-ID: <t3-reply@outside.example>\r\n\
+         In-Reply-To: <t3@outside.example>\r\nReferences: <t3@outside.example>\r\n\
+         Date: Wed, 6 Aug 2025 09:00:00 +0900\r\n\r\nstill there?\r\n";
+    spools
+        .arrive(&cores, &envelope(None), reply.as_bytes())
+        .await;
+    let (live, trash) = lists(&cores, &mut d, "a reply to a trashed one").await;
+    assert_eq!(live, [tid("t1"), tid("t3")]);
+    assert!(trash.is_empty(), "{trash:?}");
     assert!(d.0.is_empty(), "the cores differ:\n{}", d.0.join("\n"));
 }
 

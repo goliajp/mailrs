@@ -58,6 +58,10 @@ pub(crate) async fn notify_owner(
         html_body: mail.html,
         ..Default::default()
     };
+    if crate::handlers::compose::breaks_a_header_line(&parts) {
+        tracing::warn!(%address, ?notice, "the owner could not be told: an address carries a line break");
+        return;
+    }
     let (_, message) = crate::handlers::compose::build_rfc5322(&parts, &from);
     if let Err(code) = crate::handlers::send_queue::enqueue_security_alert(&from, &to, &message) {
         tracing::warn!(%address, %code, ?notice, "the owner could not be told");

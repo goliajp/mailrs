@@ -141,7 +141,7 @@ export const appJa: Record<AppKey, string> = {
   'palette.toggleTheme': 'テーマを切り替え',
   'pdf.hidePreview': 'プレビューを閉じる',
   'read.callback':
-    'このメールには、この送信者がこれまで使っていない電話番号があります：{numbers}。支払いやアカウントの件で電話する前に、番号をご自身で確かめてください。',
+    'このメールには、この送信者がこれまで使っていない電話番号があります：{numbers}。支払いやアカウントの件で電話する前に、番号をご自身で確かめてください',
   'read.noText': '（テキストはありません）',
   'sends.all': 'すべて',
   'sends.cancelFailed': '取り消せませんでした',
@@ -187,5 +187,8 @@ export const appJa: Record<AppKey, string> = {
   'status.realtimeConnecting': 'リアルタイム更新: 接続中',
   'status.realtimeDisconnected': 'リアルタイム更新: 切断',
   'status.realtimeOffline': 'リアルタイム更新: オフライン',
+  'storage.near': 'ストレージを {pct}% 使用しています。いっぱいになるとインポートは失敗します',
+  'storage.over':
+    'ストレージがいっぱいです。新しいインポートは拒否されますが、送信には影響しません',
   'wire.restarting': 'サーバーを再起動しています。しばらくしてからもう一度お試しください',
 }

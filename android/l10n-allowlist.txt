@@ -295,3 +295,20 @@ wire/Texts.kt	Texts used before the process set it up
 wire/TokenStore.kt	AndroidKeyStore
 wire/TokenStore.kt	AES/GCM/NoPadding
 wire/Wire.kt	NEEDS-ACTION
+wire/LinkWarnings.kt	$SCHEME:
+wire/LinkWarnings.kt	\bhref\s*=\s*(?:
+wire/LinkWarnings.kt	display:inline-block;margin-left:2px;padding:0 4px;border-radius:3px;
+wire/LinkWarnings.kt	background:#dc2626;color:#fff;font:600 10px/14px sans-serif;
+wire/LinkWarnings.kt	text-decoration:none;vertical-align:1px
+wire/LinkWarnings.kt	href=\"$SCHEME:$n\"
+wire/LinkWarnings.kt	<a$rewritten>$inner</a>
+wire/LinkWarnings.kt	<a href=\"$SCHEME:$n\" class=\"mailrs-link-warning\" role=\"img\"
+wire/LinkWarnings.kt	 aria-label=\"$label\" title=\"$label\" style=\"$MARK_STYLE\">!</a>
+wire/LinkWarnings.kt	&lt;
+wire/LinkWarnings.kt	&gt;
+wire/LinkWarnings.kt	&quot;
+wire/LinkWarnings.kt	&nbsp;
+wire/LinkWarnings.kt	&amp;
+wire/ReasonText.kt	Inbox
+wire/ReasonText.kt	Notifications
+wire/ReasonText.kt	Promotions

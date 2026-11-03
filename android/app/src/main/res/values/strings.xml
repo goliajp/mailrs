@@ -400,4 +400,22 @@
     <string name="secret_app_specific">app-specific password</string>
     <string name="invite_from">From %1$s</string>
     <string name="reply_attribution_short">%1$s wrote:</string>
+    <string name="verdict_held">Held: suspected fraud</string>
+    <string name="verdict_examined">Examined: something looked wrong</string>
+    <string name="verdict_kept">Kept, not deleted — this is the evidence an abuse report is built from.</string>
+    <string name="verdict_placement">Why it is here</string>
+    <string name="verdict_clean">Nothing found.</string>
+    <string name="verdict_layer_transport">Transport</string>
+    <string name="verdict_layer_identity">Identity</string>
+    <string name="verdict_layer_provenance">Provenance</string>
+    <string name="verdict_layer_content">Content</string>
+    <string name="verdict_question_transport">Did it come from where it says?</string>
+    <string name="verdict_question_identity">Is the name it shows a claim it can make?</string>
+    <string name="verdict_question_provenance">Did a real mail client write it?</string>
+    <string name="verdict_question_content">Does it read like the fraud it is?</string>
+    <string name="verdict_not_fraud">This is not fraud</string>
+    <string name="verdict_rules">rules %1$s</string>
+    <string name="link_warning_confirm">This link may not go where it seems.\n\n%1$s\n\nOpen it anyway?</string>
+    <string name="link_warning_open">Open</string>
+    <string name="read_callback">This message gives a phone number its sender has not used before here: %1$s. Before calling about a payment or an account, look the number up yourself.</string>
 </resources>

@@ -131,14 +131,17 @@ const MESSAGE_KEY: &str =
 /// classified moves the thread, as it does in the kevy store; a thread with
 /// nothing classified is Junk when its mail was filed there and Inbox
 /// otherwise. Dates, the preview and the sender follow inbound mail: the
-/// user's own reply does not re-date or re-preview the row.
+/// user's own reply does not re-date or re-preview the row. The subject is
+/// the newest inbound message's, as the kevy store overwrites it on each
+/// arrival; a thread of only the user's own mail keeps its first subject.
 fn thread_rows_sql(ids_param: Option<usize>) -> String {
     let ids = ids_param
         .map(|p| format!(" AND m.thread_id = ANY(${p})"))
         .unwrap_or_default();
     format!(
         "SELECT m.thread_id AS thread_id,
-                COALESCE(MAX(m.subject), '') AS subject,
+                COALESCE((array_agg(m.subject ORDER BY (mb.name = 'Sent'),
+                    CASE WHEN mb.name = 'Sent' THEN m.internal_date ELSE -m.internal_date END, m.id))[1], '') AS subject,
                 COALESCE(string_agg(m.sender, ',' ORDER BY m.internal_date, m.id), '') AS participants,
                 COUNT(DISTINCT {MESSAGE_KEY}) AS message_count,
                 COUNT(DISTINCT CASE WHEN (m.flags & 1) = 0 THEN {MESSAGE_KEY} END) AS unread_count,

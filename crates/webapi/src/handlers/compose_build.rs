@@ -5,6 +5,26 @@ use super::compose::{
 };
 use crate::handlers::prefs::now_secs;
 
+/// Whether a value [`build_rfc5322`] writes into a header as it is carries
+/// a line break. One would end that header and start another of the
+/// sender's choosing (a Bcc, a second body), so every send path refuses
+/// such a compose before building it.
+pub(crate) fn breaks_a_header_line(parts: &ComposeParts) -> bool {
+    let attachment_values = parts
+        .attachments
+        .iter()
+        .flat_map(|a| std::iter::once(&a.content_type).chain(a.content_id.as_ref()));
+    parts
+        .to
+        .iter()
+        .chain(&parts.cc)
+        .chain(&parts.bcc)
+        .chain([&parts.from, &parts.subject])
+        .chain(parts.in_reply_to.as_ref())
+        .chain(attachment_values)
+        .any(|v| v.contains(['\r', '\n']))
+}
+
 /// Build a complete RFC 5322 envelope from parsed compose parts.
 ///
 /// Transport-safe by construction:
@@ -191,6 +211,28 @@ mod tests {
         let text = String::from_utf8_lossy(&bytes);
         assert!(text.contains("multipart/related"), "{text}");
         assert!(text.contains("multipart/mixed"), "{text}");
+    }
+
+    #[test]
+    fn a_line_break_in_any_header_value_is_found() {
+        assert!(!breaks_a_header_line(&parts(
+            "",
+            vec![att("a.png", Some("c@x"))]
+        )));
+        let edits: [fn(&mut ComposeParts); 7] = [
+            |p| p.to.push("a@x\r\nBcc: e@x".into()),
+            |p| p.cc.push("a@x\nBcc: e@x".into()),
+            |p| p.bcc.push("a@x\rBcc: e@x".into()),
+            |p| p.subject.push_str("\r\nBcc: e@x"),
+            |p| p.in_reply_to = Some("m@x>\r\nBcc: <e@x".into()),
+            |p| p.from.push_str("\nBcc: e@x"),
+            |p| p.attachments[0].content_type.push_str("\r\nX: 1"),
+        ];
+        for (i, edit) in edits.iter().enumerate() {
+            let mut p = parts("", vec![att("a.png", None)]);
+            edit(&mut p);
+            assert!(breaks_a_header_line(&p), "case {i}");
+        }
     }
 
     #[test]

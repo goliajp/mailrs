@@ -278,7 +278,11 @@ abstract class MailrsUiTest : GrantsNotifications() {
      */
     protected fun resetStub() {
         try {
-            java.net.URL(stubBase() + "/debug/reset").openStream().use { it.readBytes() }
+            // POST: the stub resets on nothing else, and a GET here left
+            // every run reading what the run before it had written
+            val c = java.net.URL(stubBase() + "/debug/reset").openConnection() as java.net.HttpURLConnection
+            c.requestMethod = "POST"
+            c.inputStream.use { it.readBytes() }
         } catch (e: java.io.IOException) {
             // The stub is started by `scripts/android-build.sh`; if it
             // is not there the tests fail for that reason a moment
