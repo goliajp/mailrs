@@ -71,6 +71,7 @@ pub(crate) async fn health_handler(
         "kevy_server_memory": kevy_server_memory,
         "egress": egress,
         "new_domains": new_domains(),
+        "quota": quota(&state).await,
         "receiver": handlers::smtp_monitor::health(&state.receiver_stats),
         "jmap_uploads": handlers::jmap::upload_health(),
     }))
@@ -112,6 +113,56 @@ fn new_domains() -> serde_json::Value {
         }
     };
     with_staleness(value, now)
+}
+
+/// How full the accounts are, from each account's usage counter against
+/// its limit; no maildir is read. `over_80` and `max_used_ratio` count only
+/// accounts with a limit, `accounts_without_limit` the rest, so a watch can
+/// also see limits missing. Recounted at most once every five minutes;
+/// null when the core or the shared store cannot be read.
+async fn quota(state: &WebState) -> serde_json::Value {
+    use std::sync::Mutex;
+    use std::time::{Duration, Instant};
+    static LAST: Mutex<Option<(Instant, serde_json::Value)>> = Mutex::new(None);
+    let now = chrono::Utc::now().timestamp();
+    let cached = LAST
+        .lock()
+        .ok()
+        .and_then(|last| last.clone())
+        .filter(|(at, _)| at.elapsed() < Duration::from_secs(300))
+        .map(|(_, v)| v);
+    if let Some(v) = cached {
+        return with_staleness(v, now);
+    }
+    let listed = tokio::time::timeout(Duration::from_secs(2), state.core.list_accounts()).await;
+    let Ok(Ok(list)) = listed else {
+        return serde_json::Value::Null;
+    };
+    let users: Vec<String> = list.items.into_iter().map(|a| a.address).collect();
+    let census = handlers::kevy_util::with_kevy(move |c| {
+        mailrs_core_sidestate::families::quota_limits::census(c, &users)
+    });
+    let Ok(census) = census else {
+        return serde_json::Value::Null;
+    };
+    let v = quota_value(&census, now);
+    if let Ok(mut last) = LAST.lock() {
+        *last = Some((Instant::now(), v.clone()));
+    }
+    with_staleness(v, now)
+}
+
+fn quota_value(
+    c: &mailrs_core_sidestate::families::quota_limits::Census,
+    now: i64,
+) -> serde_json::Value {
+    serde_json::json!({
+        "accounts": c.accounts,
+        "accounts_without_limit": c.accounts_without_limit,
+        "over_80": c.over_80,
+        "max_used_ratio": c.max_used_ratio,
+        "computed_at": now,
+    })
 }
 
 /// `stale` is true once the counts are more than 15 minutes old, for a
@@ -263,6 +314,20 @@ pub(crate) async fn status_handler(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn no_account_with_a_limit_reads_as_no_ratio_not_zero() {
+        let census = mailrs_core_sidestate::families::quota_limits::Census {
+            accounts: 2,
+            accounts_without_limit: 2,
+            over_80: 0,
+            max_used_ratio: None,
+        };
+        let v = super::quota_value(&census, 7);
+        assert!(v["max_used_ratio"].is_null(), "{v}");
+        assert_eq!(v["accounts_without_limit"], 2);
+        assert_eq!(v["computed_at"], 7);
+    }
+
     #[test]
     fn new_domain_counts_older_than_fifteen_minutes_are_stale() {
         let v = serde_json::json!({ "keys": 1, "added_24h": 0, "computed_at": 1_000 });

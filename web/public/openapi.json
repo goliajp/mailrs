@@ -15396,6 +15396,38 @@
                 "description": "At or past MAILRS_MEMORY_HIGH_PERCENT of the limit; null without a limit"
               }
             }
+          },
+          "quota": {
+            "type": "object",
+            "nullable": true,
+            "description": "How full the accounts are, from each account's usage counter against its limit (no maildir is read), recounted at most every five minutes. Null when the core or the shared store cannot be read.",
+            "properties": {
+              "accounts": {
+                "type": "integer",
+                "description": "Accounts counted"
+              },
+              "accounts_without_limit": {
+                "type": "integer",
+                "description": "Accounts with no limit; the other numbers leave them out"
+              },
+              "over_80": {
+                "type": "integer",
+                "description": "Accounts past 80% of their limit"
+              },
+              "max_used_ratio": {
+                "type": "number",
+                "nullable": true,
+                "description": "The fullest account's usage / limit; null when no account has a limit"
+              },
+              "computed_at": {
+                "type": "integer",
+                "description": "Unix seconds of the count"
+              },
+              "stale": {
+                "type": "boolean",
+                "description": "True when computed_at is more than 15 minutes old"
+              }
+            }
           }
         },
         "required": [

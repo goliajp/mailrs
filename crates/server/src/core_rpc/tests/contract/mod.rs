@@ -25,6 +25,7 @@ mod ownerless;
 mod paging;
 mod placement;
 mod quota;
+mod quota_limits;
 mod rejudge;
 mod search;
 mod sections;
@@ -48,6 +49,7 @@ async fn the_two_cores_answer_every_client_call_alike() {
     accounts::seed(&cores, &mut d).await;
     mail::seed(&cores, &mut d).await;
     accounts::run(&cores, &mut d).await;
+    quota_limits::run(&cores, &mut d).await;
     mail::run(&cores, &mut d).await;
     threads::run(&cores, &mut d).await;
     side::run(&cores, &mut d).await;

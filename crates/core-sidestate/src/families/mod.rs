@@ -31,6 +31,7 @@ pub mod owner_notices;
 pub mod password_clear;
 pub mod permission_groups;
 pub mod prefs;
+pub mod quota_limits;
 pub mod recall_notices;
 pub mod reply_rotation;
 pub mod rules;

@@ -162,7 +162,7 @@ pub fn append(
     bytes: &[u8],
     flags: &[Flag],
 ) -> std::io::Result<(u32, PathBuf)> {
-    if crate::live_sync::quota_exceeded(user) {
+    if crate::live_sync::quota_exceeded_on(state.net_conn().as_mut(), user) {
         return Err(std::io::Error::other("over quota"));
     }
     let (id, path) = deliver_flagged(&mb.path, bytes, flags)?;

@@ -7347,6 +7347,21 @@ export interface components {
                 /** @description At or past MAILRS_MEMORY_HIGH_PERCENT of the limit; null without a limit */
                 high?: boolean | null;
             } | null;
+            /** @description How full the accounts are, from each account's usage counter against its limit (no maildir is read), recounted at most every five minutes. Null when the core or the shared store cannot be read. */
+            quota?: {
+                /** @description Accounts counted */
+                accounts?: number;
+                /** @description Accounts with no limit; the other numbers leave them out */
+                accounts_without_limit?: number;
+                /** @description Accounts past 80% of their limit */
+                over_80?: number;
+                /** @description The fullest account's usage / limit; null when no account has a limit */
+                max_used_ratio?: number | null;
+                /** @description Unix seconds of the count */
+                computed_at?: number;
+                /** @description True when computed_at is more than 15 minutes old */
+                stale?: boolean;
+            } | null;
         };
         LoginRequest: {
             address: string;

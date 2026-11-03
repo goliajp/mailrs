@@ -20,10 +20,12 @@ use crate::core_rpc::CoreRpcState;
 
 mod aliases;
 mod ownerless;
+mod quota;
 mod rejudge;
 
 pub(crate) use aliases::*;
 pub(crate) use ownerless::*;
+pub(crate) use quota::quota_limits_route;
 pub(crate) use rejudge::*;
 
 /// GET /v1/admin/accounts/{address}/effective-permissions
@@ -240,6 +242,7 @@ pub async fn add_account(
                 .to_string()
         }
     };
+    quota::give_default(&state, &req.address)?;
     let domain = req.address.rsplit_once('@').map(|(_, d)| d).unwrap_or("");
     // ensure the domain row exists so the accounts FK is satisfied —
     // domains are shared side-state (not synced), so a freshly-migrated
@@ -300,6 +303,7 @@ pub async fn set_quota(
     Path(address): Path<String>,
     Json(req): Json<wire::SetQuotaRequest>,
 ) -> Result<StatusCode, StatusCode> {
+    quota::set_limit(&state, &address, req.quota_bytes)?;
     state
         .domain
         .set_quota(&address, req.quota_bytes)

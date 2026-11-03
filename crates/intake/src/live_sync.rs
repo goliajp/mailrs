@@ -165,17 +165,11 @@ pub fn publish_new_mail(user: &str, thread_id: &str, sender: &str, subject: &str
     });
 }
 
-/// Adjust the recipient's used-bytes counter in the NETWORK kevy —
-/// the receiver's quota stage reads `mailrs:quota:<user>:used_bytes`
-/// at RCPT time. Best-effort: kevy down means the counter drifts until
-/// the next backfill-usage run; enforcement is fail-open anyway.
-pub fn adjust_usage_bytes(user: &str, delta: i64) {
-    let mut conn = network_kevy_url().and_then(|url| Connection::connect(&url).ok());
-    adjust_usage_on(conn.as_mut(), user, delta);
-}
-
-/// [`adjust_usage_bytes`] on `net`, the network kevy the calling core
-/// names; `None` counts nothing.
+/// Adjust the user's used-bytes counter in `net`, the network kevy the
+/// calling core names — the receiver's quota stage reads
+/// `mailrs:quota:<user>:used_bytes` at RCPT time; `None` counts nothing.
+/// Best-effort: kevy down means the counter drifts until the next
+/// backfill-usage run; enforcement is fail-open anyway.
 pub fn adjust_usage_on(net: Option<&mut Connection>, user: &str, delta: i64) {
     let Some(conn) = net else {
         return;
@@ -187,33 +181,9 @@ pub fn adjust_usage_on(net: Option<&mut Connection>, user: &str, delta: i64) {
     let _ = conn.incr_by(key.as_bytes(), delta);
 }
 
-/// Mirror the quota LIMIT to the network kevy so the receiver's quota
-/// stage can consult it (the authoritative copy stays in the account
-/// blob in fastcore's embedded store).
-pub fn mirror_quota_limit(user: &str, limit_bytes: i64) {
-    let Some(url) = network_kevy_url() else {
-        return;
-    };
-    let Ok(mut conn) = Connection::connect(&url) else {
-        return;
-    };
-    let key = mailrs_core_sidestate::keys::quota::limit_key(user);
-    let _ = conn.set(key.as_bytes(), limit_bytes.to_string().as_bytes());
-}
-
-/// Read `(limit, used)` bytes for a user from the network kevy.
-/// `(0, _)` = no limit configured. Fail-open: any error reads as 0.
-pub fn quota_read(user: &str) -> (i64, i64) {
-    let Some(url) = network_kevy_url() else {
-        return (0, 0);
-    };
-    let Ok(mut conn) = Connection::connect(&url) else {
-        return (0, 0);
-    };
-    quota_read_on(&mut conn, user)
-}
-
-/// [`quota_read`] over a connection the caller already has.
+/// Read `(limit, used)` bytes for a user from the network kevy the
+/// calling core names. `(0, _)` = no limit configured. Fail-open: any
+/// error reads as 0.
 pub fn quota_read_on(conn: &mut Connection, user: &str) -> (i64, i64) {
     let lk = mailrs_core_sidestate::keys::quota::limit_key(user);
     let uk = mailrs_core_sidestate::keys::quota::used_key(user);
@@ -227,10 +197,14 @@ pub fn quota_read_on(conn: &mut Connection, user: &str) -> (i64, i64) {
     (limit, used)
 }
 
-/// Read (limit, used) for the quota check on write paths fastcore owns
-/// (IMAP APPEND). Missing/zero limit = unlimited. Fail-open on errors.
-pub fn quota_exceeded(user: &str) -> bool {
-    let (limit, used) = quota_read(user);
+/// The quota check on write paths the core owns (IMAP APPEND), over the
+/// network kevy the calling core names. Missing/zero limit = unlimited;
+/// no store (`None`) or any error reads as not exceeded (fail-open).
+pub fn quota_exceeded_on(net: Option<&mut Connection>, user: &str) -> bool {
+    let Some(conn) = net else {
+        return false;
+    };
+    let (limit, used) = quota_read_on(conn, user);
     limit > 0 && used >= limit
 }
 
