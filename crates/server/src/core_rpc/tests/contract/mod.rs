@@ -27,6 +27,7 @@ mod placement;
 mod quota;
 mod quota_limits;
 mod rejudge;
+mod reports;
 mod search;
 mod sections;
 mod sender_rules;
