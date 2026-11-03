@@ -93,6 +93,8 @@ pub const SECRET_ENVS: &[&str] = &[
     "MAILRS_APNS_KEY_PATH",
     "MAILRS_CORE_SYNC_SECRET_FROM",
     "MAILRS_CORE_SYNC_SECRET_TO",
+    // not a secret: the path of a public key, and blank is no setting at all
+    "MAILRS_DANE_NEXT_KEY",
     "MAILRS_DKIM_KEYS",
     "MAILRS_DKIM_PRIVATE_KEY",
     "MAILRS_DKIM_PRIVATE_KEY_PEM",
