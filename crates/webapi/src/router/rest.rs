@@ -60,6 +60,7 @@ pub(super) fn jmap_routes() -> axum::Router<Arc<WebState>> {
             post(jmap::api).layer(DefaultBodyLimit::max(jmap::MAX_SIZE_REQUEST + 1)),
         )
         .route("/jmap/eventsource/", get(jmap::eventsource))
+        .route("/jmap/ws/", get(jmap::websocket))
         .route(
             "/jmap/upload/{account}/",
             post(jmap::upload).layer(DefaultBodyLimit::max(jmap::MAX_SIZE_UPLOAD + 1)),

@@ -29,6 +29,7 @@ mod submission_list;
 mod thread;
 mod vacation;
 mod view;
+mod ws;
 
 use std::sync::Arc;
 
@@ -52,6 +53,7 @@ pub fn read_config() {
 }
 pub use push::eventsource;
 pub use session::session;
+pub use ws::websocket;
 
 use ctx::Ctx;
 pub(crate) use limits::{MAX_OBJECTS, MAX_SIZE_REQUEST, MAX_SIZE_UPLOAD, limit_error};
@@ -167,6 +169,23 @@ fn problem(kind: &str, detail: &str, limit: Option<&str>) -> Response {
         .into_response()
 }
 
+/// A request-level error (RFC 8620 §3.6.1), before any method ran.
+pub(crate) struct Problem {
+    pub kind: &'static str,
+    pub detail: String,
+    pub limit: Option<&'static str>,
+}
+
+impl Problem {
+    fn new(kind: &'static str, detail: impl Into<String>, limit: Option<&'static str>) -> Self {
+        Self {
+            kind,
+            detail: detail.into(),
+            limit,
+        }
+    }
+}
+
 /// POST /jmap — the API endpoint.
 pub async fn api(
     State(state): State<Arc<WebState>>,
@@ -175,26 +194,40 @@ pub async fn api(
     key: Option<Extension<crate::session::AgentKey>>,
     body: Bytes,
 ) -> Response {
-    if body.len() > limits::MAX_SIZE_REQUEST {
-        return problem(limits::LIMIT, "request too large", Some("maxSizeRequest"));
+    let masked_only = scopes
+        .as_ref()
+        .is_some_and(|Extension(s)| crate::session::masked_only(&s.0));
+    match process(&state, &user, masked_only, key.map(|Extension(k)| k), &body).await {
+        Ok(v) => Json(v).into_response(),
+        Err(p) => problem(p.kind, &p.detail, p.limit),
     }
-    let Some(_slot) = limits::RequestSlot::take(&user) else {
-        return problem(
+}
+
+/// One JMAP request (RFC 8620 §3.3) for `user`, answered as its Response
+/// object; the HTTP endpoint and the WebSocket both use it.
+pub(crate) async fn process(
+    state: &Arc<WebState>,
+    user: &str,
+    masked_only: bool,
+    key: Option<crate::session::AgentKey>,
+    body: &[u8],
+) -> Result<Value, Problem> {
+    if body.len() > limits::MAX_SIZE_REQUEST {
+        return Err(Problem::new(
+            limits::LIMIT,
+            "request too large",
+            Some("maxSizeRequest"),
+        ));
+    }
+    let Some(_slot) = limits::RequestSlot::take(user) else {
+        return Err(Problem::new(
             limits::LIMIT,
             "too many concurrent requests",
             Some("maxConcurrentRequests"),
-        );
+        ));
     };
-    let req: JmapRequest = match serde_json::from_slice(&body) {
-        Ok(r) => r,
-        Err(e) => {
-            return problem(
-                "urn:ietf:params:jmap:error:notRequest",
-                &e.to_string(),
-                None,
-            );
-        }
-    };
+    let req: JmapRequest = serde_json::from_slice(body)
+        .map_err(|e| Problem::new("urn:ietf:params:jmap:error:notRequest", e.to_string(), None))?;
     // An IETF capability this server lacks is let through: client libraries
     // name every one they know in each request (jmap-client sends
     // vacationresponse with a Mailbox/get), and a method that needs one is
@@ -202,32 +235,29 @@ pub async fn api(
     let unknown =
         |c: &&String| !KNOWN_CAPS.contains(&c.as_str()) && !c.starts_with("urn:ietf:params:jmap:");
     if let Some(cap) = req.using.iter().find(unknown) {
-        return problem(
+        return Err(Problem::new(
             "urn:ietf:params:jmap:error:unknownCapability",
-            &format!("unknown capability {cap}"),
+            format!("unknown capability {cap}"),
             None,
-        );
+        ));
     }
     if req.method_calls.len() > limits::MAX_CALLS {
-        return problem(
+        return Err(Problem::new(
             limits::LIMIT,
             "too many method calls",
             Some("maxCallsInRequest"),
-        );
+        ));
     }
-    let masked_only = scopes
-        .as_ref()
-        .is_some_and(|Extension(s)| crate::session::masked_only(&s.0));
     let created_by = match &key {
-        Some(Extension(k)) => format!("key {}", k.prefix),
+        Some(k) => format!("key {}", k.prefix),
         None => "jmap".to_string(),
     };
-    let ctx = Ctx::new(state.clone(), user.clone(), key.map(|Extension(k)| k));
+    let ctx = Ctx::new(state.clone(), user.to_string(), key);
     let mut current: Option<Now> = None;
     let mut responses: Vec<(String, Value, String)> = Vec::new();
     for (method, mut args, call_id) in req.method_calls {
         mailrs_jmap::refs::resolve_references(&mut args, &responses);
-        let answered = match masked::dispatch(&state, &user, &created_by, &method, &args).await {
+        let answered = match masked::dispatch(state, user, &created_by, &method, &args).await {
             Some(done) => done.map(|r| vec![r]),
             None if masked_only => Err(JmapMethodError::Other {
                 kind: "forbidden".into(),
@@ -252,11 +282,11 @@ pub async fn api(
             Err(e) => responses.push(("error".to_string(), e.to_json(), call_id)),
         }
     }
-    Json(mailrs_jmap::dispatch::JmapResponse {
+    serde_json::to_value(mailrs_jmap::dispatch::JmapResponse {
         method_responses: responses,
-        session_state: session::state_of(&user),
+        session_state: session::state_of(user),
     })
-    .into_response()
+    .map_err(|e| Problem::new("urn:ietf:params:jmap:error:notRequest", e.to_string(), None))
 }
 
 /// Run a call against `n`, and leave in `current` the view the next call
