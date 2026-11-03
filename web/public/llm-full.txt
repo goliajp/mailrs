@@ -947,11 +947,23 @@ curl -X POST https://mail.golia.ai/api/mail/import \
 Response: `{"imported", "sent", "archived", "held", "skipped_duplicate",
 "skipped_junk_or_trash", "too_large", "failed", "over_quota", "complete"}`.
 
+- A message over 50 MiB is not filed and counts in `too_large`.
+- Imports stop at the quota; sending never does. When the mailbox is full
+  the import stops at that message: `over_quota` is `true` and `complete`
+  is `false`. Free space and run it again; what is already here is skipped.
+- `complete` is `false` too when the upload ends early; the counts say how
+  far it got.
+
 Import from another provider over IMAP. Port 993 (TLS) or 143 (STARTTLS),
 certificates verified, public addresses only; one import per user at a
 time, five starts per day. The password is used for this import and never
 stored; progress is, so starting again with the same source resumes.
 `GET` reports where it stands, `DELETE` stops after the message in hand.
+The same 50 MiB and quota limits apply. `GET` answers
+`{"state", "host", "port", "username", "folder", "report", "error"}`:
+`state` is one of `queued`, `running`, `done`, `failed`, `cancelled`,
+`interrupted` (stopped by a restart; start it again with the password to
+resume) or `none`; `report` has the fields above; `error` says why it failed.
 
 ```
 curl -X POST https://mail.golia.ai/api/mail/import/imap \
@@ -1342,6 +1354,10 @@ websocket, and Fastmail's maskedemail.
   that is not yours answers `blobNotFound`, exactly as one that never existed;
   `disposition: "inline"` with a `cid` travels beside the HTML under that
   Content-ID
+- Email/import files an uploaded message (`blobId`) into `mailboxIds`; one
+  put in Sent or Drafts is filed as your own mail, anything else as received
+  mail. Like the other imports it stops at the quota: past it the message is
+  in `notCreated` with type `overQuota`
 - Email/copy: one account per session, so there is nothing to copy from
   (`fromAccountNotFound`)
 - Sending: Identity/get; EmailSubmission/set, /get, /changes. Hold a

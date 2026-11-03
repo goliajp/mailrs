@@ -13,7 +13,7 @@
 //! `body` is stored raw (not base64) since kevy is byte-safe. An upload
 //! is needed only until the message that shows it is sent, when it
 //! travels inside the message under a Content-ID, so it expires after
-//! [`KEEP`]. Each user may upload [`MAX_BYTES_PER_WINDOW`] in a window of
+//! `KEEP`. Each user may upload `MAX_BYTES_PER_WINDOW` in a window of
 //! that length, which bounds what one account can leave in the store.
 
 use std::sync::Arc;
@@ -61,7 +61,7 @@ fn count_upload(c: &mut kevy_client::Connection, user: &str, len: i64) -> std::i
 
 /// POST /api/mail/inline-upload — multipart form with `file` field.
 /// Returns `{url: "/api/mail/inline/<id>"}`, or 429 when the user has
-/// uploaded [`MAX_BYTES_PER_WINDOW`] already.
+/// uploaded `MAX_BYTES_PER_WINDOW` already.
 pub async fn inline_upload(
     State(_state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,

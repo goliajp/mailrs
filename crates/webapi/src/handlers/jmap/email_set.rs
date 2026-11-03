@@ -272,7 +272,7 @@ async fn create(ctx: &Ctx, spec: &Value) -> Result<Value, NotFiled> {
     let flags = import::flags_of(spec.get("keywords"))?;
     let files = attachments_of(ctx, spec).await?;
     let bytes = super::submission::compose(spec, files).map_err(invalid)?;
-    let uid = import::file(ctx, &bytes, &places, flags).await?;
+    let uid = import::file(ctx, &bytes, &places, flags, import::Origin::Written).await?;
     Ok(
         json!({ "id": ids::email(uid), "blobId": ids::blob(&Blob::Message(uid)), "size": bytes.len() }),
     )
