@@ -39,7 +39,7 @@ describe('useFlatConversations', () => {
       defaultOptions: { queries: { retry: false } },
     })
     const seed: InfiniteData<ConversationSummary[]> = {
-      pageParams: [undefined, 100],
+      pageParams: [undefined, '100:1'],
       pages: [
         [makeConvo('t-1'), makeConvo('t-2')],
         [makeConvo('t-2'), makeConvo('t-3')], // duplicated across pages
