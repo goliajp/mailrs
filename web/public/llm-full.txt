@@ -1287,6 +1287,44 @@ curl -X DELETE https://mail.golia.ai/api/admin/ownerless-threads/{thread_id} \
   -H "Authorization: Bearer <session>"
 ```
 
+### Reporting a Scam
+
+Reporting holds your own copy at once. The server then looks for the other
+copies of the same template from the last thirty days: bodies whose SimHash
+(names, numbers and link paths removed) is at most three bits apart **and**
+that share a link domain, an attachment or the sender domain. It takes them
+back into Review only with a ground — a super administrator reported it,
+two different people reported it within a day (an account and the account
+it forwards to are one person), or the message hits a hold-level fraud
+rule in force — and only when nothing says to wait: more than 20 inboxes,
+a sender domain first seen more than 90 days ago, or a sender on the
+operator's allow list. Otherwise the copies wait for a super administrator,
+who confirms (after a recent password confirmation) or dismisses. Nothing
+is deleted; a take-back is one batch in `/api/admin/rejudge/batches` that
+can be put back whole, and each reader whose copy was taken sees a line
+where it was, gets the `mail.held` webhook with `reason: "reported"`, and a
+push. Not available as an MCP tool.
+
+```
+# report: {"report_id", "message_id", "thread_id",
+#          "state": "taken_back"|"none_found"|"waiting"|"dismissed",
+#          "taken_back", "inboxes", "grounds", "waits", "at", "decided_at"}
+curl -X POST https://mail.golia.ai/api/messages/{message_id}/report \
+  -H "Authorization: Bearer <token>"
+
+# where your own report stands (404 for anyone else's)
+curl https://mail.golia.ai/api/reports/{report_id} \
+  -H "Authorization: Bearer <token>"
+
+# super administrator: what waits, then confirm or dismiss
+curl https://mail.golia.ai/api/admin/reports/pending \
+  -H "Authorization: Bearer <session>"
+curl -X POST https://mail.golia.ai/api/admin/reports/{report_id}/confirm \
+  -H "Authorization: Bearer <session>"
+curl -X POST https://mail.golia.ai/api/admin/reports/{report_id}/dismiss \
+  -H "Authorization: Bearer <session>"
+```
+
 ### Server Status
 
 ```

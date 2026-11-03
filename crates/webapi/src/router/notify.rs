@@ -9,6 +9,15 @@ use crate::*;
 pub(super) fn sender_and_notify_routes() -> axum::Router<Arc<WebState>> {
     use axum::routing::{get, post, put};
     axum::Router::new()
+        // reporting a scam: one reader's report, and what came of it
+        .route(
+            "/api/messages/{message_id}/report",
+            post(crate::handlers::scam_report::report),
+        )
+        .route(
+            "/api/reports/{report_id}",
+            get(crate::handlers::scam_report::outcome),
+        )
         .route(
             "/api/senders/reclassify",
             post(crate::handlers::sender_rules::reclassify),

@@ -14994,6 +14994,183 @@
           }
         }
       }
+    },
+    "/api/messages/{message_id}/report": {
+      "post": {
+        "operationId": "reportScam",
+        "summary": "Report a message as a scam. The reader's copy is held at once; the other copies of the same template from the last thirty days are taken back into Review when the report has a ground (a super administrator's report, two different people within a day, or a hold-level rule in force), else they wait for an administrator",
+        "tags": [
+          "Mail"
+        ],
+        "parameters": [
+          {
+            "name": "message_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "What came of it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportOutcome"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The reader has no such message"
+          },
+          "503": {
+            "description": "The shared store is unreachable"
+          }
+        }
+      }
+    },
+    "/api/reports/{report_id}": {
+      "get": {
+        "operationId": "getReportOutcome",
+        "summary": "What came of one of the reader's own reports",
+        "tags": [
+          "Mail"
+        ],
+        "parameters": [
+          {
+            "name": "report_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The outcome",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportOutcome"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such report of the reader's"
+          }
+        }
+      }
+    },
+    "/api/admin/reports/pending": {
+      "get": {
+        "operationId": "listPendingReports",
+        "summary": "Reports whose other copies wait for an administrator, oldest first, with the reported message's subject, sender, sender domain and up to ten copies. Super administrators only",
+        "tags": [
+          "Admin"
+        ],
+        "responses": {
+          "200": {
+            "description": "Oldest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PendingReport"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a super administrator"
+          }
+        }
+      }
+    },
+    "/api/admin/reports/{report_id}/confirm": {
+      "post": {
+        "operationId": "confirmReport",
+        "summary": "Take a waiting report's copies back into Review, as one batch an administrator can put back whole. Super administrators only, after a recent password confirmation",
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "report_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The outcome; a report not waiting is returned as it stands",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportOutcome"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a super administrator, or `confirm_required`"
+          },
+          "404": {
+            "description": "No such report"
+          }
+        }
+      }
+    },
+    "/api/admin/reports/{report_id}/dismiss": {
+      "post": {
+        "operationId": "dismissReport",
+        "summary": "Leave a waiting report's copies where they are. Super administrators only",
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "report_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The outcome; a report not waiting is returned as it stands",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportOutcome"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a super administrator"
+          },
+          "404": {
+            "description": "No such report"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -18242,6 +18419,110 @@
         "required": [
           "shared"
         ]
+      },
+      "ReportOutcome": {
+        "type": "object",
+        "required": [
+          "report_id",
+          "message_id",
+          "thread_id",
+          "state",
+          "taken_back",
+          "inboxes",
+          "grounds",
+          "waits",
+          "at",
+          "decided_at"
+        ],
+        "properties": {
+          "report_id": {
+            "type": "string"
+          },
+          "message_id": {
+            "type": "string"
+          },
+          "thread_id": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "taken_back",
+              "none_found",
+              "waiting",
+              "dismissed"
+            ],
+            "description": "`taken_back`: the other copies were taken back into Review; `none_found`: no other inbox had a copy; `waiting`: an administrator decides; `dismissed`: an administrator left them"
+          },
+          "taken_back": {
+            "type": "integer",
+            "description": "Conversations taken back from other inboxes"
+          },
+          "inboxes": {
+            "type": "integer",
+            "description": "Other inboxes found holding a copy"
+          },
+          "grounds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "`administrator`, `two_people`, `hold_rule`, `confirmed`"
+          },
+          "waits": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "`no_ground`, `many_inboxes`, `long_history`, `allow_listed`"
+          },
+          "at": {
+            "type": "integer",
+            "description": "Reported at, epoch seconds"
+          },
+          "decided_at": {
+            "type": "integer",
+            "description": "When the other copies were decided on, epoch seconds; 0 while they wait"
+          }
+        }
+      },
+      "PendingReport": {
+        "type": "object",
+        "properties": {
+          "outcome": {
+            "$ref": "#/components/schemas/ReportOutcome"
+          },
+          "reporter": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "from": {
+            "type": "string"
+          },
+          "sender_domain": {
+            "type": "string"
+          },
+          "samples": {
+            "type": "array",
+            "description": "Up to ten of the other copies",
+            "items": {
+              "type": "object",
+              "properties": {
+                "user": {
+                  "type": "string"
+                },
+                "subject": {
+                  "type": "string"
+                },
+                "from": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
       }
     }
   }
