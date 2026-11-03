@@ -23,6 +23,7 @@ use ToolCategory::{Admin, Read, Write};
 /// Every tool whose name does not start with `mock_`. Tools named `mock_*`
 /// are [`ToolCategory::Mock`] without an entry here.
 const TOOL_CATEGORIES: &[(&str, ToolCategory)] = &[
+    ("accept_senders", Write),
     ("add_account_to_group", Admin),
     ("add_alias", Admin),
     ("add_domain", Admin),
