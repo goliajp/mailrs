@@ -71,36 +71,78 @@ pub(crate) fn recall(state: &Arc<FastcoreState>, r: &Recall<'_>) -> Result<bool,
     if !held_now {
         return Ok(false);
     }
+    let at = remember(state, r.user, r.tid, r.observation, &r.rules)?;
+    tell(state, r, at);
+    Ok(true)
+}
+
+/// Take a conversation back into Review because a report found it to be a
+/// copy of a reported scam, in the batch an administrator puts back whole.
+/// The reader is told by the report (`mailrs_intake::scam_report`). False
+/// when it was already held.
+pub(crate) fn hold_reported(
+    state: &Arc<FastcoreState>,
+    user: &str,
+    tid: &str,
+    batch: &str,
+) -> Result<bool, String> {
+    let row = state
+        .mailbox
+        .get_thread_for_user(user, tid)
+        .map_err(|e| e.to_string())?
+        .ok_or("thread membership disappeared")?;
+    if row.quarantined {
+        return Ok(false);
+    }
+    if !state
+        .mailbox
+        .set_quarantined(user, tid, true)
+        .map_err(|e| e.to_string())?
+    {
+        return Err("thread membership disappeared".into());
+    }
+    remember(state, user, tid, batch, &["reported".to_string()])?;
+    Ok(true)
+}
+
+/// Count `tid` into `observation`'s batch and mark which batch holds it.
+fn remember(
+    state: &Arc<FastcoreState>,
+    user: &str,
+    tid: &str,
+    observation: &str,
+    rules: &[String],
+) -> Result<i64, String> {
+    let store = state.mailbox.store_ref();
     let at = now();
-    let rules = serde_json::to_string(&r.rules).map_err(|e| e.to_string())?;
-    let member = format!("{}\t{}", r.user, r.tid);
+    let rules = serde_json::to_string(rules).map_err(|e| e.to_string())?;
+    let member = format!("{user}\t{tid}");
     store
-        .sadd(batch_key(r.observation).as_bytes(), &[member.as_bytes()])
+        .sadd(batch_key(observation).as_bytes(), &[member.as_bytes()])
         .map_err(|e| e.to_string())?;
     if store
-        .hget(BATCHES, r.observation.as_bytes())
+        .hget(BATCHES, observation.as_bytes())
         .ok()
         .flatten()
         .is_none()
     {
         let entry = serde_json::json!({ "at": at, "released_at": 0 }).to_string();
         store
-            .hset(BATCHES, &[(r.observation.as_bytes(), entry.as_bytes())])
+            .hset(BATCHES, &[(observation.as_bytes(), entry.as_bytes())])
             .map_err(|e| e.to_string())?;
     }
     let at_s = at.to_string();
     store
         .hset(
-            recalled_key(r.user, r.tid).as_bytes(),
+            recalled_key(user, tid).as_bytes(),
             &[
-                (b"observation".as_slice(), r.observation.as_bytes()),
+                (b"observation".as_slice(), observation.as_bytes()),
                 (b"rules", rules.as_bytes()),
                 (b"at", at_s.as_bytes()),
             ],
         )
         .map_err(|e| e.to_string())?;
-    tell(state, r, at);
-    Ok(true)
+    Ok(at)
 }
 
 /// The audit line, the reader's notice, the webhook and the push, each
