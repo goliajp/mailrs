@@ -214,6 +214,7 @@ async fn attachments_of(ctx: &Ctx, spec: &Value) -> Result<Vec<Attachment>, NotF
             filename,
             content_type,
             bytes,
+            content_id: None,
         });
     }
     match missing.is_empty() {
