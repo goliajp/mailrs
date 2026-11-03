@@ -98,46 +98,84 @@ struct DerivedSendAs {
 /// the account keeps the grants in its own blob and loses only these, so
 /// an outage refuses some sends instead of every permission check.
 async fn derived_send_as(state: &Arc<FastcoreState>, address: &str) -> DerivedSendAs {
-    let aliases = state.alias_store.clone();
-    let url = state.net_url.clone();
+    let st = state.clone();
     let addr = address.to_string();
-    let read = tokio::task::spawn_blocking(move || -> std::io::Result<DerivedSendAs> {
-        let pairs = aliases.list()?;
-        let aliases =
-            send_as::alias_sources_for(pairs.iter().map(|(s, t)| (s.as_str(), t.as_str())), &addr);
-        let (groups, masks) = match url {
-            Some(url) => {
-                let mut conn = kevy_client::Connection::connect(&url)?;
-                (
-                    email_groups::addresses_with_member(&mut conn, &addr)?,
-                    mailrs_core_sidestate::families::masked_email::sendable(&mut conn, &addr)?,
-                )
-            }
-            None => (Vec::new(), Vec::new()),
-        };
-        Ok(DerivedSendAs {
-            aliases,
-            groups,
-            masks,
-        })
-    })
-    .await;
-    let empty = DerivedSendAs {
-        aliases: Vec::new(),
-        groups: Vec::new(),
-        masks: Vec::new(),
-    };
+    let read = tokio::task::spawn_blocking(move || read_derived(&st, &addr)).await;
     match read {
         Ok(Ok(d)) => d,
         Ok(Err(e)) => {
             tracing::warn!(error = %e, %address, "send-as aliases or groups unreadable; own grants only");
-            empty
+            DerivedSendAs::none()
         }
         Err(e) => {
             tracing::warn!(error = %e, %address, "send-as read panicked; own grants only");
-            empty
+            DerivedSendAs::none()
         }
     }
+}
+
+impl DerivedSendAs {
+    fn none() -> Self {
+        Self {
+            aliases: Vec::new(),
+            groups: Vec::new(),
+            masks: Vec::new(),
+        }
+    }
+}
+
+fn read_derived(state: &FastcoreState, addr: &str) -> std::io::Result<DerivedSendAs> {
+    let pairs = state.alias_store.list()?;
+    let aliases =
+        send_as::alias_sources_for(pairs.iter().map(|(s, t)| (s.as_str(), t.as_str())), addr);
+    let (groups, masks) = match state.net_url.as_deref() {
+        Some(url) => {
+            let mut conn = kevy_client::Connection::connect(url)?;
+            (
+                email_groups::addresses_with_member(&mut conn, addr)?,
+                mailrs_core_sidestate::families::masked_email::sendable(&mut conn, addr)?,
+            )
+        }
+        None => (Vec::new(), Vec::new()),
+    };
+    Ok(DerivedSendAs {
+        aliases,
+        groups,
+        masks,
+    })
+}
+
+/// Whether `user` may put `from` on mail it sends, decided as the
+/// effective-permissions route decides it, for callers off the runtime
+/// (the spool drain). Degrades the same way: unreadable stores cost the
+/// derived addresses, never grant one.
+pub(crate) fn may_send_as_blocking(state: &FastcoreState, user: &str, from: &str) -> bool {
+    let own = match state.mailbox.get_permissions_blob(user) {
+        Ok(Some(json)) => serde_json::from_str::<adm::EffectivePermissionsResponse>(&json).ok(),
+        Ok(None) => None,
+        Err(e) => {
+            tracing::warn!(error = %e, %user, "get_permissions_blob failed; own address only");
+            None
+        }
+    };
+    let mut perms = own.unwrap_or_else(|| adm::EffectivePermissionsResponse {
+        address: user.to_string(),
+        permissions: Vec::new(),
+        groups: Vec::new(),
+        is_super: false,
+        send_as: Vec::new(),
+        masks: Vec::new(),
+    });
+    let derived = match read_derived(state, user) {
+        Ok(d) => d,
+        Err(e) => {
+            tracing::warn!(error = %e, %user, "send-as aliases or groups unreadable; own grants only");
+            DerivedSendAs::none()
+        }
+    };
+    perms.send_as = send_as::union(&perms.send_as, derived.aliases, derived.groups);
+    perms.masks = derived.masks;
+    perms.may_send_as(from)
 }
 
 /// `GET /v1/admin/accounts/{address}/send-as` — the granted list only.

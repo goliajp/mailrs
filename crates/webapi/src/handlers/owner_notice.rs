@@ -68,6 +68,49 @@ pub(crate) async fn notify_owner(
     }
 }
 
+/// How often the queue of notices the cores leave is read.
+const QUEUE_EVERY: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// Mail the owner about each change a core queued (a Sieve script stored
+/// over ManageSieve that redirects mail), as about one made here.
+pub(crate) fn spawn_queue_mailer(state: std::sync::Arc<WebState>) {
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(QUEUE_EVERY).await;
+            mail_queued(&state).await;
+        }
+    });
+}
+
+async fn mail_queued(state: &WebState) {
+    use mailrs_core_sidestate::families::owner_notices::{self, Change};
+    let taken = tokio::task::spawn_blocking(|| {
+        crate::handlers::kevy_util::with_kevy(|c| owner_notices::take(c, 100))
+    })
+    .await;
+    let notices = match taken {
+        Ok(Ok(n)) => n,
+        Ok(Err(status)) => {
+            tracing::warn!(%status, "owner notices unreadable");
+            return;
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, "owner notice read panicked");
+            return;
+        }
+    };
+    for n in notices {
+        let notice = match n.change {
+            Change::SieveRedirects { targets } => Notice::SieveRedirects(targets),
+        };
+        let origin = Origin {
+            ip: String::new(),
+            user_agent: n.via,
+        };
+        notify_owner(Some(state), &n.user, notice, origin, &[]).await;
+    }
+}
+
 pub(crate) async fn recovery_address(state: &WebState, address: &str) -> Option<String> {
     let acct = state.core.get_account_with_hash(address).await.ok()?;
     let v = serde_json::to_value(&acct).ok()?;

@@ -69,6 +69,29 @@ async fn copy_to_trash_then_expunge_keeps_the_message_in_trash() {
     assert!(v.read(&in_trash[0]).await.unwrap().is_some());
 }
 
+/// Outside the Trash an EXPUNGE, and a POP3 deletion, move the message's
+/// conversation to the Trash, as Gmail's IMAP does; nothing is deleted.
+#[tokio::test]
+async fn expunge_and_pop3_deletion_outside_trash_move_to_the_trash() {
+    let dir = directory();
+    dir.deliver("Subject: one\r\n\r\n1");
+    dir.deliver("Subject: two\r\n\r\n2");
+    let v = view(&dir).await;
+    let inbox = v.mailbox("INBOX").await.unwrap().unwrap();
+    let listed = v.messages(&inbox).await.unwrap();
+    let gone = v.expunge(&inbox, &listed[..1]).await;
+    assert!(gone.failed.is_none());
+    assert_eq!(gone.removed, [1]);
+    v.remove(&inbox, &listed[1]).await.unwrap();
+    assert!(uids(&v, "INBOX").await.is_empty());
+    let trash = v.mailbox("Trash").await.unwrap().unwrap();
+    let in_trash = v.messages(&trash).await.unwrap();
+    assert_eq!(in_trash.len(), 2, "a message was deleted");
+    for m in &in_trash {
+        assert!(v.read(m).await.unwrap().is_some());
+    }
+}
+
 #[tokio::test]
 async fn expunge_in_trash_deletes_for_good() {
     let dir = directory();

@@ -65,7 +65,7 @@ fn kept(reply: &str) -> bool {
     reply.contains("\\Seen") && reply.contains("\\Flagged")
 }
 
-pub(super) async fn folders<D: Directory>(dir: Arc<D>, home: PathBuf) -> Vec<String> {
+pub(super) async fn folders<D: Directory>(dir: Arc<D>, home: PathBuf, net: &str) -> Vec<String> {
     let mut c = Client::imap(dir).await;
     let mut t = Checks {
         home,
@@ -118,6 +118,7 @@ pub(super) async fn folders<D: Directory>(dir: Arc<D>, home: PathBuf) -> Vec<Str
     t.check(r.contains(BODY), "the moved body reads back in Junk", &r);
     t.check(kept(&r), "the moved message keeps its flags", &r);
 
+    let before = deletions(net);
     c.cmd(
         "b12",
         &format!("UID STORE {moved} +FLAGS.SILENT (\\Deleted)"),
@@ -125,7 +126,68 @@ pub(super) async fn folders<D: Directory>(dir: Arc<D>, home: PathBuf) -> Vec<Str
     .await;
     let r = c.cmd("b13", &format!("UID EXPUNGE {moved}")).await;
     t.check(r.contains("b13 OK "), "UID EXPUNGE completes", &r);
-    t.on_disk("Junk", 0, "EXPUNGE removes the body");
+    t.on_disk("Junk", 1, "EXPUNGE outside Trash keeps the body");
+    let r = c.cmd("b13a", &format!("UID FETCH {moved} (UID)")).await;
+    t.check(!r.contains("* "), "and the message leaves Junk", &r);
+    t.check(
+        deletions(net) == before,
+        "nothing is deleted for good outside Trash",
+        "",
+    );
+
+    // it went to the Trash, where an EXPUNGE deletes for good
+    c.cmd("b14", "SELECT Trash").await;
+    let r = c
+        .cmd("b15", "FETCH 1:* (UID BODY.PEEK[HEADER.FIELDS (SUBJECT)])")
+        .await;
+    let Some(trashed) = uid_with_subject(&r) else {
+        t.check(false, "EXPUNGE outside Trash moves it there", &r);
+        return t.diffs;
+    };
+    c.cmd(
+        "b16",
+        &format!("UID STORE {trashed} +FLAGS.SILENT (\\Deleted)"),
+    )
+    .await;
+    let r = c.cmd("b17", &format!("UID EXPUNGE {trashed}")).await;
+    t.check(r.contains("b17 OK "), "EXPUNGE in Trash completes", &r);
+    t.on_disk("Junk", 0, "EXPUNGE in Trash removes the body");
     t.on_disk("Trash", 0, "and leaves nothing behind");
+    let rows = deletions(net) - before;
+    t.check(
+        rows == 1,
+        "EXPUNGE in Trash writes one audit row for the conversation",
+        &format!("{rows} row(s)"),
+    );
     t.diffs
+}
+
+/// The uid of the test message in a FETCH of its Subject header.
+fn uid_with_subject(reply: &str) -> Option<String> {
+    let mut current = None;
+    for line in reply.lines() {
+        if let Some(rest) = line.split(" FETCH (UID ").nth(1) {
+            current = rest.split(' ').next().map(String::from);
+        }
+        if line.trim() == format!("Subject: {SUBJECT}") {
+            return current;
+        }
+    }
+    None
+}
+
+/// Audit rows for mail deleted for good in the core's network store.
+fn deletions(net: &str) -> usize {
+    let mut c = kevy_client::Connection::connect(net).unwrap();
+    c.lrange(mailrs_core_sidestate::keys::admin::AUDIT_LOG, 0, -1)
+        .unwrap()
+        .iter()
+        .filter_map(|r| serde_json::from_slice::<serde_json::Value>(r).ok())
+        .filter(|r| {
+            r["action"] == "mail.deleted_forever"
+                && r["detail"]
+                    .as_str()
+                    .is_some_and(|d| d.ends_with("via=imap credential=password_or_app_password"))
+        })
+        .count()
 }

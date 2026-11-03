@@ -1,4 +1,4 @@
-//! Read-by-id, mark-processed, and delete primitives.
+//! Read-by-id, mark-processed, and find primitives.
 //!
 //! These are the consumption-side operations the receiver/core split needs
 //! (S3.1): fetch a delivered message by id, move it `new/` → `cur/` once
@@ -125,20 +125,14 @@ impl Maildir {
         }))
     }
 
-    /// Delete a message by `id` from `new/` or `cur/`. Returns `NotFound`
-    /// if it isn't present in either.
-    pub fn delete(&self, id: &MessageId) -> io::Result<()> {
+    /// The file of message `id`, in `new/` or `cur/`. `Ok(None)` when
+    /// neither holds it.
+    pub fn path_of(&self, id: &MessageId) -> io::Result<Option<PathBuf>> {
         let new_path = self.root.join("new").join(base_id(id));
         if new_path.is_file() {
-            return fs::remove_file(&new_path);
+            return Ok(Some(new_path));
         }
-        match self.find_in_cur(id)? {
-            Some(path) => fs::remove_file(&path),
-            None => Err(io::Error::new(
-                io::ErrorKind::NotFound,
-                format!("message {} not found", id.0),
-            )),
-        }
+        self.find_in_cur(id)
     }
 
     /// Locate a message's file in `cur/` by matching the base id before
@@ -187,7 +181,7 @@ mod tests {
     #[test]
     fn fetch_matches_id_that_carries_a_flags_suffix() {
         // blob_refs recorded from real cur/ filenames (pg-dump import)
-        // carry `:2,S` verbatim — fetch/mark/delete must still resolve.
+        // carry `:2,S` verbatim — fetch/mark/find must still resolve.
         let (_d, md) = tmp_maildir();
         let body = b"From: a@x\r\n\r\nbody\r\n";
         let id = md.deliver(body).unwrap();
@@ -202,8 +196,8 @@ mod tests {
             .unwrap();
         assert_eq!(md.fetch(&id).unwrap().as_deref(), Some(&body[..]));
 
-        md.delete(&suffixed).unwrap();
-        assert!(md.fetch(&id).unwrap().is_none());
+        let path = md.path_of(&suffixed).unwrap().expect("found by its base");
+        assert!(path.to_string_lossy().contains("/cur/"));
     }
 
     #[test]
@@ -242,23 +236,14 @@ mod tests {
     }
 
     #[test]
-    fn delete_removes_from_new_or_cur_and_errors_on_missing() {
+    fn a_message_is_found_in_new_then_in_cur_and_a_missing_one_is_not() {
         let (_d, md) = tmp_maildir();
-        let id1 = md.deliver(b"one").unwrap();
-        let id2 = md.deliver(b"two").unwrap();
-
-        md.delete(&id1).unwrap();
-        let new = md.scan_new().unwrap();
-        assert_eq!(new.len(), 1);
-        assert_eq!(new[0].id, id2);
-
-        md.mark_processed(&id2, &[Flag::Seen]).unwrap();
-        md.delete(&id2).unwrap();
-        assert!(md.scan_cur().unwrap().is_empty());
-
-        assert_eq!(
-            md.delete(&MessageId("nope".into())).unwrap_err().kind(),
-            io::ErrorKind::NotFound
-        );
+        let id = md.deliver(b"one").unwrap();
+        let in_new = md.path_of(&id).unwrap().expect("in new/");
+        assert!(in_new.to_string_lossy().contains("/new/"));
+        md.mark_processed(&id, &[Flag::Seen]).unwrap();
+        let in_cur = md.path_of(&id).unwrap().expect("in cur/");
+        assert!(in_cur.to_string_lossy().contains("/cur/"));
+        assert!(md.path_of(&MessageId("nope".into())).unwrap().is_none());
     }
 }

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-11-04
+
+### Removed
+
+- `remove(user_root, blob_ref)` and `Maildir::delete(id)`. A mail server
+  that counts each user's stored bytes has to take a message's size off
+  that count when its file goes, so the caller removes the file it finds
+  with `find` / `Maildir::path_of` and counts it in the same place.
+
+### Added
+
+- `find(user_root, blob_ref)`: the path of the file a blob ref names, in
+  `new/` or `cur/`, whatever flags its name has gained.
+- `Maildir::path_of(id)`: the same within one maildir.
+
 ## [1.4.0] - 2026-10-22
 
 ### Changed
