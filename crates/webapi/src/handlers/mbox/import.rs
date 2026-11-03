@@ -120,7 +120,7 @@ impl Filer {
                 let rcpts = recipients(&message);
                 self.state
                     .core
-                    .file_sent(&self.user, &m.raw, &rcpts)
+                    .file_imported_sent(&self.user, &m.raw, &rcpts)
                     .await
                     .map(|_| self.report.sent += 1)
             }

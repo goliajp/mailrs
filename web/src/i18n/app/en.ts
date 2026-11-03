@@ -184,6 +184,8 @@ export const appEn = {
   'status.realtimeConnecting': 'Realtime updates: connecting',
   'status.realtimeDisconnected': 'Realtime updates: disconnected',
   'status.realtimeOffline': 'Realtime updates: offline',
+  'storage.near': 'Storage is {pct}% full. Once it is full, imports will fail',
+  'storage.over': 'Storage is full. New imports are refused; sending is not affected',
   'wire.restarting': 'The server is restarting. Try again in a moment',
 } as const
 

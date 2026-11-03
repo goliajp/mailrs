@@ -50,9 +50,35 @@ pub struct Filed {
     pub blob_ref: String,
 }
 
+/// File `body`, a Sent message brought over from another mailbox, as
+/// [`file`] does. An import stops at the quota as an imported Inbox does
+/// (`crate::import::file`); sending never does.
+pub fn file_imported<S: SentStore + ?Sized>(
+    core: &S,
+    user: &str,
+    body: &[u8],
+    recipients: &[String],
+) -> io::Result<Filed> {
+    // read from the core's own side state, as every other write here is
+    let over = core.net_conn().is_some_and(|mut c| {
+        let (limit, used) = crate::live_sync::quota_read_on(&mut c, user);
+        limit > 0 && used >= limit
+    });
+    if over {
+        return Err(io::Error::new(
+            io::ErrorKind::QuotaExceeded,
+            format!("{user} is over quota"),
+        ));
+    }
+    file(core, user, body, recipients)
+}
+
 /// File `body` as `user`'s sent copy. `recipients` is the envelope (To,
 /// Cc and Bcc): the Bcc addresses are not in the bytes, and every one of
 /// them joins the user's contacts.
+///
+/// The copy counts against the quota but is never refused by it: a send
+/// always goes out with its copy filed, and the usage can pass the quota.
 pub fn file<S: SentStore + ?Sized>(
     core: &S,
     user: &str,

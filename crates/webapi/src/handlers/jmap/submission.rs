@@ -16,7 +16,7 @@ use super::identity;
 use super::ids;
 use super::import::{NotFiled, recipients};
 use super::view::View;
-use crate::handlers::compose::{Attachment, ComposeParts, build_rfc5322};
+use crate::handlers::compose::{Attachment, ComposeParts, breaks_a_header_line, build_rfc5322};
 
 fn addresses(spec: &Value, key: &str) -> Vec<String> {
     spec.get(key)
@@ -85,15 +85,7 @@ pub fn compose(spec: &Value, attachments: Vec<Attachment>) -> Result<Vec<u8>, St
         attachments,
         scheduled_at: None,
     };
-    // each of these becomes a header line as it is
-    let header_values = parts
-        .to
-        .iter()
-        .chain(&parts.cc)
-        .chain(&parts.bcc)
-        .chain([&parts.from, &parts.subject])
-        .chain(parts.in_reply_to.as_ref());
-    if header_values.into_iter().any(|v| v.contains(['\r', '\n'])) {
+    if breaks_a_header_line(&parts) {
         return Err("a header value carries a line break".into());
     }
     if parts.body.is_empty() && parts.html_body.is_empty() {
