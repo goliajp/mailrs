@@ -204,18 +204,21 @@ targets:
       - path: Mailrs/Features/Lucide.swift
       - path: Mailrs/Features/BrandMark.swift
       - path: Mailrs/Features/ReplyView.swift
-      - path: Mailrs/App/Session.swift
-      - path: Mailrs/App/Session+Compose.swift
-      - path: Mailrs/App/Session+Directory.swift
-      - path: Mailrs/App/Session+Operations.swift
-      - path: Mailrs/App/Session+Selection.swift
-      - path: Mailrs/App/Session+Triage.swift
-      - path: Mailrs/App/Session+Filing.swift
-      - path: Mailrs/App/MailCache.swift
-      - path: Mailrs/App/Preferences.swift
-      - path: Mailrs/App/Theme.swift
-      - path: Mailrs/App/GlassEffects.swift
-      - path: Mailrs/App/BiometricLock.swift
+      - path: Mailrs/Features/LinkWarningMarks.swift
+      - path: Mailrs/Features/VerdictPanel.swift
+      - path: Mailrs/Features/ResetCodeSheet.swift
+      - path: Mailrs/Features/ConfirmPasswordSheet.swift
+      # All of `App/` except the phone's own shell, so a new `Session+*`
+      # extension cannot be left out: listing them one by one is how
+      # `Session+Confirm.swift` and `Session+Role.swift` went missing and
+      # the Mac stopped compiling. `scripts/check-mac-sources.sh` holds
+      # the Features side to the same standard.
+      - path: Mailrs/App
+        excludes:
+          - MailrsApp.swift
+          - RootView.swift
+          - PadLayout.swift
+          - PushRegistrar.swift
     settings:
       base:
         # **The same identifier as the phone app**, deliberately.

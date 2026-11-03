@@ -178,7 +178,7 @@ struct SignInView: View {
             .navigationTitle("")
             .inlineTitle()
             .toolbar {
-                ToolbarItem(placement: .bottomBar) {
+                ToolbarItem(placement: .screenActions) {
                     Button("I have a reset code") { session.showsReset = true }
                     .accessibilityIdentifier("button.haveResetCode")
                 }
