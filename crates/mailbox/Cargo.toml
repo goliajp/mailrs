@@ -26,6 +26,7 @@ exclude = [
 workspace = true
 
 [dependencies]
+mailrs-rfc5322 = { path = "../rfc5322", version = "1" }
 thiserror = "2"
 sqlx = { workspace = true, optional = true }
 spg-sqlx = { workspace = true, optional = true }

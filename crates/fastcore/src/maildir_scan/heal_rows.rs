@@ -47,7 +47,7 @@ pub(crate) fn heal_membership_rows(
     for (root, bucket) in by_root {
         let sent_here: Vec<&&MailFile> = bucket
             .iter()
-            .filter(|m| mailrs_mailbox_kevy::senders_csv_contains_user(&m.from, user))
+            .filter(|m| mailrs_mailbox::sent_copy::sent_by(&m.from, &m.filename, user))
             .collect();
         let is_sender_thread = !sent_here.is_empty();
         let thread_key = mailrs_mailbox_kevy::keys::thread(root);
@@ -106,7 +106,7 @@ pub(crate) fn heal_membership_rows(
         // answer whether it is genuinely sent-only.
         let inbound_max = bucket
             .iter()
-            .filter(|m| !mailrs_mailbox_kevy::senders_csv_contains_user(&m.from, user))
+            .filter(|m| !mailrs_mailbox::sent_copy::sent_by(&m.from, &m.filename, user))
             .map(|m| m.date)
             .max();
         let window_max = bucket.iter().map(|m| m.date).max().unwrap_or(0);
