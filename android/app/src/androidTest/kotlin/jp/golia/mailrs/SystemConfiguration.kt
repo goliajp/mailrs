@@ -36,7 +36,28 @@ class SystemConfiguration : ExternalResource() {
     var displaySize: String? = null
     var density: String? = null
 
+    /**
+     * The app's own language (a BCP 47 tag, `ja`, `zh-CN`), as a person
+     * sets it in the system's per-app language settings. Set before the
+     * activity launches for the same reason as the rest: changing it
+     * after recreates the activity under the compose rule.
+     */
+    var appLocale: String? = null
+
+    private fun locales(): android.app.LocaleManager =
+        InstrumentationRegistry.getInstrumentation().targetContext
+            .getSystemService(android.app.LocaleManager::class.java)
+
     override fun before() {
+        appLocale?.let { tag ->
+            val wanted = android.os.LocaleList.forLanguageTags(tag)
+            locales().applicationLocales = wanted
+            repeat(50) {
+                if (locales().applicationLocales == wanted) return@let
+                Thread.sleep(100)
+            }
+            error("the app's language never became $tag")
+        }
         fontScale?.let {
             // Checked against the **system configuration**, not against
             // `settings get`. The setting reads back at once and the
@@ -101,6 +122,7 @@ class SystemConfiguration : ExternalResource() {
         if (fontScale != null) shell("settings put system font_scale 1.0")
         if (displaySize != null) shell("wm size reset")
         if (density != null) shell("wm density reset")
+        if (appLocale != null) locales().applicationLocales = android.os.LocaleList.getEmptyLocaleList()
     }
 
     /**

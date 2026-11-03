@@ -1,5 +1,7 @@
 package jp.golia.mailrs.ui
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -117,11 +119,11 @@ fun InviteCard(uid: Int, method: String, vm: MailViewModel) {
                         .padding(top = 6.dp)
                         .testTag("invite.join"),
                 ) {
-                    Text("Join the meeting", fontSize = 14.sp)
+                    Text(Texts.get(R.string.invite_join), fontSize = 14.sp)
                 }
             }
             invite.organizer?.let {
-                Text("From ${it.cn ?: it.email}", color = theme.fgMuted, fontSize = 11.sp)
+                Text(Texts.get(R.string.invite_from, it.cn ?: it.email), color = theme.fgMuted, fontSize = 11.sp)
             }
             if (invite.attendees.isNotEmpty()) {
                 Text(
@@ -150,9 +152,9 @@ fun InviteCard(uid: Int, method: String, vm: MailViewModel) {
                     modifier = Modifier.padding(top = 4.dp),
                 ) {
                     for ((label, partstat) in listOf(
-                        "Yes" to "ACCEPTED",
-                        "Maybe" to "TENTATIVE",
-                        "No" to "DECLINED",
+                        Texts.get(R.string.invite_yes) to "ACCEPTED",
+                        Texts.get(R.string.invite_maybe) to "TENTATIVE",
+                        Texts.get(R.string.invite_no) to "DECLINED",
                     )) {
                         OutlinedButton(
                             onClick = {

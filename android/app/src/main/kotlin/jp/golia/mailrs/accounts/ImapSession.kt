@@ -1,5 +1,7 @@
 package jp.golia.mailrs.accounts
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.Writer
@@ -35,7 +37,7 @@ class ImapSession(private val host: String, private val port: Int) : AutoCloseab
         class Server(val detail: String) : Failure(detail)
 
         /** The connection broke mid-conversation. */
-        class Closed : Failure("the server closed the connection")
+        class Closed : Failure(Texts.get(R.string.acct_closed))
     }
 
     /**

@@ -1,5 +1,9 @@
 package jp.golia.mailrs.ui
 
+import jp.golia.mailrs.wire.Texts
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.RowAction
+import androidx.compose.ui.res.stringResource
 import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -142,7 +146,7 @@ fun ThreadScreen(
         // PDF reader on it.
         val opened = runCatching { context.startActivity(intent) }.isSuccess
         vm.attachmentOpened()
-        if (!opened) vm.reportFailure("No app on this phone opens ${ready.filename}.")
+        if (!opened) vm.reportFailure(Texts.get(R.string.message_no_app, ready.filename))
     }
     val snackbars = remember { SnackbarHostState() }
     FailureSnackbar(state, vm, snackbars, hasContent = state.messages.isNotEmpty())
@@ -154,7 +158,7 @@ fun ThreadScreen(
             TopAppBar(
                 title = {
                     Text(
-                        open.subject.ifBlank { "(no subject)" },
+                        open.subject.ifBlank { Texts.get(R.string.mail_no_subject) },
                         fontSize = 16.sp,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
@@ -173,7 +177,7 @@ fun ThreadScreen(
                         ) {
                             Icon(
                                 Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
+                                contentDescription = Texts.get(R.string.common_back),
                                 tint = theme.fgSecondary,
                             )
                         }
@@ -190,11 +194,7 @@ fun ThreadScreen(
                         onClick = { vm.toggleStar(open) },
                         modifier = Modifier.testTag("button.star"),
                     ) {
-                        Icon(
-                            if (open.flagged) Icons.Filled.Star else Icons.Filled.StarBorder,
-                            contentDescription = if (open.flagged) "Unstar" else "Star",
-                            tint = if (open.flagged) theme.warning else theme.fgSecondary,
-                        )
+                        StarIcon(open.flagged)
                     }
                     IconButton(
                         onClick = { vm.markOpenThreadUnread() },
@@ -202,16 +202,17 @@ fun ThreadScreen(
                     ) {
                         Icon(
                             Icons.Filled.MarkEmailUnread,
-                            contentDescription = "Mark unread",
+                            contentDescription = stringResource(R.string.action_unread),
                             tint = theme.fgSecondary,
                         )
                     }
                     IconButton(
-                        onClick = { vm.triageOpenThread(MailrsClient.Verb.Archive) },
+                        onClick = { vm.triageOpenThread(RowAction.Archive) },
                         modifier = Modifier.testTag("button.archive"),
                     ) {
-                        Icon(Icons.Filled.Archive, contentDescription = "Archive", tint = theme.fgSecondary)
+                        Icon(Icons.Filled.Archive, contentDescription = stringResource(R.string.action_archive), tint = theme.fgSecondary)
                     }
+                    ThreadActionMenu(state, vm, open)
                 },
             )
         }
@@ -221,7 +222,7 @@ fun ThreadScreen(
                 state.busy && state.messages.isEmpty() ->
                     CircularProgressIndicator(Modifier.align(Alignment.Center), color = theme.accent)
                 state.error != null && state.messages.isEmpty() ->
-                    Conclusion("Could not open this conversation", state.error, Modifier.align(Alignment.Center))
+                    Conclusion(stringResource(R.string.thread_open_failed), state.error, Modifier.align(Alignment.Center))
                 else -> Column(
                     Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp)
                         .testTag("list.messages"),
@@ -276,7 +277,7 @@ private fun MessageCard(threadId: String, m: Wire.Message, state: UiState, vm: M
         val html = m.htmlBody
         if (html.isNullOrBlank()) {
             Text(
-                m.textBody.orEmpty().ifBlank { "(no body)" },
+                m.textBody.orEmpty().ifBlank { Texts.get(R.string.mail_no_body) },
                 color = theme.fg,
                 fontSize = 15.sp,
                 modifier = Modifier.padding(top = 10.dp),
@@ -292,13 +293,13 @@ private fun MessageCard(threadId: String, m: Wire.Message, state: UiState, vm: M
                 onClick = { vm.compose(replyTo = m) },
                 modifier = Modifier.testTag("button.reply"),
             ) {
-                Icon(Icons.AutoMirrored.Filled.Reply, contentDescription = "Reply", tint = theme.fgSecondary)
+                Icon(Icons.AutoMirrored.Filled.Reply, contentDescription = Texts.get(R.string.mail_reply), tint = theme.fgSecondary)
             }
             IconButton(
                 onClick = { vm.compose(replyTo = m, all = true) },
                 modifier = Modifier.testTag("button.replyAll"),
             ) {
-                Icon(Icons.AutoMirrored.Filled.ReplyAll, contentDescription = "Reply all", tint = theme.fgSecondary)
+                Icon(Icons.AutoMirrored.Filled.ReplyAll, contentDescription = Texts.get(R.string.mail_reply_all), tint = theme.fgSecondary)
             }
             IconButton(
                 onClick = { vm.compose(replyTo = m, forward = true) },
@@ -306,7 +307,7 @@ private fun MessageCard(threadId: String, m: Wire.Message, state: UiState, vm: M
             ) {
                 Icon(
                     Icons.AutoMirrored.Filled.Forward,
-                    contentDescription = "Forward",
+                    contentDescription = Texts.get(R.string.mail_forward),
                     tint = theme.fgSecondary,
                 )
             }
@@ -314,7 +315,7 @@ private fun MessageCard(threadId: String, m: Wire.Message, state: UiState, vm: M
                 onClick = { vm.viewSource(m.uid) },
                 modifier = Modifier.testTag("button.viewSource"),
             ) {
-                Icon(Icons.Filled.Code, contentDescription = "View source", tint = theme.fgSecondary)
+                Icon(Icons.Filled.Code, contentDescription = Texts.get(R.string.mail_view_source), tint = theme.fgSecondary)
             }
         }
     }
@@ -336,7 +337,7 @@ private fun SenderTrustMark(senderTrust: String) {
     if (!SenderIdentity.isSuspicious(senderTrust)) return
     Icon(
         Icons.Filled.Warning,
-        contentDescription = "Suspicious sender",
+        contentDescription = Texts.get(R.string.mail_suspicious_sender),
         tint = theme.warning,
         modifier = Modifier.padding(start = 5.dp).size(14.dp),
     )

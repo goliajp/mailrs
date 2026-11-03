@@ -9,6 +9,11 @@ import org.junit.Test
 
 /** The rules the accounts screen applies before any request goes out. */
 class AccountsDraftTest {
+
+    /** The app's English words, as a phone set to English shows them. */
+    @org.junit.Before
+    fun englishWords() = jp.golia.mailrs.wire.TestTexts.install()
+
     private fun draft(ih: String, ip: String, sh: String, sp: String) =
         AccountsDraft(imapHost = ih, imapPort = ip, smtpHost = sh, smtpPort = sp)
 

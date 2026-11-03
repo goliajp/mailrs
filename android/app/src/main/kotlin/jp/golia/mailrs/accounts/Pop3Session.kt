@@ -1,5 +1,7 @@
 package jp.golia.mailrs.accounts
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.Writer
@@ -29,7 +31,7 @@ class Pop3Session(private val host: String, private val port: Int) : AutoCloseab
         class Refused(val detail: String) : Failure(detail)
         /** The server said no to something else. */
         class Server(val detail: String) : Failure(detail)
-        class Closed : Failure("the server closed the connection")
+        class Closed : Failure(Texts.get(R.string.acct_closed))
     }
 
     /** Where the bytes go. A seam, so the conversation can be tested. */
@@ -184,7 +186,7 @@ class Pop3Session(private val host: String, private val port: Int) : AutoCloseab
     }
 
     private fun readReply(): Pop3.Reply =
-        Pop3.reply(readLine()) ?: throw Failure.Server("the server did not answer in POP3")
+        Pop3.reply(readLine()) ?: throw Failure.Server(Texts.get(R.string.acct_not_pop3))
 
     private fun write(text: String) {
         transport?.let {

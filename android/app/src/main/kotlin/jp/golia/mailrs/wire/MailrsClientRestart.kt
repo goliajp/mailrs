@@ -1,9 +1,10 @@
 package jp.golia.mailrs.wire
 
+import jp.golia.mailrs.R
 import okhttp3.Request
 
 /** What a refused write says: the person decides whether to try again. */
-const val RESTARTING = "The server is restarting. Try again in a moment."
+val RESTARTING: String get() = Texts.get(R.string.error_restarting)
 
 private const val MAX_WAIT_MS = 30_000L
 

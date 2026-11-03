@@ -1,5 +1,6 @@
 package jp.golia.mailrs.wire
 
+import jp.golia.mailrs.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -112,7 +113,7 @@ class MailrsClient(private val store: TokenStore) {
                 session = s
                 Outcome.Ok(LoginStep.SignedIn)
             },
-            onFailure = { Outcome.Err("The server's answer to login was not what this app expects.") },
+            onFailure = { Outcome.Err(Texts.get(R.string.error_login_shape)) },
         )
     }
 
@@ -123,13 +124,17 @@ class MailrsClient(private val store: TokenStore) {
     suspend fun conversations(list: MailList, before: Long? = null): Outcome<List<Wire.Conversation>> =
         conversations(list.axes, before)
 
-    suspend fun conversations(axes: MailListAxes, before: Long? = null): Outcome<List<Wire.Conversation>> = decode(
-        get(
-            "/api/conversations?limit=50&" + axes.query() +
-                (before?.let { "&before_ts=$it" } ?: ""),
-        ),
-        Wire.Conversation.serializer(),
-    )
+    suspend fun conversations(axes: MailListAxes, before: Long? = null): Outcome<List<Wire.Conversation>> =
+        when (axes.held) {
+            true -> heldList(before)
+            false -> decode(
+                get(
+                    "/api/conversations?limit=50&" + axes.query() +
+                        (before?.let { "&before_ts=$it" } ?: ""),
+                ),
+                Wire.Conversation.serializer(),
+            )
+        }
 
     /**
      * `GET /api/conversations/search?q=`.
@@ -139,11 +144,11 @@ class MailrsClient(private val store: TokenStore) {
      * that helpfully re-sorts by date throws the ranking away and shows
      * the least relevant match first. The array is used as it arrives.
      */
-    suspend fun search(term: String, list: MailList): Outcome<List<Wire.Conversation>> = decode(
+    suspend fun search(term: String, axes: MailListAxes): Outcome<List<Wire.Conversation>> = decode(
         // Scoped to the same list. The axes travel together for exactly
         // this reason: a search that dropped them would answer a
         // question about Inbox while the heading said Junk.
-        get("/api/conversations/search?q=" + enc(term) + "&limit=$SEARCH_LIMIT&" + list.axes.query()),
+        get("/api/conversations/search?q=" + enc(term) + "&limit=$SEARCH_LIMIT&" + axes.query()),
         Wire.Conversation.serializer(),
     )
 
@@ -226,13 +231,13 @@ class MailrsClient(private val store: TokenStore) {
                     } else {
                         Outcome.Err(
                             result.message
-                                ?: "The server refused ${result.failed} of ${threadIds.size}.",
+                                ?: Texts.get(R.string.error_batch_refused, result.failed, threadIds.size),
                         )
                     }
                 },
                 // An answer this app cannot read is not an answer it
                 // may call success.
-                onFailure = { Outcome.Err("The server sent a shape this app could not read: ${it.message}") },
+                onFailure = { Outcome.Err(Texts.get(R.string.error_shape, it.message)) },
             )
             is Outcome.Err -> r
         }
@@ -286,7 +291,7 @@ class MailrsClient(private val store: TokenStore) {
         redraftOf: String? = null,
         redraftKeep: List<Int>? = null,
     ): Outcome<Unit> = withContext(Dispatchers.IO) {
-        val s = session ?: return@withContext Outcome.Err("Not signed in.")
+        val s = session ?: return@withContext Outcome.Err(Texts.get(R.string.error_not_signed_in))
         val form = MultipartBody.Builder().setType(MultipartBody.FORM)
         // Repeated fields, one per address: that is what the handler
         // reads (`parts.to.push(...)`), and a comma-joined single field
@@ -332,7 +337,7 @@ class MailrsClient(private val store: TokenStore) {
     ): Outcome<T> = when (r) {
         is Outcome.Ok -> runCatching { json.decodeFromString(serializer, r.value) }.fold(
             onSuccess = { Outcome.Ok(it) },
-            onFailure = { Outcome.Err("The server sent a shape this app could not read: ${it.message}") },
+            onFailure = { Outcome.Err(Texts.get(R.string.error_shape, it.message)) },
         )
         is Outcome.Err -> r
     }
@@ -352,13 +357,13 @@ class MailrsClient(private val store: TokenStore) {
             onSuccess = { Outcome.Ok(it) },
             // Say which shape disagreed. A bare "parse error" here is
             // what made nine wire schemas drift unnoticed on the web.
-            onFailure = { Outcome.Err("The server sent a shape this app could not read: ${it.message}") },
+            onFailure = { Outcome.Err(Texts.get(R.string.error_shape, it.message)) },
         )
         is Outcome.Err -> r
     }
 
     internal suspend fun get(path: String): Outcome<String> = withContext(Dispatchers.IO) {
-        val s = session ?: return@withContext Outcome.Err("Not signed in.")
+        val s = session ?: return@withContext Outcome.Err(Texts.get(R.string.error_not_signed_in))
         send(Request.Builder().url(s.server + path).header("Authorization", "Bearer ${s.token}").get().build())
     }
 
@@ -370,11 +375,11 @@ class MailrsClient(private val store: TokenStore) {
             // a coroutine, which takes the app down instead of saying
             // "Not signed in." The check below came after the builder.
             if (authorized && session == null) {
-                return@withContext Outcome.Err("Not signed in.")
+                return@withContext Outcome.Err(Texts.get(R.string.error_not_signed_in))
             }
             val b = Request.Builder().url(url).post(body.toRequestBody(JSON_MEDIA))
             if (authorized) {
-                val s = session ?: return@withContext Outcome.Err("Not signed in.")
+                val s = session ?: return@withContext Outcome.Err(Texts.get(R.string.error_not_signed_in))
                 b.header("Authorization", "Bearer ${s.token}")
             }
             send(b.build())
@@ -389,26 +394,26 @@ class MailrsClient(private val store: TokenStore) {
                     ?: refusal(request, text)?.let { Outcome.Err(it) }
                     ?: run {
                         rejected()
-                        Outcome.Err("Signed out — the server rejected this session.")
+                        Outcome.Err(Texts.get(R.string.error_signed_out))
                     }
                 response.code == 403 && errorCode(text) == CONFIRM_REQUIRED ->
-                    Outcome.Err("Enter your password to continue.", CONFIRM_REQUIRED)
+                    Outcome.Err(Texts.get(R.string.error_confirm_required), CONFIRM_REQUIRED)
                 response.code == 403 -> forbidden()
                 response.code == 503 -> restarting(request, response.header("Retry-After"), retried)
-                else -> Outcome.Err("The server answered ${response.code}.", errorCode(text))
+                else -> Outcome.Err(Texts.get(R.string.error_status, response.code), errorCode(text))
             }
         }
     } catch (e: IOException) {
         // Distinguished from a server error on purpose: one is worth
         // retrying where you are, the other is not.
-        Outcome.Err("Could not reach the server: ${e.message}")
+        Outcome.Err(Texts.get(R.string.error_unreachable, e.message))
     } catch (e: IllegalArgumentException) {
         // A URL this library will not parse. Narrow on purpose — this
         // is the one non-IO failure the boundary can produce, and it
         // used to leave `viewModelScope.launch` uncaught, which takes
         // the app down rather than showing a message. Found by a test
         // that built a view model with no server set.
-        Outcome.Err("That server address is not one this app can use: ${e.message}")
+        Outcome.Err(Texts.get(R.string.error_bad_server, e.message))
     }
 
     /**
@@ -421,7 +426,7 @@ class MailrsClient(private val store: TokenStore) {
     private fun refusal(request: Request, text: String): String? {
         if (request.header("Authorization") != null) return null
         val reason = runCatching { json.parseToJsonElement(text).jsonObject["error"]?.jsonPrimitive?.content }.getOrNull()
-        return reason ?: "That address and password did not match."
+        return reason ?: Texts.get(R.string.error_wrong_password)
     }
 
     /**

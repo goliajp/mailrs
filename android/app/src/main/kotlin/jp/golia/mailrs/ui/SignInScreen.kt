@@ -1,5 +1,7 @@
 package jp.golia.mailrs.ui
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.background
@@ -106,7 +108,7 @@ fun SignInScreen(
             modifier = Modifier.padding(top = 14.dp),
         )
         Text(
-            "Your own mail server.",
+            Texts.get(R.string.signin_tagline),
             color = theme.fgMuted,
             fontSize = 14.sp,
             textAlign = TextAlign.Center,
@@ -116,7 +118,7 @@ fun SignInScreen(
         OutlinedTextField(
             value = server,
             onValueChange = { server = it },
-            label = { Text("Server") },
+            label = { Text(Texts.get(R.string.common_server)) },
             singleLine = true,
             keyboardOptions = addressKeyboard(keyboardType = KeyboardType.Uri),
             modifier = Modifier.fillMaxWidth().testTag("field.server"),
@@ -124,13 +126,13 @@ fun SignInScreen(
         OutlinedTextField(
             value = username,
             onValueChange = { username = it },
-            label = { Text("Address") },
+            label = { Text(Texts.get(R.string.common_address)) },
             singleLine = true,
             keyboardOptions = addressKeyboard(),
             // said once something is typed, not while the field is empty
             isError = username.isNotBlank() && !addressOk,
             supportingText = if (username.isNotBlank() && !addressOk) {
-                { Text("Enter the full address, like name@example.com") }
+                { Text(Texts.get(R.string.signin_address_hint)) }
             } else {
                 null
             },
@@ -146,7 +148,7 @@ fun SignInScreen(
         OutlinedTextField(
             value = password,
             onValueChange = { password = it },
-            label = { Text("Password") },
+            label = { Text(Texts.get(R.string.common_password)) },
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(
@@ -166,11 +168,11 @@ fun SignInScreen(
             OutlinedTextField(
                 value = code,
                 onValueChange = { code = it.trim() },
-                label = { Text("Six-digit code") },
+                label = { Text(Texts.get(R.string.signin_code)) },
                 singleLine = true,
                 isError = code.isNotEmpty() && !codeOk,
                 supportingText = if (code.isNotEmpty() && !codeOk) {
-                    { Text("Enter the six digits from your authenticator app") }
+                    { Text(Texts.get(R.string.signin_code_hint)) }
                 } else {
                     null
                 },
@@ -208,13 +210,19 @@ fun SignInScreen(
             shape = RoundedCornerShape(10.dp),
             modifier = Modifier.fillMaxWidth().padding(top = 20.dp).height(48.dp).testTag("button.signIn"),
         ) {
-            Text(if (busy) "Signing in…" else "Sign in", fontWeight = FontWeight.SemiBold)
+            Text(
+                when (busy) {
+                    true -> Texts.get(R.string.signin_busy)
+                    false -> Texts.get(R.string.signin_button)
+                },
+                fontWeight = FontWeight.SemiBold,
+            )
         }
         TextButton(
             onClick = { onHaveCode(server, username.trim()) },
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp).testTag("button.haveResetCode"),
         ) {
-            Text("I have a reset code", color = theme.accent)
+            Text(Texts.get(R.string.signin_have_reset_code), color = theme.accent)
         }
     }
 }

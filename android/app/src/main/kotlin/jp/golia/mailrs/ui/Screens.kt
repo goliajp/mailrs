@@ -76,12 +76,15 @@ import jp.golia.mailrs.UiState
 import jp.golia.mailrs.compose
 import jp.golia.mailrs.draftNoticeShown
 import jp.golia.mailrs.openDrafts
-import jp.golia.mailrs.applyToSelection
+import jp.golia.mailrs.loadLabels
+import jp.golia.mailrs.showLabel
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.RowAction
+import jp.golia.mailrs.wire.Texts
+import androidx.compose.ui.res.stringResource
 import jp.golia.mailrs.clearSelection
-import jp.golia.mailrs.dismissUndo
 import jp.golia.mailrs.toggleSelected
 import jp.golia.mailrs.triage
-import jp.golia.mailrs.undo
 import jp.golia.mailrs.openSettings
 import jp.golia.mailrs.setSearchOpen
 import jp.golia.mailrs.MailViewModel
@@ -137,41 +140,28 @@ fun ConversationListScreen(state: UiState, vm: MailViewModel) {
     // message that vanished from the screen without a word looks lost.
     LaunchedEffect(state.draftSaved) {
         if (!state.draftSaved) return@LaunchedEffect
-        snackbars.showSnackbar("Draft saved")
+        snackbars.showSnackbar(Texts.get(R.string.draft_saved))
         vm.draftNoticeShown()
     }
 
-    LaunchedEffect(state.undo) {
-        val pending = state.undo ?: return@LaunchedEffect
-        val what = when (pending.verb) {
-            MailrsClient.Verb.Archive -> "Archived"
-            MailrsClient.Verb.Read -> "Marked read"
-            MailrsClient.Verb.Unarchive -> "Moved to inbox"
-            MailrsClient.Verb.Unread -> "Marked unread"
-            MailrsClient.Verb.Star -> "Starred"
-            MailrsClient.Verb.Unstar -> "Unstarred"
-            MailrsClient.Verb.Delete -> "Deleted"
-        }
-        // **The banner lasts exactly as long as the undo does.**
-        // `Short` is four seconds and the window is five, so for one
-        // second the action could still be taken back and there was
-        // nothing left to take it back with. One number, not two:
-        // indefinite, bounded by the window itself.
-        val result = withTimeoutOrNull(UNDO_WINDOW_MS) {
-            snackbars.showSnackbar(
-                message = what,
-                actionLabel = "Undo",
-                duration = androidx.compose.material3.SnackbarDuration.Indefinite,
-            )
-        }
-        if (result == SnackbarResult.ActionPerformed) vm.undo() else vm.dismissUndo()
-    }
+    UndoSnackbar(state, vm, snackbars)
+    var labelFor by rememberSaveable { mutableStateOf<LabelTarget?>(null) }
+    ActionDialogs(state, vm, labelFor, showForever = state.open == null) { labelFor = null }
+    // The labels are the reader's own and change on the web; asked for
+    // whenever the drawer opens, so the list there is the current one.
+    LaunchedEffect(drawer.isOpen) { if (drawer.isOpen) vm.loadLabels() }
 
     ModalNavigationDrawer(
         drawerState = drawer,
         drawerContent = {
             MailListDrawer(
                 current = state.list,
+                currentLabel = state.label,
+                labels = state.labels,
+                onChooseLabel = { chosen ->
+                    scope.launch { drawer.close() }
+                    vm.showLabel(chosen)
+                },
                 onDrafts = {
                     scope.launch { drawer.close() }
                     vm.openDrafts()
@@ -204,7 +194,11 @@ fun ConversationListScreen(state: UiState, vm: MailViewModel) {
                     if (selecting) {
                         Text("${state.selected.size}", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
                     } else {
-                        Text(state.list.title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            state.label?.name ?: stringResource(state.list.title),
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        )
                     }
                 },
                 navigationIcon = {
@@ -218,9 +212,9 @@ fun ConversationListScreen(state: UiState, vm: MailViewModel) {
                         modifier = Modifier.testTag(if (selecting) "button.endSelection" else "button.folders"),
                     ) {
                         if (selecting) {
-                            Icon(Icons.Filled.Close, contentDescription = "Done", tint = theme.fgSecondary)
+                            Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.common_done), tint = theme.fgSecondary)
                         } else {
-                            Icon(Icons.Filled.Menu, contentDescription = "Lists", tint = theme.fgSecondary)
+                            Icon(Icons.Filled.Menu, contentDescription = stringResource(R.string.drawer_open), tint = theme.fgSecondary)
                         }
                     }
                 },
@@ -230,37 +224,19 @@ fun ConversationListScreen(state: UiState, vm: MailViewModel) {
                 ),
                 actions = {
                     if (selecting) {
-                        IconButton(
-                            onClick = { vm.applyToSelection(MailrsClient.Verb.Archive) },
-                            modifier = Modifier.testTag("button.selectionArchive"),
-                        ) {
-                            Icon(Icons.Filled.Archive, contentDescription = "Archive", tint = theme.fgSecondary)
-                        }
-                        IconButton(
-                            onClick = { vm.applyToSelection(MailrsClient.Verb.Read) },
-                            modifier = Modifier.testTag("button.selectionRead"),
-                        ) {
-                            Icon(
-                                Icons.Filled.MarkEmailRead,
-                                contentDescription = "Mark read",
-                                tint = theme.fgSecondary,
-                            )
-                        }
-                        IconButton(
-                            onClick = { vm.applyToSelection(MailrsClient.Verb.Star) },
-                            modifier = Modifier.testTag("button.selectionStar"),
-                        ) {
-                            Icon(Icons.Filled.Star, contentDescription = "Star", tint = theme.fgSecondary)
+                        SelectionActions(state, vm) {
+                            vm.loadLabels()
+                            labelFor = LabelTarget.Selection
                         }
                     } else {
                         IconButton(
                             onClick = { vm.setSearchOpen(true) },
                             modifier = Modifier.testTag("button.search"),
                         ) {
-                            Icon(Icons.Filled.Search, contentDescription = "Search", tint = theme.fgSecondary)
+                            Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.common_search), tint = theme.fgSecondary)
                         }
                         IconButton(onClick = { vm.refresh() }, modifier = Modifier.testTag("button.refresh")) {
-                            Icon(Icons.Filled.Refresh, contentDescription = "Refresh", tint = theme.fgSecondary)
+                            Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.common_refresh), tint = theme.fgSecondary)
                         }
                         // The overflow, which is where Android puts what
                         // is wanted occasionally — a permanent button
@@ -273,7 +249,7 @@ fun ConversationListScreen(state: UiState, vm: MailViewModel) {
                         ) {
                             Icon(
                                 Icons.Filled.MoreVert,
-                                contentDescription = "More",
+                                contentDescription = stringResource(R.string.common_more),
                                 tint = theme.fgSecondary,
                             )
                         }
@@ -283,7 +259,7 @@ fun ConversationListScreen(state: UiState, vm: MailViewModel) {
                             containerColor = theme.surface,
                         ) {
                             DropdownMenuItem(
-                                text = { Text("Mark all read", color = theme.fg, fontSize = 14.sp) },
+                                text = { Text(stringResource(R.string.list_mark_all_read), color = theme.fg, fontSize = 14.sp) },
                                 onClick = {
                                     menuOpen = false
                                     vm.markAllRead()
@@ -302,7 +278,7 @@ fun ConversationListScreen(state: UiState, vm: MailViewModel) {
                 contentColor = theme.accentFg,
                 modifier = Modifier.testTag("button.compose"),
             ) {
-                Icon(Icons.Filled.Edit, contentDescription = "New message")
+                Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.compose_new))
             }
         },
     ) { padding ->
@@ -315,7 +291,7 @@ fun ConversationListScreen(state: UiState, vm: MailViewModel) {
                     CircularProgressIndicator(Modifier.align(Alignment.Center), color = theme.accent)
 
                 state.error != null && state.conversations.isEmpty() ->
-                    Conclusion("Could not load your mail", state.error, Modifier.align(Alignment.Center))
+                    Conclusion(stringResource(R.string.list_load_failed), state.error, Modifier.align(Alignment.Center))
 
                 state.conversations.isEmpty() ->
                     // An empty state is a conclusion, so it finishes the
@@ -323,8 +299,8 @@ fun ConversationListScreen(state: UiState, vm: MailViewModel) {
                     // caught up" congratulates a reader on an empty spam
                     // folder and reads as loss in Archived.
                     Conclusion(
-                        state.list.emptyMessage,
-                        "Mail that arrives here appears in this list.",
+                        stringResource(state.list.emptyMessage),
+                        stringResource(R.string.list_empty_hint),
                         Modifier.align(Alignment.Center),
                     )
 
@@ -387,15 +363,15 @@ fun ConversationListScreen(state: UiState, vm: MailViewModel) {
                                 ) { vm.toggleSelected(c.threadId) }
                             } else {
                                 SwipeableConversationRow(
-                                    onArchive = { vm.triage(c, MailrsClient.Verb.Archive) },
-                                    onMarkRead = { vm.triage(c, MailrsClient.Verb.Read) },
+                                    onArchive = { vm.triage(c, RowAction.Archive) },
+                                    onMarkRead = { vm.triage(c, RowAction.Read) },
                                 ) {
                                     ConversationRow(
                                         c,
                                         selected = false,
                                         onLongPress = { vm.toggleSelected(c.threadId) },
-                                        onArchive = { vm.triage(c, MailrsClient.Verb.Archive) },
-                                        onMarkRead = { vm.triage(c, MailrsClient.Verb.Read) },
+                                        onArchive = { vm.triage(c, RowAction.Archive) },
+                                        onMarkRead = { vm.triage(c, RowAction.Read) },
                                     ) { vm.open(c) }
                                 }
                             }

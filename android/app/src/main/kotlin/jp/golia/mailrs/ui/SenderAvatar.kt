@@ -1,5 +1,7 @@
 package jp.golia.mailrs.ui
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.staticCompositionLocalOf
 import jp.golia.mailrs.wire.MailrsClient
@@ -144,7 +146,7 @@ fun SenderAvatarView(sender: String, size: Dp = 36.dp, unread: Boolean = false) 
                     .clip(CircleShape)
                     .background(theme.accent)
                     .border(2.dp, theme.bg, CircleShape)
-                    .semantics { contentDescription = "Unread" }
+                    .semantics { contentDescription = Texts.get(R.string.list_unread) }
             )
         }
     }
