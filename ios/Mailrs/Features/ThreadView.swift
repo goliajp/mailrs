@@ -10,7 +10,6 @@ struct ThreadView: View {
     @State private var messages: [Wire.Message] = []
     @State private var failure: String?
     @State private var replying = false
-    @State private var confirmingDelete = false
     @Environment(\.dismiss) private var dismiss
     /// Messages whose fold state the reader explicitly flipped. What is
     /// actually expanded is derived — (is last) XOR (in here) — so a
@@ -184,11 +183,14 @@ struct ThreadView: View {
                     Label("Archive", systemImage: "archivebox")
                 }
                 Spacer()
+                // into the Trash, which is the way back: it does not ask
                 Button(role: .destructive) {
-                    confirmingDelete = true
+                    Task { await session.delete(conversation) }
+                    dismiss()
                 } label: {
-                    Label("Delete", systemImage: "trash")
+                    Label("Move to Trash", systemImage: "trash")
                 }
+                .accessibilityIdentifier("thread.trash")
                 Spacer()
                 // The verdicts you reach only after reading: that this
                 // can wait, and that it should not have come at all.
@@ -226,21 +228,6 @@ struct ThreadView: View {
         .sheet(isPresented: $replying) {
             ReplyView(thread: conversation, replyingTo: messages.last)
         }
-        .alert("Delete conversation?", isPresented: $confirmingDelete) {
-            Button("Delete", role: .destructive) {
-                Task {
-                    // Deletion is not optimistic anywhere: the server
-                    // unlinks the files, so the screen leaves only once
-                    // it says they are gone.
-                    await session.delete(conversation)
-                    dismiss()
-                }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This will permanently delete all messages.")
-        }
-
         .task(id: conversation.threadId) {
             // Last fetch first: an opened conversation reads from disk
             // while — or without — the network answering.

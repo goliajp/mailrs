@@ -250,6 +250,8 @@ extension Session {
 
     struct PendingUndo: Equatable {
         let rows: [UndoableRow]
+        /// What was done, so the undo knows what takes it back.
+        var action: RowAction = .archive
     }
 
 
@@ -259,9 +261,9 @@ extension Session {
 
 
     // internal for the same reason as `removeRows` above.
-    func offerUndo(_ rows: [UndoableRow]) {
+    func offerUndo(_ rows: [UndoableRow], action: RowAction = .archive) {
         undoDismissTask?.cancel()
-        withAnimation { pendingUndo = PendingUndo(rows: rows) }
+        withAnimation { pendingUndo = PendingUndo(rows: rows, action: action) }
         let offered = pendingUndo
         undoDismissTask = Task { [weak self] in
             try? await Task.sleep(for: Session.undoWindow)
@@ -299,6 +301,10 @@ extension Session {
         guard let client, let undo = pendingUndo else { return }
         clearUndo()
         withAnimation { conversations = Session.reinserted(undo.rows, into: conversations) }
+        if let back = undo.action.undo, undo.action != .archive {
+            await takeBack(undo.rows, with: back, client: client)
+            return
+        }
         for row in undo.rows {
             do {
                 try await client.unarchive(threadId: row.conversation.threadId)
@@ -312,19 +318,10 @@ extension Session {
     }
 
 
-    /// Delete, and take the row off the list.
-    ///
-    /// Not optimistic. The server unlinks the maildir files, so there is
-    /// nothing to restore and no honest way to put the row back — the
-    /// row goes only once the server says it is gone.
+    /// Into the Trash, which is what deleting is: kept 30 days and
+    /// restorable, so it does not ask first and offers the undo.
     func delete(_ conversation: Wire.Conversation) async {
-        guard let client else { return }
-        do {
-            try await client.delete(threadId: conversation.threadId)
-            _ = removeRows([conversation.threadId])
-        } catch {
-            banner = error.localizedDescription
-        }
+        await perform(.trash, on: [conversation])
     }
 
 

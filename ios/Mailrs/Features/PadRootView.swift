@@ -121,20 +121,24 @@ struct PadRootView: View {
         .onChange(of: session.visibleConversations.count) { _, _ in dropSelectionIfGone() }
         .sheet(isPresented: $composing) { ComposeView() }
         .confirmationDialog(
-            "Delete this conversation?",
+            "Delete forever?",
             isPresented: .constant(pendingDelete != nil),
             titleVisibility: .visible
         ) {
-            Button("Delete", role: .destructive) {
+            Button("Delete forever", role: .destructive) {
                 if let doomed = pendingDelete {
-                    Task { await session.delete(doomed) }
+                    Task { await session.perform(.deleteForever, on: [doomed]) }
                 }
                 pendingDelete = nil
             }
             Button("Cancel", role: .cancel) { pendingDelete = nil }
         }
         .sheet(isPresented: $showingSettings) { SettingsView() }
-        .task { await session.loadConversations() }
+        .task {
+            await session.loadConversations()
+            await session.loadLabels()
+        }
+        .confirmPrompt(when: !showingSettings && !composing)
     }
 
     @ViewBuilder private var conversations: some View {
@@ -166,24 +170,16 @@ struct PadRootView: View {
                             Task { await session.loadMore() }
                         }
                     }
-                    .contextMenu { ConversationRowMenu(conversation: conversation) }
+                    .contextMenu {
+                        ConversationRowMenu(conversation: conversation) { pendingDelete = $0 }
+                    }
                     // **The same swipes the phone has.** Converting
                     // these rows from `NavigationLink` to a selection
                     // dropped them, and losing archive-by-swipe is
                     // losing the gesture triage is actually done with —
                     // on the device with the most room to do it.
                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                        Button {
-                            Task { await session.archive(conversation) }
-                        } label: {
-                            Label("Archive", systemImage: "archivebox")
-                        }
-                        .tint(.green)
-                        Button(role: .destructive) {
-                            pendingDelete = conversation
-                        } label: {
-                            Label("Delete", systemImage: "trash")
-                        }
+                        TrailingSwipes(conversation: conversation) { pendingDelete = $0 }
                     }
                     .swipeActions(edge: .leading, allowsFullSwipe: true) {
                         Button {

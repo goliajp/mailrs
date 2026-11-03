@@ -207,6 +207,10 @@ extension Wire {
         /// is what `MailCacheTests` caught. Read it through
         /// `arrivedAtAccount`, where absent means this server's own.
         let accountId: String?
+        /// Epoch seconds it went to the Trash; absent or 0 when it is not there.
+        var trashedAt: Int64?
+        /// The ids of the reader's labels on it.
+        var labels: [String]?
 
         /// The account this arrived at, with absent read as ours.
         var arrivedAtAccount: String { accountId ?? "" }
@@ -222,7 +226,8 @@ extension Wire {
             unreadCount: Int, lastDate: Int64, category: String, flagged: Bool,
             snippet: String, pinned: Bool, archived: Bool, snoozedUntil: Int64?,
             importanceLevel: String, importanceScore: Double, requiresAction: Bool,
-            receivedCount: Int, sentCount: Int, accountId: String? = nil
+            receivedCount: Int, sentCount: Int, accountId: String? = nil,
+            trashedAt: Int64? = nil, labels: [String]? = nil
         ) {
             self.threadId = threadId
             self.subject = subject
@@ -242,6 +247,8 @@ extension Wire {
             self.receivedCount = receivedCount
             self.sentCount = sentCount
             self.accountId = accountId
+            self.trashedAt = trashedAt
+            self.labels = labels
         }
 
 
@@ -266,7 +273,12 @@ extension Wire {
             case requiresAction = "requires_action"
             case receivedCount = "received_count"
             case sentCount = "sent_count"
+            case trashedAt = "trashed_at"
+            case labels
         }
+
+        /// In the Trash, by the row's own word.
+        var isTrashed: Bool { (trashedAt ?? 0) > 0 }
     }
 
 
