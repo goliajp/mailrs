@@ -155,6 +155,7 @@ impl<A: Account> TrashView<A> {
         if !keep_copy {
             self.put_label(&from, &msg, id, false).await?;
         }
+        self.back_in_inbox(&from, &msg, to).await?;
         if self.inner.mailbox_name(&from) == self.inner.mailbox_name(to) {
             let selected = self.inner.select(to).await?;
             return Ok(Filed {

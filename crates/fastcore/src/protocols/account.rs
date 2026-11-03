@@ -162,9 +162,16 @@ impl Account for FastcoreAccount {
         }
     }
 
-    async fn remove(&self, _: &FcMailbox, m: &Message<PathBuf>) -> Result<()> {
+    async fn remove(&self, mailbox: &FcMailbox, m: &Message<PathBuf>) -> Result<()> {
         match self {
-            Self::Real(a) => Ok(backend::remove_message(&a.user, &to_imap(m))?),
+            Self::Real(a) => {
+                let known = super::forget::Doomed::read(mailbox, &m.key);
+                backend::remove_message(&a.user, &to_imap(m))?;
+                if let Some(d) = &known {
+                    a.forget(d);
+                }
+                Ok(())
+            }
             Self::Mock(_) => refused(),
         }
     }
@@ -209,6 +216,38 @@ impl Account for FastcoreAccount {
                 messages: Vec::new(),
                 latest: 0,
             }),
+        }
+    }
+
+    async fn archived(&self) -> Result<Trashed<FcMailbox, PathBuf>> {
+        match self {
+            Self::Real(a) => a.archived(),
+            Self::Mock(_) => Ok(Trashed {
+                messages: Vec::new(),
+                latest: 0,
+            }),
+        }
+    }
+
+    async fn all_mail(&self) -> Result<Trashed<FcMailbox, PathBuf>> {
+        match self {
+            Self::Real(a) => a.all_mail(),
+            Self::Mock(_) => Ok(Trashed {
+                messages: Vec::new(),
+                latest: 0,
+            }),
+        }
+    }
+
+    async fn set_archived(
+        &self,
+        _: &FcMailbox,
+        m: &Message<PathBuf>,
+        archived: bool,
+    ) -> Result<bool> {
+        match self {
+            Self::Real(a) => a.set_archived(m, archived),
+            Self::Mock(_) => refused(),
         }
     }
 
