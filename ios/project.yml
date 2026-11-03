@@ -179,6 +179,8 @@ targets:
       - path: Mailrs/Features/ConversationRow.swift
       - path: Mailrs/Features/SidebarMailboxRow.swift
       - path: Mailrs/Features/UndoBar.swift
+      - path: Mailrs/Features/SendUndoBar.swift
+      - path: Mailrs/Features/ComposeExtras.swift
       - path: Mailrs/Features/FailureBanner.swift
       - path: Mailrs/Features/ConversationRowMenu.swift
       - path: Mailrs/Features/ThreadView.swift
@@ -206,6 +208,8 @@ targets:
       - path: Mailrs/Features/ReplyView.swift
       - path: Mailrs/App/Session.swift
       - path: Mailrs/App/Session+Compose.swift
+      - path: Mailrs/App/Session+SendHold.swift
+      - path: Mailrs/App/Session+Role.swift
       - path: Mailrs/App/Session+Directory.swift
       - path: Mailrs/App/Session+Operations.swift
       - path: Mailrs/App/Session+Selection.swift

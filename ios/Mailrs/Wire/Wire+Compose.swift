@@ -24,6 +24,12 @@ extension Wire {
         let replyToThreadId: String?
         let createdAt: Int64
         let updatedAt: Int64
+        /// The address it was set to leave by; empty or absent is the
+        /// account's own.
+        var from: String?
+        /// When it is set to go, in epoch seconds. A draft scheduled on the
+        /// web and resumed here must keep it, or Send would send at once.
+        var scheduledAt: Int64?
 
         enum CodingKeys: String, CodingKey {
             case id
@@ -35,6 +41,8 @@ extension Wire {
             case replyToThreadId = "reply_to_thread_id"
             case createdAt = "created_at"
             case updatedAt = "updated_at"
+            case from
+            case scheduledAt = "scheduled_at"
         }
     }
 
@@ -51,6 +59,8 @@ extension Wire {
         let subject: String
         let body: String
         let replyToThreadId: String?
+        var from: String = ""
+        var scheduledAt: Int64?
 
         enum CodingKeys: String, CodingKey {
             case id
@@ -60,6 +70,8 @@ extension Wire {
             case subject
             case body
             case replyToThreadId = "reply_to_thread_id"
+            case from
+            case scheduledAt = "scheduled_at"
         }
     }
 
@@ -119,9 +131,12 @@ extension Wire {
         /// the conversation as a stranger, and half the time the
         /// recipient's provider refuses it outright.
         var from: String = ""
+        /// Seconds the server holds an immediate send so Undo can stop it.
+        var undoSeconds: Int? = SendHold.seconds
 
         enum CodingKeys: String, CodingKey {
             case from
+            case undoSeconds = "undo_seconds"
             case to
             case cc
             case bcc

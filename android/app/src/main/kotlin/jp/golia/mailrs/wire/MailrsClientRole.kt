@@ -15,6 +15,9 @@ import kotlinx.serialization.Serializable
 data class Role(
     @SerialName("is_admin") val isAdmin: Boolean = false,
     @SerialName("is_super") val isSuper: Boolean = false,
+    /** The signed-in address and what else it may send as — the composer's From list. */
+    val address: String = "",
+    @SerialName("send_as") val sendAs: List<String> = emptyList(),
 )
 
 suspend fun MailrsClient.role(): MailrsClient.Outcome<Role> =

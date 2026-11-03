@@ -60,3 +60,13 @@ enum class SendSchedule(@androidx.annotation.StringRes private val labelId: Int)
         return day
     }
 }
+
+/**
+ * The time a send goes with: a "send later" choice wins; plain Send keeps a
+ * time the resumed draft carried, unless that time has passed.
+ */
+fun SendSchedule.withKept(kept: Long?, now: ZonedDateTime): Long? {
+    if (this != SendSchedule.Now) return fireDate(now)
+    if (kept == null || kept <= now.toEpochSecond()) return null
+    return kept
+}

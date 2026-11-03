@@ -179,7 +179,7 @@ final class Session {
     var labels: [Wire.LabelItem] = []
     var activeLabel: Wire.LabelItem?
     var pendingUndo: PendingUndo?
-
+    var pendingSend: PendingSend?
     var undoDismissTask: Task<Void, Never>?
 
     // `private(set)`: the moved extensions read it, and Swift's

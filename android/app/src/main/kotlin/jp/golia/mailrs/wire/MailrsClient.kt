@@ -8,7 +8,6 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
-import okhttp3.MultipartBody
 import okhttp3.Request
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -168,40 +167,6 @@ class MailrsClient(private val store: TokenStore) {
         Wire.Message.serializer(),
     )
 
-    suspend fun send(
-        to: List<String>,
-        subject: String,
-        body: String,
-        inReplyTo: String?,
-        cc: List<String> = emptyList(),
-        bcc: List<String> = emptyList(),
-        forwardAttachmentsFrom: Int? = null,
-        scheduledAt: Long? = null,
-        redraftOf: String? = null,
-        redraftKeep: List<Int>? = null,
-        from: String = "",
-    ): Outcome<Unit> {
-        val payload = json.encodeToString(
-            Wire.SendRequest.serializer(),
-            Wire.SendRequest(
-                from = from,
-                to = to,
-                cc = cc,
-                bcc = bcc,
-                subject = subject,
-                body = body,
-                inReplyTo = inReplyTo,
-                forwardAttachmentsFrom = forwardAttachmentsFrom,
-                scheduledAt = scheduledAt,
-                redraftOf = redraftOf,
-                redraftKeep = redraftKeep,
-            ),
-        )
-        return when (val r = post(url("/api/mail/send"), payload, authorized = true)) {
-            is Outcome.Ok -> Outcome.Ok(Unit)
-            is Outcome.Err -> r
-        }
-    }
 
     /**
      * One of the verbs `conversation_verbs.rs` accepts: `archive`,
@@ -265,67 +230,6 @@ class MailrsClient(private val store: TokenStore) {
         post(url("/api/conversations/${enc(threadId)}/read"), "{}", authorized = true)
     }
 
-
-
-
-
-
-
-    /**
-     * `POST /api/mail/send-multipart` — a message with files.
-     *
-     * Streamed from the content resolver rather than read into a byte
-     * array first: a phone photo is a few megabytes and a video is not,
-     * and a composer that loaded every attachment into memory to send it
-     * would fail on exactly the files worth attaching.
-     */
-    suspend fun sendMultipart(
-        to: List<String>,
-        cc: List<String>,
-        bcc: List<String>,
-        subject: String,
-        body: String,
-        inReplyTo: String?,
-        attachments: List<Upload>,
-        scheduledAt: Long? = null,
-        redraftOf: String? = null,
-        redraftKeep: List<Int>? = null,
-    ): Outcome<Unit> = withContext(Dispatchers.IO) {
-        val s = session ?: return@withContext Outcome.Err(Texts.get(R.string.error_not_signed_in))
-        val form = MultipartBody.Builder().setType(MultipartBody.FORM)
-        // Repeated fields, one per address: that is what the handler
-        // reads (`parts.to.push(...)`), and a comma-joined single field
-        // would arrive as one recipient with commas in its name.
-        to.forEach { form.addFormDataPart("to", it) }
-        cc.forEach { form.addFormDataPart("cc", it) }
-        bcc.forEach { form.addFormDataPart("bcc", it) }
-        form.addFormDataPart("subject", subject)
-        form.addFormDataPart("body", body)
-        inReplyTo?.let { form.addFormDataPart("in_reply_to", it) }
-        // A decimal string of epoch seconds, which is what the handler
-        // parses. Anything it cannot parse it treats as "not
-        // scheduling" — silently sending at once.
-        scheduledAt?.let { form.addFormDataPart("scheduled_at", it.toString()) }
-        redraftOf?.let { form.addFormDataPart("redraft_of", it) }
-        // **One comma-separated field, not a repeated one** — the
-        // handler says why: repeating it cannot express "keep none",
-        // because zero occurrences and an empty selection both arrive
-        // as no field at all and they mean opposite things.
-        // Present-but-empty says none; absent says all.
-        redraftKeep?.let { form.addFormDataPart("redraft_keep", it.joinToString(",")) }
-        for (a in attachments) {
-            form.addFormDataPart("attachments", a.filename, a.body)
-        }
-        val request = Request.Builder()
-            .url("${s.server}/api/mail/send-multipart")
-            .header("Authorization", "Bearer ${s.token}")
-            .post(form.build())
-            .build()
-        when (val r = send(request)) {
-            is Outcome.Ok -> Outcome.Ok(Unit)
-            is Outcome.Err -> r
-        }
-    }
 
     /** One file on its way out: a name, a type, and a body to stream. */
     data class Upload(val filename: String, val body: RequestBody)
