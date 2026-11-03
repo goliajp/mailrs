@@ -8,6 +8,7 @@ pub mod admin_directory;
 pub mod admin_flow;
 pub mod admin_ops;
 pub mod admin_outbound_pause;
+pub mod admin_ownerless;
 pub mod admin_password_clear;
 pub mod ai;
 pub mod app_passwords;

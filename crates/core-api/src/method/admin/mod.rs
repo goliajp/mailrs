@@ -10,12 +10,14 @@
 mod credentials;
 mod directory;
 mod ops;
+mod ownerless;
 mod permissions;
 mod userdata;
 
 pub use credentials::*;
 pub use directory::*;
 pub use ops::*;
+pub use ownerless::*;
 pub use permissions::*;
 pub use userdata::*;
 

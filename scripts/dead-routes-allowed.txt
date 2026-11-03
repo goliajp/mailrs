@@ -93,3 +93,5 @@
 
 /api/admin/masked-submissions  # who submitted mail from a mask and from which IP, which the message headers leave out. No admin page has been asked for; read with curl.
 /api/admin/dane/tlsa  # the TLSA zone lines for port 25, which the operator publishes in DNS. No admin page has been asked for; read with curl.
+/api/admin/ownerless-threads  # the operator lists conversations nobody holds and reports them before any delete. No admin page has been asked for; read with curl.
+/api/admin/ownerless-threads/{thread_id}  # one irreversible delete at a time, by the super administrator with curl after the list is reviewed.
