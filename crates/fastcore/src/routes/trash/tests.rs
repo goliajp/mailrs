@@ -117,22 +117,33 @@ fn setup(ids: &[&str]) -> (tempfile::TempDir, Arc<FastcoreState>) {
 /// A file that stays on disk is a conversation self-heal files again, so
 /// the delete did not happen: the answer is a 500, and emptying the Trash
 /// it was in is not reported as done.
+///
+/// The file cannot be removed because its directory is read-only, which
+/// stops everyone but root; run as root, the case cannot be made and the
+/// test says so instead of passing on nothing.
 #[tokio::test]
 async fn a_file_left_on_disk_fails_the_delete() {
+    use std::os::unix::fs::PermissionsExt;
     let (maildir, state) = setup(&["d"]);
-    // a directory where the file was: removing it fails, even for root
-    let at = maildir.path().join("golia.jp/bob/new/d.eml");
-    std::fs::remove_file(&at).unwrap();
-    std::fs::create_dir(&at).unwrap();
-    std::fs::write(at.join("keep"), b"x").unwrap();
     let tid = "d@outside.example".to_string();
     trash_thread(State(state.clone()), Path((U.to_string(), tid.clone()))).await;
+    let new = maildir.path().join("golia.jp/bob/new");
+    std::fs::set_permissions(&new, std::fs::Permissions::from_mode(0o555)).unwrap();
+    let probe = new.join("probe");
+    if std::fs::write(&probe, b"x").is_ok() {
+        std::fs::remove_file(&probe).unwrap();
+        std::fs::set_permissions(&new, std::fs::Permissions::from_mode(0o755)).unwrap();
+        eprintln!("SKIPPED: running as root, a read-only directory cannot stop an unlink");
+        return;
+    }
 
     let emptied = empty_trash(State(state.clone()), Path(U.to_string())).await;
+    std::fs::set_permissions(&new, std::fs::Permissions::from_mode(0o755)).unwrap();
     assert_eq!(
         emptied.map(|Json(r)| r.affected),
         Err(StatusCode::INTERNAL_SERVER_ERROR)
     );
+    assert!(new.join("d.eml").is_file(), "the file is still there");
 }
 
 /// Mail from somebody else brings a conversation out of the Trash, as in
