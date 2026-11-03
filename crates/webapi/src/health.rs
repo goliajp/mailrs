@@ -72,6 +72,7 @@ pub(crate) async fn health_handler(
         "egress": egress,
         "new_domains": new_domains(),
         "quota": quota(&state).await,
+        "fraud_hits": fraud_hits(),
         "receiver": handlers::smtp_monitor::health(&state.receiver_stats),
         "jmap_uploads": handlers::jmap::upload_health(),
     }))
@@ -113,6 +114,52 @@ fn new_domains() -> serde_json::Value {
         }
     };
     with_staleness(value, now)
+}
+
+/// Hits per enforced rule of the active fraud bundle, today (UTC) and
+/// over the last 30 days, from the receiver's daily counters. Every
+/// enforced rule is listed, at 0 when it never fired, so a watch on one
+/// rule has a number to compare. Recounted at most once every five
+/// minutes; null when the shared store cannot be read.
+fn fraud_hits() -> serde_json::Value {
+    use std::sync::Mutex;
+    use std::time::{Duration, Instant};
+    static LAST: Mutex<Option<(Instant, serde_json::Value)>> = Mutex::new(None);
+    let now = chrono::Utc::now().timestamp();
+    let cached = LAST
+        .lock()
+        .ok()
+        .and_then(|last| last.clone())
+        .filter(|(at, _)| at.elapsed() < Duration::from_secs(300))
+        .map(|(_, v)| v);
+    if let Some(v) = cached {
+        return with_staleness(v, now);
+    }
+    let (version, rules) = mailrs_fraud_lua::active_rule_set();
+    let counts = handlers::kevy_util::with_kevy(move |c| {
+        mailrs_core_sidestate::families::fraud_hits::counts(c, &rules, now)
+    });
+    let Ok(counts) = counts else {
+        return serde_json::Value::Null;
+    };
+    let v = fraud_hits_value(&version, &counts, now);
+    if let Ok(mut last) = LAST.lock() {
+        *last = Some((Instant::now(), v.clone()));
+    }
+    with_staleness(v, now)
+}
+
+fn fraud_hits_value(
+    version: &str,
+    c: &mailrs_core_sidestate::families::fraud_hits::Counts,
+    now: i64,
+) -> serde_json::Value {
+    serde_json::json!({
+        "version": version,
+        "by_rule_today": c.today,
+        "by_rule_30d": c.last_30d,
+        "computed_at": now,
+    })
 }
 
 /// How full the accounts are, from each account's usage counter against
@@ -314,6 +361,22 @@ pub(crate) async fn status_handler(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn every_enforced_rule_is_listed_and_one_that_never_fired_reads_zero() {
+        let mut c = mailrs_core_sidestate::families::fraud_hits::Counts::default();
+        c.today.insert("svg-runs-script".into(), 0);
+        c.today.insert("html-builds-a-download".into(), 2);
+        c.last_30d.insert("svg-runs-script".into(), 0);
+        c.last_30d.insert("html-builds-a-download".into(), 5);
+        let v = super::fraud_hits_value("lua:abc", &c, 7);
+        assert_eq!(v["version"], "lua:abc");
+        assert_eq!(v["by_rule_today"]["svg-runs-script"], 0);
+        assert_eq!(v["by_rule_today"]["html-builds-a-download"], 2);
+        assert_eq!(v["by_rule_30d"]["html-builds-a-download"], 5);
+        assert_eq!(v["computed_at"], 7);
+        assert_eq!(super::with_staleness(v, 7)["stale"], false);
+    }
+
     #[test]
     fn no_account_with_a_limit_reads_as_no_ratio_not_zero() {
         let census = mailrs_core_sidestate::families::quota_limits::Census {
