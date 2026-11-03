@@ -45,6 +45,29 @@ impl KevyMailboxStore {
             .map_err(io::Error::from)
     }
 
+    /// Take `thread_id` out of `user`'s Trash if it is there. `true` when
+    /// it was; nothing is written when it was not.
+    pub fn restore_from_trash(&self, user: &str, thread_id: &str) -> io::Result<bool> {
+        let key = keys::thread_user(user, thread_id);
+        self.store()
+            .atomic(|ctx| {
+                let trashed = ctx.hget(key.as_bytes(), b"trashed")?;
+                if trashed.as_deref() != Some(crate::thread_row::flag(true)) {
+                    return Ok(false);
+                }
+                crate::thread_row::hset_membership(
+                    ctx,
+                    key.as_bytes(),
+                    &[
+                        (b"trashed" as &[u8], crate::thread_row::flag(false)),
+                        (b"trashed_at", b"0"),
+                    ],
+                )?;
+                Ok(true)
+            })
+            .map_err(io::Error::from)
+    }
+
     /// Up to `limit` `(user, thread id)` that went to the Trash at or
     /// before `cutoff`. An empty range scan when nothing is due.
     pub fn trashed_before(&self, cutoff: i64, limit: usize) -> io::Result<Vec<(String, String)>> {

@@ -74,24 +74,28 @@ pub(crate) fn sent_thread_ids(state: &Arc<FastcoreState>, user: &str) -> Vec<Str
 }
 
 /// Remove the maildir file at `blob_ref` — the disk counterpart of
-/// `KevyMailboxStore::delete_thread`. The file is found the way
-/// `read_maildir_file` finds it: in `new/` or `cur/`, whatever `:2,`
-/// flags its name has gained since delivery.
-///
-/// Best-effort: an fs error (permission, race, already gone) logs a
-/// warning but must not fail the surrounding delete — the point of
-/// this helper is to prevent self-heal from resurrecting the row on
-/// its next tick, and a missing file already satisfies that. The size of
-/// the file unlinked, which comes off the user's usage, or `None` when
-/// none was.
+/// `KevyMailboxStore::delete_thread` — through the one function that
+/// removes mail files and takes their size off the user's usage. The file
+/// is found in `new/` or `cur/`, whatever `:2,` flags its name has gained.
+/// Its size, or `None` when there was no such file; an error when it could
+/// not be removed: for a delete the user asked for, a file left on disk is
+/// a message self-heal files again.
+pub(crate) fn remove_maildir_file(
+    state: &crate::FastcoreState,
+    user: &str,
+    blob_ref: &str,
+) -> std::io::Result<Option<u64>> {
+    let mut net = state.net_conn();
+    mailrs_intake::mail_files::remove_blob(net.as_mut(), &state.maildir_root, user, blob_ref)
+}
+
+/// [`remove_maildir_file`] where a file left behind is only logged.
 pub(crate) fn unlink_maildir_file(
     state: &crate::FastcoreState,
     user: &str,
     blob_ref: &str,
 ) -> Option<u64> {
-    let mut net = state.net_conn();
-    let root = &state.maildir_root;
-    mailrs_intake::mail_files::remove_blob(net.as_mut(), root, user, blob_ref).unwrap_or_else(|e| {
+    remove_maildir_file(state, user, blob_ref).unwrap_or_else(|e| {
         tracing::warn!(
             error = %e, %user, %blob_ref,
             "delete_thread: could not unlink maildir file"

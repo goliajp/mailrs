@@ -59,7 +59,7 @@ pub(crate) async fn send_message(
     // was passed through untouched and build_rfc5322 ignored it, so
     // every forward sent only the user's leading text — the recipient
     // saw "FYI." with none of the forwarded content.
-    inline_forward_content(&state, &user, &mut parts).await;
+    inline_forward_content(&state, &user, &mut parts).await?;
     super::inline::embed_uploads(&mut parts).await;
     // A redraft carries the failed send's attachments. Unlike the forward
     // step above it can fail the request: losing them silently is the
@@ -73,6 +73,9 @@ pub(crate) async fn send_message(
     .await?;
     // Before `build_rfc5322`, which is what writes In-Reply-To/References.
     infer_in_reply_to(&state, &user, &mut parts).await;
+    if breaks_a_header_line(&parts) {
+        return Err(SendError::header_line_break());
+    }
     let mut recipients = parts.to.clone();
     recipients.extend(parts.cc.clone());
     recipients.extend(parts.bcc.clone());
@@ -152,6 +155,9 @@ pub(crate) async fn send_email_mcp(
         attachments: Vec::new(),
         scheduled_at,
     };
+    if breaks_a_header_line(&parts) {
+        return Err("header_line_break: a header value carries a line break".into());
+    }
     let mut recipients = parts.to.clone();
     recipients.extend(parts.cc.clone());
     let (message_id, envelope) = build_rfc5322(&parts, from);
@@ -285,7 +291,7 @@ pub(crate) async fn send_message_multipart(
     );
     // Same fix as the JSON handler: prepend the forwarded original
     // when the request carries forward_message_id.
-    inline_forward_content(&state, &user, &mut parts).await;
+    inline_forward_content(&state, &user, &mut parts).await?;
     super::inline::embed_uploads(&mut parts).await;
     inline_redraft_attachments(
         &user,
@@ -295,6 +301,9 @@ pub(crate) async fn send_message_multipart(
     )
     .await?;
     infer_in_reply_to(&state, &user, &mut parts).await;
+    if breaks_a_header_line(&parts) {
+        return Err(SendError::header_line_break());
+    }
     let mut recipients = parts.to.clone();
     recipients.extend(parts.cc.clone());
     recipients.extend(parts.bcc.clone());

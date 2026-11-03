@@ -104,6 +104,9 @@ import jp.golia.mailrs.MailViewModel
 import jp.golia.mailrs.wire.MailrsClient
 import jp.golia.mailrs.wire.SenderIdentity
 import jp.golia.mailrs.wire.Wire
+import jp.golia.mailrs.wire.CallbackNumbers
+import jp.golia.mailrs.wire.LinkWarnings
+import androidx.compose.material3.AlertDialog
 
 /** A thread: messages as cards on the grouped background. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -228,7 +231,9 @@ fun ThreadScreen(
                         .testTag("list.messages"),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    state.messages.forEach { MessageCard(open.threadId, it, state, vm) }
+                    state.messages.forEachIndexed { i, m ->
+                        MessageCard(open.threadId, m, state, vm, earlier = state.messages.take(i))
+                    }
                 }
             }
         }
@@ -236,8 +241,16 @@ fun ThreadScreen(
 }
 
 @Composable
-private fun MessageCard(threadId: String, m: Wire.Message, state: UiState, vm: MailViewModel) {
+private fun MessageCard(
+    threadId: String,
+    m: Wire.Message,
+    state: UiState,
+    vm: MailViewModel,
+    earlier: List<Wire.Message>,
+) {
     val theme = LocalTheme.current
+    var warned by remember(m.uid) { mutableStateOf<LinkWarnings.Target?>(null) }
+    warned?.let { target -> LinkQuestion(target, onDone = { warned = null }) }
     Column(
         Modifier
             .fillMaxWidth()
@@ -262,8 +275,10 @@ private fun MessageCard(threadId: String, m: Wire.Message, state: UiState, vm: M
                     SenderClaimMark(m.sender)
                 }
                 Text(RowDate.format(m.internalDate), color = theme.fgMuted, fontSize = 11.sp)
+                SenderChecksLine(m.senderTrust, m.senderChecks)
             }
         }
+        VerdictPanel(m.messageId, vm)
         // HTML first, and not as a preference. A message that was
         // composed as HTML and shown as its `text_body` is a different
         // message: the fixture's plain part is the two words "plain
@@ -283,8 +298,14 @@ private fun MessageCard(threadId: String, m: Wire.Message, state: UiState, vm: M
                 modifier = Modifier.padding(top = 10.dp),
             )
         } else {
-            MessageBody(html, Modifier.padding(top = 10.dp))
+            MessageBody(
+                html,
+                Modifier.padding(top = 10.dp),
+                warnings = m.linkWarnings,
+                onWarnedLink = { warned = it },
+            )
         }
+        CallbackNotice(CallbackNumbers.new(m, earlier))
         AttachmentList(m.uid, m.attachments, state, vm)
         UnsubscribeFooter(threadId, m, state, vm)
 
@@ -358,6 +379,40 @@ private fun SenderClaimMark(sender: String) {
             .padding(start = 5.dp)
             .background(theme.warning.copy(alpha = 0.14f), RoundedCornerShape(5.dp))
             .padding(horizontal = 5.dp, vertical = 1.dp),
+    )
+}
+
+/**
+ * Asked once before a flagged link opens, with the reasons it was flagged,
+ * as the web client asks.
+ */
+@Composable
+private fun LinkQuestion(target: LinkWarnings.Target, onDone: () -> Unit) {
+    val context = LocalContext.current
+    val (reasons, lang) = rememberReasons()
+    val why = target.warning.reasons.joinToString(" ") { reasons.words(it, lang) }
+    AlertDialog(
+        onDismissRequest = onDone,
+        text = { Text(stringResource(R.string.link_warning_confirm, why), modifier = Modifier.testTag("link.question")) },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onDone()
+                    runCatching {
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW, android.net.Uri.parse(target.url))
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                },
+                modifier = Modifier.testTag("link.open"),
+            ) { Text(stringResource(R.string.link_warning_open)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDone, modifier = Modifier.testTag("link.cancel")) {
+                Text(stringResource(R.string.common_cancel))
+            }
+        },
     )
 }
 

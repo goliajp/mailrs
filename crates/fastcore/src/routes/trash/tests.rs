@@ -84,9 +84,75 @@ async fn the_trash_keeps_until_emptied_or_due() {
         "nothing more is due"
     );
 
-    let Json(emptied) = empty_trash(State(state.clone()), Path(U.to_string())).await;
+    let Json(emptied) = empty_trash(State(state.clone()), Path(U.to_string()))
+        .await
+        .expect("emptied");
     assert_eq!(emptied.affected, 1);
     assert_eq!(inbox_total(&state, true), 0);
     assert_eq!(files(maildir.path()), 1, "only the restored one is left");
     assert_eq!(inbox_total(&state, false), 1);
+}
+
+fn setup(ids: &[&str]) -> (tempfile::TempDir, Arc<FastcoreState>) {
+    let maildir = tempfile::tempdir().unwrap();
+    let mut state = crate::tests::fresh_state_owned();
+    state.maildir_root = maildir.path().to_string_lossy().into_owned();
+    let state = Arc::new(state);
+    let new = maildir.path().join("golia.jp/bob/new");
+    std::fs::create_dir_all(&new).unwrap();
+    for id in ids {
+        std::fs::write(new.join(format!("{id}.eml")), mail(id)).unwrap();
+        crate::ingest::ingest_delivered_file(
+            &state,
+            U,
+            &format!("{id}.eml"),
+            &mail(id),
+            "INBOX",
+            None,
+        );
+    }
+    (maildir, state)
+}
+
+/// A file that stays on disk is a conversation self-heal files again, so
+/// the delete did not happen, and the route answers a 500 for it. The
+/// removal is made to fail through the remover the delete is given: no
+/// permission stops root, and the tests run as root on the build machines.
+#[tokio::test]
+async fn a_file_left_on_disk_fails_the_delete() {
+    let (maildir, state) = setup(&["d"]);
+    let refuse: crate::routes::thread_actions::RemoveFile =
+        |_, _, _| Err(std::io::Error::other("unlink refused"));
+    let res =
+        crate::routes::thread_actions::delete_removing(&state, U, "d@outside.example", refuse);
+    assert_eq!(res, Err(()));
+    assert!(
+        maildir.path().join("golia.jp/bob/new/d.eml").is_file(),
+        "the file is still there"
+    );
+}
+
+/// Mail from somebody else brings a conversation out of the Trash, as in
+/// Gmail; left there, the purge would delete the new message unread.
+#[tokio::test]
+async fn a_reply_brings_a_conversation_out_of_the_trash() {
+    let (_maildir, state) = setup(&["e"]);
+    let tid = "e@outside.example".to_string();
+    trash_thread(State(state.clone()), Path((U.to_string(), tid.clone()))).await;
+    assert_eq!(inbox_total(&state, false), 0);
+
+    let reply = b"From: a@outside.example\r\nTo: bob@golia.jp\r\nSubject: Re: e\r\n\
+Message-ID: <e2@outside.example>\r\nIn-Reply-To: <e@outside.example>\r\n\
+Date: Wed, 6 Aug 2026 09:00:00 +0900\r\n\r\nstill there?\r\n";
+    crate::ingest::ingest_delivered_file(&state, U, "e2.eml", reply, "INBOX", None);
+    assert_eq!(inbox_total(&state, false), 1, "the reply is in the Inbox");
+    assert_eq!(inbox_total(&state, true), 0, "and the Trash is empty");
+
+    // the user's own reply leaves it where it is
+    trash_thread(State(state.clone()), Path((U.to_string(), tid))).await;
+    let own = b"From: bob@golia.jp\r\nTo: a@outside.example\r\nSubject: Re: e\r\n\
+Message-ID: <e3@golia.jp>\r\nIn-Reply-To: <e2@outside.example>\r\n\
+Date: Wed, 6 Aug 2026 10:00:00 +0900\r\n\r\nyes\r\n";
+    crate::ingest::ingest_delivered_file(&state, U, "e3.eml", own, "Sent", None);
+    assert_eq!(inbox_total(&state, true), 1, "an own reply restored it");
 }

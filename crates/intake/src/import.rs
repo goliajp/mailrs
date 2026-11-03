@@ -25,8 +25,13 @@ pub fn file<S: SentStore + ?Sized>(
     body: &[u8],
     fraud_verdict: Option<&str>,
 ) -> io::Result<Filed> {
-    // an import counts against the quota like any mail, and stops at it
-    if crate::live_sync::quota_exceeded(user) {
+    // an import counts against the quota like any mail, and stops at it;
+    // both read from the core's own side state, where removals count off
+    let over = core.net_conn().is_some_and(|mut c| {
+        let (limit, used) = crate::live_sync::quota_read_on(&mut c, user);
+        limit > 0 && used >= limit
+    });
+    if over {
         return Err(io::Error::new(
             io::ErrorKind::QuotaExceeded,
             format!("{user} is over quota"),
@@ -51,7 +56,8 @@ pub fn file<S: SentStore + ?Sized>(
         false => id.0.clone(),
     };
     let mut a = derive(core, core.net_conn(), user, &blob_ref, body, folder);
-    crate::live_sync::adjust_usage_bytes(user, body.len() as i64);
+    let mut net = core.net_conn();
+    crate::live_sync::adjust_usage_on(net.as_mut(), user, body.len() as i64);
     crate::live_sync::upsert_contacts(user, &a.from);
     match own {
         true => {

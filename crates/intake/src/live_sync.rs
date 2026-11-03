@@ -210,6 +210,11 @@ pub fn quota_read(user: &str) -> (i64, i64) {
     let Ok(mut conn) = Connection::connect(&url) else {
         return (0, 0);
     };
+    quota_read_on(&mut conn, user)
+}
+
+/// [`quota_read`] over a connection the caller already has.
+pub fn quota_read_on(conn: &mut Connection, user: &str) -> (i64, i64) {
     let lk = mailrs_core_sidestate::keys::quota::limit_key(user);
     let uk = mailrs_core_sidestate::keys::quota::used_key(user);
     let parse = |v: Option<Vec<u8>>| {

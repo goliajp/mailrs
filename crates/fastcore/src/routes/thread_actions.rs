@@ -362,9 +362,10 @@ pub(crate) async fn delete_thread(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> axum::response::Response {
+    use axum::response::IntoResponse;
     match delete_for_good(&state, &user, &thread_id) {
         Ok(gone) => member_result(gone.is_some()),
-        Err(()) => action_result(false),
+        Err(()) => axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response(),
     }
 }
 
@@ -375,12 +376,34 @@ pub(crate) struct Deleted {
     pub bytes: u64,
 }
 
-/// Delete `user`'s `thread_id` for good, index and files. `Ok(None)` when
-/// it is not the user's; `Err` when the store could not be written.
+/// What a file is removed with: `(state, user, blob ref)`; its size, or
+/// `None` when there was no such file.
+pub(crate) type RemoveFile = fn(&FastcoreState, &str, &str) -> std::io::Result<Option<u64>>;
+
+/// Delete `user`'s `thread_id` for good, index and files, each file through
+/// the one function that removes mail and counts it off the usage.
+/// `Ok(None)` when it is not the user's; `Err` when the store could not be
+/// written or a file stayed on disk.
 pub(crate) fn delete_for_good(
     state: &FastcoreState,
     user: &str,
     thread_id: &str,
+) -> Result<Option<Deleted>, ()> {
+    delete_removing(
+        state,
+        user,
+        thread_id,
+        crate::routes::message_ops::remove_maildir_file,
+    )
+}
+
+/// [`delete_for_good`], with the files removed by `remove`, so a test can
+/// make a removal fail the way no permission can for root.
+pub(crate) fn delete_removing(
+    state: &FastcoreState,
+    user: &str,
+    thread_id: &str,
+    remove: RemoveFile,
 ) -> Result<Option<Deleted>, ()> {
     // The kevy side of the delete returns every file the user's copies
     // have had — a Message-ID can sit in Sent and INBOX, or in INBOX once
@@ -391,16 +414,30 @@ pub(crate) fn delete_for_good(
     let (existed, files) = match state.mailbox.delete_thread(user, thread_id) {
         Ok(pair) => pair,
         Err(e) => {
-            tracing::warn!(error = %e, %user, %thread_id, "delete_thread kevy failed");
+            tracing::error!(error = %e, %user, %thread_id, "delete_thread kevy failed");
             return Err(());
         }
     };
     let mut gone = Deleted::default();
+    let mut left = 0u32;
     for file in &files {
-        if let Some(size) = unlink_maildir_file(state, user, file) {
-            gone.messages += 1;
-            gone.bytes += size;
+        match remove(state, user, file) {
+            Ok(Some(size)) => {
+                gone.messages += 1;
+                gone.bytes += size;
+            }
+            Ok(None) => {}
+            Err(e) => {
+                tracing::error!(error = %e, %user, %thread_id, %file,
+                    "delete_thread: a file stayed on disk; self-heal will file it again");
+                left += 1;
+            }
         }
+    }
+    // the conversation comes back with the next self-heal, so the delete
+    // did not happen and the caller is told so
+    if left > 0 {
+        return Err(());
     }
     if !existed {
         return Ok(None);

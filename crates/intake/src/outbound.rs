@@ -22,7 +22,7 @@ fn connect() -> std::io::Result<kevy_client::Connection> {
 /// is the MAIL FROM ("<>" for null-envelope notifications).
 pub fn enqueue_outbound(to: &str, sender: &str, body: &[u8]) -> std::io::Result<()> {
     let mail_from = if sender.is_empty() { "<>" } else { sender };
-    enqueue_redirect(mail_from, to, body, mail_from)
+    enqueue_relay(mail_from, to, body, mail_from)
 }
 
 /// A security alert from `from` to `to`: neither counted toward nor held
@@ -48,7 +48,26 @@ pub fn enqueue_security_alert(to: &str, from: &str, body: &[u8]) -> std::io::Res
 }
 
 /// Forward `body`, addressed to `original_recipient` here, on to `target`.
+///
+/// The copy carries a `Delivered-To:` line naming `original_recipient`, as
+/// Postfix writes one per hop. Two addresses forwarding to each other, here
+/// or through another server, send the message back with that line in it,
+/// and it is not forwarded again: the error names the loop, and every
+/// caller keeps the copy here or reports the address as not reached.
 pub fn enqueue_redirect(
+    original_recipient: &str,
+    target: &str,
+    body: &[u8],
+    reverse_path: &str,
+) -> std::io::Result<()> {
+    if let Some(why) = crate::forward_loop::refused(body, original_recipient) {
+        return Err(std::io::Error::other(format!("not forwarded: {why}")));
+    }
+    let marked = crate::forward_loop::marked(body, original_recipient);
+    enqueue_relay(original_recipient, target, &marked, reverse_path)
+}
+
+fn enqueue_relay(
     original_recipient: &str,
     target: &str,
     body: &[u8],

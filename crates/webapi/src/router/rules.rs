@@ -1,6 +1,6 @@
 //! Rules and saved searches — the searches a user keeps and what to do with
-//! the mail they find — and the forwarding and vacation reply that also act
-//! on mail as it arrives.
+//! the mail they find — the forwarding and vacation reply that also act
+//! on mail as it arrives, and how much of the quota the mail takes.
 
 use std::sync::Arc;
 
@@ -58,6 +58,7 @@ pub(super) fn rule_routes() -> axum::Router<Arc<WebState>> {
             get(crate::handlers::mail_settings::get_vacation)
                 .put(crate::handlers::mail_settings::put_vacation),
         )
+        .route("/api/storage", get(crate::handlers::storage::get_storage))
         .route(
             "/api/settings/forwarding",
             get(crate::handlers::mail_settings::get_forwarding)

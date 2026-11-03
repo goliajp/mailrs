@@ -395,4 +395,22 @@
     <string name="secret_app_specific">App 用パスワード</string>
     <string name="invite_from">主催者：%1$s</string>
     <string name="reply_attribution_short">%1$s さんは書きました：</string>
+    <string name="verdict_held">保留中：詐欺の疑い</string>
+    <string name="verdict_examined">確認済み: 不審な点があります</string>
+    <string name="verdict_kept">削除せずに保管しています。不正利用の報告に使う証拠です</string>
+    <string name="verdict_placement">ここにある理由</string>
+    <string name="verdict_clean">問題は見つかりませんでした</string>
+    <string name="verdict_layer_transport">経路</string>
+    <string name="verdict_layer_identity">身元</string>
+    <string name="verdict_layer_provenance">出所</string>
+    <string name="verdict_layer_content">内容</string>
+    <string name="verdict_question_transport">名乗っている場所から届いたか</string>
+    <string name="verdict_question_identity">表示している名前を名乗れる送信者か</string>
+    <string name="verdict_question_provenance">実在のメールソフトが書いたものか</string>
+    <string name="verdict_question_content">詐欺らしい内容か</string>
+    <string name="verdict_not_fraud">これは詐欺ではありません</string>
+    <string name="verdict_rules">ルール %1$s</string>
+    <string name="link_warning_confirm">このリンクは見た目どおりの場所に行かない可能性があります。\n\n%1$s\n\nそれでも開きますか？</string>
+    <string name="link_warning_open">開く</string>
+    <string name="read_callback">このメールには、この送信者がこれまで使っていない電話番号があります：%1$s。支払いやアカウントの件で電話する前に、番号をご自身で確かめてください</string>
 </resources>

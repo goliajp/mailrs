@@ -16,6 +16,7 @@
 mod deliver;
 mod drain;
 mod forward;
+mod forward_loop;
 mod group;
 mod mail_settings;
 

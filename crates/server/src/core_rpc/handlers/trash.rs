@@ -60,16 +60,14 @@ pub async fn untrash(
     Ok(one())
 }
 
-/// What deleting `thread_id` for good took; `None` when nothing was
-/// deleted.
+/// What deleting `thread_id` for good took; 404 when it is not the
+/// user's, 500 when it was not deleted.
 async fn delete_for_good(
     state: &Arc<CoreRpcState>,
     user: &str,
     thread_id: &str,
-) -> Option<Deleted> {
-    let gone = super::thread::delete_for_good(state, user, thread_id)
-        .await
-        .ok()?;
+) -> Result<Deleted, StatusCode> {
+    let gone = super::thread::delete_for_good(state, user, thread_id).await?;
     // the Send rows for the mail in it go too, as fastcore's do
     if let Some(mut c) = mailrs_core_sidestate::NetKevy::net_conn(state.as_ref())
         && let Err(e) =
@@ -77,11 +75,12 @@ async fn delete_for_good(
     {
         tracing::warn!(error = %e, %user, %thread_id, "send rows not removed");
     }
-    Some(gone)
+    Ok(gone)
 }
 
 /// POST /v1/users/{user}/trash:empty: each conversation deleted, sorted,
-/// so the caller can write one audit row for each.
+/// so the caller can write one audit row for each. A conversation still in
+/// the Trash is not an emptied Trash: a 500.
 pub async fn empty(
     State(state): State<Arc<CoreRpcState>>,
     Path(user): Path<String>,
@@ -89,13 +88,20 @@ pub async fn empty(
     let mut tids = state.mailbox.trashed_threads(&user).await.map_err(fail)?;
     tids.sort();
     let mut deleted = Vec::new();
+    let mut failed = 0u32;
     for tid in tids {
-        if let Some(gone) = delete_for_good(&state, &user, &tid).await {
-            deleted.push(wire::DeletedThreadWire {
+        match delete_for_good(&state, &user, &tid).await {
+            Ok(gone) => deleted.push(wire::DeletedThreadWire {
                 thread_id: tid,
                 messages: u32::try_from(gone.messages).unwrap_or(u32::MAX),
-            });
+            }),
+            Err(_) => failed += 1,
         }
+    }
+    if failed > 0 {
+        tracing::error!(%user, deleted = deleted.len(), failed,
+            "empty trash: some conversations were not deleted");
+        return Err(StatusCode::INTERNAL_SERVER_ERROR);
     }
     Ok(Json(wire::EmptyTrashResponse {
         affected: u32::try_from(deleted.len()).unwrap_or(u32::MAX),
@@ -118,14 +124,16 @@ pub(crate) async fn purge_once(state: &Arc<CoreRpcState>, cutoff: i64, batch: i6
     let mut purged = Purged::default();
     for (user, tid) in due {
         match delete_for_good(state, &user, &tid).await {
-            Some(gone) => purged.add(&user, gone.messages, gone.bytes),
-            None => {
-                // a conversation with none of its mail left: nothing to
-                // delete but the Trash row, which would otherwise come back
-                // every pass
+            Ok(gone) => purged.add(&user, gone.messages, gone.bytes),
+            // a conversation with none of its mail left: nothing to delete
+            // but the Trash row, which would otherwise come back every pass
+            Err(StatusCode::NOT_FOUND) => {
                 if let Err(e) = state.mailbox.untrash_thread(&user, &tid).await {
                     tracing::warn!(error = %e, %user, %tid, "trash purge: row not removed");
                 }
+            }
+            Err(status) => {
+                tracing::error!(%user, %tid, %status, "trash purge: not deleted; tried again next pass");
             }
         }
     }

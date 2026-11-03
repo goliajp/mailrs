@@ -7,6 +7,7 @@ use std::time::Duration;
 
 use axum::Json;
 use axum::extract::{Path, State};
+use axum::http::StatusCode;
 use mailrs_core_api::method::thread as th;
 
 use mailrs_core_sidestate::families::audit::Purged;
@@ -26,11 +27,10 @@ pub(crate) async fn trash_thread(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> axum::response::Response {
-    let ok = state
-        .mailbox
-        .set_trashed(&user, &thread_id, true, now())
-        .unwrap_or(false);
-    member_result(ok)
+    match state.mailbox.set_trashed(&user, &thread_id, true, now()) {
+        Ok(ok) => member_result(ok),
+        Err(e) => store_failed(e, &user, &thread_id),
+    }
 }
 
 /// `POST /v1/users/{user}/threads/{thread_id}/untrash`.
@@ -38,19 +38,23 @@ pub(crate) async fn untrash_thread(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> axum::response::Response {
-    let ok = state
-        .mailbox
-        .set_trashed(&user, &thread_id, false, now())
-        .unwrap_or(false);
-    member_result(ok)
+    match state.mailbox.set_trashed(&user, &thread_id, false, now()) {
+        Ok(ok) => member_result(ok),
+        Err(e) => store_failed(e, &user, &thread_id),
+    }
 }
 
 /// Delete `user`'s `thread_id` for good, as the delete route does. What it
-/// took, or `None` when nothing was deleted.
-fn delete_for_good(state: &FastcoreState, user: &str, thread_id: &str) -> Option<Deleted> {
-    let gone = crate::routes::thread_actions::delete_for_good(state, user, thread_id)
-        .ok()
-        .flatten()?;
+/// took; `Ok(None)` when it is not the user's; `Err` when it was not
+/// deleted.
+fn delete_for_good(
+    state: &FastcoreState,
+    user: &str,
+    thread_id: &str,
+) -> Result<Option<Deleted>, ()> {
+    let Some(gone) = crate::routes::thread_actions::delete_for_good(state, user, thread_id)? else {
+        return Ok(None);
+    };
     // the Send rows for the mail in it go too, or the Send list keeps
     // showing them with nothing behind
     if let Some(mut c) = state.net_conn()
@@ -59,31 +63,50 @@ fn delete_for_good(state: &FastcoreState, user: &str, thread_id: &str) -> Option
     {
         tracing::warn!(error = %e, %user, %thread_id, "send rows not removed");
     }
-    Some(gone)
+    Ok(Some(gone))
+}
+
+fn store_failed(e: std::io::Error, user: &str, thread_id: &str) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    tracing::error!(error = %e, %user, %thread_id, "trash: the store failed");
+    StatusCode::INTERNAL_SERVER_ERROR.into_response()
 }
 
 /// `POST /v1/users/{user}/trash:empty`: each conversation deleted, sorted,
-/// so the caller can write one audit row for each.
+/// so the caller can write one audit row for each. A Trash that cannot be
+/// read, or a conversation in it that could not be deleted, is a 500, not
+/// an empty Trash.
 pub(crate) async fn empty_trash(
     State(state): State<Arc<FastcoreState>>,
     Path(user): Path<String>,
-) -> Json<th::EmptyTrashResponse> {
-    let mut tids = state.mailbox.trashed_threads(&user).unwrap_or_default();
+) -> Result<Json<th::EmptyTrashResponse>, StatusCode> {
+    let mut tids = state.mailbox.trashed_threads(&user).map_err(|e| {
+        tracing::error!(error = %e, %user, "empty trash: the Trash is unreadable");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
     tids.sort();
     let mut deleted = Vec::new();
+    let mut failed = 0u32;
     for tid in tids {
-        if let Some(gone) = delete_for_good(&state, &user, &tid) {
-            deleted.push(th::DeletedThreadWire {
+        match delete_for_good(&state, &user, &tid) {
+            Ok(Some(gone)) => deleted.push(th::DeletedThreadWire {
                 thread_id: tid,
                 messages: u32::try_from(gone.messages).unwrap_or(u32::MAX),
-            });
+            }),
+            Ok(None) => {}
+            Err(()) => failed += 1,
         }
     }
-    Json(th::EmptyTrashResponse {
+    if failed > 0 {
+        tracing::error!(%user, deleted = deleted.len(), failed,
+            "empty trash: some conversations were not deleted");
+        return Err(StatusCode::INTERNAL_SERVER_ERROR);
+    }
+    Ok(Json(th::EmptyTrashResponse {
         affected: u32::try_from(deleted.len()).unwrap_or(u32::MAX),
         new_modseq: 0,
         deleted,
-    })
+    }))
 }
 
 /// One pass of the purge: delete for good up to `batch` conversations
@@ -99,7 +122,7 @@ pub(crate) async fn purge_once(state: &Arc<FastcoreState>, cutoff: i64, batch: u
     };
     let mut purged = Purged::default();
     for (user, tid) in due {
-        if let Some(gone) = delete_for_good(state, &user, &tid) {
+        if let Ok(Some(gone)) = delete_for_good(state, &user, &tid) {
             purged.add(&user, gone.messages, gone.bytes);
         }
     }
