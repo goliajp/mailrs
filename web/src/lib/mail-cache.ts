@@ -18,7 +18,7 @@ import { stickyUnreadIdsAtom } from '@/store/ui'
 // handled explicitly.
 
 export type InfinitePages = {
-  pageParams: (number | undefined)[]
+  pageParams: (string | undefined)[]
   pages: ConversationSummary[][]
 }
 
