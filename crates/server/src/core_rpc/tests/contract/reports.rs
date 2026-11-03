@@ -33,6 +33,68 @@ async fn held_threads(c: &harness::Cores, d: &mut Diffs, user: &str, call: &str)
         .unwrap_or_default()
 }
 
+/// In the shared run, where no scam was delivered: a message the reader
+/// does not have, a report that does not exist, and an empty waiting list
+/// answer alike (404 on both, or the same empty list).
+pub(super) async fn run(c: &harness::Cores, d: &mut Diffs) {
+    let status = |r: &Result<_, mailrs_core_api::error::CoreApiError>| match r {
+        Ok(_) => 200,
+        Err(e) => e.status_code(),
+    };
+    let (a, b) = (
+        c.fastcore
+            .report_message(ALICE, "nothing@nowhere.test", false)
+            .await,
+        c.pg_core
+            .report_message(ALICE, "nothing@nowhere.test", false)
+            .await,
+    );
+    assert_eq!((status(&a), status(&b)), (404, 404), "{a:?} {b:?}");
+    let (a, b) = (
+        c.fastcore.report_outcome(ALICE, "rp0000000000000000").await,
+        c.pg_core.report_outcome(ALICE, "rp0000000000000000").await,
+    );
+    assert_eq!((status(&a), status(&b)), (404, 404), "{a:?} {b:?}");
+    if let Some((_, pg)) = d.both(
+        "pending_reports with none made",
+        c.fastcore.pending_reports().await,
+        c.pg_core.pending_reports().await,
+        MINTED,
+    ) {
+        assert!(pg.items.is_empty(), "{:?}", pg.items);
+    }
+    for (what, a, b) in [
+        (
+            "confirm",
+            status(
+                &c.fastcore
+                    .confirm_report("rp0000000000000000", "a@example.test")
+                    .await,
+            ),
+            status(
+                &c.pg_core
+                    .confirm_report("rp0000000000000000", "a@example.test")
+                    .await,
+            ),
+        ),
+        (
+            "dismiss",
+            status(
+                &c.fastcore
+                    .dismiss_report("rp0000000000000000", "a@example.test")
+                    .await,
+            ),
+            status(
+                &c.pg_core
+                    .dismiss_report("rp0000000000000000", "a@example.test")
+                    .await,
+            ),
+        ),
+    ] {
+        assert_eq!((a, b), (404, 404), "{what} of a report that does not exist");
+    }
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_report_finds_and_takes_back_the_other_copies_alike_on_both_cores() {
     let c = harness::start_on(
