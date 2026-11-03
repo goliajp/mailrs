@@ -112,11 +112,14 @@ fn lookalike() -> Relation {
 }
 
 /// One message per rule that names facts, and the params it should carry.
-fn cases() -> Vec<(
+/// A rule, a message it fires on, and the params it should carry.
+type Case = (
     &'static str,
     Facts<'static>,
     &'static [(&'static str, &'static str)],
-)> {
+);
+
+fn cases() -> Vec<Case> {
     vec![
         (
             "claims-our-name",
