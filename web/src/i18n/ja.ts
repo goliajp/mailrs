@@ -42,6 +42,9 @@ export const ja: Record<Key, string> = {
   'list.np.empty': 'ここには何もありません',
   'list.quarantine': '確認待ち',
   'list.quarantine.empty': '保留中のメールはありません。現在、詐欺の試みはありません。',
+  'list.recalled':
+    '受信済みの {count} 件の会話を確認待ちに移しました：送信者について新しい情報がありました',
+  'list.recalledOpen': '確認待ちを開く',
   'list.search.empty': '該当する結果はありません',
   'list.send': '送信',
   'list.send.empty': 'まだ送信したメールはありません',

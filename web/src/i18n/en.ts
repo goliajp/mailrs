@@ -45,6 +45,9 @@ export const en = {
   'list.np.empty': 'Nothing here',
   'list.quarantine': 'Review',
   'list.quarantine.empty': 'Nothing held. No one is currently trying to defraud you.',
+  'list.recalled':
+    '{count} conversation(s) you had were moved to Review: new information about the sender',
+  'list.recalledOpen': 'Open Review',
   'list.search.empty': 'No results found',
   'list.send': 'Send',
   'list.send.empty': 'Nothing sent yet',

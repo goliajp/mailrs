@@ -7,14 +7,23 @@ use std::sync::Arc;
 use mailrs_mailbox_kevy::ledger::LedgerVerdict;
 use mailrs_reputation::{Kind, NeverList, Observation};
 
+use super::recall::{self, Recall};
 use super::{COUNTS, Counts};
 use crate::FastcoreState;
-use crate::maintenance::fraud_rescan::{Disposition, FraudJudge, disposition};
+use crate::maintenance::fraud_rescan::{Disposition, FraudJudge, FraudJudgement, disposition};
 
-/// Messages judged for one observation at most. Past it the rest wait
-/// for the acting stage, which will page; until then the count says how
-/// often an observation reached that far.
-const CAP: usize = 20_000;
+/// Messages judged in one page. An observation that names more is judged
+/// over several, its place kept between them (see `super::tick`).
+/// `MAILRS_REJUDGE_PAGE` overrides it.
+const PAGE: usize = 20_000;
+
+pub(crate) fn page_size() -> usize {
+    std::env::var("MAILRS_REJUDGE_PAGE")
+        .ok()
+        .and_then(|v| v.trim().parse().ok())
+        .filter(|n: &usize| *n > 0)
+        .unwrap_or(PAGE)
+}
 
 /// The rules and the sets they read, kept across rounds.
 pub(crate) struct Judge {
@@ -23,6 +32,9 @@ pub(crate) struct Judge {
     own: Vec<String>,
     never: NeverList,
 }
+
+/// One message to judge: `(message id, its reader)`.
+pub(crate) type Target = (String, String);
 
 impl Judge {
     pub(crate) fn new(state: &Arc<FastcoreState>) -> Self {
@@ -43,11 +55,15 @@ impl Judge {
         self.screening.refresh(conn, chrono::Utc::now().timestamp());
     }
 
-    /// Judge again the mail `o` names. An address or a network has no
-    /// index in the ledger (one address is not one sender), and a host on
-    /// the never-list never gets an automatic reputation change. Returns
-    /// how many messages were judged.
-    pub(crate) fn observation(&mut self, state: &Arc<FastcoreState>, o: &Observation) -> u64 {
+    /// The mail `o` names, in a fixed order so a page can be resumed. An
+    /// address or a network has no index in the ledger (one address is not
+    /// one sender), and a host on the never-list never gets an automatic
+    /// reputation change: `None` for those.
+    pub(crate) fn targets(
+        &self,
+        state: &Arc<FastcoreState>,
+        o: &Observation,
+    ) -> Option<Vec<Target>> {
         let value = o.value.trim().trim_end_matches('.').to_ascii_lowercase();
         let reg = mailrs_reputation::registrable(&value);
         let found = match o.kind {
@@ -58,27 +74,30 @@ impl Judge {
         };
         let Some(found) = found else {
             Counts::add(&COUNTS.skipped, 1);
-            return 0;
+            return None;
         };
         let mut found = match found {
             Ok(f) => f,
             Err(e) => {
                 tracing::warn!(error = %e, id = %o.id, "rejudge: the ledger could not be read");
-                return 0;
+                return Some(Vec::new());
             }
         };
-        if found.len() > CAP {
-            tracing::warn!(id = %o.id, found = found.len(), "rejudge: more mail than one round judges");
-            Counts::add(&COUNTS.over_cap, 1);
-            found.truncate(CAP);
-        }
+        found.sort();
+        found.dedup();
+        Some(found)
+    }
+
+    /// Judge one page of an observation's mail. Returns how many messages
+    /// were judged.
+    pub(crate) fn page(&mut self, state: &Arc<FastcoreState>, page: &[Target], obs: &str) -> u64 {
         let mut disks: HashMap<String, HashMap<String, PathBuf>> = HashMap::new();
         let mut judged = 0;
-        for (mid, user) in found {
+        for (mid, user) in page {
             let disk = disks
                 .entry(user.clone())
-                .or_insert_with(|| crate::maildir_scan::paths_on_disk(state, &user));
-            judged += u64::from(self.message(state, &user, &mid, disk, &o.id));
+                .or_insert_with(|| crate::maildir_scan::paths_on_disk(state, user));
+            judged += u64::from(self.message(state, user, mid, disk, obs));
         }
         judged
     }
@@ -126,14 +145,7 @@ impl Judge {
             return true;
         }
         Counts::add(&COUNTS.changed, 1);
-        let Some(action) = would_do(state, user, mid, new.holds, judged.junks) else {
-            return true;
-        };
-        tracing::info!(
-            event = "rejudge_shadow", %user, %mid, observation = %obs, action,
-            rules = ?new.rules, screening = ?new.screening,
-            "rejudge: would act (shadow, nothing moved)"
-        );
+        act(state, user, mid, &raw, &judged, &new, obs);
         true
     }
 
@@ -172,15 +184,83 @@ fn differs(old: &LedgerVerdict, new: &LedgerVerdict) -> bool {
     old.holds != new.holds || old.rules != new.rules || old.screening != new.screening
 }
 
-/// What acting on the verdict would change, counted; `None` when it would
-/// change nothing.
-fn would_do(
+/// Do what the new verdict calls for, or, while acting is off, log it.
+/// Only a hold or the release of a conversation this module held is acted
+/// on; Junk stays a logged suggestion (a score is the reader's to act on).
+fn act(
+    state: &Arc<FastcoreState>,
+    user: &str,
+    mid: &str,
+    raw: &[u8],
+    judged: &FraudJudgement,
+    new: &LedgerVerdict,
+    obs: &str,
+) {
+    let Some((tid, row)) = thread_of(state, user, mid) else {
+        return;
+    };
+    let in_junk = mailrs_mailbox_kevy::scope::bucket_of(&row.category)
+        == mailrs_mailbox_kevy::scope::Bucket::Junk;
+    let action = match disposition(judged.holds, judged.junks, row.quarantined) {
+        Disposition::Act if !row.quarantined => {
+            Counts::add(&COUNTS.would_hold, 1);
+            "hold"
+        }
+        Disposition::Release => {
+            Counts::add(&COUNTS.would_release, 1);
+            "release"
+        }
+        Disposition::Junk if !in_junk => {
+            Counts::add(&COUNTS.would_junk, 1);
+            "junk"
+        }
+        _ => return,
+    };
+    if !recall::acting() || action == "junk" {
+        tracing::info!(
+            event = "rejudge_shadow", %user, %mid, observation = %obs, action,
+            rules = ?new.rules, screening = ?new.screening,
+            "rejudge: would act (shadow, nothing moved)"
+        );
+        return;
+    }
+    let done = match action {
+        "hold" => {
+            let from = mailrs_inbound::from_header(raw);
+            let subject = mailrs_inbound::subject_header(raw);
+            recall::recall(
+                state,
+                &Recall {
+                    user,
+                    tid: &tid,
+                    mid,
+                    from: &from,
+                    subject: &subject,
+                    rules: new.rules.clone(),
+                    observation: obs,
+                    verdict: &judged.verdict,
+                },
+            )
+        }
+        _ => recall::unrecall(state, user, &tid),
+    };
+    match done {
+        Ok(true) => {
+            Counts::add(&COUNTS.acted, 1);
+            tracing::info!(event = "rejudge_acted", %user, %tid, observation = %obs, action,
+                rules = ?new.rules, "rejudge: acted");
+        }
+        Ok(false) => {}
+        Err(e) => tracing::warn!(error = %e, %user, %tid, action, "rejudge: acting failed"),
+    }
+}
+
+/// The conversation `mid` is in, for `user`, and its row.
+fn thread_of(
     state: &FastcoreState,
     user: &str,
     mid: &str,
-    holds: bool,
-    junks: bool,
-) -> Option<&'static str> {
+) -> Option<(String, mailrs_mailbox_kevy::ThreadRow)> {
     let tid = state
         .mailbox
         .user_message_view(user, mid)
@@ -193,21 +273,5 @@ fn would_do(
         .get_thread_for_user(user, &tid)
         .ok()
         .flatten()?;
-    let in_junk = mailrs_mailbox_kevy::scope::bucket_of(&row.category)
-        == mailrs_mailbox_kevy::scope::Bucket::Junk;
-    match disposition(holds, junks, row.quarantined) {
-        Disposition::Act if !row.quarantined => {
-            Counts::add(&COUNTS.would_hold, 1);
-            Some("hold")
-        }
-        Disposition::Release => {
-            Counts::add(&COUNTS.would_release, 1);
-            Some("release")
-        }
-        Disposition::Junk if !in_junk => {
-            Counts::add(&COUNTS.would_junk, 1);
-            Some("junk")
-        }
-        _ => None,
-    }
+    Some((tid, row))
 }

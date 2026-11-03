@@ -49,5 +49,22 @@ export const wireFraudVerdictResponseSchema = z.object({
   verdict: wireFraudVerdictSchema.nullable(),
 })
 
+// Backend: crates/webapi/src/handlers/rejudge.rs — fn recalled, which reads
+// `mailrs_core_sidestate::families::recall_notices::Recalled`: conversations
+// the reader had that were taken back into Review when stored mail was
+// judged again, the last seven days, newest first, one per conversation.
+export const wireRecalledSchema = z.object({
+  at: z.number(),
+  observation: z.string(),
+  rules: z.array(z.string()),
+  subject: z.string(),
+  thread_id: z.string(),
+})
+
+export const wireRecalledResponseSchema = z.object({
+  items: z.array(wireRecalledSchema),
+})
+
 export type WireFraudLayer = z.infer<typeof wireFraudLayerSchema>
 export type WireFraudVerdict = z.infer<typeof wireFraudVerdictSchema>
+export type WireRecalled = z.infer<typeof wireRecalledSchema>

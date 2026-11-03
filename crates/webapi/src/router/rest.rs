@@ -179,6 +179,14 @@ pub(super) fn admin_routes() -> axum::Router<Arc<WebState>> {
             axum::routing::delete(handlers::admin_ownerless::delete),
         )
         .route(
+            "/api/admin/rejudge/batches",
+            get(handlers::rejudge::batches),
+        )
+        .route(
+            "/api/admin/rejudge/batches/{observation}/release",
+            post(handlers::rejudge::release),
+        )
+        .route(
             "/api/reset-codes/{address}",
             get(handlers::reset_code::status).post(handlers::reset_code::issue),
         )

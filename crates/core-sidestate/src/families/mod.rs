@@ -30,6 +30,7 @@ pub mod outbound;
 pub mod password_clear;
 pub mod permission_groups;
 pub mod prefs;
+pub mod recall_notices;
 pub mod reply_rotation;
 pub mod rules;
 pub mod saved_searches;

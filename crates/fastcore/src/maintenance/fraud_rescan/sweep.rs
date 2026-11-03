@@ -170,7 +170,9 @@ impl Sweep<'_> {
             mailrs_fraud_lua::stored::relation::Counted::After,
         );
         // new as of when the message arrived, as `stored::judge_for` reads it
-        let at = msg.arrived.unwrap_or_else(|| chrono::Utc::now().timestamp());
+        let at = msg
+            .arrived
+            .unwrap_or_else(|| chrono::Utc::now().timestamp());
         let novelty = mailrs_core_sidestate::families::domain_first::novelty(
             self.hist.as_mut(),
             &msg.host,

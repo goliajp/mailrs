@@ -118,6 +118,8 @@ pub(crate) async fn release_quarantined(
         // failure mode this feature can have, and a release nobody can
         // count is a failure rate nobody can measure.
         tracing::info!(%user, %thread_id, "released: a person said this was not fraud");
+        // re-judging takes it again only for a rule it was not put back despite
+        crate::rejudge::recall::note_released(&state, &user, &thread_id);
         // held mail had no images fetched on arrival
         crate::image_prefetch::queue_thread(&state, &user, &thread_id);
     }
