@@ -80,7 +80,7 @@ pub(super) async fn status_response<A: Account>(
     vec![
         format!(
             "* STATUS {} ({})\r\n",
-            account.mailbox_name(&mb),
+            mailrs_imap_proto::astring(account.mailbox_name(&mb)),
             answers.join(" ")
         ),
         format_ok(tag, "STATUS completed"),

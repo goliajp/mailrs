@@ -11,7 +11,21 @@ pub fn format_capability(capabilities: &[&str]) -> String {
 
 /// format LIST response line
 pub fn format_list(flags: &str, delimiter: &str, name: &str) -> String {
-    format!("* LIST ({flags}) \"{delimiter}\" {name}\r\n")
+    format!("* LIST ({flags}) \"{delimiter}\" {}\r\n", astring(name))
+}
+
+/// A mailbox name as RFC 3501 writes it: as is when it is an atom, quoted
+/// otherwise (`All Mail`, a label with a space), with `\` and `"` escaped.
+pub fn astring(name: &str) -> std::borrow::Cow<'_, str> {
+    let atom = !name.is_empty()
+        && name.bytes().all(|b| {
+            b > b' ' && b < 0x7f && !matches!(b, b'(' | b')' | b'{' | b'%' | b'*' | b'"' | b'\\')
+        });
+    if atom {
+        return std::borrow::Cow::Borrowed(name);
+    }
+    let escaped = name.replace('\\', "\\\\").replace('"', "\\\"");
+    std::borrow::Cow::Owned(format!("\"{escaped}\""))
 }
 
 /// Compute the RFC 6154 SPECIAL-USE attribute for a mailbox name, if
@@ -36,6 +50,8 @@ pub fn special_use_flag(name: &str) -> &'static str {
         " \\Trash"
     } else if leaf.eq_ignore_ascii_case("Archive") {
         " \\Archive"
+    } else if leaf.eq_ignore_ascii_case("All Mail") {
+        " \\All"
     } else {
         ""
     }
@@ -156,6 +172,18 @@ mod tests {
         assert_eq!(special_use_flag("Drafts"), " \\Drafts");
         assert_eq!(special_use_flag("Trash"), " \\Trash");
         assert_eq!(special_use_flag("Archive"), " \\Archive");
+        assert_eq!(special_use_flag("All Mail"), " \\All");
+    }
+
+    #[test]
+    fn a_name_that_is_not_an_atom_is_quoted() {
+        assert_eq!(astring("INBOX"), "INBOX");
+        assert_eq!(astring("All Mail"), "\"All Mail\"");
+        assert_eq!(astring("say \"hi\""), "\"say \\\"hi\\\"\"");
+        assert_eq!(
+            format_list("\\HasNoChildren \\All", "/", "All Mail"),
+            "* LIST (\\HasNoChildren \\All) \"/\" \"All Mail\"\r\n"
+        );
     }
 
     #[test]

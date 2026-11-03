@@ -212,6 +212,38 @@ impl Account for FastcoreAccount {
         }
     }
 
+    async fn archived(&self) -> Result<Trashed<FcMailbox, PathBuf>> {
+        match self {
+            Self::Real(a) => a.archived(),
+            Self::Mock(_) => Ok(Trashed {
+                messages: Vec::new(),
+                latest: 0,
+            }),
+        }
+    }
+
+    async fn all_mail(&self) -> Result<Trashed<FcMailbox, PathBuf>> {
+        match self {
+            Self::Real(a) => a.all_mail(),
+            Self::Mock(_) => Ok(Trashed {
+                messages: Vec::new(),
+                latest: 0,
+            }),
+        }
+    }
+
+    async fn set_archived(
+        &self,
+        _: &FcMailbox,
+        m: &Message<PathBuf>,
+        archived: bool,
+    ) -> Result<bool> {
+        match self {
+            Self::Real(a) => a.set_archived(m, archived),
+            Self::Mock(_) => refused(),
+        }
+    }
+
     async fn set_trashed(
         &self,
         _: &FcMailbox,
