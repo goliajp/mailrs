@@ -6,6 +6,13 @@ import type { Key } from '@/i18n'
 // reached. Before it, each of those spelled its own labels and its own
 // idea of which actions apply, and `#` deleted without asking while the
 // other four asked.
+//
+// The table itself is `actions.json`, shared with the phone apps: iOS and
+// Android each ship a byte-identical copy and test their own action enum
+// against it, and `scripts/check-action-parity.sh` compares the three.
+// What one surface lacks (the phones' `unlabel` and `release`, which the
+// web reaches elsewhere) is said by the entry's `surfaces`, not by leaving
+// it out.
 import type { LucideIcon } from 'lucide-react'
 
 import {
@@ -29,6 +36,8 @@ import {
   Trash2,
   Undo2,
 } from 'lucide-react'
+
+import table from './actions.json'
 
 export type ActionId =
   | 'archive'
@@ -70,222 +79,62 @@ export type ActionSpec = {
   undo: ActionId | null
 }
 
-const spec = (s: ActionSpec): ActionSpec => s
-
-export const ACTIONS: Record<ActionId, ActionSpec> = {
-  archive: spec({
-    batch: true,
-    confirm: false,
-    danger: false,
-    done: 'action.archive.done',
-    icon: Archive,
-    id: 'archive',
-    keys: ['e'],
-    label: 'action.archive',
-    undo: 'unarchive',
-  }),
-  // only in the Trash, and asked first: the files go
-  'delete-forever': spec({
-    batch: false,
-    confirm: true,
-    danger: true,
-    done: 'action.deleteForever.done',
-    icon: ArchiveX,
-    id: 'delete-forever',
-    keys: ['#'],
-    label: 'action.deleteForever',
-    undo: null,
-  }),
-  // opens the label picker; what it changes is said there
-  label: spec({
-    batch: true,
-    confirm: false,
-    danger: false,
-    done: null,
-    icon: Tag,
-    id: 'label',
-    keys: ['l'],
-    label: 'action.label',
-    undo: null,
-  }),
-  'mark-junk': spec({
-    batch: false,
-    confirm: false,
-    danger: false,
-    done: 'action.markJunk.done',
-    icon: ShieldAlert,
-    id: 'mark-junk',
-    keys: ['!'],
-    label: 'action.markJunk',
-    undo: 'mark-not-junk',
-  }),
-  'mark-not-junk': spec({
-    batch: false,
-    confirm: false,
-    danger: false,
-    done: 'action.markNotJunk.done',
-    icon: ShieldCheck,
-    id: 'mark-not-junk',
-    keys: [],
-    label: 'action.markNotJunk',
-    undo: 'mark-junk',
-  }),
-  'mark-notification': spec({
-    batch: false,
-    confirm: false,
-    danger: false,
-    done: 'action.markNotification.done',
-    icon: Bell,
-    id: 'mark-notification',
-    keys: [],
-    label: 'action.markNotification',
-    undo: 'move-to-inbox',
-  }),
-  'mark-promotion': spec({
-    batch: false,
-    confirm: false,
-    danger: false,
-    done: 'action.markPromotion.done',
-    icon: ShoppingBag,
-    id: 'mark-promotion',
-    keys: [],
-    label: 'action.markPromotion',
-    undo: 'move-to-inbox',
-  }),
-  'move-to-inbox': spec({
-    batch: false,
-    confirm: false,
-    danger: false,
-    done: 'action.moveToInbox.done',
-    icon: Inbox,
-    id: 'move-to-inbox',
-    keys: [],
-    label: 'action.moveToInbox',
-    undo: null,
-  }),
-  pin: spec({
-    batch: false,
-    confirm: false,
-    danger: false,
-    done: 'action.pin.done',
-    icon: Pin,
-    id: 'pin',
-    keys: ['p'],
-    label: 'action.pin',
-    undo: 'unpin',
-  }),
-  read: spec({
-    batch: true,
-    confirm: false,
-    danger: false,
-    done: null,
-    icon: MailOpen,
-    id: 'read',
-    keys: ['Shift+I'],
-    label: 'action.read',
-    undo: 'unread',
-  }),
-  snooze: spec({
-    batch: false,
-    confirm: false,
-    danger: false,
-    done: 'action.snooze.done',
-    icon: AlarmClock,
-    id: 'snooze',
-    keys: ['b'],
-    label: 'action.snooze',
-    undo: 'unsnooze',
-  }),
-  star: spec({
-    batch: true,
-    confirm: false,
-    danger: false,
-    done: null,
-    icon: Star,
-    id: 'star',
-    keys: ['s'],
-    label: 'action.star',
-    undo: 'unstar',
-  }),
-  // not asked: the Trash keeps it for 30 days and `z` brings it back
-  trash: spec({
-    batch: true,
-    confirm: false,
-    danger: true,
-    done: 'action.trash.done',
-    icon: Trash2,
-    id: 'trash',
-    keys: ['#'],
-    label: 'action.trash',
-    undo: 'untrash',
-  }),
-  unarchive: spec({
-    batch: true,
-    confirm: false,
-    danger: false,
-    done: 'action.unarchive.done',
-    icon: ArchiveRestore,
-    id: 'unarchive',
-    keys: ['e'],
-    label: 'action.unarchive',
-    undo: 'archive',
-  }),
-  unpin: spec({
-    batch: false,
-    confirm: false,
-    danger: false,
-    done: 'action.unpin.done',
-    icon: PinOff,
-    id: 'unpin',
-    keys: ['p'],
-    label: 'action.unpin',
-    undo: 'pin',
-  }),
-  unread: spec({
-    batch: true,
-    confirm: false,
-    danger: false,
-    done: 'action.unread.done',
-    icon: Mail,
-    id: 'unread',
-    keys: ['u', 'Shift+U'],
-    label: 'action.unread',
-    undo: 'read',
-  }),
-  unsnooze: spec({
-    batch: false,
-    confirm: false,
-    danger: false,
-    done: 'action.unsnooze.done',
-    icon: AlarmClockOff,
-    id: 'unsnooze',
-    keys: ['b'],
-    label: 'action.unsnooze',
-    undo: 'snooze',
-  }),
-  unstar: spec({
-    batch: true,
-    confirm: false,
-    danger: false,
-    done: null,
-    icon: StarOff,
-    id: 'unstar',
-    keys: ['s'],
-    label: 'action.unstar',
-    undo: 'star',
-  }),
-  untrash: spec({
-    batch: true,
-    confirm: false,
-    danger: false,
-    done: 'action.untrash.done',
-    icon: Undo2,
-    id: 'untrash',
-    keys: [],
-    label: 'action.untrash',
-    undo: 'trash',
-  }),
+/** The table's icon names, as lucide spells them. */
+export const ICONS: Record<string, LucideIcon> = {
+  AlarmClock,
+  AlarmClockOff,
+  Archive,
+  ArchiveRestore,
+  ArchiveX,
+  Bell,
+  Inbox,
+  Mail,
+  MailOpen,
+  Pin,
+  PinOff,
+  ShieldAlert,
+  ShieldCheck,
+  ShoppingBag,
+  Star,
+  StarOff,
+  Tag,
+  Trash2,
+  Undo2,
 }
+
+type Entry = (typeof table.actions)[number]
+
+/** The entries the web offers: those whose `surfaces` name it. */
+export const WEB_ENTRIES: Entry[] = table.actions.filter((e) => e.surfaces.includes('web'))
+
+const onWeb = new Set(WEB_ENTRIES.map((e) => e.id))
+
+function webSpec(e: Entry): ActionSpec {
+  return {
+    batch: e.batch,
+    confirm: e.confirm,
+    danger: e.danger,
+    done: e.done.web as Key | null,
+    icon: ICONS[e.icon.web ?? ''],
+    id: e.id as ActionId,
+    keys: e.keys,
+    label: e.label.web as Key,
+    undo: webUndo(e.undo),
+  }
+}
+
+/** An undo the web cannot offer (the phones' `unlabel`) is none here. */
+function webUndo(undo: null | string): ActionId | null {
+  if (undo !== null && onWeb.has(undo)) return undo as ActionId
+  return null
+}
+
+// Every id is checked against the ActionId union and every label and icon
+// against the dictionary and ICONS by `actions-from-the-shared-table.test.ts`.
+export const ACTIONS = Object.fromEntries(WEB_ENTRIES.map((e) => [e.id, webSpec(e)])) as Record<
+  ActionId,
+  ActionSpec
+>
 
 /** What a conversation is now, as far as which actions apply. */
 export type RowState = {

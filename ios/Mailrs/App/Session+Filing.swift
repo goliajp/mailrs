@@ -7,9 +7,9 @@ extension Session {
 
     /// The rows of the list on screen: Review reads its own endpoint,
     /// every other list `/api/conversations` with its axes.
-    func fetchPage(_ client: MailrsClient, before: Int64?) async throws -> [Wire.Conversation] {
-        if activeList == .review { return try await client.held(before: before) }
-        return try await client.conversations(axes: axes, before: before)
+    func fetchPage(_ client: MailrsClient, page: ThreadPage.Next?) async throws -> [Wire.Conversation] {
+        if activeList == .review { return try await client.held(page: page) }
+        return try await client.conversations(axes: axes, page: page)
     }
 
     /// The reader's labels, for the sidebar and the label menu.

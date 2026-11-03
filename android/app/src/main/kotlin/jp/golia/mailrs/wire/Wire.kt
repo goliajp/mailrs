@@ -78,6 +78,12 @@ object Wire {
         /** When it went to the Trash, 0 when it is not there. */
         @SerialName("trashed_at") val trashedAt: Long = 0,
         val labels: List<String> = emptyList(),
+        /**
+         * Where the page after this row starts, handed back as `cursor=`.
+         * The server's to read, not ours. Null on a row from a server
+         * that does not stamp one.
+         */
+        val cursor: String? = null,
     )
 
     /**
@@ -154,6 +160,13 @@ object Wire {
          */
         @SerialName("dtstart_utc") val startsAt: String? = null,
         @SerialName("dtend_utc") val endsAt: String? = null,
+        /**
+         * An all-day event's first day, `YYYY-MM-DD`, and the day after
+         * its last (DTEND, as RFC 5545 writes it). Null for a timed event,
+         * which has [startsAt] instead.
+         */
+        @SerialName("dtstart_date") val firstDay: String? = null,
+        @SerialName("dtend_date") val dayAfterLast: String? = null,
         /**
          * The way into the meeting, resolved on the server: RFC 5545
          * has no field for it, so Teams writes it into the description

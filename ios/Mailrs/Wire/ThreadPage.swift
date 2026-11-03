@@ -2,26 +2,46 @@ import Foundation
 
 /// Paging the conversation list.
 ///
-/// `GET /api/conversations` pages by keyset, not by cursor: `before_ts`
-/// plus `limit`, and the server applies it as `latest_date < before_ts`
-/// (`list_threads/paths.rs` passes `Some(ts - 1)` as an inclusive bound).
-/// There is no `has_more` and no `next_cursor` to follow.
+/// Every row of `GET /api/conversations` (and of `GET /api/quarantine`)
+/// carries a `cursor`, and the next page is asked for with the last row's
+/// one as `cursor=`. The server orders rows by time and, within one
+/// second, by a key of its own, and starts the next page strictly after
+/// the cursor's row: a second that spans two pages loses nothing and
+/// repeats nothing.
 ///
-/// Which leaves one hazard, and it is not hypothetical: `last_date` is
-/// whole seconds, so several threads share one. Asking for
-/// `before_ts = oldest.lastDate` drops every sibling of that second that
-/// did not fit on the page — silently, because a shorter list looks the
-/// same as the end of the mailbox. Production measured 929 such
-/// collisions over 30k rows on this data.
+/// What it replaced: `before_ts`, which compares whole seconds. Several
+/// threads share a second (production measured 929 such collisions over
+/// 30k rows), so asking for the oldest row's own second dropped the
+/// siblings that did not fit, and asking for one second past it — what
+/// this did until the cursor — re-requested the boundary second, which
+/// only works while that second holds fewer rows than a page. With more,
+/// the next page came back as the same rows, read as the end, and the
+/// rest of that second was never shown.
 ///
-/// So the next page asks for `oldest.lastDate + 1`, deliberately
-/// re-requesting the boundary second, and `merge` drops what is already
-/// held. The overlap costs a few rows; the alternative loses mail.
+/// A row without a cursor (cached before the server stamped one) still
+/// pages the old way, which the server keeps for clients not yet moved.
+/// `merge` drops what is already held either way.
 enum ThreadPage {
-    /// The `before_ts` that will not skip the boundary second.
-    static func nextBefore(after rows: [Wire.Conversation]) -> Int64? {
+    /// Where the page after `rows` starts.
+    enum Next: Equatable {
+        case cursor(String)
+        /// The keyset of old: one second past the oldest row.
+        case before(Int64)
+    }
+
+    static func next(after rows: [Wire.Conversation]) -> Next? {
         guard let oldest = rows.last else { return nil }
-        return oldest.lastDate + 1
+        if let cursor = oldest.cursor { return .cursor(cursor) }
+        return .before(oldest.lastDate + 1)
+    }
+
+    /// The query items that ask for the page `next` names.
+    static func queryItems(_ next: Next?) -> [URLQueryItem] {
+        switch next {
+        case .cursor(let c): return [URLQueryItem(name: "cursor", value: c)]
+        case .before(let ts): return [URLQueryItem(name: "before_ts", value: String(ts))]
+        case nil: return []
+        }
     }
 
     struct Merged {
