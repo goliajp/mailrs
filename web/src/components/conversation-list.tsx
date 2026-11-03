@@ -22,6 +22,7 @@ import { TrashBanner } from '@/components/trash-banner'
 import { useConversationActions } from '@/hooks/use-conversation-actions'
 import { useConversationRows, useCurrentSelection } from '@/hooks/use-current-list'
 import { useCurrentMailFilters } from '@/hooks/use-current-mail-filters'
+import { useScrollSaver } from '@/hooks/use-scroll-saver'
 import { type RowState, viewOf } from '@/lib/actions'
 import { dateGroupLabel } from '@/lib/format'
 import { listIdentity } from '@/lib/list-identity'
@@ -75,14 +76,12 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
   const [selectedThreadIds, setSelectedThreadIds] = useAtom(selectedThreadIdsAtom)
   const [batchLoading, setBatchLoading] = useState(false)
 
-  // refs to avoid stale closures in observer callback
+  // refs so the paging callback stays stable across renders
   const onLoadMoreRef = useRef(loadMore)
   onLoadMoreRef.current = loadMore
   const loadingRef = useRef(loadingMore)
   loadingRef.current = loadingMore
 
-  // observer ref to clean up when sentinel unmounts
-  const observerRef = useRef<IntersectionObserver | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   // Which list is showing. The saved scroll position is per-list.
@@ -90,24 +89,8 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
   const identityRef = useRef(identity)
 
   // keep the saved scroll in sync with the actual position so a page
-  // refresh puts us back where we were — under this list's own key.
-  useEffect(() => {
-    const el = scrollContainerRef.current
-    if (!el) return
-    let rAFid: null | number = null
-    const onScroll = () => {
-      if (rAFid != null) return
-      rAFid = requestAnimationFrame(() => {
-        rAFid = null
-        persistScroll(identityRef.current, el.scrollTop)
-      })
-    }
-    el.addEventListener('scroll', onScroll, { passive: true })
-    return () => {
-      el.removeEventListener('scroll', onScroll)
-      if (rAFid != null) cancelAnimationFrame(rAFid)
-    }
-  }, [])
+  // refresh puts us back where we were — under this list's own key
+  useScrollSaver(scrollContainerRef, identityRef)
 
   // Switching lists starts at the top.
   //
@@ -147,36 +130,9 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
     })
   }, [sortedConversations.length, identity])
 
-  // callback ref: called when sentinel mounts/unmounts
-  const sentinelCallback = useCallback((node: HTMLDivElement | null) => {
-    // disconnect old observer
-    if (observerRef.current) {
-      observerRef.current.disconnect()
-      observerRef.current = null
-    }
-
-    if (!node) return
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting && !loadingRef.current) {
-          onLoadMoreRef.current()
-        }
-      },
-      {
-        root: scrollContainerRef.current,
-        rootMargin: '300px',
-      }
-    )
-    observer.observe(node)
-    observerRef.current = observer
-  }, [])
-
-  // cleanup on unmount
-  useEffect(() => {
-    return () => {
-      observerRef.current?.disconnect()
-    }
+  // stable: the list asks on every scroll frame near the end
+  const loadNextPage = useCallback(() => {
+    if (!loadingRef.current) void onLoadMoreRef.current()
   }, [])
 
   // exit batch mode and clear selection
@@ -391,7 +347,7 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
         loadingMore={loadingMore}
         myEmail={myEmail}
         onContextAction={actions.act}
-        onLoadMore={sentinelCallback}
+        onNearEnd={loadNextPage}
         onRefresh={refresh}
         onSelect={handleSelect}
         onToggleCheck={toggleThreadCheck}

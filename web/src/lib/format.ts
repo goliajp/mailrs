@@ -8,12 +8,12 @@ export function dateGroupLabel(epoch: number): string {
   const diffDays = Math.floor((today.getTime() - msgDate.getTime()) / 86400000)
   if (diffDays === 0) return tNow('date.today')
   if (diffDays === 1) return tNow('date.yesterday')
-  if (diffDays < 7) return d.toLocaleDateString(currentLocale(), { weekday: 'long' })
-  return d.toLocaleDateString(currentLocale(), {
+  if (diffDays < 7) return dateFormat(currentLocale(), { weekday: 'long' }).format(d)
+  return dateFormat(currentLocale(), {
     day: 'numeric',
     month: 'short',
     year: now.getFullYear() !== d.getFullYear() ? 'numeric' : undefined,
-  })
+  }).format(d)
 }
 
 export function formatDate(ts: number): string {
@@ -22,7 +22,7 @@ export function formatDate(ts: number): string {
 
   // today: show time
   if (d.toDateString() === now.toDateString()) {
-    return d.toLocaleTimeString(currentLocale(), { hour: '2-digit', minute: '2-digit' })
+    return dateFormat(currentLocale(), { hour: '2-digit', minute: '2-digit' }).format(d)
   }
 
   // yesterday
@@ -32,31 +32,31 @@ export function formatDate(ts: number): string {
 
   // same week (but not today/yesterday): show weekday
   if (isSameWeek(d, now)) {
-    return d.toLocaleDateString(currentLocale(), { weekday: 'short' })
+    return dateFormat(currentLocale(), { weekday: 'short' }).format(d)
   }
 
   // same year: month + day
   if (d.getFullYear() === now.getFullYear()) {
-    return d.toLocaleDateString(currentLocale(), { day: 'numeric', month: 'short' })
+    return dateFormat(currentLocale(), { day: 'numeric', month: 'short' }).format(d)
   }
 
   // older: abbreviated year
-  return d.toLocaleDateString(currentLocale(), {
+  return dateFormat(currentLocale(), {
     day: 'numeric',
     month: 'short',
     year: '2-digit',
-  })
+  }).format(d)
 }
 
 export function formatFullDate(ts: number): string {
-  return new Date(ts * 1000).toLocaleString(currentLocale(), {
+  return dateFormat(currentLocale(), {
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
     month: 'short',
     weekday: 'short',
     year: 'numeric',
-  })
+  }).format(new Date(ts * 1000))
 }
 
 export function formatSize(bytes: number): string {
@@ -71,10 +71,10 @@ export function formatSize(bytes: number): string {
 /// (today→time / yesterday / weekday / month-day) output here would
 /// duplicate the divider's "4月16日" label for every same-day message.
 export function formatTimeOfDay(ts: number): string {
-  return new Date(ts * 1000).toLocaleTimeString(currentLocale(), {
+  return dateFormat(currentLocale(), {
     hour: '2-digit',
     minute: '2-digit',
-  })
+  }).format(new Date(ts * 1000))
 }
 
 export function formatUptime(secs: null | number | undefined): string {
@@ -106,4 +106,30 @@ function startOfDay(date: Date): Date {
   const d = new Date(date)
   d.setHours(0, 0, 0, 0)
   return d
+}
+
+const formatters = new Map<string, Intl.DateTimeFormat>()
+
+/**
+ * One `Intl.DateTimeFormat` per locale and options, kept.
+ *
+ * `toLocaleString` with options builds a new formatter on every call, and
+ * building one costs far more than using it. The conversation list formats
+ * a date on every row it draws; when a scroll brings thirty rows in at
+ * once, that was the largest single cost in the frame. Given the same
+ * options, a formatter formats as `toLocaleString` does, and as
+ * `toLocaleDateString` (`toLocaleTimeString`) does when the options name a
+ * date (time) field and no time (date) field, which is how they were used.
+ */
+export function dateFormat(
+  locale: string,
+  options: Intl.DateTimeFormatOptions
+): Intl.DateTimeFormat {
+  const key = `${locale}|${JSON.stringify(options)}`
+  let f = formatters.get(key)
+  if (!f) {
+    f = new Intl.DateTimeFormat(locale, options)
+    formatters.set(key, f)
+  }
+  return f
 }
