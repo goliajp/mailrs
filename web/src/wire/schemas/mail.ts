@@ -50,13 +50,9 @@ export const sendResultSchema = z
 
 export type WireSendResult = z.infer<typeof sendResultSchema>
 
-export const inlineUploadResultSchema = z
-  .object({
-    message: z.string().optional(),
-    success: z.boolean().default(false),
-    url: z.string().optional(),
-  })
-  .passthrough()
+// Backend: crates/webapi/src/handlers/inline.rs — fn inline_upload, which
+// answers `{"url": ...}` and nothing else; a refusal is a 4xx with no body.
+export const inlineUploadResultSchema = z.object({ url: z.string() }).passthrough()
 
 export type WireInlineUploadResult = z.infer<typeof inlineUploadResultSchema>
 
