@@ -14,7 +14,6 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -30,17 +29,12 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class VerdictFlowTest : MailrsUiTest() {
 
-    /** [on] is the stub's `on` switch: "1" arms, "0" disarms. */
-    private fun armVerdicts(on: String) {
-        val c = java.net.URL(stubBase() + "/debug/verdict?on=" + on)
-            .openConnection() as java.net.HttpURLConnection
+    /** Arm the suspicious case; the reset before every test disarms it. */
+    private fun armVerdicts() {
+        val c = java.net.URL(stubBase() + "/debug/verdict").openConnection() as java.net.HttpURLConnection
         c.requestMethod = "POST"
         c.inputStream.use { it.readBytes() }
     }
-
-    // the suite resets the stub with a GET, which does not disarm it
-    @After
-    fun disarm() = armVerdicts("0")
 
     private fun openOrdinaryThread() {
         signIn()
@@ -62,7 +56,7 @@ class VerdictFlowTest : MailrsUiTest() {
 
     @Test
     fun a_held_message_shows_its_layers_reasons_and_sender_checks() {
-        armVerdicts("1")
+        armVerdicts()
         openOrdinaryThread()
         waitFor("no verdict panel on a held message") { exists("verdict.panel") }
         assertTrue("rule reason not worded", exists("verdict.layer.identity", "The display name claims to be Golia."))
@@ -109,7 +103,7 @@ class VerdictFlowTest : MailrsUiTest() {
 
     @Test
     fun a_flagged_link_asks_first_and_an_ordinary_link_does_not() {
-        armVerdicts("1")
+        armVerdicts()
         // the browser is not started; the monitor counts what would have opened
         val filter = IntentFilter(Intent.ACTION_VIEW).apply { addDataScheme("https") }
         val monitor: Instrumentation.ActivityMonitor =

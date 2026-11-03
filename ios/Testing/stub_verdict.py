@@ -9,8 +9,7 @@ four layers, its SPF/DKIM/DMARC results, a link whose text shows another
 host and a callback number; the first message carries only why it was
 filed where it was. Armed only on request, so the suites that read this
 thread for other reasons see it unchanged. `/debug/reset` disarms it, and
-so does `POST /debug/verdict?on=0` (the Android suite resets with a GET,
-which the stub does not take as a reset).
+so does `POST /debug/verdict?on=0`.
 """
 
 import copy
