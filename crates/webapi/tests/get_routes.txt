@@ -31,6 +31,7 @@
 /api/admin/audit/conversations/{thread_id}/messages	audit only: records the administrator's read in the audit log
 /api/admin/audit/messages/{uid}/raw	audit only: records the administrator's read in the audit log
 /api/admin/auth-events	read only
+/api/admin/dane/tlsa	read only
 /api/admin/dmarc/reports	read only
 /api/admin/dmarc/sources	read only
 /api/admin/domains	read only
