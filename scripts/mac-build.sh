@@ -24,6 +24,37 @@ STUB_PORT=6039
 
 say() { printf '==> %s\n' "$*"; }
 
+# Xcode builds the UI-test runner from its XCTRunner template: it thins
+# the binary and adds the test bundle, then signs the result. With
+# signing off that last step is skipped, the runner keeps Apple's
+# original signature over contents that no longer match it, and macOS
+# calls the app damaged and kills it before it reaches the test — with a
+# dialog on the desktop. So the ad-hoc build signs it here, innermost
+# first, keeping whatever entitlements the template carried.
+sign_runner() {
+    local runner="$1" item
+    [ -d "$runner" ] || { echo "!! no UI-test runner at $runner"; exit 1; }
+    for item in "$runner"/Contents/PlugIns/*.xctest/Contents/Frameworks/* \
+        "$runner"/Contents/PlugIns/*.xctest \
+        "$runner"/Contents/Frameworks/*; do
+        [ -e "$item" ] || continue
+        codesign --force --sign - --timestamp=none "$item" >/dev/null
+    done
+    codesign --force --sign - --timestamp=none \
+        --preserve-metadata=entitlements "$runner" >/dev/null
+}
+
+# Refuses to go on with a runner whose signature does not hold: running
+# it is what puts the "damaged" dialog in front of the user.
+verify_runner() {
+    local runner="$1"
+    if ! codesign --verify --deep --strict --verbose=2 "$runner" > /tmp/mailrs-mac-runner-verify.log 2>&1; then
+        echo "!! the UI-test runner's signature does not verify; not launching it"
+        cat /tmp/mailrs-mac-runner-verify.log
+        exit 1
+    fi
+}
+
 say "[1/2] xcodegen"
 (cd ios && xcodegen generate --spec project.yml >/dev/null)
 
@@ -61,10 +92,26 @@ if [ "$MODE" = "test" ]; then
     # codesign fails with `errSecInternalComponent`, which reads like a
     # tooling fault rather than a locked keychain. The signed build for
     # release is a separate thing and keeps its identity.
+    # Built and run as two steps so the runner can be re-signed between
+    # them: `test` would copy a fresh runner over the signed one.
     (cd ios && xcodebuild -project Mailrs.xcodeproj -scheme MailrsMac \
         -destination "platform=macOS" -derivedDataPath "$DERIVED" \
-        "${SIGNING[@]}" test) \
+        "${SIGNING[@]}" build-for-testing) \
         > "$TEST_LOG" 2>&1 || TEST_STATUS=$?
+    if [ "$TEST_STATUS" -ne 0 ]; then
+        grep -E "error:|\*\* TEST BUILD" "$TEST_LOG" | sort -u | head -20 || true
+        echo "!! test build failed (xcodebuild exit $TEST_STATUS); full log: $TEST_LOG"
+        exit "$TEST_STATUS"
+    fi
+    RUNNER="$DERIVED/Build/Products/Debug/MailrsMacUITests-Runner.app"
+    if [ "${SIGN:-0}" != "1" ]; then
+        sign_runner "$RUNNER"
+    fi
+    verify_runner "$RUNNER"
+    (cd ios && xcodebuild -project Mailrs.xcodeproj -scheme MailrsMac \
+        -destination "platform=macOS" -derivedDataPath "$DERIVED" \
+        "${SIGNING[@]}" test-without-building) \
+        >> "$TEST_LOG" 2>&1 || TEST_STATUS=$?
     grep -E "✔|✘|error:|\*\* TEST" "$TEST_LOG" | sort -u | head -20 || true
     if [ "$TEST_STATUS" -ne 0 ]; then
         echo "!! tests failed (xcodebuild exit $TEST_STATUS)"
