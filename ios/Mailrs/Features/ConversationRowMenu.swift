@@ -2,103 +2,201 @@ import SwiftUI
 
 /// What a long press on one row offers.
 ///
-/// Split out of `ConversationListView` at the 500-line limit this
-/// repository holds every language to — the list's `body` had grown to
-/// hold the whole screen, and this is one subject inside it: everything
-/// a reader can do to the conversation under their thumb.
+/// Built from the action table (`Wire/RowActions.swift`), the same one
+/// the web and Android read, so the actions, their order and their
+/// words match on every surface. Only deleting for good asks first; it
+/// hands the row to `onDeleteForever`, which owns the question.
 struct ConversationRowMenu: View {
     let conversation: Wire.Conversation
+    var onDeleteForever: (Wire.Conversation) -> Void = { _ in }
     @Environment(Session.self) private var session
 
     var body: some View {
-                    // Pinning is a long-press: it is done once
-                    // and read for weeks, unlike the swipes,
-                    // which are the fifty-a-day gestures. The
-                    // list already came back with this field —
-                    // the phone simply had no way to set it and
-                    // did not draw the ones the desk had.
-                    // Starring. The phone has it on a swipe; the
-                    // iPad's leading swipe is not reachable in a
-                    // three-column layout and the Mac has no swipes
-                    // at all, so the verb existed in `Session` and
-                    // could be reached from neither of them. The menu
-                    // is the one place all three share.
-                    Button {
-                        Task { await session.toggleStarred(conversation) }
-                    } label: {
-                        Label(
-                            StarToggle.label(starred: conversation.flagged),
-                            systemImage: StarToggle.icon(starred: conversation.flagged)
-                        )
-                    }
-                    .accessibilityIdentifier("row.menu.star")
-                    Button {
-                        Task { await session.togglePinned(conversation) }
-                    } label: {
-                        Label(
-                            PinLabel.title(pinned: conversation.pinned),
-                            systemImage: PinLabel.icon(pinned: conversation.pinned)
-                        )
-                    }
-                    // Away until later. A submenu rather than
-                    // four more rows: snoozing is one idea with
-                    // four answers, and the menu already holds
-                    // the pin, the buckets and the junk verdict.
-                    if SnoozeState.isAsleep(conversation, now: Date()) {
-                        Button {
-                            Task { await session.snooze(conversation, until: nil) }
-                        } label: {
-                            Label("Wake now", systemImage: "bell")
-                        }
-                    } else {
-                        Menu {
-                            ForEach(SnoozeChoice.allCases) { choice in
-                                Button(choice.label) {
-                                    Task {
-                                        await session.snooze(
-                                            conversation,
-                                            until: choice.fireDate(
-                                                after: Date(), calendar: .current))
-                                    }
-                                }
-                            }
-                        } label: {
-                            Label("Snooze", systemImage: "clock")
-                        }
-                    }
-                    Divider()
-                    // Junk lives in the long-press menu, not the
-                    // swipe rows — those are full, and a verdict
-                    // that trains the filter deserves a deliberate
-                    // gesture rather than the one you make fifty
-                    // times a day.
-                    if session.activeList == .junk {
-                        Button {
-                            Task { await session.setJunk(conversation, junk: false) }
-                        } label: {
-                            Label("Not junk", systemImage: "checkmark.shield")
-                        }
-                    } else {
-                        // Where it belongs. The classifier puts
-                        // mail in Inbox, Notifications or
-                        // Promotions and gets it wrong often
-                        // enough that there has to be a way to
-                        // say so — the server always had the
-                        // verbs; nothing on the phone reached
-                        // them.
-                        ForEach(MailBucket.offered(from: session.activeList)) { bucket in
-                            Button {
-                                Task { await session.move(conversation, to: bucket) }
-                            } label: {
-                                Label(bucket.label, systemImage: bucket.systemImage)
-                            }
-                        }
-                        Divider()
-                        Button(role: .destructive) {
-                            Task { await session.setJunk(conversation, junk: true) }
-                        } label: {
-                            Label("Mark as junk", systemImage: "xmark.bin")
+        ForEach(actions, id: \.self) { action in
+            item(action)
+        }
+    }
+
+    private var actions: [RowAction] {
+        RowActions.forRow(
+            conversation,
+            list: session.activeList,
+            inLabel: session.activeList == .label,
+            now: Int64(Date().timeIntervalSince1970))
+    }
+
+    @ViewBuilder private func item(_ action: RowAction) -> some View {
+        switch action {
+        case .read, .unread:
+            Button {
+                Task { await session.toggleRead(conversation) }
+            } label: {
+                Label(LocalizedStringKey(action.titleKey), systemImage: action.systemImage)
+            }
+        case .star, .unstar:
+            Button {
+                Task { await session.toggleStarred(conversation) }
+            } label: {
+                Label(
+                    StarToggle.label(starred: conversation.flagged),
+                    systemImage: StarToggle.icon(starred: conversation.flagged))
+            }
+            .accessibilityIdentifier("row.menu.star")
+        case .pin, .unpin:
+            Button {
+                Task { await session.togglePinned(conversation) }
+            } label: {
+                Label(
+                    PinLabel.title(pinned: conversation.pinned),
+                    systemImage: PinLabel.icon(pinned: conversation.pinned))
+            }
+        case .archive:
+            Button {
+                Task { await session.archive(conversation) }
+            } label: {
+                Label(LocalizedStringKey(action.titleKey), systemImage: action.systemImage)
+            }
+        case .snooze:
+            // one idea with four answers
+            Menu {
+                ForEach(SnoozeChoice.allCases) { choice in
+                    Button(choice.label) {
+                        Task {
+                            await session.snooze(
+                                conversation,
+                                until: choice.fireDate(after: Date(), calendar: .current))
                         }
                     }
+                }
+            } label: {
+                Label("Snooze", systemImage: "clock")
+            }
+        case .unsnooze:
+            Button {
+                Task { await session.snooze(conversation, until: nil) }
+            } label: {
+                Label("Wake now", systemImage: "bell")
+            }
+        case .markJunk:
+            Button(role: .destructive) {
+                Task { await session.setJunk(conversation, junk: true) }
+            } label: {
+                Label(LocalizedStringKey(action.titleKey), systemImage: action.systemImage)
+            }
+        case .markNotJunk:
+            Button {
+                Task { await session.setJunk(conversation, junk: false) }
+            } label: {
+                Label(LocalizedStringKey(action.titleKey), systemImage: action.systemImage)
+            }
+        case .markNotification, .markPromotion, .moveToInbox:
+            bucketButton(action)
+        case .label:
+            labelMenu
+        case .deleteForever:
+            Button(role: .destructive) {
+                onDeleteForever(conversation)
+            } label: {
+                Label(LocalizedStringKey(action.titleKey), systemImage: action.systemImage)
+            }
+            .accessibilityIdentifier("row.menu.deleteForever")
+        default:
+            Button(role: role(action)) {
+                Task { await session.perform(action, on: [conversation]) }
+            } label: {
+                Label(LocalizedStringKey(action.titleKey), systemImage: action.systemImage)
+            }
+            .accessibilityIdentifier("row.menu.\(action.rawValue)")
+        }
+    }
+
+    private func bucketButton(_ action: RowAction) -> some View {
+        Button {
+            Task { await session.move(conversation, to: bucket(action)) }
+        } label: {
+            Label(LocalizedStringKey(action.titleKey), systemImage: action.systemImage)
+        }
+    }
+
+    /// Every label, ticked where the conversation carries it; choosing
+    /// one puts it on or takes it off.
+    private var labelMenu: some View {
+        Menu {
+            ForEach(session.labels) { label in
+                let on = (conversation.labels ?? []).contains(label.id)
+                Button {
+                    Task {
+                        await session.perform(
+                            labelAction(on), on: [conversation], label: label)
+                    }
+                } label: {
+                    Label(label.name, systemImage: tick(on))
+                }
+                .accessibilityIdentifier("row.menu.label.\(label.id)")
+            }
+        } label: {
+            Label(LocalizedStringKey(RowAction.label.titleKey), systemImage: "tag")
+        }
+        .accessibilityIdentifier("row.menu.label")
+    }
+
+    private func bucket(_ action: RowAction) -> MailBucket {
+        switch action {
+        case .markNotification: return .notification
+        case .markPromotion: return .promotion
+        default: return .inbox
+        }
+    }
+
+    private func labelAction(_ on: Bool) -> RowAction {
+        if on { return .unlabel }
+        return .label
+    }
+
+    private func tick(_ on: Bool) -> String {
+        if on { return "checkmark" }
+        return "tag"
+    }
+
+    private func role(_ action: RowAction) -> ButtonRole? {
+        if action == .trash { return .destructive }
+        return nil
+    }
+}
+
+/// The trailing swipe: archive owns the full swipe everywhere but the
+/// Trash, where restoring does; moving to the Trash sits behind it and
+/// no longer asks, because the Trash is the way back.
+struct TrailingSwipes: View {
+    let conversation: Wire.Conversation
+    let onDeleteForever: (Wire.Conversation) -> Void
+    @Environment(Session.self) private var session
+
+    var body: some View {
+        if session.activeList == .trash || conversation.isTrashed {
+            Button {
+                Task { await session.perform(.untrash, on: [conversation]) }
+            } label: {
+                Label("Restore", systemImage: RowAction.untrash.systemImage)
+            }
+            .tint(.green)
+            Button(role: .destructive) {
+                onDeleteForever(conversation)
+            } label: {
+                Label("Delete forever", systemImage: RowAction.deleteForever.systemImage)
+            }
+        } else {
+            Button {
+                Task { await session.archive(conversation) }
+            } label: {
+                Label("Archive", systemImage: "archivebox")
+            }
+            .tint(.green)
+            Button(role: .destructive) {
+                Task { await session.perform(.trash, on: [conversation]) }
+            } label: {
+                Label("Move to Trash", systemImage: "trash")
+            }
+        }
     }
 }

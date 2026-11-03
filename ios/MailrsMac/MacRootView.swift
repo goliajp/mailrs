@@ -97,9 +97,9 @@ struct MacRootView: View {
                 .keyboardShortcut("e", modifiers: .command)
 
                 Button {
-                    pendingDelete = opened
+                    if let opened { Task { await session.delete(opened) } }
                 } label: {
-                    Label("Delete", systemImage: "trash")
+                    Label("Move to Trash", systemImage: "trash")
                 }
                 .disabled(opened == nil)
                 .accessibilityIdentifier("mac.toolbar.delete")
@@ -150,13 +150,13 @@ struct MacRootView: View {
         }
         .sheet(isPresented: $composing) { ComposeView().frame(minWidth: 640, minHeight: 520) }
         .confirmationDialog(
-            "Delete this conversation?",
+            "Delete forever?",
             isPresented: .constant(pendingDelete != nil),
             titleVisibility: .visible
         ) {
-            Button("Delete", role: .destructive) {
+            Button("Delete forever", role: .destructive) {
                 if let doomed = pendingDelete {
-                    Task { await session.delete(doomed) }
+                    Task { await session.perform(.deleteForever, on: [doomed]) }
                 }
                 pendingDelete = nil
             }
@@ -182,7 +182,10 @@ struct MacRootView: View {
         } message: {
             Text("Every conversation in \(listTitle) will be marked read.")
         }
-        .task { await session.loadConversations() }
+        .task {
+            await session.loadConversations()
+            await session.loadLabels()
+        }
     }
 
     @ViewBuilder private var conversations: some View {
@@ -214,17 +217,7 @@ struct MacRootView: View {
                     // Swipes exist on a trackpad too, and they are how
                     // the same triage is done on the other platforms.
                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                        Button {
-                            Task { await session.archive(conversation) }
-                        } label: {
-                            Label("Archive", systemImage: "archivebox")
-                        }
-                        .tint(.green)
-                        Button(role: .destructive) {
-                            pendingDelete = conversation
-                        } label: {
-                            Label("Delete", systemImage: "trash")
-                        }
+                        TrailingSwipes(conversation: conversation) { pendingDelete = $0 }
                     }
             }
             .accessibilityIdentifier("mac.conversations")
@@ -314,7 +307,7 @@ struct MacSidebar: View {
     var body: some View {
         List(selection: selectionBinding) {
             Section("Mailboxes") {
-                ForEach(MailList.allCases) { list in
+                ForEach(MailList.shown) { list in
                     SidebarMailboxRow(
                         list: list,
                         unread: list.badgeCount(

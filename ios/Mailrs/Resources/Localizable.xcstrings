@@ -721,6 +721,22 @@
         }
       }
     },
+    "All mail": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "すべてのメール"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全部邮件"
+          }
+        }
+      }
+    },
     "Always allow": {
       "localizations": {
         "ja": {
@@ -973,6 +989,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "验证器验证码"
+          }
+        }
+      }
+    },
+    "Back where it was": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "元の場所に戻しました"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已放回原处"
           }
         }
       }
@@ -1682,6 +1714,38 @@
         }
       }
     },
+    "Delete forever": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完全に削除"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "永久删除"
+          }
+        }
+      }
+    },
+    "Delete forever?": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完全に削除しますか？"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "永久删除？"
+          }
+        }
+      }
+    },
     "Delete group?": {
       "localizations": {
         "ja": {
@@ -2386,6 +2450,54 @@
         }
       }
     },
+    "Label": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ラベル"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "标签"
+          }
+        }
+      }
+    },
+    "Label removed": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ラベルを外しました"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已去掉标签"
+          }
+        }
+      }
+    },
+    "Labels": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ラベル"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "标签"
+          }
+        }
+      }
+    },
     "Language": {
       "localizations": {
         "ja": {
@@ -2677,6 +2789,22 @@
         }
       }
     },
+    "Mark as read": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "既読にする"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "标为已读"
+          }
+        }
+      }
+    },
     "Mark as unread": {
       "localizations": {
         "ja": {
@@ -2881,6 +3009,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "移到收件箱"
+          }
+        }
+      }
+    },
+    "Move to Trash": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ゴミ箱に移動"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移到废纸篓"
+          }
+        }
+      }
+    },
+    "Moved to Trash": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ゴミ箱に移動しました"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已移到废纸篓"
           }
         }
       }
@@ -3174,6 +3334,22 @@
         }
       }
     },
+    "No conversations with this label": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このラベルの会話はありません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个标签下没有会话"
+          }
+        }
+      }
+    },
     "No drafts": {
       "localizations": {
         "ja": {
@@ -3218,6 +3394,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "没有垃圾邮件"
+          }
+        }
+      }
+    },
+    "No mail": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "メールはありません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有邮件"
           }
         }
       }
@@ -3446,6 +3638,22 @@
         }
       }
     },
+    "Nothing held. No one is currently trying to defraud you.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保留中のメールはありません。現在、詐欺の試みはありません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有扣下的信，目前没有人在试图骗你"
+          }
+        }
+      }
+    },
     "Nothing here": {
       "localizations": {
         "ja": {
@@ -3478,6 +3686,22 @@
         }
       }
     },
+    "Nothing pinned": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ピン留めした会話はありません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有置顶的会话"
+          }
+        }
+      }
+    },
     "Nothing recorded": {
       "localizations": {
         "ja": {
@@ -3506,6 +3730,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "还没有发送过邮件"
+          }
+        }
+      }
+    },
+    "Nothing snoozed": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "スヌーズ中の会話はありません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有稍后处理的会话"
           }
         }
       }
@@ -3782,6 +4022,22 @@
         }
       }
     },
+    "Pin": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ピン留め"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "置顶"
+          }
+        }
+      }
+    },
     "Pin to top": {
       "localizations": {
         "ja": {
@@ -3958,6 +4214,22 @@
         }
       }
     },
+    "Remove label": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ラベルを外す"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "去掉标签"
+          }
+        }
+      }
+    },
     "Reply": {
       "localizations": {
         "ja": {
@@ -4118,6 +4390,38 @@
         }
       }
     },
+    "Restore": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "元に戻す"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "恢复"
+          }
+        }
+      }
+    },
+    "Restored": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "元に戻しました"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已恢复"
+          }
+        }
+      }
+    },
     "Retrying": {
       "localizations": {
         "ja": {
@@ -4130,6 +4434,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "重试中"
+          }
+        }
+      }
+    },
+    "Review": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "確認待ち"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "待审"
           }
         }
       }
@@ -4694,6 +5014,22 @@
         }
       }
     },
+    "Snoozed": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "スヌーズ中"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "稍后处理"
+          }
+        }
+      }
+    },
     "Star": {
       "localizations": {
         "ja": {
@@ -4886,6 +5222,22 @@
         }
       }
     },
+    "This is not fraud": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "これは詐欺ではありません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这不是诈骗"
+          }
+        }
+      }
+    },
     "This mailbox is no longer connected": {
       "localizations": {
         "ja": {
@@ -5062,6 +5414,38 @@
         }
       }
     },
+    "Trash": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ゴミ箱"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "废纸篓"
+          }
+        }
+      }
+    },
+    "Trash is empty": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ゴミ箱は空です"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "废纸篓是空的"
+          }
+        }
+      }
+    },
     "Turn on locking": {
       "localizations": {
         "ja": {
@@ -5074,6 +5458,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "开启锁定"
+          }
+        }
+      }
+    },
+    "Unarchive": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アーカイブを解除"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消归档"
           }
         }
       }

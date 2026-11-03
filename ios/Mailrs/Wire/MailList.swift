@@ -13,6 +13,12 @@ struct MailListAxes: Equatable, Sendable {
     var unread: Bool?
     var starred: Bool?
     var archived: Bool = false
+    /// The Trash; every other list leaves it out.
+    var trashed: Bool = false
+    var pinned: Bool = false
+    var snoozed: Bool = false
+    /// One label's conversations, by label id.
+    var label: String?
     /// Which connected mailboxes to narrow to.
     ///
     /// `nil` is every account, and it is not the same as an empty
@@ -42,6 +48,12 @@ extension MailListAxes {
         if let starred {
             items.append(URLQueryItem(name: "starred", value: MailListAxes.flag(starred)))
         }
+        // present only when asked for: each is a list of its own, not a
+        // filter that is false everywhere else
+        if trashed { items.append(URLQueryItem(name: "trashed", value: "true")) }
+        if pinned { items.append(URLQueryItem(name: "pinned", value: "true")) }
+        if snoozed { items.append(URLQueryItem(name: "snoozed", value: "true")) }
+        if let label { items.append(URLQueryItem(name: "label", value: label)) }
         // Sent whenever the filter is narrowed — including to nothing,
         // which is the parameter present and empty. The server reads an
         // absent one as every account, so the two cannot be collapsed.
@@ -70,8 +82,18 @@ enum MailList: String, CaseIterable, Identifiable, Sendable {
     case np
     case unread
     case starred
-    case junk
+    case pinned
+    case snoozed
+    /// Everything but Junk and the Trash, archived included.
+    case all
     case archived
+    case junk
+    /// Held as suspected fraud: `GET /api/quarantine`, not a folder.
+    case review
+    case trash
+    /// One of the reader's labels; which one is `Session.activeLabel`.
+    /// Not drawn with the fixed lists: each label is a row of its own.
+    case label
     /// Not a thread list: two endpoints joined by `SendJoin`. "Send",
     /// not "Sent" — the rows include mail that failed and mail still
     /// going out, and a heading claiming they were sent would be wrong
@@ -79,6 +101,10 @@ enum MailList: String, CaseIterable, Identifiable, Sendable {
     case send
 
     var id: String { rawValue }
+
+    /// The lists drawn in the sidebar, in the web's order. Labels follow
+    /// them, one row each.
+    static let shown: [MailList] = allCases.filter { $0 != .label }
 
     /// The catalog key. Kept as a `String` alongside the view-facing
     /// `title` so a test can ask whether the catalog carries it —
@@ -91,6 +117,12 @@ enum MailList: String, CaseIterable, Identifiable, Sendable {
         case .starred: "Starred"
         case .junk: "Junk"
         case .archived: "Archived"
+        case .pinned: "Pinned"
+        case .snoozed: "Snoozed"
+        case .all: "All mail"
+        case .review: "Review"
+        case .trash: "Trash"
+        case .label: "Label"
         case .send: "Send"
         }
     }
@@ -109,6 +141,12 @@ enum MailList: String, CaseIterable, Identifiable, Sendable {
         case .starred: "star"
         case .junk: "xmark.bin"
         case .archived: "archivebox"
+        case .pinned: "pin"
+        case .snoozed: "clock"
+        case .all: "tray.2"
+        case .review: "exclamationmark.shield"
+        case .trash: "trash"
+        case .label: "tag"
         case .send: "paperplane"
         }
     }
@@ -123,6 +161,12 @@ enum MailList: String, CaseIterable, Identifiable, Sendable {
         case .starred: "Nothing starred"
         case .junk: "No junk mail"
         case .archived: "No archived conversations"
+        case .pinned: "Nothing pinned"
+        case .snoozed: "Nothing snoozed"
+        case .all: "No mail"
+        case .review: "Nothing held. No one is currently trying to defraud you."
+        case .trash: "Trash is empty"
+        case .label: "No conversations with this label"
         case .send: "Nothing sent yet"
         }
     }
@@ -146,6 +190,15 @@ enum MailList: String, CaseIterable, Identifiable, Sendable {
         // folder when this is set, because "archived within Inbox" is not
         // what the tab means.
         case .archived: MailListAxes(archived: true)
+        // across folders, as Starred is
+        case .pinned: MailListAxes(pinned: true)
+        case .snoozed: MailListAxes(snoozed: true)
+        case .all: MailListAxes(folder: "all")
+        case .trash: MailListAxes(trashed: true)
+        // Unused: Review reads `/api/quarantine`, see `Session`.
+        case .review: MailListAxes()
+        // Unused: the label's id is `Session.activeLabel`'s.
+        case .label: MailListAxes()
         // Unused: Send never queries /api/conversations. The axes exist
         // so the type stays total; `Session` branches on the case.
         case .send: MailListAxes()

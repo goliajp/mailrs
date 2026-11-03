@@ -66,26 +66,11 @@ struct ConversationListView: View {
                                 ? Color.accentColor.opacity(0.18)
                                 : Color.pageBackground
                         )
-                        .contextMenu { ConversationRowMenu(conversation: conversation) }
+                        .contextMenu {
+                            ConversationRowMenu(conversation: conversation) { pendingDelete = $0 }
+                        }
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                            // Archive owns the full swipe — the triage
-                            // gesture in both benchmark apps, and it
-                            // cannot destroy anything. Delete is behind
-                            // it, keeps its confirmation, and
-                            // deliberately lost the full-swipe slot: the
-                            // fastest gesture in the app must not be the
-                            // irreversible one.
-                            Button {
-                                Task { await session.archive(conversation) }
-                            } label: {
-                                Label("Archive", systemImage: "archivebox")
-                            }
-                            .tint(.green)
-                            Button(role: .destructive) {
-                                pendingDelete = conversation
-                            } label: {
-                                Label("Delete", systemImage: "trash")
-                            }
+                            TrailingSwipes(conversation: conversation) { pendingDelete = $0 }
                         }
                         .swipeActions(edge: .leading, allowsFullSwipe: true) {
                             // Read owns the right full swipe, as in
@@ -146,6 +131,10 @@ struct ConversationListView: View {
                     .refreshable { await session.loadConversations() }
                 }
             }
+            // the reader's labels, for the list menu and the row menu
+            .task { await session.loadLabels() }
+            // deleting for good can be refused until the password is typed
+            .confirmPrompt()
             // `.alert`, not `.confirmationDialog` — the same lesson this
             // file already carries for delete: the dialog renders as a
             // popover here and SwiftUI drops the `.cancel` button in
@@ -235,15 +224,15 @@ struct ConversationListView: View {
             // as the undocumented way back. The safe way out of a
             // question about permanent deletion has to be on screen.
             .alert(
-                "Delete conversation?",
+                "Delete forever?",
                 isPresented: Binding(
                     get: { pendingDelete != nil },
                     set: { if !$0 { pendingDelete = nil } }
                 ),
                 presenting: pendingDelete
             ) { conversation in
-                Button("Delete", role: .destructive) {
-                    Task { await session.delete(conversation) }
+                Button("Delete forever", role: .destructive) {
+                    Task { await session.perform(.deleteForever, on: [conversation]) }
                     pendingDelete = nil
                 }
                 Button("Cancel", role: .cancel) { pendingDelete = nil }
@@ -258,9 +247,9 @@ struct ConversationListView: View {
                 ),
                 presenting: pendingBatchDelete
             ) { batch in
-                Button("Delete", role: .destructive) {
+                Button("Delete forever", role: .destructive) {
                     leaveSelectMode()
-                    Task { await session.deleteAll(batch) }
+                    Task { await session.perform(.deleteForever, on: batch) }
                     pendingBatchDelete = nil
                 }
                 Button("Cancel", role: .cancel) { pendingBatchDelete = nil }
@@ -282,8 +271,22 @@ struct ConversationListView: View {
                                 Task { await session.select(list) }
                             }
                         )) {
-                            ForEach(MailList.allCases) { list in
+                            ForEach(MailList.shown) { list in
                                 Label(list.title, systemImage: list.systemImage).tag(list)
+                            }
+                        }
+                        // the reader's labels, after the fixed lists
+                        if !session.labels.isEmpty {
+                            Section("Labels") {
+                                ForEach(session.labels) { label in
+                                    Button {
+                                        leaveSelectMode()
+                                        Task { await session.select(label: label) }
+                                    } label: {
+                                        Label(label.name, systemImage: "tag")
+                                    }
+                                    .accessibilityIdentifier("list.label.\(label.id)")
+                                }
                             }
                         }
                         Divider()
@@ -368,21 +371,7 @@ struct ConversationListView: View {
                 if editMode == .active {
                     ToolbarItemGroup(placement: .screenActions) {
                         Spacer()
-                        Button("Read") {
-                            Task { await session.markAllRead(selectedConversations) }
-                            leaveSelectMode()
-                        }
-                        .disabled(selection.isEmpty)
-                        Button("Archive") {
-                            let batch = selectedConversations
-                            leaveSelectMode()
-                            Task { await session.archiveAll(batch) }
-                        }
-                        .disabled(selection.isEmpty)
-                        Button("Delete", role: .destructive) {
-                            pendingBatchDelete = selectedConversations
-                        }
-                        .disabled(selection.isEmpty)
+                        batchButtons
                     }
                 }
             }
@@ -392,14 +381,53 @@ struct ConversationListView: View {
 
     /// While selecting, the title is the count — Apple Mail's pattern,
     /// and it spares the bottom bar a cramped pill.
-    private var undoLabel: LocalizedStringKey {
-        let count = session.pendingUndo?.rows.count ?? 1
-        if count > 1 { return "Archived ×\(count)" }
-        return "Archived"
+    private var undoLabel: LocalizedStringKey { UndoBar.label(session.pendingUndo) }
+
+    /// The batch bar for the list on screen, from the action table: the
+    /// Trash restores or deletes for good, Review releases, every other
+    /// list reads, archives and moves to the Trash.
+    @ViewBuilder private var batchButtons: some View {
+        switch session.activeList {
+        case .trash:
+            batchButton(.untrash)
+            Button(LocalizedStringKey(RowAction.deleteForever.titleKey), role: .destructive) {
+                pendingBatchDelete = selectedConversations
+            }
+            .disabled(selection.isEmpty)
+        case .review:
+            batchButton(.release)
+            batchButton(.trash)
+        default:
+            Button("Read") {
+                Task { await session.markAllRead(selectedConversations) }
+                leaveSelectMode()
+            }
+            .disabled(selection.isEmpty)
+            Button("Archive") {
+                let batch = selectedConversations
+                leaveSelectMode()
+                Task { await session.archiveAll(batch) }
+            }
+            .disabled(selection.isEmpty)
+            batchButton(.trash)
+        }
+    }
+
+    private func batchButton(_ action: RowAction) -> some View {
+        Button(LocalizedStringKey(action.titleKey)) {
+            let batch = selectedConversations
+            leaveSelectMode()
+            Task { await session.perform(action, on: batch) }
+        }
+        .disabled(selection.isEmpty)
+        .accessibilityIdentifier("batch.\(action.rawValue)")
     }
 
     private var navigationTitle: LocalizedStringKey {
         if editMode == .active { return "\(selection.count) selected" }
+        if session.activeList == .label, let label = session.activeLabel {
+            return LocalizedStringKey(stringLiteral: label.name)
+        }
         return session.activeList.title
     }
 
