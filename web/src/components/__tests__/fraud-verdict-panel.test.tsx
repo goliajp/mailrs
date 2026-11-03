@@ -70,6 +70,32 @@ function show(verdict: object, lang: 'en' | 'zh') {
 }
 
 describe('the verdict panel', () => {
+  it('names the facts a rule found, and falls back when a stored verdict has none', async () => {
+    const withFacts = {
+      ...HELD,
+      layers: HELD.layers.map((l) => {
+        if (l.name !== 'identity') return l
+        return {
+          ...l,
+          reasons: [
+            {
+              code: 'impersonates-brand',
+              params: { brand: 'paypal', domain: 'pay-secure.example' },
+            },
+            { code: 'brand-is-the-display-name' },
+          ],
+        }
+      }),
+    }
+    show(withFacts, 'zh')
+    expect(
+      await screen.findByText(
+        '显示名自称「paypal」，信来自 pay-secure.example：不是这家公司的域名，以前也没来过信。'
+      )
+    ).toBeInTheDocument()
+    expect(screen.getByText('显示名只有一个公司名，域名却不是这家公司的。')).toBeInTheDocument()
+  })
+
   it('words every reason in the reader’s language', async () => {
     show(HELD, 'zh')
     expect(await screen.findByText('显示名自称是本组织。')).toBeInTheDocument()

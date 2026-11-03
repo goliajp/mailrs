@@ -282,6 +282,25 @@ pub trait Account: Send + Sync + 'static {
         trashed: bool,
     ) -> impl Future<Output = Result<bool>> + Send;
 
+    /// The messages of the user's conversations archived out of the Inbox,
+    /// wherever they are filed: the web's Archived list (All Mail's range,
+    /// archived ones only), so neither the Trash, Junk nor held mail.
+    fn archived(&self) -> impl Future<Output = Result<Trashed<Self::Mailbox, Self::Key>>> + Send;
+
+    /// Every message of the web's All Mail: every conversation but those
+    /// in Junk, the Trash or held, archived ones included.
+    fn all_mail(&self) -> impl Future<Output = Result<Trashed<Self::Mailbox, Self::Key>>> + Send;
+
+    /// Archive the conversation `message` belongs to, or bring it back to
+    /// the Inbox, the way the web does. The message stays where it is
+    /// filed. `Ok(false)` when it belongs to no conversation.
+    fn set_archived(
+        &self,
+        mailbox: &Self::Mailbox,
+        message: &Message<Self::Key>,
+        archived: bool,
+    ) -> impl Future<Output = Result<bool>> + Send;
+
     /// The user's labels, each with the messages of its conversations.
     fn labels(
         &self,

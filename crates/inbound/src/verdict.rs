@@ -254,7 +254,10 @@ fn from_findings(input: &PipelineInput, layer: mailrs_fraud::Layer) -> Layer {
     for f in input.fraud.in_layer(layer) {
         score += f.score;
         found.push(f.detail.clone());
-        reasons.push(Reason::new(f.rule.clone()));
+        reasons.push(Reason {
+            code: f.rule.clone(),
+            params: f.params.clone(),
+        });
     }
     if layer == mailrs_fraud::Layer::Identity {
         // The host's own signals, and they are scored rather than
@@ -558,6 +561,38 @@ mod tests {
         let after: FraudVerdict = serde_json::from_str(&json).expect("deserialize");
         assert_eq!(before, after);
         assert!(json.contains(RULES_VERSION), "the stamp did not survive");
+    }
+
+    /// A rule's params reach its reason, and the stored verdict keeps them.
+    #[test]
+    fn a_rules_params_reach_its_reason_and_survive_storage() {
+        let mut i = input();
+        let mut f = mailrs_fraud::Finding::scored(
+            "impersonates-brand",
+            mailrs_fraud::Layer::Identity,
+            4.5,
+            "display name claims a company",
+        );
+        f.params.insert("brand".into(), "paypal".into());
+        f.params
+            .insert("domain".into(), "pay-secure.example".into());
+        i.fraud.push(f);
+        let v = assess(&i);
+        let stored: FraudVerdict =
+            serde_json::from_str(&serde_json::to_string(&v).expect("serialize")).expect("read");
+        let reason = layer(&stored, "identity")
+            .reasons
+            .iter()
+            .find(|r| r.code == "impersonates-brand")
+            .expect("the rule's reason");
+        assert_eq!(
+            reason.params.get("brand").map(String::as_str),
+            Some("paypal")
+        );
+        assert_eq!(
+            reason.params.get("domain").map(String::as_str),
+            Some("pay-secure.example")
+        );
     }
 
     /// Every layer's score is accounted for in the total. A layer
