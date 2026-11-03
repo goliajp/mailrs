@@ -14,6 +14,8 @@ use sha2::{Digest, Sha256};
 pub struct PaymentIds {
     /// An IBAN whose mod-97 check passes.
     pub iban: bool,
+    /// The country code of the first such IBAN, for the reader.
+    pub iban_country: Option<&'static str>,
     /// A Bitcoin address whose checksum passes.
     pub crypto: bool,
 }
@@ -23,8 +25,12 @@ pub struct PaymentIds {
 pub fn find(text: &str) -> PaymentIds {
     let mut out = PaymentIds::default();
     for token in text.split(|c: char| !c.is_ascii_alphanumeric() && c != ' ') {
-        if !out.iban && contains_iban(token) {
+        if out.iban {
+            break;
+        }
+        if let Some(country) = iban_in(token) {
             out.iban = true;
+            out.iban_country = Some(country);
         }
     }
     for word in text.split(|c: char| !c.is_ascii_alphanumeric()) {
@@ -82,31 +88,30 @@ const IBAN_LENGTHS: &[(&str, usize)] = &[
 
 /// Whether a word of `chunk` begins an IBAN: from each word start, the
 /// spaces print groups use are taken out and the country's length read.
-fn contains_iban(chunk: &str) -> bool {
+/// The country of the first check-digit-valid IBAN starting a word of `chunk`.
+fn iban_in(chunk: &str) -> Option<&'static str> {
     let bytes = chunk.as_bytes();
-    (0..bytes.len()).any(|start| {
+    (0..bytes.len()).find_map(|start| {
         let word_start = start == 0 || bytes[start - 1] == b' ';
         if !word_start || bytes.len() - start < 15 {
-            return false;
+            return None;
         }
-        let Some(&(_, len)) = IBAN_LENGTHS
+        let &(cc, len) = IBAN_LENGTHS
             .iter()
-            .find(|(cc, _)| bytes[start..start + 2].eq_ignore_ascii_case(cc.as_bytes()))
-        else {
-            return false;
-        };
+            .find(|(cc, _)| bytes[start..start + 2].eq_ignore_ascii_case(cc.as_bytes()))?;
         let compact: Vec<u8> = bytes[start..]
             .iter()
             .copied()
             .filter(|b| *b != b' ')
             .take(len)
             .collect();
-        compact.len() == len && iban_checks(&compact)
+        match compact.len() == len && iban_checks(&compact) {
+            true => Some(cc),
+            false => None,
+        }
     })
 }
 
-/// ISO 13616: digits after the country, then the check is mod 97 == 1
-/// over the rearranged string with letters as two-digit numbers.
 fn iban_checks(iban: &[u8]) -> bool {
     if !iban[2].is_ascii_digit() || !iban[3].is_ascii_digit() {
         return false;

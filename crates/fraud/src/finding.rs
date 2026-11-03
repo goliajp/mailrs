@@ -138,6 +138,11 @@ pub struct Finding {
     /// Junk, not hide it; the promotion is a number in a dry run,
     /// not an opinion.
     pub holds: bool,
+    /// The facts the reader's sentence names (the host a link really
+    /// goes to, the brand being worn), so each client can say it in the
+    /// reader's language. Empty when the rule names none: the code alone
+    /// then picks the sentence.
+    pub params: std::collections::BTreeMap<String, String>,
 }
 
 impl Finding {
@@ -154,6 +159,7 @@ impl Finding {
             score,
             detail: detail.into(),
             holds: true,
+            params: std::collections::BTreeMap::new(),
         }
     }
 

@@ -21,6 +21,20 @@ describe('reason sentences', () => {
     expect(reasonText(r, 'ja', tFor('ja'))).toContain('「プロモーション」')
   })
 
+  it('say the facts a rule named, and only when it named all of them', () => {
+    const full = {
+      code: 'link-shows-our-address',
+      params: { shown: 'golia.jp', target: 'evil.example' },
+    }
+    expect(reasonText(full, 'en', tFor('en'))).toBe(
+      'A link shows golia.jp, our own domain, but goes to evil.example.'
+    )
+    const partial = { code: 'link-shows-our-address', params: { shown: 'golia.jp' } }
+    expect(reasonText(partial, 'en', tFor('en'))).toBe(
+      'A link shows an address on our own domain but goes somewhere else.'
+    )
+  })
+
   it('answer null for a code this build has no sentence for', () => {
     expect(reasonText({ code: 'a-rule-added-later' }, 'en', tFor('en'))).toBeNull()
   })
