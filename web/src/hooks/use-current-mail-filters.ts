@@ -16,7 +16,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useAtomValue } from 'jotai'
 import { useMemo } from 'react'
 
-import { useDebouncedValue } from '@/hooks/use-debounced-value'
+import { useThrottledValue } from '@/hooks/use-throttled-value'
 import { type MailListId, threadAxesOf, type ThreadListAxes } from '@/lib/mail-lists'
 import { type MailListFilters } from '@/lib/query-keys'
 import { z } from '@/lib/zod'
@@ -39,8 +39,11 @@ import {
 } from '@/store/ui'
 import { wireFetch } from '@/wire/client'
 
-/** Same 200 ms search debounce as the list's input. */
-const SEARCH_DEBOUNCE_MS = 200
+/**
+ * Searches asked of the server while typing: at most one per this many
+ * ms. The query typed or pasted after a pause is asked at once.
+ */
+const SEARCH_INTERVAL_MS = 150
 
 export function useCurrentMailFilters(): MailListFilters | null {
   const list = useAtomValue(activeListAtom)
@@ -53,7 +56,7 @@ export function useCurrentMailFilters(): MailListFilters | null {
   const inboxSection = useAtomValue(inboxSectionAtom)
   const followupDays = useAtomValue(followupDaysAtom)
   const hideSuspectedFraud = useAtomValue(hideSuspectedFraudAtom)
-  const debouncedSearch = useDebouncedValue(searchQuery, SEARCH_DEBOUNCE_MS)
+  const askedSearch = useThrottledValue(searchQuery, SEARCH_INTERVAL_MS)
 
   return useMemo<MailListFilters | null>(() => {
     const axes = sectionAxes(labelAxes(threadAxesOf(list), list, activeLabel), list, {
@@ -77,7 +80,7 @@ export function useCurrentMailFilters(): MailListFilters | null {
       // reader who has switched hiding off is asking to be shown what
       // is held, marked, in place.
       includeQuarantined: !hideSuspectedFraud,
-      query: debouncedSearch || undefined,
+      query: askedSearch || undefined,
     }
   }, [
     list,
@@ -85,7 +88,7 @@ export function useCurrentMailFilters(): MailListFilters | null {
     categoryFilter,
     selectedAccounts,
     selectedDomains,
-    debouncedSearch,
+    askedSearch,
     hideSuspectedFraud,
     sectioned,
     inboxSection,
