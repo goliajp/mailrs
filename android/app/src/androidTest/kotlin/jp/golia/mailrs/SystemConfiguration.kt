@@ -44,11 +44,15 @@ class SystemConfiguration : ExternalResource() {
      */
     var appLocale: String? = null
 
+    /** Dark mode on (`yes`) or off (`no`), as the system's own switch sets it. */
+    var night: String? = null
+
     private fun locales(): android.app.LocaleManager =
         InstrumentationRegistry.getInstrumentation().targetContext
             .getSystemService(android.app.LocaleManager::class.java)
 
     override fun before() {
+        night?.let { shell("cmd uimode night $it") }
         appLocale?.let { tag ->
             val wanted = android.os.LocaleList.forLanguageTags(tag)
             locales().applicationLocales = wanted
@@ -123,6 +127,7 @@ class SystemConfiguration : ExternalResource() {
         if (displaySize != null) shell("wm size reset")
         if (density != null) shell("wm density reset")
         if (appLocale != null) locales().applicationLocales = android.os.LocaleList.getEmptyLocaleList()
+        if (night != null) shell("cmd uimode night no")
     }
 
     /**
