@@ -92,3 +92,4 @@
 # ---- read by an operator during abuse handling ----
 
 /api/admin/masked-submissions  # who submitted mail from a mask and from which IP, which the message headers leave out. No admin page has been asked for; read with curl.
+/api/admin/dane/tlsa  # the TLSA zone lines for port 25, which the operator publishes in DNS. No admin page has been asked for; read with curl.

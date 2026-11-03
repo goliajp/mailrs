@@ -43,7 +43,7 @@ pub struct StatsCache(std::sync::RwLock<Option<ReceiverStats>>);
 
 impl StatsCache {
     pub fn get(&self) -> Option<ReceiverStats> {
-        self.0.read().ok().and_then(|g| *g)
+        self.0.read().ok().and_then(|g| g.clone())
     }
 
     fn set(&self, stats: ReceiverStats) {
@@ -179,14 +179,163 @@ pub fn health(stats: &StatsCache) -> serde_json::Value {
         Some(s) => serde_json::json!({
             "probe_guard_tripped": s.probe_guard_tripped,
             "mask_submit_log_failed": s.mask_submit_log_failed,
+            "dane": s.dane.as_ref().map(dane_health),
         }),
         None => serde_json::Value::Null,
     }
 }
 
+/// The DANE summary a watch reads: how many records are published (both
+/// validating resolvers return them with AD set), whether the served
+/// certificate and the next key are among them, and each server's answer.
+fn dane_health(d: &mailrs_core_sidestate::smtp_monitor::DaneStatus) -> serde_json::Value {
+    serde_json::json!({
+        "name": d.name,
+        "published": d.published().len(),
+        "matches_current": d.matches(d.current.as_ref()),
+        "matches_next": d.next.as_ref().map(|n| d.matches(Some(n))),
+        "sources_agree": d.sources_agree(),
+        "checked_at": d.checked_at,
+        "unmatched_swaps": d.unmatched_swaps,
+        "problem": dane_problem(d),
+        "sources": d.sources,
+    })
+}
+
+/// Something to act on: records are published and the served certificate
+/// is not among them, or a certificate change has already gone to a key
+/// nothing published. Nothing published yet is not a problem, and none of
+/// this changes the overall health status.
+fn dane_problem(d: &mailrs_core_sidestate::smtp_monitor::DaneStatus) -> bool {
+    let published = !d.published().is_empty();
+    (published && !d.matches(d.current.as_ref())) || d.unmatched_swaps > 0
+}
+
+/// TTL for the TLSA lines printed below. A key is swapped only after its
+/// record has been published for at least two of these.
+const TLSA_TTL_SECS: u32 = 3600;
+
+/// `GET /api/admin/dane/tlsa` — the TLSA records port 25 needs, as zone
+/// lines: the served certificate's, then the next key's when one is
+/// configured. Super administrators only (`route_permissions`); 503
+/// until the receiver has reported.
+pub async fn dane_tlsa(
+    axum::extract::State(state): axum::extract::State<Arc<WebState>>,
+) -> Result<String, StatusCode> {
+    let dane = state
+        .receiver_stats
+        .get()
+        .and_then(|s| s.dane)
+        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+    Ok(tlsa_lines(&dane))
+}
+
+fn tlsa_lines(d: &mailrs_core_sidestate::smtp_monitor::DaneStatus) -> String {
+    [d.current.as_ref(), d.next.as_ref()]
+        .into_iter()
+        .flatten()
+        .map(|r| format!("{}. {TLSA_TTL_SECS} IN TLSA {r}\n", d.name))
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn dane(next: Option<&str>) -> mailrs_core_sidestate::smtp_monitor::DaneStatus {
+        use mailrs_core_sidestate::smtp_monitor::{DaneSource, DaneStatus};
+        let src = |server: &str, ad| DaneSource {
+            server: server.into(),
+            authenticated: ad,
+            records: vec!["3 1 1 aa".into()],
+            error: None,
+        };
+        DaneStatus {
+            name: "_25._tcp.mx.example".into(),
+            current: Some("3 1 1 aa".into()),
+            next: next.map(String::from),
+            checked_at: Some(1_762_000_000),
+            sources: vec![
+                src("1.1.1.1", Some(true)),
+                src("8.8.8.8", Some(true)),
+                src("ns.example", None),
+            ],
+            unmatched_swaps: 0,
+        }
+    }
+
+    #[test]
+    fn the_tlsa_lines_name_the_current_key_then_the_next() {
+        assert_eq!(
+            tlsa_lines(&dane(Some("3 1 1 bb"))),
+            "_25._tcp.mx.example. 3600 IN TLSA 3 1 1 aa\n\
+             _25._tcp.mx.example. 3600 IN TLSA 3 1 1 bb\n"
+        );
+        assert_eq!(
+            tlsa_lines(&dane(None)),
+            "_25._tcp.mx.example. 3600 IN TLSA 3 1 1 aa\n"
+        );
+    }
+
+    #[test]
+    fn dane_health_counts_published_records_and_says_which_keys_they_cover() {
+        let h = dane_health(&dane(Some("3 1 1 bb")));
+        assert_eq!(h["published"], 1);
+        assert_eq!(h["matches_current"], true);
+        assert_eq!(h["matches_next"], false);
+        assert_eq!(h["sources_agree"], true);
+        assert_eq!(h["sources"].as_array().unwrap().len(), 3);
+        assert!(dane_health(&dane(None))["matches_next"].is_null());
+        assert_eq!(h["problem"], false);
+    }
+
+    #[test]
+    fn dane_is_a_problem_only_once_records_exist_and_miss_or_a_swap_missed() {
+        let mut nothing = dane(None);
+        for s in &mut nothing.sources {
+            s.records.clear();
+            s.authenticated = s.authenticated.map(|_| false);
+        }
+        let h = dane_health(&nothing);
+        assert_eq!(h["published"], 0);
+        assert_eq!(h["matches_current"], false);
+        assert_eq!(
+            h["problem"], false,
+            "nothing published yet is not a problem"
+        );
+
+        let mut stale = dane(None);
+        stale.current = Some("3 1 1 cc".into());
+        assert_eq!(
+            dane_health(&stale)["problem"],
+            true,
+            "published, served key not among them"
+        );
+
+        let mut swapped = dane(None);
+        swapped.unmatched_swaps = 1;
+        assert_eq!(dane_health(&swapped)["matches_current"], true);
+        assert_eq!(
+            dane_health(&swapped)["problem"],
+            true,
+            "a swap already went to an unpublished key"
+        );
+    }
+
+    #[test]
+    fn a_resolver_that_timed_out_neither_validates_nor_breaks_agreement() {
+        let mut d = dane(None);
+        d.sources[1].error = Some("timed out".into());
+        d.sources[1].authenticated = Some(false);
+        d.sources[1].records.clear();
+        let h = dane_health(&d);
+        assert_eq!(h["published"], 0, "one validating resolver did not answer");
+        assert_eq!(
+            h["sources_agree"], true,
+            "only the servers that answered are compared"
+        );
+        assert_eq!(h["problem"], false);
+    }
 
     #[test]
     fn an_unpublished_cache_reads_as_unknown_not_zero() {
@@ -208,6 +357,7 @@ mod tests {
             uptime_secs: 60,
             probe_guard_tripped: Some(0),
             mask_submit_log_failed: None,
+            dane: None,
         })
         .unwrap();
 
