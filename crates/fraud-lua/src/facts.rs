@@ -55,6 +55,14 @@ fn fill(lua: &mut Lua, t: LuaTable, f: &Facts<'_>, p: &Policy) -> Result<(), Str
         ("dmarc", f.dmarc.to_string()),
         ("attachment_text", f.attachment_text.to_string()),
         ("shown_links", f.shown_links.to_string()),
+        (
+            "iban_country",
+            f.payment.iban_country.unwrap_or("").to_string(),
+        ),
+        (
+            "lookalike_of",
+            f.relation.lookalike_of.clone().unwrap_or_default(),
+        ),
     ] {
         if v.len() > 64 * 1024 {
             return Err(format!("fact {k} exceeds 64 KiB"));

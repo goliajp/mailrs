@@ -28,7 +28,7 @@ pub struct History {
 }
 
 /// The relationship facts for one message.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Relation {
     /// Nothing has passed between the reader and this address.
     pub first_contact: bool,
@@ -37,6 +37,8 @@ pub struct Relation {
     /// The sender's registrable domain is two edits or a look-alike
     /// letter away from one the reader writes to, without being it.
     pub looks_like_correspondent: bool,
+    /// The correspondent's domain it looks like, when it does.
+    pub lookalike_of: Option<String>,
     /// The display name is a correspondent's, at an address that has
     /// never been in touch.
     pub name_borrowed: bool,
@@ -64,9 +66,11 @@ pub fn assess(
         .filter_map(|c| c.address.rsplit_once('@').map(|(_, h)| registrable(h)))
         .filter(|d| !d.is_empty() && !never_listed(d))
         .collect();
-    let looks_like = domains
+    let lookalike_of = domains
         .iter()
-        .any(|d| *d != sender && (close(d, &sender) || unconfuse(d) == unconfuse(&sender)));
+        .find(|d| **d != sender && (close(d, &sender) || unconfuse(d) == unconfuse(&sender)))
+        .filter(|_| !sender.is_empty())
+        .cloned();
     let name_borrowed = first_contact
         && !display.trim().is_empty()
         && correspondents
@@ -75,7 +79,8 @@ pub fn assess(
     Relation {
         first_contact,
         from_correspondent_domain: !sender.is_empty() && domains.contains(&sender),
-        looks_like_correspondent: !sender.is_empty() && looks_like,
+        looks_like_correspondent: lookalike_of.is_some(),
+        lookalike_of,
         name_borrowed,
     }
 }
