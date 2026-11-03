@@ -362,6 +362,26 @@ pub(crate) async fn delete_thread(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> axum::response::Response {
+    delete_thread_removing(
+        &state,
+        &user,
+        &thread_id,
+        crate::routes::message_ops::remove_maildir_file,
+    )
+}
+
+/// What a file is removed with: `(maildir root, user, blob ref)`, `false`
+/// when there was no such file.
+pub(crate) type RemoveFile = fn(&str, &str, &str) -> std::io::Result<bool>;
+
+/// [`delete_thread`], with the files removed by `remove`, so a test can
+/// make a removal fail the way no permission can for root.
+pub(crate) fn delete_thread_removing(
+    state: &FastcoreState,
+    user: &str,
+    thread_id: &str,
+    remove: RemoveFile,
+) -> axum::response::Response {
     // The kevy side of the delete returns every file the user's copies
     // have had — a Message-ID can sit in Sent and INBOX, or in INBOX once
     // per alias it came through. Any file left on disk is re-imported by
@@ -369,7 +389,7 @@ pub(crate) async fn delete_thread(
     // ghost FYI threads; 2026-10-25, a self-sent message back in minutes
     // from its Sent copy).
     use axum::response::IntoResponse;
-    let (existed, files) = match state.mailbox.delete_thread(&user, &thread_id) {
+    let (existed, files) = match state.mailbox.delete_thread(user, thread_id) {
         Ok(pair) => pair,
         Err(e) => {
             tracing::error!(error = %e, %user, %thread_id, "delete_thread kevy failed");
@@ -379,7 +399,7 @@ pub(crate) async fn delete_thread(
     let mut unlinked = 0u32;
     let mut left = 0u32;
     for file in &files {
-        match crate::routes::message_ops::remove_maildir_file(&state.maildir_root, &user, file) {
+        match remove(&state.maildir_root, user, file) {
             Ok(true) => unlinked += 1,
             Ok(false) => {}
             Err(e) => {
