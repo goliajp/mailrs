@@ -7,6 +7,12 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+/** The wire as `MailrsClient` reads it. */
+private val inviteJson = kotlinx.serialization.json.Json {
+    ignoreUnknownKeys = true
+    explicitNulls = false
+}
+
 class InviteRulesTest {
 
     /** The app's English words, as a phone set to English shows them. */
@@ -105,8 +111,7 @@ class InviteRulesTest {
         val json = """{"uid":"d1","sequence":0,"summary":"Offsite","attendees":[],
             "dtstart":{"Date":"2026-11-03"},"dtstart_utc":null,"dtend_utc":null,
             "dtstart_date":"2026-11-03","dtend_date":"2026-11-05"}"""
-        val invite = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
-            .decodeFromString(Wire.Invite.serializer(), json)
+        val invite = inviteJson.decodeFromString(Wire.Invite.serializer(), json)
         assertNull(invite.startsAt)
         assertEquals("2026-11-03", invite.firstDay)
         assertEquals("2026-11-05", invite.dayAfterLast)
