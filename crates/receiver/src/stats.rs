@@ -19,6 +19,8 @@ pub struct ReceiverCounters {
     messages: AtomicU64,
     probe_guard_tripped: AtomicU64,
     mask_submit_log_failed: AtomicU64,
+    /// Filled by the DANE check when the receiver serves a certificate.
+    pub dane: Arc<crate::dane::DaneCell>,
     started: Instant,
 }
 
@@ -30,6 +32,7 @@ impl Default for ReceiverCounters {
             messages: AtomicU64::new(0),
             probe_guard_tripped: AtomicU64::new(0),
             mask_submit_log_failed: AtomicU64::new(0),
+            dane: Arc::default(),
             started: Instant::now(),
         }
     }
@@ -73,6 +76,7 @@ impl ReceiverCounters {
             uptime_secs: self.started.elapsed().as_secs(),
             probe_guard_tripped: Some(self.probe_guard_tripped.load(Ordering::Relaxed)),
             mask_submit_log_failed: Some(self.mask_submit_log_failed.load(Ordering::Relaxed)),
+            dane: self.dane.get(),
         }
     }
 }

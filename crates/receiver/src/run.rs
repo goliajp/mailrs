@@ -86,6 +86,18 @@ pub async fn start() -> Receiver {
     let runtime = core_link::runtime_settings(&cfg, &kevy_client, greylist_local).await;
 
     let counters: SharedCounters = Arc::new(ReceiverCounters::default());
+    if let (Some(cert), Some(_)) = (&cfg.tls_cert, &tls_state) {
+        crate::dane::spawn(
+            crate::dane::DaneConfig {
+                hostname: cfg.hostname.clone(),
+                cert: cert.clone(),
+                next_key: cfg.dane_next_key.clone(),
+                resolvers: cfg.dane_resolvers.clone(),
+                authoritative: cfg.dane_authoritative.clone(),
+            },
+            counters.dane.clone(),
+        );
+    }
     let event_bus = event_bus(&kevy_client, &counters);
 
     let spool_sink: Arc<dyn crate::smtp_session::SpoolSink> =

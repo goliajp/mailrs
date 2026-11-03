@@ -121,6 +121,11 @@ services:
       MAILRS_ANTISPAM_ENABLED: "true"
       MAILRS_TLS_CERT: /certs/fullchain.pem
       MAILRS_TLS_KEY: /certs/privkey.pem
+      # DANE: the key that is to replace the certificate's (a PEM public
+      # key; absent until one is prepared), and the zone's name servers,
+      # asked beside 1.1.1.1 and 8.8.8.8 for the TLSA records
+      MAILRS_DANE_NEXT_KEY: /certs/next-pubkey.pem
+      MAILRS_DANE_AUTHORITATIVE: clyde.ns.cloudflare.com,dora.ns.cloudflare.com
       RUST_LOG: info
     volumes:
       - mailrs-data:/data

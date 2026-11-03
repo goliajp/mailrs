@@ -199,6 +199,7 @@ pub(crate) async fn status_handler(
     // process. They arrive over the monitor's stats channel and are
     // cached here; `None` until one does, which is not the same as zero.
     let stats = state.receiver_stats.get();
+    let stats = stats.as_ref();
     axum::Json(serde_json::json!({
         "service": "mailrs-webapi",
         "version": env!("CARGO_PKG_VERSION"),
