@@ -4,12 +4,14 @@ import type { ConversationSummary } from '@/lib/types'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useAtomValue } from 'jotai'
 import { CloudOff, Mail } from 'lucide-react'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { ConversationItem } from '@/components/conversation-item'
 import { SwipeableRow } from '@/components/swipeable-row'
+import { useHoverPrefetch } from '@/hooks/use-prefetch-threads'
 import { type Key, useT } from '@/i18n'
 import { toggle } from '@/lib/actions'
+import { nearEnd } from '@/lib/list-paging'
 import { MAIL_LISTS, type MailListId } from '@/lib/mail-lists'
 import {
   followupDaysAtom,
@@ -61,7 +63,7 @@ export function VirtualConversationList({
   loadingMore,
   myEmail,
   onContextAction,
-  onLoadMore,
+  onNearEnd,
   onRefresh,
   onSelect,
   onToggleCheck,
@@ -82,7 +84,7 @@ export function VirtualConversationList({
   loadingMore: boolean
   myEmail: string
   onContextAction: (threadId: string, action: SingleAction) => void
-  onLoadMore: (node: HTMLDivElement | null) => void
+  onNearEnd: () => void
   onRefresh?: () => Promise<void> | void
   onSelect: (threadId: string) => void
   onToggleCheck: (threadId: string) => void
@@ -119,6 +121,7 @@ export function VirtualConversationList({
   }, [conversations, dateLabel, hasMore, isSearching])
 
   const parentRef = useRef<HTMLDivElement>(null)
+  const hover = useHoverPrefetch()
 
   const virtualizer = useVirtualizer({
     count: items.length,
@@ -154,6 +157,13 @@ export function VirtualConversationList({
       return item.type
     },
   })
+
+  // the next page, asked for while there are still rows to scroll through
+  const visibleEnd = virtualizer.range?.endIndex ?? -1
+  useEffect(() => {
+    if (!hasMore || loadingMore) return
+    if (nearEnd(visibleEnd, items.length)) onNearEnd()
+  }, [visibleEnd, items.length, hasMore, loadingMore, onNearEnd])
 
   // pull-to-refresh state (must be before early returns)
   const [pullDistance, setPullDistance] = useState(0)
@@ -312,6 +322,10 @@ export function VirtualConversationList({
               className="absolute top-0 left-0 w-full"
               data-index={virtualItem.index}
               key={itemKey}
+              onPointerEnter={() => {
+                if (item.type === 'conversation') hover.enter(item.convo.thread_id)
+              }}
+              onPointerLeave={hover.leave}
               style={{ transform: `translateY(${virtualItem.start}px)` }}
             >
               {item.type === 'divider' && <DateDivider label={item.label} />}
@@ -345,7 +359,7 @@ export function VirtualConversationList({
                 </SwipeableRow>
               )}
               {item.type === 'sentinel' && (
-                <div className="flex justify-center py-4" ref={onLoadMore}>
+                <div className="flex justify-center py-4">
                   {loadingMore && (
                     <div className="border-border border-t-fg-secondary h-5 w-5 animate-spin rounded-full border-2" />
                   )}

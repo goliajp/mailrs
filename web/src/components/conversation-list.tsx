@@ -75,14 +75,12 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
   const [selectedThreadIds, setSelectedThreadIds] = useAtom(selectedThreadIdsAtom)
   const [batchLoading, setBatchLoading] = useState(false)
 
-  // refs to avoid stale closures in observer callback
+  // refs so the paging callback stays stable across renders
   const onLoadMoreRef = useRef(loadMore)
   onLoadMoreRef.current = loadMore
   const loadingRef = useRef(loadingMore)
   loadingRef.current = loadingMore
 
-  // observer ref to clean up when sentinel unmounts
-  const observerRef = useRef<IntersectionObserver | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   // Which list is showing. The saved scroll position is per-list.
@@ -147,36 +145,9 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
     })
   }, [sortedConversations.length, identity])
 
-  // callback ref: called when sentinel mounts/unmounts
-  const sentinelCallback = useCallback((node: HTMLDivElement | null) => {
-    // disconnect old observer
-    if (observerRef.current) {
-      observerRef.current.disconnect()
-      observerRef.current = null
-    }
-
-    if (!node) return
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting && !loadingRef.current) {
-          onLoadMoreRef.current()
-        }
-      },
-      {
-        root: scrollContainerRef.current,
-        rootMargin: '300px',
-      }
-    )
-    observer.observe(node)
-    observerRef.current = observer
-  }, [])
-
-  // cleanup on unmount
-  useEffect(() => {
-    return () => {
-      observerRef.current?.disconnect()
-    }
+  // stable: the list asks on every scroll frame near the end
+  const loadNextPage = useCallback(() => {
+    if (!loadingRef.current) void onLoadMoreRef.current()
   }, [])
 
   // exit batch mode and clear selection
@@ -391,7 +362,7 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
         loadingMore={loadingMore}
         myEmail={myEmail}
         onContextAction={actions.act}
-        onLoadMore={sentinelCallback}
+        onNearEnd={loadNextPage}
         onRefresh={refresh}
         onSelect={handleSelect}
         onToggleCheck={toggleThreadCheck}

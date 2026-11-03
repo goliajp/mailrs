@@ -17,6 +17,7 @@ import {
 } from '@/hooks/use-current-list'
 import { useThreadQuery } from '@/hooks/use-mail-queries'
 import { useMarkReadOnOpen } from '@/hooks/use-mark-read-on-open'
+import { usePrefetchNeighbours } from '@/hooks/use-prefetch-threads'
 import { useThreadActions } from '@/hooks/use-thread-actions'
 import { useT } from '@/i18n'
 import { MPane, MPaneGroup } from '@/layouts/pane'
@@ -119,6 +120,8 @@ export function ThreadView() {
   // `React.memo`d children with array-typed props keep identity across
   // loading frames.
   const messages: readonly ThreadMessage[] = threadQuery.data ?? EMPTY_MESSAGES
+  // the rows beside this one, once its own messages are in
+  usePrefetchNeighbours(rows, selectedId, threadQuery.isSuccess)
 
   // When a conversation's messages first arrive, bring its first open
   // message to the top: the reply box is at the end of the stack, so the

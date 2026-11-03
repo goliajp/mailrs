@@ -1,6 +1,6 @@
 import type { CategoryCount, ConversationSummary, ThreadMessage } from '@/lib/types'
 
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { queryOptions, useInfiniteQuery, useQuery } from '@tanstack/react-query'
 
 import { mailKeys, type MailListFilters } from '@/lib/query-keys'
 import { conversationKeys } from '@/store/query-keys-v21'
@@ -12,6 +12,71 @@ import {
 } from '@/wire/schemas/conversation'
 
 const PAGE_SIZE = 50
+
+/**
+ * The thread query without its `enabled` gate, so a prefetch fills the
+ * very cache entry the reading pane reads — same key, same fetch, same
+ * freshness.
+ */
+export function threadQueryOptions(threadId: null | string, domains: string[]) {
+  return queryOptions({
+    queryFn: async ({ signal }) => {
+      // v2.1 §7 (2026-07-08): Zod-parse the wire response.
+      // wireThreadDetailResponseSchema accepts both envelope shapes.
+      const q = domains.length > 0 ? `?domains=${encodeURIComponent(domains.join(','))}` : ''
+      const parsed = await wireFetch(wireThreadDetailResponseSchema, {
+        path: `/conversations/${encodeURIComponent(threadId ?? '')}${q}`,
+        signal,
+      })
+      return parsed.items as unknown as ThreadMessage[]
+    },
+    // Thread content is mutation-invariant from the client's point of
+    // view — mark-read / star / pin / archive act on list-shape flags
+    // only, not on the body, attachments or headers. What changes it
+    // is an inbound message landing on the thread, and that reaches a
+    // *connected* tab through the NewMessage WebSocket event in
+    // use-mail-events.ts, which invalidates this query.
+    //
+    // It used to say that was the only way, and set `staleTime:
+    // Infinity` on the strength of it. A closed, sleeping or offline
+    // tab misses the event — they live five minutes — and the cache
+    // is persisted, so the stale entry came back on every reload. See
+    // the `staleTime` below.
+    // v2.1 phase-6 anti-flash defaults set `placeholderData: keepPreviousData`
+    // globally so mail-list filter changes never blank the screen. That's
+    // wrong for a per-thread query: on a thread switch we WANT
+    // `data === undefined` until the new thread resolves, so ThreadView's
+    // bridge effect can clear the previous thread's messages instead of
+    // mistakenly attributing them to the new thread. Setting the option
+    // to `undefined` here does NOT override the global default (RQ 5 reads
+    // `undefined` as "not specified" and falls through) — the correct
+    // opt-out is a function that returns undefined for any prior data.
+    // Without this opt-out, thread A's messages leak into thread B's
+    // timeline during the fetch window, and every A→B→A round-trip
+    // append a stale bubble (2026-07-08 user report of 5 duplicate "Me"
+    // rows accumulating after repeated clicks).
+    queryKey: mailKeys.thread(threadId),
+    // **Not `Infinity`.** The comment above says the only thing that
+    // can change a thread's content is an inbound message arriving on
+    // it, and that this flows through the WebSocket — which is true
+    // while the tab is open and connected, and false the rest of the
+    // time. Events live five minutes in kevy; a tab that was closed,
+    // asleep or offline misses them.
+    //
+    // With `Infinity` that is not a five-minute gap but a permanent
+    // one, because the cache is persisted to localStorage and keyed on
+    // the build: a reload restores the stale entry and never refetches
+    // it. Reported 2026-09-01 — the list row carried the newest
+    // message's timestamp while the conversation pane showed two of
+    // three, and reloading did not fix it.
+    //
+    // A minute is long enough to keep a back-and-forth between two
+    // threads instant, which is what `Infinity` was for, and short
+    // enough that a reload is never wrong.
+    staleTime: 60_000,
+    placeholderData: () => undefined,
+  })
+}
 
 export function useCategoriesQuery(domains: string[]) {
   return useQuery({
@@ -109,64 +174,7 @@ export function useConversationsQuery(filters: MailListFilters, enabled: boolean
 }
 
 export function useThreadQuery(threadId: null | string, domains: string[]) {
-  return useQuery({
-    enabled: !!threadId,
-    queryFn: async ({ signal }) => {
-      // v2.1 §7 (2026-07-08): Zod-parse the wire response.
-      // wireThreadDetailResponseSchema accepts both envelope shapes.
-      const q = domains.length > 0 ? `?domains=${encodeURIComponent(domains.join(','))}` : ''
-      const parsed = await wireFetch(wireThreadDetailResponseSchema, {
-        path: `/conversations/${encodeURIComponent(threadId ?? '')}${q}`,
-        signal,
-      })
-      return parsed.items as unknown as ThreadMessage[]
-    },
-    // Thread content is mutation-invariant from the client's point of
-    // view — mark-read / star / pin / archive act on list-shape flags
-    // only, not on the body, attachments or headers. What changes it
-    // is an inbound message landing on the thread, and that reaches a
-    // *connected* tab through the NewMessage WebSocket event in
-    // use-mail-events.ts, which invalidates this query.
-    //
-    // It used to say that was the only way, and set `staleTime:
-    // Infinity` on the strength of it. A closed, sleeping or offline
-    // tab misses the event — they live five minutes — and the cache
-    // is persisted, so the stale entry came back on every reload. See
-    // the `staleTime` below.
-    // v2.1 phase-6 anti-flash defaults set `placeholderData: keepPreviousData`
-    // globally so mail-list filter changes never blank the screen. That's
-    // wrong for a per-thread query: on a thread switch we WANT
-    // `data === undefined` until the new thread resolves, so ThreadView's
-    // bridge effect can clear the previous thread's messages instead of
-    // mistakenly attributing them to the new thread. Setting the option
-    // to `undefined` here does NOT override the global default (RQ 5 reads
-    // `undefined` as "not specified" and falls through) — the correct
-    // opt-out is a function that returns undefined for any prior data.
-    // Without this opt-out, thread A's messages leak into thread B's
-    // timeline during the fetch window, and every A→B→A round-trip
-    // append a stale bubble (2026-07-08 user report of 5 duplicate "Me"
-    // rows accumulating after repeated clicks).
-    queryKey: mailKeys.thread(threadId),
-    // **Not `Infinity`.** The comment above says the only thing that
-    // can change a thread's content is an inbound message arriving on
-    // it, and that this flows through the WebSocket — which is true
-    // while the tab is open and connected, and false the rest of the
-    // time. Events live five minutes in kevy; a tab that was closed,
-    // asleep or offline misses them.
-    //
-    // With `Infinity` that is not a five-minute gap but a permanent
-    // one, because the cache is persisted to localStorage and keyed on
-    // the build: a reload restores the stale entry and never refetches
-    // it. Reported 2026-09-01 — the list row carried the newest
-    // message's timestamp while the conversation pane showed two of
-    // three, and reloading did not fix it.
-    //
-    // A minute is long enough to keep a back-and-forth between two
-    // threads instant, which is what `Infinity` was for, and short
-    // enough that a reload is never wrong.
-    staleTime: 60_000,
-    placeholderData: () => undefined,
-  })
+  return useQuery({ enabled: !!threadId, ...threadQueryOptions(threadId, domains) })
 }
 
 /**
