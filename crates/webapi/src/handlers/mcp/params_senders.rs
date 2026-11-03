@@ -92,3 +92,9 @@ pub struct ImportantContactParams {
     /// True marks the contact important; false removes the mark.
     pub important: bool,
 }
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct AcceptSendersParams {
+    /// Bare addresses whose first contact you accept (1 to 500).
+    pub addresses: Vec<String>,
+}
