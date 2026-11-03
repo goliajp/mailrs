@@ -22,6 +22,7 @@ GUARDED = [
     ("POST", r"^/api/admin/email-groups/\d+/members$"),
     ("DELETE", r"^/api/admin/email-groups/\d+/members/.+$"),
     ("POST", r"^/api/agent/keys$"),
+    ("DELETE", r"^/api/conversations/[^/]+/forever$"),
 ]
 
 

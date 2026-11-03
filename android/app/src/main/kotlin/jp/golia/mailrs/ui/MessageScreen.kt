@@ -1,5 +1,7 @@
 package jp.golia.mailrs.ui
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -72,7 +74,7 @@ fun MessageScreen(
     LaunchedEffect(row.id, wholeMessage) {
         outcome = null
         outcome = when (account) {
-            null -> MessageReader.Outcome.Failed("This mailbox is no longer connected")
+            null -> MessageReader.Outcome.Failed(Texts.get(R.string.message_mailbox_gone))
             else -> MessageReader.load(account, row, store, wholeMessage)
         }
     }
@@ -85,7 +87,7 @@ fun MessageScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             TextButton(onClick = onClose, modifier = Modifier.testTag("message.back")) {
-                Text("Back", color = theme.accent, fontSize = 13.sp)
+                Text(Texts.get(R.string.common_back), color = theme.accent, fontSize = 13.sp)
             }
             androidx.compose.foundation.layout.Box(Modifier.weight(1f))
             // Offered only once there is a message to reply to: the
@@ -96,7 +98,7 @@ fun MessageScreen(
                     onClick = { onReply(ok.loaded, false) },
                     modifier = Modifier.testTag("message.reply"),
                 ) {
-                    Text("Reply", color = theme.accent, fontSize = 13.sp)
+                    Text(Texts.get(R.string.mail_reply), color = theme.accent, fontSize = 13.sp)
                 }
                 // Offered only when there is somebody else on it.
                 // "Reply all" over a message with one recipient does
@@ -107,7 +109,7 @@ fun MessageScreen(
                         onClick = { onReply(ok.loaded, true) },
                         modifier = Modifier.testTag("message.replyAll"),
                     ) {
-                        Text("Reply all", color = theme.accent, fontSize = 13.sp)
+                        Text(Texts.get(R.string.mail_reply_all), color = theme.accent, fontSize = 13.sp)
                     }
                 }
             }
@@ -131,7 +133,7 @@ fun MessageScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                    Text("Fetching…", color = theme.fgMuted, fontSize = 13.sp)
+                    Text(Texts.get(R.string.message_fetching), color = theme.fgMuted, fontSize = 13.sp)
                 }
                 is MessageReader.Outcome.Failed -> Text(
                     o.why,
@@ -142,7 +144,7 @@ fun MessageScreen(
                 is MessageReader.Outcome.Ok -> {
                     if (o.loaded.text.isEmpty()) {
                         Text(
-                            "This message has no text to show.",
+                            Texts.get(R.string.message_no_text),
                             color = theme.fgMuted,
                             fontSize = 13.sp,
                         )
@@ -173,7 +175,7 @@ fun MessageScreen(
                         // the thing being decided.
                         HorizontalDivider(color = theme.border, thickness = 0.5.dp)
                         Text(
-                            "Only the beginning was fetched. Attachments may be missing.",
+                            Texts.get(R.string.message_partial),
                             color = theme.fgMuted,
                             fontSize = 11.sp,
                         )
@@ -182,7 +184,7 @@ fun MessageScreen(
                             modifier = Modifier.testTag("message.fetchWhole"),
                         ) {
                             Text(
-                                "Fetch the whole message (${humanSize(o.loaded.size ?: 0L)})",
+                                Texts.get(R.string.message_fetch_whole, humanSize(o.loaded.size ?: 0L)),
                                 color = theme.accent,
                                 fontSize = 12.sp,
                             )
@@ -197,7 +199,7 @@ fun MessageScreen(
                         // something says why, and the why is that no
                         // remote image gets to report that this was read.
                         Text(
-                            "Shown as text. Images and formatting are not loaded.",
+                            Texts.get(R.string.message_as_text),
                             color = theme.fgMuted,
                             fontSize = 11.sp,
                         )
@@ -212,10 +214,13 @@ private fun whenAndWhere(row: MailboxRow, account: MailAccount?): String {
     val parts = mutableListOf<String>()
     row.date?.let {
         parts.add(
-            SimpleDateFormat("d MMM yyyy HH:mm", Locale.getDefault()).format(Date(it * 1000)),
+            SimpleDateFormat(
+                android.text.format.DateFormat.getBestDateTimePattern(Locale.getDefault(), "dMMMyyyyHHmm"),
+                Locale.getDefault(),
+            ).format(Date(it * 1000)),
         )
     }
-    parts.add("${account?.title ?: "Unknown"} · ${row.folder}")
+    parts.add("${account?.title ?: Texts.get(R.string.mailboxes_unknown)} · ${row.folder}")
     return parts.joinToString(" · ")
 }
 
@@ -305,6 +310,6 @@ private fun openOnThisPhone(
         // ActivityNotFoundException is a tap that does nothing at all,
         // which reads as a broken button rather than as a phone with no
         // PDF reader on it.
-        "No app on this phone opens ${attachment.filename}."
+        Texts.get(R.string.message_no_app, attachment.filename)
     }
 }

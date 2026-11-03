@@ -1,5 +1,6 @@
 package jp.golia.mailrs.wire
 
+import jp.golia.mailrs.R
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -68,8 +69,8 @@ class ReplyFromNotification : BroadcastReceiver() {
         NewMailWorker.notify(
             context = context,
             title = when (outcome) {
-                is MailrsClient.Outcome.Ok -> "Sent"
-                is MailrsClient.Outcome.Err -> "Not sent"
+                is MailrsClient.Outcome.Ok -> Texts.get(R.string.reply_notify_sent)
+                is MailrsClient.Outcome.Err -> Texts.get(R.string.reply_notify_not_sent)
             },
             text = when (outcome) {
                 is MailrsClient.Outcome.Ok -> reply.to.joinToString(", ")
@@ -90,7 +91,7 @@ class ReplyFromNotification : BroadcastReceiver() {
         fun action(context: Context, threadId: String): NotificationCompat.Action =
             NotificationCompat.Action.Builder(
                 android.R.drawable.ic_menu_send,
-                "Reply",
+                Texts.get(R.string.mail_reply),
                 PendingIntent.getBroadcast(
                     context,
                     threadId.hashCode() + 1,
@@ -99,7 +100,7 @@ class ReplyFromNotification : BroadcastReceiver() {
                     PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
                 ),
             )
-                .addRemoteInput(RemoteInput.Builder(KEY_REPLY).setLabel("Reply").build())
+                .addRemoteInput(RemoteInput.Builder(KEY_REPLY).setLabel(Texts.get(R.string.mail_reply)).build())
                 .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_REPLY)
                 .setAllowGeneratedReplies(true)
                 .build()

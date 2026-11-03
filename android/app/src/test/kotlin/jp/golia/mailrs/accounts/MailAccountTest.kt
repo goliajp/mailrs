@@ -9,6 +9,11 @@ import org.junit.Test
 
 /** A mailbox somewhere else, as this app holds it. */
 class MailAccountTest {
+
+    /** The app's English words, as a phone set to English shows them. */
+    @org.junit.Before
+    fun englishWords() = jp.golia.mailrs.wire.TestTexts.install()
+
     // One address, one row — adding the same account twice must be the
     // same row rather than two, and a stored credential has to survive
     // a list rebuilt from scratch.

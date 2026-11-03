@@ -179,6 +179,10 @@ emulator_up() {
     done
 }
 
+# Costs milliseconds and compiles nothing, so it runs before the build
+# rather than after a ten-minute suite — as ios-build.sh does its own.
+./scripts/check-android-l10n.sh
+
 case "$MODE" in
     build)
         say "[1/1] assemble"

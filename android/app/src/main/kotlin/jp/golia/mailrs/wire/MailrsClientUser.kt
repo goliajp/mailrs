@@ -1,5 +1,6 @@
 package jp.golia.mailrs.wire
 
+import jp.golia.mailrs.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Request
@@ -31,7 +32,7 @@ suspend fun MailrsClient.signatures(): MailrsClient.Outcome<List<Wire.Signature>
  * `/debug/fetched` precisely so a test can tell those apart.
  */
 suspend fun MailrsClient.attachment(uid: Int, index: Int): MailrsClient.Outcome<ByteArray> = withContext(Dispatchers.IO) {
-    val s = session ?: return@withContext MailrsClient.Outcome.Err("Not signed in.")
+    val s = session ?: return@withContext MailrsClient.Outcome.Err(Texts.get(R.string.error_not_signed_in))
     val request = Request.Builder()
         .url("${s.server}/api/mail/messages/$uid/attachments/$index")
         .header("Authorization", "Bearer ${s.token}")
@@ -43,13 +44,13 @@ suspend fun MailrsClient.attachment(uid: Int, index: Int): MailrsClient.Outcome<
                 response.isSuccessful -> MailrsClient.Outcome.Ok(response.body.bytes())
                 response.code == 401 -> {
                     rejected()
-                    MailrsClient.Outcome.Err("Signed out — the server rejected this session.")
+                    MailrsClient.Outcome.Err(Texts.get(R.string.error_signed_out))
                 }
-                else -> MailrsClient.Outcome.Err("The server answered ${response.code}.")
+                else -> MailrsClient.Outcome.Err(Texts.get(R.string.error_status, response.code))
             }
         }
     } catch (e: IOException) {
-        MailrsClient.Outcome.Err("Could not reach the server: ${e.message}")
+        MailrsClient.Outcome.Err(Texts.get(R.string.error_unreachable, e.message))
     }
 }
 
@@ -70,7 +71,7 @@ suspend fun MailrsClient.unsubscribe(threadId: String, uid: Int): MailrsClient.O
             json.decodeFromString(Wire.UnsubscribeResult.serializer(), r.value)
         }.fold(
             onSuccess = { MailrsClient.Outcome.Ok(it) },
-            onFailure = { MailrsClient.Outcome.Err("The server sent a shape this app could not read: ${it.message}") },
+            onFailure = { MailrsClient.Outcome.Err(Texts.get(R.string.error_shape, it.message)) },
         )
         is MailrsClient.Outcome.Err -> r
     }
@@ -108,14 +109,14 @@ suspend fun MailrsClient.saveDraft(req: Wire.SaveDraftRequest): MailrsClient.Out
             json.decodeFromString(Wire.SaveDraftResponse.serializer(), r.value).id
         }.fold(
             onSuccess = { MailrsClient.Outcome.Ok(it) },
-            onFailure = { MailrsClient.Outcome.Err("The server sent a shape this app could not read: ${it.message}") },
+            onFailure = { MailrsClient.Outcome.Err(Texts.get(R.string.error_shape, it.message)) },
         )
         is MailrsClient.Outcome.Err -> r
     }
 }
 
 suspend fun MailrsClient.deleteDraft(id: Long): MailrsClient.Outcome<String> = withContext(Dispatchers.IO) {
-    val s = session ?: return@withContext MailrsClient.Outcome.Err("Not signed in.")
+    val s = session ?: return@withContext MailrsClient.Outcome.Err(Texts.get(R.string.error_not_signed_in))
     send(
         Request.Builder()
             .url("${s.server}/api/mail/drafts/$id")
@@ -163,8 +164,8 @@ suspend fun MailrsClient.cancelScheduled(id: String): MailrsClient.Outcome<Strin
  * threads, because a client can only name the page it has loaded —
  * marking 50 of 1,458 looks finished and is not.
  */
-suspend fun MailrsClient.markAllRead(list: MailList): MailrsClient.Outcome<String> =
-    post(url("/api/conversations/mark-all-read?" + list.axes.query()), "{}", authorized = true)
+suspend fun MailrsClient.markAllRead(axes: MailListAxes): MailrsClient.Outcome<String> =
+    post(url("/api/conversations/mark-all-read?" + axes.query()), "{}", authorized = true)
 
 /**
  * `POST /api/mail/sends/{id}/resend` — re-enqueue the stored bytes,
@@ -192,7 +193,7 @@ suspend fun MailrsClient.redraft(sendId: String): MailrsClient.Outcome<Wire.Redr
  */
 suspend fun MailrsClient.senderIcon(domain: String): MailrsClient.Outcome<ByteArray?> =
     withContext(Dispatchers.IO) {
-        val s = session ?: return@withContext MailrsClient.Outcome.Err("Not signed in.")
+        val s = session ?: return@withContext MailrsClient.Outcome.Err(Texts.get(R.string.error_not_signed_in))
         val request = Request.Builder()
             .url("${s.server}/api/icon/${enc(domain)}")
             .header("Authorization", "Bearer ${s.token}")
@@ -205,12 +206,12 @@ suspend fun MailrsClient.senderIcon(domain: String): MailrsClient.Outcome<ByteAr
                     response.isSuccessful -> MailrsClient.Outcome.Ok(response.body.bytes())
                     response.code == 401 -> {
                         rejected()
-                        MailrsClient.Outcome.Err("Signed out — the server rejected this session.")
+                        MailrsClient.Outcome.Err(Texts.get(R.string.error_signed_out))
                     }
-                    else -> MailrsClient.Outcome.Err("The server answered ${response.code}.")
+                    else -> MailrsClient.Outcome.Err(Texts.get(R.string.error_status, response.code))
                 }
             }
         } catch (e: IOException) {
-            MailrsClient.Outcome.Err("Could not reach the server: ${e.message}")
+            MailrsClient.Outcome.Err(Texts.get(R.string.error_unreachable, e.message))
         }
     }

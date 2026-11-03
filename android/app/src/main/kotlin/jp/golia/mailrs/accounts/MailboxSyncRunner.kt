@@ -1,5 +1,8 @@
 package jp.golia.mailrs.accounts
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
+
 /**
  * Runs one sync pass over a connected account.
  *
@@ -43,7 +46,7 @@ object MailboxSyncRunner {
      */
     suspend fun run(account: MailAccount, store: AccountStore): Outcome {
         val secret = store.secret(account.id)
-            ?: return Outcome(account.id, 0, "Sign in again to read this account")
+            ?: return Outcome(account.id, 0, Texts.get(R.string.acct_sign_in_to_read))
         if (account.incoming == Incoming.POP3) return runPop3(account, secret, store)
         if (account.incoming == Incoming.JMAP) return runJmap(account, secret, store)
         val session = openImap(account.imapHost, account.imapPort)
@@ -88,7 +91,7 @@ object MailboxSyncRunner {
             Outcome(account.id, 0, AccountConnection.readable(e.message ?: "unknown"))
         } catch (e: Exception) {
             session.close()
-            Outcome(account.id, 0, "Could not reach the server")
+            Outcome(account.id, 0, Texts.get(R.string.acct_unreachable))
         }
     }
 
@@ -157,7 +160,7 @@ object MailboxSyncRunner {
             Outcome(account.id, 0, AccountConnection.readable(e.message ?: "unknown"))
         } catch (e: Exception) {
             session.close()
-            Outcome(account.id, 0, "Could not reach the server")
+            Outcome(account.id, 0, Texts.get(R.string.acct_unreachable))
         }
     }
 
@@ -215,9 +218,9 @@ object MailboxSyncRunner {
             store.saveLastSync(account.id, now())
             Outcome(account.id, rows.size)
         } catch (e: JmapSession.Failure) {
-            Outcome(account.id, 0, e.message ?: "Could not reach the server")
+            Outcome(account.id, 0, e.message ?: Texts.get(R.string.acct_unreachable))
         } catch (e: Exception) {
-            Outcome(account.id, 0, "Could not reach the server")
+            Outcome(account.id, 0, Texts.get(R.string.acct_unreachable))
         }
     }
 
@@ -235,18 +238,18 @@ object MailboxSyncRunner {
         store: AccountStore,
     ): Outcome {
         if (account.incoming != Incoming.IMAP) {
-            return Outcome(account.id, 0, "Older mail is not available for this account yet")
+            return Outcome(account.id, 0, Texts.get(R.string.acct_no_older))
         }
         val secret = store.secret(account.id)
-            ?: return Outcome(account.id, 0, "Sign in again to read this account")
+            ?: return Outcome(account.id, 0, Texts.get(R.string.acct_sign_in_to_read))
         val mark = store.marksFor(account.id)[folder]
-            ?: return Outcome(account.id, 0, "Fetch this mailbox first")
+            ?: return Outcome(account.id, 0, Texts.get(R.string.acct_fetch_first))
         // Asked before the fetch, not after: at the ceiling the cap
         // would drop exactly what this pass went to get.
         if (EarlierPlan.atCeiling(store.count(account.id))) {
             return Outcome(
                 account.id, 0,
-                "This device is holding as much of this account as it can",
+                Texts.get(R.string.acct_device_full),
             )
         }
         val anchor = when (mark.lowestUid) {
@@ -255,7 +258,7 @@ object MailboxSyncRunner {
             // has been syncing for weeks does not have to start over.
             0L -> store.rows()
                 .filter { it.accountId == account.id && it.folder == folder }
-                .minOfOrNull { it.uid } ?: return Outcome(account.id, 0, "Fetch this mailbox first")
+                .minOfOrNull { it.uid } ?: return Outcome(account.id, 0, Texts.get(R.string.acct_fetch_first))
             else -> mark.lowestUid
         }
         val ask = EarlierPlan.decide(anchor, mark.earlierSpan)
@@ -278,7 +281,7 @@ object MailboxSyncRunner {
                 // there — the ordinary pass re-anchors, and this one
                 // steps aside for it.
                 session.close()
-                return Outcome(account.id, 0, "This mailbox was rebuilt — fetch it again")
+                return Outcome(account.id, 0, Texts.get(R.string.acct_rebuilt))
             }
             val fetched = session.fetchHeaders(range)
             session.close()
@@ -319,7 +322,7 @@ object MailboxSyncRunner {
             Outcome(account.id, 0, AccountConnection.readable(e.message ?: "unknown"))
         } catch (e: Exception) {
             session.close()
-            Outcome(account.id, 0, "Could not reach the server")
+            Outcome(account.id, 0, Texts.get(R.string.acct_unreachable))
         }
     }
 }

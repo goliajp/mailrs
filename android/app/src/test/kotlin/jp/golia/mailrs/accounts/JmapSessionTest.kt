@@ -8,6 +8,11 @@ import org.junit.Test
 
 /** Asking a JMAP server, without one. */
 class JmapSessionTest {
+
+    /** The app's English words, as a phone set to English shows them. */
+    @org.junit.Before
+    fun englishWords() = jp.golia.mailrs.wire.TestTexts.install()
+
     private class FakeHttp(private val answers: MutableList<Pair<Int, String>>) : JmapSession.Http {
         val asked = mutableListOf<Triple<String, String, String?>>()
         override fun post(url: String, authorization: String, body: String?): Pair<Int, String> {

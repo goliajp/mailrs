@@ -1,5 +1,7 @@
 package jp.golia.mailrs.ui
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
 import androidx.compose.foundation.background
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.customActions
@@ -90,8 +92,8 @@ fun ConversationRow(
             .testTag("row.conversation")
             .semantics {
                 customActions = listOfNotNull(
-                    onArchive?.let { CustomAccessibilityAction("Archive") { it(); true } },
-                    onMarkRead?.let { CustomAccessibilityAction("Mark read") { it(); true } },
+                    onArchive?.let { CustomAccessibilityAction(Texts.get(R.string.action_archive)) { it(); true } },
+                    onMarkRead?.let { CustomAccessibilityAction(Texts.get(R.string.row_mark_read)) { it(); true } },
                 )
             }
             .padding(horizontal = 16.dp, vertical = 6.dp)
@@ -103,7 +105,7 @@ fun ConversationRow(
         Column(Modifier.padding(start = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = SenderIdentity.readableName(sender).ifBlank { "(no sender)" },
+                    text = SenderIdentity.readableName(sender).ifBlank { Texts.get(R.string.mail_no_sender) },
                     color = theme.fg,
                     fontSize = 15.sp,
                     fontWeight = if (unread) FontWeight.SemiBold else FontWeight.Normal,
@@ -140,13 +142,16 @@ fun ConversationRow(
                 if (c.importanceLevel == "critical" || c.importanceLevel == "important") {
                     Icon(
                         Icons.Filled.PriorityHigh,
-                        contentDescription = if (c.importanceLevel == "critical") "Critical" else "Important",
+                        contentDescription = when (c.importanceLevel) {
+                            "critical" -> Texts.get(R.string.row_critical)
+                            else -> Texts.get(R.string.row_important)
+                        },
                         tint = if (c.importanceLevel == "critical") theme.danger else theme.warning,
                         modifier = Modifier.size(13.dp),
                     )
                 }
                 Text(
-                    text = c.subject.ifBlank { "(no subject)" },
+                    text = c.subject.ifBlank { Texts.get(R.string.mail_no_subject) },
                     color = theme.fgSecondary,
                     fontSize = 14.sp,
                     maxLines = 1,
@@ -156,7 +161,7 @@ fun ConversationRow(
                 if (c.flagged) {
                     Icon(
                         Icons.Filled.Star,
-                        contentDescription = "Flagged",
+                        contentDescription = Texts.get(R.string.row_flagged),
                         tint = theme.warning,
                         modifier = Modifier.size(13.dp),
                     )

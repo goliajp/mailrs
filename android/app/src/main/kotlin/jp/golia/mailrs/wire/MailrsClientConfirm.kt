@@ -1,5 +1,6 @@
 package jp.golia.mailrs.wire
 
+import jp.golia.mailrs.R
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -25,13 +26,13 @@ internal fun MailrsClient.confirmRefusal(text: String): MailrsClient.Outcome.Err
         }.getOrNull() ?: 0
         MailrsClient.Outcome.Err(wrongPassword(left), "confirm_failed")
     }
-    "totp_required" -> MailrsClient.Outcome.Err("Enter the code from your authenticator app.", "totp_required")
+    "totp_required" -> MailrsClient.Outcome.Err(Texts.get(R.string.error_code_needed), "totp_required")
     else -> null
 }
 
 private fun wrongPassword(left: Int): String = when (left) {
-    1 -> "Wrong password or code. 1 try left before you are signed out."
-    else -> "Wrong password or code. $left tries left before you are signed out."
+    1 -> Texts.get(R.string.error_confirm_one_left)
+    else -> Texts.get(R.string.error_confirm_left, left)
 }
 
 /**

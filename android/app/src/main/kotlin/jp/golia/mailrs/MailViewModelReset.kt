@@ -1,5 +1,6 @@
 package jp.golia.mailrs
 
+import jp.golia.mailrs.wire.Texts
 import androidx.lifecycle.viewModelScope
 import jp.golia.mailrs.wire.MailrsClient
 import jp.golia.mailrs.wire.contactText
@@ -24,19 +25,19 @@ fun MailViewModel.closeReset() {
 fun MailViewModel.submitReset(address: String, code: String, password: String, repeated: String) {
     val prompt = state.value.reset ?: return
     if (password != repeated) {
-        _state.update { it.copy(reset = prompt.copy(failure = "The two passwords are not the same.")) }
+        _state.update { it.copy(reset = prompt.copy(failure = Texts.get(R.string.reset_mismatch))) }
         return
     }
     _state.update { it.copy(reset = prompt.copy(busy = true, failure = null)) }
     viewModelScope.launch {
         when (val r = client.resetPassword(prompt.server, address.trim(), code, password)) {
             is MailrsClient.Outcome.Ok -> _state.update {
-                it.copy(reset = null, notice = "Your new password is set. Sign in with it.", error = null)
+                it.copy(reset = null, notice = Texts.get(R.string.reset_done), error = null)
             }
             is MailrsClient.Outcome.Err -> {
                 val whom = prompt.contact ?: contactText("", "")
                 val text = when (r.code) {
-                    jp.golia.mailrs.wire.INVALID_RESET_CODE -> "${r.message} Ask $whom for a new code."
+                    jp.golia.mailrs.wire.INVALID_RESET_CODE -> Texts.get(R.string.reset_ask_new_code, r.message, whom)
                     else -> r.message
                 }
                 _state.update { it.copy(reset = prompt.copy(busy = false, failure = text)) }

@@ -1,5 +1,6 @@
 package jp.golia.mailrs
 
+import jp.golia.mailrs.wire.Texts
 import jp.golia.mailrs.wire.clearSuppressions
 import jp.golia.mailrs.wire.createAgentKey
 import kotlinx.coroutines.flow.update
@@ -284,12 +285,12 @@ private suspend fun MailViewModel.reloadDetail(detail: AdminDetail) {
  * than offered badly.
  */
 fun MailViewModel.addFields(section: AdminSection): List<String> = when (section) {
-    AdminSection.Aliases -> listOf("Source address", "Target address")
-    AdminSection.Domains -> listOf("Domain name")
-    AdminSection.Allowed, AdminSection.Blocked -> listOf("Address")
+    AdminSection.Aliases -> listOf(Texts.get(R.string.admin_field_source), Texts.get(R.string.admin_field_target))
+    AdminSection.Domains -> listOf(Texts.get(R.string.admin_field_domain))
+    AdminSection.Allowed, AdminSection.Blocked -> listOf(Texts.get(R.string.common_address))
     // A key is worth nothing without a name to know it by later, and
     // dangerous without scopes to bound it.
-    AdminSection.AgentKeys -> listOf("Name", "Scopes, comma separated")
+    AdminSection.AgentKeys -> listOf(Texts.get(R.string.admin_field_name), Texts.get(R.string.admin_field_scopes))
     else -> emptyList()
 }
 

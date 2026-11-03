@@ -1,5 +1,7 @@
 package jp.golia.mailrs.accounts
 
+import jp.golia.mailrs.R
+
 /**
  * Where a mail provider's servers are, and what it calls the secret.
  *
@@ -42,7 +44,7 @@ data class MailProvider(
         OAUTH2("oauth2"),
     }
 
-    data class SecretHelp(val what: String, val url: String)
+    data class SecretHelp(@androidx.annotation.StringRes val what: Int, val url: String)
 
     companion object {
         /** The provider for an address, by its domain. */
@@ -82,7 +84,7 @@ data class MailProvider(
             imapHost = "imap.qq.com", imapPort = 993,
             smtpHost = "smtp.qq.com", smtpPort = 465,
             auth = AuthKind.APP_PASSWORD,
-            secretHelp = SecretHelp("授权码", "https://service.mail.qq.com/detail/0/75"),
+            secretHelp = SecretHelp(R.string.secret_auth_code, "https://service.mail.qq.com/detail/0/75"),
             skipFolders = listOf("已删除", "垃圾邮件"),
         )
         private val netease = MailProvider(
@@ -90,7 +92,7 @@ data class MailProvider(
             imapHost = "imap.163.com", imapPort = 993,
             smtpHost = "smtp.163.com", smtpPort = 465,
             auth = AuthKind.APP_PASSWORD,
-            secretHelp = SecretHelp("授权码", "https://mail.163.com/"),
+            secretHelp = SecretHelp(R.string.secret_auth_code, "https://mail.163.com/"),
             skipFolders = listOf("已删除", "垃圾邮件"),
         )
         private val yahooJp = MailProvider(
@@ -99,7 +101,7 @@ data class MailProvider(
             smtpHost = "smtp.mail.yahoo.co.jp", smtpPort = 465,
             auth = AuthKind.APP_PASSWORD,
             secretHelp = SecretHelp(
-                "アプリパスワード",
+                R.string.secret_app_password,
                 "https://support.yahoo-net.jp/PccMail/s/article/H000007321",
             ),
             skipFolders = listOf("ゴミ箱", "迷惑メール"),
@@ -110,7 +112,7 @@ data class MailProvider(
             smtpHost = "smtp.mail.me.com", smtpPort = 587,
             auth = AuthKind.APP_PASSWORD,
             secretHelp = SecretHelp(
-                "app-specific password",
+                R.string.secret_app_specific,
                 "https://support.apple.com/en-us/102654",
             ),
             skipFolders = listOf("Deleted Messages", "Junk"),
@@ -121,7 +123,7 @@ data class MailProvider(
             smtpHost = "smtp.fastmail.com", smtpPort = 465,
             auth = AuthKind.APP_PASSWORD,
             secretHelp = SecretHelp(
-                "app password",
+                R.string.secret_app_password,
                 "https://app.fastmail.com/settings/security/apps",
             ),
             skipFolders = listOf("Trash", "Spam"),

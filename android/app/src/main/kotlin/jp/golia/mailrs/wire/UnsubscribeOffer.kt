@@ -1,5 +1,7 @@
 package jp.golia.mailrs.wire
 
+import jp.golia.mailrs.R
+
 /**
  * What to offer a reader who wants off a list, given what the message
  * said.
@@ -35,9 +37,9 @@ sealed interface UnsubscribeOffer {
      */
     val label: String
         get() = when (this) {
-            OneClick -> "Unsubscribe"
-            is OpenPage -> "Unsubscribe on the web"
-            is SendMail -> "Unsubscribe by email"
+            OneClick -> Texts.get(R.string.unsub_one_click)
+            is OpenPage -> Texts.get(R.string.unsub_on_web)
+            is SendMail -> Texts.get(R.string.unsub_by_email)
             None -> ""
         }
 

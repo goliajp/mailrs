@@ -1,5 +1,7 @@
 package jp.golia.mailrs.ui
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -72,7 +74,7 @@ fun MailSearchBar(
                 onSearch = { vm.search(it) },
                 expanded = expanded,
                 onExpandedChange = onExpandedChange,
-                placeholder = { Text("Search mail", fontSize = 15.sp) },
+                placeholder = { Text(Texts.get(R.string.search_placeholder), fontSize = 15.sp) },
                 leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = theme.fgSecondary) },
                 trailingIcon = {
                     if (state.searchTerm.isNotEmpty()) {
@@ -80,7 +82,7 @@ fun MailSearchBar(
                             onClick = { vm.clearSearch() },
                             modifier = Modifier.testTag("search.clear"),
                         ) {
-                            Icon(Icons.Filled.Close, contentDescription = "Clear", tint = theme.fgSecondary)
+                            Icon(Icons.Filled.Close, contentDescription = Texts.get(R.string.common_clear), tint = theme.fgSecondary)
                         }
                     }
                 },
@@ -109,7 +111,7 @@ private fun SearchResults(state: UiState, vm: MailViewModel) {
             // an answer to a question nobody put.
             Box(Modifier.fillMaxSize()) {
                 Text(
-                    "Search subjects and message text.",
+                    Texts.get(R.string.search_hint),
                     color = theme.fgMuted,
                     fontSize = 13.sp,
                     modifier = Modifier.align(Alignment.Center).padding(32.dp),
@@ -122,7 +124,7 @@ private fun SearchResults(state: UiState, vm: MailViewModel) {
                 // not merge its children's semantics, so a tag on it
                 // finds a node with no text to assert against.
                 Text(
-                    "No mail matches “${state.searchTerm}”.",
+                    Texts.get(R.string.search_no_match, state.searchTerm),
                     color = theme.fgMuted,
                     fontSize = 13.sp,
                     modifier = Modifier.align(Alignment.Center).padding(32.dp).testTag("search.empty"),
@@ -145,7 +147,7 @@ private fun SearchResults(state: UiState, vm: MailViewModel) {
             if (results.size >= MailrsClient.SEARCH_LIMIT) {
                 item {
                     Text(
-                        "First ${MailrsClient.SEARCH_LIMIT} matches. Narrow the search to see more.",
+                        Texts.get(R.string.search_first_n, MailrsClient.SEARCH_LIMIT),
                         color = theme.fgMuted,
                         fontSize = 12.sp,
                         modifier = Modifier
