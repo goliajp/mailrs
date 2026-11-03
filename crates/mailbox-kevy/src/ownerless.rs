@@ -61,6 +61,20 @@ impl KevyMailboxStore {
         {
             return Ok(OwnerlessDelete::Held);
         }
+        let users = self.every_user()?;
+        self.delete_if_nobodys(thread_id, &users)
+    }
+
+    /// The delete itself, deciding again inside one atomic block that
+    /// nobody holds the conversation: no membership row for any of `users`,
+    /// no message row of theirs for any of its messages, and no message
+    /// added since the ids were read. Anything found and nothing is
+    /// deleted. Separate from the scans above so a test can reach it.
+    pub(crate) fn delete_if_nobodys(
+        &self,
+        thread_id: &str,
+        users: &[String],
+    ) -> io::Result<OwnerlessDelete> {
         let found = self.describe(thread_id)?;
         let msgs_zset = keys::thread_messages(thread_id);
         let mids: Vec<String> = self
@@ -74,10 +88,25 @@ impl KevyMailboxStore {
             text_keys.push(keys::message_text(mid));
             text_keys.extend(self.attachment_text_keys(mid)?);
         }
+        let mut held_keys = Vec::new();
+        for user in users {
+            held_keys.push(keys::thread_user(user, thread_id));
+            for mid in &mids {
+                held_keys.push(keys::user_message(user, mid));
+            }
+        }
         let thread_key = keys::thread(thread_id);
-        let deleted = self.store().atomic(|ctx| {
+        let outcome = self.store().atomic(|ctx| {
             if !ctx.hexists(thread_key.as_bytes(), keys::THREAD_EXISTS_FIELD)? {
-                return Ok(false);
+                return Ok(OwnerlessDelete::Missing);
+            }
+            if ctx.zcard(msgs_zset.as_bytes())? != mids.len() {
+                return Ok(OwnerlessDelete::Held);
+            }
+            for key in &held_keys {
+                if ctx.exists(&[key.as_bytes()]) > 0 {
+                    return Ok(OwnerlessDelete::Held);
+                }
             }
             for mid in &mids {
                 ctx.del(&[keys::message_blob(mid).as_bytes()]);
@@ -87,12 +116,34 @@ impl KevyMailboxStore {
             }
             ctx.del(&[msgs_zset.as_bytes()]);
             ctx.del(&[thread_key.as_bytes()]);
-            Ok(true)
+            Ok(OwnerlessDelete::Deleted(found.clone()))
         })?;
-        match deleted {
-            true => Ok(OwnerlessDelete::Deleted(found)),
-            false => Ok(OwnerlessDelete::Missing),
+        Ok(outcome)
+    }
+
+    /// Everybody who could hold a conversation: the accounts, and anyone
+    /// with a membership or message row whether or not still an account.
+    fn every_user(&self) -> io::Result<Vec<String>> {
+        let mut users: HashSet<String> = self.list_account_addresses()?.into_iter().collect();
+        for prefix in [keys::THREAD_USER_PREFIX, keys::USER_MESSAGE_PREFIX] {
+            let mut pattern = prefix.to_vec();
+            pattern.push(b'*');
+            let (_, found) = self.store().scan(0, Some(&pattern), usize::MAX);
+            for key in found {
+                let Some(rest) = key.strip_prefix(prefix) else {
+                    continue;
+                };
+                if let Some((user, _)) = std::str::from_utf8(rest)
+                    .ok()
+                    .and_then(|r| r.split_once(':'))
+                {
+                    users.insert(user.to_string());
+                }
+            }
         }
+        let mut users: Vec<String> = users.into_iter().collect();
+        users.sort();
+        Ok(users)
     }
 
     fn describe(&self, tid: &str) -> io::Result<OwnerlessThread> {
