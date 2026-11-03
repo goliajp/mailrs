@@ -197,6 +197,12 @@ pub(crate) fn attachments_from_envelope(raw: &[u8]) -> Vec<Attachment> {
                 .unwrap_or_else(|| "attachment".to_string()),
             content_type: mt,
             bytes: part.body.to_vec(),
+            // an image the forwarded HTML shows by cid keeps the name it
+            // is shown by; a file stays a file
+            content_id: match part.disposition.as_ref().is_some_and(|d| d.is_attachment()) {
+                true => None,
+                false => part.content_id.clone(),
+            },
         });
     }
     out
@@ -305,7 +311,58 @@ mod carried_attachment_tests {
             filename: filename.into(),
             content_type: "application/octet-stream".into(),
             bytes: vec![1, 2, 3],
+            content_id: None,
         }
+    }
+
+    /// A forward keeps the Content-ID of an image the original's HTML
+    /// shows, so the forwarded HTML still finds it.
+    #[test]
+    fn a_forwarded_inline_image_keeps_its_content_id() {
+        let raw = b"From: a@example.test\r\n\
+MIME-Version: 1.0\r\n\
+Content-Type: multipart/related; boundary=\"R\"\r\n\
+\r\n\
+--R\r\n\
+Content-Type: text/html; charset=utf-8\r\n\
+\r\n\
+<p><img src=\"cid:logo@orig\"></p>\r\n\
+--R\r\n\
+Content-Type: image/png\r\n\
+Content-ID: <logo@orig>\r\n\
+Content-Transfer-Encoding: base64\r\n\
+\r\n\
+iVBORw0KGgo=\r\n\
+--R--\r\n";
+        let carried = attachments_from_envelope(raw);
+        assert_eq!(carried.len(), 1);
+        assert_eq!(carried[0].content_id.as_deref(), Some("logo@orig"));
+
+        let parts = crate::handlers::compose::ComposeParts {
+            from: "me@example.test".into(),
+            to: vec!["you@example.test".into()],
+            cc: vec![],
+            bcc: vec![],
+            subject: "Fwd".into(),
+            body: "fyi".into(),
+            html_body: "<p>fyi</p><img src=\"cid:logo@orig\">".into(),
+            in_reply_to: None,
+            forward_message_id: None,
+            forward_attachments_from: None,
+            reply_to_thread_id: None,
+            attachments: carried,
+            scheduled_at: None,
+        };
+        let (_, bytes) = crate::handlers::compose::build_rfc5322(&parts, "me@example.test");
+        let parsed = mailrs_mime::parse(&bytes);
+        assert!(
+            parsed
+                .files()
+                .any(|f| f.content_id.as_deref() == Some("logo@orig")),
+            "{}",
+            String::from_utf8_lossy(&bytes)
+        );
+        assert_eq!(parsed.attachments().count(), 0, "the image is not a file");
     }
 
     /// Absent and empty mean opposite things: nothing removed versus

@@ -108,10 +108,14 @@ impl RealAccount {
     pub(crate) fn expunge(&self, mailbox: &FcMailbox, doomed: &[Message<PathBuf>]) -> Expunged {
         let mut out = Expunged::default();
         for m in doomed {
+            let known = super::forget::Doomed::read(mailbox, &m.key);
             match backend::remove_message(&self.user, &to_imap(m)) {
                 Ok(()) => {
                     let ms = backend::bump_modseq(&self.state, &self.user);
                     backend::record_vanished(&self.state, &self.user, &mailbox.name, m.uid, ms);
+                    if let Some(d) = &known {
+                        self.forget(d);
+                    }
                 }
                 // removed by someone else in the meantime: gone all the same
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
