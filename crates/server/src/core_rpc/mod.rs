@@ -48,6 +48,9 @@ pub struct CoreRpcState {
     /// The in-process bus IMAP IDLE listens on; a sent copy filed through
     /// the contract is announced on it, as an arriving message is.
     pub event_bus: crate::event_bus::EventBus,
+    /// `MAILRS_HOSTNAME`: an imported message or a sent copy loses any
+    /// `Authentication-Results:` naming it before it is filed.
+    pub authserv_id: Option<String>,
 }
 
 /// Start the Trash purge over this core's store.

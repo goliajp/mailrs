@@ -86,18 +86,14 @@ where
             // RFC 8601 §5: an `Authentication-Results:` naming this host
             // was written by the sender, whatever path the message takes
             // from here; only the one the receiver adds may say that
-            if mailrs_inbound::dkim_results::has_claiming(&body, &ctx.hostname) {
+            let filed = mailrs_rfc5322::auth_results::without_claiming(&body, Some(&ctx.hostname));
+            if filed.len() != body.len() {
                 tracing::info!(
                     event = "forged_auth_results",
                     "removed an Authentication-Results claiming to be ours"
                 );
-                full_message.extend_from_slice(&mailrs_inbound::dkim_results::strip_claiming(
-                    &body,
-                    &ctx.hostname,
-                ));
-            } else {
-                full_message.extend_from_slice(&body);
             }
+            full_message.extend_from_slice(&filed);
 
             let mut target_folder = "INBOX";
             let mut fraud_verdict: Option<String> = None;

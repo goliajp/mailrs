@@ -8,6 +8,7 @@
 //! header section.
 
 mod address;
+pub mod auth_results;
 mod header;
 mod message;
 

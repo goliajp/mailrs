@@ -150,11 +150,15 @@ mod tests {
     /// Everything the sweep reads off a stored message, in one place,
     /// so a test can hand it the bytes production stored.
     fn facts_as_the_sweep_reads_them(raw: &[u8], our_stamp: &str) -> (String, bool, bool, String) {
-        let stamp = mailrs_inbound::identity::auth_results_authserv(raw);
-        let (_, _, dmarc) = mailrs_inbound::identity::auth_results_tokens(raw);
+        let from = mailrs_inbound::from_header(raw);
+        let host = from
+            .rsplit_once('@')
+            .map_or("", |(_, h)| h.trim_end_matches('>'));
+        let stamp = mailrs_fraud_lua::stored::stamp::read(raw, Some(our_stamp), host);
+        let (_, _, dmarc) = stamp.auth;
         (
-            mailrs_inbound::from_header(raw),
-            stamp.as_deref() == Some(our_stamp),
+            from.clone(),
+            stamp.unauthenticated,
             mailrs_inbound::identity::first_received_peer_ip(raw)
                 .is_some_and(mailrs_inbound::identity::address_is_private),
             dmarc,

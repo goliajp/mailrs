@@ -5,6 +5,12 @@ use std::sync::Arc;
 use crate::*;
 
 /// The spool the receiver writes to and the drain reads.
+/// The name this deployment's receiver writes into
+/// `Authentication-Results:`, as the receiver reads it.
+fn authserv_id(cfg: &ServerConfig) -> Option<String> {
+    Some(cfg.hostname.trim().to_ascii_lowercase()).filter(|h| !h.is_empty())
+}
+
 fn spool_root(cfg: &ServerConfig) -> String {
     mailrs_core::spool::spool_root(&cfg.maildir_root)
 }
@@ -111,6 +117,7 @@ pub(super) fn spawn_core_rpc_server(
                 .ok()
                 .filter(|s| !s.is_empty()),
             event_bus: event_bus.clone(),
+            authserv_id: authserv_id(cfg),
         });
         // Detached on purpose: the task holds no lock the shutdown path has
         // to release, so the handle is dropped rather than awaited. `drop` and not `let _ =`: a JoinHandle

@@ -112,6 +112,10 @@ pub struct FastcoreState {
     pub local_domains: spool_drain::relay::LocalDomainsCache,
     /// `MAILRS_MAILDIR`; where the routes that write mail put it.
     pub maildir_root: String,
+    /// `MAILRS_HOSTNAME`, the name the receiver writes into
+    /// `Authentication-Results:`. Mail filed by import, as a sent copy or
+    /// by APPEND loses any such header naming it. `None` when unset.
+    pub authserv_id: Option<String>,
 }
 
 impl FastcoreState {
@@ -143,6 +147,10 @@ impl FastcoreState {
             local_domains: Default::default(),
             maildir_root: std::env::var("MAILRS_MAILDIR")
                 .unwrap_or_else(|_| "/data/maildir".into()),
+            authserv_id: std::env::var("MAILRS_HOSTNAME")
+                .ok()
+                .map(|h| h.trim().to_ascii_lowercase())
+                .filter(|h| !h.is_empty()),
         }
     }
 

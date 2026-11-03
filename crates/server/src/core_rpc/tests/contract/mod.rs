@@ -13,6 +13,7 @@
 mod accounts;
 mod coverage;
 mod deletes;
+mod forged_results;
 mod harness;
 mod import;
 mod intake;
@@ -51,6 +52,7 @@ async fn the_two_cores_answer_every_client_call_alike() {
     side::run(&cores, &mut d).await;
     sent::run(&cores, &mut d).await;
     import::run(&cores, &mut d).await;
+    forged_results::run(&cores, &mut d).await;
     sender_rules::run(&cores, &mut d).await;
     sections::run(&cores, &mut d).await;
     shared::run(&cores, &mut d).await;

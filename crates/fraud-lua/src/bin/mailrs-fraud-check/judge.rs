@@ -90,13 +90,10 @@ pub(super) fn judge(
     let name_deception = mailrs_inbound::deception_in_display_name(&raw);
     let reply = reply_key(host, &mailrs_inbound::identity::reply_to_address(&raw));
     let parsed = mailrs_mime::parse(&raw);
-    let (spf, dkim, dmarc) = mailrs_inbound::identity::auth_results_tokens(&raw);
-    // as the production sweep reads them: the receiver's own stamp
-    // marks the unauthenticated path, and only MAILRS_HOSTNAME says
-    // which stamp is ours
-    let unauthenticated = c.our_stamp.as_deref().is_some_and(|host| {
-        mailrs_inbound::identity::auth_results_authserv(&raw).as_deref() == Some(host)
-    });
+    // as the production sweep reads it: only from the header our receiver
+    // wrote, and only MAILRS_HOSTNAME says which name is ours
+    let stamp = mailrs_fraud_lua::stored::stamp::read(&raw, c.our_stamp.as_deref(), host);
+    let (spf, dkim, dmarc) = stamp.auth;
     let peer_is_private = mailrs_inbound::identity::first_received_peer_ip(&raw)
         .is_some_and(mailrs_inbound::identity::address_is_private);
     let shown_links = mailrs_inbound::body::shown_links(&parsed);
@@ -152,7 +149,7 @@ pub(super) fn judge(
         spf: &spf,
         dkim: &dkim,
         dmarc: &dmarc,
-        unauthenticated,
+        unauthenticated: stamp.unauthenticated,
         peer_is_private,
         relation,
         novelty,
@@ -170,11 +167,7 @@ pub(super) fn judge(
             host,
             &mailrs_inbound::dkim_signers::of(&raw),
         ),
-        dkim_from_org_passed: c
-            .our_stamp
-            .as_deref()
-            .and_then(|ours| mailrs_inbound::dkim_results::ours(&raw, ours))
-            .map(|sigs| mailrs_fraud::org_domain::passed_for(host, &sigs)),
+        dkim_from_org_passed: stamp.dkim_from_org_passed,
         ..Facts::default()
     };
     let (old, old_shadow) = match before {

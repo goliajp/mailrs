@@ -20,6 +20,9 @@ pub(crate) struct PgDirectory {
     pub maildir_root: String,
     pub net_url: Option<String>,
     pub local_domains: LocalDomainsCache,
+    /// `MAILRS_HOSTNAME`: mail filed by import or as a sent copy loses any
+    /// `Authentication-Results:` naming it. Set by boot; `None` otherwise.
+    pub authserv_id: Option<String>,
 }
 
 impl PgDirectory {
@@ -31,6 +34,7 @@ impl PgDirectory {
             maildir_root,
             net_url,
             local_domains: LocalDomainsCache::default(),
+            authserv_id: None,
         }
     }
 
