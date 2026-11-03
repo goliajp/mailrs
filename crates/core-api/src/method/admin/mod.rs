@@ -12,6 +12,7 @@ mod directory;
 mod ops;
 mod ownerless;
 mod permissions;
+mod quota;
 mod rejudge;
 mod userdata;
 
@@ -20,6 +21,7 @@ pub use directory::*;
 pub use ops::*;
 pub use ownerless::*;
 pub use permissions::*;
+pub use quota::*;
 pub use rejudge::*;
 pub use userdata::*;
 

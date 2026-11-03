@@ -189,6 +189,10 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
         )
         .route(adm_paths::PATH_SET_QUOTA, post(handlers::admin::set_quota))
         .route(
+            adm_paths::PATH_QUOTA_LIMITS,
+            post(handlers::admin::quota_limits_route),
+        )
+        .route(
             adm_paths::PATH_UPDATE_RECOVERY_EMAIL,
             post(handlers::admin::set_recovery_email),
         )

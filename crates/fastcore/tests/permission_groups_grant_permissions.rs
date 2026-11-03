@@ -12,10 +12,14 @@ use mailrs_core_sidestate::families::permission_groups::{
 };
 
 async fn serve_fastcore(net_url: &str) -> Client {
+    serve_fastcore_on(net_url).await.0
+}
+
+async fn serve_fastcore_on(net_url: &str) -> (Client, mailrs_mailbox_kevy::KevyMailboxStore) {
     let store =
         Arc::new(kevy_embedded::Store::open(kevy_embedded::Config::default()).expect("kevy"));
     let mailbox = mailrs_mailbox_kevy::KevyMailboxStore::new(store);
-    let mut state = mailrs_fastcore::FastcoreState::new(mailbox);
+    let mut state = mailrs_fastcore::FastcoreState::new(mailbox.clone());
     state.net_url = Some(net_url.to_string());
     let router = mailrs_fastcore::build_router(Arc::new(state));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -23,7 +27,7 @@ async fn serve_fastcore(net_url: &str) -> Client {
         .expect("bind");
     let addr = listener.local_addr().expect("addr");
     tokio::spawn(async move { axum::serve(listener, router).await });
-    Client::new(format!("http://{addr}"), "secret")
+    (Client::new(format!("http://{addr}"), "secret"), mailbox)
 }
 
 async fn create(core: &Client, address: &str) {
@@ -120,8 +124,21 @@ async fn an_address_without_its_own_blob_is_answered_from_its_groups() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn an_unreachable_network_kevy_leaves_the_own_permissions() {
     // nothing listens on port 1
-    let core = serve_fastcore("kevy://127.0.0.1:1").await;
-    create(&core, "carol@example.test").await;
+    let (core, mailbox) = serve_fastcore_on("kevy://127.0.0.1:1").await;
+    // creating through the route needs the shared store for the quota
+    // limit, so the account is written to the core's own store directly
+    mailbox
+        .upsert_account(
+            "carol@example.test",
+            r#"{"address":"carol@example.test","active":true,"created_at":0}"#,
+        )
+        .expect("account");
+    mailbox
+        .upsert_permissions(
+            "carol@example.test",
+            r#"{"address":"carol@example.test","permissions":[],"groups":[],"is_super":false,"send_as":[]}"#,
+        )
+        .expect("permissions");
     let p = perms(&core, "carol@example.test").await;
     assert_eq!(p.address, "carol@example.test");
     assert!(p.permissions.is_empty());

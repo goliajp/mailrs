@@ -57,8 +57,8 @@ impl DomainStore {
         let pool = self.pg()?;
         let (active, created_epoch, quota_bytes, recovery_email): (bool, i64, i64, String) =
             sqlx::query_as(
-                "INSERT INTO accounts (address, domain, display_name, password_hash) \
-             VALUES ($1, $2, $3, $4) \
+                "INSERT INTO accounts (address, domain, display_name, password_hash, quota_bytes) \
+             VALUES ($1, $2, $3, $4, $5) \
              ON CONFLICT (address) DO UPDATE SET \
              domain = EXCLUDED.domain, display_name = EXCLUDED.display_name, \
              password_hash = EXCLUDED.password_hash, \
@@ -69,6 +69,7 @@ impl DomainStore {
             .bind(domain)
             .bind(display_name)
             .bind(password_hash)
+            .bind(mailrs_core_api::method::admin::DEFAULT_QUOTA_BYTES)
             .fetch_one(pool)
             .await?;
 
