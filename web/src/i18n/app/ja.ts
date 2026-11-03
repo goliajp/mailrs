@@ -187,5 +187,8 @@ export const appJa: Record<AppKey, string> = {
   'status.realtimeConnecting': 'リアルタイム更新: 接続中',
   'status.realtimeDisconnected': 'リアルタイム更新: 切断',
   'status.realtimeOffline': 'リアルタイム更新: オフライン',
+  'storage.near': 'ストレージを {pct}% 使用しています。いっぱいになるとインポートは失敗します',
+  'storage.over':
+    'ストレージがいっぱいです。新しいインポートは拒否されますが、送信には影響しません',
   'wire.restarting': 'サーバーを再起動しています。しばらくしてからもう一度お試しください',
 }

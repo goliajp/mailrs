@@ -86,6 +86,7 @@
 /api/keys/{address}/pgp	read only
 /api/keys/{address}/smime	read only
 /api/labels	read only
+/api/storage	read only
 /api/saved-searches	read only
 /api/masked-emails	read only
 /api/rules	read only

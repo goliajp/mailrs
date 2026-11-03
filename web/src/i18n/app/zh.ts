@@ -184,5 +184,7 @@ export const appZh: Record<AppKey, string> = {
   'status.realtimeConnecting': '实时更新：正在连接',
   'status.realtimeDisconnected': '实时更新：已断开',
   'status.realtimeOffline': '实时更新：离线',
+  'storage.near': '存储空间已用 {pct}%，用满后导入会失败',
+  'storage.over': '存储空间已满，新的导入会被拒绝，发信不受影响',
   'wire.restarting': '服务器正在重启，请稍后再试',
 }

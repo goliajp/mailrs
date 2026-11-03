@@ -65,6 +65,7 @@ Streamable HTTP endpoint: https://mail.golia.ai/mcp
 - POST /api/trash/empty — delete everything in the Trash for good (recent password confirmation)
 - GET /api/conversations?trashed=true — list the Trash
 - GET/POST /api/labels, POST/DELETE /api/labels/{id} — your labels
+- GET /api/storage — {used_bytes, quota_bytes}: how much of your quota your mail takes (quota_bytes is null when there is none); only imports stop at the quota, sending always goes out
 - POST/DELETE /api/conversations/{thread_id}/labels/{id} — put a label on or take it off
 - GET /api/conversations?label={id} — one label's conversations
 - POST /api/mail/sends/{send_id}/cancel — stop a send that has not gone out. Returns jobs_removed / recipients_cancelled / already_delivered; a recipient an MX already accepted is NOT recalled. 409 if the send has finished

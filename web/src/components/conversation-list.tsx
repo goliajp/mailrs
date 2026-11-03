@@ -19,6 +19,7 @@ import { LabelBar } from '@/components/label-bar'
 import { ListSearchInput } from '@/components/list-search-input'
 import { RecalledNote } from '@/components/recalled-note'
 import { CreateRuleButton, SavedSearchBar, SaveSearchButton } from '@/components/saved-search-bar'
+import { StorageBanner } from '@/components/storage-banner'
 import { TrashBanner } from '@/components/trash-banner'
 import { useConversationActions } from '@/hooks/use-conversation-actions'
 import { useConversationRows, useCurrentSelection } from '@/hooks/use-current-list'
@@ -321,6 +322,7 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
         </button>
       </ListSearchInput>
 
+      <StorageBanner />
       <FilterBar />
       <InboxSectionBar />
       <RecalledNote />
