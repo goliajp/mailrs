@@ -24,6 +24,7 @@ use mailrs_core_sidestate::families::send::Status;
 use mailrs_core_sidestate::families::send_read;
 
 mod cancel;
+pub(crate) use cancel::cancel;
 pub use cancel::cancel_send;
 mod delete;
 pub use delete::delete_send;
