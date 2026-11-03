@@ -16,7 +16,8 @@ whether that report may take them out of other people's inboxes.
   at most 3 bits apart **and** they share a link domain, an attachment or
   the sender domain. A close body alone is not enough: a genuine notice
   and a scam copying its wording read alike.
-- `decide`: one report always holds the reporter's copy. Taking other
+- `decide`: one report always holds the reporter's copy. Without a ground the
+  other copies wait for an administrator. Taking other
   copies needs a ground (the reporter is an administrator, two different
   people reported it within a day, or it hits a hold-level rule in force),
   and waits for an administrator when more than 20 inboxes would be
