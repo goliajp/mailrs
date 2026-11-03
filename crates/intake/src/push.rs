@@ -133,7 +133,11 @@ pub fn maybe_notify(
         true => ("New mail".to_string(), String::new()),
         false => (truncated(sender, 200), truncated(subject, 300)),
     };
-    spawn_apns(apns, addr, title, body, now);
+    let tap = Tap {
+        thread_id: a.thread_id.to_string(),
+        category: Some(mailrs_apns::MAIL_CATEGORY),
+    };
+    spawn_apns(apns, addr, title, body, tap, now);
 }
 
 /// Tell `addr`'s devices that a conversation they had was taken back into
@@ -173,11 +177,23 @@ pub fn notify_recalled(
         true => ("Moved to Review".to_string(), String::new()),
         false => ("Moved to Review".to_string(), truncated(subject, 300)),
     };
-    spawn_apns(apns, addr, title, body, now);
+    // a held conversation still opens on tap, but archive and mark-read
+    // are not what a lock screen should offer for mail that was taken back
+    let tap = Tap {
+        thread_id: thread_id.to_string(),
+        category: None,
+    };
+    spawn_apns(apns, addr, title, body, tap, now);
+}
+
+/// What tapping an alert opens, and which actions it offers.
+struct Tap {
+    thread_id: String,
+    category: Option<&'static str>,
 }
 
 /// Send one alert to every device `addr` registered, counting each.
-fn spawn_apns(apns: Arc<ApnsClient>, addr: &str, title: String, body: String, now: i64) {
+fn spawn_apns(apns: Arc<ApnsClient>, addr: &str, title: String, body: String, tap: Tap, now: i64) {
     let Ok(handle) = tokio::runtime::Handle::try_current() else {
         tracing::warn!(%addr, "apns: no runtime handle, no push");
         return;
@@ -207,7 +223,9 @@ fn spawn_apns(apns: Arc<ApnsClient>, addr: &str, title: String, body: String, no
             tracing::info!(%user, "apns: nothing registered for this account");
         }
         for token in tokens {
-            let outcome = apns.send_alert(&token, &title, &body).await;
+            let outcome = apns
+                .send_alert(&token, &title, &body, &tap.thread_id, tap.category)
+                .await;
             let counted = match &outcome {
                 Ok(Outcome::Sent) => "sent",
                 _ => "failed",
