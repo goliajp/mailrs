@@ -6,6 +6,12 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+/** The wire as [MailrsClient] reads it. */
+private val wireJson = kotlinx.serialization.json.Json {
+    ignoreUnknownKeys = true
+    explicitNulls = false
+}
+
 /**
  * Asking for the next page without losing the boundary second.
  *
@@ -70,8 +76,7 @@ class ThreadPageTest {
             "unread_count":0,"last_date":5,"category":"inbox","flagged":false,"snippet":"",
             "pinned":false,"archived":false,"importance_level":"normal","importance_score":0,
             "requires_action":false,"received_count":1,"sent_count":0,"cursor":"5:42"}"""
-        val decoded = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
-            .decodeFromString(Wire.Conversation.serializer(), json)
+        val decoded = wireJson.decodeFromString(Wire.Conversation.serializer(), json)
         assertEquals("5:42", decoded.cursor)
     }
 
