@@ -62,6 +62,7 @@ async fn an_upload_names_its_owner_expires_and_is_capped() {
     let res = live
         .http
         .get(format!("{}/api/mail/inline/{id}", live.base))
+        .bearer_auth(&alice)
         .send()
         .await
         .expect("get");
