@@ -1,4 +1,5 @@
 import type { Key } from '@/i18n'
+import type { Span } from '@/lib/calendar-grid'
 import type { WireCalendarEvent } from '@/wire/schemas/calendar'
 
 import { cx } from '@goliapkg/gds'
@@ -31,7 +32,13 @@ export function EventDetail({ ev, onClose }: { ev: WireCalendarEvent; onClose: (
         </button>
       </div>
       <dl className="text-fg-secondary mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
-        {span && (
+        {span?.allDay && (
+          <>
+            <dt>{t('calendar.allDay')}</dt>
+            <dd>{allDayRange(span, locale)}</dd>
+          </>
+        )}
+        {span && !span.allDay && (
           <>
             <dt>{t('invite.start')}</dt>
             <dd>{new Date(span.start).toLocaleString(locale)}</dd>
@@ -147,6 +154,16 @@ export function WeekView({
   )
 }
 
+/** The days an all-day event covers: one date, or its first to its last. */
+function allDayRange(span: Span, locale: string): string {
+  const first = new Date(span.start)
+  const last = new Date(span.end)
+  last.setDate(last.getDate() - 1)
+  const format = { day: 'numeric', month: 'short', weekday: 'short' } as const
+  if (sameDay(first, last)) return first.toLocaleDateString(locale, format)
+  return `${first.toLocaleDateString(locale, format)} – ${last.toLocaleDateString(locale, format)}`
+}
+
 function answerLabel(partstat: WireCalendarEvent['partstat']): Key | null {
   switch (partstat) {
     case 'ACCEPTED':
@@ -182,6 +199,7 @@ function EventChip({
   onOpen: (ev: WireCalendarEvent) => void
 }) {
   const locale = useLocale()
+  const t = useT()
   return (
     <button
       className={cx(
@@ -193,7 +211,9 @@ function EventChip({
       title={ev.summary}
       type="button"
     >
-      <span className="text-fg-muted mr-1 tabular-nums">{timeOf(ev, locale)}</span>
+      <span className="text-fg-muted mr-1 tabular-nums">
+        {timeOf(ev, locale, t('calendar.allDay'))}
+      </span>
       {ev.summary}
     </button>
   )
@@ -229,8 +249,9 @@ function sourceLabel(source: null | string): Key {
   return 'calendar.source.own'
 }
 
-function timeOf(ev: WireCalendarEvent, locale: string): string {
+function timeOf(ev: WireCalendarEvent, locale: string, allDay: string): string {
   const span = spanOf(ev)
   if (!span) return ''
+  if (span.allDay) return allDay
   return new Date(span.start).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
 }
