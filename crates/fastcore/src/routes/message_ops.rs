@@ -435,6 +435,7 @@ pub(crate) fn row_to_wire(r: ThreadRow) -> ConversationSummaryWire {
         awaiting_since: 0,
         shared_conv: String::new(),
         assignee: String::new(),
+        cursor: String::new(),
     }
 }
 

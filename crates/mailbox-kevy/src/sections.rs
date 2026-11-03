@@ -100,6 +100,64 @@ impl KevyMailboxStore {
         self.rewrite_section(&key)
     }
 
+    /// Decide the row's section again from `arrivals` alone: what is left
+    /// of the conversation after a message went. A fold only moves
+    /// forward, so the inputs restart from nothing first.
+    ///
+    /// Whether the newest inbound message was a first contact was read at
+    /// its delivery, from a contact history that has moved on since; when
+    /// that message is still the newest inbound one, its recorded answer
+    /// (and an acceptance of its sender) stands. With no arrivals the row
+    /// is left as it was: there is nothing to decide from.
+    pub fn refold_section(
+        &self,
+        user: &str,
+        thread_id: &str,
+        arrivals: &[SectionArrival<'_>],
+    ) -> io::Result<()> {
+        if arrivals.is_empty() {
+            return Ok(());
+        }
+        let key = keys::thread_user(user, thread_id);
+        let read = |f: &[u8]| -> io::Result<Vec<u8>> {
+            Ok(self.store().hget(key.as_bytes(), f)?.unwrap_or_default())
+        };
+        let (old_in_at, old_from) = (read(IN_AT)?, read(IN_FROM)?);
+        let (old_first, old_accepted) = (read(IN_FIRST)?, read(IN_ACCEPTED)?);
+        self.store()
+            .atomic(|ctx| {
+                ctx.hset(
+                    key.as_bytes(),
+                    &[
+                        (OWN_AT, b"0" as &[u8]),
+                        (OWN_TO_OTHERS, b"0"),
+                        (PERSON_AT, b"0"),
+                        (IN_AT, b"0"),
+                        (IN_DIRECT, b"0"),
+                        (IN_PERSON, b"0"),
+                        (IN_FIRST, b"0"),
+                        (IN_ACCEPTED, b"0"),
+                    ],
+                )?;
+                Ok(())
+            })
+            .map_err(io::Error::from)?;
+        for a in arrivals {
+            self.record_section_arrival(a)?;
+        }
+        let same_latest = read(IN_AT)? == old_in_at && read(IN_FROM)? == old_from;
+        if same_latest && !old_in_at.is_empty() {
+            self.store().hset(
+                key.as_bytes(),
+                &[
+                    (IN_FIRST, old_first.as_slice()),
+                    (IN_ACCEPTED, old_accepted.as_slice()),
+                ],
+            )?;
+        }
+        self.rewrite_section(&key)
+    }
+
     /// The section `user`'s row for `thread_id` is in, `None` when no
     /// writer has reached the row since sections existed.
     pub fn section_of_thread(&self, user: &str, thread_id: &str) -> io::Result<Option<Section>> {

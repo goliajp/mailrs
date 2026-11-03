@@ -62,12 +62,7 @@ pub(crate) fn flag(v: bool) -> &'static [u8] {
 /// i64 is always in range, so the sort stays total without any row
 /// being able to fall out of it.
 fn tid_ord(tid: &str) -> i64 {
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    for b in tid.as_bytes() {
-        h ^= *b as u64;
-        h = h.wrapping_mul(0x0000_0100_0000_01b3);
-    }
-    (h >> 1) as i64
+    mailrs_mailbox::page_cursor::tid_ord(tid)
 }
 
 /// The two declared axis columns, from a thread's total and the number

@@ -221,6 +221,21 @@ async fn mail_spooled_by_the_receiver_reads_alike_from_both_cores() {
     let json = serde_json::to_string(&pg_held).expect("json");
     assert!(json.contains("p1@outside.example"), "nothing held: {json}");
 
+    // each core records when the sender's domain was first seen, in its own
+    // shared store, once
+    for url in [
+        "mem://intake-fastcore-side-state",
+        "mem://intake-pg-core-side-state",
+    ] {
+        let mut c = kevy_client::Connection::connect(url).expect("kevy");
+        let first =
+            mailrs_core_sidestate::families::domain_first::first_seen(&mut c, "outside.example");
+        assert!(
+            first.is_some(),
+            "{url}: the sender's domain was not recorded"
+        );
+    }
+
     assert!(
         d.0.is_empty(),
         "{} difference(s) between the cores:\n\n{}",

@@ -157,9 +157,45 @@ pub(crate) fn enqueue_outbound_at(
         };
         let user = sender.clone();
         let rcpts: Vec<String> = recipients.to_vec();
-        with_kevy(move |c| sendfam::write_send(c, &user, &row, &rcpts))?;
+        let by = actor(&user, meta.key_id);
+        let (send_id, by_c) = (row.send_id.clone(), by.clone());
+        with_kevy(move |c| {
+            sendfam::write_send(c, &user, &row, &rcpts)?;
+            let Some(at) = send_at else {
+                return Ok(());
+            };
+            sendfam::set_send_at(c, &user, &row.send_id, at)?;
+            sendfam::record_event(
+                c,
+                &user,
+                &row.send_id,
+                &sendfam::SendEvent {
+                    kind: "scheduled".into(),
+                    at: created,
+                    by: by_c,
+                    send_at: Some(at),
+                },
+            )
+        })?;
+        if let Some(at) = send_at {
+            crate::handlers::audit::record(
+                &sender,
+                "send.scheduled",
+                &send_id,
+                &format!("by={by} send_at={at}"),
+            );
+        }
     }
     Ok(())
+}
+
+/// Who did something to a send: the agent key that made the request, or
+/// the account itself.
+pub(crate) fn actor(user: &str, key_id: Option<i64>) -> String {
+    match key_id {
+        Some(k) => format!("key {k}"),
+        None => user.to_string(),
+    }
 }
 
 /// Refuse a send as `from` by `user` while either's outbound mail is

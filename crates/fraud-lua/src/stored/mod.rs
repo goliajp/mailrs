@@ -55,7 +55,24 @@ pub fn judge_for(
         Some((user, counted)) => relation::relation(hist.as_mut(), user, &msg.from, counted),
         None => Default::default(),
     };
-    let scan = crate::scan(&msg.facts(seen, rotation, rel), policy)?;
+    // new as of when the message arrived, not as of the re-judging
+    let at = msg.arrived.unwrap_or_else(|| {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0)
+    });
+    let novelty = mailrs_core_sidestate::families::domain_first::novelty(
+        hist.as_mut(),
+        &msg.host,
+        &msg.link_hosts,
+        at,
+    );
+    let facts = mailrs_fraud::Facts {
+        novelty,
+        ..msg.facts(seen, rotation, rel)
+    };
+    let scan = crate::scan(&facts, policy)?;
     let mut verdict = rescan_verdict(raw, &scan.findings);
     verdict.rules_version = scan.version;
     Ok(Judged {

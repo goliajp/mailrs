@@ -26,7 +26,8 @@ fn deliver(live: &live::Live, tid: &str, mid: &str) {
         unread: true,
         is_own: false,
     };
-    let payload = format!(r#"{{"message_id":"{mid}","sender":"other@z.test","thread_id":"{tid}"}}"#);
+    let payload =
+        format!(r#"{{"message_id":"{mid}","sender":"other@z.test","thread_id":"{tid}"}}"#);
     let facts = UserMessageFacts {
         blob_ref: "1.M1.host",
         uid: 1,

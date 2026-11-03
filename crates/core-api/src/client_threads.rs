@@ -263,9 +263,24 @@ impl Client {
         limit: usize,
         before_ts: Option<i64>,
     ) -> ApiResult<method::thread::QuarantineListResponse> {
+        self.list_quarantined_after(user, limit, before_ts, None)
+            .await
+    }
+
+    /// The same, also paged by the `cursor` of the previous page's last row.
+    pub async fn list_quarantined_after(
+        &self,
+        user: &str,
+        limit: usize,
+        before_ts: Option<i64>,
+        cursor: Option<&str>,
+    ) -> ApiResult<method::thread::QuarantineListResponse> {
         let mut path = format!("/v1/users/{}/quarantine?limit={limit}", Self::enc(user));
         if let Some(ts) = before_ts {
             path.push_str(&format!("&before_ts={ts}"));
+        }
+        if let Some(c) = cursor {
+            path.push_str(&format!("&cursor={}", Self::enc(c)));
         }
         self.get_authed(path, "list_quarantined").await
     }

@@ -6,6 +6,11 @@ import org.junit.Test
 
 /** What a row shows when a header is missing. */
 class MailboxRowDisplayTest {
+
+    /** The app's English words, as a phone set to English shows them. */
+    @org.junit.Before
+    fun englishWords() = jp.golia.mailrs.wire.TestTexts.install()
+
     private fun row(sender: String, subject: String) = MailboxRow(
         accountId = "a", uid = 1L, folder = "INBOX", seen = false,
         sender = sender, subject = subject, date = null, messageId = "m",

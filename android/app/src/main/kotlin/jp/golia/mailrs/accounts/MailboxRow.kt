@@ -1,5 +1,7 @@
 package jp.golia.mailrs.accounts
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
 import kotlinx.serialization.Serializable
 
 /** One line in the list, from whichever mailbox it came. */
@@ -36,14 +38,14 @@ data class MailboxRow(
     val id: String get() = "$accountId/$folder/$uid"
 
     /** What the row shows when nobody wrote a subject. */
-    val displaySubject: String get() = subject.trim().ifEmpty { "(no subject)" }
+    val displaySubject: String get() = subject.trim().ifEmpty { Texts.get(R.string.mail_no_subject) }
 
     /**
      * What the row shows when the sender is missing altogether — a
      * blank line where a name goes reads as a rendering fault rather
      * than as an absent header.
      */
-    val displaySender: String get() = sender.trim().ifEmpty { "(no sender)" }
+    val displaySender: String get() = sender.trim().ifEmpty { Texts.get(R.string.mail_no_sender) }
 }
 
 /** Putting several mailboxes into one list. */

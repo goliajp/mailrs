@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { daysOf, eventsOn, shift, startOfWeek, windowOf } from '@/lib/calendar-grid'
+import { daysOf, eventsOn, shift, spanOf, startOfWeek, windowOf } from '@/lib/calendar-grid'
 
 function ev(uid: string, dtstart: null | string, dtend: null | string = null) {
   return { dtend, dtstart, organizer: null, source: null, status: null, summary: uid, uid }
@@ -42,5 +42,25 @@ describe('calendar grid', () => {
       ev('all-day', null),
     ]
     expect(eventsOn(events, day).map((e) => e.uid)).toEqual(['overnight', 'early', 'late'])
+  })
+
+  // An all-day event comes as dates. Read as an instant, `2026-09-01` is UTC
+  // midnight: 09:00 on the 1st in Tokyo, running into the 2nd.
+  it('an all-day event is on exactly its own days, before the timed ones', () => {
+    const early = new Date(2026, 8, 1, 9).toISOString()
+    const events = [
+      ev('early', early),
+      ev('holiday', '2026-09-01', '2026-09-02'),
+      ev('trip', '2026-09-02', '2026-09-05'),
+    ]
+    expect(eventsOn(events, new Date(2026, 8, 1)).map((e) => e.uid)).toEqual(['holiday', 'early'])
+    expect(eventsOn(events, new Date(2026, 8, 2)).map((e) => e.uid)).toEqual(['trip'])
+    expect(eventsOn(events, new Date(2026, 8, 4)).map((e) => e.uid)).toEqual(['trip'])
+    expect(eventsOn(events, new Date(2026, 8, 5)).map((e) => e.uid)).toEqual([])
+    expect(spanOf(ev('one', '2026-09-01'))).toEqual({
+      allDay: true,
+      end: new Date(2026, 8, 2).getTime(),
+      start: new Date(2026, 8, 1).getTime(),
+    })
   })
 })

@@ -1,5 +1,7 @@
 package jp.golia.mailrs.accounts
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Base64
@@ -42,11 +44,11 @@ class JmapSession(private val host: String) {
                 "https://$host/.well-known/jmap", authorization(user, secret), null,
             )
             if (status == 401 || status == 403) {
-                throw Failure.Refused("the server refused this account's credential")
+                throw Failure.Refused(Texts.get(R.string.acct_credential_refused))
             }
-            if (status !in 200..299) throw Failure.Server("the server answered $status")
+            if (status !in 200..299) throw Failure.Server(Texts.get(R.string.acct_server_answered, status))
             Jmap.session(body)
-                ?: throw Failure.Server("the server did not say which account holds the mail")
+                ?: throw Failure.Server(Texts.get(R.string.acct_no_mail_account))
         }
 
     /** The newest messages, in one round trip. */
@@ -62,10 +64,10 @@ class JmapSession(private val host: String) {
             Jmap.newestRequest(session.accountId, limit),
         )
         if (status == 401 || status == 403) {
-            throw Failure.Refused("the server refused this account's credential")
+            throw Failure.Refused(Texts.get(R.string.acct_credential_refused))
         }
-        if (status !in 200..299) throw Failure.Server("the server answered $status")
-        Jmap.emails(body) ?: throw Failure.Server("the server's answer could not be read")
+        if (status !in 200..299) throw Failure.Server(Texts.get(R.string.acct_server_answered, status))
+        Jmap.emails(body) ?: throw Failure.Server(Texts.get(R.string.acct_answer_unreadable))
     }
 
     /**

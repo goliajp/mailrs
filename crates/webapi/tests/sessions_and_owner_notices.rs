@@ -130,6 +130,22 @@ async fn sessions_are_listed_and_ended_and_the_owner_is_told() {
     // end the others: only this one is left
     let (status, ended) = call(&other, Method::POST, "/api/auth/sessions/end-others", None).await;
     assert_eq!((status, ended["ended"].as_u64()), (200, Some(1)));
+    // each ended session is its own audit line, saying which it was: the
+    // one ended by id above and the one end-others just ended
+    let mut c = kevy_client::Connection::connect(&kevy).unwrap();
+    let lines: Vec<Value> = c
+        .lrange(mailrs_core_sidestate::keys::admin::AUDIT_LOG, 0, -1)
+        .unwrap()
+        .iter()
+        .map(|r| serde_json::from_slice::<Value>(r).unwrap())
+        .filter(|r| r["action"] == "auth.session.end")
+        .collect();
+    assert_eq!(lines.len(), 2, "{lines:?}");
+    let detail = lines[0]["detail"].as_str().unwrap_or_default();
+    assert!(
+        detail.starts_with("id=") && detail.contains(" created=") && detail.contains(" ua="),
+        "{detail}"
+    );
     let (status, _) = call(&updated, Method::GET, "/api/auth/me", None).await;
     assert_eq!(status, 401);
     let (_, list) = call(&other, Method::GET, "/api/auth/sessions", None).await;

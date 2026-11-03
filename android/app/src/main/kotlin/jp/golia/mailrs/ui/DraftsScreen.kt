@@ -1,5 +1,7 @@
 package jp.golia.mailrs.ui
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.remember
@@ -70,7 +72,7 @@ fun DraftsScreen(state: UiState, vm: MailViewModel) {
         snackbarHost = { SnackbarHost(snackbars) },
         topBar = {
             TopAppBar(
-                title = { Text("Drafts", fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
+                title = { Text(Texts.get(R.string.list_drafts), fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = theme.bg,
                     titleContentColor = theme.fg,
@@ -82,7 +84,7 @@ fun DraftsScreen(state: UiState, vm: MailViewModel) {
                     ) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
+                            contentDescription = Texts.get(R.string.common_back),
                             tint = theme.fgSecondary,
                         )
                     }
@@ -97,7 +99,7 @@ fun DraftsScreen(state: UiState, vm: MailViewModel) {
 
                 state.drafts.isEmpty() ->
                     Text(
-                        "Nothing half-written.",
+                        Texts.get(R.string.drafts_empty),
                         color = theme.fgMuted,
                         fontSize = 13.sp,
                         modifier = Modifier.align(Alignment.Center).padding(32.dp).testTag("drafts.empty"),
@@ -145,7 +147,7 @@ private fun DraftRow(d: Wire.Draft, onOpen: () -> Unit, onDiscard: () -> Unit) {
         IconButton(onClick = onDiscard, modifier = Modifier.testTag("button.discardDraft")) {
             Icon(
                 Icons.Filled.DeleteOutline,
-                contentDescription = "Discard",
+                contentDescription = Texts.get(R.string.common_discard),
                 tint = theme.fgMuted,
                 modifier = Modifier.size(18.dp),
             )
@@ -156,7 +158,7 @@ private fun DraftRow(d: Wire.Draft, onOpen: () -> Unit, onDiscard: () -> Unit) {
 /** Subject, else who it is to, else how it starts. */
 internal fun headline(d: Wire.Draft): String {
     d.subject.trim().takeIf { it.isNotEmpty() }?.let { return it }
-    d.to.trim().takeIf { it.isNotEmpty() }?.let { return "To $it" }
+    d.to.trim().takeIf { it.isNotEmpty() }?.let { return Texts.get(R.string.drafts_to, it) }
     val firstLine = d.body.lineSequence().firstOrNull { it.isNotBlank() }?.trim()
-    return firstLine?.take(60) ?: "Empty draft"
+    return firstLine?.take(60) ?: Texts.get(R.string.drafts_empty_draft)
 }

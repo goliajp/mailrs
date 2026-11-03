@@ -1,5 +1,6 @@
 package jp.golia.mailrs.wire
 
+import jp.golia.mailrs.R
 import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -83,7 +84,7 @@ class NewMailWorker(
             context = applicationContext,
             title = newest?.let { SenderIdentity.readableName(it.participants.firstOrNull().orEmpty()) }
                 ?: "Mailrs",
-            text = newest?.subject?.ifBlank { "(no subject)" } ?: NewMailRule.text(arrived),
+            text = newest?.subject?.ifBlank { Texts.get(R.string.mail_no_subject) } ?: NewMailRule.text(arrived),
             summary = if (arrived > 1) NewMailRule.text(arrived) else null,
             threadId = newest?.threadId,
             channelId = NewMailRule.channelFor(newest?.importanceLevel.orEmpty()),
@@ -108,25 +109,25 @@ class NewMailWorker(
             manager.createNotificationChannel(
                 NotificationChannel(
                     CHANNEL_ID,
-                    "New mail",
+                    Texts.get(R.string.settings_new_mail),
                     // Default, not high: ordinary mail is worth a
                     // glance, not an interruption that takes over the
                     // screen. Somebody who wants more can change it —
                     // the channel is theirs, and that is the whole
                     // point of channels.
                     NotificationManager.IMPORTANCE_DEFAULT,
-                ).apply { description = "When mail arrives while the app is closed" },
+                ).apply { description = Texts.get(R.string.notify_channel_new_desc) },
             )
             manager.createNotificationChannel(
                 NotificationChannel(
                     NewMailRule.IMPORTANT_CHANNEL,
-                    "Important mail",
+                    Texts.get(R.string.notify_channel_important),
                     // High, so it arrives as a heads-up. The separation
                     // is the point: with one channel, silencing the
                     // ordinary silences this too, and that decision
                     // belongs to the reader rather than to this app.
                     NotificationManager.IMPORTANCE_HIGH,
-                ).apply { description = "Mail the server marked important or critical" },
+                ).apply { description = Texts.get(R.string.notify_channel_important_desc) },
             )
         }
 
@@ -187,7 +188,7 @@ class NewMailWorker(
                         addAction(
                             NotificationCompat.Action.Builder(
                                 android.R.drawable.ic_menu_delete,
-                                "Archive",
+                                Texts.get(R.string.action_archive),
                                 ArchiveFromNotification.intent(context, threadId),
                             ).build(),
                         )

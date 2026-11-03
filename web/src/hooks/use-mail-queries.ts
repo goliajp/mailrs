@@ -1,6 +1,6 @@
 import type { CategoryCount, ConversationSummary, ThreadMessage } from '@/lib/types'
 
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { queryOptions, useInfiniteQuery, useQuery } from '@tanstack/react-query'
 
 import { mailKeys, type MailListFilters } from '@/lib/query-keys'
 import { conversationKeys } from '@/store/query-keys-v21'
@@ -13,104 +13,13 @@ import {
 
 const PAGE_SIZE = 50
 
-export function useCategoriesQuery(domains: string[]) {
-  return useQuery({
-    queryKey: mailKeys.categories(domains),
-    staleTime: 60 * 1000,
-    queryFn: ({ signal }) => {
-      const q = domains.length > 0 ? `?domains=${encodeURIComponent(domains.join(','))}` : ''
-      return adminListGet<CategoryCount>(`/conversations/categories${q}`, signal)
-    },
-  })
-}
-
-// useInfiniteQuery so loadMore (older messages) lands as additional pages
-// inside the same cache entry — refresh restores the whole stack, not just
-// the first 50.
-//
-// v2.1 phase-3 migration: the queryKey is now the entity-oriented
-// `conversationKeys.infinite(filter)` — one cache-line per filter,
-// scoped under the `conversation.infinite` namespace so the dashboard's
-// `list` reads (see `pages/dashboard.tsx`) don't collide with the
-// scroll state. Bridge invalidation in `use-mail-mutations` covers
-// both sub-namespaces via `conversationKeys.all()`.
-export function useConversationsQuery(filters: MailListFilters, enabled: boolean = true) {
-  return useInfiniteQuery<
-    ConversationSummary[],
-    Error,
-    { pageParams: (number | undefined)[]; pages: ConversationSummary[][] },
-    ReturnType<typeof conversationKeys.infinite>,
-    number | undefined
-  >({
-    enabled,
-    initialPageParam: undefined,
-    queryKey: conversationKeys.infinite({
-      accounts: filters.accounts,
-      archived: filters.archived,
-      assignedToMe: filters.assignedToMe,
-      category: filters.category as never,
-      domains: filters.domains,
-      folder: filters.folder as never,
-      includeQuarantined: filters.includeQuarantined,
-      quarantined: filters.quarantined,
-      // `query` MUST be in the key: listPath() switches to the
-      // /conversations/search endpoint when filters.query is set, but
-      // without query in the key a search reuses the non-search inbox
-      // cache and never refetches — search silently shows the inbox.
-      followupDueBy: filters.followupDueBy,
-      label: filters.label,
-      pinned: filters.pinned,
-      query: filters.query,
-      section: filters.section,
-      snoozed: filters.snoozed,
-      starred: filters.starred,
-      trashed: filters.trashed,
-      unread: filters.unread,
-    }),
-    getNextPageParam: (lastPage) => {
-      if (lastPage.length < PAGE_SIZE) return undefined
-      const last = lastPage[lastPage.length - 1]
-      // the waiting list is ordered, and paged, by when the wait began
-      if (filters.section === 'awaiting') return last?.awaiting_since
-      return last?.last_date
-    },
-    queryFn: async ({ pageParam, signal }) => {
-      // v2.1 §7 (2026-07-08): Zod-parse the wire response.
-      // wireThreadListResponseSchema accepts both envelope shapes
-      // (`{items: [...]}` and bare array), so this is a drop-in for
-      // `adminListGet` — just adds shape validation at the boundary.
-      const parsed = await wireFetch(wireThreadListResponseSchema, {
-        path: listPath(filters, pageParam),
-        signal,
-      })
-      // Cast is safe: wire schema has strict subset guarantee that
-      // downstream `ConversationSummary` needs. TODO §D: migrate to
-      // domain `ThreadSummary` shape and drop the cast.
-      return parsed.items as unknown as ConversationSummary[]
-    },
-    // The one query where being wrong is visible at a glance, so it
-    // gets the safety net the global default gives up.
-    //
-    // `refetchOnWindowFocus` is false for every query (see
-    // `query-client.ts`): freshness is meant to arrive over the
-    // WebSocket. That holds for anything this app does to itself, and
-    // not at all for a change it did not make — another device, the
-    // iOS client, or a server-side repair, none of which emit an event
-    // this tab will hear. On 2026-08-12 a maintenance sweep corrected
-    // seven conversations' dates and the open tab went on showing the
-    // old order indefinitely: the server was right, the list was
-    // wrong, and nothing short of a reload would say so.
-    //
-    // Not a thundering herd: `staleTime` is 30s, so a focus only
-    // refetches a list that is already stale, and only this one.
-    refetchOnReconnect: true,
-    refetchOnWindowFocus: true,
-  })
-}
-
-export function useThreadQuery(threadId: null | string, domains: string[]) {
-  return useQuery({
-    enabled: !!threadId,
+/**
+ * The thread query without its `enabled` gate, so a prefetch fills the
+ * very cache entry the reading pane reads — same key, same fetch, same
+ * freshness.
+ */
+export function threadQueryOptions(threadId: null | string, domains: string[]) {
+  return queryOptions({
     queryFn: async ({ signal }) => {
       // v2.1 §7 (2026-07-08): Zod-parse the wire response.
       // wireThreadDetailResponseSchema accepts both envelope shapes.
@@ -169,6 +78,109 @@ export function useThreadQuery(threadId: null | string, domains: string[]) {
   })
 }
 
+export function useCategoriesQuery(domains: string[]) {
+  return useQuery({
+    queryKey: mailKeys.categories(domains),
+    staleTime: 60 * 1000,
+    queryFn: ({ signal }) => {
+      const q = domains.length > 0 ? `?domains=${encodeURIComponent(domains.join(','))}` : ''
+      return adminListGet<CategoryCount>(`/conversations/categories${q}`, signal)
+    },
+  })
+}
+
+// useInfiniteQuery so loadMore (older messages) lands as additional pages
+// inside the same cache entry — refresh restores the whole stack, not just
+// the first 50.
+//
+// v2.1 phase-3 migration: the queryKey is now the entity-oriented
+// `conversationKeys.infinite(filter)` — one cache-line per filter,
+// scoped under the `conversation.infinite` namespace so the dashboard's
+// `list` reads (see `pages/dashboard.tsx`) don't collide with the
+// scroll state. Bridge invalidation in `use-mail-mutations` covers
+// both sub-namespaces via `conversationKeys.all()`.
+export function useConversationsQuery(filters: MailListFilters, enabled: boolean = true) {
+  return useInfiniteQuery<
+    ConversationSummary[],
+    Error,
+    { pageParams: (string | undefined)[]; pages: ConversationSummary[][] },
+    ReturnType<typeof conversationKeys.infinite>,
+    string | undefined
+  >({
+    enabled,
+    initialPageParam: undefined,
+    queryKey: conversationKeys.infinite({
+      accounts: filters.accounts,
+      archived: filters.archived,
+      assignedToMe: filters.assignedToMe,
+      category: filters.category as never,
+      domains: filters.domains,
+      folder: filters.folder as never,
+      includeQuarantined: filters.includeQuarantined,
+      quarantined: filters.quarantined,
+      // `query` MUST be in the key: listPath() switches to the
+      // /conversations/search endpoint when filters.query is set, but
+      // without query in the key a search reuses the non-search inbox
+      // cache and never refetches — search silently shows the inbox.
+      followupDueBy: filters.followupDueBy,
+      label: filters.label,
+      pinned: filters.pinned,
+      query: filters.query,
+      section: filters.section,
+      snoozed: filters.snoozed,
+      starred: filters.starred,
+      trashed: filters.trashed,
+      unread: filters.unread,
+    }),
+    getNextPageParam: (lastPage) => {
+      if (lastPage.length < PAGE_SIZE) return undefined
+      // search answers in one page; asking it again appends the same rows
+      if (filters.query) return undefined
+      // the server's place after the last row: the time it is ordered by
+      // (the waiting list's own time included) and a tie-breaker, so rows
+      // sharing that second are neither skipped nor shown twice
+      const cursor = lastPage[lastPage.length - 1]?.cursor
+      if (!cursor) return undefined
+      return cursor
+    },
+    queryFn: async ({ pageParam, signal }) => {
+      // v2.1 §7 (2026-07-08): Zod-parse the wire response.
+      // wireThreadListResponseSchema accepts both envelope shapes
+      // (`{items: [...]}` and bare array), so this is a drop-in for
+      // `adminListGet` — just adds shape validation at the boundary.
+      const parsed = await wireFetch(wireThreadListResponseSchema, {
+        path: listPath(filters, pageParam),
+        signal,
+      })
+      // Cast is safe: wire schema has strict subset guarantee that
+      // downstream `ConversationSummary` needs. TODO §D: migrate to
+      // domain `ThreadSummary` shape and drop the cast.
+      return parsed.items as unknown as ConversationSummary[]
+    },
+    // The one query where being wrong is visible at a glance, so it
+    // gets the safety net the global default gives up.
+    //
+    // `refetchOnWindowFocus` is false for every query (see
+    // `query-client.ts`): freshness is meant to arrive over the
+    // WebSocket. That holds for anything this app does to itself, and
+    // not at all for a change it did not make — another device, the
+    // iOS client, or a server-side repair, none of which emit an event
+    // this tab will hear. On 2026-08-12 a maintenance sweep corrected
+    // seven conversations' dates and the open tab went on showing the
+    // old order indefinitely: the server was right, the list was
+    // wrong, and nothing short of a reload would say so.
+    //
+    // Not a thundering herd: `staleTime` is 30s, so a focus only
+    // refetches a list that is already stale, and only this one.
+    refetchOnReconnect: true,
+    refetchOnWindowFocus: true,
+  })
+}
+
+export function useThreadQuery(threadId: null | string, domains: string[]) {
+  return useQuery({ enabled: !!threadId, ...threadQueryOptions(threadId, domains) })
+}
+
 /**
  * The `accounts=` parameter, or nothing.
  *
@@ -184,14 +196,14 @@ function accountsParam(filters: MailListFilters): string {
 
 // Build the API path for a paginated conversation list. Mirrors the old
 // chat.tsx `buildPath` but pure — no React state.
-function listPath(filters: MailListFilters, before?: number): string {
+function listPath(filters: MailListFilters, cursor?: string): string {
   // The review list is its own endpoint — held mail is not a
   // predicate over the ordinary lists, it is the thing they exclude.
   // Paged like the rest: the client appends pages, so a route that
   // ignored the cursor would show every held conversation twice.
   if (filters.quarantined) {
     let p = `/quarantine?limit=${PAGE_SIZE}`
-    if (before) p += `&before=${before}`
+    if (cursor) p += `&cursor=${encodeURIComponent(cursor)}`
     return p
   }
   if (filters.query) {
@@ -214,7 +226,7 @@ function listPath(filters: MailListFilters, before?: number): string {
     return p
   }
   let p = `/conversations?limit=${PAGE_SIZE}`
-  if (before) p += `&before=${before}`
+  if (cursor) p += `&cursor=${encodeURIComponent(cursor)}`
   if (filters.trashed) p += '&trashed=true'
   if (filters.label) p += `&label=${encodeURIComponent(filters.label)}`
   if (filters.category) p += `&category=${encodeURIComponent(filters.category)}`

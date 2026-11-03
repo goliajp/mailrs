@@ -28,6 +28,7 @@ use crate::handlers::conversations::AuthedUser;
 
 pub mod confirm;
 pub mod csrf;
+pub mod grant;
 mod legacy;
 mod scopes;
 mod seen;

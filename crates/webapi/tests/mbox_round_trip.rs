@@ -144,6 +144,27 @@ async fn an_import_exports_and_imports_back_unchanged() {
 
     let into_bob = import(&live, &bob, from_alice.clone()).await;
     assert_eq!(into_bob["failed"], 0, "{into_bob}");
+    // sent from another address (Alice's), but Bob's sent mail all the same
+    let (status, inbox) = live
+        .call(
+            reqwest::Method::GET,
+            "/api/conversations?folder=Inbox",
+            &bob,
+            None,
+        )
+        .await;
+    assert_eq!(status, 200);
+    let subjects: Vec<&str> = inbox
+        .as_array()
+        .expect("items")
+        .iter()
+        .filter_map(|t| t["subject"].as_str())
+        .collect();
+    assert_eq!(subjects.len(), 2, "{inbox}");
+    assert!(
+        !subjects.contains(&"Lunch?"),
+        "imported sent mail is not in the Inbox: {subjects:?}"
+    );
     let from_bob = export(&live, &bob).await;
     assert_eq!(
         messages(&from_bob),

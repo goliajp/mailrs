@@ -138,6 +138,7 @@ pub async fn mark_all_read(
             accounts: None,
             limit: 0,
             before_ts: None,
+            after_cursor: None,
             category: q.category,
             domains: None,
             archived: q.archived,

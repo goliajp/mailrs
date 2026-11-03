@@ -1,5 +1,7 @@
 package jp.golia.mailrs.ui
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.ImeAction
@@ -84,12 +86,12 @@ fun GroupDetailScreen(detail: AdminDetail, vm: MailViewModel) {
         AlertDialog(
             onDismissRequest = { adding = false },
             containerColor = theme.surface,
-            title = { Text("Add member", fontSize = 16.sp, color = theme.fg) },
+            title = { Text(Texts.get(R.string.group_add_member), fontSize = 16.sp, color = theme.fg) },
             text = {
                 OutlinedTextField(
                     value = address,
                     onValueChange = { address = it },
-                    label = { Text("Address", fontSize = 13.sp) },
+                    label = { Text(Texts.get(R.string.common_address), fontSize = 13.sp) },
                     singleLine = true,
                     keyboardOptions = addressKeyboard(ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { add() }),
@@ -102,11 +104,11 @@ fun GroupDetailScreen(detail: AdminDetail, vm: MailViewModel) {
                     onClick = { add() },
                     modifier = Modifier.testTag("button.confirmMember"),
                 ) {
-                    Text("Add", color = theme.accent)
+                    Text(Texts.get(R.string.common_add), color = theme.accent)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { adding = false }) { Text("Cancel", color = theme.fgSecondary) }
+                TextButton(onClick = { adding = false }) { Text(Texts.get(R.string.common_cancel), color = theme.fgSecondary) }
             },
         )
     }
@@ -121,7 +123,7 @@ fun GroupDetailScreen(detail: AdminDetail, vm: MailViewModel) {
                     contentColor = theme.accentFg,
                     modifier = Modifier.testTag("button.addMember"),
                 ) {
-                    Icon(Icons.Filled.Add, contentDescription = "Add member")
+                    Icon(Icons.Filled.Add, contentDescription = Texts.get(R.string.group_add_member))
                 }
             }
         },
@@ -139,7 +141,7 @@ fun GroupDetailScreen(detail: AdminDetail, vm: MailViewModel) {
                     ) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
+                            contentDescription = Texts.get(R.string.common_back),
                             tint = theme.fgSecondary,
                         )
                     }
@@ -154,7 +156,7 @@ fun GroupDetailScreen(detail: AdminDetail, vm: MailViewModel) {
 
                 detail.members.isEmpty() && detail.grants.isEmpty() ->
                     Text(
-                        "Nobody is in this group.",
+                        Texts.get(R.string.group_empty),
                         color = theme.fgMuted,
                         fontSize = 13.sp,
                         modifier = Modifier.align(Alignment.Center).padding(32.dp).testTag("group.empty"),
@@ -163,7 +165,7 @@ fun GroupDetailScreen(detail: AdminDetail, vm: MailViewModel) {
                 else -> LazyColumn(Modifier.fillMaxSize().testTag("list.groupMembers")) {
                     if (detail.grants.isNotEmpty()) {
                         item {
-                            Heading("Grants")
+                            Heading(Texts.get(R.string.group_grants))
                         }
                         items(detail.grants) { grant ->
                             Text(
@@ -177,7 +179,7 @@ fun GroupDetailScreen(detail: AdminDetail, vm: MailViewModel) {
                             )
                         }
                     }
-                    item { Heading("Members") }
+                    item { Heading(Texts.get(R.string.group_members)) }
                     itemsIndexed(detail.members) { index, member ->
                         Row(
                             Modifier
@@ -194,7 +196,7 @@ fun GroupDetailScreen(detail: AdminDetail, vm: MailViewModel) {
                                 ) {
                                     Icon(
                                         Icons.Filled.DeleteOutline,
-                                        contentDescription = "Remove $member",
+                                        contentDescription = Texts.get(R.string.group_remove_member, member),
                                         tint = theme.fgMuted,
                                         modifier = Modifier.size(18.dp),
                                     )

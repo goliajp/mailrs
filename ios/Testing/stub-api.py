@@ -24,7 +24,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
-import stub_confirm
+import stub_confirm, stub_triage
 import stub_reset
 import stub_restart
 import stub_role
@@ -574,7 +574,7 @@ class H(BaseHTTPRequestHandler):
             return
         if self._session_rejected():
             return
-        if stub_role.handle(self) or stub_role.refused(self) or stub_reset.state(self):
+        if stub_role.handle(self) or stub_role.refused(self) or stub_reset.state(self) or stub_triage.get(self, VERBS):
             return
         if self.path.split("?")[0] == "/api/conversations/search":
             query = parse_qs(urlparse(self.path).query)
@@ -1008,7 +1008,7 @@ class H(BaseHTTPRequestHandler):
         pass
 
     def do_PUT(self):
-        if stub_role.refused(self):
+        if stub_role.refused(self) or stub_triage.put(self, VERBS):
             return
         perms = re.match(r"^/api/admin/groups/(\d+)/permissions$", self.path.split("?")[0])
         if perms:
@@ -1026,7 +1026,7 @@ class H(BaseHTTPRequestHandler):
     def do_DELETE(self):
         if stub_restart.refused(self) or stub_role.refused(self):
             return
-        if stub_confirm.refused(self, "DELETE"):
+        if stub_confirm.refused(self, "DELETE") or stub_triage.delete(self, VERBS):
             return
         key = re.match(r"^/api/agent/keys/(\d+)$", self.path.split("?")[0])
         if key:
@@ -1149,7 +1149,7 @@ class H(BaseHTTPRequestHandler):
             return
         if self._session_rejected():
             return
-        if stub_role.handle(self) or stub_role.refused(self) or stub_reset.handle(self):
+        if stub_role.handle(self) or stub_role.refused(self) or stub_reset.handle(self) or stub_triage.post(self, VERBS):
             return
         if self.path.split("?")[0] == "/api/auth/confirm":
             stub_confirm.answer(self)

@@ -13,7 +13,8 @@ use std::path::PathBuf;
 use crate::arrival::derive;
 use crate::sent::{Filed, SentStore};
 
-/// File `body` into `user`'s INBOX, unread. Whether it was read, and
+/// File `body` into `user`'s INBOX, unread, or into Sent when its From is
+/// the user. Whether it was read, and
 /// whether it was archived, the caller sets afterwards through the same
 /// calls a reader makes. `fraud_verdict` is what the caller judged it to
 /// be, the way the receiver hands one to a delivery: the hold it implies
@@ -32,13 +33,33 @@ pub fn file<S: SentStore + ?Sized>(
         ));
     }
     let root = core.maildir_root();
-    let md = mailrs_maildir::Maildir::create(&inbox_dir(root, user)?)?;
+    // the user's own mail is filed where their sent mail is, so it reads
+    // as theirs in every core and never lands in their Inbox
+    let from = mailrs_rfc5322::Message::new(body)
+        .header_str("From")
+        .unwrap_or_default()
+        .to_string();
+    let own = mailrs_rfc5322::list_contains(&from, user);
+    let (dir, folder) = match own {
+        true => (crate::sent::sent_dir(root, user)?, "Sent"),
+        false => (inbox_dir(root, user)?, "INBOX"),
+    };
+    let md = mailrs_maildir::Maildir::create(&dir)?;
     let id = md.deliver(body)?;
-    let blob_ref = id.0.clone();
-    let a = derive(core, core.net_conn(), user, &blob_ref, body, "INBOX");
+    let blob_ref = match own {
+        true => format!("{}/{}", crate::sent::SENT_FOLDER, id.0),
+        false => id.0.clone(),
+    };
+    let mut a = derive(core, core.net_conn(), user, &blob_ref, body, folder);
     crate::live_sync::adjust_usage_bytes(user, body.len() as i64);
     crate::live_sync::upsert_contacts(user, &a.from);
-    core.index_arrival(user, &blob_ref, body, &a, fraud_verdict)?;
+    match own {
+        true => {
+            a.is_own = true;
+            core.index_own(user, &blob_ref, body, &a)?;
+        }
+        false => core.index_arrival(user, &blob_ref, body, &a, fraud_verdict)?,
+    }
     // out of new/: an imported message is not one IMAP should call recent
     md.mark_processed(&id, &[])?;
     Ok(Filed {

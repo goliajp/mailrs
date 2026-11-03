@@ -61,8 +61,10 @@ fn all_existing_sender_fixtures_match_compiled_rules() {
     // theirs are in `tests/link_claims.rs`. The three HTML-attachment
     // rules need attachment features and the five `bec-` rules need a
     // payment account, a reply-to elsewhere or the reader's history, none
-    // of which these carry; theirs are in `tests/structure_rules.rs`.
-    assert_eq!(rules.rule_count(), 34);
+    // of which these carry; theirs are in `tests/structure_rules.rs`. The
+    // two `new-domain-` rules need a domain first seen this week; theirs are
+    // in `tests/new_domain_rules.rs`.
+    assert_eq!(rules.rule_count(), 36);
     for from in &senders {
         for (subject, seen, to) in [
             (

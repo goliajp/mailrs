@@ -228,7 +228,12 @@ class MailViewModel(
      */
     fun refresh() {
         val list = _state.value.list
-        val cached = if (_state.value.conversations.isEmpty()) cache.readConversations(list.name) else null
+        val axes = _state.value.axes()
+        val cacheKey = _state.value.listKey()
+        val cached = when (_state.value.conversations.isEmpty()) {
+            true -> cache.readConversations(cacheKey)
+            false -> null
+        }
         _state.update { it.copy(
             busy = true,
             error = null,
@@ -239,9 +244,9 @@ class MailViewModel(
             conversations = cached ?: _state.value.conversations,
         ) }
         viewModelScope.launch {
-            when (val r = client.conversations(testFolder ?: list.axes)) {
+            when (val r = client.conversations(testFolder ?: axes)) {
                 is MailrsClient.Outcome.Ok -> {
-                    cache.writeConversations(r.value, list.name)
+                    cache.writeConversations(r.value, cacheKey)
                     // The home-screen widget draws what was last
                     // fetched and never fetches itself — it is redrawn
                     // on every launcher scroll. Written here because
@@ -250,7 +255,7 @@ class MailViewModel(
                     viewModelScope.launch { refreshInboxWidgets(getApplication()) }
                     // Still the list that was asked for: switching lists
                     // mid-flight must not paint the old one's answer.
-                    if (_state.value.list != list) return@launch
+                    if (_state.value.list != list || _state.value.axes() != axes) return@launch
                     _state.update { it.copy(busy = false, conversations = r.value) }
                 }
                 is MailrsClient.Outcome.Err ->
@@ -278,13 +283,13 @@ class MailViewModel(
         val state = _state.value
         if (state.loadingMore || state.endOfList || state.conversations.isEmpty()) return
         val before = ThreadPage.nextBefore(state.conversations) ?: return
-        val list = state.list
+        val axes = state.axes()
         _state.update { it.copy(loadingMore = true) }
         viewModelScope.launch {
-            when (val r = client.conversations(testFolder ?: list.axes, before = before)) {
+            when (val r = client.conversations(testFolder ?: axes, before = before)) {
                 is MailrsClient.Outcome.Ok -> {
                     // The list may have been switched while this was out.
-                    if (_state.value.list != list) return@launch
+                    if (_state.value.axes() != axes) return@launch
                     val merged = ThreadPage.merge(_state.value.conversations, r.value)
                     _state.update { it.copy(
                         conversations = merged.rows,
@@ -409,11 +414,12 @@ class MailViewModel(
      * are cleared rather than left under a new heading — a moment of
      * Junk labelled Inbox is worse than a moment of nothing.
      */
-    fun show(list: MailList) {
-        if (list == _state.value.list) return
+    fun show(list: MailList, label: jp.golia.mailrs.wire.WireTriage.Label? = null) {
+        if (list == _state.value.list && label == _state.value.label) return
         searchToken++
         _state.update { it.copy(
             list = list,
+            label = label,
             selected = emptySet(),
             endOfList = false,
             conversations = emptyList(),

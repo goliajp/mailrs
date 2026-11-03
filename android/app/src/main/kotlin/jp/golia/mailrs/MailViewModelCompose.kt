@@ -1,6 +1,7 @@
 package jp.golia.mailrs
 
 
+import jp.golia.mailrs.wire.Texts
 import jp.golia.mailrs.wire.MailrsClient
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
@@ -139,8 +140,8 @@ fun MailViewModel.attach(uris: List<android.net.Uri>) {
             },
             error = when (lost) {
                 0 -> state.error
-                1 -> "One file could not be read and was not attached."
-                else -> "$lost files could not be read and were not attached."
+                1 -> Texts.get(R.string.compose_one_lost)
+                else -> Texts.get(R.string.compose_many_lost, lost)
             },
         )
     }
@@ -210,7 +211,7 @@ fun MailViewModel.send(schedule: SendSchedule = SendSchedule.Now) {
     val draft = _state.value.composing ?: return
     val recipients = recipientsIn(draft.to)
     if (recipients.isEmpty()) {
-        _state.update { it.copy(error = "A message needs somebody to go to.") }
+        _state.update { it.copy(error = Texts.get(R.string.compose_no_recipient)) }
         return
     }
     _state.update { it.copy(sending = true, error = null) }
@@ -302,7 +303,7 @@ fun MailViewModel.openAttachment(uid: Int, index: Int, att: Wire.Attachment) {
                         onFailure = { failure ->
                             state.copy(
                                 openingAttachment = null,
-                                error = "Could not save ${att.filename}: ${failure.message}",
+                                error = Texts.get(R.string.compose_could_not_save, att.filename, failure.message),
                             )
                         },
                     )

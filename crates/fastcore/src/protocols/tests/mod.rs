@@ -1,6 +1,7 @@
 //! The shared sessions over fastcore's own stores: what only this
 //! storage can get right or wrong.
 
+mod expunge_index;
 mod mock;
 mod moves;
 mod pop3;

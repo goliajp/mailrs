@@ -139,6 +139,10 @@ pub struct Facts<'a> {
     /// The reader's history with the sender — [`crate::relation::assess`].
     /// All false where the history cannot be read.
     pub relation: crate::relation::Relation,
+    /// Whether the sender's domain and the link domains are new to this
+    /// deployment — [`crate::novelty::assess`]. All "not new" where the
+    /// store cannot be read.
+    pub novelty: crate::novelty::Novelty,
     /// A `Reply-To` on another registrable domain than the `From:`.
     pub reply_to_outside: bool,
 }

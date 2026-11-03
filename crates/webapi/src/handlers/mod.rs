@@ -23,6 +23,7 @@ pub mod calendar;
 pub mod complete;
 pub mod compose;
 pub mod compose_attach;
+mod compose_build;
 mod compose_tests;
 pub mod conversation_body;
 pub mod conversation_verbs;

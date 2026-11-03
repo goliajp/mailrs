@@ -70,9 +70,42 @@ pub(crate) async fn health_handler(
         "core_memory": core_memory,
         "kevy_server_memory": kevy_server_memory,
         "egress": egress,
+        "new_domains": new_domains(),
         "receiver": handlers::smtp_monitor::health(&state.receiver_stats),
         "jmap_uploads": handlers::jmap::upload_health(),
     }))
+}
+
+/// How many domains have a first-seen time (`mailrs:domfirst:`), and how
+/// many were first seen in the last 24 hours, for a watch on how fast the
+/// set grows. Counted by a scan, so at most once every five minutes; null
+/// when the shared store cannot be read.
+fn new_domains() -> serde_json::Value {
+    use std::sync::Mutex;
+    use std::time::{Duration, Instant};
+    static LAST: Mutex<Option<(Instant, serde_json::Value)>> = Mutex::new(None);
+    if let Ok(last) = LAST.lock()
+        && let Some((at, v)) = last.as_ref()
+        && at.elapsed() < Duration::from_secs(300)
+    {
+        return v.clone();
+    }
+    let now = chrono::Utc::now().timestamp();
+    let census = handlers::kevy_util::with_kevy(move |c| {
+        mailrs_core_sidestate::families::domain_first::census(c, now)
+    });
+    let Ok(c) = census else {
+        return serde_json::Value::Null;
+    };
+    let value = serde_json::json!({
+        "keys": c.keys,
+        "added_24h": c.added_24h,
+        "computed_at": now,
+    });
+    if let Ok(mut last) = LAST.lock() {
+        *last = Some((Instant::now(), value.clone()));
+    }
+    value
 }
 
 /// The core's container memory, and whether it is at or past

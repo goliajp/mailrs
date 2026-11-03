@@ -1,5 +1,7 @@
 package jp.golia.mailrs.ui
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
 import androidx.compose.runtime.remember
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -112,7 +114,7 @@ fun AccountDetailScreen(detail: AccountDetail, vm: MailViewModel) {
                     ) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
+                            contentDescription = Texts.get(R.string.common_back),
                             tint = theme.fgSecondary,
                         )
                     }
@@ -131,7 +133,7 @@ fun AccountDetailScreen(detail: AccountDetail, vm: MailViewModel) {
                     .verticalScroll(rememberScrollState())
                     .testTag("account.detail"),
             ) {
-                Heading("Quota")
+                Heading(Texts.get(R.string.admin_quota))
                 // The whole row opens the editor, not just the icon:
                 // a 48dp icon beside a line of text is the smaller
                 // target, and the text is what an operator is looking
@@ -153,23 +155,23 @@ fun AccountDetailScreen(detail: AccountDetail, vm: MailViewModel) {
                     Text(
                         // Null and zero both mean no cap here, and "0 B"
                         // would read as a mailbox that can hold nothing.
-                        detail.quotaBytes?.takeIf { it > 0 }?.let(::humanSize) ?: "No limit",
+                        detail.quotaBytes?.takeIf { it > 0 }?.let(::humanSize) ?: Texts.get(R.string.admin_no_limit),
                         color = theme.fg,
                         fontSize = 14.sp,
                     )
                     Spacer(Modifier.weight(1f))
                     Icon(
                         Icons.Filled.Edit,
-                        contentDescription = "Change the storage limit",
+                        contentDescription = Texts.get(R.string.admin_change_quota),
                         tint = theme.fgSecondary,
                     )
                 }
 
                 HorizontalDivider(color = theme.border, thickness = 0.5.dp, modifier = Modifier.padding(top = 12.dp))
-                Heading("Sieve")
+                Heading(Texts.get(R.string.admin_sieve))
                 if (detail.sieve.isBlank()) {
                     Text(
-                        "No script — nothing is filed automatically.",
+                        Texts.get(R.string.admin_sieve_none),
                         color = theme.fgMuted,
                         fontSize = 13.sp,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
@@ -190,10 +192,10 @@ fun AccountDetailScreen(detail: AccountDetail, vm: MailViewModel) {
                 }
 
                 HorizontalDivider(color = theme.border, thickness = 0.5.dp, modifier = Modifier.padding(top = 12.dp))
-                Heading("Webhooks")
+                Heading(Texts.get(R.string.admin_webhooks))
                 if (detail.webhooks.isEmpty()) {
                     Text(
-                        "Nothing subscribes to this account.",
+                        Texts.get(R.string.admin_webhooks_none),
                         color = theme.fgMuted,
                         fontSize = 13.sp,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
@@ -211,7 +213,7 @@ fun AccountDetailScreen(detail: AccountDetail, vm: MailViewModel) {
                                 listOfNotNull(
                                     hook.eventType,
                                     if (hook.active) null else "inactive",
-                                    hook.filterSender?.let { "from $it" },
+                                    hook.filterSender?.let { Texts.get(R.string.admin_webhook_from, it) },
                                 ).joinToString(" · "),
                                 color = theme.fgMuted,
                                 fontSize = 11.sp,
@@ -256,14 +258,14 @@ private fun QuotaDialog(current: Long?, onDismiss: () -> Unit, onConfirm: (Long)
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = theme.surface,
-        title = { Text("Storage limit", fontSize = 16.sp, color = theme.fg) },
+        title = { Text(Texts.get(R.string.admin_storage_limit), fontSize = 16.sp, color = theme.fg) },
         text = {
             OutlinedTextField(
                 value = text,
                 onValueChange = { text = it },
                 singleLine = true,
-                label = { Text("Gigabytes", fontSize = 13.sp) },
-                placeholder = { Text("Empty for no limit", fontSize = 13.sp) },
+                label = { Text(Texts.get(R.string.admin_gigabytes), fontSize = 13.sp) },
+                placeholder = { Text(Texts.get(R.string.admin_empty_for_no_limit), fontSize = 13.sp) },
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Decimal,
                     imeAction = ImeAction.Done,
@@ -278,11 +280,17 @@ private fun QuotaDialog(current: Long?, onDismiss: () -> Unit, onConfirm: (Long)
                 enabled = parsed != null,
                 modifier = Modifier.testTag("button.saveQuota"),
             ) {
-                Text("Save", color = if (parsed == null) theme.fgMuted else theme.accent)
+                Text(
+                    Texts.get(R.string.common_save),
+                    color = when (parsed == null) {
+                        true -> theme.fgMuted
+                        false -> theme.accent
+                    },
+                )
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel", color = theme.fgSecondary) }
+            TextButton(onClick = onDismiss) { Text(Texts.get(R.string.common_cancel), color = theme.fgSecondary) }
         },
     )
 }

@@ -1,5 +1,7 @@
 package jp.golia.mailrs.ui
 
+import jp.golia.mailrs.wire.Texts
+import jp.golia.mailrs.R
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -53,9 +55,13 @@ object RowDate {
             Bucket.WEEKDAY ->
                 DateTimeFormatter.ofPattern("EEE", locale).format(moment)
             Bucket.SAME_YEAR_DATE ->
-                DateTimeFormatter.ofPattern("MMM d", locale).format(moment)
+                DateTimeFormatter.ofPattern(bestPattern(locale, "MMMd"), locale).format(moment)
             Bucket.DATED_WITH_YEAR ->
                 DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT).withLocale(locale).format(moment)
         }
     }
 }
+
+/** The locale's own order and wording for these fields: "Nov 3" in English, "11月3日" in Japanese. */
+private fun bestPattern(locale: Locale, skeleton: String): String =
+    android.text.format.DateFormat.getBestDateTimePattern(locale, skeleton)

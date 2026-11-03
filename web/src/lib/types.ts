@@ -86,6 +86,8 @@ export type ConversationSummary = {
   /** Epoch seconds the reader started waiting on a reply; 0 or absent when not waiting. */
   awaiting_since?: number
   category: string
+  /** Where the next page starts after this row; the server makes it, the client only hands it back */
+  cursor?: string
   flagged: boolean
   importance_level: string
   importance_score: number

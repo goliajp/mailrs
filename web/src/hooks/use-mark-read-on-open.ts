@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 
 import { useConversationRows } from '@/hooks/use-current-list'
 import { useMarkReadMutation } from '@/hooks/use-mail-mutations'
+import { afterPaint } from '@/lib/after-paint'
 
 /**
  * Mark a thread read because it is being read.
@@ -55,7 +56,14 @@ export function useMarkReadOnOpen(
     // `useMarkReadMutation`), so there is no retry loop either.
     if (markReadMutation.isPending) return
 
-    onMarkedRef.current?.()
-    markReadMutation.mutate({ threadId })
+    // After the conversation is on screen, not before: the mark is an
+    // optimistic update of every list holding the row, and done in this
+    // effect it re-rendered the list ahead of the first paint of the
+    // conversation just opened — measured as about 60 ms on a throttled
+    // CPU, with the conversation's messages already in the cache.
+    return afterPaint(() => {
+      onMarkedRef.current?.()
+      markReadMutation.mutate({ threadId })
+    })
   }, [threadId, showing, unreadCount, markReadMutation])
 }

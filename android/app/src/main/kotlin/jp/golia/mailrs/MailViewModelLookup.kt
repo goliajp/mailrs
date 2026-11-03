@@ -50,7 +50,7 @@ fun MailViewModel.search(term: String) {
     }
     _state.update { it.copy(searchTerm = term, searching = true, error = null) }
     viewModelScope.launch {
-        val r = client.search(term, _state.value.list)
+        val r = client.search(term, _state.value.axes())
         // A slower earlier search must not overwrite a later one —
         // typing "ref" then "ref 2026" would otherwise settle on
         // whichever request the network happened to finish last.

@@ -1,5 +1,8 @@
 package jp.golia.mailrs.accounts
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
+
 /**
  * Fetching one message to read it.
  *
@@ -67,7 +70,7 @@ object MessageReader {
         wholeMessage: Boolean = false,
     ): Outcome {
         val secret = store.secret(account.id)
-            ?: return Outcome.Failed("Sign in again to read this account")
+            ?: return Outcome.Failed(Texts.get(R.string.acct_sign_in_to_read))
         // Through the pool. Opening a message is the wait a person
         // notices most, and most of it used to be a TLS handshake and
         // a LOGIN for one FETCH. The session is **not** closed here.
@@ -92,7 +95,7 @@ object MessageReader {
                 )
             }
         } catch (e: Exception) {
-            Outcome.Failed("Could not open this message")
+            Outcome.Failed(Texts.get(R.string.acct_cannot_open))
         }
     }
 

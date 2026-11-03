@@ -115,6 +115,38 @@ describe('Calendar', () => {
     expect(screen.queryByRole('button', { name: 'Open the invitation' })).toBeNull()
   })
 
+  it('shows an all-day event on its days, as all day, with its dates', async () => {
+    events.mockResolvedValue([
+      {
+        dtend: '2026-09-05',
+        dtstart: '2026-09-03',
+        organizer: null,
+        source: 'feed:jp-holidays',
+        status: null,
+        summary: 'Trip',
+        uid: 'trip',
+      },
+    ])
+    show('/calendar?date=2026-09-02')
+    const chips = await screen.findAllByText('Trip')
+    expect(chips).toHaveLength(2)
+    const cells = screen.getAllByRole('gridcell')
+    expect(cells.map((c) => c.textContent?.includes('Trip'))).toEqual([
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+    ])
+    expect(chips[0].closest('button')?.textContent).toContain('All day')
+    fireEvent.click(chips[0])
+    const detail = await screen.findByRole('region', { name: 'Trip' })
+    expect(detail.textContent).toContain('All day')
+    expect(detail.textContent).not.toContain('Start')
+  })
+
   it('says the calendar could not be loaded rather than showing an empty week', async () => {
     events.mockRejectedValue(new Error('down'))
     show('/calendar?date=2026-09-02')
