@@ -23,7 +23,14 @@ fn judge(f: &Facts<'_>) -> mailrs_fraud::finding::Findings {
     let mut rules = Rules::compile(DEFAULT_SOURCE).expect("compiles");
     let out = rules.classify(f, &Policy::default());
     assert!(out.errors.is_empty(), "{:?}", out.errors);
-    out.findings
+    // shadow hits too, so a rule shipped in shadow is still asked whether
+    // it fires and whether it stays quiet; they never hold
+    let mut all = out.findings;
+    for s in out.shadow.iter() {
+        assert!(!s.holds, "{} is shadow and holds", s.rule);
+        all.push(s.clone());
+    }
+    all
 }
 
 #[test]
@@ -108,6 +115,7 @@ fn each_bec_rule_fires_on_its_structure_and_never_holds() {
             "bec-lookalike-reply-diverted",
             Facts {
                 reply_to_outside: true,
+                reply_to_other_org: true,
                 relation: Relation {
                     looks_like_correspondent: true,
                     ..Relation::default()

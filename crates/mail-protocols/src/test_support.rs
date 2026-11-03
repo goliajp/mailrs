@@ -107,6 +107,9 @@ impl Directory for Memory {
     }
 }
 
+/// The name the in-memory server goes by in `Authentication-Results:`.
+pub(crate) const AUTHSERV: &str = "mx.memory.test";
+
 pub(crate) struct MemoryAccount {
     inbox: Inbox,
     script: Arc<Mutex<Option<String>>>,
@@ -234,6 +237,10 @@ impl Account for MemoryAccount {
 
     fn unique_id(&self, m: &Message<u32>) -> String {
         format!("u{}", m.uid)
+    }
+
+    fn authserv_id(&self) -> Option<&str> {
+        Some(AUTHSERV)
     }
 
     async fn remove(&self, _: &(), m: &Message<u32>) -> Result<()> {

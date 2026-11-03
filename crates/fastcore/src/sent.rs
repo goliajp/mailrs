@@ -31,6 +31,9 @@ impl SentStore for Store {
     fn net_conn(&self) -> Option<kevy_client::Connection> {
         self.0.net_conn()
     }
+    fn authserv_id(&self) -> Option<&str> {
+        self.0.authserv_id.as_deref()
+    }
     /// Written as the drain writes an arrival the user wrote; a write this
     /// store cannot make is logged there, and the maildir self-heal indexes
     /// the file later, as for any delivered file.

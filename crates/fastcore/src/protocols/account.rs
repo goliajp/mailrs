@@ -162,6 +162,14 @@ impl Account for FastcoreAccount {
         }
     }
 
+    fn authserv_id(&self) -> Option<&str> {
+        match self {
+            Self::Real(a) => a.state.authserv_id.as_deref(),
+            // read-only: nothing is ever appended to a mock mailbox
+            Self::Mock(_) => None,
+        }
+    }
+
     async fn remove(&self, mailbox: &FcMailbox, m: &Message<PathBuf>) -> Result<()> {
         match self {
             Self::Real(a) => {

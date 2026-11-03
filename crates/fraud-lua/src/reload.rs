@@ -15,6 +15,9 @@ pub struct Scan {
     pub findings: Findings,
     /// Content hash, including fallback identity if execution failed.
     pub version: String,
+    /// The ids of the shadow rules that hit: for measurement only,
+    /// outside `findings` so nothing scores or holds on them.
+    pub shadow: Vec<String>,
 }
 
 struct Active {
@@ -80,6 +83,7 @@ impl Active {
             return Ok(Scan {
                 findings: result.findings,
                 version: self.current.version().into(),
+                shadow: rule_ids(&result.shadow),
             });
         }
         tracing::error!(errors=?result.errors, version=self.current.version(), "fraud Lua execution failed; falling back");
@@ -108,12 +112,21 @@ impl Active {
                 recovered.errors
             ));
         }
+        let mut shadow = rule_ids(&recovered.shadow);
+        shadow.extend(rule_ids(&result.shadow));
+        shadow.sort();
+        shadow.dedup();
         Ok(Scan {
             findings: recovered.findings,
             version: format!("{};fallback-from={rejected}", self.current.version()),
+            shadow,
         })
     }
 }
+fn rule_ids(f: &Findings) -> Vec<String> {
+    f.iter().map(|f| f.rule.clone()).collect()
+}
+
 thread_local! { static ACTIVE: RefCell<Active> = RefCell::new(Active::new()); }
 
 /// Score using the current Lua bundle. Check its configured file at most once

@@ -7,6 +7,7 @@
 //! names neither the client's IP nor its EHLO name, and the masks' own
 //! submission log records the account and the IP.
 
+mod forged_results;
 mod harness;
 mod masked;
 mod probing;

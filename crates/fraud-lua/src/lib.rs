@@ -32,16 +32,35 @@ pub const MAX_SOURCE: usize = 256 * 1024;
 
 const BOOTSTRAP: &str = r#"
 local registered, ids = {}, {}
-function rule(id, layer, score, hold, check)
+-- The sixth argument is optional: `{ shadow = true }` runs a rule and
+-- records its hits without scoring them or holding on them.
+local function is_shadow(opts)
+    if opts == nil then return false end
+    assert(type(opts) == 'table', 'invalid rule options')
+    for k, v in pairs(opts) do
+        assert(k == 'shadow' and type(v) == 'boolean', 'invalid rule option')
+    end
+    return opts.shadow == true
+end
+function rule(id, layer, score, hold, check, opts)
     assert(type(id) == 'string' and #id > 0 and #id <= 100 and not ids[id], 'invalid/duplicate rule id')
     assert(layer == 'identity' or layer == 'provenance' or layer == 'content' or layer == 'transport', 'invalid layer')
     assert(type(score) == 'number' and score > 0 and score <= 100, 'invalid score')
     assert(type(hold) == 'boolean' and type(check) == 'function', 'invalid rule')
+    local shadow = is_shadow(opts)
+    assert(not (shadow and hold), 'a shadow rule cannot hold')
     assert(#registered < 64, 'too many rules')
     ids[id] = true
-    registered[#registered+1] = {id, layer, score, hold, check}
+    registered[#registered+1] = {id, layer, score, hold, check, shadow}
 end
 function __count() return #registered end
+function __shadow_rules()
+    local out = {}
+    for _, r in ipairs(registered) do
+        if r[6] then out[#out+1] = r[1] end
+    end
+    return table.concat(out, '\n')
+end
 function __run(i)
     local r = registered[i]
     local out = r[5](m)
@@ -61,7 +80,7 @@ function __run(i)
             flat[#flat+1] = v
         end
     end
-    return r[1], r[2], r[3], r[4], detail, table.unpack(flat)
+    return r[1], r[2], r[3], r[4], r[6], detail, table.unpack(flat)
 end
 -- No dynamic code, protected calls (which could catch a spent budget), or I/O.
 load, loadfile, dofile, require, pcall, xpcall, collectgarbage, print = nil, nil, nil, nil, nil, nil, nil, nil
@@ -74,6 +93,7 @@ pub struct Rules {
     run: LuaRoot,
     count: usize,
     version: String,
+    shadow: Vec<String>,
 }
 
 /// Findings plus any isolated rule failures. The runtime uses the previous
@@ -83,6 +103,9 @@ pub struct Evaluation {
     pub findings: Findings,
     /// Errors, including the index of the failed rule.
     pub errors: Vec<String>,
+    /// Hits of shadow rules: recorded for measurement, never scored and
+    /// never a reason to hold.
+    pub shadow: Findings,
 }
 
 impl Rules {
@@ -131,6 +154,12 @@ impl Rules {
         if !(1..=64).contains(&count) {
             return Err("rule bundle must register 1..=64 rules".into());
         }
+        let shadow = lua
+            .eval::<String>("return __shadow_rules()")
+            .map_err(|e| lua.vm().error_text(&e))?
+            .lines()
+            .map(str::to_string)
+            .collect();
         let run = lua
             .eval::<Value>("return __run")
             .map_err(|e| lua.vm().error_text(&e))?;
@@ -141,6 +170,7 @@ impl Rules {
             run,
             count: count as usize,
             version: format!("lua:{:x}", Sha256::digest(source)),
+            shadow,
         })
     }
 
@@ -154,11 +184,17 @@ impl Rules {
         self.count
     }
 
+    /// The ids of the rules registered as shadow, in registration order.
+    pub fn shadow_rules(&self) -> &[String] {
+        &self.shadow
+    }
+
     /// Run every rule with a freshly armed instruction and memory budget.
     pub fn classify(&mut self, facts: &Facts<'_>, policy: &Policy) -> Evaluation {
         let mut result = Evaluation {
             findings: Findings::new(),
             errors: Vec::new(),
+            shadow: Findings::new(),
         };
         if let Err(e) = facts::install(&mut self.lua, facts, policy) {
             result.errors.push(e);
@@ -172,7 +208,8 @@ impl Rules {
             match output {
                 Ok(v) if v.is_empty() => {}
                 Ok(v) => match finding(&v) {
-                    Ok(f) => result.findings.push(f),
+                    Ok((f, true)) => result.shadow.push(f),
+                    Ok((f, false)) => result.findings.push(f),
                     Err(e) => result.errors.push(format!("rule {i}: {e}")),
                 },
                 Err(e) => result
@@ -187,17 +224,19 @@ impl Rules {
     }
 }
 
-fn finding(v: &[Value]) -> Result<Finding, String> {
+/// One finding, and whether the rule that made it is a shadow rule.
+fn finding(v: &[Value]) -> Result<(Finding, bool), String> {
     let (
         [
             Value::Str(id),
             Value::Str(layer),
             score,
             Value::Bool(hold),
+            Value::Bool(shadow),
             Value::Str(detail),
         ],
         params,
-    ) = v.split_at(v.len().min(5))
+    ) = v.split_at(v.len().min(6))
     else {
         return Err("invalid finding shape".into());
     };
@@ -219,5 +258,5 @@ fn finding(v: &[Value]) -> Result<Finding, String> {
         };
         f.params.insert(text(k.as_bytes()), text(v.as_bytes()));
     }
-    Ok(f)
+    Ok((f, *shadow))
 }

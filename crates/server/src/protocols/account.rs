@@ -34,6 +34,8 @@ pub(crate) struct PgAccount {
     events: EventBus,
     maildir_root: String,
     net_url: Option<String>,
+    /// `MAILRS_HOSTNAME`, lowercased; empty when unset.
+    authserv: String,
 }
 
 fn store<E: std::fmt::Display>(e: E) -> Error {
@@ -71,6 +73,7 @@ impl PgAccount {
             events: dir.events.clone(),
             maildir_root: dir.maildir_root.clone(),
             net_url: dir.net_url.clone(),
+            authserv: dir.hostname.trim().to_ascii_lowercase(),
         }
     }
 
@@ -197,6 +200,10 @@ impl Account for PgAccount {
     /// The uid, which a message keeps for as long as it is in INBOX.
     fn unique_id(&self, m: &Message<String>) -> String {
         m.uid.to_string()
+    }
+
+    fn authserv_id(&self) -> Option<&str> {
+        Some(self.authserv.as_str()).filter(|a| !a.is_empty())
     }
 
     async fn remove(&self, mailbox: &Mailbox, m: &Message<String>) -> Result<()> {
