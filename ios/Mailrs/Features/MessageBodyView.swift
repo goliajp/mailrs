@@ -27,6 +27,9 @@ struct MessageBodyView: BodyViewRepresentable {
     @Binding var height: CGFloat
     /// Remote subresources are refused until the reader asks for them.
     var blockRemote: Bool = true
+    /// A tap on a link `LinkWarnings` marked, by its index: the reading
+    /// screen asks before it opens.
+    var onWarnedLink: ((Int) -> Void)? = nil
     @Environment(\.colorScheme) private var colorScheme
 
     /// Dark paper only for mail that declares no colours of its own —
@@ -112,6 +115,7 @@ struct MessageBodyView: BodyViewRepresentable {
     }
 
     private func updateWebView(_ webView: WKWebView, context: Context) {
+        context.coordinator.parent = self
         // A width this view has not been fitted against yet — the first
         // layout pass, a rotation, a split view. Re-fitting is cheap and
         // not re-fitting leaves the message at whatever scale it had
@@ -192,7 +196,7 @@ struct MessageBodyView: BodyViewRepresentable {
 
     @MainActor
     final class Coordinator: NSObject, WKNavigationDelegate {
-        private let parent: MessageBodyView
+        var parent: MessageBodyView
         var loadedHTML: String?
         var loadedDark = false
         var loadedBlocked = true
@@ -309,6 +313,10 @@ struct MessageBodyView: BodyViewRepresentable {
             _ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction
         ) async -> WKNavigationActionPolicy {
             let url = navigationAction.request.url
+            if let url, let n = LinkWarnings.index(of: url) {
+                parent.onWarnedLink?(n)
+                return .cancel
+            }
             switch WebNavigation.decide(
                 isLinkActivation: navigationAction.navigationType == .linkActivated, url: url
             ) {

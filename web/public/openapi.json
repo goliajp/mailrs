@@ -14955,6 +14955,45 @@
           }
         }
       }
+    },
+    "/api/storage": {
+      "get": {
+        "operationId": "getStorage",
+        "summary": "How much of your quota your mail takes",
+        "description": "Only imports stop at the quota; sending always goes out, so used_bytes can pass quota_bytes.",
+        "tags": [
+          "Mail"
+        ],
+        "responses": {
+          "200": {
+            "description": "Storage use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "used_bytes",
+                    "quota_bytes"
+                  ],
+                  "properties": {
+                    "used_bytes": {
+                      "type": "integer",
+                      "description": "Bytes the mailbox holds"
+                    },
+                    "quota_bytes": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "description": "The quota in bytes; null when the account has none"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {

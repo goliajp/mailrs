@@ -10,6 +10,7 @@
 #   ./scripts/ios-shots.sh large light           # default size, light
 #   ./scripts/ios-shots.sh large dark ja         # Japanese
 #   ./scripts/ios-shots.sh accessibility-extra-extra-extra-large
+#   ./scripts/ios-shots.sh large light zh-Hans testVerdictPanelAndLinkWarning
 #
 # Writes PNGs to ios/.shots/ (gitignored — they are pictures of a stub,
 # regenerated in a minute, and nothing downstream reads them).
@@ -24,6 +25,8 @@ APPEARANCE="${2:-dark}"
 # survives the translations — 件名 is not Subject, and a row that fits
 # one may not fit the other.
 LANGUAGE="${3:-en}"
+# one test of the class, by name; all of them when left out
+ONLY="${4:-}"
 SIM_NAME="sim-mailrs"
 STUB_PORT=6039
 OUT="$PWD/.shots"
@@ -86,7 +89,7 @@ RESULT=$(mktemp -d)/shots.xcresult
 TEST_RUNNER_MAILRS_SHOTS=1 TEST_RUNNER_MAILRS_SHOTS_APPEARANCE="$APPEARANCE" \
   TEST_RUNNER_MAILRS_SHOTS_LANGUAGE="$LANGUAGE" xcodebuild -project Mailrs.xcodeproj -scheme Mailrs \
   -destination "id=$UDID" \
-  -only-testing:MailrsUITests/LayoutShotTests \
+  -only-testing:"MailrsUITests/LayoutShotTests${ONLY:+/$ONLY}" \
   -resultBundlePath "$RESULT" \
   test 2>/dev/null \
   | grep -E "✔|✘|error:|\*\* TEST" || true

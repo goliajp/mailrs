@@ -79,6 +79,7 @@ impl Client {
             501 => Err(CoreApiError::BackendUnsupported),
             503 => Err(CoreApiError::PoolExhausted),
             504 => Err(CoreApiError::Timeout),
+            507 => Err(CoreApiError::InsufficientStorage(context.into())),
             other => Err(CoreApiError::Internal(format!(
                 "{context} returned {other}"
             ))),
@@ -100,6 +101,7 @@ impl Client {
             501 => Err(CoreApiError::BackendUnsupported),
             503 => Err(CoreApiError::PoolExhausted),
             504 => Err(CoreApiError::Timeout),
+            507 => Err(CoreApiError::InsufficientStorage(context.into())),
             other => Err(CoreApiError::Internal(format!(
                 "{context} returned {other}"
             ))),

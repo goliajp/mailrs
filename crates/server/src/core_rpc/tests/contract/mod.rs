@@ -24,6 +24,7 @@ mod operator;
 mod ownerless;
 mod paging;
 mod placement;
+mod quota;
 mod rejudge;
 mod search;
 mod sections;

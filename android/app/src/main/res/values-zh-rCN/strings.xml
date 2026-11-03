@@ -395,4 +395,22 @@
     <string name="secret_app_specific">App 专用密码</string>
     <string name="invite_from">组织者：%1$s</string>
     <string name="reply_attribution_short">%1$s 写道：</string>
+    <string name="verdict_held">已扣下：疑似诈骗</string>
+    <string name="verdict_examined">已检查：有可疑之处</string>
+    <string name="verdict_kept">保留、不删除：举报滥用时要用它作证据</string>
+    <string name="verdict_placement">为什么在这里</string>
+    <string name="verdict_clean">没有发现问题</string>
+    <string name="verdict_layer_transport">传输</string>
+    <string name="verdict_layer_identity">身份</string>
+    <string name="verdict_layer_provenance">来源</string>
+    <string name="verdict_layer_content">内容</string>
+    <string name="verdict_question_transport">是不是从它声称的地方发来的？</string>
+    <string name="verdict_question_identity">它显示的名字是否属实？</string>
+    <string name="verdict_question_provenance">是不是真实的邮件客户端写的？</string>
+    <string name="verdict_question_content">内容像不像诈骗？</string>
+    <string name="verdict_not_fraud">这不是诈骗</string>
+    <string name="verdict_rules">规则 %1$s</string>
+    <string name="link_warning_confirm">这个链接可能不是它看上去的地方。\n\n%1$s\n\n仍然打开吗？</string>
+    <string name="link_warning_open">打开</string>
+    <string name="read_callback">这封信里有一个发件人以前没用过的电话号码：%1$s。为付款或账户的事打电话前，先自己核实这个号码</string>
 </resources>
