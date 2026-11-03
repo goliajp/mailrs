@@ -4647,6 +4647,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-report"
+version = "0.1.0"
+dependencies = [
+ "mailrs-mime",
+ "serde",
+]
+
+[[package]]
 name = "mailrs-reputation"
 version = "0.1.0"
 dependencies = [
