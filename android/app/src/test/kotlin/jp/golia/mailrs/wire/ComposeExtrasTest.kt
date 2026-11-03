@@ -60,8 +60,8 @@ class ComposeExtrasTest {
     @Test
     fun `a send asks the server to hold it`() {
         val body = json.encodeToString(
-            Wire.SendRequest.serializer(),
-            Wire.SendRequest(to = listOf("a@b.jp"), subject = "s", body = "b", undoSeconds = SendHold.SECONDS),
+            SendRequest.serializer(),
+            SendRequest(to = listOf("a@b.jp"), subject = "s", body = "b", undoSeconds = SendHold.SECONDS),
         )
         assertEquals("10", json.parseToJsonElement(body).jsonObject["undo_seconds"]?.jsonPrimitive?.content)
         assertTrue("the offer must end before the hold", SendHold.OFFERED_MS < SendHold.SECONDS * 1000L)

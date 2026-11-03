@@ -37,6 +37,7 @@ final class ComposeExtrasFlowTests: MailrsUITestCase {
         XCTAssertTrue(undo.waitForExistence(timeout: 10), "no Undo after sending")
         XCTAssertEqual(sentMessages().last?["undo_seconds"] as? Int, 10,
                        "the send did not ask the server to hold it")
+        XCTAssertNil(sentMessages().last?["html_body"], "a send with no formatting carried html_body")
         undo.tap()
 
         let status = app.staticTexts["send-undo-status"]
@@ -73,8 +74,12 @@ final class ComposeExtrasFlowTests: MailrsUITestCase {
         app.buttons["Send"].tap()
 
         XCTAssertTrue(element(app, "undo-send").waitForExistence(timeout: 10), "the send never finished")
-        let sent = sentMessages().last?["body"] as? String ?? ""
+        let last = sentMessages().last
+        let sent = last?["body"] as? String ?? ""
         XCTAssertTrue(sent.hasPrefix("Hello **big**"), "bold did not write Markdown marks: \(sent)")
+        let html = last?["html_body"] as? String ?? ""
+        XCTAssertTrue(html.hasPrefix("<!DOCTYPE html>"), "the formatted send carried no html_body")
+        XCTAssertTrue(html.contains("<p>Hello <strong>big</strong>"), "html_body is not the rendered markdown: \(html)")
     }
 
     func testATemplateFillsSubjectAndBody() {
