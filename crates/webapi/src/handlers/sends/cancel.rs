@@ -43,14 +43,18 @@ pub struct CancelResponse {
 pub async fn cancel_send(
     State(_state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
+    key: Option<Extension<crate::session::AgentKey>>,
     Path(send_id): Path<String>,
 ) -> Result<Json<CancelResponse>, StatusCode> {
-    cancel(&user, &send_id).map(Json)
+    let by = crate::handlers::send_queue::actor(&user, key.map(|Extension(k)| k.id));
+    cancel(&user, &send_id, &by).map(Json)
 }
 
 /// Stop `user`'s send `send_id`: 404 when there is none, 409 when it has
-/// finished. Shared by the web route and JMAP's undo.
-pub(crate) fn cancel(user: &str, send_id: &str) -> Result<CancelResponse, StatusCode> {
+/// finished. Shared by the web route and JMAP's undo. `by` is who asked
+/// (see `send_queue::actor`); the cancel is kept as an event on the send
+/// and in the audit log, beside the record that it was scheduled.
+pub(crate) fn cancel(user: &str, send_id: &str, by: &str) -> Result<CancelResponse, StatusCode> {
     let (u, s) = (user.to_string(), send_id.to_string());
     let item = with_kevy(move |c| send_read::read_one(c, &u, &s))?.ok_or(StatusCode::NOT_FOUND)?;
     match item.status {
@@ -69,6 +73,29 @@ pub(crate) fn cancel(user: &str, send_id: &str) -> Result<CancelResponse, Status
     let (recipients_cancelled, already_delivered) =
         with_kevy(move |c| sendfam::cancel_send(c, &u, &s, outbound::CANCELLED_REASON))?;
 
+    let (u, s, b) = (user.to_string(), send_id.to_string(), by.to_string());
+    let now = chrono::Utc::now().timestamp();
+    with_kevy(move |c| {
+        sendfam::record_event(
+            c,
+            &u,
+            &s,
+            &sendfam::SendEvent {
+                kind: "cancelled".into(),
+                at: now,
+                by: b,
+                send_at: None,
+            },
+        )
+    })?;
+    crate::handlers::audit::record(
+        user,
+        "send.cancelled",
+        send_id,
+        &format!(
+            "by={by} recipients_cancelled={recipients_cancelled} already_delivered={already_delivered}"
+        ),
+    );
     tracing::info!(
         %user, %send_id, jobs_removed, recipients_cancelled, already_delivered,
         "send cancelled"
