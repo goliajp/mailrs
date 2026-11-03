@@ -1048,7 +1048,7 @@
           {
             "name": "before",
             "in": "query",
-            "description": "Unix timestamp cursor for pagination (return conversations older than this)",
+            "description": "Unix timestamp: conversations older than this. Pages by time alone and skips the rest of a second a page ends inside; use `cursor`. Not together with `cursor` (400).",
             "schema": {
               "type": "integer",
               "format": "int64"
@@ -1174,6 +1174,14 @@
               "type": "boolean"
             },
             "description": "Only the reader's team conversations assigned to the reader, newest first."
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "The `cursor` of the last row of the previous page: the rows after it, with no conversation that shares the boundary second lost or listed twice. Not together with `before` (400).",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -6113,6 +6121,14 @@
             "in": "query",
             "schema": {
               "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "The `cursor` of the last row of the previous page. Not together with `before_ts` (400).",
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -15580,6 +15596,10 @@
           "assignee": {
             "type": "string",
             "description": "The team member who answers it; empty for nobody."
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Hand back as `cursor` for the rows after this one. Opaque."
           }
         },
         "required": [

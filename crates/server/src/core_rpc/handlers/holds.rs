@@ -19,6 +19,8 @@ use crate::core_rpc::CoreRpcState;
 pub struct QuarantineQuery {
     limit: Option<usize>,
     before_ts: Option<i64>,
+    /// The cursor of the last row of the previous page.
+    cursor: Option<String>,
 }
 
 /// GET /v1/users/{user}/quarantine — the held conversations, newest first,
@@ -29,18 +31,48 @@ pub async fn list_quarantined(
     Path(user): Path<String>,
     Query(q): Query<QuarantineQuery>,
 ) -> Result<Json<wire::QuarantineListResponse>, StatusCode> {
-    let query = ThreadQuery {
-        held: Held::Only,
-        before_ts: q.before_ts,
-        ..ThreadQuery::all(&user)
-    };
-    let rows = state.mailbox.thread_rows(&query).await.map_err(|e| {
-        tracing::warn!(error = %e, %user, "quarantine list failed");
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
-    let total = rows.len();
+    use mailrs_core_api::paging::Paging;
     let limit = q.limit.unwrap_or(50).min(1000);
-    let items: Vec<ConversationSummaryWire> = rows.iter().take(limit).map(Into::into).collect();
+    let paged = mailrs_core_api::types::ConversationFilter {
+        before_ts: q.before_ts,
+        after_cursor: q.cursor,
+        ..Default::default()
+    };
+    let fetch = |before_ts: Option<i64>| {
+        let state = state.clone();
+        let user = user.clone();
+        async move {
+            let query = ThreadQuery {
+                held: Held::Only,
+                before_ts,
+                ..ThreadQuery::all(&user)
+            };
+            let rows = state.mailbox.thread_rows(&query).await.map_err(|e| {
+                tracing::warn!(error = %e, %user, "quarantine list failed");
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+            let items: Vec<ConversationSummaryWire> = rows.iter().map(Into::into).collect();
+            Ok::<_, StatusCode>(items)
+        }
+    };
+    let (mut items, total) = match paged.paging(limit) {
+        Err(_) => return Err(StatusCode::BAD_REQUEST),
+        Ok(Paging::BeforeTs(ts)) => {
+            let all = fetch(Some(ts)).await?;
+            let total = all.len();
+            (all.into_iter().take(limit).collect(), total)
+        }
+        Ok(Paging::Cursor(mut pager)) => loop {
+            let ask = pager.ask();
+            let all = fetch(ask.before_ts).await?;
+            let total = all.len();
+            let rows: Vec<_> = all.into_iter().take(ask.limit).collect();
+            if let Some(page) = pager.offer(rows, |r| r.last_date, |r| r.thread_id.as_str()) {
+                break (page, total);
+            }
+        },
+    };
+    paged.stamp_cursors(&mut items);
     let items = super::labels::with_labels(&state, &user, items).await;
     Ok(Json(wire::QuarantineListResponse { items, total }))
 }

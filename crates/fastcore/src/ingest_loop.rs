@@ -118,6 +118,7 @@ pub(crate) async fn run_ingest_once(
                 accounts: None,
                 limit: 200,
                 before_ts: None,
+                after_cursor: None,
                 category: None,
                 domains: None,
                 archived: false,

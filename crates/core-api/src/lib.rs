@@ -31,6 +31,7 @@
 pub mod error;
 pub mod memory;
 pub mod method;
+pub mod paging;
 pub mod types;
 pub mod webhook_events;
 

@@ -75,6 +75,8 @@ export const wireThreadSummarySchema = z.object({
   shared_conv: z.string().default(''),
   // the team member who answers it, '' for nobody
   assignee: z.string().default(''),
+  // hand back as `cursor` for the rows after this one; opaque
+  cursor: z.string().default(''),
   unread_count: z.number().int().min(0).default(0),
 })
 
