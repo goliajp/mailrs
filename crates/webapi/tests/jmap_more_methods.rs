@@ -1,17 +1,23 @@
 //! The JMAP methods beyond reading and filing, against the real router, a
 //! real fastcore and a real kevy-server: the vacation reply, search
 //! snippets, attachments on a new message, a held submission that is
-//! listed, changed and cancelled, and copying from another account.
+//! listed, changed and cancelled, copying from another account, and the
+//! same API over a WebSocket with push.
 
 mod live;
 
 use std::time::Duration;
 
+use futures_util::{SinkExt, StreamExt};
 use reqwest::Method;
 use serde_json::{Value, json};
+use tokio_tungstenite::tungstenite::{
+    Error as WsError, Message, client::IntoClientRequest, http::HeaderValue,
+};
 
 const ALICE: &str = "alice@example.test";
 const BOB: &str = "bob@example.test";
+const ORIGIN: &str = "https://mail.example.test";
 const USING: [&str; 4] = [
     "urn:ietf:params:jmap:core",
     "urn:ietf:params:jmap:mail",
@@ -104,6 +110,7 @@ async fn scenario() {
         std::env::set_var("MAILRS_HOSTNAME", "mail.example.test");
         std::env::set_var("MAILRS_MAILDIR", maildir.path());
         std::env::set_var("MAILRS_JMAP_UPLOAD_DIR", uploads.path());
+        std::env::set_var("MAILRS_WEB_ORIGINS", ORIGIN);
     }
     let live = live::start(&kevy).await;
     for who in [ALICE, BOB] {
@@ -124,6 +131,7 @@ async fn scenario() {
     snippets(&live, &alice, &bob).await;
     submissions(&live, &alice, &bob).await;
     copy(&live, &alice).await;
+    websocket(&live, &alice).await;
 }
 
 async fn vacation(live: &live::Live, alice: &str) {
@@ -413,4 +421,129 @@ async fn copy(live: &live::Live, alice: &str) {
     )
     .await;
     assert_eq!(other["type"], "fromAccountNotFound", "{other}");
+}
+
+type Socket =
+    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
+
+/// An upgrade to `/jmap/ws/`: the socket, or the status it was refused with.
+async fn upgrade(
+    live: &live::Live,
+    auth: (&'static str, &str),
+    origin: Option<&str>,
+    jmap: bool,
+) -> Result<Socket, u16> {
+    let url = format!("{}/jmap/ws/", live.base.replacen("http", "ws", 1));
+    let mut req = url.into_client_request().expect("request");
+    let h = req.headers_mut();
+    h.insert(auth.0, HeaderValue::from_str(auth.1).expect("auth"));
+    match origin {
+        Some(o) => {
+            h.insert("origin", HeaderValue::from_str(o).expect("origin"));
+        }
+        None => {
+            h.remove("origin");
+        }
+    }
+    if jmap {
+        h.insert("sec-websocket-protocol", HeaderValue::from_static("jmap"));
+    }
+    match tokio_tungstenite::connect_async(req).await {
+        Ok((socket, resp)) => {
+            assert_eq!(resp.headers()["sec-websocket-protocol"], "jmap");
+            Ok(socket)
+        }
+        Err(WsError::Http(resp)) => Err(resp.status().as_u16()),
+        Err(e) => panic!("upgrade failed without a status: {e}"),
+    }
+}
+
+/// The next JSON text frame, within `secs`.
+async fn next_json(socket: &mut Socket, secs: u64) -> Option<Value> {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(secs);
+    loop {
+        let left = deadline.saturating_duration_since(tokio::time::Instant::now());
+        match tokio::time::timeout(left, socket.next()).await {
+            Ok(Some(Ok(Message::Text(t)))) => return serde_json::from_str(&t).ok(),
+            Ok(Some(Ok(_))) => continue,
+            _ => return None,
+        }
+    }
+}
+
+async fn websocket(live: &live::Live, alice: &str) {
+    let bearer = format!("Bearer {alice}");
+    let cookie = format!("mailrs_session={alice}");
+    assert_eq!(
+        upgrade(live, ("authorization", &bearer), None, false)
+            .await
+            .err(),
+        Some(400),
+        "the jmap subprotocol is required"
+    );
+    assert_eq!(
+        upgrade(
+            live,
+            ("cookie", &cookie),
+            Some("https://evil.example"),
+            true
+        )
+        .await
+        .err(),
+        Some(403),
+        "a cookie upgrade from another site"
+    );
+    assert!(
+        upgrade(live, ("cookie", &cookie), Some(ORIGIN), true)
+            .await
+            .is_ok()
+    );
+    let Ok(mut ws) = upgrade(live, ("authorization", &bearer), None, true).await else {
+        panic!("a bearer upgrade is refused");
+    };
+    let send = |v: Value| Message::Text(v.to_string().into());
+    ws.send(send(json!({
+        "@type": "Request", "id": "r1", "using": USING,
+        "methodCalls": [["Core/echo", { "hello": 1 }, "0"]]
+    })))
+    .await
+    .expect("send");
+    let r = next_json(&mut ws, 10).await.expect("a response");
+    assert_eq!(r["@type"], "Response", "{r}");
+    assert_eq!(r["requestId"], "r1");
+    assert_eq!(r["methodResponses"][0][1]["hello"], 1);
+    ws.send(send(json!({ "@type": "Nonsense" })))
+        .await
+        .expect("send");
+    let r = next_json(&mut ws, 10).await.expect("an error");
+    assert_eq!(r["@type"], "RequestError", "{r}");
+
+    // push: a change made over HTTP arrives on the socket
+    ws.send(send(
+        json!({ "@type": "WebSocketPushEnable", "dataTypes": null }),
+    ))
+    .await
+    .expect("send");
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    let id = import(
+        live,
+        alice,
+        ALICE,
+        &message(
+            "Pushed over the socket",
+            "Friend <friend@partner.example>",
+            "hi",
+        ),
+    )
+    .await;
+    let mut seen = None;
+    while let Some(v) = next_json(&mut ws, 20).await {
+        if v["@type"] == "StateChange" {
+            seen = Some(v);
+            break;
+        }
+    }
+    let v = seen.expect("a StateChange within 20 s");
+    assert!(v["changed"][ALICE]["Email"].is_string(), "{v} after {id}");
+    assert_eq!(v["pushState"], v["changed"][ALICE]["Email"]);
 }

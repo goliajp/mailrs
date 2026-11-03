@@ -25,7 +25,7 @@ use crate::WebState;
 use crate::handlers::conversations::AuthedUser;
 
 /// How often a connection reads the state.
-const CHECK: Duration = Duration::from_secs(5);
+pub(super) const CHECK: Duration = Duration::from_secs(5);
 /// Push connections one account may hold open.
 pub const MAX_CONNECTIONS: usize = 8;
 
@@ -53,7 +53,7 @@ struct Conn {
     _slot: Slot,
 }
 
-async fn read_state(ctx: &Ctx) -> Option<String> {
+pub(super) async fn read_state(ctx: &Ctx) -> Option<String> {
     let v = view::recent(ctx, CHECK).await.ok()?;
     let mailboxes = mailbox::objects(ctx, &v).await.ok()?;
     state::now(&ctx.user, &v, &mailboxes).ok().map(|n| n.state)
@@ -118,7 +118,7 @@ impl Conn {
 }
 
 /// The types asked for: `*` or nothing is every type.
-fn types_of(raw: Option<&str>) -> Vec<&'static str> {
+pub(super) fn types_of(raw: Option<&str>) -> Vec<&'static str> {
     let raw = raw.unwrap_or("*");
     if raw.split(',').any(|t| t.trim() == "*") {
         return TYPES.to_vec();
