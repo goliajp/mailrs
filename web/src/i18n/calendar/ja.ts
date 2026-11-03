@@ -1,6 +1,7 @@
 import type { CalendarKey } from './en'
 
 export const calendarJa: Record<CalendarKey, string> = {
+  'calendar.allDay': '終日',
   'calendar.answer': 'あなたの返答',
   'calendar.from': '追加元',
   'calendar.loadFailed': 'カレンダーを読み込めませんでした',

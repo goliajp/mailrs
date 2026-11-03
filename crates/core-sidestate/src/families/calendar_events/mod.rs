@@ -29,6 +29,7 @@ use serde::{Deserialize, Serialize};
 mod ics;
 pub mod invite;
 pub mod names;
+pub mod span;
 
 pub use ics::{from_ics, to_ics};
 pub use invite::{ANSWERS, file_invite, from_invite, set_message_id, set_partstat};
@@ -37,7 +38,8 @@ pub use invite::{ANSWERS, file_invite, from_invite, set_message_id, set_partstat
 ///
 /// Times are RFC 3339 instants — resolved before they get here, because
 /// a wall-clock plus a zone name is not a moment and two rows in that
-/// state cannot be compared for overlap at all.
+/// state cannot be compared for overlap at all — or, for an all-day
+/// event, dates (see [`span`]).
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct StoredEvent {
     /// iCalendar `UID` — the event's identity across updates.
@@ -45,10 +47,11 @@ pub struct StoredEvent {
     /// `SUMMARY`.
     #[serde(default)]
     pub summary: String,
-    /// Start, RFC 3339. Absent for an all-day event, which has none.
+    /// Start, RFC 3339; `YYYY-MM-DD` for an all-day event. Absent on rows
+    /// filed before all-day events were stored as dates.
     #[serde(default)]
     pub dtstart: Option<String>,
-    /// End, RFC 3339.
+    /// End, RFC 3339; for an all-day event the day after its last.
     #[serde(default)]
     pub dtend: Option<String>,
     /// Organiser's address.
@@ -118,17 +121,15 @@ pub fn fields(ev: &StoredEvent) -> Vec<(&'static str, String)> {
 
 /// The index score: the start as epoch seconds, when there is one.
 fn start_epoch(ev: &StoredEvent) -> Option<f64> {
-    let start = ev.dtstart.as_deref()?;
-    let parsed = chrono::DateTime::parse_from_rfc3339(start).ok()?;
-    Some(parsed.timestamp() as f64)
+    span::epoch_of(ev.dtstart.as_deref()?).map(|t| t as f64)
 }
 
 /// Write `ev` for `user`, and keep the index in step with it.
 ///
-/// The index is scored by start time, and a row without an instant to
-/// score (an all-day invite) is stored and readable by uid but left out
-/// of the index — better than filing it at midnight in a zone nobody
-/// named. It is also left out of [`list`], so CalDAV cannot serve it.
+/// The index is scored by start time (an all-day event by its first
+/// date's UTC midnight, which only orders it). A row without a start is
+/// stored and readable by uid but left out of the index, and so of
+/// [`list`].
 pub fn put(conn: &mut kevy_client::Connection, user: &str, ev: &StoredEvent) -> io::Result<()> {
     let written = fields(ev);
     let pairs: Vec<(&[u8], &[u8])> = written

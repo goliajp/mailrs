@@ -67,6 +67,27 @@ impl PgMailboxStore {
         Ok((rows.into_iter().map(row_to_message_meta).collect(), latest))
     }
 
+    /// Every message of `user`'s in the conversations `thread_ids`, by id:
+    /// what IMAP's Archive and All Mail show, once the list rows have said
+    /// which conversations those are.
+    pub async fn messages_of_threads(
+        &self,
+        user: &str,
+        thread_ids: &[String],
+    ) -> Result<Vec<MessageMeta>, sqlx::Error> {
+        let rows = sqlx::query_as::<_, (i64, i64, i32, String, String, String, String, i64, i32, i32, i64, String, String, String, i64)>(
+            "SELECT m.id, m.mailbox_id, m.uid, m.maildir_id, m.sender, m.recipients, m.subject, m.date_epoch, m.size, m.flags, m.internal_date, m.message_id, m.in_reply_to, m.thread_id, m.modseq
+               FROM messages m JOIN mailboxes mb ON mb.id = m.mailbox_id
+              WHERE mb.user_address = $1 AND m.thread_id = ANY($2)
+              ORDER BY m.id",
+        )
+        .bind(user)
+        .bind(thread_ids.to_vec())
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows.into_iter().map(row_to_message_meta).collect())
+    }
+
     /// Every conversation in `user`'s Trash.
     pub async fn trashed_threads(&self, user: &str) -> Result<Vec<String>, sqlx::Error> {
         let rows: Vec<(String,)> = sqlx::query_as(

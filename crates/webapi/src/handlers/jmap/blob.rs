@@ -177,9 +177,13 @@ pub async fn read(ctx: &Ctx, blob_id: &str) -> Option<Vec<u8>> {
     }
 }
 
-/// A message's file. The view decides what is the caller's: a uid is
-/// resolved in the caller's account only.
+/// A message's file, when the message is one the caller's mailboxes show:
+/// a uid is resolved in the caller's account only, and a message the view
+/// leaves out (held as suspected fraud) is no more there for a blob than
+/// for `Email/get`. Whatever the reason, the answer is the same `None`.
 async fn message(ctx: &Ctx, uid: u32) -> Option<Vec<u8>> {
+    let view = super::view::current(ctx).await.ok()?;
+    view.get(uid)?;
     let w = ctx
         .state
         .core

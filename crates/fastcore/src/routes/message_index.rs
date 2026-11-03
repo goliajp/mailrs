@@ -333,6 +333,44 @@ mod tests {
         );
     }
 
+    /// After two conversations are merged, the index puts every message of
+    /// both under the one that remains: JMAP's thread ids come from here.
+    #[test]
+    fn a_merge_moves_the_messages_to_the_conversation_they_joined() {
+        const V: &str = "v@x.test";
+        let (_store, state) = open(1 << 20);
+        arrive(&state, U, "t1", "m1", 1, 0);
+        arrive(&state, U, "t2", "m2", 2, 0);
+        // the second conversation is also the other account's
+        arrive(&state, V, "t2", "m2", 7, 0);
+        let thread_in = |who: &str, uid: u32| {
+            let idx = MessageIndex::decode(&current(&state, who).expect("index")).expect("decode");
+            let m = idx.messages.iter().find(|m| m.uid == uid).expect("message");
+            idx.threads[m.thread as usize].thread_id.clone()
+        };
+        assert_eq!(thread_in(U, 2), "t2");
+        state
+            .mailbox
+            .merge_thread_into(U, "t2", "t1")
+            .expect("merge");
+        assert_eq!(thread_in(U, 1), "t1");
+        assert_eq!(
+            thread_in(U, 2),
+            "t1",
+            "the merged message still names its old conversation"
+        );
+        // a merge is the merging account's: the other keeps its conversation
+        // as it was, whole, in its index and in its own list
+        assert_eq!(thread_in(V, 7), "t2");
+        assert_eq!(
+            state
+                .mailbox
+                .user_thread_message_ids(V, "t2")
+                .expect("list"),
+            ["m2"]
+        );
+    }
+
     /// A cursor the feed no longer holds means building again, not "no
     /// changes": the user's write may be among what was dropped.
     #[test]

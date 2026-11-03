@@ -25,7 +25,7 @@ Config for Claude Code or any MCP client:
 }
 ```
 
-113 tools auto-discovered via MCP, grouped by category (the table below is a selection; `tools/list` is the authority, and `scripts/check-mcp-parity.sh` holds the two server lanes to the same set):
+125 tools auto-discovered via MCP, grouped by category (the table below is a selection; `tools/list` is the authority, and `scripts/check-mcp-parity.sh` holds the two server lanes to the same set):
 
 ### Email Operations
 
@@ -879,6 +879,7 @@ curl -X POST https://mail.golia.ai/api/rules/runs/7/undo -H "Authorization: Bear
 - `preview` answers `{count, items}`: the conversations a run would change now, Junk and Trash left out
 - `apply` answers `{run_id, changed, failed}`; `undo` puts every changed conversation back once, within seven days
 - MCP: `list_rules`, `create_rule`, `delete_rule`, `preview_rule`, `apply_rule`, `undo_rule_run`
+- MCP for senders and pushes: `reclassify_sender`, `undo_sender_correction`, `list_sender_rules`, `set_sender_rule`, `delete_sender_rule`, `get_notify_settings`, `set_notify_settings`, `set_sender_notify`, `set_thread_notify`, `notify_stats`, `list_important_contacts`, `set_important_contact` — the same checks and the same stored settings as the web routes under `/api/senders`, `/api/sender-rules`, `/api/notify` and `/api/contacts/important`
 
 ### Read a Message
 
@@ -916,6 +917,44 @@ curl -X DELETE https://mail.golia.ai/api/mail/messages/12345 \
 ```
 curl https://mail.golia.ai/api/mail/folders \
   -H "Authorization: Bearer mlrs_..."
+```
+
+### Export and Import
+
+Export All Mail (everything but Junk and the Trash) as an mboxrd stream.
+Each message carries `X-Mailrs-Folder` (INBOX, Sent or Archive) and
+`Status: RO` when read. Needs a recent password confirmation.
+
+```
+curl https://mail.golia.ai/api/mail/export \
+  -H "Authorization: Bearer mlrs_..." -o mail.mbox
+```
+
+Import an mbox: an export from here, a Gmail Takeout (`X-Gmail-Labels`),
+or any mbox (`Status: R` marks a message read). Mail you wrote is filed in
+Sent, the rest in the Inbox, then read and archived as the file says.
+Junk and Trash are skipped; a Message-ID already in the mailbox is not
+filed twice, so an interrupted import can be run again. No filters,
+forwarding, webhooks or notifications run.
+
+```
+curl -X POST https://mail.golia.ai/api/mail/import \
+  -H "Authorization: Bearer mlrs_..." --data-binary @mail.mbox
+```
+
+Response: `{"imported", "sent", "archived", "held", "skipped_duplicate",
+"skipped_junk_or_trash", "too_large", "failed", "over_quota", "complete"}`.
+
+Import from another provider over IMAP. Port 993 (TLS) or 143 (STARTTLS),
+certificates verified, public addresses only; one import per user at a
+time, five starts per day. The password is used for this import and never
+stored; progress is, so starting again with the same source resumes.
+`GET` reports where it stands, `DELETE` stops after the message in hand.
+
+```
+curl -X POST https://mail.golia.ai/api/mail/import/imap \
+  -H "Authorization: Bearer mlrs_..." -H "Content-Type: application/json" \
+  -d '{"host": "imap.example.com", "port": 993, "username": "me@example.com", "password": "..."}'
 ```
 
 ### Thread Operations
@@ -1267,6 +1306,44 @@ frame published while nobody is subscribed is gone. Used by the SMTP
 live monitor.
 
 ---
+
+### JMAP (RFC 8620, 8621, 8887)
+
+Session: `GET /.well-known/jmap` (or `/jmap/session`). Sign in with a session
+token or agent key (`jmap` scope) as Bearer, or an app password over HTTP
+Basic (HTTPS only). Capabilities: core, mail, submission, vacationresponse,
+websocket, and Fastmail's maskedemail.
+
+- Mail: Mailbox/get, /query, /changes, /set; Email/get, /query, /changes,
+  /queryChanges, /set, /import; Thread/get, /changes; SearchSnippet/get
+  (the filter's `text`, `subject` and `body` words marked with `<mark>`)
+- Email/set create takes `attachments` by `blobId`: an upload
+  (`POST /jmap/upload/{accountId}/`) or a part of a message of yours; a blob
+  that is not yours answers `blobNotFound`, exactly as one that never existed;
+  `disposition: "inline"` with a `cid` travels beside the HTML under that
+  Content-ID
+- Email/copy: one account per session, so there is nothing to copy from
+  (`fromAccountNotFound`)
+- Sending: Identity/get; EmailSubmission/set, /get, /changes. Hold a
+  submission up to 30 days (`maxDelayedSend`) with `HOLDFOR` (seconds) or
+  `HOLDUNTIL` (RFC 3339) in `envelope.mailFrom.parameters`; while held its
+  `undoStatus` is `pending` and an update to `canceled` stops it. Once it is
+  going out it is `final` and cancelling answers `cannotUnsend`. Submissions
+  are the sends `GET /api/mail/sends` lists
+- A cancel is recorded as its own event (who, when) next to the one that the
+  send was scheduled, and both go to the audit log
+- VacationResponse/get, /set: the same vacation reply as
+  `/api/settings/vacation`; plain text, so `htmlBody` is always null
+- Push: `GET /jmap/eventsource/`, or the WebSocket `GET /jmap/ws/` with the
+  `jmap` subprotocol: send `{"@type":"Request","id":...}` and get
+  `{"@type":"Response","requestId":...}`; `{"@type":"WebSocketPushEnable"}`
+  starts `StateChange` pushes. A browser's cookie upgrade must come from this
+  site's page
+- Credentials only in the `Authorization` header or the session cookie,
+  never in the URL. An open socket (this one and `/api/events`) is closed
+  within a minute of its session signing out, the password changing, its app
+  password or agent key being revoked, or the account being removed;
+  reconnect and call `Email/changes` with the state you held
 
 ## 4. Webhooks
 

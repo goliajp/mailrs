@@ -43,6 +43,7 @@ mod build_rfc5322_tests {
             content_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 .into(),
             bytes: b"hello".to_vec(),
+            content_id: None,
         };
         let (_mid, bytes) = build_rfc5322(&parts("hi", vec![att]), "a@example.com");
         let s = std::str::from_utf8(&bytes).unwrap();
@@ -63,6 +64,7 @@ mod build_rfc5322_tests {
             filename: "report.pdf".into(),
             content_type: "application/pdf".into(),
             bytes: b"x".to_vec(),
+            content_id: None,
         };
         let (_mid, bytes) = build_rfc5322(&parts("hi", vec![att]), "a@example.com");
         let s = std::str::from_utf8(&bytes).unwrap();
@@ -75,6 +77,7 @@ mod build_rfc5322_tests {
             filename: "a.txt".into(),
             content_type: "text/plain".into(),
             bytes: b"x".to_vec(),
+            content_id: None,
         };
         let mut p = parts("plain", vec![att]);
         p.html_body = "<p>html</p>".into();

@@ -8,6 +8,7 @@
 //! One test, run in order: the POP3 and ManageSieve parts read what the
 //! IMAP part left.
 
+mod archive;
 mod bodies;
 mod checks;
 mod folders;
@@ -214,12 +215,66 @@ async fn both_cores_hold_the_same_mail_conversations() {
     for diff in held::held(backends.pg.clone(), hold_pg).await {
         report.push(format!("pg-core: {diff}"));
     }
+    report.extend(archived_alike(&backends).await);
     assert!(
         report.is_empty(),
         "{} difference(s) from the script:\n\n{}",
         report.len(),
         report.join("\n\n")
     );
+}
+
+/// The archive script on each core, archiving and reading back the archive
+/// the way each core's web does.
+async fn archived_alike(backends: &harness::Backends) -> Vec<String> {
+    let mut report = Vec::new();
+    let state = backends.fastcore_state.clone();
+    let on_web = |tid: String| async move {
+        state
+            .mailbox
+            .set_archived(harness::USER, &tid, true)
+            .unwrap();
+    };
+    let state = backends.fastcore_state.clone();
+    let archived = |tid: String| {
+        let state = state.clone();
+        async move {
+            state
+                .mailbox
+                .get_thread_for_user(harness::USER, &tid)
+                .unwrap()
+                .is_some_and(|r| r.archived)
+        }
+    };
+    for diff in archive::archive(backends.fastcore.clone(), on_web, archived).await {
+        report.push(format!("fastcore: {diff}"));
+    }
+    let pg_store = backends.pg.mailbox.clone();
+    let on_web = |tid: String| async move {
+        pg_store.archive_thread(harness::USER, &tid).await.unwrap();
+    };
+    let pg_store = backends.pg.mailbox.clone();
+    let archived = |tid: String| {
+        let store = pg_store.clone();
+        async move {
+            let ids = [tid];
+            let q = mailrs_mailbox::pg::ThreadQuery {
+                archived: None,
+                thread_ids: Some(&ids),
+                ..mailrs_mailbox::pg::ThreadQuery::all(harness::USER)
+            };
+            store
+                .thread_rows(&q)
+                .await
+                .unwrap()
+                .first()
+                .is_some_and(|r| r.archived)
+        }
+    };
+    for diff in archive::archive(backends.pg.clone(), on_web, archived).await {
+        report.push(format!("pg-core: {diff}"));
+    }
+    report
 }
 
 #[test]

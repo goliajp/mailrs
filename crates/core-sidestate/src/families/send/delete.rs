@@ -34,6 +34,7 @@ pub fn delete_send(
     let removed = conn.del(&[
         send_key(user, send_id).as_bytes(),
         rcpt_key(user, send_id).as_bytes(),
+        super::events_key(user, send_id).as_bytes(),
     ])?;
     let indexed = conn.zrem(index_key(user).as_bytes(), &[send_id.as_bytes()])?;
     for status in ALL_STATUSES {
