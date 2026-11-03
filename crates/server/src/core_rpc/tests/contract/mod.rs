@@ -20,6 +20,7 @@ mod intake_rules;
 mod labels;
 mod mail;
 mod operator;
+mod ownerless;
 mod placement;
 mod search;
 mod sections;
@@ -52,6 +53,7 @@ async fn the_two_cores_answer_every_client_call_alike() {
     sections::run(&cores, &mut d).await;
     shared::run(&cores, &mut d).await;
     webhooks::run(&cores, &mut d).await;
+    ownerless::run(&cores, &mut d).await;
     accounts::teardown(&cores, &mut d).await;
     d.both(
         "healthz",
