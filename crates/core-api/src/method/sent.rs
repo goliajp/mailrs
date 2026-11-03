@@ -31,6 +31,10 @@ pub struct FileSentRequest {
     pub message_base64: String,
     /// To, Cc and Bcc as the user wrote them (`Name <addr>` or `addr`).
     pub recipients: Vec<String>,
+    /// Brought over from another mailbox rather than sent now: an import
+    /// stops at the quota, a send never does.
+    #[serde(default)]
+    pub imported: bool,
 }
 
 impl FileSentRequest {
@@ -38,6 +42,15 @@ impl FileSentRequest {
         Self {
             message_base64: base64::engine::general_purpose::STANDARD.encode(message),
             recipients: recipients.to_vec(),
+            imported: false,
+        }
+    }
+
+    /// A Sent message an import brings over.
+    pub fn imported(message: &[u8], recipients: &[String]) -> Self {
+        Self {
+            imported: true,
+            ..Self::new(message, recipients)
         }
     }
 

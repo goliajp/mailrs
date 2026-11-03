@@ -48,6 +48,10 @@ pub(crate) fn send_system_mail(
         attachments: Vec::new(),
         scheduled_at: None,
     };
+    if breaks_a_header_line(&parts) {
+        tracing::warn!("system mail refused: a header value carries a line break");
+        return Err(StatusCode::BAD_REQUEST);
+    }
     let (_message_id, envelope) = build_rfc5322(&parts, &from);
     enqueue_outbound_at(&from, &[to.to_string()], &envelope, None, None)
 }
