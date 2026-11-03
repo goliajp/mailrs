@@ -374,6 +374,45 @@ async fn submissions(live: &live::Live, alice: &str, bob: &str) {
     assert_eq!(got["list"][0]["undoStatus"], "canceled", "{got}");
     let (_, sends) = live.call(Method::GET, "/api/mail/sends", alice, None).await;
     assert!(sends.to_string().contains("\"cancelled\""), "{sends}");
+    // the cancel is a new fact beside the one that it was scheduled, on the
+    // send and in the audit log; the send itself is still there
+    let held = sends
+        .as_array()
+        .and_then(|l| l.iter().find(|s| s["subject"] == "The plan"))
+        .expect("the held send is still listed");
+    assert_eq!(held["status"], "cancelled");
+    let send_id = held["send_id"].as_str().expect("send_id").to_string();
+    let url = std::env::var("MAILRS_KEVY_URL").expect("kevy url");
+    let (events, audit) = tokio::task::spawn_blocking(move || {
+        use mailrs_core_sidestate::families::send as sendfam;
+        let mut c = kevy_client::Connection::connect(&url).expect("kevy");
+        let events = sendfam::events(&mut c, ALICE, &send_id).expect("events");
+        let audit: Vec<(String, String)> = c
+            .lrange(mailrs_core_sidestate::keys::admin::AUDIT_LOG, 0, 50)
+            .expect("audit")
+            .iter()
+            .filter_map(|b| serde_json::from_slice::<Value>(b).ok())
+            .filter(|f| f["target"] == json!(send_id))
+            .map(|f| {
+                (
+                    f["action"].as_str().unwrap_or("").to_string(),
+                    f["actor"].as_str().unwrap_or("").to_string(),
+                )
+            })
+            .collect();
+        (events, audit)
+    })
+    .await
+    .expect("read");
+    let kinds: Vec<&str> = events.iter().map(|e| e.kind.as_str()).collect();
+    assert_eq!(kinds, ["scheduled", "cancelled"], "{events:?}");
+    assert!(events.iter().all(|e| e.by == ALICE), "{events:?}");
+    assert!(events[0].send_at.is_some());
+    let actions: Vec<&str> = audit.iter().map(|(a, _)| a.as_str()).collect();
+    assert!(
+        actions.contains(&"send.scheduled") && actions.contains(&"send.cancelled"),
+        "{audit:?}"
+    );
 
     // sent at once: final, and cannot be taken back
     let now_id = draft(live, alice, "Right now", None).await;
@@ -406,6 +445,23 @@ async fn submissions(live: &live::Live, alice: &str, bob: &str) {
         r["notCreated"]["x"]["type"], "invalidProperties",
         "longer than maxDelayedSend: {r}"
     );
+    // the same cap by date: 31 days from now
+    let late = (chrono::Utc::now() + chrono::Duration::days(31))
+        .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let r = one(
+        live,
+        alice,
+        json!(["EmailSubmission/set", { "create": { "y": {
+            "emailId": now_id, "identityId": identity,
+            "envelope": { "mailFrom": { "email": ALICE, "parameters": { "HOLDUNTIL": late } },
+                          "rcptTo": [{ "email": "carol@partner.example" }] }
+        } } }, "0"]),
+    )
+    .await;
+    assert_eq!(r["notCreated"]["y"]["type"], "invalidProperties", "{r}");
+    let (_, sends) = live.call(Method::GET, "/api/mail/sends", alice, None).await;
+    let queued = sends.as_array().map_or(0, |l| l.len());
+    assert_eq!(queued, 2, "a refused submission queued nothing: {sends}");
 }
 
 async fn copy(live: &live::Live, alice: &str) {

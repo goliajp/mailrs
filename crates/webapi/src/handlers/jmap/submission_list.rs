@@ -308,7 +308,8 @@ fn undo(ctx: &Ctx, s: &Sub, patch: &Value) -> Result<(), Value> {
     if s.item.status != Status::Scheduled {
         return Err(json!({ "type": "cannotUnsend", "description": "it is no longer held" }));
     }
-    match crate::handlers::sends::cancel(&ctx.user, &s.item.send_id) {
+    let by = crate::handlers::send_queue::actor(&ctx.user, ctx.key.as_ref().map(|k| k.id));
+    match crate::handlers::sends::cancel(&ctx.user, &s.item.send_id, &by) {
         Ok(r) if r.already_delivered == 0 => Ok(()),
         Ok(_) | Err(axum::http::StatusCode::CONFLICT) => Err(
             json!({ "type": "cannotUnsend", "description": "it has already gone to a recipient" }),
