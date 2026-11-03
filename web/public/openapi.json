@@ -15050,6 +15050,25 @@
               }
             }
           },
+          "new_domains": {
+            "type": "object",
+            "nullable": true,
+            "description": "Domains with a first-seen time (mailrs:domfirst:), recounted at most every five minutes. Null when the shared store cannot be read.",
+            "properties": {
+              "keys": {
+                "type": "integer",
+                "description": "Domains with a first-seen time"
+              },
+              "added_24h": {
+                "type": "integer",
+                "description": "Of those, first seen in the 24 hours before computed_at"
+              },
+              "computed_at": {
+                "type": "integer",
+                "description": "Unix seconds of the count"
+              }
+            }
+          },
           "kevy_server_memory": {
             "type": "object",
             "nullable": true,
