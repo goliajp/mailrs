@@ -176,6 +176,7 @@ pub async fn run() {
     }
 
     login_guard::spawn_alert_mailer();
+    handlers::owner_notice::spawn_queue_mailer(state.clone());
     handlers::jmap::read_config();
     handlers::jmap::spawn_upload_sweep();
     handlers::screening_admin::spawn_refresh();

@@ -91,7 +91,21 @@ pub fn decide(recipient: &str, raw_message: &[u8], envelope_from: Option<&str>) 
     };
     let actions =
         evaluate_sieve_with_envelope(&compiled, raw_message, envelope_from, Some(recipient));
-    let vacation = actions.iter().find_map(|a| match a {
+    SieveOutcome {
+        decision: action_to_decision(&actions),
+        vacation: vacation_of(&actions),
+    }
+}
+
+/// The shortest time between two vacation replies to one sender, whatever
+/// the script asks for: `:seconds 0` would answer every message, and two
+/// such accounts would answer each other without end (RFC 5230 §4.1 lets
+/// a server set a minimum).
+const MIN_VACATION_PERIOD_SECS: u64 = 86_400;
+
+/// The script's vacation reply, if it fires.
+fn vacation_of(actions: &[SieveAction]) -> Option<Vacation> {
+    actions.iter().find_map(|a| match a {
         SieveAction::Vacation {
             reason,
             subject,
@@ -105,15 +119,13 @@ pub fn decide(recipient: &str, raw_message: &[u8], envelope_from: Option<&str>) 
             subject: subject.clone(),
             from: from.clone(),
             handle: handle.clone(),
-            period_secs: period_secs.unwrap_or(7 * 86_400),
+            period_secs: period_secs
+                .unwrap_or(7 * 86_400)
+                .max(MIN_VACATION_PERIOD_SECS),
             addresses: addresses.clone(),
         }),
         _ => None,
-    });
-    SieveOutcome {
-        decision: action_to_decision(&actions),
-        vacation,
-    }
+    })
 }
 
 /// Reduce a script's action list to a single delivery decision. Sieve
@@ -403,6 +415,27 @@ mod tests {
             mime: false,
         }];
         assert_eq!(action_to_decision(&a), Decision::Keep);
+    }
+
+    #[test]
+    fn a_vacation_waits_at_least_a_day_between_replies_to_one_sender() {
+        let vac = |secs: Option<u64>| {
+            vacation_of(&[SieveAction::Vacation {
+                reason: "OOO".into(),
+                subject: None,
+                from: None,
+                handle: None,
+                period_secs: secs,
+                addresses: vec![],
+                mime: false,
+            }])
+            .unwrap()
+            .period_secs
+        };
+        assert_eq!(vac(Some(0)), 86_400);
+        assert_eq!(vac(Some(60)), 86_400);
+        assert_eq!(vac(Some(3 * 86_400)), 3 * 86_400);
+        assert_eq!(vac(None), 7 * 86_400);
     }
 
     #[test]

@@ -207,7 +207,7 @@ impl RealAccount {
     /// The conversation a message file belongs to: by its uid, and when the
     /// uid index cannot answer (rows indexed with uid 0, which production
     /// has), by the message id the file gives, the way delivery derived it.
-    fn conversation_of(&self, m: &Message<PathBuf>) -> Result<Option<String>> {
+    pub(super) fn conversation_of(&self, m: &Message<PathBuf>) -> Result<Option<String>> {
         let store = &self.state.mailbox;
         let thread_of = |bytes: Option<Vec<u8>>| {
             bytes

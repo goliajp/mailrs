@@ -32,13 +32,17 @@ fn delivered(root: &Path, files: &[(&str, &str)]) -> Arc<FastcoreDirectory> {
     dir
 }
 
+/// Delete the first message for good: an EXPUNGE in INBOX moves its
+/// conversation to the Trash, and one there deletes it.
 async fn expunge_first(dir: &Arc<FastcoreDirectory>) {
     let mut c = Imap::connect(dir).await;
     c.cmd(&format!("LOGIN {USER} \"{PASSWORD}\"")).await;
-    c.cmd("SELECT INBOX").await;
-    c.cmd("STORE 1 +FLAGS.SILENT (\\Deleted)").await;
-    let r = c.cmd("EXPUNGE").await;
-    assert!(tagged(&r).contains("OK EXPUNGE completed"), "{r}");
+    for mailbox in ["INBOX", "Trash"] {
+        c.cmd(&format!("SELECT {mailbox}")).await;
+        c.cmd("STORE 1 +FLAGS.SILENT (\\Deleted)").await;
+        let r = c.cmd("EXPUNGE").await;
+        assert!(tagged(&r).contains("OK EXPUNGE completed"), "{r}");
+    }
 }
 
 #[tokio::test]

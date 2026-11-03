@@ -18,6 +18,40 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### Deleting in a mail client moves mail to the Trash; Sieve scripts follow the forwarding rules
+
+- **Deleting in IMAP or POP3 now moves mail to the Trash**, as Gmail's
+  IMAP does; it is deleted for good after 30 days. An EXPUNGE outside
+  `Trash` and a POP3 `DELE` move the message's conversation there. Only
+  an EXPUNGE in `Trash` deletes now. Drafts are the exception: a client
+  replaces a saved draft by deleting the old copy, and that copy is
+  deleted for good.
+- **A POP3 client set to "delete from server after download" leaves
+  everything it downloads in the Trash for 30 days.** The Trash counts
+  toward the mailbox quota while it is there.
+- JMAP `Email/set` `destroy` moves a conversation to the Trash. On a
+  conversation already in the Trash it deletes for good: refused to an
+  agent key, allowed to a password over HTTP Basic, and from a web
+  session only after a recent password confirmation. Deleting this way
+  now also removes the conversation's Sent rows.
+- Every way of deleting mail for good (the web, MCP, JMAP, IMAP, POP3,
+  emptying the Trash) writes an audit row `mail.deleted_forever`: the
+  account, the first 8 characters of the conversation id, how many
+  messages, where, and whether a session or a password did it.
+- **A Sieve `redirect` out of our domains must go to the forwarding
+  address verified in Settings.** ManageSieve refuses to store a script
+  that redirects anywhere else (`PUTSCRIPT` answers `NO` with the
+  reason). At delivery, a stored script's redirect to an unverified
+  address is not made and the message is kept; this applies to scripts
+  stored before this release too. Redirects within our domains are not
+  affected. Storing a script that redirects mails the account's owner
+  and recovery address, as turning forwarding on does.
+- A Sieve `vacation` reply goes out only as the account or an address it
+  may send as; any other `:from` is replaced with the account's address.
+  It is not sent for mail in Junk or held for review, as the vacation
+  reply set in Settings is not, and at most once a day to one sender
+  whatever `:days` or `:seconds` the script asks for.
+
 ### IMAP shows archived mail in Archive, not in the Inbox (2.193.0)
 
 - **Mail clients will show fewer messages in INBOX.** A conversation
