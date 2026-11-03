@@ -81,7 +81,7 @@ pub fn file<S: SentStore + ?Sized>(
     })
 }
 
-fn sent_dir(root: &str, user: &str) -> io::Result<PathBuf> {
+pub(crate) fn sent_dir(root: &str, user: &str) -> io::Result<PathBuf> {
     let Some((local, domain)) = user.split_once('@') else {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
