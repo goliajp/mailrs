@@ -5,7 +5,7 @@
 //! without touching fastcore's embedded store:
 //!
 //! ```text
-//! mailrs:quota:<user>:limit_bytes   set by fastcore's set_quota RPC
+//! mailrs:quota:<user>:limit_bytes   set when a core creates the account or sets its quota
 //! mailrs:quota:<user>:used_bytes    maintained by the delivery paths
 //!                                   (spool drain, mirror send, IMAP
 //!                                   APPEND) and the backfill-usage tool

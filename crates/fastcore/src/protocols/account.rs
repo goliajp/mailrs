@@ -201,7 +201,14 @@ impl Account for FastcoreAccount {
     }
 
     async fn quota(&self) -> Result<Quota> {
-        let (limit, used) = crate::live_sync::quota_read(self.user());
+        let state = match self {
+            Self::Real(a) => &a.state,
+            Self::Mock(a) => &a.state,
+        };
+        let (limit, used) = match state.net_conn() {
+            Some(mut c) => crate::live_sync::quota_read_on(&mut c, self.user()),
+            None => (0, 0),
+        };
         Ok(Quota {
             used: used.max(0) as u64,
             limit: limit.max(0) as u64,

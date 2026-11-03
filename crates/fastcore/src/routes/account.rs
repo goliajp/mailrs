@@ -80,6 +80,9 @@ pub(crate) async fn add_account_route(
             }
         }
     };
+    if let Err(code) = give_default_limit(&state, &req.address) {
+        return code.into_response();
+    }
     let domain = req
         .address
         .split_once('@')
@@ -91,7 +94,7 @@ pub(crate) async fn add_account_route(
         "display_name": req.display_name,
         "active": true,
         "created_at": now_secs(),
-        "quota_bytes": 10_737_418_240i64,
+        "quota_bytes": adm::DEFAULT_QUOTA_BYTES,
         "recovery_email": null,
         "password_hash": hash,
     });
@@ -123,6 +126,70 @@ pub(crate) async fn add_account_route(
         tracing::warn!(err = %e, addr = %req.address, "upsert_permissions failed");
     }
     axum::http::StatusCode::NO_CONTENT.into_response()
+}
+
+/// Give a new account the default quota limit in the shared store, where
+/// the receiver reads it. A store that is configured but unreachable fails
+/// the creation, so no account is made without a limit.
+fn give_default_limit(state: &FastcoreState, address: &str) -> Result<(), axum::http::StatusCode> {
+    with_net(state, |c| {
+        mailrs_core_sidestate::families::quota_limits::give_default(c, address)
+    })
+    .map(|_| ())
+}
+
+/// Run `f` on the shared store. Without a configured one (tests, a
+/// degraded deploy) there is no quota enforcement to feed: nothing runs.
+pub(crate) fn with_net<T>(
+    state: &FastcoreState,
+    f: impl FnOnce(&mut kevy_client::Connection) -> std::io::Result<T>,
+) -> Result<Option<T>, axum::http::StatusCode> {
+    if state.net_url.is_none() {
+        return Ok(None);
+    }
+    let mut c = state
+        .net_conn()
+        .ok_or(axum::http::StatusCode::SERVICE_UNAVAILABLE)?;
+    f(&mut c).map(Some).map_err(|e| {
+        tracing::warn!(error = %e, "shared store write failed");
+        axum::http::StatusCode::SERVICE_UNAVAILABLE
+    })
+}
+
+#[derive(serde::Deserialize)]
+pub(crate) struct QuotaLimitsQuery {
+    #[serde(default = "dry_run_unless_asked")]
+    dry_run: bool,
+}
+
+fn dry_run_unless_asked() -> bool {
+    true
+}
+
+/// `POST /v1/admin/maintenance:quota-limits` — every account's usage
+/// against the default limit; `?dry_run=false` gives the default to the
+/// accounts with no limit that are not near full.
+pub(crate) async fn quota_limits_route(
+    State(state): State<Arc<FastcoreState>>,
+    axum::extract::Query(q): axum::extract::Query<QuotaLimitsQuery>,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    let users = match state.mailbox.list_account_addresses() {
+        Ok(u) => u,
+        Err(e) => {
+            tracing::warn!(error = %e, "list_account_addresses failed");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let pass = with_net(&state, |c| {
+        mailrs_core_sidestate::families::quota_limits::fill_in(c, &users, q.dry_run)
+    });
+    match pass {
+        Ok(Some(report)) => Json(report).into_response(),
+        // no shared store: nowhere a limit could be read from or written to
+        Ok(None) => axum::http::StatusCode::SERVICE_UNAVAILABLE.into_response(),
+        Err(code) => code.into_response(),
+    }
 }
 
 pub(crate) async fn update_account_route(
@@ -157,7 +224,11 @@ pub(crate) async fn set_quota_route(
     Path(address): Path<String>,
     Json(req): Json<adm::SetQuotaRequest>,
 ) -> axum::response::Response {
-    crate::live_sync::mirror_quota_limit(&address, req.quota_bytes);
+    if let Err(code) = with_net(&state, |c| {
+        mailrs_core_sidestate::families::quota_limits::set_limit(c, &address, req.quota_bytes)
+    }) {
+        return code.into_response();
+    }
     patch_account_field(&state, &address, |obj| {
         obj.insert(
             "quota_bytes".into(),

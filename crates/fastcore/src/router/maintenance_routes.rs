@@ -15,6 +15,9 @@ use super::*;
 
 pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<FastcoreState>> {
     r.route("/v1/admin/maintenance:rewrite-aof", post(rewrite_aof_route))
+        // Usage against the default quota limit; `?dry_run=false` gives the
+        // default to accounts created without one.
+        .route(adm::PATH_QUOTA_LIMITS, post(quota_limits_route))
         // Read-only. Answers "is a query running with no declared path" and
         // "is a declared path carrying no queries" — neither of which this
         // store could answer before kevy 5.1.
