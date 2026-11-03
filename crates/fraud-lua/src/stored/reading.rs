@@ -39,6 +39,8 @@ pub struct Reading {
     attachment_text: String,
     payment: mailrs_fraud::payment::PaymentIds,
     html: mailrs_fraud::html_attachment::HtmlFeatures,
+    dkim_signed_by_from_org: bool,
+    dkim_from_org_passed: Option<bool>,
 }
 
 impl Reading {
@@ -54,6 +56,10 @@ impl Reading {
         // The display name has to be read the way it renders, or the
         // sweep cannot see one that says something else.
         let deception = mailrs_inbound::deception_in_identity(raw);
+        // what the receiver found, only from the header it wrote; without
+        // `MAILRS_HOSTNAME` nothing reads as its, and the rules that need
+        // it decline
+        let stamp = super::stamp::read(raw, our_stamp, &host);
         Self {
             link_hosts: mailrs_inbound::scan_input::link_hosts(&parsed),
             arrived: mailrs_inbound::dates::received_epoch(raw),
@@ -74,7 +80,7 @@ impl Reading {
             shown_links: mailrs_inbound::body::shown_links(&parsed),
             link_has_kit_placeholder: mailrs_inbound::body::link_has_kit_placeholder(&parsed),
             is_bulk: mailrs_inbound::body::is_bulk(raw),
-            auth: mailrs_inbound::identity::auth_results_tokens(raw),
+            auth: stamp.auth,
             subject: mailrs_inbound::subject_header(raw),
             to_display: mailrs_inbound::identity::to_display_name(raw),
             reply_to: mailrs_inbound::identity::reply_to_address(raw),
@@ -85,14 +91,8 @@ impl Reading {
                 raw,
                 mailrs_inbound::dates::received_epoch(raw),
             ),
-            // How it was submitted, read back off the stamp the receiver
-            // writes on the unauthenticated inbound path only. Without
-            // `MAILRS_HOSTNAME` this process cannot tell its own stamp
-            // from a forwarder's, so it says "not known" and the rules
-            // that need it decline.
-            unauthenticated: our_stamp.is_some_and(|host| {
-                mailrs_inbound::identity::auth_results_authserv(raw).as_deref() == Some(host)
-            }),
+            // the receiver stamps the unauthenticated inbound path only
+            unauthenticated: stamp.unauthenticated,
             // A message with no `Received:` line to read is treated as
             // arriving from outside, the conservative direction for the
             // only rule that asks.
@@ -104,6 +104,11 @@ impl Reading {
                 &mailrs_inbound::body::attachment_text_for_rules(attachment_texts),
             ),
             html: mailrs_inbound::body::html_attachments(&parsed, &host),
+            dkim_signed_by_from_org: mailrs_fraud::org_domain::signed_only_by(
+                &host,
+                &mailrs_inbound::dkim_signers::of(raw),
+            ),
+            dkim_from_org_passed: stamp.dkim_from_org_passed,
             from,
             host,
         }
@@ -152,6 +157,12 @@ impl Reading {
                 &self.host,
                 &self.reply_to,
             ),
+            reply_to_other_org: mailrs_fraud::org_domain::reply_elsewhere(
+                &self.host,
+                &self.reply_to,
+            ),
+            dkim_signed_by_from_org: self.dkim_signed_by_from_org,
+            dkim_from_org_passed: self.dkim_from_org_passed,
         }
     }
 }

@@ -14,6 +14,7 @@ mailrs-imap-proto = { path = "../imap-proto", version = "2" }
 mailrs-imap-codec = { path = "../imap-codec" }
 mailrs-imap-format = { path = "../imap-format" }
 mailrs-maildir = { path = "../storage-maildir" }
+mailrs-rfc5322 = { path = "../rfc5322", version = "1" }
 # SASL PLAIN decoding for IMAP AUTHENTICATE
 mailrs-smtp-proto = { path = "../smtp-proto", version = "1" }
 mailrs-sieve = { path = "../sieve" }

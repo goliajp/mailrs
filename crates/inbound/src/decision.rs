@@ -10,8 +10,8 @@
 //! however they like and call this function directly.
 
 use crate::SenderTrust;
-use crate::auth_header::build_auth_header;
 use crate::context::{AuthResults, DmarcPolicy};
+use crate::dkim_results::build_auth_header;
 
 mod junk_reason;
 use junk_reason::build_junk_reason;
@@ -233,14 +233,7 @@ pub fn make_delivery_decision(input: &PipelineInput) -> DeliveryDecision {
         DmarcPolicy::None => Some("policy=none"),
         DmarcPolicy::Pass => None,
     };
-    let auth_header = build_auth_header(
-        &input.hostname,
-        &input.auth.spf,
-        &input.auth.dkim,
-        &input.auth.arc,
-        &input.auth.dmarc,
-        dmarc_reason,
-    );
+    let auth_header = build_auth_header(&input.hostname, &input.auth, dmarc_reason);
 
     if input.sender_allowed {
         return DeliveryDecision::Accept { auth_header };
@@ -368,6 +361,7 @@ mod tests {
             arc: "none".into(),
             dmarc: "pass".into(),
             dmarc_policy: DmarcPolicy::Pass,
+            dkim_signatures: Vec::new(),
         }
     }
 
@@ -381,6 +375,7 @@ mod tests {
             arc: "none".into(),
             dmarc: "fail".into(),
             dmarc_policy: DmarcPolicy::None,
+            dkim_signatures: Vec::new(),
         }
     }
 
@@ -392,6 +387,7 @@ mod tests {
             arc: "none".into(),
             dmarc: "none".into(),
             dmarc_policy: DmarcPolicy::None,
+            dkim_signatures: Vec::new(),
         }
     }
 

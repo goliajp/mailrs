@@ -104,6 +104,8 @@ fn fastcore(net_url: &str, root: &std::path::Path) -> (Arc<FastcoreDirectory>, A
     store.set(b"hostname", HOST.as_bytes()).unwrap();
     let mut state = FastcoreState::new(mailrs_mailbox_kevy::KevyMailboxStore::new(store));
     state.net_url = Some(net_url.to_string());
+    // the pg directory below goes by HOST too
+    state.authserv_id = Some(HOST.into());
     let hash = crate::users::UserStore::hash_password(PASSWORD).unwrap();
     let blob = serde_json::json!({ "password_hash": hash }).to_string();
     state.mailbox.upsert_account(USER, &blob).unwrap();

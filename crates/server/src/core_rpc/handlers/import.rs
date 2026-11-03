@@ -21,11 +21,14 @@ pub async fn import_message(
     let verdict = req.fraud_verdict;
     // built here, on a runtime thread: the directory keeps its handle
     let core = PgCore {
-        dir: PgDirectory::new(
-            state.domain.clone(),
-            state.maildir_root.clone(),
-            state.net_url.clone(),
-        ),
+        dir: PgDirectory {
+            authserv_id: state.authserv_id.clone(),
+            ..PgDirectory::new(
+                state.domain.clone(),
+                state.maildir_root.clone(),
+                state.net_url.clone(),
+            )
+        },
         mailbox: state.mailbox.clone(),
         event_bus: state.event_bus.clone(),
     };
