@@ -94,6 +94,23 @@ pub(crate) fn unlink_maildir_file(maildir_root: &str, user: &str, blob_ref: &str
     }
 }
 
+/// Remove the maildir file at `blob_ref`, saying when it could not be:
+/// for a delete the user asked for, a file left on disk is a message
+/// self-heal files again. `false` when there was no such file.
+pub(crate) fn remove_maildir_file(
+    maildir_root: &str,
+    user: &str,
+    blob_ref: &str,
+) -> std::io::Result<bool> {
+    match user.split_once('@') {
+        Some((local, domain)) => mailrs_maildir::remove(
+            std::path::Path::new(maildir_root).join(domain).join(local),
+            blob_ref,
+        ),
+        None => Ok(false),
+    }
+}
+
 fn unlink_in(base: &std::path::Path, blob_ref: &str) -> bool {
     mailrs_maildir::remove(base, blob_ref).unwrap_or_else(|e| {
         tracing::warn!(

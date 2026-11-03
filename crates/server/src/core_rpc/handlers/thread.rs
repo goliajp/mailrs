@@ -218,6 +218,7 @@ pub async fn delete_thread(
     // deleted and still has, and the self-heal of either core files it
     // again.
     let mut unlinked = 0usize;
+    let mut left = 0usize;
     if let Some((local, domain)) = user.split_once('@') {
         let root = std::path::Path::new(&state.maildir_root)
             .join(domain)
@@ -227,10 +228,17 @@ pub async fn delete_thread(
                 Ok(true) => unlinked += 1,
                 Ok(false) => {}
                 Err(e) => {
-                    tracing::warn!(error = %e, %user, %file, "delete_thread: could not unlink")
+                    tracing::error!(error = %e, %user, %file,
+                        "delete_thread: a file stayed on disk; self-heal will file it again");
+                    left += 1;
                 }
             }
         }
+    }
+    // the conversation comes back with the next self-heal, so the delete
+    // did not happen and the caller is told so
+    if left > 0 {
+        return Err(StatusCode::INTERNAL_SERVER_ERROR);
     }
     tracing::info!(%user, %thread_id, files = files.len(), unlinked, "delete_thread");
     Ok(StatusCode::NO_CONTENT)

@@ -227,30 +227,55 @@ pub fn maybe_vacation_reply(recipient: &str, envelope_from: &str, raw: &[u8], va
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0);
+    let msg = vacation_message(
+        &from,
+        &sender,
+        &subject,
+        orig_mid.as_deref(),
+        &vac.reason,
+        now,
+    );
+
+    match enqueue_vacation_outbound(&mut conn, &sender, msg.as_bytes()) {
+        Ok(()) => tracing::info!(recipient, %sender, "vacation: auto-reply queued"),
+        Err(e) => tracing::warn!(recipient, error = %e, "vacation: enqueue failed"),
+    }
+}
+
+/// The vacation reply's bytes. The subject and `:from` come from the
+/// user's script or settings and the original's Message-ID from the
+/// sender, so each is kept to one line: a line break in one would start a
+/// header of their choosing.
+fn vacation_message(
+    from: &str,
+    to: &str,
+    subject: &str,
+    orig_mid: Option<&str>,
+    reason: &str,
+    now: u64,
+) -> String {
+    let one_line = |v: &str| v.replace(['\r', '\n'], " ");
+    let (from, to, subject) = (one_line(from), one_line(to), one_line(subject));
     let date = chrono::DateTime::from_timestamp(now as i64, 0)
         .map(|d| d.to_rfc2822())
         .unwrap_or_default();
     let mut msg = String::new();
     msg.push_str(&format!("From: <{from}>\r\n"));
-    msg.push_str(&format!("To: <{sender}>\r\n"));
+    msg.push_str(&format!("To: <{to}>\r\n"));
     msg.push_str(&format!("Subject: {subject}\r\n"));
     msg.push_str(&format!("Date: {date}\r\n"));
     msg.push_str(&format!(
         "Message-ID: <vacation-{now}@{from_domain}>\r\n",
         from_domain = from.split('@').nth(1).unwrap_or("mailrs")
     ));
-    if let Some(mid) = &orig_mid {
+    if let Some(mid) = orig_mid.map(one_line) {
         msg.push_str(&format!("In-Reply-To: <{mid}>\r\nReferences: <{mid}>\r\n"));
     }
     msg.push_str("Auto-Submitted: auto-replied\r\nPrecedence: bulk\r\n");
     msg.push_str("Content-Type: text/plain; charset=utf-8\r\nMIME-Version: 1.0\r\n\r\n");
-    msg.push_str(&vac.reason);
+    msg.push_str(reason);
     msg.push_str("\r\n");
-
-    match enqueue_vacation_outbound(&mut conn, &sender, msg.as_bytes()) {
-        Ok(()) => tracing::info!(recipient, %sender, "vacation: auto-reply queued"),
-        Err(e) => tracing::warn!(recipient, error = %e, "vacation: enqueue failed"),
-    }
+    msg
 }
 
 /// Queue the composed vacation reply with a null envelope sender (RFC 3834
@@ -389,6 +414,45 @@ mod tests {
         let job: serde_json::Value = serde_json::from_slice(&blob).unwrap();
         assert_eq!(job["recipient"], "asker@example.org");
         assert_eq!(job["sender"], "<>");
+    }
+
+    /// A subject or `:from` with a line break stays on its own header line.
+    #[test]
+    fn a_vacation_reply_keeps_each_value_on_its_header_line() {
+        let msg = super::vacation_message(
+            "me@example.test\r\nBcc: a@evil.test",
+            "asker@example.org",
+            "Away\r\nBcc: b@evil.test\nX-Two: 2",
+            Some("orig@x\r\nX-Three: 3"),
+            "Back Monday.",
+            1_700_000_000,
+        );
+        let head = &msg[..msg.find("\r\n\r\n").expect("a head")];
+        let names: Vec<&str> = head
+            .split("\r\n")
+            .map(|l| l.split(':').next().unwrap_or(""))
+            .collect();
+        assert_eq!(
+            names,
+            [
+                "From",
+                "To",
+                "Subject",
+                "Date",
+                "Message-ID",
+                "In-Reply-To",
+                "References",
+                "Auto-Submitted",
+                "Precedence",
+                "Content-Type",
+                "MIME-Version"
+            ],
+            "{msg}"
+        );
+        assert!(
+            head.contains("Subject: Away  Bcc: b@evil.test X-Two: 2"),
+            "{msg}"
+        );
     }
 
     #[test]
