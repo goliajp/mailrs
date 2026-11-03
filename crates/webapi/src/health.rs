@@ -84,26 +84,42 @@ fn new_domains() -> serde_json::Value {
     use std::sync::Mutex;
     use std::time::{Duration, Instant};
     static LAST: Mutex<Option<(Instant, serde_json::Value)>> = Mutex::new(None);
-    if let Ok(last) = LAST.lock()
-        && let Some((at, v)) = last.as_ref()
-        && at.elapsed() < Duration::from_secs(300)
-    {
-        return v.clone();
-    }
     let now = chrono::Utc::now().timestamp();
-    let census = handlers::kevy_util::with_kevy(move |c| {
-        mailrs_core_sidestate::families::domain_first::census(c, now)
-    });
-    let Ok(c) = census else {
-        return serde_json::Value::Null;
+    let cached = LAST
+        .lock()
+        .ok()
+        .and_then(|last| last.clone())
+        .filter(|(at, _)| at.elapsed() < Duration::from_secs(300))
+        .map(|(_, v)| v);
+    let value = match cached {
+        Some(v) => v,
+        None => {
+            let census = handlers::kevy_util::with_kevy(move |c| {
+                mailrs_core_sidestate::families::domain_first::census(c, now)
+            });
+            let Ok(c) = census else {
+                return serde_json::Value::Null;
+            };
+            let v = serde_json::json!({
+                "keys": c.keys,
+                "added_24h": c.added_24h,
+                "computed_at": now,
+            });
+            if let Ok(mut last) = LAST.lock() {
+                *last = Some((Instant::now(), v.clone()));
+            }
+            v
+        }
     };
-    let value = serde_json::json!({
-        "keys": c.keys,
-        "added_24h": c.added_24h,
-        "computed_at": now,
-    });
-    if let Ok(mut last) = LAST.lock() {
-        *last = Some((Instant::now(), value.clone()));
+    with_staleness(value, now)
+}
+
+/// `stale` is true once the counts are more than 15 minutes old, for a
+/// watch that can only compare a value with a constant.
+fn with_staleness(mut value: serde_json::Value, now: i64) -> serde_json::Value {
+    let computed_at = value["computed_at"].as_i64().unwrap_or(0);
+    if let Some(o) = value.as_object_mut() {
+        o.insert("stale".into(), serde_json::json!(now - computed_at > 900));
     }
     value
 }
@@ -247,6 +263,13 @@ pub(crate) async fn status_handler(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn new_domain_counts_older_than_fifteen_minutes_are_stale() {
+        let v = serde_json::json!({ "keys": 1, "added_24h": 0, "computed_at": 1_000 });
+        assert_eq!(super::with_staleness(v.clone(), 1_900)["stale"], false);
+        assert_eq!(super::with_staleness(v, 1_901)["stale"], true);
+    }
+
     #[test]
     fn a_compose_size_reads_as_bytes() {
         assert_eq!(super::parse_size("1g"), Some(1 << 30));

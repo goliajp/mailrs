@@ -21,4 +21,9 @@ pub struct OwnerlessThreadWire {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OwnerlessThreadsResponse {
     pub items: Vec<OwnerlessThreadWire>,
+    /// Conversations the listing looked at, held or not: what tells an
+    /// empty list from a listing that read nothing. Each store counts its
+    /// own kind of conversation record.
+    #[serde(default)]
+    pub scanned: u64,
 }

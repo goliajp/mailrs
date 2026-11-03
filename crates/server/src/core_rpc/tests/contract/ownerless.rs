@@ -16,9 +16,11 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
         "ownerless_threads",
         fc.ownerless_threads().await,
         pg.ownerless_threads().await,
-        &[],
+        // each store counts its own kind of conversation record
+        &["scanned"],
     ) {
         assert!(a.items.is_empty(), "{:?}", a.items);
+        assert!(a.scanned > 0, "the listing looked at nothing: {a:?}");
     }
     for (tid, want) in [("t-hello@partner.test", 409), ("no-such@nowhere.test", 404)] {
         let (a, b) = (

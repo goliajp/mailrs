@@ -5291,6 +5291,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/ownerless-threads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Conversations nobody holds: the shared record is there, but no account has the conversation. Super administrators only */
+        get: operations["listOwnerlessThreads"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/ownerless-threads/{thread_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete one conversation nobody holds, for good, and record it in the audit log. Super administrators only, after a recent password confirmation */
+        delete: operations["deleteOwnerlessThread"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/reset-codes/{address}": {
         parameters: {
             query?: never;
@@ -7228,6 +7262,8 @@ export interface components {
                 added_24h?: number;
                 /** @description Unix seconds of the count */
                 computed_at?: number;
+                /** @description True when computed_at is more than 15 minutes old */
+                stale?: boolean;
             } | null;
             /** @description kevy-server's memory against its container limit. Null when kevy-server does not answer. */
             kevy_server_memory?: {
@@ -14206,6 +14242,102 @@ export interface operations {
             };
             /** @description More than 100 addresses */
             413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listOwnerlessThreads: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        count?: number;
+                        /** @description Conversations the listing looked at, held or not: an empty list after scanning many is a real zero */
+                        scanned?: number;
+                        items?: {
+                            thread_id?: string;
+                            /** @description Messages in the conversation's shared index */
+                            messages?: number;
+                            /** @description The newest of them, epoch seconds; 0 when it has none */
+                            latest_at?: number;
+                            /** @description The first 8 characters of the id, for reports */
+                            id_prefix?: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Not a super administrator */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteOwnerlessThread: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                thread_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description What was deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        thread_id?: string;
+                        /** @description Messages in the conversation's shared index */
+                        messages?: number;
+                        /** @description The newest of them, epoch seconds; 0 when it has none */
+                        latest_at?: number;
+                    };
+                };
+            };
+            /** @description Not a super administrator, or `confirm_required`: the password was not confirmed in the last ten minutes */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such conversation */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Somebody holds this conversation; nothing was deleted */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Deleted, but the audit row could not be written */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
