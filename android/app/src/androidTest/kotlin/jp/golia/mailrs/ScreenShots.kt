@@ -16,8 +16,9 @@ import org.junit.runner.RunWith
 /**
  * Pictures of the screens the filing work changed, in each language and
  * both themes, for a person to look at. Not a check: it runs only when
- * asked (`-e shots true`) and saves PNGs under the app's files dir, from
- * where they are pulled with `adb pull`.
+ * asked (`MAILRS_SHOTS=1 scripts/android-build.sh test <class>`, which
+ * passes `shots=true`) and saves PNGs to `/data/local/tmp/mailrs-shots`
+ * on the device, from where `adb pull` takes them.
  */
 abstract class ScreenShots(private val tag: String, private val theme: String) : MailrsUiTest() {
     init {
