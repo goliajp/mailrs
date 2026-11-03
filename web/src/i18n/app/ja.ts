@@ -141,7 +141,7 @@ export const appJa: Record<AppKey, string> = {
   'palette.toggleTheme': 'テーマを切り替え',
   'pdf.hidePreview': 'プレビューを閉じる',
   'read.callback':
-    'このメールには、この送信者がこれまで使っていない電話番号があります：{numbers}。支払いやアカウントの件で電話する前に、番号をご自身で確かめてください。',
+    'このメールには、この送信者がこれまで使っていない電話番号があります：{numbers}。支払いやアカウントの件で電話する前に、番号をご自身で確かめてください',
   'read.noText': '（テキストはありません）',
   'sends.all': 'すべて',
   'sends.cancelFailed': '取り消せませんでした',
