@@ -14921,6 +14921,10 @@
                     "type": "integer",
                     "description": "Certificate changes since start whose new key matched no published record"
                   },
+                  "problem": {
+                    "type": "boolean",
+                    "description": "Records are published and the served certificate is not among them, or unmatched_swaps is above zero. Never set while nothing is published; does not change the overall status"
+                  },
                   "sources": {
                     "type": "array",
                     "items": {

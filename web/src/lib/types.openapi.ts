@@ -7118,6 +7118,8 @@ export interface components {
                     checked_at?: number | null;
                     /** @description Certificate changes since start whose new key matched no published record */
                     unmatched_swaps?: number;
+                    /** @description Records are published and the served certificate is not among them, or unmatched_swaps is above zero. Never set while nothing is published; does not change the overall status */
+                    problem?: boolean;
                     sources?: {
                         server: string;
                         /** @description AD bit from a validating resolver; null for an authoritative server */
