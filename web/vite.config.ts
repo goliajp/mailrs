@@ -90,9 +90,13 @@ export default defineConfig({
   },
   server: {
     proxy: {
+      // `vite preview` reuses this proxy. The interaction-latency run points
+      // it at its own webapi and needs the `/api/events` socket through it,
+      // as in production, so mutations echo back the way they do there.
       '/api': {
         changeOrigin: true,
-        target: 'http://localhost:3200',
+        target: process.env.MAILRS_API_ORIGIN ?? 'http://localhost:3200',
+        ws: true,
       },
     },
   },
