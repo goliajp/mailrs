@@ -1923,7 +1923,7 @@
         },
         "responses": {
           "201": {
-            "description": "Webhook created (includes signing secret \u2014 save it, cannot be retrieved again)",
+            "description": "Webhook created (includes signing secret — save it, cannot be retrieved again)",
             "content": {
               "application/json": {
                 "schema": {
@@ -2740,7 +2740,7 @@
             "description": "admin.greylist required"
           },
           "409": {
-            "description": "(kind, value) already exists on the other list \u2014 delete first to move"
+            "description": "(kind, value) already exists on the other list — delete first to move"
           }
         }
       }
@@ -4488,7 +4488,7 @@
             "text/xml": {
               "schema": {
                 "type": "string",
-                "description": "Microsoft Autodiscover XML request \u2014 see Microsoft Autodiscover Protocol spec"
+                "description": "Microsoft Autodiscover XML request — see Microsoft Autodiscover Protocol spec"
               }
             }
           }
@@ -4541,7 +4541,7 @@
     "/.well-known/jwks.json": {
       "get": {
         "summary": "Get .well known jwks.json",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Stub — full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -4559,7 +4559,7 @@
     "/.well-known/openid-configuration": {
       "get": {
         "summary": "Get .well known openid configuration",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Stub — full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -4577,7 +4577,7 @@
     "/Autodiscover/Autodiscover.xml": {
       "post": {
         "summary": "Create Autodiscover Autodiscover.xml",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Stub — full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -4596,7 +4596,7 @@
             "text/xml": {
               "schema": {
                 "type": "string",
-                "description": "Microsoft Autodiscover XML request \u2014 see Microsoft Autodiscover Protocol spec"
+                "description": "Microsoft Autodiscover XML request — see Microsoft Autodiscover Protocol spec"
               }
             }
           }
@@ -4759,7 +4759,7 @@
     "/api/admin/audit/accounts": {
       "get": {
         "summary": "Get admin audit accounts",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Stub — full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -4777,7 +4777,7 @@
     "/api/admin/audit/conversations": {
       "get": {
         "summary": "Get admin audit conversations",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Stub — full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -4795,7 +4795,7 @@
     "/api/admin/audit/conversations/{thread_id}/messages": {
       "get": {
         "summary": "Get admin audit conversations messages",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Stub — full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -4813,7 +4813,7 @@
     "/api/admin/audit/messages/{uid}/raw": {
       "get": {
         "summary": "Get admin audit messages raw",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Stub — full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -4831,7 +4831,7 @@
     "/api/admin/export": {
       "get": {
         "summary": "Get admin export",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Stub — full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -4849,7 +4849,7 @@
     "/api/admin/oauth-clients": {
       "get": {
         "summary": "Get admin oauth clients",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Stub — full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -4896,7 +4896,7 @@
     "/api/admin/oauth-clients/{client_id}": {
       "delete": {
         "summary": "Delete admin oauth clients",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Stub — full schema TBD.",
         "responses": {
           "204": {
             "description": "Done; empty body"
@@ -4907,7 +4907,7 @@
     "/api/admin/rbl-status": {
       "get": {
         "summary": "Get admin rbl status",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Stub — full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -4925,7 +4925,7 @@
     "/api/admin/reputation": {
       "get": {
         "summary": "Get admin reputation",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Stub — full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -4943,7 +4943,7 @@
     "/api/admin/spam-feedback-stats": {
       "get": {
         "summary": "Get admin spam feedback stats",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Stub — full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5039,7 +5039,7 @@
     "/api/admin/system-config": {
       "get": {
         "summary": "Get admin system config",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Stub — full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5057,7 +5057,7 @@
     "/api/admin/system-config/{key}": {
       "delete": {
         "summary": "Delete admin system config",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Stub — full schema TBD.",
         "responses": {
           "204": {
             "description": "Reset to the built-in default; empty body"
@@ -5175,7 +5175,7 @@
     "/api/auth/change-password": {
       "post": {
         "summary": "Create auth change password",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Stub — full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5203,7 +5203,7 @@
     "/api/auth/oidc/callback": {
       "get": {
         "summary": "Get auth oidc callback",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Stub — full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5221,7 +5221,7 @@
     "/api/auth/oidc/config": {
       "get": {
         "summary": "Get auth oidc config",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Stub — full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5239,7 +5239,7 @@
     "/api/auth/oidc/login": {
       "get": {
         "summary": "Get auth oidc login",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Stub — full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5257,7 +5257,7 @@
     "/api/auth/recovery-email": {
       "get": {
         "summary": "Get auth recovery email",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Stub — full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5273,7 +5273,7 @@
       },
       "post": {
         "summary": "Create auth recovery email",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Stub — full schema TBD.",
         "responses": {
           "204": {
             "description": "Done; empty body"
@@ -5294,7 +5294,7 @@
     "/api/auth/verify": {
       "post": {
         "summary": "Create auth verify",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Stub — full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5322,7 +5322,7 @@
     "/api/auth/verify-totp": {
       "post": {
         "summary": "Create auth verify totp",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Stub — full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5350,7 +5350,7 @@
     "/api/bimi/{domain}": {
       "get": {
         "summary": "Get bimi",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Stub — full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5461,7 +5461,7 @@
     "/api/calendar/feeds": {
       "get": {
         "summary": "Get calendar feeds",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Stub — full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5477,7 +5477,7 @@
       },
       "post": {
         "summary": "Create calendar feeds",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Stub — full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5505,7 +5505,7 @@
     "/api/calendar/feeds/{feed_id}": {
       "delete": {
         "summary": "Delete calendar feeds",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Stub — full schema TBD.",
         "responses": {
           "204": {
             "description": "Done; empty body"
@@ -5516,7 +5516,7 @@
     "/api/events": {
       "get": {
         "summary": "Get events",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Stub — full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5534,10 +5534,10 @@
     "/api/events/smtp": {
       "get": {
         "summary": "SMTP live monitor stream",
-        "description": "WebSocket upgrade. Streams one bare `SmtpEvent` JSON object per frame \u2014 the protocol trace published by `mailrs-receiver`. Distinct from `/api/events`, which carries inbox changes. Auth: the session cookie, which a browser sends on a same-origin upgrade, or `Authorization: Bearer` from other clients. A `?token=` query is not accepted.",
+        "description": "WebSocket upgrade. Streams one bare `SmtpEvent` JSON object per frame — the protocol trace published by `mailrs-receiver`. Distinct from `/api/events`, which carries inbox changes. Auth: the session cookie, which a browser sends on a same-origin upgrade, or `Authorization: Bearer` from other clients. A `?token=` query is not accepted.",
         "responses": {
           "101": {
-            "description": "Switching Protocols \u2014 WebSocket"
+            "description": "Switching Protocols — WebSocket"
           },
           "401": {
             "description": "Missing or unknown session token"
@@ -5548,7 +5548,7 @@
     "/api/invites/{message_id}/counter": {
       "post": {
         "summary": "Create invites counter",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Stub — full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5576,7 +5576,7 @@
     "/api/invites/{message_id}/rsvp": {
       "post": {
         "summary": "Create invites rsvp",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Stub — full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5604,7 +5604,7 @@
     "/api/mail/ai/generate-subject": {
       "post": {
         "summary": "Create mail ai generate subject",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Stub — full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5632,7 +5632,7 @@
     "/api/mail/spam-feedback": {
       "post": {
         "summary": "Create mail spam feedback",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Stub — full schema TBD.",
         "responses": {
           "204": {
             "description": "Done; empty body"
@@ -5653,7 +5653,7 @@
     "/api/mail/stats": {
       "get": {
         "summary": "Get mail stats",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Stub — full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5671,7 +5671,7 @@
     "/api/proxy/link": {
       "get": {
         "summary": "Get proxy link",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Stub — full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5689,7 +5689,7 @@
     "/jmap/eventsource/": {
       "get": {
         "summary": "Get jmap eventsource",
-        "description": "RFC 8620 \u00a77.3 push. Sends a `state` event (StateChange for Email, Mailbox and Thread) when the account's state moves: at once on new mail, otherwise noticed within 5 seconds. `ping` (seconds, 5 to 300; 0 for none), `closeafter=state`, `types`. At most 8 connections per account.",
+        "description": "RFC 8620 §7.3 push. Sends a `state` event (StateChange for Email, Mailbox and Thread) when the account's state moves: at once on new mail, otherwise noticed within 5 seconds. `ping` (seconds, 5 to 300; 0 for none), `closeafter=state`, `types`. At most 8 connections per account.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5730,7 +5730,7 @@
     "/mail/config-v1.1.xml": {
       "get": {
         "summary": "Get mail config v1.1.xml",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Stub — full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5748,7 +5748,7 @@
     "/oauth/authorize": {
       "get": {
         "summary": "Get oauth authorize",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Stub — full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5766,7 +5766,7 @@
     "/oauth/token": {
       "post": {
         "summary": "Create oauth token",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Stub — full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5820,7 +5820,7 @@
     "/oauth/userinfo": {
       "get": {
         "summary": "Get oauth userinfo",
-        "description": "Stub \u2014 full schema TBD.",
+        "description": "Stub — full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -6104,7 +6104,7 @@
     "/api/quarantine": {
       "get": {
         "summary": "Conversations held as suspected fraud",
-        "description": "Newest first. Held mail is kept \u2014 it is the evidence an abuse report is built from \u2014 and is out of every other list, including their counts.",
+        "description": "Newest first. Held mail is kept — it is the evidence an abuse report is built from — and is out of every other list, including their counts.",
         "tags": [
           "Mail"
         ],
@@ -6166,7 +6166,7 @@
     "/api/messages/{message_id}/fraud-verdict": {
       "get": {
         "summary": "The four layers that decided one message",
-        "description": "transport / identity / provenance / content, as they were decided, with the rule-set version; each layer carries `reasons` (codes and values), and `placement` says why it was filed where it was (Junk, a sender rule, the classifier, a filter). `{\"verdict\": null}` when nothing was found and nothing sorted it \u2014 which is not the same as examined and cleared.",
+        "description": "transport / identity / provenance / content, as they were decided, with the rule-set version; each layer carries `reasons` (codes and values), and `placement` says why it was filed where it was (Junk, a sender rule, the classifier, a filter). `{\"verdict\": null}` when nothing was found and nothing sorted it — which is not the same as examined and cleared.",
         "tags": [
           "Mail"
         ],
@@ -9961,6 +9961,10 @@
                     "count": {
                       "type": "integer"
                     },
+                    "scanned": {
+                      "type": "integer",
+                      "description": "Conversations the listing looked at, held or not: an empty list after scanning many is a real zero"
+                    },
                     "items": {
                       "type": "array",
                       "items": {
@@ -13731,7 +13735,7 @@
       },
       "put": {
         "summary": "Save push settings",
-        "description": "Quiet hours are both set or both absent, each under 1440 and not equal; the offset within \u00b114 hours.",
+        "description": "Quiet hours are both set or both absent, each under 1440 and not equal; the offset within ±14 hours.",
         "tags": [
           "Notifications"
         ],
@@ -13960,7 +13964,7 @@
     "/jmap/upload/{account}/": {
       "post": {
         "summary": "Upload a JMAP blob",
-        "description": "RFC 8620 \u00a76.1. The body is the blob, at most 50 MiB; 4 uploads at once per account; an account keeps at most 1 GiB, each upload deleted a day after it was last used. A session, an agent key with the jmap scope, or an app password over HTTP Basic (HTTPS only). Another account than the caller's is 404.",
+        "description": "RFC 8620 §6.1. The body is the blob, at most 50 MiB; 4 uploads at once per account; an account keeps at most 1 GiB, each upload deleted a day after it was last used. A session, an agent key with the jmap scope, or an app password over HTTP Basic (HTTPS only). Another account than the caller's is 404.",
         "tags": [
           "JMAP"
         ],
@@ -14027,7 +14031,7 @@
     "/jmap/download/{account}/{blob}/{name}": {
       "get": {
         "summary": "Download a JMAP blob",
-        "description": "RFC 8620 \u00a76.2: a message, one of its parts, or an upload. Always served as an attachment with X-Content-Type-Options: nosniff and Content-Security-Policy: sandbox; `type` is used only when it is a plain media type. A blob or account not the caller's is 404.",
+        "description": "RFC 8620 §6.2: a message, one of its parts, or an upload. Always served as an attachment with X-Content-Type-Options: nosniff and Content-Security-Policy: sandbox; `type` is used only when it is a plain media type. A blob or account not the caller's is 404.",
         "tags": [
           "JMAP"
         ],
@@ -15174,6 +15178,10 @@
               "computed_at": {
                 "type": "integer",
                 "description": "Unix seconds of the count"
+              },
+              "stale": {
+                "type": "boolean",
+                "description": "True when computed_at is more than 15 minutes old"
               }
             }
           },
@@ -15440,7 +15448,7 @@
           "invite_payload": {
             "type": "object",
             "nullable": true,
-            "description": "The typed invitation, present only when invite_method is set. Fields follow RFC 5545 (uid, sequence, summary, location, organizer, attendees, dtstart, dtend, rrule, recurrence_id, status), plus dtstart_utc / dtend_utc: the instants resolved on the server against the invitation's own VTIMEZONE. Clients must prefer those \u2014 a zoned wall-clock plus a Windows zone name such as \"Pacific Standard Time\" is not a moment a browser can evaluate."
+            "description": "The typed invitation, present only when invite_method is set. Fields follow RFC 5545 (uid, sequence, summary, location, organizer, attendees, dtstart, dtend, rrule, recurrence_id, status), plus dtstart_utc / dtend_utc: the instants resolved on the server against the invitation's own VTIMEZONE. Clients must prefer those — a zoned wall-clock plus a Windows zone name such as \"Pacific Standard Time\" is not a moment a browser can evaluate."
           },
           "rsvp_status": {
             "type": "string",

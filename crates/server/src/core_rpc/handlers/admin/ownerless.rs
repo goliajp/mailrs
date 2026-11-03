@@ -13,8 +13,21 @@ use mailrs_core_api::method::admin as wire;
 use crate::core_rpc::CoreRpcState;
 
 /// GET /v1/admin/ownerless-threads
-pub async fn ownerless_threads() -> Json<wire::OwnerlessThreadsResponse> {
-    Json(wire::OwnerlessThreadsResponse { items: Vec::new() })
+pub async fn ownerless_threads(
+    State(state): State<Arc<CoreRpcState>>,
+) -> Result<Json<wire::OwnerlessThreadsResponse>, StatusCode> {
+    let (scanned,): (i64,) =
+        sqlx::query_as("SELECT COUNT(DISTINCT thread_id) FROM messages WHERE thread_id <> ''")
+            .fetch_one(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::warn!(error = %e, "ownerless_threads: count failed");
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+    Ok(Json(wire::OwnerlessThreadsResponse {
+        items: Vec::new(),
+        scanned: scanned.max(0) as u64,
+    }))
 }
 
 /// POST /v1/admin/ownerless-threads/{thread_id}/delete
