@@ -175,6 +175,13 @@ fn columns() -> Vec<(Vec<u8>, ValType)> {
         // the sectioned inbox records it: what "this sender's
         // conversations" keys on, for reclassifying and keeping a sender.
         col("sec_in_from", ValType::Str),
+        // The team conversation this thread is the reader's copy of,
+        // `"{group}:{conversation}"`, when it came in through a team
+        // inbox; absent otherwise.
+        col("shared_conv", ValType::Str),
+        // Who on the team answers it, copied from the team's assignment
+        // facts by the one writer that appends them; empty for nobody.
+        col("assignee", ValType::Str),
     ];
     // The markers the flag indexes key on; see `thread_row::markers`.
     // Absent from most rows by design, which is NULL to the engine.
@@ -289,6 +296,20 @@ fn orderpaths() -> Vec<OrderPath> {
             &[
                 ("user", false),
                 ("section", false),
+                ("archived", false),
+                ("quarantined", false),
+                ("trashed", false),
+                ("activity", true),
+                ("ord", false),
+            ],
+        ),
+        // "Assigned to me": the reader's team conversations one member
+        // answers, newest first.
+        path(
+            "by_user_assignee",
+            &[
+                ("user", false),
+                ("assignee", false),
                 ("archived", false),
                 ("quarantined", false),
                 ("trashed", false),

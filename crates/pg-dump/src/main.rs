@@ -184,6 +184,7 @@ async fn main() {
                     snoozed: None,
                     section: None,
                     followup_due_by: None,
+                    assigned_to_me: false,
                 },
             };
             let summaries = match client.list_conversations(user, &req).await {

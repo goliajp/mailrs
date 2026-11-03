@@ -38,6 +38,7 @@ export type MailList = {
 export type MailListId =
   | 'all'
   | 'archived'
+  | 'assigned'
   | 'awaiting'
   | 'draft'
   | 'inbox'
@@ -67,6 +68,7 @@ export type MailListSource =
 export type ThreadListAxes = Pick<
   MailListFilters,
   | 'archived'
+  | 'assignedToMe'
   | 'folder'
   | 'followupDueBy'
   | 'label'
@@ -105,6 +107,14 @@ export const MAIL_LISTS: Record<MailListId, MailList> = {
     // "archived within Inbox" is not what the tab means.
     selectable: true,
     source: { filters: { archived: true }, kind: 'threads' },
+  },
+  // Team inboxes: the conversations a teammate assigned to the reader,
+  // across folders, newest first.
+  assigned: {
+    emptyLabel: 'list.assigned.empty',
+    label: 'list.assigned',
+    selectable: true,
+    source: { filters: { assignedToMe: true }, kind: 'threads' },
   },
   awaiting: {
     emptyLabel: 'list.awaiting.empty',
@@ -214,6 +224,7 @@ export const MAIL_LIST_TABS: MailListId[] = [
   'pinned',
   'snoozed',
   'awaiting',
+  'assigned',
   'send',
   'draft',
   'all',

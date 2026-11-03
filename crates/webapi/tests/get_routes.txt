@@ -147,3 +147,7 @@
 /api/notify/stats	read only
 /api/push/web	read only, the public key
 /api/sender-rules	read only
+/api/shared/{gid}/{conv}	read only
+/api/shared/{gid}/{conv}/draft	read only
+/api/shared/{gid}/{conv}/notes	read only
+/api/admin/shared/{gid}/{conv}/deleted-notes/{id}	writes one audit row recording the read, before answering; super administrators only

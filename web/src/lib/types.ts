@@ -81,6 +81,8 @@ export type ConversationSummary = {
    */
   account_id?: string
   archived: boolean
+  /** The team member who answers it; empty or absent for nobody. */
+  assignee?: string
   /** Epoch seconds the reader started waiting on a reply; 0 or absent when not waiting. */
   awaiting_since?: number
   category: string
@@ -99,6 +101,8 @@ export type ConversationSummary = {
   /** The sectioned inbox's section; '' or absent when not decided. */
   section?: string
   sent_count: number
+  /** The team conversation this is the reader's copy of, `"{gid}:{conv}"`; empty or absent when it is not one. */
+  shared_conv?: string
   snippet: string
   // Epoch seconds this reader put the thread away until, or 0.
   // Absent until v2.55: the field was written to the shared thread

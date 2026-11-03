@@ -72,6 +72,7 @@ pub(crate) async fn list_conversations(
     let listed = match f.label.as_deref() {
         Some(id) => crate::routes::labels::rows_with_label(&state, &user, id, &filter, limit),
         None if f.snoozed == Some(true) => snoozed_page(&state, &user, &filter, f.before_ts, limit),
+        None if f.assigned_to_me => crate::shared::assigned_page(&state, &user, f, limit),
         None => match f
             .section
             .as_deref()
@@ -94,6 +95,7 @@ pub(crate) async fn list_conversations(
     let items = rows.into_iter().map(row_to_wire).collect();
     let items = crate::routes::labels::with_labels(&state, &user, items);
     let items = crate::sections::with_sections(&state, &user, items);
+    let items = crate::shared::with_shared(&state, &user, items);
     Json(conv::ListConversationsResponse { items })
 }
 
@@ -319,5 +321,6 @@ pub(crate) async fn conversations_by_thread_ids(
         .collect();
     let items = crate::routes::labels::with_labels(&state, &user, items);
     let items = crate::sections::with_sections(&state, &user, items);
+    let items = crate::shared::with_shared(&state, &user, items);
     Json(conv::ConversationsByIdsResponse { items })
 }

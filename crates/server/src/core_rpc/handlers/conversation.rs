@@ -71,7 +71,28 @@ pub(crate) fn thread_query<'a>(user: &'a str, f: &'a ConversationFilter) -> Thre
         limit: Some(i64::from(f.limit)),
         ..ThreadQuery::all(user)
     };
-    in_section(q, f)
+    assigned_to_me(user, in_section(q, f), f)
+}
+
+/// "Assigned to me": the reader's live team conversations whose assignee is
+/// the reader, newest first, as the kevy core reads them off its own axis.
+fn assigned_to_me<'a>(
+    user: &'a str,
+    q: ThreadQuery<'a>,
+    f: &ConversationFilter,
+) -> ThreadQuery<'a> {
+    if !f.assigned_to_me {
+        return q;
+    }
+    ThreadQuery {
+        scope: Scope::All,
+        sent: false,
+        archived: Some(false),
+        trashed: Some(false),
+        held: Held::Hide,
+        assignee: Some(user),
+        ..q
+    }
 }
 
 /// One section of the sectioned inbox: the live list across folders, as

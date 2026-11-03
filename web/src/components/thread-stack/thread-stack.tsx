@@ -7,6 +7,7 @@ import type { RefObject } from 'react'
 import { Paperclip } from 'lucide-react'
 
 import { SenderAvatar } from '@/components/sender-avatar'
+import { TeamPanel } from '@/components/team-panel'
 import { ThreadReplyBox } from '@/components/thread-reply-box'
 import { useT } from '@/i18n'
 import { MPane } from '@/layouts/pane'
@@ -108,6 +109,7 @@ export function ThreadStack(p: Props) {
             )
           })}
         </div>
+        <TeamPanel threadId={p.threadId} />
         <div className="border-border flex min-h-[280px] flex-col border-t">
           <ThreadReplyBox
             ctx={p.replyCtx}

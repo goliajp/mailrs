@@ -6,4 +6,6 @@ export type EmailGroupInfo = {
   domain: string
   id: number
   name: string
+  /** A team inbox: members share assignment, notes and presence. */
+  shared?: boolean
 }

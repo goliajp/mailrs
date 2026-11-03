@@ -71,6 +71,10 @@ export const wireThreadSummarySchema = z.object({
   section: z.string().default(''),
   // epoch seconds the reader started waiting on a person's reply, 0 when not waiting
   awaiting_since: z.number().int().min(0).default(0),
+  // the team conversation this is the reader's copy of, "{gid}:{conv}"; '' when not one
+  shared_conv: z.string().default(''),
+  // the team member who answers it, '' for nobody
+  assignee: z.string().default(''),
   unread_count: z.number().int().min(0).default(0),
 })
 

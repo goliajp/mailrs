@@ -154,6 +154,7 @@ pub async fn mark_all_read(
             // marking reads the folder; a section is not a scope it knows
             section: None,
             followup_due_by: None,
+            assigned_to_me: false,
         };
         state
             .core

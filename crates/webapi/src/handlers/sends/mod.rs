@@ -188,6 +188,7 @@ pub async fn shadow_sends(
             snoozed: None,
             section: None,
             followup_due_by: None,
+            assigned_to_me: false,
         },
     };
     let axis: Vec<(String, i64)> = state

@@ -50,6 +50,7 @@ mod rules;
 mod sections;
 mod senders;
 mod sent;
+mod shared;
 mod snooze_wake;
 mod store_motion;
 mod thread_events;

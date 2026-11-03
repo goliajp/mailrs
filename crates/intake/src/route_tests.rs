@@ -57,6 +57,7 @@ fn group(address: &str, members: &[&str]) -> Group {
         id: 1,
         address: address.into(),
         members: members.iter().map(|m| m.to_string()).collect(),
+        shared: false,
     }
 }
 

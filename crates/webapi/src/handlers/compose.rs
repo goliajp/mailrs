@@ -121,6 +121,11 @@ pub struct SendRequest {
     /// wrong one would be dropped with no way to tell.
     #[serde(default)]
     pub redraft_keep: Option<Vec<usize>>,
+    /// The team conversation this answers, when it is a team inbox reply:
+    /// the reply is claimed before it is queued, and refused with 409 when
+    /// another member answered since the composer opened.
+    #[serde(default)]
+    pub shared: Option<crate::handlers::shared_inbox::claim::SharedReply>,
 }
 
 #[derive(Debug, serde::Serialize)]

@@ -16,6 +16,7 @@ import { showNewMailNotice } from '@/lib/new-mail-notice'
 import { playNotificationSound } from '@/lib/notification-sound'
 import { queryClient } from '@/lib/query-client'
 import { mailKeys } from '@/lib/query-keys'
+import { isTeamEvent, onTeamEvent, type TeamEvent } from '@/lib/team-events'
 import { onMailboxChanged, onNewMessage, refreshMailState } from '@/reducers/events/conversation'
 import { notificationsAtom, notificationSoundAtom } from '@/store/settings'
 import { connectionStatusAtom } from '@/store/ui'
@@ -137,6 +138,10 @@ export function useMailEvents(user: string, onOpen?: (threadId: string) => void)
             typeof parsed !== 'object' ||
             typeof (parsed as { type?: unknown }).type !== 'string'
           ) {
+            return
+          }
+          if (isTeamEvent(parsed as { type: string })) {
+            onTeamEvent(parsed as TeamEvent)
             return
           }
           const event = parsed as MailboxChangedEvent | NewMessageEvent | SmtpEvent

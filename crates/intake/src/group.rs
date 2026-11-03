@@ -7,6 +7,7 @@
 use std::collections::HashSet;
 
 use mailrs_core_sidestate::families::email_groups::Group;
+use mailrs_core_sidestate::families::shared_inbox::{self, ConvRef};
 
 use crate::drain::{Copies, Core, Inbound};
 use crate::maildir::{canonical_recipient, ensure_maildir};
@@ -104,11 +105,18 @@ impl<C: Core + ?Sized> Inbound<'_, C> {
     /// Deliver to the members of `group`, whose address is `fwd`.
     pub(crate) fn deliver_to_group(&self, fwd: &str, group: &Group) -> Copies {
         let mut out = Copies::none();
+        let team = match group.shared {
+            true => self.team_conversation(group.id),
+            false => None,
+        };
         for target in targets(self.core, group) {
             match target {
                 Target::Local { member, mailbox } => {
                     if self.deliver_resolved(&member, &mailbox) {
                         self.forward_locally(&mailbox);
+                        if let Some(team) = &team {
+                            self.tag_team_copy(team, &mailbox);
+                        }
                         out.delivered += 1;
                     } else {
                         out.unresolved.push(mailbox);
@@ -132,5 +140,60 @@ impl<C: Core + ?Sized> Inbound<'_, C> {
         }
         tracing::info!(group = %fwd, delivered = out.delivered, "email group expanded");
         out
+    }
+}
+
+/// The team conversation a message a team inbox received belongs to, and
+/// what each member's copy is tagged with.
+pub(crate) struct TeamCopy {
+    conv: ConvRef,
+    message_id: String,
+    assignee: String,
+}
+
+impl<C: Core + ?Sized> Inbound<'_, C> {
+    /// The team conversation this message joins, `None` when it has no
+    /// Message-ID to thread on or the network kevy cannot be reached: the
+    /// members still get their copies, only untied.
+    fn team_conversation(&self, gid: i64) -> Option<TeamCopy> {
+        let head = &self.body[..self.body.len().min(16 * 1024)];
+        let (message_id, in_reply_to, references, ..) = crate::headers::extract_headers(head);
+        if message_id.is_empty() {
+            return None;
+        }
+        let mut conn = self.core.net_conn()?;
+        let found =
+            shared_inbox::conv_for_arrival(&mut conn, gid, &message_id, &in_reply_to, &references)
+                .and_then(|conv| Ok((conv, shared_inbox::assign::current(&mut conn, conv)?)));
+        match found {
+            Ok((conv, assignee)) => Some(TeamCopy {
+                conv,
+                message_id,
+                assignee: assignee.unwrap_or_default(),
+            }),
+            Err(e) => {
+                tracing::warn!(gid, error = %e, "team inbox: conversation not found; copies left untied");
+                None
+            }
+        }
+    }
+
+    /// Tie `mailbox`'s copy to the team conversation: the tag and current
+    /// assignee on their thread, and their thread on the conversation.
+    fn tag_team_copy(&self, team: &TeamCopy, mailbox: &str) {
+        let tag = team.conv.tag();
+        let Some(tid) = self
+            .core
+            .tag_shared(mailbox, &team.message_id, &tag, &team.assignee)
+        else {
+            return;
+        };
+        let recorded = self
+            .core
+            .net_conn()
+            .map(|mut c| shared_inbox::record_copy(&mut c, team.conv, mailbox, &tid));
+        if let Some(Err(e)) = recorded {
+            tracing::warn!(%mailbox, %tag, error = %e, "team inbox: copy not recorded");
+        }
     }
 }
