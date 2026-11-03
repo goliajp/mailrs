@@ -11,9 +11,16 @@
 
 use std::collections::HashSet;
 
+mod archive;
 mod filing;
 pub mod held;
+mod keys;
 mod labels;
+
+pub use keys::ViewKey;
+use keys::{renumber, trash_entry, trash_uidvalidity, unwrap, wrap};
+
+type Inner<A> = Message<<A as Account>::Key>;
 
 use crate::backend::{
     Account, Error, Expunged, Filed, Flag, LabelFolder, Message, Quota, Result, Selected,
@@ -49,70 +56,18 @@ pub enum ViewMailbox<M> {
         name: String,
         inbox: M,
     },
-}
-
-/// A message of the view: the store's key, and in `Trash` where the message
-/// is filed and the uid it has there.
-#[derive(Clone)]
-pub struct ViewKey<M, K> {
-    key: K,
-    filed: Option<(M, u32)>,
-}
-
-type Inner<A> = Message<<A as Account>::Key>;
-
-pub(super) fn wrap<M, K>(m: Message<K>) -> Message<ViewKey<M, K>> {
-    Message {
-        uid: m.uid,
-        seqno: m.seqno,
-        flags: m.flags,
-        internal_date: m.internal_date,
-        size: m.size,
-        modseq: m.modseq,
-        key: ViewKey {
-            key: m.key,
-            filed: None,
-        },
-    }
-}
-
-/// The message as its store knows it, and the mailbox it is filed in when
-/// that is not `mailbox`.
-pub(super) fn unwrap<M: Clone, K: Clone>(m: &Message<ViewKey<M, K>>) -> (Message<K>, Option<M>) {
-    let (uid, filed) = match &m.key.filed {
-        Some((mb, uid)) => (*uid, Some(mb.clone())),
-        None => (m.uid, None),
-    };
-    let msg = Message {
-        uid,
-        seqno: m.seqno,
-        flags: m.flags.clone(),
-        internal_date: m.internal_date,
-        size: m.size,
-        modseq: m.modseq,
-        key: m.key.key.clone(),
-    };
-    (msg, filed)
-}
-
-pub(super) fn renumber<K>(messages: &mut [Message<K>]) {
-    for (i, m) in messages.iter_mut().enumerate() {
-        m.seqno = i as u32 + 1;
-    }
+    /// The archived conversations, with the same `inbox` for IDLE.
+    Archive {
+        inbox: M,
+    },
+    /// Every conversation but Junk, the Trash and held mail; read-only.
+    AllMail {
+        inbox: M,
+    },
 }
 
 fn is_trash(name: &str) -> bool {
     name.eq_ignore_ascii_case(TRASH)
-}
-
-/// `Trash`'s UIDVALIDITY, from when the latest conversation went there.
-/// Never 0, which RFC 3501 does not allow, and different for an empty
-/// Trash than for any moment something went there.
-pub(super) fn trash_uidvalidity(latest: i64) -> u32 {
-    u32::try_from(latest)
-        .unwrap_or(u32::MAX - 1)
-        .min(u32::MAX - 1)
-        + 1
 }
 
 impl<A: Account> TrashView<A> {
@@ -120,12 +75,14 @@ impl<A: Account> TrashView<A> {
     async fn hidden(&self, mailbox: &A::Mailbox) -> Result<HashSet<u32>> {
         let name = self.inner.mailbox_name(mailbox).to_string();
         let trashed = self.inner.trashed().await?;
-        Ok(trashed
+        let mut hidden: HashSet<u32> = trashed
             .messages
             .iter()
             .filter(|t| self.inner.mailbox_name(&t.mailbox) == name)
             .map(|t| t.message.uid)
-            .collect())
+            .collect();
+        hidden.extend(self.archived_in(mailbox).await?);
+        Ok(hidden)
     }
 
     async fn filed_messages(&self, mailbox: &A::Mailbox) -> Result<Vec<Inner<A>>> {
@@ -162,22 +119,6 @@ impl<A: Account> TrashView<A> {
     }
 }
 
-pub(super) fn trash_entry<M: Clone, K: Clone>(t: &ShownMessage<M, K>) -> Message<ViewKey<M, K>> {
-    let m = &t.message;
-    Message {
-        uid: t.uid,
-        seqno: 0,
-        flags: m.flags.clone(),
-        internal_date: m.internal_date,
-        size: m.size,
-        modseq: m.modseq,
-        key: ViewKey {
-            key: m.key.clone(),
-            filed: Some((t.mailbox.clone(), m.uid)),
-        },
-    }
-}
-
 impl<A: Account> Account for TrashView<A> {
     type Mailbox = ViewMailbox<A::Mailbox>;
     type Key = ViewKey<A::Mailbox, A::Key>;
@@ -200,6 +141,7 @@ impl<A: Account> Account for TrashView<A> {
         if !names.iter().any(|n| is_trash(n)) {
             names.push(TRASH.into());
         }
+        Self::add_archive_names(&mut names);
         // a label takes over a mailbox of its name
         for label in self.inner.labels().await? {
             names.retain(|n| !n.eq_ignore_ascii_case(&label.name));
@@ -217,6 +159,9 @@ impl<A: Account> Account for TrashView<A> {
         if let Some(label) = self.label_mailbox(name).await? {
             return Ok(Some(label));
         }
+        if let Some(archive) = self.archive_mailbox(name).await? {
+            return Ok(Some(archive));
+        }
         Ok(self.inner.mailbox(name).await?.map(ViewMailbox::Filed))
     }
 
@@ -225,6 +170,8 @@ impl<A: Account> Account for TrashView<A> {
             ViewMailbox::Filed(m) => self.inner.mailbox_name(m),
             ViewMailbox::Trash { .. } => TRASH,
             ViewMailbox::Label { name, .. } => name,
+            ViewMailbox::Archive { .. } => archive::ARCHIVE,
+            ViewMailbox::AllMail { .. } => archive::ALL_MAIL,
         }
     }
 
@@ -257,6 +204,8 @@ impl<A: Account> Account for TrashView<A> {
                 })
             }
             ViewMailbox::Label { id, .. } => self.label_selected(id).await,
+            ViewMailbox::Archive { .. } => Ok(archive::selected(self.archive_messages().await?)),
+            ViewMailbox::AllMail { .. } => Ok(archive::selected(self.all_mail_messages().await?)),
         }
     }
 
@@ -270,6 +219,8 @@ impl<A: Account> Account for TrashView<A> {
                 .collect()),
             ViewMailbox::Trash { .. } => Ok(self.trash_messages().await?.1),
             ViewMailbox::Label { id, .. } => self.label_messages(id).await,
+            ViewMailbox::Archive { .. } => self.archive_messages().await,
+            ViewMailbox::AllMail { .. } => self.all_mail_messages().await,
         }
     }
 
@@ -287,9 +238,13 @@ impl<A: Account> Account for TrashView<A> {
         match (mailbox, filed) {
             (_, Some(from)) => self.inner.store_flags(&from, &msg, flags).await,
             (ViewMailbox::Filed(m), None) => self.inner.store_flags(m, &msg, flags).await,
-            (ViewMailbox::Trash { .. } | ViewMailbox::Label { .. }, None) => {
-                Err(Error::Store("not a message shown here".into()))
-            }
+            (
+                ViewMailbox::Trash { .. }
+                | ViewMailbox::Label { .. }
+                | ViewMailbox::Archive { .. }
+                | ViewMailbox::AllMail { .. },
+                None,
+            ) => Err(Error::Store("not a message shown here".into())),
         }
     }
 
@@ -316,6 +271,11 @@ impl<A: Account> Account for TrashView<A> {
             ViewMailbox::Filed(m) => self.expunge_filed(m, doomed).await,
             ViewMailbox::Trash { .. } => self.expunge_trash(doomed).await,
             ViewMailbox::Label { id, .. } => self.expunge_label(id, doomed).await,
+            ViewMailbox::Archive { .. } => self.expunge_archive(doomed).await,
+            ViewMailbox::AllMail { .. } => Expunged {
+                removed: Vec::new(),
+                failed: archive::all_mail_is_read_only::<()>().err(),
+            },
         }
     }
 
@@ -328,9 +288,13 @@ impl<A: Account> Account for TrashView<A> {
         match (mailbox, filed) {
             (_, Some(from)) => self.inner.remove(&from, &msg).await,
             (ViewMailbox::Filed(m), None) => self.inner.remove(m, &msg).await,
-            (ViewMailbox::Trash { .. } | ViewMailbox::Label { .. }, None) => {
-                Err(Error::Store("not a message shown here".into()))
-            }
+            (
+                ViewMailbox::Trash { .. }
+                | ViewMailbox::Label { .. }
+                | ViewMailbox::Archive { .. }
+                | ViewMailbox::AllMail { .. },
+                None,
+            ) => Err(Error::Store("not a message shown here".into())),
         }
     }
 
@@ -342,8 +306,12 @@ impl<A: Account> Account for TrashView<A> {
     ) -> Result<Filed> {
         match mailbox {
             ViewMailbox::Filed(m) => self.inner.append(m, bytes, flags).await,
-            ViewMailbox::Trash { .. } | ViewMailbox::Label { .. } => Err(Error::Refused(
-                "[CANNOT] messages reach the Trash or a label by being copied there".into(),
+            ViewMailbox::Trash { .. }
+            | ViewMailbox::Label { .. }
+            | ViewMailbox::Archive { .. }
+            | ViewMailbox::AllMail { .. } => Err(Error::Refused(
+                "[CANNOT] messages reach the Trash, Archive or a label by being copied there"
+                    .into(),
             )),
         }
     }
@@ -359,7 +327,10 @@ impl<A: Account> Account for TrashView<A> {
                 gone.dedup();
                 Ok(gone)
             }
-            ViewMailbox::Trash { .. } | ViewMailbox::Label { .. } => Ok(Vec::new()),
+            ViewMailbox::Trash { .. }
+            | ViewMailbox::Label { .. }
+            | ViewMailbox::Archive { .. }
+            | ViewMailbox::AllMail { .. } => Ok(Vec::new()),
         }
     }
 
@@ -371,40 +342,40 @@ impl<A: Account> Account for TrashView<A> {
         match mailbox {
             ViewMailbox::Filed(m)
             | ViewMailbox::Trash { inbox: m }
-            | ViewMailbox::Label { inbox: m, .. } => self.inner.watch(m),
+            | ViewMailbox::Label { inbox: m, .. }
+            | ViewMailbox::Archive { inbox: m }
+            | ViewMailbox::AllMail { inbox: m } => self.inner.watch(m),
         }
     }
 
     async fn trashed(&self) -> Result<Trashed<Self::Mailbox, Self::Key>> {
-        let trashed = self.inner.trashed().await?;
-        Ok(Trashed {
-            messages: trashed
-                .messages
-                .into_iter()
-                .map(|t| ShownMessage {
-                    mailbox: ViewMailbox::Filed(t.mailbox),
-                    uid: t.uid,
-                    message: wrap(t.message),
-                })
-                .collect(),
-            latest: trashed.latest,
-        })
+        Ok(filed_in_view(self.inner.trashed().await?))
+    }
+
+    async fn archived(&self) -> Result<Trashed<Self::Mailbox, Self::Key>> {
+        Ok(filed_in_view(self.inner.archived().await?))
+    }
+
+    async fn all_mail(&self) -> Result<Trashed<Self::Mailbox, Self::Key>> {
+        Ok(filed_in_view(self.inner.all_mail().await?))
+    }
+
+    async fn set_archived(
+        &self,
+        mailbox: &Self::Mailbox,
+        message: &Message<Self::Key>,
+        archived: bool,
+    ) -> Result<bool> {
+        let (msg, filed) = unwrap(message);
+        match (mailbox, filed) {
+            (_, Some(from)) => self.inner.set_archived(&from, &msg, archived).await,
+            (ViewMailbox::Filed(m), None) => self.inner.set_archived(m, &msg, archived).await,
+            _ => Err(Error::Store("not a message shown here".into())),
+        }
     }
 
     async fn held(&self) -> Result<Trashed<Self::Mailbox, Self::Key>> {
-        let held = self.inner.held().await?;
-        Ok(Trashed {
-            messages: held
-                .messages
-                .into_iter()
-                .map(|t| ShownMessage {
-                    mailbox: ViewMailbox::Filed(t.mailbox),
-                    uid: t.uid,
-                    message: wrap(t.message),
-                })
-                .collect(),
-            latest: held.latest,
-        })
+        Ok(filed_in_view(self.inner.held().await?))
     }
 
     async fn set_trashed(
@@ -417,9 +388,13 @@ impl<A: Account> Account for TrashView<A> {
         match (mailbox, filed) {
             (_, Some(from)) => self.inner.set_trashed(&from, &msg, trashed).await,
             (ViewMailbox::Filed(m), None) => self.inner.set_trashed(m, &msg, trashed).await,
-            (ViewMailbox::Trash { .. } | ViewMailbox::Label { .. }, None) => {
-                Err(Error::Store("not a message shown here".into()))
-            }
+            (
+                ViewMailbox::Trash { .. }
+                | ViewMailbox::Label { .. }
+                | ViewMailbox::Archive { .. }
+                | ViewMailbox::AllMail { .. },
+                None,
+            ) => Err(Error::Store("not a message shown here".into())),
         }
     }
 
@@ -454,9 +429,13 @@ impl<A: Account> Account for TrashView<A> {
         match (mailbox, filed) {
             (_, Some(from)) => self.inner.set_label(&from, &msg, id, on).await,
             (ViewMailbox::Filed(m), None) => self.inner.set_label(m, &msg, id, on).await,
-            (ViewMailbox::Trash { .. } | ViewMailbox::Label { .. }, None) => {
-                Err(Error::Store("not a message shown here".into()))
-            }
+            (
+                ViewMailbox::Trash { .. }
+                | ViewMailbox::Label { .. }
+                | ViewMailbox::Archive { .. }
+                | ViewMailbox::AllMail { .. },
+                None,
+            ) => Err(Error::Store("not a message shown here".into())),
         }
     }
 
@@ -473,5 +452,24 @@ impl<A: Account> Account for TrashView<A> {
     }
 }
 
+/// A core's answer with each message in the view's terms.
+fn filed_in_view<M, K>(shown: Trashed<M, K>) -> Trashed<ViewMailbox<M>, ViewKey<M, K>> {
+    Trashed {
+        messages: shown
+            .messages
+            .into_iter()
+            .map(|t| ShownMessage {
+                mailbox: ViewMailbox::Filed(t.mailbox),
+                uid: t.uid,
+                message: wrap(t.message),
+            })
+            .collect(),
+        latest: shown.latest,
+    }
+}
+
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod archive_tests;

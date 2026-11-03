@@ -51,8 +51,10 @@ pub async fn ws_events(
         return Err(StatusCode::FORBIDDEN);
     }
     let user = normalized_user(&address).ok_or(StatusCode::UNAUTHORIZED)?;
+    let held = crate::session::grant::Held::from_headers(&user, &headers)
+        .ok_or(StatusCode::UNAUTHORIZED)?;
     let bus = get_or_init_bus(state.clone()).await;
-    Ok(ws.on_upgrade(move |socket| handle_ws(socket, bus, user)))
+    Ok(ws.on_upgrade(move |socket| handle_ws(socket, bus, user, state, held)))
 }
 
 /// The address events are matched against.
@@ -78,28 +80,48 @@ pub(crate) fn addressed_to(event: &str, user: &str) -> bool {
         .unwrap_or(false)
 }
 
-async fn handle_ws(socket: WebSocket, bus: EventBus, user: String) {
+/// Forward this user's events until the socket closes, or until what
+/// signed it in no longer would (signed out, password changed, account
+/// stopped): asked every `RECHECK`.
+async fn handle_ws(
+    socket: WebSocket,
+    bus: EventBus,
+    user: String,
+    state: Arc<WebState>,
+    held: crate::session::grant::Held,
+) {
     let (mut sender, mut receiver) = socket.split();
     let mut rx = bus.subscribe();
-
-    // forward this user's events → WS
-    let send_task = tokio::spawn(async move {
-        while let Ok(text) = rx.recv().await {
-            if !addressed_to(&text, &user) {
-                continue;
-            }
-            if sender.send(Message::Text(text.into())).await.is_err() {
-                break;
+    let mut recheck = tokio::time::interval(crate::session::grant::RECHECK);
+    recheck.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    recheck.reset();
+    loop {
+        tokio::select! {
+            ev = rx.recv() => match ev {
+                Ok(text) => {
+                    if addressed_to(&text, &user)
+                        && sender.send(Message::Text(text.into())).await.is_err()
+                    {
+                        return;
+                    }
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => return,
+            },
+            // client → server frames are ignored; they keep it alive
+            msg = receiver.next() => match msg {
+                Some(Ok(_)) => {}
+                Some(Err(_)) | None => return,
+            },
+            _ = recheck.tick() => {
+                if !held.still_valid(&state).await {
+                    tracing::info!(%user, "events socket: the credential no longer holds, closing");
+                    let frame = axum::extract::ws::CloseFrame { code: 1008, reason: "signed out".into() };
+                    let _ = sender.send(Message::Close(Some(frame))).await;
+                    return;
+                }
             }
         }
-    });
-
-    // drain incoming (client → server) — ignored, keeps the socket alive
-    let recv_task = tokio::spawn(async move { while let Some(Ok(_)) = receiver.next().await {} });
-
-    tokio::select! {
-        _ = send_task => {},
-        _ = recv_task => {},
     }
 }
 

@@ -10,7 +10,13 @@ import type { WireReason } from '@/wire/schemas/reason'
 
 import table from './reasons.json'
 
-const TABLE: Record<string, Record<Lang, string> | undefined> = table
+/**
+ * A code's sentence, and for a rule that names facts, a second sentence
+ * that says them: used when the reason carries every value it names.
+ */
+type Entry = Record<Lang, string> & { params?: Record<Lang, string> }
+
+const TABLE: Record<string, Entry | undefined> = table
 
 /** The category names a `class` param can carry, as the reader knows them. */
 const CLASS_KEY = {
@@ -33,7 +39,7 @@ export function reasonText(reason: WireReason, lang: Lang, t: Translate): null |
   const entry = TABLE[reason.code]
   if (!entry) return null
   const params = reason.params ?? {}
-  return entry[lang].replace(/\{(\w+)\}/g, (whole, name: string) => {
+  return sentenceFor(entry, lang, params).replace(/\{(\w+)\}/g, (whole, name: string) => {
     const v = params[name]
     if (v === undefined) return whole
     if (name === 'class') return className(v, t)
@@ -44,4 +50,16 @@ export function reasonText(reason: WireReason, lang: Lang, t: Translate): null |
 function className(value: string, t: Translate): string {
   if (value in CLASS_KEY) return t(CLASS_KEY[value as keyof typeof CLASS_KEY])
   return value
+}
+
+/**
+ * The sentence with the facts when the reason carries all of them; a
+ * verdict stored before the rule named them gets the general sentence.
+ */
+function sentenceFor(entry: Entry, lang: Lang, params: Record<string, string>): string {
+  const withParams = entry.params?.[lang]
+  if (withParams === undefined) return entry[lang]
+  const names = [...withParams.matchAll(/\{(\w+)\}/g)].map((m) => m[1])
+  if (names.every((n) => params[n] !== undefined)) return withParams
+  return entry[lang]
 }

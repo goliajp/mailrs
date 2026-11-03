@@ -128,7 +128,8 @@ function FolderButton({
       type="button"
     >
       <Icon aria-hidden className="h-4 w-4 shrink-0" />
-      <span className="min-w-0 flex-1 truncate text-left">{label}</span>
+      {/* wraps rather than cuts: 通知・プロモーション is wider than the column */}
+      <span className="min-w-0 flex-1 text-left leading-snug break-words">{label}</span>
       {count > 0 && <span className="text-fg-muted text-xs tabular-nums">{count}</span>}
     </button>
   )

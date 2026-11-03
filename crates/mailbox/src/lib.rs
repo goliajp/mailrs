@@ -29,6 +29,8 @@ pub mod rules;
 /// request's folder and category reconcile to, shared by every store.
 pub mod scope;
 pub mod section;
+/// Whether a message is the user's own send, decided one way everywhere.
+pub mod sent_copy;
 /// Claiming the reply to a team conversation, decided the same way by
 /// every store.
 pub mod shared_reply;

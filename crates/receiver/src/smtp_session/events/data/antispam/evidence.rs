@@ -201,7 +201,7 @@ impl Evidence {
             payment: self.payment,
             html: self.html,
             reply_to_outside: self.reply_to_outside,
-            relation: self.relation,
+            relation: self.relation.clone(),
             date_ahead: mailrs_inbound::dates::date_ahead_of(
                 &receive_ctx.message,
                 Some(chrono::Utc::now().timestamp()),

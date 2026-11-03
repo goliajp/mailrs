@@ -23,7 +23,11 @@ fn junked_by_the_receiver() -> Option<String> {
             "rules_version": "2026-08-29.1",
             "score": 0.0,
             "quarantined": false,
-            "layers": [],
+            "layers": [{
+                "name": "identity", "outcome": "fail", "score": 4.5,
+                "detail": "display name claims a company, from a domain that is not theirs and is new here",
+                "reasons": [{"code": "impersonates-brand", "params": {"brand": "paypal", "domain": "outside.example"}}],
+            }],
             "placement": [{"code": "junk-score", "params": {"score": "6.0", "threshold": "5.0"}}],
         })
         .to_string(),
@@ -88,6 +92,16 @@ async fn both_cores_store_why_each_message_was_filed() {
             .expect("both read");
         assert_eq!(placement_codes(&fc), [want], "fastcore {mid}: {fc}");
         assert_eq!(placement_codes(&pg), [want], "pg-core {mid}: {pg}");
+        if mid == "p1@outside.example" {
+            // a rule's reason keeps the facts it named, in both cores
+            for v in [&fc, &pg] {
+                assert_eq!(
+                    v["verdict"]["layers"][0]["reasons"][0]["params"],
+                    serde_json::json!({"brand": "paypal", "domain": "outside.example"}),
+                    "{v}"
+                );
+            }
+        }
     }
     assert!(
         d.0.is_empty(),

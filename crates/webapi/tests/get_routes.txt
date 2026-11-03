@@ -31,6 +31,7 @@
 /api/admin/audit/conversations/{thread_id}/messages	audit only: records the administrator's read in the audit log
 /api/admin/audit/messages/{uid}/raw	audit only: records the administrator's read in the audit log
 /api/admin/auth-events	read only
+/api/admin/dane/tlsa	read only
 /api/admin/dmarc/reports	read only
 /api/admin/dmarc/sources	read only
 /api/admin/domains	read only
@@ -136,6 +137,7 @@
 /jmap/download/{account}/{blob}/{name}	blob download; the only write is an upload's last-used time, which keeps it a day longer
 /jmap/eventsource/	event stream; state changes and pings, writes only the state snapshot later /changes compare against
 /jmap/session	protocol discovery, read only
+/jmap/ws/	WebSocket upgrade (RFC 8887); a cookie upgrade needs our Origin, and what it carries are JMAP requests, each method checked as on /jmap/api/
 /mail/config-v1.1.xml	protocol discovery, read only
 /metrics	read only
 /oauth/authorize	issues an authorization code; registering clients is closed until a consent step exists
