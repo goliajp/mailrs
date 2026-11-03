@@ -43,4 +43,31 @@ final class InviteFlowTests: MailrsUITestCase {
         XCTAssertTrue(app.buttons["invite.join"].exists, "no way to join the meeting")
         XCTAssertTrue(app.buttons["invite.accepted"].exists, "no way to answer it")
     }
+
+    /// An all-day invitation has no instant, only its days; the card says
+    /// them, and no time of day. The stub's all-day form runs 3 to 4
+    /// November (DTEND is the 5th, the day after the last).
+    func testAnAllDayInvitationShowsItsDays() {
+        // after launch, which resets the stub; before the thread is opened
+        let app = launch(signedIn: true)
+        let url = URL(string: "http://localhost:6039/debug/invite-all-day")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        let armed = expectation(description: "debug/invite-all-day")
+        URLSession.shared.dataTask(with: request) { _, _, _ in armed.fulfill() }.resume()
+        wait(for: [armed], timeout: 10)
+        defer { resetStub() }
+
+        let row = app.staticTexts["Quarterly report and the follow-up notes"]
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "inbox never listed")
+        row.tap()
+        XCTAssertTrue(app.otherElements["invite.card"].waitForExistence(timeout: 10),
+                      "the all-day invitation's card did not mount")
+
+        let when = app.staticTexts["invite.when"]
+        XCTAssertTrue(when.waitForExistence(timeout: 5), "the card says no date at all")
+        XCTAssertTrue(when.label.contains("Nov 3") && when.label.contains("Nov 4"),
+                      "the card does not run from the 3rd to the 4th: \(when.label)")
+        XCTAssertFalse(when.label.contains(":"), "an all-day event was given a time: \(when.label)")
+    }
 }

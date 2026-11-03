@@ -2,9 +2,11 @@ package jp.golia.mailrs.wire
 
 import jp.golia.mailrs.R
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import java.util.Locale
 
 /**
  * What kind of invitation this is, and whether it wants an answer.
@@ -83,6 +85,23 @@ object InviteRules {
             .ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
             .withZone(zone)
             .format(at)
+    }
+
+    /**
+     * An all-day event's days, as written, in the reader's language and
+     * without a time. A date has no offset, so it is never moved into a
+     * zone — read as midnight somewhere, it would land on the day before
+     * for everyone west of there. [dayAfterLast] is DTEND, the day after
+     * the last: `2026-11-03` to `2026-11-05` is the 3rd and the 4th.
+     */
+    fun allDayLine(firstDay: String?, dayAfterLast: String?, locale: Locale = Locale.getDefault()): String? {
+        val first = runCatching { LocalDate.parse(firstDay ?: return null) }.getOrNull() ?: return null
+        val format = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale)
+        val last = dayAfterLast
+            ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+            ?.minusDays(1)
+        if (last == null || !last.isAfter(first)) return format.format(first)
+        return format.format(first) + " – " + format.format(last)
     }
 
     /**
