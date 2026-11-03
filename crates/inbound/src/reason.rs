@@ -190,12 +190,17 @@ mod tests {
     #[test]
     fn the_client_copies_of_the_table_are_the_same_file() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let copy = "web/src/lib/reasons.json";
-        let text = std::fs::read_to_string(root.join(copy)).expect(copy);
-        assert_eq!(
-            text, TABLE,
-            "{copy} differs from crates/inbound/src/reasons.json"
-        );
+        for copy in [
+            "web/src/lib/reasons.json",
+            "ios/Mailrs/Resources/reasons.json",
+            "android/app/src/main/assets/reasons.json",
+        ] {
+            let text = std::fs::read_to_string(root.join(copy)).expect(copy);
+            assert_eq!(
+                text, TABLE,
+                "{copy} differs from crates/inbound/src/reasons.json"
+            );
+        }
     }
 
     #[test]

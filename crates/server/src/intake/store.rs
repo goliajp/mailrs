@@ -57,6 +57,11 @@ impl PgCore {
             from_addr: &from_addr,
         };
         let inserted = mb.record_arrival(input, facts).await?;
+        // mail from somebody else brings the conversation out of the
+        // Trash, or the purge would delete it unread with the rest
+        if !a.is_own {
+            mb.untrash_thread(addr, &a.thread_id).await?;
+        }
         if let Some(found) = mailrs_intake::invite::find(body) {
             let payload: serde_json::Value = serde_json::from_str(&found.payload_json)?;
             mb.update_invite_payload(addr, mailbox, inserted.uid, &payload, &found.method)

@@ -7,6 +7,7 @@ use std::time::Duration;
 
 use axum::Json;
 use axum::extract::{Path, State};
+use axum::http::StatusCode;
 use mailrs_core_api::method::thread as th;
 
 use crate::FastcoreState;
@@ -24,11 +25,10 @@ pub(crate) async fn trash_thread(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> axum::response::Response {
-    let ok = state
-        .mailbox
-        .set_trashed(&user, &thread_id, true, now())
-        .unwrap_or(false);
-    member_result(ok)
+    match state.mailbox.set_trashed(&user, &thread_id, true, now()) {
+        Ok(ok) => member_result(ok),
+        Err(e) => store_failed(e, &user, &thread_id),
+    }
 }
 
 /// `POST /v1/users/{user}/threads/{thread_id}/untrash`.
@@ -36,11 +36,10 @@ pub(crate) async fn untrash_thread(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> axum::response::Response {
-    let ok = state
-        .mailbox
-        .set_trashed(&user, &thread_id, false, now())
-        .unwrap_or(false);
-    member_result(ok)
+    match state.mailbox.set_trashed(&user, &thread_id, false, now()) {
+        Ok(ok) => member_result(ok),
+        Err(e) => store_failed(e, &user, &thread_id),
+    }
 }
 
 /// Delete `user`'s `thread_id` for good, as the delete route does.
@@ -63,22 +62,39 @@ async fn delete_for_good(state: &Arc<FastcoreState>, user: &str, thread_id: &str
     deleted
 }
 
-/// `POST /v1/users/{user}/trash:empty`.
+fn store_failed(e: std::io::Error, user: &str, thread_id: &str) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    tracing::error!(error = %e, %user, %thread_id, "trash: the store failed");
+    StatusCode::INTERNAL_SERVER_ERROR.into_response()
+}
+
+/// `POST /v1/users/{user}/trash:empty`. A Trash that cannot be read, or a
+/// conversation in it that could not be deleted, is a 500, not an empty
+/// Trash.
 pub(crate) async fn empty_trash(
     State(state): State<Arc<FastcoreState>>,
     Path(user): Path<String>,
-) -> Json<th::ThreadActionResponse> {
-    let tids = state.mailbox.trashed_threads(&user).unwrap_or_default();
+) -> Result<Json<th::ThreadActionResponse>, StatusCode> {
+    let tids = state.mailbox.trashed_threads(&user).map_err(|e| {
+        tracing::error!(error = %e, %user, "empty trash: the Trash is unreadable");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
     let mut affected = 0u32;
+    let mut failed = 0u32;
     for tid in tids {
-        if delete_for_good(&state, &user, &tid).await {
-            affected += 1;
+        match delete_for_good(&state, &user, &tid).await {
+            true => affected += 1,
+            false => failed += 1,
         }
     }
-    Json(th::ThreadActionResponse {
+    if failed > 0 {
+        tracing::error!(%user, affected, failed, "empty trash: some conversations were not deleted");
+        return Err(StatusCode::INTERNAL_SERVER_ERROR);
+    }
+    Ok(Json(th::ThreadActionResponse {
         affected,
         new_modseq: 0,
-    })
+    }))
 }
 
 /// One pass of the purge: delete for good up to `batch` conversations

@@ -52,6 +52,12 @@ pub enum CoreApiError {
     #[error("core unavailable: {0}")]
     Unavailable(String),
 
+    /// The mailbox is at its quota and takes nothing more (507). Before
+    /// this the client read a 507 as `Internal`, so an import never knew
+    /// the quota had stopped it.
+    #[error("insufficient storage: {0}")]
+    InsufficientStorage(String),
+
     /// Catch-all internal error (500).
     #[error("internal: {0}")]
     Internal(String),
@@ -70,6 +76,7 @@ impl CoreApiError {
             Self::BackendUnsupported => 501,
             Self::Timeout => 504,
             Self::Unavailable(_) => 503,
+            Self::InsufficientStorage(_) => 507,
             Self::Internal(_) => 500,
         }
     }
@@ -87,6 +94,10 @@ mod tests {
         assert_eq!(CoreApiError::NotFound("user".into()).status_code(), 404);
         assert_eq!(CoreApiError::PoolExhausted.status_code(), 503);
         assert_eq!(CoreApiError::BackendUnsupported.status_code(), 501);
+        assert_eq!(
+            CoreApiError::InsufficientStorage("file_sent".into()).status_code(),
+            507
+        );
         assert_eq!(
             CoreApiError::Unavailable("refused".into()).status_code(),
             503

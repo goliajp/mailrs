@@ -43,7 +43,7 @@ pub(crate) struct Attachment {
     pub content_id: Option<String>,
 }
 
-pub(crate) use super::compose_build::build_rfc5322;
+pub(crate) use super::compose_build::{breaks_a_header_line, build_rfc5322};
 
 /// Longest hold a client may ask for; Gmail's longest undo window.
 pub const MAX_UNDO_SECONDS: u32 = 30;

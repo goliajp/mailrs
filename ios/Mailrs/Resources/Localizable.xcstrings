@@ -1298,6 +1298,22 @@
         }
       }
     },
+    "Content": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "内容"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "内容"
+          }
+        }
+      }
+    },
     "Continue": {
       "localizations": {
         "ja": {
@@ -1810,6 +1826,38 @@
         }
       }
     },
+    "Did a real mail client write it?": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "実在のメールソフトが書いたものか"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "是不是真实的邮件客户端写的？"
+          }
+        }
+      }
+    },
+    "Did it come from where it says?": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "名乗っている場所から届いたか"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "是不是从它声称的地方发来的？"
+          }
+        }
+      }
+    },
     "Directory": {
       "localizations": {
         "ja": {
@@ -1854,6 +1902,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "显示名称"
+          }
+        }
+      }
+    },
+    "Does it read like the fraud it is?": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "詐欺らしい内容か"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "内容像不像诈骗？"
           }
         }
       }
@@ -2050,6 +2114,22 @@
         }
       }
     },
+    "Examined: something looked wrong": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "確認済み: 不審な点があります"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已检查：有可疑之处"
+          }
+        }
+      }
+    },
     "Failed": {
       "localizations": {
         "ja": {
@@ -2242,6 +2322,22 @@
         }
       }
     },
+    "Held: suspected fraud": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保留中：詐欺の疑い"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已扣下：疑似诈骗"
+          }
+        }
+      }
+    },
     "Hide quoted text": {
       "localizations": {
         "ja": {
@@ -2270,6 +2366,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "我有重设验证码"
+          }
+        }
+      }
+    },
+    "Identity": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "身元"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "身份"
           }
         }
       }
@@ -2386,6 +2498,22 @@
         }
       }
     },
+    "Is the name it shows a claim it can make?": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "表示している名前を名乗れる送信者か"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "它显示的名字是否属实？"
+          }
+        }
+      }
+    },
     "It is not stored and cannot be shown again. If you lose it, revoke the key and make another.": {
       "localizations": {
         "ja": {
@@ -2446,6 +2574,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "垃圾邮件"
+          }
+        }
+      }
+    },
+    "Kept, not deleted — this is the evidence an abuse report is built from.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "削除せずに保管しています。不正利用の報告に使う証拠です"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保留、不删除：举报滥用时要用它作证据"
           }
         }
       }
@@ -3622,6 +3766,22 @@
         }
       }
     },
+    "Nothing found.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "問題は見つかりませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有发现问题"
+          }
+        }
+      }
+    },
     "Nothing from the mailboxes you picked.": {
       "localizations": {
         "ja": {
@@ -3826,6 +3986,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "只取回了开头，附件可能不全。"
+          }
+        }
+      }
+    },
+    "Open": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開く"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开"
           }
         }
       }
@@ -4134,6 +4310,22 @@
         }
       }
     },
+    "Provenance": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "出所"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "来源"
+          }
+        }
+      }
+    },
     "Queue": {
       "localizations": {
         "ja": {
@@ -4194,6 +4386,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "发布 rua 之后,接收方会每天发来报告。"
+          }
+        }
+      }
+    },
+    "Releasing…": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "解除しています…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在放行…"
           }
         }
       }
@@ -5238,6 +5446,22 @@
         }
       }
     },
+    "This link may not go where it seems.\n\n%@\n\nOpen it anyway?": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このリンクは見た目どおりの場所に行かない可能性があります。\n\n%@\n\nそれでも開きますか？"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个链接可能不是它看上去的地方。\n\n%@\n\n仍然打开吗？"
+          }
+        }
+      }
+    },
     "This mailbox is no longer connected": {
       "localizations": {
         "ja": {
@@ -5250,6 +5474,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "该邮箱已不再连接"
+          }
+        }
+      }
+    },
+    "This message gives a phone number its sender has not used before here: %@. Before calling about a payment or an account, look the number up yourself.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このメールには、この送信者がこれまで使っていない電話番号があります：%@。支払いやアカウントの件で電話する前に、番号をご自身で確かめてください"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这封信里有一个发件人以前没用过的电话号码：%@。为付款或账户的事打电话前，先自己核实这个号码"
           }
         }
       }
@@ -5410,6 +5650,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "明天早上"
+          }
+        }
+      }
+    },
+    "Transport": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "経路"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "传输"
           }
         }
       }
@@ -5766,6 +6022,22 @@
         }
       }
     },
+    "Why it is here": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ここにある理由"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "为什么在这里"
+          }
+        }
+      }
+    },
     "Yes": {
       "localizations": {
         "ja": {
@@ -5874,6 +6146,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "copy@example.com"
+          }
+        }
+      }
+    },
+    "rules %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ルール %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "规则 %@"
           }
         }
       }

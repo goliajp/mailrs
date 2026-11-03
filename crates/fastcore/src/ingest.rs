@@ -141,6 +141,13 @@ pub(crate) fn store_arrival(
     if let Err(e) = state.mailbox.record_message_arrival(&arrival) {
         tracing::warn!(error = %e, %addr, %root, "drain ingest: record_message_arrival failed");
     }
+    // mail from somebody else brings the conversation out of the Trash,
+    // or the purge would delete it unread with the rest
+    if !a.is_own
+        && let Err(e) = state.mailbox.restore_from_trash(addr, root)
+    {
+        tracing::warn!(error = %e, %addr, %root, "drain ingest: the Trash was not left");
+    }
     crate::sections::record(state, addr, root, a.date, a.is_own, a.facts, &a.from);
     let held = hold_if_fraud(state, addr, root, &a.message_id, fraud_verdict);
     record_placement(state, addr, &a.message_id, fraud_verdict, &a.placement);

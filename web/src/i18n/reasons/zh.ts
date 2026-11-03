@@ -2,8 +2,8 @@ import type { ReasonsKey } from './en'
 
 export const reasonsZh: Record<ReasonsKey, string> = {
   'fraud.examined': '已检查：有可疑之处',
-  'fraud.kept': '保留、不删除：举报滥用时要用它作证据。',
-  'fraud.layer.clean': '没有发现问题。',
+  'fraud.kept': '保留、不删除：举报滥用时要用它作证据',
+  'fraud.layer.clean': '没有发现问题',
   'fraud.layer.content': '内容',
   'fraud.layer.content.question': '内容像不像诈骗？',
   'fraud.layer.identity': '身份',

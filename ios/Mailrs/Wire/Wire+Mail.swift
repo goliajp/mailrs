@@ -67,6 +67,12 @@ extension Wire {
         /// fetching one. The event itself is a separate request, made
         /// only when the card opens.
         let inviteMethod: String
+        /// What SPF, DKIM and DMARC each said (`auth-check`), and
+        /// `sender-bidi`; empty for mail with no verdict of ours on it.
+        let senderChecks: [Reason]
+        /// Links whose text shows another host, or whose host is listed
+        /// or new; the body marks them and asks before opening one.
+        let linkWarnings: [LinkWarning]
 
         var id: UInt32 { uid }
 
@@ -83,6 +89,8 @@ extension Wire {
             case attachments
             case unsubscribe
             case inviteMethod = "invite_method"
+            case senderChecks = "sender_checks"
+            case linkWarnings = "link_warnings"
         }
 
         /// Spelled out because the custom `init(from:)` below removes
@@ -94,7 +102,8 @@ extension Wire {
             uid: UInt32, sender: String, senderTrust: String, recipients: String,
             subject: String, internalDate: Int64, messageId: String,
             textBody: String?, htmlBody: String?, attachments: [Attachment],
-            unsubscribe: Unsubscribe?, inviteMethod: String = ""
+            unsubscribe: Unsubscribe?, inviteMethod: String = "",
+            senderChecks: [Reason] = [], linkWarnings: [LinkWarning] = []
         ) {
             self.uid = uid
             self.sender = sender
@@ -108,6 +117,8 @@ extension Wire {
             self.attachments = attachments
             self.unsubscribe = unsubscribe
             self.inviteMethod = inviteMethod
+            self.senderChecks = senderChecks
+            self.linkWarnings = linkWarnings
         }
 
         init(from decoder: Decoder) throws {
@@ -127,6 +138,9 @@ extension Wire {
             // dormant lane, which does not compute it. Empty means "no
             // calendar part", which renders as an ordinary message.
             inviteMethod = try c.decodeIfPresent(String.self, forKey: .inviteMethod) ?? ""
+            // absent from servers older than the fields, and from the cache
+            senderChecks = try c.decodeIfPresent([Reason].self, forKey: .senderChecks) ?? []
+            linkWarnings = try c.decodeIfPresent([LinkWarning].self, forKey: .linkWarnings) ?? []
         }
     }
 

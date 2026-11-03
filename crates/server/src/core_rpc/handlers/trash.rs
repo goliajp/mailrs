@@ -83,10 +83,17 @@ pub async fn empty(
 ) -> Result<Json<wire::ThreadActionResponse>, StatusCode> {
     let tids = state.mailbox.trashed_threads(&user).await.map_err(fail)?;
     let mut affected = 0u32;
+    let mut failed = 0u32;
     for tid in tids {
-        if delete_for_good(&state, &user, &tid).await {
-            affected += 1;
+        match delete_for_good(&state, &user, &tid).await {
+            true => affected += 1,
+            false => failed += 1,
         }
+    }
+    // a conversation still in the Trash is not an emptied Trash
+    if failed > 0 {
+        tracing::error!(%user, affected, failed, "empty trash: some conversations were not deleted");
+        return Err(StatusCode::INTERNAL_SERVER_ERROR);
     }
     Ok(Json(wire::ThreadActionResponse {
         affected,

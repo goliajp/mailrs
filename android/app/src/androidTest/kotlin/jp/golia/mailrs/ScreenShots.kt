@@ -75,6 +75,56 @@ abstract class ScreenShots(private val tag: String, private val theme: String) :
         waitForTag("action.Pin", "the thread menu did not open")
         shot("4-thread-menu")
     }
+
+    private fun verdictSwitch(on: String) {
+        val c = java.net.URL(stubBase() + "/debug/verdict?on=" + on).openConnection() as java.net.HttpURLConnection
+        c.requestMethod = "POST"
+        c.inputStream.use { it.readBytes() }
+    }
+
+    /** The verdict panel, the sender checks, the callback notice and the link question. */
+    @Test
+    fun the_verdict_screens() {
+        assumeTrue(InstrumentationRegistry.getArguments().getString("shots") == "true")
+        verdictSwitch("1")
+        try {
+            signIn()
+            waitForTag("list.conversations", "the inbox never listed")
+            compose.onAllNodesWithTag("row.conversation").onFirst().performClick()
+            waitForTag("list.messages", "the thread did not open")
+            compose.waitUntil(TIMEOUT_MS) {
+                compose.onAllNodesWithTag("verdict.panel").fetchSemanticsNodes().isNotEmpty()
+            }
+            compose.onAllNodesWithTag("verdict.panel").onFirst().performScrollTo()
+            shot("5-verdict-panel")
+            compose.onAllNodesWithTag("callback.notice").onFirst().performScrollTo()
+            shot("6-link-and-callback")
+            compose.activityRule.scenario.onActivity { activity ->
+                val web = lastWebView(activity.window.decorView) ?: return@onActivity
+                val request = object : android.webkit.WebResourceRequest {
+                    override fun getUrl(): android.net.Uri = android.net.Uri.parse("mailrs-link-warning:0")
+                    override fun isForMainFrame() = true
+                    override fun isRedirect() = false
+                    override fun hasGesture() = true
+                    override fun getMethod() = "GET"
+                    override fun getRequestHeaders(): Map<String, String> = emptyMap()
+                }
+                web.webViewClient.shouldOverrideUrlLoading(web, request)
+            }
+            waitForTag("link.question", "the link question did not open")
+            // the dialog's fade-in: the test owns the frame clock, so it is advanced
+            compose.mainClock.advanceTimeBy(600)
+            shot("7-link-question")
+        } finally {
+            verdictSwitch("0")
+        }
+    }
+
+    private fun lastWebView(view: android.view.View): android.webkit.WebView? {
+        if (view is android.webkit.WebView) return view
+        if (view !is android.view.ViewGroup) return null
+        return (view.childCount - 1 downTo 0).firstNotNullOfOrNull { lastWebView(view.getChildAt(it)) }
+    }
 }
 
 @RunWith(AndroidJUnit4::class) class ShotsEnLight : ScreenShots("en", "light")

@@ -68,10 +68,15 @@ pub(crate) async fn file_sent(
     let body = req.message().map_err(|_| StatusCode::BAD_REQUEST)?;
     let store = Store(state);
     let filed = tokio::task::spawn_blocking(move || {
-        mailrs_intake::sent::file(&store, &user, &body, &req.recipients).map_err(|e| {
+        match req.imported {
+            true => mailrs_intake::sent::file_imported(&store, &user, &body, &req.recipients),
+            false => mailrs_intake::sent::file(&store, &user, &body, &req.recipients),
+        }
+        .map_err(|e| {
             tracing::error!(error = %e, %user, "filing the sent copy failed");
             match e.kind() {
                 io::ErrorKind::InvalidInput => StatusCode::BAD_REQUEST,
+                io::ErrorKind::QuotaExceeded => StatusCode::INSUFFICIENT_STORAGE,
                 _ => StatusCode::INTERNAL_SERVER_ERROR,
             }
         })

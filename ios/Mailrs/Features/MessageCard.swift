@@ -12,6 +12,9 @@ struct MessageCard: View {
     /// because the server looks the message up rather than trusting a
     /// URL from the client.
     let threadId: String
+    /// The messages before this one in the conversation: a phone number
+    /// the same sender gave there is not pointed out again.
+    var earlier: [Wire.Message] = []
     /// Tapping the header folds the card back to its line.
     let onHeaderTap: () -> Void
     @Environment(Session.self) private var session
@@ -20,6 +23,32 @@ struct MessageCard: View {
     @State private var bodyHeight: CGFloat = 1
     @State private var showingSource = false
     @State private var showingQuoted = false
+    @Environment(\.locale) private var locale
+    @Environment(\.openURL) private var openURL
+    /// The flagged link waiting for the reader's answer.
+    @State private var warned: LinkWarnings.Target?
+    @State private var verdict: Wire.FraudVerdict?
+
+    private func describe(_ warning: Wire.LinkWarning) -> String {
+        let lang = ReasonText.Lang.of(locale)
+        return warning.reasons.map { ReasonText.bundled.words($0, lang) }.joined(separator: " ")
+    }
+
+    /// Asks before a flagged link in a plain-text body opens; every other
+    /// link goes as it always did.
+    private var plainLinkAction: OpenURLAction {
+        OpenURLAction { url in
+            guard let w = LinkWarningMarks.warning(for: url, in: message.linkWarnings) else {
+                return .systemAction
+            }
+            warned = LinkWarnings.Target(url: url, warning: w)
+            return .handled
+        }
+    }
+
+    private var warnedShown: Binding<Bool> {
+        Binding(get: { warned != nil }, set: { if !$0 { warned = nil } })
+    }
 
     /// Zero until the body has been measured — the card grows into its
     /// height rather than flashing a half-laid-out page.
@@ -153,6 +182,7 @@ struct MessageCard: View {
                 SenderAvatar(sender: message.sender, size: 32)
                 VStack(alignment: .leading, spacing: 1) {
                     senderLine
+                    SenderChecksLine(trust: message.senderTrust, checks: message.senderChecks)
                     // Its own line, not a third thing competing for the
                     // name's: it is a whole sentence about where the
                     // message came from, and it is the line worth
@@ -227,14 +257,20 @@ struct MessageCard: View {
             // prose when it does not — which is most mail about a
             // meeting.
             InviteCard(uid: message.uid, method: message.inviteMethod)
+            VerdictPanel(messageId: message.messageId, threadId: threadId, verdict: $verdict)
             switch MessageContent.body(html: message.htmlBody, text: message.textBody) {
             case .html(let html):
+                let marked = LinkWarnings.mark(
+                    html: resolvedHTML(html), warnings: message.linkWarnings, describe: describe)
                 // Faded in once measured rather than popping at full
                 // size: until the height resolves the WebView is a
                 // 1pt sliver, and revealing it mid-measure shows a
                 // half-laid-out page.
-                MessageBodyView(html: resolvedHTML(html), height: $bodyHeight,
-                                blockRemote: !loadRemote)
+                MessageBodyView(html: marked.html, height: $bodyHeight,
+                                blockRemote: !loadRemote,
+                                onWarnedLink: { n in
+                                    if marked.targets.indices.contains(n) { warned = marked.targets[n] }
+                                })
                     .task(id: html) { await loadInlineParts(html) }
                     .frame(height: bodyHeight)
                     // Mail that keeps its own white paper would
@@ -248,10 +284,12 @@ struct MessageCard: View {
                 // Not `Text(verbatim:)`: 70% of real plain-text mail has
                 // a URL in it, and that spelling renders every one of
                 // them as characters you can read and not follow.
-                Text(PlainTextLinks.attributed(split.body))
+                Text(LinkWarningMarks.marked(
+                    PlainTextLinks.attributed(split.body), warnings: message.linkWarnings))
                     .font(.callout)
                     .textSelection(.enabled)
                     .tint(theme.accent)
+                    .environment(\.openURL, plainLinkAction)
                 if let quoted = split.quoted {
                     // Folded, never dropped. Where a reply carries
                     // history at all it is a median 81% of the body,
@@ -285,6 +323,7 @@ struct MessageCard: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
+            CallbackNotice(numbers: CallbackNumbers.new(in: message, earlier: earlier))
             UnsubscribeFooter(threadId: threadId, message: message)
         }
         .padding(12)
@@ -311,8 +350,17 @@ struct MessageCard: View {
                 Label("View source", systemImage: "chevron.left.forwardslash.chevron.right")
             }
         }
+        .task(id: message.messageId) { verdict = await session.fraudVerdict(messageId: message.messageId) }
         .sheet(isPresented: $showingSource) {
             MessageSourceSheet(uid: message.uid)
+        }
+        .alert(
+            Text("This link may not go where it seems.\n\n\(warned.map { describe($0.warning) } ?? "")\n\nOpen it anyway?"),
+            isPresented: warnedShown, presenting: warned
+        ) { target in
+            Button("Open") { openURL(target.url) }
+                .accessibilityIdentifier("link-warning-open")
+            Button("Cancel", role: .cancel) {}
         }
     }
 }
