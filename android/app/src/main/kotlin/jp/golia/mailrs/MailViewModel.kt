@@ -272,21 +272,20 @@ class MailViewModel(
      *
      * The mailbox is thousands of threads and a page is fifty, so a list
      * that stopped at the first page put everything older than the last
-     * fortnight out of reach. Keyset paging, with the boundary second
-     * re-requested and merged — [ThreadPage] carries the reasoning.
+     * fortnight out of reach. The next page starts after the last row's
+     * cursor — [ThreadPage] carries the reasoning.
      *
      * A page with nothing new in it is the end, and `endOfList` stops
-     * the asking; a full page of rows already held would otherwise be
-     * requested forever.
+     * the asking.
      */
     fun loadMore() {
         val state = _state.value
         if (state.loadingMore || state.endOfList || state.conversations.isEmpty()) return
-        val before = ThreadPage.nextBefore(state.conversations) ?: return
+        val next = ThreadPage.next(state.conversations) ?: return
         val axes = state.axes()
         _state.update { it.copy(loadingMore = true) }
         viewModelScope.launch {
-            when (val r = client.conversations(testFolder ?: axes, before = before)) {
+            when (val r = client.conversations(testFolder ?: axes, page = next)) {
                 is MailrsClient.Outcome.Ok -> {
                     // The list may have been switched while this was out.
                     if (_state.value.axes() != axes) return@launch
