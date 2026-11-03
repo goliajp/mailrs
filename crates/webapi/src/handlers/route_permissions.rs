@@ -84,6 +84,8 @@ pub const ADMIN_ROUTES: &[(&str, Need)] = &[
     ("/api/admin/oauth-clients/{client_id}", OAUTH),
     ("/api/admin/outbound/paused", Super),
     ("/api/admin/outbound/paused/{address}/resume", Super),
+    ("/api/admin/ownerless-threads", Super),
+    ("/api/admin/ownerless-threads/{thread_id}", Super),
     ("/api/admin/password-clear", Super),
     ("/api/admin/password-clear/preview", Super),
     ("/api/admin/permissions", GROUPS),
