@@ -135,6 +135,7 @@ async fn scenario() {
     limits_alike(&live, &alice).await;
     reconnect_catches_up(&live, &alice).await;
     blobs_not_yours(&live, &alice, &bob).await;
+    inline_image(&live, &alice).await;
 }
 
 async fn vacation(live: &live::Live, alice: &str) {
@@ -820,5 +821,41 @@ async fn blobs_not_yours(live: &live::Live, alice: &str, bob: &str) {
         answers.len(),
         1,
         "the answers tell the blobs apart: {answers:?}"
+    );
+}
+
+/// An attachment marked inline with a `cid` travels beside the HTML that
+/// shows it, under that Content-ID, not as a file.
+async fn inline_image(live: &live::Live, alice: &str) {
+    let png = upload(live, alice, ALICE, b"\x89PNG-logo").await;
+    let r = one(
+        live,
+        alice,
+        json!(["Email/set", { "create": { "d": {
+            "mailboxIds": { "drafts": true }, "keywords": { "$draft": true },
+            "from": [{ "email": ALICE }], "subject": "Logo",
+            "htmlBody": [{ "partId": "h", "type": "text/html" }],
+            "bodyValues": { "h": { "value": "<p><img src=\"cid:logo@x\"></p>" } },
+            "attachments": [{ "blobId": png, "type": "image/png", "disposition": "inline", "cid": "logo@x" }],
+        } } }, "0"]),
+    )
+    .await;
+    let id = r["created"]["d"]["id"]
+        .as_str()
+        .unwrap_or_else(|| panic!("{r}"))
+        .to_string();
+    let got = one(
+        live,
+        alice,
+        json!(["Email/get", { "ids": [id], "properties": ["attachments", "hasAttachment"] }, "0"]),
+    )
+    .await;
+    let att = &got["list"][0]["attachments"][0];
+    assert_eq!(att["cid"], "logo@x", "{got}");
+    assert_eq!(att["disposition"], "inline", "{got}");
+    assert_eq!(
+        att["name"],
+        Value::Null,
+        "an inline image is not a named file: {got}"
     );
 }

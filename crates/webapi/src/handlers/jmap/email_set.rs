@@ -210,11 +210,20 @@ async fn attachments_of(ctx: &Ctx, spec: &Value) -> Result<Vec<Attachment>, NotF
             .filter(|n| !n.is_empty() && !n.contains(['\r', '\n']))
             .unwrap_or("attachment")
             .to_string();
+        // an image the HTML body shows (`disposition: inline` with a
+        // `cid`) goes beside it under that Content-ID; anything else is a file
+        let cid = text("cid")
+            .map(|c| c.trim_matches(['<', '>']))
+            .filter(|c| !c.is_empty() && !c.contains(['\r', '\n', '<', '>']));
+        let content_id = match (text("disposition"), cid) {
+            (Some("inline"), Some(c)) => Some(c.to_string()),
+            _ => None,
+        };
         out.push(Attachment {
             filename,
             content_type,
             bytes,
-            content_id: None,
+            content_id,
         });
     }
     match missing.is_empty() {
