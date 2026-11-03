@@ -167,3 +167,18 @@ describe('list shortcuts', () => {
     expect(scrolled).toEqual(['t3'])
   })
 })
+
+describe('/', () => {
+  it('focuses the list search box whatever language its placeholder is in', () => {
+    setup()
+    const box = document.createElement('div')
+    box.setAttribute('role', 'search')
+    const input = document.createElement('input')
+    input.placeholder = '検索…'
+    box.append(input)
+    document.body.append(box)
+    press('/')
+    expect(document.activeElement).toBe(input)
+    box.remove()
+  })
+})
