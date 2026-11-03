@@ -23,6 +23,9 @@ const AdminPasswordClear = lazy(() =>
 const AdminProtocolLogins = lazy(() =>
   import('@/pages/admin-protocol-logins').then((m) => ({ default: m.AdminProtocolLogins }))
 )
+const AdminReports = lazy(() =>
+  import('@/pages/admin-reports').then((m) => ({ default: m.AdminReports }))
+)
 const AdminScreening = lazy(() =>
   import('@/pages/admin-screening').then((m) => ({ default: m.AdminScreening }))
 )
@@ -79,6 +82,7 @@ export function Admin() {
             <Route element={<AdminAuditLog />} path="audit-log" />
             <Route element={<AdminSignIns />} path="sign-ins" />
             <Route element={<AdminScreening />} path="screening" />
+            <Route element={<AdminReports />} path="reports" />
             <Route element={<AdminProtocolLogins />} path="protocol-sign-ins" />
             <Route element={<AdminMailAudit />} path="mail-audit" />
             <Route element={<AdminSystemConfig />} path="system-config" />
