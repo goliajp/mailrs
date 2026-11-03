@@ -23,9 +23,6 @@ mod archive;
 mod filing;
 mod trash;
 
-/// What a user may store when the account row names no quota.
-const DEFAULT_QUOTA: u64 = 1 << 30;
-
 pub(crate) struct PgAccount {
     user: String,
     mailbox: Arc<PgMailboxStore>,
@@ -233,15 +230,21 @@ impl Account for PgAccount {
         Ok(Vec::new())
     }
 
+    /// The limit and the usage counter in the shared store, where the
+    /// receiver enforces them and fastcore reads them too; no store reads
+    /// as no quota.
     async fn quota(&self) -> Result<Quota> {
-        let used = self.mailbox.user_storage_usage(&self.user).await;
-        let limit = match &self.domain {
-            Some(ds) => ds.get_quota(&self.user).await.map_err(store)?,
-            None => None,
+        let conn = self
+            .net_url
+            .as_deref()
+            .and_then(|url| kevy_client::Connection::connect(url).ok());
+        let (limit, used) = match conn {
+            Some(mut c) => mailrs_intake::live_sync::quota_read_on(&mut c, &self.user),
+            None => (0, 0),
         };
         Ok(Quota {
-            used,
-            limit: limit.map_or(DEFAULT_QUOTA, |q| q.max(0) as u64),
+            used: used.max(0) as u64,
+            limit: limit.max(0) as u64,
         })
     }
 

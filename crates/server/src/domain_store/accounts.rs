@@ -179,13 +179,6 @@ impl DomainStore {
         Ok(res.rows_affected() > 0)
     }
 
-    pub async fn get_quota(&self, address: &str) -> Result<Option<i64>> {
-        if let Ok(Some((account, _))) = self.get_account_with_hash(address).await {
-            return Ok(Some(account.quota_bytes));
-        }
-        Ok(None)
-    }
-
     pub async fn set_quota(&self, address: &str, quota_bytes: i64) -> Result<bool> {
         let pool = self.pg()?;
         let res = sqlx::query("UPDATE accounts SET quota_bytes = $1 WHERE address = $2")
