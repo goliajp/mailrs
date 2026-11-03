@@ -99,6 +99,35 @@ pub async fn domain_seen_async(client: Option<Arc<KevyNetClient>>, host: &str) -
     .unwrap_or(0)
 }
 
+/// Whether the sender's domain and the link domains are new to this
+/// deployment, as of now: this message is not recorded yet (delivery
+/// records it). Without a store, nothing is new.
+pub async fn novelty_async(
+    client: Option<Arc<KevyNetClient>>,
+    sender_host: &str,
+    link_hosts: Vec<String>,
+) -> mailrs_fraud::novelty::Novelty {
+    let Some(client) = client else {
+        return Default::default();
+    };
+    let host = sender_host.to_string();
+    let now = chrono::Utc::now().timestamp();
+    tokio::task::spawn_blocking(move || {
+        client
+            .with_conn(|c| {
+                Ok(mailrs_core_sidestate::families::domain_first::novelty(
+                    Some(c),
+                    &host,
+                    &link_hosts,
+                    now,
+                ))
+            })
+            .unwrap_or_default()
+    })
+    .await
+    .unwrap_or_default()
+}
+
 /// `user`'s history with the sender of `from`, before this message is
 /// counted. Without a store, nothing is known: all false.
 pub async fn relation_async(

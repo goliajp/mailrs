@@ -1256,6 +1256,24 @@ curl -X POST https://mail.golia.ai/api/queue/{id}/retry \
   -H "Authorization: Bearer mlrs_..."
 ```
 
+### Conversations Nobody Holds (super administrator only)
+
+A conversation whose shared record outlived every account's copy cannot be
+deleted from any mailbox. The super administrator lists them, and deletes
+them one at a time after a recent password confirmation; each delete is
+for good and leaves one audit row (`ownerless_thread.delete`). Not
+available to agent keys or MCP.
+
+```
+# list: {"count", "items": [{"thread_id", "id_prefix", "messages", "latest_at"}]}
+curl https://mail.golia.ai/api/admin/ownerless-threads \
+  -H "Authorization: Bearer <session>"
+
+# delete one (409 when somebody holds it, 404 when there is none)
+curl -X DELETE https://mail.golia.ai/api/admin/ownerless-threads/{thread_id} \
+  -H "Authorization: Bearer <session>"
+```
+
 ### Server Status
 
 ```

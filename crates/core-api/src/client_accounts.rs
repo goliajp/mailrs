@@ -146,6 +146,28 @@ impl Client {
         self.delete_authed(path, "remove_domain").await
     }
 
+    /// GET /v1/admin/ownerless-threads — conversations nobody holds
+    pub async fn ownerless_threads(&self) -> ApiResult<method::admin::OwnerlessThreadsResponse> {
+        self.get_authed(
+            "/v1/admin/ownerless-threads".to_string(),
+            "ownerless_threads",
+        )
+        .await
+    }
+
+    /// POST /v1/admin/ownerless-threads/{thread_id}/delete — what was deleted
+    pub async fn delete_ownerless_thread(
+        &self,
+        thread_id: &str,
+    ) -> ApiResult<method::admin::OwnerlessThreadWire> {
+        let path = format!(
+            "/v1/admin/ownerless-threads/{}/delete",
+            Self::enc(thread_id)
+        );
+        self.post_authed_no_body(path, "delete_ownerless_thread")
+            .await
+    }
+
     /// GET /v1/admin/accounts — list all
     pub async fn list_accounts(&self) -> ApiResult<method::admin::AccountListResponse> {
         self.get_authed("/v1/admin/accounts".to_string(), "list_accounts")

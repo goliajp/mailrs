@@ -210,6 +210,14 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
             post(mailrs_core_sidestate::families::password_clear::operator_preview::<CoreRpcState>),
         )
         .route(
+            adm_paths::PATH_OWNERLESS_THREADS,
+            get(handlers::admin::ownerless_threads),
+        )
+        .route(
+            adm_paths::PATH_DELETE_OWNERLESS_THREAD,
+            post(handlers::admin::delete_ownerless_thread),
+        )
+        .route(
             adm_paths::PATH_SET_MESSAGE_FLAGS,
             post(handlers::admin::set_message_flags),
         )

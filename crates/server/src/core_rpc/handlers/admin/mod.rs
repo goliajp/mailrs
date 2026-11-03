@@ -19,8 +19,10 @@ use crate::core_rpc::CoreRpcState;
 // ── effective permissions ───────────────────────────────────────────
 
 mod aliases;
+mod ownerless;
 
 pub(crate) use aliases::*;
+pub(crate) use ownerless::*;
 
 /// GET /v1/admin/accounts/{address}/effective-permissions
 ///
