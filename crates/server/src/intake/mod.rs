@@ -14,6 +14,7 @@ use mailrs_intake::spool::SpoolDirs;
 mod core;
 mod directory;
 mod ingest;
+mod reports;
 mod rules;
 mod senders;
 mod sent;

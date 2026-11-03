@@ -23,7 +23,7 @@ mod search_ids;
 mod shared_ops;
 mod thread_ops;
 
-pub use thread_ops::{Held, LabelDbError, ThreadQuery};
+pub use thread_ops::{Held, LabelDbError, StoredTemplate, TEMPLATE_DAYS, ThreadQuery};
 mod trait_impl;
 mod usage_ops;
 

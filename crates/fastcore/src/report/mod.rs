@@ -10,8 +10,7 @@ use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use mailrs_core_api::method::report::{
-    DecideReportRequest, PendingReportWire, PendingReportsResponse, ReportOutcomeWire,
-    ReportRequest, ReportSampleWire, ReportState,
+    DecideReportRequest, PendingReportWire, PendingReportsResponse, ReportRequest,
 };
 use mailrs_core_sidestate::families::reports;
 use mailrs_intake::scam_report;
@@ -22,51 +21,15 @@ pub(crate) mod fingerprint;
 
 use fingerprint::Reports;
 
-pub(crate) fn wire(r: &reports::Report, o: &reports::Outcome) -> ReportOutcomeWire {
-    let state = match o.state.as_str() {
-        "taken_back" => ReportState::TakenBack,
-        "waiting" => ReportState::Waiting,
-        "dismissed" => ReportState::Dismissed,
-        _ => ReportState::NoneFound,
-    };
-    ReportOutcomeWire {
-        report_id: r.id.clone(),
-        message_id: r.message_id.clone(),
-        thread_id: r.thread_id.clone(),
-        state,
-        taken_back: o.taken_back,
-        inboxes: o.inboxes,
-        grounds: o.grounds.clone(),
-        waits: o.waits.clone(),
-        at: r.at,
-        decided_at: o.decided_at,
-    }
-}
-
-pub(crate) fn pending_wire(p: scam_report::Pending) -> PendingReportWire {
-    PendingReportWire {
-        outcome: wire(&p.report, &p.outcome),
-        reporter: p.report.reporter,
-        sender_domain: p.report.sender_domain,
-        subject: p.subject,
-        from: p.from,
-        samples: p
-            .samples
-            .into_iter()
-            .map(|(user, subject, from)| ReportSampleWire {
-                user,
-                subject,
-                from,
-            })
-            .collect(),
-    }
+fn pending_wire(p: scam_report::Pending) -> PendingReportWire {
+    reports::pending_to_wire(&p.report, &p.outcome, p.subject, p.from, p.samples)
 }
 
 type Found = Result<Option<(reports::Report, reports::Outcome)>, String>;
 
 fn answer(found: Result<Found, tokio::task::JoinError>, what: &str) -> Response {
     match found {
-        Ok(Ok(Some((r, o)))) => Json(wire(&r, &o)).into_response(),
+        Ok(Ok(Some((r, o)))) => Json(reports::to_wire(&r, &o)).into_response(),
         Ok(Ok(None)) => StatusCode::NOT_FOUND.into_response(),
         Ok(Err(e)) => {
             tracing::error!(error = %e, "{what} failed");
