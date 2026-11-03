@@ -44,10 +44,24 @@ end
 function __count() return #registered end
 function __run(i)
     local r = registered[i]
-    local detail = r[5](m)
-    if detail == nil or detail == false then return end
+    local out = r[5](m)
+    if out == nil or out == false then return end
+    local detail, params = out, nil
+    if type(out) == 'table' then detail, params = out.detail, out.params end
     assert(type(detail) == 'string' and #detail > 0 and #detail <= 2048, 'invalid finding detail')
-    return r[1], r[2], r[3], r[4], detail
+    local flat, n = {}, 0
+    if params ~= nil then
+        assert(type(params) == 'table', 'invalid finding params')
+        for k, v in pairs(params) do
+            n = n + 1
+            assert(n <= 8, 'too many finding params')
+            assert(type(k) == 'string' and #k > 0 and #k <= 32 and string.find(k, '^[a-z_]+$'), 'invalid finding param name')
+            assert(type(v) == 'string' and #v <= 256, 'invalid finding param value')
+            flat[#flat+1] = k
+            flat[#flat+1] = v
+        end
+    end
+    return r[1], r[2], r[3], r[4], detail, table.unpack(flat)
 end
 -- No dynamic code, protected calls (which could catch a spent budget), or I/O.
 load, loadfile, dofile, require, pcall, xpcall, collectgarbage, print = nil, nil, nil, nil, nil, nil, nil, nil
@@ -174,13 +188,16 @@ impl Rules {
 }
 
 fn finding(v: &[Value]) -> Result<Finding, String> {
-    let [
-        Value::Str(id),
-        Value::Str(layer),
-        score,
-        Value::Bool(hold),
-        Value::Str(detail),
-    ] = v
+    let (
+        [
+            Value::Str(id),
+            Value::Str(layer),
+            score,
+            Value::Bool(hold),
+            Value::Str(detail),
+        ],
+        params,
+    ) = v.split_at(v.len().min(5))
     else {
         return Err("invalid finding shape".into());
     };
@@ -196,5 +213,11 @@ fn finding(v: &[Value]) -> Result<Finding, String> {
     }
     let mut f = Finding::scored(text(id.as_bytes()), layer, score, text(detail.as_bytes()));
     f.holds = *hold;
+    for pair in params.chunks(2) {
+        let [Value::Str(k), Value::Str(v)] = pair else {
+            return Err("invalid finding params".into());
+        };
+        f.params.insert(text(k.as_bytes()), text(v.as_bytes()));
+    }
     Ok(f)
 }

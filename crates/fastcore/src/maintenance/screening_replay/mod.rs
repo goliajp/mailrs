@@ -1,8 +1,12 @@
 //! Replay the screening rules over stored mail, for the review that comes
 //! before they act on anything.
 //!
-//! Read-only: nothing is moved, marked or written. Each conversation's
-//! newest message is read back the way the receiver saw it — the
+//! Read-only: nothing is moved, marked or written. With `scope=all` (the
+//! default) every message in the window is replayed, attachments being
+//! found as often in a conversation's middle as at its end; `scope=newest`
+//! keeps the first round's reading, each conversation's newest message,
+//! and its answer unchanged. A message is read back the way the receiver
+//! saw it — the
 //! connecting address from this deployment's own `Received:` line, SPF and
 //! DMARC from its `Authentication-Results:` — and the facts go to the rule
 //! bundle under review. Messages in Junk are the control sample; the rest
@@ -19,9 +23,16 @@
 
 use std::collections::BTreeMap;
 
-use super::fraud_rescan::reading::newest_raw;
+mod coverage;
+#[cfg(test)]
+mod tests;
+mod timing;
+
+use super::fraud_rescan::reading::{newest_raw, raw_for_message};
 use super::prelude::*;
+use coverage::Coverage;
 use mailrs_fraud_lua::stored::header_value;
+use timing::ObservedAt;
 
 const PAUSE_EVERY: u64 = 25;
 const DAY: i64 = 86_400;
@@ -37,6 +48,18 @@ pub(crate) struct ReplayQuery {
     days: i64,
     #[serde(default = "default_pause")]
     pause_ms: u64,
+    /// `all` (default): every message in the window. `newest`: each
+    /// conversation's newest message, the first round's reading.
+    #[serde(default)]
+    scope: Scope,
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum Scope {
+    #[default]
+    All,
+    Newest,
 }
 
 fn default_limit() -> u64 {
@@ -73,6 +96,10 @@ struct Row {
     score: f64,
     detail: String,
     evidence: Vec<String>,
+    /// `scope=all` only: every observation the hit cites was recorded
+    /// after the message arrived.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    after_the_fact: Option<bool>,
 }
 
 /// `POST /v1/admin/maintenance:screening-replay` — the body, when not
@@ -148,11 +175,23 @@ fn replay(
             return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
-    let (mut clean, mut junk, mut held) = (Sample::default(), Sample::default(), Sample::default());
-    let mut fraud = super::fraud_rescan::FraudJudge::new(state);
-    let mut fraud_version = String::new();
-    let (mut rows, mut errors) = (Vec::new(), Vec::new());
-    let (mut walked, mut stopped_early, mut out_of_window) = (0u64, false, 0u64);
+    let observed = ObservedAt::new(&obs, &hashes);
+    let mut w = Walk {
+        scope: q.scope,
+        rules: &mut rules,
+        set: &set,
+        inspector: &inspector,
+        own: &own,
+        observed: &observed,
+        fraud: super::fraud_rescan::FraudJudge::new(state),
+        fraud_version: String::new(),
+        samples: [Sample::default(), Sample::default(), Sample::default()],
+        coverage: [Coverage::new(), Coverage::new(), Coverage::new()],
+        rows: Vec::new(),
+        errors: Vec::new(),
+        out_of_window: 0,
+    };
+    let (mut walked, mut stopped_early) = (0u64, false);
     for (i, (user, tid)) in targets.iter().enumerate() {
         if (i as u64) < q.skip {
             continue;
@@ -170,29 +209,110 @@ fn replay(
         if walked.is_multiple_of(PAUSE_EVERY) {
             std::thread::sleep(std::time::Duration::from_millis(q.pause_ms));
         }
-        let Some((message_id, raw)) = newest_raw(state, user, tid) else {
-            continue;
-        };
-        let arrived = mailrs_inbound::dates::received_epoch(&raw).unwrap_or(0);
-        if now - arrived > q.days * DAY {
-            out_of_window += 1;
-            continue;
-        }
         let row = state.mailbox.get_thread_for_user(user, tid).ok().flatten();
         let is_held = row.as_ref().is_some_and(|t| t.quarantined);
         let in_junk = row.as_ref().is_some_and(|t| {
             mailrs_mailbox_kevy::scope::bucket_of(&t.category)
                 == mailrs_mailbox_kevy::scope::Bucket::Junk
         });
-        let (name, sample) = match (is_held, in_junk) {
-            (true, _) => ("held", &mut held),
-            (false, true) => ("junk", &mut junk),
-            (false, false) => ("clean", &mut clean),
+        let which = match (is_held, in_junk) {
+            (true, _) => 2,
+            (false, true) => 1,
+            (false, false) => 0,
         };
+        for (message_id, raw) in messages(state, user, tid, q.scope) {
+            let arrived = mailrs_inbound::dates::received_epoch(&raw).unwrap_or(0);
+            if now - arrived > q.days * DAY {
+                w.out_of_window += 1;
+                continue;
+            }
+            w.message(state, which, &message_id, &raw, arrived);
+        }
+    }
+    let [clean, junk, held] = w.samples;
+    let mut out = serde_json::json!({
+        "version": w.rules.version(),
+        "fraud_version": w.fraud_version,
+        "approved": mailrs_screening_lua::approved(w.rules.version()),
+        "observations": set.observations(),
+        "hashes": inspector.denied_hashes(),
+        "days": q.days,
+        "walked": walked,
+        "out_of_window": w.out_of_window,
+        "next_skip": q.skip + walked,
+        "stopped_early": stopped_early,
+        "clean": clean,
+        "held": held,
+        "junk": junk,
+        "errors": w.errors,
+        "hits": w.rows,
+    });
+    if q.scope == Scope::All {
+        let [c, j, h] = w.coverage;
+        out["scope"] = "all".into();
+        out["coverage"] = serde_json::json!({ "clean": c, "junk": j, "held": h });
+    }
+    Json(out).into_response()
+}
+
+const SAMPLE_NAMES: [&str; 3] = ["clean", "junk", "held"];
+
+/// The messages of `tid` the replay reads: every one this user holds, or
+/// only the newest.
+fn messages(
+    state: &Arc<FastcoreState>,
+    user: &str,
+    tid: &str,
+    scope: Scope,
+) -> Vec<(String, Vec<u8>)> {
+    match scope {
+        Scope::Newest => newest_raw(state, user, tid).into_iter().collect(),
+        Scope::All => state
+            .mailbox
+            .user_thread_message_ids(user, tid)
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|mid| raw_for_message(state, user, &mid).map(|raw| (mid, raw)))
+            .collect(),
+    }
+}
+
+/// One replay's running totals.
+struct Walk<'a> {
+    scope: Scope,
+    rules: &'a mut mailrs_screening_lua::Rules,
+    set: &'a mailrs_reputation::Set,
+    inspector: &'a mailrs_attachment_scan::Inspector,
+    own: &'a [String],
+    observed: &'a ObservedAt,
+    fraud: super::fraud_rescan::FraudJudge,
+    fraud_version: String,
+    samples: [Sample; 3],
+    coverage: [Coverage; 3],
+    rows: Vec<Row>,
+    errors: Vec<serde_json::Value>,
+    out_of_window: u64,
+}
+
+impl Walk<'_> {
+    /// Judge one message of sample `which` (clean, junk, held).
+    fn message(
+        &mut self,
+        state: &Arc<FastcoreState>,
+        which: usize,
+        message_id: &str,
+        raw: &[u8],
+        arrived: i64,
+    ) {
+        let name = SAMPLE_NAMES[which];
+        let sample = &mut self.samples[which];
         sample.messages += 1;
-        match fraud.judge(state, &message_id, &raw) {
+        if self.scope == Scope::All {
+            self.coverage[which].add(&coverage::seen(raw, self.inspector));
+        }
+        match self.fraud.judge(state, message_id, raw) {
             Ok(j) => {
-                fraud_version = j.version;
+                self.fraud_version = j.version;
                 sample.fraud_hold += u64::from(j.holds);
                 sample.fraud_junk += u64::from(j.junks);
                 for f in j.findings.iter() {
@@ -201,8 +321,8 @@ fn replay(
                         true => "hold",
                         false => "score",
                     };
-                    rows.push(Row {
-                        message_id: message_id.clone(),
+                    self.rows.push(Row {
+                        message_id: message_id.to_string(),
                         sample: name,
                         kind: "fraud",
                         rule: f.rule.clone(),
@@ -210,34 +330,39 @@ fn replay(
                         score: f.score,
                         detail: f.detail.clone(),
                         evidence: Vec::new(),
+                        after_the_fact: None,
                     });
                 }
             }
-            Err(e) => errors.push(
+            Err(e) => self.errors.push(
                 serde_json::json!({ "message_id": message_id, "error": format!("fraud: {e}") }),
             ),
         }
-        let verdict = match judge(&mut rules, &set, &inspector, &own, &raw) {
+        let verdict = match judge(self.rules, self.set, self.inspector, self.own, raw) {
             Ok(v) => v,
             Err(e) => {
-                errors.push(serde_json::json!({ "message_id": message_id, "error": e }));
-                continue;
+                self.errors
+                    .push(serde_json::json!({ "message_id": message_id, "error": e }));
+                return;
             }
         };
-        if verdict.is_empty() {
-            continue;
-        }
-        sample.with_hits += 1;
-        if verdict
-            .iter()
-            .any(|h| h.action == mailrs_screening_lua::Action::Junk)
-        {
-            sample.junk_action += 1;
-        }
+        let (mut in_time, mut junk_in_time) = (false, false);
         for h in verdict {
-            *sample.by_rule.entry(h.rule.clone()).or_default() += 1;
-            rows.push(Row {
-                message_id: message_id.clone(),
+            let late = match self.scope {
+                Scope::All => Some(self.observed.after_the_fact(&h.evidence, arrived)),
+                Scope::Newest => None,
+            };
+            if late == Some(true) {
+                let c = &mut self.coverage[which];
+                c.after_the_fact += 1;
+                *c.after_the_fact_by_rule.entry(h.rule.clone()).or_default() += 1;
+            } else {
+                in_time = true;
+                junk_in_time |= h.action == mailrs_screening_lua::Action::Junk;
+                *sample.by_rule.entry(h.rule.clone()).or_default() += 1;
+            }
+            self.rows.push(Row {
+                message_id: message_id.to_string(),
                 sample: name,
                 kind: "screening",
                 rule: h.rule,
@@ -245,27 +370,12 @@ fn replay(
                 score: h.score,
                 detail: h.detail,
                 evidence: h.evidence,
+                after_the_fact: late,
             });
         }
+        sample.with_hits += u64::from(in_time);
+        sample.junk_action += u64::from(junk_in_time);
     }
-    Json(serde_json::json!({
-        "version": rules.version(),
-        "fraud_version": fraud_version,
-        "approved": mailrs_screening_lua::approved(rules.version()),
-        "observations": set.observations(),
-        "hashes": inspector.denied_hashes(),
-        "days": q.days,
-        "walked": walked,
-        "out_of_window": out_of_window,
-        "next_skip": q.skip + walked,
-        "stopped_early": stopped_early,
-        "clean": clean,
-        "held": held,
-        "junk": junk,
-        "errors": errors,
-        "hits": rows,
-    }))
-    .into_response()
 }
 
 /// The facts of one stored message, through the rules.
@@ -295,41 +405,5 @@ fn judge(
     match e.errors.is_empty() {
         true => Ok(e.hits),
         false => Err(e.errors.join("; ")),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::super::hangup::{Hangup, seed};
-    use super::*;
-
-    async fn walked(state: &Arc<FastcoreState>, hangup: &Hangup) -> serde_json::Value {
-        let q = ReplayQuery {
-            skip: 0,
-            limit: 100,
-            days: 36_500,
-            pause_ms: 0,
-        };
-        let res = replay(state, &q, String::new(), hangup);
-        assert_eq!(res.status(), axum::http::StatusCode::OK);
-        serde_json::from_slice(
-            &axum::body::to_bytes(res.into_body(), 1 << 20)
-                .await
-                .unwrap(),
-        )
-        .unwrap()
-    }
-
-    #[tokio::test]
-    async fn the_replay_stops_soon_after_the_caller_hangs_up() {
-        let mut state = crate::tests::fresh_state_owned();
-        state.net_url = Some("mem://replay-hangup".into());
-        let state = Arc::new(state);
-        seed(&state, "u@x", 5);
-        let all = walked(&state, &Hangup::never()).await;
-        assert_eq!(all["walked"], 5, "{all}");
-        let cut = walked(&state, &Hangup::after(2)).await;
-        assert_eq!(cut["walked"], 2, "{cut}");
-        assert_eq!(cut["stopped_early"], true, "{cut}");
     }
 }

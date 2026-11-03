@@ -1,5 +1,6 @@
 /** Calendar page entries, spread into `en`; kept apart to keep each file small. */
 export const calendarEn = {
+  'calendar.allDay': 'All day',
   'calendar.answer': 'Your answer',
   'calendar.from': 'From',
   'calendar.loadFailed': 'The calendar could not be loaded',

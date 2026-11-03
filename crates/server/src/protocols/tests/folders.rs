@@ -1,18 +1,20 @@
 //! What a client asks about folders without opening them: STATUS, LSUB.
 
-use mailrs_imap_proto::special_use_flag;
+use mailrs_imap_proto::{astring, special_use_flag};
 
 use super::Step;
 use super::steps::{logout, signed_in, step};
 
-// the account's label is listed after the mailboxes
-const FOLDERS: [&str; 7] = [
+// Archive and All Mail after the mailboxes, then the account's label
+const FOLDERS: [&str; 9] = [
     "INBOX",
     "Drafts",
     "Junk",
     "Sent",
     "Trash",
     "Review",
+    "Archive",
+    "All Mail",
     super::harness::LABEL,
 ];
 
@@ -22,8 +24,9 @@ pub(super) fn status() -> Vec<Step> {
         .iter()
         .map(|n| {
             format!(
-                "* LSUB (\\HasNoChildren{}) \"/\" {n}\r\n",
-                special_use_flag(n)
+                "* LSUB (\\HasNoChildren{}) \"/\" {}\r\n",
+                special_use_flag(n),
+                astring(n)
             )
         })
         .chain(["f7 OK LSUB completed\r\n".to_string()])
@@ -73,8 +76,9 @@ pub(super) fn fixed() -> Vec<Step> {
         .iter()
         .map(|n| {
             format!(
-                "* LIST (\\HasNoChildren{}) \"/\" {n}\r\n",
-                special_use_flag(n)
+                "* LIST (\\HasNoChildren{}) \"/\" {}\r\n",
+                special_use_flag(n),
+                astring(n)
             )
         })
         .chain(["g8 OK LIST completed\r\n".to_string()])

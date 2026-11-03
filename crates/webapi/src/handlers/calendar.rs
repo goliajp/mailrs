@@ -18,6 +18,7 @@ use std::sync::Arc;
 use axum::Json;
 use axum::extract::{Extension, Path, Query, State};
 use axum::http::StatusCode;
+use mailrs_core_sidestate::families::calendar_events::span;
 use serde::{Deserialize, Serialize};
 
 use crate::WebState;
@@ -117,6 +118,8 @@ pub async fn get_conflicts(
         .into_iter()
         .filter(|r| Some(r.uid.as_str()) != q.exclude_uid.as_deref())
         .filter(|r| r.partstat.as_deref() != Some("DECLINED"))
+        // a day off or a holiday blocks no hour of it
+        .filter(|r| !is_all_day(r))
         .collect();
     Json(rows)
 }
@@ -170,6 +173,9 @@ fn rows_in_window(user: &str, start_ts: i64, end_ts: i64) -> Result<Vec<EventRow
         .into_iter()
         .map(EventRow::from)
         .filter(|row| {
+            if is_all_day(row) {
+                return all_day_overlaps(row, start_ts, end_ts);
+            }
             let s_ts = row
                 .dtstart
                 .as_deref()
@@ -183,6 +189,27 @@ fn rows_in_window(user: &str, start_ts: i64, end_ts: i64) -> Result<Vec<EventRow
             s_ts < end_ts && e_ts > start_ts
         })
         .collect())
+}
+
+fn is_all_day(row: &EventRow) -> bool {
+    row.dtstart.as_deref().and_then(span::date_of).is_some()
+}
+
+/// An all-day event's dates fall on different instants for readers in
+/// different zones, and the window is the reader's days in UTC. Every
+/// zone is within 14 hours of UTC, so widening by that much keeps every
+/// event that touches the reader's days; the client places it exactly.
+fn all_day_overlaps(row: &EventRow, start_ts: i64, end_ts: i64) -> bool {
+    const WIDEST_OFFSET: i64 = 14 * 3600;
+    let Some(s_ts) = row.dtstart.as_deref().and_then(span::epoch_of) else {
+        return false;
+    };
+    let e_ts = row
+        .dtend
+        .as_deref()
+        .and_then(span::epoch_of)
+        .unwrap_or(s_ts + 86_400);
+    s_ts - WIDEST_OFFSET < end_ts && e_ts + WIDEST_OFFSET > start_ts
 }
 
 impl From<mailrs_core_sidestate::families::calendar_events::StoredEvent> for EventRow {

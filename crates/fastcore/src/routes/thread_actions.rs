@@ -204,33 +204,46 @@ pub(crate) async fn archive_thread(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> axum::response::Response {
+    member_result(set_archived_everywhere(&state, &user, &thread_id, true))
+}
+
+/// Archive `thread_id` for `user`, or bring it back to the Inbox: the row,
+/// and the keyword bit a rebuilt index finds it by. The web and IMAP both
+/// archive through here. `false` when `user` is not in the thread.
+pub(crate) fn set_archived_everywhere(
+    state: &Arc<FastcoreState>,
+    user: &str,
+    thread_id: &str,
+    archived: bool,
+) -> bool {
     // Archiving something still unread is the user dismissing it
     // unseen — the strongest implicit "not worth my attention" signal
     // there is. Read the unread state before the archive write.
-    let dismissed_unread = state
-        .mailbox
-        .get_thread_for_user(&user, &thread_id)
-        .ok()
-        .flatten()
-        .is_some_and(|r| r.unread_count > 0);
+    let dismissed_unread = archived
+        && state
+            .mailbox
+            .get_thread_for_user(user, thread_id)
+            .ok()
+            .flatten()
+            .is_some_and(|r| r.unread_count > 0);
     let ok = state
         .mailbox
-        .set_archived(&user, &thread_id, true)
+        .set_archived(user, thread_id, archived)
         .unwrap_or(false);
     // Tier 1: no standard maildir flag means "archived", so it goes in a
     // keyword bit, which is where a rebuilt index can find it again.
     if ok {
-        crate::keywords::set_on_thread(&state, &user, &thread_id, crate::keywords::ARCHIVED, true);
+        crate::keywords::set_on_thread(state, user, thread_id, crate::keywords::ARCHIVED, archived);
     }
     if ok && dismissed_unread {
         crate::importance::record_engagement(
-            &state,
-            &user,
-            &thread_id,
+            state,
+            user,
+            thread_id,
             mailrs_core_sidestate::families::contacts::Engagement::ArchivedUnread,
         );
     }
-    member_result(ok)
+    ok
 }
 
 /// v2.4.1 Phase 3 (RFC-B §3.4) — mark a thread as junk.
@@ -342,14 +355,7 @@ pub(crate) async fn unarchive_thread(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> axum::response::Response {
-    let ok = state
-        .mailbox
-        .set_archived(&user, &thread_id, false)
-        .unwrap_or(false);
-    if ok {
-        crate::keywords::set_on_thread(&state, &user, &thread_id, crate::keywords::ARCHIVED, false);
-    }
-    member_result(ok)
+    member_result(set_archived_everywhere(&state, &user, &thread_id, false))
 }
 
 pub(crate) async fn delete_thread(
