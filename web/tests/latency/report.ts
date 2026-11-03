@@ -103,3 +103,8 @@ export function summarize(samples: Sample[], timeouts: number): Summary {
     timeouts,
   }
 }
+
+export function timedOut(n: number): string {
+  if (!n) return ''
+  return `  ${n} timed out`
+}

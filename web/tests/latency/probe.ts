@@ -38,7 +38,8 @@ export function installProbe() {
   type Pred = (arg: string) => boolean
   const rowNumber = (label: string): null | number => {
     const m = /#(\d+)(?:,|$)/.exec(label)
-    return m ? Number(m[1]) : null
+    if (!m) return null
+    return Number(m[1])
   }
   const rowButtons = () =>
     Array.from(document.querySelectorAll<HTMLButtonElement>('[role="listitem"] > button'))

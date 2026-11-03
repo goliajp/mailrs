@@ -30,7 +30,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { installProbe } from './latency/probe'
-import { LoadWitness, summarize } from './latency/report'
+import { LoadWitness, summarize, timedOut } from './latency/report'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -130,7 +130,8 @@ test.afterAll(() => {
   if (!BASE) return
   const load = witness.stop()
   const measured = load.start <= MAX_LOAD && load.max <= MAX_LOAD
-  const verdict = measured ? 'measured' : 'not measured'
+  let verdict = 'not measured'
+  if (measured) verdict = 'measured'
   const out = {
     at: new Date().toISOString(),
     browser: `chromium ${browserVersion}`,
@@ -230,7 +231,8 @@ function printTable(load: { end: number; max: number; start: number }) {
   )
   for (const [name, r] of Object.entries(results)) {
     const s = r.summary
-    const budget = name === 'search' ? BUDGET.search : BUDGET.interaction
+    let budget = BUDGET.interaction
+    if (name === 'search') budget = BUDGET.search
     const m = s.mainThread
     console.log(
       `${name.padEnd(11)} ${String(s.n).padStart(2)} ${s.p50.toFixed(0).padStart(5)} ${s.p95
@@ -242,7 +244,7 @@ function printTable(load: { end: number; max: number; start: number }) {
       )}  ${`${(s.bytes.critical / 1024).toFixed(1)}/${(s.bytes.triggered / 1024).toFixed(1)}`.padStart(
         12
       )}  ${m.total.toFixed(0)} (${m.script.toFixed(0)}/${m.style.toFixed(0)}/${m.layout.toFixed(0)}/${m.other.toFixed(0)})` +
-        (s.timeouts ? `  ${s.timeouts} timed out` : '')
+        timedOut(s.timeouts)
     )
   }
 }
@@ -384,7 +386,11 @@ async function scrollList(page: Page, to: 'bottom' | number) {
   await page.evaluate((t) => {
     const list = document.querySelector<HTMLElement>('[role="list"][aria-label]')
     if (!list) return
-    list.scrollTop = t === 'bottom' ? list.scrollHeight : list.scrollHeight - list.clientHeight - t
+    if (t === 'bottom') {
+      list.scrollTop = list.scrollHeight
+      return
+    }
+    list.scrollTop = list.scrollHeight - list.clientHeight - t
   }, to)
 }
 
