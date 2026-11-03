@@ -136,8 +136,43 @@ pub async fn list_conversations(
         ),
         None => None,
     };
-    let mut q = thread_query(&user, &req.filter);
-    if let Some(ids) = &labelled {
+    use mailrs_core_api::paging::Paging;
+    let f = &req.filter;
+    let limit = match f.limit {
+        0 => 50,
+        n => n as usize,
+    };
+    let mut items = match f.paging(limit) {
+        Err(_) => return Err(StatusCode::BAD_REQUEST),
+        Ok(Paging::BeforeTs(_)) => fetch_page(&state, &user, f, labelled.as_deref()).await?,
+        Ok(Paging::Cursor(mut pager)) => loop {
+            let ask = pager.ask();
+            let round = ConversationFilter {
+                before_ts: ask.before_ts,
+                after_cursor: None,
+                limit: u32::try_from(ask.limit).unwrap_or(u32::MAX),
+                ..f.clone()
+            };
+            let rows = fetch_page(&state, &user, &round, labelled.as_deref()).await?;
+            if let Some(page) = pager.offer(rows, |r| f.page_time(r), |r| r.thread_id.as_str()) {
+                break page;
+            }
+        },
+    };
+    f.stamp_cursors(&mut items);
+    let items = super::labels::with_labels(&state, &user, items).await;
+    Ok(Json(wire::ListConversationsResponse { items }))
+}
+
+/// One fetch of the list `f` describes, `before_ts` paging and all.
+async fn fetch_page(
+    state: &Arc<CoreRpcState>,
+    user: &str,
+    f: &ConversationFilter,
+    labelled: Option<&[String]>,
+) -> Result<Vec<ConversationSummaryWire>, StatusCode> {
+    let mut q = thread_query(user, f);
+    if let Some(ids) = labelled {
         // a label is not a place: archived conversations are in it, those
         // in the Trash are not, wherever they are filed
         q = ThreadQuery {
@@ -153,10 +188,8 @@ pub async fn list_conversations(
         .mailbox
         .thread_rows(&q)
         .await
-        .map_err(failed("list_conversations", &user))?;
-    let items: Vec<ConversationSummaryWire> = rows.iter().map(Into::into).collect();
-    let items = super::labels::with_labels(&state, &user, items).await;
-    Ok(Json(wire::ListConversationsResponse { items }))
+        .map_err(failed("list_conversations", user))?;
+    Ok(rows.iter().map(Into::into).collect())
 }
 
 /// POST /v1/users/{user}/conversations:by-thread-ids — the reader's own

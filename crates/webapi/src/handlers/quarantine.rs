@@ -24,6 +24,10 @@ pub struct QuarantineQuery {
     pub limit: Option<usize>,
     #[serde(default, alias = "before")]
     pub before_ts: Option<i64>,
+    /// The `cursor` of the last row of the previous page; not together
+    /// with `before_ts`.
+    #[serde(default)]
+    pub cursor: Option<String>,
 }
 
 /// GET /api/quarantine — the held conversations, newest first.
@@ -37,9 +41,17 @@ pub async fn list_quarantine(
     // review tab asks it to put a number beside its name, and the
     // count comes off the index either way, so a page of nothing
     // costs nothing.
+    if q.before_ts.is_some() && q.cursor.is_some() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
     let resp = state
         .core
-        .list_quarantined(&user, q.limit.unwrap_or(50).min(1000), q.before_ts)
+        .list_quarantined_after(
+            &user,
+            q.limit.unwrap_or(50).min(1000),
+            q.before_ts,
+            q.cursor.as_deref(),
+        )
         .await
         .map_err(map_err)?;
     Ok(Json(QuarantineListResponse {

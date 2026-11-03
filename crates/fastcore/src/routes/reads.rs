@@ -57,33 +57,66 @@ pub(crate) fn threads_filter(
 }
 
 /// `POST /v1/users/{user}/conversations:list`.
+///
+/// Paged by `after_cursor` (or from the top) in rounds, so a page boundary
+/// inside one second loses no conversation of it; `before_ts` alone keeps
+/// the old paging by time. Both at once is a 400.
 pub(crate) async fn list_conversations(
     State(state): State<Arc<FastcoreState>>,
     Path(user): Path<String>,
     Json(req): Json<conv::ListConversationsRequest>,
-) -> Json<conv::ListConversationsResponse> {
+) -> Result<Json<conv::ListConversationsResponse>, axum::http::StatusCode> {
+    use mailrs_core_api::paging::Paging;
     let f = &req.filter;
-    let filter = threads_filter(f);
     let limit = if f.limit == 0 { 50 } else { f.limit as usize };
+    let mut items = match f.paging(limit) {
+        Err(_) => return Err(axum::http::StatusCode::BAD_REQUEST),
+        Ok(Paging::BeforeTs(_)) => fetch_page(&state, &user, f, limit),
+        Ok(Paging::Cursor(mut pager)) => loop {
+            let ask = pager.ask();
+            let round = mailrs_core_api::types::ConversationFilter {
+                before_ts: ask.before_ts,
+                after_cursor: None,
+                ..f.clone()
+            };
+            let rows = fetch_page(&state, &user, &round, ask.limit);
+            if let Some(page) = pager.offer(rows, |r| f.page_time(r), |r| r.thread_id.as_str()) {
+                break page;
+            }
+        },
+    };
+    f.stamp_cursors(&mut items);
+    Ok(Json(conv::ListConversationsResponse { items }))
+}
+
+/// One fetch of the list `f` describes, `before_ts` paging and all, as the
+/// rows a client draws.
+fn fetch_page(
+    state: &Arc<FastcoreState>,
+    user: &str,
+    f: &mailrs_core_api::types::ConversationFilter,
+    limit: usize,
+) -> Vec<mailrs_core_api::types::ConversationSummaryWire> {
+    let filter = threads_filter(f);
     // An error here reads as an empty mailbox, which is the one answer
     // the caller cannot tell from a real one — so say it happened. The
     // dispatcher returns Err when a query names a column its index does
     // not store, and that is a wiring mistake, not an empty page.
     let listed = match f.label.as_deref() {
-        Some(id) => crate::routes::labels::rows_with_label(&state, &user, id, &filter, limit),
-        None if f.snoozed == Some(true) => snoozed_page(&state, &user, &filter, f.before_ts, limit),
-        None if f.assigned_to_me => crate::shared::assigned_page(&state, &user, f, limit),
+        Some(id) => crate::routes::labels::rows_with_label(state, user, id, &filter, limit),
+        None if f.snoozed == Some(true) => snoozed_page(state, user, &filter, f.before_ts, limit),
+        None if f.assigned_to_me => crate::shared::assigned_page(state, user, f, limit),
         None => match f
             .section
             .as_deref()
             .and_then(mailrs_mailbox_kevy::section::Section::named)
         {
             Some(section) => {
-                crate::routes::section_list::section_page(&state, &user, section, f, limit)
+                crate::routes::section_list::section_page(state, user, section, f, limit)
             }
             None => state
                 .mailbox
-                .list_threads_by_activity(&user, &filter, 0, limit)
+                .list_threads_by_activity(user, &filter, 0, limit)
                 .map(|(rows, _)| rows),
         },
     };
@@ -91,12 +124,10 @@ pub(crate) async fn list_conversations(
         tracing::warn!(%user, error = %e, "conversation list failed; serving empty");
         Vec::new()
     });
-
     let items = rows.into_iter().map(row_to_wire).collect();
-    let items = crate::routes::labels::with_labels(&state, &user, items);
-    let items = crate::sections::with_sections(&state, &user, items);
-    let items = crate::shared::with_shared(&state, &user, items);
-    Json(conv::ListConversationsResponse { items })
+    let items = crate::routes::labels::with_labels(state, user, items);
+    let items = crate::sections::with_sections(state, user, items);
+    crate::shared::with_shared(state, user, items)
 }
 
 /// The Snoozed list, paged the way every list is: by `before_ts`, then `limit`.
