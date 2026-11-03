@@ -37,6 +37,7 @@ pub(crate) struct Memory {
     script: Arc<Mutex<Option<String>>>,
     trash: Trash,
     held: Held,
+    archived: Held,
     labels: Labels,
 }
 
@@ -53,6 +54,11 @@ impl Memory {
     /// Hold the conversation of `uid`, as a fraud verdict does.
     pub(crate) fn hold(&self, uid: u32) {
         self.held.lock().unwrap().push(uid);
+    }
+
+    /// Archive the conversation of `uid`, as the web does.
+    pub(crate) fn archive(&self, uid: u32) {
+        self.archived.lock().unwrap().push(uid);
     }
 
     pub(crate) fn deliver(&self, raw: &str) {
@@ -95,6 +101,7 @@ impl Directory for Memory {
             script: self.script.clone(),
             trash: self.trash.clone(),
             held: self.held.clone(),
+            archived: self.archived.clone(),
             labels: self.labels.clone(),
         }))
     }
@@ -105,6 +112,7 @@ pub(crate) struct MemoryAccount {
     script: Arc<Mutex<Option<String>>>,
     trash: Trash,
     held: Held,
+    archived: Held,
     labels: Labels,
 }
 
@@ -129,6 +137,21 @@ impl MemoryAccount {
                 size: bytes.len() as u64,
                 modseq: 1,
                 key: *uid,
+            })
+            .collect()
+    }
+
+    /// The listing, less the Trash and held mail, as `ShownMessage`s.
+    fn shown_where(&self, keep: impl Fn(u32) -> bool) -> Vec<ShownMessage<(), u32>> {
+        let trashed = self.trash.lock().unwrap().0.clone();
+        let held = self.held.lock().unwrap().clone();
+        self.listing()
+            .into_iter()
+            .filter(|m| !trashed.contains(&m.uid) && !held.contains(&m.uid) && keep(m.uid))
+            .map(|m| ShownMessage {
+                mailbox: (),
+                uid: m.uid,
+                message: m,
             })
             .collect()
     }
@@ -310,6 +333,30 @@ impl Account for MemoryAccount {
         label.2.retain(|u| *u != m.uid);
         if on {
             label.2.push(m.uid);
+        }
+        Ok(true)
+    }
+
+    async fn archived(&self) -> Result<Trashed<(), u32>> {
+        let archived = self.archived.lock().unwrap().clone();
+        Ok(Trashed {
+            messages: self.shown_where(|uid| archived.contains(&uid)),
+            latest: 0,
+        })
+    }
+
+    async fn all_mail(&self) -> Result<Trashed<(), u32>> {
+        Ok(Trashed {
+            messages: self.shown_where(|_| true),
+            latest: 0,
+        })
+    }
+
+    async fn set_archived(&self, _: &(), m: &Message<u32>, archived: bool) -> Result<bool> {
+        let mut set = self.archived.lock().unwrap();
+        set.retain(|u| *u != m.uid);
+        if archived {
+            set.push(m.uid);
         }
         Ok(true)
     }
