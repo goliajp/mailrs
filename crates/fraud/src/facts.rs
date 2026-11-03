@@ -152,4 +152,11 @@ pub struct Facts<'a> {
     /// organisation — [`crate::org_domain::signed_only_by`]. With
     /// [`Self::dkim`] `pass`, an aligned signature verified.
     pub dkim_signed_by_from_org: bool,
+    /// Whether a DKIM signature by the `From:` organisation verified,
+    /// when each signature's own result is known: on the receive path,
+    /// and from the per-signature `Authentication-Results` this server
+    /// writes ([`crate::org_domain::passed_for`]). `None` for mail
+    /// recorded with one result for all signatures, where only the
+    /// strict reading above can answer.
+    pub dkim_from_org_passed: Option<bool>,
 }

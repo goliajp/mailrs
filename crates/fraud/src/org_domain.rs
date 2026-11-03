@@ -43,6 +43,19 @@ pub fn signed_only_by(from_host: &str, signers: &[String]) -> bool {
     !from.is_empty() && !signers.is_empty() && signers.iter().all(|d| of(d) == from)
 }
 
+/// A signature by the `From:` organisation verified, given each
+/// signature's own `(result, d=)`. A sending service's second signature
+/// beside it (Amazon SES, Marketo) changes nothing, which the one-word
+/// result behind [`signed_only_by`] cannot express.
+#[must_use]
+pub fn passed_for(from_host: &str, signatures: &[(String, String)]) -> bool {
+    let from = of(from_host);
+    !from.is_empty()
+        && signatures
+            .iter()
+            .any(|(result, d)| result.eq_ignore_ascii_case("pass") && of(d) == from)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -74,5 +87,17 @@ mod tests {
         assert!(signed_only_by("mail.nvidia.cn", &own));
         assert!(!signed_only_by("mail.nvidia.cn", &mixed));
         assert!(!signed_only_by("mail.nvidia.cn", &[]));
+    }
+
+    #[test]
+    fn a_passing_signature_by_the_from_organisation_is_enough() {
+        let sig = |r: &str, d: &str| (r.to_string(), d.to_string());
+        let both = [sig("pass", "stripe.com"), sig("pass", "amazonses.com")];
+        assert!(passed_for("e.stripe.com", &both));
+        let own_failed = [sig("fail", "stripe.com"), sig("pass", "amazonses.com")];
+        assert!(!passed_for("stripe.com", &own_failed));
+        assert!(!passed_for("stripe.com", &[sig("pass", "amazonses.com")]));
+        assert!(!passed_for("stripe.com", &[]));
+        assert!(!passed_for("", &both));
     }
 }

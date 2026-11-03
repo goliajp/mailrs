@@ -39,7 +39,9 @@ fn fires(raw: &[u8], novelty: Novelty) -> bool {
     let mut rules = Rules::compile(DEFAULT_SOURCE).expect("compiles");
     let out = rules.classify(&f, &Policy::default());
     assert!(out.errors.is_empty(), "{:?}", out.errors);
-    out.findings.rules().contains(&RULE)
+    // the rule ships in shadow: a hit is recorded, never scored
+    assert!(!out.findings.rules().contains(&RULE));
+    out.shadow.rules().contains(&RULE)
 }
 
 fn old_domain() -> Novelty {

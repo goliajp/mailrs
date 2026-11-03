@@ -390,9 +390,12 @@ fn each_shipped_rule_names_the_facts_its_sentence_needs() {
     for (rule, facts, want) in cases() {
         let out = rules.classify(&facts, &policy());
         assert!(out.errors.is_empty(), "{rule}: {:?}", out.errors);
+        // shadow rules included: their sentences are needed the day they
+        // stop being shadow
         let f = out
             .findings
             .iter()
+            .chain(out.shadow.iter())
             .find(|f| f.rule == rule)
             .unwrap_or_else(|| panic!("{rule} did not fire: {:?}", out.findings.rules()));
         let want: BTreeMap<String, String> = want

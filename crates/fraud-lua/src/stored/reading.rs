@@ -40,6 +40,7 @@ pub struct Reading {
     payment: mailrs_fraud::payment::PaymentIds,
     html: mailrs_fraud::html_attachment::HtmlFeatures,
     dkim_signed_by_from_org: bool,
+    dkim_from_org_passed: Option<bool>,
 }
 
 impl Reading {
@@ -109,6 +110,11 @@ impl Reading {
                 &host,
                 &mailrs_inbound::dkim_signers::of(raw),
             ),
+            // only from the header this deployment wrote, so only when
+            // `MAILRS_HOSTNAME` says which one that is
+            dkim_from_org_passed: our_stamp
+                .and_then(|ours| mailrs_inbound::dkim_results::ours(raw, ours))
+                .map(|sigs| mailrs_fraud::org_domain::passed_for(&host, &sigs)),
             from,
             host,
         }
@@ -162,6 +168,7 @@ impl Reading {
                 &self.reply_to,
             ),
             dkim_signed_by_from_org: self.dkim_signed_by_from_org,
+            dkim_from_org_passed: self.dkim_from_org_passed,
         }
     }
 }
