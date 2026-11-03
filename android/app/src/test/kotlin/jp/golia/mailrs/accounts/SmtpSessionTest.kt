@@ -16,6 +16,11 @@ import org.junit.Test
  * time.
  */
 class SmtpSessionTest {
+
+    /** The app's English words, as a phone set to English shows them. */
+    @org.junit.Before
+    fun englishWords() = jp.golia.mailrs.wire.TestTexts.install()
+
     private class Script(private val lines: MutableList<String>) : SmtpSession.Transport {
         val written = mutableListOf<String>()
         override fun readLine(): String {

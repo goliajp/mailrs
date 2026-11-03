@@ -1,5 +1,6 @@
 package jp.golia.mailrs.wire
 
+import jp.golia.mailrs.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Request
@@ -163,7 +164,7 @@ suspend fun MailrsClient.addDomain(name: String): MailrsClient.Outcome<String> =
 suspend fun MailrsClient.deleteDomain(name: String): MailrsClient.Outcome<String> = delete("/api/admin/domains/" + enc(name))
 
 private suspend fun MailrsClient.delete(path: String): MailrsClient.Outcome<String> = withContext(Dispatchers.IO) {
-    val s = session ?: return@withContext MailrsClient.Outcome.Err("Not signed in.")
+    val s = session ?: return@withContext MailrsClient.Outcome.Err(Texts.get(R.string.error_not_signed_in))
     send(
         Request.Builder()
             .url(s.server + path)

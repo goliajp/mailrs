@@ -179,6 +179,10 @@ emulator_up() {
     done
 }
 
+# Costs milliseconds and compiles nothing, so it runs before the build
+# rather than after a ten-minute suite — as ios-build.sh does its own.
+./scripts/check-android-l10n.sh
+
 case "$MODE" in
     build)
         say "[1/1] assemble"
@@ -198,8 +202,11 @@ case "$MODE" in
         start_stub
         say "instrumented: ${FILTER:-all}"
         if [ -n "$FILTER" ]; then
+            # MAILRS_SHOTS=1 lets the screenshot tests take their pictures
+            # (jp.golia.mailrs.ScreenShots); they skip otherwise.
             (cd android && ANDROID_SERIAL="$EMULATOR_SERIAL" ./gradlew :app:connectedDebugAndroidTest \
-                -Pandroid.testInstrumentationRunnerArguments.class="$FILTER")
+                -Pandroid.testInstrumentationRunnerArguments.class="$FILTER" \
+                -Pandroid.testInstrumentationRunnerArguments.shots="${MAILRS_SHOTS:+true}")
         else
             (cd android && ANDROID_SERIAL="$EMULATOR_SERIAL" ./gradlew :app:connectedDebugAndroidTest)
         fi

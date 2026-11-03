@@ -271,7 +271,7 @@ class MailFlowTest : MailrsUiTest() {
         waitForTag("list.conversations", "the inbox never listed")
         compose.onNodeWithTag("button.folders").performClick()
         waitForTag("drawer.lists", "the drawer never opened")
-        compose.onNodeWithTag("drawer.item.NP").performClick()
+        compose.onNodeWithTag("drawer.item.NP").performScrollTo().performClick()
 
         compose.waitUntil(TIMEOUT_MS) {
             compose.onAllNodesWithText("This week in systems design").fetchSemanticsNodes().isNotEmpty()
@@ -373,7 +373,7 @@ class MailFlowTest : MailrsUiTest() {
         waitForTag("list.conversations", "the inbox never listed")
         compose.onNodeWithTag("button.folders").performClick()
         waitForTag("drawer.lists", "the drawer never opened")
-        compose.onNodeWithTag("drawer.item.Settings").performClick()
+        compose.onNodeWithTag("drawer.item.Settings").performScrollTo().performClick()
         scrollToTag("admin.Aliases", "settings never opened")
         compose.onNodeWithText("me@golia.jp").assertIsDisplayed()
     }

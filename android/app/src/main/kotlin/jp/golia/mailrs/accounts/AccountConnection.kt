@@ -1,5 +1,8 @@
 package jp.golia.mailrs.accounts
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
+
 /**
  * Proving an account works, before anything is stored.
  *
@@ -21,9 +24,12 @@ object AccountConnection {
         /** Whether re-typing the secret could fix it. */
         val credential: Boolean,
     ) {
-        enum class Stage(val label: String) {
-            INCOMING("incoming server"),
-            OUTGOING("outgoing server"),
+        enum class Stage(@androidx.annotation.StringRes private val labelId: Int) {
+            INCOMING(R.string.acct_stage_incoming),
+            OUTGOING(R.string.acct_stage_outgoing),
+            ;
+
+            val label: String get() = Texts.get(labelId)
         }
     }
 
@@ -124,7 +130,7 @@ object AccountConnection {
                 is Pop3Session.Failure.Unreachable ->
                     Failure(Failure.Stage.INCOMING, readable(e.why), false)
                 is Pop3Session.Failure.Closed ->
-                    Failure(Failure.Stage.INCOMING, "the server closed the connection", false)
+                    Failure(Failure.Stage.INCOMING, Texts.get(R.string.acct_closed), false)
             }
         } finally {
             pop.close()

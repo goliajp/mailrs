@@ -7,6 +7,11 @@ import org.junit.Test
 
 /** The decisions in sending that need no server. */
 class AccountSenderTest {
+
+    /** The app's English words, as a phone set to English shows them. */
+    @org.junit.Before
+    fun englishWords() = jp.golia.mailrs.wire.TestTexts.install()
+
     private fun account(address: String) =
         MailAccount.make(address, "", 0).copy(
             smtpHost = "smtp.example.com",

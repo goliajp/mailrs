@@ -1,5 +1,8 @@
 package jp.golia.mailrs.accounts
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
+
 /**
  * What a reply starts out as.
  *
@@ -109,6 +112,6 @@ object ReplyDraft {
                 else -> "> $line"
             }
         }
-        return "\n\n$who wrote:\n" + lines.joinToString("\n") + "\n"
+        return "\n\n" + Texts.get(R.string.reply_attribution_short, who) + "\n" + lines.joinToString("\n") + "\n"
     }
 }

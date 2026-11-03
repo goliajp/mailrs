@@ -73,6 +73,11 @@ object Wire {
         @SerialName("requires_action") val requiresAction: Boolean,
         @SerialName("received_count") val receivedCount: Int,
         @SerialName("sent_count") val sentCount: Int,
+        /** Unix seconds it comes back to the inbox; absent or past when not snoozed. */
+        @SerialName("snoozed_until") val snoozedUntil: Long? = null,
+        /** When it went to the Trash, 0 when it is not there. */
+        @SerialName("trashed_at") val trashedAt: Long = 0,
+        val labels: List<String> = emptyList(),
     )
 
     /**
@@ -376,6 +381,8 @@ object Wire {
     data class BatchRequest(
         val action: String,
         @SerialName("thread_ids") val threadIds: List<String>,
+        /** The label `label` and `unlabel` put on or take off. */
+        @SerialName("label_id") val labelId: String? = null,
     )
 
     /**

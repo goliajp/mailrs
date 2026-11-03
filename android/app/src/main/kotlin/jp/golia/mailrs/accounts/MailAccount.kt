@@ -1,5 +1,7 @@
 package jp.golia.mailrs.accounts
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
 import kotlinx.serialization.Serializable
 
 /**
@@ -84,15 +86,15 @@ data class MailAccount(
      */
     val problem: String? get() = when {
         !address.contains('@') || address.startsWith('@') || address.endsWith('@') ->
-            "That is not an email address"
-        imapHost.isBlank() -> "The incoming server needs a name"
-        imapPort !in 1..65535 -> "A port must be between 1 and 65535"
+            Texts.get(R.string.acct_not_address)
+        imapHost.isBlank() -> Texts.get(R.string.acct_incoming_needs_name)
+        imapPort !in 1..65535 -> Texts.get(R.string.acct_bad_port)
         // JMAP submits over the same API it reads from, so there is no
         // second server and demanding one refuses an account that is
         // perfectly well described. Every other kind has both.
         incoming == Incoming.JMAP -> null
-        smtpHost.isBlank() -> "The outgoing server needs a name"
-        smtpPort !in 1..65535 -> "A port must be between 1 and 65535"
+        smtpHost.isBlank() -> Texts.get(R.string.acct_outgoing_needs_name)
+        smtpPort !in 1..65535 -> Texts.get(R.string.acct_bad_port)
         else -> null
     }
 

@@ -1,5 +1,7 @@
 package jp.golia.mailrs.ui
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
 import android.content.Intent
 import android.graphics.Color as AndroidColor
 import android.view.ViewGroup
@@ -89,7 +91,7 @@ fun MessageBody(html: String, modifier: Modifier = Modifier) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                "Images not loaded",
+                Texts.get(R.string.body_images_not_loaded),
                 color = theme.fgSecondary,
                 fontSize = 12.sp,
                 modifier = Modifier.testTag("body.remoteBlocked"),
@@ -98,7 +100,7 @@ fun MessageBody(html: String, modifier: Modifier = Modifier) {
                 onClick = { blockRemote = false },
                 modifier = Modifier.testTag("button.loadImages"),
             ) {
-                Text("Load", color = theme.accent, fontSize = 12.sp)
+                Text(Texts.get(R.string.body_load), color = theme.accent, fontSize = 12.sp)
             }
         }
     }
