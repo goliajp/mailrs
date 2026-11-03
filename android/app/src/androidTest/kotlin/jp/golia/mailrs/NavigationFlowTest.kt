@@ -94,7 +94,7 @@ class NavigationFlowTest : MailrsUiTest() {
 
         compose.onNodeWithTag("button.folders").performClick()
         waitForTag("drawer.lists", "the drawer never opened")
-        compose.onNodeWithTag("drawer.item.Junk").performClick()
+        compose.onNodeWithTag("drawer.item.Junk").performScrollTo().performClick()
 
         compose.waitUntil(TIMEOUT_MS) {
             compose.onAllNodesWithText("You have won").fetchSemanticsNodes().isNotEmpty()
@@ -392,7 +392,7 @@ class NavigationFlowTest : MailrsUiTest() {
         waitForTag("list.conversations", "the inbox never listed")
         compose.onNodeWithTag("button.folders").performClick()
         waitForTag("drawer.lists", "the drawer never opened")
-        compose.onNodeWithTag("drawer.item.NP").performClick()
+        compose.onNodeWithTag("drawer.item.NP").performScrollTo().performClick()
         waitForTag("list.conversations", "the notifications list never opened")
 
         compose.onNodeWithTag("button.listMenu").performClick()

@@ -56,8 +56,16 @@ class SystemConfiguration : ExternalResource() {
         appLocale?.let { tag ->
             val wanted = android.os.LocaleList.forLanguageTags(tag)
             locales().applicationLocales = wanted
-            repeat(50) {
-                if (locales().applicationLocales == wanted) return@let
+            // Asked for is not applied: the app's own resources follow a
+            // moment later, and an activity launched in between is
+            // recreated under the compose rule. Wait for the resources.
+            val app = InstrumentationRegistry.getInstrumentation().targetContext.applicationContext
+            repeat(100) {
+                val now = app.resources.configuration.locales[0]
+                if (locales().applicationLocales == wanted && now.language == wanted[0].language) {
+                    Thread.sleep(500)
+                    return@let
+                }
                 Thread.sleep(100)
             }
             error("the app's language never became $tag")

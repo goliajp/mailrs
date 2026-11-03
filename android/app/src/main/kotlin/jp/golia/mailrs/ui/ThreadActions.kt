@@ -40,8 +40,8 @@ fun ThreadActionMenu(state: UiState, vm: MailViewModel, open: Wire.Conversation)
     var labelling by rememberSaveable { mutableStateOf(false) }
     val now = System.currentTimeMillis() / 1000
     val actions = RowActions.forRow(open, state.list, now)
-        // Star and unread have their own buttons beside this menu.
-        .filterNot { it == RowAction.Star || it == RowAction.Unstar || it == RowAction.Unread }
+        // Star, unread and archive have their own buttons beside this menu.
+        .filterNot { it in setOf(RowAction.Star, RowAction.Unstar, RowAction.Unread, RowAction.Archive) }
     RowActionMenu(actions, tag = "button.threadMore") { action ->
         when (action) {
             RowAction.Label -> {

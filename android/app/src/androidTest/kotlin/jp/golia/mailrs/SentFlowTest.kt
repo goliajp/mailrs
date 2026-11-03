@@ -1,5 +1,6 @@
 package jp.golia.mailrs
 
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.assertTextContains
 import org.junit.Assert.assertEquals
@@ -44,7 +45,7 @@ class SentFlowTest : MailrsUiTest() {
         waitForTag("list.conversations", "the inbox never listed")
         compose.onNodeWithTag("button.folders").performClick()
         waitForTag("drawer.lists", "the drawer never opened")
-        compose.onNodeWithTag("drawer.item.Sent").performClick()
+        compose.onNodeWithTag("drawer.item.Sent").performScrollTo().performClick()
         waitForTag("list.sent", "the sent list never opened")
 
         compose.onNodeWithText("Filed and delivered").assertIsDisplayed()
@@ -79,7 +80,7 @@ class SentFlowTest : MailrsUiTest() {
         waitForTag("list.conversations", "the inbox never listed")
         compose.onNodeWithTag("button.folders").performClick()
         waitForTag("drawer.lists", "the drawer never opened")
-        compose.onNodeWithTag("drawer.item.Sent").performClick()
+        compose.onNodeWithTag("drawer.item.Sent").performScrollTo().performClick()
         waitForTag("list.sent", "the sent list never opened")
 
         val offers = compose.onAllNodesWithTag("button.resend").fetchSemanticsNodes().size
@@ -130,7 +131,7 @@ class SentFlowTest : MailrsUiTest() {
         // And the other half: what is waiting can be called back.
         compose.onNodeWithTag("button.folders").performClick()
         waitForTag("drawer.lists", "the drawer never opened")
-        compose.onNodeWithTag("drawer.item.Sent").performClick()
+        compose.onNodeWithTag("drawer.item.Sent").performScrollTo().performClick()
         waitForTag("row.scheduled", "nothing was listed as waiting to send")
         compose.onAllNodesWithTag("button.cancelScheduled").onFirst().performClick()
         compose.waitUntil(TIMEOUT_MS) {
@@ -158,7 +159,7 @@ class SentFlowTest : MailrsUiTest() {
         waitForTag("list.conversations", "the inbox never listed")
         compose.onNodeWithTag("button.folders").performClick()
         waitForTag("drawer.lists", "the drawer never opened")
-        compose.onNodeWithTag("drawer.item.Sent").performClick()
+        compose.onNodeWithTag("drawer.item.Sent").performScrollTo().performClick()
         waitForTag("list.sent", "the sent list never opened")
 
         compose.onAllNodesWithTag("button.redraft").onFirst().performClick()
@@ -196,7 +197,7 @@ class SentFlowTest : MailrsUiTest() {
         waitForTag("list.conversations", "the inbox never listed")
         compose.onNodeWithTag("button.folders").performClick()
         waitForTag("drawer.lists", "the drawer never opened")
-        compose.onNodeWithTag("drawer.item.Sent").performClick()
+        compose.onNodeWithTag("drawer.item.Sent").performScrollTo().performClick()
         waitForTag("list.sent", "the sent list never opened")
 
         compose.onAllNodesWithTag("row.sent").onFirst().performTouchInput { longClick() }
@@ -227,7 +228,7 @@ class SentFlowTest : MailrsUiTest() {
         waitForTag("list.conversations", "the inbox never listed")
         compose.onNodeWithTag("button.folders").performClick()
         waitForTag("drawer.lists", "the drawer never opened")
-        compose.onNodeWithTag("drawer.item.Sent").performClick()
+        compose.onNodeWithTag("drawer.item.Sent").performScrollTo().performClick()
         waitForTag("row.scheduled", "nothing was listed as waiting to send")
 
         compose.onAllNodesWithTag("button.cancelScheduled").onFirst().performClick()
