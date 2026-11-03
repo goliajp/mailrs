@@ -56,6 +56,15 @@ Content-Type: text/plain; charset=utf-8\r\n\
 \r\n\
 Thanks for your order.\r\n";
 
+/// Alice's own mail, from an mbox without a Sent label: hers all the same.
+const OWN: &[u8] = b"Date: Wed, 04 Jan 2023 09:00:00 +0000\r\n\
+From: Alice <alice@example.test>\r\n\
+To: Carol <carol@old.test>\r\n\
+Subject: Note\r\n\
+Message-ID: <imported-own@old.test>\r\n\
+\r\n\
+Mine.\r\n";
+
 fn list(folder: &str) -> ListConversationsRequest {
     ListConversationsRequest {
         filter: ConversationFilter {
@@ -77,6 +86,30 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
         );
         if let Some((a, _)) = &filed {
             assert!(!a.blob_ref.contains('/'), "not in INBOX: {}", a.blob_ref);
+        }
+    }
+
+    let own = d.both(
+        "import_message from the user",
+        fc.import_message(ALICE, OWN, None).await,
+        pg.import_message(ALICE, OWN, None).await,
+        &["blob_ref"],
+    );
+    if let Some((a, _)) = &own {
+        assert!(a.blob_ref.starts_with(".Sent/"), "{}", a.blob_ref);
+    }
+    for folder in ["Inbox", "Sent"] {
+        if let Some((rows, _)) = d.both(
+            &format!("list_conversations [{folder}] after importing the user's own mail"),
+            fc.list_conversations(ALICE, &list(folder)).await,
+            pg.list_conversations(ALICE, &list(folder)).await,
+            MINTED,
+        ) {
+            let listed = rows
+                .items
+                .iter()
+                .any(|r| r.thread_id == "imported-own@old.test");
+            assert_eq!(listed, folder == "Sent", "[{folder}]");
         }
     }
 
@@ -126,6 +159,39 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
                 "[{folder}] the archived import"
             );
             assert!(!has(&held_tid), "[{folder}] lists the held import");
+        }
+    }
+    // starred and pinned while held: the flag lists leave it out unless
+    // asked for, in both cores
+    for core in [fc, pg] {
+        core.star_thread(ALICE, &held_tid).await.expect("star");
+        core.pin_thread(ALICE, &held_tid).await.expect("pin");
+    }
+    for (name, include_quarantined) in [("starred", false), ("starred, held included", true)] {
+        let req = |starred, pinned, unread| ListConversationsRequest {
+            filter: ConversationFilter {
+                starred,
+                pinned,
+                unread,
+                include_quarantined,
+                limit: 50,
+                ..Default::default()
+            },
+        };
+        for (view, r) in [
+            ("starred", req(Some(true), None, None)),
+            ("pinned", req(None, Some(true), None)),
+            ("unread", req(None, None, Some(true))),
+        ] {
+            if let Some((rows, _)) = d.both(
+                &format!("list_conversations [{view}] {name} with a held conversation"),
+                fc.list_conversations(ALICE, &r).await,
+                pg.list_conversations(ALICE, &r).await,
+                MINTED,
+            ) {
+                let listed = rows.items.iter().any(|row| row.thread_id == held_tid);
+                assert_eq!(listed, include_quarantined, "[{view}] {name}");
+            }
         }
     }
     let with_held = ListConversationsRequest {
