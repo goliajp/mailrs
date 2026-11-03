@@ -25,19 +25,24 @@ fn an_all_day_event_covers_its_dates_with_an_exclusive_end() {
         event("DTSTART;VALUE=DATE:20261103\r\nDTEND;VALUE=DATE:20261106\r\n").as_bytes(),
     )
     .expect("parse");
-    assert_eq!(all_day_of(&three), Some((day(2026, 11, 3), day(2026, 11, 6))));
+    assert_eq!(
+        all_day_of(&three),
+        Some((day(2026, 11, 3), day(2026, 11, 6)))
+    );
 
     let by_duration =
         parse_invite(event("DTSTART;VALUE=DATE:20261103\r\nDURATION:P2D\r\n").as_bytes())
             .expect("parse");
-    assert_eq!(all_day_of(&by_duration), Some((day(2026, 11, 3), day(2026, 11, 5))));
+    assert_eq!(
+        all_day_of(&by_duration),
+        Some((day(2026, 11, 3), day(2026, 11, 5)))
+    );
 }
 
 #[test]
 fn an_event_at_a_time_of_day_is_not_all_day() {
-    let timed = parse_invite(
-        event("DTSTART:20261103T010000Z\r\nDTEND:20261103T020000Z\r\n").as_bytes(),
-    )
-    .expect("parse");
+    let timed =
+        parse_invite(event("DTSTART:20261103T010000Z\r\nDTEND:20261103T020000Z\r\n").as_bytes())
+            .expect("parse");
     assert_eq!(all_day_of(&timed), None);
 }

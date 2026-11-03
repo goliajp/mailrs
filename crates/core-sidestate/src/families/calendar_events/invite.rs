@@ -224,7 +224,10 @@ mod tests {
         assert_eq!(row.dtend.as_deref(), Some("2026-11-05"));
         assert!(file_invite(&mut c, "a@x", &row).unwrap());
         let listed = crate::families::calendar_events::list(&mut c, "a@x").unwrap();
-        assert_eq!(listed.iter().map(|e| e.uid.as_str()).collect::<Vec<_>>(), ["d1"]);
+        assert_eq!(
+            listed.iter().map(|e| e.uid.as_str()).collect::<Vec<_>>(),
+            ["d1"]
+        );
     }
 
     #[test]

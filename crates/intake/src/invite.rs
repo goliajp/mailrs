@@ -56,8 +56,14 @@ pub fn find(body: &[u8]) -> Option<FoundInvite> {
         obj.insert("dtend_utc".into(), end.map(|t| t.to_rfc3339()).into());
         // an all-day event has no instants; its dates are what the calendar files
         if let Some((first, after_last)) = mailrs_ical::instants::all_day_of(&parsed) {
-            obj.insert("dtstart_date".into(), first.format("%Y-%m-%d").to_string().into());
-            obj.insert("dtend_date".into(), after_last.format("%Y-%m-%d").to_string().into());
+            obj.insert(
+                "dtstart_date".into(),
+                first.format("%Y-%m-%d").to_string().into(),
+            );
+            obj.insert(
+                "dtend_date".into(),
+                after_last.format("%Y-%m-%d").to_string().into(),
+            );
         }
         // And the way in. Resolved here rather than in each client:
         // three implementations of "which URL is a meeting" is three
