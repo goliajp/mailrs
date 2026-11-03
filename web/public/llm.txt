@@ -72,6 +72,9 @@ Streamable HTTP endpoint: https://mail.golia.ai/mcp
 - GET /api/messages/{message_id}/fraud-verdict — the four layers that decided it (transport / identity / provenance / content), as they were decided, with the rule-set version. `{"verdict": null}` when nothing was found
 - GET /api/conversations?include_quarantined=1 — show held conversations in place, marked. Default off; the exclusion is in the query shape, so held conversations are out of the totals too
 - GET /api/mail/folders — list folders
+- GET /api/mail/export — All Mail (everything but Junk and the Trash) as an mboxrd stream; each message carries X-Mailrs-Folder and Status: RO when read (recent password confirmation)
+- POST /api/mail/import — body is an mbox (an export from here, a Gmail Takeout, or any mbox); filed message by message, mail you wrote into Sent, the rest into the Inbox, read and archived as the file says; Junk and Trash skipped, a Message-ID already here not filed twice; no filters, forwarding, webhooks or notifications run. Returns counts (imported, sent, archived, held, skipped_duplicate, ...)
+- POST /api/mail/import/imap {host, port, username, password} — import from another provider over IMAP (993, or 143 with STARTTLS; certificates verified); the password is used once and never stored; progress is, so starting again resumes. GET for where it stands, DELETE to stop after the message in hand
 - GET /api/contacts — search contacts
 - JMAP: GET /.well-known/jmap, POST /jmap/api/, WebSocket /jmap/ws/ (subprotocol jmap) — mail, submission (held sends up to 30 days, cancel while held), vacation reply, search snippets, masked addresses
 

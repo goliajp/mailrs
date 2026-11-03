@@ -7,6 +7,7 @@
 //! with the namespace's SMTP token, and reads its mail read-only.
 
 mod account;
+mod forget;
 mod mock;
 mod real;
 mod sieve;
