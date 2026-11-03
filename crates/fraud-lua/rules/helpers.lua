@@ -57,8 +57,29 @@ local function brand_claim(list, text, domain, exact)
         if exact then
             for _, d in ipairs(b.domains) do hit = hit or text == fold(d) end
         end
-        if hit and not owns(b.domains, domain) then return true end
+        if hit and not owns(b.domains, domain) then return b.name end
     end
     return false
+end
+-- A finding with the facts its sentence names, each cut to what a reason
+-- may carry (256 bytes, at a character boundary).
+local function found(detail, params)
+    local out = {}
+    for k, v in pairs(params) do
+        local kept, n = {}, 0
+        for _, c in ipairs(chars(tostring(v))) do
+            n = n + #c
+            if n > 256 then break end
+            kept[#kept+1] = c
+        end
+        out[k] = table.concat(kept)
+    end
+    return {detail = detail, params = out}
+end
+-- What kind of payment account a message carries, for the reader.
+local function account_of(m)
+    if m.has_iban and m.iban_country ~= '' then return 'IBAN (' .. m.iban_country .. ')' end
+    if m.has_iban then return 'IBAN' end
+    return 'Bitcoin'
 end
 -- Helpers are lexical upvalues of the rule modules in the concatenated bundle.

@@ -17,27 +17,52 @@
   "bec-lookalike-reply-diverted": {
     "en": "Sent from a domain one or two letters away from one you write to, with replies going to another domain.",
     "ja": "やり取りのあるドメインと 1〜2 文字だけ違うドメインから届き、返信先が別のドメインになっています。",
-    "zh": "发信域名和你常通信的域名只差一两个字母，回复却会发到另一个域名。"
+    "zh": "发信域名和你常通信的域名只差一两个字母，回复却会发到另一个域名。",
+    "params": {
+      "en": "From {domain}, one or two letters away from {like}, which you write to, with replies sent to another domain.",
+      "ja": "送信元の {domain} はやり取りのある {like} と 1〜2 文字しか違わず、返信先も別のドメインです。",
+      "zh": "发信域名 {domain} 和你常通信的 {like} 只差一两个字母，回复还会转到另一个域名。"
+    }
   },
   "bec-name-borrowed": {
     "en": "A correspondent's name, at an address that has never written to you, sending replies elsewhere or carrying a payment account.",
     "ja": "やり取りのある相手の名前ですが、一度も届いたことのないアドレスから来ており、返信先が別か、振込先口座が書かれています。",
-    "zh": "用的是你通信对象的名字，但地址从没给你写过信，并且回复会发到别处，或者信里带着收款账户。"
+    "zh": "用的是你通信对象的名字，但地址从没给你写过信，并且回复会发到别处，或者信里带着收款账户。",
+    "params": {
+      "en": "A correspondent's name, at {domain}, an address that has never written to you, with replies sent elsewhere or a payment account.",
+      "ja": "やり取りのある相手の名前ですが、アドレスはこれまで連絡のない {domain} で、返信先が別か振込先口座が書かれています。",
+      "zh": "用的是你通信对象的名字，地址却在从没来过信的 {domain}，而且回复会转到别处或带着收款账户。"
+    }
   },
   "bec-pay-to-a-lookalike": {
     "en": "A payment account, from a domain one or two letters away from one you write to.",
     "ja": "やり取りのあるドメインと 1〜2 文字だけ違うドメインから、振込先口座が届いています。",
-    "zh": "信里有收款账户，发信域名和你常通信的域名只差一两个字母。"
+    "zh": "信里有收款账户，发信域名和你常通信的域名只差一两个字母。",
+    "params": {
+      "en": "A payment account ({account}) from {domain}, one or two letters away from {like}, which you write to.",
+      "ja": "振込先口座（{account}）が書かれており、送信元の {domain} はやり取りのある {like} と 1〜2 文字しか違いません。",
+      "zh": "信里有收款账户（{account}），发信域名 {domain} 和你常通信的 {like} 只差一两个字母。"
+    }
   },
   "bec-pay-to-a-stranger": {
     "en": "The first message from this address carries a payment account.",
     "ja": "このアドレスからの最初のメールに振込先口座が書かれています。",
-    "zh": "这个地址发来的第一封信里就带着收款账户。"
+    "zh": "这个地址发来的第一封信里就带着收款账户。",
+    "params": {
+      "en": "The first message from {domain} carries a payment account ({account}).",
+      "ja": "{domain} からの初めてのメールに振込先口座（{account}）が書かれています。",
+      "zh": "{domain} 第一次来信就带着收款账户（{account}）。"
+    }
   },
   "bec-reply-diverted-unauthenticated": {
     "en": "Claims a domain you write to without passing that domain's DMARC, and sends replies elsewhere.",
     "ja": "やり取りのあるドメインを名乗っていますが、そのドメインの DMARC を通っておらず、返信先も別になっています。",
-    "zh": "自称来自你常通信的域名，却没通过该域名的 DMARC，回复还会发到别处。"
+    "zh": "自称来自你常通信的域名，却没通过该域名的 DMARC，回复还会发到别处。",
+    "params": {
+      "en": "Claims {domain}, which you write to, without passing its DMARC, and sends replies elsewhere.",
+      "ja": "やり取りのある {domain} を名乗っていますが、その DMARC を通過しておらず、返信先も別です。",
+      "zh": "自称来自你常通信的 {domain}，却没通过它的 DMARC，回复还会转到别处。"
+    }
   },
   "bidi-display-name": {
     "en": "The display name is reordered as it renders: it shows one thing and says another.",
@@ -47,17 +72,32 @@
   "brand-is-the-display-name": {
     "en": "The display name is a company's name and nothing else, and the domain is not theirs.",
     "ja": "表示名が企業名だけで、ドメインはその企業のものではありません。",
-    "zh": "显示名只有一个公司名，域名却不是这家公司的。"
+    "zh": "显示名只有一个公司名，域名却不是这家公司的。",
+    "params": {
+      "en": "The display name is only the company name {brand}, but the mail comes from {domain}, which is not theirs.",
+      "ja": "表示名は企業名「{brand}」だけですが、送信元の {domain} はその企業のドメインではありません。",
+      "zh": "显示名只有公司名「{brand}」，信却来自 {domain}，不是这家公司的域名。"
+    }
   },
   "claims-our-domain": {
     "en": "The From address is at our own domain, sent from a public address, and DMARC says it is not us.",
     "ja": "差出人アドレスが自組織のドメインですが、外部のアドレスから送られ、DMARC は自組織ではないと判定しています。",
-    "zh": "发件地址是本组织的域名，却从外部地址发出，DMARC 判定不是本组织发的。"
+    "zh": "发件地址是本组织的域名，却从外部地址发出，DMARC 判定不是本组织发的。",
+    "params": {
+      "en": "The From address is at our own domain {domain}, but DMARC says this mail is not ours.",
+      "ja": "差出人アドレスは自組織のドメイン {domain} ですが、DMARC はこのメールを自組織のものではないと判定しています。",
+      "zh": "发件地址在本组织的域名 {domain} 下，但 DMARC 判定这封信不是本组织发的。"
+    }
   },
   "claims-our-name": {
     "en": "The display name claims to be this organisation.",
     "ja": "表示名が自組織を名乗っています。",
-    "zh": "显示名自称是本组织。"
+    "zh": "显示名自称是本组织。",
+    "params": {
+      "en": "The display name claims to be {name}.",
+      "ja": "表示名が「{name}」を名乗っています。",
+      "zh": "显示名自称是「{name}」。"
+    }
   },
   "content-score": {
     "en": "Content score {content}, classifier {classifier}.",
@@ -67,7 +107,12 @@
   "dated-in-the-future": {
     "en": "Dated days after it arrived, so it sorts above every message that follows.",
     "ja": "届いた日より何日も後の日付が付いており、後から届くメールより上に並びます。",
-    "zh": "信上的日期比到达时间晚好几天，会一直排在后来的信前面。"
+    "zh": "信上的日期比到达时间晚好几天，会一直排在后来的信前面。",
+    "params": {
+      "en": "Dated {days} days after it arrived, so it sorts above every message that follows.",
+      "ja": "届いた日より {days} 日後の日付が付いており、後から届くメールより上に並びます。",
+      "zh": "信上的日期比到达时间晚 {days} 天，会一直排在后来的信前面。"
+    }
   },
   "executable-attachment": {
     "en": "Carries an attachment the operating system would run.",
@@ -77,12 +122,22 @@
   "greets-a-stranger": {
     "en": "The subject greets someone the To header does not name.",
     "ja": "件名が宛先（To）にない名前に呼びかけています。",
-    "zh": "主题里称呼的人不在收件人（To）里。"
+    "zh": "主题里称呼的人不在收件人（To）里。",
+    "params": {
+      "en": "The subject greets {name}, a name the To header does not have.",
+      "ja": "件名が「{name}」に呼びかけていますが、宛先にその名前はありません。",
+      "zh": "主题称呼「{name}」，收件人栏里却没有这个名字。"
+    }
   },
   "hostname-claims-company": {
     "en": "The sending host puts a company's name in front of a domain that is not theirs.",
     "ja": "送信ホスト名が、その企業のものではないドメインの前に企業名を付けています。",
-    "zh": "发信主机名在不属于某公司的域名前面加上了这家公司的名字。"
+    "zh": "发信主机名在不属于某公司的域名前面加上了这家公司的名字。",
+    "params": {
+      "en": "The sending server puts {company} in front of {domain}, which is not theirs.",
+      "ja": "送信サーバーが {domain} の前に「{company}」を付けていますが、そのドメインはその企業のものではありません。",
+      "zh": "发信服务器把「{company}」放在 {domain} 前面，而这个域名不是这家公司的。"
+    }
   },
   "html-builds-a-download": {
     "en": "An attached page assembles a file from data it carries and makes the browser save it.",
@@ -92,12 +147,22 @@
   "impersonates-brand": {
     "en": "The display name claims a company, from a domain that is not theirs and is new here.",
     "ja": "表示名が企業を名乗っていますが、ドメインはその企業のものではなく、ここでは初めて見るものです。",
-    "zh": "显示名自称某公司，域名却不是这家公司的，而且这里以前没见过。"
+    "zh": "显示名自称某公司，域名却不是这家公司的，而且这里以前没见过。",
+    "params": {
+      "en": "The display name claims {brand}, from {domain}, which is not theirs and is new here.",
+      "ja": "表示名が「{brand}」を名乗っていますが、送信元の {domain} はその企業のものではなく、これまでやり取りもありません。",
+      "zh": "显示名自称「{brand}」，信来自 {domain}：不是这家公司的域名，以前也没来过信。"
+    }
   },
   "impersonates-one-of-us": {
     "en": "The display name is one of our own people, and the domain is not ours.",
     "ja": "表示名が自組織のメンバーの名前ですが、ドメインは自組織のものではありません。",
-    "zh": "显示名是本组织成员的名字，域名却不是本组织的。"
+    "zh": "显示名是本组织成员的名字，域名却不是本组织的。",
+    "params": {
+      "en": "The display name is {name}, one of our own people, but the address is at {domain}.",
+      "ja": "表示名は自組織のメンバー「{name}」ですが、アドレスは {domain} です。",
+      "zh": "显示名是本组织成员「{name}」，地址却在 {domain}。"
+    }
   },
   "junk-claims-our-domain": {
     "en": "It claims one of our domains and fails DMARC.",
@@ -142,22 +207,42 @@
   "link-shows-our-address": {
     "en": "A link shows an address on our own domain but goes somewhere else.",
     "ja": "リンクが自組織のドメインのアドレスを表示していますが、行き先は別の場所です。",
-    "zh": "链接显示的是本组织域名下的地址，实际却指向别处。"
+    "zh": "链接显示的是本组织域名下的地址，实际却指向别处。",
+    "params": {
+      "en": "A link shows {shown}, our own domain, but goes to {target}.",
+      "ja": "リンクは自組織のドメイン {shown} を表示していますが、実際の行き先は {target} です。",
+      "zh": "链接显示的是本组织的域名 {shown}，实际却指向 {target}。"
+    }
   },
   "minted-address": {
     "en": "Neither the mailbox nor the domain is a word anybody chose.",
     "ja": "メールボックス名もドメイン名も、人が選んだ言葉ではありません。",
-    "zh": "邮箱名和域名都不像是人起的名字。"
+    "zh": "邮箱名和域名都不像是人起的名字。",
+    "params": {
+      "en": "Neither part of {address} is a word anybody chose.",
+      "ja": "{address} はユーザー名もドメインも、人が選んだ言葉ではありません。",
+      "zh": "{address} 的用户名和域名都是随机生成的，不是有人取的名字。"
+    }
   },
   "minted-sending-host": {
     "en": "The sending host's name was generated, not chosen.",
     "ja": "送信ホスト名は人が付けたものではなく、自動生成されたものです。",
-    "zh": "发信主机名是自动生成的，不是人起的。"
+    "zh": "发信主机名是自动生成的，不是人起的。",
+    "params": {
+      "en": "The sending server's name, {host}, was generated, not chosen.",
+      "ja": "送信サーバー名 {host} は自動生成されたもので、人が付けた名前ではありません。",
+      "zh": "发信服务器的名字 {host} 是随机生成的，不是有人取的。"
+    }
   },
   "nothing-vouches-for-the-sender": {
     "en": "The From domain publishes DMARC, but the message has no DKIM signature and SPF did not pass.",
     "ja": "差出人のドメインは DMARC を公開していますが、このメールには DKIM 署名がなく、SPF も通っていません。",
-    "zh": "发件域名发布了 DMARC，但这封信没有 DKIM 签名，SPF 也没通过。"
+    "zh": "发件域名发布了 DMARC，但这封信没有 DKIM 签名，SPF 也没通过。",
+    "params": {
+      "en": "{domain} publishes DMARC, yet this message has no DKIM signature and SPF says {spf}.",
+      "ja": "{domain} は DMARC を公開していますが、このメールには DKIM 署名がなく、SPF の結果は {spf} です。",
+      "zh": "{domain} 发布了 DMARC，这封信却没有 DKIM 签名，SPF 结果是 {spf}。"
+    }
   },
   "offers-the-reader-a-sum": {
     "en": "The text offers you a share of a sum in the millions.",
@@ -167,12 +252,22 @@
   "reply-domain-rotation": {
     "en": "Replies go to a domain that many different sending domains use.",
     "ja": "返信先のドメインが、多くの異なる送信ドメインで使い回されています。",
-    "zh": "回复地址的域名被很多不同的发信域名共用。"
+    "zh": "回复地址的域名被很多不同的发信域名共用。",
+    "params": {
+      "en": "Replies go to a domain that {count} different sending domains use.",
+      "ja": "返信先のドメインは、{count} 個の異なる送信元ドメインで使われています。",
+      "zh": "回复地址所在的域名被 {count} 个不同的发信域名共用。"
+    }
   },
   "reserved-sender-domain": {
     "en": "The From domain is a reserved name that cannot receive mail.",
     "ja": "差出人のドメインは予約済みの名前で、メールを受け取れません。",
-    "zh": "发件域名是保留名称，根本收不了信。"
+    "zh": "发件域名是保留名称，根本收不了信。",
+    "params": {
+      "en": "The sender's domain {domain} is reserved and can never receive mail.",
+      "ja": "送信元ドメイン {domain} は予約済みで、メールを受け取ることができません。",
+      "zh": "发信域名 {domain} 是保留域名，不可能收到回信。"
+    }
   },
   "sender-bidi": {
     "en": "The name or subject renders in a different order than it is written.",
@@ -197,22 +292,42 @@
   "subject-claims-brand": {
     "en": "The subject claims a company, from a domain that is not theirs and is new here.",
     "ja": "件名が企業を名乗っていますが、ドメインはその企業のものではなく、ここでは初めて見るものです。",
-    "zh": "主题自称某公司，域名却不是这家公司的，而且这里以前没见过。"
+    "zh": "主题自称某公司，域名却不是这家公司的，而且这里以前没见过。",
+    "params": {
+      "en": "The subject claims {brand}, from {domain}, which is not theirs and is new here.",
+      "ja": "件名が「{brand}」を名乗っていますが、送信元の {domain} はその企業のものではなく、これまでやり取りもありません。",
+      "zh": "主题自称「{brand}」，信来自 {domain}：不是这家公司的域名，以前也没来过信。"
+    }
   },
   "subject-cut-from-the-address": {
     "en": "The subject is only a piece of your own address, read as a name.",
     "ja": "件名が、あなたのアドレスの一部を名前のように使っただけのものです。",
-    "zh": "主题只是把你邮箱地址的一部分当成名字。"
+    "zh": "主题只是把你邮箱地址的一部分当成名字。",
+    "params": {
+      "en": "The subject is only “{word}”, a piece of your own address read as a name.",
+      "ja": "件名は「{word}」だけで、あなたのアドレスの一部を名前として使っています。",
+      "zh": "主题只有「{word}」，是把你的邮件地址截一段当成了名字。"
+    }
   },
   "subject-is-our-name": {
     "en": "The subject is this organisation's name and little else, from a domain that is not ours.",
     "ja": "件名がほぼ自組織の名前だけで、ドメインは自組織のものではありません。",
-    "zh": "主题几乎只有本组织的名字，域名却不是本组织的。"
+    "zh": "主题几乎只有本组织的名字，域名却不是本组织的。",
+    "params": {
+      "en": "The subject is our name, {name}, and little else, from {domain}, which is not ours.",
+      "ja": "件名はほぼ自組織名「{name}」だけで、送信元の {domain} は自組織のドメインではありません。",
+      "zh": "主题几乎只有本组织的名字「{name}」，发信域名 {domain} 却不是本组织的。"
+    }
   },
   "subject-names-the-recipient": {
     "en": "The subject names your own address.",
     "ja": "件名にあなた自身のアドレスが書かれています。",
-    "zh": "主题里写着你自己的邮箱地址。"
+    "zh": "主题里写着你自己的邮箱地址。",
+    "params": {
+      "en": "The subject names your own address, {address}.",
+      "ja": "件名にあなた自身のアドレス {address} が書かれています。",
+      "zh": "主题里写着你自己的地址 {address}。"
+    }
   },
   "svg-runs-script": {
     "en": "An attached image runs script.",
@@ -222,7 +337,12 @@
   "x-mailer-generated": {
     "en": "It names a mail program (X-Mailer) that no real mail client writes.",
     "ja": "実在のメールソフトが書かないメールプログラム名（X-Mailer）が付いています。",
-    "zh": "信上标注的邮件程序（X-Mailer）不是任何真实邮件客户端会写的。"
+    "zh": "信上标注的邮件程序（X-Mailer）不是任何真实邮件客户端会写的。",
+    "params": {
+      "en": "It names the mail program “{mailer}”, which no real mail client writes.",
+      "ja": "メールソフト名が「{mailer}」となっていますが、実在のメールソフトはこう書きません。",
+      "zh": "信上标注的邮件程序是「{mailer}」，没有真实的邮件客户端会这么写。"
+    }
   },
   "zero-width-inside-a-word": {
     "en": "Invisible characters are wedged inside a word, which gets past filters while looking unchanged to you.",
