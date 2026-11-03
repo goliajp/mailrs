@@ -93,3 +93,55 @@ fn checker_sees_a_letter_dated_ahead_of_its_arrival() {
     assert_eq!(report["candidate_holds"], 1, "{report}");
     fs::remove_dir_all(root).unwrap();
 }
+
+// who held what, and when: per hold-level rule (a letter matching two
+// counts for both) and per month of the Date header, for each bundle
+#[test]
+fn checker_counts_holds_by_rule_and_by_month() {
+    let root = std::env::temp_dir().join(format!("mailrs-fraud-check-held-{}", std::process::id()));
+    fs::create_dir_all(root.join("cur")).unwrap();
+    let program = "--b\r\nContent-Type: application/octet-stream\r\n\
+Content-Disposition: attachment; filename=\"setup.exe\"\r\n\
+Content-Transfer-Encoding: base64\r\n\r\nTVqQAAMAAAAEAAAA\r\n";
+    for (i, (name, date, attachment)) in [
+        ("Billing", "Tue, 15 Sep 2026 09:00:00 +0000", program),
+        (
+            "Bill\u{202e}gni",
+            "Thu, 01 Oct 2026 09:00:00 +0000",
+            program,
+        ),
+        ("Billing", "Fri, 02 Oct 2026 09:00:00 +0000", ""),
+    ]
+    .iter()
+    .enumerate()
+    {
+        fs::write(
+            root.join("cur").join(i.to_string()),
+            format!(
+                "From: {name} <billing@vendorbill.com>\r\nTo: sales@golia.jp\r\n\
+Subject: invoice\r\nDate: {date}\r\nMIME-Version: 1.0\r\n\
+Content-Type: multipart/mixed; boundary=\"b\"\r\n\r\n\
+--b\r\nContent-Type: text/plain\r\n\r\nHello\r\n{attachment}--b--\r\n"
+            ),
+        )
+        .unwrap();
+    }
+    let out = Command::new(env!("CARGO_BIN_EXE_mailrs-fraud-check"))
+        .args(["compare", "rust", "builtin", root.to_str().unwrap(), "3"])
+        .env_remove("MAILRS_KEVY_URL")
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let report: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let by_rule = serde_json::json!({"bidi-display-name": 1, "executable-attachment": 2});
+    let by_month = serde_json::json!({"2026-09": 1, "2026-10": 1});
+    assert_eq!(report["holds_by_rule"], by_rule, "{report}");
+    assert_eq!(report["holds_by_month"], by_month, "{report}");
+    assert_eq!(report["baseline_holds_by_rule"], by_rule, "{report}");
+    assert_eq!(report["baseline_holds_by_month"], by_month, "{report}");
+    fs::remove_dir_all(root).unwrap();
+}

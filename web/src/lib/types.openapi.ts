@@ -4095,6 +4095,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/review/recalled": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's conversations moved to Review in the last seven days because stored mail was judged again, newest first, one per conversation */
+        get: operations["listRecalled"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/quarantine/{thread_id}/release": {
         parameters: {
             query?: never;
@@ -5320,6 +5337,40 @@ export interface paths {
         post?: never;
         /** Delete one conversation nobody holds, for good, and record it in the audit log. Super administrators only, after a recent password confirmation */
         delete: operations["deleteOwnerlessThread"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/rejudge/batches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Conversations taken back into Review when stored mail was judged again, one batch per observation. Super administrators only */
+        get: operations["listRejudgeBatches"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/rejudge/batches/{observation}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Put every conversation one batch still holds back where it was, each recorded in the audit log. Super administrators only, after a recent password confirmation */
+        post: operations["releaseRejudgeBatch"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -11582,6 +11633,37 @@ export interface operations {
             };
         };
     };
+    listRecalled: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items?: {
+                            thread_id?: string;
+                            subject?: string;
+                            /** @description The fraud rules that now hold it, by id */
+                            rules?: string[];
+                            /** @description The observation that sent it back through the rules */
+                            observation?: string;
+                            /** @description Epoch seconds */
+                            at?: number;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
     listMockNamespaces: {
         parameters: {
             query?: {
@@ -14337,6 +14419,89 @@ export interface operations {
                 content?: never;
             };
             /** @description Deleted, but the audit row could not be written */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listRejudgeBatches: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items?: {
+                            /** @description The observation whose round took them back, `r<n>` */
+                            observation?: string;
+                            /** @description When the first was taken back, epoch seconds */
+                            at?: number;
+                            /** @description Conversations the round took back */
+                            conversations?: number;
+                            /** @description When the batch was put back, epoch seconds; 0 while it has not been */
+                            released_at?: number;
+                        }[];
+                    };
+                };
+            };
+            /** @description Not a super administrator */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    releaseRejudgeBatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                observation: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description How many were put back */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        released?: number;
+                    };
+                };
+            };
+            /** @description Not a super administrator, or `confirm_required`: the password was not confirmed in the last ten minutes */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such batch */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Put back, but the audit row could not be written */
             503: {
                 headers: {
                     [name: string]: unknown;

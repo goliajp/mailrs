@@ -20,9 +20,11 @@ use crate::core_rpc::CoreRpcState;
 
 mod aliases;
 mod ownerless;
+mod rejudge;
 
 pub(crate) use aliases::*;
 pub(crate) use ownerless::*;
+pub(crate) use rejudge::*;
 
 /// GET /v1/admin/accounts/{address}/effective-permissions
 ///

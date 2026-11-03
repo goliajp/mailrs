@@ -11,9 +11,9 @@
  * recomputes it and fails when a schema changed without this version
  * moving. Bump the version, then copy the hash the test prints.
  */
-export const WIRE_SCHEMA_VERSION = 4
+export const WIRE_SCHEMA_VERSION = 5
 
-export const WIRE_SCHEMAS_HASH = '215f6450'
+export const WIRE_SCHEMAS_HASH = 'c1672d10'
 
 /** FNV-1a over the files' names and contents, in name order. */
 export function hashSchemas(files: Record<string, string>): string {

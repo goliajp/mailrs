@@ -40,7 +40,7 @@ pub(crate) use decision::*;
 
 mod config;
 mod decision;
-mod holding;
+pub(crate) mod holding;
 mod sweep;
 pub(crate) use sweep::rescan;
 
@@ -71,6 +71,8 @@ pub(crate) struct FraudJudgement {
     /// Not held, but scored into Junk.
     pub(crate) junks: bool,
     pub(crate) version: String,
+    /// The verdict stored beside the message when acting on this judgement.
+    pub(crate) verdict: mailrs_inbound::FraudVerdict,
 }
 
 impl FraudJudge {
@@ -78,8 +80,7 @@ impl FraudJudge {
         Self {
             policy: policy_from_env(state),
             our_stamp: our_authserv_id(),
-            hist: crate::live_sync::network_kevy_url()
-                .and_then(|u| kevy_client::Connection::connect(&u).ok()),
+            hist: state.net_conn(),
         }
     }
 
@@ -113,7 +114,8 @@ impl FraudJudge {
         Ok(FraudJudgement {
             junks: !j.holds && junks_on_its_own(&j.findings),
             holds: j.holds,
-            version: j.verdict.rules_version,
+            version: j.verdict.rules_version.clone(),
+            verdict: j.verdict,
             findings: j.findings,
         })
     }

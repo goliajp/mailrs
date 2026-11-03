@@ -2,7 +2,7 @@
 use mailrs_fraud::{Facts, Findings, Policy};
 use mailrs_fraud_lua::{DEFAULT_SOURCE, MAX_SOURCE, Rules};
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     fs,
     io::Read,
     path::{Path, PathBuf},
@@ -71,6 +71,49 @@ fn rows(f: &Findings) -> Vec<(String, String, u64, bool)> {
     rows.sort();
     rows
 }
+/// What one rule bundle held: per hold-level rule, the held letters it
+/// matched (a letter matching three counts once for each), and per month of
+/// the letter's own Date header, the held letters. Counts only: nothing
+/// that names a sender or a subject.
+#[derive(Default)]
+struct Held {
+    by_rule: BTreeMap<String, u64>,
+    by_month: BTreeMap<String, u64>,
+}
+
+impl Held {
+    fn add(&mut self, f: &Findings, month: &str) {
+        if !f.hold_worthy() {
+            return;
+        }
+        for r in f.iter().filter(|r| r.holds) {
+            *self.by_rule.entry(r.rule.clone()).or_default() += 1;
+        }
+        *self.by_month.entry(month.to_string()).or_default() += 1;
+    }
+}
+
+/// `YYYY-MM` of the Date header, in UTC; `unknown` when there is none
+/// that parses.
+fn month_of(raw: &[u8]) -> String {
+    let Some(t) = mailrs_inbound::dates::date_header_epoch(raw) else {
+        return "unknown".into();
+    };
+    // days since 1970-01-01 to a civil year and month (Hinnant's algorithm)
+    let z = t.div_euclid(86_400) + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let month = match mp < 10 {
+        true => mp + 3,
+        false => mp - 9,
+    };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    format!("{year:04}-{month:02}")
+}
+
 fn paths(root: &Path, out: &mut Vec<PathBuf>, max: usize) -> Result<(), String> {
     if out.len() > max {
         return Err(format!(
@@ -154,6 +197,8 @@ fn compare(baseline: &str, candidate: &str, root: &str, limit: usize) -> Result<
     let mut released = 0;
     let mut held = 0;
     let mut samples = vec![];
+    let mut baseline_held = Held::default();
+    let mut candidate_held = Held::default();
     for (i, file) in files.iter().enumerate() {
         if i % 25 == 0 {
             std::thread::sleep(std::time::Duration::from_millis(50));
@@ -261,6 +306,9 @@ fn compare(baseline: &str, candidate: &str, root: &str, limit: usize) -> Result<
         if !new.errors.is_empty() {
             return Err(format!("candidate: {:?}", new.errors));
         }
+        let month = month_of(&raw);
+        baseline_held.add(&old, &month);
+        candidate_held.add(&new.findings, &month);
         let old_hold = old.hold_worthy();
         let new_hold = new.findings.hold_worthy();
         held += usize::from(new_hold);
@@ -277,7 +325,10 @@ fn compare(baseline: &str, candidate: &str, root: &str, limit: usize) -> Result<
         "{}",
         serde_json::json!({"checked":files.len(),"changed":changed,"added_holds":added,"removed_holds":released,
         "candidate_holds":held,"baseline":before.as_ref().map_or("rust",|r|r.version()),"candidate":after.version(),
-        "account_names_configured":!p.account_names.is_empty(),"samples":samples})
+        "account_names_configured":!p.account_names.is_empty(),
+        "holds_by_rule":candidate_held.by_rule,"holds_by_month":candidate_held.by_month,
+        "baseline_holds_by_rule":baseline_held.by_rule,"baseline_holds_by_month":baseline_held.by_month,
+        "samples":samples})
     );
     // A migration must preserve every decision. Intentional rule-only updates
     // compare two Lua bundles and report their diff for review.

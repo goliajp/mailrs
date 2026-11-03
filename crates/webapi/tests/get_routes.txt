@@ -51,6 +51,7 @@
 /api/admin/permissions	read only
 /api/admin/queues	read only
 /api/admin/rbl-status	read only
+/api/admin/rejudge/batches	read only
 /api/admin/reputation	read only
 /api/admin/spam-feedback-stats	read only
 /api/admin/suppressions	read only
@@ -123,6 +124,7 @@
 /api/mock/namespaces/{ns}/messages/{id}/raw	drops index entries of messages that have already expired
 /api/proxy/link	redirect only
 /api/quarantine	read only
+/api/review/recalled	read only
 /api/queue	read only
 /api/readiness	read only
 /api/reset-codes/{address}	read only, issuers only
