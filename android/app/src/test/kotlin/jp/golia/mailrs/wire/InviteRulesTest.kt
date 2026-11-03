@@ -87,4 +87,28 @@ class InviteRulesTest {
         assertEquals("3 guests · 1 yes, 2 awaiting", InviteRules.guests(guests))
         assertEquals("You accepted", InviteRules.answered("ACCEPTED"))
     }
+
+    /** An all-day invitation's days, as written; DTEND is the day after the last. */
+    @Test
+    fun an_all_day_event_shows_its_days_and_no_time() {
+        val us = java.util.Locale.US
+        assertEquals("Nov 3, 2026", InviteRules.allDayLine("2026-11-03", "2026-11-04", us))
+        assertEquals("Nov 3, 2026 – Nov 4, 2026", InviteRules.allDayLine("2026-11-03", "2026-11-05", us))
+        assertEquals("Nov 3, 2026", InviteRules.allDayLine("2026-11-03", null, us))
+        assertNull(InviteRules.allDayLine(null, null, us))
+        assertNull(InviteRules.allDayLine("not a date", null, us))
+    }
+
+    /** The payload as `crates/intake/src/invite.rs` files an all-day invitation. */
+    @Test
+    fun an_all_day_payload_decodes_its_days() {
+        val json = """{"uid":"d1","sequence":0,"summary":"Offsite","attendees":[],
+            "dtstart":{"Date":"2026-11-03"},"dtstart_utc":null,"dtend_utc":null,
+            "dtstart_date":"2026-11-03","dtend_date":"2026-11-05"}"""
+        val invite = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+            .decodeFromString(Wire.Invite.serializer(), json)
+        assertNull(invite.startsAt)
+        assertEquals("2026-11-03", invite.firstDay)
+        assertEquals("2026-11-05", invite.dayAfterLast)
+    }
 }

@@ -9,15 +9,13 @@ extension MailrsClient {
 
     /// `GET /api/conversations` — a bare array, see `Wire.Conversation`.
     func conversations(
-        axes: MailListAxes, limit: Int = 50, before: Int64? = nil
+        axes: MailListAxes, limit: Int = 50, page: ThreadPage.Next? = nil
     ) async throws -> [Wire.Conversation] {
         var components = URLComponents(url: baseURL.appendingPathComponent("/api/conversations"),
                                        resolvingAgainstBaseURL: false)
-        var items = axes.queryItems + [URLQueryItem(name: "limit", value: String(limit))]
-        if let before {
-            items.append(URLQueryItem(name: "before_ts", value: String(before)))
-        }
-        components?.queryItems = items
+        components?.queryItems = axes.queryItems
+            + [URLQueryItem(name: "limit", value: String(limit))]
+            + ThreadPage.queryItems(page)
         guard let url = components?.url else { throw MailrsError.transport("Bad URL.") }
         let (data, response) = try await send("GET", url: url, body: nil, authorized: true)
         guard let http = response as? HTTPURLResponse else {
