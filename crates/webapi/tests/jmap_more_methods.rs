@@ -132,6 +132,8 @@ async fn scenario() {
     submissions(&live, &alice, &bob).await;
     copy(&live, &alice).await;
     websocket(&live, &alice).await;
+    limits_alike(&live, &alice).await;
+    reconnect_catches_up(&live, &alice).await;
 }
 
 async fn vacation(live: &live::Live, alice: &str) {
@@ -546,4 +548,151 @@ async fn websocket(live: &live::Live, alice: &str) {
     let v = seen.expect("a StateChange within 20 s");
     assert!(v["changed"][ALICE]["Email"].is_string(), "{v} after {id}");
     assert_eq!(v["pushState"], v["changed"][ALICE]["Email"]);
+}
+
+/// The same request over HTTP and over the socket, answered the same way:
+/// a request over a limit is refused with the same error (and the socket
+/// closed after it), and another account's data is not found on either.
+async fn limits_alike(live: &live::Live, alice: &str) {
+    let bearer = format!("Bearer {alice}");
+    let http = |body: Vec<u8>| async move {
+        let r = live
+            .http
+            .post(format!("{}/jmap/api/", live.base))
+            .bearer_auth(alice)
+            .header("content-type", "application/json")
+            .body(body)
+            .send()
+            .await
+            .expect("post");
+        let status = r.status().as_u16();
+        (status, r.json::<Value>().await.unwrap_or(Value::Null))
+    };
+    let over_ws = |body: Vec<u8>| {
+        let bearer = bearer.clone();
+        async move {
+            let Ok(mut ws) = upgrade(live, ("authorization", &bearer), None, true).await else {
+                panic!("upgrade refused");
+            };
+            ws.send(Message::Text(String::from_utf8(body).unwrap().into()))
+                .await
+                .expect("send");
+            let answer = next_json(&mut ws, 10).await.expect("an answer");
+            let mut closed = false;
+            while let Ok(Some(m)) = tokio::time::timeout(Duration::from_secs(5), ws.next()).await {
+                if matches!(m, Ok(Message::Close(_)) | Err(_)) {
+                    closed = true;
+                    break;
+                }
+            }
+            (answer, closed)
+        }
+    };
+    let same = |h: &Value, w: &Value, what: &str| {
+        for k in ["type", "status", "limit"] {
+            assert_eq!(h[k], w[k], "{what}: {k} differs: http {h} ws {w}");
+        }
+    };
+
+    let calls: Vec<Value> = (0..17)
+        .map(|n| json!(["Core/echo", {}, n.to_string()]))
+        .collect();
+    let too_many = json!({ "@type": "Request", "id": "x", "using": USING, "methodCalls": calls });
+    let (status, h) = http(too_many.to_string().into_bytes()).await;
+    assert_eq!(status, 400, "{h}");
+    assert_eq!(h["limit"], "maxCallsInRequest");
+    let (w, closed) = over_ws(too_many.to_string().into_bytes()).await;
+    assert_eq!(w["@type"], "RequestError", "{w}");
+    same(&h, &w, "too many calls");
+    assert!(closed, "the socket stays open after a request over a limit");
+
+    // one byte over maxSizeRequest (10,000,000), the same bytes both ways
+    let head = format!(
+        r#"{{"@type":"Request","id":"y","using":["urn:ietf:params:jmap:core"],"methodCalls":[],"pad":""#
+    );
+    let tail = r#""}"#;
+    let pad = 10_000_001 - head.len() - tail.len();
+    let big = format!("{head}{}{tail}", "x".repeat(pad)).into_bytes();
+    assert_eq!(big.len(), 10_000_001);
+    let (status, h) = http(big.clone()).await;
+    assert_eq!(status, 400, "{h}");
+    assert_eq!(h["limit"], "maxSizeRequest");
+    let (w, closed) = over_ws(big).await;
+    same(&h, &w, "too large");
+    assert!(closed, "the socket stays open after an oversized request");
+
+    // another account named: not found, the same way on both
+    let other = json!({ "@type": "Request", "id": "z", "using": USING,
+        "methodCalls": [["Email/get", { "accountId": BOB, "ids": ["M1"] }, "0"]] });
+    let (status, h) = http(other.to_string().into_bytes()).await;
+    assert_eq!(status, 200);
+    let Ok(mut ws) = upgrade(live, ("authorization", &bearer), None, true).await else {
+        panic!("upgrade refused");
+    };
+    ws.send(Message::Text(other.to_string().into()))
+        .await
+        .expect("send");
+    let w = next_json(&mut ws, 10).await.expect("answer");
+    assert_eq!(
+        h["methodResponses"][0], w["methodResponses"][0],
+        "http {h} ws {w}"
+    );
+    assert_eq!(w["methodResponses"][0][1]["type"], "accountNotFound", "{w}");
+}
+
+/// A proxy reload drops every socket. The client reconnects and, from the
+/// state it held, gets what changed while it was away: by `Email/changes`,
+/// and by a push as soon as it says where it was.
+async fn reconnect_catches_up(live: &live::Live, alice: &str) {
+    let bearer = format!("Bearer {alice}");
+    let Ok(mut ws) = upgrade(live, ("authorization", &bearer), None, true).await else {
+        panic!("upgrade refused");
+    };
+    ws.send(request(json!([["Email/get", { "ids": [] }, "0"]])))
+        .await
+        .expect("send");
+    let r = next_json(&mut ws, 10).await.expect("answer");
+    let held = r["methodResponses"][0][1]["state"]
+        .as_str()
+        .expect("state")
+        .to_string();
+    // the connection goes, as a reload takes it
+    drop(ws);
+    let id = import(
+        live,
+        alice,
+        ALICE,
+        &message("While away", "Friend <friend@partner.example>", "missed"),
+    )
+    .await;
+
+    let Ok(mut ws) = upgrade(live, ("authorization", &bearer), None, true).await else {
+        panic!("reconnect refused");
+    };
+    ws.send(request(
+        json!([["Email/changes", { "sinceState": held }, "0"]]),
+    ))
+    .await
+    .expect("send");
+    let r = next_json(&mut ws, 10).await.expect("answer");
+    let created = &r["methodResponses"][0][1]["created"];
+    assert!(
+        created.as_array().is_some_and(|c| c.contains(&json!(id))),
+        "{r}"
+    );
+    // and push from where it was: behind, so told at once
+    let enable =
+        json!({ "@type": "WebSocketPushEnable", "dataTypes": ["Email"], "pushState": held });
+    ws.send(Message::Text(enable.to_string().into()))
+        .await
+        .expect("send");
+    let v = next_json(&mut ws, 10).await.expect("a StateChange");
+    assert_eq!(v["@type"], "StateChange", "{v}");
+    assert_ne!(v["pushState"], json!(held));
+}
+
+/// A Request frame carrying `calls`.
+fn request(calls: Value) -> Message {
+    let frame = json!({ "@type": "Request", "id": "r", "using": USING, "methodCalls": calls });
+    Message::Text(frame.to_string().into())
 }
