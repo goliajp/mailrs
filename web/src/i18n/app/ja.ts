@@ -20,6 +20,12 @@ export const appJa: Record<AppKey, string> = {
   'action.pin': 'ピン留め',
   'action.pin.done': 'ピン留めしました',
   'action.read': '既読にする',
+  'action.report': '詐欺として報告',
+  'action.report.dismissed': '報告しました。ほかの受信者の同じメールは管理者の判断でそのままです',
+  'action.report.noneFound': '報告しました。ほかに同じメールを受け取った人はいません',
+  'action.report.takenBack':
+    '報告しました。ほかの {count} 件の受信箱から同じメールを取り下げました',
+  'action.report.waiting': '報告しました。ほかの受信箱の同じメールは管理者の確認待ちです',
   'action.snooze': '明日までスヌーズ',
   'action.snooze.done': '明日 9:00 までスヌーズしました',
   'action.star': 'スターを付ける',

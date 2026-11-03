@@ -15,6 +15,7 @@ import {
   ArchiveRestore,
   ArchiveX,
   Bell,
+  Flag,
   Inbox,
   Mail,
   MailOpen,
@@ -41,6 +42,7 @@ export type ActionId =
   | 'move-to-inbox'
   | 'pin'
   | 'read'
+  | 'report'
   | 'snooze'
   | 'star'
   | 'trash'
@@ -184,6 +186,20 @@ export const ACTIONS: Record<ActionId, ActionSpec> = {
     keys: ['Shift+I'],
     label: 'action.read',
     undo: 'unread',
+  }),
+  // the conversation goes to Review; the toast says what became of the
+  // other copies, so there is no generic one and nothing to undo here (a
+  // held conversation is put back from Review)
+  report: spec({
+    batch: false,
+    confirm: false,
+    danger: true,
+    done: null,
+    icon: Flag,
+    id: 'report',
+    keys: [],
+    label: 'action.report',
+    undo: null,
   }),
   snooze: spec({
     batch: false,
@@ -332,6 +348,7 @@ export function rowActions(s: RowState): ActionId[] {
     toggle(s.snoozed, 'unsnooze', 'snooze'),
     ...bucketActions(s.view),
     'label',
+    'report',
     'trash',
   ]
 }
