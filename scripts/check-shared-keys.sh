@@ -50,6 +50,7 @@ vacation:;crates/core-sidestate/src/families/vacation.rs
 devices:;crates/core-sidestate/src/families/devices.rs
 mailrs:domfirst;crates/core-sidestate/src/families/domain_first.rs
 mailrs:recalled:;crates/core-sidestate/src/families/recall_notices.rs
+mailrs:report(s|-outcome|s-pending)?[:"];crates/core-sidestate/src/families/reports.rs
 rep:obs;crates/core-sidestate/src/families/screening.rs
 scan:hashobs;crates/core-sidestate/src/families/screening.rs
 screening:rules;crates/core-sidestate/src/families/screening.rs
