@@ -63,6 +63,10 @@ fn fill(lua: &mut Lua, t: LuaTable, f: &Facts<'_>, p: &Policy) -> Result<(), Str
             "lookalike_of",
             f.relation.lookalike_of.clone().unwrap_or_default(),
         ),
+        (
+            "new_link_domain",
+            f.novelty.new_link_domain.clone().unwrap_or_default(),
+        ),
     ] {
         if v.len() > 64 * 1024 {
             return Err(format!("fact {k} exceeds 64 KiB"));
@@ -79,6 +83,13 @@ fn fill(lua: &mut Lua, t: LuaTable, f: &Facts<'_>, p: &Policy) -> Result<(), Str
         .map_err(|e| lua.vm().error_text(&e))?;
     t.set(lua, "date_ahead", f.date_ahead)
         .map_err(|e| lua.vm().error_text(&e))?;
+    // -1: no first-seen time recorded for the sender's domain
+    t.set(
+        lua,
+        "sender_domain_age_days",
+        f.novelty.sender_age_days.unwrap_or(-1),
+    )
+    .map_err(|e| lua.vm().error_text(&e))?;
     for (k, v) in [
         ("has_zero_width", f.has_zero_width),
         ("has_zero_width_in_name", f.has_zero_width_in_name),
@@ -114,6 +125,8 @@ fn fill(lua: &mut Lua, t: LuaTable, f: &Facts<'_>, p: &Policy) -> Result<(), Str
         ),
         ("name_borrowed", f.relation.name_borrowed),
         ("reply_to_outside", f.reply_to_outside),
+        ("sender_domain_new", f.novelty.sender_new),
+        ("link_domain_new", f.novelty.new_link_domain.is_some()),
     ] {
         t.set(lua, k, v).map_err(|e| lua.vm().error_text(&e))?;
     }

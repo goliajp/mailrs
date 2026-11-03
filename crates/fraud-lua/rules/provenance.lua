@@ -86,3 +86,19 @@ rule('bec-reply-diverted-unauthenticated', 'provenance', 4, false, function(m)
             {domain = m.from_domain})
     end
 end)
+
+-- A domain this deployment first saw within the week (after a week of
+-- watching), asking for money or sending the reader to log in somewhere
+-- else. A new domain alone convicts nothing; these only add to the score.
+rule('new-domain-asks-for-payment', 'provenance', 2, false, function(m)
+    if m.sender_domain_new and pays(m) then
+        return found('a payment account, from a domain first seen here this week',
+            {account = account_of(m), domain = m.from_domain})
+    end
+end)
+rule('new-domain-login-link', 'provenance', 2, false, function(m)
+    if m.link_domain_new and (m.shown_links ~= '' or m.attachment_login_form_offsite) then
+        return found('a link to a domain first seen here this week, with a link showing another address or a login form',
+            {domain = m.new_link_domain})
+    end
+end)

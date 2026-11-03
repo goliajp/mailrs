@@ -15,6 +15,10 @@ pub struct Reading {
     pub host: String,
     /// The `Reply-To:` address.
     pub reply_to: String,
+    /// The hosts the message's links go to.
+    pub link_hosts: Vec<String>,
+    /// When this deployment received it, from its own stamp.
+    pub arrived: Option<i64>,
     registrable: String,
     x_mailer: Option<String>,
     to_display: String,
@@ -51,6 +55,8 @@ impl Reading {
         // sweep cannot see one that says something else.
         let deception = mailrs_inbound::deception_in_identity(raw);
         Self {
+            link_hosts: mailrs_inbound::scan_input::link_hosts(&parsed),
+            arrived: mailrs_inbound::dates::received_epoch(raw),
             registrable: mailrs_fraud::brand::registrable(&host),
             x_mailer: mailrs_inbound::x_mailer_header(raw),
             has_zero_width: deception.unjustified_zero_width,
@@ -141,6 +147,7 @@ impl Reading {
             payment: self.payment,
             html: self.html,
             relation,
+            novelty: Default::default(),
             reply_to_outside: mailrs_fraud::reply_rotation::is_off_domain(
                 &self.host,
                 &self.reply_to,

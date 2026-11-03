@@ -375,10 +375,15 @@ pub(crate) async fn enrich_with_body(
         r.cc = extract_cc_header(&bytes);
         r.sender_checks = super::message_reasons::sender_checks(&bytes);
         let set = super::screening_admin::reputation();
-        r.link_warnings = super::message_reasons::link_warnings(&bytes, |host| {
-            set.as_ref()
-                .is_some_and(|s| !s.link_listings(host).is_empty())
-        });
+        let fresh = super::message_reasons::new_link_hosts(&bytes);
+        r.link_warnings = super::message_reasons::link_warnings(
+            &bytes,
+            |host| {
+                set.as_ref()
+                    .is_some_and(|s| !s.link_listings(host).is_empty())
+            },
+            |host| fresh.iter().any(|h| h == host),
+        );
         r.unsubscribe = extract_header(&bytes, b"list-unsubscribe:")
             .and_then(|v| {
                 let post = extract_header(&bytes, b"list-unsubscribe-post:");
