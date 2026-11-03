@@ -113,9 +113,8 @@ export function useKeyboardNav() {
         }
         case '/': {
           e.preventDefault()
-          const searchInput = document.querySelector<HTMLInputElement>(
-            'input[placeholder="Search..."]'
-          )
+          // the placeholder is translated; the search landmark is not
+          const searchInput = document.querySelector<HTMLInputElement>('[role="search"] input')
           searchInput?.focus()
           break
         }
