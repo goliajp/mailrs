@@ -4343,7 +4343,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Methods: Core/echo; Mailbox/get, /query, /changes, /set; Email/get, /query, /changes, /queryChanges, /set (create takes attachments by blobId: an upload or a part of a message of the caller's), /import, /copy (one account per session, so another account is fromAccountNotFound); Thread/get, /changes; SearchSnippet/get (the filter's text, subject and body words marked with <mark>); Identity/get; EmailSubmission/get, /changes, /set (a submission may be held up to maxDelayedSend, 30 days, with HOLDFOR or HOLDUNTIL in envelope.mailFrom.parameters, and cancelled while held with undoStatus: canceled; one already going out answers cannotUnsend); VacationResponse/get, /set (the web's vacation reply; text only, htmlBody is null); MaskedEmail/get, /set."
       }
     },
     "/jmap/api/": {
@@ -4375,7 +4376,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Methods: Core/echo; Mailbox/get, /query, /changes, /set; Email/get, /query, /changes, /queryChanges, /set (create takes attachments by blobId: an upload or a part of a message of the caller's), /import, /copy (one account per session, so another account is fromAccountNotFound); Thread/get, /changes; SearchSnippet/get (the filter's text, subject and body words marked with <mark>); Identity/get; EmailSubmission/get, /changes, /set (a submission may be held up to maxDelayedSend, 30 days, with HOLDFOR or HOLDUNTIL in envelope.mailFrom.parameters, and cancelled while held with undoStatus: canceled; one already going out answers cannotUnsend); VacationResponse/get, /set (the web's vacation reply; text only, htmlBody is null); MaskedEmail/get, /set."
       }
     },
     "/jmap/session": {
@@ -5690,6 +5692,29 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/jmap/ws/": {
+      "get": {
+        "summary": "JMAP over WebSocket (RFC 8887)",
+        "description": "Upgrade with the `jmap` subprotocol (required). Text frames carry `Request` objects, answered with `Response` (or `RequestError`) carrying the same `requestId`; `WebSocketPushEnable` (optional `dataTypes`, `pushState`) starts `StateChange` pushes with `pushState`, `WebSocketPushDisable` stops them. Same login as /jmap/api/; an upgrade the session cookie authenticates must come from one of this site's pages (Origin), and Basic credentials are refused from another site's page. At most 8 push connections per account, shared with /jmap/eventsource/.",
+        "responses": {
+          "101": {
+            "description": "switched to the jmap subprotocol"
+          },
+          "400": {
+            "description": "the jmap subprotocol was not asked for"
+          },
+          "401": {
+            "description": "not signed in"
+          },
+          "403": {
+            "description": "a cookie or Basic upgrade from another site"
+          },
+          "429": {
+            "description": "too many push connections for this account"
           }
         }
       }

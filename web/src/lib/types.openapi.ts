@@ -1688,7 +1688,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** JMAP API endpoint (RFC 8620) */
+        /**
+         * JMAP API endpoint (RFC 8620)
+         * @description Methods: Core/echo; Mailbox/get, /query, /changes, /set; Email/get, /query, /changes, /queryChanges, /set (create takes attachments by blobId: an upload or a part of a message of the caller's), /import, /copy (one account per session, so another account is fromAccountNotFound); Thread/get, /changes; SearchSnippet/get (the filter's text, subject and body words marked with <mark>); Identity/get; EmailSubmission/get, /changes, /set (a submission may be held up to maxDelayedSend, 30 days, with HOLDFOR or HOLDUNTIL in envelope.mailFrom.parameters, and cancelled while held with undoStatus: canceled; one already going out answers cannotUnsend); VacationResponse/get, /set (the web's vacation reply; text only, htmlBody is null); MaskedEmail/get, /set.
+         */
         post: operations["jmapApi"];
         delete?: never;
         options?: never;
@@ -1705,7 +1708,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** JMAP API endpoint at the path Fastmail serves it */
+        /**
+         * JMAP API endpoint at the path Fastmail serves it
+         * @description Methods: Core/echo; Mailbox/get, /query, /changes, /set; Email/get, /query, /changes, /queryChanges, /set (create takes attachments by blobId: an upload or a part of a message of the caller's), /import, /copy (one account per session, so another account is fromAccountNotFound); Thread/get, /changes; SearchSnippet/get (the filter's text, subject and body words marked with <mark>); Identity/get; EmailSubmission/get, /changes, /set (a submission may be held up to maxDelayedSend, 30 days, with HOLDFOR or HOLDUNTIL in envelope.mailFrom.parameters, and cancelled while held with undoStatus: canceled; one already going out answers cannotUnsend); VacationResponse/get, /set (the web's vacation reply; text only, htmlBody is null); MaskedEmail/get, /set.
+         */
         post: operations["jmapApiFastmailPath"];
         delete?: never;
         options?: never;
@@ -3567,6 +3573,71 @@ export interface paths {
                     content: {
                         "application/json": Record<string, never>;
                     };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jmap/ws/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * JMAP over WebSocket (RFC 8887)
+         * @description Upgrade with the `jmap` subprotocol (required). Text frames carry `Request` objects, answered with `Response` (or `RequestError`) carrying the same `requestId`; `WebSocketPushEnable` (optional `dataTypes`, `pushState`) starts `StateChange` pushes with `pushState`, `WebSocketPushDisable` stops them. Same login as /jmap/api/; an upgrade the session cookie authenticates must come from one of this site's pages (Origin), and Basic credentials are refused from another site's page. At most 8 push connections per account, shared with /jmap/eventsource/.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description switched to the jmap subprotocol */
+                101: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description the jmap subprotocol was not asked for */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description not signed in */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description a cookie or Basic upgrade from another site */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description too many push connections for this account */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
                 };
             };
         };
