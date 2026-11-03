@@ -20,8 +20,9 @@ fn folder_of(blob_ref: &str) -> &str {
     }
 }
 
-/// Far above any mailbox's held count (439 at the most, 2026-08-31), so the
-/// whole range is read.
+/// Far above any mailbox's held count (439 at the most, 2026-08-31) and any
+/// account's conversations (41,658 at the most, 2026-11-01), so the whole
+/// range is read.
 const HELD_CEILING: usize = 1_000_000;
 
 impl RealAccount {
@@ -62,6 +63,56 @@ impl RealAccount {
             messages: self.shown(&tids, None)?,
             latest: 0,
         })
+    }
+
+    /// The messages of the web's Archived list: All Mail's range, archived
+    /// conversations only.
+    pub(crate) fn archived(&self) -> Result<Trashed<FcMailbox, PathBuf>> {
+        let filter = mailrs_mailbox_kevy::ListThreadsFilter {
+            folder: Some("all"),
+            archived: true,
+            ..Default::default()
+        };
+        self.listed(&filter)
+    }
+
+    /// The messages of the web's All Mail: every conversation but Junk, the
+    /// Trash and held mail, archived ones included.
+    pub(crate) fn all_mail(&self) -> Result<Trashed<FcMailbox, PathBuf>> {
+        let filter = mailrs_mailbox_kevy::ListThreadsFilter {
+            folder: Some("all"),
+            ..Default::default()
+        };
+        self.listed(&filter)
+    }
+
+    fn listed(
+        &self,
+        filter: &mailrs_mailbox_kevy::ListThreadsFilter<'_>,
+    ) -> Result<Trashed<FcMailbox, PathBuf>> {
+        let (rows, _) = self
+            .state
+            .mailbox
+            .list_threads_by_activity(&self.user, filter, 0, HELD_CEILING)
+            .map_err(Error::Io)?;
+        let tids: Vec<String> = rows.into_iter().map(|r| r.thread_id).collect();
+        Ok(Trashed {
+            messages: self.shown(&tids, None)?,
+            latest: 0,
+        })
+    }
+
+    /// Archive the message's conversation the way the web does.
+    pub(crate) fn set_archived(&self, m: &Message<PathBuf>, archived: bool) -> Result<bool> {
+        let Some(tid) = self.conversation_of(m)? else {
+            return Ok(false);
+        };
+        Ok(crate::routes::thread_actions::set_archived_everywhere(
+            &self.state,
+            &self.user,
+            &tid,
+            archived,
+        ))
     }
 
     /// Each label with the messages of its conversations not in the Trash.

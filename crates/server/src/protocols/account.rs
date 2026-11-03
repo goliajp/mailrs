@@ -19,6 +19,7 @@ use crate::event_bus::EventBus;
 use crate::message_store::MessageStore;
 use crate::sieve_store;
 
+mod archive;
 mod filing;
 mod trash;
 
@@ -236,6 +237,23 @@ impl Account for PgAccount {
 
     async fn held(&self) -> Result<Trashed<Mailbox, String>> {
         self.held_view().await
+    }
+
+    async fn archived(&self) -> Result<Trashed<Mailbox, String>> {
+        self.archived_view().await
+    }
+
+    async fn all_mail(&self) -> Result<Trashed<Mailbox, String>> {
+        self.all_mail_view().await
+    }
+
+    async fn set_archived(
+        &self,
+        mailbox: &Mailbox,
+        m: &Message<String>,
+        archived: bool,
+    ) -> Result<bool> {
+        self.set_archived_thread(mailbox, m, archived).await
     }
 
     async fn set_trashed(

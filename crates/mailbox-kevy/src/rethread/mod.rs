@@ -247,7 +247,7 @@ impl KevyMailboxStore {
     /// alone, so a rethread that moved an unread message away left the old
     /// conversation on the Unread axis with nothing unread in it, and the
     /// new one off it.
-    fn set_unread_axis(&self, user: &str, tid: &str, unread: i64) -> io::Result<()> {
+    pub(crate) fn set_unread_axis(&self, user: &str, tid: &str, unread: i64) -> io::Result<()> {
         let key = keys::thread_user(user, tid);
         let value: &[u8] = match unread > 0 {
             true => b"1",
