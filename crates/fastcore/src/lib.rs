@@ -41,6 +41,7 @@ mod mock_sweep;
 pub mod outbound_fraud;
 mod protocols;
 pub use protocols::{FastcoreDirectory, listen_for_signouts};
+mod domain_prune;
 mod import;
 mod push;
 mod rejudge;

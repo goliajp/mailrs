@@ -77,9 +77,11 @@ pub const SENDER_BIDI: &str = "sender-bidi";
 pub const LINK_SHOWS_ANOTHER_HOST: &str = "link-shows-another-host";
 /// A link to a host on the reputation list.
 pub const LINK_HOST_LISTED: &str = "link-host-listed";
+/// A link to a domain this deployment first saw within the week.
+pub const LINK_HOST_NEW: &str = "link-host-new";
 
 /// Every code this crate and its callers produce, besides fraud rule ids.
-pub const HOST_CODES: [&str; 14] = [
+pub const HOST_CODES: [&str; 15] = [
     JUNK_CLAIMS_OUR_DOMAIN,
     JUNK_YOUR_BLOCKLIST,
     JUNK_DMARC_QUARANTINE,
@@ -94,6 +96,7 @@ pub const HOST_CODES: [&str; 14] = [
     SENDER_BIDI,
     LINK_SHOWS_ANOTHER_HOST,
     LINK_HOST_LISTED,
+    LINK_HOST_NEW,
 ];
 
 #[cfg(test)]

@@ -171,6 +171,14 @@ pub(super) fn admin_routes() -> axum::Router<Arc<WebState>> {
             post(handlers::admin_password_clear::clear),
         )
         .route(
+            "/api/admin/ownerless-threads",
+            get(handlers::admin_ownerless::list),
+        )
+        .route(
+            "/api/admin/ownerless-threads/{thread_id}",
+            axum::routing::delete(handlers::admin_ownerless::delete),
+        )
+        .route(
             "/api/reset-codes/{address}",
             get(handlers::reset_code::status).post(handlers::reset_code::issue),
         )

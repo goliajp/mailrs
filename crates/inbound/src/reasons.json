@@ -194,6 +194,11 @@
     "ja": "このリンクの行き先 {host} は、詐欺に使われたホストの一覧に載っています。",
     "zh": "这个链接指向 {host}，它在诈骗主机名单上。"
   },
+  "link-host-new": {
+    "en": "This link goes to {host}, a domain first seen here this week.",
+    "ja": "このリンクの行き先 {host} は、今週初めて見たドメインです。",
+    "zh": "这个链接指向 {host}，这个域名本周才第一次见到。"
+  },
   "link-kit-placeholder": {
     "en": "A link still carries the unfilled template of a phishing kit.",
     "ja": "リンクにフィッシングキットの未記入のテンプレートが残っています。",
@@ -232,6 +237,26 @@
       "en": "The sending server's name, {host}, was generated, not chosen.",
       "ja": "送信サーバー名 {host} は自動生成されたもので、人が付けた名前ではありません。",
       "zh": "发信服务器的名字 {host} 是随机生成的，不是有人取的。"
+    }
+  },
+  "new-domain-asks-for-payment": {
+    "en": "A payment account, from a domain first seen here this week.",
+    "ja": "今週初めて届いたドメインからのメールに、振込先口座が書かれています。",
+    "zh": "这个域名本周才第一次来信，信里就带着收款账户。",
+    "params": {
+      "en": "{domain}, first seen here this week, sends a payment account ({account}).",
+      "ja": "今週初めて届いた {domain} からのメールに、振込先口座（{account}）が書かれています。",
+      "zh": "{domain} 本周才第一次来信，信里就带着收款账户（{account}）。"
+    }
+  },
+  "new-domain-login-link": {
+    "en": "A link goes to a domain first seen here this week, beside a link showing another address or a login form.",
+    "ja": "今週初めて見たドメインへのリンクがあり、別のアドレスを表示するリンクかログインフォームも付いています。",
+    "zh": "信里有指向本周才第一次见到的域名的链接，还有显示别的地址的链接或登录表单。",
+    "params": {
+      "en": "A link goes to {domain}, first seen here this week, beside a link showing another address or a login form.",
+      "ja": "今週初めて見た {domain} へのリンクがあり、別のアドレスを表示するリンクかログインフォームも付いています。",
+      "zh": "信里有指向 {domain} 的链接，这个域名本周才第一次见到，还有显示别的地址的链接或登录表单。"
     }
   },
   "nothing-vouches-for-the-sender": {

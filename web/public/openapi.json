@@ -9943,6 +9943,114 @@
         }
       }
     },
+    "/api/admin/ownerless-threads": {
+      "get": {
+        "operationId": "listOwnerlessThreads",
+        "summary": "Conversations nobody holds: the shared record is there, but no account has the conversation. Super administrators only",
+        "tags": [
+          "Admin"
+        ],
+        "responses": {
+          "200": {
+            "description": "Newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "count": {
+                      "type": "integer"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "thread_id": {
+                            "type": "string"
+                          },
+                          "messages": {
+                            "type": "integer",
+                            "description": "Messages in the conversation's shared index"
+                          },
+                          "latest_at": {
+                            "type": "integer",
+                            "description": "The newest of them, epoch seconds; 0 when it has none"
+                          },
+                          "id_prefix": {
+                            "type": "string",
+                            "description": "The first 8 characters of the id, for reports"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a super administrator"
+          }
+        }
+      }
+    },
+    "/api/admin/ownerless-threads/{thread_id}": {
+      "delete": {
+        "operationId": "deleteOwnerlessThread",
+        "summary": "Delete one conversation nobody holds, for good, and record it in the audit log. Super administrators only, after a recent password confirmation",
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "What was deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "thread_id": {
+                      "type": "string"
+                    },
+                    "messages": {
+                      "type": "integer",
+                      "description": "Messages in the conversation's shared index"
+                    },
+                    "latest_at": {
+                      "type": "integer",
+                      "description": "The newest of them, epoch seconds; 0 when it has none"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a super administrator, or `confirm_required`: the password was not confirmed in the last ten minutes"
+          },
+          "404": {
+            "description": "No such conversation"
+          },
+          "409": {
+            "description": "Somebody holds this conversation; nothing was deleted"
+          },
+          "503": {
+            "description": "Deleted, but the audit row could not be written"
+          }
+        }
+      }
+    },
     "/api/reset-codes/{address}": {
       "post": {
         "operationId": "issueResetCode",
@@ -15047,6 +15155,25 @@
                 "type": "integer",
                 "nullable": true,
                 "description": "Bytes free on the volume; null when it cannot be read"
+              }
+            }
+          },
+          "new_domains": {
+            "type": "object",
+            "nullable": true,
+            "description": "Domains with a first-seen time (mailrs:domfirst:), recounted at most every five minutes. Null when the shared store cannot be read.",
+            "properties": {
+              "keys": {
+                "type": "integer",
+                "description": "Domains with a first-seen time"
+              },
+              "added_24h": {
+                "type": "integer",
+                "description": "Of those, first seen in the 24 hours before computed_at"
+              },
+              "computed_at": {
+                "type": "integer",
+                "description": "Unix seconds of the count"
               }
             }
           },
