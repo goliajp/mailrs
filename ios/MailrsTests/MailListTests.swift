@@ -62,7 +62,8 @@ struct MailListTests {
     /// promotions case-insensitively, plus the merged `NP` and the
     /// `NonJunk` scope.
     @Test func usesFolderNamesTheServerParses() {
-        let known: Set<String> = ["Inbox", "Junk", "NP", "NonJunk"]
+        // `all` is All Mail (`scope.rs`: every bucket but Junk)
+        let known: Set<String> = ["Inbox", "Junk", "NP", "NonJunk", "all"]
         for list in MailList.allCases {
             if let folder = list.axes.folder {
                 #expect(known.contains(folder), "unknown folder \(folder) on \(list.title)")
