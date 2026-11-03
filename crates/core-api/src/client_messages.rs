@@ -34,6 +34,20 @@ impl Client {
         self.post_authed_json(path, &req, "file_sent").await
     }
 
+    /// POST /v1/users/{user}/sent with `imported` — file a Sent message an
+    /// import brings over; unlike a send, it stops at the quota (507).
+    pub async fn file_imported_sent(
+        &self,
+        user: &str,
+        message: &[u8],
+        recipients: &[String],
+    ) -> ApiResult<method::sent::FileSentResponse> {
+        let path = format!("/v1/users/{}/sent", Self::enc(user));
+        let req = method::sent::FileSentRequest::imported(message, recipients);
+        self.post_authed_json(path, &req, "file_imported_sent")
+            .await
+    }
+
     /// POST /v1/users/{user}/import — file a message brought over from
     /// another mailbox into INBOX, unread, without running delivery.
     pub async fn import_message(
