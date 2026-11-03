@@ -18,6 +18,19 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### IMAP shows archived mail in Archive, not in the Inbox (2.193.0)
+
+- **Mail clients will show fewer messages in INBOX.** A conversation
+  archived on the web, the apps or over JMAP now leaves INBOX in IMAP
+  clients too, as in Gmail; it is in the new `Archive` folder
+  (`\Archive`) and in the read-only `All Mail` (`\All`, everything but
+  Junk and Trash). Nothing is deleted, and the client resyncs INBOX by
+  itself.
+- Moving a message into `Archive` archives its conversation and moving
+  it back to INBOX unarchives it. Moving a message into a label folder
+  puts the label on and archives, as in Gmail; copying only labels it.
+  Deleting in `Archive` moves the conversation to the Trash.
+
 ### JMAP works with ordinary mail clients
 
 - Email ids are stable (`M` + the message's uid, unchanged by a move),

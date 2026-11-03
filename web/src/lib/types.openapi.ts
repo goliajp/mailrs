@@ -7262,6 +7262,8 @@ export interface components {
                 added_24h?: number;
                 /** @description Unix seconds of the count */
                 computed_at?: number;
+                /** @description True when computed_at is more than 15 minutes old */
+                stale?: boolean;
             } | null;
             /** @description kevy-server's memory against its container limit. Null when kevy-server does not answer. */
             kevy_server_memory?: {
@@ -14264,6 +14266,8 @@ export interface operations {
                 content: {
                     "application/json": {
                         count?: number;
+                        /** @description Conversations the listing looked at, held or not: an empty list after scanning many is a real zero */
+                        scanned?: number;
                         items?: {
                             thread_id?: string;
                             /** @description Messages in the conversation's shared index */

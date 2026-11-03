@@ -22,10 +22,15 @@ fn wire(t: mailrs_mailbox_kevy::OwnerlessThread) -> OwnerlessThreadWire {
 
 /// `GET /v1/admin/ownerless-threads`
 pub(crate) async fn list(State(state): State<Arc<FastcoreState>>) -> Response {
-    let found = tokio::task::spawn_blocking(move || state.mailbox.ownerless_threads()).await;
+    let found = tokio::task::spawn_blocking(move || {
+        let items = state.mailbox.ownerless_threads()?;
+        Ok::<_, std::io::Error>((items, state.mailbox.shared_thread_count()))
+    })
+    .await;
     match found {
-        Ok(Ok(items)) => Json(OwnerlessThreadsResponse {
+        Ok(Ok((items, scanned))) => Json(OwnerlessThreadsResponse {
             items: items.into_iter().map(wire).collect(),
+            scanned,
         })
         .into_response(),
         Ok(Err(e)) => {

@@ -32,4 +32,5 @@ async fn health_counts_the_recorded_domains() {
     assert_eq!(d["keys"], 3, "{body}");
     assert_eq!(d["added_24h"], 2, "{body}");
     assert!(d["computed_at"].as_i64().is_some_and(|t| t >= now));
+    assert_eq!(d["stale"], false, "{body}");
 }
