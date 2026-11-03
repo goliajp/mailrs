@@ -170,15 +170,19 @@ pub fn publish_new_mail(user: &str, thread_id: &str, sender: &str, subject: &str
 /// at RCPT time. Best-effort: kevy down means the counter drifts until
 /// the next backfill-usage run; enforcement is fail-open anyway.
 pub fn adjust_usage_bytes(user: &str, delta: i64) {
+    let mut conn = network_kevy_url().and_then(|url| Connection::connect(&url).ok());
+    adjust_usage_on(conn.as_mut(), user, delta);
+}
+
+/// [`adjust_usage_bytes`] on `net`, the network kevy the calling core
+/// names; `None` counts nothing.
+pub fn adjust_usage_on(net: Option<&mut Connection>, user: &str, delta: i64) {
+    let Some(conn) = net else {
+        return;
+    };
     if delta == 0 {
         return;
     }
-    let Some(url) = network_kevy_url() else {
-        return;
-    };
-    let Ok(mut conn) = Connection::connect(&url) else {
-        return;
-    };
     let key = mailrs_core_sidestate::keys::quota::used_key(user);
     let _ = conn.incr_by(key.as_bytes(), delta);
 }

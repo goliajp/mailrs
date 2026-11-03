@@ -24,6 +24,8 @@ pub enum Notice {
     AppPasswordMade(String),
     /// A session failed its password confirmations and was ended.
     SessionEnded,
+    /// A Sieve script was stored that sends mail on to these addresses.
+    SieveRedirects(Vec<String>),
 }
 
 /// Where and how it happened, when known.
@@ -62,6 +64,8 @@ fn copy(n: &Notice, lang: Lang) -> Copy {
         (Notice::AppPasswordMade(name), false) => (Level::Check, "An app password was made".to_string(), format!("An app password named \"{name}\" was made on your account; a mail app using it can read and send your mail.")),
         (Notice::SessionEnded, true) => (Level::Act, "一个会话因为确认密码失败被结束".to_string(), "你账号的一个已登录会话连续 5 次输错了确认密码，已经被结束。持有它的人不知道你的密码。".to_string()),
         (Notice::SessionEnded, false) => (Level::Act, "A session was ended after failed password confirmations".to_string(), "A signed-in session on your account entered the wrong password five times when asked to confirm it, and was ended: whoever held it did not know the password.".to_string()),
+        (Notice::SieveRedirects(to), true) => (Level::Act, "邮件过滤规则会转发你的邮件".to_string(), format!("你的账号刚保存了一个邮件过滤脚本（Sieve），符合条件的邮件会转发到 {}。", to.join("、"))),
+        (Notice::SieveRedirects(to), false) => (Level::Act, "A mail filter now sends your mail on".to_string(), format!("A mail filter script (Sieve) was just saved on your account; mail it matches is sent on to {}.", to.join(", "))),
     };
     let steps = match n {
         Notice::SessionEnded => vec![not_you],
@@ -155,5 +159,35 @@ mod tests {
         );
         assert!(en.text.contains("forwarded to x@y.example"));
         assert!(en.html.contains("/settings?tab=security"));
+    }
+
+    #[test]
+    fn a_sieve_redirect_names_where_mail_goes() {
+        let origin = Origin {
+            ip: String::new(),
+            user_agent: "ManageSieve".into(),
+        };
+        let to = vec!["a@out.example".to_string(), "b@x.example".to_string()];
+        let zh = owner_mail(
+            &Notice::SieveRedirects(to.clone()),
+            &origin,
+            "mail.example",
+            &reader(Lang::Zh),
+            0,
+        );
+        assert!(
+            zh.text.contains("a@out.example、b@x.example"),
+            "{}",
+            zh.text
+        );
+        assert!(zh.text.contains("ManageSieve"));
+        let en = owner_mail(
+            &Notice::SieveRedirects(to),
+            &origin,
+            "mail.example",
+            &reader(Lang::En),
+            0,
+        );
+        assert!(en.text.contains("sent on to a@out.example, b@x.example"));
     }
 }

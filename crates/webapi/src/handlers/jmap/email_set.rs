@@ -11,7 +11,7 @@ use mailrs_jmap::error::JmapMethodError;
 use mailrs_mailbox::types::{FLAG_ANSWERED, FLAG_DRAFT, FLAG_FLAGGED, FLAG_SEEN};
 use serde_json::{Map, Value, json};
 
-use super::ctx::Ctx;
+use super::ctx::{Ctx, Forbidden};
 use super::ids::{self, Blob};
 use super::import::{self, NotFiled};
 use super::mailbox::{Place, Role};
@@ -159,7 +159,11 @@ async fn update(ctx: &Ctx, view: &View, id: &str, patch: &Value) -> Result<(), N
 }
 
 /// Destroying a message deletes its conversation, so it is allowed only
-/// when every message of the conversation is being destroyed.
+/// when every message of the conversation is being destroyed. As deleting
+/// does in the web client and in IMAP, it moves a conversation to the
+/// Trash, where it is deleted for good after 30 days; only one already in
+/// the Trash is deleted for good now, and only by a request that may
+/// ([`Ctx::may_delete_for_good`]).
 async fn destroy(ctx: &Ctx, view: &View, id: &str, all: &[u32]) -> Result<(), NotFiled> {
     let m = ids::parse_email(id)
         .and_then(|uid| view.get(uid))
@@ -171,11 +175,39 @@ async fn destroy(ctx: &Ctx, view: &View, id: &str, all: &[u32]) -> Result<(), No
             "messages of a conversation are deleted together; destroy them all or move this one to Trash".into(),
         ));
     }
-    ctx.state
-        .core
-        .delete_thread(&ctx.user, view.thread_id(m))
-        .await
-        .map_err(server)
+    let tid = view.thread_id(m).to_string();
+    if !view.index.threads[m.thread as usize].trashed {
+        return ctx
+            .state
+            .core
+            .trash_thread(&ctx.user, &tid)
+            .await
+            .map(drop)
+            .map_err(server);
+    }
+    let credential = ctx.may_delete_for_good().map_err(|f| match f {
+        Forbidden::AgentKey => NotFiled(
+            "forbidden",
+            "an agent key cannot delete mail for good; it is in the Trash, deleted after 30 days"
+                .into(),
+        ),
+        Forbidden::ConfirmRequired => NotFiled(
+            "forbidden",
+            "confirm_required: confirm your password first (POST /api/auth/confirm)".into(),
+        ),
+        Forbidden::Unavailable => NotFiled("serverFail", "the session store is unavailable".into()),
+    })?;
+    crate::handlers::trash::delete_for_good(
+        &ctx.state,
+        ctx.user.clone(),
+        tid,
+        members.len(),
+        "jmap",
+        credential,
+    )
+    .await
+    .map(drop)
+    .map_err(server)
 }
 
 /// The files an Email object's `attachments` names by `blobId`: an upload

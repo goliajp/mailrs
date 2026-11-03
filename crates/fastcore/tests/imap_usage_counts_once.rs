@@ -1,5 +1,7 @@
 //! Each IMAP write changes the user's used bytes once: APPEND and COPY add
-//! the message, MOVE leaves the total as it was, EXPUNGE takes it off.
+//! the message, MOVE leaves the total as it was, an EXPUNGE outside Trash
+//! moves it to the Trash and leaves it counted, an EXPUNGE in Trash takes
+//! it off.
 //!
 //! An integration test because the counter lives in the network kevy that
 //! `MAILRS_KEVY_URL` names, and only a process of its own may set that.
@@ -107,5 +109,10 @@ async fn append_copy_move_and_expunge_each_count_once() {
     c.cmd("a7", "SELECT INBOX").await;
     c.cmd("a8", "STORE 1 +FLAGS.SILENT (\\Deleted)").await;
     c.cmd("a9", "EXPUNGE").await;
-    assert_eq!(used(&mut net), size, "EXPUNGE");
+    assert_eq!(used(&mut net), 2 * size, "EXPUNGE outside Trash");
+
+    c.cmd("a10", "SELECT Trash").await;
+    c.cmd("a11", "STORE 1 +FLAGS.SILENT (\\Deleted)").await;
+    c.cmd("a12", "EXPUNGE").await;
+    assert_eq!(used(&mut net), size, "EXPUNGE in Trash");
 }

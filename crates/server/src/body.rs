@@ -77,9 +77,12 @@ pub(crate) async fn read(
     store.fetch(&dir.path().to_string_lossy(), &id).await
 }
 
-/// Write `bytes` into `mailbox`'s folder; returns the new body's blob ref.
+/// Write `bytes` into `mailbox`'s folder, counted toward the user's usage
+/// on the network kevy at `net_url` as an arrival is; returns the new
+/// body's blob ref.
 pub(crate) async fn deliver(
     store: &dyn MessageStore,
+    net_url: Option<&str>,
     maildir_root: &str,
     user: &str,
     mailbox: &str,
@@ -93,21 +96,23 @@ pub(crate) async fn deliver(
         .into_iter()
         .next()
         .ok_or_else(|| io::Error::other("delivery returned no message id"))?;
+    let mut net = net_url.and_then(|u| kevy_client::Connection::connect(u).ok());
+    mailrs_intake::live_sync::adjust_usage_on(net.as_mut(), user, bytes.len() as i64);
     Ok(blob_ref(mailbox, &id.0))
 }
 
-/// Remove the body a row's `maildir_id` names. One already gone is gone.
-pub(crate) async fn remove(
-    store: &dyn MessageStore,
+/// Remove the body a row's `maildir_id` names, through the one function
+/// that removes mail files in either core, which takes its size off the
+/// user's usage on the network kevy at `net_url`. Its size; `None` for one
+/// already gone.
+pub(crate) fn remove(
+    net_url: Option<&str>,
     maildir_root: &str,
     user: &str,
     maildir_id: &str,
-) -> io::Result<()> {
-    let (dir, id) = locate(maildir_root, user, maildir_id)?;
-    match store.delete(&dir.path().to_string_lossy(), &id).await {
-        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
-        r => r,
-    }
+) -> io::Result<Option<u64>> {
+    let mut net = net_url.and_then(|u| kevy_client::Connection::connect(u).ok());
+    mailrs_intake::mail_files::remove_blob(net.as_mut(), maildir_root, user, maildir_id)
 }
 
 #[cfg(test)]

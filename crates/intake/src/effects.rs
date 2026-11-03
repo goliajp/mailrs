@@ -6,10 +6,17 @@ use crate::arrival::Arrival;
 use crate::{live_sync, push, webhook_delivery};
 
 /// The senders join the recipient's contacts, and the message counts
-/// against their usage.
-pub fn before_store(addr: &str, a: &Arrival<'_>, size: usize) {
+/// against their usage on `net`, the core's network kevy, where
+/// [`crate::mail_files`] takes it off again.
+pub fn before_store(
+    net: Option<kevy_client::Connection>,
+    addr: &str,
+    a: &Arrival<'_>,
+    size: usize,
+) {
     live_sync::upsert_contacts(addr, &a.from);
-    live_sync::adjust_usage_bytes(addr, size as i64);
+    let mut net = net;
+    live_sync::adjust_usage_on(net.as_mut(), addr, size as i64);
 }
 
 /// Tell the clients last: a client that hears of new mail asks for its list

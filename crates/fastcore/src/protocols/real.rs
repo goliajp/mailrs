@@ -105,11 +105,58 @@ impl RealAccount {
         Ok(self.filed(to, uid))
     }
 
+    /// Deleted for good, with the audit row every way of doing that writes:
+    /// the conversations are read before the files go.
     pub(crate) fn expunge(&self, mailbox: &FcMailbox, doomed: &[Message<PathBuf>]) -> Expunged {
+        let convs: Vec<Option<String>> = doomed
+            .iter()
+            .map(|m| self.conversation_of(m).ok().flatten())
+            .collect();
+        let out = self.expunge_files(mailbox, doomed);
+        let gone: Vec<Option<String>> = doomed
+            .iter()
+            .zip(convs)
+            .filter(|(m, _)| out.removed.contains(&m.uid))
+            .map(|(_, c)| c)
+            .collect();
+        self.audit_deleted(&gone, "imap");
+        out
+    }
+
+    /// The audit rows for messages of `conversations` deleted for good by
+    /// a password login. A failed write is logged: the files are gone.
+    pub(crate) fn audit_deleted(&self, conversations: &[Option<String>], via: &str) {
+        use mailrs_core_sidestate::families::audit::{Credential, deleted_forever_each};
+        if conversations.is_empty() {
+            return;
+        }
+        let now = chrono::Utc::now().timestamp();
+        let written = self.state.net_conn().map(|mut c| {
+            deleted_forever_each(
+                &mut c,
+                &self.user,
+                conversations,
+                via,
+                Credential::PasswordOrAppPassword,
+                now,
+            )
+        });
+        match written {
+            Some(Ok(())) => {}
+            Some(Err(e)) => {
+                tracing::warn!(user = %self.user, error = %e, "deletion audit row not written")
+            }
+            None => {
+                tracing::warn!(user = %self.user, "deletion audit row not written: no network store")
+            }
+        }
+    }
+
+    fn expunge_files(&self, mailbox: &FcMailbox, doomed: &[Message<PathBuf>]) -> Expunged {
         let mut out = Expunged::default();
         for m in doomed {
             let known = super::forget::Doomed::read(mailbox, &m.key);
-            match backend::remove_message(&self.user, &to_imap(m)) {
+            match backend::remove_message(&self.state, &self.user, &to_imap(m)) {
                 Ok(()) => {
                     let ms = backend::bump_modseq(&self.state, &self.user);
                     backend::record_vanished(&self.state, &self.user, &mailbox.name, m.uid, ms);
