@@ -2,8 +2,8 @@ import type { ReasonsKey } from './en'
 
 export const reasonsJa: Record<ReasonsKey, string> = {
   'fraud.examined': '確認済み: 不審な点があります',
-  'fraud.kept': '削除せずに保管しています。不正利用の報告に使う証拠です。',
-  'fraud.layer.clean': '問題は見つかりませんでした。',
+  'fraud.kept': '削除せずに保管しています。不正利用の報告に使う証拠です',
+  'fraud.layer.clean': '問題は見つかりませんでした',
   'fraud.layer.content': '内容',
   'fraud.layer.content.question': '詐欺らしい内容か',
   'fraud.layer.identity': '身元',

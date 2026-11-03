@@ -29,8 +29,11 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.rememberUpdatedState
+import jp.golia.mailrs.wire.LinkWarnings
 import jp.golia.mailrs.wire.MailAppearance
 import jp.golia.mailrs.wire.RemoteContent
+import jp.golia.mailrs.wire.WireVerdict
 
 /**
  * An email body, rendered rather than reinterpreted.
@@ -71,8 +74,21 @@ import jp.golia.mailrs.wire.RemoteContent
  * or it fights the one that makes this work.
  */
 @Composable
-fun MessageBody(html: String, modifier: Modifier = Modifier) {
+fun MessageBody(
+    html: String,
+    modifier: Modifier = Modifier,
+    /** Links the server flagged: marked in the body, and asked about before they open. */
+    warnings: List<WireVerdict.LinkWarning> = emptyList(),
+    onWarnedLink: (LinkWarnings.Target) -> Unit = {},
+) {
     val theme = LocalTheme.current
+    val (reasons, lang) = rememberReasons()
+    val marked = remember(html, warnings, lang) {
+        LinkWarnings.mark(html, warnings) { w -> w.reasons.joinToString(" ") { reasons.words(it, lang) } }
+    }
+    // the client below is made once; these keep it reading the current message
+    val targets by rememberUpdatedState(marked.targets)
+    val warned by rememberUpdatedState(onWarnedLink)
     val dark = theme.isDark && MailAppearance.followsAppTheme(html)
     // Saveable: somebody who asked for the images should not have to
     // ask again because they turned the phone. Keyed on the message, so
@@ -105,7 +121,7 @@ fun MessageBody(html: String, modifier: Modifier = Modifier) {
         }
     }
 
-    val document = remember(html, dark, theme) { documentFor(html, dark, theme) }
+    val document = remember(marked.html, dark, theme) { documentFor(marked.html, dark, theme) }
     // What this WebView has already been given. Not a View tag: those
     // take an application resource id and throw on anything else, and
     // not Compose state either, because changing it must not recompose.
@@ -140,6 +156,11 @@ fun MessageBody(html: String, modifier: Modifier = Modifier) {
                         view: WebView,
                         request: WebResourceRequest,
                     ): Boolean {
+                        val n = LinkWarnings.index(request.url.toString())
+                        if (n != null) {
+                            targets.getOrNull(n)?.let(warned)
+                            return true
+                        }
                         runCatching {
                             context.startActivity(
                                 Intent(Intent.ACTION_VIEW, request.url)

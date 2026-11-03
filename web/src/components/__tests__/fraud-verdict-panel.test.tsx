@@ -101,7 +101,7 @@ describe('the verdict panel', () => {
     expect(await screen.findByText('显示名自称是本组织。')).toBeInTheDocument()
     expect(screen.getByText('身份')).toBeInTheDocument()
     expect(screen.getByText('SPF：pass')).toBeInTheDocument()
-    expect(screen.getByText('没有发现问题。')).toBeInTheDocument()
+    expect(screen.getByText('没有发现问题')).toBeInTheDocument()
     expect(screen.getByText('各项检查合计 9.5 分，达到垃圾邮件阈值 5.0。')).toBeInTheDocument()
   })
 
