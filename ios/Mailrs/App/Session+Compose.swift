@@ -106,10 +106,11 @@ extension Session {
     /// but the thumb is on the button and the eyes may not be — Gmail
     /// and Apple Mail both confirm a send through the hand. Failure taps
     /// differently *before* the error text appears, for the same reason.
-    private func sendWithFeedback(_ send: () async throws -> some Sendable) async throws {
+    private func sendWithFeedback(_ send: () async throws -> Wire.SendResponse) async throws {
         do {
-            _ = try await send()
+            let sent = try await send()
             Haptics.play(.success)
+            offerUndoSend(messageId: sent.messageId)
         } catch {
             Haptics.play(.error)
             throw error
@@ -135,21 +136,15 @@ extension Session {
     /// autosave would leave a new draft per tick.
     func saveDraft(
         id: Int64?, to: String, cc: String = "", bcc: String = "",
-        subject: String, body: String, replyToThreadId: String?
+        subject: String, body: String, replyToThreadId: String?,
+        from: String = "", scheduledAt: Int64? = nil
     ) async -> Int64? {
         guard let client else { return nil }
         let request = Wire.SaveDraftRequest(
             id: id, to: to, cc: cc, bcc: bcc, subject: subject, body: body,
-            replyToThreadId: replyToThreadId
+            replyToThreadId: replyToThreadId, from: from, scheduledAt: scheduledAt
         )
         return try? await client.saveDraft(request)
-    }
-
-
-    func deleteDraft(id: Int64) async {
-        guard let client else { return }
-        try? await client.deleteDraft(id: id)
-        drafts.removeAll { $0.id == id }
     }
 
 

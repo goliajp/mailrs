@@ -57,6 +57,7 @@ struct MacRootView: View {
             detail
         }
         .overlay(alignment: .bottom) { UndoBar() }
+        .overlay(alignment: .bottom) { SendUndoBar() }
         .overlay(alignment: .top) { FailureBanner() }
         .animation(.easeOut(duration: 0.2), value: session.banner)
         .animation(.easeOut(duration: 0.2), value: session.pendingUndo != nil)

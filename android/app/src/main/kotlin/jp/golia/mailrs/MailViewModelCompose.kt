@@ -9,6 +9,9 @@ import kotlinx.coroutines.launch
 import jp.golia.mailrs.wire.cancelScheduled
 import jp.golia.mailrs.wire.scheduledSends
 import jp.golia.mailrs.wire.SendSchedule
+import jp.golia.mailrs.wire.send
+import jp.golia.mailrs.wire.sendMultipart
+import jp.golia.mailrs.wire.withKept
 import jp.golia.mailrs.wire.sends
 import jp.golia.mailrs.wire.sentMessages
 import jp.golia.mailrs.wire.SendJoin
@@ -229,9 +232,10 @@ fun MailViewModel.send(schedule: SendSchedule = SendSchedule.Now) {
                 cc = recipientsIn(draft.cc),
                 bcc = recipientsIn(draft.bcc),
                 forwardAttachmentsFrom = draft.forwardFrom,
-                scheduledAt = schedule.fireDate(java.time.ZonedDateTime.now()),
+                scheduledAt = schedule.withKept(draft.scheduledAt, java.time.ZonedDateTime.now()),
                 redraftOf = draft.redraftOf,
                 redraftKeep = draft.keptCarried(),
+                from = draft.from,
             )
         } else {
             client.sendMultipart(
@@ -244,9 +248,10 @@ fun MailViewModel.send(schedule: SendSchedule = SendSchedule.Now) {
                 attachments = draft.attachments.map { a ->
                     MailrsClient.Upload(a.filename, ContentUriBody(resolver, a.uri))
                 },
-                scheduledAt = schedule.fireDate(java.time.ZonedDateTime.now()),
+                scheduledAt = schedule.withKept(draft.scheduledAt, java.time.ZonedDateTime.now()),
                 redraftOf = draft.redraftOf,
                 redraftKeep = draft.keptCarried(),
+                from = draft.from,
             )
         }
         when (r) {
@@ -257,8 +262,7 @@ fun MailViewModel.send(schedule: SendSchedule = SendSchedule.Now) {
                 // this account has *received* from would put a mailing
                 // list one tap from a photo.
                 RecentRecipients.remember(getApplication(), recipients)
-                _state.update { it.copy(sending = false, composing = null, sent = true) }
-                refresh()
+                sendLanded(r.value)
             }
             is MailrsClient.Outcome.Err ->
                 // The composer stays open. A send that failed and
@@ -267,10 +271,6 @@ fun MailViewModel.send(schedule: SendSchedule = SendSchedule.Now) {
                 _state.update { it.copy(sending = false, error = r.message) }
         }
     }
-}
-
-fun MailViewModel.acknowledgeSent() {
-    _state.update { it.copy(sent = false) }
 }
 
 /**

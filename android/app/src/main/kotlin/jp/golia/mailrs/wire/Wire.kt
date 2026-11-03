@@ -263,6 +263,8 @@ object Wire {
         @SerialName("reply_to_thread_id") val replyToThreadId: String? = null,
         @SerialName("created_at") val createdAt: Long = 0,
         @SerialName("updated_at") val updatedAt: Long = 0,
+        val from: String = "",
+        @SerialName("scheduled_at") val scheduledAt: Long? = null,
     )
 
     /** `POST /api/mail/drafts` — an id means update, its absence means create. */
@@ -275,19 +277,16 @@ object Wire {
         val subject: String,
         val body: String,
         @SerialName("reply_to_thread_id") val replyToThreadId: String? = null,
+        val from: String = "",
+        @SerialName("scheduled_at") val scheduledAt: Long? = null,
     )
 
     @Serializable
     data class SaveDraftResponse(val id: Long)
 
     /**
-     * `POST /api/mail/send`.
-     *
-     * Every field is `#[serde(default)]` on the server
-     * (`crates/webapi/src/handlers/compose.rs`), so omitting one is
-     * legal — but they are all sent explicitly here. A reply that
-     * silently drops its `in_reply_to` still arrives, and starts a new
-     * thread, which is the kind of wrong that looks like it worked.
+     * `POST /api/mail/send`. Every field is `#[serde(default)]` server-side, but a reply that
+     * drops its `in_reply_to` still arrives and starts a new thread — so all are sent explicitly.
      */
     @Serializable
     data class SendRequest(
@@ -335,6 +334,7 @@ object Wire {
          * reason a phone can forward a message it has never opened.
          */
         @SerialName("forward_attachments_from") val forwardAttachmentsFrom: Int? = null,
+        @SerialName("undo_seconds") val undoSeconds: Int? = null,
     )
 
     /**

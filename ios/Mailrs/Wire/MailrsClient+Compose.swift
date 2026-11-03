@@ -95,6 +95,7 @@ extension MailrsClient {
         // having posted ISO 8601 here and had every scheduled send go
         // out at once.
         if let scheduledAt { fields.append(("scheduled_at", String(scheduledAt))) }
+        fields.append(("undo_seconds", String(SendHold.seconds)))
         if let redraftOf { fields.append(("redraft_of", redraftOf)) }
         // **One comma-separated field, not a repeated one**, and the
         // handler says why: repeating it cannot express "keep none",

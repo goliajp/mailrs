@@ -17,7 +17,7 @@ import XCTest
 class MailrsUITestCase: XCTestCase {
     func launch(
         signedIn: Bool = false, folder: String? = nil, listDelayMs: Int = 0,
-        keepCache: Bool = false, language: String? = nil, appearance: String? = nil
+        keepCache: Bool = false, language: String? = nil, appearance: String? = nil, extraArguments: [String] = []
     ) -> XCUIApplication {
         resetStub()
         if listDelayMs > 0 { setStubListDelay(listDelayMs) }
@@ -57,7 +57,7 @@ class MailrsUITestCase: XCTestCase {
         } else {
             app.launchArguments += ["-mailrsSignedOut"]
         }
-        if let folder { app.launchArguments += ["-mailrsFolder", folder] }
+        app.launchArguments += (folder.map { ["-mailrsFolder", $0] } ?? []) + extraArguments
         app.launch()
         return app
     }
