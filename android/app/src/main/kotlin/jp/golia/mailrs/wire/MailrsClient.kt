@@ -116,21 +116,15 @@ class MailrsClient(private val store: TokenStore) {
         )
     }
 
-    /**
-     * @param before keyset page boundary — see [ThreadPage] for why it
-     *   is one second past the oldest row rather than the oldest row.
-     */
-    suspend fun conversations(list: MailList, before: Long? = null): Outcome<List<Wire.Conversation>> =
-        conversations(list.axes, before)
+    /** @param page the page after the rows already held — see [ThreadPage]. */
+    suspend fun conversations(list: MailList, page: ThreadPage.Next? = null): Outcome<List<Wire.Conversation>> =
+        conversations(list.axes, page)
 
-    suspend fun conversations(axes: MailListAxes, before: Long? = null): Outcome<List<Wire.Conversation>> =
+    suspend fun conversations(axes: MailListAxes, page: ThreadPage.Next? = null): Outcome<List<Wire.Conversation>> =
         when (axes.held) {
-            true -> heldList(before)
+            true -> heldList(page)
             false -> decode(
-                get(
-                    "/api/conversations?limit=50&" + axes.query() +
-                        (before?.let { "&before_ts=$it" } ?: ""),
-                ),
+                get("/api/conversations?limit=50&" + axes.query() + ThreadPage.query(page)),
                 Wire.Conversation.serializer(),
             )
         }

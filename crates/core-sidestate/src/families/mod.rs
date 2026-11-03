@@ -44,6 +44,7 @@ pub mod sender_lists;
 pub mod sender_rules;
 pub mod shared_inbox;
 pub mod suppression;
+pub mod usage_drift;
 pub mod vacation;
 pub mod webhook_events;
 pub mod webhook_outbox;

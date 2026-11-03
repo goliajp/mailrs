@@ -108,11 +108,12 @@ suspend fun MailrsClient.labels(): MailrsClient.Outcome<List<WireTriage.Label>> 
  * `GET /api/quarantine` — Review, a page of it.
  *
  * Its own endpoint and its own answer shape (`{items, total}`), which is
- * why [MailrsClient.conversations] sends a held list here.
+ * why [MailrsClient.conversations] sends a held list here. Paged the way
+ * the list is ([ThreadPage]).
  */
-suspend fun MailrsClient.heldList(before: Long?): MailrsClient.Outcome<List<Wire.Conversation>> =
+suspend fun MailrsClient.heldList(page: ThreadPage.Next?): MailrsClient.Outcome<List<Wire.Conversation>> =
     one(
-        get("/api/quarantine?limit=50" + (before?.let { "&before=$it" } ?: "")),
+        get("/api/quarantine?limit=50" + ThreadPage.query(page)),
         WireTriage.HeldList.serializer(),
     ).map { it.items }
 

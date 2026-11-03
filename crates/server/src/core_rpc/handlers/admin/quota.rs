@@ -10,7 +10,7 @@ use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use mailrs_core_api::method::admin as wire;
 use mailrs_core_sidestate::NetKevy;
-use mailrs_core_sidestate::families::quota_limits;
+use mailrs_core_sidestate::families::{quota_limits, usage_drift};
 
 use crate::core_rpc::CoreRpcState;
 
@@ -71,4 +71,57 @@ pub async fn quota_limits_route(
         .map(Json)
         // no shared store: nowhere a limit could be read from or written to
         .ok_or(StatusCode::SERVICE_UNAVAILABLE)
+}
+
+/// The usage-drift pass in the SQL core: the same pass as fastcore,
+/// through `core_sidestate::families::usage_drift`.
+async fn usage_drift(
+    state: Arc<CoreRpcState>,
+    dry_run: bool,
+) -> Result<Json<wire::UsageDriftResponse>, StatusCode> {
+    let users: Vec<String> = state
+        .domain
+        .list_accounts()
+        .await
+        .map_err(|e| {
+            tracing::warn!(error = %e, "list_accounts failed");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+        .into_iter()
+        .map(|a| a.address)
+        .collect();
+    let root = std::path::PathBuf::from(&state.maildir_root);
+    let now = chrono::Utc::now().timestamp();
+    let done = tokio::task::spawn_blocking(move || {
+        with_net(&state, |c| {
+            usage_drift::pass(c, &root, &users, dry_run, now)
+        })
+    })
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    done?
+        .map(Json)
+        // no shared store: there is no counter to measure
+        .ok_or(StatusCode::SERVICE_UNAVAILABLE)
+}
+
+/// GET /v1/admin/maintenance:usage-drift — reports only.
+pub async fn usage_drift_route(
+    State(state): State<Arc<CoreRpcState>>,
+) -> Result<Json<wire::UsageDriftResponse>, StatusCode> {
+    usage_drift(state, true).await
+}
+
+#[derive(serde::Deserialize)]
+pub struct UsageDriftQuery {
+    #[serde(default = "dry_run_unless_asked")]
+    dry_run: bool,
+}
+
+/// POST /v1/admin/maintenance:usage-drift — `?dry_run=false` corrects.
+pub async fn usage_drift_apply_route(
+    State(state): State<Arc<CoreRpcState>>,
+    Query(q): Query<UsageDriftQuery>,
+) -> Result<Json<wire::UsageDriftResponse>, StatusCode> {
+    usage_drift(state, q.dry_run).await
 }

@@ -134,10 +134,12 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
             "/v1/admin/maintenance:sieve-survey",
             get(crate::maintenance::sieve_survey_route),
         )
-        // Read-only: each account's usage counter against its maildir.
+        // Each account's usage counter against its maildir: GET reports,
+        // POST `?dry_run=false` corrects.
         .route(
-            "/v1/admin/maintenance:usage-drift",
-            get(crate::maintenance::usage_drift_route),
+            adm::PATH_USAGE_DRIFT,
+            get(crate::maintenance::usage_drift_route)
+                .post(crate::maintenance::usage_drift_apply_route),
         )
         // Reads the calendar part out of mail that arrived before
         // anybody looked at one — which is all of it, since production

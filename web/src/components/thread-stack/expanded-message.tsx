@@ -63,10 +63,13 @@ export function ExpandedMessage({
   return (
     <article className="divide-border divide-y" data-selectable id={`msg-${m.uid}`}>
       <div className="px-4 py-2">
-        <div className="flex items-start gap-2">
+        {/* In a narrow reading pane the actions drop to their own line
+            rather than squeezing the sender and date to nothing: the
+            column asks for 14rem before it shares the row. */}
+        <div className="flex flex-wrap items-start gap-x-2 gap-y-1">
           <button
             aria-expanded
-            className="focus-visible:ring-accent/50 flex min-w-0 flex-1 items-start gap-2.5 rounded-md text-left focus-visible:ring-2 focus-visible:outline-none"
+            className="focus-visible:ring-accent/50 flex min-w-0 flex-[1_1_14rem] items-start gap-2.5 rounded-md text-left focus-visible:ring-2 focus-visible:outline-none"
             data-stack-header
             onClick={onToggle}
             type="button"
@@ -86,10 +89,12 @@ export function ExpandedMessage({
                   <SenderClaimBadge sender={m.sender} />
                 </span>
               </span>
-              <span className="text-fg-muted block text-xs">{formatFullDate(m.internal_date)}</span>
+              <span className="text-fg-muted block text-xs break-keep" data-message-date>
+                {formatFullDate(m.internal_date)}
+              </span>
             </span>
           </button>
-          <div className="flex h-5 shrink-0 items-center gap-0.5">
+          <div className="ml-auto flex h-5 shrink-0 items-center gap-0.5">
             <SmBtn onClick={() => onReply(m)} title={t('read.reply')}>
               <Reply className="h-3.5 w-3.5" />
             </SmBtn>

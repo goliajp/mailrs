@@ -253,13 +253,14 @@ wire/MailList.kt	Junk
 wire/MailSignature.kt	$SEPARATOR\n$sig
 wire/MailSignature.kt	$text\n\n$SEPARATOR\n$sig
 wire/MailrsClient.kt	$base/api/auth/login
-wire/MailrsClient.kt	&before_ts=$it
 wire/MailrsClient.kt	&limit=$SEARCH_LIMIT&
-wire/MailrsClient.kt	${s.server}/api/mail/send-multipart
 wire/MailrsClient.kt	Authorization
 wire/MailrsClient.kt	Bearer ${s.token}
 wire/MailrsClient.kt	Retry-After
 wire/MailrsClient.kt	UTF-8
+wire/MailrsClientCompose.kt	${s.server}/api/mail/send-multipart
+wire/MailrsClientCompose.kt	Authorization
+wire/MailrsClientCompose.kt	Bearer ${s.token}
 wire/MailrsClientAdmin.kt	Authorization
 wire/MailrsClientAdmin.kt	Bearer ${s.token}
 wire/MailrsClientReset.kt	$name ($address)
@@ -273,7 +274,6 @@ wire/MailrsClientTriage.kt	$path/move-to-inbox
 wire/MailrsClientTriage.kt	$path/pin
 wire/MailrsClientTriage.kt	$path/unpin
 wire/MailrsClientTriage.kt	$path/snooze
-wire/MailrsClientTriage.kt	&before=$it
 wire/MailrsClientTriage.kt	Authorization
 wire/MailrsClientTriage.kt	Bearer ${s.token}
 wire/MailrsClientUser.kt	${s.server}/api/mail/messages/$uid/attachments/$index
@@ -292,6 +292,9 @@ wire/ReplyRecipients.kt	> $it
 wire/ReplyRecipients.kt	\n$quoted\n
 wire/ShareIntent.kt	UTF-8
 wire/Texts.kt	Texts used before the process set it up
+wire/ThreadPage.kt	&cursor=
+wire/ThreadPage.kt	UTF-8
+wire/ThreadPage.kt	&before_ts=${next.seconds}
 wire/TokenStore.kt	AndroidKeyStore
 wire/TokenStore.kt	AES/GCM/NoPadding
 wire/Wire.kt	NEEDS-ACTION
