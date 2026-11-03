@@ -67,7 +67,8 @@ pub(super) async fn run_antispam(
     let started = std::time::Instant::now();
     let decision = ctx.inbound_pipeline.run(&mut receive_ctx).await;
     crate::screening::shadow(&receive_ctx);
-    rescan_with_alignment(&mut receive_ctx, facts, &policy);
+    let shadow = rescan_with_alignment(&mut receive_ctx, facts, &policy).unwrap_or(scan.shadow);
+    record_shadow_hits(&receive_ctx.message, &shadow, &rules_version);
     // Only when something was found. The verdict costs four small
     // string builds, and this runs on every message that reaches the
     // server — but a message nobody suspected has no finding worth
@@ -101,26 +102,64 @@ pub(super) async fn run_antispam(
 /// the pass that decides it; the accept/junk/reject decision is
 /// already made and is not revisited, because the two questions
 /// are different ones.
+///
+/// Returns the shadow rules this pass hit, or `None` when the rules
+/// could not run and the first pass stands.
 fn rescan_with_alignment(
     receive_ctx: &mut mailrs_inbound::ReceiveContext,
     facts: mailrs_fraud::Facts<'_>,
     policy: &mailrs_fraud::Policy,
-) {
+) -> Option<Vec<String>> {
+    let signatures: Vec<(String, String)> = receive_ctx
+        .auth_results
+        .dkim_signatures
+        .iter()
+        .map(|s| (s.result.clone(), s.domain.clone()))
+        .collect();
     let facts = mailrs_fraud::Facts {
         spf: &receive_ctx.auth_results.spf,
         dkim: &receive_ctx.auth_results.dkim,
         dmarc: &receive_ctx.auth_results.dmarc,
+        // every signature's own result is known here, so the strict
+        // all-signers-from-the-org reading is not needed
+        dkim_from_org_passed: Some(mailrs_fraud::org_domain::passed_for(
+            facts.domain,
+            &signatures,
+        )),
         ..facts
     };
     match mailrs_fraud_lua::scan(&facts, policy) {
-        Ok(rescan) => receive_ctx.fraud = rescan.findings,
+        Ok(rescan) => {
+            receive_ctx.fraud = rescan.findings;
+            Some(rescan.shadow)
+        }
         // The first pass stands, and is already what the context
         // holds: it ran the same rules on everything but alignment,
         // and a rule set that went away for a moment is not a reason
         // to drop what it found.
         Err(error) => {
             tracing::warn!(%error, "fraud rules unavailable for the alignment pass; keeping the first verdict");
+            None
         }
+    }
+}
+
+/// One `fraud_shadow` event per shadow rule the message hit: the record
+/// the weekly shadow report counts. Only the log carries these; the
+/// stored verdict, the score and the hold never see them.
+fn record_shadow_hits(raw: &[u8], rules: &[String], version: &str) {
+    if rules.is_empty() {
+        return;
+    }
+    let message_id = crate::screening::message_id(raw);
+    for rule in rules {
+        tracing::info!(
+            event = "fraud_shadow",
+            %message_id,
+            rule = %rule,
+            version = %version,
+            "fraud rule hit (shadow)"
+        );
     }
 }
 

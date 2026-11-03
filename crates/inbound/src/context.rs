@@ -239,6 +239,9 @@ pub struct AuthResults {
     /// used to gate the [`make_delivery_decision`](crate::make_delivery_decision)
     /// outcome.
     pub dmarc_policy: DmarcPolicy,
+    /// Each DKIM signature's own result, in the order they appear;
+    /// empty when there was none or none was checked.
+    pub dkim_signatures: Vec<crate::dkim_results::DkimSignature>,
 }
 
 impl AuthResults {
@@ -285,6 +288,7 @@ impl Default for AuthResults {
             arc: "none".into(),
             dmarc: "none".into(),
             dmarc_policy: DmarcPolicy::None,
+            dkim_signatures: Vec::new(),
         }
     }
 }
@@ -391,6 +395,7 @@ mod tests {
                 arc: "none".into(),
                 dmarc: dmarc.into(),
                 dmarc_policy: DmarcPolicy::None,
+                dkim_signatures: Vec::new(),
             };
             // Round-trip through the header the receive pipeline emits.
             let header = build_auth_header("mx.test", spf, dkim, "none", dmarc, None);

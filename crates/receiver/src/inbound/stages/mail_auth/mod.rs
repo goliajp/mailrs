@@ -100,6 +100,18 @@ impl Stage for MailAuthStage {
         //    outputs feed DMARC alignment.
         let dkim_outputs = run_dkim_all(self.resolvers.dkim.as_ref(), &ctx.message).await;
         ctx.auth_results.dkim = dkim_result_str(&dkim_outputs);
+        ctx.auth_results.dkim_signatures = dkim_outputs
+            .iter()
+            .map(|o| mailrs_inbound::dkim_results::DkimSignature {
+                result: o.result.as_str().to_string(),
+                domain: o.domain().to_ascii_lowercase(),
+                selector: o
+                    .header
+                    .as_ref()
+                    .map(|h| h.selector.to_string())
+                    .unwrap_or_default(),
+            })
+            .collect();
 
         // 3. ARC — chain extract + full crypto verify (RFC 8617).
         ctx.auth_results.arc = run_arc(self.resolvers.arc.as_ref(), &ctx.message).await;

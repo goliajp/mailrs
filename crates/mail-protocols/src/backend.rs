@@ -244,6 +244,12 @@ pub trait Account: Send + Sync + 'static {
         message: &Message<Self::Key>,
     ) -> impl Future<Output = Result<()>> + Send;
 
+    /// This server's authserv-id, the name its receiver writes into
+    /// `Authentication-Results:`. An APPENDed message loses any such
+    /// header naming it before it is filed. `None` when the server was
+    /// not told its name.
+    fn authserv_id(&self) -> Option<&str>;
+
     /// A new message carrying `flags`.
     fn append(
         &self,

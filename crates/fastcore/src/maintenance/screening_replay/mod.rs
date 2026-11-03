@@ -339,7 +339,8 @@ impl Walk<'_> {
                 serde_json::json!({ "message_id": message_id, "error": format!("fraud: {e}") }),
             ),
         }
-        let verdict = match judge(self.rules, self.set, self.inspector, self.own, raw) {
+        let ours = state.authserv_id.as_deref();
+        let verdict = match judge(self.rules, self.set, self.inspector, self.own, raw, ours) {
             Ok(v) => v,
             Err(e) => {
                 self.errors
@@ -386,6 +387,7 @@ fn judge(
     inspector: &mailrs_attachment_scan::Inspector,
     own: &[String],
     raw: &[u8],
+    authserv: Option<&str>,
 ) -> Result<Vec<mailrs_screening_lua::Hit>, String> {
     let envelope_domain = header_value(raw, b"return-path")
         .and_then(|v| {
@@ -401,6 +403,7 @@ fn judge(
         own,
         raw,
         &envelope_domain,
+        authserv,
         |input| rules.evaluate(input),
     );
     match e.errors.is_empty() {

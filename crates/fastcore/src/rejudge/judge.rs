@@ -31,6 +31,7 @@ pub(crate) struct Judge {
     screening: mailrs_core_sidestate::families::screening::Live,
     own: Vec<String>,
     never: NeverList,
+    authserv: Option<String>,
 }
 
 /// One message to judge: `(message id, its reader)`.
@@ -47,6 +48,7 @@ impl Judge {
             screening: mailrs_core_sidestate::families::screening::Live::new(own.clone()),
             never: NeverList::builtin(&own),
             own,
+            authserv: state.authserv_id.clone(),
         }
     }
 
@@ -165,6 +167,7 @@ impl Judge {
             &self.own,
             raw,
             &envelope_domain,
+            self.authserv.as_deref(),
             mailrs_screening_lua::evaluate,
         );
         match verdict {

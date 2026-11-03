@@ -1,10 +1,15 @@
 //! Read-only Lua bundle validation and migration comparison against a maildir.
+// a file directly under src/bin/ would be built as a binary of its own
+#[path = "mailrs-fraud-check/judge.rs"]
+mod judge;
+
+use judge::{corpus, judge};
 use mailrs_fraud::{Facts, Findings, Policy};
 use mailrs_fraud_lua::{DEFAULT_SOURCE, MAX_SOURCE, Rules};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, BTreeSet},
     fs,
-    io::Read,
+    io::{BufWriter, Read, Write},
     path::{Path, PathBuf},
 };
 
@@ -93,6 +98,58 @@ impl Held {
     }
 }
 
+/// What changed between the two bundles, message by message.
+#[derive(Default)]
+struct Tally {
+    changed: usize,
+    added: usize,
+    released: usize,
+    held: usize,
+    samples: Vec<serde_json::Value>,
+    /// Every changed message's added (`+rule`) and dropped (`-rule`)
+    /// rules: the full count the fifty samples cannot give.
+    by_rule: BTreeMap<String, u64>,
+    /// One JSON line per checked message, when asked for.
+    list: Option<BufWriter<fs::File>>,
+}
+
+impl Tally {
+    fn record(
+        &mut self,
+        path: &str,
+        (from, subject): (&str, &str),
+        (old, old_shadow): (&Findings, &Findings),
+        (new, new_shadow): (&Findings, &Findings),
+    ) -> Result<(), String> {
+        let (old_hold, new_hold) = (old.hold_worthy(), new.hold_worthy());
+        self.held += usize::from(new_hold);
+        if let Some(list) = &mut self.list {
+            let line = serde_json::json!({"path":path,"rules_before":old.rules(),"rules_after":new.rules(),
+                "held_before":old_hold,"held_after":new_hold,
+                "shadow_before":old_shadow.rules(),"shadow_after":new_shadow.rules()});
+            writeln!(list, "{line}").map_err(|e| e.to_string())?;
+        }
+        if rows(old) == rows(new) {
+            return Ok(());
+        }
+        self.changed += 1;
+        self.added += usize::from(new_hold && !old_hold);
+        self.released += usize::from(old_hold && !new_hold);
+        let before: BTreeSet<&str> = old.rules().into_iter().collect();
+        let after: BTreeSet<&str> = new.rules().into_iter().collect();
+        for r in after.difference(&before) {
+            *self.by_rule.entry(format!("+{r}")).or_default() += 1;
+        }
+        for r in before.difference(&after) {
+            *self.by_rule.entry(format!("-{r}")).or_default() += 1;
+        }
+        if self.samples.len() < 50 {
+            self.samples.push(serde_json::json!({"from":from,"subject":subject,"before":old.rules(),"after":new.rules(),"held_before":old_hold,"held_after":new_hold}));
+        }
+        Ok(())
+    }
+}
+
 /// `YYYY-MM` of the Date header, in UTC; `unknown` when there is none
 /// that parses.
 fn month_of(raw: &[u8]) -> String {
@@ -151,188 +208,86 @@ fn reader_of(root: &Path, file: &Path) -> String {
     }
 }
 
-fn compare(baseline: &str, candidate: &str, root: &str, limit: usize) -> Result<(), String> {
+/// Messages each shadow rule hit; a rule that hit nothing is listed at
+/// zero, so "never fired" reads differently from "not a shadow rule".
+fn shadow_counts(rules: Option<&Rules>) -> BTreeMap<String, u64> {
+    rules
+        .map(|r| r.shadow_rules().iter().map(|id| (id.clone(), 0)).collect())
+        .unwrap_or_default()
+}
+
+fn compare(
+    baseline: &str,
+    candidate: &str,
+    root: &str,
+    limit: usize,
+    list: Option<&str>,
+) -> Result<(), String> {
     let mut before = if baseline == "rust" {
         None
     } else {
         Some(Rules::compile(&source(baseline)?)?)
     };
     let mut after = Rules::compile(&source(candidate)?)?;
-    let p = policy()?;
     let mut files = vec![];
     paths(Path::new(root), &mut files, limit)?;
     files.sort();
     if files.is_empty() {
         return Err("no maildir messages found".into());
     }
-    let mut domain_counts = HashMap::<String, u64>::new();
-    let mut replies = HashMap::<String, std::collections::HashSet<String>>::new();
-    // History from this read-only corpus, supplied identically to both engines.
-    for file in &files {
-        let mut header = vec![];
-        fs::File::open(file)
-            .map_err(|e| e.to_string())?
-            .take(64 * 1024)
-            .read_to_end(&mut header)
-            .map_err(|e| e.to_string())?;
-        let from = mailrs_inbound::from_header(&header);
-        let host = mailrs_fraud::impersonation::address_of(&from)
-            .and_then(|a| a.rsplit('@').next())
-            .unwrap_or("");
-        let reg = mailrs_fraud::brand::registrable(host);
-        *domain_counts.entry(reg.clone()).or_default() += 1;
-        if let Some(reply) = reply_key(host, &mailrs_inbound::identity::reply_to_address(&header)) {
-            replies.entry(reply).or_default().insert(reg);
-        }
-    }
-    let our_stamp = std::env::var("MAILRS_HOSTNAME").ok();
-    // with the shared store: each reader's history with the sender (the
-    // `bec-` rules) and when a domain was first seen, as the core's own
-    // re-judge reads them
-    let mut hist = std::env::var("MAILRS_KEVY_URL")
-        .ok()
-        .and_then(|u| kevy_client::Connection::connect(&u).ok());
-    let mut changed = 0;
-    let mut added = 0;
-    let mut released = 0;
-    let mut held = 0;
-    let mut samples = vec![];
+    let mut c = corpus(root, &files)?;
+    let mut tally = Tally {
+        list: list
+            .map(|p| fs::File::create(p).map(BufWriter::new))
+            .transpose()
+            .map_err(|e| e.to_string())?,
+        ..Tally::default()
+    };
     let mut baseline_held = Held::default();
     let mut candidate_held = Held::default();
+    let mut baseline_shadow = shadow_counts(before.as_ref());
+    let mut candidate_shadow = shadow_counts(Some(&after));
     for (i, file) in files.iter().enumerate() {
         if i % 25 == 0 {
             std::thread::sleep(std::time::Duration::from_millis(50));
         }
-        if fs::metadata(file).map_err(|e| e.to_string())?.len() > 32 * 1024 * 1024 {
-            return Err(format!("message exceeds 32 MiB: {}", file.display()));
-        }
-        let raw = fs::read(file).map_err(|e| e.to_string())?;
-        let from = mailrs_inbound::from_header(&raw);
-        let host = mailrs_fraud::impersonation::address_of(&from)
-            .and_then(|a| a.rsplit('@').next())
-            .unwrap_or("");
-        let reg = mailrs_fraud::brand::registrable(host);
-        let subject = mailrs_inbound::subject_header(&raw);
-        let to = mailrs_inbound::identity::to_display_name(&raw);
-        let x = mailrs_inbound::x_mailer_header(&raw);
-        let deception = mailrs_inbound::deception_in_identity(&raw);
-        let name_deception = mailrs_inbound::deception_in_display_name(&raw);
-        let reply = reply_key(host, &mailrs_inbound::identity::reply_to_address(&raw));
-        let parsed = mailrs_mime::parse(&raw);
-        let (spf, dkim, dmarc) = mailrs_inbound::identity::auth_results_tokens(&raw);
-        // as the production sweep reads them: the receiver's own stamp
-        // marks the unauthenticated path, and only MAILRS_HOSTNAME says
-        // which stamp is ours
-        let unauthenticated = our_stamp.as_deref().is_some_and(|host| {
-            mailrs_inbound::identity::auth_results_authserv(&raw).as_deref() == Some(host)
-        });
-        let peer_is_private = mailrs_inbound::identity::first_received_peer_ip(&raw)
-            .is_some_and(mailrs_inbound::identity::address_is_private);
-        let shown_links = mailrs_inbound::body::shown_links(&parsed);
-        let reader = reader_of(Path::new(root), file);
-        let relation = mailrs_fraud_lua::stored::relation::relation(
-            hist.as_mut(),
-            &reader,
-            &from,
-            mailrs_fraud_lua::stored::relation::Counted::After,
-        );
-        let arrived = mailrs_inbound::dates::received_epoch(&raw).unwrap_or(0);
-        let novelty = mailrs_core_sidestate::families::domain_first::novelty(
-            hist.as_mut(),
-            host,
-            &mailrs_inbound::scan_input::link_hosts(&parsed),
-            arrived,
-        );
-        let f = Facts {
-            from: &from,
-            domain: host,
-            registrable: &reg,
-            subject: &subject,
-            to_display: &to,
-            x_mailer: x.as_deref(),
-            domain_seen: domain_counts
-                .get(&reg)
-                .copied()
-                .unwrap_or(1)
-                .saturating_sub(1),
-            reply_rotation: reply
-                .as_ref()
-                .and_then(|r| replies.get(r))
-                .map_or(0, |s| s.len() as u32),
-            has_zero_width: deception.unjustified_zero_width,
-            has_zero_width_in_name: name_deception.unjustified_zero_width,
-            has_bidi_override: deception.bidi_override,
-            has_zero_width_inside_a_word: deception.zero_width_inside_a_word,
-            offers_the_reader_a_sum: mailrs_inbound::body::offers_the_reader_a_sum(&parsed),
-            asks_for_the_readers_line: mailrs_inbound::body::asks_for_the_readers_line(&parsed),
-            shown_links: &shown_links,
-            link_has_kit_placeholder: mailrs_inbound::body::link_has_kit_placeholder(&parsed),
-            is_bulk: mailrs_inbound::body::is_bulk(&raw),
-            has_executable_attachment: mailrs_fraud::attachment_inside::any_carries_code(
-                parsed
-                    .attachments()
-                    .map(|p| (p.attachment_filename().unwrap_or(""), &p.body[..])),
-            ),
-            date_ahead: mailrs_inbound::dates::date_ahead_of(
-                &raw,
-                mailrs_inbound::dates::received_epoch(&raw),
-            ),
-            spf: &spf,
-            dkim: &dkim,
-            dmarc: &dmarc,
-            unauthenticated,
-            peer_is_private,
-            relation,
-            novelty,
-            payment: mailrs_inbound::body::payment_ids(&parsed, ""),
-            html: mailrs_inbound::body::html_attachments(&parsed, host),
-            reply_to_outside: mailrs_fraud::reply_rotation::is_off_domain(
-                host,
-                &mailrs_inbound::identity::reply_to_address(&raw),
-            ),
-            ..Facts::default()
-        };
-        let old = match &mut before {
-            Some(r) => {
-                let v = r.classify(&f, &p);
-                if !v.errors.is_empty() {
-                    return Err(format!("baseline: {:?}", v.errors));
-                }
-                v.findings
-            }
-            None => mailrs_fraud::scan(&f, &p),
-        };
-        let new = after.classify(&f, &p);
-        if !new.errors.is_empty() {
-            return Err(format!("candidate: {:?}", new.errors));
-        }
-        let month = month_of(&raw);
-        baseline_held.add(&old, &month);
-        candidate_held.add(&new.findings, &month);
-        let old_hold = old.hold_worthy();
-        let new_hold = new.findings.hold_worthy();
-        held += usize::from(new_hold);
-        if rows(&old) != rows(&new.findings) {
-            changed += 1;
-            added += usize::from(new_hold && !old_hold);
-            released += usize::from(old_hold && !new_hold);
-            if samples.len() < 50 {
-                samples.push(serde_json::json!({"from":from,"subject":subject,"before":old.rules(),"after":new.findings.rules(),"held_before":old_hold,"held_after":new_hold}));
+        let j = judge(&mut c, &mut before, &mut after, file)?;
+        baseline_held.add(&j.old, &j.month);
+        candidate_held.add(&j.new, &j.month);
+        for (counts, hits) in [
+            (&mut baseline_shadow, &j.old_shadow),
+            (&mut candidate_shadow, &j.new_shadow),
+        ] {
+            for r in hits.rules() {
+                *counts.entry(r.to_string()).or_default() += 1;
             }
         }
+        let rel = file.strip_prefix(root).unwrap_or(file).to_string_lossy();
+        tally.record(
+            &rel,
+            (&j.from, &j.subject),
+            (&j.old, &j.old_shadow),
+            (&j.new, &j.new_shadow),
+        )?;
+    }
+    if let Some(list) = &mut tally.list {
+        list.flush().map_err(|e| e.to_string())?;
     }
     println!(
         "{}",
-        serde_json::json!({"checked":files.len(),"changed":changed,"added_holds":added,"removed_holds":released,
-        "candidate_holds":held,"baseline":before.as_ref().map_or("rust",|r|r.version()),"candidate":after.version(),
-        "account_names_configured":!p.account_names.is_empty(),
+        serde_json::json!({"checked":files.len(),"changed":tally.changed,"added_holds":tally.added,"removed_holds":tally.released,
+        "candidate_holds":tally.held,"baseline":before.as_ref().map_or("rust",|r|r.version()),"candidate":after.version(),
+        "account_names_configured":!c.policy.account_names.is_empty(),
         "holds_by_rule":candidate_held.by_rule,"holds_by_month":candidate_held.by_month,
         "baseline_holds_by_rule":baseline_held.by_rule,"baseline_holds_by_month":baseline_held.by_month,
-        "samples":samples})
+        "changed_by_rule":tally.by_rule,
+        "shadow_rules":after.shadow_rules(),"shadow_hits_by_rule":candidate_shadow,
+        "baseline_shadow_rules":before.as_ref().map_or(&[][..],|r|r.shadow_rules()),"baseline_shadow_hits_by_rule":baseline_shadow,
+        "samples":tally.samples})
     );
     // A migration must preserve every decision. Intentional rule-only updates
     // compare two Lua bundles and report their diff for review.
-    if baseline == "rust" && changed != 0 {
+    if baseline == "rust" && tally.changed != 0 {
         return Err("Lua migration differs from Rust".into());
     }
     Ok(())
@@ -345,10 +300,11 @@ fn run() -> Result<(), String> {
             let mut rules=Rules::compile(&source(path)?)?;
             let result=rules.classify(&Facts::default(),&policy()?);
             if !result.errors.is_empty(){return Err(format!("{:?}",result.errors));}
-            println!("{}",serde_json::json!({"version":rules.version(),"rules":rules.rule_count()}));Ok(())
+            println!("{}",serde_json::json!({"version":rules.version(),"rules":rules.rule_count(),"shadow":rules.shadow_rules()}));Ok(())
         },
-        [cmd,baseline,candidate,root,limit] if cmd=="compare" => compare(baseline,candidate,root,limit.parse().map_err(|_|"invalid limit")?),
-        _=>Err("usage: mailrs-fraud-check bundle | validate FILE | compare rust|builtin|BASELINE FILE|builtin MAILDIR MAX_MESSAGES".into()),
+        [cmd,baseline,candidate,root,limit] if cmd=="compare" => compare(baseline,candidate,root,limit.parse().map_err(|_|"invalid limit")?,None),
+        [cmd,baseline,candidate,root,limit,flag,list] if cmd=="compare" && flag=="--list" => compare(baseline,candidate,root,limit.parse().map_err(|_|"invalid limit")?,Some(list)),
+        _=>Err("usage: mailrs-fraud-check bundle | validate FILE | compare rust|builtin|BASELINE FILE|builtin MAILDIR MAX_MESSAGES [--list OUT.jsonl]".into()),
     }
 }
 fn main() {

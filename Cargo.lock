@@ -4193,6 +4193,7 @@ dependencies = [
 name = "mailrs-fraud"
 version = "0.1.0"
 dependencies = [
+ "psl",
  "sha2 0.11.0",
 ]
 
@@ -4207,6 +4208,7 @@ dependencies = [
  "mailrs-inbound",
  "mailrs-mime",
  "mailrs-reputation",
+ "mailrs-rfc5322",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -4265,6 +4267,7 @@ dependencies = [
  "mailrs-fraud",
  "mailrs-mime",
  "mailrs-rfc2047",
+ "mailrs-rfc5322",
  "mailrs-textguard",
  "metrics",
  "serde",
@@ -4384,6 +4387,7 @@ dependencies = [
  "mailrs-imap-format",
  "mailrs-imap-proto",
  "mailrs-maildir",
+ "mailrs-rfc5322",
  "mailrs-sieve",
  "mailrs-smtp-proto",
  "mailrs-tls-reload",
@@ -4721,6 +4725,8 @@ dependencies = [
  "mailrs-core-sidestate",
  "mailrs-core-sync",
  "mailrs-fastcore",
+ "mailrs-fraud",
+ "mailrs-fraud-lua",
  "mailrs-imap-proto",
  "mailrs-inbound",
  "mailrs-intake",

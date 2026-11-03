@@ -125,6 +125,7 @@ impl Judge {
             &self.own,
             raw,
             &envelope_domain,
+            self.our_stamp.as_deref(),
             mailrs_screening_lua::evaluate,
         );
         let verdict = match verdict {
