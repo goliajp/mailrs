@@ -28,6 +28,14 @@ fn invalid(why: impl Into<String>) -> NotFiled {
     NotFiled("invalidProperties", why.into())
 }
 
+/// A full mailbox is `overQuota` (RFC 8620 §5.3), not a server failure.
+fn not_filed(e: mailrs_core_api::error::CoreApiError) -> NotFiled {
+    match e.status_code() {
+        507 => NotFiled("overQuota", e.to_string()),
+        _ => NotFiled("serverFail", e.to_string()),
+    }
+}
+
 /// The mailboxes `spec` names; at least one.
 pub fn mailboxes_of(spec: &Value) -> Result<Vec<Place>, NotFiled> {
     let Some(map) = spec.get("mailboxIds").and_then(|v| v.as_object()) else {
@@ -80,21 +88,41 @@ pub fn recipients(head: &mailrs_rfc5322::Message<'_>) -> Vec<String> {
         .collect()
 }
 
+/// Where a message being filed comes from.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Origin {
+    /// `Email/import`: mail brought over, which stops at the quota like
+    /// the mbox and IMAP imports, Sent and Drafts included.
+    Imported,
+    /// `Email/set` create: a message the user writes here, filed like a
+    /// send.
+    Written,
+}
+
 /// File `bytes` for the user into `places` with `flags`; the new uid.
-pub async fn file(ctx: &Ctx, bytes: &[u8], places: &[Place], flags: u32) -> Result<u32, NotFiled> {
+pub async fn file(
+    ctx: &Ctx,
+    bytes: &[u8],
+    places: &[Place],
+    flags: u32,
+    origin: Origin,
+) -> Result<u32, NotFiled> {
     let core = &ctx.state.core;
     let own = places
         .iter()
         .any(|p| matches!(p, Place::Role(Role::Drafts | Role::Sent)));
-    let filed = match own {
-        true => {
-            let head = mailrs_rfc5322::Message::new(bytes);
-            let rcpts = recipients(&head);
+    let filed = match (own, origin) {
+        (true, Origin::Imported) => {
+            let rcpts = recipients(&mailrs_rfc5322::Message::new(bytes));
+            core.file_imported_sent(&ctx.user, bytes, &rcpts).await
+        }
+        (true, Origin::Written) => {
+            let rcpts = recipients(&mailrs_rfc5322::Message::new(bytes));
             core.file_sent(&ctx.user, bytes, &rcpts).await
         }
-        false => core.import_message(&ctx.user, bytes, None).await,
+        (false, _) => core.import_message(&ctx.user, bytes, None).await,
     };
-    let filed = filed.map_err(|e| NotFiled("serverFail", e.to_string()))?;
+    let filed = filed.map_err(not_filed)?;
     let w = core
         .find_by_message_id_for_user(&ctx.user, &filed.message_id)
         .await
@@ -167,7 +195,7 @@ async fn import_one(ctx: &Ctx, spec: &Value) -> Result<(u32, usize), NotFiled> {
     let bytes = blob::read(ctx, blob_id)
         .await
         .ok_or_else(|| NotFiled("blobNotFound", blob_id.to_string()))?;
-    let uid = file(ctx, &bytes, &places, flags).await?;
+    let uid = file(ctx, &bytes, &places, flags, Origin::Imported).await?;
     Ok((uid, bytes.len()))
 }
 
