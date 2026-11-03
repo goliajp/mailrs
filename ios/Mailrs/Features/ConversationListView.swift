@@ -133,8 +133,10 @@ struct ConversationListView: View {
             }
             // the reader's labels, for the list menu and the row menu
             .task { await session.loadLabels() }
-            // deleting for good can be refused until the password is typed
-            .confirmPrompt()
+            // deleting for good can be refused until the password is
+            // typed; not while Settings is up, whose screens ask for it
+            // themselves
+            .confirmPrompt(when: !showingSettings && !showingDrafts && !composing)
             // `.alert`, not `.confirmationDialog` — the same lesson this
             // file already carries for delete: the dialog renders as a
             // popover here and SwiftUI drops the `.cancel` button in
