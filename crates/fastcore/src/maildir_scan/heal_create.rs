@@ -66,7 +66,7 @@ fn record_message(
     uids: Option<&mailrs_uidlist::UidList>,
 ) {
     let category = super::scan::arrival_category(state, user, m);
-    let is_own = mailrs_mailbox_kevy::senders_csv_contains_user(&m.from, user);
+    let is_own = mailrs_mailbox::sent_copy::sent_by(&m.from, &m.filename, user);
     let unread = !m.seen && !is_own;
     let arrival = mailrs_mailbox_kevy::MessageArrival {
         thread_id: root,
