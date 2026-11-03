@@ -23,9 +23,11 @@ pub use labels::LabelDbError;
 mod mutate;
 mod query;
 mod search_facts;
+mod templates;
 mod trash;
 
 pub use query::{Held, ThreadQuery};
+pub use templates::{StoredTemplate, TEMPLATE_DAYS};
 
 impl PgMailboxStore {
     /// look up the thread_id of a message by its message_id (across all user's mailboxes)

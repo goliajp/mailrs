@@ -65,6 +65,56 @@ pub struct Outcome {
     pub targets: Vec<String>,
 }
 
+/// A report and what came of it, as both cores answer it.
+pub fn to_wire(r: &Report, o: &Outcome) -> mailrs_core_api::method::report::ReportOutcomeWire {
+    use mailrs_core_api::method::report::{ReportOutcomeWire, ReportState};
+    let state = match o.state.as_str() {
+        "taken_back" => ReportState::TakenBack,
+        "waiting" => ReportState::Waiting,
+        "dismissed" => ReportState::Dismissed,
+        _ => ReportState::NoneFound,
+    };
+    ReportOutcomeWire {
+        report_id: r.id.clone(),
+        message_id: r.message_id.clone(),
+        thread_id: r.thread_id.clone(),
+        state,
+        taken_back: o.taken_back,
+        inboxes: o.inboxes,
+        grounds: o.grounds.clone(),
+        waits: o.waits.clone(),
+        at: r.at,
+        decided_at: o.decided_at,
+    }
+}
+
+/// A waiting report as an administrator sees it: the reported message's
+/// subject and sender, and `(user, subject, from)` of some of the copies.
+pub fn pending_to_wire(
+    r: &Report,
+    o: &Outcome,
+    subject: String,
+    from: String,
+    samples: Vec<(String, String, String)>,
+) -> mailrs_core_api::method::report::PendingReportWire {
+    use mailrs_core_api::method::report::{PendingReportWire, ReportSampleWire};
+    PendingReportWire {
+        outcome: to_wire(r, o),
+        reporter: r.reporter.clone(),
+        sender_domain: r.sender_domain.clone(),
+        subject,
+        from,
+        samples: samples
+            .into_iter()
+            .map(|(user, subject, from)| ReportSampleWire {
+                user,
+                subject,
+                from,
+            })
+            .collect(),
+    }
+}
+
 /// A fresh random id, `rp` and 16 hex digits.
 pub fn new_id() -> String {
     let mut bytes = [0u8; 8];

@@ -4751,6 +4751,7 @@ dependencies = [
  "mailrs-message-store",
  "mailrs-mime",
  "mailrs-receiver",
+ "mailrs-report",
  "mailrs-rfc2047",
  "mailrs-rfc5322",
  "mailrs-smtp-codec",
