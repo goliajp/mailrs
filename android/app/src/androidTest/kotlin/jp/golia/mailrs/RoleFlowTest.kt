@@ -1,5 +1,6 @@
 package jp.golia.mailrs
 
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
@@ -35,7 +36,7 @@ class RoleFlowTest : MailrsUiTest() {
     private fun openSettings() {
         compose.onNodeWithTag("button.folders").performClick()
         waitForTag("drawer.lists", "the drawer never opened")
-        compose.onNodeWithTag("drawer.item.Settings").performClick()
+        compose.onNodeWithTag("drawer.item.Settings").performScrollTo().performClick()
         scrollToTag("admin.AgentKeys", "settings never listed the account's own keys")
     }
 

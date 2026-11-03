@@ -1,5 +1,6 @@
 package jp.golia.mailrs
 
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
@@ -51,7 +52,7 @@ class DraftsFlowTest : MailrsUiTest() {
 
         compose.onNodeWithTag("button.folders").performClick()
         waitForTag("drawer.lists", "the drawer never opened")
-        compose.onNodeWithTag("drawer.item.Drafts").performClick()
+        compose.onNodeWithTag("drawer.item.Drafts").performScrollTo().performClick()
         waitForTag("list.drafts", "the drafts list never opened")
 
         val before = compose.onAllNodesWithTag("row.draft").fetchSemanticsNodes().size

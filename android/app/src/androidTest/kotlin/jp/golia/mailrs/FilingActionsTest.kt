@@ -108,16 +108,20 @@ class FilingActionsTest : MailrsUiTest() {
     fun the_bucket_actions_send_what_the_web_sends() {
         signIn()
         waitForTag("list.conversations", "the inbox never listed")
+        val full = rowCount()
         for ((action, verb) in listOf(
             "Snooze" to "snooze ",
             "MarkJunk" to "mark-junk ",
             "MarkNotification" to "mark-notification ",
             "MarkPromotion" to "mark-promotion ",
         )) {
-            val before = rowCount()
             selectFirstAndPick(action)
+            compose.waitUntil(TIMEOUT_MS) { rowCount() == full - 1 }
             verbsContain(verb, "$action never reached the server")
-            compose.waitUntil(TIMEOUT_MS) { rowCount() == before - 1 }
+            // the stub's inbox does not change, so a refresh puts the row
+            // back and the next action has the same list to start from
+            compose.onNodeWithTag("button.refresh").performClick()
+            compose.waitUntil(TIMEOUT_MS) { rowCount() == full }
         }
     }
 

@@ -1,5 +1,6 @@
 package jp.golia.mailrs
 
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onFirst
@@ -11,7 +12,6 @@ import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.io.File
 
 /**
  * Pictures of the screens the filing work changed, in each language and
@@ -28,14 +28,21 @@ abstract class ScreenShots(private val tag: String, private val theme: String) :
         }
     }
 
+    /**
+     * `screencap` by the shell, into `/data/local/tmp/mailrs-shots`: the
+     * app's own files go when the test run uninstalls it, and the shell's
+     * directory is where `adb pull` reads from.
+     */
     private fun shot(name: String) {
         compose.waitForIdle()
-        val bitmap = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
-        val dir = File(InstrumentationRegistry.getInstrumentation().targetContext.filesDir, "shots")
-        dir.mkdirs()
-        File(dir, "$tag-$theme-$name.png").outputStream().use {
-            bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+        val ui = InstrumentationRegistry.getInstrumentation().uiAutomation
+        for (command in listOf("mkdir -p $DIR", "screencap -p $DIR/$tag-$theme-$name.png")) {
+            android.os.ParcelFileDescriptor.AutoCloseInputStream(ui.executeShellCommand(command)).use { it.readBytes() }
         }
+    }
+
+    private companion object {
+        const val DIR = "/data/local/tmp/mailrs-shots"
     }
 
     @Test
@@ -49,14 +56,18 @@ abstract class ScreenShots(private val tag: String, private val theme: String) :
         // the drawer's slide-in: the test owns the frame clock, so it is advanced, not waited for
         compose.mainClock.advanceTimeBy(600)
         shot("2-drawer")
-        pressBack()
+        compose.onNodeWithTag("drawer.item.Inbox").performScrollTo().performClick()
+        waitForTag("row.conversation", "the inbox did not come back")
         compose.onAllNodesWithTag("row.conversation").onFirst().performTouchInput { longClick() }
         waitForTag("button.selectionMore", "selecting did not offer more actions")
         compose.onNodeWithTag("button.selectionMore").performClick()
         waitForTag("action.Trash", "the menu did not open")
         shot("3-selection-menu")
+        // back closes the menu, and may end the selection with it
         pressBack()
-        pressBack()
+        if (compose.onAllNodesWithTag("button.endSelection").fetchSemanticsNodes().isNotEmpty()) {
+            compose.onNodeWithTag("button.endSelection").performClick()
+        }
         compose.onAllNodesWithTag("row.conversation").onFirst().performClick()
         waitForTag("button.threadMore", "the thread did not open")
         compose.onNodeWithTag("button.threadMore").performClick()

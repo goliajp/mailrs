@@ -1,5 +1,6 @@
 package jp.golia.mailrs
 
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -43,7 +44,9 @@ abstract class LocalizedScreens(private val tag: String, private val words: Map<
         sees("trash")
         sees("starred")
         assertTrue("[$tag] the drawer is still English", !present("Starred"))
-        pressBack()
+        // closed by choosing the inbox again; back leaves the app from the list
+        compose.onNodeWithTag("drawer.item.Inbox").performScrollTo().performClick()
+        waitForTag("row.conversation", "the inbox did not come back")
 
         compose.onAllNodesWithTag("row.conversation").onFirst().performTouchInput { longClick() }
         waitForTag("button.selectionMore", "selecting did not offer more actions")
