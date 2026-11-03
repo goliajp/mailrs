@@ -311,17 +311,6 @@ CREATE INDEX idx_ea_category ON email_analysis(category);
 CREATE INDEX idx_ea_embedding ON email_analysis
     USING hnsw (embedding vector_cosine_ops);
 
-CREATE TABLE IF NOT EXISTS reactions (
-    id BIGSERIAL PRIMARY KEY,
-    message_uid BIGINT NOT NULL,
-    thread_id TEXT NOT NULL,
-    account_address TEXT NOT NULL,
-    emoji TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(message_uid, account_address, emoji)
-);
-CREATE INDEX IF NOT EXISTS idx_reactions_thread ON reactions(thread_id);
-
 CREATE TABLE IF NOT EXISTS snoozed_conversations (
     thread_id TEXT NOT NULL,
     account_address TEXT NOT NULL,
@@ -855,4 +844,4 @@ CREATE INDEX idx_messages_clean_text_trgm ON messages USING gin (clean_text gin_
 -- The migration this schema is equal to; the core reads it at boot and
 -- applies whatever it carries beyond it.
 CREATE TABLE schema_version (version INTEGER NOT NULL);
-INSERT INTO schema_version (version) VALUES (59);
+INSERT INTO schema_version (version) VALUES (60);

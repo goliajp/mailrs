@@ -918,6 +918,44 @@ curl https://mail.golia.ai/api/mail/folders \
   -H "Authorization: Bearer mlrs_..."
 ```
 
+### Export and Import
+
+Export All Mail (everything but Junk and the Trash) as an mboxrd stream.
+Each message carries `X-Mailrs-Folder` (INBOX, Sent or Archive) and
+`Status: RO` when read. Needs a recent password confirmation.
+
+```
+curl https://mail.golia.ai/api/mail/export \
+  -H "Authorization: Bearer mlrs_..." -o mail.mbox
+```
+
+Import an mbox: an export from here, a Gmail Takeout (`X-Gmail-Labels`),
+or any mbox (`Status: R` marks a message read). Mail you wrote is filed in
+Sent, the rest in the Inbox, then read and archived as the file says.
+Junk and Trash are skipped; a Message-ID already in the mailbox is not
+filed twice, so an interrupted import can be run again. No filters,
+forwarding, webhooks or notifications run.
+
+```
+curl -X POST https://mail.golia.ai/api/mail/import \
+  -H "Authorization: Bearer mlrs_..." --data-binary @mail.mbox
+```
+
+Response: `{"imported", "sent", "archived", "held", "skipped_duplicate",
+"skipped_junk_or_trash", "too_large", "failed", "over_quota", "complete"}`.
+
+Import from another provider over IMAP. Port 993 (TLS) or 143 (STARTTLS),
+certificates verified, public addresses only; one import per user at a
+time, five starts per day. The password is used for this import and never
+stored; progress is, so starting again with the same source resumes.
+`GET` reports where it stands, `DELETE` stops after the message in hand.
+
+```
+curl -X POST https://mail.golia.ai/api/mail/import/imap \
+  -H "Authorization: Bearer mlrs_..." -H "Content-Type: application/json" \
+  -d '{"host": "imap.example.com", "port": 993, "username": "me@example.com", "password": "..."}'
+```
+
 ### Thread Operations
 
 ```
