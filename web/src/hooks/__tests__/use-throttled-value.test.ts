@@ -1,4 +1,5 @@
 import { act, renderHook } from '@testing-library/react'
+import { useEffect } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useThrottledValue } from '@/hooks/use-throttled-value'
@@ -15,6 +16,25 @@ describe('useThrottledValue', () => {
     })
     rerender({ v: 'alphax' })
     expect(result.current).toBe('alphax')
+  })
+
+  // the request starts from what was committed; a second commit before it
+  // is a whole re-render of every list reader on the critical path
+  it('commits the change it passes at once in a single commit', () => {
+    const committed: string[] = []
+    const { rerender } = renderHook(
+      ({ v }) => {
+        const shown = useThrottledValue(v, 150)
+        useEffect(() => {
+          committed.push(shown)
+        })
+        return shown
+      },
+      { initialProps: { v: '' } }
+    )
+    committed.length = 0
+    rerender({ v: 'alphax' })
+    expect(committed).toEqual(['alphax'])
   })
 
   it('holds changes closer than the interval, and the last one comes through', () => {
