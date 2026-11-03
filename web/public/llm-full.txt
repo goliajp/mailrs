@@ -25,7 +25,7 @@ Config for Claude Code or any MCP client:
 }
 ```
 
-125 tools auto-discovered via MCP, grouped by category (the table below is a selection; `tools/list` is the authority, and `scripts/check-mcp-parity.sh` holds the two server lanes to the same set):
+126 tools auto-discovered via MCP, grouped by category (the table below is a selection; `tools/list` is the authority):
 
 ### Email Operations
 
@@ -880,7 +880,8 @@ curl -X POST https://mail.golia.ai/api/rules/runs/7/undo -H "Authorization: Bear
 - `preview` answers `{count, items}`: the conversations a run would change now, Junk and Trash left out
 - `apply` answers `{run_id, changed, failed}`; `undo` puts every changed conversation back once, within seven days
 - MCP: `list_rules`, `create_rule`, `delete_rule`, `preview_rule`, `apply_rule`, `undo_rule_run`
-- MCP for senders and pushes: `reclassify_sender`, `undo_sender_correction`, `list_sender_rules`, `set_sender_rule`, `delete_sender_rule`, `get_notify_settings`, `set_notify_settings`, `set_sender_notify`, `set_thread_notify`, `notify_stats`, `list_important_contacts`, `set_important_contact` — the same checks and the same stored settings as the web routes under `/api/senders`, `/api/sender-rules`, `/api/notify` and `/api/contacts/important`
+- MCP for senders and pushes: `reclassify_sender`, `undo_sender_correction`, `list_sender_rules`, `set_sender_rule`, `delete_sender_rule`, `get_notify_settings`, `set_notify_settings`, `set_sender_notify`, `set_thread_notify`, `notify_stats`, `list_important_contacts`, `set_important_contact`, `accept_senders` — the same checks and the same stored settings as the web routes under `/api/senders`, `/api/sender-rules`, `/api/notify` and `/api/contacts/important`
+- POST /api/senders/accept {addresses: [...]} (1 to 500 bare addresses; otherwise 400) → {accepted}: first contacts you accept, whose conversations leave the New section of the inbox; `accepted` counts the distinct addresses recorded. MCP: `accept_senders`
 
 ### Read a Message
 

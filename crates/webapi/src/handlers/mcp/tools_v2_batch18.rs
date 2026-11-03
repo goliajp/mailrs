@@ -11,13 +11,13 @@ use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{tool, tool_router};
 
 use super::params_senders::{
-    CorrectionIdParams, ImportantContactParams, NotifySettingsParams, NotifyStatsParams,
-    ReclassifySenderParams, SenderAddressParams, SenderNotifyParams, SenderRuleParams,
-    ThreadNotifyParams,
+    AcceptSendersParams, CorrectionIdParams, ImportantContactParams, NotifySettingsParams,
+    NotifyStatsParams, ReclassifySenderParams, SenderAddressParams, SenderNotifyParams,
+    SenderRuleParams, ThreadNotifyParams,
 };
 use super::{MailrsMcpService, ok_result};
 use crate::handlers::conversations::AuthedUser;
-use crate::handlers::{notify, sender_rules};
+use crate::handlers::{notify, sender_rules, senders};
 
 fn json(v: impl serde::Serialize) -> CallToolResult {
     CallToolResult::success(vec![ContentBlock::text(
@@ -250,5 +250,25 @@ impl MailrsMcpService {
         .await
         .map_err(|c| map_status(c, "set_important_contact"))?;
         Ok(ok_result())
+    }
+
+    #[tool(
+        description = "Accept senders you hear from for the first time: their conversations leave the New section of the inbox. Returns how many distinct addresses were recorded."
+    )]
+    async fn accept_senders(
+        &self,
+        Parameters(p): Parameters<AcceptSendersParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?.to_string();
+        let Json(a) = senders::accept_senders(
+            State(self.state.clone()),
+            axum::Extension(AuthedUser(user)),
+            Json(senders::AcceptBody {
+                addresses: p.addresses,
+            }),
+        )
+        .await
+        .map_err(|c| map_status(c, "accept_senders"))?;
+        Ok(json(a))
     }
 }

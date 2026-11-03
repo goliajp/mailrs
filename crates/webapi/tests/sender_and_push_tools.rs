@@ -131,4 +131,76 @@ async fn sender_rules_and_push_settings_through_mcp() {
     )
     .await
     .expect_err("an unknown correction is not found");
+
+    let addresses = json!([
+        "New@Example.test",
+        "new@example.test ",
+        "other@example.test"
+    ]);
+    let accepted = mcp
+        .tool("accept_senders", json!({"addresses": addresses}))
+        .await
+        .expect("accept_senders");
+    let (status, routed) = live
+        .call(
+            Method::POST,
+            "/api/senders/accept",
+            &alice,
+            Some(json!({"addresses": addresses})),
+        )
+        .await;
+    assert_eq!(status, 200);
+    assert_eq!(accepted, routed, "the tool answers what the route answers");
+    assert_eq!(
+        accepted["accepted"], 2,
+        "one address, spelled twice, counts once"
+    );
+    mcp.tool("accept_senders", json!({"addresses": []}))
+        .await
+        .expect_err("an empty list is refused, as the route refuses it");
+
+    // a key that may only read reaches the reading tools and none of the writing ones
+    live.confirm(&alice, "pw").await;
+    let (status, created) = live
+        .call(
+            Method::POST,
+            "/api/agent/keys",
+            &alice,
+            Some(json!({"name": "reader", "scopes": ["mail:read"]})),
+        )
+        .await;
+    assert_eq!(status, 200, "{created}");
+    let reader = created["secret"].as_str().expect("secret").to_string();
+    let mut ro = live.mcp(&reader).await;
+    ro.tool("list_sender_rules", json!({}))
+        .await
+        .expect("a reading tool is open to a mail:read key");
+    for (name, args) in [
+        (
+            "set_sender_rule",
+            json!({"address": "x@example.test", "bucket": "inbox"}),
+        ),
+        ("accept_senders", json!({"addresses": ["x@example.test"]})),
+        (
+            "set_important_contact",
+            json!({"address": "x@example.test", "important": true}),
+        ),
+    ] {
+        ro.tool(name, args)
+            .await
+            .expect_err("a writing tool is refused to a mail:read key");
+    }
+    let (_, rules) = call(Method::GET, "/api/sender-rules").await;
+    let written = rules
+        .as_array()
+        .expect("a list")
+        .iter()
+        .any(|r| r["address"] == "x@example.test");
+    assert!(!written, "the refused call wrote nothing: {rules}");
+    let (_, vips) = call(Method::GET, "/api/contacts/important").await;
+    assert_eq!(
+        vips,
+        json!(["boss@example.test"]),
+        "nor marked anyone important"
+    );
 }
