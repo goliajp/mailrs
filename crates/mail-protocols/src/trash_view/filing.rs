@@ -69,7 +69,9 @@ impl<A: Account> TrashView<A> {
             }
             // into Archive, copied or moved: the conversation is archived,
             // and a MOVE out of a label also takes the label off
-            (_, ViewMailbox::Archive { .. }) => self.into_archive(from, message, keep_copy).await,
+            (_, ViewMailbox::Archive { .. }) => {
+                self.file_into_archive(from, message, keep_copy).await
+            }
             (ViewMailbox::Archive { .. }, ViewMailbox::Trash { .. }) => {
                 let (msg, f) = shown_at(message)?;
                 self.inner.set_trashed(&f, &msg, true).await?;
@@ -149,7 +151,7 @@ impl<A: Account> TrashView<A> {
 
     /// Into `Archive` from anywhere but All Mail: out of the Trash first,
     /// and on a MOVE out of a label, the label comes off.
-    async fn into_archive(
+    async fn file_into_archive(
         &self,
         from: &ViewMailbox<A::Mailbox>,
         message: &Message<ViewKey<A::Mailbox, A::Key>>,
