@@ -24,6 +24,9 @@
 #                     host without docker (same version as the image, please)
 #   LATENCY_MAX_LOAD  passed to the spec, see there
 #   SKIP_WEB_BUILD=1  reuse web/dist as it is
+#   PW_CONFIG         run another Playwright config against the same stack,
+#                     e.g. playwright.stack.config.ts (layout and live
+#                     updates); its exit status is this script's
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -162,7 +165,7 @@ set +e
 LATENCY_BASE="http://localhost:$PREVIEW_PORT" \
 LATENCY_USER="bench@latency.local" LATENCY_PASS="bench-password" \
 LATENCY_THREADS="$THREADS" \
-    bunx playwright test -c playwright.latency.config.ts "$@"
+    bunx playwright test -c "${PW_CONFIG:-playwright.latency.config.ts}" "$@"
 rc=$?
 set -e
 
