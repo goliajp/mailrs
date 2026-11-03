@@ -219,11 +219,14 @@ async fn an_imap_import_files_folders_resumes_and_is_limited() {
         "{s:?}"
     );
 
-    // 3. resumed: the Inbox is recorded as done, so only Sent is read
+    // 3. resumed: every folder but Sent is recorded as done (the source
+    // lists its Inbox again under All Mail and Archive), so only Sent is read
     let mut kv = kevy_client::Connection::connect(KEVY).unwrap();
     use mailrs_core_sidestate::families::imap_import as progress;
     progress::begin(&mut kv, ALICE, "imap.old.test", 993, BOB).unwrap();
-    progress::record(&mut kv, ALICE, "INBOX", u32::MAX - 1).unwrap();
+    for done in ["INBOX", "All Mail", "Archive"] {
+        progress::record(&mut kv, ALICE, done, u32::MAX - 1).unwrap();
+    }
     job::start(live.state.clone(), ALICE, source(993), plain.clone()).expect("start");
     let s = finished(ALICE).await;
     assert_eq!(s.report.skipped_duplicate, 1, "only Sent was read: {s:?}");
