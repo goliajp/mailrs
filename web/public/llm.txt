@@ -11,7 +11,7 @@ OpenAPI spec: https://mail.golia.ai/openapi.json
 ## MCP (recommended)
 
 Streamable HTTP endpoint: https://mail.golia.ai/mcp
-113 tools auto-discovered, grouped by category (identical on both server lanes):
+125 tools auto-discovered, grouped by category (identical on both server lanes):
 
 ```json
 {"mcpServers":{"mailrs":{"type":"streamable-http","url":"https://mail.golia.ai/mcp","headers":{"Authorization":"Bearer <API_KEY>"}}}}
@@ -20,6 +20,7 @@ Streamable HTTP endpoint: https://mail.golia.ai/mcp
 **Email:** send_email, read_thread, search_conversations, reply_email, list_conversations, list_mailboxes, get_categories, search_contacts, send_scheduled_email, get_thread_summary, get_inbox_metrics
 **Fraud hold:** list_quarantined, get_fraud_verdict, release_quarantined
 **Threads:** mark_thread_read, mark_thread_unread, mark_all_read, star_thread, unstar_thread, pin_thread, unpin_thread, snooze_thread, unsnooze_thread, archive_thread, unarchive_thread, delete_thread, restore_thread, delete_thread_forever
+**Senders and pushes:** reclassify_sender, undo_sender_correction, list_sender_rules, set_sender_rule, delete_sender_rule, get_notify_settings, set_notify_settings, set_sender_notify, set_thread_notify, notify_stats, list_important_contacts, set_important_contact
 **Labels:** list_labels, create_label, update_label, delete_label, label_thread, unlabel_thread
 **Drafts & Templates:** list_drafts, save_draft, delete_draft, list_templates, save_template, delete_template, list_signatures, save_signature, delete_signature
 **Accounts:** list_accounts, create_account, remove_account, set_account_password, list_account_agent_keys, get_account_send_as, set_account_send_as, get_account_forwards, set_account_forwards
@@ -76,6 +77,7 @@ Streamable HTTP endpoint: https://mail.golia.ai/mcp
 - POST /api/mail/import — body is an mbox (an export from here, a Gmail Takeout, or any mbox); filed message by message, mail you wrote into Sent, the rest into the Inbox, read and archived as the file says; Junk and Trash skipped, a Message-ID already here not filed twice; no filters, forwarding, webhooks or notifications run. Returns counts (imported, sent, archived, held, skipped_duplicate, ...)
 - POST /api/mail/import/imap {host, port, username, password} — import from another provider over IMAP (993, or 143 with STARTTLS; certificates verified); the password is used once and never stored; progress is, so starting again resumes. GET for where it stands, DELETE to stop after the message in hand
 - GET /api/contacts — search contacts
+- JMAP: GET /.well-known/jmap, POST /jmap/api/, WebSocket /jmap/ws/ (subprotocol jmap) — mail, submission (held sends up to 30 days, cancel while held), vacation reply, search snippets, masked addresses
 
 ### Admin (requires permissions)
 - GET/POST/DELETE /api/admin/domains — domain CRUD

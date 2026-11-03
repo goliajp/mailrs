@@ -29,7 +29,7 @@ fn plain() -> String {
 }
 
 fn list() -> Vec<String> {
-    // the account's label, after the mailboxes
+    // Archive and All Mail after the mailboxes, then the account's label
     let mut out: Vec<String> = [
         "INBOX",
         "Drafts",
@@ -37,6 +37,8 @@ fn list() -> Vec<String> {
         "Sent",
         "Trash",
         "Review",
+        "Archive",
+        "All Mail",
         super::harness::LABEL,
     ]
     .iter()

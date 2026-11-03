@@ -47,10 +47,12 @@ fn calendar_of(ev: &StoredEvent) -> i64 {
 /// `ev` as served at the resource `name`.
 fn to_event(ev: &StoredEvent, name: &str) -> Event {
     let text = rows::to_ics(ev);
+    // an all-day event's date stands in as its UTC midnight; the text
+    // served beside it carries the date itself
     let instant = |s: &Option<String>| {
         s.as_deref()
-            .and_then(|v| chrono::DateTime::parse_from_rfc3339(v).ok())
-            .map(|d| d.with_timezone(&chrono::Utc))
+            .and_then(crate::families::calendar_events::span::epoch_of)
+            .and_then(|t| chrono::DateTime::from_timestamp(t, 0))
     };
     Event {
         uid: name.to_string(),

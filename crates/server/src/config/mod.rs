@@ -1,19 +1,9 @@
 //! Server configuration loaded from `MAILRS_*` environment variables.
 //!
-//! ## Tests, `ENV_LOCK`, and `unsafe { set_var }`
-//!
-//! Rust 2024 marked `std::env::set_var` / `remove_var` as `unsafe` because
-//! mutating the process environment while other threads might read it is a
-//! data race per POSIX. In production this never happens — `from_env`
-//! reads each variable once at startup and never writes.
-//!
-//! In the test module, however, we mutate `MAILRS_*` per test to exercise
-//! `from_env` behavior, so every test goes through a single
-//! `ENV_LOCK: Mutex<()>` (see `mod tests`) before any `set_var`/`remove_var`.
-//! That serializes the env-touching tests across threads, which is what
-//! makes the `unsafe { … }` calls sound: only one thread can be inside the
-//! mutex at a time, and no production thread reads env after startup. Tests
-//! that never touch the environment do not need to hold the lock.
+//! The loaders read through [`ServerConfig::from_vars`], which the tests
+//! call with a table of their own: a test that set and cleared `MAILRS_*`
+//! in the process environment removed variables other tests in the same
+//! binary, running in parallel, had just set.
 
 use std::path::PathBuf;
 
@@ -102,14 +92,19 @@ impl ServerConfig {
     /// falling back to [`ServerConfig::default`] for anything unset.
     /// The actual per-section loaders live in `config/loaders.rs`.
     pub fn from_env() -> Self {
+        Self::from_vars(&|name| std::env::var(name).ok())
+    }
+
+    /// The same, from `env` instead of the process environment.
+    pub(crate) fn from_vars(env: loaders::Env<'_>) -> Self {
         let mut cfg = Self::default();
-        cfg.load_network();
-        cfg.load_storage();
-        cfg.load_tls();
-        cfg.load_acme();
-        cfg.load_ai();
-        cfg.load_ldap();
-        cfg.load_webhook();
+        cfg.load_network(env);
+        cfg.load_storage(env);
+        cfg.load_tls(env);
+        cfg.load_acme(env);
+        cfg.load_ai(env);
+        cfg.load_ldap(env);
+        cfg.load_webhook(env);
         cfg
     }
 
@@ -191,20 +186,18 @@ impl ServerConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Mutex;
 
-    // env vars are process-global, so from_env tests must run serially
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
-
-    // helper: clear all MAILRS_* env vars to isolate each from_env test
-    fn clear_mailrs_env() {
-        let keys: Vec<String> = std::env::vars()
-            .filter(|(k, _)| k.starts_with("MAILRS_"))
-            .map(|(k, _)| k)
+    /// The configuration these variables, and no others, give. Never the
+    /// process environment: tests in this binary run in parallel and some
+    /// of them set variables of their own.
+    fn config_of(vars: &[(&str, &str)]) -> ServerConfig {
+        let vars: Vec<(String, String)> = vars
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect();
-        for k in keys {
-            unsafe { std::env::remove_var(&k) };
-        }
+        ServerConfig::from_vars(&move |name| {
+            vars.iter().find(|(k, _)| k == name).map(|(_, v)| v.clone())
+        })
     }
 
     // =====================================================================
@@ -394,22 +387,14 @@ mod tests {
 
     #[test]
     fn from_env_hostname() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        clear_mailrs_env();
-        unsafe { std::env::set_var("MAILRS_HOSTNAME", "mail.test.io") };
-        let cfg = ServerConfig::from_env();
+        let cfg = config_of(&[("MAILRS_HOSTNAME", "mail.test.io")]);
         assert_eq!(cfg.hostname, "mail.test.io");
-        clear_mailrs_env();
     }
 
     #[test]
     fn from_env_maildir() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        clear_mailrs_env();
-        unsafe { std::env::set_var("MAILRS_MAILDIR", "/var/mail") };
-        let cfg = ServerConfig::from_env();
+        let cfg = config_of(&[("MAILRS_MAILDIR", "/var/mail")]);
         assert_eq!(cfg.maildir_root, "/var/mail");
-        clear_mailrs_env();
     }
 
     // =====================================================================
@@ -418,27 +403,21 @@ mod tests {
 
     #[test]
     fn from_env_tls_cert_and_key() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        clear_mailrs_env();
-        unsafe { std::env::set_var("MAILRS_TLS_CERT", "/etc/ssl/cert.pem") };
-        unsafe { std::env::set_var("MAILRS_TLS_KEY", "/etc/ssl/key.pem") };
-        let cfg = ServerConfig::from_env();
+        let cfg = config_of(&[
+            ("MAILRS_TLS_CERT", "/etc/ssl/cert.pem"),
+            ("MAILRS_TLS_KEY", "/etc/ssl/key.pem"),
+        ]);
         assert_eq!(cfg.tls_cert, Some(PathBuf::from("/etc/ssl/cert.pem")));
         assert_eq!(cfg.tls_key, Some(PathBuf::from("/etc/ssl/key.pem")));
-        clear_mailrs_env();
     }
 
     #[test]
     fn from_env_users_file() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        clear_mailrs_env();
-        unsafe { std::env::set_var("MAILRS_USERS_FILE", "/etc/mailrs/users.toml") };
-        let cfg = ServerConfig::from_env();
+        let cfg = config_of(&[("MAILRS_USERS_FILE", "/etc/mailrs/users.toml")]);
         assert_eq!(
             cfg.users_file,
             Some(PathBuf::from("/etc/mailrs/users.toml"))
         );
-        clear_mailrs_env();
     }
 
     // =====================================================================
@@ -447,12 +426,8 @@ mod tests {
 
     #[test]
     fn from_env_acme_domains() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        clear_mailrs_env();
-        unsafe { std::env::set_var("MAILRS_ACME_DOMAINS", "mx.example.com, mail.example.com") };
-        let cfg = ServerConfig::from_env();
+        let cfg = config_of(&[("MAILRS_ACME_DOMAINS", "mx.example.com, mail.example.com")]);
         assert_eq!(cfg.acme_domains, vec!["mx.example.com", "mail.example.com"]);
-        clear_mailrs_env();
     }
 
     // =====================================================================
@@ -461,53 +436,33 @@ mod tests {
 
     #[test]
     fn from_env_acme_staging_true() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        clear_mailrs_env();
-        unsafe { std::env::set_var("MAILRS_ACME_STAGING", "true") };
-        let cfg = ServerConfig::from_env();
+        let cfg = config_of(&[("MAILRS_ACME_STAGING", "true")]);
         assert!(cfg.acme_staging);
-        clear_mailrs_env();
     }
 
     #[test]
     fn from_env_acme_staging_one() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        clear_mailrs_env();
-        unsafe { std::env::set_var("MAILRS_ACME_STAGING", "1") };
-        let cfg = ServerConfig::from_env();
+        let cfg = config_of(&[("MAILRS_ACME_STAGING", "1")]);
         assert!(cfg.acme_staging);
-        clear_mailrs_env();
     }
 
     #[test]
     fn from_env_acme_staging_false_for_other_values() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        clear_mailrs_env();
-        unsafe { std::env::set_var("MAILRS_ACME_STAGING", "yes") };
-        let cfg = ServerConfig::from_env();
+        let cfg = config_of(&[("MAILRS_ACME_STAGING", "yes")]);
         // only "1" and "true" (case-insensitive) enable it
         assert!(!cfg.acme_staging);
-        clear_mailrs_env();
     }
 
     #[test]
     fn from_env_ai_analysis_enabled() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        clear_mailrs_env();
-        unsafe { std::env::set_var("MAILRS_AI_ANALYSIS_ENABLED", "true") };
-        let cfg = ServerConfig::from_env();
+        let cfg = config_of(&[("MAILRS_AI_ANALYSIS_ENABLED", "true")]);
         assert!(cfg.ai_analysis_enabled);
-        clear_mailrs_env();
     }
 
     #[test]
     fn from_env_ai_analysis_enabled_one() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        clear_mailrs_env();
-        unsafe { std::env::set_var("MAILRS_AI_ANALYSIS_ENABLED", "1") };
-        let cfg = ServerConfig::from_env();
+        let cfg = config_of(&[("MAILRS_AI_ANALYSIS_ENABLED", "1")]);
         assert!(cfg.ai_analysis_enabled);
-        clear_mailrs_env();
     }
 
     // =====================================================================
@@ -516,32 +471,20 @@ mod tests {
 
     #[test]
     fn from_env_acme_email_non_empty() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        clear_mailrs_env();
-        unsafe { std::env::set_var("MAILRS_ACME_EMAIL", "admin@example.com") };
-        let cfg = ServerConfig::from_env();
+        let cfg = config_of(&[("MAILRS_ACME_EMAIL", "admin@example.com")]);
         assert_eq!(cfg.acme_email, Some("admin@example.com".into()));
-        clear_mailrs_env();
     }
 
     #[test]
     fn from_env_acme_email_empty_stays_none() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        clear_mailrs_env();
-        unsafe { std::env::set_var("MAILRS_ACME_EMAIL", "") };
-        let cfg = ServerConfig::from_env();
+        let cfg = config_of(&[("MAILRS_ACME_EMAIL", "")]);
         assert_eq!(cfg.acme_email, None);
-        clear_mailrs_env();
     }
 
     #[test]
     fn from_env_acme_dir() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        clear_mailrs_env();
-        unsafe { std::env::set_var("MAILRS_ACME_DIR", "/custom/acme") };
-        let cfg = ServerConfig::from_env();
+        let cfg = config_of(&[("MAILRS_ACME_DIR", "/custom/acme")]);
         assert_eq!(cfg.acme_dir, PathBuf::from("/custom/acme"));
-        clear_mailrs_env();
     }
 
     // =====================================================================
@@ -550,12 +493,8 @@ mod tests {
 
     #[test]
     fn from_env_llm_url() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        clear_mailrs_env();
-        unsafe { std::env::set_var("MAILRS_LLM_URL", "https://custom.llm/api") };
-        let cfg = ServerConfig::from_env();
+        let cfg = config_of(&[("MAILRS_LLM_URL", "https://custom.llm/api")]);
         assert_eq!(cfg.llm_url, "https://custom.llm/api");
-        clear_mailrs_env();
     }
 
     // =====================================================================
@@ -564,15 +503,11 @@ mod tests {
 
     #[test]
     fn from_env_pg_url() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        clear_mailrs_env();
-        unsafe { std::env::set_var("MAILRS_PG_URL", "postgres://user:pass@localhost/mailrs") };
-        let cfg = ServerConfig::from_env();
+        let cfg = config_of(&[("MAILRS_PG_URL", "postgres://user:pass@localhost/mailrs")]);
         assert_eq!(
             cfg.pg_url,
             Some("postgres://user:pass@localhost/mailrs".into())
         );
-        clear_mailrs_env();
     }
 
     // =====================================================================

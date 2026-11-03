@@ -115,6 +115,8 @@ tower = { version = "0.5", features = ["util"] }
 # authorization end to end: webapi's permission checks against a real
 # fastcore that reads the permission groups webapi writes
 mailrs-fastcore = { path = "../fastcore" }
+# the spool envelope, to deliver mail through fastcore's drain
+mailrs-core = { path = "../core" }
 mailrs-mailbox-kevy = { path = "../mailbox-kevy" }
 kevy-embedded = { workspace = true }
 # a WebSocket client for /api/events

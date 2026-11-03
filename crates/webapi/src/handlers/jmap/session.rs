@@ -12,6 +12,9 @@ use serde_json::{Value, json};
 
 use super::limits;
 use super::masked::MASKED_CAP;
+use super::submission::MAX_DELAYED_SEND;
+use super::vacation::VACATION_CAP;
+use super::ws::WEBSOCKET_CAP;
 use crate::handlers::conversations::AuthedUser;
 
 /// Where clients reach this server, without a trailing slash.
@@ -30,6 +33,7 @@ pub fn base_url() -> String {
 
 fn capabilities() -> Value {
     json!({
+        WEBSOCKET_CAP: { "url": super::ws::url(&base_url()), "supportsPush": true },
         JMAP_CORE_CAP: {
             "maxSizeUpload": limits::MAX_SIZE_UPLOAD,
             "maxConcurrentUpload": limits::MAX_CONCURRENT_UPLOAD,
@@ -42,6 +46,7 @@ fn capabilities() -> Value {
         },
         JMAP_MAIL_CAP: {},
         JMAP_SUBMISSION_CAP: {},
+        VACATION_CAP: {},
         MASKED_CAP: {},
     })
 }
@@ -57,9 +62,10 @@ fn account_capabilities() -> Value {
             "mayCreateTopLevelMailbox": true,
         },
         JMAP_SUBMISSION_CAP: {
-            "maxDelayedSend": 0,
-            "submissionExtensions": {},
+            "maxDelayedSend": MAX_DELAYED_SEND,
+            "submissionExtensions": { "FUTURERELEASE": [MAX_DELAYED_SEND.to_string()] },
         },
+        VACATION_CAP: {},
         MASKED_CAP: {},
     })
 }
@@ -79,6 +85,7 @@ fn document(user: &str) -> Value {
         "primaryAccounts": {
             JMAP_MAIL_CAP: user,
             JMAP_SUBMISSION_CAP: user,
+            VACATION_CAP: user,
             MASKED_CAP: user,
         },
         "username": user,
@@ -120,10 +127,12 @@ mod tests {
         assert!(doc["downloadUrl"].as_str().unwrap().contains("{blobId}"));
         assert_eq!(state_of("a@x.test"), state_of("a@x.test"));
         assert_ne!(state_of("a@x.test"), state_of("b@x.test"));
+        let ws = doc["capabilities"]["urn:ietf:params:jmap:websocket"]["url"]
+            .as_str()
+            .unwrap();
         assert!(
-            doc["capabilities"]
-                .get("urn:ietf:params:jmap:websocket")
-                .is_none()
+            ws.starts_with("wss://") && ws.ends_with("/jmap/ws/"),
+            "{ws}"
         );
     }
 }

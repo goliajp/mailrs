@@ -1,6 +1,7 @@
 import type { CalendarKey } from './en'
 
 export const calendarZh: Record<CalendarKey, string> = {
+  'calendar.allDay': '全天',
   'calendar.answer': '你的回复',
   'calendar.from': '来自',
   'calendar.loadFailed': '日历加载失败',
