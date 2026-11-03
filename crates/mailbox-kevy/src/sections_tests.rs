@@ -59,6 +59,47 @@ fn section(st: &KevyMailboxStore, tid: &str) -> Option<Section> {
     st.section_of_thread(ME, tid).unwrap()
 }
 
+fn arrival<'a>(at: i64, own: bool, facts: MessageFacts, from: &'a str) -> SectionArrival<'a> {
+    SectionArrival {
+        user: ME,
+        thread_id: "t",
+        at,
+        is_own: own,
+        facts,
+        from_addr: from,
+    }
+}
+
+/// The user's reply goes (an IMAP client deleted it): the conversation is
+/// theirs to answer again, which a fold that only moves forward cannot see.
+#[test]
+fn a_section_is_decided_again_from_what_is_left() {
+    let st = store();
+    arrive(&st, "t", 10, false, PERSON, "ann@x.test");
+    arrive(&st, "t", 20, true, mine(true), ME);
+    assert_eq!(section(&st, "t"), Some(Section::Awaiting));
+    st.refold_section(ME, "t", &[arrival(10, false, PERSON, "ann@x.test")])
+        .unwrap();
+    assert_eq!(section(&st, "t"), Some(Section::Reply));
+}
+
+/// A first contact that is still the newest inbound message keeps the
+/// answer its delivery read, though a refold reads it as not one.
+#[test]
+fn a_refold_keeps_the_first_contact_its_delivery_read() {
+    let st = store();
+    let stranger = MessageFacts {
+        first_contact: true,
+        ..PERSON
+    };
+    arrive(&st, "t", 10, false, stranger, "eve@far.test");
+    arrive(&st, "t", 20, true, mine(true), ME);
+    assert_eq!(section(&st, "t"), Some(Section::Awaiting));
+    st.refold_section(ME, "t", &[arrival(10, false, PERSON, "eve@far.test")])
+        .unwrap();
+    assert_eq!(section(&st, "t"), Some(Section::New));
+}
+
 #[test]
 fn a_reply_moves_a_conversation_out_of_waiting_at_once() {
     let st = store();
