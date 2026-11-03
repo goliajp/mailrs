@@ -135,14 +135,7 @@ async fn conversation(
 /// follows the conversation. Filed in Sent covers mail imported from
 /// another address, which an import files there.
 fn folder_of(user: &str, from_header: &str, blob_ref: &str, archived: bool) -> Folder {
-    if blob_ref.starts_with(".Sent/") {
-        return Folder::Sent;
-    }
-    let addr = match from_header.rsplit_once('<') {
-        Some((_, rest)) => rest.trim_end_matches('>').trim(),
-        None => from_header.trim(),
-    };
-    if addr.eq_ignore_ascii_case(user) {
+    if mailrs_mailbox::sent_copy::sent_by(from_header, blob_ref, user) {
         return Folder::Sent;
     }
     match archived {

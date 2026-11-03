@@ -35,6 +35,65 @@ pub(crate) fn record(
     }
 }
 
+/// Decide `user`'s section for the thread again from the messages left in
+/// it, each read from its file the way the backfill reads it. For when a
+/// message went: a fold only moves forward and cannot take one back.
+/// `home` is the user's Maildir.
+pub(crate) fn refold(
+    state: &Arc<FastcoreState>,
+    user: &str,
+    thread_id: &str,
+    home: &std::path::Path,
+) {
+    let category = state
+        .mailbox
+        .get_thread_for_user(user, thread_id)
+        .ok()
+        .flatten()
+        .map(|r| r.category)
+        .unwrap_or_default();
+    let mut read = Vec::new();
+    for mid in state
+        .mailbox
+        .user_thread_message_ids(user, thread_id)
+        .unwrap_or_default()
+    {
+        let Some(copy) = state.mailbox.user_message_facts(user, &mid).ok().flatten() else {
+            continue;
+        };
+        let Some(raw) = mailrs_maildir::locate(home, &copy.blob_ref)
+            .and_then(|(dir, id)| dir.fetch(&id).ok().flatten())
+        else {
+            continue;
+        };
+        let head = &raw[..raw.len().min(16 * 1024)];
+        let message = mailrs_rfc5322::Message::new(head);
+        let from = message.header_str("From").unwrap_or_default().to_string();
+        let to = message.header_str("To").unwrap_or_default().to_string();
+        let at = mailrs_inbound::dates::received_epoch(&raw).unwrap_or(0);
+        let own = mailrs_mailbox::sent_copy::sent_by(&from, &copy.blob_ref, user);
+        let facts =
+            mailrs_intake::section_facts::facts(None, user, &from, &to, head, &category, own);
+        read.push((at, own, facts, first_address(&from).to_ascii_lowercase()));
+    }
+    let arrivals: Vec<_> = read
+        .iter()
+        .map(
+            |(at, own, facts, from)| mailrs_mailbox_kevy::SectionArrival {
+                user,
+                thread_id,
+                at: *at,
+                is_own: *own,
+                facts: *facts,
+                from_addr: from,
+            },
+        )
+        .collect();
+    if let Err(e) = state.mailbox.refold_section(user, thread_id, &arrivals) {
+        tracing::warn!(error = %e, %user, %thread_id, "section not decided again");
+    }
+}
+
 /// Each row's section and the time it started waiting, read off the
 /// reader's own membership row.
 pub(crate) fn with_sections(
