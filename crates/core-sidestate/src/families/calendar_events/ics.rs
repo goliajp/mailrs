@@ -142,9 +142,18 @@ mod tests {
         let ev = from_ics(text, "caldav").expect("parses");
         assert_eq!(ev.dtstart.as_deref(), Some("2026-11-03"));
         assert_eq!(ev.dtend.as_deref(), Some("2026-11-04"));
-        let written = to_ics(&StoredEvent { ics: None, ..ev.clone() });
-        assert!(written.contains("DTSTART;VALUE=DATE:20261103\r\n"), "{written}");
-        assert!(written.contains("DTEND;VALUE=DATE:20261104\r\n"), "{written}");
+        let written = to_ics(&StoredEvent {
+            ics: None,
+            ..ev.clone()
+        });
+        assert!(
+            written.contains("DTSTART;VALUE=DATE:20261103\r\n"),
+            "{written}"
+        );
+        assert!(
+            written.contains("DTEND;VALUE=DATE:20261104\r\n"),
+            "{written}"
+        );
         let back = from_ics(&written, "caldav").expect("parses");
         assert_eq!((back.dtstart, back.dtend), (ev.dtstart, ev.dtend));
     }

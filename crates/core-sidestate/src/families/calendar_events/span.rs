@@ -15,7 +15,10 @@ const DATE: &str = "%Y-%m-%d";
 /// nothing resolves: there is no honest place to put it.
 pub fn span_of(parsed: &ParsedInvite) -> Option<(String, Option<String>)> {
     if let Some((start, end)) = all_day_of(parsed) {
-        return Some((start.format(DATE).to_string(), Some(end.format(DATE).to_string())));
+        return Some((
+            start.format(DATE).to_string(),
+            Some(end.format(DATE).to_string()),
+        ));
     }
     let start = caldatetime_to_utc(&parsed.dtstart, &parsed.vtimezones)?;
     let end = match (&parsed.dtend, parsed.duration) {
