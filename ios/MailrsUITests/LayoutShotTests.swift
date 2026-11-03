@@ -220,6 +220,24 @@ final class LayoutShotTests: MailrsUITestCase {
         }
     }
 
+    /// The verdict panel, the sender checks, the flagged link and its question.
+    func testVerdictPanelAndLinkWarning() {
+        let app = launch(signedIn: true, language: language, appearance: appearance)
+        armVerdicts()
+        openOrdinaryThread(app)
+        let panel = element(app, "verdict-panel")
+        _ = panel.waitForExistence(timeout: 15)
+        shoot(app, "30-verdict-panel")
+        let flagged = app.webViews.links["www.golia.jp/login"]
+        if flagged.waitForExistence(timeout: 10) {
+            bringIntoView(app, flagged, named: "the flagged link")
+            shoot(app, "31-link-warning")
+            flagged.tap()
+            _ = app.alerts.firstMatch.waitForExistence(timeout: 5)
+            shoot(app, "32-link-question")
+        }
+    }
+
     /// The Trash's name in the run's language, to find it in the menu.
     private var trashTitle: String {
         switch language {
