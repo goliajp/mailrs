@@ -158,6 +158,7 @@ if [ "${SKIP_GATE:-0}" != 1 ] && [ "${WEB_ONLY_SKIPS_RUST_GATE:-0}" != 1 ]; then
     # web/public/openapi.json documents what crates/webapi serves: every
     # registered path and method is in it, and nothing else is.
     ./scripts/check-api-drift.sh
+    ./scripts/check-web-types.sh
     # The Android app in English, Japanese and Chinese: the three string
     # tables carry the same keys, and no English is written straight into
     # the Kotlin sources where a Japanese phone would show it.
