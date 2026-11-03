@@ -259,7 +259,7 @@ fn act(
 }
 
 /// The conversation `mid` is in, for `user`, and its row.
-fn thread_of(
+pub(crate) fn thread_of(
     state: &FastcoreState,
     user: &str,
     mid: &str,

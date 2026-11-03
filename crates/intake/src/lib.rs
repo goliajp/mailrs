@@ -41,6 +41,7 @@ pub mod push_policy;
 pub mod reports;
 pub mod route;
 pub mod rules;
+pub mod scam_report;
 pub mod section_facts;
 pub mod sender_ops;
 pub mod sent;

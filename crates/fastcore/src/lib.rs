@@ -45,6 +45,7 @@ mod domain_prune;
 mod import;
 mod push;
 mod rejudge;
+mod report;
 mod router;
 mod routes;
 mod rules;
