@@ -99,16 +99,18 @@ impl ApnsClient {
         })
     }
 
-    /// One alert to one device.
+    /// One alert to one device. `thread_id` opens that conversation when
+    /// the alert is tapped; `category` names the notification actions the
+    /// app registered, `None` for an alert that offers none.
     pub async fn send_alert(
         &self,
         device_token: &str,
         title: &str,
         body: &str,
+        thread_id: &str,
+        category: Option<&str>,
     ) -> Result<Outcome, ApnsError> {
-        let payload = serde_json::json!({
-            "aps": { "alert": { "title": title, "body": body } }
-        });
+        let payload = alert_payload(title, body, thread_id, category);
         let jwt = self.provider_token()?;
         let url = format!("{}/3/device/{}", self.endpoint, device_token);
         let response = self
@@ -195,6 +197,25 @@ impl JsonBody for reqwest::RequestBuilder {
 }
 
 /// Strip the PEM armour off a `.p8` and decode the PKCS#8 DER inside.
+/// The category the app registers for new mail, carrying its "Archive"
+/// and "Mark as read" actions.
+pub const MAIL_CATEGORY: &str = "MAIL";
+
+/// The JSON an alert carries. The app reads `thread_id` at the top
+/// level, beside `aps`, as Apple reserves `aps` for its own keys.
+pub fn alert_payload(
+    title: &str,
+    body: &str,
+    thread_id: &str,
+    category: Option<&str>,
+) -> serde_json::Value {
+    let mut aps = serde_json::json!({ "alert": { "title": title, "body": body } });
+    if let Some(category) = category {
+        aps["category"] = serde_json::Value::from(category);
+    }
+    serde_json::json!({ "aps": aps, "thread_id": thread_id })
+}
+
 fn pem_to_der(pem: &str) -> Result<Vec<u8>, ApnsError> {
     let inner: String = pem
         .lines()
@@ -305,7 +326,16 @@ mod tests {
 
         let (pem, _) = generated_key();
         let c = client(&pem, &format!("http://{addr}"));
-        let outcome = c.send_alert("dead-token", "Title", "Body").await.unwrap();
+        let outcome = c
+            .send_alert(
+                "dead-token",
+                "Title",
+                "Body",
+                "t1@x.test",
+                Some(MAIL_CATEGORY),
+            )
+            .await
+            .unwrap();
         assert_eq!(outcome, Outcome::Unregistered);
 
         let request = server.await.unwrap();
@@ -316,5 +346,27 @@ mod tests {
         assert!(request.contains("authorization: bearer "), "{request}");
         assert!(request.contains("apns-topic: jp.golia.mailrs"), "{request}");
         assert!(request.contains("apns-push-type: alert"), "{request}");
+        assert!(request.contains(r#""thread_id":"t1@x.test""#), "{request}");
+        assert!(request.contains(r#""category":"MAIL""#), "{request}");
+    }
+
+    /// The app opens the conversation from the top-level `thread_id` and
+    /// shows its actions only under the category it registered.
+    #[test]
+    fn an_alert_names_its_conversation_and_category() {
+        let p = alert_payload("Ann", "Lunch?", "t1@x.test", Some(MAIL_CATEGORY));
+        assert_eq!(p["thread_id"], "t1@x.test");
+        assert_eq!(p["aps"]["category"], "MAIL");
+        assert_eq!(p["aps"]["alert"]["title"], "Ann");
+        assert_eq!(p["aps"]["alert"]["body"], "Lunch?");
+    }
+
+    /// An alert that offers no actions carries no category, so the
+    /// lock screen shows no buttons for it.
+    #[test]
+    fn an_alert_without_actions_has_no_category() {
+        let p = alert_payload("Moved to Review", "", "t1@x.test", None);
+        assert_eq!(p["thread_id"], "t1@x.test");
+        assert!(p["aps"].get("category").is_none(), "{p}");
     }
 }
