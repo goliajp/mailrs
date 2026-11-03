@@ -175,8 +175,11 @@ impl Backends {
     }
 }
 
+/// Each core's network store, by the index [`Backends::home`] takes.
+pub(super) const NET: [&str; 2] = ["mem://protocols-fastcore", "mem://protocols-pg"];
+
 pub(super) async fn start() -> Backends {
-    let (fc_url, pg_url) = ("mem://protocols-fastcore", "mem://protocols-pg");
+    let (fc_url, pg_url) = (NET[0], NET[1]);
     let kevy = (
         kevy_client::Connection::connect(fc_url).unwrap(),
         kevy_client::Connection::connect(pg_url).unwrap(),

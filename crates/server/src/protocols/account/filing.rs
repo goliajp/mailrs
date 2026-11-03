@@ -10,8 +10,15 @@ impl PgAccount {
     /// `bytes` as a new body in `to`'s folder, indexed there with `flags`.
     pub(super) async fn deliver(&self, to: &Mailbox, bytes: &[u8], flags: u32) -> Result<u32> {
         let store = self.message_store.as_ref();
-        let blob =
-            crate::body::deliver(store, &self.maildir_root, &self.user, &to.name, bytes).await?;
+        let blob = crate::body::deliver(
+            store,
+            self.net_url.as_deref(),
+            &self.maildir_root,
+            &self.user,
+            &to.name,
+            bytes,
+        )
+        .await?;
         let now = chrono::Utc::now().timestamp();
         self.mailbox
             .index_delivered(&self.user, &to.name, &blob, bytes, flags, now)
@@ -33,8 +40,15 @@ impl PgAccount {
             .read(m)
             .await?
             .ok_or_else(|| Error::Store(format!("message {} has no body", m.uid)))?;
-        let blob =
-            crate::body::deliver(store, &self.maildir_root, &self.user, &to.name, &bytes).await?;
+        let blob = crate::body::deliver(
+            store,
+            self.net_url.as_deref(),
+            &self.maildir_root,
+            &self.user,
+            &to.name,
+            &bytes,
+        )
+        .await?;
         let row = match then_delete {
             true => {
                 self.mailbox
@@ -51,13 +65,23 @@ impl PgAccount {
             Ok(Some(uid)) => uid,
             // the new body would be a file no row names
             other => {
-                crate::body::remove(store, &self.maildir_root, &self.user, &blob).await?;
+                crate::body::remove(
+                    self.net_url.as_deref(),
+                    &self.maildir_root,
+                    &self.user,
+                    &blob,
+                )?;
                 let e = other.err().map_or("gone".to_string(), |e| e.to_string());
                 return Err(Error::Store(format!("message {}: {e}", m.uid)));
             }
         };
         if then_delete {
-            crate::body::remove(store, &self.maildir_root, &self.user, &m.key).await?;
+            crate::body::remove(
+                self.net_url.as_deref(),
+                &self.maildir_root,
+                &self.user,
+                &m.key,
+            )?;
         }
         filed(to, Some(uid), m)
     }
@@ -68,10 +92,68 @@ impl PgAccount {
         doomed: &[Message<String>],
         removed: &[u32],
     ) -> Result<()> {
-        let store = self.message_store.as_ref();
         for m in doomed.iter().filter(|m| removed.contains(&m.uid)) {
-            crate::body::remove(store, &self.maildir_root, &self.user, &m.key).await?;
+            crate::body::remove(
+                self.net_url.as_deref(),
+                &self.maildir_root,
+                &self.user,
+                &m.key,
+            )?;
         }
         Ok(())
+    }
+
+    /// The conversation each of `doomed` belongs to, read before they go;
+    /// `None` for a row that names none or cannot be read.
+    pub(super) async fn conversations_of(
+        &self,
+        mailbox: &Mailbox,
+        doomed: &[Message<String>],
+    ) -> Vec<Option<String>> {
+        let mut out = Vec::with_capacity(doomed.len());
+        for m in doomed {
+            let row = self.mailbox.get_message(mailbox.id, m.uid).await;
+            out.push(
+                row.ok()
+                    .flatten()
+                    .map(|r| r.thread_id)
+                    .filter(|t| !t.is_empty()),
+            );
+        }
+        out
+    }
+
+    /// The audit rows for messages of `conversations` deleted for good by a
+    /// password login, as the kevy core writes them. A failed write is
+    /// logged: the rows are gone.
+    pub(super) fn audit_deleted(&self, conversations: &[Option<String>], via: &str) {
+        use mailrs_core_sidestate::families::audit::{Credential, deleted_forever_each};
+        if conversations.is_empty() {
+            return;
+        }
+        let now = chrono::Utc::now().timestamp();
+        let written = self
+            .net_url
+            .as_deref()
+            .and_then(|u| kevy_client::Connection::connect(u).ok())
+            .map(|mut c| {
+                deleted_forever_each(
+                    &mut c,
+                    &self.user,
+                    conversations,
+                    via,
+                    Credential::PasswordOrAppPassword,
+                    now,
+                )
+            });
+        match written {
+            Some(Ok(())) => {}
+            Some(Err(e)) => {
+                tracing::warn!(user = %self.user, error = %e, "deletion audit row not written")
+            }
+            None => {
+                tracing::warn!(user = %self.user, "deletion audit row not written: no network store")
+            }
+        }
     }
 }

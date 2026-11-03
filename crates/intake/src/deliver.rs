@@ -29,6 +29,14 @@ impl<C: Core + ?Sized> Inbound<'_, C> {
                 self.reject_dsn(addr, &reason);
                 (true, false)
             }
+            // a redirect the forwarding rules refuse is not made: the copy
+            // stays here, as if the script had kept it
+            Decision::Redirect(target) if !self.may_redirect(addr, &target) => {
+                tracing::warn!(recipient = %addr, %target,
+                    "sieve: redirect refused (not ours, not the verified forwarding address); kept");
+                let ok = self.keep(addr);
+                (ok, ok)
+            }
             // a redirect keeps no copy here
             Decision::Redirect(target) => {
                 match enqueue_redirect(addr, &target, body, &env.reverse_path) {
@@ -61,11 +69,44 @@ impl<C: Core + ?Sized> Inbound<'_, C> {
         };
         if delivered_locally {
             match outcome.vacation {
-                Some(vac) => sieve::maybe_vacation_reply(addr, &env.reverse_path, body, &vac),
+                Some(vac) => self.vacation_by_script(addr, vac),
                 None => self.vacation_by_settings(addr, now()),
             }
         }
         consumed
+    }
+
+    /// Whether the forwarding rules let `addr`'s script redirect to
+    /// `target`. A store that cannot be read refuses.
+    fn may_redirect(&self, addr: &str, target: &str) -> bool {
+        let Some(mut conn) = self.core.net_conn() else {
+            return false;
+        };
+        let domains = self.core.local_domains();
+        match crate::sieve_policy::may_redirect(&mut conn, addr, target, &domains) {
+            Ok(ok) => ok,
+            Err(e) => {
+                tracing::warn!(recipient = %addr, error = %e, "sieve: forwarding settings unreadable");
+                false
+            }
+        }
+    }
+
+    /// A script's vacation reply, under the rules the one set on the web
+    /// keeps: none to Junk or held mail, and sent only as the user or an
+    /// address it may send as.
+    fn vacation_by_script(&self, addr: &str, mut vac: sieve::Vacation) {
+        if !self.settings_apply(addr) {
+            return;
+        }
+        if let Some(from) = vac.from.as_deref()
+            && !from.trim().eq_ignore_ascii_case(addr)
+            && !self.core.may_send_as(addr, from.trim())
+        {
+            tracing::info!(recipient = %addr, "vacation: :from is not the user's to send as; replying as the user");
+            vac.from = None;
+        }
+        sieve::maybe_vacation_reply(addr, &self.env.reverse_path, self.body, &vac);
     }
 
     /// The copy in INBOX, filed where the receiver's verdict put it.

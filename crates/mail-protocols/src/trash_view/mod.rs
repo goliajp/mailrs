@@ -287,11 +287,14 @@ impl<A: Account> Account for TrashView<A> {
         self.inner.authserv_id()
     }
 
+    /// A POP3 deletion moves the message to the Trash as an IMAP EXPUNGE
+    /// outside it does: a client set to delete from the server after
+    /// downloading leaves 30 days to undo it.
     async fn remove(&self, mailbox: &Self::Mailbox, message: &Message<Self::Key>) -> Result<()> {
         let (msg, filed) = unwrap(message);
         match (mailbox, filed) {
-            (_, Some(from)) => self.inner.remove(&from, &msg).await,
-            (ViewMailbox::Filed(m), None) => self.inner.remove(m, &msg).await,
+            (_, Some(from)) => self.to_trash(&from, &msg).await,
+            (ViewMailbox::Filed(m), None) => self.to_trash(m, &msg).await,
             (
                 ViewMailbox::Trash { .. }
                 | ViewMailbox::Label { .. }

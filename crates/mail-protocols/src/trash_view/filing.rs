@@ -207,10 +207,14 @@ impl<A: Account> TrashView<A> {
         }
     }
 
-    /// An EXPUNGE outside `Trash`. A message that went to the Trash since
-    /// the client listed the mailbox is not deleted: clients without MOVE
-    /// delete by COPY to Trash, then `\Deleted` and EXPUNGE here, and the
-    /// copy is the same file. It has left this mailbox all the same.
+    /// An EXPUNGE outside `Trash` moves what it takes to the Trash, as
+    /// Gmail's IMAP does, where it is deleted for good after 30 days; only
+    /// an EXPUNGE in `Trash` deletes now. Drafts are the exception: a
+    /// client saving a draft replaces the last copy by EXPUNGE, and those
+    /// copies are not mail anyone deleted. A message that went to the Trash
+    /// since the client listed the mailbox is already there: clients
+    /// without MOVE delete by COPY to Trash, then `\Deleted` and EXPUNGE
+    /// here, and the copy is the same file.
     pub(super) async fn expunge_filed(
         &self,
         mailbox: &A::Mailbox,
@@ -225,12 +229,49 @@ impl<A: Account> TrashView<A> {
                 };
             }
         };
-        let (kept_aside, really): (Vec<_>, Vec<_>) =
+        let (kept_aside, rest): (Vec<_>, Vec<_>) =
             doomed.iter().partition(|m| hidden.contains(&m.uid));
-        let really: Vec<_> = really.into_iter().map(|m| unwrap(m).0).collect();
-        let mut out = self.inner.expunge(mailbox, &really).await;
-        out.removed.extend(kept_aside.iter().map(|m| m.uid));
+        if deletes_for_good(self.inner.mailbox_name(mailbox)) {
+            let really: Vec<_> = rest.into_iter().map(|m| unwrap(m).0).collect();
+            let mut out = self.inner.expunge(mailbox, &really).await;
+            out.removed.extend(kept_aside.iter().map(|m| m.uid));
+            return out;
+        }
+        let mut out = Expunged {
+            removed: kept_aside.iter().map(|m| m.uid).collect(),
+            failed: None,
+        };
+        for m in rest {
+            match self.to_trash(mailbox, &unwrap(m).0).await {
+                Ok(()) => out.removed.push(m.uid),
+                Err(e) => {
+                    out.failed = Some(e);
+                    break;
+                }
+            }
+        }
         out
+    }
+
+    /// A message deleted outside the Trash: its conversation goes to the
+    /// Trash. A file no conversation holds is moved into the mailbox named
+    /// Trash, which `Trash` shows whole; with no such mailbox it is deleted.
+    pub(super) async fn to_trash(&self, mailbox: &A::Mailbox, msg: &Message<A::Key>) -> Result<()> {
+        if self.inner.set_trashed(mailbox, msg, true).await? {
+            return Ok(());
+        }
+        match self.inner.mailbox(TRASH).await? {
+            Some(real) => self.inner.move_to(mailbox, msg, &real).await.map(drop),
+            None => match self
+                .inner
+                .expunge(mailbox, std::slice::from_ref(msg))
+                .await
+                .failed
+            {
+                Some(e) => Err(e),
+                None => Ok(()),
+            },
+        }
     }
 
     /// An EXPUNGE in `Trash`: the messages are deleted for good, each from
@@ -254,6 +295,13 @@ impl<A: Account> TrashView<A> {
         }
         out
     }
+}
+
+/// Where an EXPUNGE deletes for good rather than moving to the Trash:
+/// Drafts, and `Review`, whose held mail the view beneath refuses to let
+/// go at all.
+fn deletes_for_good(name: &str) -> bool {
+    name.eq_ignore_ascii_case("Drafts") || name.eq_ignore_ascii_case("Review")
 }
 
 /// A message shown in `Trash` or a label, and the mailbox it is filed in.

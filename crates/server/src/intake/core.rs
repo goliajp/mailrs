@@ -74,4 +74,17 @@ impl Core for PgCore {
             }
         }
     }
+
+    /// Asked from the drain's blocking thread, as every method here is.
+    fn may_send_as(&self, user: &str, from: &str) -> bool {
+        let perms =
+            self.dir
+                .rt
+                .block_on(crate::core_rpc::handlers::admin::effective_permissions_of(
+                    &self.dir.domain,
+                    self.dir.net_url.as_deref(),
+                    user,
+                ));
+        perms.is_ok_and(|p| p.may_send_as(from))
+    }
 }
