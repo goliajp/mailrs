@@ -193,6 +193,10 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
             post(handlers::admin::quota_limits_route),
         )
         .route(
+            adm_paths::PATH_USAGE_DRIFT,
+            get(handlers::admin::usage_drift_route).post(handlers::admin::usage_drift_apply_route),
+        )
+        .route(
             adm_paths::PATH_UPDATE_RECOVERY_EMAIL,
             post(handlers::admin::set_recovery_email),
         )
