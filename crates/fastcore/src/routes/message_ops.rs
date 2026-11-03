@@ -74,50 +74,33 @@ pub(crate) fn sent_thread_ids(state: &Arc<FastcoreState>, user: &str) -> Vec<Str
 }
 
 /// Remove the maildir file at `blob_ref` — the disk counterpart of
-/// `KevyMailboxStore::delete_thread`. The file is found the way
-/// `read_maildir_file` finds it: in `new/` or `cur/`, whatever `:2,`
-/// flags its name has gained since delivery.
-///
-/// Best-effort: an fs error (permission, race, already gone) logs a
-/// warning but must not fail the surrounding delete — the point of
-/// this helper is to prevent self-heal from resurrecting the row on
-/// its next tick, and a missing file already satisfies that. Returns
-/// true if a file was actually unlinked (helpful for the caller's
-/// log line).
-pub(crate) fn unlink_maildir_file(maildir_root: &str, user: &str, blob_ref: &str) -> bool {
-    match user.split_once('@') {
-        Some((local, domain)) => unlink_in(
-            &std::path::Path::new(maildir_root).join(domain).join(local),
-            blob_ref,
-        ),
-        None => false,
-    }
-}
-
-/// Remove the maildir file at `blob_ref`, saying when it could not be:
-/// for a delete the user asked for, a file left on disk is a message
-/// self-heal files again. `false` when there was no such file.
+/// `KevyMailboxStore::delete_thread` — through the one function that
+/// removes mail files and takes their size off the user's usage. The file
+/// is found in `new/` or `cur/`, whatever `:2,` flags its name has gained.
+/// Its size, or `None` when there was no such file; an error when it could
+/// not be removed: for a delete the user asked for, a file left on disk is
+/// a message self-heal files again.
 pub(crate) fn remove_maildir_file(
-    maildir_root: &str,
+    state: &crate::FastcoreState,
     user: &str,
     blob_ref: &str,
-) -> std::io::Result<bool> {
-    match user.split_once('@') {
-        Some((local, domain)) => mailrs_maildir::remove(
-            std::path::Path::new(maildir_root).join(domain).join(local),
-            blob_ref,
-        ),
-        None => Ok(false),
-    }
+) -> std::io::Result<Option<u64>> {
+    let mut net = state.net_conn();
+    mailrs_intake::mail_files::remove_blob(net.as_mut(), &state.maildir_root, user, blob_ref)
 }
 
-fn unlink_in(base: &std::path::Path, blob_ref: &str) -> bool {
-    mailrs_maildir::remove(base, blob_ref).unwrap_or_else(|e| {
+/// [`remove_maildir_file`] where a file left behind is only logged.
+pub(crate) fn unlink_maildir_file(
+    state: &crate::FastcoreState,
+    user: &str,
+    blob_ref: &str,
+) -> Option<u64> {
+    remove_maildir_file(state, user, blob_ref).unwrap_or_else(|e| {
         tracing::warn!(
-            error = %e, base = %base.display(), %blob_ref,
+            error = %e, %user, %blob_ref,
             "delete_thread: could not unlink maildir file"
         );
-        false
+        None
     })
 }
 
@@ -458,10 +441,10 @@ pub(crate) fn row_to_wire(r: ThreadRow) -> ConversationSummaryWire {
 
 #[cfg(test)]
 mod unlink_tests {
-    use super::unlink_in;
+    use mailrs_intake::mail_files::remove_blob;
 
     fn file(base: &std::path::Path, rel: &str) -> std::path::PathBuf {
-        let p = base.join(rel);
+        let p = base.join("x.test/u").join(rel);
         std::fs::create_dir_all(p.parent().unwrap()).unwrap();
         std::fs::write(&p, b"Subject: x\r\n\r\nbody").unwrap();
         p
@@ -470,17 +453,16 @@ mod unlink_tests {
     #[test]
     fn a_read_message_is_unlinked_under_its_flagged_name() {
         let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().to_string_lossy().to_string();
+        let gone = |blob: &str| remove_blob(None, &root, "u@x.test", blob).unwrap();
         let read = file(tmp.path(), "cur/1792943149.M9611P1Q43.host:2,S");
         let fresh = file(tmp.path(), "new/1792945998.M8P1Q45.host");
         let sent = file(tmp.path(), ".Sent/cur/1792945998.M7P1Q11.host:2,S");
-        assert!(unlink_in(tmp.path(), "1792943149.M9611P1Q43.host"));
-        assert!(unlink_in(tmp.path(), "1792945998.M8P1Q45.host"));
-        assert!(unlink_in(tmp.path(), ".Sent/1792945998.M7P1Q11.host"));
+        assert_eq!(gone("1792943149.M9611P1Q43.host"), Some(18));
+        assert_eq!(gone("1792945998.M8P1Q45.host"), Some(18));
+        assert_eq!(gone(".Sent/1792945998.M7P1Q11.host"), Some(18));
         assert!(!read.exists() && !fresh.exists() && !sent.exists());
-        assert!(
-            !unlink_in(tmp.path(), "1792943149.M9611P1Q43.host"),
-            "already gone"
-        );
-        assert!(!unlink_in(tmp.path(), ""));
+        assert_eq!(gone("1792943149.M9611P1Q43.host"), None, "already gone");
+        assert_eq!(gone(""), None);
     }
 }

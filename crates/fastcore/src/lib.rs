@@ -66,10 +66,22 @@ pub use router::{build_router, build_router_with_secret};
 
 pub use maildir_scan::self_heal_once;
 use routes::*;
+
+/// One pass of the Trash purge, as the hourly task runs it: what went to
+/// the Trash before `cutoff`, up to `batch` conversations. How many it
+/// deleted for good.
+pub async fn purge_trash_once(
+    state: &std::sync::Arc<FastcoreState>,
+    cutoff: i64,
+    batch: usize,
+) -> usize {
+    routes::trash::purge_once(state, cutoff, batch).await
+}
 pub mod sender_sts;
 pub mod spool_drain;
 mod tls;
 pub mod tlsrpt;
+pub mod usage;
 
 use kevy_embedded::{Config, Store};
 use mailrs_alias_store::AliasStore;

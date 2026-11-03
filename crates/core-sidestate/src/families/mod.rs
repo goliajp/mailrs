@@ -27,6 +27,7 @@ pub mod masked_email;
 pub mod mock;
 pub mod notify;
 pub mod outbound;
+pub mod owner_notices;
 pub mod password_clear;
 pub mod permission_groups;
 pub mod prefs;

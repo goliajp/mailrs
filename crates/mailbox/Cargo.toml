@@ -35,7 +35,7 @@ serde_json = { workspace = true }
 chrono = { workspace = true }
 async-trait = "0.1"
 memchr = "2"
-mailrs-maildir = { path = "../storage-maildir", version = "1" }
+mailrs-maildir = { path = "../storage-maildir", version = "2" }
 
 [features]
 default = ["pg"]

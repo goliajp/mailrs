@@ -104,7 +104,7 @@ pub fn file<S: SentStore + ?Sized>(
         core.authserv_id(),
     );
     a.is_own = true;
-    crate::effects::before_store(user, &a, body.len());
+    crate::effects::before_store(core.net_conn(), user, &a, body.len());
     core.index_own(user, &blob_ref, body, &a)?;
     crate::effects::after_store(core.net_conn(), user, &a, false);
     // read on disk too, for IMAP clients reading the folder

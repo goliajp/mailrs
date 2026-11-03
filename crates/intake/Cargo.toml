@@ -18,6 +18,7 @@ mailrs-srs = { path = "../srs", version = "1" }
 kevy-client = { workspace = true }
 tokio = { version = "1", features = ["sync", "time", "macros", "rt"] }
 tracing = "0.1"
+serde = { workspace = true }
 serde_json = { workspace = true }
 base64 = "0.22"
 rand_core = { workspace = true }
@@ -30,7 +31,7 @@ mailrs-inbound = { path = "../inbound", version = "2" }
 mailrs-intelligence = { path = "../intelligence" }
 # the threading helpers only; the SQL store stays out
 mailrs-mailbox = { path = "../mailbox", default-features = false }
-mailrs-maildir = { path = "../storage-maildir", version = "1" }
+mailrs-maildir = { path = "../storage-maildir", version = "2" }
 mailrs-mime = { path = "../mime", version = "2" }
 mailrs-rfc2047 = { path = "../rfc2047", version = "1" }
 mailrs-rfc5322 = { path = "../rfc5322", version = "1" }

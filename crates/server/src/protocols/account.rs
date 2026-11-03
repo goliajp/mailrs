@@ -175,6 +175,7 @@ impl Account for PgAccount {
     /// The rows of `doomed` go, and no others, and each takes its body with
     /// it: every row has a body of its own.
     async fn expunge(&self, mailbox: &Mailbox, doomed: &[Message<String>]) -> Expunged {
+        let convs = self.conversations_of(mailbox, doomed).await;
         let uids: Vec<u32> = doomed.iter().map(|m| m.uid).collect();
         let removed = match self.mailbox.expunge_uids(mailbox.id, &uids).await {
             Ok(removed) => removed,
@@ -185,6 +186,13 @@ impl Account for PgAccount {
                 };
             }
         };
+        let gone: Vec<Option<String>> = doomed
+            .iter()
+            .zip(convs)
+            .filter(|(m, _)| removed.contains(&m.uid))
+            .map(|(_, c)| c)
+            .collect();
+        self.audit_deleted(&gone, "imap");
         let failed = self.remove_bodies(doomed, &removed).await.err();
         Expunged { removed, failed }
     }
@@ -199,6 +207,9 @@ impl Account for PgAccount {
     }
 
     async fn remove(&self, mailbox: &Mailbox, m: &Message<String>) -> Result<()> {
+        let convs = self
+            .conversations_of(mailbox, std::slice::from_ref(m))
+            .await;
         self.mailbox
             .add_flags(mailbox.id, m.uid, FLAG_DELETED)
             .await
@@ -208,6 +219,9 @@ impl Account for PgAccount {
             .expunge_uids(mailbox.id, &[m.uid])
             .await
             .map_err(store)?;
+        if !removed.is_empty() {
+            self.audit_deleted(&convs, "pop3");
+        }
         self.remove_bodies(std::slice::from_ref(m), &removed).await
     }
 
@@ -295,7 +309,11 @@ impl Account for PgAccount {
     }
 
     async fn put_sieve_script(&self, body: &str) -> Result<()> {
-        Ok(sieve_store::set_at(self.net_url()?, &self.user, body)?)
+        let domains = self.local_domains().await?;
+        match sieve_store::set_at(self.net_url()?, &self.user, body, &domains)? {
+            mailrs_intake::sieve_policy::Stored::Stored => Ok(()),
+            mailrs_intake::sieve_policy::Stored::Refused(why) => Err(Error::Refused(why)),
+        }
     }
 
     async fn delete_sieve_script(&self) -> Result<()> {
@@ -305,6 +323,17 @@ impl Account for PgAccount {
 }
 
 impl PgAccount {
+    /// Our domains, as the drain counts them: `MAILRS_LOCAL_DOMAINS` and
+    /// the domain store's.
+    async fn local_domains(&self) -> Result<Vec<String>> {
+        let names = match &self.domain {
+            Some(d) => d.domain_names().await.map_err(store)?,
+            None => Vec::new(),
+        };
+        let cache = mailrs_intake::domains::LocalDomainsCache::default();
+        Ok(cache.get(move || Ok(names)).to_vec())
+    }
+
     /// The network kevy holding the script, which every reader of it shares.
     fn net_url(&self) -> Result<&str> {
         Ok(self
