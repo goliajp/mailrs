@@ -103,9 +103,9 @@ export function useConversationsQuery(filters: MailListFilters, enabled: boolean
   return useInfiniteQuery<
     ConversationSummary[],
     Error,
-    { pageParams: (number | undefined)[]; pages: ConversationSummary[][] },
+    { pageParams: (string | undefined)[]; pages: ConversationSummary[][] },
     ReturnType<typeof conversationKeys.infinite>,
-    number | undefined
+    string | undefined
   >({
     enabled,
     initialPageParam: undefined,
@@ -134,10 +134,14 @@ export function useConversationsQuery(filters: MailListFilters, enabled: boolean
     }),
     getNextPageParam: (lastPage) => {
       if (lastPage.length < PAGE_SIZE) return undefined
-      const last = lastPage[lastPage.length - 1]
-      // the waiting list is ordered, and paged, by when the wait began
-      if (filters.section === 'awaiting') return last?.awaiting_since
-      return last?.last_date
+      // search answers in one page; asking it again appends the same rows
+      if (filters.query) return undefined
+      // the server's place after the last row: the time it is ordered by
+      // (the waiting list's own time included) and a tie-breaker, so rows
+      // sharing that second are neither skipped nor shown twice
+      const cursor = lastPage[lastPage.length - 1]?.cursor
+      if (!cursor) return undefined
+      return cursor
     },
     queryFn: async ({ pageParam, signal }) => {
       // v2.1 §7 (2026-07-08): Zod-parse the wire response.
@@ -192,14 +196,14 @@ function accountsParam(filters: MailListFilters): string {
 
 // Build the API path for a paginated conversation list. Mirrors the old
 // chat.tsx `buildPath` but pure — no React state.
-function listPath(filters: MailListFilters, before?: number): string {
+function listPath(filters: MailListFilters, cursor?: string): string {
   // The review list is its own endpoint — held mail is not a
   // predicate over the ordinary lists, it is the thing they exclude.
   // Paged like the rest: the client appends pages, so a route that
   // ignored the cursor would show every held conversation twice.
   if (filters.quarantined) {
     let p = `/quarantine?limit=${PAGE_SIZE}`
-    if (before) p += `&before=${before}`
+    if (cursor) p += `&cursor=${encodeURIComponent(cursor)}`
     return p
   }
   if (filters.query) {
@@ -222,7 +226,7 @@ function listPath(filters: MailListFilters, before?: number): string {
     return p
   }
   let p = `/conversations?limit=${PAGE_SIZE}`
-  if (before) p += `&before=${before}`
+  if (cursor) p += `&cursor=${encodeURIComponent(cursor)}`
   if (filters.trashed) p += '&trashed=true'
   if (filters.label) p += `&label=${encodeURIComponent(filters.label)}`
   if (filters.category) p += `&category=${encodeURIComponent(filters.category)}`

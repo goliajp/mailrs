@@ -44,7 +44,7 @@ export async function dashboardLoader({ request: _request }: { request: Request 
   }
   queryClient
     .ensureInfiniteQueryData({
-      initialPageParam: undefined as number | undefined,
+      initialPageParam: undefined as string | undefined,
       queryKey: conversationKeys.infinite({
         archived: false,
         category: null as never,
@@ -55,7 +55,7 @@ export async function dashboardLoader({ request: _request }: { request: Request 
       }),
       queryFn: async ({ pageParam, signal }) => {
         const parsed = await wireFetch(wireThreadListResponseSchema, {
-          path: listPath(filters, pageParam as number | undefined),
+          path: listPath(filters, pageParam as string | undefined),
           signal,
         })
         return parsed.items
@@ -88,11 +88,11 @@ export async function mailListLoader({ request }: { request: Request }) {
   })
   queryClient
     .ensureInfiniteQueryData({
-      initialPageParam: undefined as number | undefined,
+      initialPageParam: undefined as string | undefined,
       queryKey: key,
       queryFn: async ({ pageParam, signal }) => {
         const parsed = await wireFetch(wireThreadListResponseSchema, {
-          path: listPath(filters, pageParam as number | undefined),
+          path: listPath(filters, pageParam as string | undefined),
           signal,
         })
         return parsed.items
@@ -122,10 +122,10 @@ function filtersFromUrl(url: URL): MailListFilters {
 // loader would otherwise import from the hook module, which triggers
 // a chain that pulls in React and blocks the router bundle from
 // pre-loading.
-function listPath(filters: MailListFilters, before?: number): string {
+function listPath(filters: MailListFilters, cursor?: string): string {
   const params = new URLSearchParams()
   params.set('limit', String(PAGE_SIZE))
-  if (before !== undefined) params.set('before', String(before))
+  if (cursor !== undefined) params.set('cursor', cursor)
   if (filters.folder) params.set('folder', filters.folder)
   if (filters.category) params.set('category', filters.category)
   if (filters.unread) params.set('unread', '1')
