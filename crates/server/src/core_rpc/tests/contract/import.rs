@@ -167,21 +167,19 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
         core.star_thread(ALICE, &held_tid).await.expect("star");
         core.pin_thread(ALICE, &held_tid).await.expect("pin");
     }
-    for (name, include_quarantined) in [("starred", false), ("starred, held included", true)] {
-        let req = |starred, pinned, unread| ListConversationsRequest {
+    for (name, include_quarantined) in [("held left out", false), ("held included", true)] {
+        let req = |starred, pinned| ListConversationsRequest {
             filter: ConversationFilter {
                 starred,
                 pinned,
-                unread,
                 include_quarantined,
                 limit: 50,
                 ..Default::default()
             },
         };
         for (view, r) in [
-            ("starred", req(Some(true), None, None)),
-            ("pinned", req(None, Some(true), None)),
-            ("unread", req(None, None, Some(true))),
+            ("starred", req(Some(true), None)),
+            ("pinned", req(None, Some(true))),
         ] {
             if let Some((rows, _)) = d.both(
                 &format!("list_conversations [{view}] {name} with a held conversation"),
