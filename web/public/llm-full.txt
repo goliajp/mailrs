@@ -1268,6 +1268,35 @@ live monitor.
 
 ---
 
+### JMAP (RFC 8620, 8621, 8887)
+
+Session: `GET /.well-known/jmap` (or `/jmap/session`). Sign in with a session
+token or agent key (`jmap` scope) as Bearer, or an app password over HTTP
+Basic (HTTPS only). Capabilities: core, mail, submission, vacationresponse,
+websocket, and Fastmail's maskedemail.
+
+- Mail: Mailbox/get, /query, /changes, /set; Email/get, /query, /changes,
+  /queryChanges, /set, /import; Thread/get, /changes; SearchSnippet/get
+  (the filter's `text`, `subject` and `body` words marked with `<mark>`)
+- Email/set create takes `attachments` by `blobId`: an upload
+  (`POST /jmap/upload/{accountId}/`) or a part of a message of yours; a blob
+  that is not yours answers `blobNotFound`
+- Email/copy: one account per session, so there is nothing to copy from
+  (`fromAccountNotFound`)
+- Sending: Identity/get; EmailSubmission/set, /get, /changes. Hold a
+  submission up to 30 days (`maxDelayedSend`) with `HOLDFOR` (seconds) or
+  `HOLDUNTIL` (RFC 3339) in `envelope.mailFrom.parameters`; while held its
+  `undoStatus` is `pending` and an update to `canceled` stops it. Once it is
+  going out it is `final` and cancelling answers `cannotUnsend`. Submissions
+  are the sends `GET /api/mail/sends` lists
+- VacationResponse/get, /set: the same vacation reply as
+  `/api/settings/vacation`; plain text, so `htmlBody` is always null
+- Push: `GET /jmap/eventsource/`, or the WebSocket `GET /jmap/ws/` with the
+  `jmap` subprotocol: send `{"@type":"Request","id":...}` and get
+  `{"@type":"Response","requestId":...}`; `{"@type":"WebSocketPushEnable"}`
+  starts `StateChange` pushes. A browser's cookie upgrade must come from this
+  site's page
+
 ## 4. Webhooks
 
 ### Create webhook subscription

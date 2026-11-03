@@ -73,6 +73,7 @@ Streamable HTTP endpoint: https://mail.golia.ai/mcp
 - GET /api/conversations?include_quarantined=1 — show held conversations in place, marked. Default off; the exclusion is in the query shape, so held conversations are out of the totals too
 - GET /api/mail/folders — list folders
 - GET /api/contacts — search contacts
+- JMAP: GET /.well-known/jmap, POST /jmap/api/, WebSocket /jmap/ws/ (subprotocol jmap) — mail, submission (held sends up to 30 days, cancel while held), vacation reply, search snippets, masked addresses
 
 ### Admin (requires permissions)
 - GET/POST/DELETE /api/admin/domains — domain CRUD
