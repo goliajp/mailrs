@@ -24,6 +24,9 @@ const CONTACTS_CAP: usize = 2000;
 pub trait SentStore: Threads {
     fn maildir_root(&self) -> &str;
     fn net_conn(&self) -> Option<Connection>;
+    /// This server's authserv-id, the name its receiver writes into
+    /// `Authentication-Results:`; `None` when it was not told its name.
+    fn authserv_id(&self) -> Option<&str>;
     /// Index the arrival `a`, already written as `blob_ref`, as the
     /// user's own message.
     fn index_own(&self, user: &str, blob_ref: &str, body: &[u8], a: &Arrival<'_>)
@@ -59,6 +62,7 @@ pub fn file<S: SentStore + ?Sized>(
     body: &[u8],
     recipients: &[String],
 ) -> io::Result<Filed> {
+    let body = &*without_forged_results(core, body);
     let root = core.maildir_root();
     let folder = sent_dir(root, user)?;
     let md = mailrs_maildir::Maildir::create(&folder)?;
@@ -79,6 +83,16 @@ pub fn file<S: SentStore + ?Sized>(
         message_id: a.message_id,
         blob_ref,
     })
+}
+
+/// `body` without any `Authentication-Results:` naming this server
+/// (RFC 8601 §5). Only the receiver writes one; on every other way into a
+/// mailbox the header came from whoever wrote the message.
+pub(crate) fn without_forged_results<'a, S: SentStore + ?Sized>(
+    core: &S,
+    body: &'a [u8],
+) -> std::borrow::Cow<'a, [u8]> {
+    mailrs_rfc5322::auth_results::without_claiming(body, core.authserv_id())
 }
 
 pub(crate) fn sent_dir(root: &str, user: &str) -> io::Result<PathBuf> {

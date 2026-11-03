@@ -61,6 +61,8 @@ pub(super) struct Cores {
     _db: Box<dyn std::any::Any + Send>,
 }
 
+/// The name both cores go by in `Authentication-Results:`.
+pub(super) const AUTHSERV: &str = "mail.contract.test";
 pub(super) const FASTCORE_KEVY: &str = "mem://contract-fastcore-side-state";
 pub(super) const PG_CORE_KEVY: &str = "mem://contract-pg-core-side-state";
 
@@ -97,6 +99,7 @@ pub(super) async fn start_on(fastcore_url: &str, pg_core_url: &str) -> Cores {
     fc.net_url = Some(fastcore_url.to_string());
     let fastcore_maildir = tempfile::tempdir().expect("maildir");
     fc.maildir_root = fastcore_maildir.path().to_string_lossy().into_owned();
+    fc.authserv_id = Some(AUTHSERV.into());
     let fastcore_state = Arc::new(fc);
     let fastcore_hits: Hits = Arc::default();
     let fastcore = serve(
@@ -117,6 +120,7 @@ pub(super) async fn start_on(fastcore_url: &str, pg_core_url: &str) -> Cores {
         maildir_root: maildir.path().to_string_lossy().into_owned(),
         net_url: Some(pg_core_url.to_string()),
         event_bus: crate::event_bus::EventBus::new(64),
+        authserv_id: Some(AUTHSERV.into()),
     });
     let pg_core_hits: Hits = Arc::default();
     let pg_core = serve(build_full_router(state.clone(), String::new()).route_layer(

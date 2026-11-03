@@ -54,7 +54,11 @@ where
         .map(flag_list)
         .map(parse_imap_flags)
         .unwrap_or_default();
-    match account.append(&dest, bytes.to_vec(), flags).await {
+    // RFC 8601 §5: the client wrote this message; a header in it naming
+    // this server was not this server's
+    let bytes =
+        mailrs_rfc5322::auth_results::without_claiming(&bytes, account.authserv_id()).into_owned();
+    match account.append(&dest, bytes, flags).await {
         Ok(filed) => vec![format_ok(
             tag,
             &format!(

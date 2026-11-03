@@ -283,6 +283,10 @@ impl<A: Account> Account for TrashView<A> {
         self.inner.unique_id(&unwrap(message).0)
     }
 
+    fn authserv_id(&self) -> Option<&str> {
+        self.inner.authserv_id()
+    }
+
     async fn remove(&self, mailbox: &Self::Mailbox, message: &Message<Self::Key>) -> Result<()> {
         let (msg, filed) = unwrap(message);
         match (mailbox, filed) {

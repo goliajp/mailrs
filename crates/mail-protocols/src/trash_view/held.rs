@@ -279,6 +279,10 @@ impl<A: Account> Account for HeldView<A> {
         self.inner.unique_id(&unwrap(message).0)
     }
 
+    fn authserv_id(&self) -> Option<&str> {
+        self.inner.authserv_id()
+    }
+
     async fn remove(&self, mailbox: &Self::Mailbox, message: &Message<Self::Key>) -> Result<()> {
         match mailbox {
             HeldMailbox::Filed(m) => self.inner.remove(m, &unwrap(message).0).await,

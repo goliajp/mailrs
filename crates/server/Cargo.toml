@@ -87,6 +87,9 @@ mailrs-fastcore = { path = "../fastcore" }
 mailrs-mailbox-kevy = { path = "../mailbox-kevy" }
 mailrs-core-sync = { path = "../core-sync" }
 kevy-embedded = { workspace = true }
+# the contract tests read a filed message the way the stored re-judge does
+mailrs-fraud-lua = { path = "../fraud-lua" }
+mailrs-fraud = { path = "../fraud" }
 
 [[bin]]
 name = "mailrs-pg-core"

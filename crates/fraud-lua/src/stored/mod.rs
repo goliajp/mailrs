@@ -9,6 +9,7 @@
 
 mod reading;
 pub mod relation;
+pub mod stamp;
 pub use reading::Reading;
 
 /// What the rules make of one stored message.

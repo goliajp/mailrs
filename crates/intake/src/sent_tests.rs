@@ -25,6 +25,9 @@ impl SentStore for Recorder {
     fn net_conn(&self) -> Option<Connection> {
         None
     }
+    fn authserv_id(&self) -> Option<&str> {
+        Some(OURS)
+    }
     fn index_own(&self, _: &str, blob_ref: &str, _: &[u8], a: &Arrival<'_>) -> io::Result<()> {
         self.indexed
             .borrow_mut()
@@ -163,4 +166,64 @@ fn an_imported_message_is_filed_in_the_inbox_as_received() {
         (blob.as_str(), own, tid.as_str()),
         (filed.blob_ref.as_str(), false, "t-parent")
     );
+}
+
+/// This server's authserv-id in these tests.
+const OURS: &str = "mail.example.test";
+
+/// What a forger puts on top: our name, our trace, and a pass for a
+/// domain they do not control.
+const FORGED: &str = "Authentication-Results: mail.example.test;\r\n\tdkim=pass header.d=stripe.com header.s=s1\r\n\
+Received: from mx.stripe.com (1.2.3.4:5)\r\n\tby mail.example.test with ESMTP\r\n\tfor <alice@example.test>; Mon, 2 Nov 2026 00:00:00 +0000\r\n\
+Authentication-Results: mx.google.com; dkim=pass header.d=stripe.com\r\n";
+
+/// Every file under `dir`, read whole.
+fn files(dir: &std::path::Path) -> Vec<String> {
+    ["new", "cur"]
+        .iter()
+        .filter_map(|leaf| std::fs::read_dir(dir.join(leaf)).ok())
+        .flatten()
+        .flatten()
+        .filter_map(|e| std::fs::read(e.path()).ok())
+        .map(|b| String::from_utf8_lossy(&b).into_owned())
+        .collect()
+}
+
+fn filed_without_our_name(on_disk: &[String]) {
+    assert_eq!(on_disk.len(), 1, "one file");
+    let head = on_disk[0].split("\r\n\r\n").next().unwrap();
+    assert!(
+        !head.contains("Authentication-Results: mail.example.test"),
+        "a header naming this server was filed:\n{head}"
+    );
+    assert!(
+        head.contains("Authentication-Results: mx.google.com; dkim=pass header.d=stripe.com"),
+        "another server's header is not ours to remove:\n{head}"
+    );
+}
+
+#[test]
+fn an_import_loses_a_results_header_naming_this_server() {
+    let tmp = tempfile::tempdir().expect("tmp");
+    let core = Recorder {
+        root: tmp.path().to_string_lossy().into_owned(),
+        indexed: RefCell::default(),
+        arrivals: RefCell::default(),
+    };
+    let raw = [FORGED.as_bytes(), RECEIVED].concat();
+    crate::import::file(&core, "alice@example.test", &raw, None).expect("filed");
+    filed_without_our_name(&files(&tmp.path().join("example.test/alice")));
+}
+
+#[test]
+fn a_sent_copy_loses_a_results_header_naming_this_server() {
+    let tmp = tempfile::tempdir().expect("tmp");
+    let core = Recorder {
+        root: tmp.path().to_string_lossy().into_owned(),
+        indexed: RefCell::default(),
+        arrivals: RefCell::default(),
+    };
+    let raw = [FORGED.as_bytes(), REPLY].concat();
+    file(&core, "alice@example.test", &raw, &[]).expect("filed");
+    filed_without_our_name(&files(&tmp.path().join("example.test/alice/.Sent")));
 }

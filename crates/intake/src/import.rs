@@ -32,6 +32,7 @@ pub fn file<S: SentStore + ?Sized>(
             format!("{user} is over quota"),
         ));
     }
+    let body = &*crate::sent::without_forged_results(core, body);
     let root = core.maildir_root();
     // the user's own mail is filed where their sent mail is, so it reads
     // as theirs in every core and never lands in their Inbox
