@@ -1,0 +1,64 @@
+//! Mail taken back into Review when it was judged again.
+//!
+//! - `GET /api/review/recalled` — the reader's own conversations taken back
+//!   in the last seven days, newest first, for the line shown where each
+//!   used to be
+//! - `GET /api/admin/rejudge/batches` — every round that took mail back
+//!   (super administrator)
+//! - `POST /api/admin/rejudge/batches/{observation}/release` — put one round
+//!   back whole (super administrator, recent password confirmation); each
+//!   conversation is audited by the core, the round once here
+
+use std::sync::Arc;
+
+use axum::Json;
+use axum::extract::{Extension, Path, State};
+use axum::http::StatusCode;
+
+use crate::WebState;
+use crate::handlers::conversations::AuthedUser;
+use crate::handlers::kevy_util::with_kevy;
+use mailrs_core_sidestate::families::recall_notices;
+
+/// GET /api/review/recalled
+pub async fn recalled(
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let now = chrono::Utc::now().timestamp();
+    let items = with_kevy(move |c| recall_notices::recent(c, &user, now))?;
+    Ok(Json(serde_json::json!({ "items": items })))
+}
+
+/// GET /api/admin/rejudge/batches
+pub async fn batches(
+    State(state): State<Arc<WebState>>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let found = state
+        .core
+        .rejudge_batches()
+        .await
+        .map_err(crate::handlers::admin::map_err)?;
+    Ok(Json(serde_json::json!({ "items": found.items })))
+}
+
+/// POST /api/admin/rejudge/batches/{observation}/release
+pub async fn release(
+    _: crate::session::confirm::Confirmed,
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(actor)): Extension<AuthedUser>,
+    Path(observation): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let done = state
+        .core
+        .release_rejudge_batch(&observation, &actor)
+        .await
+        .map_err(crate::handlers::admin::map_err)?;
+    let detail = format!("released={}", done.released);
+    crate::handlers::audit::record_required(
+        &actor,
+        "rejudge.batch_release",
+        &observation,
+        &detail,
+    )?;
+    Ok(Json(serde_json::json!({ "released": done.released })))
+}

@@ -23,6 +23,7 @@ mod operator;
 mod ownerless;
 mod paging;
 mod placement;
+mod rejudge;
 mod search;
 mod sections;
 mod sender_rules;
@@ -55,6 +56,7 @@ async fn the_two_cores_answer_every_client_call_alike() {
     shared::run(&cores, &mut d).await;
     webhooks::run(&cores, &mut d).await;
     ownerless::run(&cores, &mut d).await;
+    rejudge::run(&cores, &mut d).await;
     accounts::teardown(&cores, &mut d).await;
     d.both(
         "healthz",

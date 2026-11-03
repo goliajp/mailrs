@@ -6139,6 +6139,58 @@
         }
       }
     },
+    "/api/review/recalled": {
+      "get": {
+        "operationId": "listRecalled",
+        "summary": "The caller's conversations moved to Review in the last seven days because stored mail was judged again, newest first, one per conversation",
+        "tags": [
+          "Mail"
+        ],
+        "responses": {
+          "200": {
+            "description": "Newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "thread_id": {
+                            "type": "string"
+                          },
+                          "subject": {
+                            "type": "string"
+                          },
+                          "rules": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "The fraud rules that now hold it, by id"
+                          },
+                          "observation": {
+                            "type": "string",
+                            "description": "The observation that sent it back through the rules"
+                          },
+                          "at": {
+                            "type": "integer",
+                            "description": "Epoch seconds"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/quarantine/{thread_id}/release": {
       "post": {
         "summary": "Release a held conversation",
@@ -10051,6 +10103,101 @@
           },
           "503": {
             "description": "Deleted, but the audit row could not be written"
+          }
+        }
+      }
+    },
+    "/api/admin/rejudge/batches": {
+      "get": {
+        "operationId": "listRejudgeBatches",
+        "summary": "Conversations taken back into Review when stored mail was judged again, one batch per observation. Super administrators only",
+        "tags": [
+          "Admin"
+        ],
+        "responses": {
+          "200": {
+            "description": "Newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "observation": {
+                            "type": "string",
+                            "description": "The observation whose round took them back, `r<n>`"
+                          },
+                          "at": {
+                            "type": "integer",
+                            "description": "When the first was taken back, epoch seconds"
+                          },
+                          "conversations": {
+                            "type": "integer",
+                            "description": "Conversations the round took back"
+                          },
+                          "released_at": {
+                            "type": "integer",
+                            "description": "When the batch was put back, epoch seconds; 0 while it has not been"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a super administrator"
+          }
+        }
+      }
+    },
+    "/api/admin/rejudge/batches/{observation}/release": {
+      "post": {
+        "operationId": "releaseRejudgeBatch",
+        "summary": "Put every conversation one batch still holds back where it was, each recorded in the audit log. Super administrators only, after a recent password confirmation",
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "observation",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "How many were put back",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "released": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a super administrator, or `confirm_required`: the password was not confirmed in the last ten minutes"
+          },
+          "404": {
+            "description": "No such batch"
+          },
+          "503": {
+            "description": "Put back, but the audit row could not be written"
           }
         }
       }

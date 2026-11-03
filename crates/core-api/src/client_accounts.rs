@@ -168,6 +168,29 @@ impl Client {
             .await
     }
 
+    /// GET /v1/admin/rejudge-batches — what re-judging took back, by round
+    pub async fn rejudge_batches(&self) -> ApiResult<method::admin::RejudgeBatchesResponse> {
+        self.get_authed("/v1/admin/rejudge-batches".to_string(), "rejudge_batches")
+            .await
+    }
+
+    /// POST /v1/admin/rejudge-batches/{observation}/release — put a round back
+    pub async fn release_rejudge_batch(
+        &self,
+        observation: &str,
+        actor: &str,
+    ) -> ApiResult<method::admin::ReleaseRejudgeBatchResponse> {
+        let path = format!(
+            "/v1/admin/rejudge-batches/{}/release",
+            Self::enc(observation)
+        );
+        let req = method::admin::ReleaseRejudgeBatchRequest {
+            actor: actor.to_string(),
+        };
+        self.post_authed_json(path, &req, "release_rejudge_batch")
+            .await
+    }
+
     /// GET /v1/admin/accounts — list all
     pub async fn list_accounts(&self) -> ApiResult<method::admin::AccountListResponse> {
         self.get_authed("/v1/admin/accounts".to_string(), "list_accounts")

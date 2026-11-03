@@ -65,6 +65,7 @@ pub mod prefs;
 pub mod prefs_misc;
 pub mod push;
 pub mod quarantine;
+pub mod rejudge;
 pub mod reset_code;
 pub mod route_permissions;
 pub mod rules;

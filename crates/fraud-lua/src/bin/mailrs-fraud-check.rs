@@ -2,7 +2,7 @@
 use mailrs_fraud::{Facts, Findings, Policy};
 use mailrs_fraud_lua::{DEFAULT_SOURCE, MAX_SOURCE, Rules};
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     fs,
     io::Read,
     path::{Path, PathBuf},
@@ -71,6 +71,49 @@ fn rows(f: &Findings) -> Vec<(String, String, u64, bool)> {
     rows.sort();
     rows
 }
+/// What one rule bundle held: per hold-level rule, the held letters it
+/// matched (a letter matching three counts once for each), and per month of
+/// the letter's own Date header, the held letters. Counts only: nothing
+/// that names a sender or a subject.
+#[derive(Default)]
+struct Held {
+    by_rule: BTreeMap<String, u64>,
+    by_month: BTreeMap<String, u64>,
+}
+
+impl Held {
+    fn add(&mut self, f: &Findings, month: &str) {
+        if !f.hold_worthy() {
+            return;
+        }
+        for r in f.iter().filter(|r| r.holds) {
+            *self.by_rule.entry(r.rule.clone()).or_default() += 1;
+        }
+        *self.by_month.entry(month.to_string()).or_default() += 1;
+    }
+}
+
+/// `YYYY-MM` of the Date header, in UTC; `unknown` when there is none
+/// that parses.
+fn month_of(raw: &[u8]) -> String {
+    let Some(t) = mailrs_inbound::dates::date_header_epoch(raw) else {
+        return "unknown".into();
+    };
+    // days since 1970-01-01 to a civil year and month (Hinnant's algorithm)
+    let z = t.div_euclid(86_400) + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let month = match mp < 10 {
+        true => mp + 3,
+        false => mp - 9,
+    };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    format!("{year:04}-{month:02}")
+}
+
 fn paths(root: &Path, out: &mut Vec<PathBuf>, max: usize) -> Result<(), String> {
     if out.len() > max {
         return Err(format!(
@@ -93,6 +136,21 @@ fn paths(root: &Path, out: &mut Vec<PathBuf>, max: usize) -> Result<(), String> 
     }
     Ok(())
 }
+/// Whose mail a file is: `<root>/<domain>/<local>/...`. Empty when the
+/// path does not say, and then the reader's history reads as empty.
+fn reader_of(root: &Path, file: &Path) -> String {
+    let mut parts = file
+        .strip_prefix(root)
+        .ok()
+        .into_iter()
+        .flat_map(|p| p.components())
+        .filter_map(|c| c.as_os_str().to_str());
+    match (parts.next(), parts.next()) {
+        (Some(domain), Some(local)) => format!("{local}@{domain}"),
+        _ => String::new(),
+    }
+}
+
 fn compare(baseline: &str, candidate: &str, root: &str, limit: usize) -> Result<(), String> {
     let mut before = if baseline == "rust" {
         None
@@ -128,11 +186,19 @@ fn compare(baseline: &str, candidate: &str, root: &str, limit: usize) -> Result<
         }
     }
     let our_stamp = std::env::var("MAILRS_HOSTNAME").ok();
+    // with the shared store: each reader's history with the sender (the
+    // `bec-` rules) and when a domain was first seen, as the core's own
+    // re-judge reads them
+    let mut hist = std::env::var("MAILRS_KEVY_URL")
+        .ok()
+        .and_then(|u| kevy_client::Connection::connect(&u).ok());
     let mut changed = 0;
     let mut added = 0;
     let mut released = 0;
     let mut held = 0;
     let mut samples = vec![];
+    let mut baseline_held = Held::default();
+    let mut candidate_held = Held::default();
     for (i, file) in files.iter().enumerate() {
         if i % 25 == 0 {
             std::thread::sleep(std::time::Duration::from_millis(50));
@@ -163,6 +229,20 @@ fn compare(baseline: &str, candidate: &str, root: &str, limit: usize) -> Result<
         let peer_is_private = mailrs_inbound::identity::first_received_peer_ip(&raw)
             .is_some_and(mailrs_inbound::identity::address_is_private);
         let shown_links = mailrs_inbound::body::shown_links(&parsed);
+        let reader = reader_of(Path::new(root), file);
+        let relation = mailrs_fraud_lua::stored::relation::relation(
+            hist.as_mut(),
+            &reader,
+            &from,
+            mailrs_fraud_lua::stored::relation::Counted::After,
+        );
+        let arrived = mailrs_inbound::dates::received_epoch(&raw).unwrap_or(0);
+        let novelty = mailrs_core_sidestate::families::domain_first::novelty(
+            hist.as_mut(),
+            host,
+            &mailrs_inbound::scan_input::link_hosts(&parsed),
+            arrived,
+        );
         let f = Facts {
             from: &from,
             domain: host,
@@ -202,8 +282,8 @@ fn compare(baseline: &str, candidate: &str, root: &str, limit: usize) -> Result<
             dmarc: &dmarc,
             unauthenticated,
             peer_is_private,
-            // the reader's history is not in a maildir: the `bec-` rules
-            // that need it cannot fire here
+            relation,
+            novelty,
             payment: mailrs_inbound::body::payment_ids(&parsed, ""),
             html: mailrs_inbound::body::html_attachments(&parsed, host),
             reply_to_outside: mailrs_fraud::reply_rotation::is_off_domain(
@@ -226,6 +306,9 @@ fn compare(baseline: &str, candidate: &str, root: &str, limit: usize) -> Result<
         if !new.errors.is_empty() {
             return Err(format!("candidate: {:?}", new.errors));
         }
+        let month = month_of(&raw);
+        baseline_held.add(&old, &month);
+        candidate_held.add(&new.findings, &month);
         let old_hold = old.hold_worthy();
         let new_hold = new.findings.hold_worthy();
         held += usize::from(new_hold);
@@ -242,7 +325,10 @@ fn compare(baseline: &str, candidate: &str, root: &str, limit: usize) -> Result<
         "{}",
         serde_json::json!({"checked":files.len(),"changed":changed,"added_holds":added,"removed_holds":released,
         "candidate_holds":held,"baseline":before.as_ref().map_or("rust",|r|r.version()),"candidate":after.version(),
-        "account_names_configured":!p.account_names.is_empty(),"samples":samples})
+        "account_names_configured":!p.account_names.is_empty(),
+        "holds_by_rule":candidate_held.by_rule,"holds_by_month":candidate_held.by_month,
+        "baseline_holds_by_rule":baseline_held.by_rule,"baseline_holds_by_month":baseline_held.by_month,
+        "samples":samples})
     );
     // A migration must preserve every decision. Intentional rule-only updates
     // compare two Lua bundles and report their diff for review.

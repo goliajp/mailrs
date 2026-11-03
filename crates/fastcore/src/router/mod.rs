@@ -182,6 +182,14 @@ pub fn build_router_with_secret(state: Arc<FastcoreState>, secret: String) -> Ro
             adm::PATH_DELETE_OWNERLESS_THREAD,
             post(crate::routes::ownerless::delete),
         )
+        .route(
+            adm::PATH_REJUDGE_BATCHES,
+            get(crate::rejudge::routes::batches),
+        )
+        .route(
+            adm::PATH_RELEASE_REJUDGE_BATCH,
+            post(crate::rejudge::routes::release),
+        )
         .route(adm::PATH_SET_MESSAGE_FLAGS, post(set_message_flags_route))
         // Ops endpoint — reset every user's ingest cursor to 0 so the
         // next sync tick re-processes historic threads and (via the

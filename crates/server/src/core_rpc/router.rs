@@ -218,6 +218,14 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
             post(handlers::admin::delete_ownerless_thread),
         )
         .route(
+            adm_paths::PATH_REJUDGE_BATCHES,
+            get(handlers::admin::rejudge_batches),
+        )
+        .route(
+            adm_paths::PATH_RELEASE_REJUDGE_BATCH,
+            post(handlers::admin::release_rejudge_batch),
+        )
+        .route(
             adm_paths::PATH_SET_MESSAGE_FLAGS,
             post(handlers::admin::set_message_flags),
         )

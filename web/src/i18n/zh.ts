@@ -42,6 +42,8 @@ export const zh: Record<Key, string> = {
   'list.np.empty': '这里没有内容',
   'list.quarantine': '待审',
   'list.quarantine.empty': '没有扣下的信，目前没有人在试图骗你',
+  'list.recalled': '收到过的 {count} 个会话移到了待审：发件人有了新的信誉记录',
+  'list.recalledOpen': '打开待审',
   'list.search.empty': '没有找到结果',
   'list.send': '发送',
   'list.send.empty': '还没有发过信',
