@@ -47,6 +47,7 @@ rules:;crates/core-sidestate/src/families/rules.rs
 forwarding:;crates/core-sidestate/src/families/forwarding.rs
 vacation:;crates/core-sidestate/src/families/vacation.rs
 devices:;crates/core-sidestate/src/families/devices.rs
+mailrs:domfirst;crates/core-sidestate/src/families/domain_first.rs
 rep:obs;crates/core-sidestate/src/families/screening.rs
 scan:hashobs;crates/core-sidestate/src/families/screening.rs
 screening:rules;crates/core-sidestate/src/families/screening.rs

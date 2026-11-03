@@ -7220,6 +7220,15 @@ export interface components {
                 /** @description Bytes free on the volume; null when it cannot be read */
                 volume_free_bytes?: number | null;
             };
+            /** @description Domains with a first-seen time (mailrs:domfirst:), recounted at most every five minutes. Null when the shared store cannot be read. */
+            new_domains?: {
+                /** @description Domains with a first-seen time */
+                keys?: number;
+                /** @description Of those, first seen in the 24 hours before computed_at */
+                added_24h?: number;
+                /** @description Unix seconds of the count */
+                computed_at?: number;
+            } | null;
             /** @description kevy-server's memory against its container limit. Null when kevy-server does not answer. */
             kevy_server_memory?: {
                 /** @description Resident size as INFO memory reports it (process_rss_bytes) */

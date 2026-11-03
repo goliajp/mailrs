@@ -172,6 +172,7 @@ async fn main() {
                     accounts: None,
                     limit: page_size,
                     before_ts,
+                    after_cursor: None,
                     category: None,
                     domains: None,
                     archived: false,

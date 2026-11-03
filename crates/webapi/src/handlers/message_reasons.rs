@@ -9,7 +9,9 @@
 //! reads the wording of the mail.
 
 use mailrs_inbound::Reason;
-use mailrs_inbound::reason::{LINK_HOST_LISTED, LINK_SHOWS_ANOTHER_HOST, SENDER_BIDI};
+use mailrs_inbound::reason::{
+    LINK_HOST_LISTED, LINK_HOST_NEW, LINK_SHOWS_ANOTHER_HOST, SENDER_BIDI,
+};
 
 /// One host the message links to, and why a reader should look twice.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
@@ -41,9 +43,35 @@ pub fn sender_checks(raw: &[u8]) -> Vec<Reason> {
     out
 }
 
+/// The message's link hosts whose domain was first seen here within the
+/// week before it arrived. None when the shared store cannot be read: a
+/// warning that cannot be checked is not shown.
+pub fn new_link_hosts(raw: &[u8]) -> Vec<String> {
+    let hosts = mailrs_inbound::scan_input::link_hosts(&mailrs_mime::parse(raw));
+    if hosts.is_empty() {
+        return Vec::new();
+    }
+    let at = mailrs_inbound::dates::received_epoch(raw)
+        .unwrap_or_else(|| chrono::Utc::now().timestamp());
+    crate::handlers::kevy_util::with_kevy(move |c| {
+        Ok(mailrs_core_sidestate::families::domain_first::new_hosts(
+            Some(c),
+            &hosts,
+            at,
+        ))
+    })
+    .unwrap_or_default()
+}
+
 /// The links worth a warning. `listed` answers whether a host is on the
 /// reputation list; it is the process's current set in the handler.
-pub fn link_warnings(raw: &[u8], listed: impl Fn(&str) -> bool) -> Vec<LinkWarning> {
+/// `new` answers whether a host's domain was first seen here within the
+/// week before the message arrived.
+pub fn link_warnings(
+    raw: &[u8],
+    listed: impl Fn(&str) -> bool,
+    new: impl Fn(&str) -> bool,
+) -> Vec<LinkWarning> {
     let parsed = mailrs_mime::parse(raw);
     let mut out: Vec<LinkWarning> = Vec::new();
     for pair in mailrs_inbound::body::shown_link_pairs(&parsed) {
@@ -66,9 +94,20 @@ pub fn link_warnings(raw: &[u8], listed: impl Fn(&str) -> bool) -> Vec<LinkWarni
         if !marked && listed(&host) {
             out.push(LinkWarning {
                 reasons: vec![Reason::new(LINK_HOST_LISTED).with("host", host.clone())],
-                host,
+                host: host.clone(),
                 shown: None,
             });
+        }
+        if new(&host) {
+            let why = Reason::new(LINK_HOST_NEW).with("host", host.clone());
+            match out.iter_mut().find(|w| w.host == host) {
+                Some(w) => w.reasons.push(why),
+                None => out.push(LinkWarning {
+                    reasons: vec![why],
+                    host,
+                    shown: None,
+                }),
+            }
         }
     }
     out
@@ -107,7 +146,7 @@ Content-Type: text/html\r\n\
 
     #[test]
     fn a_link_showing_another_host_and_a_listed_host_are_both_marked() {
-        let w = link_warnings(HTML, |h| h == "bad.example");
+        let w = link_warnings(HTML, |h| h == "bad.example", |_| false);
         assert_eq!(w.len(), 2, "{w:?}");
         assert_eq!(w[0].host, "webmail-oauth.wzldq.com");
         assert_eq!(w[0].shown.as_deref(), Some("www.golia.jp"));
@@ -121,6 +160,23 @@ Content-Type: text/html\r\n\
     #[test]
     fn plain_links_carry_no_warning() {
         let plain = b"Content-Type: text/html\r\n\r\n<a href=\"https://fine.example/\">fine.example/docs</a>\r\n";
-        assert!(link_warnings(plain, |_| false).is_empty());
+        assert!(link_warnings(plain, |_| false, |_| false).is_empty());
+    }
+
+    #[test]
+    fn a_link_to_a_new_domain_is_marked_and_an_old_one_is_not() {
+        let w = link_warnings(HTML, |_| false, |h| h == "fine.example");
+        let fine = w.iter().find(|w| w.host == "fine.example").expect("marked");
+        assert_eq!(codes(fine), ["link-host-new"]);
+        assert_eq!(fine.reasons[0].params["host"], "fine.example");
+        // the misleading link keeps its own reason and gains none
+        let shown = w
+            .iter()
+            .find(|w| w.host == "webmail-oauth.wzldq.com")
+            .unwrap();
+        assert_eq!(codes(shown), ["link-shows-another-host"]);
+        // a domain that is not new adds nothing
+        let none = link_warnings(HTML, |_| false, |_| false);
+        assert!(none.iter().all(|w| !codes(w).contains(&"link-host-new")));
     }
 }

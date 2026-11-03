@@ -4,6 +4,7 @@
 //! string, as every bundle before this did, works as it always has.
 use std::collections::{BTreeMap, BTreeSet};
 
+use mailrs_fraud::novelty::Novelty;
 use mailrs_fraud::payment::PaymentIds;
 use mailrs_fraud::relation::Relation;
 use mailrs_fraud::{Facts, Policy};
@@ -343,6 +344,30 @@ fn cases() -> Vec<Case> {
                 ..base()
             },
             &[("shown", "golia.jp"), ("target", "login.evil.example")],
+        ),
+        (
+            "new-domain-asks-for-payment",
+            Facts {
+                payment: pays(),
+                novelty: Novelty {
+                    sender_new: true,
+                    ..Novelty::default()
+                },
+                ..base()
+            },
+            &[("account", "IBAN (DE)"), ("domain", "sender.example")],
+        ),
+        (
+            "new-domain-login-link",
+            Facts {
+                shown_links: "bank.example login.fresh.example\n",
+                novelty: Novelty {
+                    new_link_domain: Some("fresh.example".into()),
+                    ..Novelty::default()
+                },
+                ..base()
+            },
+            &[("domain", "fresh.example")],
         ),
     ]
 }

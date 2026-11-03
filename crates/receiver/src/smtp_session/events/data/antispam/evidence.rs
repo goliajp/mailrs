@@ -82,6 +82,7 @@ pub(super) struct Evidence {
     html: mailrs_fraud::html_attachment::HtmlFeatures,
     reply_to_outside: bool,
     relation: mailrs_fraud::relation::Relation,
+    novelty: mailrs_fraud::novelty::Novelty,
 }
 
 impl Evidence {
@@ -148,7 +149,14 @@ impl Evidence {
             &decoded_from,
         )
         .await;
+        let novelty = crate::spam_lists::novelty_async(
+            ctx.spam_lists_client.clone(),
+            &sender_host,
+            mailrs_inbound::scan_input::link_hosts(&parsed),
+        )
+        .await;
         Self {
+            novelty,
             decoded_from,
             sender_host,
             registrable,
@@ -202,6 +210,7 @@ impl Evidence {
             html: self.html,
             reply_to_outside: self.reply_to_outside,
             relation: self.relation.clone(),
+            novelty: self.novelty.clone(),
             date_ahead: mailrs_inbound::dates::date_ahead_of(
                 &receive_ctx.message,
                 Some(chrono::Utc::now().timestamp()),
