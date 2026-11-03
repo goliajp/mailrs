@@ -63,6 +63,7 @@ async fn the_two_cores_answer_every_client_call_alike() {
     webhooks::run(&cores, &mut d).await;
     ownerless::run(&cores, &mut d).await;
     rejudge::run(&cores, &mut d).await;
+    reports::run(&cores, &mut d).await;
     accounts::teardown(&cores, &mut d).await;
     d.both(
         "healthz",
