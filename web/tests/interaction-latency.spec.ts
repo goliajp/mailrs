@@ -29,7 +29,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { rowButton, rows, scrollList } from './latency/list'
+import { mainThread, rowButton, rows, scrollList } from './latency/list'
 import { installProbe } from './latency/probe'
 import { LoadWitness, summarize, timedOut } from './latency/report'
 
@@ -169,7 +169,14 @@ test.afterAll(() => {
   }
 })
 
-type Rig = { cdp: CDPSession; inflight: Set<string>; lastNetwork: number; page: Page }
+type Rig = {
+  cdp: CDPSession
+  inflight: Set<string>
+  lastNetwork: number
+  /** Every conversation-list page the app asked for, in order. */
+  listUrls: string[]
+  page: Page
+}
 
 // ── harness ─────────────────────────────────────────────────────────
 
@@ -186,8 +193,9 @@ async function boot(page: Page): Promise<Rig> {
   await page.addInitScript((a) => localStorage.setItem('mailrs_auth', JSON.stringify(a)), auth)
 
   const cdp = await page.context().newCDPSession(page)
-  const rig: Rig = { cdp, inflight: new Set(), lastNetwork: Date.now(), page }
+  const rig: Rig = { cdp, inflight: new Set(), lastNetwork: Date.now(), listUrls: [], page }
   cdp.on('Network.requestWillBeSent', (e) => {
+    if (/\/api\/conversations\?/.test(e.request.url)) rig.listUrls.push(e.request.url)
     rig.inflight.add(e.requestId)
     rig.lastNetwork = Date.now()
   })
@@ -209,17 +217,6 @@ async function boot(page: Page): Promise<Rig> {
   ).toBeVisible({ timeout: 60_000 })
   await settle(rig)
   return rig
-}
-
-async function mainThread(cdp: CDPSession) {
-  const { metrics } = await cdp.send('Performance.getMetrics')
-  const get = (n: string) => (metrics.find((m) => m.name === n)?.value ?? 0) * 1000
-  return {
-    layout: get('LayoutDuration'),
-    script: get('ScriptDuration'),
-    style: get('RecalcStyleDuration'),
-    task: get('TaskDuration'),
-  }
 }
 
 function printTable(load: { end: number; max: number; start: number }) {
@@ -448,16 +445,32 @@ test('next page, cold (jump to the bottom from far above)', async ({ page }) => 
   test.setTimeout(15 * 60_000)
   const rig = await boot(page)
   const list = page.locator('[role="list"][aria-label]')
+  // The rows between the screen and the end are loaded but not rendered,
+  // so the oldest loaded row is read from the pages the app fetched,
+  // asked for again outside the measurement.
+  let oldest = Number.POSITIVE_INFINITY
+  let counted = 0
+  const countPages = async () => {
+    for (; counted < rig.listUrls.length; counted++) {
+      const body: unknown = await (await page.request.get(rig.listUrls[counted])).json()
+      for (const c of listItems(body)) {
+        const m = /#(\d+)$/.exec(c.subject)
+        if (m) oldest = Math.min(oldest, Number(m[1]))
+      }
+    }
+  }
   await repeat('nextPageCold', async () => {
-    await scrollList(page, 4000)
+    // the previous repetition left the screen a whole page above the end
     await settle(rig)
-    const oldest = Math.min(...(await rows(page)).map((r) => r.n))
+    await countPages()
     const box = await list.boundingBox()
     if (!box) throw new Error('no list')
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
-    return measure(rig, 'wheel', 'listHasNewPage', String(oldest), () =>
+    const s = await measure(rig, 'wheel', 'listHasNewPage', String(oldest), () =>
       page.mouse.wheel(0, 10_000)
     )
+    await countPages()
+    return s
   })
 })
 
@@ -474,3 +487,9 @@ test('search first screen (query entered, first results painted)', async ({ page
     return s
   })
 })
+
+/** A list response: a bare array, or one under `items`. */
+function listItems(body: unknown): { subject: string }[] {
+  if (Array.isArray(body)) return body
+  return (body as { items: { subject: string }[] }).items
+}
