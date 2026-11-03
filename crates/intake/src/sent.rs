@@ -54,7 +54,7 @@ pub struct Filed {
 }
 
 /// File `body`, a Sent message brought over from another mailbox, as
-/// [`file`] does. An import stops at the quota as an imported Inbox does
+/// [`file()`] does. An import stops at the quota as an imported Inbox does
 /// (`crate::import::file`); sending never does.
 pub fn file_imported<S: SentStore + ?Sized>(
     core: &S,
