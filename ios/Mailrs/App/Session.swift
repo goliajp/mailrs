@@ -35,7 +35,8 @@ final class Session {
     /// device needs the LAN address or the public host instead.
     /// The list on screen. Everything the list, its paging and its search
     /// ask for comes from this one value.
-    private(set) var activeList: MailList = .inbox
+    // settable within the module: a label is chosen in Session+Filing
+    var activeList: MailList = .inbox
 
 
     /// Points the list at the stub's paging fixture, which is not one of
@@ -47,6 +48,7 @@ final class Session {
 
     var axes: MailListAxes {
         if let folderOverride { return MailListAxes(folder: folderOverride) }
+        if activeList == .label { return MailListAxes(label: activeLabel?.id ?? "") }
         return activeList.axes
     }
 
@@ -173,9 +175,9 @@ final class Session {
     /// change on the order of never, and a mail app that polls the
     /// directory is spending someone's battery on it.
     var myAliases: [Wire.Alias] = []
-
-
-
+    /// The reader's labels, and the one shown while `activeList` is `.label`.
+    var labels: [Wire.LabelItem] = []
+    var activeLabel: Wire.LabelItem?
     var pendingUndo: PendingUndo?
 
     var undoDismissTask: Task<Void, Never>?
@@ -243,7 +245,7 @@ final class Session {
         await adopt(client)
         state = .signedIn(address: TokenStore.loadAddress() ?? "", displayName: "")
         do {
-            conversations = try await client.conversations(axes: axes)
+            conversations = try await fetchPage(client, before: nil)
             await refreshBadge()
             await loadMyAliases()
             await loadSignature()
@@ -340,7 +342,7 @@ final class Session {
         }
         if conversations.isEmpty { initialLoading = true }
         do {
-            let page = try await client.conversations(axes: axes)
+            let page = try await fetchPage(client, before: nil)
             // Rows slide in and the empty state cross-fades away, the
             // way a List is expected to move. Without the animation
             // block SwiftUI swaps the frames in one step.
@@ -481,7 +483,7 @@ final class Session {
         loadingMore = true
         defer { loadingMore = false }
         do {
-            let page = try await client.conversations(axes: axes, before: before)
+            let page = try await fetchPage(client, before: before)
             let merged = ThreadPage.merge(conversations, with: page)
             conversations = merged.rows
             // Nothing new means the end — including the case where a page

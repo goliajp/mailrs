@@ -14,7 +14,7 @@ struct PadSidebar: View {
     var body: some View {
         List(selection: selectionBinding) {
             Section {
-                ForEach(MailList.allCases) { list in
+                ForEach(MailList.shown) { list in
                     SidebarMailboxRow(
                         list: list,
                         unread: list.badgeCount(
@@ -22,6 +22,18 @@ struct PadSidebar: View {
                             unreadInActive: session.unreadInList))
                         .tag(list)
                         .accessibilityIdentifier("pad.list.\(list.rawValue)")
+                }
+            }
+            if !session.labels.isEmpty {
+                Section("Labels") {
+                    ForEach(session.labels) { label in
+                        Button {
+                            Task { await session.select(label: label) }
+                        } label: {
+                            Label(label.name, systemImage: "tag")
+                        }
+                        .accessibilityIdentifier("pad.label.\(label.id)")
+                    }
                 }
             }
 

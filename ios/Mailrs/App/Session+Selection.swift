@@ -97,25 +97,8 @@ extension Session {
         await refreshBadge()
     }
 
-    /// Delete a batch. Sequential and non-optimistic for the same
-    /// reason the single delete is: rows leave only as the server
-    /// confirms each one is gone.
+    /// Move a batch to the Trash, with the undo, as one gesture.
     func deleteAll(_ selected: [Wire.Conversation]) async {
-        guard let client, !selected.isEmpty else { return }
-        // One request, and rows leave only once the server says they
-        // are gone — the same order the single delete uses, because a
-        // row that reappears on the next refresh is worse than one
-        // that takes a moment to go.
-        do {
-            let refused = try await client.batch(
-                action: "delete", threadIds: selected.map(\.threadId))
-            let gone = selected.map(\.threadId).filter { !refused.contains($0) }
-            _ = removeRows(Set(gone))
-            if !refused.isEmpty {
-                banner = String(localized: "\(refused.count) could not be deleted")
-            }
-        } catch {
-            banner = error.localizedDescription
-        }
+        await perform(.trash, on: selected)
     }
 }

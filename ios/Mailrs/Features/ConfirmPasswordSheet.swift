@@ -59,17 +59,24 @@ extension View {
     /// Show the password prompt over this screen when a change made from
     /// it is refused for want of a recent confirmation.
     func confirmPrompt() -> some View {
-        modifier(ConfirmPrompting())
+        modifier(ConfirmPrompting(active: true))
+    }
+
+    /// The same, only while `active`: a screen under another that has
+    /// its own prompt must not present a second one for the same ask.
+    func confirmPrompt(when active: Bool) -> some View {
+        modifier(ConfirmPrompting(active: active))
     }
 }
 
 private struct ConfirmPrompting: ViewModifier {
+    let active: Bool
     @Environment(Session.self) private var session
 
     func body(content: Content) -> some View {
         content.sheet(
             isPresented: Binding(
-                get: { session.confirmGate.prompt != nil },
+                get: { active && session.confirmGate.prompt != nil },
                 set: { shown in if !shown { session.cancelConfirmation() } }
             )
         ) {
