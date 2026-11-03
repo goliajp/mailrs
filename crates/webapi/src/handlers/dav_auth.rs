@@ -23,6 +23,7 @@ use crate::WebState;
 use crate::handlers::conversations::{AuthedDisplayName, AuthedUser};
 use crate::login_guard::ClientIp;
 use crate::session::AgentScopes;
+use crate::session::grant::{Grant, Held, fingerprint};
 
 const CHALLENGE: &str = "Basic realm=\"mailrs\", charset=\"UTF-8\"";
 
@@ -73,11 +74,15 @@ pub(crate) async fn basic_or_session(
         ProtocolCheck::AppPassword(id) => {
             guard.succeeded(source, &address).await;
             let mut e = event(Credential::AppPassword, Outcome::Ok);
-            e.key_id = Some(id);
+            e.key_id = Some(id.clone());
             guard.record(e).await;
             req.extensions_mut().insert(AuthedDisplayName::default());
-            req.extensions_mut()
-                .insert(AuthedUser(address.trim().to_ascii_lowercase()));
+            let user = address.trim().to_ascii_lowercase();
+            req.extensions_mut().insert(Held {
+                user: user.clone(),
+                grant: Grant::AppPassword(id.to_string()),
+            });
+            req.extensions_mut().insert(AuthedUser(user));
             req.extensions_mut().insert(AgentScopes::default());
             return next.run(req).await;
         }
@@ -98,6 +103,12 @@ pub(crate) async fn basic_or_session(
             guard.succeeded(source, &address).await;
             guard.record(event(Credential::Password, Outcome::Ok)).await;
             req.extensions_mut().insert(AuthedDisplayName::default());
+            req.extensions_mut().insert(Held {
+                user: acct.public.address.to_ascii_lowercase(),
+                grant: Grant::Password(fingerprint(
+                    acct.password_hash.as_deref().unwrap_or_default(),
+                )),
+            });
             req.extensions_mut().insert(AuthedUser(acct.public.address));
             req.extensions_mut().insert(AgentScopes::default());
             next.run(req).await
