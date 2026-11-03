@@ -81,6 +81,8 @@ pub(super) struct Evidence {
     payment: mailrs_fraud::payment::PaymentIds,
     html: mailrs_fraud::html_attachment::HtmlFeatures,
     reply_to_outside: bool,
+    reply_to_other_org: bool,
+    dkim_signed_by_from_org: bool,
     relation: mailrs_fraud::relation::Relation,
     novelty: mailrs_fraud::novelty::Novelty,
 }
@@ -141,6 +143,13 @@ impl Evidence {
         let payment = mailrs_inbound::body::payment_ids(&parsed, "");
         let html = mailrs_inbound::body::html_attachments(&parsed, &sender_host);
         let reply_to_outside = mailrs_fraud::reply_rotation::is_off_domain(&sender_host, &reply_to);
+        let reply_to_other_org = mailrs_fraud::org_domain::reply_elsewhere(&sender_host, &reply_to);
+        // who signed is read now; whether a signature verified arrives
+        // with the alignment rescan, which fills in `dkim`
+        let dkim_signed_by_from_org = mailrs_fraud::org_domain::signed_only_by(
+            &sender_host,
+            &mailrs_inbound::dkim_signers::of(&receive_ctx.message),
+        );
         // the first recipient's history, as the recipient lists above are
         // read for: one verdict per message
         let relation = crate::spam_lists::relation_async(
@@ -174,6 +183,8 @@ impl Evidence {
             payment,
             html,
             reply_to_outside,
+            reply_to_other_org,
+            dkim_signed_by_from_org,
             relation,
         }
     }
@@ -209,6 +220,8 @@ impl Evidence {
             payment: self.payment,
             html: self.html,
             reply_to_outside: self.reply_to_outside,
+            reply_to_other_org: self.reply_to_other_org,
+            dkim_signed_by_from_org: self.dkim_signed_by_from_org,
             relation: self.relation.clone(),
             novelty: self.novelty.clone(),
             date_ahead: mailrs_inbound::dates::date_ahead_of(

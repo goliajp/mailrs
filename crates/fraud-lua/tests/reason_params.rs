@@ -317,6 +317,7 @@ fn cases() -> Vec<Case> {
             Facts {
                 relation: lookalike(),
                 reply_to_outside: true,
+                reply_to_other_org: true,
                 ..base()
             },
             &[

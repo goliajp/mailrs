@@ -73,8 +73,13 @@ rule('bec-name-borrowed', 'provenance', 4, false, function(m)
             {domain = m.from_domain})
     end
 end)
+-- Replies count as sent elsewhere only to another organisation by the
+-- public suffix list.  A sender whose own aligned DKIM verified and whose
+-- domain has a history here is left alone; DKIM alone is not enough,
+-- since a lookalike signs its own new domain too.
 rule('bec-lookalike-reply-diverted', 'provenance', 3, false, function(m)
-    if m.looks_like_correspondent and m.reply_to_outside then
+    if m.looks_like_correspondent and m.reply_to_other_org
+        and not (m.dkim_aligned and m.sender_domain_established) then
         return found('from a domain one or two letters away from one you write to, with replies sent to another domain',
             {domain = m.from_domain, like = m.lookalike_of})
     end

@@ -39,6 +39,7 @@ pub struct Reading {
     attachment_text: String,
     payment: mailrs_fraud::payment::PaymentIds,
     html: mailrs_fraud::html_attachment::HtmlFeatures,
+    dkim_signed_by_from_org: bool,
 }
 
 impl Reading {
@@ -104,6 +105,10 @@ impl Reading {
                 &mailrs_inbound::body::attachment_text_for_rules(attachment_texts),
             ),
             html: mailrs_inbound::body::html_attachments(&parsed, &host),
+            dkim_signed_by_from_org: mailrs_fraud::org_domain::signed_only_by(
+                &host,
+                &mailrs_inbound::dkim_signers::of(raw),
+            ),
             from,
             host,
         }
@@ -152,6 +157,11 @@ impl Reading {
                 &self.host,
                 &self.reply_to,
             ),
+            reply_to_other_org: mailrs_fraud::org_domain::reply_elsewhere(
+                &self.host,
+                &self.reply_to,
+            ),
+            dkim_signed_by_from_org: self.dkim_signed_by_from_org,
         }
     }
 }

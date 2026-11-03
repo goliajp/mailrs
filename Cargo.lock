@@ -4193,6 +4193,7 @@ dependencies = [
 name = "mailrs-fraud"
 version = "0.1.0"
 dependencies = [
+ "psl",
  "sha2 0.11.0",
 ]
 
