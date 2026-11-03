@@ -195,7 +195,9 @@ fun InviteCard(uid: Int, method: String, vm: MailViewModel) {
  * differ — the second is what somebody joining across an ocean checks.
  */
 private fun whenLine(invite: Wire.Invite): String? {
-    val local = InviteRules.localTime(invite.startsAt) ?: return null
+    // an all-day event has no instant and must not be given one: its days, as written
+    val local = InviteRules.localTime(invite.startsAt)
+        ?: return InviteRules.allDayLine(invite.firstDay, invite.dayAfterLast)
     val zoned = invite.dtstart?.let { runCatching { it }.getOrNull() }
     val zone = zoneNameOf(zoned)
     val wall = wallClockOf(zoned)
