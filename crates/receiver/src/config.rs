@@ -66,6 +66,15 @@ pub struct ReceiverConfig {
     pub spam_score_threshold: f64,
     pub tls_cert: Option<PathBuf>,
     pub tls_key: Option<PathBuf>,
+    /// `MAILRS_DANE_NEXT_KEY`: a PEM public key that is to replace the
+    /// certificate's key; its TLSA record is published ahead of the swap.
+    pub dane_next_key: Option<PathBuf>,
+    /// `MAILRS_DANE_RESOLVERS`: validating resolvers the TLSA check asks,
+    /// each of which must set AD for a record to count as published.
+    pub dane_resolvers: Vec<String>,
+    /// `MAILRS_DANE_AUTHORITATIVE`: the zone's name servers, asked
+    /// directly so their records can be compared with the resolvers'.
+    pub dane_authoritative: Vec<String>,
     pub users_file: Option<PathBuf>,
     pub srs_secret: Option<String>,
     /// core RPC base and shared secret; submission auth reads account
@@ -163,6 +172,12 @@ impl ReceiverConfig {
             spam_score_threshold: env_parsed("MAILRS_SPAM_SCORE_THRESHOLD", 5.0),
             tls_cert: env_opt_nonempty("MAILRS_TLS_CERT").map(PathBuf::from),
             tls_key: env_opt_nonempty("MAILRS_TLS_KEY").map(PathBuf::from),
+            dane_next_key: env_opt_nonempty("MAILRS_DANE_NEXT_KEY").map(PathBuf::from),
+            dane_resolvers: match env_csv("MAILRS_DANE_RESOLVERS", false) {
+                v if v.is_empty() => vec!["1.1.1.1".into(), "8.8.8.8".into()],
+                v => v,
+            },
+            dane_authoritative: env_csv("MAILRS_DANE_AUTHORITATIVE", true),
             users_file: env_opt_nonempty("MAILRS_USERS_FILE").map(PathBuf::from),
             srs_secret: env_opt_nonempty("MAILRS_SRS_SECRET"),
             core_rpc_base: env_opt_nonempty("MAILRS_CORE_RPC_BASE"),

@@ -3839,6 +3839,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/dane/tlsa": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * TLSA records for port 25
+         * @description Zone lines for the records port 25 needs: the served certificate's 3 1 1 record, then the next key's when MAILRS_DANE_NEXT_KEY is set. Super administrators only.
+         */
+        get: operations["getDaneTlsa"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/dmarc/reports": {
         parameters: {
             query?: never;
@@ -7082,6 +7102,31 @@ export interface components {
                 probe_guard_tripped?: number | null;
                 /** @description Mail submitted from a masked address whose submission-log row could not be written; the mail was sent */
                 mask_submit_log_failed?: number | null;
+                /** @description DANE for port 25 on the receiver's hostname. Null when the receiver serves no certificate. */
+                dane?: {
+                    /** @description _25._tcp.<hostname> */
+                    name?: string;
+                    /** @description TLSA records both validating resolvers return with AD set */
+                    published?: number;
+                    /** @description The served certificate's 3 1 1 record is published */
+                    matches_current?: boolean;
+                    /** @description The next key's record is published; null when no next key is configured */
+                    matches_next?: boolean | null;
+                    /** @description Every server that answered returned the same records */
+                    sources_agree?: boolean;
+                    /** @description Unix seconds of the last DNS check */
+                    checked_at?: number | null;
+                    /** @description Certificate changes since start whose new key matched no published record */
+                    unmatched_swaps?: number;
+                    sources?: {
+                        server: string;
+                        /** @description AD bit from a validating resolver; null for an authoritative server */
+                        authenticated: boolean | null;
+                        /** @description usage selector matching hex */
+                        records: string[];
+                        error: string | null;
+                    }[];
+                } | null;
             } | null;
             /** @description The daily check of this server's sending addresses against the configured blocklists. Null when the store cannot be read. */
             egress?: {
@@ -11322,6 +11367,40 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
+            };
+        };
+    };
+    getDaneTlsa: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Zone lines */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Not a super administrator */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The receiver has not reported yet */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

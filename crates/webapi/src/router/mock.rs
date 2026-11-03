@@ -10,6 +10,10 @@ pub(super) fn mock_routes() -> axum::Router<Arc<WebState>> {
     axum::Router::new()
         .route("/api/admin/flow", get(crate::handlers::admin_flow::flow))
         .route(
+            "/api/admin/dane/tlsa",
+            get(crate::handlers::smtp_monitor::dane_tlsa),
+        )
+        .route(
             "/api/admin/mock",
             get(crate::handlers::mock::admin::overview),
         )
