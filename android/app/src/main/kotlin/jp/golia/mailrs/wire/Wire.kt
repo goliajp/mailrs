@@ -115,6 +115,9 @@ object Wire {
          * only when the card opens.
          */
         @SerialName("invite_method") val inviteMethod: String = "",
+        // absent from servers older than the fields
+        @SerialName("sender_checks") val senderChecks: List<WireVerdict.Reason> = emptyList(),
+        @SerialName("link_warnings") val linkWarnings: List<WireVerdict.LinkWarning> = emptyList(),
     )
 
     /**
