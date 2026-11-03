@@ -22,7 +22,7 @@ spg = [
 
 [dependencies]
 mailrs-smtp-proto = { path = "../smtp-proto", version = "1" }
-mailrs-maildir = { path = "../storage-maildir", version = "1.2" }
+mailrs-maildir = { path = "../storage-maildir", version = "2" }
 mailrs-message-store = { path = "../message-store" }
 mailrs-receiver = { path = "../receiver" }
 mailrs-core = { path = "../core" }

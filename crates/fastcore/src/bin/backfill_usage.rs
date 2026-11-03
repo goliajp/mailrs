@@ -5,91 +5,22 @@
 //! Walks `$MAILRS_MAILDIR/<domain>/<local>` (INBOX cur/new plus every
 //! Maildir++ subfolder's cur/new) and sums file sizes. Idempotent —
 //! SET overwrites whatever incremental drift the counters accumulated.
-//! Run any time; no locks needed (counters are advisory, enforcement
-//! is fail-open).
-//!
-//! # It opens the live kevy directory, so fastcore must be stopped
-//!
-//! kevy 6.2.2 claims a persist directory with an advisory `flock` on
-//! open, and a second engine on the same directory now **errors**.
-//! Before that it interleaved: the second `Store` appended its own
-//! `KEVYAOF2` magic into the first one's live AOF and the next replay
-//! quarantined the record silently. A `docker exec` of this binary
-//! beside a running fastcore also doubled the resident set and was
-//! OOM-killed at the 1 GB limit — the visible half of the same
-//! mistake.
-//!
-//! So: stop fastcore, run this, start it again. For anything that can
-//! be done in-process, prefer a `maintenance:` route on the running
-//! server, which is why most of the backfills are routes now.
-
-use std::path::Path;
-
-fn dir_bytes(dir: &Path) -> u64 {
-    let mut total = 0u64;
-    if let Ok(iter) = std::fs::read_dir(dir) {
-        for e in iter.flatten() {
-            if let Ok(md) = e.metadata()
-                && md.is_file()
-            {
-                total += md.len();
-            }
-        }
-    }
-    total
-}
-
-fn user_bytes(base: &Path) -> u64 {
-    let mut total = dir_bytes(&base.join("cur")) + dir_bytes(&base.join("new"));
-    if let Ok(iter) = std::fs::read_dir(base) {
-        for e in iter.flatten() {
-            let name = e.file_name().to_string_lossy().into_owned();
-            if !name.starts_with('.') || name == "." || name == ".." {
-                continue;
-            }
-            let sub = e.path();
-            if sub.join("new").is_dir() {
-                total += dir_bytes(&sub.join("cur")) + dir_bytes(&sub.join("new"));
-            }
-        }
-    }
-    total
-}
+//! `GET /v1/admin/maintenance:usage-drift` on the running core reports the
+//! drift this would undo, without writing.
 
 fn main() {
     let root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
     let url = std::env::var("MAILRS_KEVY_URL").expect("MAILRS_KEVY_URL required");
     let mut conn = kevy_client::Connection::connect(&url).expect("connect network kevy");
-
-    let mut users = 0u64;
-    let Ok(domains) = std::fs::read_dir(&root) else {
+    let Ok(usage) = mailrs_fastcore::usage::maildir_usage(std::path::Path::new(&root)) else {
         eprintln!("maildir root {root} unreadable");
         std::process::exit(1);
     };
-    for d in domains.flatten() {
-        // dot-dirs are not domains: `.deleted` holds deleted accounts' mail
-        if !d.file_type().map(|t| t.is_dir()).unwrap_or(false)
-            || d.file_name().to_string_lossy().starts_with('.')
-        {
-            continue;
-        }
-        let domain = d.file_name().to_string_lossy().into_owned();
-        let Ok(locals) = std::fs::read_dir(d.path()) else {
-            continue;
-        };
-        for l in locals.flatten() {
-            if !l.file_type().map(|t| t.is_dir()).unwrap_or(false) {
-                continue;
-            }
-            let local = l.file_name().to_string_lossy().into_owned();
-            let user = format!("{local}@{domain}").to_lowercase();
-            let bytes = user_bytes(&l.path());
-            let key = mailrs_core_sidestate::keys::quota::used_key(&user);
-            conn.set(key.as_bytes(), bytes.to_string().as_bytes())
-                .expect("kevy set");
-            eprintln!("  user={user} used_bytes={bytes}");
-            users += 1;
-        }
+    for (user, bytes) in &usage {
+        let key = mailrs_core_sidestate::keys::quota::used_key(user);
+        conn.set(key.as_bytes(), bytes.to_string().as_bytes())
+            .expect("kevy set");
+        eprintln!("  user={user} used_bytes={bytes}");
     }
-    eprintln!("done: {users} users");
+    eprintln!("done: {} users", usage.len());
 }

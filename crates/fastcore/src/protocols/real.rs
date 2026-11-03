@@ -137,7 +137,7 @@ impl RealAccount {
                 &self.user,
                 conversations,
                 via,
-                Credential::Password,
+                Credential::PasswordOrAppPassword,
                 now,
             )
         });
@@ -156,7 +156,7 @@ impl RealAccount {
         let mut out = Expunged::default();
         for m in doomed {
             let known = super::forget::Doomed::read(mailbox, &m.key);
-            match backend::remove_message(&self.user, &to_imap(m)) {
+            match backend::remove_message(&self.state, &self.user, &to_imap(m)) {
                 Ok(()) => {
                     let ms = backend::bump_modseq(&self.state, &self.user);
                     backend::record_vanished(&self.state, &self.user, &mailbox.name, m.uid, ms);
