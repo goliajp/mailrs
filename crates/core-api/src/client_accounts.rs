@@ -146,6 +146,17 @@ impl Client {
         self.delete_authed(path, "remove_domain").await
     }
 
+    /// POST /v1/admin/maintenance:quota-limits — every account's usage
+    /// against the default limit; with `dry_run` false, the default is
+    /// written to accounts that have no limit and are not near full
+    pub async fn quota_limits(
+        &self,
+        dry_run: bool,
+    ) -> ApiResult<method::admin::QuotaLimitsResponse> {
+        let path = format!("/v1/admin/maintenance:quota-limits?dry_run={dry_run}");
+        self.post_authed_no_body(path, "quota_limits").await
+    }
+
     /// GET /v1/admin/ownerless-threads — conversations nobody holds
     pub async fn ownerless_threads(&self) -> ApiResult<method::admin::OwnerlessThreadsResponse> {
         self.get_authed(

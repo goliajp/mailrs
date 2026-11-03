@@ -1,0 +1,74 @@
+//! Quota limits in the shared store, where the receiver reads them: the
+//! default a new account gets, the limit an operator sets, and the pass
+//! that gives the default to accounts created without one. The same logic
+//! as fastcore, through `core_sidestate::families::quota_limits`.
+
+use std::sync::Arc;
+
+use axum::Json;
+use axum::extract::{Query, State};
+use axum::http::StatusCode;
+use mailrs_core_api::method::admin as wire;
+use mailrs_core_sidestate::NetKevy;
+use mailrs_core_sidestate::families::quota_limits;
+
+use crate::core_rpc::CoreRpcState;
+
+/// Run `f` on the shared store. Without a configured one (tests, a
+/// degraded deploy) there is no quota enforcement to feed: nothing runs.
+/// A configured store that cannot be reached is an error, so no account
+/// is made without a limit.
+pub(super) fn with_net<T>(
+    state: &CoreRpcState,
+    f: impl FnOnce(&mut kevy_client::Connection) -> std::io::Result<T>,
+) -> Result<Option<T>, StatusCode> {
+    if state.net_url.is_none() {
+        return Ok(None);
+    }
+    let mut c = state.net_conn().ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+    f(&mut c).map(Some).map_err(|e| {
+        tracing::warn!(error = %e, "shared store write failed");
+        StatusCode::SERVICE_UNAVAILABLE
+    })
+}
+
+/// The default limit for a new account, unless it already has one.
+pub(super) fn give_default(state: &CoreRpcState, address: &str) -> Result<(), StatusCode> {
+    with_net(state, |c| quota_limits::give_default(c, address)).map(|_| ())
+}
+
+pub(super) fn set_limit(state: &CoreRpcState, address: &str, bytes: i64) -> Result<(), StatusCode> {
+    with_net(state, |c| quota_limits::set_limit(c, address, bytes)).map(|_| ())
+}
+
+#[derive(serde::Deserialize)]
+pub struct QuotaLimitsQuery {
+    #[serde(default = "dry_run_unless_asked")]
+    dry_run: bool,
+}
+
+fn dry_run_unless_asked() -> bool {
+    true
+}
+
+/// POST /v1/admin/maintenance:quota-limits
+pub async fn quota_limits_route(
+    State(state): State<Arc<CoreRpcState>>,
+    Query(q): Query<QuotaLimitsQuery>,
+) -> Result<Json<wire::QuotaLimitsResponse>, StatusCode> {
+    let users: Vec<String> = state
+        .domain
+        .list_accounts()
+        .await
+        .map_err(|e| {
+            tracing::warn!(error = %e, "list_accounts failed");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+        .into_iter()
+        .map(|a| a.address)
+        .collect();
+    with_net(&state, |c| quota_limits::fill_in(c, &users, q.dry_run))?
+        .map(Json)
+        // no shared store: nowhere a limit could be read from or written to
+        .ok_or(StatusCode::SERVICE_UNAVAILABLE)
+}

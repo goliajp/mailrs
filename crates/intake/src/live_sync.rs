@@ -183,20 +183,6 @@ pub fn adjust_usage_bytes(user: &str, delta: i64) {
     let _ = conn.incr_by(key.as_bytes(), delta);
 }
 
-/// Mirror the quota LIMIT to the network kevy so the receiver's quota
-/// stage can consult it (the authoritative copy stays in the account
-/// blob in fastcore's embedded store).
-pub fn mirror_quota_limit(user: &str, limit_bytes: i64) {
-    let Some(url) = network_kevy_url() else {
-        return;
-    };
-    let Ok(mut conn) = Connection::connect(&url) else {
-        return;
-    };
-    let key = mailrs_core_sidestate::keys::quota::limit_key(user);
-    let _ = conn.set(key.as_bytes(), limit_bytes.to_string().as_bytes());
-}
-
 /// Read `(limit, used)` bytes for a user from the network kevy.
 /// `(0, _)` = no limit configured. Fail-open: any error reads as 0.
 pub fn quota_read(user: &str) -> (i64, i64) {
