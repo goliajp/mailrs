@@ -15,8 +15,7 @@ use kevy_client::Connection;
 use crate::arrival::{Arrival, Threads, derive};
 use crate::maildir::ensure_maildir;
 
-/// The Maildir++ folder sent copies are filed in.
-pub const SENT_FOLDER: &str = ".Sent";
+pub use mailrs_mailbox::sent_copy::SENT_FOLDER;
 
 /// Contacts kept per user; the least recently written-to are dropped past it.
 const CONTACTS_CAP: usize = 2000;

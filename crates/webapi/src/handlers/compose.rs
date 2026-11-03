@@ -9,7 +9,6 @@ use std::sync::Arc;
 use axum::http::StatusCode;
 
 use crate::WebState;
-use crate::handlers::prefs::now_secs;
 
 /// One entry parsed out of the compose form.
 #[derive(Debug, Default)]
@@ -39,7 +38,12 @@ pub(crate) struct Attachment {
     pub filename: String,
     pub content_type: String,
     pub bytes: Vec<u8>,
+    /// Set for an image the HTML body shows through `cid:`; such a part
+    /// goes beside the HTML in `multipart/related`, not into the files.
+    pub content_id: Option<String>,
 }
+
+pub(crate) use super::compose_build::build_rfc5322;
 
 /// Longest hold a client may ask for; Gmail's longest undo window.
 pub const MAX_UNDO_SECONDS: u32 = 30;
@@ -215,7 +219,7 @@ pub(crate) fn base64_wrap(input: &[u8]) -> String {
 
 /// `from` as a From header value: a bare address as is, and a display
 /// name quoted, or encoded when it is not ASCII.
-fn from_header(from: &str) -> String {
+pub(crate) fn from_header(from: &str) -> String {
     let address = mailrs_rfc5322::addr_spec(from);
     let name = from
         .trim()
@@ -232,108 +236,6 @@ fn from_header(from: &str) -> String {
         }
         std::borrow::Cow::Owned(encoded) => format!("{encoded} <{address}>"),
     }
-}
-
-/// Build a complete RFC 5322 envelope from parsed compose parts.
-///
-/// Transport-safe by construction:
-/// - subject: RFC 2047 encoded-word
-/// - attachment filenames: RFC 2231 (`filename*=UTF-8''<pct>`) so
-///   non-ASCII filenames survive strict MTAs and older MUAs
-/// - text/plain + text/html bodies: base64 (safe on non-8BITMIME hops,
-///   avoids quoted-printable blow-up on CJK)
-/// - attachment payload: base64 with 76-column line wrapping
-pub(crate) fn build_rfc5322(parts: &ComposeParts, from: &str) -> (String, Vec<u8>) {
-    let mid_local = random_hex(8);
-    let mid_host = mailrs_rfc5322::addr_spec(from)
-        .split('@')
-        .nth(1)
-        .unwrap_or("localhost");
-    let message_id = format!("{mid_local}@{mid_host}");
-    let date = rfc5322_date(now_secs());
-
-    let has_attachments = !parts.attachments.is_empty();
-    let has_html = !parts.html_body.is_empty();
-
-    let mixed_boundary = format!("----=Mixed_{}", random_hex(6));
-    let alt_boundary = format!("----=Alt_{}", random_hex(6));
-
-    let mut out = String::new();
-    out.push_str(&format!("Date: {date}\r\n"));
-    out.push_str(&format!("From: {}\r\n", from_header(from)));
-    if !parts.to.is_empty() {
-        out.push_str(&format!("To: {}\r\n", parts.to.join(", ")));
-    }
-    if !parts.cc.is_empty() {
-        out.push_str(&format!("Cc: {}\r\n", parts.cc.join(", ")));
-    }
-    let encoded_subject = mailrs_rfc2047::encode(&parts.subject);
-    out.push_str(&format!("Subject: {encoded_subject}\r\n"));
-    out.push_str(&format!("Message-ID: <{message_id}>\r\n"));
-    out.push_str("MIME-Version: 1.0\r\n");
-    if let Some(ref irt) = parts.in_reply_to {
-        out.push_str(&format!("In-Reply-To: <{irt}>\r\n"));
-        out.push_str(&format!("References: <{irt}>\r\n"));
-    }
-
-    // Assemble text/alternative/mixed structure. We always emit an outer
-    // Content-Type in the top-level header, then the body parts. When
-    // there are attachments the outer is multipart/mixed; the first
-    // inner part is either text/plain or multipart/alternative.
-    let body_section = if has_html {
-        let mut s = String::new();
-        s.push_str(&format!(
-            "Content-Type: multipart/alternative; boundary=\"{alt_boundary}\"\r\n\r\n"
-        ));
-        s.push_str(&format!("--{alt_boundary}\r\n"));
-        s.push_str("Content-Type: text/plain; charset=utf-8\r\n");
-        s.push_str("Content-Transfer-Encoding: base64\r\n\r\n");
-        s.push_str(&base64_wrap(parts.body.as_bytes()));
-        s.push_str(&format!("\r\n--{alt_boundary}\r\n"));
-        s.push_str("Content-Type: text/html; charset=utf-8\r\n");
-        s.push_str("Content-Transfer-Encoding: base64\r\n\r\n");
-        s.push_str(&base64_wrap(parts.html_body.as_bytes()));
-        s.push_str(&format!("\r\n--{alt_boundary}--\r\n"));
-        s
-    } else {
-        let mut s = String::new();
-        s.push_str("Content-Type: text/plain; charset=utf-8\r\n");
-        s.push_str("Content-Transfer-Encoding: base64\r\n\r\n");
-        s.push_str(&base64_wrap(parts.body.as_bytes()));
-        s
-    };
-
-    if has_attachments {
-        out.push_str(&format!(
-            "Content-Type: multipart/mixed; boundary=\"{mixed_boundary}\"\r\n\r\n"
-        ));
-        out.push_str(&format!("--{mixed_boundary}\r\n"));
-        out.push_str(&body_section);
-    } else {
-        out.push_str(&body_section);
-    }
-
-    let mut bytes = out.into_bytes();
-
-    if has_attachments {
-        for att in &parts.attachments {
-            let mut part = String::new();
-            let ct_name = mailrs_rfc2231::encode_param("name", &att.filename);
-            let cd_name = mailrs_rfc2231::encode_param("filename", &att.filename);
-            part.push_str(&format!("\r\n--{mixed_boundary}\r\n"));
-            part.push_str(&format!(
-                "Content-Type: {ct}; {ct_name}\r\n",
-                ct = att.content_type,
-            ));
-            part.push_str(&format!("Content-Disposition: attachment; {cd_name}\r\n"));
-            part.push_str("Content-Transfer-Encoding: base64\r\n\r\n");
-            part.push_str(&base64_wrap(&att.bytes));
-            bytes.extend_from_slice(part.as_bytes());
-        }
-        bytes.extend_from_slice(format!("\r\n--{mixed_boundary}--\r\n").as_bytes());
-    }
-
-    (message_id, bytes)
 }
 
 /// A `scheduled_at` form field → epoch seconds, or a rejection.
