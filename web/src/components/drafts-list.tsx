@@ -13,11 +13,13 @@ import { ListSearchInput } from '@/components/list-search-input'
 import { SenderAvatar } from '@/components/sender-avatar'
 import { useDraftRows } from '@/hooks/use-current-list'
 import { useDeleteDraftMutation } from '@/hooks/use-drafts'
+import { teamConvOf } from '@/hooks/use-team'
 import { useT } from '@/i18n'
 import { dateGroupLabel, formatFullDate } from '@/lib/format'
 import { MAIL_ROW_CONTENT, MAIL_ROW_FOCUS, mailRowStateClass } from '@/lib/list-row-class'
 import { splitAddressList } from '@/lib/recipients'
 import { composeDraftSourceAtom, composeReplySourceAtom, composingNewAtom } from '@/store/ui'
+import { wireClearSharedDraft } from '@/wire/endpoints/shared'
 
 // rows interleaved with Today / Yesterday / weekday group pills, same
 // grouping the inbox list uses (drafts group on updated_at).
@@ -60,6 +62,9 @@ export function DraftsList() {
   }
 
   const removeDraft = (id: number) => {
+    // a team reply thrown away: the team no longer sees it being written
+    const team = teamConvOf(drafts.find((d) => Number(d.id) === id)?.reply_to_thread_id)
+    if (team) void wireClearSharedDraft(team).catch(() => {})
     deleteDraftMut.mutate(id, {
       onError: () => toast.error(t('drafts.deleteFailed')),
     })

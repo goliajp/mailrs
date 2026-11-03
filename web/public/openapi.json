@@ -127,6 +127,10 @@
     {
       "name": "Mock mail",
       "description": "Disposable test mailboxes: addresses {namespace}.{tag}@<mock domain> whose mail never reaches a real mailbox and is never sent outward"
+    },
+    {
+      "name": "Team Inbox",
+      "description": "Shared email groups: assignment, presence, internal notes and the reply being written"
     }
   ],
   "paths": {
@@ -703,6 +707,9 @@
           },
           "423": {
             "description": "`outbound_paused`: the account's outbound mail is paused; `message` says whom to ask"
+          },
+          "409": {
+            "description": "`already_replied`: another team member answered the conversation after the composer opened; `by`, `at` and `seq` say who and when. Send again with shared.force to reply anyway."
           }
         }
       }
@@ -796,8 +803,12 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "`already_replied`: another team member answered the conversation after the composer opened; `by`, `at` and `seq` say who and when. Send again with shared.force to reply anyway."
           }
-        }
+        },
+        "description": ""
       }
     },
     "/api/mail/inline-upload": {
@@ -1154,6 +1165,15 @@
               "type": "integer"
             },
             "description": "With section=awaiting: only conversations waiting since this epoch second or earlier."
+          },
+          {
+            "name": "assigned_to_me",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Only the reader's team conversations assigned to the reader, newest first."
           }
         ],
         "responses": {
@@ -8890,7 +8910,7 @@
                   },
                   "event_type": {
                     "type": "string",
-                    "description": "One of: mail.received, mail.held, mail.sent, mail.delivered, mail.deferred, mail.bounced, thread.read, thread.archived, thread.trashed, thread.starred, thread.labelled, calendar.invite_answered (new_message is the old name of mail.received). Anything else is refused with 400."
+                    "description": "One of: mail.received, mail.held, mail.sent, mail.delivered, mail.deferred, mail.bounced, thread.read, thread.archived, thread.trashed, thread.starred, thread.labelled, thread.assigned, calendar.invite_answered (new_message is the old name of mail.received). Anything else is refused with 400."
                   },
                   "filter_sender": {
                     "type": "string"
@@ -13885,6 +13905,728 @@
           }
         }
       }
+    },
+    "/api/shared/{gid}/{conv}": {
+      "get": {
+        "operationId": "getSharedConversation",
+        "summary": "A team conversation's assignee, reply count, who has it open and the reply being written",
+        "tags": [
+          "Team Inbox"
+        ],
+        "parameters": [
+          {
+            "name": "gid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "The shared email group's id"
+          },
+          {
+            "name": "conv",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "The team conversation's number within the group"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The team conversation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedOverview"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a current member of the shared group"
+          }
+        }
+      }
+    },
+    "/api/shared/{gid}/{conv}/assign": {
+      "post": {
+        "operationId": "assignSharedConversation",
+        "summary": "Assign a team conversation to a member, or take the assignment back",
+        "description": "Every assignment is kept; each member's copy carries the current assignee and the thread.assigned webhook fires for each.",
+        "tags": [
+          "Team Inbox"
+        ],
+        "parameters": [
+          {
+            "name": "gid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "The shared email group's id"
+          },
+          {
+            "name": "conv",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "The team conversation's number within the group"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SharedAssignBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The assignee now",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedAssignResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The assignee is not a member"
+          },
+          "403": {
+            "description": "Not a current member of the shared group"
+          }
+        }
+      }
+    },
+    "/api/shared/{gid}/{conv}/presence": {
+      "post": {
+        "operationId": "sharedPresenceHeartbeat",
+        "summary": "Say the caller has the conversation open, or is writing a reply",
+        "description": "Lasts 60 seconds; the page renews it every 20.",
+        "tags": [
+          "Team Inbox"
+        ],
+        "parameters": [
+          {
+            "name": "gid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "The shared email group's id"
+          },
+          {
+            "name": "conv",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "The team conversation's number within the group"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SharedPresenceBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Recorded"
+          },
+          "403": {
+            "description": "Not a current member of the shared group"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "sharedPresenceLeave",
+        "summary": "Say the caller closed the conversation",
+        "tags": [
+          "Team Inbox"
+        ],
+        "parameters": [
+          {
+            "name": "gid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "The shared email group's id"
+          },
+          {
+            "name": "conv",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "The team conversation's number within the group"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed"
+          },
+          "403": {
+            "description": "Not a current member of the shared group"
+          }
+        }
+      }
+    },
+    "/api/shared/{gid}/{conv}/notes": {
+      "get": {
+        "operationId": "listSharedNotes",
+        "summary": "The team's internal notes on the conversation, oldest first",
+        "tags": [
+          "Team Inbox"
+        ],
+        "parameters": [
+          {
+            "name": "gid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "The shared email group's id"
+          },
+          {
+            "name": "conv",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "The team conversation's number within the group"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The live notes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SharedNote"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a current member of the shared group"
+          }
+        }
+      },
+      "post": {
+        "operationId": "addSharedNote",
+        "summary": "Add an internal note",
+        "tags": [
+          "Team Inbox"
+        ],
+        "parameters": [
+          {
+            "name": "gid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "The shared email group's id"
+          },
+          {
+            "name": "conv",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "The team conversation's number within the group"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SharedNoteBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The note's id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer",
+                      "format": "int64"
+                    }
+                  },
+                  "required": [
+                    "id"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty or longer than 10000 characters"
+          },
+          "403": {
+            "description": "Not a current member of the shared group"
+          }
+        }
+      }
+    },
+    "/api/shared/{gid}/{conv}/notes/{id}": {
+      "put": {
+        "operationId": "editSharedNote",
+        "summary": "Change a note's text; only its author may",
+        "tags": [
+          "Team Inbox"
+        ],
+        "parameters": [
+          {
+            "name": "gid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "The shared email group's id"
+          },
+          {
+            "name": "conv",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "The team conversation's number within the group"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "The note's id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SharedNoteBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Changed"
+          },
+          "403": {
+            "description": "Not a member, or not the author"
+          },
+          "404": {
+            "description": "No such note"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteSharedNote",
+        "summary": "Delete a note; only its author may",
+        "description": "The text is kept as a record and shown nowhere but the super-administrator view of deleted notes.",
+        "tags": [
+          "Team Inbox"
+        ],
+        "parameters": [
+          {
+            "name": "gid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "The shared email group's id"
+          },
+          {
+            "name": "conv",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "The team conversation's number within the group"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "The note's id"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "403": {
+            "description": "Not a member, or not the author"
+          },
+          "404": {
+            "description": "No such note"
+          }
+        }
+      }
+    },
+    "/api/shared/{gid}/{conv}/draft": {
+      "get": {
+        "operationId": "getSharedDraft",
+        "summary": "The reply a member is writing, to read",
+        "tags": [
+          "Team Inbox"
+        ],
+        "parameters": [
+          {
+            "name": "gid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "The shared email group's id"
+          },
+          {
+            "name": "conv",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "The team conversation's number within the group"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The reply being written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedDraftCurrent"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a current member of the shared group"
+          },
+          "404": {
+            "description": "Nobody is writing one"
+          }
+        }
+      },
+      "put": {
+        "operationId": "announceSharedDraft",
+        "summary": "Say the caller is writing the reply, saved as one of their drafts",
+        "tags": [
+          "Team Inbox"
+        ],
+        "parameters": [
+          {
+            "name": "gid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "The shared email group's id"
+          },
+          {
+            "name": "conv",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "The team conversation's number within the group"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SharedDraftAnnounce"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The reply being written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedDraftPointer"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a current member of the shared group"
+          },
+          "409": {
+            "description": "Another member holds the reply; the body is their pointer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedDraftPointer"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "clearSharedDraft",
+        "summary": "The caller threw their reply away",
+        "tags": [
+          "Team Inbox"
+        ],
+        "parameters": [
+          {
+            "name": "gid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "The shared email group's id"
+          },
+          {
+            "name": "conv",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "The team conversation's number within the group"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Cleared"
+          },
+          "403": {
+            "description": "Not a current member of the shared group"
+          }
+        }
+      }
+    },
+    "/api/shared/{gid}/{conv}/draft/take-over": {
+      "post": {
+        "operationId": "takeOverSharedDraft",
+        "summary": "Continue the reply another member was writing",
+        "description": "Copies it into the caller's drafts and records the takeover; from then on only the caller's saves move the reply.",
+        "tags": [
+          "Team Inbox"
+        ],
+        "parameters": [
+          {
+            "name": "gid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "The shared email group's id"
+          },
+          {
+            "name": "conv",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "The team conversation's number within the group"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The takeover",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedHandoff"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a current member of the shared group"
+          },
+          "409": {
+            "description": "Nobody is writing one, or the caller already holds it"
+          }
+        }
+      }
+    },
+    "/api/admin/shared/{gid}/{conv}/deleted-notes/{id}": {
+      "get": {
+        "operationId": "readDeletedSharedNote",
+        "summary": "What a deleted internal note said",
+        "description": "Super administrators only. Each read is recorded in the audit log before the text is returned.",
+        "tags": [
+          "Team Inbox"
+        ],
+        "parameters": [
+          {
+            "name": "gid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "The shared email group's id"
+          },
+          {
+            "name": "conv",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "The team conversation's number within the group"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "The note's id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The deleted note",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedDeletedNote"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a super administrator"
+          },
+          "404": {
+            "description": "No such deleted note"
+          },
+          "503": {
+            "description": "The read could not be recorded, so nothing is returned"
+          }
+        }
+      }
+    },
+    "/api/admin/email-groups/{id}/shared": {
+      "put": {
+        "operationId": "setEmailGroupShared",
+        "summary": "Make an email group a team inbox, or a plain distribution list again",
+        "tags": [
+          "Admin Email Groups"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SharedFlag"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Changed"
+          },
+          "404": {
+            "description": "No such group"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -14543,6 +15285,9 @@
             "minimum": 0,
             "maximum": 30,
             "description": "Hold an immediate send this many seconds (capped at 30) so DELETE /api/mail/pending/{message_id} can still stop it. Ignored when scheduled_at is set."
+          },
+          "shared": {
+            "$ref": "#/components/schemas/SharedReply"
           }
         },
         "required": [
@@ -14690,6 +15435,14 @@
           "awaiting_since": {
             "type": "integer",
             "description": "Epoch seconds the reader started waiting on a person's reply, 0 when not waiting."
+          },
+          "shared_conv": {
+            "type": "string",
+            "description": "The team conversation this is the reader's copy of, as \"{gid}:{conv}\"; empty when it is not a team copy."
+          },
+          "assignee": {
+            "type": "string",
+            "description": "The team member who answers it; empty for nobody."
           }
         },
         "required": [
@@ -15510,7 +16263,7 @@
           },
           "event_type": {
             "type": "string",
-            "description": "One of: mail.received, mail.held, mail.sent, mail.delivered, mail.deferred, mail.bounced, thread.read, thread.archived, thread.trashed, thread.starred, thread.labelled, calendar.invite_answered (new_message is the old name of mail.received). Anything else is refused with 400."
+            "description": "One of: mail.received, mail.held, mail.sent, mail.delivered, mail.deferred, mail.bounced, thread.read, thread.archived, thread.trashed, thread.starred, thread.labelled, thread.assigned, calendar.invite_answered (new_message is the old name of mail.received). Anything else is refused with 400."
           },
           "filter_sender": {
             "type": "string",
@@ -16598,6 +17351,387 @@
             }
           }
         }
+      },
+      "SharedOverview": {
+        "type": "object",
+        "description": "A team conversation's state for a member's page, without the mail and the notes.",
+        "properties": {
+          "gid": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "conv": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "assignee": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The member who answers it; null for nobody"
+          },
+          "assignments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SharedAssignment"
+            }
+          },
+          "reply": {
+            "$ref": "#/components/schemas/SharedReplyState"
+          },
+          "present": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "user": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "viewing",
+                    "composing"
+                  ]
+                }
+              },
+              "required": [
+                "user",
+                "state"
+              ]
+            }
+          },
+          "draft": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SharedDraftPointer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "handoffs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SharedHandoff"
+            }
+          }
+        },
+        "required": [
+          "gid",
+          "conv",
+          "members",
+          "assignee",
+          "assignments",
+          "reply",
+          "present",
+          "draft",
+          "handoffs"
+        ]
+      },
+      "SharedAssignment": {
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "by": {
+            "type": "string"
+          },
+          "to": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "at",
+          "by",
+          "to"
+        ]
+      },
+      "SharedReplyState": {
+        "type": "object",
+        "description": "seq is the team's reply count, what a composer sends back as shared.seen_seq",
+        "properties": {
+          "seq": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "by": {
+            "type": "string"
+          },
+          "at": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "seq",
+          "by",
+          "at"
+        ]
+      },
+      "SharedDraftPointer": {
+        "type": "object",
+        "properties": {
+          "author": {
+            "type": "string"
+          },
+          "draft_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "updated_at": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "author",
+          "draft_id",
+          "updated_at"
+        ]
+      },
+      "SharedHandoff": {
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "from_draft_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "draft_id": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "at",
+          "from",
+          "to",
+          "from_draft_id",
+          "draft_id"
+        ]
+      },
+      "SharedNote": {
+        "type": "object",
+        "description": "An internal note: visible to the team's members only, never part of any message, export, webhook or model input",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "by": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "edited_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        },
+        "required": [
+          "id",
+          "at",
+          "by",
+          "text",
+          "edited_at"
+        ]
+      },
+      "SharedNoteBody": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 10000
+          }
+        },
+        "required": [
+          "text"
+        ]
+      },
+      "SharedDeletedNote": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "by": {
+            "type": "string"
+          },
+          "deleted_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "deleted_by": {
+            "type": "string"
+          },
+          "versions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Every text the note had, oldest first"
+          }
+        },
+        "required": [
+          "id",
+          "by",
+          "deleted_at",
+          "deleted_by",
+          "versions"
+        ]
+      },
+      "SharedAssignBody": {
+        "type": "object",
+        "properties": {
+          "to": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The member to assign it to; null or absent takes it back"
+          }
+        }
+      },
+      "SharedAssignResult": {
+        "type": "object",
+        "properties": {
+          "assignee": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rows": {
+            "type": "integer",
+            "description": "How many members' copies carry it"
+          }
+        },
+        "required": [
+          "assignee",
+          "rows"
+        ]
+      },
+      "SharedPresenceBody": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "viewing",
+              "composing"
+            ]
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "SharedDraftAnnounce": {
+        "type": "object",
+        "properties": {
+          "draft_id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The draft, in the caller's own drafts"
+          }
+        },
+        "required": [
+          "draft_id"
+        ]
+      },
+      "SharedDraftCurrent": {
+        "type": "object",
+        "properties": {
+          "pointer": {
+            "$ref": "#/components/schemas/SharedDraftPointer"
+          },
+          "draft": {
+            "oneOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The draft as its author saved it"
+          }
+        },
+        "required": [
+          "pointer",
+          "draft"
+        ]
+      },
+      "SharedReply": {
+        "type": "object",
+        "description": "The team conversation a reply answers. The reply is claimed before it is queued; another member's reply since the composer opened refuses it with 409 already_replied unless force is set.",
+        "properties": {
+          "gid": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "conv": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "seen_seq": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The reply count when the composer opened (SharedOverview.reply.seq)"
+          },
+          "force": {
+            "type": "boolean",
+            "description": "Send a second reply on purpose"
+          }
+        },
+        "required": [
+          "gid",
+          "conv",
+          "seen_seq"
+        ]
+      },
+      "SharedFlag": {
+        "type": "object",
+        "properties": {
+          "shared": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "shared"
+        ]
       }
     }
   }

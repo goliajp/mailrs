@@ -47,6 +47,8 @@ mod client_messages;
 #[cfg(feature = "client")]
 mod client_senders;
 #[cfg(feature = "client")]
+mod client_shared;
+#[cfg(feature = "client")]
 mod client_sidestate;
 #[cfg(feature = "client")]
 mod client_threads;

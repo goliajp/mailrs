@@ -136,6 +136,13 @@ pub struct ConversationSummaryWire {
     /// conversation waits on a person to answer, or `0`.
     #[serde(default)]
     pub awaiting_since: i64,
+    /// The team conversation this is the reader's copy of,
+    /// `"{group}:{conversation}"`; empty when it is not a team copy.
+    #[serde(default)]
+    pub shared_conv: String,
+    /// The team member who answers it; empty for nobody.
+    #[serde(default)]
+    pub assignee: String,
 }
 
 impl From<&mailrs_mailbox::types::ConversationSummary> for ConversationSummaryWire {
@@ -167,6 +174,8 @@ impl From<&mailrs_mailbox::types::ConversationSummary> for ConversationSummaryWi
             trashed_at: s.trashed_at,
             section: s.section.clone(),
             awaiting_since: s.awaiting_since,
+            shared_conv: s.shared_conv.clone(),
+            assignee: s.assignee.clone(),
         }
     }
 }
@@ -254,6 +263,10 @@ pub struct ConversationFilter {
     /// epoch second or earlier — the ones due a follow-up.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub followup_due_by: Option<i64>,
+    /// Only the reader's team conversations assigned to the reader,
+    /// newest first.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub assigned_to_me: bool,
     /// Only conversations that arrived at these connected mailboxes.
     ///
     /// Absent is every account, which is what the unified lists mean.
@@ -324,6 +337,8 @@ mod tests {
             trashed_at: 0,
             section: "awaiting".into(),
             awaiting_since: 1_700_000_000,
+            shared_conv: "3:7".into(),
+            assignee: "a@x.test".into(),
         };
         let s = serde_json::to_string(&w).unwrap();
         let back: ConversationSummaryWire = serde_json::from_str(&s).unwrap();
@@ -349,9 +364,11 @@ mod tests {
             snoozed: Some(true),
             section: Some("reply".into()),
             followup_due_by: Some(1_700_000_000),
+            assigned_to_me: true,
         };
         let s = serde_json::to_string(&f).unwrap();
         let back: ConversationFilter = serde_json::from_str(&s).unwrap();
+        assert!(back.assigned_to_me);
         assert_eq!(back.limit, f.limit);
         assert_eq!(back.pinned, Some(true));
         assert_eq!(back.snoozed, Some(true));

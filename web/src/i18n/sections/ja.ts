@@ -1,6 +1,9 @@
 import type { SectionsKey } from './en'
 
+import { teamJa } from '../team/ja'
+
 export const sectionsJa: Record<SectionsKey, string> = {
+  ...teamJa,
   'list.awaiting': '返信待ち',
   'list.awaiting.empty': '返信を待っている会話はありません',
   'sections.accept': 'すべて承認',

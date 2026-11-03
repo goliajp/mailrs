@@ -280,6 +280,11 @@ pub struct ConversationSummary {
     pub section: String,
     /// When the reader started waiting on a person to answer, or 0.
     pub awaiting_since: i64,
+    /// The team conversation this is the reader's copy of,
+    /// `"{group}:{conversation}"`; empty when it is not a team copy.
+    pub shared_conv: String,
+    /// Who on the team answers it; empty for nobody.
+    pub assignee: String,
 }
 
 /// AI analysis result stored in email_analysis table

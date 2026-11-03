@@ -23,6 +23,7 @@
 //!   /v1/users/{u}/sent                            # file a sent copy
 //!   /v1/users/{u}/import                          # file an imported message
 //!   /v1/users/{u}/senders:accept                  # accept first contacts
+//!   /v1/users/{u}/shared:{assign,state,claim-reply,release-reply}  # team inboxes
 //!   /v1/users/{u}/sent-messages
 //!   /v1/users/{u}/quarantine
 //!
@@ -58,4 +59,5 @@ pub mod message_index;
 pub mod outbound;
 pub mod senders;
 pub mod sent;
+pub mod shared;
 pub mod thread;

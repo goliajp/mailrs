@@ -68,6 +68,9 @@ pub struct ListQuery {
     /// second or earlier. The client works it out from the reader's
     /// follow-up setting.
     pub followup_due_by: Option<i64>,
+    /// Only the reader's team conversations assigned to the reader.
+    #[serde(default)]
+    pub assigned_to_me: bool,
     /// Comma-separated account ids to narrow the list to.
     ///
     /// A query string, so the empty string is a real value and means
@@ -215,6 +218,11 @@ pub struct ConversationResponse {
     pub section: String,
     /// Epoch seconds the reader started waiting on a person's reply, or 0.
     pub awaiting_since: i64,
+    /// The team conversation this is the reader's copy of,
+    /// `"{group}:{conversation}"`; empty when it is not a team copy.
+    pub shared_conv: String,
+    /// The team member who answers it; empty for nobody.
+    pub assignee: String,
 }
 
 impl From<mailrs_core_api::types::ConversationSummaryWire> for ConversationResponse {
@@ -249,6 +257,8 @@ impl From<mailrs_core_api::types::ConversationSummaryWire> for ConversationRespo
             labels: w.labels,
             section: w.section,
             awaiting_since: w.awaiting_since,
+            shared_conv: w.shared_conv,
+            assignee: w.assignee,
         }
     }
 }
@@ -276,6 +286,7 @@ pub async fn get_conversations(
             snoozed: q.snoozed,
             section: q.section,
             followup_due_by: q.followup_due_by,
+            assigned_to_me: q.assigned_to_me,
         },
     };
     let resp = state

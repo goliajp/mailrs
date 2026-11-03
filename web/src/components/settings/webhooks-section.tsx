@@ -30,6 +30,7 @@ const EVENTS = [
   'thread.trashed',
   'thread.starred',
   'thread.labelled',
+  'thread.assigned',
   'calendar.invite_answered',
 ] as const
 

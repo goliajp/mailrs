@@ -16,6 +16,7 @@ mod mock;
 mod notify;
 mod rest;
 mod rules;
+mod shared;
 
 use mail::*;
 use masked::*;
@@ -23,6 +24,7 @@ use mock::*;
 use notify::*;
 use rest::*;
 use rules::*;
+use shared::*;
 
 /// Build the axum router. Conversation routes wired (Phase 3.5);
 /// auth + rest fill in next loops.
@@ -57,6 +59,7 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         .merge(mail)
         .merge(rule_routes())
         .merge(masked_routes())
+        .merge(shared_routes())
         .merge(sender_and_notify_routes())
         .merge(auth_routes)
         .merge(admin_routes)

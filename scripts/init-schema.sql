@@ -369,6 +369,21 @@ CREATE TABLE IF NOT EXISTS accepted_senders (
     PRIMARY KEY (account_address, address)
 );
 
+-- team inboxes: each member's copy and the reply claims; see migrate-059
+CREATE TABLE IF NOT EXISTS shared_thread_copies (
+    account_address TEXT NOT NULL,
+    thread_id       TEXT NOT NULL,
+    shared_conv     TEXT NOT NULL,
+    assignee        TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (account_address, thread_id)
+);
+CREATE INDEX IF NOT EXISTS idx_shared_thread_copies_assignee
+    ON shared_thread_copies(account_address, assignee);
+CREATE TABLE IF NOT EXISTS shared_reply_state (
+    shared_conv TEXT PRIMARY KEY,
+    state       TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS labels (
     account_address TEXT NOT NULL,
     id              BIGINT NOT NULL,
@@ -840,4 +855,4 @@ CREATE INDEX idx_messages_clean_text_trgm ON messages USING gin (clean_text gin_
 -- The migration this schema is equal to; the core reads it at boot and
 -- applies whatever it carries beyond it.
 CREATE TABLE schema_version (version INTEGER NOT NULL);
-INSERT INTO schema_version (version) VALUES (58);
+INSERT INTO schema_version (version) VALUES (59);

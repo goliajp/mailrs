@@ -4,6 +4,7 @@ import { ScrollText } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
 
+import { DeletedNoteButton } from '@/components/admin-deleted-note'
 import {
   AdminEmptyState,
   AdminErrorState,
@@ -121,7 +122,12 @@ export function AdminAuditLog() {
       header: t('admin.col.actions'),
       hideHeader: true,
       key: 'actions',
-      cell: (e) => <DetailToggle entry={e} onToggle={toggle} open={open.has(e.id)} />,
+      cell: (e) => (
+        <span className="flex justify-end gap-3">
+          <DeletedNoteButton action={e.action} detail={e.detail} target={e.target} />
+          <DetailToggle entry={e} onToggle={toggle} open={open.has(e.id)} />
+        </span>
+      ),
     },
   ]
 

@@ -20,6 +20,7 @@ pub mod message;
 pub mod sender_rules;
 pub mod senders;
 pub mod sent;
+pub mod shared;
 pub mod thread;
 pub mod trash;
 pub mod views;

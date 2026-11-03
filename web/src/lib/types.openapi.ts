@@ -6819,6 +6819,179 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/shared/{gid}/{conv}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A team conversation's assignee, reply count, who has it open and the reply being written */
+        get: operations["getSharedConversation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/shared/{gid}/{conv}/assign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Assign a team conversation to a member, or take the assignment back
+         * @description Every assignment is kept; each member's copy carries the current assignee and the thread.assigned webhook fires for each.
+         */
+        post: operations["assignSharedConversation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/shared/{gid}/{conv}/presence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Say the caller has the conversation open, or is writing a reply
+         * @description Lasts 60 seconds; the page renews it every 20.
+         */
+        post: operations["sharedPresenceHeartbeat"];
+        /** Say the caller closed the conversation */
+        delete: operations["sharedPresenceLeave"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/shared/{gid}/{conv}/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The team's internal notes on the conversation, oldest first */
+        get: operations["listSharedNotes"];
+        put?: never;
+        /** Add an internal note */
+        post: operations["addSharedNote"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/shared/{gid}/{conv}/notes/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Change a note's text; only its author may */
+        put: operations["editSharedNote"];
+        post?: never;
+        /**
+         * Delete a note; only its author may
+         * @description The text is kept as a record and shown nowhere but the super-administrator view of deleted notes.
+         */
+        delete: operations["deleteSharedNote"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/shared/{gid}/{conv}/draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The reply a member is writing, to read */
+        get: operations["getSharedDraft"];
+        /** Say the caller is writing the reply, saved as one of their drafts */
+        put: operations["announceSharedDraft"];
+        post?: never;
+        /** The caller threw their reply away */
+        delete: operations["clearSharedDraft"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/shared/{gid}/{conv}/draft/take-over": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Continue the reply another member was writing
+         * @description Copies it into the caller's drafts and records the takeover; from then on only the caller's saves move the reply.
+         */
+        post: operations["takeOverSharedDraft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/shared/{gid}/{conv}/deleted-notes/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What a deleted internal note said
+         * @description Super administrators only. Each read is recorded in the audit log before the text is returned.
+         */
+        get: operations["readDeletedSharedNote"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/email-groups/{id}/shared": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Make an email group a team inbox, or a plain distribution list again */
+        put: operations["setEmailGroupShared"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -7043,6 +7216,7 @@ export interface components {
             list_unsubscribe?: string;
             /** @description Hold an immediate send this many seconds (capped at 30) so DELETE /api/mail/pending/{message_id} can still stop it. Ignored when scheduled_at is set. */
             undo_seconds?: number;
+            shared?: components["schemas"]["SharedReply"];
         };
         SaveDraftRequest: {
             to?: string;
@@ -7090,6 +7264,10 @@ export interface components {
             section?: string;
             /** @description Epoch seconds the reader started waiting on a person's reply, 0 when not waiting. */
             awaiting_since?: number;
+            /** @description The team conversation this is the reader's copy of, as "{gid}:{conv}"; empty when it is not a team copy. */
+            shared_conv?: string;
+            /** @description The team member who answers it; empty for nobody. */
+            assignee?: string;
         };
         ThreadMessageResponse: {
             uid: number;
@@ -7323,7 +7501,7 @@ export interface components {
         CreateWebhookRequest: {
             /** @description Webhook endpoint URL (must be https, or http for localhost) */
             url: string;
-            /** @description One of: mail.received, mail.held, mail.sent, mail.delivered, mail.deferred, mail.bounced, thread.read, thread.archived, thread.trashed, thread.starred, thread.labelled, calendar.invite_answered (new_message is the old name of mail.received). Anything else is refused with 400. */
+            /** @description One of: mail.received, mail.held, mail.sent, mail.delivered, mail.deferred, mail.bounced, thread.read, thread.archived, thread.trashed, thread.starred, thread.labelled, thread.assigned, calendar.invite_answered (new_message is the old name of mail.received). Anything else is refused with 400. */
             event_type?: string;
             /** @description Optional sender email filter */
             filter_sender?: string;
@@ -7682,6 +7860,122 @@ export interface components {
             /** @description The host the link's text shows, when it is another one */
             shown?: string;
             reasons: components["schemas"]["Reason"][];
+        };
+        /** @description A team conversation's state for a member's page, without the mail and the notes. */
+        SharedOverview: {
+            /** Format: int64 */
+            gid: number;
+            /** Format: int64 */
+            conv: number;
+            members: string[];
+            /** @description The member who answers it; null for nobody */
+            assignee: string | null;
+            assignments: components["schemas"]["SharedAssignment"][];
+            reply: components["schemas"]["SharedReplyState"];
+            present: {
+                user: string;
+                /** @enum {string} */
+                state: "viewing" | "composing";
+            }[];
+            draft: components["schemas"]["SharedDraftPointer"] | null;
+            handoffs: components["schemas"]["SharedHandoff"][];
+        };
+        SharedAssignment: {
+            /** Format: int64 */
+            at: number;
+            by: string;
+            to: string | null;
+        };
+        /** @description seq is the team's reply count, what a composer sends back as shared.seen_seq */
+        SharedReplyState: {
+            /** Format: int64 */
+            seq: number;
+            by: string;
+            /** Format: int64 */
+            at: number;
+        };
+        SharedDraftPointer: {
+            author: string;
+            /** Format: int64 */
+            draft_id: number;
+            /** Format: int64 */
+            updated_at: number;
+        };
+        SharedHandoff: {
+            /** Format: int64 */
+            at: number;
+            from: string;
+            to: string;
+            /** Format: int64 */
+            from_draft_id: number;
+            /** Format: int64 */
+            draft_id: number;
+        };
+        /** @description An internal note: visible to the team's members only, never part of any message, export, webhook or model input */
+        SharedNote: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            at: number;
+            by: string;
+            text: string;
+            /** Format: int64 */
+            edited_at: number | null;
+        };
+        SharedNoteBody: {
+            text: string;
+        };
+        SharedDeletedNote: {
+            /** Format: int64 */
+            id: number;
+            by: string;
+            /** Format: int64 */
+            deleted_at: number;
+            deleted_by: string;
+            /** @description Every text the note had, oldest first */
+            versions: string[];
+        };
+        SharedAssignBody: {
+            /** @description The member to assign it to; null or absent takes it back */
+            to?: string | null;
+        };
+        SharedAssignResult: {
+            assignee: string | null;
+            /** @description How many members' copies carry it */
+            rows: number;
+        };
+        SharedPresenceBody: {
+            /** @enum {string} */
+            state: "viewing" | "composing";
+        };
+        SharedDraftAnnounce: {
+            /**
+             * Format: int64
+             * @description The draft, in the caller's own drafts
+             */
+            draft_id: number;
+        };
+        SharedDraftCurrent: {
+            pointer: components["schemas"]["SharedDraftPointer"];
+            /** @description The draft as its author saved it */
+            draft: Record<string, never> | null;
+        };
+        /** @description The team conversation a reply answers. The reply is claimed before it is queued; another member's reply since the composer opened refuses it with 409 already_replied unless force is set. */
+        SharedReply: {
+            /** Format: int64 */
+            gid: number;
+            /** Format: int64 */
+            conv: number;
+            /**
+             * Format: int64
+             * @description The reply count when the composer opened (SharedOverview.reply.seq)
+             */
+            seen_seq: number;
+            /** @description Send a second reply on purpose */
+            force?: boolean;
+        };
+        SharedFlag: {
+            shared: boolean;
         };
     };
     responses: never;
@@ -8093,6 +8387,13 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description `already_replied`: another team member answered the conversation after the composer opened; `by`, `at` and `seq` say who and when. Send again with shared.force to reply anyway. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description `outbound_paused`: the account's outbound mail is paused; `message` says whom to ask */
             423: {
                 headers: {
@@ -8129,6 +8430,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ApiResult"];
                 };
+            };
+            /** @description `already_replied`: another team member answered the conversation after the composer opened; `by`, `at` and `seq` say who and when. Send again with shared.force to reply anyway. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description The form is larger than the 25 MiB limit; nothing was sent */
             413: {
@@ -8369,6 +8677,8 @@ export interface operations {
                 section?: "reply" | "awaiting" | "new" | "feed" | "other";
                 /** @description With section=awaiting: only conversations waiting since this epoch second or earlier. */
                 followup_due_by?: number;
+                /** @description Only the reader's team conversations assigned to the reader, newest first. */
+                assigned_to_me?: boolean;
             };
             header?: never;
             path?: never;
@@ -12969,7 +13279,7 @@ export interface operations {
                     /** @description Account that owns the subscription */
                     account_address: string;
                     url: string;
-                    /** @description One of: mail.received, mail.held, mail.sent, mail.delivered, mail.deferred, mail.bounced, thread.read, thread.archived, thread.trashed, thread.starred, thread.labelled, calendar.invite_answered (new_message is the old name of mail.received). Anything else is refused with 400. */
+                    /** @description One of: mail.received, mail.held, mail.sent, mail.delivered, mail.deferred, mail.bounced, thread.read, thread.archived, thread.trashed, thread.starred, thread.labelled, thread.assigned, calendar.invite_answered (new_message is the old name of mail.received). Anything else is refused with 400. */
                     event_type: string;
                     filter_sender?: string;
                     filter_thread_id?: string;
@@ -15902,6 +16212,537 @@ export interface operations {
             };
             /** @description The store could not be reached */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getSharedConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The shared email group's id */
+                gid: number;
+                /** @description The team conversation's number within the group */
+                conv: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The team conversation */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SharedOverview"];
+                };
+            };
+            /** @description Not a current member of the shared group */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    assignSharedConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The shared email group's id */
+                gid: number;
+                /** @description The team conversation's number within the group */
+                conv: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SharedAssignBody"];
+            };
+        };
+        responses: {
+            /** @description The assignee now */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SharedAssignResult"];
+                };
+            };
+            /** @description The assignee is not a member */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not a current member of the shared group */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    sharedPresenceHeartbeat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The shared email group's id */
+                gid: number;
+                /** @description The team conversation's number within the group */
+                conv: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SharedPresenceBody"];
+            };
+        };
+        responses: {
+            /** @description Recorded */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not a current member of the shared group */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    sharedPresenceLeave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The shared email group's id */
+                gid: number;
+                /** @description The team conversation's number within the group */
+                conv: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not a current member of the shared group */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listSharedNotes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The shared email group's id */
+                gid: number;
+                /** @description The team conversation's number within the group */
+                conv: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The live notes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SharedNote"][];
+                };
+            };
+            /** @description Not a current member of the shared group */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    addSharedNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The shared email group's id */
+                gid: number;
+                /** @description The team conversation's number within the group */
+                conv: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SharedNoteBody"];
+            };
+        };
+        responses: {
+            /** @description The note's id */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: int64 */
+                        id: number;
+                    };
+                };
+            };
+            /** @description Empty or longer than 10000 characters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not a current member of the shared group */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    editSharedNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The shared email group's id */
+                gid: number;
+                /** @description The team conversation's number within the group */
+                conv: number;
+                /** @description The note's id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SharedNoteBody"];
+            };
+        };
+        responses: {
+            /** @description Changed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not a member, or not the author */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such note */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteSharedNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The shared email group's id */
+                gid: number;
+                /** @description The team conversation's number within the group */
+                conv: number;
+                /** @description The note's id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not a member, or not the author */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such note */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getSharedDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The shared email group's id */
+                gid: number;
+                /** @description The team conversation's number within the group */
+                conv: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The reply being written */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SharedDraftCurrent"];
+                };
+            };
+            /** @description Not a current member of the shared group */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Nobody is writing one */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    announceSharedDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The shared email group's id */
+                gid: number;
+                /** @description The team conversation's number within the group */
+                conv: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SharedDraftAnnounce"];
+            };
+        };
+        responses: {
+            /** @description The reply being written */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SharedDraftPointer"];
+                };
+            };
+            /** @description Not a current member of the shared group */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Another member holds the reply; the body is their pointer */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SharedDraftPointer"];
+                };
+            };
+        };
+    };
+    clearSharedDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The shared email group's id */
+                gid: number;
+                /** @description The team conversation's number within the group */
+                conv: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cleared */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not a current member of the shared group */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    takeOverSharedDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The shared email group's id */
+                gid: number;
+                /** @description The team conversation's number within the group */
+                conv: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The takeover */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SharedHandoff"];
+                };
+            };
+            /** @description Not a current member of the shared group */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Nobody is writing one, or the caller already holds it */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    readDeletedSharedNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The shared email group's id */
+                gid: number;
+                /** @description The team conversation's number within the group */
+                conv: number;
+                /** @description The note's id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The deleted note */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SharedDeletedNote"];
+                };
+            };
+            /** @description Not a super administrator */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such deleted note */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The read could not be recorded, so nothing is returned */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    setEmailGroupShared: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SharedFlag"];
+            };
+        };
+        responses: {
+            /** @description Changed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such group */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

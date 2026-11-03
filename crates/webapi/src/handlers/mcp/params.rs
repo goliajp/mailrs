@@ -175,8 +175,8 @@ pub struct CreateWebhookParams {
     /// The event the webhook fires on: `mail.received`, `mail.held`,
     /// `mail.sent`, `mail.delivered`, `mail.deferred`, `mail.bounced`,
     /// `thread.read`, `thread.archived`, `thread.trashed`, `thread.starred`,
-    /// `thread.labelled` or `calendar.invite_answered` (`new_message` is the
-    /// old name of `mail.received`).
+    /// `thread.labelled`, `thread.assigned` or `calendar.invite_answered`
+    /// (`new_message` is the old name of `mail.received`).
     pub event_type: String,
     /// Optional: only fire for mail from this address (`mail.received`,
     /// `mail.held`); other events never match a sender filter.
