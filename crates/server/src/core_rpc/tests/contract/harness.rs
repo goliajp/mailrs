@@ -94,8 +94,10 @@ pub(super) async fn start_on(fastcore_url: &str, pg_core_url: &str) -> Cores {
     let maildir = tempfile::tempdir().expect("maildir");
 
     let store = Arc::new(kevy_embedded::Store::open(kevy_embedded::Config::default()).unwrap());
-    let mut fc =
-        mailrs_fastcore::FastcoreState::new(mailrs_mailbox_kevy::KevyMailboxStore::new(store));
+    let mailbox = mailrs_mailbox_kevy::KevyMailboxStore::new(store);
+    // declared at boot in production; the ledger's lookups need its indexes
+    mailbox.ensure_ledger_tables().expect("ledger tables");
+    let mut fc = mailrs_fastcore::FastcoreState::new(mailbox);
     fc.net_url = Some(fastcore_url.to_string());
     let fastcore_maildir = tempfile::tempdir().expect("maildir");
     fc.maildir_root = fastcore_maildir.path().to_string_lossy().into_owned();

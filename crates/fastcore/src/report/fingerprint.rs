@@ -27,6 +27,11 @@ pub(crate) fn record(state: &FastcoreState, user: &str, mid: &str, raw: &[u8], a
     let Some(t) = mailrs_intake::scam_report::template::template_of(user, raw) else {
         return;
     };
+    // a message without a readable arrival time arrived now
+    let arrived = match arrived {
+        0 => chrono::Utc::now().timestamp(),
+        at => at,
+    };
     if let Err(e) = state.mailbox.record_template(mid, &t, arrived) {
         tracing::warn!(%mid, error = %e, "report: the fingerprint was not recorded");
     }

@@ -136,10 +136,8 @@ impl PgMailboxStore {
         user: &str,
         message_id: &str,
     ) -> Result<Option<(String, String, bool)>, sqlx::Error> {
-        sqlx::query_as(
-            "SELECT m.thread_id, m.maildir_id,
-                    EXISTS (SELECT 1 FROM quarantine_holds q
-                             WHERE q.account_address = $1 AND q.thread_id = m.thread_id)
+        let found: Option<(String, String)> = sqlx::query_as(
+            "SELECT m.thread_id, m.maildir_id
                FROM messages m JOIN mailboxes mb ON mb.id = m.mailbox_id
               WHERE mb.user_address = $1 AND m.message_id = $2
               ORDER BY m.id LIMIT 1",
@@ -147,7 +145,18 @@ impl PgMailboxStore {
         .bind(user)
         .bind(message_id)
         .fetch_optional(&self.pool)
-        .await
+        .await?;
+        let Some((thread_id, file)) = found else {
+            return Ok(None);
+        };
+        let (holds,): (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM quarantine_holds WHERE account_address = $1 AND thread_id = $2",
+        )
+        .bind(user)
+        .bind(&thread_id)
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(Some((thread_id, file, holds > 0)))
     }
 
     /// Hold `thread_id` for `user` unless it already is; true when this
