@@ -16,6 +16,7 @@ use super::ids::{self, Blob};
 use super::import::{self, NotFiled};
 use super::mailbox::{Place, Role};
 use super::view::View;
+use crate::handlers::compose::Attachment;
 
 /// The flags a client sets through keywords; the rest are kept as they are.
 const KEYWORD_FLAGS: u32 = FLAG_SEEN | FLAG_FLAGGED | FLAG_ANSWERED | FLAG_DRAFT;
@@ -177,12 +178,58 @@ async fn destroy(ctx: &Ctx, view: &View, id: &str, all: &[u32]) -> Result<(), No
         .map_err(server)
 }
 
+/// The files an Email object's `attachments` names by `blobId`: an upload
+/// of the caller's, or a message or part of one in their mailbox. A blob
+/// that is not theirs is not found (`blobNotFound`, RFC 8620 §5.3).
+async fn attachments_of(ctx: &Ctx, spec: &Value) -> Result<Vec<Attachment>, NotFiled> {
+    let Some(list) = spec.get("attachments").and_then(|v| v.as_array()) else {
+        return Ok(Vec::new());
+    };
+    let (mut out, mut missing, mut total) = (Vec::new(), Vec::new(), 0usize);
+    for a in list {
+        let Some(blob_id) = a.get("blobId").and_then(|v| v.as_str()) else {
+            return Err(invalid("attachments: each needs a blobId"));
+        };
+        let Some(bytes) = super::blob::read(ctx, blob_id).await else {
+            missing.push(blob_id.to_string());
+            continue;
+        };
+        total += bytes.len();
+        if total > super::MAX_SIZE_UPLOAD {
+            return Err(NotFiled(
+                "tooLarge",
+                "attachments: over maxSizeAttachmentsPerEmail".into(),
+            ));
+        }
+        let text = |k: &str| a.get(k).and_then(|v| v.as_str()).map(str::trim);
+        let content_type = text("type")
+            .filter(|t| t.contains('/') && !t.contains(['\r', '\n', ';']))
+            .unwrap_or("application/octet-stream")
+            .to_string();
+        let filename = text("name")
+            .filter(|n| !n.is_empty() && !n.contains(['\r', '\n']))
+            .unwrap_or("attachment")
+            .to_string();
+        out.push(Attachment {
+            filename,
+            content_type,
+            bytes,
+        });
+    }
+    match missing.is_empty() {
+        true => Ok(out),
+        false => Err(NotFiled("blobNotFound", missing.join(" "))),
+    }
+}
+
 /// A message built from the Email object (RFC 8621 §4.6): addresses,
-/// subject and a text and/or HTML body from `bodyValues`.
+/// subject, a text and/or HTML body from `bodyValues`, and attachments by
+/// `blobId`.
 async fn create(ctx: &Ctx, spec: &Value) -> Result<Value, NotFiled> {
     let places = import::mailboxes_of(spec)?;
     let flags = import::flags_of(spec.get("keywords"))?;
-    let bytes = super::submission::compose(spec).map_err(invalid)?;
+    let files = attachments_of(ctx, spec).await?;
+    let bytes = super::submission::compose(spec, files).map_err(invalid)?;
     let uid = import::file(ctx, &bytes, &places, flags).await?;
     Ok(
         json!({ "id": ids::email(uid), "blobId": ids::blob(&Blob::Message(uid)), "size": bytes.len() }),

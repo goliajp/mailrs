@@ -45,8 +45,13 @@ pub async fn cancel_send(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Path(send_id): Path<String>,
 ) -> Result<Json<CancelResponse>, StatusCode> {
-    let u = user.clone();
-    let s = send_id.clone();
+    cancel(&user, &send_id).map(Json)
+}
+
+/// Stop `user`'s send `send_id`: 404 when there is none, 409 when it has
+/// finished. Shared by the web route and JMAP's undo.
+pub(crate) fn cancel(user: &str, send_id: &str) -> Result<CancelResponse, StatusCode> {
+    let (u, s) = (user.to_string(), send_id.to_string());
     let item = with_kevy(move |c| send_read::read_one(c, &u, &s))?.ok_or(StatusCode::NOT_FOUND)?;
     match item.status {
         sendfam::Status::Sending | sendfam::Status::Scheduled => {}
@@ -56,12 +61,11 @@ pub async fn cancel_send(
         _ => return Err(StatusCode::CONFLICT),
     }
 
-    let u = user.clone();
-    let s = send_id.clone();
-    let sender = user.clone();
+    let s = send_id.to_string();
+    let sender = user.to_string();
     let jobs_removed = with_kevy(move |c| Ok(outbound::drop_queued_jobs(c, &s, &sender)))?.len();
 
-    let s = send_id.clone();
+    let (u, s) = (user.to_string(), send_id.to_string());
     let (recipients_cancelled, already_delivered) =
         with_kevy(move |c| sendfam::cancel_send(c, &u, &s, outbound::CANCELLED_REASON))?;
 
@@ -69,9 +73,9 @@ pub async fn cancel_send(
         %user, %send_id, jobs_removed, recipients_cancelled, already_delivered,
         "send cancelled"
     );
-    Ok(Json(CancelResponse {
+    Ok(CancelResponse {
         jobs_removed,
         recipients_cancelled,
         already_delivered,
-    }))
+    })
 }

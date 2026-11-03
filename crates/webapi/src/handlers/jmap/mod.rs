@@ -8,6 +8,7 @@
 pub mod auth;
 mod blob;
 mod changes;
+mod copy;
 mod ctx;
 mod email;
 mod email_query;
@@ -21,9 +22,12 @@ mod mailbox_set;
 pub(crate) mod masked;
 mod push;
 mod session;
+mod snippet;
 mod state;
 mod submission;
+mod submission_list;
 mod thread;
+mod vacation;
 mod view;
 
 use std::sync::Arc;
@@ -53,10 +57,11 @@ use ctx::Ctx;
 pub(crate) use limits::{MAX_OBJECTS, MAX_SIZE_REQUEST, MAX_SIZE_UPLOAD, limit_error};
 
 /// The capabilities this server has; a request naming any other is refused.
-const KNOWN_CAPS: [&str; 4] = [
+const KNOWN_CAPS: [&str; 5] = [
     JMAP_CORE_CAP,
     JMAP_MAIL_CAP,
     JMAP_SUBMISSION_CAP,
+    vacation::VACATION_CAP,
     masked::MASKED_CAP,
 ];
 
@@ -84,17 +89,22 @@ fn capability_of(method: &str) -> &'static str {
     match method.split('/').next().unwrap_or("") {
         "Core" => JMAP_CORE_CAP,
         "EmailSubmission" | "Identity" => JMAP_SUBMISSION_CAP,
+        "VacationResponse" => vacation::VACATION_CAP,
         "MaskedEmail" => masked::MASKED_CAP,
         _ => JMAP_MAIL_CAP,
     }
 }
 
-const WRITES: [&str; 4] = [
+const WRITES: [&str; 5] = [
     "Mailbox/set",
     "Email/set",
     "Email/import",
     "EmailSubmission/set",
+    "VacationResponse/set",
 ];
+
+/// Writes whose answer reports the mail state; the others have their own.
+const MAIL_STATE_WRITES: [&str; 3] = ["Mailbox/set", "Email/set", "Email/import"];
 
 /// Run one method call. Most answer one response; `EmailSubmission/set`
 /// with `onSuccessUpdateEmail` answers two.
@@ -105,7 +115,7 @@ async fn call(
     args: &Value,
 ) -> Result<Vec<(String, Value)>, JmapMethodError> {
     let state = n.state.state.as_str();
-    if WRITES.contains(&method)
+    if MAIL_STATE_WRITES.contains(&method)
         && let Some(want) = args.get("ifInState").and_then(|v| v.as_str())
         && want != state
     {
@@ -128,9 +138,15 @@ async fn call(
         "Email/queryChanges" => changes::email_query(ctx, v, &n.state, args).await,
         "Email/set" => email_set::set(ctx, v, args, state).await,
         "Email/import" => import::import(ctx, args, state).await,
+        "Email/copy" => copy::copy(ctx, args),
+        "SearchSnippet/get" => snippet::get(ctx, v, args).await,
         "Thread/get" => thread::get(ctx, v, args, state),
         "Thread/changes" => changes::thread(ctx, &n.state, args),
         "Identity/get" => identity::get(ctx, args).await,
+        "EmailSubmission/get" => submission_list::get(ctx, args).await,
+        "EmailSubmission/changes" => submission_list::changes(ctx, args).await,
+        "VacationResponse/get" => vacation::get(ctx, args),
+        "VacationResponse/set" => vacation::set(ctx, args),
         "EmailSubmission/set" => return submission::set(ctx, v, args, state).await,
         other => Err(JmapMethodError::UnknownMethod(other.to_string())),
     };
@@ -261,7 +277,7 @@ async fn run(
     let after = now(ctx).await?;
     let mut result = result?;
     for (name, value) in result.iter_mut() {
-        if name.ends_with("/set") || name == "Email/import" {
+        if MAIL_STATE_WRITES.contains(&name.as_str()) {
             value["newState"] = json!(after.state.state);
         }
     }

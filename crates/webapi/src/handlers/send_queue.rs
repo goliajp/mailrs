@@ -157,7 +157,13 @@ pub(crate) fn enqueue_outbound_at(
         };
         let user = sender.clone();
         let rcpts: Vec<String> = recipients.to_vec();
-        with_kevy(move |c| sendfam::write_send(c, &user, &row, &rcpts))?;
+        with_kevy(move |c| {
+            sendfam::write_send(c, &user, &row, &rcpts)?;
+            match send_at {
+                Some(at) => sendfam::set_send_at(c, &user, &row.send_id, at),
+                None => Ok(()),
+            }
+        })?;
     }
     Ok(())
 }
