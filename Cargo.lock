@@ -4433,6 +4433,7 @@ dependencies = [
  "kevy-index",
  "mailrs-alias-store",
  "mailrs-mailbox",
+ "mailrs-report",
  "mailrs-rfc5322",
  "serde",
  "serde_json",

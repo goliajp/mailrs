@@ -4,8 +4,9 @@
 //! template from anyone else needs one of three grounds: the reporter can
 //! judge mail for everyone, two different people reported it within a day,
 //! or the reported message hits a hold-level rule of the rules in force.
-//! Even with a ground, an administrator confirms first when the take-back
-//! is large, the sender has a long history with us, or the sender's domain
+//! Without a ground the other copies wait for an administrator to look at
+//! them. Even with a ground, an administrator confirms first when the
+//! take-back is large, the sender has a long history with us, or the sender's domain
 //! is on the manual allow list: those are where a genuine notice is most
 //! likely, and taking one back is worse than missing a scam.
 
@@ -30,10 +31,12 @@ pub enum Ground {
     HoldRule,
 }
 
-/// A reason to wait for an administrator despite a ground.
+/// A reason the other copies wait for an administrator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Wait {
+    /// None of the grounds holds.
+    NoGround,
     ManyInboxes,
     LongHistory,
     AllowListed,
@@ -63,8 +66,8 @@ pub struct Situation {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "action", rename_all = "snake_case")]
 pub enum Decision {
-    /// Hold the reporter's copy only.
-    OwnOnly,
+    /// No other inbox holds a copy: the reporter's is all there is.
+    NoneFound,
     /// Take every other copy back into Review.
     TakeBack { grounds: Vec<Ground> },
     /// Hold the reporter's copy; the rest waits for an administrator.
@@ -93,10 +96,13 @@ pub fn decide(s: &Situation) -> Decision {
     if s.hold_rule {
         grounds.push(Ground::HoldRule);
     }
-    if grounds.is_empty() || s.inboxes == 0 {
-        return Decision::OwnOnly;
+    if s.inboxes == 0 {
+        return Decision::NoneFound;
     }
     let mut waits = Vec::new();
+    if grounds.is_empty() {
+        waits.push(Wait::NoGround);
+    }
     if s.inboxes > INBOX_LIMIT {
         waits.push(Wait::ManyInboxes);
     }
@@ -127,8 +133,14 @@ mod tests {
     }
 
     #[test]
-    fn one_person_alone_holds_only_their_own_copy() {
-        assert_eq!(decide(&s(|_| {})), Decision::OwnOnly);
+    fn one_person_alone_waits_for_an_administrator() {
+        assert_eq!(
+            decide(&s(|_| {})),
+            Decision::Confirm {
+                grounds: vec![],
+                waits: vec![Wait::NoGround]
+            }
+        );
     }
 
     #[test]
@@ -160,7 +172,10 @@ mod tests {
     fn two_addresses_of_one_person_are_one_reporter() {
         // alias and forward resolved by the caller to the same person
         let d = decide(&s(|s| s.reporters.push("alice".into())));
-        assert_eq!(d, Decision::OwnOnly);
+        assert!(
+            matches!(d, Decision::Confirm { ref waits, .. } if waits == &[Wait::NoGround]),
+            "{d:?}"
+        );
     }
 
     #[test]
@@ -202,11 +217,11 @@ mod tests {
     }
 
     #[test]
-    fn no_other_copy_is_own_only_even_with_a_ground() {
+    fn no_other_copy_is_none_found_even_with_a_ground() {
         let d = decide(&s(|s| {
             s.reporter_is_administrator = true;
             s.inboxes = 0;
         }));
-        assert_eq!(d, Decision::OwnOnly);
+        assert_eq!(d, Decision::NoneFound);
     }
 }
