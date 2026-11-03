@@ -210,7 +210,7 @@ fn outside(rc: &ReceiveContext) -> bool {
 }
 
 /// The Message-ID header's value, for the log; empty when there is none.
-fn message_id(raw: &[u8]) -> String {
+pub(crate) fn message_id(raw: &[u8]) -> String {
     let head = &raw[..raw.len().min(16 * 1024)];
     String::from_utf8_lossy(head)
         .lines()

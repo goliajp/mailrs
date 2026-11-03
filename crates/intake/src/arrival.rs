@@ -64,6 +64,8 @@ pub fn derive<'a, T: Threads + ?Sized>(
     blob_ref: &str,
     body: &'a [u8],
     target_folder: &str,
+    // this server's authserv-id, for the sender-trust badge
+    authserv: Option<&str>,
 ) -> Arrival<'a> {
     let head = &body[..body.len().min(16 * 1024)];
     let (header_id, in_reply_to, references, subject, date, from, to) = extract_headers(head);
@@ -114,7 +116,7 @@ pub fn derive<'a, T: Threads + ?Sized>(
         placement,
         preview,
         body_text,
-        sender_trust: extract_sender_trust(body),
+        sender_trust: extract_sender_trust(body, authserv),
         facts,
         head,
         parsed,

@@ -71,6 +71,9 @@ pub(crate) async fn recompute_sender_trust_route(
     // Copies whose own file has nothing to say about a verdict that is
     // already recorded. See `overwrites`.
     let mut silent = 0u64;
+    // Changes whose file carries a results header in this server's name
+    // that its receiver did not write; included in `changed`.
+    let mut forged_header = 0u64;
     let mut errors = 0u64;
     // Which way each change went, because "5 rows changed" says nothing
     // about whether the change was the one intended.
@@ -153,15 +156,18 @@ pub(crate) async fn recompute_sender_trust_route(
                 };
                 walked += 1;
 
-                let fresh = crate::extract_sender_trust(&raw);
+                let ours = state.authserv_id.as_deref();
+                let fresh = crate::extract_sender_trust(&raw, ours);
                 if fresh == wire.sender_trust {
                     agreed += 1;
                     continue;
                 }
-                if !overwrites(&wire.sender_trust, &fresh) {
+                let forged = mailrs_rfc5322::auth_results::first_is_forged(&raw, ours);
+                if !replaces(&wire.sender_trust, &fresh, forged) {
                     silent += 1;
                     continue;
                 }
+                forged_header += u64::from(forged);
                 *transitions
                     .entry(format!(
                         "{} -> {}",
@@ -227,6 +233,7 @@ pub(crate) async fn recompute_sender_trust_route(
         "changed": changed,
         "no_file": no_file,
         "silent_copy": silent,
+        "forged_header": forged_header,
         "errors": errors,
         "transitions": transitions,
         "samples": samples,
@@ -253,6 +260,14 @@ pub(crate) async fn recompute_sender_trust_route(
 /// reaches "nothing to do" is not a repair.
 fn overwrites(stored: &str, fresh: &str) -> bool {
     !(fresh.is_empty() && !stored.is_empty())
+}
+
+/// Whether this copy's verdict replaces the stored one. A copy whose
+/// results header names this server without having been written by it
+/// (`forged`) is not silent: it says the stored verdict came from that
+/// forgery, and takes it back even when it has nothing else to say.
+fn replaces(stored: &str, fresh: &str, forged: bool) -> bool {
+    forged || overwrites(stored, fresh)
 }
 
 /// Which folder a mailbox path names, as a `blob_ref` would spell it:
@@ -286,6 +301,21 @@ mod tests {
         assert!(!overwrites("verified", ""));
         assert!(!overwrites("suspicious", ""));
         assert!(!overwrites("unverified", ""));
+    }
+
+    /// A badge recorded from a results header in our name that our
+    /// receiver never wrote is taken back by the file that carries it; a
+    /// file with nothing to say still leaves a recorded verdict alone.
+    #[test]
+    fn a_forged_header_takes_back_the_verdict_it_gave() {
+        assert!(replaces("verified", "", true));
+        assert!(!replaces("verified", "", false));
+        assert!(replaces("", "verified", false));
+        let forged = b"Authentication-Results: mail.golia.ai; spf=pass; dkim=pass; dmarc=pass\r\n\
+From: Bank <a@bank.example>\r\n\r\nx";
+        let ours = Some("mail.golia.ai");
+        assert_eq!(crate::extract_sender_trust(forged, ours), "");
+        assert!(mailrs_rfc5322::auth_results::first_is_forged(forged, ours));
     }
 
     /// And a real verdict replaces a real verdict — otherwise the route

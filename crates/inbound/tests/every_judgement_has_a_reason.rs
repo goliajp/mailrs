@@ -22,6 +22,7 @@ fn input() -> PipelineInput {
             arc: "none".into(),
             dmarc: "pass".into(),
             dmarc_policy: DmarcPolicy::Pass,
+            dkim_signatures: Vec::new(),
         },
         virus_found: None,
         content_score: 0.0,

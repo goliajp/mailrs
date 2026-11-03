@@ -37,6 +37,7 @@ pub fn file<S: SentStore + ?Sized>(
             format!("{user} is over quota"),
         ));
     }
+    let body = &*crate::sent::without_forged_results(core, body);
     let root = core.maildir_root();
     // the user's own mail is filed where their sent mail is, so it reads
     // as theirs in every core and never lands in their Inbox
@@ -55,7 +56,15 @@ pub fn file<S: SentStore + ?Sized>(
         true => format!("{}/{}", crate::sent::SENT_FOLDER, id.0),
         false => id.0.clone(),
     };
-    let mut a = derive(core, core.net_conn(), user, &blob_ref, body, folder);
+    let mut a = derive(
+        core,
+        core.net_conn(),
+        user,
+        &blob_ref,
+        body,
+        folder,
+        core.authserv_id(),
+    );
     let mut net = core.net_conn();
     crate::live_sync::adjust_usage_on(net.as_mut(), user, body.len() as i64);
     crate::live_sync::upsert_contacts(user, &a.from);

@@ -94,6 +94,7 @@ mod tests {
             arc: "none".into(),
             dmarc: "pass".into(),
             dmarc_policy: DmarcPolicy::Pass,
+            dkim_signatures: Vec::new(),
         }
     }
 
@@ -530,6 +531,7 @@ mod tests {
                 arc: "pass".into(),
                 dmarc: "pass".into(),
                 dmarc_policy: DmarcPolicy::Pass,
+                dkim_signatures: Vec::new(),
             },
             content_score: 0.0,
             ptr_score: 0.0,
@@ -627,6 +629,7 @@ mod tests {
                 arc: "none".into(),
                 dmarc: "pass".into(),
                 dmarc_policy: DmarcPolicy::Pass,
+                dkim_signatures: Vec::new(),
             },
             ..default_input()
         };

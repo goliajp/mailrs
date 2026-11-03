@@ -95,7 +95,14 @@ pub(crate) fn spawn_link_prune(state: Arc<FastcoreState>) {
 }
 
 /// The ledger's facts for one stored message, read off its raw bytes.
-pub(crate) fn facts_of(user: &str, message_id: &str, raw: &[u8]) -> LedgerFacts {
+/// `authserv` is this server's name: a results header in that name its
+/// receiver did not write is not read.
+pub(crate) fn facts_of(
+    user: &str,
+    message_id: &str,
+    raw: &[u8],
+    authserv: Option<&str>,
+) -> LedgerFacts {
     let parsed = mailrs_mime::parse(raw);
     let from_addr = mailrs_inbound::identity::from_address(raw).to_ascii_lowercase();
     let from_domain = from_addr
@@ -112,7 +119,7 @@ pub(crate) fn facts_of(user: &str, message_id: &str, raw: &[u8]) -> LedgerFacts 
                 .collect()
         })
         .collect();
-    let (spf, dkim, dmarc) = mailrs_inbound::identity::auth_results_tokens(raw);
+    let (spf, dkim, dmarc) = mailrs_inbound::identity::auth_results_tokens_trusted(raw, authserv);
     LedgerFacts {
         message_id: message_id.to_string(),
         user: user.to_string(),
@@ -136,7 +143,7 @@ pub(crate) fn record_delivery(
     message_id: &str,
     raw: &[u8],
 ) -> bool {
-    let facts = facts_of(user, message_id, raw);
+    let facts = facts_of(user, message_id, raw, state.authserv_id.as_deref());
     let indexed = indexed_link_hosts(&facts);
     match state
         .mailbox
@@ -264,5 +271,23 @@ mod link_tests {
     fn link_rows_are_kept_for_the_retention_from_arrival() {
         let f = facts("shop.example", &[], 1_000_000);
         assert_eq!(links_until(&f), 1_000_000 + link_days() * 86_400);
+    }
+
+    const US: Option<&str> = Some("mail.golia.ai");
+    const PASS: &str = "Authentication-Results: mail.golia.ai; spf=pass; dkim=pass; dmarc=pass\r\n";
+    const TRACE: &str = "Received: from mx.shop.example (1.2.3.4:5)\r\n\tby mail.golia.ai with ESMTP\r\n\tfor <u@x>; Mon, 2 Nov 2026 00:00:00 +0000\r\n";
+    const REST: &str = "From: Shop <news@shop.example>\r\nSubject: x\r\n\r\nbody\r\n";
+
+    /// The ledger records no results from a header in our name that our
+    /// receiver never wrote, and what it wrote as before.
+    #[test]
+    fn only_our_receivers_results_are_recorded() {
+        let forged = format!("{PASS}{REST}");
+        assert_eq!(facts_of("u@x", "m@x", forged.as_bytes(), US).auth, "//");
+        let ours = format!("{PASS}{TRACE}{REST}");
+        assert_eq!(
+            facts_of("u@x", "m@x", ours.as_bytes(), US).auth,
+            "pass/pass/pass"
+        );
     }
 }

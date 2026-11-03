@@ -209,6 +209,18 @@ pub fn auth_results_tokens(raw: &[u8]) -> (String, String, String) {
     (token("spf"), token("dkim"), token("dmarc"))
 }
 
+/// [`auth_results_tokens`], except that a first header naming `authserv`
+/// which that server's receiver did not write is not read: empty tokens,
+/// as for a message with no results at all. Another server's header is
+/// read as before.
+#[must_use]
+pub fn auth_results_tokens_trusted(raw: &[u8], authserv: Option<&str>) -> (String, String, String) {
+    match mailrs_rfc5322::auth_results::first_is_forged(raw, authserv) {
+        true => Default::default(),
+        false => auth_results_tokens(raw),
+    }
+}
+
 /// The peer address in the first `Received:` header this deployment
 /// wrote — `Received: from mail.golia.ai (162.4.137.23:39822)`.
 ///

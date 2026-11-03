@@ -62,6 +62,7 @@ pub mod links;
 pub mod mailer_fingerprint;
 pub mod minted_address;
 pub mod novelty;
+pub mod org_domain;
 pub mod payment;
 pub mod qr;
 pub mod relation;

@@ -283,6 +283,10 @@ impl<A: Account> Account for TrashView<A> {
         self.inner.unique_id(&unwrap(message).0)
     }
 
+    fn authserv_id(&self) -> Option<&str> {
+        self.inner.authserv_id()
+    }
+
     /// A POP3 deletion moves the message to the Trash as an IMAP EXPUNGE
     /// outside it does: a client set to delete from the server after
     /// downloading leaves 30 days to undo it.

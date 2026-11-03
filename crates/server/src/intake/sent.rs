@@ -17,6 +17,10 @@ impl SentStore for PgCore {
         mailrs_intake::Core::net_conn(self)
     }
 
+    fn authserv_id(&self) -> Option<&str> {
+        self.dir.authserv_id.as_deref()
+    }
+
     fn index_own(
         &self,
         user: &str,
