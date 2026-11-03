@@ -167,7 +167,7 @@ impl Account for FastcoreAccount {
             Self::Real(a) => {
                 let known = super::forget::Doomed::read(mailbox, &m.key);
                 let conversation = a.conversation_of(m).ok().flatten();
-                backend::remove_message(&a.user, &to_imap(m))?;
+                backend::remove_message(&a.state, &a.user, &to_imap(m))?;
                 if let Some(d) = &known {
                     a.forget(d);
                 }

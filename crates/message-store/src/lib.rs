@@ -3,7 +3,8 @@
 //! [`MessageStore`] is the seam the receiver/core split (and a future
 //! object-store backend) share: the receiver writes via `deliver_batch`,
 //! the core reads + maintains via `fetch` / `list_unprocessed` /
-//! `mark_processed` / `delete`. [`MaildirStore`] is the default,
+//! `mark_processed`; removing a message is the core's, which counts it off
+//! the user's usage as it goes. [`MaildirStore`] is the default,
 //! maildir-backed implementation; the planned S3 backend (P7) is the
 //! second.
 //!
@@ -34,9 +35,6 @@ pub trait MessageStore: Send + Sync {
 
     /// Mark `id` under `path` processed, recording `flags`.
     async fn mark_processed(&self, path: &str, id: &MessageId, flags: &[Flag]) -> io::Result<()>;
-
-    /// Delete `id` under `path`.
-    async fn delete(&self, path: &str, id: &MessageId) -> io::Result<()>;
 }
 
 /// Maildir-backed [`MessageStore`]. Stateless — each call opens the maildir
@@ -75,12 +73,6 @@ impl MessageStore for MaildirStore {
         let id = id.clone();
         let flags = flags.to_vec();
         blocking(move || Maildir::open(&path).mark_processed(&id, &flags)).await
-    }
-
-    async fn delete(&self, path: &str, id: &MessageId) -> io::Result<()> {
-        let path = path.to_string();
-        let id = id.clone();
-        blocking(move || Maildir::open(&path).delete(&id)).await
     }
 }
 
@@ -129,9 +121,5 @@ mod tests {
         assert_eq!(store.list_unprocessed(&path).await.unwrap().len(), 1);
         // still fetchable from cur/
         assert!(store.fetch(&path, &ids[0]).await.unwrap().is_some());
-
-        // delete removes it
-        store.delete(&path, &ids[1]).await.unwrap();
-        assert!(store.fetch(&path, &ids[1]).await.unwrap().is_none());
     }
 }

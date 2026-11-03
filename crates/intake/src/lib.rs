@@ -30,6 +30,7 @@ pub mod import;
 pub mod importance;
 pub mod invite;
 pub mod live_sync;
+pub mod mail_files;
 pub mod maildir;
 pub mod mock;
 pub mod notice;

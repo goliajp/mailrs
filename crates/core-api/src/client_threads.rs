@@ -245,7 +245,7 @@ impl Client {
     }
 
     /// POST /v1/users/{user}/trash:empty
-    pub async fn empty_trash(&self, user: &str) -> ApiResult<method::thread::ThreadActionResponse> {
+    pub async fn empty_trash(&self, user: &str) -> ApiResult<method::thread::EmptyTrashResponse> {
         let path = format!("/v1/users/{}/trash:empty", Self::enc(user));
         self.post_authed_no_body(path, "empty_trash").await
     }

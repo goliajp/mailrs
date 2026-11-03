@@ -35,9 +35,20 @@ it landed in where that is known.
   session only after a recent password confirmation. Deleting this way
   now also removes the conversation's Sent rows.
 - Every way of deleting mail for good (the web, MCP, JMAP, IMAP, POP3,
-  emptying the Trash) writes an audit row `mail.deleted_forever`: the
-  account, the first 8 characters of the conversation id, how many
-  messages, where, and whether a session or a password did it.
+  emptying the Trash) writes an audit row `mail.deleted_forever` per
+  conversation: the account, the first 8 characters of the conversation
+  id, how many messages, where, and whether a session or a password
+  (`password_or_app_password`) did it. Each pass of the 30-day Trash
+  purge writes one `mail.trash_purged` row per account it deleted from:
+  conversations, messages and bytes.
+- **The usage counter the quota is checked against now goes down when
+  mail is deleted for good** by the purge, emptying the Trash or deleting
+  a conversation for good; before, only an IMAP or POP3 deletion took it
+  off, so it only grew for everything deleted on the web. One function
+  removes mail files in either core and counts them off.
+  `GET /v1/admin/maintenance:usage-drift` on the core reports each
+  account's counter against what its maildir takes (numbers and account
+  names only); `mailrs-fastcore-backfill-usage` resets the counters.
 - **A Sieve `redirect` out of our domains must go to the forwarding
   address verified in Settings.** ManageSieve refuses to store a script
   that redirects anywhere else (`PUTSCRIPT` answers `NO` with the

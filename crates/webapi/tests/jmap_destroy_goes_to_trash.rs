@@ -186,6 +186,9 @@ async fn scenario() {
     assert_eq!(rows.len(), 2, "{rows:?}");
     assert_eq!(rows[0]["actor"], ALICE);
     assert_eq!(rows[0]["detail"], "messages=1 via=jmap credential=session");
-    assert_eq!(rows[1]["detail"], "messages=1 via=jmap credential=password");
+    assert_eq!(
+        rows[1]["detail"],
+        "messages=1 via=jmap credential=password_or_app_password"
+    );
     assert_eq!(rows[1]["target"].as_str().map(str::len), Some(8));
 }

@@ -10,8 +10,15 @@ impl PgAccount {
     /// `bytes` as a new body in `to`'s folder, indexed there with `flags`.
     pub(super) async fn deliver(&self, to: &Mailbox, bytes: &[u8], flags: u32) -> Result<u32> {
         let store = self.message_store.as_ref();
-        let blob =
-            crate::body::deliver(store, &self.maildir_root, &self.user, &to.name, bytes).await?;
+        let blob = crate::body::deliver(
+            store,
+            self.net_url.as_deref(),
+            &self.maildir_root,
+            &self.user,
+            &to.name,
+            bytes,
+        )
+        .await?;
         let now = chrono::Utc::now().timestamp();
         self.mailbox
             .index_delivered(&self.user, &to.name, &blob, bytes, flags, now)
@@ -33,8 +40,15 @@ impl PgAccount {
             .read(m)
             .await?
             .ok_or_else(|| Error::Store(format!("message {} has no body", m.uid)))?;
-        let blob =
-            crate::body::deliver(store, &self.maildir_root, &self.user, &to.name, &bytes).await?;
+        let blob = crate::body::deliver(
+            store,
+            self.net_url.as_deref(),
+            &self.maildir_root,
+            &self.user,
+            &to.name,
+            &bytes,
+        )
+        .await?;
         let row = match then_delete {
             true => {
                 self.mailbox
@@ -51,13 +65,23 @@ impl PgAccount {
             Ok(Some(uid)) => uid,
             // the new body would be a file no row names
             other => {
-                crate::body::remove(store, &self.maildir_root, &self.user, &blob).await?;
+                crate::body::remove(
+                    self.net_url.as_deref(),
+                    &self.maildir_root,
+                    &self.user,
+                    &blob,
+                )?;
                 let e = other.err().map_or("gone".to_string(), |e| e.to_string());
                 return Err(Error::Store(format!("message {}: {e}", m.uid)));
             }
         };
         if then_delete {
-            crate::body::remove(store, &self.maildir_root, &self.user, &m.key).await?;
+            crate::body::remove(
+                self.net_url.as_deref(),
+                &self.maildir_root,
+                &self.user,
+                &m.key,
+            )?;
         }
         filed(to, Some(uid), m)
     }
@@ -68,9 +92,13 @@ impl PgAccount {
         doomed: &[Message<String>],
         removed: &[u32],
     ) -> Result<()> {
-        let store = self.message_store.as_ref();
         for m in doomed.iter().filter(|m| removed.contains(&m.uid)) {
-            crate::body::remove(store, &self.maildir_root, &self.user, &m.key).await?;
+            crate::body::remove(
+                self.net_url.as_deref(),
+                &self.maildir_root,
+                &self.user,
+                &m.key,
+            )?;
         }
         Ok(())
     }
@@ -114,7 +142,7 @@ impl PgAccount {
                     &self.user,
                     conversations,
                     via,
-                    Credential::Password,
+                    Credential::PasswordOrAppPassword,
                     now,
                 )
             });

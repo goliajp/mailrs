@@ -49,7 +49,7 @@ impl Ctx {
             return Err(Forbidden::AgentKey);
         }
         let Some(session) = &self.session else {
-            return Ok(Credential::Password);
+            return Ok(Credential::PasswordOrAppPassword);
         };
         match crate::session::confirm::require(Some(session)) {
             Ok(_) => Ok(Credential::Session),

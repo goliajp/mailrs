@@ -187,7 +187,7 @@ fn deletions(net: &str) -> usize {
             r["action"] == "mail.deleted_forever"
                 && r["detail"]
                     .as_str()
-                    .is_some_and(|d| d.ends_with("via=imap credential=password"))
+                    .is_some_and(|d| d.ends_with("via=imap credential=password_or_app_password"))
         })
         .count()
 }

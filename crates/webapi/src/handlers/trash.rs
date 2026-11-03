@@ -106,8 +106,8 @@ pub(crate) async fn delete_for_good(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// POST /api/trash/empty — everything in the Trash, for good. One audit
-/// row for the lot: the core empties it without listing what it held.
+/// POST /api/trash/empty — everything in the Trash, for good, with one
+/// audit row for each conversation the core says it deleted.
 pub async fn empty_trash(
     _: crate::session::confirm::Confirmed,
     State(state): State<Arc<WebState>>,
@@ -115,13 +115,13 @@ pub async fn empty_trash(
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let done = state.core.empty_trash(&user).await.map_err(map_err)?;
     let now = crate::handlers::complete::now_secs();
-    let detail = format!(
-        "conversations={} via=web credential={}",
-        done.affected,
-        Credential::Session.as_str()
-    );
+    let affected = done.affected;
     crate::handlers::kevy_util::with_kevy(move |c| {
-        audit::append(c, &user, audit::DELETED_FOREVER, "(trash)", &detail, now)
+        for t in &done.deleted {
+            let n = t.messages as usize;
+            audit::deleted_forever(c, &user, &t.thread_id, n, "web", Credential::Session, now)?;
+        }
+        Ok(())
     })?;
-    Ok(Json(serde_json::json!({ "deleted": done.affected })))
+    Ok(Json(serde_json::json!({ "deleted": affected })))
 }

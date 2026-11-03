@@ -362,32 +362,54 @@ pub(crate) async fn delete_thread(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> axum::response::Response {
+    match delete_for_good(&state, &user, &thread_id) {
+        Ok(gone) => member_result(gone.is_some()),
+        Err(()) => action_result(false),
+    }
+}
+
+/// What deleting a conversation for good took off the disk.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct Deleted {
+    pub messages: usize,
+    pub bytes: u64,
+}
+
+/// Delete `user`'s `thread_id` for good, index and files. `Ok(None)` when
+/// it is not the user's; `Err` when the store could not be written.
+pub(crate) fn delete_for_good(
+    state: &FastcoreState,
+    user: &str,
+    thread_id: &str,
+) -> Result<Option<Deleted>, ()> {
     // The kevy side of the delete returns every file the user's copies
     // have had — a Message-ID can sit in Sent and INBOX, or in INBOX once
     // per alias it came through. Any file left on disk is re-imported by
     // self-heal and the "deleted" thread re-appears (prod 2026-07-24, two
     // ghost FYI threads; 2026-10-25, a self-sent message back in minutes
     // from its Sent copy).
-    let (existed, files) = match state.mailbox.delete_thread(&user, &thread_id) {
+    let (existed, files) = match state.mailbox.delete_thread(user, thread_id) {
         Ok(pair) => pair,
         Err(e) => {
             tracing::warn!(error = %e, %user, %thread_id, "delete_thread kevy failed");
-            return action_result(false);
+            return Err(());
         }
     };
-    let mut unlinked = 0u32;
+    let mut gone = Deleted::default();
     for file in &files {
-        if unlink_maildir_file(&state.maildir_root, &user, file) {
-            unlinked += 1;
+        if let Some(size) = unlink_maildir_file(state, user, file) {
+            gone.messages += 1;
+            gone.bytes += size;
         }
     }
-    if existed {
-        tracing::info!(
-            %user, %thread_id, files = files.len(), unlinked,
-            "delete_thread: cleared thread + unlinked maildir files"
-        );
+    if !existed {
+        return Ok(None);
     }
-    member_result(existed)
+    tracing::info!(
+        %user, %thread_id, files = files.len(), unlinked = gone.messages,
+        "delete_thread: cleared thread + unlinked maildir files"
+    );
+    Ok(Some(gone))
 }
 
 /// An action that found no row of the caller's in the thread is a 404:
