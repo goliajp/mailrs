@@ -15,6 +15,17 @@ pub(super) fn install(lua: &mut Lua, f: &Facts<'_>, p: &Policy) -> Result<(), St
     result
 }
 
+/// A signature by the `From:` organisation verified. Where each
+/// signature's result is known, that answers; where only one result was
+/// recorded for all of them, it must be a pass with every signer from
+/// the organisation, or the pass may have been someone else's.
+fn dkim_aligned(f: &Facts<'_>) -> bool {
+    match f.dkim_from_org_passed {
+        Some(passed) => passed,
+        None => f.dkim == "pass" && f.dkim_signed_by_from_org,
+    }
+}
+
 fn fill(lua: &mut Lua, t: LuaTable, f: &Facts<'_>, p: &Policy) -> Result<(), String> {
     let domain = address_of(f.from)
         .and_then(|a| a.rsplit('@').next())
@@ -126,10 +137,7 @@ fn fill(lua: &mut Lua, t: LuaTable, f: &Facts<'_>, p: &Policy) -> Result<(), Str
         ("name_borrowed", f.relation.name_borrowed),
         ("reply_to_outside", f.reply_to_outside),
         ("reply_to_other_org", f.reply_to_other_org),
-        (
-            "dkim_aligned",
-            f.dkim == "pass" && f.dkim_signed_by_from_org,
-        ),
+        ("dkim_aligned", dkim_aligned(f)),
         ("sender_domain_established", f.novelty.established()),
         ("sender_domain_new", f.novelty.sender_new),
         ("link_domain_new", f.novelty.new_link_domain.is_some()),

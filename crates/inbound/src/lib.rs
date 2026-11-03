@@ -70,6 +70,7 @@ pub mod body;
 pub mod context;
 pub mod dates;
 pub mod decision;
+pub mod dkim_results;
 pub mod dkim_signers;
 pub mod identity;
 pub mod pipeline;

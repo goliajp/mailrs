@@ -67,12 +67,15 @@ rule('bec-pay-to-a-lookalike', 'provenance', 4, false, function(m)
             {account = account_of(m), domain = m.from_domain, like = m.lookalike_of})
     end
 end)
+-- The three rules below run in shadow: their hits are recorded and
+-- counted, but add nothing to the score and hold nothing, until a month
+-- of live hits shows how often they land on real mail.
 rule('bec-name-borrowed', 'provenance', 4, false, function(m)
     if m.name_borrowed and (m.reply_to_outside or pays(m)) then
         return found("a correspondent's name at an address that has never written to you, sending replies elsewhere or carrying a payment account",
             {domain = m.from_domain})
     end
-end)
+end, {shadow = true})
 -- Replies count as sent elsewhere only to another organisation by the
 -- public suffix list.  A sender whose own aligned DKIM verified and whose
 -- domain has a history here is left alone; DKIM alone is not enough,
@@ -83,14 +86,14 @@ rule('bec-lookalike-reply-diverted', 'provenance', 3, false, function(m)
         return found('from a domain one or two letters away from one you write to, with replies sent to another domain',
             {domain = m.from_domain, like = m.lookalike_of})
     end
-end)
+end, {shadow = true})
 rule('bec-reply-diverted-unauthenticated', 'provenance', 4, false, function(m)
     if m.from_correspondent_domain and m.reply_to_outside
         and m.dmarc ~= '' and m.dmarc ~= 'pass' then
         return found("claims a domain you write to without passing that domain's DMARC, and sends replies elsewhere",
             {domain = m.from_domain})
     end
-end)
+end, {shadow = true})
 
 -- A domain this deployment first saw within the week (after a week of
 -- watching), asking for money or sending the reader to log in somewhere
