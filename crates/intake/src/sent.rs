@@ -53,12 +53,23 @@ pub struct Filed {
 /// File `body` as `user`'s sent copy. `recipients` is the envelope (To,
 /// Cc and Bcc): the Bcc addresses are not in the bytes, and every one of
 /// them joins the user's contacts.
+///
+/// The copy counts against the quota like any mail, and a mailbox at its
+/// quota takes none: an imported Sent folder stops there as an imported
+/// Inbox does, and a send is refused before anything is queued, as a
+/// full Gmail account cannot send.
 pub fn file<S: SentStore + ?Sized>(
     core: &S,
     user: &str,
     body: &[u8],
     recipients: &[String],
 ) -> io::Result<Filed> {
+    if crate::live_sync::quota_exceeded(user) {
+        return Err(io::Error::new(
+            io::ErrorKind::QuotaExceeded,
+            format!("{user} is over quota"),
+        ));
+    }
     let root = core.maildir_root();
     let folder = sent_dir(root, user)?;
     let md = mailrs_maildir::Maildir::create(&folder)?;

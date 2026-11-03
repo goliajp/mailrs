@@ -368,18 +368,31 @@ pub(crate) async fn delete_thread(
     // self-heal and the "deleted" thread re-appears (prod 2026-07-24, two
     // ghost FYI threads; 2026-10-25, a self-sent message back in minutes
     // from its Sent copy).
+    use axum::response::IntoResponse;
     let (existed, files) = match state.mailbox.delete_thread(&user, &thread_id) {
         Ok(pair) => pair,
         Err(e) => {
-            tracing::warn!(error = %e, %user, %thread_id, "delete_thread kevy failed");
-            return action_result(false);
+            tracing::error!(error = %e, %user, %thread_id, "delete_thread kevy failed");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
     let mut unlinked = 0u32;
+    let mut left = 0u32;
     for file in &files {
-        if unlink_maildir_file(&state.maildir_root, &user, file) {
-            unlinked += 1;
+        match crate::routes::message_ops::remove_maildir_file(&state.maildir_root, &user, file) {
+            Ok(true) => unlinked += 1,
+            Ok(false) => {}
+            Err(e) => {
+                tracing::error!(error = %e, %user, %thread_id, %file,
+                    "delete_thread: a file stayed on disk; self-heal will file it again");
+                left += 1;
+            }
         }
+    }
+    // the conversation comes back with the next self-heal, so the delete
+    // did not happen and the caller is told so
+    if left > 0 {
+        return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
     if existed {
         tracing::info!(

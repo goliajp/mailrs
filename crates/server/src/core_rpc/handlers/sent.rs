@@ -32,6 +32,7 @@ pub async fn file_sent(
             tracing::error!(error = %e, %user, "filing the sent copy failed");
             match e.kind() {
                 std::io::ErrorKind::InvalidInput => StatusCode::BAD_REQUEST,
+                std::io::ErrorKind::QuotaExceeded => StatusCode::INSUFFICIENT_STORAGE,
                 _ => StatusCode::INTERNAL_SERVER_ERROR,
             }
         })

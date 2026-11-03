@@ -6,10 +6,15 @@
 //! Keys:
 //!
 //! ```text
-//! inline:<uuid>          hash  { content_type: <mt>, body: <bytes> }
+//! inline:<id>                 hash    { content_type, body, owner }, expires
+//! inline-uploaded:<user>      string  bytes uploaded this window, expires
 //! ```
 //!
-//! `body` is stored raw (not base64) since kevy is byte-safe.
+//! `body` is stored raw (not base64) since kevy is byte-safe. An upload
+//! is needed only until the message that shows it is sent, when it
+//! travels inside the message under a Content-ID, so it expires after
+//! [`KEEP`]. Each user may upload [`MAX_BYTES_PER_WINDOW`] in a window of
+//! that length, which bounds what one account can leave in the store.
 
 use std::sync::Arc;
 
@@ -29,11 +34,37 @@ fn random_id() -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
+/// How long an upload is kept: a draft that shows it can wait this long.
+pub(crate) const KEEP: std::time::Duration = std::time::Duration::from_secs(30 * 86_400);
+
+/// What one user may upload within one [`KEEP`].
+pub(crate) const MAX_BYTES_PER_WINDOW: i64 = 200 * 1024 * 1024;
+
+fn uploaded_key(user: &str) -> String {
+    format!("inline-uploaded:{}", user.to_lowercase())
+}
+
+/// Count `len` bytes against `user`'s window. `false` when that would go
+/// past [`MAX_BYTES_PER_WINDOW`]; the bytes are then not counted.
+fn count_upload(c: &mut kevy_client::Connection, user: &str, len: i64) -> std::io::Result<bool> {
+    let key = uploaded_key(user);
+    let total = c.incr_by(key.as_bytes(), len)?;
+    if total == len {
+        c.expire(key.as_bytes(), KEEP)?;
+    }
+    if total > MAX_BYTES_PER_WINDOW {
+        c.incr_by(key.as_bytes(), -len)?;
+        return Ok(false);
+    }
+    Ok(true)
+}
+
 /// POST /api/mail/inline-upload — multipart form with `file` field.
-/// Returns `{url: "/api/mail/inline/<id>"}`.
+/// Returns `{url: "/api/mail/inline/<id>"}`, or 429 when the user has
+/// uploaded [`MAX_BYTES_PER_WINDOW`] already.
 pub async fn inline_upload(
     State(_state): State<Arc<WebState>>,
-    Extension(AuthedUser(_user)): Extension<AuthedUser>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
     mut multipart: Multipart,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     // Only care about the first file field — the compose form always
@@ -57,16 +88,24 @@ pub async fn inline_upload(
     let key = format!("inline:{id}");
     let ct_c = content_type.clone();
     let body_v = bytes.to_vec();
-    with_kevy(move |c| {
+    let counted = with_kevy(move |c| {
+        if !count_upload(c, &user, body_v.len() as i64)? {
+            return Ok(false);
+        }
         c.hset(
             key.as_bytes(),
             &[
                 (b"content_type" as &[u8], ct_c.as_bytes()),
                 (b"body", body_v.as_slice()),
+                (b"owner", user.as_bytes()),
             ],
         )?;
-        Ok(())
+        c.expire(key.as_bytes(), KEEP)?;
+        Ok(true)
     })?;
+    if !counted {
+        return Err(StatusCode::TOO_MANY_REQUESTS);
+    }
     Ok(Json(serde_json::json!({
         "url": format!("/api/mail/inline/{id}"),
     })))

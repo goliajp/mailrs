@@ -69,6 +69,7 @@ pub(crate) async fn file_sent(
             tracing::error!(error = %e, %user, "filing the sent copy failed");
             match e.kind() {
                 io::ErrorKind::InvalidInput => StatusCode::BAD_REQUEST,
+                io::ErrorKind::QuotaExceeded => StatusCode::INSUFFICIENT_STORAGE,
                 _ => StatusCode::INTERNAL_SERVER_ERROR,
             }
         })

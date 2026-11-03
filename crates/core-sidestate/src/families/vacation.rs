@@ -60,7 +60,8 @@ impl Vacation {
     }
 
     fn check(&self) -> Result<(), Refused> {
-        if self.subject.chars().count() > SUBJECT_MAX {
+        // it becomes a header line of the reply as it is
+        if self.subject.chars().count() > SUBJECT_MAX || self.subject.contains(['\r', '\n']) {
             return Err(Refused::Subject);
         }
         if (self.enabled && self.body.trim().is_empty()) || self.body.chars().count() > BODY_MAX {
@@ -147,6 +148,18 @@ mod tests {
             ..open
         };
         assert!(!off.active_at(0));
+    }
+
+    /// The subject becomes a header line of the reply as it is.
+    #[test]
+    fn a_subject_with_a_line_break_is_refused() {
+        for subject in ["Away\r\nBcc: x@evil.test", "Away\nX: y", "Away\rX: y"] {
+            let v = Vacation {
+                subject: subject.into(),
+                ..away()
+            };
+            assert_eq!(v.check(), Err(Refused::Subject), "{subject:?}");
+        }
     }
 
     #[test]
