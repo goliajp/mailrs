@@ -61,6 +61,7 @@ pub mod line_handoff;
 pub mod links;
 pub mod mailer_fingerprint;
 pub mod minted_address;
+pub mod novelty;
 pub mod payment;
 pub mod qr;
 pub mod relation;
