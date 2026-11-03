@@ -32,6 +32,13 @@ export function TextBlock({ data, disabled, onChange, onSubmit, placeholder }: P
   const resize = useCallback(() => {
     const el = textareaRef.current
     if (!el) return
+    // An empty box is the minimum height, and asking for `scrollHeight`
+    // lays out the whole page there and then. The reply box mounts empty
+    // with every conversation opened, inside the commit that draws it.
+    if (el.value === '') {
+      el.style.height = `${MIN_HEIGHT_PX}px`
+      return
+    }
     el.style.height = 'auto'
     el.style.height = `${Math.max(el.scrollHeight, MIN_HEIGHT_PX)}px`
   }, [])
