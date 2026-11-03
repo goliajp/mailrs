@@ -302,6 +302,10 @@ services:
       # the domain check reads only domain and selector, never the key files
       <<: [*dkim-identity, *imap-listeners, *password-reset, *fraud-policy, *web-push]
       RUST_LOG: info
+    # the image declares /certs for the TLS-serving roles; this one serves
+    # no TLS, and without this each recreate leaves an anonymous volume
+    tmpfs:
+      - /certs:size=1m,mode=0700
     volumes:
       - mailrs-data:/data
       # imported mail is judged by the rules the receiver runs
@@ -359,6 +363,10 @@ services:
       # mail to the mock domain is stored under /data/mock, never sent
       MAILRS_MOCK_DOMAIN: mock.golia.jp
       RUST_LOG: info
+    # the image declares /certs for the TLS-serving roles; this one serves
+    # no TLS, and without this each recreate leaves an anonymous volume
+    tmpfs:
+      - /certs:size=1m,mode=0700
     volumes:
       - /apps/mailrs/dkim:/dkim:ro
       - /apps/mailrs/fraud-rules:/fraud-rules:ro
@@ -387,6 +395,10 @@ services:
       MAILRS_BACKUP_TARGET: /backup
       MAILRS_BACKUP_AT: ${MAILRS_BACKUP_AT:-17:00}
       RUST_LOG: info
+    # the image declares /certs for the TLS-serving roles; this one serves
+    # no TLS, and without this each recreate leaves an anonymous volume
+    tmpfs:
+      - /certs:size=1m,mode=0700
     volumes:
       - mailrs-data:/data:ro
       - kevy-server-data:/kevy-server:ro
