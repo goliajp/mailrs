@@ -49,6 +49,11 @@ impl KevyMailboxStore {
         Ok(out)
     }
 
+    /// How many shared conversation records there are, held or not.
+    pub fn shared_thread_count(&self) -> u64 {
+        self.shared_thread_ids().len() as u64
+    }
+
     /// Delete one conversation nobody holds: its shared record, its
     /// message index, and each message's blob and indexed text. Whether
     /// somebody holds it is asked again here, not trusted from a listing.

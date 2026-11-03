@@ -76,6 +76,8 @@ async fn only_the_super_administrator_deletes_what_nobody_holds() {
     let (status, got) = live.call(Method::GET, list, &root, None).await;
     assert_eq!(status, 200, "{got}");
     assert_eq!(got["count"], 1, "{got}");
+    // it looked at both conversations, the held one and the ownerless one
+    assert!(got["scanned"].as_u64().unwrap_or(0) >= 2, "{got}");
     assert_eq!(got["items"][0]["thread_id"], "t-orphan@x.test");
     assert_eq!(got["items"][0]["id_prefix"], "t-orphan");
     assert_eq!(got["items"][0]["messages"], 1);

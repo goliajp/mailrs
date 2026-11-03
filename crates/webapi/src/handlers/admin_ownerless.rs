@@ -42,7 +42,7 @@ pub async fn list(
         })
         .collect();
     Ok(Json(
-        serde_json::json!({ "count": items.len(), "items": items }),
+        serde_json::json!({ "count": items.len(), "scanned": found.scanned, "items": items }),
     ))
 }
 
