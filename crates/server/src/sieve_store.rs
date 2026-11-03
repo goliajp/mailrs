@@ -51,11 +51,23 @@ pub(crate) fn unreachable() -> std::io::Error {
     std::io::Error::other("no MAILRS_KEVY_URL, or the network store is unreachable")
 }
 
-pub(crate) fn set_at(url: &str, address: &str, script: &str) -> Result<(), std::io::Error> {
-    conn_at(url)
-        .ok_or_else(unreachable)?
-        .set(key(address).as_bytes(), script.as_bytes())?;
-    Ok(())
+/// Store under the forwarding rules both cores keep
+/// (`mailrs_intake::sieve_policy::store_script`).
+pub(crate) fn set_at(
+    url: &str,
+    address: &str,
+    script: &str,
+    local_domains: &[String],
+) -> Result<mailrs_intake::sieve_policy::Stored, std::io::Error> {
+    let mut conn = conn_at(url).ok_or_else(unreachable)?;
+    mailrs_intake::sieve_policy::store_script(
+        &mut conn,
+        address,
+        script,
+        local_domains,
+        "managesieve",
+        chrono::Utc::now().timestamp(),
+    )
 }
 
 pub(crate) fn delete_at(url: &str, address: &str) -> Result<bool, std::io::Error> {
@@ -89,7 +101,7 @@ mod tests {
         // script", but a write must not, or the person believes their filter is
         // live when nothing was stored.
         assert!(
-            set_at(NOWHERE, "a@b.test", "keep;").is_err(),
+            set_at(NOWHERE, "a@b.test", "keep;", &[]).is_err(),
             "a save with nowhere to go must report it, not return Ok"
         );
         assert!(delete_at(NOWHERE, "a@b.test").is_err());

@@ -12,7 +12,7 @@ use crate::sieve;
 
 impl<C: Core + ?Sized> Inbound<'_, C> {
     /// Whether the user's settings may act on this copy for `addr`.
-    fn settings_apply(&self, addr: &str) -> bool {
+    pub(crate) fn settings_apply(&self, addr: &str) -> bool {
         let env = self.env;
         let rp = env.reverse_path.trim().trim_matches(['<', '>']);
         !env.target_folder.eq_ignore_ascii_case("Junk")

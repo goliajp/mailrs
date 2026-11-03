@@ -112,3 +112,75 @@ async fn the_trash_answers_alike_on_both_cores() {
     assert!(trash.is_empty(), "{trash:?}");
     assert!(d.0.is_empty(), "the cores differ:\n{}", d.0.join("\n"));
 }
+
+/// `ALICE`'s used bytes on the network kevy at `url`, 0 when unset.
+fn used(url: &str) -> i64 {
+    let mut c = kevy_client::Connection::connect(url).expect("kevy");
+    let key = mailrs_core_sidestate::keys::quota::used_key(ALICE);
+    c.get(key.as_bytes())
+        .expect("read used bytes")
+        .and_then(|v| String::from_utf8(v).ok())
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0)
+}
+
+/// Mail that arrives, goes to the Trash and is deleted for good there,
+/// by the purge or by emptying the Trash, leaves the account's used bytes
+/// where they were before it came: the quota stage reads that counter,
+/// and one that only grows refuses mail to an account that has room.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn mail_deleted_from_the_trash_leaves_the_usage_counter_as_it_was() {
+    let urls = [
+        "mem://usage-fastcore-side-state",
+        "mem://usage-pg-core-side-state",
+    ];
+    let cores = harness::start_on(urls[0], urls[1]).await;
+    let mut d = Diffs::default();
+    accounts::seed(&cores, &mut d).await;
+    let before = urls.map(used);
+    let spools = Spools::new(&cores);
+    for id in ["u1", "u2"] {
+        spools.arrive(&cores, &envelope(None), &mail(id)).await;
+    }
+    let tid = |id: &str| format!("{id}@outside.example");
+    let after = urls.map(used);
+    for (core, (b, a)) in ["fastcore", "pg-core"].iter().zip(before.iter().zip(after)) {
+        assert!(a > *b, "{core}: arriving mail counts ({b} -> {a})");
+    }
+
+    for c in [&cores.fastcore, &cores.pg_core] {
+        c.trash_thread(ALICE, &tid("u1")).await.expect("trash");
+        c.trash_thread(ALICE, &tid("u2")).await.expect("trash");
+    }
+    assert_eq!(urls.map(used), after, "the Trash still counts");
+
+    // u1 by the purge, u2 by emptying the Trash
+    cores
+        .fastcore_state
+        .mailbox
+        .set_trashed(ALICE, &tid("u1"), true, 1_000)
+        .expect("backdate");
+    cores
+        .pg_core_state
+        .mailbox
+        .trash_thread(ALICE, &tid("u1"), 1_000)
+        .await
+        .expect("backdate");
+    let fc = mailrs_fastcore::purge_trash_once(&cores.fastcore_state, 2_000, 10).await;
+    let pg = crate::core_rpc::handlers::trash::purge_once(&cores.pg_core_state, 2_000, 10).await;
+    assert_eq!((fc, pg), (1, 1), "the purge deletes u1 on each core");
+
+    let emptied = d.both(
+        "empty_trash",
+        cores.fastcore.empty_trash(ALICE).await,
+        cores.pg_core.empty_trash(ALICE).await,
+        &[],
+    );
+    if let Some((e, _)) = emptied {
+        assert_eq!(e.deleted.len(), 1, "{e:?}");
+        assert_eq!(e.deleted[0].thread_id, tid("u2"));
+        assert_eq!(e.deleted[0].messages, 1);
+    }
+    assert_eq!(urls.map(used), before, "the counter is where it started");
+    assert!(d.0.is_empty(), "the cores differ:\n{}", d.0.join("\n"));
+}

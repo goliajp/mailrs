@@ -113,7 +113,11 @@ fn later() -> Vec<Vec<Step>> {
     ]
 }
 
-async fn conversations<D: Directory>(dir: Arc<D>, home: std::path::PathBuf) -> Vec<String> {
+async fn conversations<D: Directory>(
+    dir: Arc<D>,
+    home: std::path::PathBuf,
+    net: &str,
+) -> Vec<String> {
     let mut diffs = Vec::new();
     let (client, server) = tokio::io::duplex(1 << 20);
     tokio::spawn(mailrs_mail_protocols::imap::run(dir.clone(), server));
@@ -152,7 +156,7 @@ async fn conversations<D: Directory>(dir: Arc<D>, home: std::path::PathBuf) -> V
         tokio::spawn(pop3);
         diffs.extend(converse(client, "pop3", &steps).await);
     }
-    diffs.extend(bodies::folders(dir.clone(), home.clone()).await);
+    diffs.extend(bodies::folders(dir.clone(), home.clone(), net).await);
     diffs.extend(labelled::label(dir.clone(), home).await);
     diffs.extend(passwordless_refused(dir).await);
     diffs
@@ -192,10 +196,10 @@ async fn passwordless_refused<D: Directory>(dir: Arc<D>) -> Vec<String> {
 async fn both_cores_hold_the_same_mail_conversations() {
     let backends = harness::start().await;
     let mut report = Vec::new();
-    for diff in conversations(backends.fastcore.clone(), backends.home(0)).await {
+    for diff in conversations(backends.fastcore.clone(), backends.home(0), harness::NET[0]).await {
         report.push(format!("fastcore: {diff}"));
     }
-    for diff in conversations(backends.pg.clone(), backends.home(1)).await {
+    for diff in conversations(backends.pg.clone(), backends.home(1), harness::NET[1]).await {
         report.push(format!("pg-core: {diff}"));
     }
     let state = backends.fastcore_state.clone();

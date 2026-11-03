@@ -126,6 +126,16 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
             "/v1/admin/maintenance:ledger-estimate",
             post(crate::maintenance::ledger_estimate_route),
         )
+        // Read-only: which stored Sieve scripts the forwarding rules change.
+        .route(
+            "/v1/admin/maintenance:sieve-survey",
+            get(crate::maintenance::sieve_survey_route),
+        )
+        // Read-only: each account's usage counter against its maildir.
+        .route(
+            "/v1/admin/maintenance:usage-drift",
+            get(crate::maintenance::usage_drift_route),
+        )
         // Reads the calendar part out of mail that arrived before
         // anybody looked at one — which is all of it, since production
         // ingested invitations for a year and stored nothing about

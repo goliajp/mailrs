@@ -83,11 +83,14 @@ pub fn url(base: &str) -> String {
 }
 
 /// GET /jmap/ws/
+// an axum handler: each argument is an extractor, read from the request
+#[allow(clippy::too_many_arguments)]
 pub async fn websocket(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     scopes: Option<Extension<crate::session::AgentScopes>>,
     key: Option<Extension<crate::session::AgentKey>>,
+    session: Option<Extension<crate::session::confirm::SessionRef>>,
     held: Option<Extension<Held>>,
     headers: HeaderMap,
     ws: WebSocketUpgrade,
@@ -117,6 +120,7 @@ pub async fn websocket(
         .as_ref()
         .is_some_and(|Extension(s)| crate::session::masked_only(&s.0));
     let key = key.map(|Extension(k)| k);
+    let session = session.map(|Extension(s)| s);
     // a frame larger than a request may be is answered with the limit
     // error and the connection closed; one far larger is cut off unread
     let cut = super::MAX_SIZE_REQUEST * 2;
@@ -130,6 +134,7 @@ pub async fn websocket(
             state,
             masked_only,
             key,
+            session,
             held,
             push: None,
             _slot: slot,
@@ -148,6 +153,7 @@ struct Conn {
     state: Arc<WebState>,
     masked_only: bool,
     key: Option<crate::session::AgentKey>,
+    session: Option<crate::session::confirm::SessionRef>,
     held: Held,
     push: Option<Push>,
     _slot: Slot,
@@ -251,6 +257,7 @@ impl Conn {
                     &self.ctx.user,
                     self.masked_only,
                     self.key.clone(),
+                    self.session.clone(),
                     frame,
                 )
                 .await;

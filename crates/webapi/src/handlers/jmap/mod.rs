@@ -192,12 +192,15 @@ pub async fn api(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     scopes: Option<Extension<crate::session::AgentScopes>>,
     key: Option<Extension<crate::session::AgentKey>>,
+    session: Option<Extension<crate::session::confirm::SessionRef>>,
     body: Bytes,
 ) -> Response {
     let masked_only = scopes
         .as_ref()
         .is_some_and(|Extension(s)| crate::session::masked_only(&s.0));
-    match process(&state, &user, masked_only, key.map(|Extension(k)| k), &body).await {
+    let key = key.map(|Extension(k)| k);
+    let session = session.map(|Extension(s)| s);
+    match process(&state, &user, masked_only, key, session, &body).await {
         Ok(v) => Json(v).into_response(),
         Err(p) => problem(p.kind, &p.detail, p.limit),
     }
@@ -210,6 +213,7 @@ pub(crate) async fn process(
     user: &str,
     masked_only: bool,
     key: Option<crate::session::AgentKey>,
+    session: Option<crate::session::confirm::SessionRef>,
     body: &[u8],
 ) -> Result<Value, Problem> {
     if body.len() > limits::MAX_SIZE_REQUEST {
@@ -252,7 +256,7 @@ pub(crate) async fn process(
         Some(k) => format!("key {}", k.prefix),
         None => "jmap".to_string(),
     };
-    let ctx = Ctx::new(state.clone(), user.to_string(), key);
+    let ctx = Ctx::new(state.clone(), user.to_string(), key).with_session(session);
     let mut current: Option<Now> = None;
     let mut responses: Vec<(String, Value, String)> = Vec::new();
     for (method, mut args, call_id) in req.method_calls {
