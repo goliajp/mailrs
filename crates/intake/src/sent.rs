@@ -68,7 +68,15 @@ pub fn file<S: SentStore + ?Sized>(
     let md = mailrs_maildir::Maildir::create(&folder)?;
     let id = md.deliver(body)?;
     let blob_ref = format!("{SENT_FOLDER}/{}", id.0);
-    let mut a = derive(core, core.net_conn(), user, &blob_ref, body, "Sent");
+    let mut a = derive(
+        core,
+        core.net_conn(),
+        user,
+        &blob_ref,
+        body,
+        "Sent",
+        core.authserv_id(),
+    );
     a.is_own = true;
     crate::effects::before_store(user, &a, body.len());
     core.index_own(user, &blob_ref, body, &a)?;

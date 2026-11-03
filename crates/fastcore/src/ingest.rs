@@ -44,6 +44,7 @@ pub(crate) fn ingest_delivered_file(
         blob_ref,
         body,
         target_folder,
+        state.authserv_id.as_deref(),
     );
     // Importance follows the latest INBOUND message, like the thread's
     // display fields — the user's own reply must not restate it.

@@ -28,7 +28,7 @@ pub(crate) async fn healed_from_maildir(
     user: &str,
     since: i64,
 ) -> bool {
-    let parsed = scan::scan_maildir(user, since);
+    let parsed = scan::scan_maildir(user, since, state.authserv_id.as_deref());
     if parsed.is_empty() {
         return false;
     }

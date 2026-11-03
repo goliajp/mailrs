@@ -53,7 +53,15 @@ impl PgCore {
         folder: &str,
         fraud_verdict: Option<&str>,
     ) -> bool {
-        let a = derive(self, self.net_conn(), addr, blob_ref, body, folder);
+        let a = derive(
+            self,
+            self.net_conn(),
+            addr,
+            blob_ref,
+            body,
+            folder,
+            self.dir.authserv_id.as_deref(),
+        );
         // importance follows the latest inbound message; the user's own
         // reply must not restate it
         let importance = match a.is_own {

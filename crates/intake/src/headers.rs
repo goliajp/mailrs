@@ -40,7 +40,11 @@ pub fn parse_rfc5322_date(s: &str) -> Option<i64> {
 /// Empty means **nothing to say**: no authentication header and no
 /// tampering found. It never means the message was examined and found
 /// safe.
-pub fn extract_sender_trust(raw: &[u8]) -> String {
+///
+/// `authserv` is this server's authserv-id (`MAILRS_HOSTNAME`): a first
+/// header in that name that its receiver did not write is not read, so
+/// a message filed with one in it cannot show as verified.
+pub fn extract_sender_trust(raw: &[u8], authserv: Option<&str>) -> String {
     let head = &raw[..raw.len().min(16 * 1024)];
     // Find the (possibly folded) Authentication-Results field. Headers
     // are ASCII field names; scan lines, unfolding continuations.
@@ -56,6 +60,10 @@ pub fn extract_sender_trust(raw: &[u8]) -> String {
             }
             break; // header ended
         }
+        // the body is not headers: a results line quoted there is text
+        if line.is_empty() {
+            break;
+        }
         if let Some(rest) = line
             .strip_prefix("Authentication-Results:")
             .or_else(|| line.strip_prefix("authentication-results:"))
@@ -64,6 +72,7 @@ pub fn extract_sender_trust(raw: &[u8]) -> String {
             collecting = true;
         }
     }
+    let value = value.filter(|_| !mailrs_rfc5322::auth_results::first_is_forged(raw, authserv));
     // What the From display name and Subject actually contain. This is
     // read before the authentication results are consulted, and it
     // outranks them, because the two answer different questions: DMARC
@@ -290,7 +299,7 @@ mod tests {
     fn a_passing_dmarc_does_not_outrank_a_reversed_display_name() {
         let raw = message_from("\u{202E}BCJyM", Some("spf=pass; dkim=pass; dmarc=pass"));
         assert_eq!(
-            extract_sender_trust(&raw),
+            extract_sender_trust(&raw, None),
             "suspicious",
             "a right-to-left override in the display name was outvoted by DMARC"
         );
@@ -302,7 +311,7 @@ mod tests {
     #[test]
     fn the_same_checks_on_an_untampered_name_still_verify() {
         let raw = message_from("MyJCB", Some("spf=pass; dkim=pass; dmarc=pass"));
-        assert_eq!(extract_sender_trust(&raw), "verified");
+        assert_eq!(extract_sender_trust(&raw, None), "verified");
     }
 
     /// Mail that reached the maildir by a path that never stamped an
@@ -313,7 +322,7 @@ mod tests {
     fn an_override_convicts_even_with_no_authentication_header() {
         let raw = message_from("\u{202E}DRAC NOSIAS", None);
         assert_eq!(
-            extract_sender_trust(&raw),
+            extract_sender_trust(&raw, None),
             "suspicious",
             "with no auth header the display name was never looked at"
         );
@@ -324,7 +333,7 @@ mod tests {
     #[test]
     fn an_ordinary_message_without_an_auth_header_stays_silent() {
         assert_eq!(
-            extract_sender_trust(&message_from("Quora Digest", None)),
+            extract_sender_trust(&message_from("Quora Digest", None), None),
             ""
         );
     }
@@ -338,7 +347,44 @@ mod tests {
             "M\u{200B}yJC\u{2060}B",
             Some("spf=pass; dkim=pass; dmarc=pass"),
         );
-        assert_eq!(extract_sender_trust(&raw), "verified");
+        assert_eq!(extract_sender_trust(&raw, None), "verified");
+    }
+
+    const OURS: Option<&str> = Some("mail.golia.ai");
+    const PASS: &str = "Authentication-Results: mail.golia.ai; spf=pass; dkim=pass; dmarc=pass\r\n";
+    const TRACE: &str = "Received: from mx.bank.example (1.2.3.4:5)\r\n\tby mail.golia.ai with ESMTP\r\n\tfor <a@golia.jp>; Mon, 2 Nov 2026 00:00:00 +0000\r\n";
+    const REST: &str = "From: Bank <alerts@bank.example>\r\nSubject: test\r\n\r\nbody\r\n";
+
+    /// An imported message carrying a passing header in our name that our
+    /// receiver never wrote must not show as verified.
+    #[test]
+    fn a_header_in_our_name_without_our_trace_does_not_verify() {
+        let forged = format!("{PASS}{REST}");
+        assert_eq!(extract_sender_trust(forged.as_bytes(), OURS), "");
+        let elsewhere = format!("{PASS}Received: from x by mx.google.com with ESMTPS\r\n{REST}");
+        assert_eq!(extract_sender_trust(elsewhere.as_bytes(), OURS), "");
+    }
+
+    /// What the receiver delivers reads exactly as it did.
+    #[test]
+    fn our_receivers_header_still_verifies() {
+        let ours = format!("{PASS}{TRACE}{REST}");
+        assert_eq!(extract_sender_trust(ours.as_bytes(), OURS), "verified");
+        let google = format!(
+            "Authentication-Results: mx.google.com; spf=pass; dkim=pass; dmarc=pass\r\n{REST}"
+        );
+        assert_eq!(
+            extract_sender_trust(google.as_bytes(), OURS),
+            "verified",
+            "another server's header is read as before"
+        );
+    }
+
+    /// A results line quoted in the body is text, not a header.
+    #[test]
+    fn a_results_line_in_the_body_is_not_read() {
+        let quoted = format!("{REST}{PASS}");
+        assert_eq!(extract_sender_trust(quoted.as_bytes(), OURS), "");
     }
 }
 
