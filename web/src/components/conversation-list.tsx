@@ -22,6 +22,7 @@ import { TrashBanner } from '@/components/trash-banner'
 import { useConversationActions } from '@/hooks/use-conversation-actions'
 import { useConversationRows, useCurrentSelection } from '@/hooks/use-current-list'
 import { useCurrentMailFilters } from '@/hooks/use-current-mail-filters'
+import { useScrollSaver } from '@/hooks/use-scroll-saver'
 import { type RowState, viewOf } from '@/lib/actions'
 import { dateGroupLabel } from '@/lib/format'
 import { listIdentity } from '@/lib/list-identity'
@@ -88,24 +89,8 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
   const identityRef = useRef(identity)
 
   // keep the saved scroll in sync with the actual position so a page
-  // refresh puts us back where we were — under this list's own key.
-  useEffect(() => {
-    const el = scrollContainerRef.current
-    if (!el) return
-    let rAFid: null | number = null
-    const onScroll = () => {
-      if (rAFid != null) return
-      rAFid = requestAnimationFrame(() => {
-        rAFid = null
-        persistScroll(identityRef.current, el.scrollTop)
-      })
-    }
-    el.addEventListener('scroll', onScroll, { passive: true })
-    return () => {
-      el.removeEventListener('scroll', onScroll)
-      if (rAFid != null) cancelAnimationFrame(rAFid)
-    }
-  }, [])
+  // refresh puts us back where we were — under this list's own key
+  useScrollSaver(scrollContainerRef, identityRef)
 
   // Switching lists starts at the top.
   //

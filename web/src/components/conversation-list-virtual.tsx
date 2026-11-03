@@ -125,7 +125,12 @@ export function VirtualConversationList({
 
   const virtualizer = useVirtualizer({
     count: items.length,
-    overscan: 10,
+    // Rows drawn beyond each edge of the screen. Every one of them is
+    // mounted when a scroll jumps, and a wheel turn jumps a whole screen:
+    // at ten, a jump mounted about thirty rows to show eleven. Rows are a
+    // fixed height and drawn in the same frame as the scroll, so four is
+    // enough to never show a blank one.
+    overscan: 4,
     // Fixed per-type heights. Matches the CSS h-24 / h-8 / h-12 on
     // ConversationItem / DateDivider / sentinel + end markers.
     //

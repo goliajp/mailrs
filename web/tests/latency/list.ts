@@ -1,9 +1,10 @@
 /**
  * Reading the mail list from the page: which conversation rows are
- * rendered, and moving its scroll position.
+ * rendered, and moving its scroll position; and the renderer's main-thread
+ * time so far.
  */
 
-import type { Page } from '@playwright/test'
+import type { CDPSession, Page } from '@playwright/test'
 
 export type RowInfo = {
   current: boolean
@@ -40,6 +41,18 @@ export function rows(page: Page): Promise<RowInfo[]> {
 
 export const rowButton = (page: Page, n: number) =>
   page.getByRole('button', { exact: false, name: new RegExp(`#${n}(,|$)`) })
+
+/** Main-thread time so far, ms, by kind. */
+export async function mainThread(cdp: CDPSession) {
+  const { metrics } = await cdp.send('Performance.getMetrics')
+  const get = (n: string) => (metrics.find((m) => m.name === n)?.value ?? 0) * 1000
+  return {
+    layout: get('LayoutDuration'),
+    script: get('ScriptDuration'),
+    style: get('RecalcStyleDuration'),
+    task: get('TaskDuration'),
+  }
+}
 
 export async function scrollList(page: Page, to: 'bottom' | number) {
   await page.evaluate((t) => {
