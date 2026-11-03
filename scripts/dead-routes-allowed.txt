@@ -95,3 +95,5 @@
 /api/admin/dane/tlsa  # the TLSA zone lines for port 25, which the operator publishes in DNS. No admin page has been asked for; read with curl.
 /api/admin/ownerless-threads  # the operator lists conversations nobody holds and reports them before any delete. No admin page has been asked for; read with curl.
 /api/admin/ownerless-threads/{thread_id}  # one irreversible delete at a time, by the super administrator with curl after the list is reviewed.
+/api/admin/rejudge/batches  # the super administrator reads what re-judging took back, with curl, to decide on a batch release.
+/api/admin/rejudge/batches/{observation}/release  # one batch put back by the super administrator with curl, after reading the list.

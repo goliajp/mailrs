@@ -2,10 +2,12 @@
  * The review screen's reads and its one write.
  */
 
+import type { WireFraudVerdict, WireRecalled } from '../schemas/fraud'
+
 import { z } from '@/lib/zod'
 
 import { wireFetch } from '../client'
-import { type WireFraudVerdict, wireFraudVerdictResponseSchema } from '../schemas/fraud'
+import { wireFraudVerdictResponseSchema, wireRecalledResponseSchema } from '../schemas/fraud'
 
 /**
  * `GET /api/messages/{messageId}/fraud-verdict`
@@ -21,6 +23,15 @@ export async function fetchFraudVerdict(
     signal,
   })
   return raw.verdict
+}
+
+/**
+ * `GET /api/review/recalled` — conversations taken back into Review in the
+ * last seven days because stored mail was judged again.
+ */
+export async function fetchRecalled(signal?: AbortSignal): Promise<WireRecalled[]> {
+  const raw = await wireFetch(wireRecalledResponseSchema, { path: '/review/recalled', signal })
+  return raw.items
 }
 
 /**

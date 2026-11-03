@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use crate::FastcoreState;
 
-pub(super) fn apply(
+pub(crate) fn apply(
     state: &Arc<FastcoreState>,
     user: &str,
     tid: &str,

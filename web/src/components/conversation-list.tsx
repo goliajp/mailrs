@@ -17,6 +17,7 @@ import { DeleteThreadConfirm } from '@/components/delete-thread-confirm'
 import { InboxSectionBar } from '@/components/inbox-section-bar'
 import { LabelBar } from '@/components/label-bar'
 import { ListSearchInput } from '@/components/list-search-input'
+import { RecalledNote } from '@/components/recalled-note'
 import { CreateRuleButton, SavedSearchBar, SaveSearchButton } from '@/components/saved-search-bar'
 import { TrashBanner } from '@/components/trash-banner'
 import { useConversationActions } from '@/hooks/use-conversation-actions'
@@ -322,6 +323,7 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
 
       <FilterBar />
       <InboxSectionBar />
+      <RecalledNote />
       <LabelBar />
       <SavedSearchBar />
 

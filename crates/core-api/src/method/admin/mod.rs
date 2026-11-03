@@ -12,6 +12,7 @@ mod directory;
 mod ops;
 mod ownerless;
 mod permissions;
+mod rejudge;
 mod userdata;
 
 pub use credentials::*;
@@ -19,6 +20,7 @@ pub use directory::*;
 pub use ops::*;
 pub use ownerless::*;
 pub use permissions::*;
+pub use rejudge::*;
 pub use userdata::*;
 
 #[cfg(test)]

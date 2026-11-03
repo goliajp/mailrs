@@ -39,6 +39,10 @@ pub(super) fn conversation_routes() -> axum::Router<Arc<WebState>> {
         )
         .route("/api/quarantine", get(q::list_quarantine))
         .route(
+            "/api/review/recalled",
+            get(crate::handlers::rejudge::recalled),
+        )
+        .route(
             "/api/quarantine/{thread_id}/release",
             post(q::release_quarantine),
         )
