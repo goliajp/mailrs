@@ -45,6 +45,7 @@ sieve:;crates/core-sidestate/src/lib.rs
 saved_searches:;crates/core-sidestate/src/families/saved_searches.rs
 rules:;crates/core-sidestate/src/families/rules.rs
 forwarding:;crates/core-sidestate/src/families/forwarding.rs
+owner-notices;crates/core-sidestate/src/families/owner_notices.rs
 vacation:;crates/core-sidestate/src/families/vacation.rs
 devices:;crates/core-sidestate/src/families/devices.rs
 mailrs:domfirst;crates/core-sidestate/src/families/domain_first.rs

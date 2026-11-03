@@ -74,4 +74,58 @@ impl PgAccount {
         }
         Ok(())
     }
+
+    /// The conversation each of `doomed` belongs to, read before they go;
+    /// `None` for a row that names none or cannot be read.
+    pub(super) async fn conversations_of(
+        &self,
+        mailbox: &Mailbox,
+        doomed: &[Message<String>],
+    ) -> Vec<Option<String>> {
+        let mut out = Vec::with_capacity(doomed.len());
+        for m in doomed {
+            let row = self.mailbox.get_message(mailbox.id, m.uid).await;
+            out.push(
+                row.ok()
+                    .flatten()
+                    .map(|r| r.thread_id)
+                    .filter(|t| !t.is_empty()),
+            );
+        }
+        out
+    }
+
+    /// The audit rows for messages of `conversations` deleted for good by a
+    /// password login, as the kevy core writes them. A failed write is
+    /// logged: the rows are gone.
+    pub(super) fn audit_deleted(&self, conversations: &[Option<String>], via: &str) {
+        use mailrs_core_sidestate::families::audit::{Credential, deleted_forever_each};
+        if conversations.is_empty() {
+            return;
+        }
+        let now = chrono::Utc::now().timestamp();
+        let written = self
+            .net_url
+            .as_deref()
+            .and_then(|u| kevy_client::Connection::connect(u).ok())
+            .map(|mut c| {
+                deleted_forever_each(
+                    &mut c,
+                    &self.user,
+                    conversations,
+                    via,
+                    Credential::Password,
+                    now,
+                )
+            });
+        match written {
+            Some(Ok(())) => {}
+            Some(Err(e)) => {
+                tracing::warn!(user = %self.user, error = %e, "deletion audit row not written")
+            }
+            None => {
+                tracing::warn!(user = %self.user, "deletion audit row not written: no network store")
+            }
+        }
+    }
 }

@@ -252,6 +252,15 @@ pub(super) fn managesieve() -> Vec<Step> {
             "PUTSCRIPT \"mailrs\" {5+}\r\nkeep;\r\n",
             &["OK \"Script stored\"\r\n"],
         ),
+        // out of our domains to an address the web never verified: refused,
+        // and the stored script stays as it was
+        step(
+            "PUTSCRIPT \"mailrs\" {29+}\r\nredirect \"thief@out.example\";\r\n",
+            &[
+                "NO \"redirect to thief@out.example refused: mail goes outside our domains \
+               only to the forwarding address verified in Settings\"\r\n",
+            ],
+        ),
         step(
             "LISTSCRIPTS\r\n",
             &["\"mailrs\" ACTIVE\r\n", "OK \"Listscripts completed\"\r\n"],

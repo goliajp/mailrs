@@ -45,6 +45,8 @@ pub(crate) mod recompute_sender_trust;
 mod thread_cursor;
 pub(crate) use audit_verify::audit_verify_route;
 pub(crate) use ledger_estimate::ledger_estimate_route;
+mod sieve_survey;
+pub(crate) use sieve_survey::sieve_survey_route;
 mod screening_replay;
 pub(crate) use screening_replay::screening_replay_route;
 mod reindex;

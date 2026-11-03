@@ -35,6 +35,9 @@
 
 use std::sync::Arc;
 
+mod inspect;
+pub use inspect::{Reach, reach};
+
 use mailrs_sieve_core::{
     Action, Envelope, VacationPeriod, eval_script_with_envelope, parse_script, validate,
 };

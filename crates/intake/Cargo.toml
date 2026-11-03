@@ -18,6 +18,7 @@ mailrs-srs = { path = "../srs", version = "1" }
 kevy-client = { workspace = true }
 tokio = { version = "1", features = ["sync", "time", "macros", "rt"] }
 tracing = "0.1"
+serde = { workspace = true }
 serde_json = { workspace = true }
 base64 = "0.22"
 rand_core = { workspace = true }

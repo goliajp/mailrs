@@ -166,10 +166,12 @@ impl Account for FastcoreAccount {
         match self {
             Self::Real(a) => {
                 let known = super::forget::Doomed::read(mailbox, &m.key);
+                let conversation = a.conversation_of(m).ok().flatten();
                 backend::remove_message(&a.user, &to_imap(m))?;
                 if let Some(d) = &known {
                     a.forget(d);
                 }
+                a.audit_deleted(&[conversation], "pop3");
                 Ok(())
             }
             Self::Mock(_) => refused(),
@@ -299,7 +301,10 @@ impl Account for FastcoreAccount {
 
     async fn put_sieve_script(&self, body: &str) -> Result<()> {
         match self {
-            Self::Real(a) => Ok(super::sieve::store_script(&a.state, &a.user, body)?),
+            Self::Real(a) => match super::sieve::store_script(&a.state, &a.user, body)? {
+                mailrs_intake::sieve_policy::Stored::Stored => Ok(()),
+                mailrs_intake::sieve_policy::Stored::Refused(why) => Err(Error::Refused(why)),
+            },
             Self::Mock(_) => refused(),
         }
     }

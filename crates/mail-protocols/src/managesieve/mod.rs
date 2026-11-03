@@ -272,9 +272,12 @@ fn havespace(arg: &str) -> String {
     }
 }
 
+/// `ok`, or `NO` with why: a refusal's own words (a redirect the
+/// forwarding rules do not allow), or TRYLATER for a store that failed.
 fn answer(done: Result<(), Error>, ok: &str) -> String {
     match done {
         Ok(()) => ok.to_string(),
+        Err(Error::Refused(text)) => refusal(&text),
         Err(e) => store_error(&e),
     }
 }

@@ -43,6 +43,7 @@ pub mod section_facts;
 pub mod sender_ops;
 pub mod sent;
 pub mod sieve;
+pub mod sieve_policy;
 pub mod spool;
 pub mod web_push;
 pub mod webhook_delivery;

@@ -350,9 +350,18 @@ impl MailrsMcpService {
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
         self.require_confirmed()?;
-        crate::handlers::trash::delete_for_good(&self.state, user, params.thread_id)
-            .await
-            .map_err(|e| McpError::internal_error(format!("delete_thread_forever: {e}"), None))?;
+        let messages =
+            crate::handlers::trash::message_count(&self.state, &user, &params.thread_id).await;
+        crate::handlers::trash::delete_for_good(
+            &self.state,
+            user,
+            params.thread_id,
+            messages,
+            "mcp",
+            mailrs_core_sidestate::families::audit::Credential::Session,
+        )
+        .await
+        .map_err(|e| McpError::internal_error(format!("delete_thread_forever: {e}"), None))?;
         Ok(ok_result())
     }
 
