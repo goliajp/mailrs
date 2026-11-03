@@ -3,6 +3,8 @@
 #
 # Usage: ./scripts/remote-gate.sh <commit>
 #   GATE_HOST (default lx64)                  ssh host that runs it
+#   GATE_JOBS (default unset: all cores)      compile jobs and test threads
+#   GATE_NICE (default 0)                     nice level on the runner
 #   GATE_DIR  (default /root/work/mailrs-gate) checkout on that host; its
 #                                             target/ stays there between runs
 #   GATE_TARGET_CEILING_GB (default 150)      target/debug is removed before
@@ -41,10 +43,14 @@ git archive --format=tar "$SHA" | gzip -1 | ssh "$HOST" "set -e
 # took 26 s on a busy runner, 2026-10-21); the whole gate gets 90, enough
 # for a cold build of the workspace. timeout kills its process group, so
 # cargo and the tests it started go with it.
-ssh "$HOST" timeout --kill-after=30 90m bash -s <<EOF
+ssh "$HOST" timeout --kill-after=30 90m nice -n "${GATE_NICE:-0}" bash -s <<EOF
 set -euo pipefail
 cd '$DIR'
 source ~/.cargo/env
+# on a shared runner: at most this many compile jobs and test threads
+if [ -n "${GATE_JOBS:-}" ]; then
+    export CARGO_BUILD_JOBS=${GATE_JOBS:-} RUST_TEST_THREADS=${GATE_JOBS:-}
+fi
 triple=\$(rustc -vV | sed -n 's/^host: //p' | tr 'a-z-' 'A-Z_')
 export "CARGO_TARGET_\${triple}_RUNNER=timeout --kill-after=30 10m"
 
