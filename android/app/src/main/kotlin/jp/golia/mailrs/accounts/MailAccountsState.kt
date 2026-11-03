@@ -1,5 +1,8 @@
 package jp.golia.mailrs.accounts
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
+
 /**
  * The accounts screen's state, and the rules it applies before any
  * request goes out.
@@ -43,7 +46,7 @@ data class AccountsDraft(
         get() = if (addressLooksComplete) MailProvider.forAddress(address) else null
 
     /** The provider's own word for what to type, or the plain one. */
-    val secretLabel: String get() = provider?.secretHelp?.what ?: "Password"
+    val secretLabel: String get() = Texts.get(provider?.secretHelp?.what ?: R.string.common_password)
 
     /**
      * The two endpoints as typed, or null.
@@ -103,14 +106,14 @@ data class AccountsDraft(
     fun account(sort: Int): Result<MailAccount> {
         if (!addressLooksComplete) {
             return Result.failure(
-                IllegalArgumentException("Enter the full email address of the account to add"),
+                IllegalArgumentException(Texts.get(R.string.acct_enter_address)),
             )
         }
         var account = MailAccount.make(address.trim(), name.trim(), sort)
         if (manual) {
             val e = endpoints()
                 ?: return Result.failure(
-                    IllegalArgumentException("Both servers need a name and a port"),
+                    IllegalArgumentException(Texts.get(R.string.acct_servers_needed)),
                 )
             account = account.copy(
                 imapHost = e.imapHost, imapPort = e.imapPort,

@@ -1,5 +1,7 @@
 package jp.golia.mailrs.wire
 
+import jp.golia.mailrs.R
+
 /**
  * Who a reply goes to — the web's rules (`thread-view.tsx`), ported the
  * same way `ios/Mailrs/Wire/ReplyRecipients.swift` ports them.
@@ -52,7 +54,7 @@ object ReplyRecipients {
     fun quote(sender: String, sentAt: Long, body: String): String {
         val who = SenderIdentity.readableName(sender)
         val quoted = body.trim().lines().joinToString("\n") { "> $it" }
-        return "\n\nOn ${RowDateText.of(sentAt)}, $who wrote:\n$quoted\n"
+        return "\n\n" + Texts.get(R.string.reply_attribution, RowDateText.of(sentAt), who) + "\n$quoted\n"
     }
 }
 
@@ -65,7 +67,7 @@ object ReplyRecipients {
  */
 object RowDateText {
     fun of(epochSeconds: Long): String {
-        if (epochSeconds <= 0) return "an earlier date"
+        if (epochSeconds <= 0) return Texts.get(R.string.reply_earlier_date)
         val moment = java.time.Instant.ofEpochSecond(epochSeconds).atZone(java.time.ZoneId.systemDefault())
         return java.time.format.DateTimeFormatter
             .ofLocalizedDateTime(java.time.format.FormatStyle.MEDIUM, java.time.format.FormatStyle.SHORT)

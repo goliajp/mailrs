@@ -1,5 +1,7 @@
 package jp.golia.mailrs.ui
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -39,7 +41,7 @@ fun SendTimeSheet(onDismiss: () -> Unit, onPick: (SendSchedule) -> Unit) {
     ) {
         Column(Modifier.fillMaxWidth().padding(bottom = 24.dp).testTag("sheet.sendTime")) {
             Text(
-                "Send",
+                Texts.get(R.string.common_send),
                 color = theme.fgMuted,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,

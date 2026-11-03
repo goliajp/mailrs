@@ -1,5 +1,8 @@
 package jp.golia.mailrs.accounts
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
+
 /**
  * Doing something to one message on the server.
  *
@@ -34,11 +37,11 @@ object MailboxActions {
     suspend fun delete(account: MailAccount, row: MailboxRow, store: AccountStore): Outcome {
         if (account.incoming == Incoming.POP3) return deletePop3(account, row, store)
         if (account.incoming != Incoming.IMAP) {
-            return Outcome.Failed("Deleting is not supported for this account yet")
+            return Outcome.Failed(Texts.get(R.string.acct_no_delete))
         }
         return withImap(account, store) { session ->
             val trash = TrashFolder.pick(session.list())
-                ?: return@withImap Outcome.Failed("This account has no trash folder")
+                ?: return@withImap Outcome.Failed(Texts.get(R.string.acct_no_trash))
             session.select(row.folder)
             session.moveTo(row.uid, trash, session.capabilities())
             // Gone from the device too, and only after the server said
@@ -80,7 +83,7 @@ object MailboxActions {
         body: suspend (ImapSession) -> Outcome,
     ): Outcome {
         val secret = store.secret(account.id)
-            ?: return Outcome.Failed("Sign in again to change this account")
+            ?: return Outcome.Failed(Texts.get(R.string.acct_sign_in_to_change))
         // Through the pool: one tap is one command, and paying for a
         // TLS handshake and a LOGIN each time is most of the wait.
         // The session is **not** closed here — that is the point of it.
@@ -89,7 +92,7 @@ object MailboxActions {
         } catch (e: ImapSession.Failure) {
             Outcome.Failed(AccountConnection.readable(e.message ?: "unknown"))
         } catch (e: Exception) {
-            Outcome.Failed("Could not reach the server")
+            Outcome.Failed(Texts.get(R.string.acct_unreachable))
         }
     }
 
@@ -114,7 +117,7 @@ object MailboxActions {
         store: AccountStore,
     ): Outcome {
         val secret = store.secret(account.id)
-            ?: return Outcome.Failed("Sign in again to change this account")
+            ?: return Outcome.Failed(Texts.get(R.string.acct_sign_in_to_change))
         val session = openPop3(account.imapHost, account.imapPort)
         return try {
             session.connect()
@@ -139,7 +142,7 @@ object MailboxActions {
             Outcome.Failed(AccountConnection.readable(e.message ?: "unknown"))
         } catch (e: Exception) {
             session.close()
-            Outcome.Failed("Could not reach the server")
+            Outcome.Failed(Texts.get(R.string.acct_unreachable))
         }
     }
 

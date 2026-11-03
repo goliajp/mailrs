@@ -1,5 +1,6 @@
 package jp.golia.mailrs.wire
 
+import jp.golia.mailrs.R
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.json.Json
@@ -17,7 +18,7 @@ fun contactText(name: String, address: String): String = when {
     name.isNotEmpty() && address.isNotEmpty() -> "$name ($address)"
     name.isNotEmpty() -> name
     address.isNotEmpty() -> address
-    else -> "an administrator"
+    else -> Texts.get(R.string.reset_an_admin)
 }
 
 /**
@@ -60,7 +61,7 @@ suspend fun MailrsClient.resetPassword(
     return when (val r = post("$base/api/auth/password-reset", body, authorized = false)) {
         is MailrsClient.Outcome.Ok -> MailrsClient.Outcome.Ok(Unit)
         is MailrsClient.Outcome.Err if r.code == INVALID_RESET_CODE -> MailrsClient.Outcome.Err(
-            "That code does not work: it may be mistyped, used up, or replaced by a newer one.",
+            Texts.get(R.string.reset_code_rejected),
             INVALID_RESET_CODE,
         )
         // a refused new password says why in the server's words

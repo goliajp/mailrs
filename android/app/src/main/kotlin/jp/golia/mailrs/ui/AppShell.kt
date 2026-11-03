@@ -1,5 +1,7 @@
 package jp.golia.mailrs.ui
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import jp.golia.mailrs.closeSent
@@ -279,8 +281,8 @@ fun MailrsApp(vm: MailViewModel, state: UiState) {
                                         // in it and no explanation looks
                                         // like something failed to load.
                                         Conclusion(
-                                            "No conversation open",
-                                            "Choose one on the left.",
+                                            Texts.get(R.string.pane_none_open),
+                                            Texts.get(R.string.pane_choose_left),
                                             Modifier.align(Alignment.Center),
                                         )
                                     }

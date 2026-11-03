@@ -1,5 +1,7 @@
 package jp.golia.mailrs.ui
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -61,9 +63,9 @@ fun ResetCodeScreen(
             .padding(horizontal = 24.dp)
             .padding(top = 56.dp, bottom = 24.dp),
     ) {
-        Text("Set a new password", color = theme.fg, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+        Text(Texts.get(R.string.reset_title), color = theme.fg, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
         Text(
-            "Your password was reset by an administrator. Ask $whom for a reset code, then set a new password here.",
+            Texts.get(R.string.reset_body, whom),
             color = theme.fgMuted,
             fontSize = 14.sp,
             modifier = Modifier.padding(top = 8.dp, bottom = 16.dp).testTag("text.resetExplain"),
@@ -71,7 +73,7 @@ fun ResetCodeScreen(
         OutlinedTextField(
             value = address,
             onValueChange = { address = it },
-            label = { Text("Address") },
+            label = { Text(Texts.get(R.string.common_address)) },
             singleLine = true,
             keyboardOptions = addressKeyboard(),
             modifier = Modifier.fillMaxWidth().testTag("field.resetAddress"),
@@ -79,8 +81,8 @@ fun ResetCodeScreen(
         OutlinedTextField(
             value = code,
             onValueChange = { code = it },
-            label = { Text("Reset code") },
-            supportingText = { Text("10 characters, given to you in person") },
+            label = { Text(Texts.get(R.string.reset_code)) },
+            supportingText = { Text(Texts.get(R.string.reset_code_hint)) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
             modifier = Modifier.fillMaxWidth().padding(top = 10.dp).testTag("field.resetCode"),
@@ -88,8 +90,8 @@ fun ResetCodeScreen(
         OutlinedTextField(
             value = password,
             onValueChange = { password = it },
-            label = { Text("New password") },
-            supportingText = { Text("At least 12 characters. Leave out your name and the company name") },
+            label = { Text(Texts.get(R.string.reset_new_password)) },
+            supportingText = { Text(Texts.get(R.string.reset_password_hint)) },
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -98,7 +100,7 @@ fun ResetCodeScreen(
         OutlinedTextField(
             value = repeated,
             onValueChange = { repeated = it },
-            label = { Text("New password again") },
+            label = { Text(Texts.get(R.string.reset_new_password_again)) },
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -119,10 +121,10 @@ fun ResetCodeScreen(
             shape = RoundedCornerShape(10.dp),
             modifier = Modifier.fillMaxWidth().padding(top = 20.dp).height(48.dp).testTag("button.resetSubmit"),
         ) {
-            Text("Set new password", fontWeight = FontWeight.SemiBold)
+            Text(Texts.get(R.string.reset_set), fontWeight = FontWeight.SemiBold)
         }
         TextButton(onClick = onCancel, modifier = Modifier.fillMaxWidth().testTag("button.resetCancel")) {
-            Text("Back to sign in", color = theme.accent)
+            Text(Texts.get(R.string.reset_back_to_sign_in), color = theme.accent)
         }
     }
 }

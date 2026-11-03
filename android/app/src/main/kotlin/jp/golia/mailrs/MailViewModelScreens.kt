@@ -79,7 +79,7 @@ fun MailViewModel.chooseAppearance(appearance: Prefs.Appearance) {
  */
 fun MailViewModel.openThreadById(threadId: String) {
     viewModelScope.launch {
-        val rows = client.conversations(_state.value.list)
+        val rows = client.conversations(_state.value.axes())
         if (rows is MailrsClient.Outcome.Ok) {
             _state.update { it.copy(conversations = rows.value) }
             rows.value.firstOrNull { it.threadId == threadId }?.let { open(it) }

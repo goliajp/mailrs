@@ -1,5 +1,7 @@
 package jp.golia.mailrs.accounts
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
 import java.util.TimeZone
 import java.util.UUID
 
@@ -35,19 +37,18 @@ object AccountSender {
         nowSeconds: Long = System.currentTimeMillis() / 1000,
     ): Outcome {
         val recipients = OutgoingMessage.envelope(draft, bcc)
-        if (recipients.isEmpty()) return Outcome.Failed("Add somebody to send this to")
+        if (recipients.isEmpty()) return Outcome.Failed(Texts.get(R.string.compose_no_recipient_acct))
         // Refused before sending rather than discovered during it: a
         // message stopped here is a message somebody still has, and one
         // that dies mid-send looks exactly like mail that vanished.
         val room = OutgoingLimits.check(draft)
         if (room is OutgoingLimits.Verdict.TooLarge) {
             return Outcome.Failed(
-                "Too large to send: " + humanBytes(room.attachedBytes) +
-                    " attached, and about " + humanBytes(room.limitBytes) + " is the most.",
+                Texts.get(R.string.acct_too_large, humanBytes(room.attachedBytes), humanBytes(room.limitBytes)),
             )
         }
         val secret = store.secret(account.id)
-            ?: return Outcome.Failed("Sign in again to send from this account")
+            ?: return Outcome.Failed(Texts.get(R.string.acct_sign_in_to_send))
         // Streamed, not assembled: the socket pulls 57 bytes of a file
         // at a time, so a large attachment is never in memory whole.
         val message = OutgoingMessage.pieces(
@@ -73,7 +74,7 @@ object AccountSender {
             Outcome.Failed(explain(e))
         } catch (e: Exception) {
             session.close()
-            Outcome.Failed("Could not reach the outgoing server")
+            Outcome.Failed(Texts.get(R.string.acct_smtp_unreachable))
         }
     }
 
@@ -109,15 +110,15 @@ object AccountSender {
             // 5xx is the message's fault and 4xx is the moment's; a
             // person told "try again" about a permanent rejection will
             // try again forever.
-            !e.permanent -> "The server is busy — try again shortly (${e.code})"
+            !e.permanent -> Texts.get(R.string.acct_busy, e.code)
             e.code == 550 || e.code == 553 ->
-                "The server refused the recipient or the sender address (${e.code}): ${e.text}"
-            e.code == 535 -> "The server refused the sign-in for this account (535)"
-            else -> "The server refused this message (${e.code}): ${e.text}"
+                Texts.get(R.string.acct_refused_address, e.code, e.text)
+            e.code == 535 -> Texts.get(R.string.acct_refused_signin)
+            else -> Texts.get(R.string.acct_refused_message, e.code, e.text)
         }
         is SmtpSession.Failure.Refused -> AccountConnection.readable(e.detail)
         is SmtpSession.Failure.Unreachable -> AccountConnection.readable(e.why)
-        is SmtpSession.Failure.Closed -> "The outgoing server closed the connection"
+        is SmtpSession.Failure.Closed -> Texts.get(R.string.acct_smtp_closed)
     }
 
     /** Bytes in the units somebody chose the files in. */

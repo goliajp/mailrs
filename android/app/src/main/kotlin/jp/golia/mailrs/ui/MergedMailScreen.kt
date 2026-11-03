@@ -1,5 +1,7 @@
 package jp.golia.mailrs.ui
 
+import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.Texts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -174,7 +176,7 @@ fun MergedMailScreen() {
             Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("Other mail", color = theme.fg, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text(Texts.get(R.string.merged_title), color = theme.fg, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             Box(Modifier.weight(1f))
             // Writing does not depend on having fetched anything, so it
             // is offered as soon as there is an account to send from.
@@ -190,20 +192,20 @@ fun MergedMailScreen() {
                     },
                     modifier = Modifier.testTag("mail.compose"),
                 ) {
-                    Text("New", color = theme.accent, fontSize = 13.sp)
+                    Text(Texts.get(R.string.merged_new), color = theme.accent, fontSize = 13.sp)
                 }
             }
             when {
                 syncing -> CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                 else -> TextButton(onClick = { sync() }, modifier = Modifier.testTag("mail.sync")) {
-                    Text("Fetch", color = theme.accent, fontSize = 13.sp)
+                    Text(Texts.get(R.string.merged_fetch), color = theme.accent, fontSize = 13.sp)
                 }
             }
         }
 
         if (accounts.isEmpty()) {
             Text(
-                "No mailboxes yet. Add one in Settings to read it here.",
+                Texts.get(R.string.merged_no_mailboxes),
                 color = theme.fgMuted,
                 fontSize = 13.sp,
                 modifier = Modifier.padding(16.dp).testTag("mail.empty"),
@@ -223,7 +225,7 @@ fun MergedMailScreen() {
         androidx.compose.material3.OutlinedTextField(
             value = query,
             onValueChange = { query = it },
-            label = { Text("Search") },
+            label = { Text(Texts.get(R.string.common_search)) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 4.dp)
@@ -264,9 +266,9 @@ fun MergedMailScreen() {
             // local search cannot see what was never fetched.
             val text = when {
                 query.isNotEmpty() ->
-                    "Nothing here matches. Only mail already fetched is searched."
-                only.isEmpty() -> "No mail yet. Fetch to read it."
-                else -> "Nothing from the mailboxes you picked."
+                    Texts.get(R.string.merged_no_match)
+                only.isEmpty() -> Texts.get(R.string.merged_no_mail)
+                else -> Texts.get(R.string.merged_nothing_picked)
             }
             Text(
                 text,
@@ -387,7 +389,7 @@ fun MergedMailScreen() {
                                     modifier = Modifier.testTag("mail.earlier"),
                                 ) {
                                     Text(
-                                        "Fetch earlier mail",
+                                        Texts.get(R.string.merged_fetch_earlier),
                                         color = theme.accent,
                                         fontSize = 13.sp,
                                     )
@@ -449,13 +451,13 @@ private fun AccountChip(
  * [MailboxMerge.oldestSync]'s, and it is the oldest.
  */
 private fun updatedLine(accountIds: List<String>, lastSync: (String) -> Long?): String {
-    val at = MailboxMerge.oldestSync(accountIds, lastSync) ?: return "Not fetched yet"
+    val at = MailboxMerge.oldestSync(accountIds, lastSync) ?: return Texts.get(R.string.merged_not_fetched)
     val span = android.text.format.DateUtils.getRelativeTimeSpanString(
         at * 1000,
         System.currentTimeMillis(),
         android.text.format.DateUtils.MINUTE_IN_MILLIS,
     )
-    return "Updated $span"
+    return Texts.get(R.string.merged_updated, span)
 }
 
 /**
