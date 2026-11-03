@@ -28,12 +28,19 @@ impl MailrsMcpService {
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?;
         let limit = params.limit.unwrap_or(50).min(500);
+        if params.before_ts.is_some() && params.cursor.is_some() {
+            return Err(McpError::invalid_params(
+                "list_conversations: give before_ts or cursor, not both",
+                None,
+            ));
+        }
         let req = mailrs_core_api::method::conversation::ListConversationsRequest {
             filter: mailrs_core_api::types::ConversationFilter {
                 label: None,
                 accounts: None,
                 limit,
                 before_ts: params.before_ts,
+                after_cursor: params.cursor,
                 category: params.category,
                 domains: None,
                 archived: false,
@@ -68,6 +75,7 @@ impl MailrsMcpService {
                     "unread_count": c.unread_count,
                     "message_count": c.message_count,
                     "category": c.category,
+                    "cursor": c.cursor,
                 })
             })
             .collect();

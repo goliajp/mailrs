@@ -781,6 +781,7 @@ Query parameters:
 - `category` -- filter: personal, notification, promotion, general
 - `folder` -- INBOX (default), Sent
 - `assigned_to_me=true` -- only team inbox conversations assigned to you
+- `cursor` -- the next page: pass the `cursor` of the last row you got. Every row carries one. `before` (a Unix time) still works but skips the rest of a second a page ends inside; don't send both (400)
 
 A row from a team inbox carries `shared_conv` (`"{gid}:{conv}"`, the team
 conversation it is your copy of) and `assignee` (empty for nobody).

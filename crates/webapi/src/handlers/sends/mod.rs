@@ -177,6 +177,7 @@ pub async fn shadow_sends(
             accounts: None,
             limit: 2000,
             before_ts: None,
+            after_cursor: None,
             category: None,
             domains: None,
             archived: false,

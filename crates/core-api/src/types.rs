@@ -143,6 +143,11 @@ pub struct ConversationSummaryWire {
     /// The team member who answers it; empty for nobody.
     #[serde(default)]
     pub assignee: String,
+    /// Where a list stood after this row: hand it back as
+    /// [`ConversationFilter::after_cursor`] for the rows after it. Opaque to
+    /// clients; empty on rows that did not come from a list.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub cursor: String,
 }
 
 impl From<&mailrs_mailbox::types::ConversationSummary> for ConversationSummaryWire {
@@ -176,6 +181,7 @@ impl From<&mailrs_mailbox::types::ConversationSummary> for ConversationSummaryWi
             awaiting_since: s.awaiting_since,
             shared_conv: s.shared_conv.clone(),
             assignee: s.assignee.clone(),
+            cursor: String::new(),
         }
     }
 }
@@ -200,8 +206,17 @@ pub struct ConversationFilter {
     /// Max items to return.
     pub limit: u32,
     /// Page cursor: epoch-seconds, returns threads with `last_date < before_ts`.
+    ///
+    /// Kept for clients that page by time alone; it skips the rest of a
+    /// second that a page boundary falls inside. New clients page with
+    /// [`Self::after_cursor`]. Giving both is an error.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub before_ts: Option<i64>,
+    /// The rows after the one whose [`ConversationSummaryWire::cursor`] this
+    /// is: the next page, with no conversation of a shared second lost or
+    /// listed twice.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub after_cursor: Option<String>,
     /// Limit to a single category (`personal` / `bulk` / `spam` / `scam` / ...).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub category: Option<String>,
@@ -339,6 +354,7 @@ mod tests {
             awaiting_since: 1_700_000_000,
             shared_conv: "3:7".into(),
             assignee: "a@x.test".into(),
+            cursor: "1700000000:42".into(),
         };
         let s = serde_json::to_string(&w).unwrap();
         let back: ConversationSummaryWire = serde_json::from_str(&s).unwrap();
@@ -352,6 +368,7 @@ mod tests {
             accounts: None,
             limit: 50,
             before_ts: Some(1_700_000_000),
+            after_cursor: None,
             category: Some("personal".into()),
             domains: Some(vec!["example.com".into(), "test.com".into()]),
             archived: true,
