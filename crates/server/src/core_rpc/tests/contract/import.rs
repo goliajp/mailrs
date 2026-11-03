@@ -57,7 +57,7 @@ Content-Type: text/plain; charset=utf-8\r\n\
 Thanks for your order.\r\n";
 
 /// Alice's own mail, from an mbox without a Sent label: hers all the same.
-const OWN: &[u8] = b"Date: Wed, 04 Jan 2023 09:00:00 +0000\r\n\
+const OWN: &[u8] = b"Date: Thu, 05 Jan 2023 09:00:00 +0000\r\n\
 From: Alice <alice@example.test>\r\n\
 To: Carol <carol@old.test>\r\n\
 Subject: Note\r\n\
