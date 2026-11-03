@@ -57,7 +57,7 @@ targets in their `fuzz/` directories.
 - **Search** — full text over headers, bodies and attachment text, including OCR of images and scanned PDFs; Chinese and Japanese searchable without a dictionary
 - **Web client** — conversation view with realtime updates; React 19, TypeScript, Vite, Tailwind CSS 4, TanStack Query
 - **Apps** — native iOS and Android clients; new mail is announced through APNs on iOS and by a background check on Android
-- **MCP** — 91 tools for agents to read, triage and send mail
+- **MCP** — 125 tools for agents to read, triage and send mail
 - **Accounts** — Argon2 passwords, TOTP two-factor sign-in, OIDC
 - **AI assistance** — optional, off unless an OpenAI-compatible endpoint is configured (`MAILRS_AI_ANALYSIS_ENABLED`, `MAILRS_LLM_URL`)
 
