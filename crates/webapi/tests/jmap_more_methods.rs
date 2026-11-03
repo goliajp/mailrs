@@ -134,6 +134,7 @@ async fn scenario() {
     websocket(&live, &alice).await;
     limits_alike(&live, &alice).await;
     reconnect_catches_up(&live, &alice).await;
+    blobs_not_yours(&live, &alice, &bob).await;
 }
 
 async fn vacation(live: &live::Live, alice: &str) {
@@ -751,4 +752,73 @@ async fn reconnect_catches_up(live: &live::Live, alice: &str) {
 fn request(calls: Value) -> Message {
     let frame = json!({ "@type": "Request", "id": "r", "using": USING, "methodCalls": calls });
     Message::Text(frame.to_string().into())
+}
+
+/// An attachment by blobId is only what this account can reach. Another
+/// account's upload, another account's message, a held message of one's
+/// own and a blob that never existed are answered the same way, so the
+/// answer says nothing about which of them a blob is.
+async fn blobs_not_yours(live: &live::Live, alice: &str, bob: &str) {
+    let theirs_upload = upload(live, bob, BOB, b"bob's notes").await;
+    let theirs_message = import(
+        live,
+        bob,
+        BOB,
+        &message("Bob private", "Friend <friend@partner.example>", "private"),
+    )
+    .await;
+    let held = import(
+        live,
+        alice,
+        ALICE,
+        &message("Held one", "Shop <shop@partner.example>", "held"),
+    )
+    .await;
+    live.mailbox
+        .set_quarantined(ALICE, "Held-one@partner.example", true)
+        .expect("hold");
+    let never = format!("U{}", "0".repeat(64));
+    let blob_of = |email_id: &str| format!("B{}", email_id.trim_start_matches('M'));
+    let mut answers = Vec::new();
+    for blob in [
+        theirs_upload,
+        never,
+        blob_of(&theirs_message).replace('B', "B9999"),
+        blob_of(&held),
+        format!("{}-0", blob_of(&held)),
+    ] {
+        let r = one(
+            live,
+            alice,
+            json!(["Email/set", { "create": { "d": {
+                "mailboxIds": { "drafts": true }, "from": [{ "email": ALICE }],
+                "textBody": [{ "partId": "1", "type": "text/plain" }],
+                "bodyValues": { "1": { "value": "x" } },
+                "attachments": [{ "blobId": blob, "type": "text/plain" }],
+            } } }, "0"]),
+        )
+        .await;
+        let e = r["notCreated"]["d"].clone();
+        assert_eq!(e["type"], "blobNotFound", "{blob}: {r}");
+        // the only difference is the id that was asked about
+        let shape = e.to_string().replace(&blob, "<blob>");
+        answers.push(shape);
+        // and its download is the same 404 as one that never was
+        let status = live
+            .http
+            .get(format!("{}/jmap/download/{ALICE}/{blob}/x", live.base))
+            .bearer_auth(alice)
+            .send()
+            .await
+            .expect("download")
+            .status()
+            .as_u16();
+        assert_eq!(status, 404, "{blob}");
+    }
+    answers.dedup();
+    assert_eq!(
+        answers.len(),
+        1,
+        "the answers tell the blobs apart: {answers:?}"
+    );
 }
