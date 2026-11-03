@@ -48,7 +48,7 @@ pub(crate) use ledger_estimate::ledger_estimate_route;
 mod sieve_survey;
 pub(crate) use sieve_survey::sieve_survey_route;
 mod usage_drift;
-pub(crate) use usage_drift::usage_drift_route;
+pub(crate) use usage_drift::{usage_drift_apply_route, usage_drift_route};
 mod screening_replay;
 pub(crate) use screening_replay::screening_replay_route;
 mod reindex;
