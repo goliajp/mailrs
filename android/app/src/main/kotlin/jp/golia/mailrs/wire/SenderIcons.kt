@@ -22,12 +22,11 @@ import kotlinx.coroutines.sync.withLock
  * past a domain with no icon asks again, and the server walks its
  * cascade again for each one.
  *
- * **Only what Android can decode.** The cascade starts with BIMI, whose
- * logos are SVG, and ends at a `.ico` service; `BitmapFactory` reads
- * neither. Those decode to null and the letter avatar stands, which is
- * indistinguishable on screen from a domain that has no icon — the one
- * place this differs from the web and iOS, and the reason it is
- * written down here rather than left to be noticed.
+ * **Asked for as PNG.** The cascade starts with BIMI, whose logos are
+ * SVG, and ends at a `.ico` service; `BitmapFactory` reads neither, so
+ * the request carries `format=png` (see [SenderIconDomain.path]) and the
+ * server converts. Without it those senders decoded to null and showed
+ * a letter, indistinguishable from a domain that has no icon.
  */
 object SenderIcons {
 

@@ -184,7 +184,7 @@ suspend fun MailrsClient.redraft(sendId: String): MailrsClient.Outcome<Wire.Redr
     one(get("/api/mail/sends/${enc(sendId)}/redraft"), Wire.Redraft.serializer())
 
 /**
- * `GET /api/icon/{domain}` — a brand icon, or nothing.
+ * `GET /api/icon/{domain}?format=png` — a brand icon, or nothing.
  *
  * **204 is the answer, not a failure**: the handler never says 4xx for
  * "no icon anywhere", it says no content, and a client that treated
@@ -195,7 +195,7 @@ suspend fun MailrsClient.senderIcon(domain: String): MailrsClient.Outcome<ByteAr
     withContext(Dispatchers.IO) {
         val s = session ?: return@withContext MailrsClient.Outcome.Err(Texts.get(R.string.error_not_signed_in))
         val request = Request.Builder()
-            .url("${s.server}/api/icon/${enc(domain)}")
+            .url(s.server + SenderIconDomain.path(domain))
             .header("Authorization", "Bearer ${s.token}")
             .get()
             .build()
