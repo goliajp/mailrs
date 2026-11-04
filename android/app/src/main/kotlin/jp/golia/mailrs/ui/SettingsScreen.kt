@@ -34,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import jp.golia.mailrs.AdminSection
+import jp.golia.mailrs.SettingsPage
 import jp.golia.mailrs.UiState
 import jp.golia.mailrs.MailViewModel
 import jp.golia.mailrs.wire.Prefs
@@ -61,6 +62,7 @@ fun SettingsScreen(
     onAdmin: (AdminSection) -> Unit,
     onMailAccounts: () -> Unit,
     onMergedMail: () -> Unit,
+    onPage: (SettingsPage) -> Unit,
     onSignOut: () -> Unit,
 ) {
     val theme = LocalTheme.current
@@ -168,6 +170,8 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth().padding(start = 4.dp),
                 )
             }
+
+            SettingsExtras(onPage)
 
             HorizontalDivider(color = theme.border, thickness = 0.5.dp)
             SectionHeading(Texts.get(R.string.settings_admin))

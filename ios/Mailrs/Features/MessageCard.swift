@@ -59,6 +59,7 @@ struct MessageCard: View {
     /// Per message, and not remembered: consenting to load one
     /// sender's images is not consent for the next one's.
     @State private var loadRemote = false
+    @Environment(Preferences.self) private var preferences
 
     private var files: [(index: Int, attachment: Wire.Attachment)] {
         MessageContent.listable(message.attachments, inlined: Array(inlineParts.keys.compactMap(indexOfPart)))
@@ -127,11 +128,7 @@ struct MessageCard: View {
             } label: {
                 Label("Search this sender", systemImage: "magnifyingglass")
             }
-            Button {
-                Clipboard.put(address)
-            } label: {
-                Label("Copy address", systemImage: "doc.on.doc")
-            }
+            Button { Clipboard.put(address) } label: { Label("Copy address", systemImage: "doc.on.doc") }
             Divider()
             Button {
                 Task { await session.addSender(address, to: .blocked) }
@@ -143,6 +140,7 @@ struct MessageCard: View {
             } label: {
                 Label("Always allow", systemImage: "checkmark.shield")
             }
+            SenderSettingsActions(address: address)
         }
     }
 
@@ -233,7 +231,8 @@ struct MessageCard: View {
             }
 
             if let html = message.htmlBody, !html.isEmpty,
-               !loadRemote, RemoteContent.hasRemoteReferences(html: html) {
+               RemoteImages.offersButton(preferences.remoteImages, loaded: loadRemote),
+               RemoteContent.hasRemoteReferences(html: html) {
                 // Said plainly, and only when there is something to
                 // say: fetching a remote image tells the sender the
                 // message was opened, from where and when.
@@ -263,12 +262,10 @@ struct MessageCard: View {
                 TrackersNote(count: TrackingPixels.count(html: html))
                 let marked = LinkWarnings.mark(
                     html: resolvedHTML(html), warnings: message.linkWarnings, describe: describe)
-                // Faded in once measured rather than popping at full
-                // size: until the height resolves the WebView is a
-                // 1pt sliver, and revealing it mid-measure shows a
-                // half-laid-out page.
+                // Faded in once measured: until the height resolves the
+                // WebView is a 1pt sliver, a half-laid-out page.
                 MessageBodyView(html: marked.html, height: $bodyHeight,
-                                blockRemote: !loadRemote,
+                                blockRemote: RemoteImages.blocked(preferences.remoteImages, loaded: loadRemote),
                                 onWarnedLink: { n in
                                     if marked.targets.indices.contains(n) { warned = marked.targets[n] }
                                 })

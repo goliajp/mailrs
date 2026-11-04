@@ -224,6 +224,7 @@ struct ThreadView: View {
                             Label("Mark as junk", systemImage: "xmark.bin")
                         }
                     }
+                    ThreadNotifyActions(threadId: conversation.threadId)
                 } label: {
                     Label("More", systemImage: "ellipsis")
                 }

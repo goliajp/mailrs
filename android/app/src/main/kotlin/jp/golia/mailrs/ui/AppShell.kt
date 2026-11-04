@@ -54,6 +54,8 @@ import jp.golia.mailrs.closeDrafts
 import jp.golia.mailrs.chooseAppearance
 import jp.golia.mailrs.chooseNotify
 import jp.golia.mailrs.closeSettings
+import jp.golia.mailrs.closeSettingsPage
+import jp.golia.mailrs.openSettingsPage
 import jp.golia.mailrs.closeSource
 import jp.golia.mailrs.closeThread
 import jp.golia.mailrs.MailViewModel
@@ -144,6 +146,7 @@ fun MailrsApp(vm: MailViewModel, state: UiState) {
             Screen.Settings -> when (settingsBack(state)) {
                 SettingsBack.MailAccounts -> vm.closeMailAccounts()
                 SettingsBack.MergedMail -> vm.closeMergedMail()
+                SettingsBack.Page -> vm.closeSettingsPage()
                 SettingsBack.Settings -> vm.closeSettings()
             }
             Screen.Drafts -> vm.closeDrafts()
@@ -294,8 +297,7 @@ fun MailrsApp(vm: MailViewModel, state: UiState) {
                     Screen.Sent -> Box(peeled) { SentScreen(state, vm) }
                     Screen.Calendar -> Box(peeled) { state.calendar?.let { CalendarScreen(state, it, vm) } }
                     Screen.Admin -> Box(peeled) {
-                        // Non-null on this branch by construction; the
-                        // screen is chosen from the same value.
+                        // non-null on this branch: the screen is chosen from the same value
                         state.adminOpen?.let { AdminScreen(it, state, vm) }
                     }
                     Screen.Settings -> Box(peeled) {
@@ -304,6 +306,7 @@ fun MailrsApp(vm: MailViewModel, state: UiState) {
                         when {
                             state.mailAccountsOpen -> MailboxesScreen()
                             state.mergedMailOpen -> MergedMailScreen()
+                            state.settingsPage != null -> SettingsPageScreen(state.settingsPage, state, vm)
                             else -> SettingsScreen(
                                 state = state,
                                 appearance = state.appearance,
@@ -313,10 +316,8 @@ fun MailrsApp(vm: MailViewModel, state: UiState) {
                                 onAdmin = { vm.openAdmin(it) },
                                 onMailAccounts = { vm.openMailAccounts() },
                                 onMergedMail = { vm.openMergedMail() },
-                                onSignOut = {
-                                    vm.closeSettings()
-                                    vm.signOut()
-                                },
+                                onPage = { vm.openSettingsPage(it) },
+                                onSignOut = { vm.closeSettings(); vm.signOut() },
                             )
                         }
                     }
