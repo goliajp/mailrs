@@ -45,13 +45,13 @@ const engine = new Marked({
   },
 })
 
-export function renderMarkdownToHtml(md: string): string {
-  return engine.parse(md) as string
-}
-
 /** What a send puts in `html_body` for a markdown body: blank lines kept as space. */
 export function renderMarkdownForSend(md: string): string {
   return renderMarkdownToHtml(preserveBlankLines(md))
+}
+
+export function renderMarkdownToHtml(md: string): string {
+  return engine.parse(md) as string
 }
 
 // A run of blank lines keeps its height: one empty paragraph per extra line.
