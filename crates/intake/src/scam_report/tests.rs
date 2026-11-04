@@ -359,7 +359,10 @@ fn a_conversation_put_back_is_taken_again_only_for_a_copy_that_came_after() {
     }
     let (_, o) = report(&f, "u0@example.com", "m0", true).unwrap().unwrap();
     assert_eq!((o.state.as_str(), o.taken_back), ("taken_back", 0), "{o:?}");
-    assert!(!held(&f, "u1@example.com"), "a copy from before the release took it back");
+    assert!(
+        !held(&f, "u1@example.com"),
+        "a copy from before the release took it back"
+    );
 
     // a second copy of the template lands in the same conversation, after
     // the release: that one may take it
@@ -369,8 +372,10 @@ fn a_conversation_put_back_is_taken_again_only_for_a_copy_that_came_after() {
     {
         let mut m = f.mail.borrow_mut();
         m.raw.insert("m1-later".into(), raw);
-        m.copies
-            .insert(("u1@example.com".into(), "m1-later".into()), ("t1".into(), false));
+        m.copies.insert(
+            ("u1@example.com".into(), "m1-later".into()),
+            ("t1".into(), false),
+        );
     }
     let (_, o) = report(&f, "u0@example.com", "m0", true).unwrap().unwrap();
     assert_eq!(o.taken_back, 1, "{o:?}");
