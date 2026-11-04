@@ -52,7 +52,8 @@ pub(crate) fn links_until(f: &LedgerFacts) -> i64 {
     arrived + link_days() * 86_400
 }
 
-/// Remove link rows past their retention, hourly; backs off to six hours
+/// Remove link rows past their retention, and fingerprint index rows past
+/// their window, hourly; backs off to six hours
 /// while there is nothing due, which costs one index read.
 pub(crate) fn spawn_link_prune(state: Arc<FastcoreState>) {
     const BASE: Duration = Duration::from_secs(3600);
@@ -66,6 +67,23 @@ pub(crate) fn spawn_link_prune(state: Arc<FastcoreState>) {
             let pruned = tokio::task::spawn_blocking(move || {
                 let now = chrono::Utc::now().timestamp();
                 let mut total = 0;
+                // fingerprints stop being findable after their window; the
+                // fingerprint itself stays
+                let window = mailrs_mailbox_kevy::ledger::SEGMENT_DAYS * 86_400;
+                loop {
+                    match st.mailbox.prune_template_segments(now - window, BATCH) {
+                        Ok(n) => {
+                            total += n;
+                            if n < BATCH {
+                                break;
+                            }
+                        }
+                        Err(e) => {
+                            tracing::warn!(error = %e, "ledger: pruning fingerprint rows failed");
+                            break;
+                        }
+                    }
+                }
                 loop {
                     match st.mailbox.prune_expired_links(now, BATCH) {
                         Ok(n) => {
@@ -156,6 +174,7 @@ pub(crate) fn record_delivery(
             return false;
         }
     }
+    crate::report::fingerprint::record(state, user, message_id, raw, facts.arrived);
     let name = mailrs_inbound::from_header(raw);
     if let Err(e) =
         state

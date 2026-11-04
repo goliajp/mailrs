@@ -1,0 +1,20 @@
+[package]
+name = "mailrs-report"
+version = "0.1.0"
+edition = "2024"
+description = "Finds the other copies of a reported scam: a 64-bit SimHash of the normalised body, a same-template test that also needs a shared link domain, attachment or sender domain, and the rules for when one person's report may take mail out of other people's inboxes."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-report"
+authors = ["GOLIA K.K."]
+keywords = ["email", "phishing", "simhash", "security"]
+categories = ["email", "text-processing"]
+readme = "README.md"
+
+[dependencies]
+mailrs-mime = { path = "../mime", version = "2" }
+serde = { workspace = true }
+
+[lints]
+workspace = true

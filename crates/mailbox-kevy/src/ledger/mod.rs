@@ -16,6 +16,9 @@ use kevy_embedded::{IndexKind, IndexValType as ValType, TableIndex, TableSpec};
 use crate::KevyMailboxStore;
 
 mod lookup;
+mod template;
+
+pub use template::{Footprint, SEGMENT_DAYS, StoredTemplate};
 
 pub(crate) const MSG_PREFIX: &[u8] = b"L:m:";
 pub(crate) const LINK_PREFIX: &[u8] = b"L:l:";
@@ -104,7 +107,7 @@ pub(crate) fn specs() -> [TableSpec; 3] {
                 col("from_addr", ValType::Str),
                 col("reg", ValType::Str),
             ],
-            &["from_domain", "from_addr", "reg"],
+            &["from_domain", "from_addr", "reg", "mid"],
         ),
         table(
             "ledger_link",
@@ -148,7 +151,7 @@ impl KevyMailboxStore {
     /// rows stay and the indexes are rebuilt from them.
     pub fn ensure_ledger_tables(&self) -> io::Result<()> {
         let current = self.store().table_list();
-        for spec in specs() {
+        for spec in specs().into_iter().chain(template::specs()) {
             match current.iter().find(|t| t.name == spec.name) {
                 Some(existing) if existing.sans_auto() == spec => continue,
                 Some(_) => {

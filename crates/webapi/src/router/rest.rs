@@ -187,6 +187,18 @@ pub(super) fn admin_routes() -> axum::Router<Arc<WebState>> {
             post(handlers::rejudge::release),
         )
         .route(
+            "/api/admin/reports/pending",
+            get(handlers::scam_report::pending),
+        )
+        .route(
+            "/api/admin/reports/{report_id}/confirm",
+            post(handlers::scam_report::confirm),
+        )
+        .route(
+            "/api/admin/reports/{report_id}/dismiss",
+            post(handlers::scam_report::dismiss),
+        )
+        .route(
             "/api/reset-codes/{address}",
             get(handlers::reset_code::status).post(handlers::reset_code::issue),
         )
