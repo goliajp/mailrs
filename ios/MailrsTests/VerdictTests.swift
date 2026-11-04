@@ -185,6 +185,45 @@ struct CallbackNumbersTests {
             attachments: [], unsubscribe: nil)
     }
 
+    private struct Sample: Decodable {
+        let name: String
+        let text: String
+        let numbers: [String]
+    }
+
+    private struct Shared: Decodable {
+        let labels: [String]
+        let samples: [Sample]
+    }
+
+    /// `callback-numbers.json`, the web's table, as the app ships it.
+    private func shared() throws -> Shared {
+        let url = try #require(
+            Bundle.main.url(forResource: "callback-numbers", withExtension: "json"),
+            "callback-numbers.json is not in the app")
+        return try JSONDecoder().decode(Shared.self, from: Data(contentsOf: url))
+    }
+
+    @Test("every shared sample reads as it does on the web")
+    func sharedSamples() throws {
+        let file = try shared()
+        #expect(file.samples.count >= 10, "there are no samples to check")
+        #expect(CallbackNumbers.labels == file.labels)
+        for sample in file.samples {
+            #expect(CallbackNumbers.phoneNumbers(in: sample.text) == sample.numbers, "\(sample.name)")
+        }
+    }
+
+    @Test("a purchase order number is not joined to the invoice's year after it")
+    func purchaseOrder() {
+        let m = Wire.Message(
+            uid: 1, sender: "billing@vendor.example", senderTrust: "", recipients: "me", subject: "s",
+            internalDate: 1, messageId: "<1>", textBody: nil,
+            htmlBody: "<table><tr><td>Invoice for Phase 1: Under PO 4300078149</td>\n<td>2026-INV-003001-2</td></tr></table>",
+            attachments: [], unsubscribe: nil)
+        #expect(CallbackNumbers.new(in: m, earlier: []) == [])
+    }
+
     @Test("grouped numbers are found, account numbers and dates are not")
     func found() {
         let text = "Call +81 3-1234-5678 or (03) 1234 5678. Order 12345678901. On 2026-11-01 12.30.45"

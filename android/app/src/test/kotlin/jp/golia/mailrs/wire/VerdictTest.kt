@@ -2,6 +2,9 @@ package jp.golia.mailrs.wire
 
 import java.io.File
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -143,6 +146,28 @@ class CallbackNumbersTest {
         internalDate = 1, messageId = "<$uid>", textBody = text, htmlBody = html, category = "inbox",
         riskScore = 0, riskReason = "",
     )
+
+    /** `callback-numbers.json`, the web's table, as the app ships it. */
+    private val shared = Json.parseToJsonElement(File("src/main/resources/callback-numbers.json").readText()).jsonObject
+
+    @Test
+    fun `every shared sample reads as it does on the web`() {
+        val samples = shared.getValue("samples").jsonArray.map { it.jsonObject }
+        assertTrue("there are no samples to check", samples.size >= 10)
+        assertEquals(shared.getValue("labels").jsonArray.map { it.jsonPrimitive.content }, CallbackNumbers.labels)
+        val wrong = samples.mapNotNull { s ->
+            val got = CallbackNumbers.phoneNumbers(s.getValue("text").jsonPrimitive.content)
+            val want = s.getValue("numbers").jsonArray.map { it.jsonPrimitive.content }
+            if (got == want) null else "${s.getValue("name").jsonPrimitive.content}: $got"
+        }
+        assertEquals(emptyList<String>(), wrong)
+    }
+
+    @Test
+    fun `a purchase order number is not joined to the invoice's year after it`() {
+        val html = "<table><tr><td>Invoice for Phase 1: Under PO 4300078149</td>\n<td>2026-INV-003001-2</td></tr></table>"
+        assertEquals(emptyList<String>(), CallbackNumbers.new(message(1, "billing@vendor.example", null, html), emptyList()))
+    }
 
     @Test
     fun `grouped numbers are found, account numbers and dates are not`() {
