@@ -17,6 +17,15 @@ enum ThreadCollapse {
         (uid == lastUid) != toggled.contains(uid)
     }
 
+    /// The folded card's line for `message`: its text part, or for mail
+    /// sent as HTML only, the words of the HTML without the earlier mail
+    /// it quotes. Bound like any other snippet.
+    static func snippet(for message: Wire.Message) -> String {
+        if let text = message.textBody, !text.isEmpty { return snippet(text) }
+        guard let html = message.htmlBody, !html.isEmpty else { return "" }
+        return snippet(HTMLText.plain(html, dropQuoted: true))
+    }
+
     /// The folded card's one line of body: whitespace collapsed, hard
     /// bounded — a header row, not a second body.
     static func snippet(_ text: String?, limit: Int = 80) -> String {
