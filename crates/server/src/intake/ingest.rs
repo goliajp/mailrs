@@ -92,6 +92,9 @@ impl PgCore {
                 return false;
             }
         };
+        if !a.is_own {
+            self.record_template(addr, &a.message_id, body);
+        }
         // remote images are fetched as the mail arrives, not when it is
         // read; mail in Junk or held as fraud is not fetched for
         if folder != "Junk"

@@ -71,6 +71,7 @@ pub mod route_permissions;
 pub mod rules;
 pub mod rules_run;
 pub mod saved_searches;
+pub mod scam_report;
 pub mod scheduled;
 pub mod screening_admin;
 pub mod search;

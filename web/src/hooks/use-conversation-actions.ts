@@ -21,6 +21,7 @@ import {
   useUnsnoozeMutation,
   useUnstarMutation,
 } from '@/hooks/use-mail-mutations'
+import { useReportMutation } from '@/hooks/use-report-mutation'
 import {
   useDeleteForeverMutation,
   useTrashMutation,
@@ -62,6 +63,7 @@ export function useConversationActions(): ConversationActions {
     'move-to-inbox': useMoveToInboxMutation(),
     pin: usePinMutation(),
     read: useMarkReadMutation(),
+    report: useReportMutation(),
     snooze: useSnoozeMutation(),
     star: useStarMutation(),
     trash: useTrashMutation(),

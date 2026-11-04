@@ -354,6 +354,27 @@ CREATE TABLE IF NOT EXISTS release_facts (
 CREATE INDEX IF NOT EXISTS release_facts_thread
     ON release_facts (account_address, thread_id);
 
+-- migrate-062: each message's template fingerprint, once per message; the
+-- four pieces only while it is inside a report's thirty days (NULL after).
+-- Derived from the file.
+CREATE TABLE IF NOT EXISTS message_templates (
+    message_id    TEXT PRIMARY KEY,
+    simhash       BIGINT NOT NULL,
+    arrived       BIGINT NOT NULL,
+    links         TEXT NOT NULL DEFAULT '',
+    files         TEXT NOT NULL DEFAULT '',
+    sender        TEXT NOT NULL DEFAULT '',
+    s0            INTEGER,
+    s1            INTEGER,
+    s2            INTEGER,
+    s3            INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_message_templates_s0 ON message_templates(s0);
+CREATE INDEX IF NOT EXISTS idx_message_templates_s1 ON message_templates(s1);
+CREATE INDEX IF NOT EXISTS idx_message_templates_s2 ON message_templates(s2);
+CREATE INDEX IF NOT EXISTS idx_message_templates_s3 ON message_templates(s3);
+CREATE INDEX IF NOT EXISTS idx_message_templates_arrived ON message_templates(arrived);
+
 -- migrate-054: the Trash, per reader.
 CREATE TABLE IF NOT EXISTS trashed_conversations (
     account_address TEXT NOT NULL,
@@ -857,4 +878,4 @@ CREATE INDEX idx_messages_clean_text_trgm ON messages USING gin (clean_text gin_
 -- The migration this schema is equal to; the core reads it at boot and
 -- applies whatever it carries beyond it.
 CREATE TABLE schema_version (version INTEGER NOT NULL);
-INSERT INTO schema_version (version) VALUES (61);
+INSERT INTO schema_version (version) VALUES (62);

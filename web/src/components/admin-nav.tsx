@@ -4,6 +4,7 @@ import {
   ArrowLeftRight,
   Eye,
   Filter,
+  Flag,
   FlaskConical,
   Globe,
   KeyRound,
@@ -82,6 +83,7 @@ export const navGroups: { items: NavItem[]; label: Key }[] = [
         label: 'admin.nav.screening',
         to: '/admin/screening',
       },
+      { icon: <Flag className="h-4 w-4" />, label: 'admin.nav.reports', to: '/admin/reports' },
       {
         icon: <KeyRound className="h-4 w-4" />,
         label: 'admin.nav.protocolSignIns',

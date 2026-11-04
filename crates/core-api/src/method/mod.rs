@@ -33,6 +33,8 @@
 //!   /v1/users/{u}/messages/by-message-id/{mid}
 //!   /v1/users/{u}/messages/{uid}/flags
 //!   /v1/users/{u}/messages/{mid}/fraud-verdict
+//!   /v1/users/{u}/messages/{mid}/report           # report a scam
+//!   /v1/users/{u}/reports/{id}
 //!
 //!   /v1/users/{u}/drafts, signatures, templates   # side state
 //!
@@ -41,6 +43,7 @@
 //!   /v1/admin/domains
 //!   /v1/admin/recipients/{address}/deliverable
 //!   /v1/admin/webhook-subscriptions
+//!   /v1/admin/reports/pending, {id}/confirm, {id}/dismiss
 //! ```
 //!
 //! fastcore also serves operator routes no client asks for
@@ -57,6 +60,7 @@ pub mod mailbox;
 pub mod message;
 pub mod message_index;
 pub mod outbound;
+pub mod report;
 pub mod senders;
 pub mod sent;
 pub mod shared;

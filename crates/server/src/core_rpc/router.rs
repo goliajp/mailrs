@@ -234,6 +234,26 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
             post(handlers::admin::release_rejudge_batch),
         )
         .route(
+            mailrs_core_api::method::report::PATH_REPORT_MESSAGE,
+            post(handlers::reports::report),
+        )
+        .route(
+            mailrs_core_api::method::report::PATH_REPORT_OUTCOME,
+            get(handlers::reports::outcome),
+        )
+        .route(
+            mailrs_core_api::method::report::PATH_PENDING_REPORTS,
+            get(handlers::reports::pending),
+        )
+        .route(
+            mailrs_core_api::method::report::PATH_CONFIRM_REPORT,
+            post(handlers::reports::confirm),
+        )
+        .route(
+            mailrs_core_api::method::report::PATH_DISMISS_REPORT,
+            post(handlers::reports::dismiss),
+        )
+        .route(
             adm_paths::PATH_SET_MESSAGE_FLAGS,
             post(handlers::admin::set_message_flags),
         )
