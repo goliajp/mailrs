@@ -9,6 +9,9 @@ import kotlinx.coroutines.launch
 import jp.golia.mailrs.wire.cancelScheduled
 import jp.golia.mailrs.wire.scheduledSends
 import jp.golia.mailrs.wire.SendSchedule
+import jp.golia.mailrs.wire.send
+import jp.golia.mailrs.wire.sendMultipart
+import jp.golia.mailrs.wire.withKept
 import jp.golia.mailrs.wire.sends
 import jp.golia.mailrs.wire.sentMessages
 import jp.golia.mailrs.wire.SendJoin
@@ -22,7 +25,6 @@ import jp.golia.mailrs.wire.deleteDraft
 import jp.golia.mailrs.wire.drafts
 import jp.golia.mailrs.wire.saveDraft
 import jp.golia.mailrs.wire.unsubscribe
-import jp.golia.mailrs.wire.MailSignature
 import jp.golia.mailrs.wire.RecentRecipients
 import jp.golia.mailrs.wire.RecipientAutocomplete
 import jp.golia.mailrs.wire.ReplyRecipients
@@ -217,21 +219,21 @@ fun MailViewModel.send(schedule: SendSchedule = SendSchedule.Now) {
     _state.update { it.copy(sending = true, error = null) }
     viewModelScope.launch {
         val resolver = getApplication<Application>().contentResolver
+        val (body, html) = outgoing(draft)
         val r = if (draft.attachments.isEmpty()) {
             client.send(
                 recipients,
                 draft.subject,
-                // Signed on the way out, not in the composer: what
-                // was typed is what is shown, and a reply that already
-                // carries a separator is left alone.
-                MailSignature.append(draft.body, _state.value.signature),
+                body,
                 draft.inReplyTo,
                 cc = recipientsIn(draft.cc),
                 bcc = recipientsIn(draft.bcc),
                 forwardAttachmentsFrom = draft.forwardFrom,
-                scheduledAt = schedule.fireDate(java.time.ZonedDateTime.now()),
+                scheduledAt = schedule.withKept(draft.scheduledAt, java.time.ZonedDateTime.now()),
                 redraftOf = draft.redraftOf,
                 redraftKeep = draft.keptCarried(),
+                from = draft.from,
+                htmlBody = html,
             )
         } else {
             client.sendMultipart(
@@ -239,14 +241,16 @@ fun MailViewModel.send(schedule: SendSchedule = SendSchedule.Now) {
                 cc = recipientsIn(draft.cc),
                 bcc = recipientsIn(draft.bcc),
                 subject = draft.subject,
-                body = MailSignature.append(draft.body, _state.value.signature),
+                body = body,
                 inReplyTo = draft.inReplyTo,
                 attachments = draft.attachments.map { a ->
                     MailrsClient.Upload(a.filename, ContentUriBody(resolver, a.uri))
                 },
-                scheduledAt = schedule.fireDate(java.time.ZonedDateTime.now()),
+                scheduledAt = schedule.withKept(draft.scheduledAt, java.time.ZonedDateTime.now()),
                 redraftOf = draft.redraftOf,
                 redraftKeep = draft.keptCarried(),
+                from = draft.from,
+                htmlBody = html,
             )
         }
         when (r) {
@@ -257,8 +261,7 @@ fun MailViewModel.send(schedule: SendSchedule = SendSchedule.Now) {
                 // this account has *received* from would put a mailing
                 // list one tap from a photo.
                 RecentRecipients.remember(getApplication(), recipients)
-                _state.update { it.copy(sending = false, composing = null, sent = true) }
-                refresh()
+                sendLanded(r.value)
             }
             is MailrsClient.Outcome.Err ->
                 // The composer stays open. A send that failed and
@@ -267,10 +270,6 @@ fun MailViewModel.send(schedule: SendSchedule = SendSchedule.Now) {
                 _state.update { it.copy(sending = false, error = r.message) }
         }
     }
-}
-
-fun MailViewModel.acknowledgeSent() {
-    _state.update { it.copy(sent = false) }
 }
 
 /**

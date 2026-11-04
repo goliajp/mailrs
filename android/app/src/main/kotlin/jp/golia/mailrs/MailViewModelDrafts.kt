@@ -31,6 +31,8 @@ fun MailViewModel.cancelCompose() {
                 subject = draft.subject,
                 body = draft.body,
                 replyToThreadId = draft.replyToThreadId,
+                from = draft.from,
+                scheduledAt = draft.scheduledAt,
             ),
         )
         if (saved is MailrsClient.Outcome.Ok) {
@@ -78,6 +80,8 @@ fun MailViewModel.editSavedDraft(d: Wire.Draft) {
             body = d.body,
             replyToThreadId = d.replyToThreadId,
             serverId = d.id,
+            from = d.from,
+            scheduledAt = d.scheduledAt,
         ),
     ) }
 }

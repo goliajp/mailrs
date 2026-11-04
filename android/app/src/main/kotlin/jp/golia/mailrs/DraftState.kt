@@ -81,6 +81,11 @@ data class Draft(
      */
     @kotlinx.serialization.Transient
     val attachments: List<Attached> = emptyList(),
+    /** When a resumed draft was set to go, in epoch seconds; kept so Send does not send at once. */
+    val scheduledAt: Long? = null,
+    /** The account's templates, read when the composer opens. */
+    @kotlinx.serialization.Transient
+    val templates: List<jp.golia.mailrs.wire.Template> = emptyList(),
 ) {
     /** Nothing typed and nothing quoted: not worth saving. */
     val isEmpty: Boolean

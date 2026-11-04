@@ -413,4 +413,13 @@
     <string name="link_warning_confirm">这个链接可能不是它看上去的地方。\n\n%1$s\n\n仍然打开吗？</string>
     <string name="link_warning_open">打开</string>
     <string name="read_callback">这封信里有一个发件人以前没用过的电话号码：%1$s。为付款或账户的事打电话前，先自己核实这个号码</string>
+    <string name="compose_templates">模板</string>
+    <string name="format_bold">粗体</string>
+    <string name="format_italic">斜体</string>
+    <string name="format_link">链接</string>
+    <string name="compose_scheduled_for">定于 %1$s 发送</string>
+    <string name="compose_send_now_instead">改为立即发送</string>
+    <string name="compose_message_sent">已发送</string>
+    <string name="compose_send_cancelled">已取消发送</string>
+    <string name="compose_undo_too_late">来不及撤销，已经发出去了</string>
 </resources>

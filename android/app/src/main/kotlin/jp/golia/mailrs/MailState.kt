@@ -43,8 +43,8 @@ data class UiState(
     /** The message being written, or null. */
     val composing: Draft? = null,
     val sending: Boolean = false,
-    /** True for one frame after a send lands, so the list can say so. */
-    val sent: Boolean = false,
+    /** A send that landed: its id for Undo, until the list has said so. */
+    val sent: SentNote? = null,
     /** Whose mailbox this is — reply-all must not address it back. */
     val myAddress: String = "",
     /** What the snackbar is offering to undo, or null. */
