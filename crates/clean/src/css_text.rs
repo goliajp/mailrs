@@ -67,7 +67,7 @@ fn declaration_len(s: &str) -> Option<usize> {
         return None;
     }
     let value = &rest[colon + 1..];
-    let end = value.find(|c: char| matches!(c, ';' | '{' | '}' | '<' | '>' | '\n' | '\r'))?;
+    let end = value.find([';', '{', '}', '<', '>', '\n', '\r'])?;
     if end == 0 || end > MAX_VALUE_LEN || !value[end..].starts_with(';') {
         return None;
     }
