@@ -29,27 +29,31 @@ import jp.golia.mailrs.wire.InboxSection
  */
 @Composable
 fun InboxSectionBar(state: UiState, vm: MailViewModel) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 12.dp, vertical = 2.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        FilterChip(
-            selected = state.inboxSection == null,
-            onClick = { vm.selectSection(null) },
-            label = { Text(stringResource(R.string.section_all), fontSize = 13.sp) },
-            modifier = Modifier.testTag("section.all"),
-        )
-        for (s in InboxSection.entries) {
+    // Accept all sits outside the scrolling chips, at the end like the
+    // web's: at the end of a scrolled row it would start off-screen.
+    Row(Modifier.fillMaxWidth().padding(end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            Modifier
+                .weight(1f)
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 12.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             FilterChip(
-                selected = state.inboxSection == s.wire,
-                onClick = { vm.selectSection(s) },
-                label = { Text(stringResource(s.label), fontSize = 13.sp) },
-                modifier = Modifier.testTag("section.${s.wire}"),
+                selected = state.inboxSection == null,
+                onClick = { vm.selectSection(null) },
+                label = { Text(stringResource(R.string.section_all), fontSize = 13.sp) },
+                modifier = Modifier.testTag("section.all"),
             )
+            for (s in InboxSection.entries) {
+                FilterChip(
+                    selected = state.inboxSection == s.wire,
+                    onClick = { vm.selectSection(s) },
+                    label = { Text(stringResource(s.label), fontSize = 13.sp) },
+                    modifier = Modifier.testTag("section.${s.wire}"),
+                )
+            }
         }
         if (state.inboxSection == InboxSection.New.wire && state.conversations.isNotEmpty()) {
             TextButton(onClick = { vm.acceptShownSenders() }, modifier = Modifier.testTag("section.acceptAll")) {

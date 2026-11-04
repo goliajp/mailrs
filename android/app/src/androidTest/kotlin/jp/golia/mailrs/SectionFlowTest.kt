@@ -28,13 +28,17 @@ class SectionFlowTest : MailrsUiTest() {
         waitForTag("section.reply", "no section bar over the Inbox")
         compose.onNodeWithTag("section.reply").performClick()
         waitUntilShown(hasText("Customer asks about the refund"), "the To reply section did not show its rows")
+        // The row is one clickable node with its children merged in, so the
+        // line is looked for in the unmerged tree.
         assertTrue(
             "the team row did not say who answers it",
-            compose.onAllNodes(hasTestTag("row.assignee.sec_team")).fetchSemanticsNodes().isNotEmpty(),
+            compose.onAllNodes(hasTestTag("row.assignee.sec_team"), useUnmergedTree = true)
+                .fetchSemanticsNodes().isNotEmpty(),
         )
         assertTrue(
             "a row nobody is assigned named an assignee",
-            compose.onAllNodes(hasTestTag("row.assignee.sec_reply")).fetchSemanticsNodes().isEmpty(),
+            compose.onAllNodes(hasTestTag("row.assignee.sec_reply"), useUnmergedTree = true)
+                .fetchSemanticsNodes().isEmpty(),
         )
 
         compose.onNodeWithTag("section.awaiting").performClick()

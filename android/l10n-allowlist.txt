@@ -346,3 +346,11 @@ wire/LinkWarnings.kt	&amp;
 wire/ReasonText.kt	Inbox
 wire/ReasonText.kt	Notifications
 wire/ReasonText.kt	Promotions
+wire/MailList.kt	section=$it
+wire/MailrsClientSettings.kt	Authorization
+wire/MailrsClientSettings.kt	Bearer ${s.token}
+wire/TrackingPixels.kt	<img
+wire/TrackingPixels.kt	\bstyle\s*=\s*[
+wire/TrackingPixels.kt	']*\b(?:width|height)\s*:\s*1px
+wire/TrackingPixels.kt	<img
+wire/TrackingPixels.kt	\b$name\s*=\s*[
