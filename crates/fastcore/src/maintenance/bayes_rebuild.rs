@@ -8,7 +8,9 @@
 //! the files.
 //!
 //! With `source=curated` it adds ham instead: conversations readers kept
-//! out of Junk, chosen by the rules in [`super::curated_ham`].
+//! out of Junk, chosen by the rules in [`super::curated_ham`]; with
+//! `source=curated_spam` spam, the conversations readers moved into Junk
+//! themselves ([`super::curated_spam`]).
 //!
 //! A page is a slice of a roster sorted by key, so pages taken with `skip`
 //! cover the same threads a single run would, and training is reversible per
@@ -30,6 +32,8 @@ pub(crate) enum Source {
     Legacy,
     /// Ham picked from what readers kept, see `curated_ham`.
     Curated,
+    /// Spam readers filed as junk themselves, see `curated_spam`.
+    CuratedSpam,
 }
 
 #[derive(serde::Deserialize)]
@@ -76,6 +80,14 @@ pub(crate) async fn bayes_rebuild_v2_route(
     let work = run_blocking(move |h| match q.source {
         Source::Legacy => rebuild_spam(&state, &mut conn, &q, h),
         Source::Curated => super::curated_ham::rebuild(
+            &state,
+            &mut conn,
+            (q.skip, q.limit),
+            (q.per_domain_cap, q.total_cap),
+            q.dry_run,
+            h,
+        ),
+        Source::CuratedSpam => super::curated_spam::rebuild(
             &state,
             &mut conn,
             (q.skip, q.limit),
