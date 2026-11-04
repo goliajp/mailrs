@@ -54,6 +54,8 @@ pub(crate) struct Recall<'a> {
     pub(crate) rules: Vec<String>,
     pub(crate) observation: &'a str,
     pub(crate) verdict: &'a mailrs_inbound::FraudVerdict,
+    /// When the message arrived, from our receiver's trace.
+    pub(crate) arrived: Option<i64>,
 }
 
 /// Take `r` back into Review. Returns whether it was taken (false when it
@@ -66,8 +68,15 @@ pub(crate) fn recall(state: &Arc<FastcoreState>, r: &Recall<'_>) -> Result<bool,
             "rejudge: put back before for these rules; left where it is");
         return Ok(false);
     }
-    let held_now =
-        crate::maintenance::fraud_rescan::holding::apply(state, r.user, r.tid, r.mid, r.verdict)?;
+    // a person released it after this message came: it stays released
+    if !crate::hold_facts::may_hold_again(state, r.user, r.tid, r.arrived)? {
+        tracing::info!(user = %r.user, tid = %r.tid,
+            "rejudge: a person released it after this message came; left where it is");
+        return Ok(false);
+    }
+    let held_now = crate::maintenance::fraud_rescan::holding::apply(
+        state, r.user, r.tid, r.mid, r.verdict, "recall",
+    )?;
     if !held_now {
         return Ok(false);
     }
@@ -156,7 +165,12 @@ fn tell(state: &Arc<FastcoreState>, r: &Recall<'_>, at: i64) {
 
 /// A rejudge-held conversation the rules no longer hold goes back where
 /// it was. A conversation held on arrival is not this module's to release.
-pub(crate) fn unrecall(state: &Arc<FastcoreState>, user: &str, tid: &str) -> Result<bool, String> {
+pub(crate) fn unrecall(
+    state: &Arc<FastcoreState>,
+    user: &str,
+    tid: &str,
+    rules_version: &str,
+) -> Result<bool, String> {
     let store = state.mailbox.store_ref();
     let key = recalled_key(user, tid);
     let Some(observation) = store.hget(key.as_bytes(), b"observation").ok().flatten() else {
@@ -167,6 +181,16 @@ pub(crate) fn unrecall(state: &Arc<FastcoreState>, user: &str, tid: &str) -> Res
         .set_quarantined(user, tid, false)
         .map_err(|e| e.to_string())?;
     store.del(&[key.as_bytes()]).map_err(|e| e.to_string())?;
+    if ok {
+        crate::hold_facts::record_release(
+            state,
+            user,
+            tid,
+            crate::hold_facts::REJUDGE,
+            crate::hold_facts::SYSTEM,
+            rules_version,
+        )?;
+    }
     if let Some(mut conn) = state.net_conn() {
         let detail = format!(
             "user={user} observation={} reason=the rules no longer hold it",
@@ -293,6 +317,16 @@ pub(crate) fn release_batch(state: &FastcoreState, observation: &str, actor: &st
             .unwrap_or(false)
         {
             note_released(state, user, tid);
+            if let Err(error) = crate::hold_facts::record_release(
+                state,
+                user,
+                tid,
+                crate::hold_facts::BATCH,
+                actor,
+                "",
+            ) {
+                tracing::error!(%error, %user, %tid, "rejudge: the batch release was not recorded");
+            }
             released += 1;
             if let Some(c) = conn.as_mut() {
                 let detail = format!("user={user} observation={observation} reason=batch put back");
