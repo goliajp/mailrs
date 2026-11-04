@@ -15,8 +15,6 @@ use std::sync::Arc;
 
 use crate::FastcoreState;
 
-use mailrs_triage::spam::META as K_META;
-
 /// "Every row", for the declared queries that take a limit.
 ///
 /// Named rather than a bare number so a reader can see it is not a page
@@ -92,12 +90,8 @@ pub fn train_triage(state: &Arc<FastcoreState>, user: &str, thread_id: &str, cla
 /// Returns `None` on cold-start / low confidence — the caller then
 /// defaults to "inbox".
 pub fn classify_triage(state: &Arc<FastcoreState>, raw: &[u8]) -> Option<&'static str> {
-    let tokens = mailrs_bayes::tokenize(raw);
-    if tokens.is_empty() {
-        return None;
-    }
     let mut conn = state.net_conn()?;
-    mailrs_triage::classify(&mut conn, &tokens)
+    mailrs_triage::classify(&mut conn, raw)
 }
 
 /// True if the corpus already holds any trained messages. The caller
@@ -108,9 +102,10 @@ pub fn corpus_populated(state: &Arc<FastcoreState>) -> bool {
     let Some(mut conn) = state.net_conn() else {
         return false;
     };
+    let meta = mailrs_triage::spam::keys(mailrs_triage::READ).meta;
     let Ok(replies) = conn.pipeline(|p| {
-        p.cmd(&[b"HGET", K_META, b"spam_msgs"]);
-        p.cmd(&[b"HGET", K_META, b"ham_msgs"]);
+        p.cmd(&[b"HGET", meta, b"spam_msgs"]);
+        p.cmd(&[b"HGET", meta, b"ham_msgs"]);
     }) else {
         return false;
     };

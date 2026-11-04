@@ -264,10 +264,6 @@ pub fn category(
     if target_folder.eq_ignore_ascii_case("junk") {
         return "spam";
     }
-    let tokens = mailrs_bayes::tokenize(body);
-    if tokens.is_empty() {
-        return "inbox";
-    }
-    net.and_then(|conn| mailrs_triage::classify(conn, &tokens))
+    net.and_then(|conn| mailrs_triage::classify(conn, body))
         .unwrap_or("inbox")
 }
