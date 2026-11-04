@@ -18,11 +18,23 @@ enum HTMLText {
     /// Elements whose contents are not text at all.
     private static let silent: Set<String> = ["script", "style", "head", "title"]
 
-    static func plain(_ html: String) -> String {
+    /// The earlier mail a reply quotes, as the common clients mark it:
+    /// Gmail, Apple Mail and Thunderbird nest it in a blockquote or a
+    /// marked block. The web's folded rows leave out the same ones.
+    private static let quotedClasses = ["gmail_quote", "gmail_extra", "yahoo_quoted", "moz-cite-prefix"]
+    /// Outlook does not nest it: everything after its reply header is the
+    /// earlier mail.
+    private static let outlookReplyIds = ["appendonsend", "divrplyfwdmsg"]
+
+    /// The text, with `dropQuoted` leaving out the earlier mail a reply
+    /// quotes: what a folded row shows, where only the new words matter.
+    static func plain(_ html: String, dropQuoted: Bool = false) -> String {
         var out = ""
         var tag = ""
         var inTag = false
         var skipUntil: String?
+        // the quoted element being skipped, and how deep inside it we are
+        var quoted: (name: String, depth: Int)?
         var i = html.startIndex
 
         while i < html.endIndex {
@@ -42,6 +54,12 @@ enum HTMLText {
                 let name = tagName(tag)
                 if let waiting = skipUntil {
                     if tag.hasPrefix("/") && name == waiting { skipUntil = nil }
+                } else if let q = quoted {
+                    quoted = deeper(q, tag, name)
+                } else if dropQuoted && startsOutlookReply(tag) {
+                    break
+                } else if dropQuoted && startsQuote(tag, name) {
+                    quoted = (name, 1)
                 } else if silent.contains(name) && !tag.hasPrefix("/") {
                     // A self-closed `<style/>` never gets its closing
                     // tag, and waiting for one swallows the message.
@@ -57,7 +75,7 @@ enum HTMLText {
                 i = html.index(after: i)
                 continue
             }
-            if skipUntil != nil {
+            if skipUntil != nil || quoted != nil {
                 i = html.index(after: i)
                 continue
             }
@@ -65,6 +83,30 @@ enum HTMLText {
             i = html.index(after: i)
         }
         return tidy(entities(out))
+    }
+
+    private static func startsQuote(_ tag: String, _ name: String) -> Bool {
+        guard !tag.hasPrefix("/"), !tag.hasSuffix("/") else { return false }
+        if name == "blockquote" { return true }
+        let lower = tag.lowercased()
+        return quotedClasses.contains { lower.contains($0) }
+    }
+
+    private static func startsOutlookReply(_ tag: String) -> Bool {
+        guard !tag.hasPrefix("/") else { return false }
+        let lower = tag.lowercased()
+        return outlookReplyIds.contains { lower.contains($0) }
+    }
+
+    /// The quote after one more tag: deeper for another element of its
+    /// name, shallower for a closing one, over when that closes it.
+    private static func deeper(
+        _ q: (name: String, depth: Int), _ tag: String, _ name: String
+    ) -> (name: String, depth: Int)? {
+        guard name == q.name, !tag.hasSuffix("/") else { return q }
+        if !tag.hasPrefix("/") { return (q.name, q.depth + 1) }
+        if q.depth == 1 { return nil }
+        return (q.name, q.depth - 1)
     }
 
     private static func startsATag(_ html: String, after i: String.Index) -> Bool {

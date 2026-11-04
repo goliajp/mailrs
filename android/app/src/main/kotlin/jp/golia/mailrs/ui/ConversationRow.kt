@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.testTag
+import jp.golia.mailrs.wire.TeamRow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -177,6 +178,16 @@ fun ConversationRow(
                             .padding(horizontal = 5.dp, vertical = 1.dp),
                     )
                 }
+            }
+            // A team conversation says who answers it, so two people do not both reply.
+            TeamRow.assignee(c)?.let { who ->
+                Text(
+                    Texts.get(R.string.row_assignee, who),
+                    color = theme.fgMuted,
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                    modifier = Modifier.testTag("row.assignee.${c.threadId}"),
+                )
             }
         }
     }

@@ -4,6 +4,7 @@ import jp.golia.mailrs.R
 import jp.golia.mailrs.wire.Texts
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import jp.golia.mailrs.closeCalendar
 import jp.golia.mailrs.closeSent
 import jp.golia.mailrs.closeReset
 import jp.golia.mailrs.openReset
@@ -53,6 +54,8 @@ import jp.golia.mailrs.closeDrafts
 import jp.golia.mailrs.chooseAppearance
 import jp.golia.mailrs.chooseNotify
 import jp.golia.mailrs.closeSettings
+import jp.golia.mailrs.closeSettingsPage
+import jp.golia.mailrs.openSettingsPage
 import jp.golia.mailrs.closeSource
 import jp.golia.mailrs.closeThread
 import jp.golia.mailrs.MailViewModel
@@ -60,7 +63,7 @@ import kotlin.coroutines.cancellation.CancellationException
 
 /** Which screen is showing, in the order they stack. */
 private enum class Screen {
-    SignIn, List, Sent, Drafts, Settings, Admin, GroupDetail, AccountDetail, Thread, Source, Compose,
+    SignIn, List, Sent, Drafts, Calendar, Settings, Admin, GroupDetail, AccountDetail, Thread, Source, Compose,
 }
 
 /**
@@ -98,7 +101,6 @@ fun MailrsApp(vm: MailViewModel, state: UiState) {
     // large-screen guidance in one sentence.
     val twoPanes = Panes.twoPanes(windowWidthDp.value.toInt())
 
-
     // **This order is the stack, innermost first.** Each line asks "is
     // something on top of what the line below would show?", so a screen
     // opened *from* another must appear above it — and getting that
@@ -116,6 +118,7 @@ fun MailrsApp(vm: MailViewModel, state: UiState) {
         state.adminOpen != null -> Screen.Admin    // opened from settings
         state.settingsOpen -> Screen.Settings
         state.sentOpen -> Screen.Sent
+        state.calendar != null -> Screen.Calendar
         state.draftsOpen -> Screen.Drafts
         // With two panes the thread is *beside* the list rather than
         // over it, so it is not a screen of its own: List draws both.
@@ -143,10 +146,12 @@ fun MailrsApp(vm: MailViewModel, state: UiState) {
             Screen.Settings -> when (settingsBack(state)) {
                 SettingsBack.MailAccounts -> vm.closeMailAccounts()
                 SettingsBack.MergedMail -> vm.closeMergedMail()
+                SettingsBack.Page -> vm.closeSettingsPage()
                 SettingsBack.Settings -> vm.closeSettings()
             }
             Screen.Drafts -> vm.closeDrafts()
             Screen.Sent -> vm.closeSent()
+            Screen.Calendar -> vm.closeCalendar()
             Screen.Admin -> vm.closeAdmin()
             Screen.Source -> vm.closeSource()
             Screen.GroupDetail -> vm.closeAdminRow()
@@ -156,11 +161,7 @@ fun MailrsApp(vm: MailViewModel, state: UiState) {
     }
 
     PredictiveBackHandler(
-        enabled = screen == Screen.Thread || screen == Screen.Compose ||
-            screen == Screen.Settings || screen == Screen.Drafts ||
-            screen == Screen.Sent ||
-            screen == Screen.Admin || screen == Screen.Source ||
-            screen == Screen.GroupDetail || screen == Screen.AccountDetail,
+        enabled = screen != Screen.List && screen != Screen.SignIn,
     ) { progress ->
         try {
             progress.collect { backProgress = it.progress }
@@ -294,9 +295,9 @@ fun MailrsApp(vm: MailViewModel, state: UiState) {
                     }
                     Screen.Drafts -> Box(peeled) { DraftsScreen(state, vm) }
                     Screen.Sent -> Box(peeled) { SentScreen(state, vm) }
+                    Screen.Calendar -> Box(peeled) { state.calendar?.let { CalendarScreen(state, it, vm) } }
                     Screen.Admin -> Box(peeled) {
-                        // Non-null on this branch by construction; the
-                        // screen is chosen from the same value.
+                        // non-null on this branch: the screen is chosen from the same value
                         state.adminOpen?.let { AdminScreen(it, state, vm) }
                     }
                     Screen.Settings -> Box(peeled) {
@@ -305,6 +306,7 @@ fun MailrsApp(vm: MailViewModel, state: UiState) {
                         when {
                             state.mailAccountsOpen -> MailboxesScreen()
                             state.mergedMailOpen -> MergedMailScreen()
+                            state.settingsPage != null -> SettingsPageScreen(state.settingsPage, state, vm)
                             else -> SettingsScreen(
                                 state = state,
                                 appearance = state.appearance,
@@ -314,10 +316,8 @@ fun MailrsApp(vm: MailViewModel, state: UiState) {
                                 onAdmin = { vm.openAdmin(it) },
                                 onMailAccounts = { vm.openMailAccounts() },
                                 onMergedMail = { vm.openMergedMail() },
-                                onSignOut = {
-                                    vm.closeSettings()
-                                    vm.signOut()
-                                },
+                                onPage = { vm.openSettingsPage(it) },
+                                onSignOut = { vm.closeSettings(); vm.signOut() },
                             )
                         }
                     }

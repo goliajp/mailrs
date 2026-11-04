@@ -72,7 +72,6 @@ class MailViewModel(
     internal var undoToken = 0
     internal var searchToken = 0
 
-
     internal var contactToken = 0
 
     /** Set only by `useFolderForTest`; null in every shipped build. */
@@ -113,7 +112,6 @@ class MailViewModel(
         )
     )
     val state: StateFlow<UiState> = _state.asStateFlow()
-
 
     init {
         // Restored before anything else touches the state, so a
@@ -251,8 +249,11 @@ class MailViewModel(
                     // fetched and never fetches itself — it is redrawn
                     // on every launcher scroll. Written here because
                     // this is where the list is already in hand.
-                    WidgetState.write(getApplication(), signedIn = true, conversations = r.value)
-                    viewModelScope.launch { refreshInboxWidgets(getApplication()) }
+                    // The widget shows the whole Inbox, never one section of it.
+                    if (axes.section == null) {
+                        WidgetState.write(getApplication(), signedIn = true, conversations = r.value)
+                        viewModelScope.launch { refreshInboxWidgets(getApplication()) }
+                    }
                     // Still the list that was asked for: switching lists
                     // mid-flight must not paint the old one's answer.
                     if (_state.value.list != list || _state.value.axes() != axes) return@launch
@@ -338,10 +339,6 @@ class MailViewModel(
         }
     }
 
-
-
-
-
     /**
      * Forget the mail held in memory, keeping the session and the disk
      * cache — a cold launch, without the launch.
@@ -374,12 +371,7 @@ class MailViewModel(
 
     /** Every keystroke, straight into the one copy of the draft. */
 
-
-
     /** Load the drafts list, and open one for editing. */
-
-
-
 
     /**
      * Who a To line names, once the commas and the whitespace are gone.
@@ -394,17 +386,7 @@ class MailViewModel(
     fun recipientsIn(to: String): List<String> =
         to.split(',', ';').map { it.trim() }.filter { it.isNotEmpty() }
 
-
-
-
-
-
     /** The screen has handed it to another app; stop offering it. */
-
-
-
-
-
 
     /**
      * Show another list.
@@ -419,6 +401,7 @@ class MailViewModel(
         _state.update { it.copy(
             list = list,
             label = label,
+            inboxSection = null,
             selected = emptySet(),
             endOfList = false,
             conversations = emptyList(),
@@ -430,24 +413,7 @@ class MailViewModel(
         refresh()
     }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     /** Open and close the settings screen. */
-
 
     /**
      * Choose light, dark, or the phone's own answer.
@@ -457,17 +423,7 @@ class MailViewModel(
      * next launch forgets, and nobody sets a theme twice.
      */
 
-
-
-
-
     /** Put the row back and forget the action. Nothing was ever sent. */
-
-
-
-
-
-
 
     internal companion object {
         const val DRAFT_KEY = "composing"

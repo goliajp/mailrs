@@ -198,7 +198,7 @@ fun ComposeScreen(state: UiState, vm: MailViewModel) {
                 }
             },
         )
-
+        TeamReplyHint(state, draft, vm)
         LaunchedEffect(draft.id) { vm.loadComposeExtras() }
         FromLine(vm.sendAddresses(), draft.from) { vm.chooseFrom(it) }
         CompactField(

@@ -17,9 +17,11 @@ import kotlinx.coroutines.launch
  * What the cache files a list under. A label is its own list, so its
  * rows are not shown under another label's heading on the next start.
  */
-fun UiState.listKey(): String = when (val l = label) {
-    null -> list.name
-    else -> "Label-" + l.id
+fun UiState.listKey(): String = when {
+    label != null -> "Label-" + label.id
+    // each section is its own list, or its rows would overwrite the whole Inbox's
+    list == MailList.Inbox && inboxSection != null -> list.name + "." + inboxSection
+    else -> list.name
 }
 
 /** Fetch the labels, for the drawer and the picker. A failure leaves the last ones known. */

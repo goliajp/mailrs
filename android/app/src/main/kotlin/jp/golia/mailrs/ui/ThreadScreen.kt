@@ -71,6 +71,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.foundation.clickable
+import jp.golia.mailrs.wire.ThreadCollapse
+import jp.golia.mailrs.wire.TrackerRules
+import jp.golia.mailrs.wire.TrackingPixels
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -231,9 +235,17 @@ fun ThreadScreen(
                         .testTag("list.messages"),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
+                    var toggled by remember(open.threadId) { mutableStateOf(emptySet<Int>()) }
+                    val lastUid = state.messages.lastOrNull()?.uid
+                    val flip = { uid: Int -> toggled = toggled.toggle(uid) }
                     state.messages.forEachIndexed { i, m ->
-                        MessageCard(open.threadId, m, state, vm, earlier = state.messages.take(i))
+                        if (ThreadCollapse.isExpanded(m.uid, lastUid, toggled)) {
+                            MessageCard(open.threadId, m, state, vm, earlier = state.messages.take(i), onFold = { flip(m.uid) })
+                        } else {
+                            FoldedMessage(m, onOpen = { flip(m.uid) })
+                        }
                     }
+                    TeamNotes(open, vm)
                 }
             }
         }
@@ -247,6 +259,7 @@ private fun MessageCard(
     state: UiState,
     vm: MailViewModel,
     earlier: List<Wire.Message>,
+    onFold: () -> Unit,
 ) {
     val theme = LocalTheme.current
     var warned by remember(m.uid) { mutableStateOf<LinkWarnings.Target?>(null) }
@@ -258,7 +271,10 @@ private fun MessageCard(
             .background(theme.surface)
             .padding(14.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            Modifier.clickable(onClick = onFold).testTag("message.header.${m.uid}"),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             SenderAvatarView(m.sender, size = 30.dp)
             Column(Modifier.padding(start = 10.dp).weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -277,6 +293,7 @@ private fun MessageCard(
                 Text(RowDate.format(m.internalDate), color = theme.fgMuted, fontSize = 11.sp)
                 SenderChecksLine(m.senderTrust, m.senderChecks)
             }
+            MessageSettingsMenu(m, threadId, vm)
         }
         VerdictPanel(m.messageId, vm)
         // HTML first, and not as a preference. A message that was
@@ -298,8 +315,10 @@ private fun MessageCard(
                 modifier = Modifier.padding(top = 10.dp),
             )
         } else {
+            val rules = TrackerRules.shipped(LocalContext.current)
+            TrackersNote(TrackingPixels.count(html, rules))
             MessageBody(
-                html,
+                TrackingPixels.strip(html, rules),
                 Modifier.padding(top = 10.dp),
                 warnings = m.linkWarnings,
                 onWarnedLink = { warned = it },
@@ -352,71 +371,6 @@ private fun MessageCard(
  *
  * **There is no positive mark** — see `SenderIdentity`.
  */
-@Composable
-private fun SenderTrustMark(senderTrust: String) {
-    val theme = LocalTheme.current
-    if (!SenderIdentity.isSuspicious(senderTrust)) return
-    Icon(
-        Icons.Filled.Warning,
-        contentDescription = Texts.get(R.string.mail_suspicious_sender),
-        tint = theme.warning,
-        modifier = Modifier.padding(start = 5.dp).size(14.dp),
-    )
-}
-
-/** Where it actually came from, when the name says somewhere else. */
-@Composable
-private fun SenderClaimMark(sender: String) {
-    val theme = LocalTheme.current
-    val actual = SenderIdentity.contradictedDomain(sender) ?: return
-    Text(
-        actual,
-        color = theme.warning,
-        fontSize = 10.sp,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        modifier = Modifier
-            .padding(start = 5.dp)
-            .background(theme.warning.copy(alpha = 0.14f), RoundedCornerShape(5.dp))
-            .padding(horizontal = 5.dp, vertical = 1.dp),
-    )
-}
-
-/**
- * Asked once before a flagged link opens, with the reasons it was flagged,
- * as the web client asks.
- */
-@Composable
-private fun LinkQuestion(target: LinkWarnings.Target, onDone: () -> Unit) {
-    val context = LocalContext.current
-    val (reasons, lang) = rememberReasons()
-    val why = target.warning.reasons.joinToString(" ") { reasons.words(it, lang) }
-    AlertDialog(
-        onDismissRequest = onDone,
-        text = { Text(stringResource(R.string.link_warning_confirm, why), modifier = Modifier.testTag("link.question")) },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    onDone()
-                    runCatching {
-                        context.startActivity(
-                            Intent(Intent.ACTION_VIEW, android.net.Uri.parse(target.url))
-                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                        )
-                    }
-                },
-                modifier = Modifier.testTag("link.open"),
-            ) { Text(stringResource(R.string.link_warning_open)) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDone, modifier = Modifier.testTag("link.cancel")) {
-                Text(stringResource(R.string.common_cancel))
-            }
-        },
-    )
-}
-
-/** An absence, with the sentence finished. */
 @Composable
 internal fun Conclusion(headline: String, detail: String, modifier: Modifier = Modifier) {
     val theme = LocalTheme.current
