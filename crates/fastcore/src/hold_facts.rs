@@ -32,7 +32,9 @@ fn now() -> i64 {
     chrono::Utc::now().timestamp()
 }
 
-/// Append one release and its audit line.
+/// Append one release and its audit line. `scope` says what the release
+/// was part of (`batch=<id>` for a batch put back), empty when it stands
+/// alone; it goes into the audit line.
 pub(crate) fn record_release(
     state: &FastcoreState,
     user: &str,
@@ -40,6 +42,7 @@ pub(crate) fn record_release(
     source: &str,
     actor: &str,
     rules_version: &str,
+    scope: &str,
 ) -> Result<(), String> {
     let fact = ReleaseFact {
         at: now(),
@@ -53,8 +56,16 @@ pub(crate) fn record_release(
         .store_ref()
         .rpush(key(user, tid).as_bytes(), &[json.as_slice()])
         .map_err(|e| e.to_string())?;
-    let detail = format!("user={user} source={source} actor={actor} rules_version={rules_version}");
-    audit(state, actor, "quarantine.release", tid, &detail, fact.at);
+    let detail =
+        format!("user={user} source={source} actor={actor} rules_version={rules_version} {scope}");
+    audit(
+        state,
+        actor,
+        "quarantine.release",
+        tid,
+        detail.trim_end(),
+        fact.at,
+    );
     Ok(())
 }
 

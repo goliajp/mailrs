@@ -192,6 +192,7 @@ pub(crate) fn unrecall(
             crate::hold_facts::REJUDGE,
             crate::hold_facts::SYSTEM,
             rules_version,
+            "",
         )?;
     }
     if let Some(mut conn) = state.net_conn() {

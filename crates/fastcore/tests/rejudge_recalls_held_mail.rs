@@ -123,6 +123,46 @@ async fn a_held_verdict_takes_the_conversation_back_and_a_batch_puts_it_back() {
     assert_eq!(releases.len(), 1);
     assert_eq!(releases[0].actor, "root@x.com");
     assert_eq!(releases[0].target, program);
+    // what the batch was put back on: whose decision, which batch, the
+    // rules it was held for, and how many it covered
+    assert!(
+        releases[0]
+            .detail
+            .contains(&format!("observation={observation}"))
+            && releases[0].detail.contains("rules="),
+        "{}",
+        releases[0].detail
+    );
+    let scope = audit_rows(&mut w.kv, "rejudge.batch_release");
+    assert_eq!(scope.len(), 1, "one line for the batch as a whole");
+    assert_eq!(scope[0].actor, "root@x.com");
+    assert_eq!(scope[0].target, observation);
+    for want in [
+        format!("batch={observation}"),
+        "conversations=1".to_string(),
+        "released=1".to_string(),
+        "rules=".to_string(),
+    ] {
+        assert!(
+            scope[0].detail.contains(&want),
+            "{want} missing: {}",
+            scope[0].detail
+        );
+    }
+    assert!(
+        !scope[0].detail.ends_with("rules="),
+        "the batch names the rules it held for: {}",
+        scope[0].detail
+    );
+    let fact = audit_rows(&mut w.kv, "quarantine.release");
+    assert!(
+        fact.iter().any(|f| f.target == program
+            && f.actor == "root@x.com"
+            && f.detail.contains("source=batch")
+            && f.detail.contains(&format!("batch={observation}"))),
+        "{:?}",
+        fact.iter().map(|f| &f.detail).collect::<Vec<_>>()
+    );
     let (_, list) = call(&w.state, Method::GET, "/v1/admin/rejudge-batches", None).await;
     assert!(
         list["items"][0]["released_at"].as_i64().unwrap() > 0,
