@@ -101,9 +101,9 @@ impl PgMailboxStore {
         Ok(rows.into_iter().map(row_to_message_meta).collect())
     }
 
-    /// Hold `thread_id` for `user`.
-    pub async fn hold_thread(&self, user: &str, thread_id: &str) -> Result<(), sqlx::Error> {
-        sqlx::query(
+    /// Hold `thread_id` for `user`. Returns whether it was not held before.
+    pub async fn hold_thread(&self, user: &str, thread_id: &str) -> Result<bool, sqlx::Error> {
+        let done = sqlx::query(
             "INSERT INTO quarantine_holds (account_address, thread_id) VALUES ($1, $2)
              ON CONFLICT (account_address, thread_id) DO NOTHING",
         )
@@ -111,7 +111,7 @@ impl PgMailboxStore {
         .bind(thread_id)
         .execute(&self.pool)
         .await?;
-        Ok(())
+        Ok(done.rows_affected() > 0)
     }
 
     /// Release `thread_id` for `user`. The verdict stays; it was true of
@@ -126,4 +126,66 @@ impl PgMailboxStore {
         .await?;
         Ok(done.rows_affected())
     }
+
+    /// Append one release of `thread_id` for `user`. Never updated.
+    pub async fn record_release(
+        &self,
+        user: &str,
+        thread_id: &str,
+        fact: &ReleaseFact,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "INSERT INTO release_facts
+                 (account_address, thread_id, released_at, source, actor, rules_version)
+             VALUES ($1, $2, $3, $4, $5, $6)",
+        )
+        .bind(user)
+        .bind(thread_id)
+        .bind(fact.at)
+        .bind(&fact.source)
+        .bind(&fact.actor)
+        .bind(&fact.rules_version)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Every release of `thread_id` for `user`, oldest first.
+    pub async fn releases(
+        &self,
+        user: &str,
+        thread_id: &str,
+    ) -> Result<Vec<ReleaseFact>, sqlx::Error> {
+        let rows: Vec<(i64, String, String, String)> = sqlx::query_as(
+            "SELECT released_at, source, actor, rules_version FROM release_facts
+              WHERE account_address = $1 AND thread_id = $2
+              ORDER BY id",
+        )
+        .bind(user)
+        .bind(thread_id)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|(at, source, actor, rules_version)| ReleaseFact {
+                at,
+                source,
+                actor,
+                rules_version,
+            })
+            .collect())
+    }
+}
+
+/// One release of a held conversation, as stored.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReleaseFact {
+    /// Unix seconds.
+    pub at: i64,
+    /// `person`, `batch` or `rejudge`.
+    pub source: String,
+    /// The reader or administrator, or `system`.
+    pub actor: String,
+    /// The rule pack that let it go; empty unless a rule change did.
+    pub rules_version: String,
 }

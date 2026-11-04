@@ -175,12 +175,48 @@ impl PgCore {
         if !verdict.quarantined {
             return Ok(false);
         }
-        self.mailbox.hold_thread(addr, thread_id).await?;
+        if self.mailbox.hold_thread(addr, thread_id).await? {
+            self.audit_hold(addr, thread_id, &verdict);
+        }
         self.mailbox.mark_thread_read(addr, thread_id, None).await?;
         tracing::info!(
             %addr, %thread_id, score = verdict.score, rules = %verdict.rules_version,
             "held: suspected fraud"
         );
         Ok(true)
+    }
+
+    /// The audit line for a conversation that was not held and now is, as
+    /// fastcore writes it.
+    fn audit_hold(&self, addr: &str, thread_id: &str, v: &mailrs_inbound::FraudVerdict) {
+        let Some(mut conn) = self
+            .dir
+            .net_url
+            .as_deref()
+            .and_then(|u| kevy_client::Connection::connect(u).ok())
+        else {
+            tracing::warn!(%thread_id, "no network kevy: the hold audit line was not written");
+            return;
+        };
+        let rules: Vec<&str> = v
+            .layers
+            .iter()
+            .flat_map(|l| l.reasons.iter().map(|r| r.code.as_str()))
+            .collect();
+        let detail = format!(
+            "user={addr} source=ingest rules_version={} rules={}",
+            v.rules_version,
+            rules.join(",")
+        );
+        if let Err(e) = mailrs_core_sidestate::families::audit::append(
+            &mut conn,
+            "system",
+            "quarantine.hold",
+            thread_id,
+            &detail,
+            chrono::Utc::now().timestamp(),
+        ) {
+            tracing::warn!(error = %e, %thread_id, "the hold audit line was not written");
+        }
     }
 }

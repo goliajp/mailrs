@@ -7447,6 +7447,23 @@ export interface components {
                 /** @description True when computed_at is more than 15 minutes old */
                 stale?: boolean;
             } | null;
+            /** @description Hits per enforced rule of the active fraud bundle, from the receiver's daily counters (shadow rules are not counted), recounted at most every five minutes. Every enforced rule is listed, at 0 when it never fired. Null when the shared store cannot be read. */
+            fraud_hits?: {
+                /** @description The active bundle's version */
+                version?: string;
+                /** @description Hits per rule on the current UTC day */
+                by_rule_today?: {
+                    [key: string]: number;
+                };
+                /** @description Hits per rule over the last 30 UTC days, today included */
+                by_rule_30d?: {
+                    [key: string]: number;
+                };
+                /** @description Unix seconds of the count */
+                computed_at?: number;
+                /** @description True when computed_at is more than 15 minutes old */
+                stale?: boolean;
+            } | null;
         };
         LoginRequest: {
             address: string;

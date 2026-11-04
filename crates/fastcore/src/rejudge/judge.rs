@@ -242,10 +242,11 @@ fn act(
                     rules: new.rules.clone(),
                     observation: obs,
                     verdict: &judged.verdict,
+                    arrived: mailrs_inbound::dates::received_epoch(raw),
                 },
             )
         }
-        _ => recall::unrecall(state, user, &tid),
+        _ => recall::unrecall(state, user, &tid, &judged.verdict.rules_version),
     };
     match done {
         Ok(true) => {

@@ -60,6 +60,28 @@ final class ListFlowTests: MailrsUITestCase {
         XCTAssertTrue(target.exists, "a thread sharing the page-boundary second was skipped")
     }
 
+    /// One second holding more threads than a page. The stub's
+    /// `SameSecond` list is five threads in one second, two to a page.
+    /// Re-requesting the boundary second gets the same two back, which
+    /// reads as the end; only the cursor reaches the other three. Each
+    /// of the five must be there once.
+    func testPagingByCursorReachesEveryThreadOfOneSecond() {
+        let app = launch(signedIn: true, folder: "SameSecond")
+        XCTAssertTrue(app.staticTexts["Same second 0"].waitForExistence(timeout: 15),
+                      "the list never loaded")
+        for i in 0..<5 {
+            let row = app.staticTexts.matching(NSPredicate(format: "label == %@", "Same second \(i)"))
+            var swipes = 0
+            while row.count == 0 && swipes < 10 {
+                app.swipeUp()
+                swipes += 1
+            }
+            XCTAssertTrue(row.firstMatch.waitForExistence(timeout: 10),
+                          "Same second \(i) was never listed")
+            XCTAssertEqual(row.count, 1, "Same second \(i) is listed \(row.count) times")
+        }
+    }
+
 
 
     /// The undo snackbar is the other half of archive-without-asking:

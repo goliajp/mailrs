@@ -163,6 +163,13 @@ if [ "${SKIP_GATE:-0}" != 1 ] && [ "${WEB_ONLY_SKIPS_RUST_GATE:-0}" != 1 ]; then
     # tables carry the same keys, and no English is written straight into
     # the Kotlin sources where a Japanese phone would show it.
     ./scripts/check-android-l10n.sh
+    # The web, iOS and Android offer the same conversation actions: one
+    # table (web/src/lib/actions.json), the same bytes in both apps, and
+    # each surface's code declaring exactly what the table lists for it.
+    ./scripts/check-action-parity.sh
+    # The phones render markdown for html_body against the same samples as
+    # the web (web/src/lib/markdown-samples.json), the copies the same bytes.
+    ./scripts/check-markdown-samples.sh
 
     # The 500-line file and 200-line function limits, as ratchets: a new
     # overrun fails, and one already on a baseline may only shrink. 51 files

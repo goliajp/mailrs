@@ -15605,6 +15605,39 @@
                 "description": "True when computed_at is more than 15 minutes old"
               }
             }
+          },
+          "fraud_hits": {
+            "type": "object",
+            "nullable": true,
+            "description": "Hits per enforced rule of the active fraud bundle, from the receiver's daily counters (shadow rules are not counted), recounted at most every five minutes. Every enforced rule is listed, at 0 when it never fired. Null when the shared store cannot be read.",
+            "properties": {
+              "version": {
+                "type": "string",
+                "description": "The active bundle's version"
+              },
+              "by_rule_today": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "description": "Hits per rule on the current UTC day"
+              },
+              "by_rule_30d": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "description": "Hits per rule over the last 30 UTC days, today included"
+              },
+              "computed_at": {
+                "type": "integer",
+                "description": "Unix seconds of the count"
+              },
+              "stale": {
+                "type": "boolean",
+                "description": "True when computed_at is more than 15 minutes old"
+              }
+            }
           }
         },
         "required": [

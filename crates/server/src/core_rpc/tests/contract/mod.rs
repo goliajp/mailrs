@@ -36,6 +36,7 @@ mod shared;
 mod side;
 mod threads;
 mod trash;
+mod usage_drift;
 mod webhooks;
 
 const DOMAIN: &str = "example.test";
@@ -64,6 +65,7 @@ async fn the_two_cores_answer_every_client_call_alike() {
     ownerless::run(&cores, &mut d).await;
     rejudge::run(&cores, &mut d).await;
     reports::run(&cores, &mut d).await;
+    usage_drift::run(&cores, &mut d).await;
     accounts::teardown(&cores, &mut d).await;
     d.both(
         "healthz",

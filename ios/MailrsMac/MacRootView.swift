@@ -57,6 +57,7 @@ struct MacRootView: View {
             detail
         }
         .overlay(alignment: .bottom) { UndoBar() }
+        .overlay(alignment: .bottom) { SendUndoBar() }
         .overlay(alignment: .top) { FailureBanner() }
         .animation(.easeOut(duration: 0.2), value: session.banner)
         .animation(.easeOut(duration: 0.2), value: session.pendingUndo != nil)
@@ -149,6 +150,9 @@ struct MacRootView: View {
             }
         }
         .sheet(isPresented: $composing) { ComposeView().frame(minWidth: 640, minHeight: 520) }
+        // a guarded change (delete forever, an agent key) waits on this
+        // prompt; without it the change hangs with nothing on screen
+        .confirmPrompt(when: !composing)
         .confirmationDialog(
             "Delete forever?",
             isPresented: .constant(pendingDelete != nil),
@@ -213,7 +217,9 @@ struct MacRootView: View {
                             Task { await session.loadMore() }
                         }
                     }
-                    .contextMenu { ConversationRowMenu(conversation: conversation) }
+                    .contextMenu {
+                        ConversationRowMenu(conversation: conversation) { pendingDelete = $0 }
+                    }
                     // Swipes exist on a trackpad too, and they are how
                     // the same triage is done on the other platforms.
                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {

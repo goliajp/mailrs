@@ -225,6 +225,10 @@ extension Wire {
         var trashedAt: Int64?
         /// The ids of the reader's labels on it.
         var labels: [String]?
+        /// Where the page after this row starts, handed back as `cursor=`.
+        /// The server's to read, not ours. Absent on a row cached before
+        /// the server stamped one.
+        let cursor: String?
 
         /// The account this arrived at, with absent read as ours.
         var arrivedAtAccount: String { accountId ?? "" }
@@ -241,7 +245,7 @@ extension Wire {
             snippet: String, pinned: Bool, archived: Bool, snoozedUntil: Int64?,
             importanceLevel: String, importanceScore: Double, requiresAction: Bool,
             receivedCount: Int, sentCount: Int, accountId: String? = nil,
-            trashedAt: Int64? = nil, labels: [String]? = nil
+            trashedAt: Int64? = nil, labels: [String]? = nil, cursor: String? = nil
         ) {
             self.threadId = threadId
             self.subject = subject
@@ -263,6 +267,7 @@ extension Wire {
             self.accountId = accountId
             self.trashedAt = trashedAt
             self.labels = labels
+            self.cursor = cursor
         }
 
 
@@ -289,6 +294,7 @@ extension Wire {
             case sentCount = "sent_count"
             case trashedAt = "trashed_at"
             case labels
+            case cursor
         }
 
         /// In the Trash, by the row's own word.

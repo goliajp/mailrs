@@ -2,16 +2,21 @@
 // a file directly under src/bin/ would be built as a binary of its own
 #[path = "mailrs-fraud-check/judge.rs"]
 mod judge;
+#[path = "mailrs-fraud-check/tally.rs"]
+mod tally;
+#[path = "mailrs-fraud-check/threads.rs"]
+mod threads;
 
 use judge::{corpus, judge};
-use mailrs_fraud::{Facts, Findings, Policy};
+use mailrs_fraud::{Facts, Policy};
 use mailrs_fraud_lua::{DEFAULT_SOURCE, MAX_SOURCE, Rules};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::BTreeMap,
     fs,
     io::{BufWriter, Read, Write},
     path::{Path, PathBuf},
 };
+use tally::{Held, Tally};
 
 fn source(path: &str) -> Result<String, String> {
     if path == "builtin" {
@@ -59,95 +64,6 @@ fn policy() -> Result<Policy, String> {
         allowed_domains: list("MAILRS_ORG_NAME_ALLOWED_DOMAINS"),
         account_names,
     })
-}
-
-fn rows(f: &Findings) -> Vec<(String, String, u64, bool)> {
-    let mut rows: Vec<_> = f
-        .iter()
-        .map(|f| {
-            (
-                f.rule.clone(),
-                f.layer.as_str().into(),
-                f.score.to_bits(),
-                f.holds,
-            )
-        })
-        .collect();
-    rows.sort();
-    rows
-}
-/// What one rule bundle held: per hold-level rule, the held letters it
-/// matched (a letter matching three counts once for each), and per month of
-/// the letter's own Date header, the held letters. Counts only: nothing
-/// that names a sender or a subject.
-#[derive(Default)]
-struct Held {
-    by_rule: BTreeMap<String, u64>,
-    by_month: BTreeMap<String, u64>,
-}
-
-impl Held {
-    fn add(&mut self, f: &Findings, month: &str) {
-        if !f.hold_worthy() {
-            return;
-        }
-        for r in f.iter().filter(|r| r.holds) {
-            *self.by_rule.entry(r.rule.clone()).or_default() += 1;
-        }
-        *self.by_month.entry(month.to_string()).or_default() += 1;
-    }
-}
-
-/// What changed between the two bundles, message by message.
-#[derive(Default)]
-struct Tally {
-    changed: usize,
-    added: usize,
-    released: usize,
-    held: usize,
-    samples: Vec<serde_json::Value>,
-    /// Every changed message's added (`+rule`) and dropped (`-rule`)
-    /// rules: the full count the fifty samples cannot give.
-    by_rule: BTreeMap<String, u64>,
-    /// One JSON line per checked message, when asked for.
-    list: Option<BufWriter<fs::File>>,
-}
-
-impl Tally {
-    fn record(
-        &mut self,
-        path: &str,
-        (from, subject): (&str, &str),
-        (old, old_shadow): (&Findings, &Findings),
-        (new, new_shadow): (&Findings, &Findings),
-    ) -> Result<(), String> {
-        let (old_hold, new_hold) = (old.hold_worthy(), new.hold_worthy());
-        self.held += usize::from(new_hold);
-        if let Some(list) = &mut self.list {
-            let line = serde_json::json!({"path":path,"rules_before":old.rules(),"rules_after":new.rules(),
-                "held_before":old_hold,"held_after":new_hold,
-                "shadow_before":old_shadow.rules(),"shadow_after":new_shadow.rules()});
-            writeln!(list, "{line}").map_err(|e| e.to_string())?;
-        }
-        if rows(old) == rows(new) {
-            return Ok(());
-        }
-        self.changed += 1;
-        self.added += usize::from(new_hold && !old_hold);
-        self.released += usize::from(old_hold && !new_hold);
-        let before: BTreeSet<&str> = old.rules().into_iter().collect();
-        let after: BTreeSet<&str> = new.rules().into_iter().collect();
-        for r in after.difference(&before) {
-            *self.by_rule.entry(format!("+{r}")).or_default() += 1;
-        }
-        for r in before.difference(&after) {
-            *self.by_rule.entry(format!("-{r}")).or_default() += 1;
-        }
-        if self.samples.len() < 50 {
-            self.samples.push(serde_json::json!({"from":from,"subject":subject,"before":old.rules(),"after":new.rules(),"held_before":old_hold,"held_after":new_hold}));
-        }
-        Ok(())
-    }
 }
 
 /// `YYYY-MM` of the Date header, in UTC; `unknown` when there is none
@@ -222,6 +138,7 @@ fn compare(
     root: &str,
     limit: usize,
     list: Option<&str>,
+    held_now: Option<threads::Threads>,
 ) -> Result<(), String> {
     let mut before = if baseline == "rust" {
         None
@@ -247,6 +164,7 @@ fn compare(
     let mut candidate_held = Held::default();
     let mut baseline_shadow = shadow_counts(before.as_ref());
     let mut candidate_shadow = shadow_counts(Some(&after));
+    let mut unheld = threads::Unheld::default();
     for (i, file) in files.iter().enumerate() {
         if i % 25 == 0 {
             std::thread::sleep(std::time::Duration::from_millis(50));
@@ -263,19 +181,26 @@ fn compare(
             }
         }
         let rel = file.strip_prefix(root).unwrap_or(file).to_string_lossy();
+        let mut thread_held_now = None;
+        if let Some(t) = &held_now {
+            let (now, key) = t.held_now(&reader_of(Path::new(root), file), &threads::head(file)?);
+            if j.new.hold_worthy() {
+                t.count(&mut unheld, now, key);
+            }
+            thread_held_now = Some(now);
+        }
         tally.record(
             &rel,
             (&j.from, &j.subject),
             (&j.old, &j.old_shadow),
             (&j.new, &j.new_shadow),
+            thread_held_now,
         )?;
     }
     if let Some(list) = &mut tally.list {
         list.flush().map_err(|e| e.to_string())?;
     }
-    println!(
-        "{}",
-        serde_json::json!({"checked":files.len(),"changed":tally.changed,"added_holds":tally.added,"removed_holds":tally.released,
+    let mut report = serde_json::json!({"checked":files.len(),"changed":tally.changed,"added_holds":tally.added,"removed_holds":tally.released,
         "candidate_holds":tally.held,"baseline":before.as_ref().map_or("rust",|r|r.version()),"candidate":after.version(),
         "account_names_configured":!c.policy.account_names.is_empty(),
         "holds_by_rule":candidate_held.by_rule,"holds_by_month":candidate_held.by_month,
@@ -283,8 +208,12 @@ fn compare(
         "changed_by_rule":tally.by_rule,
         "shadow_rules":after.shadow_rules(),"shadow_hits_by_rule":candidate_shadow,
         "baseline_shadow_rules":before.as_ref().map_or(&[][..],|r|r.shadow_rules()),"baseline_shadow_hits_by_rule":baseline_shadow,
-        "samples":tally.samples})
-    );
+        "samples":tally.samples});
+    // what a re-judge after activating would newly hold, given what is held now
+    if held_now.is_some() {
+        report["would_hold_in_unheld_threads"] = unheld.json();
+    }
+    println!("{report}");
     // A migration must preserve every decision. Intentional rule-only updates
     // compare two Lua bundles and report their diff for review.
     if baseline == "rust" && tally.changed != 0 {
@@ -292,19 +221,54 @@ fn compare(
     }
     Ok(())
 }
+const USAGE: &str = "usage: mailrs-fraud-check bundle | validate FILE | compare rust|builtin|BASELINE FILE|builtin MAILDIR MAX_MESSAGES [--list OUT.jsonl] [--held-threads HELD.tsv [--released-threads RELEASED.tsv]]";
+
 fn run() -> Result<(), String> {
     let args: Vec<_> = std::env::args().skip(1).collect();
     match args.as_slice() {
-        [cmd] if cmd=="bundle" => { print!("{DEFAULT_SOURCE}"); Ok(()) },
-        [cmd,path] if cmd=="validate" => {
-            let mut rules=Rules::compile(&source(path)?)?;
-            let result=rules.classify(&Facts::default(),&policy()?);
-            if !result.errors.is_empty(){return Err(format!("{:?}",result.errors));}
-            println!("{}",serde_json::json!({"version":rules.version(),"rules":rules.rule_count(),"shadow":rules.shadow_rules()}));Ok(())
-        },
-        [cmd,baseline,candidate,root,limit] if cmd=="compare" => compare(baseline,candidate,root,limit.parse().map_err(|_|"invalid limit")?,None),
-        [cmd,baseline,candidate,root,limit,flag,list] if cmd=="compare" && flag=="--list" => compare(baseline,candidate,root,limit.parse().map_err(|_|"invalid limit")?,Some(list)),
-        _=>Err("usage: mailrs-fraud-check bundle | validate FILE | compare rust|builtin|BASELINE FILE|builtin MAILDIR MAX_MESSAGES [--list OUT.jsonl]".into()),
+        [cmd] if cmd == "bundle" => {
+            print!("{DEFAULT_SOURCE}");
+            Ok(())
+        }
+        [cmd, path] if cmd == "validate" => {
+            let mut rules = Rules::compile(&source(path)?)?;
+            let result = rules.classify(&Facts::default(), &policy()?);
+            if !result.errors.is_empty() {
+                return Err(format!("{:?}", result.errors));
+            }
+            println!(
+                "{}",
+                serde_json::json!({"version":rules.version(),"rules":rules.rule_count(),"shadow":rules.shadow_rules()})
+            );
+            Ok(())
+        }
+        [cmd, baseline, candidate, root, limit, flags @ ..] if cmd == "compare" => {
+            let flag = |name: &str| {
+                flags
+                    .chunks(2)
+                    .find(|p| p.len() == 2 && p[0] == name)
+                    .map(|p| p[1].as_str())
+            };
+            if flags.len() % 2 != 0
+                || flags.chunks(2).any(|p| {
+                    !["--list", "--held-threads", "--released-threads"].contains(&p[0].as_str())
+                })
+            {
+                return Err(USAGE.into());
+            }
+            let held_now = flag("--held-threads")
+                .map(|h| threads::Threads::load(h, flag("--released-threads")))
+                .transpose()?;
+            compare(
+                baseline,
+                candidate,
+                root,
+                limit.parse().map_err(|_| "invalid limit")?,
+                flag("--list"),
+                held_now,
+            )
+        }
+        _ => Err(USAGE.into()),
     }
 }
 fn main() {

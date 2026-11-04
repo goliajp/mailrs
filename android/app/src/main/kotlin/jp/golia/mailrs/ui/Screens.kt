@@ -136,8 +136,7 @@ fun ConversationListScreen(state: UiState, vm: MailViewModel) {
     // confused — which is the whole safety of an undo.
     FailureSnackbar(state, vm, snackbars, hasContent = state.conversations.isNotEmpty())
 
-    // "Draft saved", once. Said where the composer went, because a
-    // message that vanished from the screen without a word looks lost.
+    // "Draft saved", once, where the composer went: a message that vanished without a word looks lost.
     LaunchedEffect(state.draftSaved) {
         if (!state.draftSaved) return@LaunchedEffect
         snackbars.showSnackbar(Texts.get(R.string.draft_saved))
@@ -145,6 +144,7 @@ fun ConversationListScreen(state: UiState, vm: MailViewModel) {
     }
 
     UndoSnackbar(state, vm, snackbars)
+    SentSnackbar(state, vm, snackbars)
     var labelFor by rememberSaveable { mutableStateOf<LabelTarget?>(null) }
     ActionDialogs(state, vm, labelFor, showForever = state.open == null) { labelFor = null }
     // The labels are the reader's own and change on the web; asked for

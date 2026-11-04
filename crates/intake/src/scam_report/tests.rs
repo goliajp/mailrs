@@ -21,6 +21,8 @@ struct Mail {
     templates: BTreeMap<String, (Template, i64)>,
     held_by_rule: Vec<String>,
     batches: BTreeMap<String, Vec<(String, String)>>,
+    /// (user, tid) → when a person last released it
+    released: BTreeMap<(String, String), i64>,
 }
 
 struct Fake {
@@ -107,8 +109,16 @@ impl ReportStore for Fake {
         }
         Ok(())
     }
-    fn take_back(&self, user: &str, tid: &str, batch: &str) -> Result<bool, String> {
+    fn take_back(&self, user: &str, tid: &str, mid: &str, batch: &str) -> Result<bool, String> {
         let mut m = self.mail.borrow_mut();
+        // the cores' rule: a person's release stands against mail that
+        // arrived before it
+        let arrived = m.templates.get(mid).map(|(_, at)| *at);
+        if let Some(released) = m.released.get(&(user.to_string(), tid.to_string()))
+            && arrived.is_none_or(|a| a <= *released)
+        {
+            return Ok(false);
+        }
         let mut taken = false;
         for ((u, _), (t, held)) in m.copies.iter_mut() {
             if u == user && t == tid && !*held {
@@ -333,6 +343,38 @@ fn only_the_reporter_reads_the_outcome() {
 fn a_message_the_reporter_does_not_have_is_not_reported() {
     let f = world("absent", 2);
     assert!(report(&f, "u0@example.com", "m1", true).unwrap().is_none());
+}
+
+#[test]
+fn a_conversation_put_back_is_taken_again_only_for_a_copy_that_came_after() {
+    let f = world("put-back", 2);
+    let now = now();
+    {
+        let mut m = f.mail.borrow_mut();
+        // u1's copy arrived an hour ago; u1 put the conversation back since
+        let (t, _) = m.templates["m1"].clone();
+        m.templates.insert("m1".into(), (t, now - 3600));
+        m.released
+            .insert(("u1@example.com".into(), "t1".into()), now - 600);
+    }
+    let (_, o) = report(&f, "u0@example.com", "m0", true).unwrap().unwrap();
+    assert_eq!((o.state.as_str(), o.taken_back), ("taken_back", 0), "{o:?}");
+    assert!(!held(&f, "u1@example.com"), "a copy from before the release took it back");
+
+    // a second copy of the template lands in the same conversation, after
+    // the release: that one may take it
+    let raw = scam("Person1", "u1@example.com", "parcel-desk.example");
+    let t = template::template_of("u1@example.com", &raw).unwrap();
+    f.record_template("m1-later", &t, now).unwrap();
+    {
+        let mut m = f.mail.borrow_mut();
+        m.raw.insert("m1-later".into(), raw);
+        m.copies
+            .insert(("u1@example.com".into(), "m1-later".into()), ("t1".into(), false));
+    }
+    let (_, o) = report(&f, "u0@example.com", "m0", true).unwrap().unwrap();
+    assert_eq!(o.taken_back, 1, "{o:?}");
+    assert!(held(&f, "u1@example.com"));
 }
 
 #[test]

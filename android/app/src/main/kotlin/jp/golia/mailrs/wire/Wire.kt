@@ -78,6 +78,12 @@ object Wire {
         /** When it went to the Trash, 0 when it is not there. */
         @SerialName("trashed_at") val trashedAt: Long = 0,
         val labels: List<String> = emptyList(),
+        /**
+         * Where the page after this row starts, handed back as `cursor=`.
+         * The server's to read, not ours. Null on a row from a server
+         * that does not stamp one.
+         */
+        val cursor: String? = null,
     )
 
     /**
@@ -154,6 +160,13 @@ object Wire {
          */
         @SerialName("dtstart_utc") val startsAt: String? = null,
         @SerialName("dtend_utc") val endsAt: String? = null,
+        /**
+         * An all-day event's first day, `YYYY-MM-DD`, and the day after
+         * its last (DTEND, as RFC 5545 writes it). Null for a timed event,
+         * which has [startsAt] instead.
+         */
+        @SerialName("dtstart_date") val firstDay: String? = null,
+        @SerialName("dtend_date") val dayAfterLast: String? = null,
         /**
          * The way into the meeting, resolved on the server: RFC 5545
          * has no field for it, so Teams writes it into the description
@@ -263,6 +276,8 @@ object Wire {
         @SerialName("reply_to_thread_id") val replyToThreadId: String? = null,
         @SerialName("created_at") val createdAt: Long = 0,
         @SerialName("updated_at") val updatedAt: Long = 0,
+        val from: String = "",
+        @SerialName("scheduled_at") val scheduledAt: Long? = null,
     )
 
     /** `POST /api/mail/drafts` — an id means update, its absence means create. */
@@ -275,67 +290,12 @@ object Wire {
         val subject: String,
         val body: String,
         @SerialName("reply_to_thread_id") val replyToThreadId: String? = null,
+        val from: String = "",
+        @SerialName("scheduled_at") val scheduledAt: Long? = null,
     )
 
     @Serializable
     data class SaveDraftResponse(val id: Long)
-
-    /**
-     * `POST /api/mail/send`.
-     *
-     * Every field is `#[serde(default)]` on the server
-     * (`crates/webapi/src/handlers/compose.rs`), so omitting one is
-     * legal — but they are all sent explicitly here. A reply that
-     * silently drops its `in_reply_to` still arrives, and starts a new
-     * thread, which is the kind of wrong that looks like it worked.
-     */
-    @Serializable
-    data class SendRequest(
-        /**
-         * Which address this leaves by, or empty for the signed-in one.
-         *
-         * A reply to mail that arrived at a connected Gmail has to go
-         * out through that Gmail: sent from anywhere else it lands in
-         * the conversation as a stranger, and half the time the
-         * recipient's provider refuses it outright.
-         */
-        val from: String = "",
-        val to: List<String>,
-        val cc: List<String> = emptyList(),
-        val bcc: List<String> = emptyList(),
-        val subject: String,
-        val body: String,
-        @SerialName("in_reply_to") val inReplyTo: String? = null,
-        /**
-         * When it should leave, in epoch **seconds**, or null for now.
-         *
-         * An integer, not a formatted time: the handler reads anything
-         * it cannot parse as "not scheduling", which is how the web's
-         * ISO 8601 string once made every scheduled send go out at
-         * once.
-         */
-        @SerialName("scheduled_at") val scheduledAt: Long? = null,
-        /** The send this is a re-edit of; the server carries its bytes. */
-        @SerialName("redraft_of") val redraftOf: String? = null,
-        /**
-         * Which carried attachments to keep, by index.
-         *
-         * **Absent and empty mean different things** — absent keeps
-         * every carried attachment, an empty list keeps none — so this
-         * is nullable rather than defaulted, and a re-edit that removed
-         * every file must send `[]` and not nothing.
-         */
-        @SerialName("redraft_keep") val redraftKeep: List<Int>? = null,
-        /**
-         * The message being forwarded, by uid.
-         *
-         * The server re-extracts its attachments and carries them,
-         * which is the whole reason a forward does not have to
-         * download and re-upload what it is passing on — and the
-         * reason a phone can forward a message it has never opened.
-         */
-        @SerialName("forward_attachments_from") val forwardAttachmentsFrom: Int? = null,
-    )
 
     /**
      * One of the account's signatures.

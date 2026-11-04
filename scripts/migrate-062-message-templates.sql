@@ -1,4 +1,4 @@
--- migrate-061: each delivered message's template fingerprint, once per
+-- migrate-062: each delivered message's template fingerprint, once per
 -- message, for finding the other copies of a reported scam. Derived: the
 -- SimHash of the body and the link domains, attachments and sender domain
 -- it is compared on, all computable again from the file. The four 16-bit

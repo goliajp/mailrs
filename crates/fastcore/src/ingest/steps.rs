@@ -59,6 +59,32 @@ pub(super) fn write_message_row(
     }
 }
 
+/// Hold `root` for `addr`, and write the audit line when it was not held
+/// before. Returns whether the membership row existed.
+fn hold_and_audit(
+    state: &Arc<FastcoreState>,
+    addr: &str,
+    root: &str,
+    v: &mailrs_inbound::FraudVerdict,
+) -> std::io::Result<bool> {
+    let was_held = state
+        .mailbox
+        .get_thread_for_user(addr, root)?
+        .is_some_and(|t| t.quarantined);
+    let ok = state.mailbox.set_quarantined(addr, root, true)?;
+    if ok && !was_held {
+        crate::hold_facts::record_hold(
+            state,
+            addr,
+            root,
+            "ingest",
+            &v.rules_version,
+            &crate::hold_facts::verdict_rules(v),
+        );
+    }
+    Ok(ok)
+}
+
 /// Store the receiver's fraud verdict and hold the thread when it says to.
 /// Returns whether the thread was held.
 pub(super) fn hold_if_fraud(
@@ -77,7 +103,7 @@ pub(super) fn hold_if_fraud(
             tracing::warn!(error = %e, %addr, %message_id, "storing the fraud verdict failed");
         }
         match serde_json::from_str::<mailrs_inbound::FraudVerdict>(json) {
-            Ok(v) if v.quarantined => match state.mailbox.set_quarantined(addr, root, true) {
+            Ok(v) if v.quarantined => match hold_and_audit(state, addr, root, &v) {
                 Ok(true) => {
                     // Read, at the same moment. A held conversation
                     // that is also unread is bold, adds to the badge

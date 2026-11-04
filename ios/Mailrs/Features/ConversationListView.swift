@@ -178,8 +178,7 @@ struct ConversationListView: View {
             // points of every screen restating a word the toolbar has
             // room for, and this list is measured in rows.
             .inlineTitle()
-            .overlay(alignment: .top) { FailureBanner() }
-            .animation(.easeOut(duration: 0.2), value: session.banner)
+            .modifier(ListSurfaces())
             // The undo snackbar. Bottom-anchored but lifted above the
             // search field, which iOS 26 also puts at the bottom.
             .overlay(alignment: .bottom) {
