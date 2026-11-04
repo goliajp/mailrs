@@ -25,9 +25,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.CircularProgressIndicator
@@ -61,6 +59,12 @@ import jp.golia.mailrs.cancelCompose
 import jp.golia.mailrs.clearSuggestions
 import jp.golia.mailrs.detach
 import jp.golia.mailrs.editDraft
+import jp.golia.mailrs.applyTemplate
+import jp.golia.mailrs.chooseFrom
+import jp.golia.mailrs.loadComposeExtras
+import jp.golia.mailrs.sendAddresses
+import jp.golia.mailrs.unschedule
+import androidx.compose.runtime.LaunchedEffect
 import jp.golia.mailrs.send
 import jp.golia.mailrs.suggestContacts
 import jp.golia.mailrs.MailViewModel
@@ -146,6 +150,7 @@ fun ComposeScreen(state: UiState, vm: MailViewModel) {
                 ) {
                     Icon(Icons.Filled.AttachFile, contentDescription = Texts.get(R.string.compose_attach), tint = theme.fgSecondary)
                 }
+                TemplateMenu(draft.templates) { vm.applyTemplate(it) }
                 if (state.sending) {
                     CircularProgressIndicator(Modifier.padding(end = 16.dp).size(20.dp), color = theme.accent)
                 } else {
@@ -194,6 +199,8 @@ fun ComposeScreen(state: UiState, vm: MailViewModel) {
             },
         )
 
+        LaunchedEffect(draft.id) { vm.loadComposeExtras() }
+        FromLine(vm.sendAddresses(), draft.from) { vm.chooseFrom(it) }
         CompactField(
             label = Texts.get(R.string.compose_to),
             value = to,
@@ -243,6 +250,7 @@ fun ComposeScreen(state: UiState, vm: MailViewModel) {
             vm.editDraft(subject = it)
         }
         HorizontalDivider(color = theme.border, thickness = 0.5.dp)
+        ScheduledLine(draft.scheduledAt) { vm.unschedule() }
 
         // Files the server is holding for this re-edit. Listed like any
         // other attachment because that is what they are to the reader,
@@ -333,30 +341,7 @@ fun ComposeScreen(state: UiState, vm: MailViewModel) {
             )
         }
 
-        // The editor takes what is left, and its placeholder sits behind
-        // it rather than inside — a text field with a value cannot show
-        // one, and an unlabelled rectangle is the defect this avoids.
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            if (body.isEmpty()) {
-                Text(
-                    Texts.get(R.string.compose_message),
-                    color = theme.fgMuted,
-                    fontSize = 15.sp,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                )
-            }
-            BasicTextField(
-                value = body,
-                onValueChange = { vm.editDraft(body = it) },
-                textStyle = TextStyle(color = theme.fg, fontSize = 15.sp),
-                cursorBrush = SolidColor(theme.accent),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
-                    .testTag("field.body"),
-            )
-        }
+        MessageBodyEditor(body, { vm.editDraft(body = it) }, Modifier.weight(1f).fillMaxWidth())
     }
 }
 

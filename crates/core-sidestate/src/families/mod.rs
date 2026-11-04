@@ -18,6 +18,7 @@ pub mod domain_history;
 pub mod egress;
 pub mod email_groups;
 pub mod forwarding;
+pub mod fraud_hits;
 pub mod identity_link;
 pub mod image_prefetch;
 pub mod imap_import;

@@ -1,8 +1,7 @@
 import type { AnyBlock } from '../types'
 
-import { marked } from 'marked'
-
 import { escapeHtml } from '@/lib/html-utils'
+import { renderMarkdownForSend } from '@/lib/render-markdown'
 
 export function renderBlockHtml(block: AnyBlock): string {
   switch (block.type) {
@@ -50,11 +49,7 @@ export function renderBlockHtml(block: AnyBlock): string {
     case 'text': {
       const d = block.data as { content: string; format: string; html: string }
       if (d.format === 'markdown') {
-        return marked.parse(preserveBlankLines(d.content), {
-          async: false,
-          breaks: true,
-          gfm: true,
-        }) as string
+        return renderMarkdownForSend(d.content)
       }
       return d.html
     }
@@ -108,11 +103,4 @@ export function renderBlockText(block: AnyBlock): string {
     default:
       return ''
   }
-}
-
-// match the textarea's vertical rhythm: each blank line in the source becomes
-// a &nbsp; paragraph in the rendered html. N consecutive newlines means
-// (N-1) blank lines between paragraphs.
-function preserveBlankLines(md: string): string {
-  return md.replace(/\n{2,}/g, (match) => '\n\n' + '&nbsp;\n\n'.repeat(match.length - 1))
 }

@@ -17,11 +17,12 @@ extension Session {
         from: String = ""
     ) async throws {
         guard let client else { throw MailrsError.badCredentials }
+        let html = MarkdownHtml.forSend(body)
         try await sendWithFeedback {
             if attachments.isEmpty {
                 return try await client.sendReply(
                     to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
-                    inReplyTo: inReplyTo, threadId: threadId, from: from
+                    inReplyTo: inReplyTo, threadId: threadId, from: from, htmlBody: html
                 )
             }
             // The multipart route, with both threading fields riding
@@ -29,7 +30,7 @@ extension Session {
             return try await client.sendMultipart(
                 to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
                 attachments: attachments,
-                inReplyTo: inReplyTo, replyToThreadId: threadId, from: from
+                inReplyTo: inReplyTo, replyToThreadId: threadId, from: from, htmlBody: html
             )
         }
     }
@@ -43,12 +44,13 @@ extension Session {
         from: String = ""
     ) async throws {
         guard let client else { throw MailrsError.badCredentials }
+        let html = MarkdownHtml.forSend(body, wrapped: !attachments.isEmpty)
         try await sendWithFeedback {
             if attachments.isEmpty {
                 return try await client.sendForward(
                     to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
                     forwardMessageId: forwardMessageId,
-                    forwardAttachmentsFrom: forwardAttachmentsFrom, from: from
+                    forwardAttachmentsFrom: forwardAttachmentsFrom, from: from, htmlBody: html
                 )
             }
             // The server appends the original and EXTENDS the file
@@ -58,7 +60,7 @@ extension Session {
                 to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
                 attachments: attachments,
                 forwardMessageId: forwardMessageId,
-                forwardAttachmentsFrom: forwardAttachmentsFrom, from: from
+                forwardAttachmentsFrom: forwardAttachmentsFrom, from: from, htmlBody: html
             )
         }
     }
@@ -79,6 +81,7 @@ extension Session {
         from: String = ""
     ) async throws {
         guard let client else { throw MailrsError.badCredentials }
+        let html = MarkdownHtml.forSend(body)
         try await sendWithFeedback {
             // A re-edit goes the multipart way even with no file of its
             // own: `redraft_keep` is a form field, and the JSON route
@@ -88,7 +91,7 @@ extension Session {
             if attachments.isEmpty && redraftOf == nil {
                 return try await client.sendNew(
                     to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
-                    scheduledAt: scheduledAt, from: from
+                    scheduledAt: scheduledAt, from: from, htmlBody: html
                 )
             }
             // Files ride the multipart route; the JSON route has no
@@ -96,7 +99,7 @@ extension Session {
             return try await client.sendMultipart(
                 to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
                 attachments: attachments, scheduledAt: scheduledAt,
-                redraftOf: redraftOf, redraftKeep: redraftKeep, from: from
+                redraftOf: redraftOf, redraftKeep: redraftKeep, from: from, htmlBody: html
             )
         }
     }
@@ -106,10 +109,11 @@ extension Session {
     /// but the thumb is on the button and the eyes may not be — Gmail
     /// and Apple Mail both confirm a send through the hand. Failure taps
     /// differently *before* the error text appears, for the same reason.
-    private func sendWithFeedback(_ send: () async throws -> some Sendable) async throws {
+    private func sendWithFeedback(_ send: () async throws -> Wire.SendResponse) async throws {
         do {
-            _ = try await send()
+            let sent = try await send()
             Haptics.play(.success)
+            offerUndoSend(messageId: sent.messageId)
         } catch {
             Haptics.play(.error)
             throw error
@@ -135,21 +139,15 @@ extension Session {
     /// autosave would leave a new draft per tick.
     func saveDraft(
         id: Int64?, to: String, cc: String = "", bcc: String = "",
-        subject: String, body: String, replyToThreadId: String?
+        subject: String, body: String, replyToThreadId: String?,
+        from: String = "", scheduledAt: Int64? = nil
     ) async -> Int64? {
         guard let client else { return nil }
         let request = Wire.SaveDraftRequest(
             id: id, to: to, cc: cc, bcc: bcc, subject: subject, body: body,
-            replyToThreadId: replyToThreadId
+            replyToThreadId: replyToThreadId, from: from, scheduledAt: scheduledAt
         )
         return try? await client.saveDraft(request)
-    }
-
-
-    func deleteDraft(id: Int64) async {
-        guard let client else { return }
-        try? await client.deleteDraft(id: id)
-        drafts.removeAll { $0.id == id }
     }
 
 

@@ -24,7 +24,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
-import stub_confirm, stub_invite, stub_paging, stub_triage, stub_verdict
+import stub_confirm, stub_invite, stub_paging, stub_triage, stub_verdict, stub_compose
 import stub_reset
 import stub_restart
 import stub_role
@@ -542,7 +542,7 @@ class H(BaseHTTPRequestHandler):
             return
         if self._session_rejected():
             return
-        if stub_role.handle(self) or stub_role.refused(self) or stub_reset.state(self) or stub_triage.get(self, VERBS) or stub_verdict.get(self, MESSAGES):
+        if stub_role.handle(self) or stub_role.refused(self) or stub_reset.state(self) or stub_triage.get(self, VERBS) or stub_verdict.get(self, MESSAGES) or stub_compose.get(self):
             return
         if self.path.split("?")[0] == "/api/conversations/search":
             query = parse_qs(urlparse(self.path).query)
@@ -990,7 +990,7 @@ class H(BaseHTTPRequestHandler):
         self._send({}, 404)
 
     def do_DELETE(self):
-        if stub_restart.refused(self) or stub_role.refused(self):
+        if stub_restart.refused(self) or stub_role.refused(self) or stub_compose.delete(self):
             return
         if stub_confirm.refused(self, "DELETE") or stub_triage.delete(self, VERBS):
             return
@@ -1115,7 +1115,7 @@ class H(BaseHTTPRequestHandler):
             return
         if self._session_rejected():
             return
-        if stub_role.handle(self) or stub_role.refused(self) or stub_reset.handle(self) or stub_triage.post(self, VERBS) or stub_verdict.arm(self) or stub_invite.arm(self):
+        if stub_role.handle(self) or stub_role.refused(self) or stub_reset.handle(self) or stub_triage.post(self, VERBS) or stub_verdict.arm(self) or stub_invite.arm(self) or stub_compose.post(self):
             return
         if self.path.split("?")[0] == "/api/auth/confirm":
             stub_confirm.answer(self)
@@ -1237,7 +1237,7 @@ class H(BaseHTTPRequestHandler):
             # would otherwise 401 every test after it, and the failure
             # would look like anything but a leftover flag.
             REJECT_SESSION[0] = False
-            for stub in (stub_confirm, stub_invite, stub_restart, stub_role, stub_reset, stub_verdict):
+            for stub in (stub_confirm, stub_invite, stub_restart, stub_role, stub_reset, stub_verdict, stub_compose):
                 stub.reset()
             VERB_REFUSE.clear()
             FETCHED.clear()
@@ -1365,22 +1365,7 @@ class H(BaseHTTPRequestHandler):
             self.send_header("Content-Length", "0")
             self.end_headers()
         elif self.path.startswith("/api/mail/drafts"):
-            length = int(self.headers.get("Content-Length", "0"))
-            body = json.loads(self.rfile.read(length)) if length else {}
-            DRAFT_POSTS.append(body.get("id"))
-            draft_id = body.get("id")
-            if draft_id is None:
-                DRAFT_COUNTER[0] += 1
-                draft_id = DRAFT_COUNTER[0]
-            now = 1754400000 + draft_id
-            DRAFTS[draft_id] = {
-                "id": draft_id, "to": body.get("to", ""), "cc": body.get("cc", ""),
-                "bcc": body.get("bcc", ""), "subject": body.get("subject", ""),
-                "body": body.get("body", ""),
-                "reply_to_thread_id": body.get("reply_to_thread_id"),
-                "created_at": now, "updated_at": now,
-            }
-            self._send({"id": draft_id})
+            stub_compose.save_draft(self, DRAFTS, DRAFT_COUNTER, DRAFT_POSTS)
         elif re.match(r"^/api/admin/email-groups/(\d+)/members$", self.path.split("?")[0]):
             gid = int(re.match(r"^/api/admin/email-groups/(\d+)/members$",
                                self.path.split("?")[0]).group(1))
