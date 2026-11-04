@@ -7,9 +7,15 @@
 #
 # One rule, covering cache mounts as well as layers. buildkit's default
 # policy caps cache mounts at about 500 MB, far below a release target dir.
+#
+# No keepDuration here: buildkit drops every record used within keepDuration
+# from the prune candidates before it looks at the size limit, so with
+# keepDuration = "720h" nothing younger than 30 days was ever reclaimed and
+# the cache grew to 226 GB under a 60 GB cap. The size limit alone bounds it.
+# The config is read when the builder is created; after changing it, remove
+# the builder (docker buildx rm mailrs-release) so the next deploy recreates it.
 [worker.oci]
   gc = true
   [[worker.oci.gcpolicy]]
     all = true
-    keepDuration = "720h"
     maxUsedSpace = "60GB"
