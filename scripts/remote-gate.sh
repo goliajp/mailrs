@@ -9,6 +9,16 @@
 #                                             target/ stays there between runs
 #   GATE_TARGET_CEILING_GB (default 150)      target/debug is removed before
 #                                             a run once it grows past this
+#   GATE_WRAP (default empty)                 command the remote run is wrapped
+#                                             in, outside the time limit, e.g.
+#                                             '/usr/local/bin/bench-lock heavy
+#                                             --max-wait 3600' on a shared bench
+#                                             host, so the wait for the lock is
+#                                             not taken from the 90 minutes
+#
+# The runner may be Linux or macOS (mini, through OrbStack's docker): the
+# script uses only flags both accept, and puts /usr/local/bin on PATH, which
+# a non-login ssh session on macOS does not have and docker lives in.
 #
 # clippy, the spg axis of the SQL core and the whole test suite. It runs on
 # Linux because two of its costs exist only on a Mac: every freshly linked
@@ -43,10 +53,11 @@ git archive --format=tar "$SHA" | gzip -1 | ssh "$HOST" "set -e
 # took 26 s on a busy runner, 2026-10-21); the whole gate gets 90, enough
 # for a cold build of the workspace. timeout kills its process group, so
 # cargo and the tests it started go with it.
-ssh "$HOST" timeout --kill-after=30 90m nice -n "${GATE_NICE:-0}" bash -s <<EOF
+ssh "$HOST" ${GATE_WRAP:-} timeout --kill-after=30 90m nice -n "${GATE_NICE:-0}" bash -s <<EOF
 set -euo pipefail
 cd '$DIR'
 source ~/.cargo/env
+export PATH="/usr/local/bin:\$PATH"
 # on a shared runner: at most this many compile jobs and test threads
 if [ -n "${GATE_JOBS:-}" ]; then
     export CARGO_BUILD_JOBS=${GATE_JOBS:-} RUST_TEST_THREADS=${GATE_JOBS:-}
@@ -59,7 +70,7 @@ export "CARGO_TARGET_\${triple}_RUNNER=timeout --kill-after=30 10m"
 # hash, and the old set stays: on 2026-10-23 target/debug held 678 GB, a
 # full set left behind by each of the 36 lockfile changes since 10-15. A
 # cold build fits in the 90 minutes, so past the ceiling start over.
-if [ -d target/debug ] && [ "\$(du -s --block-size=1G target/debug | cut -f1)" -gt ${GATE_TARGET_CEILING_GB:-150} ]; then
+if [ -d target/debug ] && [ "\$(du -sk target/debug | cut -f1)" -gt \$(( ${GATE_TARGET_CEILING_GB:-150} * 1048576 )) ]; then
     echo "    target/debug over ${GATE_TARGET_CEILING_GB:-150} GB; removing it for a cold build"
     rm -rf target/debug
 fi
