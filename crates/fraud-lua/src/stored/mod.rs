@@ -49,6 +49,32 @@ pub fn judge_for(
     policy: &mailrs_fraud::Policy,
     hist: &mut Option<kevy_client::Connection>,
 ) -> Result<Judged, String> {
+    judge_with(
+        raw,
+        reader,
+        our_stamp,
+        attachment_texts,
+        policy,
+        hist,
+        &mut crate::scan,
+    )
+}
+
+/// The rules a judgement runs: the receiver's [`crate::scan`], or a rule
+/// set a test compiles.
+pub type Scanner<'a> =
+    dyn FnMut(&mailrs_fraud::Facts<'_>, &mailrs_fraud::Policy) -> Result<crate::Scan, String> + 'a;
+
+/// [`judge_for`] under the rules `scan` runs.
+pub fn judge_with(
+    raw: &[u8],
+    reader: Option<(&str, relation::Counted)>,
+    our_stamp: Option<&str>,
+    attachment_texts: &[String],
+    policy: &mailrs_fraud::Policy,
+    hist: &mut Option<kevy_client::Connection>,
+    scan: &mut Scanner<'_>,
+) -> Result<Judged, String> {
     let msg = Reading::of(raw, our_stamp, attachment_texts);
     let seen = domain_seen(hist.as_mut(), &msg.from);
     let rotation = reply_rotation(hist, &msg.host, &msg.reply_to);
@@ -73,7 +99,7 @@ pub fn judge_for(
         novelty,
         ..msg.facts(seen, rotation, rel)
     };
-    let scan = crate::scan(&facts, policy)?;
+    let scan = scan(&facts, policy)?;
     let mut verdict = rescan_verdict(raw, &scan.findings);
     verdict.rules_version = scan.version;
     Ok(Judged {

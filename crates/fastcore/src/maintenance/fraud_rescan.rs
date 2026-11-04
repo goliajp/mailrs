@@ -38,7 +38,7 @@ const PAUSE_EVERY: u64 = 25;
 
 pub(crate) use decision::*;
 
-mod config;
+pub(crate) mod config;
 mod decision;
 pub(crate) mod holding;
 mod sweep;

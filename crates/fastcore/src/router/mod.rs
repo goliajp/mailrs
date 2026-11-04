@@ -18,6 +18,7 @@ use axum::routing::{delete, get, post, put};
 use crate::*;
 use mailrs_core_api::method::import as import_paths;
 use mailrs_core_api::method::message_index as mix;
+use mailrs_core_api::method::report as rp;
 use mailrs_core_api::method::senders as senders_paths;
 use mailrs_core_api::method::sent;
 use mailrs_core_api::method::shared as shared_paths;
@@ -116,6 +117,11 @@ pub fn build_router_with_secret(state: Arc<FastcoreState>, secret: String) -> Ro
         .route(th::PATH_QUARANTINE_RELEASE, post(release_quarantined))
         .route(th::PATH_THREAD_RELEASES, get(thread_releases))
         .route(th::PATH_FRAUD_VERDICT, get(get_fraud_verdict))
+        .route(rp::PATH_REPORT_MESSAGE, post(crate::report::report))
+        .route(rp::PATH_REPORT_OUTCOME, get(crate::report::outcome))
+        .route(rp::PATH_PENDING_REPORTS, get(crate::report::pending))
+        .route(rp::PATH_CONFIRM_REPORT, post(crate::report::confirm))
+        .route(rp::PATH_DISMISS_REPORT, post(crate::report::dismiss))
         .route(th::PATH_ARCHIVE, post(archive_thread))
         .route(th::PATH_UNARCHIVE, post(unarchive_thread))
         .route(

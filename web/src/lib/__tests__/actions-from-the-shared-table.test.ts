@@ -26,6 +26,7 @@ const IDS = {
   'move-to-inbox': true,
   pin: true,
   read: true,
+  report: true,
   snooze: true,
   star: true,
   trash: true,

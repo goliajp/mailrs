@@ -209,6 +209,32 @@
       }
     },
     {
+      "id": "report",
+      "surfaces": ["web"],
+      "keys": [],
+      "undo": null,
+      "confirm": false,
+      "danger": true,
+      "batch": false,
+      "verb": null,
+      "leaves_list": true,
+      "label": {
+        "web": "action.report",
+        "ios": null,
+        "android": null
+      },
+      "done": {
+        "web": null,
+        "ios": null,
+        "android": null
+      },
+      "icon": {
+        "web": "Flag",
+        "ios": null,
+        "android": null
+      }
+    },
+    {
       "id": "pin",
       "surfaces": ["web", "ios", "android"],
       "keys": ["p"],
