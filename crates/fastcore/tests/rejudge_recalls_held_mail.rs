@@ -1,8 +1,8 @@
 //! With acting on, a conversation the rules now hold is taken back into
 //! Review, read or not: the reader gets a notice and a `mail.held` webhook,
 //! and the recall is audited. An administrator puts a round back whole,
-//! audited too, and a conversation put back is not taken again for the
-//! rules it was put back despite.
+//! audited too, and a conversation a person put back is not taken again
+//! for mail that was already there when they did.
 
 mod rejudge_support;
 
@@ -155,7 +155,9 @@ async fn a_held_verdict_takes_the_conversation_back_and_a_batch_puts_it_back() {
     assert_eq!(audit_rows(&mut w.kv, "rejudge.recall").len(), 1);
 
     // put back when only the payment rule matched: the program is a rule
-    // it was not put back despite, so it is taken again
+    // it was not put back despite, but a person put it back after this
+    // mail came, so a new rule on the same mail does not take it again
+    // (only mail that arrives after a person's release may)
     w.state
         .mailbox
         .store_ref()
@@ -170,10 +172,10 @@ async fn a_held_verdict_takes_the_conversation_back_and_a_batch_puts_it_back() {
     let allow = observe(&mut w.kv, Stance::Allow, "vendorbill.com");
     let (_, after) = round(&w.state).await;
     assert!(
-        held(&w.state, program),
-        "a new rule takes it again: {after}"
+        !held(&w.state, program),
+        "a new rule took back what a person released, on mail already there: {after}"
     );
-    assert_eq!(audit_rows(&mut w.kv, "rejudge.recall").len(), 2);
+    assert_eq!(audit_rows(&mut w.kv, "rejudge.recall").len(), 1);
 
     // the reader puts it back from Review: the same rules do not take it
     // a third time
@@ -192,7 +194,7 @@ async fn a_held_verdict_takes_the_conversation_back_and_a_batch_puts_it_back() {
         !held(&w.state, program),
         "taken again after the reader put it back: {after}"
     );
-    assert_eq!(audit_rows(&mut w.kv, "rejudge.recall").len(), 2);
+    assert_eq!(audit_rows(&mut w.kv, "rejudge.recall").len(), 1);
 }
 
 async fn counts_of(w: &World) -> serde_json::Value {
