@@ -9,9 +9,8 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 
 /**
- * The account's own settings and the reading features beside them:
- * sections, push preferences, sessions, app passwords, vacation. Every
- * route is the one the web client calls.
+ * Calls for the reading features beside the account's settings, starting
+ * with the sectioned Inbox. Every route is the one the web client calls.
  */
 
 /** Any method with an optional JSON body, signed in. */

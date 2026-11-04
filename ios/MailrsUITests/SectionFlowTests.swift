@@ -12,8 +12,11 @@ final class SectionFlowTests: MailrsUITestCase {
 
         let team = element(app, "row.conversation.sec_team")
         XCTAssertTrue(team.waitForExistence(timeout: 10), "the To reply section did not show its rows")
-        XCTAssertTrue(element(app, "row.assignee.sec_team").exists, "the team row did not say who answers it")
-        XCTAssertFalse(element(app, "row.assignee.sec_reply").exists, "a row nobody is assigned named an assignee")
+        // The row's identifier is given to everything inside it, so the
+        // line is found by what it says.
+        let assigned = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Assigned to'"))
+        XCTAssertTrue(app.staticTexts["Assigned to bob"].exists, "the team row did not say who answers it")
+        XCTAssertEqual(assigned.count, 1, "a row nobody is assigned named an assignee")
 
         element(app, "section.awaiting").tap()
         XCTAssertTrue(element(app, "row.conversation.sec_wait").waitForExistence(timeout: 10),
@@ -33,9 +36,8 @@ final class SectionFlowTests: MailrsUITestCase {
         XCTAssertTrue(accept.waitForExistence(timeout: 5), "New offered no Accept all")
         accept.tap()
 
-        let gone = NSPredicate(format: "exists == false")
-        expectation(for: gone, evaluatedWith: element(app, "row.conversation.sec_new1"))
-        waitForExpectations(timeout: 10)
+        XCTAssertTrue(element(app, "row.conversation.sec_new1").waitForNonExistence(timeout: 10),
+                      "the accepted senders' mail stayed in New")
         XCTAssertEqual(Set(accepted()), ["new@first.test", "second@first.test"],
                        "Accept all did not send each shown sender, bare and lower-cased")
     }
