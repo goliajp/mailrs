@@ -111,6 +111,67 @@ pub(super) async fn run(c: &harness::Cores, d: &mut Diffs) {
     }
 }
 
+/// The `quarantine.hold` rows a report wrote for `actor`, in one core's
+/// shared store.
+fn report_holds(url: &str, actor: &str) -> usize {
+    let mut c = kevy_client::Connection::connect(url).expect("kevy");
+    c.lrange(mailrs_core_sidestate::keys::admin::AUDIT_LOG, 0, -1)
+        .expect("audit")
+        .iter()
+        .filter_map(|r| {
+            serde_json::from_slice::<mailrs_core_sidestate::families::audit::AuditFact>(r).ok()
+        })
+        .filter(|a| {
+            a.action == "quarantine.hold"
+                && a.actor == actor
+                && a.detail.contains("source=scam_report")
+        })
+        .count()
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_reporter_s_own_copies_of_the_template_are_held_alike_on_both_cores() {
+    const FC: &str = "mem://reports-own-fastcore";
+    const PG: &str = "mem://reports-own-pg-core";
+    let c = harness::start_on(FC, PG).await;
+    let mut d = Diffs::default();
+    accounts::seed(&c, &mut d).await;
+    let spools = Spools::new(&c);
+    let mut to_alice = envelope(None);
+    to_alice.forward_paths = vec![ALICE.into()];
+    let mids: Vec<String> = (0..4)
+        .map(|i| format!("q{i}@parcel-desk.example"))
+        .collect();
+    for mid in &mids {
+        spools
+            .arrive(&c, &to_alice, &scam("Alice", ALICE, mid))
+            .await;
+    }
+    let reported = d.both(
+        "report_message of one of four copies",
+        c.fastcore.report_message(ALICE, &mids[0], false).await,
+        c.pg_core.report_message(ALICE, &mids[0], false).await,
+        MINTED,
+    );
+    if let Some((_, pg)) = &reported {
+        assert_eq!((pg.own_held, pg.no_fingerprint), (3, false), "{pg:?}");
+    }
+    let mut held = held_threads(&c, &mut d, ALICE, "Alice's held list after reporting one").await;
+    held.sort();
+    assert_eq!(held, mids, "{}", d.0.join("\n\n"));
+    assert_eq!(
+        (report_holds(FC, ALICE), report_holds(PG, ALICE)),
+        (4, 4),
+        "each hold audited with the reporter as actor"
+    );
+    assert!(
+        d.0.is_empty(),
+        "{} difference(s) between the cores:\n\n{}",
+        d.0.len(),
+        d.0.join("\n\n")
+    );
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_report_finds_and_takes_back_the_other_copies_alike_on_both_cores() {
     let c = harness::start_on(

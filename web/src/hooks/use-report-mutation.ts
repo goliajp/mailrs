@@ -14,16 +14,9 @@ import { wireReportMessage } from '@/wire/endpoints/report'
 
 /** What the reporter is told once the server has decided. */
 export function outcomeText(o: WireReportOutcome): string {
-  switch (o.state) {
-    case 'dismissed':
-      return tNow('action.report.dismissed')
-    case 'none_found':
-      return tNow('action.report.noneFound')
-    case 'taken_back':
-      return tNow('action.report.takenBack', { count: o.taken_back })
-    case 'waiting':
-      return tNow('action.report.waiting')
-  }
+  const base = stateText(o)
+  if (o.own_held === 0) return base
+  return tNow('action.report.withOwn', { base, count: o.own_held })
 }
 
 /**
@@ -56,4 +49,18 @@ export function useReportMutation() {
       toast.success(outcomeText(o), { duration: 10000 })
     },
   })
+}
+
+function stateText(o: WireReportOutcome): string {
+  switch (o.state) {
+    case 'dismissed':
+      return tNow('action.report.dismissed')
+    case 'none_found':
+      if (o.no_fingerprint) return tNow('action.report.noFingerprint')
+      return tNow('action.report.noneFound')
+    case 'taken_back':
+      return tNow('action.report.takenBack', { count: o.taken_back })
+    case 'waiting':
+      return tNow('action.report.waiting')
+  }
 }

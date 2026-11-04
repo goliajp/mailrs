@@ -34,6 +34,8 @@ const outcome = {
   grounds: [],
   inboxes: 2,
   message_id: 's1@parcel-desk.example',
+  no_fingerprint: false,
+  own_held: 0,
   report_id: 'rp1',
   state: 'waiting' as const,
   taken_back: 0,

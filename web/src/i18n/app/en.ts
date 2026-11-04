@@ -21,9 +21,12 @@ export const appEn = {
   'action.read': 'Mark as read',
   'action.report': 'Report scam',
   'action.report.dismissed': 'Reported. An administrator left the other copies where they are',
+  'action.report.noFingerprint':
+    'Reported. The message is too short to compare with others, so no other copy was looked for',
   'action.report.noneFound': 'Reported. Nobody else here received the same message',
   'action.report.takenBack': 'Reported. The same message was taken back from {count} other inboxes',
   'action.report.waiting': 'Reported. The same message in other inboxes waits for an administrator',
+  'action.report.withOwn': '{base}. {count} more copies in your inbox were held too',
   'action.snooze': 'Snooze until tomorrow',
   'action.snooze.done': 'Snoozed until tomorrow 9:00',
   'action.star': 'Star',

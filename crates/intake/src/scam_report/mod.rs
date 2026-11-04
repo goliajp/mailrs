@@ -8,7 +8,7 @@
 use std::io;
 
 use kevy_client::Connection;
-use mailrs_core_sidestate::families::{domain_first, reports};
+use mailrs_core_sidestate::families::{domain_first, fraud_hits, reports};
 use mailrs_report::{Decision, Situation, Template};
 
 mod admin;
@@ -125,7 +125,14 @@ pub fn report<S: ReportStore + ?Sized>(
     reports::append(&mut conn, &r).map_err(|e| e.to_string())?;
     if !held {
         core.hold(user, &tid).map_err(|e| e.to_string())?;
-        notify::held(&mut conn, user, &tid);
+        notify::held(&mut conn, user, user, &tid);
+    }
+    // a body too short to compare cannot find its copies: counted, so how
+    // often that happens can be seen (`/api/health` → `fraud_hits`)
+    if template.is_none()
+        && let Err(e) = fraud_hits::record(&mut conn, &[reports::NO_FINGERPRINT.to_string()], at)
+    {
+        tracing::warn!(error = %e, "report: the no-fingerprint count was not kept");
     }
     notify::audit(
         &mut conn,
@@ -134,7 +141,8 @@ pub fn report<S: ReportStore + ?Sized>(
         &tid,
         &format!("report={} message={mid}", r.id),
     );
-    let targets = others(core, user, mid, template.as_ref());
+    let (own, targets) = others(core, user, &tid, mid, template.as_ref());
+    let own_held = hold_own(core, &mut conn, &r, &own);
     let from = raw
         .as_deref()
         .map(mailrs_inbound::identity::from_address)
@@ -158,6 +166,11 @@ pub fn report<S: ReportStore + ?Sized>(
         &targets,
         user,
     );
+    let outcome = reports::Outcome {
+        own_held,
+        no_fingerprint: template.is_none(),
+        ..outcome
+    };
     reports::set_outcome(&mut conn, &r, &outcome).map_err(|e| e.to_string())?;
     if outcome.state == "taken_back" {
         settle_waiting(&mut conn, &r, &alike, &targets)?;
@@ -167,13 +180,15 @@ pub fn report<S: ReportStore + ?Sized>(
 
 /// Every other conversation holding a copy: the other readers of this very
 /// message, and the readers of each message of the window that is the
-/// same template.
+/// same template. The reporter's own other conversations come first,
+/// apart: they are held with the report, whatever the grounds.
 fn others<S: ReportStore + ?Sized>(
     core: &S,
     reporter: &str,
+    reported_tid: &str,
     mid: &str,
     template: Option<&Template>,
-) -> Vec<Target> {
+) -> (Vec<Target>, Vec<Target>) {
     let mut mids = vec![mid.to_string()];
     if let Some(t) = template {
         let since = now() - WINDOW_DAYS * 86_400;
@@ -188,15 +203,16 @@ fn others<S: ReportStore + ?Sized>(
             }
         }
     }
-    let mut out: Vec<Target> = Vec::new();
+    let (mut own, mut out): (Vec<Target>, Vec<Target>) = (Vec::new(), Vec::new());
     for m in mids {
         for reader in core.readers(&m).unwrap_or_default() {
-            if reader.eq_ignore_ascii_case(reporter) {
-                continue;
-            }
             let Ok(Some((tid, held))) = core.conversation_of(&reader, &m) else {
                 continue;
             };
+            let mine = reader.eq_ignore_ascii_case(reporter);
+            if held || mine && tid == reported_tid {
+                continue;
+            }
             let t = Target {
                 user: reader,
                 tid,
@@ -204,13 +220,45 @@ fn others<S: ReportStore + ?Sized>(
             };
             // each message, not each conversation: a conversation a person
             // put back may still be taken for a copy that came after
-            if !held && !out.contains(&t) {
-                out.push(t);
+            let into = match mine {
+                true => &mut own,
+                false => &mut out,
+            };
+            if !into.contains(&t) {
+                into.push(t);
             }
         }
     }
-    out.sort_by(|a, b| (&a.user, &a.tid).cmp(&(&b.user, &b.tid)));
-    out
+    for list in [&mut own, &mut out] {
+        list.sort_by(|a, b| (&a.user, &a.tid).cmp(&(&b.user, &b.tid)));
+    }
+    (own, out)
+}
+
+/// Hold the reporter's other copies of the template with the report, as
+/// part of its batch: no ground is needed for what is the reporter's own.
+/// A conversation the reporter put back before stays put back for a copy
+/// that came before that, as every hold does. How many were held.
+fn hold_own<S: ReportStore + ?Sized>(
+    core: &S,
+    conn: &mut Connection,
+    r: &reports::Report,
+    own: &[Target],
+) -> u64 {
+    let batch = format!("report:{}", r.id);
+    let mut held = 0;
+    for t in own {
+        match core.take_back(&t.user, &t.tid, &t.mid, &batch) {
+            Ok(true) => {
+                held += 1;
+                notify::held(conn, &r.reporter, &t.user, &t.tid);
+            }
+            Ok(false) => {}
+            Err(e) => tracing::warn!(error = %e, tid = %t.tid,
+                "report: one of the reporter's own copies could not be held"),
+        }
+    }
+    held
 }
 
 fn inboxes(targets: &[Target]) -> usize {
@@ -301,7 +349,7 @@ fn take_back<S: ReportStore + ?Sized>(
             Ok(true) => {
                 taken += 1;
                 let raw = core.raw_of(&t.user, &t.mid).unwrap_or_default();
-                notify::held(conn, &t.user, &t.tid);
+                notify::held(conn, actor, &t.user, &t.tid);
                 notify::taken(conn, t, &batch, &raw);
             }
             Ok(false) => {}

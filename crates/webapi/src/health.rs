@@ -119,8 +119,10 @@ fn new_domains() -> serde_json::Value {
 /// Hits per enforced rule of the active fraud bundle, today (UTC) and
 /// over the last 30 days, from the receiver's daily counters. Every
 /// enforced rule is listed, at 0 when it never fired, so a watch on one
-/// rule has a number to compare. Recounted at most once every five
-/// minutes; null when the shared store cannot be read.
+/// rule has a number to compare. Beside them, `report-no-fingerprint`
+/// counts scam reports whose message was too short to compare with others.
+/// Recounted at most once every five minutes; null when the shared store
+/// cannot be read.
 fn fraud_hits() -> serde_json::Value {
     use std::sync::Mutex;
     use std::time::{Duration, Instant};
@@ -135,7 +137,9 @@ fn fraud_hits() -> serde_json::Value {
     if let Some(v) = cached {
         return with_staleness(v, now);
     }
-    let (version, rules) = mailrs_fraud_lua::active_rule_set();
+    let (version, mut rules) = mailrs_fraud_lua::active_rule_set();
+    // not a rule: reports that could not look for other copies
+    rules.push(mailrs_core_sidestate::families::reports::NO_FINGERPRINT.to_string());
     let counts = handlers::kevy_util::with_kevy(move |c| {
         mailrs_core_sidestate::families::fraud_hits::counts(c, &rules, now)
     });

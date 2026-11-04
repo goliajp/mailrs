@@ -20,7 +20,10 @@ it landed in where that is known.
 
 ### Reporting a scam
 
-- **Report scam** on a conversation holds your copy in Review at once.
+- **Report scam** on a conversation holds your copy in Review at once,
+  and your other copies of the same template with it, whatever the
+  grounds below. A conversation you put back is held again only for a
+  copy that arrived after you put it back.
   The server then looks for other copies of the same template from the
   last thirty days: bodies that hash within three bits of each other once
   names, numbers and link paths are removed, and that also share a link
@@ -40,10 +43,14 @@ it landed in where that is known.
   administrators confirm or dismiss waiting reports under Admin → Scam
   reports, seeing the message, the sender's domain, how many inboxes hold
   it and up to ten of the copies.
+- Known limit: a message whose body has fewer than eight words has no
+  fingerprint, so its report holds only that message. The answer says so
+  (`no_fingerprint`), and `/api/health` counts such reports under
+  `fraud_hits` as `report-no-fingerprint`.
 - Each delivered message's fingerprint is now recorded, once per message
   (not per recipient). Mail delivered before this release has none, so a
   report finds only copies that arrived after it.
-- The SQL core gains `message_templates` (migration 061).
+- The SQL core gains `message_templates` (migration 062).
 
 ### Deleting in a mail client moves mail to the Trash; Sieve scripts follow the forwarding rules
 

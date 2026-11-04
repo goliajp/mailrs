@@ -41,10 +41,11 @@ pub(super) fn taken(conn: &mut Connection, t: &Target, batch: &str, raw: &[u8]) 
     crate::push::notify_recalled(Some(conn), &t.user, &t.tid, &from, &subject);
 }
 
-/// The `quarantine.hold` line every hold writes, with `report` as its source.
-pub(super) fn held(conn: &mut Connection, user: &str, tid: &str) {
-    let detail = format!("user={user} source=report rules_version= rules=reported");
-    audit(conn, "system", "quarantine.hold", tid, &detail);
+/// The `quarantine.hold` line every hold writes, with `scam_report` as
+/// its source and whoever's report or decision held it as the actor.
+pub(super) fn held(conn: &mut Connection, actor: &str, user: &str, tid: &str) {
+    let detail = format!("user={user} source=scam_report rules_version= rules=reported");
+    audit(conn, actor, "quarantine.hold", tid, &detail);
 }
 
 pub(super) fn audit(conn: &mut Connection, actor: &str, action: &str, target: &str, detail: &str) {

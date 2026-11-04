@@ -60,6 +60,14 @@ pub struct ReportOutcomeWire {
     pub at: i64,
     /// When the other copies were decided on; 0 while they wait.
     pub decided_at: i64,
+    /// The reporter's other conversations holding the same template, held
+    /// with the report whatever the grounds.
+    #[serde(default)]
+    pub own_held: u64,
+    /// The reported message's body was too short to fingerprint (fewer than
+    /// eight words), so no other copy was looked for.
+    #[serde(default)]
+    pub no_fingerprint: bool,
 }
 
 /// One other copy, for an administrator to look at before confirming.
