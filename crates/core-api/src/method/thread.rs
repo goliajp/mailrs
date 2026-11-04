@@ -80,6 +80,34 @@ pub struct QuarantineListResponse {
 /// only training signal a false positive ever produces.
 pub const PATH_QUARANTINE_RELEASE: &str = "/v1/users/{user}/quarantine/{thread_id}/release";
 
+/// Every time a held conversation was let go, oldest first.
+///
+/// A fact per release, never rewritten: who let it go, when, and whether
+/// a person did (`person`), an administrator's batch put-back (`batch`) or
+/// a rule change (`rejudge`). A rejudge holds again only what a person has
+/// not released, so this is what it consults.
+pub const PATH_THREAD_RELEASES: &str = "/v1/users/{user}/threads/{thread_id}/releases";
+
+/// One release of a held conversation.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ReleaseFact {
+    /// Unix seconds.
+    pub at: i64,
+    /// `person`, `batch` or `rejudge`.
+    pub source: String,
+    /// The reader or administrator, or `system` for a rule change.
+    pub actor: String,
+    /// The rule pack that let it go; empty unless `source` is `rejudge`.
+    #[serde(default)]
+    pub rules_version: String,
+}
+
+/// What [`PATH_THREAD_RELEASES`] answers with.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ReleasesResponse {
+    pub items: Vec<ReleaseFact>,
+}
+
 /// The stored four-layer verdict for one message, as it was decided.
 pub const PATH_FRAUD_VERDICT: &str = "/v1/users/{user}/messages/{message_id}/fraud-verdict";
 

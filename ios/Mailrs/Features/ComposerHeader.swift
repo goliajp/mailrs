@@ -77,6 +77,13 @@ struct ComposerHeader: View {
     @Binding var suggestions: [String]
 
     let focus: FocusState<ComposerField?>.Binding
+    /// The From choice, shown only when there is more than one address to
+    /// leave by — the signed-in one and its `send_as`, as on the web.
+    var from: Binding<String>?
+    var fromOptions: [String] = []
+    /// What From starts as while it is empty — and once the choices
+    /// arrive, if they arrive after the composer opened.
+    var fromDefault = ""
     @Environment(\.dynamicTypeSize) private var typeSize
     /// Called when an address field changes, with its text — the owner
     /// decides whether to ask the server for contacts.
@@ -85,6 +92,10 @@ struct ComposerHeader: View {
     var body: some View {
         VStack(spacing: 0) {
             Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 0) {
+                if let from, fromOptions.count > 1 {
+                    fromRow(from)
+                    divider
+                }
                 row(.to, slot: to) {
                     // The disclosure rides on the To row rather than
                     // taking one of its own: a control that only reveals
@@ -106,6 +117,13 @@ struct ComposerHeader: View {
             }
             Divider()
         }
+        .onAppear(perform: settleFrom)
+        .onChange(of: fromDefault) { _, _ in settleFrom() }
+    }
+
+    private func settleFrom() {
+        guard let from, from.wrappedValue.isEmpty else { return }
+        from.wrappedValue = fromDefault
     }
 
     @ViewBuilder private var copiesButton: some View {
@@ -124,6 +142,23 @@ struct ComposerHeader: View {
             .buttonStyle(.plain)
             .accessibilityLabel("Add Cc and Bcc")
         }
+    }
+
+    private func fromRow(_ from: Binding<String>) -> some View {
+        GridRow {
+            Text("From")
+                .foregroundStyle(.secondary)
+            Picker("From", selection: from) {
+                ForEach(fromOptions, id: \.self) { address in
+                    Text(verbatim: address).tag(address)
+                }
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityIdentifier("composer-from")
+        }
+        .padding(.vertical, 6)
     }
 
     private var divider: some View {

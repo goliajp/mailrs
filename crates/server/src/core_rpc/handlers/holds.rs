@@ -93,6 +93,21 @@ pub async fn release_quarantined(
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
     if released > 0 {
+        let fact = mailrs_mailbox::pg::ReleaseFact {
+            at: chrono::Utc::now().timestamp(),
+            source: "person".to_string(),
+            actor: user.clone(),
+            rules_version: String::new(),
+        };
+        state
+            .mailbox
+            .record_release(&user, &thread_id, &fact)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, %user, %thread_id, "the release was not recorded");
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+        audit_release(&state, &user, &thread_id, &fact);
         tracing::info!(%user, %thread_id, "released: a person said this was not fraud");
         // held mail had no images fetched on arrival
         if let Some(url) = state.net_url.clone() {
@@ -113,6 +128,62 @@ pub async fn release_quarantined(
         affected: released as u32,
         new_modseq: 0,
     }))
+}
+
+/// The audit line for a release, as fastcore writes it.
+fn audit_release(
+    state: &CoreRpcState,
+    user: &str,
+    thread_id: &str,
+    fact: &mailrs_mailbox::pg::ReleaseFact,
+) {
+    let Some(mut conn) = state
+        .net_url
+        .as_deref()
+        .and_then(|u| kevy_client::Connection::connect(u).ok())
+    else {
+        tracing::warn!(%thread_id, "no network kevy: the release audit line was not written");
+        return;
+    };
+    let detail = format!(
+        "user={user} source={} actor={} rules_version={}",
+        fact.source, fact.actor, fact.rules_version
+    );
+    if let Err(e) = mailrs_core_sidestate::families::audit::append(
+        &mut conn,
+        &fact.actor,
+        "quarantine.release",
+        thread_id,
+        &detail,
+        fact.at,
+    ) {
+        tracing::warn!(error = %e, %thread_id, "the release audit line was not written");
+    }
+}
+
+/// GET /v1/users/{user}/threads/{thread_id}/releases — every release of
+/// this conversation for this reader, oldest first.
+pub async fn thread_releases(
+    State(state): State<Arc<CoreRpcState>>,
+    Path((user, thread_id)): Path<(String, String)>,
+) -> Result<Json<wire::ReleasesResponse>, StatusCode> {
+    let items = state
+        .mailbox
+        .releases(&user, &thread_id)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, %user, %thread_id, "reading the releases failed");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+        .into_iter()
+        .map(|f| wire::ReleaseFact {
+            at: f.at,
+            source: f.source,
+            actor: f.actor,
+            rules_version: f.rules_version,
+        })
+        .collect();
+    Ok(Json(wire::ReleasesResponse { items }))
 }
 
 /// GET /v1/users/{user}/messages/{message_id}/fraud-verdict — `null` for a
