@@ -170,6 +170,10 @@ if [ "${SKIP_GATE:-0}" != 1 ] && [ "${WEB_ONLY_SKIPS_RUST_GATE:-0}" != 1 ]; then
     # The phones' markdown and tracker rules match the web's samples, every copy the same bytes.
     ./scripts/check-markdown-samples.sh
     ./scripts/check-tracker-parity.sh
+    # The three clients name the same callback numbers: one table of
+    # labels and samples (web/src/lib/callback-numbers.json), the copies
+    # the phones ship the same bytes.
+    ./scripts/check-callback-numbers.sh
 
     # The 500-line file and 200-line function limits, as ratchets: a new
     # overrun fails, and one already on a baseline may only shrink. 51 files

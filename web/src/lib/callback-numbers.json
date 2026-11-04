@@ -1,0 +1,119 @@
+{
+  "labels": [
+    "PO",
+    "P.O.",
+    "Invoice",
+    "INV",
+    "Order",
+    "No.",
+    "No",
+    "Nr.",
+    "#",
+    "Ref",
+    "Account",
+    "Acct",
+    "订单",
+    "订单号",
+    "单号",
+    "发票",
+    "発注",
+    "発注番号",
+    "注文",
+    "注文番号",
+    "請求書",
+    "請求書番号",
+    "伝票番号"
+  ],
+  "samples": [
+    {
+      "name": "the purchase order read as a phone number in production",
+      "numbers": [],
+      "text": "Invoice for Phase 1: Under PO 4300078149 ($50,000.00) – Invoice – 2026-INV-003001-2"
+    },
+    {
+      "name": "the same purchase order with the invoice number on the next line",
+      "numbers": [],
+      "text": "Under PO 4300078149\n2026-INV-003001-2"
+    },
+    {
+      "name": "the same purchase order with the invoice number after a space",
+      "numbers": [],
+      "text": "PO 4300078149 2026-INV-003001-2 ($50,000.00)"
+    },
+    {
+      "name": "a Tokyo landline",
+      "numbers": ["03-1234-5678"],
+      "text": "お問い合わせ：03-1234-5678（平日9時〜18時）"
+    },
+    {
+      "name": "a Japanese freephone number written straight after the word",
+      "numbers": ["0120-123-456"],
+      "text": "フリーダイヤル0120-123-456までお電話ください"
+    },
+    {
+      "name": "a Japanese mobile",
+      "numbers": ["090-1234-5678"],
+      "text": "携帯 090-1234-5678"
+    },
+    {
+      "name": "US numbers with an area code in brackets and a leading 1",
+      "numbers": ["(888) 555-0142", "1-800-555-0199"],
+      "text": "Call us at (888) 555-0142 or 1-800-555-0199."
+    },
+    {
+      "name": "international numbers with a country code",
+      "numbers": ["+44 20 7946 0958", "+81 3-1234-5678", "+1 (888) 555-0142"],
+      "text": "London +44 20 7946 0958, Tokyo +81 3-1234-5678, US +1 (888) 555-0142"
+    },
+    {
+      "name": "one number written twice is listed once",
+      "numbers": ["+81 3 1234 5678"],
+      "text": "+81 3 1234 5678 / +81-3-1234-5678"
+    },
+    {
+      "name": "amounts grouped by thousands",
+      "numbers": [],
+      "text": "Total $1,234,567.89, or 1 234 567 890,00 €, or ¥ 12 345 678 900"
+    },
+    {
+      "name": "dates and times",
+      "numbers": [],
+      "text": "Meeting 2026-11-01 12:30, deadline 2026.11.15 18.00, sent 2026-11-01 12.30.45"
+    },
+    {
+      "name": "numbers straight after an order, invoice or reference label",
+      "numbers": [],
+      "text": "Order No. 1234-5678-90, Invoice #555 123 4567, PO: 03 1234 5678, 订单号：010-1234-5678, 発注 03-1234-5678, 注文番号 0120-123-456"
+    },
+    {
+      "name": "unbroken runs of digits",
+      "numbers": [],
+      "text": "Card 4012888888881881, ref 0312345678, Order 12345678901"
+    },
+    {
+      "name": "digits joined to letters or hyphens",
+      "numbers": [],
+      "text": "See 2026-INV-003001-2 and SKU AB-0312-3456-78, item X03-1234-5678"
+    },
+    {
+      "name": "a number does not run on into the year after it",
+      "numbers": [],
+      "text": "Tel 03 1234 5678 2026"
+    },
+    {
+      "name": "a line break ends a number",
+      "numbers": [],
+      "text": "Tel 03-1234\n5678-9012"
+    },
+    {
+      "name": "short codes",
+      "numbers": [],
+      "text": "Your code is 123-456"
+    },
+    {
+      "name": "a number in a sentence among other figures",
+      "numbers": ["0570-000-123"],
+      "text": "For invoice 2026-INV-003001-2 ($50,000.00) call our desk on 0570-000-123."
+    }
+  ]
+}
