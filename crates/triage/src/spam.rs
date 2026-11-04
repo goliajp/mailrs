@@ -10,8 +10,10 @@
 //! bayes:v2:trained:<tid>                      string  spam|ham  (TTL 90d)
 //! ```
 //!
-//! and the same without `v2:` for the legacy corpus. Training writes both;
-//! the receiver reads [`crate::READ`].
+//! and the same without `v2:` for the legacy corpus. Two corpora exist
+//! because the tokenizer changed: counts made by one tokenizer do not match
+//! the tokens of the other. Training writes both; the receiver reads
+//! [`READ`], with that corpus's tokenizer.
 //!
 //! A thread is one training sample, its tokens the union across its
 //! messages. Training is reversible: a thread trained the other way is
@@ -21,7 +23,30 @@ use std::collections::BTreeSet;
 
 use kevy_client::Connection;
 
-use crate::Corpus;
+/// A spam/ham corpus and the tokenizer whose tokens it counts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Corpus {
+    /// Counts of [`mailrs_bayes::tokenize_raw`], the raw-byte tokenizer.
+    Legacy,
+    /// Counts of [`mailrs_bayes::tokenize`], which reads decoded text.
+    V2,
+}
+
+impl Corpus {
+    /// Every corpus; training writes each of them.
+    pub const ALL: [Corpus; 2] = [Corpus::Legacy, Corpus::V2];
+
+    /// The tokens this corpus counts, for one raw message.
+    pub fn tokenize(self, raw: &[u8]) -> Vec<String> {
+        match self {
+            Corpus::Legacy => mailrs_bayes::tokenize_raw(raw),
+            Corpus::V2 => mailrs_bayes::tokenize(raw),
+        }
+    }
+}
+
+/// The corpus the receiver's spam score reads.
+pub const READ: Corpus = Corpus::Legacy;
 
 /// The keys of one spam/ham corpus.
 pub struct Keys {
@@ -150,29 +175,15 @@ fn adjust(conn: &mut Connection, k: &Keys, tokens: &[&str], spam: bool, delta: i
     });
 }
 
-/// Learn the thread whose messages are `raws` as triage `class`, in every
-/// corpus.
+/// Learn the thread whose messages are `raws` as triage `class`.
 pub fn train_class(conn: &mut Connection, thread_id: &str, raws: &[Vec<u8>], class: &str) {
-    for corpus in Corpus::ALL {
-        train_class_in(conn, corpus, thread_id, raws, class);
-    }
-}
-
-/// [`train_class`], in one corpus only.
-pub fn train_class_in(
-    conn: &mut Connection,
-    corpus: Corpus,
-    thread_id: &str,
-    raws: &[Vec<u8>],
-    class: &str,
-) {
     if !crate::is_class(class) {
         return;
     }
-    let tokens: BTreeSet<String> = raws.iter().flat_map(|r| corpus.tokenize(r)).collect();
+    let tokens: BTreeSet<String> = raws.iter().flat_map(|r| crate::tokenize(r)).collect();
     if tokens.is_empty() {
         return;
     }
     let tokens: Vec<String> = tokens.into_iter().collect();
-    crate::train(conn, corpus, &tokens, class, thread_id);
+    crate::train(conn, &tokens, class, thread_id);
 }

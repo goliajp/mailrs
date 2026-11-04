@@ -1,13 +1,11 @@
-//! Retrain the v2 corpora, the ones the decoded-text tokenizer reads.
+//! Retrain the v2 spam/ham corpus, the one the decoded-text tokenizer
+//! reads.
 //!
-//! Spam/ham: the thread ids the raw-byte corpus was trained on are still in
-//! its sets (`bayes:corpus:spam`, `bayes:corpus:ham`). A thread id names no
-//! account, so its owners come from the per-user message rows (the declared
-//! `tid` index), and its raw mail from the first owner whose maildir still
-//! has the files. Triage: each account's threads in Inbox, Notifications and
-//! Promotions are learnt as the class of the bucket they sit in now, which is
-//! the classification the readers have kept or corrected. Unlike
-//! `backfill-triage` this files nothing.
+//! The thread ids the raw-byte corpus was trained on are still in its sets
+//! (`bayes:corpus:spam`, `bayes:corpus:ham`). A thread id names no account,
+//! so its owners come from the per-user message rows (the declared `tid`
+//! index), and its raw mail from the first owner whose maildir still has
+//! the files.
 //!
 //! A page is a slice of a roster sorted by key, so pages taken with `skip`
 //! cover the same threads a single run would, and training is reversible per
@@ -15,22 +13,14 @@
 
 use std::collections::BTreeSet;
 
-use mailrs_triage::Corpus;
+use mailrs_triage::spam::Corpus;
 
 use super::hangup::{Hangup, run_blocking};
 use super::prelude::*;
 use crate::bayes_train::fetch_thread_raw;
 
-#[derive(Debug, Clone, Copy, serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub(crate) enum Which {
-    Spam,
-    Triage,
-}
-
 #[derive(serde::Deserialize)]
 pub(crate) struct RebuildQuery {
-    corpus: Which,
     /// Report without writing. **Default true.**
     #[serde(default = "yes")]
     dry_run: bool,
@@ -47,7 +37,7 @@ fn default_limit() -> usize {
     500
 }
 
-/// `POST /v1/admin/maintenance:bayes-rebuild-v2?corpus=spam|triage&dry_run=false&skip=0&limit=500`
+/// `POST /v1/admin/maintenance:bayes-rebuild-v2?dry_run=false&skip=0&limit=500`
 pub(crate) async fn bayes_rebuild_v2_route(
     State(state): State<Arc<FastcoreState>>,
     Query(q): Query<RebuildQuery>,
@@ -55,10 +45,7 @@ pub(crate) async fn bayes_rebuild_v2_route(
     let Some(mut conn) = state.net_conn() else {
         return axum::http::StatusCode::SERVICE_UNAVAILABLE.into_response();
     };
-    let work = run_blocking(move |h| match q.corpus {
-        Which::Spam => rebuild_spam(&state, &mut conn, &q, h),
-        Which::Triage => rebuild_triage(&state, &mut conn, &q, h),
-    });
+    let work = run_blocking(move |h| rebuild_spam(&state, &mut conn, &q, h));
     match work.await {
         Ok(Ok(report)) => Json(report).into_response(),
         Ok(Err(e)) => {
@@ -177,76 +164,5 @@ fn rebuild_spam(
         "no_owner": no_owner,
         "no_raw": no_raw,
         "in_both_unknown": in_both_unknown,
-    }))
-}
-
-fn rebuild_triage(
-    state: &Arc<FastcoreState>,
-    conn: &mut kevy_client::Connection,
-    q: &RebuildQuery,
-    hangup: &Hangup,
-) -> std::io::Result<serde_json::Value> {
-    let users = state.mailbox.list_account_addresses()?;
-    let mut roster: Vec<(String, String, &'static str)> = Vec::new();
-    for user in &users {
-        for bucket in mailrs_mailbox::scope::NON_JUNK {
-            let tids = state.mailbox.list_thread_ids_by_bucket_unsent_via_table(
-                user,
-                bucket.name(),
-                mailrs_mailbox_kevy::ArchiveScope::All,
-                usize::MAX,
-            )?;
-            roster.extend(
-                tids.into_iter()
-                    .map(|tid| (user.clone(), tid, bucket.category())),
-            );
-        }
-    }
-    roster.sort();
-
-    let mut walked = 0usize;
-    let mut no_raw = 0u64;
-    let mut per_class = [0u64; mailrs_triage::CLASSES.len()];
-    for (user, tid, class) in roster.iter().skip(q.skip).take(q.limit) {
-        if hangup.hung_up() {
-            break;
-        }
-        walked += 1;
-        let raws = fetch_thread_raw(state, user, tid);
-        if raws.is_empty() {
-            no_raw += 1;
-            continue;
-        }
-        if let Some(i) = mailrs_triage::CLASSES.iter().position(|c| c == class) {
-            per_class[i] += 1;
-        }
-        if !q.dry_run {
-            mailrs_triage::spam::train_class_in(conn, Corpus::V2, tid, &raws, class);
-        }
-    }
-    let next_skip = q.skip + walked;
-    tracing::info!(
-        walked,
-        no_raw,
-        dry_run = q.dry_run,
-        "bayes-rebuild-v2 triage"
-    );
-    let mut classes = serde_json::Map::new();
-    for (class, n) in mailrs_triage::CLASSES.iter().zip(per_class) {
-        classes.insert((*class).to_string(), n.into());
-    }
-    Ok(serde_json::json!({
-        "corpus": "triage",
-        "dry_run": q.dry_run,
-        "accounts": users.len(),
-        "roster": roster.len(),
-        "skip": q.skip,
-        "walked": walked,
-        "next_skip": next_skip,
-        "done": next_skip >= roster.len(),
-        // trained per class, or on a dry run what would be
-        "classes": classes,
-        // a thread whose maildir files are gone
-        "unresolved": no_raw,
     }))
 }

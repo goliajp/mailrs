@@ -102,7 +102,7 @@ pub fn corpus_populated(state: &Arc<FastcoreState>) -> bool {
     let Some(mut conn) = state.net_conn() else {
         return false;
     };
-    let meta = mailrs_triage::spam::keys(mailrs_triage::READ).meta;
+    let meta = mailrs_triage::spam::keys(mailrs_triage::spam::READ).meta;
     let Ok(replies) = conn.pipeline(|p| {
         p.cmd(&[b"HGET", meta, b"spam_msgs"]);
         p.cmd(&[b"HGET", meta, b"ham_msgs"]);
