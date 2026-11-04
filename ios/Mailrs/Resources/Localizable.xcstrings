@@ -353,6 +353,22 @@
         }
       }
     },
+    "A new password is shown once, on the web, to copy into the mail program": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新しいパスワードは Web で一度だけ表示されます。メールソフトにコピーしてください"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新密码只在网页上显示一次，复制到邮件程序里使用"
+          }
+        }
+      }
+    },
     "API keys": {
       "localizations": {
         "ja": {
@@ -849,6 +865,54 @@
         }
       }
     },
+    "Always file to…": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "常に振り分ける先…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "以后都分到…"
+          }
+        }
+      }
+    },
+    "Always load": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "常に読み込む"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "总是加载"
+          }
+        }
+      }
+    },
+    "Always notify": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "常に通知する"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "总是通知"
+          }
+        }
+      }
+    },
     "An alias delivers one address to another.": {
       "localizations": {
         "ja": {
@@ -861,6 +925,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "别名把一个地址投递到另一个地址。"
+          }
+        }
+      }
+    },
+    "App passwords": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アプリパスワード"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "应用专用密码"
           }
         }
       }
@@ -925,6 +1005,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "已归档 ×%lld"
+          }
+        }
+      }
+    },
+    "As my notification setting says": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通知の設定どおり"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按通知设置"
+          }
+        }
+      }
+    },
+    "Ask each time": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "毎回たずねる"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每次询问"
           }
         }
       }
@@ -1438,6 +1550,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "继续"
+          }
+        }
+      }
+    },
+    "Conversations": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会話"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会话"
           }
         }
       }
@@ -2130,6 +2258,22 @@
         }
       }
     },
+    "Ends": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "終了"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "结束"
+          }
+        }
+      }
+    },
     "Enter the full address, like name@example.com": {
       "localizations": {
         "ja": {
@@ -2206,6 +2350,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "所有域名"
+          }
+        }
+      }
+    },
+    "Every message": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "すべてのメール"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所有邮件"
+          }
+        }
+      }
+    },
+    "Every reply": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "返信ごと"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每次回复"
           }
         }
       }
@@ -2306,6 +2482,22 @@
         }
       }
     },
+    "Filed. %lld conversations moved": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "振り分けました。%lld 件の会話を移動しました"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已分拣，移动了 %lld 个会话"
+          }
+        }
+      }
+    },
     "Fill in the address, the code and the new password.": {
       "localizations": {
         "ja": {
@@ -2334,6 +2526,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "筛选"
+          }
+        }
+      }
+    },
+    "For which site": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "どのサイト用か"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用于哪个网站"
           }
         }
       }
@@ -2466,6 +2674,22 @@
         }
       }
     },
+    "Hide sender and subject": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "差出人と件名を表示しない"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隐藏发件人和主题"
+          }
+        }
+      }
+    },
     "I have a reset code": {
       "localizations": {
         "ja": {
@@ -2498,6 +2722,22 @@
         }
       }
     },
+    "Images in messages": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "メール内の画像"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "邮件中的图片"
+          }
+        }
+      }
+    },
     "Important": {
       "localizations": {
         "ja": {
@@ -2510,6 +2750,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "重要"
+          }
+        }
+      }
+    },
+    "Important people only": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重要な人だけ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只通知重要联系人"
           }
         }
       }
@@ -2818,6 +3074,22 @@
         }
       }
     },
+    "Last used %@ ago": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 前に使用"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 前用过"
+          }
+        }
+      }
+    },
     "Later today": {
       "localizations": {
         "ja": {
@@ -2946,6 +3218,22 @@
         }
       }
     },
+    "Mail and privacy": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "メールとプライバシー"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "邮件与隐私"
+          }
+        }
+      }
+    },
     "Mail from these addresses is treated as junk on arrival.": {
       "localizations": {
         "ja": {
@@ -2958,6 +3246,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "来自这些地址的邮件在收信时会被当作垃圾邮件。"
+          }
+        }
+      }
+    },
+    "Mail to answer and important people": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "返信が必要なメールと重要な人"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要回复的邮件和重要联系人"
           }
         }
       }
@@ -3009,6 +3313,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mailrs 已锁定"
+          }
+        }
+      }
+    },
+    "Make one on the web": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Web で作成する"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "到网页上新建"
           }
         }
       }
@@ -3137,6 +3457,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "将会话标记为「非垃圾」会把其发件人加到这里。来自这些地址的邮件会跳过垃圾邮件过滤。"
+          }
+        }
+      }
+    },
+    "Masked addresses": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "マスクアドレス"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "掩码地址"
           }
         }
       }
@@ -3365,6 +3701,38 @@
         }
       }
     },
+    "Mute": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ミュート"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "静音"
+          }
+        }
+      }
+    },
+    "Muted": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ミュート中"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已静音"
+          }
+        }
+      }
+    },
     "N & P": {
       "localizations": {
         "ja": {
@@ -3409,6 +3777,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "起个名字（可选）"
+          }
+        }
+      }
+    },
+    "Never load": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "読み込まない"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从不加载"
+          }
+        }
+      }
+    },
+    "Never notify": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通知しない"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从不通知"
+          }
+        }
+      }
+    },
+    "Never used": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未使用"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从未使用"
           }
         }
       }
@@ -3489,6 +3905,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "新建密钥"
+          }
+        }
+      }
+    },
+    "New masked address": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "マスクアドレスを作成"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新建掩码地址"
           }
         }
       }
@@ -3633,6 +4065,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "没有地址"
+          }
+        }
+      }
+    },
+    "No app passwords": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アプリパスワードはありません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有应用专用密码"
           }
         }
       }
@@ -3794,6 +4242,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "还没有邮箱"
+          }
+        }
+      }
+    },
+    "No masked addresses": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "マスクアドレスはありません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有掩码地址"
           }
         }
       }
@@ -3990,6 +4454,22 @@
         }
       }
     },
+    "Nothing": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通知しない"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不通知"
+          }
+        }
+      }
+    },
     "Nothing found.": {
       "localizations": {
         "ja": {
@@ -4182,6 +4662,102 @@
         }
       }
     },
+    "Notification setting saved": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通知の設定を保存しました"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通知设置已保存"
+          }
+        }
+      }
+    },
+    "Notifications": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通知"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通知"
+          }
+        }
+      }
+    },
+    "Notifications for this conversation": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この会話の通知"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个会话的通知"
+          }
+        }
+      }
+    },
+    "Notifications from this sender": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この差出人からの通知"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个发件人的通知"
+          }
+        }
+      }
+    },
+    "Notify for every reply": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "返信のたびに通知する"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每次回复都通知"
+          }
+        }
+      }
+    },
+    "Notify me about": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通知するもの"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通知哪些邮件"
+          }
+        }
+      }
+    },
     "OK": {
       "localizations": {
         "ja": {
@@ -4194,6 +4770,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "好"
+          }
+        }
+      }
+    },
+    "One reply per sender every %lld days": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同じ差出人には %lld 日に 1 回だけ返信します"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同一发件人每 %lld 天只回复一次"
           }
         }
       }
@@ -4534,6 +5126,22 @@
         }
       }
     },
+    "Promotions": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プロモーション"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "推广"
+          }
+        }
+      }
+    },
     "Protocol": {
       "localizations": {
         "ja": {
@@ -4598,6 +5206,22 @@
         }
       }
     },
+    "Quiet hours": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通知を止める時間"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "免打扰时段"
+          }
+        }
+      }
+    },
     "Read": {
       "localizations": {
         "ja": {
@@ -4610,6 +5234,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "标为已读"
+          }
+        }
+      }
+    },
+    "Read in this phone's time zone": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この端末のタイムゾーンで判断します"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按这台手机的时区计算"
           }
         }
       }
@@ -4722,6 +5362,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "全部回复"
+          }
+        }
+      }
+    },
+    "Reply while I'm away": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不在時に自動返信する"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "休假期间自动回复"
           }
         }
       }
@@ -5042,6 +5698,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "搜索此发件人"
+          }
+        }
+      }
+    },
+    "Security": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "セキュリティ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安全"
           }
         }
       }
@@ -5446,6 +6118,22 @@
         }
       }
     },
+    "Sign out everywhere else": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ほかの端末をすべてログアウト"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "让其他设备全部退出登录"
+          }
+        }
+      }
+    },
     "Signature": {
       "localizations": {
         "ja": {
@@ -5474,6 +6162,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "当前登录"
+          }
+        }
+      }
+    },
+    "Signed-in devices": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ログイン中の端末"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已登录的设备"
           }
         }
       }
@@ -5554,6 +6258,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "已加星"
+          }
+        }
+      }
+    },
+    "Starts": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開始"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开始"
           }
         }
       }
@@ -5670,6 +6390,38 @@
         }
       }
     },
+    "The app password was not revoked": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アプリパスワードを無効にできませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没能吊销应用专用密码"
+          }
+        }
+      }
+    },
+    "The app passwords could not be loaded": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アプリパスワードを読み込めませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法加载应用专用密码"
+          }
+        }
+      }
+    },
     "The calendar could not be loaded": {
       "localizations": {
         "ja": {
@@ -5682,6 +6434,86 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法加载日历"
+          }
+        }
+      }
+    },
+    "The device was not signed out": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "端末をログアウトできませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没能让这台设备退出登录"
+          }
+        }
+      }
+    },
+    "The masked address was not created": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "マスクアドレスを作成できませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没能新建掩码地址"
+          }
+        }
+      }
+    },
+    "The masked addresses could not be loaded": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "マスクアドレスを読み込めませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法加载掩码地址"
+          }
+        }
+      }
+    },
+    "The notification settings could not be loaded": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通知の設定を読み込めませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法加载通知设置"
+          }
+        }
+      }
+    },
+    "The notification settings were not saved": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通知の設定を保存できませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通知设置没有保存"
           }
         }
       }
@@ -5702,6 +6534,22 @@
         }
       }
     },
+    "The other devices were not signed out": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ほかの端末をログアウトできませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没能让其他设备退出登录"
+          }
+        }
+      }
+    },
     "The sender's list did not accept it. Their link is above.": {
       "localizations": {
         "ja": {
@@ -5714,6 +6562,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "发件方的列表没有接受。可以用上面的链接。"
+          }
+        }
+      }
+    },
+    "The sender's mail was not filed": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この差出人のメールを振り分けできませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没能分拣这个发件人的邮件"
           }
         }
       }
@@ -5734,6 +6598,22 @@
         }
       }
     },
+    "The signed-in devices could not be loaded": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ログイン中の端末を読み込めませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法加载已登录的设备"
+          }
+        }
+      }
+    },
     "The team's notes could not be loaded": {
       "localizations": {
         "ja": {
@@ -5746,6 +6626,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法加载团队评论"
+          }
+        }
+      }
+    },
+    "The vacation reply could not be loaded": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不在時の自動返信を読み込めませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法加载休假自动回复"
+          }
+        }
+      }
+    },
+    "The vacation reply was not saved": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不在時の自動返信を保存できませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "休假自动回复没有保存"
           }
         }
       }
@@ -5778,6 +6690,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "这个附件无法打开。"
+          }
+        }
+      }
+    },
+    "This device": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この端末"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这台设备"
           }
         }
       }
@@ -6166,6 +7094,22 @@
         }
       }
     },
+    "Unknown device": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不明な端末"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未知设备"
+          }
+        }
+      }
+    },
     "Unlock": {
       "localizations": {
         "ja": {
@@ -6358,6 +7302,22 @@
         }
       }
     },
+    "Vacation reply": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不在時の自動返信"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "休假自动回复"
+          }
+        }
+      }
+    },
     "Verified sender": {
       "localizations": {
         "ja": {
@@ -6482,6 +7442,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "为什么在这里"
+          }
+        }
+      }
+    },
+    "Write the reply on the web first": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先に Web で返信文を書いてください"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请先在网页上写好回复内容"
           }
         }
       }

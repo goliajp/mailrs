@@ -88,7 +88,14 @@ final class Preferences {
         didSet { persist(requiresBiometrics, Keys.requiresBiometrics) }
     }
 
+    /// Whether remote images load with a message, wait for "Load images",
+    /// or never load. Held back until asked unless chosen otherwise.
+    var remoteImages: SettingsWire.Images {
+        didSet { persist(remoteImages.rawValue, Keys.remoteImages) }
+    }
+
     private enum Keys {
+        static let remoteImages = "mailrs.remoteImages"
         static let appearance = "mailrs.appearance"
         static let language = "mailrs.language"
         static let timeZone = "mailrs.timeZone"
@@ -123,6 +130,8 @@ final class Preferences {
         language = defaults.string(forKey: Keys.language)
             .flatMap(Language.init(rawValue:)) ?? .system
         timeZoneIdentifier = defaults.string(forKey: Keys.timeZone)
+        remoteImages = defaults.string(forKey: Keys.remoteImages)
+            .flatMap(SettingsWire.Images.init(rawValue:)) ?? .click
         loaded = true
     }
 }

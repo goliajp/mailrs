@@ -24,7 +24,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
-import stub_confirm, stub_invite, stub_paging, stub_triage, stub_verdict, stub_compose, stub_sections
+import stub_confirm, stub_invite, stub_paging, stub_triage, stub_verdict, stub_compose, stub_sections, stub_settings
 import stub_reset
 import stub_restart
 import stub_role
@@ -541,7 +541,7 @@ class H(BaseHTTPRequestHandler):
             return
         if self._session_rejected():
             return
-        if stub_role.handle(self) or stub_role.refused(self) or stub_reset.state(self) or stub_triage.get(self, VERBS) or stub_verdict.get(self, MESSAGES) or stub_compose.get(self) or stub_sections.get(self):
+        if stub_role.handle(self) or stub_role.refused(self) or stub_reset.state(self) or stub_triage.get(self, VERBS) or stub_verdict.get(self, MESSAGES) or stub_compose.get(self) or stub_sections.get(self) or stub_settings.get(self):
             return
         if self.path.split("?")[0] == "/api/conversations/search":
             query = parse_qs(urlparse(self.path).query)
@@ -973,7 +973,7 @@ class H(BaseHTTPRequestHandler):
         pass
 
     def do_PUT(self):
-        if stub_role.refused(self) or stub_triage.put(self, VERBS):
+        if stub_role.refused(self) or stub_triage.put(self, VERBS) or stub_settings.put(self):
             return
         perms = re.match(r"^/api/admin/groups/(\d+)/permissions$", self.path.split("?")[0])
         if perms:
@@ -989,7 +989,7 @@ class H(BaseHTTPRequestHandler):
         self._send({}, 404)
 
     def do_DELETE(self):
-        if stub_restart.refused(self) or stub_role.refused(self) or stub_compose.delete(self):
+        if stub_restart.refused(self) or stub_role.refused(self) or stub_compose.delete(self) or stub_settings.delete(self):
             return
         if stub_confirm.refused(self, "DELETE") or stub_triage.delete(self, VERBS):
             return
@@ -1114,7 +1114,7 @@ class H(BaseHTTPRequestHandler):
             return
         if self._session_rejected():
             return
-        if stub_role.handle(self) or stub_role.refused(self) or stub_reset.handle(self) or stub_triage.post(self, VERBS) or stub_verdict.arm(self) or stub_invite.arm(self) or stub_compose.post(self) or stub_sections.post(self):
+        if stub_role.handle(self) or stub_role.refused(self) or stub_reset.handle(self) or stub_triage.post(self, VERBS) or stub_verdict.arm(self) or stub_invite.arm(self) or stub_compose.post(self) or stub_sections.post(self) or stub_settings.post(self):
             return
         if self.path.split("?")[0] == "/api/auth/confirm":
             stub_confirm.answer(self)
@@ -1236,7 +1236,7 @@ class H(BaseHTTPRequestHandler):
             # would otherwise 401 every test after it, and the failure
             # would look like anything but a leftover flag.
             REJECT_SESSION[0] = False
-            for stub in (stub_confirm, stub_invite, stub_restart, stub_role, stub_reset, stub_verdict, stub_compose, stub_sections):
+            for stub in (stub_confirm, stub_invite, stub_restart, stub_role, stub_reset, stub_verdict, stub_compose, stub_sections, stub_settings):
                 stub.reset()
             VERB_REFUSE.clear()
             FETCHED.clear()

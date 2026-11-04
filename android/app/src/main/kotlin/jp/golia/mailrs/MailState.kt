@@ -79,6 +79,8 @@ data class UiState(
     val inboxSection: String? = null,
     /** The calendar page, while it is open. */
     val calendar: CalendarPage? = null,
+    /** A settings page of its own, over Settings. */
+    val settingsPage: SettingsPage? = null,
     /** Which label [MailList.Label] shows; null for every other list. */
     val label: jp.golia.mailrs.wire.WireTriage.Label? = null,
     /** The reader's labels, for the drawer and the label picker. */
@@ -428,11 +430,12 @@ data class OpenedFile(val file: java.io.File, val mimeType: String, val filename
  * about two copies of "which screen closes to what" drifting apart, and
  * this is that drift caught in the act.
  */
-enum class SettingsBack { MailAccounts, MergedMail, Settings }
+enum class SettingsBack { MailAccounts, MergedMail, Page, Settings }
 
 fun settingsBack(state: UiState): SettingsBack = when {
     state.mailAccountsOpen -> SettingsBack.MailAccounts
     state.mergedMailOpen -> SettingsBack.MergedMail
+    state.settingsPage != null -> SettingsBack.Page
     else -> SettingsBack.Settings
 }
 

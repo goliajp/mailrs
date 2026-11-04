@@ -293,6 +293,7 @@ private fun MessageCard(
                 Text(RowDate.format(m.internalDate), color = theme.fgMuted, fontSize = 11.sp)
                 SenderChecksLine(m.senderTrust, m.senderChecks)
             }
+            MessageSettingsMenu(m, threadId, vm)
         }
         VerdictPanel(m.messageId, vm)
         // HTML first, and not as a preference. A message that was
