@@ -18,8 +18,6 @@ use mailrs_inbound::{ReceiveContext, Stage, StageOutcome};
 
 use crate::kevy_net::KevyNetClient;
 
-use mailrs_triage::spam::{HAM_TOKENS as K_HAM, META as K_META, SPAM_TOKENS as K_SPAM};
-
 /// Bayesian classifier stage. Holds a network-kevy client to read the
 /// token corpus. If no client is wired (kevy URL unset), the stage is
 /// a no-op.
@@ -43,7 +41,7 @@ impl Stage for BayesStage {
         let Some(kevy) = self.kevy.clone() else {
             return StageOutcome::Continue;
         };
-        let tokens = mailrs_bayes::tokenize(&ctx.message);
+        let tokens = mailrs_triage::spam::READ.tokenize(&ctx.message);
         if tokens.is_empty() {
             return StageOutcome::Continue;
         }
@@ -95,15 +93,16 @@ fn fetch_counts(
     conn: &mut kevy_client::Connection,
     tokens: &[String],
 ) -> std::io::Result<(mailrs_bayes::Corpus, CountMap)> {
-    let spam_msgs = hget_i64(conn, K_META, b"spam_msgs")?;
-    let ham_msgs = hget_i64(conn, K_META, b"ham_msgs")?;
+    let k = mailrs_triage::spam::keys(mailrs_triage::spam::READ);
+    let spam_msgs = hget_i64(conn, k.meta, b"spam_msgs")?;
+    let ham_msgs = hget_i64(conn, k.meta, b"ham_msgs")?;
     let corpus = mailrs_bayes::Corpus {
         spam_msgs: spam_msgs.max(0) as u32,
         ham_msgs: ham_msgs.max(0) as u32,
     };
 
-    let spam_counts = hmget_counts(conn, K_SPAM, tokens)?;
-    let ham_counts = hmget_counts(conn, K_HAM, tokens)?;
+    let spam_counts = hmget_counts(conn, k.spam_tokens, tokens)?;
+    let ham_counts = hmget_counts(conn, k.ham_tokens, tokens)?;
 
     let mut map: CountMap = std::collections::HashMap::with_capacity(tokens.len());
     for (i, tok) in tokens.iter().enumerate() {

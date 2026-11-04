@@ -216,6 +216,13 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
             "/v1/admin/maintenance:backfill-triage",
             post(backfill_triage_route),
         )
+        // Retrain the v2 spam/ham corpus (decoded-text tokenizer) from the
+        // thread ids in the legacy corpus sets. Paged with skip/limit, dry
+        // by default.
+        .route(
+            "/v1/admin/maintenance:bayes-rebuild-v2",
+            post(crate::maintenance::bayes_rebuild_v2_route),
+        )
         // Segmented promotion of existing threads into the
         // `threaduser` table's membership rows (v4 TABLE migration).
         // Paged on purpose: a full scan competes with live traffic
