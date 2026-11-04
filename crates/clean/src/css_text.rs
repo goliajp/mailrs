@@ -112,8 +112,10 @@ fn strip_vendor_words(text: &str) -> String {
         let kept: Vec<&str> = line
             .split(' ')
             .filter(|w| {
-                let bare = w.trim_start_matches(['.', '#']).to_ascii_lowercase();
-                !VENDOR_PREFIXES.iter().any(|p| bare.starts_with(p))
+                // a selector glues names together: `96.mso-no-bg`, `a.mso-x`
+                let lc = w.to_ascii_lowercase();
+                !lc.split(['.', '#', ',', '{', '}', ';', '(', ')', '"', '\''])
+                    .any(|piece| VENDOR_PREFIXES.iter().any(|p| piece.starts_with(p)))
             })
             .collect();
         out.push_str(&kept.join(" "));
@@ -318,15 +320,9 @@ table { border-collapse: collapse; border-spacing: 0 } td{mso-line-height-rule:e
     fn bare_declarations_and_vendor_names_go() {
         let s = strip_css_rules(
             "font: yu gothic, sans-serif; margin:0; padding:0; color: #000; background-color: #fff;> Monthly news\n\
-             .mso-no-bg .vml-p li Sale fares -webkit-text-size-adjust",
+             .mso-no-bg .vml-p li Sale fares -webkit-text-size-adjust 96.mso-hide",
         );
-        for css in [
-            "margin",
-            "padding",
-            "background-color",
-            "mso-no-bg",
-            "-webkit-",
-        ] {
+        for css in ["margin", "padding", "background-color", "mso-", "-webkit-"] {
             assert!(!s.contains(css), "{css} left in {s}");
         }
         assert!(
