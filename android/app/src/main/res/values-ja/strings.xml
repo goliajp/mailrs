@@ -422,4 +422,11 @@
     <string name="compose_message_sent">送信しました</string>
     <string name="compose_send_cancelled">送信を取り消しました</string>
     <string name="compose_undo_too_late">取り消せません。すでに送信されました</string>
+    <string name="row_assignee">担当: %1$s</string>
+    <string name="section_all">すべて</string>
+    <string name="section_reply">要返信</string>
+    <string name="section_awaiting">返信待ち</string>
+    <string name="section_new">新しい送信者</string>
+    <string name="section_accept_all">すべて承認</string>
+    <string name="section_accept_failed">送信者を承認できませんでした</string>
 </resources>

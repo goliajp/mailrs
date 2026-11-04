@@ -73,6 +73,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import jp.golia.mailrs.Draft
 import jp.golia.mailrs.UiState
+import jp.golia.mailrs.wire.MailList
 import jp.golia.mailrs.compose
 import jp.golia.mailrs.draftNoticeShown
 import jp.golia.mailrs.openDrafts
@@ -183,7 +184,7 @@ fun ConversationListScreen(state: UiState, vm: MailViewModel) {
     Scaffold(
         containerColor = theme.bg,
         snackbarHost = { SnackbarHost(snackbars, Modifier.testTag("snackbar.undo")) },
-        topBar = {
+        topBar = { Column {
             TopAppBar(
                 // **The bar becomes the action bar.** Android's answer
                 // to acting on many rows is that the top bar changes
@@ -270,7 +271,10 @@ fun ConversationListScreen(state: UiState, vm: MailViewModel) {
                     }
                 },
             )
-        },
+            if (state.list == MailList.Inbox && state.label == null && state.selected.isEmpty()) {
+                InboxSectionBar(state, vm)
+            }
+        } },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { vm.compose() },

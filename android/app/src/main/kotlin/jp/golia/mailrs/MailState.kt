@@ -75,6 +75,8 @@ data class UiState(
     val searchOpen: Boolean = false,
     /** Which list is showing. Its axes scope both the list and the search. */
     val list: MailList = MailList.Inbox,
+    /** The Inbox section showing (`reply`, `awaiting`, `new`); null is the whole Inbox. */
+    val inboxSection: String? = null,
     /** Which label [MailList.Label] shows; null for every other list. */
     val label: jp.golia.mailrs.wire.WireTriage.Label? = null,
     /** The reader's labels, for the drawer and the label picker. */

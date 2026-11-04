@@ -12,6 +12,9 @@ struct ListSurfaces: ViewModifier {
 
     func body(content: Content) -> some View {
         content
+            .safeAreaInset(edge: .top) {
+                if session.activeList == .inbox { InboxSectionBar() }
+            }
             .overlay(alignment: .top) { FailureBanner() }
             .animation(.easeOut(duration: 0.2), value: session.banner)
             .overlay(alignment: .bottom) { SendUndoBar().padding(.bottom, 48) }

@@ -229,6 +229,12 @@ extension Wire {
         /// The server's to read, not ours. Absent on a row cached before
         /// the server stamped one.
         let cursor: String?
+        /// The team member who answers it, absent or empty for nobody
+        /// and for a conversation that is not a team one.
+        let assignee: String?
+        /// The sectioned inbox's section (`reply`, `awaiting`, `new`,
+        /// `feed`, `other`); absent or empty when not decided yet.
+        let section: String?
 
         /// The account this arrived at, with absent read as ours.
         var arrivedAtAccount: String { accountId ?? "" }
@@ -245,8 +251,11 @@ extension Wire {
             snippet: String, pinned: Bool, archived: Bool, snoozedUntil: Int64?,
             importanceLevel: String, importanceScore: Double, requiresAction: Bool,
             receivedCount: Int, sentCount: Int, accountId: String? = nil,
-            trashedAt: Int64? = nil, labels: [String]? = nil, cursor: String? = nil
+            trashedAt: Int64? = nil, labels: [String]? = nil, cursor: String? = nil,
+            assignee: String? = nil, section: String? = nil
         ) {
+            self.assignee = assignee
+            self.section = section
             self.threadId = threadId
             self.subject = subject
             self.participants = participants
@@ -295,6 +304,8 @@ extension Wire {
             case trashedAt = "trashed_at"
             case labels
             case cursor
+            case assignee
+            case section
         }
 
         /// In the Trash, by the row's own word.

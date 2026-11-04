@@ -130,6 +130,15 @@ struct ConversationRow: View {
                         .foregroundStyle(.tertiary)
                         .lineLimit(1)
                 }
+                // A team conversation says who answers it, so two people
+                // do not both reply.
+                if let who = TeamRow.assignee(conversation) {
+                    Text("Assigned to \(who)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .accessibilityIdentifier("row.assignee.\(conversation.threadId)")
+                }
             }
         }
         .padding(.vertical, 2)

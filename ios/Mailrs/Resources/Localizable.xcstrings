@@ -353,6 +353,22 @@
         }
       }
     },
+    "Accept all": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "すべて承認"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全部接受"
+          }
+        }
+      }
+    },
     "Account": {
       "localizations": {
         "ja": {
@@ -893,6 +909,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "启动应用时，以及离开一分钟以上再回来时会要求验证。"
+          }
+        }
+      }
+    },
+    "Assigned to %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "担当: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已指派给 %@"
           }
         }
       }
@@ -3429,6 +3461,22 @@
         }
       }
     },
+    "New senders": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新しい送信者"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新发件人"
+          }
+        }
+      }
+    },
     "Next attempt %@": {
       "localizations": {
         "ja": {
@@ -5542,6 +5590,22 @@
         }
       }
     },
+    "The senders could not be accepted": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "送信者を承認できませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没能接受这些发件人"
+          }
+        }
+      }
+    },
     "Theme": {
       "localizations": {
         "ja": {
@@ -5778,6 +5842,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "收件人"
+          }
+        }
+      }
+    },
+    "To reply": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要返信"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "我要回复"
           }
         }
       }
@@ -6146,6 +6226,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "等待中"
+          }
+        }
+      }
+    },
+    "Waiting for a reply": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "返信待ち"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等对方回复"
           }
         }
       }
