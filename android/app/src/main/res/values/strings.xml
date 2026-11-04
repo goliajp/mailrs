@@ -434,4 +434,5 @@
     <string name="section_new">New senders</string>
     <string name="section_accept_all">Accept all</string>
     <string name="section_accept_failed">The senders could not be accepted</string>
+    <string name="trackers_blocked">Trackers blocked: %1$d</string>
 </resources>

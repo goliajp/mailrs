@@ -73,6 +73,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.clickable
 import jp.golia.mailrs.wire.ThreadCollapse
+import jp.golia.mailrs.wire.TrackingPixels
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -311,8 +312,9 @@ private fun MessageCard(
                 modifier = Modifier.padding(top = 10.dp),
             )
         } else {
+            TrackersNote(TrackingPixels.count(html))
             MessageBody(
-                html,
+                TrackingPixels.strip(html),
                 Modifier.padding(top = 10.dp),
                 warnings = m.linkWarnings,
                 onWarnedLink = { warned = it },

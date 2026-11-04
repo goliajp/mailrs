@@ -5894,6 +5894,22 @@
         }
       }
     },
+    "Trackers blocked: %lld": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "トラッカーを %lld 件ブロックしました"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已阻止追踪器 %lld 个"
+          }
+        }
+      }
+    },
     "Transport": {
       "localizations": {
         "ja": {

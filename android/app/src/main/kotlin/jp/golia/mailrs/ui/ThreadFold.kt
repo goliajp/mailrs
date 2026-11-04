@@ -17,7 +17,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import jp.golia.mailrs.R
 import jp.golia.mailrs.wire.SenderIdentity
+import jp.golia.mailrs.wire.Texts
 import jp.golia.mailrs.wire.ThreadCollapse
 import jp.golia.mailrs.wire.Wire
 
@@ -63,6 +65,21 @@ fun FoldedMessage(m: Wire.Message, onOpen: () -> Unit) {
             )
         }
     }
+}
+
+/**
+ * Above a message whose beacons were taken out: how many, so the reader
+ * knows the sender wanted to learn it was opened, and did not.
+ */
+@Composable
+fun TrackersNote(count: Int) {
+    if (count <= 0) return
+    Text(
+        Texts.get(R.string.trackers_blocked, count),
+        color = LocalTheme.current.fgMuted,
+        fontSize = 12.sp,
+        modifier = Modifier.padding(top = 8.dp).testTag("trackers.blocked"),
+    )
 }
 
 /** `uid` added when absent, taken out when present. */

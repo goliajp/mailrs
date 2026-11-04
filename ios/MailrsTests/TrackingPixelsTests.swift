@@ -5,6 +5,13 @@ import Testing
 
 @Suite("Tracking pixels")
 struct TrackingPixelsTests {
+    /// The note above the message counts what `strip` takes out, no more.
+    @Test func countsTheBeaconsStripTakesOut() {
+        let html = #"<img src="a" width="1" height="1"><img src="b" width="600"><IMG SRC="c" WIDTH=1 HEIGHT=1>"#
+        #expect(TrackingPixels.count(html: html) == 2)
+        #expect(TrackingPixels.count(html: "<p>no images</p>") == 0)
+    }
+
     @Test("a one-by-one image is removed")
     func removesBeacon() {
         let html = "<p>hi</p><img src=\"https://t.example/o.gif\" width=\"1\" height=\"1\">"
