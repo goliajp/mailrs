@@ -10,6 +10,8 @@
 //! directly and the split is invisible at the registration site.
 
 mod backfill_admin;
+mod bayes_rebuild;
+pub(crate) use bayes_rebuild::bayes_rebuild_v2_route;
 mod backfill_attachment_counts;
 mod backfill_attachment_text;
 mod backfill_ledger;

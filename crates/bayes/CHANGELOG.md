@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `tokenize` reads the decoded text of a message instead of its raw
+  bytes: the MIME body decoded by transfer encoding and charset
+  (ISO-2022-JP and Shift_JIS included), the `text/plain` part or else the
+  `text/html` part rendered as text without style sheets, scripts and
+  comments, and the Subject with its RFC 2047 encoded-words decoded.
+  Attachments are not read. Link domains come from every text part. A
+  corpus trained with the old tokenizer does not match the new tokens and
+  should be retrained.
+
+### Added
+
+- `tokenize_raw`: the previous tokenizer, unchanged, so a corpus trained
+  with it can still be read and trained while its replacement is built.
+
 - The Apache-2.0 and MIT license texts are shipped with the crate.
 
 ## [0.1.0] - 2026-08-04

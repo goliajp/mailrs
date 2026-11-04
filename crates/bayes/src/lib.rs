@@ -22,6 +22,8 @@
 
 mod classify;
 mod tokenize;
+mod tokenize_raw;
 
 pub use classify::{Corpus, MultiCorpus, TokenCounts, classify, classify_multiclass};
 pub use tokenize::tokenize;
+pub use tokenize_raw::tokenize_raw;

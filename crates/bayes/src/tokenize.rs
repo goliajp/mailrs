@@ -2,9 +2,15 @@
 //!
 //! Graham's method: each token counts once per message (dedup), so the
 //! output is a deduplicated set. Feature tokens carry a namespace prefix
-//! (`sub:` / `from:` / `url:` / `hdr:`) so a word in the Subject scores
+//! (`sub:` / `from:` / `url:` / `hdr:` / `hn:`) so a word in the Subject scores
 //! independently from the same word in the body — Subject words carry
 //! more discriminatory weight in practice.
+//!
+//! Words come from what a reader sees: the MIME body decoded by transfer
+//! encoding and charset, HTML rendered as text without its style sheets,
+//! and the Subject with its encoded-words decoded. Attachments are not
+//! read. Tokenizing the raw bytes scored a message's transfer encoding
+//! and CSS instead of its words.
 
 use std::collections::BTreeSet;
 
@@ -12,21 +18,36 @@ use std::collections::BTreeSet;
 /// giant message from flooding the corpus.
 const MAX_TOKENS: usize = 500;
 
+/// Header fields taken as `hn:` tokens, at most.
+const MAX_HEADER_NAMES: usize = 80;
+
+/// A header field name worth a token: letters, digits and `-`, at most 40.
+fn is_field_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 40
+        && name.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'-')
+}
+
 /// Split raw RFC 5322 message bytes into a deduplicated feature-token
-/// set. Lossy UTF-8 decode (mail is frequently not clean UTF-8);
-/// non-decodable bytes become replacement chars and tokenize to
-/// nothing, which is fine.
+/// set. Header values are read as lossy UTF-8; the body is MIME-decoded.
 pub fn tokenize(raw: &[u8]) -> Vec<String> {
-    let text = String::from_utf8_lossy(raw);
-    let (headers, body) = split_headers_body(&text);
+    let headers = String::from_utf8_lossy(header_block(raw));
+    let root = mailrs_mime::parse(raw);
 
     let mut out: BTreeSet<String> = BTreeSet::new();
 
     // Header-derived feature tokens.
-    for (name, value) in parse_headers(headers) {
+    let mut names = 0;
+    for (name, value) in parse_headers(&headers) {
+        // which fields a message carries says which software sent it
+        if names < MAX_HEADER_NAMES && is_field_name(&name) {
+            out.insert(format!("hn:{name}"));
+            names += 1;
+        }
         match name.as_str() {
             "subject" => {
-                for w in words(&value) {
+                let subject = mailrs_rfc2047::decode(value.as_bytes());
+                for w in words(&subject) {
                     out.insert(format!("sub:{w}"));
                 }
             }
@@ -78,27 +99,34 @@ pub fn tokenize(raw: &[u8]) -> Vec<String> {
     }
 
     // Body words + URL-domain feature tokens.
-    let body_text = strip_html(body);
-    for w in words(&body_text) {
-        out.insert(w);
+    if let Some(body_text) = mailrs_clean::body_text_for_search(&root) {
+        for w in words(&body_text) {
+            out.insert(w);
+        }
     }
-    for dom in url_domains(body) {
-        out.insert(format!("url:{dom}"));
+    // Link domains from every text part, the HTML source included, so an
+    // href counts even when the plain part is the one read for words.
+    for part in root.walk().filter(|p| !p.is_attachment()) {
+        if let Some(text) = part.body_text() {
+            for dom in url_domains(&text) {
+                out.insert(format!("url:{dom}"));
+            }
+        }
     }
 
     out.into_iter().take(MAX_TOKENS).collect()
 }
 
-/// Split on the first blank line (CRLF CRLF or LF LF). Everything
-/// before is headers, after is body. A message with no blank line is
-/// all-headers (degenerate, but tokenizes fine).
-fn split_headers_body(text: &str) -> (&str, &str) {
-    if let Some(i) = text.find("\r\n\r\n") {
-        (&text[..i], &text[i + 4..])
-    } else if let Some(i) = text.find("\n\n") {
-        (&text[..i], &text[i + 2..])
-    } else {
-        (text, "")
+/// The header section: everything before the first blank line (CRLF CRLF
+/// or LF LF). A message with no blank line is all headers.
+fn header_block(raw: &[u8]) -> &[u8] {
+    let crlf = raw.windows(4).position(|w| w == b"\r\n\r\n");
+    let lf = raw.windows(2).position(|w| w == b"\n\n");
+    match (crlf, lf) {
+        (Some(c), Some(l)) => &raw[..c.min(l)],
+        (Some(c), None) => &raw[..c],
+        (None, Some(l)) => &raw[..l],
+        (None, None) => raw,
     }
 }
 
@@ -178,25 +206,6 @@ fn is_cjk(ch: char) -> bool {
         | 0x3040..=0x30FF // Hiragana + Katakana
         | 0xAC00..=0xD7AF // Hangul
     )
-}
-
-/// Strip HTML tags, returning visible text. Naive but adequate for
-/// tokenizing — we only need words, not a DOM.
-fn strip_html(body: &str) -> String {
-    if !body.contains('<') {
-        return body.to_string();
-    }
-    let mut out = String::with_capacity(body.len());
-    let mut in_tag = false;
-    for ch in body.chars() {
-        match ch {
-            '<' => in_tag = true,
-            '>' => in_tag = false,
-            _ if !in_tag => out.push(ch),
-            _ => {}
-        }
-    }
-    out
 }
 
 /// Lowercased registrable-ish domain from a `From:` value — the part
@@ -304,11 +313,16 @@ mod tests {
 
     #[test]
     fn strips_html_tags() {
-        let msg = b"Subject: x\r\n\r\n<html><body><a href=\"http://bad.example/x\">click</a></body></html>";
+        let msg = b"Subject: x\r\nContent-Type: text/html\r\n\r\n<html><body><a href=\"http://bad.example/x\">click</a></body></html>";
         let toks = tokenize(msg);
         assert!(toks.contains(&"click".to_string()));
         assert!(toks.contains(&"url:bad.example".to_string()));
-        assert!(!toks.iter().any(|t| t.contains("html")));
+        assert!(
+            !toks
+                .iter()
+                .any(|t| !t.starts_with("hdr:") && t.contains("html")),
+            "{toks:?}"
+        );
     }
 
     #[test]
@@ -366,5 +380,22 @@ mod tests {
         let toks = tokenize(raw);
         assert!(!toks.contains(&"hdr:auto-submitted".to_string()));
         assert!(!toks.contains(&"from:automated".to_string()));
+    }
+
+    #[test]
+    fn every_header_field_name_is_a_token() {
+        let raw = b"From: a@b.com\r\nX-Mailer: Mass Sender 9\r\nX-Campaign-ID: 77\r\n\
+Feedback-ID: 1:2:3\r\nX Bad Name: no\r\nSubject: hi\r\n\r\nbody";
+        let toks = tokenize(raw);
+        for t in [
+            "hn:from",
+            "hn:x-mailer",
+            "hn:x-campaign-id",
+            "hn:feedback-id",
+            "hn:subject",
+        ] {
+            assert!(toks.contains(&t.to_string()), "missing {t}: {toks:?}");
+        }
+        assert!(!toks.iter().any(|t| t.starts_with("hn:x bad")), "{toks:?}");
     }
 }
