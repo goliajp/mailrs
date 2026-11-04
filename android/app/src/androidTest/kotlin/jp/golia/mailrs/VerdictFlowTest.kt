@@ -58,6 +58,8 @@ class VerdictFlowTest : MailrsUiTest() {
     fun a_held_message_shows_its_layers_reasons_and_sender_checks() {
         armVerdicts()
         openOrdinaryThread()
+        // the placement note is on the older message
+        unfoldAll()
         waitFor("no verdict panel on a held message") { exists("verdict.panel") }
         assertTrue("rule reason not worded", exists("verdict.layer.identity", "The display name claims to be Golia."))
         assertTrue("a passing layer did not say so", exists("verdict.layer.content", "Nothing found."))

@@ -273,6 +273,9 @@ final class ThreadFlowTests: MailrsUITestCase {
         XCTAssertTrue(app.staticTexts["請求書_2026年8月分.pdf"].exists,
                       "the unfolded card lost its attachments")
         XCTAssertFalse(folded.exists, "the folded line outlived its card")
+        // its 1x1 beacon was taken out, and the card says so
+        XCTAssertTrue(app.descendants(matching: .any)["trackers.blocked"].waitForExistence(timeout: 5),
+                      "the unfolded card did not say a tracker was blocked")
     }
 
 

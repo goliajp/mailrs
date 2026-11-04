@@ -6,6 +6,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.json.JSONArray
 import org.junit.Assert.assertEquals
@@ -84,8 +85,9 @@ class SectionFlowTest : MailrsUiTest() {
 
         compose.onNodeWithTag("message.folded.1").performClick()
         waitForTag("message.header.1", "tapping a folded message did not open it")
-        compose.onNodeWithTag("message.header.2").performClick()
-        waitForTag("message.folded.2", "tapping the newest message's header did not fold it")
+        // the unfolded older body can push the newest one below the screen
+        compose.onNodeWithTag("message.header.2").performScrollTo().performClick()
+        waitUntilShown(hasTestTag("message.folded.2"), "tapping the newest message's header did not fold it")
     }
 
     private fun waitUntilShown(matcher: androidx.compose.ui.test.SemanticsMatcher, what: String) {

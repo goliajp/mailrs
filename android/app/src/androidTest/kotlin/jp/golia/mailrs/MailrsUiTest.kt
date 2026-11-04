@@ -2,6 +2,7 @@ package jp.golia.mailrs
 
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -183,6 +184,21 @@ abstract class MailrsUiTest : GrantsNotifications() {
         waitForTag("field.confirmPassword", "the password prompt never opened")
         compose.onNodeWithTag("field.confirmPassword").performTextInput(password)
         compose.onNodeWithTag("button.confirmPassword").performClick()
+    }
+
+    /**
+     * Open every folded message, for a test about an older message's
+     * body, attachments or buttons rather than about the fold itself.
+     */
+    protected fun unfoldAll() {
+        val folded = SemanticsMatcher("folded message") { node ->
+            node.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("message.folded.") == true
+        }
+        compose.waitForIdle()
+        while (compose.onAllNodes(folded).fetchSemanticsNodes().isNotEmpty()) {
+            compose.onAllNodes(folded).onFirst().performScrollTo().performClick()
+            compose.waitForIdle()
+        }
     }
 
     protected fun waitForTag(tag: String, what: String) {

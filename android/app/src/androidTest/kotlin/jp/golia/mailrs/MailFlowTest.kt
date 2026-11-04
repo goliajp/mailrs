@@ -165,6 +165,7 @@ class MailFlowTest : MailrsUiTest() {
         waitForTag("list.conversations", "the inbox never listed")
         compose.onAllNodesWithTag("row.conversation").onFirst().performClick()
         waitForTag("list.messages", "the thread never opened")
+        unfoldAll()
 
         // Height, not presence. A `WebView` that measured to nothing
         // still puts a semantics node on the tree, so "the node exists"
@@ -175,6 +176,10 @@ class MailFlowTest : MailrsUiTest() {
                 .any { it.size.height > 100 }
         }
         waitForTag("body.remoteBlocked", "the remote image was not held back")
+        // the fixture's 1x1 beacon is taken out, and the reader is told
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithTag("trackers.blocked", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+        }
 
         compose.onNodeWithTag("button.loadImages").performClick()
         compose.waitUntil(TIMEOUT_MS) {
@@ -196,6 +201,8 @@ class MailFlowTest : MailrsUiTest() {
         signIn()
         waitForTag("list.conversations", "the inbox never listed")
         compose.onAllNodesWithTag("row.conversation").onFirst().performClick()
+        waitForTag("list.messages", "the thread never opened")
+        unfoldAll()
         waitForTag("list.attachments", "the message listed no attachments")
 
         val rows = compose.onAllNodesWithTag("row.attachment").fetchSemanticsNodes().size
@@ -278,6 +285,7 @@ class MailFlowTest : MailrsUiTest() {
         }
         compose.onNodeWithText("This week in systems design").performClick()
         waitForTag("list.messages", "the newsletter never opened")
+        unfoldAll()
 
         // The one-click offer is the second message; the first only
         // advertises a page, and tapping that leaves for a browser —
@@ -393,6 +401,7 @@ class MailFlowTest : MailrsUiTest() {
         waitForTag("list.conversations", "the inbox never listed")
         compose.onAllNodesWithTag("row.conversation").onFirst().performClick()
         waitForTag("list.messages", "the thread never opened")
+        unfoldAll()
 
         // The **second** message: the first is addressed only to me,
         // so a reply-all to it cannot show the difference between
