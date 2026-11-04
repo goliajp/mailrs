@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Brand icons for sender domains, the web client's cascade.
 ///
-/// Backend: `crates/webapi/src/handlers/icon.rs` —
+/// Backend: `crates/webapi/src/handlers/icon/mod.rs` —
 /// `GET /api/icon/{domain}` walks BIMI, then the vendor-neutral
 /// favicon services, and caches the answer in kevy for every user. It
 /// answers **204, not 404**, when a domain has no icon anywhere; the

@@ -26,4 +26,13 @@ object SenderIconDomain {
         if (domain.startsWith('.') || domain.endsWith('.') || domain.contains("..")) return null
         return domain
     }
+
+    /**
+     * The request path, asking for a PNG: BIMI logos are SVG and some
+     * favicons `.ico`, and `BitmapFactory` decodes neither, so without
+     * `format=png` those senders show a letter. The web asks without it
+     * and keeps the SVG.
+     */
+    fun path(domain: String): String =
+        "/api/icon/${java.net.URLEncoder.encode(domain, "UTF-8")}?format=png"
 }
