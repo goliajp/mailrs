@@ -1,24 +1,100 @@
 {
   "comment": "Messages and how many trackers each holds, by the rules in trackers.json plus the invisible-image rule. The web, iOS and Android tests all read this one file.",
   "samples": [
-    { "name": "no images", "html": "<p>Just text, and a &lt;img&gt; that is not a tag.</p>", "trackers": 0 },
-    { "name": "a real picture", "html": "<img src=\"https://cdn.shop.test/hero.jpg\" width=\"600\" height=\"200\">", "trackers": 0 },
-    { "name": "one by one", "html": "<p>hi</p><img src=\"https://t.example/o.gif\" width=\"1\" height=\"1\">", "trackers": 1 },
-    { "name": "unquoted and upper case", "html": "<IMG SRC=https://t.example/o.gif WIDTH=1 HEIGHT=1>", "trackers": 1 },
-    { "name": "zero wide, height unstated", "html": "<img src=\"https://t.example/o.gif\" width=\"0\">", "trackers": 1 },
-    { "name": "one pixel by inline style", "html": "<img src=\"https://t.example/o\" style=\"width: 1px; height: 1px\">", "trackers": 1 },
-    { "name": "hidden by display none", "html": "<img src=\"https://cdn.shop.test/a.png\" width=\"600\" height=\"200\" style=\"display:none\">", "trackers": 1 },
-    { "name": "hidden by visibility", "html": "<img src=\"https://cdn.shop.test/a.png\" style=\"Visibility: Hidden\">", "trackers": 1 },
-    { "name": "a known tracking host", "html": "<img src=\"https://mailtrack.io/trace/mail/abc.png\" width=\"300\" height=\"100\">", "trackers": 1 },
-    { "name": "a subdomain of a tracking host", "html": "<img src=\"https://a.b.mailtrack.io/x.png\">", "trackers": 1 },
-    { "name": "a name that only ends like a tracking host", "html": "<img src=\"https://notmailtrack.io/x.png\">", "trackers": 0 },
-    { "name": "an open-tracking path", "html": "<img src=\"https://u1.ct.sendgrid.net/wf/open?upn=x\">", "trackers": 1 },
-    { "name": "a path matched without regard to case", "html": "<img src=\"https://mail.shop.test/Track/Open/123\">", "trackers": 1 },
-    { "name": "a picture at a percentage", "html": "<img src=\"https://cdn.shop.test/a.png\" width=\"100%\">", "trackers": 0 },
-    { "name": "one side small, the other not", "html": "<img src=\"https://cdn.shop.test/rule.png\" width=\"600\" height=\"1\">", "trackers": 0 },
-    { "name": "an inline part is not fetched", "html": "<img src=\"cid:logo@x\" width=\"1\" height=\"1\">", "trackers": 0 },
-    { "name": "a data address is not fetched", "html": "<img src=\"data:image/gif;base64,R0lGODlhAQABAAAAACw=\" width=\"1\" height=\"1\">", "trackers": 0 },
-    { "name": "several in one message", "html": "<img width=1 height=1 src=https://t.example/a><p>body</p><img height='1' width='1' src='https://t.example/b'><img src=\"https://cdn.shop.test/hero.jpg\">", "trackers": 2 },
-    { "name": "an unclosed tag at the end", "html": "<p>a</p><img src=\"https://t.example/o.gif\" width=\"1\" height=\"1\"", "trackers": 0 }
+    {
+      "name": "no images",
+      "html": "<p>Just text, and a &lt;img&gt; that is not a tag.</p>",
+      "trackers": 0
+    },
+    {
+      "name": "a real picture",
+      "html": "<img src=\"https://cdn.shop.test/hero.jpg\" width=\"600\" height=\"200\">",
+      "trackers": 0
+    },
+    {
+      "name": "one by one",
+      "html": "<p>hi</p><img src=\"https://t.example/o.gif\" width=\"1\" height=\"1\">",
+      "trackers": 1
+    },
+    {
+      "name": "unquoted and upper case",
+      "html": "<IMG SRC=https://t.example/o.gif WIDTH=1 HEIGHT=1>",
+      "trackers": 1
+    },
+    {
+      "name": "zero wide, height unstated",
+      "html": "<img src=\"https://t.example/o.gif\" width=\"0\">",
+      "trackers": 1
+    },
+    {
+      "name": "one pixel by inline style",
+      "html": "<img src=\"https://t.example/o\" style=\"width: 1px; height: 1px\">",
+      "trackers": 1
+    },
+    {
+      "name": "hidden by display none",
+      "html": "<img src=\"https://cdn.shop.test/a.png\" width=\"600\" height=\"200\" style=\"display:none\">",
+      "trackers": 1
+    },
+    {
+      "name": "hidden by visibility",
+      "html": "<img src=\"https://cdn.shop.test/a.png\" style=\"Visibility: Hidden\">",
+      "trackers": 1
+    },
+    {
+      "name": "a known tracking host",
+      "html": "<img src=\"https://mailtrack.io/trace/mail/abc.png\" width=\"300\" height=\"100\">",
+      "trackers": 1
+    },
+    {
+      "name": "a subdomain of a tracking host",
+      "html": "<img src=\"https://a.b.mailtrack.io/x.png\">",
+      "trackers": 1
+    },
+    {
+      "name": "a name that only ends like a tracking host",
+      "html": "<img src=\"https://notmailtrack.io/x.png\">",
+      "trackers": 0
+    },
+    {
+      "name": "an open-tracking path",
+      "html": "<img src=\"https://u1.ct.sendgrid.net/wf/open?upn=x\">",
+      "trackers": 1
+    },
+    {
+      "name": "a path matched without regard to case",
+      "html": "<img src=\"https://mail.shop.test/Track/Open/123\">",
+      "trackers": 1
+    },
+    {
+      "name": "a picture at a percentage",
+      "html": "<img src=\"https://cdn.shop.test/a.png\" width=\"100%\">",
+      "trackers": 0
+    },
+    {
+      "name": "one side small, the other not",
+      "html": "<img src=\"https://cdn.shop.test/rule.png\" width=\"600\" height=\"1\">",
+      "trackers": 0
+    },
+    {
+      "name": "an inline part is not fetched",
+      "html": "<img src=\"cid:logo@x\" width=\"1\" height=\"1\">",
+      "trackers": 0
+    },
+    {
+      "name": "a data address is not fetched",
+      "html": "<img src=\"data:image/gif;base64,R0lGODlhAQABAAAAACw=\" width=\"1\" height=\"1\">",
+      "trackers": 0
+    },
+    {
+      "name": "several in one message",
+      "html": "<img width=1 height=1 src=https://t.example/a><p>body</p><img height='1' width='1' src='https://t.example/b'><img src=\"https://cdn.shop.test/hero.jpg\">",
+      "trackers": 2
+    },
+    {
+      "name": "an unclosed tag at the end",
+      "html": "<p>a</p><img src=\"https://t.example/o.gif\" width=\"1\" height=\"1\"",
+      "trackers": 0
+    }
   ]
 }
