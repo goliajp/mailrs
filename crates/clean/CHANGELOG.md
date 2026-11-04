@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `body_text_for_search(part)`: the body text of a parsed MIME message —
   the first non-attachment `text/plain` part, else the first `text/html`
   part rendered as text without its style sheets, scripts and comments.
+  A plain part that is HTML source (at least eight layout or document
+  tags) is rendered the same way, and CSS left in the text is removed.
+- `is_html_source(text)`: whether a plain part is HTML source sent as text.
+- `strip_css_rules(text)`: text without CSS comments, style at-rules
+  (`@media`, `@font-face`, …), declaration blocks and `style="…"` values.
 
 ## [1.2.0] - 2026-10-22
 
