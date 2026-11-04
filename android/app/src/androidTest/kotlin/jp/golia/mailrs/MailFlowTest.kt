@@ -373,7 +373,8 @@ class MailFlowTest : MailrsUiTest() {
         waitForTag("drawer.lists", "the drawer never opened")
         compose.onNodeWithTag("drawer.item.Settings").performScrollTo().performClick()
         scrollToTag("admin.Aliases", "settings never opened")
-        compose.onNodeWithText("me@golia.jp").assertIsDisplayed()
+        // the account row sits above the admin section, so scroll back to it
+        compose.onNodeWithText("me@golia.jp").performScrollTo().assertIsDisplayed()
     }
 
     /**
