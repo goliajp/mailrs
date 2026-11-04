@@ -36,6 +36,11 @@ class Prefs(context: Context) {
         get() = store.getBoolean(KEY_NOTIFY, true)
         set(value) = store.edit().putBoolean(KEY_NOTIFY, value).apply()
 
+    /** Whether remote images load with a message; held back until asked unless chosen otherwise. */
+    var remoteImages: RemoteImages
+        get() = RemoteImages.entries.firstOrNull { it.name == store.getString(KEY_REMOTE_IMAGES, null) } ?: RemoteImages.Click
+        set(value) = store.edit().putString(KEY_REMOTE_IMAGES, value.name).apply()
+
     /**
      * What the last check saw, or null if there has not been one.
      *
@@ -68,5 +73,6 @@ class Prefs(context: Context) {
         const val KEY_APPEARANCE = "appearance"
         const val KEY_NOTIFY = "notify_new_mail"
         const val KEY_LAST_UNSEEN = "last_unseen"
+        const val KEY_REMOTE_IMAGES = "remote_images"
     }
 }

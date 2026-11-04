@@ -185,7 +185,10 @@ targets:
       - path: Mailrs/Features/ConversationRowMenu.swift
       - path: Mailrs/Features/ThreadView.swift
       - path: Mailrs/Features/ThreadHeader.swift
+      - path: Mailrs/Features/TeamViews.swift
+      - path: Mailrs/Features/SenderSettingsActions.swift
       - path: Mailrs/Features/MessageCard.swift
+      - path: Mailrs/Features/TrackersNote.swift
       - path: Mailrs/Features/MessageBodyView.swift
       - path: Mailrs/Features/MessageSourceSheet.swift
       - path: Mailrs/Features/ComposeView.swift

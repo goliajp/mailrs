@@ -30,9 +30,10 @@ import kotlinx.coroutines.launch
 internal const val UNDO_WINDOW_MS = 5_000L
 
 /** The axes the list showing asks for: a label's own, or the list's. */
-fun UiState.axes(): MailListAxes = when (val l = label) {
-    null -> list.axes
-    else -> MailList.labelAxes(l.id)
+fun UiState.axes(): MailListAxes = when {
+    label != null -> MailList.labelAxes(label.id)
+    list == MailList.Inbox -> list.axes.copy(section = inboxSection)
+    else -> list.axes
 }
 
 /**

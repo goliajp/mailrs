@@ -109,9 +109,6 @@ class MailFlowTest : MailrsUiTest() {
         compose.onNodeWithTag("field.server").assertIsDisplayed()
     }
 
-
-
-
     /**
      * Search, and in the order the server ranked it.
      *
@@ -164,7 +161,7 @@ class MailFlowTest : MailrsUiTest() {
         signIn()
         waitForTag("list.conversations", "the inbox never listed")
         compose.onAllNodesWithTag("row.conversation").onFirst().performClick()
-        waitForTag("list.messages", "the thread never opened")
+        unfoldAll()
 
         // Height, not presence. A `WebView` that measured to nothing
         // still puts a semantics node on the tree, so "the node exists"
@@ -175,6 +172,10 @@ class MailFlowTest : MailrsUiTest() {
                 .any { it.size.height > 100 }
         }
         waitForTag("body.remoteBlocked", "the remote image was not held back")
+        // the fixture's 1x1 beacon is taken out, and the reader is told
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithTag("trackers.blocked", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+        }
 
         compose.onNodeWithTag("button.loadImages").performClick()
         compose.waitUntil(TIMEOUT_MS) {
@@ -196,6 +197,7 @@ class MailFlowTest : MailrsUiTest() {
         signIn()
         waitForTag("list.conversations", "the inbox never listed")
         compose.onAllNodesWithTag("row.conversation").onFirst().performClick()
+        unfoldAll()
         waitForTag("list.attachments", "the message listed no attachments")
 
         val rows = compose.onAllNodesWithTag("row.attachment").fetchSemanticsNodes().size
@@ -234,7 +236,6 @@ class MailFlowTest : MailrsUiTest() {
         )
     }
 
-
     /** And the composer goes back to whatever opened it. */
 
     /** And it collapses the search rather than leaving. */
@@ -254,7 +255,6 @@ class MailFlowTest : MailrsUiTest() {
      * some fixed time has passed — a sleep would be a guess about a
      * machine's speed.
      */
-
 
     /**
      * Leaving a mailing list, asserted at the wire.
@@ -277,7 +277,7 @@ class MailFlowTest : MailrsUiTest() {
             compose.onAllNodesWithText("This week in systems design").fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithText("This week in systems design").performClick()
-        waitForTag("list.messages", "the newsletter never opened")
+        unfoldAll()
 
         // The one-click offer is the second message; the first only
         // advertises a page, and tapping that leaves for a browser —
@@ -293,8 +293,6 @@ class MailFlowTest : MailrsUiTest() {
         assertTrue("the request did not name thread t3: $asked", asked.contains("\"t3\""))
         assertTrue("the request did not name uid 8: $asked", asked.contains("8"))
     }
-
-
 
     /**
      * The message as it arrived, headers and all.
@@ -375,7 +373,8 @@ class MailFlowTest : MailrsUiTest() {
         waitForTag("drawer.lists", "the drawer never opened")
         compose.onNodeWithTag("drawer.item.Settings").performScrollTo().performClick()
         scrollToTag("admin.Aliases", "settings never opened")
-        compose.onNodeWithText("me@golia.jp").assertIsDisplayed()
+        // the account row sits above the admin section, so scroll back to it
+        compose.onNodeWithText("me@golia.jp").performScrollTo().assertIsDisplayed()
     }
 
     /**
@@ -392,7 +391,7 @@ class MailFlowTest : MailrsUiTest() {
         signIn()
         waitForTag("list.conversations", "the inbox never listed")
         compose.onAllNodesWithTag("row.conversation").onFirst().performClick()
-        waitForTag("list.messages", "the thread never opened")
+        unfoldAll()
 
         // The **second** message: the first is addressed only to me,
         // so a reply-all to it cannot show the difference between

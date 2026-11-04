@@ -27,6 +27,9 @@ struct MailListAxes: Equatable, Sendable {
     /// they did not ask. This server's own mail is the empty string,
     /// so it can be switched off like any other.
     var accounts: [String]?
+    /// One section of the sectioned inbox (`reply`, `awaiting`, `new`);
+    /// nil is the whole inbox.
+    var section: String?
 }
 
 extension MailListAxes {
@@ -54,6 +57,7 @@ extension MailListAxes {
         if pinned { items.append(URLQueryItem(name: "pinned", value: "true")) }
         if snoozed { items.append(URLQueryItem(name: "snoozed", value: "true")) }
         if let label { items.append(URLQueryItem(name: "label", value: label)) }
+        if let section { items.append(URLQueryItem(name: "section", value: section)) }
         // Sent whenever the filter is narrowed — including to nothing,
         // which is the parameter present and empty. The server reads an
         // absent one as every account, so the two cannot be collapsed.

@@ -31,7 +31,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.rememberUpdatedState
 import jp.golia.mailrs.wire.LinkWarnings
+import androidx.compose.ui.platform.LocalContext
 import jp.golia.mailrs.wire.MailAppearance
+import jp.golia.mailrs.wire.Prefs
 import jp.golia.mailrs.wire.RemoteContent
 import jp.golia.mailrs.wire.WireVerdict
 
@@ -94,7 +96,10 @@ fun MessageBody(
     // ask again because they turned the phone. Keyed on the message, so
     // the next one starts blocked again — the decision is per message,
     // not a setting.
-    var blockRemote by rememberSaveable(html) { mutableStateOf(true) }
+    var imagesAsked by rememberSaveable(html) { mutableStateOf(false) }
+    val context = LocalContext.current
+    val images = remember(context) { Prefs(context).remoteImages }
+    val blockRemote = images.blocked(imagesAsked)
     val hasRemote = remember(html) { RemoteContent.hasRemoteReferences(html) }
 
     if (hasRemote && blockRemote) {
@@ -112,11 +117,11 @@ fun MessageBody(
                 fontSize = 12.sp,
                 modifier = Modifier.testTag("body.remoteBlocked"),
             )
-            TextButton(
-                onClick = { blockRemote = false },
-                modifier = Modifier.testTag("button.loadImages"),
-            ) {
-                Text(Texts.get(R.string.body_load), color = theme.accent, fontSize = 12.sp)
+            // "Never load" says the images are held and offers nothing to tap
+            if (images.offersButton(imagesAsked)) {
+                TextButton(onClick = { imagesAsked = true }, modifier = Modifier.testTag("button.loadImages")) {
+                    Text(Texts.get(R.string.body_load), color = theme.accent, fontSize = 12.sp)
+                }
             }
         }
     }
