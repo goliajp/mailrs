@@ -17,10 +17,6 @@
 //!   not on the reader's blacklist, was never marked as junk by the reader
 //!   (a `UserJunk` sender-domain observation, retracted or not), and has
 //!   no conversation of the reader's in either spam corpus set
-//! - the reader replied: a message of their own in the same conversation
-//!   after one from the sender, or, without one there, the contact record
-//!   says they have sent to that sender's address (it keeps a count, not
-//!   when)
 //!
 //! Then at most `per_domain` conversations per sender domain, and `total`
 //! overall, in the order of a hash of user and thread id, so a page taken
@@ -52,7 +48,6 @@ pub(super) struct Rejected {
     domain_marked_junk: u64,
     domain_in_junk_or_held: u64,
     domain_too_few: u64,
-    no_reply: u64,
     dmarc_not_pass: u64,
     no_file: u64,
     per_domain_cap: u64,
@@ -73,48 +68,15 @@ pub(super) struct Roster {
     pub(super) rejected: Rejected,
 }
 
-pub(super) struct Message {
-    pub(super) from: String,
-    pub(super) arrived: i64,
-    pub(super) message_id: String,
-    pub(super) blob_ref: String,
-}
-
-/// When `user` wrote in `tid`, each of their own messages.
-fn own_dates(state: &FastcoreState, user: &str, tid: &str) -> Vec<i64> {
-    let user = user.to_ascii_lowercase();
-    state
-        .mailbox
-        .list_thread_messages(&user, tid)
-        .unwrap_or_default()
-        .iter()
-        .filter_map(|blob| serde_json::from_slice::<serde_json::Value>(blob).ok())
-        .filter(|v| bare_address(v.get("sender").and_then(|x| x.as_str()).unwrap_or("")) == user)
-        .map(|v| v.get("internal_date").and_then(|x| x.as_i64()).unwrap_or(0))
-        .collect()
-}
-
-/// The reader answered the sender of `msgs`: their own message in the
-/// conversation after the first one from the sender, or a contact record
-/// of having sent to that address.
-fn replied(
-    state: &FastcoreState,
-    conn: &mut kevy_client::Connection,
-    user: &str,
-    tid: &str,
-    msgs: &[Message],
-) -> bool {
-    let Some(first) = msgs.iter().map(|m| m.arrived).min() else {
-        return false;
-    };
-    own_dates(state, user, tid).iter().any(|d| *d > first)
-        || msgs.iter().any(|m| {
-            mailrs_core_sidestate::families::contacts::has_sent_to_addr(conn, user, &m.from)
-        })
+struct Message {
+    from: String,
+    arrived: i64,
+    message_id: String,
+    blob_ref: String,
 }
 
 /// The messages of `tid` others sent to `user`.
-pub(super) fn inbound(state: &FastcoreState, user: &str, tid: &str) -> Vec<Message> {
+fn inbound(state: &FastcoreState, user: &str, tid: &str) -> Vec<Message> {
     let user = user.to_ascii_lowercase();
     let mut out = Vec::new();
     for blob in state
@@ -149,7 +111,7 @@ fn bare_address(sender: &str) -> String {
     s.trim().to_ascii_lowercase()
 }
 
-pub(super) fn registrable_of(address: &str) -> String {
+fn registrable_of(address: &str) -> String {
     let host = address.rsplit_once('@').map_or(address, |(_, d)| d);
     mailrs_fraud::brand::registrable(host)
 }
@@ -242,7 +204,7 @@ fn junk_domains(
     Ok(out)
 }
 
-pub(super) fn hash_of(user: &str, tid: &str) -> u64 {
+fn hash_of(user: &str, tid: &str) -> u64 {
     user.bytes()
         .chain([0u8])
         .chain(tid.bytes())
@@ -355,10 +317,6 @@ pub(super) fn roster(
             }
             if per_dom.get(&dom).copied().unwrap_or(0) < MIN_DOMAIN_THREADS {
                 rejected.domain_too_few += 1;
-                continue;
-            }
-            if !replied(state, conn, &user, &tid, &msgs) {
-                rejected.no_reply += 1;
                 continue;
             }
             let on_disk =
