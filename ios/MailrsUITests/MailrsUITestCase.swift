@@ -36,7 +36,7 @@ class MailrsUITestCase: XCTestCase {
         // Chinese; before the app had a Chinese localization that made
         // no difference, and the moment it did, half the suite went
         // looking for English words on a Chinese screen.
-        app.launchArguments += ["-mailrs.language", language ?? "en"]
+        app.launchArguments += ["-mailrs.language", language ?? "en", "-mailrs.remoteImages", "click"]
         // The app's own theme wins over the simulator's appearance —
         // `preferredColorScheme` is an override, and this simulator has
         // "Dark" stored from an earlier run. So `simctl ui appearance

@@ -75,6 +75,12 @@ data class UiState(
     val searchOpen: Boolean = false,
     /** Which list is showing. Its axes scope both the list and the search. */
     val list: MailList = MailList.Inbox,
+    /** The Inbox section showing (`reply`, `awaiting`, `new`); null is the whole Inbox. */
+    val inboxSection: String? = null,
+    /** The calendar page, while it is open. */
+    val calendar: CalendarPage? = null,
+    /** A settings page of its own, over Settings. */
+    val settingsPage: SettingsPage? = null,
     /** Which label [MailList.Label] shows; null for every other list. */
     val label: jp.golia.mailrs.wire.WireTriage.Label? = null,
     /** The reader's labels, for the drawer and the label picker. */
@@ -412,29 +418,6 @@ data class AdminDetail(
 data class OpenedFile(val file: java.io.File, val mimeType: String, val filename: String)
 
 /**
- * A triage waiting out its undo window.
- *
- * `before` is the whole list as it was, not just the row: putting
- * one row back at the right index is the same information and more
- * ways to get it wrong.
- */
-data class PendingTriage(
-    /** The rows acted on — one for a swipe, any number for a selection. */
-    val rows: List<Wire.Conversation>,
-    val action: jp.golia.mailrs.wire.RowAction,
-    val before: List<Wire.Conversation>,
-    /**
-     * Whether the server has already been told. A swipe waits out the
-     * undo window first, so undoing it costs nothing; an action from a
-     * menu is sent at once, and undoing it sends the action that takes
-     * it back.
-     */
-    val applied: Boolean = false,
-    /** The label a label action put on or took off. */
-    val labelId: String? = null,
-)
-
-/**
  * What a back press closes while Settings is showing.
  *
  * Settings has sub-screens that are not their own [Screen], so
@@ -447,11 +430,12 @@ data class PendingTriage(
  * about two copies of "which screen closes to what" drifting apart, and
  * this is that drift caught in the act.
  */
-enum class SettingsBack { MailAccounts, MergedMail, Settings }
+enum class SettingsBack { MailAccounts, MergedMail, Page, Settings }
 
 fun settingsBack(state: UiState): SettingsBack = when {
     state.mailAccountsOpen -> SettingsBack.MailAccounts
     state.mergedMailOpen -> SettingsBack.MergedMail
+    state.settingsPage != null -> SettingsBack.Page
     else -> SettingsBack.Settings
 }
 

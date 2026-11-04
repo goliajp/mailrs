@@ -8,7 +8,6 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import jp.golia.mailrs.markAllRead
-import jp.golia.mailrs.openSent
 import androidx.compose.foundation.focusable
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -73,11 +72,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import jp.golia.mailrs.Draft
 import jp.golia.mailrs.UiState
+import jp.golia.mailrs.wire.MailList
 import jp.golia.mailrs.compose
 import jp.golia.mailrs.draftNoticeShown
-import jp.golia.mailrs.openDrafts
 import jp.golia.mailrs.loadLabels
-import jp.golia.mailrs.showLabel
 import jp.golia.mailrs.R
 import jp.golia.mailrs.wire.RowAction
 import jp.golia.mailrs.wire.Texts
@@ -85,7 +83,6 @@ import androidx.compose.ui.res.stringResource
 import jp.golia.mailrs.clearSelection
 import jp.golia.mailrs.toggleSelected
 import jp.golia.mailrs.triage
-import jp.golia.mailrs.openSettings
 import jp.golia.mailrs.setSearchOpen
 import jp.golia.mailrs.MailViewModel
 import jp.golia.mailrs.wire.MailrsClient
@@ -102,7 +99,6 @@ import jp.golia.mailrs.wire.MailrsClient
 fun ConversationListScreen(state: UiState, vm: MailViewModel) {
     val theme = LocalTheme.current
     val snackbars = remember { SnackbarHostState() }
-
 
     // The launcher's Search shortcut. Read here rather than called into
     // the screen, because the shortcut can arrive before this list is
@@ -154,36 +150,13 @@ fun ConversationListScreen(state: UiState, vm: MailViewModel) {
     ModalNavigationDrawer(
         drawerState = drawer,
         drawerContent = {
-            MailListDrawer(
-                current = state.list,
-                currentLabel = state.label,
-                labels = state.labels,
-                onChooseLabel = { chosen ->
-                    scope.launch { drawer.close() }
-                    vm.showLabel(chosen)
-                },
-                onDrafts = {
-                    scope.launch { drawer.close() }
-                    vm.openDrafts()
-                },
-                onSent = {
-                    scope.launch { drawer.close() }
-                    vm.openSent()
-                },
-                onSettings = {
-                    scope.launch { drawer.close() }
-                    vm.openSettings()
-                },
-            ) { chosen ->
-                scope.launch { drawer.close() }
-                vm.show(chosen)
-            }
+            ListDrawer(state, vm) { scope.launch { drawer.close() } }
         },
     ) {
     Scaffold(
         containerColor = theme.bg,
         snackbarHost = { SnackbarHost(snackbars, Modifier.testTag("snackbar.undo")) },
-        topBar = {
+        topBar = { Column {
             TopAppBar(
                 // **The bar becomes the action bar.** Android's answer
                 // to acting on many rows is that the top bar changes
@@ -270,7 +243,10 @@ fun ConversationListScreen(state: UiState, vm: MailViewModel) {
                     }
                 },
             )
-        },
+            if (state.list == MailList.Inbox && state.label == null && state.selected.isEmpty()) {
+                InboxSectionBar(state, vm)
+            }
+        } },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { vm.compose() },

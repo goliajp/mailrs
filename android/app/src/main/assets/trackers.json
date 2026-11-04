@@ -1,0 +1,33 @@
+{
+  "comment": "What counts as a tracker in a received message. A copy lives at web/src/lib/trackers.json; a test keeps the two identical.",
+  "hosts": [
+    "bananatag.com",
+    "getnotify.com",
+    "mailfoogae.appspot.com",
+    "mailtrack.io",
+    "pixel.watch",
+    "t.yesware.com"
+  ],
+  "paths": [
+    "/track/open",
+    "/wf/open",
+    "/e/o/",
+    "/open.aspx",
+    "/pixel.gif",
+    "/tracking/open",
+    "/email/open"
+  ],
+  "params": [
+    "_hsenc",
+    "_hsmi",
+    "fbclid",
+    "gclid",
+    "igshid",
+    "mc_cid",
+    "mc_eid",
+    "mkt_tok",
+    "msclkid",
+    "yclid"
+  ],
+  "param_prefixes": ["utm_"]
+}

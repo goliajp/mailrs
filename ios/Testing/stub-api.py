@@ -24,7 +24,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
-import stub_confirm, stub_invite, stub_paging, stub_triage, stub_verdict, stub_compose
+import stub_confirm, stub_invite, stub_paging, stub_triage, stub_verdict, stub_compose, stub_sections, stub_settings
 import stub_reset
 import stub_restart
 import stub_role
@@ -32,9 +32,8 @@ import stub_login
 
 WIDE = ('<table width="760" style="width:760px"><tr><td>'
         '<div style="width:760px;background:#eef;padding:8px">'
-        # A remote image, as a newsletter carries: the client must not
-        # fetch it until asked, because fetching is what tells the
-        # sender the message was opened.
+        # A picture held until asked, and a 1x1 beacon removed outright.
+        '<img src="https://cdn.example.com/hero.png" width="600" height="200">'
         '<img src="https://tracker.example.com/open.gif" width="1" height="1">'
         '<h1>Newsletter</h1><p>' + ('lorem ipsum dolor sit amet ' * 12) + '</p>'
         '</div></td></tr></table>')
@@ -542,7 +541,7 @@ class H(BaseHTTPRequestHandler):
             return
         if self._session_rejected():
             return
-        if stub_role.handle(self) or stub_role.refused(self) or stub_reset.state(self) or stub_triage.get(self, VERBS) or stub_verdict.get(self, MESSAGES) or stub_compose.get(self):
+        if stub_role.handle(self) or stub_role.refused(self) or stub_reset.state(self) or stub_triage.get(self, VERBS) or stub_verdict.get(self, MESSAGES) or stub_compose.get(self) or stub_sections.get(self) or stub_settings.get(self):
             return
         if self.path.split("?")[0] == "/api/conversations/search":
             query = parse_qs(urlparse(self.path).query)
@@ -905,9 +904,10 @@ class H(BaseHTTPRequestHandler):
             if LIST_DELAY_MS[0]:
                 time.sleep(LIST_DELAY_MS[0] / 1000)
             query = parse_qs(urlparse(self.path).query)
-            # The paging fixture is opt-in so the small, readable
-            # two-row list stays what the other tests see.
+            # Paging fixtures are opt-in: the two-row list stays what other tests see.
             folder = query.get("folder", [""])[0]
+            if folder == "Inbox" and stub_sections.answer(self, query):
+                return
             archived = query.get("archived", ["false"])[0] == "true"
             # Each list gets its own row, so a switch that did not change
             # what was asked for would show the wrong one. Without this
@@ -964,8 +964,7 @@ class H(BaseHTTPRequestHandler):
             if folder in stub_paging.FOLDERS:
                 stub_paging.answer(self, folder)
             else:
-                # Real threads first when the door is open, so the mail
-                # under inspection is the first thing on screen.
+                # Real threads first when the door is open: the mail under inspection on top.
                 self._send(REAL_THREADS + CONVOS)
         else:
             self._send([], 404)
@@ -974,7 +973,7 @@ class H(BaseHTTPRequestHandler):
         pass
 
     def do_PUT(self):
-        if stub_role.refused(self) or stub_triage.put(self, VERBS):
+        if stub_role.refused(self) or stub_triage.put(self, VERBS) or stub_settings.put(self):
             return
         perms = re.match(r"^/api/admin/groups/(\d+)/permissions$", self.path.split("?")[0])
         if perms:
@@ -990,7 +989,7 @@ class H(BaseHTTPRequestHandler):
         self._send({}, 404)
 
     def do_DELETE(self):
-        if stub_restart.refused(self) or stub_role.refused(self) or stub_compose.delete(self):
+        if stub_restart.refused(self) or stub_role.refused(self) or stub_compose.delete(self) or stub_settings.delete(self):
             return
         if stub_confirm.refused(self, "DELETE") or stub_triage.delete(self, VERBS):
             return
@@ -1115,7 +1114,7 @@ class H(BaseHTTPRequestHandler):
             return
         if self._session_rejected():
             return
-        if stub_role.handle(self) or stub_role.refused(self) or stub_reset.handle(self) or stub_triage.post(self, VERBS) or stub_verdict.arm(self) or stub_invite.arm(self) or stub_compose.post(self):
+        if stub_role.handle(self) or stub_role.refused(self) or stub_reset.handle(self) or stub_triage.post(self, VERBS) or stub_verdict.arm(self) or stub_invite.arm(self) or stub_compose.post(self) or stub_sections.post(self) or stub_settings.post(self):
             return
         if self.path.split("?")[0] == "/api/auth/confirm":
             stub_confirm.answer(self)
@@ -1237,7 +1236,7 @@ class H(BaseHTTPRequestHandler):
             # would otherwise 401 every test after it, and the failure
             # would look like anything but a leftover flag.
             REJECT_SESSION[0] = False
-            for stub in (stub_confirm, stub_invite, stub_restart, stub_role, stub_reset, stub_verdict, stub_compose):
+            for stub in (stub_confirm, stub_invite, stub_restart, stub_role, stub_reset, stub_verdict, stub_compose, stub_sections, stub_settings):
                 stub.reset()
             VERB_REFUSE.clear()
             FETCHED.clear()

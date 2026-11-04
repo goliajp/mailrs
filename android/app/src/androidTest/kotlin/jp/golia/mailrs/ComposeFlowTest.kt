@@ -56,7 +56,7 @@ class ComposeFlowTest : MailrsUiTest() {
         signIn()
         waitForTag("list.conversations", "the inbox never listed")
         compose.onAllNodesWithTag("row.conversation").onFirst().performClick()
-        waitForTag("list.messages", "the thread never opened")
+        unfoldAll()
 
         // Under the body, so the same rule as every other control down
         // there: the WebView finds its height after its content loads
@@ -422,7 +422,7 @@ class ComposeFlowTest : MailrsUiTest() {
         signIn()
         waitForTag("list.conversations", "the inbox never listed")
         compose.onAllNodesWithTag("row.conversation").onFirst().performClick()
-        waitForTag("list.messages", "the thread never opened")
+        unfoldAll()
 
         tapWhenSteady("button.forward", 0)
         waitForTag("field.to", "the composer never opened")

@@ -29,7 +29,6 @@ final class Session {
         case failed(String)
     }
 
-
     /// Where this app points. A simulator reaches the host's localhost
     /// directly, so the local stack works with no extra plumbing; a
     /// device needs the LAN address or the public host instead.
@@ -38,20 +37,23 @@ final class Session {
     // settable within the module: a label is chosen in Session+Filing
     var activeList: MailList = .inbox
 
-
     /// Points the list at the stub's paging fixture, which is not one of
     /// the real lists. Not `Self.launchValue(…)`: a stored property
     /// initialiser cannot reference the covariant `Self` of a non-final
     /// class, and the `@Observable` macro expands this into one.
     private let folderOverride: String? = launchValue("-mailrsFolder")
 
+    /// The Inbox section on screen, nil for the whole Inbox; see Session+Sections.
+    var inboxSection: InboxSection?
+    var showingCalendar = false
 
     var axes: MailListAxes {
         if let folderOverride { return MailListAxes(folder: folderOverride) }
         if activeList == .label { return MailListAxes(label: activeLabel?.id ?? "") }
-        return activeList.axes
+        var axes = activeList.axes
+        if activeList == .inbox { axes.section = inboxSection?.rawValue }
+        return axes
     }
-
 
     /// A launch argument overrides it, which is how the UI tests point
     /// the app at a stub instead of a live server. Inert in normal use —
@@ -105,7 +107,6 @@ final class Session {
 
     var searchResults: [Wire.Conversation] = []
 
-
     /// What the list draws — search results while searching, the mailbox
     /// otherwise. One property so no screen has to know which it is
     /// looking at, and no screen can show one while counting the other.
@@ -115,7 +116,6 @@ final class Session {
         if case let .signedIn(address, _) = state { return address.lowercased() }
         return ""
     }
-
 
     var visibleConversations: [Wire.Conversation] {
         // Pinned first, here rather than in the store: undo restores a
@@ -135,11 +135,9 @@ final class Session {
     /// The reset-code sheet is up.
     var showsReset = false
 
-
     // Stored properties cannot live in an extension, so the state the
     // split subjects act on stays here with the type. Their methods are
     // in Session+Directory / +Triage / +Compose / +Operations.
-
 
     /// The signature this account signs with, and the row it lives in.
     ///
@@ -154,7 +152,6 @@ final class Session {
 
     var drafts: [Wire.Draft] = []
 
-
     /// Why the last load failed, if it did.
     ///
     /// `(try? …) ?? []` said "you have no drafts" when the server had
@@ -165,8 +162,6 @@ final class Session {
     var draftsFailure: String?
 
     var sendRows: [SendJoin.Row] = []
-
-
 
     /// The aliases that deliver to the signed-in address.
     ///
@@ -197,7 +192,6 @@ final class Session {
         }
         Task { await refreshRole() }
     }
-
 
     /// Sign back in from the Keychain, if a token is there.
     ///
@@ -263,7 +257,6 @@ final class Session {
         }
     }
 
-
     func messages(threadId: String) async throws -> [Wire.Message] {
         guard let client else { throw MailrsError.badCredentials }
         let fresh = try await client.messages(threadId: threadId)
@@ -271,13 +264,11 @@ final class Session {
         return fresh
     }
 
-
     /// The last fetch of this thread, from disk — what an opened
     /// conversation shows while (or without) the network answering.
     func cachedMessages(threadId: String) -> [Wire.Message]? {
         cache.readMessages(threadId: threadId)
     }
-
 
     func signIn(address: String, password: String, totpCode: String?) async {
         state = .signingIn
@@ -317,7 +308,6 @@ final class Session {
         }
     }
 
-
     func signOut() {
         TokenStore.clear()
         client = nil
@@ -325,7 +315,6 @@ final class Session {
         conversations = []
         state = .signedOut
     }
-
 
     func loadConversations() async {
         // Send is not served by /api/conversations; asking it with empty
@@ -337,7 +326,7 @@ final class Session {
         // fetch then replaces them in place; only a screen with nothing
         // at all shows the spinner, and pull-to-refresh on a populated
         // list still never blanks it.
-        if conversations.isEmpty, let cached = cache.readConversations(list: activeList.rawValue) {
+        if conversations.isEmpty, let cached = cache.readConversations(list: listCacheKey) {
             withAnimation { conversations = cached }
         }
         if conversations.isEmpty { initialLoading = true }
@@ -348,7 +337,7 @@ final class Session {
             // block SwiftUI swaps the frames in one step.
             withAnimation { conversations = page }
             reachedEnd = false
-            cache.writeConversations(page, list: activeList.rawValue)
+            cache.writeConversations(page, list: listCacheKey)
         } catch {
             // With cached rows on screen, a failed refresh is stale
             // mail, not a broken app — the error state would replace a
@@ -360,7 +349,6 @@ final class Session {
         initialLoading = false
         await refreshBadge()
     }
-
 
     /// What a return to the app asks for.
     ///
@@ -374,7 +362,6 @@ final class Session {
         guard searchQuery == nil else { return }
         await loadConversations()
     }
-
 
     /// The icon's number, refreshed wherever the mailbox may have moved:
     /// after a list load, after marking read, after a delete. Server
@@ -397,7 +384,6 @@ final class Session {
         }
     }
 
-
     /// Switch lists.
     ///
     /// Everything scoped to the old list goes with it: the rows, the
@@ -408,6 +394,7 @@ final class Session {
         clearUndo()
         guard list != activeList else { return }
         activeList = list
+        inboxSection = nil
         // The new list's cached rows, in the same breath as clearing the
         // old ones — and `initialLoading` set here rather than inside
         // the load.
@@ -439,7 +426,6 @@ final class Session {
         }
     }
 
-
     /// Run a search, or clear one.
     ///
     /// The results replace the list rather than filtering it: the server
@@ -465,7 +451,6 @@ final class Session {
             banner = error.localizedDescription
         }
     }
-
 
     /// The next page, keyed off the oldest row on screen.
     ///

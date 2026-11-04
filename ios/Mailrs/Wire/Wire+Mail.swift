@@ -32,7 +32,6 @@ extension Wire {
         }
     }
 
-
     /// Backend: `crates/webapi/src/handlers/conversation_body.rs` —
     /// `ThreadMessageResponse`.
     ///
@@ -144,7 +143,6 @@ extension Wire {
         }
     }
 
-
     /// Backend: `crates/webapi/src/handlers/conversation_body.rs` —
     /// `UnsubscribeWire`.
     ///
@@ -175,7 +173,6 @@ extension Wire {
             mailto = try c.decodeIfPresent([String].self, forKey: .mailto) ?? []
         }
     }
-
 
     /// Backend: `crates/webapi/src/handlers/conversations.rs` —
     /// `ConversationResponse`.
@@ -229,6 +226,15 @@ extension Wire {
         /// The server's to read, not ours. Absent on a row cached before
         /// the server stamped one.
         let cursor: String?
+        /// The team member who answers it, absent or empty for nobody
+        /// and for a conversation that is not a team one.
+        let assignee: String?
+        /// The sectioned inbox's section (`reply`, `awaiting`, `new`,
+        /// `feed`, `other`); absent or empty when not decided yet.
+        let section: String?
+        /// The team conversation this is the reader's copy of, `gid:conv`;
+        /// absent or empty when it is not a team copy.
+        let sharedConv: String?
 
         /// The account this arrived at, with absent read as ours.
         var arrivedAtAccount: String { accountId ?? "" }
@@ -245,8 +251,12 @@ extension Wire {
             snippet: String, pinned: Bool, archived: Bool, snoozedUntil: Int64?,
             importanceLevel: String, importanceScore: Double, requiresAction: Bool,
             receivedCount: Int, sentCount: Int, accountId: String? = nil,
-            trashedAt: Int64? = nil, labels: [String]? = nil, cursor: String? = nil
+            trashedAt: Int64? = nil, labels: [String]? = nil, cursor: String? = nil,
+            assignee: String? = nil, section: String? = nil, sharedConv: String? = nil
         ) {
+            self.sharedConv = sharedConv
+            self.assignee = assignee
+            self.section = section
             self.threadId = threadId
             self.subject = subject
             self.participants = participants
@@ -269,7 +279,6 @@ extension Wire {
             self.labels = labels
             self.cursor = cursor
         }
-
 
         var id: String { threadId }
 
@@ -295,12 +304,14 @@ extension Wire {
             case trashedAt = "trashed_at"
             case labels
             case cursor
+            case assignee
+            case section
+            case sharedConv = "shared_conv"
         }
 
         /// In the Trash, by the row's own word.
         var isTrashed: Bool { (trashedAt ?? 0) > 0 }
     }
-
 
     /// Backend: `crates/core-api/src/method/thread.rs` —
     /// `SentMessageSummary`, a bare array from `GET /api/mail/sent`.
@@ -321,7 +332,6 @@ extension Wire {
             case internalDate = "internal_date"
         }
     }
-
 
     /// Backend: `crates/webapi/src/handlers/sends/mod.rs` —
     /// `SendResponse`, a bare array from `GET /api/mail/sends`. Status is
@@ -365,42 +375,6 @@ extension Wire {
             resentFrom = try c.decodeIfPresent(String.self, forKey: .resentFrom)
             canResend = try c.decodeIfPresent(Bool.self, forKey: .canResend) ?? false
         }
-    }
-}
-
-extension Wire {
-    /// One stored signature. The server keeps several per user and
-    /// marks one default; this client edits the default and leaves the
-    /// rest alone, because a phone is not where anyone maintains a set
-    /// of them.
-    struct Signature: Decodable, Identifiable, Sendable {
-        let id: Int64
-        let name: String
-        let textContent: String
-        let isDefault: Bool
-
-        enum CodingKeys: String, CodingKey {
-            case id
-            case name
-            case textContent = "text_content"
-            case isDefault = "is_default"
-        }
-    }
-
-    struct SaveSignatureRequest: Encodable {
-        let name: String
-        let textContent: String
-        let isDefault: Bool
-
-        enum CodingKeys: String, CodingKey {
-            case name
-            case textContent = "text_content"
-            case isDefault = "is_default"
-        }
-    }
-
-    struct SaveSignatureResponse: Decodable, Sendable {
-        let id: Int64
     }
 }
 

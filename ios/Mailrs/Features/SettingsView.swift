@@ -85,7 +85,7 @@ struct SettingsView: View {
                         LucideRow(title: "Other mail", icon: Lucide.inbox)
                     }
                 }
-
+                SettingsExtras()
                 Section("Appearance") {
                     Picker("Theme", selection: appearanceBinding) {
                         ForEach(Preferences.Appearance.allCases) { option in

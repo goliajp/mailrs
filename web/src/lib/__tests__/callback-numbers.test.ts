@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest'
 
 import { newCallbackNumbers, phoneNumbers } from '@/lib/callback-numbers'
 
+// shared with iOS and Android, which test their copies of the rule against
+// the same file (scripts/check-callback-numbers.sh keeps the bytes equal)
+import shared from '../callback-numbers.json'
+
 const msg = (text: string, sender = 'Billing <billing@shop.example>') => ({
   html_body: null,
   sender,
@@ -9,6 +13,24 @@ const msg = (text: string, sender = 'Billing <billing@shop.example>') => ({
 })
 
 describe('phoneNumbers', () => {
+  it('reads every shared sample the way the phones do', () => {
+    expect(shared.samples.length).toBeGreaterThanOrEqual(10)
+    const wrong = shared.samples
+      .filter((s) => JSON.stringify(phoneNumbers(s.text)) !== JSON.stringify(s.numbers))
+      .map((s) => `${s.name}: ${JSON.stringify(phoneNumbers(s.text))}`)
+    expect(wrong).toEqual([])
+  })
+
+  it('does not join a purchase order number to the year of the invoice after it', () => {
+    const html = {
+      html_body:
+        '<table><tr><td>Invoice for Phase 1: Under PO 4300078149</td>\n<td>2026-INV-003001-2</td></tr></table>',
+      sender: 'billing@vendor.example',
+      text_body: null,
+    }
+    expect(newCallbackNumbers(html, [])).toEqual([])
+  })
+
   it('finds numbers written the ways people write them', () => {
     expect(
       phoneNumbers('Call +1 (888) 555-0142 or 0120-123-456, or 03-1234-5678 in Tokyo')

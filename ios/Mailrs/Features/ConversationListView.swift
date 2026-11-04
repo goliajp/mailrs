@@ -306,16 +306,15 @@ struct ConversationListView: View {
                         } label: {
                             Label("Drafts", systemImage: "doc.text")
                         }
+                        Button { session.showingCalendar = true } label: { Label("Calendar", systemImage: "calendar") }
+                            .accessibilityIdentifier("open-calendar")
                         Divider()
                         Button {
                             showingSettings = true
                         } label: {
                             Label("Settings", systemImage: "gearshape")
                         }
-                        // Named so a test reaches it by identity rather
-                        // than by the word on it. The Japanese run of
-                        // the screenshot lane could not find "Settings",
-                        // because on that phone it says 設定.
+                        // Named, so a test finds it on a Japanese phone where it says 設定
                         .accessibilityIdentifier("open-settings")
                         // Sign-out moved off the bar when Select took
                         // its slot: triage is daily, sign-out is rare.

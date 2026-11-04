@@ -113,6 +113,7 @@ struct ThreadView: View {
                                     }
                             }
                         }
+                        TeamNotesSection(conversation: conversation)
                     }
                     .padding(.horizontal, 10)
                     .padding(.vertical, 8)
@@ -223,6 +224,7 @@ struct ThreadView: View {
                             Label("Mark as junk", systemImage: "xmark.bin")
                         }
                     }
+                    ThreadNotifyActions(threadId: conversation.threadId)
                 } label: {
                     Label("More", systemImage: "ellipsis")
                 }
