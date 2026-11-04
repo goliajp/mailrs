@@ -27,4 +27,11 @@ class SenderIconDomainTest {
         assertNull(SenderIconDomain.of("someone@ex ample.com"))
         assertNull(SenderIconDomain.of("someone@exa/mple.com"))
     }
+
+    @Test
+    fun `asks for a PNG, which BitmapFactory can decode`() {
+        // BIMI logos are SVG and some favicons .ico; without the format
+        // the server sends those as they are and the row shows a letter.
+        assertEquals("/api/icon/example.com?format=png", SenderIconDomain.path("example.com"))
+    }
 }

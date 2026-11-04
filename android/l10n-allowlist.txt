@@ -314,7 +314,6 @@ wire/MailrsClientUser.kt	${s.server}/api/mail/messages/$uid/attachments/$index
 wire/MailrsClientUser.kt	Authorization
 wire/MailrsClientUser.kt	Bearer ${s.token}
 wire/MailrsClientUser.kt	${s.server}/api/mail/drafts/$id
-wire/MailrsClientUser.kt	${s.server}/api/icon/${enc(domain)}
 wire/NewMailWorker.kt	Mailrs
 wire/RecentRecipients.kt	jp.golia.mailrs.category.SHARE_TARGET
 wire/RecentRecipients.kt	recipient:$address

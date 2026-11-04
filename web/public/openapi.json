@@ -8116,11 +8116,23 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "description": "`png` converts the icon to a PNG of at most 128 px a side, aspect and transparency kept, for clients that decode neither SVG nor ICO. A source that cannot be converted is skipped for the next one in the cascade. Omitted: the stored bytes as they are",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "png"
+              ]
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "Icon bytes. Content-Type is the upstream's when it starts with `image/` (commonly image/svg+xml, image/png, image/x-icon, image/vnd.microsoft.icon, image/jpeg, image/gif, image/webp), otherwise image/png. At most 256 KiB. Cache-Control: public, max-age=86400, stale-while-revalidate=604800",
+            "description": "Icon bytes. With `format=png`, always image/png. Otherwise Content-Type is the upstream's when it starts with `image/` (commonly image/svg+xml, image/png, image/x-icon, image/vnd.microsoft.icon, image/jpeg, image/gif, image/webp), otherwise image/png. At most 256 KiB. Cache-Control: public, max-age=86400, stale-while-revalidate=604800",
             "content": {
               "image/*": {
                 "schema": {
@@ -8131,7 +8143,10 @@
             }
           },
           "204": {
-            "description": "No icon for this domain, or the domain is invalid; empty body. Cache-Control: public, max-age=86400"
+            "description": "No icon for this domain (with `format=png`: none that converts), or the domain is invalid; empty body. Cache-Control: public, max-age=86400"
+          },
+          "400": {
+            "description": "`format` is something other than `png`"
           }
         }
       }
