@@ -114,6 +114,7 @@ pub fn build_router_with_secret(state: Arc<FastcoreState>, secret: String) -> Ro
         .route(th::PATH_UNSTAR, post(unstar_thread))
         .route(th::PATH_QUARANTINE_LIST, get(list_quarantined))
         .route(th::PATH_QUARANTINE_RELEASE, post(release_quarantined))
+        .route(th::PATH_THREAD_RELEASES, get(thread_releases))
         .route(th::PATH_FRAUD_VERDICT, get(get_fraud_verdict))
         .route(th::PATH_ARCHIVE, post(archive_thread))
         .route(th::PATH_UNARCHIVE, post(unarchive_thread))

@@ -28,6 +28,7 @@ struct Tally {
     held_but_unreadable: u64,
     releasable: u64,
     released: u64,
+    kept_released: u64,
     release_samples: Vec<serde_json::Value>,
     no_file: u64,
     // Which check fired, because "12 found" does not say whether the
@@ -212,8 +213,23 @@ impl Sweep<'_> {
         // here and a score threshold there is what left 43 held
         // conversations carrying a verdict that said otherwise.
         if !mailrs_inbound::holds(&findings) {
-            self.not_held(user, tid, &raw, &msg, &findings);
+            self.not_held(user, tid, &raw, &msg, &findings, &scan.version);
             return;
+        }
+        // A person released this conversation: what was already there
+        // then stays released. Only a message that came after may hold
+        // it again. A release by a rule change does not count here.
+        match crate::hold_facts::may_hold_again(self.state, user, tid, msg.arrived) {
+            Ok(true) => {}
+            Ok(false) => {
+                self.t.kept_released += 1;
+                return;
+            }
+            Err(error) => {
+                tracing::error!(%error, %user, %tid, "fraud rescan: the releases could not be read; leaving thread unchanged");
+                self.t.verdict_failed += 1;
+                return;
+            }
         }
         self.t.found += 1;
         for r in findings.rules() {
@@ -243,6 +259,7 @@ impl Sweep<'_> {
         raw: &[u8],
         msg: &Reading,
         findings: &mailrs_fraud::Findings,
+        version: &str,
     ) {
         // **And release it if it is still held.** The sweep
         // that only ever adds is a sweep a rule change
@@ -289,7 +306,22 @@ impl Sweep<'_> {
             return;
         }
         match self.state.mailbox.set_quarantined(user, tid, false) {
-            Ok(_) => self.t.released += 1,
+            Ok(_) => {
+                self.t.released += 1;
+                // under `system` and with the pack that let it go, so a
+                // pack change that flips a conversation back and forth
+                // can be seen
+                if let Err(error) = crate::hold_facts::record_release(
+                    self.state,
+                    user,
+                    tid,
+                    crate::hold_facts::REJUDGE,
+                    crate::hold_facts::SYSTEM,
+                    version,
+                ) {
+                    tracing::error!(%error, %user, %tid, "fraud rescan: the release was not recorded");
+                }
+            }
             Err(e) => tracing::warn!(err = %e, tid, "release failed"),
         }
     }
@@ -352,7 +384,14 @@ impl Sweep<'_> {
             Action::Hold => {
                 let mut verdict = rescan_verdict(raw, findings);
                 verdict.rules_version = rules_version.to_string();
-                match holding::apply(state, user, tid, message_id, &verdict) {
+                match holding::apply(
+                    state,
+                    user,
+                    tid,
+                    message_id,
+                    &verdict,
+                    crate::hold_facts::REJUDGE,
+                ) {
                     Ok(changed) => t.held += u64::from(changed),
                     Err(error) => {
                         t.verdict_failed += 1;
@@ -391,6 +430,7 @@ impl Tally {
             verdict_failed = self.verdict_failed,
             releasable = self.releasable,
             released = self.released,
+            kept_released = self.kept_released,
             held_but_unreadable = self.held_but_unreadable,
             already_junk = self.already_junk,
             no_file = self.no_file,
@@ -416,6 +456,9 @@ impl Tally {
             // none or was not allowed to act.
             "releasable": self.releasable,
             "released": self.released,
+            // Hold-grade, but a person released the conversation after
+            // this message came: left where they put it.
+            "kept_released": self.kept_released,
             // Hidden, and its file is gone: it cannot be re-judged, so
             // no rule change will ever let it out. Zero is the answer
             // that means what it says.

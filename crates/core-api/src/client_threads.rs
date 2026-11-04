@@ -299,6 +299,20 @@ impl Client {
         self.post_authed_no_body(path, "release_quarantined").await
     }
 
+    /// GET /v1/users/{user}/threads/{thread_id}/releases
+    pub async fn thread_releases(
+        &self,
+        user: &str,
+        thread_id: &str,
+    ) -> ApiResult<method::thread::ReleasesResponse> {
+        let path = format!(
+            "/v1/users/{}/threads/{}/releases",
+            Self::enc(user),
+            Self::enc(thread_id)
+        );
+        self.get_authed(path, "thread_releases").await
+    }
+
     /// GET /v1/users/{user}/messages/{message_id}/fraud-verdict — what
     /// was decided about one message, as it was decided.
     pub async fn fraud_verdict(
