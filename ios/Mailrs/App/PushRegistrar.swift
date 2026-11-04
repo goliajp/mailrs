@@ -82,7 +82,51 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         // banner. Which is indistinguishable from a server that never
         // sent one.
         UNUserNotificationCenter.current().delegate = self
+        MainActor.assumeIsolated {
+            NotificationActions.register()
+            // The UI tests' stand-in for a tapped banner: a response
+            // cannot be built outside the system, so the route a tap
+            // would set is set directly, and everything after it is real.
+            let arguments = ProcessInfo.processInfo.arguments
+            if let at = arguments.firstIndex(of: "-mailrsNotificationTap"), at + 1 < arguments.count {
+                NotificationRoute.shared.threadId = arguments[at + 1]
+            }
+        }
         return true
+    }
+
+    /// A tap on a mail notification, or one of its two actions.
+    ///
+    /// The tap opens the conversation the payload names; Archive and Mark
+    /// as read act on it by id without opening anything, as Android's
+    /// notification does. A notification that names no conversation does
+    /// nothing rather than guessing one.
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        let action = PushPayload.action(
+            for: response.actionIdentifier,
+            defaultIdentifier: UNNotificationDefaultActionIdentifier,
+            dismissIdentifier: UNNotificationDismissActionIdentifier
+        )
+        let done = CompletionHandler(run: completionHandler)
+        guard let threadId = PushPayload.threadId(response.notification.request.content.userInfo) else {
+            done.run()
+            return
+        }
+        Task { @MainActor in
+            switch action {
+            case .open:
+                NotificationRoute.shared.threadId = threadId
+            case .archive, .markRead:
+                await AppDelegate.session?.act(onNotification: action, threadId: threadId)
+            case .none:
+                break
+            }
+            done.run()
+        }
     }
 
     /// Mail that arrives while the app is open is still mail.
@@ -123,4 +167,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         // not surfaced: the user cannot act on it.
         print("push registration unavailable: \(error.localizedDescription)")
     }
+}
+
+/// The system's completion handler, carried across the hop to the main
+/// actor. iOS calls the delegate once per response and the handler once,
+/// so nothing touches it concurrently.
+private struct CompletionHandler: @unchecked Sendable {
+    let run: () -> Void
 }

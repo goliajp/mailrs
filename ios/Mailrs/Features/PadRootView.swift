@@ -111,6 +111,8 @@ struct PadRootView: View {
             Text("Every conversation in \(listTitle) will be marked read.")
         }
         .overlay(alignment: .bottom) { UndoBar() }
+        .overlay(alignment: .bottom) { SendUndoBar() }
+        .animation(.easeOut(duration: 0.2), value: session.pendingSend)
         // Failures were silent on this screen: `session.banner` is set
         // and nobody was reading it, so an archive the server refused
         // looked like an archive that worked.

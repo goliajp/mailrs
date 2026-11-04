@@ -41,6 +41,12 @@ struct ComposeView: View {
     @State private var attachments: [MultipartForm.FilePart] = []
     /// Which carried files the reader has taken off this re-edit.
     @State private var droppedCarried: Set<Int> = []
+    /// The address it leaves by; empty is the account's own.
+    @State private var from = ""
+    /// A time the resumed draft was set to go at. Kept, shown and
+    /// clearable: dropping it would make Send send at once.
+    @State private var scheduledAt: Int64?
+    @State private var templates: [Wire.Template] = []
     @FocusState private var focus: ComposerField?
 
     var body: some View {
@@ -54,14 +60,18 @@ struct ComposeView: View {
                     to: .editable($to), cc: $cc, bcc: $bcc,
                     subject: .editable($subject),
                     showsCopies: $showsCopies, suggestions: $suggestions,
-                    focus: $focus
+                    focus: $focus, from: $from, fromOptions: session.sendAddresses,
+                    fromDefault: session.sendAddresses.first ?? ""
                 ) { text in
                     suggestionTask = ContactSuggestions.schedule(
                         replacing: suggestionTask, for: text, in: session
                     ) { suggestions = $0 }
                 }
 
-                ComposerEditor(text: $body_, placeholder: "Message")
+                if let scheduledAt {
+                    ScheduledLine(at: scheduledAt) { self.scheduledAt = nil }
+                }
+                ComposerEditor(text: $body_, placeholder: "Message", formatting: true)
                     .focused($focus, equals: .body)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -128,6 +138,15 @@ struct ComposeView: View {
                 ToolbarItem(placement: .primaryActions) {
                     AttachMenu(attachments: $attachments)
                 }
+                ToolbarItem(placement: .primaryActions) {
+                    TemplateMenu(templates: templates) { picked in
+                        let applied = TemplateApply.apply(
+                            picked, subject: subject, body: body_, isReply: false
+                        )
+                        subject = applied.subject
+                        body_ = applied.body
+                    }
+                }
                 // Its own `ToolbarItem`, not sharing one with Send.
                 // Two controls inside a single item are composed into
                 // one element, and `buttons["Send"]` — which ten tests
@@ -172,6 +191,8 @@ struct ComposeView: View {
                     subject = resuming.subject
                     body_ = resuming.body
                     draftId = resuming.id
+                    from = resuming.from ?? ""
+                    scheduledAt = resuming.scheduledAt
                 }
                 if let redrafting {
                     to = redrafting.to.joined(separator: ", ")
@@ -183,7 +204,13 @@ struct ComposeView: View {
                 }
                 focus = .to
             }
-            .onChange(of: [to, cc, bcc, subject, body_]) { _, _ in scheduleAutosave() }
+            .onChange(of: [to, cc, bcc, subject, body_, from]) { _, _ in scheduleAutosave() }
+            .task {
+                // Read again: send-as rights can change while signed in,
+                // and the From list should say what is true now.
+                await session.refreshRole()
+                templates = await session.loadTemplates()
+            }
             .onDisappear {
                 autosave?.cancel()
                 // Cancel is not "discard": closing the composer with
@@ -210,10 +237,12 @@ struct ComposeView: View {
         guard DraftRule.isWorthSaving(to: to, subject: subject, body: body_) else { return }
         let (recipients, copies, blind) = (to, cc, bcc)
         let (title, text, id) = (subject, body_, draftId)
+        let (sender, when) = (from, scheduledAt)
         Task {
             _ = await session.saveDraft(
                 id: id, to: recipients, cc: copies, bcc: blind,
-                subject: title, body: text, replyToThreadId: nil
+                subject: title, body: text, replyToThreadId: nil,
+                from: sender, scheduledAt: when
             )
             await session.loadDrafts()
         }
@@ -223,7 +252,8 @@ struct ComposeView: View {
         guard DraftRule.isWorthSaving(to: to, subject: subject, body: body_) else { return }
         draftId = await session.saveDraft(
             id: draftId, to: to, cc: cc, bcc: bcc,
-            subject: subject, body: body_, replyToThreadId: nil
+            subject: subject, body: body_, replyToThreadId: nil,
+            from: from, scheduledAt: scheduledAt
         )
     }
 
@@ -248,9 +278,10 @@ struct ComposeView: View {
                 bcc: AddressList.parse(bcc), subject: subject,
                 body: MailSignature.append(body: body_, signature: session.signature),
                 attachments: attachments,
-                scheduledAt: schedule.fireDate(after: Date(), calendar: .current),
+                scheduledAt: SendSchedule.when(schedule, kept: scheduledAt),
                 redraftOf: redrafting?.redraftOf,
-                redraftKeep: keptCarried
+                redraftKeep: keptCarried,
+                from: from
             )
             // Sent, so it is no longer a draft. Cancel the pending
             // autosave first or it recreates the one just deleted.

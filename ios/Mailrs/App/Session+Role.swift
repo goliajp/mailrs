@@ -9,10 +9,31 @@ extension Wire {
     struct Role: Decodable, Equatable {
         let isAdmin: Bool
         let isSuper: Bool
+        /// The signed-in address and what else it may send as: the
+        /// composer's From list, from the same answer the web reads.
+        var address: String = ""
+        var sendAs: [String] = []
 
         enum CodingKeys: String, CodingKey {
             case isAdmin = "is_admin"
             case isSuper = "is_super"
+            case address
+            case sendAs = "send_as"
+        }
+
+        init(isAdmin: Bool, isSuper: Bool, address: String = "", sendAs: [String] = []) {
+            self.isAdmin = isAdmin
+            self.isSuper = isSuper
+            self.address = address
+            self.sendAs = sendAs
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            isAdmin = try c.decode(Bool.self, forKey: .isAdmin)
+            isSuper = try c.decode(Bool.self, forKey: .isSuper)
+            address = try c.decodeIfPresent(String.self, forKey: .address) ?? ""
+            sendAs = try c.decodeIfPresent([String].self, forKey: .sendAs) ?? []
         }
     }
 }
@@ -38,4 +59,14 @@ extension Session {
     /// traffic to a super administrator, the directory to an administrator.
     var offersDirectory: Bool { role?.isAdmin == true }
     var offersMailTraffic: Bool { role?.isSuper == true }
+
+    /// The composer's From choices; one entry means there is nothing to choose.
+    var sendAddresses: [String] {
+        SendAddresses.list(own: role?.address ?? "", sendAs: role?.sendAs ?? [])
+    }
+
+    /// Where a reply to a message sent to `recipients` leaves from by default.
+    func replyFrom(_ recipients: String) -> String {
+        SendAddresses.replyFrom(options: sendAddresses, recipients: recipients)
+    }
 }

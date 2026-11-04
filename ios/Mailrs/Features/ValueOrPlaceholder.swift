@@ -74,21 +74,81 @@ enum PinLabel {
 struct ComposerEditor: View {
     @Binding var text: String
     let placeholder: LocalizedStringKey
+    /// The bold, italic and link row the web composer has, writing the
+    /// same Markdown marks. Off for fields that are not a message.
+    var formatting = false
+
+    @State private var selection: TextSelection?
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            if text.isEmpty {
-                Text(placeholder)
-                    .foregroundStyle(.tertiary)
-                    .padding(.horizontal, 13)
-                    .padding(.vertical, 8)
-                    .allowsHitTesting(false)
+        VStack(spacing: 0) {
+            if formatting {
+                FormatBar { kind in apply(kind) }
             }
-            TextEditor(text: $text)
-                // Its own background is opaque and drew over the ghost
-                // behind it — the placeholder was there and invisible.
-                .scrollContentBackground(.hidden)
-                .padding(.horizontal, 8)
+            ZStack(alignment: .topLeading) {
+                if text.isEmpty {
+                    Text(placeholder)
+                        .foregroundStyle(.tertiary)
+                        .padding(.horizontal, 13)
+                        .padding(.vertical, 8)
+                        .allowsHitTesting(false)
+                }
+                TextEditor(text: $text, selection: $selection)
+                    // Its own background is opaque and drew over the ghost
+                    // behind it — the placeholder was there and invisible.
+                    .scrollContentBackground(.hidden)
+                    .padding(.horizontal, 8)
+            }
         }
+    }
+
+    /// The selection as character offsets; no selection is the end of the text.
+    ///
+    /// Through UTF-16 offsets clamped to the text as it is now: a selection
+    /// made before the text was replaced (a template applied) holds indices
+    /// into the old string, and measuring the new one with them can trap.
+    private var offsets: (Int, Int) {
+        guard let selection, case .selection(let range) = selection.indices else {
+            return (text.count, text.count)
+        }
+        let units = Array(text.utf16)
+        func characters(_ index: String.Index) -> Int {
+            let clamped = min(max(0, index.utf16Offset(in: text)), units.count)
+            return String(decoding: units.prefix(clamped), as: UTF16.self).count
+        }
+        return (characters(range.lowerBound), characters(range.upperBound))
+    }
+
+    private func apply(_ kind: MarkdownFormat.Kind) {
+        let (start, end) = offsets
+        let edit = MarkdownFormat.apply(text, start: start, end: end, kind: kind)
+        text = edit.value
+        let lower = text.index(text.startIndex, offsetBy: edit.start)
+        let upper = text.index(text.startIndex, offsetBy: edit.end)
+        selection = TextSelection(range: lower..<upper)
+    }
+}
+
+/// Bold, italic, link: three buttons over the message body.
+struct FormatBar: View {
+    let onFormat: (MarkdownFormat.Kind) -> Void
+
+    var body: some View {
+        HStack(spacing: 16) {
+            Button { onFormat(.bold) } label: { Image(systemName: "bold") }
+                .accessibilityLabel("Bold")
+                .accessibilityIdentifier("format-bold")
+            Button { onFormat(.italic) } label: { Image(systemName: "italic") }
+                .accessibilityLabel("Italic")
+                .accessibilityIdentifier("format-italic")
+            Button { onFormat(.link) } label: { Image(systemName: "link") }
+                .accessibilityLabel("Link")
+                .accessibilityIdentifier("format-link")
+            Spacer(minLength: 0)
+        }
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 6)
     }
 }

@@ -8,10 +8,14 @@ the way the server does for that role: a plain account gets 403 on all of
 is what shows that it asked again.
 """
 
+import json
 import re
 
 ROLE = ["super"]
 ME_READS = [0]
+# `POST /debug/send-as` with `{"send_as": [...]}` gives the account other
+# addresses to send as — the composer's From choice; reset empties it.
+SEND_AS = []
 
 # crates/webapi/src/handlers/kevy_util.rs — SUPER_ONLY
 SUPER_ONLY = (
@@ -32,6 +36,14 @@ def handle(handler):
         ROLE[0] = m.group(1)
         handler._send({"ok": True})
         return True
+    if path == "/debug/send-as":
+        length = int(handler.headers.get("Content-Length", "0"))
+        body = {}
+        if length:
+            body = json.loads(handler.rfile.read(length))
+        SEND_AS[:] = body.get("send_as", [])
+        handler._send({"ok": True})
+        return True
     if path == "/debug/role-state":
         handler._send({"role": ROLE[0], "me_reads": ME_READS[0]})
         return True
@@ -43,7 +55,7 @@ def handle(handler):
             "display_name": "Test",
             "permissions": {"plain": [], "admin": ["admin.accounts"], "super": ["*"]}[role],
             "accessible_domains": ["golia.jp"],
-            "send_as": [],
+            "send_as": list(SEND_AS),
             "is_admin": role != "plain",
             "is_super": role == "super",
         })
@@ -67,3 +79,4 @@ def refused(handler):
 def reset():
     ROLE[0] = "super"
     ME_READS[0] = 0
+    SEND_AS.clear()
