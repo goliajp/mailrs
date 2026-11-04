@@ -52,10 +52,14 @@ export function finishIcon(rgba: Uint8ClampedArray, side: number, shape: IconSha
 // reads as the background or, where the square's corners reach the disc's
 // outer band, leaves no single background at all. when clearing the white
 // connected to the border uncovers an enclosing shape of another colour,
-// that shape is the background and `rgba` keeps the white cleared
+// that shape is the background and `rgba` keeps the white cleared.
+// a frame runs round the whole border; white that meets the border only
+// in places is part of the logo: paypay's white p reaches the left and
+// bottom edges of its red square, and clearing it left a plain red disc
 export function iconShape(rgba: Uint8ClampedArray, side: number): IconShape {
   const framed = rgba.slice()
-  if (clearOutside(framed, side) > 0) {
+  clearOutside(framed, side)
+  if (borderCleared(framed, side) >= FRAME_BORDER) {
     const inner = backgroundColour(framed, side)
     if (inner && distance(inner, WHITE) >= NEAR_WHITE) {
       rgba.set(framed)
@@ -77,11 +81,22 @@ function composite(rgba: Uint8ClampedArray, under: Rgb): void {
 }
 
 const NEAR_WHITE = 24
+const FRAME_BORDER = 0.9
+
+// the fraction of the border pixels that are transparent
+function borderCleared(rgba: Uint8ClampedArray, side: number): number {
+  let clear = 0
+  for (let k = 0; k < side; k++) {
+    for (const p of [k, (side - 1) * side + k, k * side, k * side + side - 1]) {
+      if (rgba[p * 4 + 3] < OPAQUE) clear++
+    }
+  }
+  return clear / (4 * side)
+}
 
 // flood fill from the image border through opaque near-white pixels,
 // making them transparent
-function clearOutside(rgba: Uint8ClampedArray, side: number): number {
-  let cleared = 0
+function clearOutside(rgba: Uint8ClampedArray, side: number): void {
   floodFromBorder(
     side,
     (p) =>
@@ -89,10 +104,8 @@ function clearOutside(rgba: Uint8ClampedArray, side: number): number {
       distance([rgba[p * 4], rgba[p * 4 + 1], rgba[p * 4 + 2]], WHITE) < NEAR_WHITE,
     (p) => {
       rgba[p * 4 + 3] = 0
-      cleared++
     }
   )
-  return cleared
 }
 
 // flood fill from the image border through non-opaque pixels
