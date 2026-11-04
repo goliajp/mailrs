@@ -23,7 +23,7 @@ fn has(toks: &[String], t: &str) -> bool {
 /// Body word tokens: the ones with no namespace prefix.
 fn body_words(toks: &[String]) -> Vec<&String> {
     toks.iter()
-        .filter(|t| !(t.starts_with("hdr:") || t.starts_with("from:")))
+        .filter(|t| !(t.starts_with("hdr:") || t.starts_with("from:") || t.starts_with("hn:")))
         .filter(|t| !(t.starts_with("sub:") || t.starts_with("url:")))
         .collect()
 }

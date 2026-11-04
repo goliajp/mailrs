@@ -2,7 +2,7 @@
 //!
 //! Graham's method: each token counts once per message (dedup), so the
 //! output is a deduplicated set. Feature tokens carry a namespace prefix
-//! (`sub:` / `from:` / `url:` / `hdr:`) so a word in the Subject scores
+//! (`sub:` / `from:` / `url:` / `hdr:` / `hn:`) so a word in the Subject scores
 //! independently from the same word in the body — Subject words carry
 //! more discriminatory weight in practice.
 //!
@@ -18,6 +18,16 @@ use std::collections::BTreeSet;
 /// giant message from flooding the corpus.
 const MAX_TOKENS: usize = 500;
 
+/// Header fields taken as `hn:` tokens, at most.
+const MAX_HEADER_NAMES: usize = 80;
+
+/// A header field name worth a token: letters, digits and `-`, at most 40.
+fn is_field_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 40
+        && name.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'-')
+}
+
 /// Split raw RFC 5322 message bytes into a deduplicated feature-token
 /// set. Header values are read as lossy UTF-8; the body is MIME-decoded.
 pub fn tokenize(raw: &[u8]) -> Vec<String> {
@@ -27,7 +37,13 @@ pub fn tokenize(raw: &[u8]) -> Vec<String> {
     let mut out: BTreeSet<String> = BTreeSet::new();
 
     // Header-derived feature tokens.
+    let mut names = 0;
     for (name, value) in parse_headers(&headers) {
+        // which fields a message carries says which software sent it
+        if names < MAX_HEADER_NAMES && is_field_name(&name) {
+            out.insert(format!("hn:{name}"));
+            names += 1;
+        }
         match name.as_str() {
             "subject" => {
                 let subject = mailrs_rfc2047::decode(value.as_bytes());
@@ -364,5 +380,22 @@ mod tests {
         let toks = tokenize(raw);
         assert!(!toks.contains(&"hdr:auto-submitted".to_string()));
         assert!(!toks.contains(&"from:automated".to_string()));
+    }
+
+    #[test]
+    fn every_header_field_name_is_a_token() {
+        let raw = b"From: a@b.com\r\nX-Mailer: Mass Sender 9\r\nX-Campaign-ID: 77\r\n\
+Feedback-ID: 1:2:3\r\nX Bad Name: no\r\nSubject: hi\r\n\r\nbody";
+        let toks = tokenize(raw);
+        for t in [
+            "hn:from",
+            "hn:x-mailer",
+            "hn:x-campaign-id",
+            "hn:feedback-id",
+            "hn:subject",
+        ] {
+            assert!(toks.contains(&t.to_string()), "missing {t}: {toks:?}");
+        }
+        assert!(!toks.iter().any(|t| t.starts_with("hn:x bad")), "{toks:?}");
     }
 }
