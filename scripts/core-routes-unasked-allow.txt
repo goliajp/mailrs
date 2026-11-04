@@ -26,6 +26,7 @@ POST /v1/admin/maintenance:backfill-thread-user | one paged segment of the threa
 POST /v1/admin/maintenance:backfill-triage | seed the triage corpus and re-sort existing Inbox mail into notifications and promotions
 POST /v1/admin/maintenance:backfill-user-messages | give every user their own message rows for the messages they have (per-user projection, stage 2)
 POST /v1/admin/maintenance:backfill-webhook-owners | record the owner of each existing webhook subscription, which delete needs
+POST /v1/admin/maintenance:bayes-rebuild-v2 | retrain the v2 spam/ham corpus from the legacy corpus thread sets and the v2 triage corpus from stored buckets; dry by default, paged
 POST /v1/admin/maintenance:bayes-bootstrap | seed the Bayes spam corpus from existing Junk and Inbox; refuses when already seeded
 POST /v1/admin/maintenance:drop-empty-threads | remove thread rows a user has no readable message in
 POST /v1/admin/maintenance:drop-legacy-zsets | delete the hand-maintained per-user thread zsets nothing reads any more
