@@ -109,10 +109,34 @@ pub(crate) async fn release_quarantined(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> axum::response::Response {
+    let was_held = state
+        .mailbox
+        .get_thread_for_user(&user, &thread_id)
+        .ok()
+        .flatten()
+        .is_some_and(|t| t.quarantined);
     let ok = state
         .mailbox
         .set_quarantined(&user, &thread_id, false)
         .unwrap_or(false);
+    if ok && was_held {
+        // the fact a later re-judge consults: what was here when this
+        // person let it go is not held again
+        if let Err(error) = crate::hold_facts::record_release(
+            &state,
+            &user,
+            &thread_id,
+            crate::hold_facts::PERSON,
+            &user,
+            "",
+            "",
+        ) {
+            tracing::error!(%error, %user, %thread_id, "the release was not recorded");
+            return axum::response::IntoResponse::into_response(
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            );
+        }
+    }
     if ok {
         // Logged rather than merely done: a false positive is the one
         // failure mode this feature can have, and a release nobody can
@@ -124,6 +148,21 @@ pub(crate) async fn release_quarantined(
         crate::image_prefetch::queue_thread(&state, &user, &thread_id);
     }
     crate::routes::thread_actions::member_result(ok)
+}
+
+/// `GET /v1/users/{user}/threads/{thread_id}/releases` — every release of
+/// this conversation for this reader, oldest first.
+pub(crate) async fn thread_releases(
+    State(state): State<Arc<FastcoreState>>,
+    Path((user, thread_id)): Path<(String, String)>,
+) -> Result<Json<mailrs_core_api::method::thread::ReleasesResponse>, axum::http::StatusCode> {
+    let items = crate::hold_facts::releases(&state, &user, &thread_id).map_err(|error| {
+        tracing::error!(%error, %user, %thread_id, "reading the releases failed");
+        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    Ok(Json(mailrs_core_api::method::thread::ReleasesResponse {
+        items,
+    }))
 }
 
 /// `GET /v1/users/{user}/messages/{message_id}/fraud-verdict` — what

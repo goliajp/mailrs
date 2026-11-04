@@ -100,7 +100,14 @@ impl ReportStore for Reports<'_> {
         }
     }
 
-    fn take_back(&self, user: &str, tid: &str, batch: &str) -> Result<bool, String> {
-        crate::rejudge::recall::hold_reported(self.0, user, tid, batch)
+    fn take_back(&self, user: &str, tid: &str, mid: &str, batch: &str) -> Result<bool, String> {
+        // when the copy came: its fingerprint is recorded with its arrival
+        let arrived = self
+            .0
+            .mailbox
+            .template_of(mid)
+            .map_err(|e| e.to_string())?
+            .map(|t| t.at);
+        crate::rejudge::recall::hold_reported(self.0, user, tid, arrived, batch)
     }
 }

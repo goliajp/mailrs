@@ -179,7 +179,7 @@ final class Session {
     var labels: [Wire.LabelItem] = []
     var activeLabel: Wire.LabelItem?
     var pendingUndo: PendingUndo?
-
+    var pendingSend: PendingSend?
     var undoDismissTask: Task<Void, Never>?
 
     // `private(set)`: the moved extensions read it, and Swift's
@@ -245,7 +245,7 @@ final class Session {
         await adopt(client)
         state = .signedIn(address: TokenStore.loadAddress() ?? "", displayName: "")
         do {
-            conversations = try await fetchPage(client, before: nil)
+            conversations = try await fetchPage(client, page: nil)
             await refreshBadge()
             await loadMyAliases()
             await loadSignature()
@@ -342,7 +342,7 @@ final class Session {
         }
         if conversations.isEmpty { initialLoading = true }
         do {
-            let page = try await fetchPage(client, before: nil)
+            let page = try await fetchPage(client, page: nil)
             // Rows slide in and the empty state cross-fades away, the
             // way a List is expected to move. Without the animation
             // block SwiftUI swaps the frames in one step.
@@ -474,16 +474,16 @@ final class Session {
     /// while the request is in flight.
     func loadMore() async {
         // Never while searching. Search results come back ranked, and
-        // `before_ts` pages by date — asking for "older than the last
+        // the list pages by date — asking for "older than the last
         // result" would append date-ordered rows to a relevance-ordered
         // list and quietly mix two orderings.
         guard searchQuery == nil else { return }
         guard let client, !loadingMore, !reachedEnd else { return }
-        guard let before = ThreadPage.nextBefore(after: conversations) else { return }
+        guard let next = ThreadPage.next(after: conversations) else { return }
         loadingMore = true
         defer { loadingMore = false }
         do {
-            let page = try await fetchPage(client, before: before)
+            let page = try await fetchPage(client, page: next)
             let merged = ThreadPage.merge(conversations, with: page)
             conversations = merged.rows
             // Nothing new means the end — including the case where a page

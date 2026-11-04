@@ -418,4 +418,13 @@
     <string name="link_warning_confirm">This link may not go where it seems.\n\n%1$s\n\nOpen it anyway?</string>
     <string name="link_warning_open">Open</string>
     <string name="read_callback">This message gives a phone number its sender has not used before here: %1$s. Before calling about a payment or an account, look the number up yourself.</string>
+    <string name="compose_templates">Templates</string>
+    <string name="format_bold">Bold</string>
+    <string name="format_italic">Italic</string>
+    <string name="format_link">Link</string>
+    <string name="compose_scheduled_for">Scheduled for %1$s</string>
+    <string name="compose_send_now_instead">Send now instead</string>
+    <string name="compose_message_sent">Message sent</string>
+    <string name="compose_send_cancelled">Send cancelled</string>
+    <string name="compose_undo_too_late">Too late to undo — already sent</string>
 </resources>

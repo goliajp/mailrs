@@ -18,6 +18,7 @@ use crate::types::MessageMeta;
 mod backfill;
 mod filing;
 mod holds;
+pub use holds::ReleaseFact;
 mod labels;
 pub use labels::LabelDbError;
 mod mutate;

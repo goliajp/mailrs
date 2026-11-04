@@ -303,6 +303,40 @@ class NavigationFlowTest : MailrsUiTest() {
         compose.onNodeWithText("Paged thread 52").assertIsDisplayed()
     }
 
+    /**
+     * One second holding more threads than a page. The stub's
+     * `SameSecond` list is five threads in one second, two to a page.
+     * Re-requesting the boundary second gets the same two back, which
+     * reads as the end; only the cursor reaches the other three. Each of
+     * the five must be there once.
+     */
+    @Test
+    fun paging_by_cursor_reaches_every_thread_of_one_second() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.activityRule.scenario.onActivity { it.useFolderForTest("SameSecond") }
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithText("Same second 0").fetchSemanticsNodes().isNotEmpty()
+        }
+
+        // each pass brings at most one page; stop when the list stops growing
+        var seen = 0
+        repeat(6) {
+            compose.onNodeWithTag("list.conversations").performScrollToIndex(
+                maxOf(0, currentRowCount() - 1),
+            )
+            compose.waitForIdle()
+            val now = currentRowCount()
+            if (now == seen) return@repeat
+            seen = now
+        }
+
+        for (i in 0 until 5) {
+            compose.onNodeWithTag("list.conversations").performScrollToNode(hasText("Same second $i"))
+            compose.onAllNodesWithText("Same second $i").assertCountEquals(1)
+        }
+    }
+
     private fun currentRowCount() =
         compose.onAllNodesWithTag("row.conversation").fetchSemanticsNodes().size
 

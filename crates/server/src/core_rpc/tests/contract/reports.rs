@@ -22,6 +22,22 @@ fn scam(name: &str, addr: &str, message_id: &str) -> Vec<u8> {
     .into_bytes()
 }
 
+/// The same scam again, replying into the first one's conversation, with
+/// our receiver's trace dated an hour from now: it arrived after anything
+/// the test did before it.
+fn later_copy(name: &str, addr: &str, message_id: &str) -> Vec<u8> {
+    let at = (chrono::Utc::now() + chrono::Duration::hours(1)).to_rfc2822();
+    let mut raw = format!(
+        "Received: from mx.parcel-desk.example (192.0.2.1:25)\r\n\tby {} with ESMTP\r\n\
+         \tfor <{addr}>; {at}\r\n\
+         In-Reply-To: <s2@parcel-desk.example>\r\nReferences: <s2@parcel-desk.example>\r\n",
+        harness::AUTHSERV
+    )
+    .into_bytes();
+    raw.extend(scam(name, addr, message_id));
+    raw
+}
+
 async fn held_threads(c: &harness::Cores, d: &mut Diffs, user: &str, call: &str) -> Vec<String> {
     let page = d.both(
         call,
@@ -199,6 +215,45 @@ async fn a_report_finds_and_takes_back_the_other_copies_alike_on_both_cores() {
         c.pg_core.pending_reports().await,
         MINTED,
     );
+
+    // Bob puts it back: a later report does not take it again for the copy
+    // he already had
+    d.both(
+        "Bob releases the conversation a report took",
+        c.fastcore.release_quarantined(BOB, "s2@parcel-desk.example").await,
+        c.pg_core.release_quarantined(BOB, "s2@parcel-desk.example").await,
+        &[],
+    );
+    let again = d.both(
+        "an administrator's report after Bob put it back",
+        c.fastcore.report_message(ALICE, "s1@parcel-desk.example", true).await,
+        c.pg_core.report_message(ALICE, "s1@parcel-desk.example", true).await,
+        MINTED,
+    );
+    if let Some((_, pg)) = &again {
+        assert_eq!((pg.inboxes, pg.taken_back), (1, 0), "{pg:?}");
+    }
+    assert!(
+        held_threads(&c, &mut d, BOB, "Bob's held list after he put it back").await.is_empty(),
+        "a copy from before Bob's release took his conversation back"
+    );
+
+    // a new copy of the template in the same conversation, after the
+    // release, may take it
+    spools
+        .arrive(&c, &to_bob, &later_copy("Bob", BOB, "s2b@parcel-desk.example"))
+        .await;
+    let later = d.both(
+        "an administrator's report after a new copy came",
+        c.fastcore.report_message(ALICE, "s1@parcel-desk.example", true).await,
+        c.pg_core.report_message(ALICE, "s1@parcel-desk.example", true).await,
+        MINTED,
+    );
+    if let Some((_, pg)) = &later {
+        assert_eq!(pg.taken_back, 1, "{pg:?}");
+    }
+    let bob_held = held_threads(&c, &mut d, BOB, "Bob's held list after the new copy").await;
+    assert_eq!(bob_held, vec!["s2@parcel-desk.example".to_string()]);
 
     assert!(
         d.0.is_empty(),

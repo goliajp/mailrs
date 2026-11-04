@@ -1025,6 +1025,22 @@
         }
       }
     },
+    "Bold": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "太字"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "粗体"
+          }
+        }
+      }
+    },
     "Both servers need a name and a port": {
       "localizations": {
         "ja": {
@@ -1085,6 +1101,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "已取消"
+          }
+        }
+      }
+    },
+    "Cancelling…": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取り消しています…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在取消…"
           }
         }
       }
@@ -2530,6 +2562,22 @@
         }
       }
     },
+    "Italic": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "斜体"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "斜体"
+          }
+        }
+      }
+    },
     "Its server settings will be discovered from DNS when the account is added.": {
       "localizations": {
         "ja": {
@@ -2702,6 +2750,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "浅色"
+          }
+        }
+      }
+    },
+    "Link": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "リンク"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "链接"
           }
         }
       }
@@ -3025,6 +3089,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "邮件"
+          }
+        }
+      }
+    },
+    "Message sent": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "送信しました"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已发送"
           }
         }
       }
@@ -4726,6 +4806,22 @@
         }
       }
     },
+    "Scheduled for %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ に送信予定"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "定于 %@ 发送"
+          }
+        }
+      }
+    },
     "Scheduler": {
       "localizations": {
         "ja": {
@@ -4838,6 +4934,22 @@
         }
       }
     },
+    "Send cancelled": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "送信を取り消しました"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已取消发送"
+          }
+        }
+      }
+    },
     "Send later": {
       "localizations": {
         "ja": {
@@ -4866,6 +4978,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "立即发送"
+          }
+        }
+      }
+    },
+    "Send now instead": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今すぐ送信に変更"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "改为立即发送"
           }
         }
       }
@@ -5350,6 +5478,22 @@
         }
       }
     },
+    "Templates": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "テンプレート"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模板"
+          }
+        }
+      }
+    },
     "That code does not work: it may be mistyped, used up, or replaced by a newer one. Ask %@ for a new code.": {
       "localizations": {
         "ja": {
@@ -5650,6 +5794,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "明天早上"
+          }
+        }
+      }
+    },
+    "Too late to undo — already sent": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取り消せません。すでに送信されました"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "来不及撤销，已经发出去了"
           }
         }
       }

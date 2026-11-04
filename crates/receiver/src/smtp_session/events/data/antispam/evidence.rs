@@ -88,6 +88,11 @@ pub(super) struct Evidence {
 }
 
 impl Evidence {
+    /// The host of the `From:` address, as the rules read it.
+    pub(super) fn sender_host(&self) -> &str {
+        &self.sender_host
+    }
+
     // The half of `mailrs_fraud` that needs to know what this
     // organisation is called. The other half — the mailer fingerprint —
     // is read from the message by `ReceiveContext::new`, because it

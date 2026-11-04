@@ -413,4 +413,13 @@
     <string name="link_warning_confirm">このリンクは見た目どおりの場所に行かない可能性があります。\n\n%1$s\n\nそれでも開きますか？</string>
     <string name="link_warning_open">開く</string>
     <string name="read_callback">このメールには、この送信者がこれまで使っていない電話番号があります：%1$s。支払いやアカウントの件で電話する前に、番号をご自身で確かめてください</string>
+    <string name="compose_templates">テンプレート</string>
+    <string name="format_bold">太字</string>
+    <string name="format_italic">斜体</string>
+    <string name="format_link">リンク</string>
+    <string name="compose_scheduled_for">%1$s に送信予定</string>
+    <string name="compose_send_now_instead">今すぐ送信に変更</string>
+    <string name="compose_message_sent">送信しました</string>
+    <string name="compose_send_cancelled">送信を取り消しました</string>
+    <string name="compose_undo_too_late">取り消せません。すでに送信されました</string>
 </resources>

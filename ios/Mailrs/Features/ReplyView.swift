@@ -39,6 +39,7 @@ struct ReplyView: View {
     /// Which address the answer leaves by. A reply follows the account
     /// the thread arrived at: sent from anywhere else it lands in the
     /// conversation as a stranger.
+    @State private var from = ""
     @State private var suggestions: [String] = []
     @State private var suggestionTask: Task<Void, Never>?
     /// The same autosave contract as compose: one id per session,
@@ -117,14 +118,15 @@ struct ReplyView: View {
                     to: toSlot, cc: $cc, bcc: $bcc,
                     subject: .fixed(subject),
                     showsCopies: $showsCopies, suggestions: $suggestions,
-                    focus: $focus
+                    focus: $focus, from: $from, fromOptions: session.sendAddresses,
+                    fromDefault: session.replyFrom(replyingTo?.recipients ?? "")
                 ) { text in
                     suggestionTask = ContactSuggestions.schedule(
                         replacing: suggestionTask, for: text, in: session
                     ) { suggestions = $0 }
                 }
 
-                ComposerEditor(text: $body_, placeholder: "Message")
+                ComposerEditor(text: $body_, placeholder: "Message", formatting: true)
                     .focused($focus, equals: .body)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -221,6 +223,7 @@ struct ReplyView: View {
         // writer cannot see they are about to write to.
         showsCopies = !mine.cc.isEmpty || !mine.bcc.isEmpty
         draftId = mine.id
+        if let saved = mine.from, !saved.isEmpty { from = saved }
     }
 
     private func scheduleAutosave() {
@@ -242,7 +245,7 @@ struct ReplyView: View {
             cc: cc, bcc: bcc,
             subject: subject,
             body: body_,
-            replyToThreadId: thread.threadId
+            replyToThreadId: thread.threadId, from: from
         )
     }
 
@@ -251,11 +254,11 @@ struct ReplyView: View {
         guard DraftRule.isWorthSaving(to: "", subject: "", body: body_) else { return }
         let (title, text, id, tid, addrs) =
             (subject, body_, draftId, thread.threadId, recipients.joined(separator: ", "))
-        let (copies, blind) = (cc, bcc)
+        let (copies, blind, sender) = (cc, bcc, from)
         Task {
             _ = await session.saveDraft(
                 id: id, to: addrs, cc: copies, bcc: blind,
-                subject: title, body: text, replyToThreadId: tid
+                subject: title, body: text, replyToThreadId: tid, from: sender
             )
             await session.loadDrafts()
         }
@@ -296,7 +299,7 @@ struct ReplyView: View {
                     body: quotedBody,
                     inReplyTo: replyingTo?.messageId,
                     threadId: thread.threadId,
-                    attachments: attachments
+                    attachments: attachments, from: from
                 )
             case .forward:
                 guard let replyingTo else { return }
@@ -308,7 +311,7 @@ struct ReplyView: View {
                     body: MailSignature.append(body: body_, signature: session.signature),
                     forwardMessageId: replyingTo.messageId,
                     forwardAttachmentsFrom: replyingTo.uid,
-                    attachments: attachments
+                    attachments: attachments, from: from
                 )
             }
             // Sent, so it is no longer a draft. Cancel the pending

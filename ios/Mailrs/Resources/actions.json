@@ -1,0 +1,576 @@
+{
+  "actions": [
+    {
+      "id": "archive",
+      "surfaces": ["web", "ios", "android"],
+      "keys": ["e"],
+      "undo": "unarchive",
+      "confirm": false,
+      "danger": false,
+      "batch": true,
+      "verb": "archive",
+      "leaves_list": true,
+      "label": {
+        "web": "action.archive",
+        "ios": "Archive",
+        "android": "action_archive"
+      },
+      "done": {
+        "web": "action.archive.done",
+        "ios": "Archived",
+        "android": "action_archive_done"
+      },
+      "icon": {
+        "web": "Archive",
+        "ios": "archivebox",
+        "android": "Filled.Archive"
+      }
+    },
+    {
+      "id": "delete-forever",
+      "surfaces": ["web", "ios", "android"],
+      "keys": ["#"],
+      "undo": null,
+      "confirm": true,
+      "danger": true,
+      "batch": false,
+      "verb": null,
+      "leaves_list": true,
+      "label": {
+        "web": "action.deleteForever",
+        "ios": "Delete forever",
+        "android": "action_delete_forever"
+      },
+      "done": {
+        "web": "action.deleteForever.done",
+        "ios": null,
+        "android": "action_delete_forever_done"
+      },
+      "icon": {
+        "web": "ArchiveX",
+        "ios": "trash.slash",
+        "android": "Filled.DeleteForever"
+      }
+    },
+    {
+      "id": "label",
+      "surfaces": ["web", "ios", "android"],
+      "keys": ["l"],
+      "undo": "unlabel",
+      "confirm": false,
+      "danger": false,
+      "batch": true,
+      "verb": "label",
+      "leaves_list": false,
+      "label": {
+        "web": "action.label",
+        "ios": "Labels",
+        "android": "action_label"
+      },
+      "done": {
+        "web": null,
+        "ios": null,
+        "android": null
+      },
+      "icon": {
+        "web": "Tag",
+        "ios": "tag",
+        "android": "AutoMirrored.Filled.Label"
+      }
+    },
+    {
+      "id": "mark-junk",
+      "surfaces": ["web", "ios", "android"],
+      "keys": ["!"],
+      "undo": "mark-not-junk",
+      "confirm": false,
+      "danger": false,
+      "batch": false,
+      "verb": null,
+      "leaves_list": true,
+      "label": {
+        "web": "action.markJunk",
+        "ios": "Mark as junk",
+        "android": "action_mark_junk"
+      },
+      "done": {
+        "web": "action.markJunk.done",
+        "ios": null,
+        "android": "action_mark_junk_done"
+      },
+      "icon": {
+        "web": "ShieldAlert",
+        "ios": "xmark.bin",
+        "android": "Filled.Report"
+      }
+    },
+    {
+      "id": "mark-not-junk",
+      "surfaces": ["web", "ios", "android"],
+      "keys": [],
+      "undo": "mark-junk",
+      "confirm": false,
+      "danger": false,
+      "batch": false,
+      "verb": null,
+      "leaves_list": true,
+      "label": {
+        "web": "action.markNotJunk",
+        "ios": "Not junk",
+        "android": "action_mark_not_junk"
+      },
+      "done": {
+        "web": "action.markNotJunk.done",
+        "ios": null,
+        "android": "action_mark_not_junk_done"
+      },
+      "icon": {
+        "web": "ShieldCheck",
+        "ios": "checkmark.shield",
+        "android": "Filled.ReportOff"
+      }
+    },
+    {
+      "id": "mark-notification",
+      "surfaces": ["web", "ios", "android"],
+      "keys": [],
+      "undo": "move-to-inbox",
+      "confirm": false,
+      "danger": false,
+      "batch": false,
+      "verb": null,
+      "leaves_list": true,
+      "label": {
+        "web": "action.markNotification",
+        "ios": "Mark as notification",
+        "android": "action_mark_notification"
+      },
+      "done": {
+        "web": "action.markNotification.done",
+        "ios": null,
+        "android": "action_mark_notification_done"
+      },
+      "icon": {
+        "web": "Bell",
+        "ios": "bell",
+        "android": "Filled.Notifications"
+      }
+    },
+    {
+      "id": "mark-promotion",
+      "surfaces": ["web", "ios", "android"],
+      "keys": [],
+      "undo": "move-to-inbox",
+      "confirm": false,
+      "danger": false,
+      "batch": false,
+      "verb": null,
+      "leaves_list": true,
+      "label": {
+        "web": "action.markPromotion",
+        "ios": "Mark as promotion",
+        "android": "action_mark_promotion"
+      },
+      "done": {
+        "web": "action.markPromotion.done",
+        "ios": null,
+        "android": "action_mark_promotion_done"
+      },
+      "icon": {
+        "web": "ShoppingBag",
+        "ios": "tag",
+        "android": "Filled.LocalOffer"
+      }
+    },
+    {
+      "id": "move-to-inbox",
+      "surfaces": ["web", "ios", "android"],
+      "keys": [],
+      "undo": null,
+      "confirm": false,
+      "danger": false,
+      "batch": false,
+      "verb": null,
+      "leaves_list": true,
+      "label": {
+        "web": "action.moveToInbox",
+        "ios": "Move to Inbox",
+        "android": "action_move_to_inbox"
+      },
+      "done": {
+        "web": "action.moveToInbox.done",
+        "ios": null,
+        "android": "action_move_to_inbox_done"
+      },
+      "icon": {
+        "web": "Inbox",
+        "ios": "tray",
+        "android": "Filled.MoveToInbox"
+      }
+    },
+    {
+      "id": "report",
+      "surfaces": ["web"],
+      "keys": [],
+      "undo": null,
+      "confirm": false,
+      "danger": true,
+      "batch": false,
+      "verb": null,
+      "leaves_list": true,
+      "label": {
+        "web": "action.report",
+        "ios": null,
+        "android": null
+      },
+      "done": {
+        "web": null,
+        "ios": null,
+        "android": null
+      },
+      "icon": {
+        "web": "Flag",
+        "ios": null,
+        "android": null
+      }
+    },
+    {
+      "id": "pin",
+      "surfaces": ["web", "ios", "android"],
+      "keys": ["p"],
+      "undo": "unpin",
+      "confirm": false,
+      "danger": false,
+      "batch": false,
+      "verb": null,
+      "leaves_list": false,
+      "label": {
+        "web": "action.pin",
+        "ios": "Pin",
+        "android": "action_pin"
+      },
+      "done": {
+        "web": "action.pin.done",
+        "ios": null,
+        "android": "action_pin_done"
+      },
+      "icon": {
+        "web": "Pin",
+        "ios": "pin",
+        "android": "Filled.PushPin"
+      }
+    },
+    {
+      "id": "read",
+      "surfaces": ["web", "ios", "android"],
+      "keys": ["Shift+I"],
+      "undo": "unread",
+      "confirm": false,
+      "danger": false,
+      "batch": true,
+      "verb": "read",
+      "leaves_list": false,
+      "label": {
+        "web": "action.read",
+        "ios": "Mark as read",
+        "android": "action_read"
+      },
+      "done": {
+        "web": null,
+        "ios": null,
+        "android": null
+      },
+      "icon": {
+        "web": "MailOpen",
+        "ios": "envelope.open",
+        "android": "Filled.MarkEmailRead"
+      }
+    },
+    {
+      "id": "release",
+      "surfaces": ["ios", "android"],
+      "keys": [],
+      "undo": null,
+      "confirm": false,
+      "danger": false,
+      "batch": false,
+      "verb": null,
+      "leaves_list": true,
+      "label": {
+        "web": null,
+        "ios": "This is not fraud",
+        "android": "action_release"
+      },
+      "done": {
+        "web": null,
+        "ios": "Back where it was",
+        "android": "action_release_done"
+      },
+      "icon": {
+        "web": null,
+        "ios": "checkmark.shield",
+        "android": "Filled.VerifiedUser"
+      }
+    },
+    {
+      "id": "snooze",
+      "surfaces": ["web", "ios", "android"],
+      "keys": ["b"],
+      "undo": "unsnooze",
+      "confirm": false,
+      "danger": false,
+      "batch": false,
+      "verb": null,
+      "leaves_list": true,
+      "label": {
+        "web": "action.snooze",
+        "ios": "Snooze",
+        "android": "action_snooze"
+      },
+      "done": {
+        "web": "action.snooze.done",
+        "ios": null,
+        "android": "action_snooze_done"
+      },
+      "icon": {
+        "web": "AlarmClock",
+        "ios": "clock",
+        "android": "Filled.Snooze"
+      }
+    },
+    {
+      "id": "star",
+      "surfaces": ["web", "ios", "android"],
+      "keys": ["s"],
+      "undo": "unstar",
+      "confirm": false,
+      "danger": false,
+      "batch": true,
+      "verb": "star",
+      "leaves_list": false,
+      "label": {
+        "web": "action.star",
+        "ios": "Star",
+        "android": "action_star"
+      },
+      "done": {
+        "web": null,
+        "ios": null,
+        "android": null
+      },
+      "icon": {
+        "web": "Star",
+        "ios": "star",
+        "android": "Filled.Star"
+      }
+    },
+    {
+      "id": "trash",
+      "surfaces": ["web", "ios", "android"],
+      "keys": ["#"],
+      "undo": "untrash",
+      "confirm": false,
+      "danger": true,
+      "batch": true,
+      "verb": "delete",
+      "leaves_list": true,
+      "label": {
+        "web": "action.trash",
+        "ios": "Move to Trash",
+        "android": "action_trash"
+      },
+      "done": {
+        "web": "action.trash.done",
+        "ios": "Moved to Trash",
+        "android": "action_trash_done"
+      },
+      "icon": {
+        "web": "Trash2",
+        "ios": "trash",
+        "android": "Filled.Delete"
+      }
+    },
+    {
+      "id": "unarchive",
+      "surfaces": ["web", "ios", "android"],
+      "keys": ["e"],
+      "undo": "archive",
+      "confirm": false,
+      "danger": false,
+      "batch": true,
+      "verb": "unarchive",
+      "leaves_list": true,
+      "label": {
+        "web": "action.unarchive",
+        "ios": "Unarchive",
+        "android": "action_unarchive"
+      },
+      "done": {
+        "web": "action.unarchive.done",
+        "ios": null,
+        "android": "action_unarchive_done"
+      },
+      "icon": {
+        "web": "ArchiveRestore",
+        "ios": "tray.and.arrow.up",
+        "android": "Filled.Unarchive"
+      }
+    },
+    {
+      "id": "unlabel",
+      "surfaces": ["ios", "android"],
+      "keys": [],
+      "undo": "label",
+      "confirm": false,
+      "danger": false,
+      "batch": false,
+      "verb": "unlabel",
+      "leaves_list": true,
+      "label": {
+        "web": null,
+        "ios": "Remove label",
+        "android": "action_unlabel"
+      },
+      "done": {
+        "web": null,
+        "ios": "Label removed",
+        "android": "action_unlabel_done"
+      },
+      "icon": {
+        "web": null,
+        "ios": "tag.slash",
+        "android": "AutoMirrored.Filled.LabelOff"
+      }
+    },
+    {
+      "id": "unpin",
+      "surfaces": ["web", "ios", "android"],
+      "keys": ["p"],
+      "undo": "pin",
+      "confirm": false,
+      "danger": false,
+      "batch": false,
+      "verb": null,
+      "leaves_list": false,
+      "label": {
+        "web": "action.unpin",
+        "ios": "Unpin",
+        "android": "action_unpin"
+      },
+      "done": {
+        "web": "action.unpin.done",
+        "ios": null,
+        "android": "action_unpin_done"
+      },
+      "icon": {
+        "web": "PinOff",
+        "ios": "pin.slash",
+        "android": "Outlined.PushPin"
+      }
+    },
+    {
+      "id": "unread",
+      "surfaces": ["web", "ios", "android"],
+      "keys": ["u", "Shift+U"],
+      "undo": "read",
+      "confirm": false,
+      "danger": false,
+      "batch": true,
+      "verb": "unread",
+      "leaves_list": false,
+      "label": {
+        "web": "action.unread",
+        "ios": "Mark as unread",
+        "android": "action_unread"
+      },
+      "done": {
+        "web": "action.unread.done",
+        "ios": null,
+        "android": "action_unread_done"
+      },
+      "icon": {
+        "web": "Mail",
+        "ios": "envelope.badge",
+        "android": "Filled.MarkEmailUnread"
+      }
+    },
+    {
+      "id": "unsnooze",
+      "surfaces": ["web", "ios", "android"],
+      "keys": ["b"],
+      "undo": "snooze",
+      "confirm": false,
+      "danger": false,
+      "batch": false,
+      "verb": null,
+      "leaves_list": true,
+      "label": {
+        "web": "action.unsnooze",
+        "ios": "Wake now",
+        "android": "action_unsnooze"
+      },
+      "done": {
+        "web": "action.unsnooze.done",
+        "ios": null,
+        "android": "action_unsnooze_done"
+      },
+      "icon": {
+        "web": "AlarmClockOff",
+        "ios": "bell",
+        "android": "Filled.WbSunny"
+      }
+    },
+    {
+      "id": "unstar",
+      "surfaces": ["web", "ios", "android"],
+      "keys": ["s"],
+      "undo": "star",
+      "confirm": false,
+      "danger": false,
+      "batch": true,
+      "verb": "unstar",
+      "leaves_list": false,
+      "label": {
+        "web": "action.unstar",
+        "ios": "Unstar",
+        "android": "action_unstar"
+      },
+      "done": {
+        "web": null,
+        "ios": null,
+        "android": null
+      },
+      "icon": {
+        "web": "StarOff",
+        "ios": "star.slash",
+        "android": "Filled.StarBorder"
+      }
+    },
+    {
+      "id": "untrash",
+      "surfaces": ["web", "ios", "android"],
+      "keys": [],
+      "undo": "trash",
+      "confirm": false,
+      "danger": false,
+      "batch": true,
+      "verb": "untrash",
+      "leaves_list": true,
+      "label": {
+        "web": "action.untrash",
+        "ios": "Restore",
+        "android": "action_untrash"
+      },
+      "done": {
+        "web": "action.untrash.done",
+        "ios": "Restored",
+        "android": "action_untrash_done"
+      },
+      "icon": {
+        "web": "Undo2",
+        "ios": "arrow.uturn.backward",
+        "android": "Filled.RestoreFromTrash"
+      }
+    }
+  ]
+}

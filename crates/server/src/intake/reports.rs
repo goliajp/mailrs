@@ -117,15 +117,39 @@ impl ReportStore for PgCore {
         self.dir
             .rt
             .block_on(self.mailbox.hold_thread(user, tid))
+            .map(|_| ())
             .map_err(io)
     }
 
     /// This core keeps no batches (`/v1/admin/rejudge-batches` is empty
     /// here): a conversation a report took back is released one by one.
-    fn take_back(&self, user: &str, tid: &str, _batch: &str) -> Result<bool, String> {
+    /// A person's release (a reader's, or a batch put back) stands against
+    /// any copy that arrived before it, as on the kevy core.
+    fn take_back(&self, user: &str, tid: &str, mid: &str, _batch: &str) -> Result<bool, String> {
+        let err = |e: sqlx::Error| e.to_string();
+        let arrived = self
+            .dir
+            .rt
+            .block_on(self.mailbox.template_of(mid))
+            .map_err(err)?
+            .map(|t| t.arrived);
+        let released = self
+            .dir
+            .rt
+            .block_on(self.mailbox.releases(user, tid))
+            .map_err(err)?
+            .into_iter()
+            .filter(|f| f.source == "person" || f.source == "batch")
+            .map(|f| f.at)
+            .max();
+        if let Some(released) = released
+            && arrived.is_none_or(|a| a <= released)
+        {
+            return Ok(false);
+        }
         self.dir
             .rt
-            .block_on(self.mailbox.hold_thread_if_free(user, tid))
-            .map_err(|e| e.to_string())
+            .block_on(self.mailbox.hold_thread(user, tid))
+            .map_err(err)
     }
 }

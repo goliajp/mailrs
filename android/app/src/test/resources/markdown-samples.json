@@ -1,0 +1,258 @@
+{
+  "samples": [
+    {
+      "html": "<p>Hello there</p>\n",
+      "markdown": "Hello there",
+      "name": "plain"
+    },
+    {
+      "html": "<p>Hello <strong>big</strong></p>\n",
+      "markdown": "Hello **big**",
+      "name": "bold"
+    },
+    {
+      "html": "<p><strong>under</strong> and <strong>star</strong></p>\n",
+      "markdown": "__under__ and **star**",
+      "name": "bold underscores"
+    },
+    {
+      "html": "<p>say <em>hi</em> and <em>there</em></p>\n",
+      "markdown": "say _hi_ and *there*",
+      "name": "italic"
+    },
+    {
+      "html": "<p><strong>bold <em>both</em></strong></p>\n",
+      "markdown": "**bold _both_**",
+      "name": "nested"
+    },
+    {
+      "html": "<p><em>a <strong>b</strong> c</em></p>\n",
+      "markdown": "*a **b** c*",
+      "name": "italic around bold"
+    },
+    {
+      "html": "<p>a<em>b</em>c</p>\n",
+      "markdown": "a*b*c",
+      "name": "intraword star"
+    },
+    {
+      "html": "<p>snake_case_word and <strong>x</strong></p>\n",
+      "markdown": "snake_case_word and **x**",
+      "name": "intraword underscore"
+    },
+    {
+      "html": "<p><em>a_b</em></p>\n",
+      "markdown": "_a_b_",
+      "name": "underscore run"
+    },
+    {
+      "html": "<p>**unclosed</p>\n",
+      "markdown": "**unclosed",
+      "name": "unclosed"
+    },
+    {
+      "html": "<p>a*b</p>\n",
+      "markdown": "a\\*b",
+      "name": "backslash"
+    },
+    {
+      "html": "<p><code>a&lt;b</code> and <code>x</code></p>\n",
+      "markdown": "`a<b` and `x`",
+      "name": "code span"
+    },
+    {
+      "html": "<p>see <a href=\"https://example.com\">docs</a></p>\n",
+      "markdown": "see [docs](https://example.com)",
+      "name": "link"
+    },
+    {
+      "html": "<p><a href=\"https://e.example\"><strong>bold</strong> link</a></p>\n",
+      "markdown": "[**bold** link](https://e.example)",
+      "name": "link with formatting"
+    },
+    {
+      "html": "<p><a href=\"https://e.example/a?b=1&amp;c=%222%22\">t</a></p>\n",
+      "markdown": "[t](https://e.example/a?b=1&c=\"2\")",
+      "name": "link query"
+    },
+    {
+      "html": "<p><a href=\"mailto:a@b.jp\">m</a></p>\n",
+      "markdown": "[m](mailto:a@b.jp)",
+      "name": "mailto link"
+    },
+    {
+      "html": "<p>see <a href=\"https://\">docs</a></p>\n",
+      "markdown": "see [docs](https://)",
+      "name": "toolbar link placeholder"
+    },
+    {
+      "html": "<p>visit <a href=\"https://example.com/x?y=1\">https://example.com/x?y=1</a> now</p>\n",
+      "markdown": "visit https://example.com/x?y=1 now",
+      "name": "autolink"
+    },
+    {
+      "html": "<p><a href=\"https://a.example/b?c=1&amp;d=2\">https://a.example/b?c=1&amp;d=2</a></p>\n",
+      "markdown": "https://a.example/b?c=1&d=2",
+      "name": "autolink ampersand"
+    },
+    {
+      "html": "<p>go to <a href=\"https://example.com/x\">https://example.com/x</a>.</p>\n",
+      "markdown": "go to https://example.com/x.",
+      "name": "autolink trailing dot"
+    },
+    {
+      "html": "<p>link (<a href=\"https://example.com/a\">https://example.com/a</a>) end</p>\n",
+      "markdown": "link (https://example.com/a) end",
+      "name": "autolink parens"
+    },
+    {
+      "html": "<p><a href=\"https://example.com/a_b_c\">https://example.com/a_b_c</a></p>\n",
+      "markdown": "https://example.com/a_b_c",
+      "name": "autolink underscores"
+    },
+    {
+      "html": "<p>see <a href=\"http://www.example.com\">www.example.com</a>.</p>\n",
+      "markdown": "see www.example.com.",
+      "name": "www"
+    },
+    {
+      "html": "<p>mail me at <a href=\"mailto:a.b@golia.jp\">a.b@golia.jp</a> please</p>\n",
+      "markdown": "mail me at a.b@golia.jp please",
+      "name": "email"
+    },
+    {
+      "html": "<p>a &lt; b &amp; c &gt; d &quot;q&quot; &#39;s&#39;</p>\n",
+      "markdown": "a < b & c > d \"q\" 's'",
+      "name": "escaping"
+    },
+    {
+      "html": "<p>&amp; already</p>\n",
+      "markdown": "&amp; already",
+      "name": "entity kept"
+    },
+    {
+      "html": "<p>line one<br>line two</p>\n",
+      "markdown": "line one\nline two",
+      "name": "line break"
+    },
+    {
+      "html": "<p>para one</p>\n<p>&nbsp;</p>\n<p>para two</p>\n",
+      "markdown": "para one\n\npara two",
+      "name": "paragraphs"
+    },
+    {
+      "html": "<p>a</p>\n<p>&nbsp;</p>\n<p>&nbsp;</p>\n<p>b</p>\n",
+      "markdown": "a\n\n\nb",
+      "name": "blank lines kept"
+    },
+    {
+      "html": "<h1>H1</h1>\n<p>text</p>\n",
+      "markdown": "# H1\ntext",
+      "name": "heading"
+    },
+    {
+      "html": "<h6>H6</h6>\n",
+      "markdown": "###### H6",
+      "name": "heading six"
+    },
+    {
+      "html": "<p>####### seven</p>\n",
+      "markdown": "####### seven",
+      "name": "not a heading"
+    },
+    {
+      "html": "<blockquote>\n<p>a<br>b</p>\n</blockquote>\n",
+      "markdown": "> a\n> b",
+      "name": "quote"
+    },
+    {
+      "html": "<blockquote>\n<p>no space</p>\n</blockquote>\n",
+      "markdown": ">no space",
+      "name": "quote no space"
+    },
+    {
+      "html": "<p>Thanks!</p>\n<p>&nbsp;</p>\n<p>On Mon, A wrote:</p>\n<blockquote>\n<p>q1<br>q2</p>\n</blockquote>\n",
+      "markdown": "Thanks!\n\nOn Mon, A wrote:\n> q1\n> q2",
+      "name": "reply quote"
+    },
+    {
+      "html": "<ul>\n<li>a</li>\n<li>b</li>\n</ul>\n",
+      "markdown": "- a\n- b",
+      "name": "bullets"
+    },
+    {
+      "html": "<ul>\n<li>star item</li>\n<li>two</li>\n</ul>\n",
+      "markdown": "* star item\n* two",
+      "name": "star bullets"
+    },
+    {
+      "html": "<ol>\n<li>a</li>\n<li>b</li>\n</ol>\n",
+      "markdown": "1. a\n2. b",
+      "name": "numbered"
+    },
+    {
+      "html": "<ol start=\"3\">\n<li>three</li>\n<li>four</li>\n</ol>\n",
+      "markdown": "3. three\n4. four",
+      "name": "numbered from three"
+    },
+    {
+      "html": "<p>text</p>\n<ul>\n<li>a</li>\n</ul>\n",
+      "markdown": "text\n- a",
+      "name": "list after paragraph"
+    },
+    {
+      "html": "<p>para</p>\n<ol>\n<li>one</li>\n</ol>\n",
+      "markdown": "para\n1. one",
+      "name": "numbered after paragraph"
+    },
+    {
+      "html": "<p>para<br>2. two</p>\n",
+      "markdown": "para\n2. two",
+      "name": "two is not a list after paragraph"
+    },
+    {
+      "html": "<p>tab\tsep</p>\n",
+      "markdown": "tab\tsep",
+      "name": "tab"
+    },
+    {
+      "html": "<p><strong>件名</strong>です。<em>よろしく</em></p>\n",
+      "markdown": "**件名**です。_よろしく_",
+      "name": "japanese"
+    },
+    {
+      "html": "<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>\n",
+      "markdown": "<script>alert(1)</script>",
+      "name": "injection script"
+    },
+    {
+      "html": "<p>a &lt;b onclick=&quot;x()&quot;&gt;b&lt;/b&gt; c</p>\n",
+      "markdown": "a <b onclick=\"x()\">b</b> c",
+      "name": "injection tag"
+    },
+    {
+      "html": "<p>x</p>\n",
+      "markdown": "[x](javascript:alert(1))",
+      "name": "injection javascript link"
+    },
+    {
+      "html": "<p>x</p>\n",
+      "markdown": "[x](data:text/html,<b>x</b>)",
+      "name": "injection data link"
+    },
+    {
+      "html": "<p>x</p>\n",
+      "markdown": "[x](/admin)",
+      "name": "injection relative link"
+    },
+    {
+      "html": "",
+      "markdown": "",
+      "name": "empty"
+    }
+  ],
+  "wrap": {
+    "html": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n<style>\n  body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; line-height: 1.6; color: #222; background: #fff; }\n  a { color: #0066cc; }\n  pre { white-space: pre-wrap; word-break: break-word; }\n  img { max-width: 100%; height: auto; }\n  @media (prefers-color-scheme: dark) {\n    body { background: #1a1a1a; color: #e0e0e0; }\n    a { color: #5b9cf5; }\n    blockquote { border-left-color: #555 !important; }\n    hr { border-top-color: #444 !important; }\n  }\n</style>\n</head>\n<body>\n<div style=\"max-width:600px;margin:0 auto;padding:16px\">\n<p>x</p>\n\n</div>\n</body>\n</html>",
+    "inner": "<p>x</p>\n"
+  }
+}

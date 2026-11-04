@@ -159,24 +159,6 @@ impl PgMailboxStore {
         Ok(Some((thread_id, file, holds > 0)))
     }
 
-    /// Hold `thread_id` for `user` unless it already is; true when this
-    /// call held it.
-    pub async fn hold_thread_if_free(
-        &self,
-        user: &str,
-        thread_id: &str,
-    ) -> Result<bool, sqlx::Error> {
-        let done = sqlx::query(
-            "INSERT INTO quarantine_holds (account_address, thread_id) VALUES ($1, $2)
-             ON CONFLICT (account_address, thread_id) DO NOTHING",
-        )
-        .bind(user)
-        .bind(thread_id)
-        .execute(&self.pool)
-        .await?;
-        Ok(done.rows_affected() > 0)
-    }
-
     /// Fingerprints stored, with how many are still findable.
     pub async fn template_footprint(&self) -> Result<(i64, i64), sqlx::Error> {
         sqlx::query_as("SELECT COUNT(*), COUNT(s0) FROM message_templates")

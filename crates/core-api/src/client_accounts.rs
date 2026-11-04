@@ -157,6 +157,25 @@ impl Client {
         self.post_authed_no_body(path, "quota_limits").await
     }
 
+    /// GET /v1/admin/maintenance:usage-drift — each account's usage
+    /// counter against its maildir, and the counters of addresses that are
+    /// not accounts
+    pub async fn usage_drift(&self) -> ApiResult<method::admin::UsageDriftResponse> {
+        self.get_authed(method::admin::PATH_USAGE_DRIFT.to_string(), "usage_drift")
+            .await
+    }
+
+    /// POST /v1/admin/maintenance:usage-drift — with `dry_run` false, sets
+    /// each counter to its disk figure unless it moved meanwhile, and
+    /// deletes the orphan counters
+    pub async fn correct_usage(
+        &self,
+        dry_run: bool,
+    ) -> ApiResult<method::admin::UsageDriftResponse> {
+        let path = format!("/v1/admin/maintenance:usage-drift?dry_run={dry_run}");
+        self.post_authed_no_body(path, "correct_usage").await
+    }
+
     /// GET /v1/admin/ownerless-threads — conversations nobody holds
     pub async fn ownerless_threads(&self) -> ApiResult<method::admin::OwnerlessThreadsResponse> {
         self.get_authed(

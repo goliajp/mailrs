@@ -24,7 +24,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
-import stub_confirm, stub_triage, stub_verdict
+import stub_confirm, stub_invite, stub_paging, stub_triage, stub_verdict, stub_compose
 import stub_reset
 import stub_restart
 import stub_role
@@ -38,38 +38,6 @@ WIDE = ('<table width="760" style="width:760px"><tr><td>'
         '<img src="https://tracker.example.com/open.gif" width="1" height="1">'
         '<h1>Newsletter</h1><p>' + ('lorem ipsum dolor sit amet ' * 12) + '</p>'
         '</div></td></tr></table>')
-
-def _paged_convos(limit, before_ts):
-    """`/api/conversations` the way `list_threads/paths.rs` answers it.
-
-    Keyset, `latest_date < before_ts`, newest first, no `has_more`. The
-    comparison is strict — the handler passes `Some(ts - 1)` as an
-    inclusive bound — which is the whole reason the client asks for one
-    second past its oldest row.
-
-    Rows 48-52 deliberately share a second. A client that paged on its
-    oldest row's own timestamp would skip the ones that did not fit, and
-    a stub without a collision could never show that.
-    """
-    rows = []
-    for i in range(120):
-        ts = BASE_TS - i * 3600
-        if 48 <= i <= 52:
-            ts = BASE_TS - 48 * 3600
-        rows.append({
-            "thread_id": f"p{i}", "subject": f"Paged thread {i}",
-            "participants": [f"sender{i}@example.com"], "message_count": 1,
-            "unread_count": 0, "last_date": ts, "category": "inbox",
-            "flagged": False, "snippet": f"body {i}", "pinned": False,
-            "archived": False, "importance_level": "normal",
-            "importance_score": 0.0, "requires_action": False,
-            "received_count": 1, "sent_count": 0,
-        })
-    rows.sort(key=lambda r: -r["last_date"])
-    if before_ts is not None:
-        rows = [r for r in rows if r["last_date"] < before_ts]
-    return rows[:limit]
-
 
 BASE_TS = 1754400000
 
@@ -574,7 +542,7 @@ class H(BaseHTTPRequestHandler):
             return
         if self._session_rejected():
             return
-        if stub_role.handle(self) or stub_role.refused(self) or stub_reset.state(self) or stub_triage.get(self, VERBS) or stub_verdict.get(self, MESSAGES):
+        if stub_role.handle(self) or stub_role.refused(self) or stub_reset.state(self) or stub_triage.get(self, VERBS) or stub_verdict.get(self, MESSAGES) or stub_compose.get(self):
             return
         if self.path.split("?")[0] == "/api/conversations/search":
             query = parse_qs(urlparse(self.path).query)
@@ -628,7 +596,7 @@ class H(BaseHTTPRequestHandler):
                     "internal_date": 1754400000, "message_id": f"<m{uid}@x>",
                     "text_body": "See you then.", "html_body": "", "flags": 0,
                     "invite_method": "REQUEST" if uid == 2 else "",
-                    "invite_payload": INVITE if uid == 2 else None,
+                    "invite_payload": stub_invite.payload(INVITE) if uid == 2 else None,
                     "rsvp_status": None, "rsvp_at": None,
                     # The dates a person wrote in prose, for the mail
                     # that carries no calendar part — which is most mail
@@ -993,10 +961,8 @@ class H(BaseHTTPRequestHandler):
                     r["message_count"] = (i % 5) + 1
                 self._send(rows)
                 return
-            if folder == "Paged":
-                limit = int(query.get("limit", ["50"])[0])
-                before = query.get("before_ts", [None])[0]
-                self._send(_paged_convos(limit, int(before) if before else None))
+            if folder in stub_paging.FOLDERS:
+                stub_paging.answer(self, folder)
             else:
                 # Real threads first when the door is open, so the mail
                 # under inspection is the first thing on screen.
@@ -1024,7 +990,7 @@ class H(BaseHTTPRequestHandler):
         self._send({}, 404)
 
     def do_DELETE(self):
-        if stub_restart.refused(self) or stub_role.refused(self):
+        if stub_restart.refused(self) or stub_role.refused(self) or stub_compose.delete(self):
             return
         if stub_confirm.refused(self, "DELETE") or stub_triage.delete(self, VERBS):
             return
@@ -1149,7 +1115,7 @@ class H(BaseHTTPRequestHandler):
             return
         if self._session_rejected():
             return
-        if stub_role.handle(self) or stub_role.refused(self) or stub_reset.handle(self) or stub_triage.post(self, VERBS) or stub_verdict.arm(self):
+        if stub_role.handle(self) or stub_role.refused(self) or stub_reset.handle(self) or stub_triage.post(self, VERBS) or stub_verdict.arm(self) or stub_invite.arm(self) or stub_compose.post(self):
             return
         if self.path.split("?")[0] == "/api/auth/confirm":
             stub_confirm.answer(self)
@@ -1271,7 +1237,7 @@ class H(BaseHTTPRequestHandler):
             # would otherwise 401 every test after it, and the failure
             # would look like anything but a leftover flag.
             REJECT_SESSION[0] = False
-            for stub in (stub_confirm, stub_restart, stub_role, stub_reset, stub_verdict):
+            for stub in (stub_confirm, stub_invite, stub_restart, stub_role, stub_reset, stub_verdict, stub_compose):
                 stub.reset()
             VERB_REFUSE.clear()
             FETCHED.clear()
@@ -1399,22 +1365,7 @@ class H(BaseHTTPRequestHandler):
             self.send_header("Content-Length", "0")
             self.end_headers()
         elif self.path.startswith("/api/mail/drafts"):
-            length = int(self.headers.get("Content-Length", "0"))
-            body = json.loads(self.rfile.read(length)) if length else {}
-            DRAFT_POSTS.append(body.get("id"))
-            draft_id = body.get("id")
-            if draft_id is None:
-                DRAFT_COUNTER[0] += 1
-                draft_id = DRAFT_COUNTER[0]
-            now = 1754400000 + draft_id
-            DRAFTS[draft_id] = {
-                "id": draft_id, "to": body.get("to", ""), "cc": body.get("cc", ""),
-                "bcc": body.get("bcc", ""), "subject": body.get("subject", ""),
-                "body": body.get("body", ""),
-                "reply_to_thread_id": body.get("reply_to_thread_id"),
-                "created_at": now, "updated_at": now,
-            }
-            self._send({"id": draft_id})
+            stub_compose.save_draft(self, DRAFTS, DRAFT_COUNTER, DRAFT_POSTS)
         elif re.match(r"^/api/admin/email-groups/(\d+)/members$", self.path.split("?")[0]):
             gid = int(re.match(r"^/api/admin/email-groups/(\d+)/members$",
                                self.path.split("?")[0]).group(1))

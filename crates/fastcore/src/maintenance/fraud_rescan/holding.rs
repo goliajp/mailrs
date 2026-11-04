@@ -9,6 +9,7 @@ pub(crate) fn apply(
     tid: &str,
     mid: &str,
     verdict: &mailrs_inbound::FraudVerdict,
+    source: &str,
 ) -> Result<bool, String> {
     let row = state
         .mailbox
@@ -43,6 +44,18 @@ pub(crate) fn apply(
             .map_err(|e| e.to_string())?
     {
         return Err("thread membership disappeared".into());
+    }
+    if !row.quarantined {
+        // the line that says which conversation a run took, so a count
+        // of holds can be traced back to the conversations behind it
+        crate::hold_facts::record_hold(
+            state,
+            user,
+            tid,
+            source,
+            &verdict.rules_version,
+            &crate::hold_facts::verdict_rules(&verdict),
+        );
     }
     let messages = state
         .mailbox

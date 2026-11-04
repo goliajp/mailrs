@@ -9,6 +9,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -50,5 +52,32 @@ class InviteFlowTest : MailrsUiTest() {
         // The two things a reader does with a meeting.
         compose.onNodeWithTag("invite.join").assertIsDisplayed()
         compose.onNodeWithTag("invite.accepted").assertIsDisplayed()
+    }
+
+    /**
+     * An all-day invitation has no instant, only its days; the card says
+     * them, and no time of day. The stub's all-day form runs 3 to 4
+     * November (DTEND is the 5th, the day after the last). The reset
+     * before every test puts the timed meeting back.
+     */
+    @Test
+    fun an_all_day_invitation_shows_its_days() {
+        val c = java.net.URL(stubBase() + "/debug/invite-all-day").openConnection() as java.net.HttpURLConnection
+        c.requestMethod = "POST"
+        c.inputStream.use { it.readBytes() }
+
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onAllNodesWithTag("row.conversation").onFirst().performClick()
+        waitForTag("list.messages", "the thread never opened")
+        waitForTag("invite.card", "the card did not mount")
+        compose.onNodeWithTag("invite.card").performScrollTo()
+
+        waitForTag("invite.when", "the card says no date at all")
+        val text = compose.onNodeWithTag("invite.when").fetchSemanticsNode()
+            .config[androidx.compose.ui.semantics.SemanticsProperties.Text]
+            .joinToString("") { it.text }
+        assertTrue("the card does not run from the 3rd to the 4th: $text", text.contains("Nov 3") && text.contains("Nov 4"))
+        assertFalse("an all-day event was given a time: $text", text.contains(":"))
     }
 }

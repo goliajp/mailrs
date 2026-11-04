@@ -32,13 +32,12 @@ extension MailrsClient {
         }
     }
 
-    /// `GET /api/quarantine` — newest first, older ones by `before`.
-    func held(limit: Int = 50, before: Int64? = nil) async throws -> [Wire.Conversation] {
+    /// `GET /api/quarantine` — newest first, older ones from `page`.
+    func held(limit: Int = 50, page: ThreadPage.Next? = nil) async throws -> [Wire.Conversation] {
         var components = URLComponents(
             url: baseURL.appendingPathComponent("/api/quarantine"), resolvingAgainstBaseURL: false)
-        var items = [URLQueryItem(name: "limit", value: String(limit))]
-        if let before { items.append(URLQueryItem(name: "before_ts", value: String(before))) }
-        components?.queryItems = items
+        components?.queryItems = [URLQueryItem(name: "limit", value: String(limit))]
+            + ThreadPage.queryItems(page)
         guard let url = components?.url else { throw MailrsError.transport("Bad URL.") }
         let (data, response) = try await send("GET", url: url, body: nil, authorized: true)
         try Self.ok(response)

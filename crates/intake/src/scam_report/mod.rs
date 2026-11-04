@@ -40,10 +40,12 @@ pub trait ReportStore {
     fn held_by_rule(&self, mid: &str) -> bool;
     /// Hold the reporter's own conversation.
     fn hold(&self, user: &str, tid: &str) -> io::Result<()>;
-    /// Take another reader's conversation back into Review as part of
-    /// `batch`, for an administrator to put back whole; false when it was
-    /// already held.
-    fn take_back(&self, user: &str, tid: &str, batch: &str) -> Result<bool, String>;
+    /// Take another reader's conversation back into Review for message
+    /// `mid`, as part of `batch`, for an administrator to put back whole.
+    /// False when it was already held, or when a person released the
+    /// conversation after `mid` arrived: what a person put back stays put
+    /// back, and only mail that came later may take it again.
+    fn take_back(&self, user: &str, tid: &str, mid: &str, batch: &str) -> Result<bool, String>;
 }
 
 fn now() -> i64 {
@@ -123,6 +125,7 @@ pub fn report<S: ReportStore + ?Sized>(
     reports::append(&mut conn, &r).map_err(|e| e.to_string())?;
     if !held {
         core.hold(user, &tid).map_err(|e| e.to_string())?;
+        notify::held(&mut conn, user, &tid);
     }
     notify::audit(
         &mut conn,
@@ -199,7 +202,9 @@ fn others<S: ReportStore + ?Sized>(
                 tid,
                 mid: m.clone(),
             };
-            if !held && !out.iter().any(|o| o.user == t.user && o.tid == t.tid) {
+            // each message, not each conversation: a conversation a person
+            // put back may still be taken for a copy that came after
+            if !held && !out.contains(&t) {
                 out.push(t);
             }
         }
@@ -292,10 +297,11 @@ fn take_back<S: ReportStore + ?Sized>(
     let batch = format!("report:{}", r.id);
     let mut taken = 0;
     for t in targets {
-        match core.take_back(&t.user, &t.tid, &batch) {
+        match core.take_back(&t.user, &t.tid, &t.mid, &batch) {
             Ok(true) => {
                 taken += 1;
                 let raw = core.raw_of(&t.user, &t.mid).unwrap_or_default();
+                notify::held(conn, &t.user, &t.tid);
                 notify::taken(conn, t, &batch, &raw);
             }
             Ok(false) => {}

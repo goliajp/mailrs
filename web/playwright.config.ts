@@ -68,6 +68,13 @@ export default defineConfig({
       testMatch: /(accessibility|keyboard)\.spec\.ts/,
       use: { baseURL: 'http://localhost:6038' },
     },
+    // layout of the built app in a narrow window, on this project's own
+    // preview port rather than 4173, which another project may hold
+    {
+      name: 'narrow',
+      testMatch: /reading-header-narrow\.spec\.ts/,
+      use: { baseURL: 'http://localhost:6038' },
+    },
   ],
   webServer: [
     // Port from the shared port registry (this project's row).
