@@ -58,8 +58,8 @@ const HTML_SOURCE_ELEMENTS: [&str; 14] = [
 /// How many such tags make a plain part HTML source.
 const HTML_SOURCE_MIN_TAGS: usize = 8;
 
-/// Whether `text` is HTML source: at least [`HTML_SOURCE_MIN_TAGS`] tags of
-/// [`HTML_SOURCE_ELEMENTS`], opening or closing, each written `<name`
+/// Whether `text` is HTML source: at least `HTML_SOURCE_MIN_TAGS` tags of
+/// `HTML_SOURCE_ELEMENTS`, opening or closing, each written `<name`
 /// (or `</name`) followed by `>`, `/` or whitespace, case ignored.
 pub fn is_html_source(text: &str) -> bool {
     let b = text.as_bytes();
