@@ -1,5 +1,6 @@
 package jp.golia.mailrs.ui
 
+import jp.golia.mailrs.wire.WireInvite
 import jp.golia.mailrs.R
 import jp.golia.mailrs.wire.Texts
 import androidx.compose.foundation.BorderStroke
@@ -194,7 +195,7 @@ fun InviteCard(uid: Int, method: String, vm: MailViewModel) {
  * The reader's own time, and the organiser's beside it when they
  * differ — the second is what somebody joining across an ocean checks.
  */
-private fun whenLine(invite: Wire.Invite): String? {
+private fun whenLine(invite: WireInvite): String? {
     // an all-day event has no instant and must not be given one: its days, as written
     val local = InviteRules.localTime(invite.startsAt)
         ?: return InviteRules.allDayLine(invite.firstDay, invite.dayAfterLast)

@@ -79,6 +79,13 @@ struct ComposerEditor: View {
     var formatting = false
 
     @State private var selection: TextSelection?
+    /// The editor's own copy of `text`.
+    ///
+    /// With the text bound to the parent and the selection held here, fast
+    /// typing lost characters (`TypingFlowTests`); with both held here it
+    /// does not. The parent is told of each change, and heard from when it
+    /// sets the text itself — a template, a restored draft.
+    @State private var draft = ""
 
     var body: some View {
         VStack(spacing: 0) {
@@ -86,19 +93,26 @@ struct ComposerEditor: View {
                 FormatBar { kind in apply(kind) }
             }
             ZStack(alignment: .topLeading) {
-                if text.isEmpty {
+                if draft.isEmpty {
                     Text(placeholder)
                         .foregroundStyle(.tertiary)
                         .padding(.horizontal, 13)
                         .padding(.vertical, 8)
                         .allowsHitTesting(false)
                 }
-                TextEditor(text: $text, selection: $selection)
+                TextEditor(text: $draft, selection: $selection)
                     // Its own background is opaque and drew over the ghost
                     // behind it — the placeholder was there and invisible.
                     .scrollContentBackground(.hidden)
                     .padding(.horizontal, 8)
             }
+        }
+        .onAppear { draft = text }
+        .onChange(of: draft) { _, typed in
+            if text != typed { text = typed }
+        }
+        .onChange(of: text) { _, given in
+            if draft != given { draft = given }
         }
     }
 
@@ -109,11 +123,11 @@ struct ComposerEditor: View {
     /// into the old string, and measuring the new one with them can trap.
     private var offsets: (Int, Int) {
         guard let selection, case .selection(let range) = selection.indices else {
-            return (text.count, text.count)
+            return (draft.count, draft.count)
         }
-        let units = Array(text.utf16)
+        let units = Array(draft.utf16)
         func characters(_ index: String.Index) -> Int {
-            let clamped = min(max(0, index.utf16Offset(in: text)), units.count)
+            let clamped = min(max(0, index.utf16Offset(in: draft)), units.count)
             return String(decoding: units.prefix(clamped), as: UTF16.self).count
         }
         return (characters(range.lowerBound), characters(range.upperBound))
@@ -121,10 +135,10 @@ struct ComposerEditor: View {
 
     private func apply(_ kind: MarkdownFormat.Kind) {
         let (start, end) = offsets
-        let edit = MarkdownFormat.apply(text, start: start, end: end, kind: kind)
-        text = edit.value
-        let lower = text.index(text.startIndex, offsetBy: edit.start)
-        let upper = text.index(text.startIndex, offsetBy: edit.end)
+        let edit = MarkdownFormat.apply(draft, start: start, end: end, kind: kind)
+        draft = edit.value
+        let lower = draft.index(draft.startIndex, offsetBy: edit.start)
+        let upper = draft.index(draft.startIndex, offsetBy: edit.end)
         selection = TextSelection(range: lower..<upper)
     }
 }

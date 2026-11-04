@@ -12,6 +12,9 @@ struct ListSurfaces: ViewModifier {
 
     func body(content: Content) -> some View {
         content
+            .safeAreaInset(edge: .top) {
+                if session.activeList == .inbox { InboxSectionBar() }
+            }
             .overlay(alignment: .top) { FailureBanner() }
             .animation(.easeOut(duration: 0.2), value: session.banner)
             .overlay(alignment: .bottom) { SendUndoBar().padding(.bottom, 48) }
@@ -20,6 +23,11 @@ struct ListSurfaces: ViewModifier {
                 if let notified { ThreadView(conversation: notified) }
             }
             .task(id: NotificationRoute.shared.threadId) { await openNotified() }
+            .sheet(isPresented: calendarShown) { CalendarWeekView() }
+    }
+
+    private var calendarShown: Binding<Bool> {
+        Binding(get: { session.showingCalendar }, set: { session.showingCalendar = $0 })
     }
 
     private var shown: Binding<Bool> {

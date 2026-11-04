@@ -266,8 +266,15 @@ fi
 # green on 2026-08-24.
 TEST_LOG=/tmp/mailrs-ios-test.log
 TEST_STATUS=0
-# shellcheck disable=SC2086 # ONLY is one flag or nothing, not a word list
-xcodebuild -project Mailrs.xcodeproj -scheme Mailrs -destination "id=$UDID" $ONLY test \
+# ITERATIONS=20 runs each selected test twenty times in one build, which is
+# how a failure seen once in a full run is shown to be gone or reproduced.
+REPEAT=""
+if [ -n "${ITERATIONS:-}" ]; then
+    REPEAT="-test-iterations $ITERATIONS"
+    echo "    ($ITERATIONS iterations)"
+fi
+# shellcheck disable=SC2086 # ONLY and REPEAT are flags or nothing, not word lists
+xcodebuild -project Mailrs.xcodeproj -scheme Mailrs -destination "id=$UDID" $ONLY $REPEAT test \
   > "$TEST_LOG" 2>&1 || TEST_STATUS=$?
 grep -E "✔|✘|error:|\*\* TEST" "$TEST_LOG" || true
 if [ "$TEST_STATUS" -ne 0 ]; then

@@ -86,9 +86,9 @@ class InviteRulesTest {
     @Test
     fun the_guest_line_says_who_is_coming() {
         val guests = listOf(
-            Wire.InviteAttendee(email = "a@x.com", partstat = "ACCEPTED"),
-            Wire.InviteAttendee(email = "b@x.com", partstat = "NEEDS-ACTION"),
-            Wire.InviteAttendee(email = "c@x.com", partstat = "NEEDS-ACTION"),
+            WireInviteAttendee(email = "a@x.com", partstat = "ACCEPTED"),
+            WireInviteAttendee(email = "b@x.com", partstat = "NEEDS-ACTION"),
+            WireInviteAttendee(email = "c@x.com", partstat = "NEEDS-ACTION"),
         )
         assertEquals("3 guests · 1 yes, 2 awaiting", InviteRules.guests(guests))
         assertEquals("You accepted", InviteRules.answered("ACCEPTED"))
@@ -111,7 +111,7 @@ class InviteRulesTest {
         val json = """{"uid":"d1","sequence":0,"summary":"Offsite","attendees":[],
             "dtstart":{"Date":"2026-11-03"},"dtstart_utc":null,"dtend_utc":null,
             "dtstart_date":"2026-11-03","dtend_date":"2026-11-05"}"""
-        val invite = inviteJson.decodeFromString(Wire.Invite.serializer(), json)
+        val invite = inviteJson.decodeFromString(WireInvite.serializer(), json)
         assertNull(invite.startsAt)
         assertEquals("2026-11-03", invite.firstDay)
         assertEquals("2026-11-05", invite.dayAfterLast)

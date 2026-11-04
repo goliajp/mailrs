@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import samples from '@/lib/tracker-samples.json'
 import { isTrackingImage, stripTrackingParams } from '@/lib/trackers'
 
 function img(attrs: Record<string, string>): HTMLImageElement {
@@ -29,6 +30,15 @@ describe('tracking images', () => {
 
   it('never include inline images', () => {
     expect(isTrackingImage(img({ height: '1', src: 'cid:a@b', width: '1' }))).toBe(false)
+  })
+})
+
+describe('the samples the phones are held to', () => {
+  // the same file the iOS and Android tests read, so all three count alike
+  it.each(samples.samples)('$name', ({ html, trackers }) => {
+    const doc = new DOMParser().parseFromString(html, 'text/html')
+    const found = [...doc.querySelectorAll('img')].filter(isTrackingImage).length
+    expect(found).toBe(trackers)
   })
 })
 

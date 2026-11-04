@@ -328,7 +328,7 @@ wire/ThreadPage.kt	UTF-8
 wire/ThreadPage.kt	&before_ts=${next.seconds}
 wire/TokenStore.kt	AndroidKeyStore
 wire/TokenStore.kt	AES/GCM/NoPadding
-wire/Wire.kt	NEEDS-ACTION
+wire/WireInvite.kt	NEEDS-ACTION
 wire/LinkWarnings.kt	$SCHEME:
 wire/LinkWarnings.kt	\bhref\s*=\s*(?:
 wire/LinkWarnings.kt	display:inline-block;margin-left:2px;padding:0 4px;border-radius:3px;
@@ -346,3 +346,15 @@ wire/LinkWarnings.kt	&amp;
 wire/ReasonText.kt	Inbox
 wire/ReasonText.kt	Notifications
 wire/ReasonText.kt	Promotions
+wire/MailList.kt	section=$it
+wire/MailrsClientSettings.kt	Authorization
+wire/MailrsClientSettings.kt	Bearer ${s.token}
+wire/TrackingPixels.kt	<img
+wire/TrackingPixels.kt	<img
+wire/TrackingPixels.kt	^https?://
+wire/TrackingPixels.kt	display:none
+wire/TrackingPixels.kt	visibility:hidden
+ui/MessageSettingsMenu.kt	sender.file.${bucket.wire}
+ui/SettingsPages.kt	notify.hideContent
+ui/SettingsPages.kt	notify.quietStart
+ui/SettingsPages.kt	notify.quietEnd

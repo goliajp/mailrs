@@ -16,7 +16,6 @@ import XCTest
 /// Split again at the 500-line limit.
 final class ThreadFlowTests: MailrsUITestCase {
 
-
     func testOpensAThreadAndRendersTheBody() {
         // Starts signed in: this test is about opening a thread, and
         // going through the login form summons the system's save-password
@@ -62,8 +61,6 @@ final class ThreadFlowTests: MailrsUITestCase {
         XCTAssertTrue(badge.exists, "a suspicious sender was shown without saying so")
     }
 
-
-
     /// The swipe moves it to the Trash: the row leaves, and the server
     /// is told `delete`, which is its word for the Trash.
     func testTrashingBySwipeRemovesTheThread() {
@@ -85,8 +82,6 @@ final class ThreadFlowTests: MailrsUITestCase {
         }
         XCTAssertTrue(sent.contains("delete t1"), "the Trash never reached the server: \(sent)")
     }
-
-
 
     /// Attachments are listed, and tapping one opens it.
     ///
@@ -124,8 +119,6 @@ final class ThreadFlowTests: MailrsUITestCase {
         XCTAssertFalse(writes.isEmpty, "the unread verdict never reached the server")
     }
 
-
-
     /// Remote images wait to be asked for.
     ///
     /// Fetching one tells the sender the message was opened, from
@@ -159,8 +152,6 @@ final class ThreadFlowTests: MailrsUITestCase {
                        "a local message asked to load images")
     }
 
-
-
     /// Triage without leaving the thread.
     ///
     /// Archiving from inside has to do both halves: reach the server,
@@ -193,8 +184,6 @@ final class ThreadFlowTests: MailrsUITestCase {
                       "the archive never reached the server: \(verbs)")
     }
 
-
-
     /// The star toggles in place — a verdict that does not remove the
     /// thread should not remove the reader from it.
     func testStarringFromInsideTheThreadStays() {
@@ -217,8 +206,6 @@ final class ThreadFlowTests: MailrsUITestCase {
         XCTAssertTrue(writes.contains { $0.hasSuffix("/t1/star") },
                       "the star never reached the server: \(writes)")
     }
-
-
 
     /// The subject is readable in the thread.
     ///
@@ -244,8 +231,6 @@ final class ThreadFlowTests: MailrsUITestCase {
         XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"].exists,
                       "the header did not carry the subject")
     }
-
-
 
     /// A thread opens with everything but the newest message folded —
     /// the thread is context, the last message is the reason you came.
@@ -273,9 +258,10 @@ final class ThreadFlowTests: MailrsUITestCase {
         XCTAssertTrue(app.staticTexts["請求書_2026年8月分.pdf"].exists,
                       "the unfolded card lost its attachments")
         XCTAssertFalse(folded.exists, "the folded line outlived its card")
+        // its 1x1 beacon was taken out, and the card says so
+        XCTAssertTrue(app.descendants(matching: .any)["trackers.blocked"].waitForExistence(timeout: 5),
+                      "the unfolded card did not say a tracker was blocked")
     }
-
-
 
     /// Opening a thread marks it read — once, and only because it was
     /// opened.
@@ -320,8 +306,6 @@ final class ThreadFlowTests: MailrsUITestCase {
                       "reading the thread removed the row")
     }
 
-
-
     /// While the first page is in flight, the screen says "loading",
     /// never "empty".
     ///
@@ -352,8 +336,6 @@ final class ThreadFlowTests: MailrsUITestCase {
         app.terminate()
         setStubListDelay(0)
     }
-
-
 
     /// The other half of offline: a conversation opened before is
     /// readable on relaunch while the network is still 6 seconds away.
@@ -389,8 +371,6 @@ final class ThreadFlowTests: MailrsUITestCase {
         app.terminate()
         setStubListDelay(0)
     }
-
-
 
     /// The thread view's chevrons walk the list without leaving it.
     ///
@@ -445,8 +425,6 @@ final class ThreadFlowTests: MailrsUITestCase {
         }
         XCTAssertEqual(writes.count, 1, "stepping to a thread did not mark it read")
     }
-
-
 
     func testRepliesToAThread() {
         let app = launch(signedIn: true)
