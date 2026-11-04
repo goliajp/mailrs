@@ -232,7 +232,6 @@ object MarkdownHtml {
     }
 
     private const val URI_SAFE = ";,/?:@&=+$-_.!~*'()#%"
-    private val UNICODE = "(?U)"
     private val HEADING = Regex("^ {0,3}(#{1,6})(?:[ \\t]+(.*?))?[ \\t]*$")
     private val QUOTE = Regex("^ {0,3}> ?(.*)$")
     private val BULLET = Regex("^ {0,3}([-*+])[ \\t]+(.*)$")
@@ -241,12 +240,12 @@ object MarkdownHtml {
     private val BACKSLASH = Regex("\\\\([!-/:-@\\[-`{-~])")
     private val CODE = Regex("`([^`]+)`")
     private val LINK = Regex("\\[([^\\]]*)\\]\\(((?:[^()\\s]|\\([^()\\s]*\\))*)\\)")
-    private val URL = Regex("$UNICODE(?<![\\w/@.])((?:https?://|www\\.)[^\\s<\\x{E000}\\x{E001}]+)")
-    private val EMAIL = Regex("$UNICODE(?<![\\w.+-])([A-Za-z0-9._+-]+@[A-Za-z0-9_-]+(?:\\.[A-Za-z0-9_-]+)+)")
-    private val BARE_AMP = Regex("$UNICODE&(?!#?\\w+;)")
-    private val BOLD_STAR = Regex("$UNICODE\\*\\*(?=\\S)(.+?)(?<=\\S)\\*\\*")
+    private val URL = Regex("(?<![\\p{L}\\p{N}_/@.])((?:https?://|www\\.)[^\\s<\\x{E000}\\x{E001}]+)")
+    private val EMAIL = Regex("(?<![\\p{L}\\p{N}_.+-])([A-Za-z0-9._+-]+@[A-Za-z0-9_-]+(?:\\.[A-Za-z0-9_-]+)+)")
+    private val BARE_AMP = Regex("&(?!#?[A-Za-z0-9_]+;)")
+    private val BOLD_STAR = Regex("\\*\\*(?=\\S)(.+?)(?<=\\S)\\*\\*")
     private val BOLD_UNDER = Regex("(?<![A-Za-z0-9])__(?=\\S)(.+?)(?<=\\S)__(?![A-Za-z0-9])")
-    private val EM_STAR = Regex("$UNICODE\\*(?=\\S)(.+?)(?<=\\S)\\*")
+    private val EM_STAR = Regex("\\*(?=\\S)(.+?)(?<=\\S)\\*")
     private val EM_UNDER = Regex("(?<![A-Za-z0-9])_(?=\\S)(.+?)(?<=\\S)_(?![A-Za-z0-9])")
     private val HELD = Regex("\\x{E000}(\\d+)\\x{E001}")
 

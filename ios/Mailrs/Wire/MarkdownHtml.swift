@@ -180,13 +180,13 @@ enum MarkdownHtml {
             return hold("<a href=\"" + escape(encodeURI(m[2])) + "\">" + label + "</a>")
         }
         if autolinks {
-            s = replace(#"(?<![\w/@.])((?:https?://|www\.)[^\s<\x{E000}\x{E001}]+)"#, in: s) { m in
+            s = replace(#"(?<![\p{L}\p{N}_/@.])((?:https?://|www\.)[^\s<\x{E000}\x{E001}]+)"#, in: s) { m in
                 let (url, rest) = trimURL(m[1])
                 var href = url
                 if url.hasPrefix("www.") { href = "http://" + url }
                 return hold("<a href=\"" + escape(encodeURI(href)) + "\">" + escape(url) + "</a>") + rest
             }
-            s = replace(#"(?<![\w.+-])([A-Za-z0-9._+-]+@[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+)"#, in: s) { m in
+            s = replace(#"(?<![\p{L}\p{N}_.+-])([A-Za-z0-9._+-]+@[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+)"#, in: s) { m in
                 let (address, rest) = trimAddress(m[1])
                 return hold("<a href=\"mailto:" + escape(encodeURI(address)) + "\">" + escape(address) + "</a>") + rest
             }
@@ -235,7 +235,7 @@ enum MarkdownHtml {
 
     /// `&` (unless it starts an entity), `<`, `>`, `"`, `'` — what marked escapes.
     static func escape(_ text: String) -> String {
-        var s = replace(#"&(?!#?\w+;)"#, in: text) { _ in "&amp;" }
+        var s = replace(#"&(?!#?[A-Za-z0-9_]+;)"#, in: text) { _ in "&amp;" }
         s = s.replacingOccurrences(of: "<", with: "&lt;")
         s = s.replacingOccurrences(of: ">", with: "&gt;")
         s = s.replacingOccurrences(of: "\"", with: "&quot;")
