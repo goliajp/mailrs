@@ -9,7 +9,7 @@ use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
 use mailrs_fastcore::FastcoreState;
 use mailrs_mailbox_kevy::{KevyMailboxStore, ThreadRow, UserMessageFacts};
-use mailrs_triage::Corpus;
+use mailrs_triage::spam::Corpus;
 use mailrs_triage::spam::keys;
 use tower::ServiceExt;
 
@@ -187,7 +187,7 @@ async fn the_spam_corpus_is_rebuilt_from_the_legacy_sets() {
     let paged = seeded(&url_b, &tmp.path().join("b"));
 
     // dry by default: it reports, and writes nothing
-    let dry = rebuild(&one, "corpus=spam").await;
+    let dry = rebuild(&one, "").await;
     assert_eq!(dry["dry_run"], true, "{dry}");
     assert_eq!(dry["roster"], 6, "{dry}");
     assert_eq!(dry["spam"], 1, "{dry}");
@@ -205,12 +205,12 @@ async fn the_spam_corpus_is_rebuilt_from_the_legacy_sets() {
         "a dry run wrote"
     );
 
-    let full = rebuild(&one, "corpus=spam&dry_run=false").await;
+    let full = rebuild(&one, "dry_run=false").await;
     assert_eq!(full["spam"], 1, "{full}");
-    let p1 = rebuild(&paged, "corpus=spam&dry_run=false&limit=4").await;
+    let p1 = rebuild(&paged, "dry_run=false&limit=4").await;
     assert_eq!(p1["next_skip"], 4, "{p1}");
     assert_eq!(p1["done"], false, "{p1}");
-    let p2 = rebuild(&paged, "corpus=spam&dry_run=false&limit=4&skip=4").await;
+    let p2 = rebuild(&paged, "dry_run=false&limit=4&skip=4").await;
     assert_eq!(p2["done"], true, "{p2}");
     assert_eq!(
         p1["unresolved"].as_u64().unwrap() + p2["unresolved"].as_u64().unwrap(),
@@ -232,7 +232,7 @@ async fn the_spam_corpus_is_rebuilt_from_the_legacy_sets() {
     );
 
     // a page run again counts nothing twice
-    rebuild(&paged, "corpus=spam&dry_run=false&limit=4").await;
+    rebuild(&paged, "dry_run=false&limit=4").await;
     assert_eq!(
         whole,
         snapshot_of(&url_b, Corpus::V2),
@@ -249,8 +249,9 @@ async fn the_spam_corpus_is_rebuilt_from_the_legacy_sets() {
     );
 }
 
-/// A reader's verdict trains both corpora, each with its own tokenizer, so
-/// the corpus classification reads stays current while the other is built.
+/// A reader's verdict trains both spam/ham corpora, each with its own
+/// tokenizer, so the one the receiver reads stays current while the other is
+/// built. Triage has one corpus, of the raw-byte tokenizer.
 #[tokio::test]
 async fn a_verdict_trains_both_corpora() {
     let (_c, url) = mailrs_test_docker::kevy::kevy_server().await;
@@ -274,14 +275,15 @@ aGkgdGhlcmU=\r\n"
             "{corpus:?}: {snap:?}"
         );
         assert!(!snap[0].1.is_empty(), "{corpus:?} learnt no spam tokens");
-        let mut c = kevy_client::Connection::connect(&url).unwrap();
-        let totals: Vec<u32> = mailrs_triage::class_totals(&mut c, corpus)
-            .classes
-            .into_iter()
-            .map(|(_, n)| n)
-            .collect();
-        assert_eq!(totals, vec![0, 0, 1], "{corpus:?}");
     }
+    let mut c = kevy_client::Connection::connect(&url).unwrap();
+    let totals: Vec<u32> = mailrs_triage::class_totals(&mut c)
+        .classes
+        .into_iter()
+        .map(|(_, n)| n)
+        .collect();
+    assert_eq!(totals, vec![0, 0, 1]);
+
     // each with its own tokenizer
     let legacy = snapshot_of(&url, Corpus::Legacy);
     let v2 = snapshot_of(&url, Corpus::V2);
@@ -290,44 +292,4 @@ aGkgdGhlcmU=\r\n"
     assert!(!has(&legacy, b"there"), "{legacy:?}");
     assert!(has(&v2, b"there"), "{v2:?}");
     assert!(!has(&v2, b"agkgdghlcmu"), "{v2:?}");
-}
-
-#[tokio::test]
-async fn the_triage_corpus_is_rebuilt_from_the_stored_buckets() {
-    let (_c, url) = mailrs_test_docker::kevy::kevy_server().await;
-    let tmp = tempfile::tempdir().unwrap();
-    let state = seeded(&url, tmp.path());
-
-    let dry = rebuild(&state, "corpus=triage").await;
-    // t-spam is in Junk, which is not a triage class
-    assert_eq!(dry["roster"], 4, "{dry}");
-    assert_eq!(dry["classes"]["inbox"], 1, "{dry}");
-    assert_eq!(dry["classes"]["notification"], 1, "{dry}");
-    assert_eq!(dry["classes"]["promotion"], 1, "{dry}");
-    assert_eq!(dry["unresolved"], 1, "t-nofile: {dry}");
-    let mut c = kevy_client::Connection::connect(&url).unwrap();
-    let totals = |c: &mut kevy_client::Connection| -> Vec<u32> {
-        mailrs_triage::class_totals(c, Corpus::V2)
-            .classes
-            .into_iter()
-            .map(|(_, n)| n)
-            .collect()
-    };
-    assert_eq!(totals(&mut c), vec![0, 0, 0], "a dry run wrote");
-
-    let a = rebuild(&state, "corpus=triage&dry_run=false&limit=2").await;
-    let b = rebuild(&state, "corpus=triage&dry_run=false&skip=2").await;
-    assert_eq!(b["done"], true, "{a} {b}");
-    assert_eq!(totals(&mut c), vec![1, 1, 1]);
-    // nothing filed: the buckets are as they were
-    let promos = state
-        .mailbox
-        .list_thread_ids_by_bucket_unsent_via_table(
-            USER,
-            "promotions",
-            mailrs_mailbox_kevy::ArchiveScope::All,
-            10,
-        )
-        .unwrap();
-    assert_eq!(promos, vec!["t-both2".to_string()]);
 }

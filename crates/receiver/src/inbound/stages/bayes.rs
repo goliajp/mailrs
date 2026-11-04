@@ -41,7 +41,7 @@ impl Stage for BayesStage {
         let Some(kevy) = self.kevy.clone() else {
             return StageOutcome::Continue;
         };
-        let tokens = mailrs_triage::READ.tokenize(&ctx.message);
+        let tokens = mailrs_triage::spam::READ.tokenize(&ctx.message);
         if tokens.is_empty() {
             return StageOutcome::Continue;
         }
@@ -93,7 +93,7 @@ fn fetch_counts(
     conn: &mut kevy_client::Connection,
     tokens: &[String],
 ) -> std::io::Result<(mailrs_bayes::Corpus, CountMap)> {
-    let k = mailrs_triage::spam::keys(mailrs_triage::READ);
+    let k = mailrs_triage::spam::keys(mailrs_triage::spam::READ);
     let spam_msgs = hget_i64(conn, k.meta, b"spam_msgs")?;
     let ham_msgs = hget_i64(conn, k.meta, b"ham_msgs")?;
     let corpus = mailrs_bayes::Corpus {
