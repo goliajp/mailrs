@@ -32,9 +32,8 @@ import stub_login
 
 WIDE = ('<table width="760" style="width:760px"><tr><td>'
         '<div style="width:760px;background:#eef;padding:8px">'
-        # A remote image, as a newsletter carries: the client must not
-        # fetch it until asked, because fetching is what tells the
-        # sender the message was opened.
+        # A picture held until asked, and a 1x1 beacon removed outright.
+        '<img src="https://cdn.example.com/hero.png" width="600" height="200">'
         '<img src="https://tracker.example.com/open.gif" width="1" height="1">'
         '<h1>Newsletter</h1><p>' + ('lorem ipsum dolor sit amet ' * 12) + '</p>'
         '</div></td></tr></table>')
