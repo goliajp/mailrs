@@ -28,6 +28,10 @@ const AT_RULES: [&str; 7] = [
 ///   declarations (`name: value`, separated by `;`, the name letters and
 ///   `-`), run to a fixed point. Selectors stay; they are words
 /// - `style="…"` and `style='…'` attribute values
+/// - runs of two or more `name: value;` declarations outside braces, what
+///   a style attribute leaves when its quotes are lost
+/// - words that start with a CSS vendor prefix (`mso-`, `-webkit-`,
+///   `-moz-`, `-ms-`), alone or as a `.class` or `#id`
 pub fn strip_css_rules(text: &str) -> String {
     let mut cur = strip_spans(text, "/*", "*/");
     cur = strip_at_rules(&cur);
@@ -38,7 +42,83 @@ pub fn strip_css_rules(text: &str) -> String {
         }
         cur = next;
     }
-    strip_style_attributes(&cur)
+    let cur = strip_style_attributes(&cur);
+    let cur = strip_declaration_runs(&cur);
+    strip_vendor_words(&cur)
+}
+
+/// Longest value taken in a bare declaration.
+const MAX_VALUE_LEN: usize = 120;
+
+/// The length of a `name: value;` declaration at the start of `s`, if one
+/// is there: the name letters and `-`, the value without braces, angle
+/// brackets or line breaks.
+fn declaration_len(s: &str) -> Option<usize> {
+    let name = s
+        .bytes()
+        .take_while(|c| c.is_ascii_alphabetic() || *c == b'-')
+        .count();
+    if name == 0 {
+        return None;
+    }
+    let rest = &s[name..];
+    let colon = rest.len() - rest.trim_start_matches([' ', '\t']).len();
+    if !rest[colon..].starts_with(':') {
+        return None;
+    }
+    let value = &rest[colon + 1..];
+    let end = value.find(|c: char| matches!(c, ';' | '{' | '}' | '<' | '>' | '\n' | '\r'))?;
+    if end == 0 || end > MAX_VALUE_LEN || !value[end..].starts_with(';') {
+        return None;
+    }
+    Some(name + colon + 1 + end + 1)
+}
+
+fn strip_declaration_runs(text: &str) -> String {
+    let b = text.as_bytes();
+    let mut out = String::with_capacity(text.len());
+    let mut i = 0;
+    while i < text.len() {
+        let starts_word = i == 0 || !(b[i - 1].is_ascii_alphanumeric() || b[i - 1] == b'-');
+        if starts_word && b[i].is_ascii_alphabetic() {
+            let mut j = i;
+            let mut n = 0;
+            while let Some(len) = declaration_len(&text[j..]) {
+                n += 1;
+                j += len;
+                j += text[j..].len() - text[j..].trim_start_matches([' ', '\t']).len();
+            }
+            if n >= 2 {
+                out.push(' ');
+                i = j;
+                continue;
+            }
+        }
+        let ch = text[i..].chars().next().unwrap_or(' ');
+        out.push(ch);
+        i += ch.len_utf8();
+    }
+    out
+}
+
+const VENDOR_PREFIXES: [&str; 4] = ["mso-", "-webkit-", "-moz-", "-ms-"];
+
+fn strip_vendor_words(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for (k, line) in text.split('\n').enumerate() {
+        if k > 0 {
+            out.push('\n');
+        }
+        let kept: Vec<&str> = line
+            .split(' ')
+            .filter(|w| {
+                let bare = w.trim_start_matches(['.', '#']).to_ascii_lowercase();
+                !VENDOR_PREFIXES.iter().any(|p| bare.starts_with(p))
+            })
+            .collect();
+        out.push_str(&kept.join(" "));
+    }
+    out
 }
 
 /// Remove every `open … close` span no longer than [`MAX_SPAN`].
@@ -230,6 +310,43 @@ table { border-collapse: collapse; border-spacing: 0 } td{mso-line-height-rule:e
             assert!(!s.contains(css), "{css} left in {s}");
         }
         assert!(s.contains("Hello") && s.contains("See you"), "{s}");
+    }
+
+    /// A style attribute whose quotes were lost, and selector names that
+    /// only CSS uses.
+    #[test]
+    fn bare_declarations_and_vendor_names_go() {
+        let s = strip_css_rules(
+            "font: yu gothic, sans-serif; margin:0; padding:0; color: #000; background-color: #fff;> Monthly news\n\
+             .mso-no-bg .vml-p li Sale fares -webkit-text-size-adjust",
+        );
+        for css in [
+            "margin",
+            "padding",
+            "background-color",
+            "mso-no-bg",
+            "-webkit-",
+        ] {
+            assert!(!s.contains(css), "{css} left in {s}");
+        }
+        assert!(
+            s.contains("Monthly news") && s.contains("Sale fares"),
+            "{s}"
+        );
+    }
+
+    #[test]
+    fn one_declaration_in_prose_stays() {
+        for t in [
+            "Note: the meeting moved; see below",
+            "ratio: 3:1; then we go",
+            "elevation prop has incorrect border-radius (fixed)",
+        ] {
+            assert_eq!(strip_css_rules(t), t);
+        }
+        // two declarations in shape are taken; prose written that way is
+        // the cost
+        assert_eq!(strip_css_rules("Time: 10am; Place: lobby;").trim(), "");
     }
 
     #[test]
