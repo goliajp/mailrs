@@ -15,6 +15,11 @@
 //!
 //! The last key holds the class a thread was last trained as, so a re-file
 //! unlearns the prior class before learning the new one.
+//!
+//! Triage counts the tokens of [`mailrs_bayes::tokenize_raw`], the raw-byte
+//! tokenizer: the encoding and layout of a sender's templates are part of
+//! what tells its notifications from the mail a reader keeps in Inbox.
+//! The spam/ham corpus in [`spam`] uses the decoded-text tokenizer.
 
 use kevy_client::Connection;
 use mailrs_bayes::{MultiCorpus, classify_multiclass};
@@ -39,32 +44,21 @@ pub fn is_class(class: &str) -> bool {
     CLASSES.contains(&class)
 }
 
-/// Classify a pre-tokenized message into a triage class name
-/// ("inbox" | "notification" | "promotion"). Returns `None` on
-/// cold-start / low confidence — the caller then defaults to "inbox".
-/// Reads the corpus from `conn` (network kevy).
-pub fn classify(conn: &mut Connection, tokens: &[String]) -> Option<&'static str> {
+/// The tokens triage counts, for one raw message.
+pub fn tokenize(raw: &[u8]) -> Vec<String> {
+    mailrs_bayes::tokenize_raw(raw)
+}
+
+/// Classify a raw message into a triage class name ("inbox" |
+/// "notification" | "promotion"). Returns `None` on cold-start / low
+/// confidence — the caller then defaults to "inbox". Reads the corpus from
+/// `conn` (network kevy).
+pub fn classify(conn: &mut Connection, raw: &[u8]) -> Option<&'static str> {
+    let tokens = tokenize(raw);
     if tokens.is_empty() {
         return None;
     }
-    // Per-class message totals → MultiCorpus.
-    let corpus = MultiCorpus {
-        classes: CLASSES
-            .iter()
-            .map(|c| {
-                let field = format!("{c}_msgs");
-                let n = conn
-                    .hget(META, field.as_bytes())
-                    .ok()
-                    .flatten()
-                    .and_then(|v| String::from_utf8(v).ok())
-                    .and_then(|s| s.parse::<i64>().ok())
-                    .unwrap_or(0)
-                    .max(0) as u32;
-                ((*c).to_string(), n)
-            })
-            .collect(),
-    };
+    let corpus = class_totals(conn);
 
     // Per-token per-class counts: for each token, HGET all class hashes
     // in one pipeline.
@@ -72,7 +66,7 @@ pub fn classify(conn: &mut Connection, tokens: &[String]) -> Option<&'static str
     let n_classes = CLASSES.len();
     let replies = conn
         .pipeline(|p| {
-            for t in tokens {
+            for t in &tokens {
                 for tk in &tkeys {
                     p.cmd(&[b"HGET", tk.as_bytes(), t.as_bytes()]);
                 }
@@ -97,8 +91,29 @@ pub fn classify(conn: &mut Connection, tokens: &[String]) -> Option<&'static str
         }
     }
 
-    let idx = classify_multiclass(tokens, &corpus, |t| counts.get(t).cloned(), MIN_CONFIDENCE)?;
+    let idx = classify_multiclass(&tokens, &corpus, |t| counts.get(t).cloned(), MIN_CONFIDENCE)?;
     CLASSES.get(idx).copied()
+}
+
+/// How many threads the corpus has learnt per class, in [`CLASSES`] order.
+pub fn class_totals(conn: &mut Connection) -> MultiCorpus {
+    MultiCorpus {
+        classes: CLASSES
+            .iter()
+            .map(|c| {
+                let field = format!("{c}_msgs");
+                let n = conn
+                    .hget(META, field.as_bytes())
+                    .ok()
+                    .flatten()
+                    .and_then(|v| String::from_utf8(v).ok())
+                    .and_then(|s| s.parse::<i64>().ok())
+                    .unwrap_or(0)
+                    .max(0) as u32;
+                ((*c).to_string(), n)
+            })
+            .collect(),
+    }
 }
 
 /// Train the corpus on `tokens` (the deduped union of a thread's

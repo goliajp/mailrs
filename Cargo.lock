@@ -3945,6 +3945,12 @@ dependencies = [
 [[package]]
 name = "mailrs-bayes"
 version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "mailrs-clean",
+ "mailrs-mime",
+ "mailrs-rfc2047",
+]
 
 [[package]]
 name = "mailrs-clean"
@@ -3952,6 +3958,7 @@ version = "1.2.0"
 dependencies = [
  "criterion",
  "html2text",
+ "mailrs-mime",
  "memchr",
 ]
 
@@ -4307,7 +4314,6 @@ version = "0.0.0"
 dependencies = [
  "base64 0.22.1",
  "chrono",
- "html2text",
  "kevy-client",
  "mailrs-apns",
  "mailrs-arf",

@@ -6,19 +6,14 @@
 //! shared network kevy so the receiver process (a different binary)
 //! can classify at SMTP time.
 //!
-//! Storage keys (network kevy):
-//!   bayes:tokens:spam   hash  field=token value=message-count
-//!   bayes:tokens:ham    hash  field=token value=message-count
-//!   bayes:meta          hash  {spam_msgs, ham_msgs}
-//!   bayes:trained:<thread_id>  string  "spam"|"ham"  (TTL 90d)
-//!     — records the last training direction so re-marking a thread
-//!       (junk → not-junk) unlearns before it re-learns.
+//! Storage keys (network kevy): see `mailrs_triage::spam`. A
+//! `bayes:v2:trained:<thread_id>` marker records the last training
+//! direction so re-marking a thread (junk → not-junk) unlearns before it
+//! re-learns.
 
 use std::sync::Arc;
 
 use crate::FastcoreState;
-
-use mailrs_triage::spam::META as K_META;
 
 /// "Every row", for the declared queries that take a limit.
 ///
@@ -95,12 +90,8 @@ pub fn train_triage(state: &Arc<FastcoreState>, user: &str, thread_id: &str, cla
 /// Returns `None` on cold-start / low confidence — the caller then
 /// defaults to "inbox".
 pub fn classify_triage(state: &Arc<FastcoreState>, raw: &[u8]) -> Option<&'static str> {
-    let tokens = mailrs_bayes::tokenize(raw);
-    if tokens.is_empty() {
-        return None;
-    }
     let mut conn = state.net_conn()?;
-    mailrs_triage::classify(&mut conn, &tokens)
+    mailrs_triage::classify(&mut conn, raw)
 }
 
 /// True if the corpus already holds any trained messages. The caller
@@ -111,9 +102,10 @@ pub fn corpus_populated(state: &Arc<FastcoreState>) -> bool {
     let Some(mut conn) = state.net_conn() else {
         return false;
     };
+    let meta = mailrs_triage::spam::keys(mailrs_triage::spam::READ).meta;
     let Ok(replies) = conn.pipeline(|p| {
-        p.cmd(&[b"HGET", K_META, b"spam_msgs"]);
-        p.cmd(&[b"HGET", K_META, b"ham_msgs"]);
+        p.cmd(&[b"HGET", meta, b"spam_msgs"]);
+        p.cmd(&[b"HGET", meta, b"ham_msgs"]);
     }) else {
         return false;
     };

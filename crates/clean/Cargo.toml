@@ -17,6 +17,7 @@ workspace = true
 
 [dependencies]
 html2text = "0.17"
+mailrs-mime = { path = "../mime", version = "2" }
 memchr = "2"
 
 [dev-dependencies]

@@ -38,7 +38,6 @@ mailrs-rfc5322 = { path = "../rfc5322", version = "1" }
 mailrs-triage = { path = "../triage" }
 mailrs-webhook-signature = { path = "../webhook-signature", version = "1" }
 chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
-html2text = "0.17"
 mailrs-egress = { path = "../egress" }
 mailrs-arf = { version = "1.0.0", path = "../arf" }
 mailrs-dmarc = { version = "3", path = "../dmarc" }
