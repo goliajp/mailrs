@@ -84,6 +84,10 @@ object Wire {
          * that does not stamp one.
          */
         val cursor: String? = null,
+        /** The team member who answers it, empty for nobody and for a non-team conversation. */
+        val assignee: String = "",
+        /** The sectioned inbox's section (`reply`, `awaiting`, `new`, `feed`, `other`); empty when undecided. */
+        val section: String = "",
     )
 
     /**

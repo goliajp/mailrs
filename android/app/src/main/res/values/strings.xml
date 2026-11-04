@@ -427,4 +427,11 @@
     <string name="compose_message_sent">Message sent</string>
     <string name="compose_send_cancelled">Send cancelled</string>
     <string name="compose_undo_too_late">Too late to undo — already sent</string>
+    <string name="row_assignee">Assigned to %1$s</string>
+    <string name="section_all">All</string>
+    <string name="section_reply">To reply</string>
+    <string name="section_awaiting">Waiting for a reply</string>
+    <string name="section_new">New senders</string>
+    <string name="section_accept_all">Accept all</string>
+    <string name="section_accept_failed">The senders could not be accepted</string>
 </resources>

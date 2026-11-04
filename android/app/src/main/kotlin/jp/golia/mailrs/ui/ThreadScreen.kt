@@ -71,6 +71,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.foundation.clickable
+import jp.golia.mailrs.wire.ThreadCollapse
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -231,8 +233,15 @@ fun ThreadScreen(
                         .testTag("list.messages"),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
+                    var toggled by remember(open.threadId) { mutableStateOf(emptySet<Int>()) }
+                    val lastUid = state.messages.lastOrNull()?.uid
+                    val flip = { uid: Int -> toggled = toggled.toggle(uid) }
                     state.messages.forEachIndexed { i, m ->
-                        MessageCard(open.threadId, m, state, vm, earlier = state.messages.take(i))
+                        if (ThreadCollapse.isExpanded(m.uid, lastUid, toggled)) {
+                            MessageCard(open.threadId, m, state, vm, earlier = state.messages.take(i), onFold = { flip(m.uid) })
+                        } else {
+                            FoldedMessage(m, onOpen = { flip(m.uid) })
+                        }
                     }
                 }
             }
@@ -247,6 +256,7 @@ private fun MessageCard(
     state: UiState,
     vm: MailViewModel,
     earlier: List<Wire.Message>,
+    onFold: () -> Unit,
 ) {
     val theme = LocalTheme.current
     var warned by remember(m.uid) { mutableStateOf<LinkWarnings.Target?>(null) }
@@ -258,7 +268,10 @@ private fun MessageCard(
             .background(theme.surface)
             .padding(14.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            Modifier.clickable(onClick = onFold).testTag("message.header.${m.uid}"),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             SenderAvatarView(m.sender, size = 30.dp)
             Column(Modifier.padding(start = 10.dp).weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

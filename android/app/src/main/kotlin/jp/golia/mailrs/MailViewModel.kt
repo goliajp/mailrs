@@ -251,8 +251,11 @@ class MailViewModel(
                     // fetched and never fetches itself — it is redrawn
                     // on every launcher scroll. Written here because
                     // this is where the list is already in hand.
-                    WidgetState.write(getApplication(), signedIn = true, conversations = r.value)
-                    viewModelScope.launch { refreshInboxWidgets(getApplication()) }
+                    // The widget shows the whole Inbox, never one section of it.
+                    if (axes.section == null) {
+                        WidgetState.write(getApplication(), signedIn = true, conversations = r.value)
+                        viewModelScope.launch { refreshInboxWidgets(getApplication()) }
+                    }
                     // Still the list that was asked for: switching lists
                     // mid-flight must not paint the old one's answer.
                     if (_state.value.list != list || _state.value.axes() != axes) return@launch
@@ -419,6 +422,7 @@ class MailViewModel(
         _state.update { it.copy(
             list = list,
             label = label,
+            inboxSection = null,
             selected = emptySet(),
             endOfList = false,
             conversations = emptyList(),

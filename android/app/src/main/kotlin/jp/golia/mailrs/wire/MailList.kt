@@ -42,6 +42,8 @@ data class MailListAxes(
      * be switched off like any other.
      */
     val accounts: List<String>? = null,
+    /** One section of the sectioned inbox (`reply`, `awaiting`, `new`); null is the whole inbox. */
+    val section: String? = null,
 ) {
     /**
      * The query string both `/api/conversations` and its `/search` take.
@@ -61,6 +63,7 @@ data class MailListAxes(
         snoozed?.let { items += "snoozed=$it" }
         if (trashed) items += "trashed=true"
         label?.let { items += "label=$it" }
+        section?.let { items += "section=$it" }
         // Sent whenever the filter is narrowed — including to nothing,
         // which is the parameter present and empty. The server reads an
         // absent one as every account, so the two cannot be collapsed.

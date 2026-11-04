@@ -422,4 +422,11 @@
     <string name="compose_message_sent">已发送</string>
     <string name="compose_send_cancelled">已取消发送</string>
     <string name="compose_undo_too_late">来不及撤销，已经发出去了</string>
+    <string name="row_assignee">已指派给 %1$s</string>
+    <string name="section_all">全部</string>
+    <string name="section_reply">我要回复</string>
+    <string name="section_awaiting">等对方回复</string>
+    <string name="section_new">新发件人</string>
+    <string name="section_accept_all">全部接受</string>
+    <string name="section_accept_failed">没能接受这些发件人</string>
 </resources>
