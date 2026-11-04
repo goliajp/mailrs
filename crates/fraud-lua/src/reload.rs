@@ -129,6 +129,19 @@ fn rule_ids(f: &Findings) -> Vec<String> {
 
 thread_local! { static ACTIVE: RefCell<Active> = RefCell::new(Active::new()); }
 
+/// The active bundle's version and the ids of its enforced rules, after
+/// the same file check [`scan`] makes.
+pub fn active_rule_set() -> (String, Vec<String>) {
+    ACTIVE.with(|active| {
+        let mut active = active.borrow_mut();
+        active.refresh();
+        (
+            active.current.version().to_string(),
+            active.current.enforced_rules().to_vec(),
+        )
+    })
+}
+
 /// Score using the current Lua bundle. Check its configured file at most once
 /// every five seconds per worker. Missing/invalid files keep the working VM.
 pub fn scan(facts: &Facts<'_>, policy: &Policy) -> Result<Scan, String> {
