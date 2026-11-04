@@ -22,4 +22,17 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
         Err(e) => e.status_code(),
     };
     assert_eq!((status(&a), status(&b)), (404, 404), "{a:?} {b:?}");
+
+    // a conversation nobody released has no release facts on either core
+    // (the facts a release writes are compared in `intake.rs`)
+    if let Some((a, _)) = d.both(
+        "thread_releases",
+        fc.thread_releases(super::ALICE, "never-held@outside.example")
+            .await,
+        pg.thread_releases(super::ALICE, "never-held@outside.example")
+            .await,
+        &[],
+    ) {
+        assert!(a.items.is_empty(), "{:?}", a.items);
+    }
 }

@@ -1,8 +1,8 @@
 //! With acting on, a conversation the rules now hold is taken back into
 //! Review, read or not: the reader gets a notice and a `mail.held` webhook,
 //! and the recall is audited. An administrator puts a round back whole,
-//! audited too, and a conversation put back is not taken again for the
-//! rules it was put back despite.
+//! audited too, and a conversation a person put back is not taken again
+//! for mail that was already there when they did.
 
 mod rejudge_support;
 
@@ -123,6 +123,46 @@ async fn a_held_verdict_takes_the_conversation_back_and_a_batch_puts_it_back() {
     assert_eq!(releases.len(), 1);
     assert_eq!(releases[0].actor, "root@x.com");
     assert_eq!(releases[0].target, program);
+    // what the batch was put back on: whose decision, which batch, the
+    // rules it was held for, and how many it covered
+    assert!(
+        releases[0]
+            .detail
+            .contains(&format!("observation={observation}"))
+            && releases[0].detail.contains("rules="),
+        "{}",
+        releases[0].detail
+    );
+    let scope = audit_rows(&mut w.kv, "rejudge.batch_release");
+    assert_eq!(scope.len(), 1, "one line for the batch as a whole");
+    assert_eq!(scope[0].actor, "root@x.com");
+    assert_eq!(scope[0].target, observation);
+    for want in [
+        format!("batch={observation}"),
+        "conversations=1".to_string(),
+        "released=1".to_string(),
+        "rules=".to_string(),
+    ] {
+        assert!(
+            scope[0].detail.contains(&want),
+            "{want} missing: {}",
+            scope[0].detail
+        );
+    }
+    assert!(
+        !scope[0].detail.ends_with("rules="),
+        "the batch names the rules it held for: {}",
+        scope[0].detail
+    );
+    let fact = audit_rows(&mut w.kv, "quarantine.release");
+    assert!(
+        fact.iter().any(|f| f.target == program
+            && f.actor == "root@x.com"
+            && f.detail.contains("source=batch")
+            && f.detail.contains(&format!("batch={observation}"))),
+        "{:?}",
+        fact.iter().map(|f| &f.detail).collect::<Vec<_>>()
+    );
     let (_, list) = call(&w.state, Method::GET, "/v1/admin/rejudge-batches", None).await;
     assert!(
         list["items"][0]["released_at"].as_i64().unwrap() > 0,
@@ -155,7 +195,9 @@ async fn a_held_verdict_takes_the_conversation_back_and_a_batch_puts_it_back() {
     assert_eq!(audit_rows(&mut w.kv, "rejudge.recall").len(), 1);
 
     // put back when only the payment rule matched: the program is a rule
-    // it was not put back despite, so it is taken again
+    // it was not put back despite, but a person put it back after this
+    // mail came, so a new rule on the same mail does not take it again
+    // (only mail that arrives after a person's release may)
     w.state
         .mailbox
         .store_ref()
@@ -170,10 +212,10 @@ async fn a_held_verdict_takes_the_conversation_back_and_a_batch_puts_it_back() {
     let allow = observe(&mut w.kv, Stance::Allow, "vendorbill.com");
     let (_, after) = round(&w.state).await;
     assert!(
-        held(&w.state, program),
-        "a new rule takes it again: {after}"
+        !held(&w.state, program),
+        "a new rule took back what a person released, on mail already there: {after}"
     );
-    assert_eq!(audit_rows(&mut w.kv, "rejudge.recall").len(), 2);
+    assert_eq!(audit_rows(&mut w.kv, "rejudge.recall").len(), 1);
 
     // the reader puts it back from Review: the same rules do not take it
     // a third time
@@ -192,7 +234,7 @@ async fn a_held_verdict_takes_the_conversation_back_and_a_batch_puts_it_back() {
         !held(&w.state, program),
         "taken again after the reader put it back: {after}"
     );
-    assert_eq!(audit_rows(&mut w.kv, "rejudge.recall").len(), 2);
+    assert_eq!(audit_rows(&mut w.kv, "rejudge.recall").len(), 1);
 }
 
 async fn counts_of(w: &World) -> serde_json::Value {

@@ -323,6 +323,23 @@ async fn remote_images_are_queued_alike_by_both_cores() {
             .await
             .expect("release");
     }
+    // the release is a fact on both cores, under the reader's name
+    let mut facts = Vec::new();
+    for c in [&cores.fastcore, &cores.pg_core] {
+        let r = c
+            .thread_releases(ALICE, &tid("held"))
+            .await
+            .expect("releases");
+        facts.push(
+            r.items
+                .iter()
+                .map(|f| (f.source.clone(), f.actor.clone(), f.rules_version.clone()))
+                .collect::<Vec<_>>(),
+        );
+    }
+    let want_facts = vec![("person".to_string(), ALICE.to_string(), String::new())];
+    assert_eq!(facts[0], want_facts, "fastcore's release facts");
+    assert_eq!(facts[1], want_facts, "pg-core's release facts");
     let mut want: Vec<String> = ["held", "inbox", "moved", "notjunk"].map(url).to_vec();
     want.sort();
     let (fc, pg) = queued(&cores);

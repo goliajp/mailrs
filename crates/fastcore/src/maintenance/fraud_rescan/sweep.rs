@@ -2,6 +2,8 @@
 
 use super::*;
 
+mod tally;
+
 /// One walk: what it judges with, and what it has counted so far.
 struct Sweep<'a> {
     state: &'a Arc<FastcoreState>,
@@ -28,6 +30,7 @@ struct Tally {
     held_but_unreadable: u64,
     releasable: u64,
     released: u64,
+    kept_released: u64,
     release_samples: Vec<serde_json::Value>,
     no_file: u64,
     // Which check fired, because "12 found" does not say whether the
@@ -212,8 +215,23 @@ impl Sweep<'_> {
         // here and a score threshold there is what left 43 held
         // conversations carrying a verdict that said otherwise.
         if !mailrs_inbound::holds(&findings) {
-            self.not_held(user, tid, &raw, &msg, &findings);
+            self.not_held(user, tid, &raw, &msg, &findings, &scan.version);
             return;
+        }
+        // A person released this conversation: what was already there
+        // then stays released. Only a message that came after may hold
+        // it again. A release by a rule change does not count here.
+        match crate::hold_facts::may_hold_again(self.state, user, tid, msg.arrived) {
+            Ok(true) => {}
+            Ok(false) => {
+                self.t.kept_released += 1;
+                return;
+            }
+            Err(error) => {
+                tracing::error!(%error, %user, %tid, "fraud rescan: the releases could not be read; leaving thread unchanged");
+                self.t.verdict_failed += 1;
+                return;
+            }
         }
         self.t.found += 1;
         for r in findings.rules() {
@@ -243,6 +261,7 @@ impl Sweep<'_> {
         raw: &[u8],
         msg: &Reading,
         findings: &mailrs_fraud::Findings,
+        version: &str,
     ) {
         // **And release it if it is still held.** The sweep
         // that only ever adds is a sweep a rule change
@@ -289,7 +308,23 @@ impl Sweep<'_> {
             return;
         }
         match self.state.mailbox.set_quarantined(user, tid, false) {
-            Ok(_) => self.t.released += 1,
+            Ok(_) => {
+                self.t.released += 1;
+                // under `system` and with the pack that let it go, so a
+                // pack change that flips a conversation back and forth
+                // can be seen
+                if let Err(error) = crate::hold_facts::record_release(
+                    self.state,
+                    user,
+                    tid,
+                    crate::hold_facts::REJUDGE,
+                    crate::hold_facts::SYSTEM,
+                    version,
+                    "",
+                ) {
+                    tracing::error!(%error, %user, %tid, "fraud rescan: the release was not recorded");
+                }
+            }
             Err(e) => tracing::warn!(err = %e, tid, "release failed"),
         }
     }
@@ -352,7 +387,14 @@ impl Sweep<'_> {
             Action::Hold => {
                 let mut verdict = rescan_verdict(raw, findings);
                 verdict.rules_version = rules_version.to_string();
-                match holding::apply(state, user, tid, message_id, &verdict) {
+                match holding::apply(
+                    state,
+                    user,
+                    tid,
+                    message_id,
+                    &verdict,
+                    crate::hold_facts::REJUDGE,
+                ) {
                     Ok(changed) => t.held += u64::from(changed),
                     Err(error) => {
                         t.verdict_failed += 1;
@@ -372,66 +414,5 @@ impl Sweep<'_> {
                 }
             },
         }
-    }
-}
-
-impl Tally {
-    fn into_response(
-        self,
-        q: &RescanQuery,
-        walked: u64,
-        stopped_early: bool,
-    ) -> axum::response::Response {
-        tracing::info!(
-            walked,
-            found = self.found,
-            moved = self.moved,
-            deleted = self.deleted,
-            held = self.held,
-            verdict_failed = self.verdict_failed,
-            releasable = self.releasable,
-            released = self.released,
-            held_but_unreadable = self.held_but_unreadable,
-            already_junk = self.already_junk,
-            no_file = self.no_file,
-            dry_run = q.dry_run,
-            "fraud-rescan complete"
-        );
-        Json(serde_json::json!({
-            "done": !stopped_early,
-            "next_skip": q.skip + walked,
-            "dry_run": q.dry_run,
-            "threads_walked": walked,
-            "found": self.found,
-            "moved_to_junk": self.moved,
-            "deleted": self.deleted,
-            "held": self.held,
-            // Held but unable to explain itself. Reported rather than
-            // folded into `held`, because a hold nobody can see the
-            // reasons for is the one that turns into "my mail vanished".
-            "verdict_failed": self.verdict_failed,
-            // Held by a rule that no longer holds anything. Two numbers
-            // rather than one: a dry run can only report `releasable`,
-            // and a single figure of 0 would not say whether it found
-            // none or was not allowed to act.
-            "releasable": self.releasable,
-            "released": self.released,
-            // Hidden, and its file is gone: it cannot be re-judged, so
-            // no rule change will ever let it out. Zero is the answer
-            // that means what it says.
-            "held_but_unreadable": self.held_but_unreadable,
-            "release_samples": self.release_samples,
-            "already_junk": self.already_junk,
-            "no_file": self.no_file,
-            "by_reason": self.by_reason,
-            "samples": self.samples,
-            "scored_found": self.scored_found,
-            "scored_moved_to_junk": self.scored_moved,
-            "scored_already_junk": self.scored_already_junk,
-            "scored_but_whitelisted": self.scored_whitelisted,
-            "scored_by_reason": self.scored_by_reason,
-            "scored_samples": self.scored_samples,
-        }))
-        .into_response()
     }
 }

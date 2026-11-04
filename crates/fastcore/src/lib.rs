@@ -25,6 +25,7 @@ pub use mailrs_intake::reports::{dmarc as dmarc_ingest, fbl, tlsrpt as tlsrpt_in
 mod file_message_id;
 pub mod fraud_backfill;
 mod headers;
+mod hold_facts;
 mod idle_backoff;
 pub mod image_prefetch;
 mod imap;
