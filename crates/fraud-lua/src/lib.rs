@@ -5,7 +5,7 @@
 mod facts;
 mod reload;
 pub mod stored;
-pub use reload::{Scan, scan};
+pub use reload::{Scan, active_rule_set, scan};
 
 use luna_jit::runtime::Value;
 use luna_jit::{Lua, LuaRoot, version::LuaVersion};
@@ -61,6 +61,13 @@ function __shadow_rules()
     end
     return table.concat(out, '\n')
 end
+function __enforced_rules()
+    local out = {}
+    for _, r in ipairs(registered) do
+        if not r[6] then out[#out+1] = r[1] end
+    end
+    return table.concat(out, '\n')
+end
 function __run(i)
     local r = registered[i]
     local out = r[5](m)
@@ -94,6 +101,7 @@ pub struct Rules {
     count: usize,
     version: String,
     shadow: Vec<String>,
+    enforced: Vec<String>,
 }
 
 /// Findings plus any isolated rule failures. The runtime uses the previous
@@ -160,6 +168,12 @@ impl Rules {
             .lines()
             .map(str::to_string)
             .collect();
+        let enforced = lua
+            .eval::<String>("return __enforced_rules()")
+            .map_err(|e| lua.vm().error_text(&e))?
+            .lines()
+            .map(str::to_string)
+            .collect();
         let run = lua
             .eval::<Value>("return __run")
             .map_err(|e| lua.vm().error_text(&e))?;
@@ -171,6 +185,7 @@ impl Rules {
             count: count as usize,
             version: format!("lua:{:x}", Sha256::digest(source)),
             shadow,
+            enforced,
         })
     }
 
@@ -187,6 +202,12 @@ impl Rules {
     /// The ids of the rules registered as shadow, in registration order.
     pub fn shadow_rules(&self) -> &[String] {
         &self.shadow
+    }
+
+    /// The ids of the rules that score or hold (every rule that is not
+    /// shadow), in registration order.
+    pub fn enforced_rules(&self) -> &[String] {
+        &self.enforced
     }
 
     /// Run every rule with a freshly armed instruction and memory budget.

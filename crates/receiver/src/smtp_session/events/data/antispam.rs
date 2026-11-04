@@ -12,6 +12,7 @@ use mailrs_smtp_proto::session::State;
 use super::super::super::ConnectionContext;
 
 mod evidence;
+mod hits;
 mod outcome;
 
 pub(super) enum AntiSpamOutcome {
@@ -69,6 +70,14 @@ pub(super) async fn run_antispam(
     crate::screening::shadow(&receive_ctx);
     let shadow = rescan_with_alignment(&mut receive_ctx, facts, &policy).unwrap_or(scan.shadow);
     record_shadow_hits(&receive_ctx.message, &shadow, &rules_version);
+    hits::record(
+        &receive_ctx.message,
+        hits::hits(&receive_ctx.fraud),
+        evidence.sender_host(),
+        &rules_version,
+        ctx.spam_lists_client.clone(),
+    )
+    .await;
     // Only when something was found. The verdict costs four small
     // string builds, and this runs on every message that reaches the
     // server — but a message nobody suspected has no finding worth

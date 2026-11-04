@@ -49,6 +49,7 @@ owner-notices;crates/core-sidestate/src/families/owner_notices.rs
 vacation:;crates/core-sidestate/src/families/vacation.rs
 devices:;crates/core-sidestate/src/families/devices.rs
 mailrs:domfirst;crates/core-sidestate/src/families/domain_first.rs
+mailrs:fraud:hits:;crates/core-sidestate/src/families/fraud_hits.rs
 mailrs:recalled:;crates/core-sidestate/src/families/recall_notices.rs
 rep:obs;crates/core-sidestate/src/families/screening.rs
 scan:hashobs;crates/core-sidestate/src/families/screening.rs
