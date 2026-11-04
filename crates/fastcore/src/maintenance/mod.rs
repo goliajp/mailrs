@@ -12,6 +12,7 @@
 mod backfill_admin;
 mod bayes_rebuild;
 mod curated_ham;
+mod curated_spam;
 pub(crate) use bayes_rebuild::bayes_rebuild_v2_route;
 mod backfill_attachment_counts;
 mod backfill_attachment_text;
