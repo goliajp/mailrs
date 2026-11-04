@@ -260,6 +260,7 @@ struct MessageCard: View {
             VerdictPanel(messageId: message.messageId, threadId: threadId, verdict: $verdict)
             switch MessageContent.body(html: message.htmlBody, text: message.textBody) {
             case .html(let html):
+                TrackersNote(count: TrackingPixels.count(html: html))
                 let marked = LinkWarnings.mark(
                     html: resolvedHTML(html), warnings: message.linkWarnings, describe: describe)
                 // Faded in once measured rather than popping at full

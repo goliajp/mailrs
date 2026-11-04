@@ -429,4 +429,5 @@
     <string name="section_new">新发件人</string>
     <string name="section_accept_all">全部接受</string>
     <string name="section_accept_failed">没能接受这些发件人</string>
+    <string name="trackers_blocked">已阻止追踪器 %1$d 个</string>
 </resources>

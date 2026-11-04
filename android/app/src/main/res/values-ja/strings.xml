@@ -429,4 +429,5 @@
     <string name="section_new">新しい送信者</string>
     <string name="section_accept_all">すべて承認</string>
     <string name="section_accept_failed">送信者を承認できませんでした</string>
+    <string name="trackers_blocked">トラッカーを %1$d 件ブロックしました</string>
 </resources>

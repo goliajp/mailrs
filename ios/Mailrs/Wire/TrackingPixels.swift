@@ -33,6 +33,20 @@ enum TrackingPixels {
         return out
     }
 
+    /// How many beacons `strip` takes out of `html`, for the "N trackers
+    /// blocked" note above the message.
+    static func count(html: String) -> Int {
+        var n = 0
+        var rest = Substring(html)
+        while let open = rest.range(of: "<img", options: .caseInsensitive) {
+            let after = rest[open.lowerBound...]
+            guard let close = after.firstIndex(of: ">") else { return n }
+            if isBeacon(String(after[...close])) { n += 1 }
+            rest = after[after.index(after: close)...]
+        }
+        return n
+    }
+
     /// A tag is a beacon when it declares itself one pixel each way.
     ///
     /// Both dimensions, or a one-pixel inline size with a matching
