@@ -15,6 +15,8 @@ export const wireReportOutcomeSchema = z.object({
   decided_at: z.number(),
   /** `administrator`, `two_people`, `hold_rule`, `confirmed`, `report:<id>` */
   grounds: z.array(z.string()),
+  /** The hold rule running when it was reported that holds it; null when none. */
+  hold_rule: z.string().nullable().default(null),
   /** Other inboxes found holding a copy. */
   inboxes: z.number(),
   message_id: z.string(),
@@ -23,6 +25,8 @@ export const wireReportOutcomeSchema = z.object({
   /** The reporter's other conversations of the same template, held with it. */
   own_held: z.number().default(0),
   report_id: z.string(),
+  /** The version of the rule set `hold_rule` is in; null with it. */
+  rules_version: z.string().nullable().default(null),
   state: z.enum(['taken_back', 'none_found', 'waiting', 'dismissed']),
   /** Conversations taken back from other inboxes. */
   taken_back: z.number(),

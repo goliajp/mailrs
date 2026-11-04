@@ -80,7 +80,7 @@ pub fn confirm<S: ReportStore + ?Sized>(core: &S, id: &str, actor: &str) -> Foun
     }
     let targets: Vec<Target> = o.targets.iter().filter_map(|t| Target::decode(t)).collect();
     o.grounds.push("confirmed".into());
-    o.taken_back = super::take_back(core, &mut conn, &r, &targets, actor, &o.grounds);
+    o.taken_back = super::take_back(core, &mut conn, &r, &targets, actor, &o);
     o.state = "taken_back".into();
     o.decided_at = chrono::Utc::now().timestamp();
     reports::set_outcome(&mut conn, &r, &o).map_err(|e| e.to_string())?;

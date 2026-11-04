@@ -4,7 +4,7 @@
 
 use std::io;
 
-use mailrs_intake::scam_report::ReportStore;
+use mailrs_intake::scam_report::{ReportStore, hold_rule};
 use mailrs_mailbox::pg::StoredTemplate;
 use mailrs_report::Template;
 
@@ -103,14 +103,34 @@ impl ReportStore for PgCore {
             .map_err(io)
     }
 
-    fn held_by_rule(&self, mid: &str) -> bool {
-        self.dir
-            .rt
-            .block_on(self.mailbox.fraud_verdict(mid))
-            .ok()
-            .flatten()
-            .and_then(|v| v.get("quarantined").and_then(serde_json::Value::as_bool))
-            .unwrap_or(false)
+    /// The same inputs the kevy core reads: account display names from
+    /// this core's accounts, its `authserv-id`, and the attachment text it
+    /// has. A part it cannot read is left empty, which only ever makes a
+    /// rule less likely to hold.
+    fn fraud_inputs(&self, mid: &str) -> hold_rule::Inputs {
+        let names = match self.dir.rt.block_on(self.dir.domain.list_accounts()) {
+            Ok(accounts) => accounts
+                .into_iter()
+                .map(|a| a.display_name.trim().to_string())
+                .filter(|n| !n.is_empty())
+                .collect(),
+            Err(e) => {
+                tracing::warn!(error = %e, "report: the account names were not read");
+                Vec::new()
+            }
+        };
+        let attachment_texts = match self.dir.rt.block_on(self.mailbox.attachment_texts_of(mid)) {
+            Ok(texts) => texts,
+            Err(e) => {
+                tracing::warn!(%mid, error = %e, "report: the attachment text was not read");
+                Vec::new()
+            }
+        };
+        hold_rule::Inputs {
+            policy: hold_rule::policy(names),
+            our_stamp: self.dir.authserv_id.clone(),
+            attachment_texts,
+        }
     }
 
     fn hold(&self, user: &str, tid: &str) -> io::Result<()> {

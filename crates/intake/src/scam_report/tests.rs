@@ -14,20 +14,21 @@ use mailrs_report::Template;
 use super::*;
 
 #[derive(Default)]
-struct Mail {
+pub(super) struct Mail {
     /// (user, mid) → (tid, held)
     copies: BTreeMap<(String, String), (String, bool)>,
     raw: BTreeMap<String, Vec<u8>>,
     templates: BTreeMap<String, (Template, i64)>,
-    held_by_rule: Vec<String>,
+    /// The fraud rules in force, as Lua source.
+    pub(super) rules: String,
     batches: BTreeMap<String, Vec<(String, String)>>,
     /// (user, tid) → when a person last released it
     released: BTreeMap<(String, String), i64>,
 }
 
-struct Fake {
+pub(super) struct Fake {
     url: String,
-    mail: RefCell<Mail>,
+    pub(super) mail: RefCell<Mail>,
     /// A `mem://` store lives while a connection to it is open.
     _keep: Connection,
 }
@@ -98,8 +99,21 @@ impl ReportStore for Fake {
             .map(|(u, _)| u.clone())
             .collect())
     }
-    fn held_by_rule(&self, mid: &str) -> bool {
-        self.mail.borrow().held_by_rule.iter().any(|m| m == mid)
+    fn fraud_inputs(&self, _mid: &str) -> hold_rule::Inputs {
+        hold_rule::Inputs::default()
+    }
+    fn scan(
+        &self,
+        facts: &mailrs_fraud::Facts<'_>,
+        policy: &mailrs_fraud::Policy,
+    ) -> Result<mailrs_fraud_lua::Scan, String> {
+        let mut rules = mailrs_fraud_lua::Rules::compile(&self.mail.borrow().rules)?;
+        let out = rules.classify(facts, policy);
+        Ok(mailrs_fraud_lua::Scan {
+            findings: out.findings,
+            version: rules.version().to_string(),
+            shadow: out.shadow.iter().map(|f| f.rule.clone()).collect(),
+        })
     }
     fn hold(&self, user: &str, tid: &str) -> io::Result<()> {
         for ((u, _), (t, held)) in self.mail.borrow_mut().copies.iter_mut() {
@@ -153,7 +167,7 @@ fn now() -> i64 {
 
 /// `n` readers with their own copy of the same template (message `m<i>`),
 /// fingerprinted as delivery would.
-fn world(test: &str, n: usize) -> Fake {
+pub(super) fn world(test: &str, n: usize) -> Fake {
     let f = fake(&format!("mem://scam-report-{test}"));
     for i in 0..n {
         let user = format!("u{i}@example.com");
@@ -169,7 +183,7 @@ fn world(test: &str, n: usize) -> Fake {
     f
 }
 
-fn held(f: &Fake, user: &str) -> bool {
+pub(super) fn held(f: &Fake, user: &str) -> bool {
     f.mail
         .borrow()
         .copies
@@ -203,17 +217,6 @@ fn an_administrators_report_takes_every_other_copy_back() {
     assert!(held(&f, "u1@example.com") && held(&f, "u2@example.com"));
     let batch = format!("report:{}", r.id);
     assert_eq!(f.mail.borrow().batches[&batch].len(), 2);
-}
-
-#[test]
-fn a_hold_rule_on_the_reported_message_is_a_ground() {
-    let f = world("rule", 2);
-    f.mail.borrow_mut().held_by_rule.push("m0".into());
-    let (_, o) = report(&f, "u0@example.com", "m0", false).unwrap().unwrap();
-    assert_eq!(
-        (o.state.as_str(), o.grounds.as_slice()),
-        ("taken_back", &["hold_rule".to_string()][..])
-    );
 }
 
 #[test]

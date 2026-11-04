@@ -4294,6 +4294,8 @@ dependencies = [
  "mailrs-core-sidestate",
  "mailrs-dmarc",
  "mailrs-egress",
+ "mailrs-fraud",
+ "mailrs-fraud-lua",
  "mailrs-ical",
  "mailrs-inbound",
  "mailrs-intelligence",

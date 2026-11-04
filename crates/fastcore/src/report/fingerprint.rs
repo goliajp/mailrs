@@ -5,7 +5,7 @@
 use std::io;
 use std::sync::Arc;
 
-use mailrs_intake::scam_report::ReportStore;
+use mailrs_intake::scam_report::{ReportStore, hold_rule};
 use mailrs_report::Template;
 
 use crate::FastcoreState;
@@ -83,14 +83,14 @@ impl ReportStore for Reports<'_> {
         self.0.mailbox.ledger_readers(mid)
     }
 
-    fn held_by_rule(&self, mid: &str) -> bool {
-        self.0
-            .mailbox
-            .fraud_verdict(mid)
-            .ok()
-            .flatten()
-            .and_then(|j| serde_json::from_str::<mailrs_inbound::FraudVerdict>(&j).ok())
-            .is_some_and(|v| v.quarantined)
+    /// As the re-scan of stored mail reads it.
+    fn fraud_inputs(&self, mid: &str) -> hold_rule::Inputs {
+        use crate::maintenance::fraud_rescan::config;
+        hold_rule::Inputs {
+            policy: hold_rule::policy(config::account_display_names(self.0)),
+            our_stamp: config::our_authserv_id(),
+            attachment_texts: self.0.mailbox.attachment_texts(mid).unwrap_or_default(),
+        }
     }
 
     fn hold(&self, user: &str, tid: &str) -> io::Result<()> {
