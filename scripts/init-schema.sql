@@ -341,6 +341,19 @@ CREATE TABLE IF NOT EXISTS quarantine_holds (
     PRIMARY KEY (account_address, thread_id)
 );
 
+-- migrate-061: every release of a held conversation, as a fact.
+CREATE TABLE IF NOT EXISTS release_facts (
+    id              BIGSERIAL PRIMARY KEY,
+    account_address TEXT NOT NULL,
+    thread_id       TEXT NOT NULL,
+    released_at     BIGINT NOT NULL,
+    source          TEXT NOT NULL,
+    actor           TEXT NOT NULL,
+    rules_version   TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS release_facts_thread
+    ON release_facts (account_address, thread_id);
+
 -- migrate-054: the Trash, per reader.
 CREATE TABLE IF NOT EXISTS trashed_conversations (
     account_address TEXT NOT NULL,
@@ -844,4 +857,4 @@ CREATE INDEX idx_messages_clean_text_trgm ON messages USING gin (clean_text gin_
 -- The migration this schema is equal to; the core reads it at boot and
 -- applies whatever it carries beyond it.
 CREATE TABLE schema_version (version INTEGER NOT NULL);
-INSERT INTO schema_version (version) VALUES (60);
+INSERT INTO schema_version (version) VALUES (61);
