@@ -21,6 +21,11 @@ use serde::{Deserialize, Serialize};
 pub const KEPT: i64 = 5_000;
 
 pub const LIST: &str = "mailrs:reports";
+
+/// The `fraud_hits` counter of reports whose message was too short to
+/// fingerprint, and so could not look for other copies; `/api/health`
+/// shows it beside the rules' hits.
+pub const NO_FINGERPRINT: &str = "report-no-fingerprint";
 pub const PENDING: &str = "mailrs:reports-pending";
 
 pub fn key(id: &str) -> String {
@@ -63,6 +68,14 @@ pub struct Outcome {
     /// The other copies, as `user\tthread\tmessage`, for an administrator
     /// to confirm against.
     pub targets: Vec<String>,
+    /// The reporter's other conversations holding the template, held with
+    /// the report.
+    #[serde(default)]
+    pub own_held: u64,
+    /// The reported message was too short to fingerprint, so no other copy
+    /// could be looked for.
+    #[serde(default)]
+    pub no_fingerprint: bool,
 }
 
 /// A report and what came of it, as both cores answer it.
@@ -85,6 +98,8 @@ pub fn to_wire(r: &Report, o: &Outcome) -> mailrs_core_api::method::report::Repo
         waits: o.waits.clone(),
         at: r.at,
         decided_at: o.decided_at,
+        own_held: o.own_held,
+        no_fingerprint: o.no_fingerprint,
     }
 }
 

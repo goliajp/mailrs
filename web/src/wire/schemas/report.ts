@@ -18,6 +18,10 @@ export const wireReportOutcomeSchema = z.object({
   /** Other inboxes found holding a copy. */
   inboxes: z.number(),
   message_id: z.string(),
+  /** The body was too short to fingerprint: no other copy was looked for. */
+  no_fingerprint: z.boolean().default(false),
+  /** The reporter's other conversations of the same template, held with it. */
+  own_held: z.number().default(0),
   report_id: z.string(),
   state: z.enum(['taken_back', 'none_found', 'waiting', 'dismissed']),
   /** Conversations taken back from other inboxes. */

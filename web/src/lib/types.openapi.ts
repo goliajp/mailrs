@@ -7447,7 +7447,7 @@ export interface components {
                 /** @description True when computed_at is more than 15 minutes old */
                 stale?: boolean;
             } | null;
-            /** @description Hits per enforced rule of the active fraud bundle, from the receiver's daily counters (shadow rules are not counted), recounted at most every five minutes. Every enforced rule is listed, at 0 when it never fired. Null when the shared store cannot be read. */
+            /** @description Hits per enforced rule of the active fraud bundle, from the receiver's daily counters (shadow rules are not counted), recounted at most every five minutes. Every enforced rule is listed, at 0 when it never fired; beside them `report-no-fingerprint` counts scam reports whose message was too short to compare with others. Null when the shared store cannot be read. */
             fraud_hits?: {
                 /** @description The active bundle's version */
                 version?: string;
@@ -8353,6 +8353,10 @@ export interface components {
             at: number;
             /** @description When the other copies were decided on, epoch seconds; 0 while they wait */
             decided_at: number;
+            /** @description The reporter's other conversations holding the same template, held with the report whatever the grounds */
+            own_held?: number;
+            /** @description The reported message's body was too short to fingerprint (fewer than eight words), so no other copy was looked for */
+            no_fingerprint?: boolean;
         };
         PendingReport: {
             outcome?: components["schemas"]["ReportOutcome"];

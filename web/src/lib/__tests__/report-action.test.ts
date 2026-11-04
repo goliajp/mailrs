@@ -16,6 +16,8 @@ const outcome = (o: Partial<WireReportOutcome>): WireReportOutcome => ({
   grounds: [],
   inboxes: 0,
   message_id: 'm',
+  no_fingerprint: false,
+  own_held: 0,
   report_id: 'rp1',
   state: 'none_found',
   taken_back: 0,
@@ -43,6 +45,22 @@ describe('reporting a scam', () => {
       outcomeText(outcome({ state }))
     )
     expect(new Set(texts).size).toBe(4)
+  })
+
+  it('says when other copies of the reader were held, and when the body was too short', () => {
+    const withOwn = outcomeText(outcome({ own_held: 3, state: 'none_found' }))
+    expect(withOwn).toContain('3')
+    expect(withOwn).toContain(outcomeText(outcome({ state: 'none_found' })))
+    const short = outcomeText(outcome({ no_fingerprint: true, state: 'none_found' }))
+    expect(short).not.toBe(outcomeText(outcome({ state: 'none_found' })))
+  })
+
+  it('reads an answer from before the two fields as none held and a fingerprint', () => {
+    const old = { ...outcome({}) } as Record<string, unknown>
+    delete old.own_held
+    delete old.no_fingerprint
+    const parsed = wireReportOutcomeSchema.parse(old)
+    expect([parsed.own_held, parsed.no_fingerprint]).toEqual([0, false])
   })
 
   it('is offered on every conversation but in the Trash, and nothing undoes it', () => {

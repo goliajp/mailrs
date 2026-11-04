@@ -382,6 +382,65 @@ fn a_conversation_put_back_is_taken_again_only_for_a_copy_that_came_after() {
     assert!(held(&f, "u1@example.com"));
 }
 
+/// The audit rows written so far, newest first.
+fn audit_rows(f: &Fake) -> Vec<mailrs_core_sidestate::families::audit::AuditFact> {
+    let mut c = f.net_conn().unwrap();
+    c.lrange(mailrs_core_sidestate::keys::admin::AUDIT_LOG, 0, -1)
+        .unwrap()
+        .iter()
+        .filter_map(|r| serde_json::from_slice(r).ok())
+        .collect()
+}
+
+#[test]
+fn the_reporters_other_copies_of_the_template_are_held_too() {
+    let f = fake("mem://scam-report-own-copies");
+    let me = "qa@example.com";
+    for i in 0..4 {
+        let mid = format!("q{i}");
+        let raw = scam("QA", me, "parcel-desk.example");
+        let t = template::template_of(me, &raw).unwrap();
+        f.record_template(&mid, &t, now()).unwrap();
+        let mut m = f.mail.borrow_mut();
+        m.raw.insert(mid.clone(), raw);
+        m.copies.insert((me.into(), mid), (format!("qt{i}"), false));
+    }
+    let (_, o) = report(&f, me, "q0", false).unwrap().unwrap();
+    assert_eq!(o.own_held, 3, "{o:?}");
+    let held: Vec<bool> = f.mail.borrow().copies.values().map(|(_, h)| *h).collect();
+    assert_eq!(held, vec![true; 4], "only the reported copy went to Review");
+    let own: Vec<_> = audit_rows(&f)
+        .into_iter()
+        .filter(|a| a.action == "quarantine.hold" && a.detail.contains("source=scam_report"))
+        .collect();
+    assert_eq!(own.len(), 4, "{own:?}");
+    assert!(own.iter().all(|a| a.actor == me), "{own:?}");
+}
+
+#[test]
+fn a_report_of_a_body_too_short_to_compare_is_counted() {
+    let f = fake("mem://scam-report-short");
+    let raw =
+        b"From: x@evil.example\r\nTo: u@example.com\r\nSubject: hi\r\n\r\nPay now.\r\n".to_vec();
+    {
+        let mut m = f.mail.borrow_mut();
+        m.raw.insert("short".into(), raw);
+        m.copies.insert(
+            ("u@example.com".into(), "short".into()),
+            ("ts".into(), false),
+        );
+    }
+    let (_, o) = report(&f, "u@example.com", "short", false)
+        .unwrap()
+        .unwrap();
+    assert!(o.no_fingerprint, "{o:?}");
+    assert_eq!(o.state, "none_found");
+    let mut c = f.net_conn().unwrap();
+    let rule = vec![reports::NO_FINGERPRINT.to_string()];
+    let n = mailrs_core_sidestate::families::fraud_hits::counts(&mut c, &rule, now()).unwrap();
+    assert_eq!(n.today.get(reports::NO_FINGERPRINT), Some(&1));
+}
+
 #[test]
 fn twenty_copies_in_five_inboxes_are_taken_back_well_inside_five_minutes() {
     let f = fake("mem://scam-report-timing");

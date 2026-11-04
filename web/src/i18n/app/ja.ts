@@ -22,10 +22,13 @@ export const appJa: Record<AppKey, string> = {
   'action.read': '既読にする',
   'action.report': '詐欺として報告',
   'action.report.dismissed': '報告しました。ほかの受信者の同じメールは管理者の判断でそのままです',
+  'action.report.noFingerprint':
+    '報告しました。本文が短すぎてほかのメールと比べられないため、ほかのコピーは探していません',
   'action.report.noneFound': '報告しました。ほかに同じメールを受け取った人はいません',
   'action.report.takenBack':
     '報告しました。ほかの {count} 件の受信箱から同じメールを取り下げました',
   'action.report.waiting': '報告しました。ほかの受信箱の同じメールは管理者の確認待ちです',
+  'action.report.withOwn': '{base}。受信箱にあるほかの {count} 通の同じメールも保留しました',
   'action.snooze': '明日までスヌーズ',
   'action.snooze.done': '明日 9:00 までスヌーズしました',
   'action.star': 'スターを付ける',
