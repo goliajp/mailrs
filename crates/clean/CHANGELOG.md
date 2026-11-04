@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `body_text_for_search(part)`: the body text of a parsed MIME message —
+  the first non-attachment `text/plain` part, else the first `text/html`
+  part rendered as text without its style sheets, scripts and comments.
+
 ## [1.2.0] - 2026-10-22
 
 ### Added

@@ -68,7 +68,7 @@ totp:;crates/core-sidestate/src/keys/credentials.rs
 pwreset(_by_addr)?:;crates/core-sidestate/src/keys/credentials.rs
 reset:code:;crates/core-sidestate/src/keys/reset.rs
 reset:failures:;crates/core-sidestate/src/keys/reset.rs
-bayes:(tokens|meta|corpus|trained);crates/triage/src/spam.rs
+bayes:(v2:)?(tokens|meta|corpus|trained);crates/triage/src/spam.rs
 bayes:triage:;crates/triage/src/lib.rs
 '
 

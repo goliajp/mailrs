@@ -4,11 +4,16 @@
 //! Storage keys (network kevy):
 //!
 //! ```text
-//! bayes:tokens:spam, bayes:tokens:ham   hash  field=token value=thread count
-//! bayes:meta                            hash  {spam_msgs, ham_msgs}
-//! bayes:corpus:spam, bayes:corpus:ham   set   thread ids, kept for a retrain
-//! bayes:trained:<tid>                   string  spam|ham  (TTL 90d)
+//! bayes:v2:tokens:spam, bayes:v2:tokens:ham   hash  field=token value=thread count
+//! bayes:v2:meta                               hash  {spam_msgs, ham_msgs}
+//! bayes:v2:corpus:spam, bayes:v2:corpus:ham   set   thread ids, kept for a retrain
+//! bayes:v2:trained:<tid>                      string  spam|ham  (TTL 90d)
 //! ```
+//!
+//! `v2` is the corpus of the tokenizer that reads decoded text. The
+//! unversioned keys hold the corpus of the raw-byte tokenizer; nothing
+//! reads its counts any more, and its corpus sets and markers are read
+//! only by the rebuild that retrains v2 from them.
 //!
 //! A thread is one training sample, its tokens the union across its
 //! messages. Training is reversible: a thread trained the other way is
@@ -19,17 +24,33 @@ use std::collections::BTreeSet;
 use kevy_client::Connection;
 
 /// Per-token spam counts.
-pub const SPAM_TOKENS: &[u8] = b"bayes:tokens:spam";
+pub const SPAM_TOKENS: &[u8] = b"bayes:v2:tokens:spam";
 /// Per-token ham counts.
-pub const HAM_TOKENS: &[u8] = b"bayes:tokens:ham";
+pub const HAM_TOKENS: &[u8] = b"bayes:v2:tokens:ham";
 /// Corpus totals, `spam_msgs` and `ham_msgs`.
-pub const META: &[u8] = b"bayes:meta";
-const CORPUS_SPAM: &[u8] = b"bayes:corpus:spam";
-const CORPUS_HAM: &[u8] = b"bayes:corpus:ham";
+pub const META: &[u8] = b"bayes:v2:meta";
+const CORPUS_SPAM: &[u8] = b"bayes:v2:corpus:spam";
+const CORPUS_HAM: &[u8] = b"bayes:v2:corpus:ham";
+/// The thread ids the raw-byte corpus was trained on as spam.
+pub const LEGACY_CORPUS_SPAM: &[u8] = b"bayes:corpus:spam";
+/// The thread ids the raw-byte corpus was trained on as ham.
+pub const LEGACY_CORPUS_HAM: &[u8] = b"bayes:corpus:ham";
 const TRAINED_TTL_SECS: u64 = 90 * 24 * 3600;
 
 fn trained_key(thread_id: &str) -> String {
-    format!("bayes:trained:{thread_id}")
+    format!("bayes:v2:trained:{thread_id}")
+}
+
+/// The direction the raw-byte corpus last trained `thread_id`, while its
+/// 90-day marker lasts: `Some(true)` spam, `Some(false)` ham.
+pub fn legacy_trained_as_spam(conn: &mut Connection, thread_id: &str) -> Option<bool> {
+    let key = format!("bayes:trained:{thread_id}");
+    let v = conn.get(key.as_bytes()).ok().flatten()?;
+    match v.as_slice() {
+        b"spam" => Some(true),
+        b"ham" => Some(false),
+        _ => None,
+    }
 }
 
 /// Learn the thread whose messages are `raws` as spam (`is_spam`) or ham.
