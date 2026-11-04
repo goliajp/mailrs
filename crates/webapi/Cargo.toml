@@ -81,6 +81,10 @@ mailrs-rfc5322 = { path = "../rfc5322", version = "1" }
 # registrable domain, so a sender subdomain with no icon falls back to its
 # organisation's
 psl = "2.1.222"
+# sender icons as PNG for the mobile clients, which decode neither SVG nor
+# ICO. No text, fonts or embedded images: the SVG comes from a sender's DNS.
+resvg = { version = "0.49.0", default-features = false }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "ico", "gif", "webp"] }
 html2text = "0.17"
 reqwest = { version = "0.13", default-features = false, features = ["rustls", "json"] }
 hickory-resolver = { workspace = true }
