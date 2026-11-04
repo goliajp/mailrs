@@ -23,7 +23,7 @@ export function previewPlaceholder(msg: ThreadMessage): Key {
  */
 export function previewText(msg: ThreadMessage, subject: string): string {
   const text = bubbleText(msg)
-  if (!text || looksLikeHtmlDump(text)) return ''
+  if (!text) return ''
   const trimmed = stripSubjectFromPreview(text, subject)
   if (trimmed.length > 200) return smartTruncate(trimmed, 200)
   return trimmed
@@ -42,7 +42,12 @@ function bubbleText(msg: ThreadMessage): string {
   }
   const raw = msg.new_content || msg.clean_text || msg.text_body || ''
   if (!raw) return ''
-  return cleanTextForBubble(raw)
+  // the dump check is for text parts only: html has been read as html
+  // above, and its text folded to one line would trip it on any footer
+  // of four links split by bars
+  const text = cleanTextForBubble(raw)
+  if (looksLikeHtmlDump(text)) return ''
+  return text
 }
 
 function cleanTextForBubble(raw: string): string {
@@ -112,6 +117,10 @@ function htmlToPreviewText(html: string): string {
   // DOMParser is browser-only; we run in vite/jsdom so this is fine
   const doc = new DOMParser().parseFromString(`<div>${cleanHtml}</div>`, 'text/html')
   const root = doc.body.firstElementChild ?? doc.body
+  dropQuotedMail(root)
+  // textContent runs adjacent blocks together ('me.On Mon'); end each
+  // block with a space, which the fold below turns into one
+  for (const el of Array.from(root.querySelectorAll(BLOCKS))) el.after(' ')
 
   // remove anchors whose visible text is just a URL — they're tracking
   // redirects ('https://c.gle/…' / 'https://email.stripe.com/…') that
@@ -145,6 +154,27 @@ function htmlToPreviewText(html: string): string {
     .replace(/\s+/g, ' ')
     .trim()
   return text
+}
+
+const BLOCKS =
+  'address, article, br, dd, div, dl, dt, footer, h1, h2, h3, h4, h5, h6, header, hr, li, ' +
+  'ol, p, pre, section, table, td, th, tr, ul'
+
+// the earlier mail a reply quotes, as the common clients mark it: gmail,
+// apple mail and thunderbird nest it in a blockquote or a marked block
+const QUOTED = 'blockquote, .gmail_quote, .gmail_extra, .yahoo_quoted, .moz-cite-prefix'
+// outlook does not nest it: everything after its reply header is the
+// earlier mail
+const OUTLOOK_REPLY = '#appendonsend, #divRplyFwdMsg'
+
+function dropQuotedMail(root: Element) {
+  for (const el of Array.from(root.querySelectorAll(QUOTED))) el.remove()
+  const reply = root.querySelector(OUTLOOK_REPLY)
+  if (!reply) return
+  for (let el: Element | null = reply; el && el !== root; el = el.parentElement) {
+    while (el.nextSibling) el.nextSibling.remove()
+  }
+  reply.remove()
 }
 
 // last-resort detection: when only a text/plain part exists and it looks

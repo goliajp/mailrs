@@ -202,6 +202,9 @@ ui/Screens.kt	${state.selected.size}
 ui/SignInScreen.kt	Mailrs
 ui/ThreadActions.kt	button.threadMore
 widget/InboxWidget.kt	Mailrs
+wire/CallbackNumbers.kt	(?<![A-Za-z0-9_+.,/#\x24€£¥\-‐－])
+wire/CallbackNumbers.kt	(?![A-Za-z0-9_:\-‐－]|[.,/]\d)
+wire/CallbackNumbers.kt	(?:^|[^A-Za-z0-9])(?:
 wire/CjkLang.kt	zh-Hant
 wire/CjkLang.kt	zh-Hans
 wire/ContentUriBody.kt	could not open $uri
