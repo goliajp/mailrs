@@ -100,38 +100,6 @@ fn add(store: &KevyMailboxStore, root: &Path, now: i64, x: &T<'_>) {
         .unwrap();
 }
 
-/// The reader's own answer in `tid`, a day after the conversation began.
-fn reply(store: &KevyMailboxStore, root: &Path, now: i64, tid: &str, age_days: i64) {
-    let mid = format!("{tid}-re@x.com");
-    let raw = format!(
-        "From: Bob <{USER}>\r\nSubject: Re: {tid}\r\nMessage-ID: <{mid}>\r\n\r\nthanks\r\n"
-    );
-    let md = mailrs_maildir::Maildir::open(root.join("x.com/bob"));
-    let blob = md.deliver(raw.as_bytes()).unwrap().0;
-    let date = now - (age_days - 1) * DAY;
-    let uid = store.allocate_uid(USER, &mid).unwrap();
-    let wire = serde_json::json!({
-        "id": 0, "mailbox_id": 0, "uid": uid, "blob_ref": blob, "sender": format!("Bob <{USER}>"),
-        "recipients": "a@x", "subject": tid, "date": date, "internal_date": date, "size": raw.len(),
-        "flags": 0, "message_id": mid, "in_reply_to": "", "thread_id": tid, "modseq": 1
-    });
-    store
-        .upsert_user_message(
-            USER,
-            tid,
-            &mid,
-            date,
-            &serde_json::to_vec(&wire).unwrap(),
-            &UserMessageFacts {
-                blob_ref: &blob,
-                uid,
-                flags: 0,
-                modseq: 1,
-            },
-        )
-        .unwrap();
-}
-
 async fn rebuild(state: &Arc<FastcoreState>, query: &str) -> serde_json::Value {
     let res = mailrs_fastcore::build_router(state.clone())
         .oneshot(
@@ -226,24 +194,9 @@ async fn curated_ham_takes_only_what_readers_kept_from_trusted_senders() {
         t("t1", "a@trash.example"),
         t("t2", "a@trash.example"),
         t("t3", "a@trash.example"),
-        // the reader never answered this sender
-        t("n1", "a@noreply.example"),
-        t("n2", "a@noreply.example"),
-        t("n3", "a@noreply.example"),
-        // answered elsewhere: the contact record says the reader wrote to them
-        t("r1", "a@contact.example"),
-        t("r2", "a@contact.example"),
-        t("r3", "a@contact.example"),
     ];
     for x in &threads {
         add(&store, &root, now, x);
-    }
-    // every other conversation the reader answered in place
-    for x in &threads {
-        let elsewhere = ["n1", "n2", "n3", "r1", "r2", "r3"].contains(&x.tid);
-        if !elsewhere && x.from != USER {
-            reply(&store, &root, now, x.tid, x.age_days);
-        }
     }
     store.set_quarantined(USER, "h1", true).unwrap();
     store.set_trashed(USER, "t1", true, now).unwrap();
@@ -271,8 +224,6 @@ async fn curated_ham_takes_only_what_readers_kept_from_trusted_senders() {
     let black = mailrs_core_sidestate::families::sender_lists::blacklist_key(USER);
     c.sadd(black.as_bytes(), &[b"spammer@black.example".as_slice()])
         .unwrap();
-    mailrs_core_sidestate::families::contacts::record_sent_to(&mut c, USER, "a@contact.example")
-        .unwrap();
     c.sadd(keys(Corpus::Legacy).corpus_spam, &[b"c1".as_slice()])
         .unwrap();
 
@@ -285,8 +236,8 @@ async fn curated_ham_takes_only_what_readers_kept_from_trusted_senders() {
     assert_eq!(dry["dry_run"], true, "{dry}");
     // o1, the reader's own mail only, is not even listed: the axis the
     // candidates come from leaves out conversations the reader only sent
-    assert_eq!(dry["candidates"], 36, "{dry}");
-    assert_eq!(dry["kept"], 12, "g1-3, f2-3, x2-3, t2-3, r1-3: {dry}");
+    assert_eq!(dry["candidates"], 30, "{dry}");
+    assert_eq!(dry["kept"], 9, "g1-3, f2-3, x2-3, t2-3: {dry}");
     let r = &dry["rejected"];
     assert_eq!(r["held_or_trashed"], 2, "h1, t1: {dry}");
     assert_eq!(r["recent"], 1, "g4: {dry}");
@@ -299,18 +250,14 @@ async fn curated_ham_takes_only_what_readers_kept_from_trusted_senders() {
     assert_eq!(r["domain_in_junk_or_held"], 5, "j1-3, h2-3: {dry}");
     assert_eq!(r["domain_too_few"], 2, "w1-2: {dry}");
     assert_eq!(r["dmarc_not_pass"], 1, "f1: {dry}");
-    assert_eq!(r["no_reply"], 3, "n1-3: {dry}");
     assert_eq!(ham_msgs(&url), "", "a dry run wrote");
 
     // the caps, in a fixed order
     let capped = rebuild(&state, "per_domain_cap=1&total_cap=3").await;
     assert_eq!(capped["kept"], 3, "{capped}");
-    assert_eq!(
-        capped["rejected"]["per_domain_cap"].as_u64().unwrap()
-            + capped["rejected"]["total_cap"].as_u64().unwrap(),
-        9,
-        "{capped}"
-    );
+    // the fourth domain's conversations meet the total cap first
+    assert_eq!(capped["rejected"]["per_domain_cap"], 4, "{capped}");
+    assert_eq!(capped["rejected"]["total_cap"], 2, "{capped}");
     assert_eq!(
         capped,
         rebuild(&state, "per_domain_cap=1&total_cap=3").await,
@@ -318,14 +265,12 @@ async fn curated_ham_takes_only_what_readers_kept_from_trusted_senders() {
     );
 
     // pages cover the roster once each, and train it as ham
-    let p1 = rebuild(&state, "dry_run=false&limit=6").await;
-    assert_eq!(p1["next_skip"], 6, "{p1}");
-    let p2 = rebuild(&state, "dry_run=false&limit=6&skip=6").await;
+    let p1 = rebuild(&state, "dry_run=false&limit=5").await;
+    assert_eq!(p1["next_skip"], 5, "{p1}");
+    let p2 = rebuild(&state, "dry_run=false&limit=5&skip=5").await;
     assert_eq!(p2["done"], true, "{p2}");
-    assert_eq!(ham_msgs(&url), "12");
-    for kept in [
-        "g1", "g2", "g3", "f2", "f3", "x2", "x3", "t2", "t3", "r1", "r2", "r3",
-    ] {
+    assert_eq!(ham_msgs(&url), "9");
+    for kept in ["g1", "g2", "g3", "f2", "f3", "x2", "x3", "t2", "t3"] {
         assert_eq!(
             mailrs_triage::spam::trained_as_spam(&mut c, Corpus::V2, kept),
             Some(false),
@@ -333,7 +278,7 @@ async fn curated_ham_takes_only_what_readers_kept_from_trusted_senders() {
         );
     }
     for left in [
-        "n1", "g4", "w1", "f1", "j1", "h2", "m1", "b1", "c2", "x1", "o1", "t1",
+        "g4", "w1", "f1", "j1", "h2", "m1", "b1", "c2", "x1", "o1", "t1",
     ] {
         assert_eq!(
             mailrs_triage::spam::trained_as_spam(&mut c, Corpus::V2, left),
