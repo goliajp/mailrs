@@ -45,6 +45,7 @@ final class Session {
 
     /// The Inbox section on screen, nil for the whole Inbox; see Session+Sections.
     var inboxSection: InboxSection?
+    var showingCalendar = false
 
     var axes: MailListAxes {
         if let folderOverride { return MailListAxes(folder: folderOverride) }

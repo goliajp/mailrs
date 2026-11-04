@@ -430,4 +430,13 @@
     <string name="section_accept_all">全部接受</string>
     <string name="section_accept_failed">没能接受这些发件人</string>
     <string name="trackers_blocked">已阻止追踪器 %1$d 个</string>
+    <string name="team_notes_heading">内部评论 · 仅团队可见，不会发出</string>
+    <string name="team_notes_empty">还没有评论</string>
+    <string name="team_notes_edited">已编辑</string>
+    <string name="team_writing">%1$s 正在写回复</string>
+    <string name="calendar_title">日历</string>
+    <string name="calendar_previous">上一周</string>
+    <string name="calendar_next">下周</string>
+    <string name="calendar_all_day">全天</string>
+    <string name="calendar_empty">本周没有日程</string>
 </resources>

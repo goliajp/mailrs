@@ -48,7 +48,7 @@ object InviteRules {
     fun wantsAnswer(method: String): Boolean = method.uppercase() == "REQUEST"
 
     /** "4 guests · 1 yes, 2 awaiting" — the count alone does not say whether it is happening. */
-    fun guests(attendees: List<Wire.InviteAttendee>): String {
+    fun guests(attendees: List<WireInviteAttendee>): String {
         val head = when (attendees.size) {
             1 -> Texts.get(R.string.invite_one_guest)
             else -> Texts.get(R.string.invite_guests, attendees.size)

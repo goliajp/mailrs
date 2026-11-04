@@ -17,6 +17,22 @@
         }
       }
     },
+    "%@ is writing a reply": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ さんが返信を書いています"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 正在写回复"
+          }
+        }
+      }
+    },
     "%@ stops working immediately.": {
       "localizations": {
         "ja": {
@@ -737,6 +753,22 @@
         }
       }
     },
+    "All day": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "終日"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全天"
+          }
+        }
+      }
+    },
     "All mail": {
       "localizations": {
         "ja": {
@@ -1101,6 +1133,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "内置"
+          }
+        }
+      }
+    },
+    "Calendar": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "カレンダー"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日历"
           }
         }
       }
@@ -2546,6 +2594,22 @@
         }
       }
     },
+    "Internal notes · Only the team sees these. They are never sent": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "内部メモ · チームのメンバーだけが見られます。送信されることはありません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "内部评论 · 仅团队可见，不会发出"
+          }
+        }
+      }
+    },
     "Invitation": {
       "localizations": {
         "ja": {
@@ -3638,6 +3702,22 @@
         }
       }
     },
+    "No events this week": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今週の予定はありません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本周没有日程"
+          }
+        }
+      }
+    },
     "No groups": {
       "localizations": {
         "ja": {
@@ -3730,6 +3810,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "没有成员"
+          }
+        }
+      }
+    },
+    "No notes yet": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "メモはまだありません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没有评论"
           }
         }
       }
@@ -4402,6 +4498,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "上一封会话"
+          }
+        }
+      }
+    },
+    "Previous week": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "前の週"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上一周"
           }
         }
       }
@@ -5558,6 +5670,22 @@
         }
       }
     },
+    "The calendar could not be loaded": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "カレンダーを読み込めませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法加载日历"
+          }
+        }
+      }
+    },
     "The original message and its attachments are included": {
       "localizations": {
         "ja": {
@@ -5602,6 +5730,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "没能接受这些发件人"
+          }
+        }
+      }
+    },
+    "The team's notes could not be loaded": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "チームのメモを読み込めませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法加载团队评论"
           }
         }
       }
@@ -5858,6 +6002,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "我要回复"
+          }
+        }
+      }
+    },
+    "Today": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今日"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今天"
           }
         }
       }
@@ -6294,6 +6454,22 @@
         }
       }
     },
+    "Who else is on this conversation could not be loaded": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この会話を担当している人を読み込めませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法加载这个会话由谁处理"
+          }
+        }
+      }
+    },
     "Why it is here": {
       "localizations": {
         "ja": {
@@ -6418,6 +6594,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "copy@example.com"
+          }
+        }
+      }
+    },
+    "edited": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "編集済み"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已编辑"
           }
         }
       }

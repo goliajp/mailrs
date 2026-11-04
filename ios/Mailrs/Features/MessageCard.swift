@@ -366,7 +366,6 @@ struct MessageCard: View {
     }
 }
 
-
 /// One message folded to a line: who, a breath of what, when. Tap for
 /// the full card.
 struct CollapsedMessageRow: View {

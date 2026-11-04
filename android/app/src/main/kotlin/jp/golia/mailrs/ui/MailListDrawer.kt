@@ -1,5 +1,12 @@
 package jp.golia.mailrs.ui
 
+import jp.golia.mailrs.MailViewModel
+import jp.golia.mailrs.UiState
+import jp.golia.mailrs.openCalendar
+import jp.golia.mailrs.openDrafts
+import jp.golia.mailrs.openSent
+import jp.golia.mailrs.openSettings
+import jp.golia.mailrs.showLabel
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -8,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AllInbox
 import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
@@ -56,6 +64,7 @@ fun MailListDrawer(
     labels: List<WireTriage.Label>,
     onDrafts: () -> Unit,
     onSent: () -> Unit,
+    onCalendar: () -> Unit,
     onSettings: () -> Unit,
     onChooseLabel: (WireTriage.Label) -> Unit,
     onChoose: (MailList) -> Unit,
@@ -130,6 +139,14 @@ fun MailListDrawer(
                 modifier = itemModifier.testTag("drawer.item.Drafts"),
             )
             NavigationDrawerItem(
+                label = { Text(stringResource(R.string.calendar_title), fontSize = 14.sp) },
+                icon = { Icon(Icons.Filled.CalendarMonth, contentDescription = null) },
+                selected = false,
+                onClick = onCalendar,
+                colors = colors,
+                modifier = itemModifier.testTag("drawer.item.Calendar"),
+            )
+            NavigationDrawerItem(
                 label = { Text(stringResource(R.string.settings_title), fontSize = 14.sp) },
                 icon = { Icon(Icons.Filled.Settings, contentDescription = null) },
                 selected = false,
@@ -154,4 +171,22 @@ private fun iconFor(list: MailList): ImageVector = when (list) {
     MailList.Review -> Icons.Filled.GppMaybe
     MailList.Trash -> Icons.Filled.Delete
     MailList.Label -> Icons.AutoMirrored.Filled.Label
+}
+
+/** The drawer for the list screen: each choice closes it, then goes where it says. */
+@Composable
+fun ListDrawer(state: UiState, vm: MailViewModel, close: () -> Unit) {
+    MailListDrawer(
+        current = state.list,
+        currentLabel = state.label,
+        labels = state.labels,
+        onChooseLabel = { close(); vm.showLabel(it) },
+        onDrafts = { close(); vm.openDrafts() },
+        onSent = { close(); vm.openSent() },
+        onCalendar = { close(); vm.openCalendar() },
+        onSettings = { close(); vm.openSettings() },
+    ) { chosen ->
+        close()
+        vm.show(chosen)
+    }
 }

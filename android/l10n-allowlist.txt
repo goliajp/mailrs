@@ -328,7 +328,7 @@ wire/ThreadPage.kt	UTF-8
 wire/ThreadPage.kt	&before_ts=${next.seconds}
 wire/TokenStore.kt	AndroidKeyStore
 wire/TokenStore.kt	AES/GCM/NoPadding
-wire/Wire.kt	NEEDS-ACTION
+wire/WireInvite.kt	NEEDS-ACTION
 wire/LinkWarnings.kt	$SCHEME:
 wire/LinkWarnings.kt	\bhref\s*=\s*(?:
 wire/LinkWarnings.kt	display:inline-block;margin-left:2px;padding:0 4px;border-radius:3px;
@@ -350,7 +350,7 @@ wire/MailList.kt	section=$it
 wire/MailrsClientSettings.kt	Authorization
 wire/MailrsClientSettings.kt	Bearer ${s.token}
 wire/TrackingPixels.kt	<img
-wire/TrackingPixels.kt	\bstyle\s*=\s*[
-wire/TrackingPixels.kt	']*\b(?:width|height)\s*:\s*1px
 wire/TrackingPixels.kt	<img
-wire/TrackingPixels.kt	\b$name\s*=\s*[
+wire/TrackingPixels.kt	^https?://
+wire/TrackingPixels.kt	display:none
+wire/TrackingPixels.kt	visibility:hidden

@@ -113,6 +113,7 @@ struct ThreadView: View {
                                     }
                             }
                         }
+                        TeamNotesSection(conversation: conversation)
                     }
                     .padding(.horizontal, 10)
                     .padding(.vertical, 8)
