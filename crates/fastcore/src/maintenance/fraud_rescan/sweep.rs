@@ -320,6 +320,7 @@ impl Sweep<'_> {
                     crate::hold_facts::REJUDGE,
                     crate::hold_facts::SYSTEM,
                     version,
+                    "",
                 ) {
                     tracing::error!(%error, %user, %tid, "fraud rescan: the release was not recorded");
                 }

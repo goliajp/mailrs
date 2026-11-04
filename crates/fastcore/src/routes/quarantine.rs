@@ -129,6 +129,7 @@ pub(crate) async fn release_quarantined(
             crate::hold_facts::PERSON,
             &user,
             "",
+            "",
         ) {
             tracing::error!(%error, %user, %thread_id, "the release was not recorded");
             return axum::response::IntoResponse::into_response(

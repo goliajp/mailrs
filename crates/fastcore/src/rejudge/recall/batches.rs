@@ -50,6 +50,10 @@ pub(crate) fn release_batch(state: &FastcoreState, observation: &str, actor: &st
         .smembers(batch_key(observation).as_bytes())
         .unwrap_or_default();
     let mut released = 0;
+    let conversations = members.len();
+    // the rules the batch held for, for the line that says what was put back
+    let mut batch_rules = std::collections::BTreeSet::new();
+    let scope = format!("batch={observation}");
     let mut conn = state.net_conn();
     for m in members {
         let m = String::from_utf8_lossy(&m).to_string();
@@ -66,6 +70,8 @@ pub(crate) fn release_batch(state: &FastcoreState, observation: &str, actor: &st
         if !still {
             continue;
         }
+        // read before `note_released` clears the recall mark
+        let rules = rules_of(store.hget(recalled_key(user, tid).as_bytes(), b"rules"));
         if state
             .mailbox
             .set_quarantined(user, tid, false)
@@ -79,12 +85,17 @@ pub(crate) fn release_batch(state: &FastcoreState, observation: &str, actor: &st
                 crate::hold_facts::BATCH,
                 actor,
                 "",
+                &scope,
             ) {
                 tracing::error!(%error, %user, %tid, "rejudge: the batch release was not recorded");
             }
             released += 1;
+            batch_rules.extend(rules.iter().cloned());
             if let Some(c) = conn.as_mut() {
-                let detail = format!("user={user} observation={observation} reason=batch put back");
+                let detail = format!(
+                    "user={user} observation={observation} rules={} reason=batch put back",
+                    rules.join(",")
+                );
                 let _ = mailrs_core_sidestate::families::audit::append(
                     c,
                     actor,
@@ -94,6 +105,24 @@ pub(crate) fn release_batch(state: &FastcoreState, observation: &str, actor: &st
                     now(),
                 );
             }
+        }
+    }
+    // the batch as a whole: whose decision, which batch, the rules it held
+    // for, and how many it covered, so a put-back can be traced afterwards
+    if let Some(c) = conn.as_mut() {
+        let detail = format!(
+            "{scope} conversations={conversations} released={released} rules={}",
+            batch_rules.into_iter().collect::<Vec<_>>().join(",")
+        );
+        if let Err(error) = mailrs_core_sidestate::families::audit::append(
+            c,
+            actor,
+            "rejudge.batch_release",
+            observation,
+            &detail,
+            now(),
+        ) {
+            tracing::warn!(%error, %observation, "rejudge: the batch audit line was not written");
         }
     }
     let mut v: serde_json::Value = serde_json::from_slice(&entry).unwrap_or_default();
