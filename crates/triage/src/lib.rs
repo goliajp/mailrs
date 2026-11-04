@@ -5,7 +5,7 @@
 //! serving lanes (fastcore + the monolith) call so they classify with
 //! ONE corpus and agree on every verdict.
 //!
-//! Storage keys (network kevy):
+//! Storage keys (network kevy), for each [`Corpus`]:
 //!
 //! ```text
 //! bayes:triage:v2:tokens:<class>   hash  field=token value=message-count
@@ -13,12 +13,13 @@
 //! bayes:triage:v2:trained:<tid>    string  <class>  (TTL 90d)
 //! ```
 //!
-//! `v2` is the corpus of the tokenizer that reads decoded text; the
-//! unversioned `bayes:triage:*` keys are the raw-byte corpus, left in place
-//! and no longer read.
+//! and the same without `v2:` for the legacy corpus. The last key holds the
+//! class a thread was last trained as, so a re-file unlearns the prior class
+//! before learning the new one.
 //!
-//! The last key holds the class a thread was last trained as, so a re-file
-//! unlearns the prior class before learning the new one.
+//! Two corpora exist because the tokenizer changed: counts made by one
+//! tokenizer do not match the tokens of the other. Training writes both;
+//! classification reads [`READ`], with that corpus's tokenizer.
 
 use kevy_client::Connection;
 use mailrs_bayes::{MultiCorpus, classify_multiclass};
@@ -28,14 +29,55 @@ pub mod spam;
 /// The triage classes, in a stable order the corpus counts align with.
 pub const CLASSES: [&str; 3] = ["inbox", "notification", "promotion"];
 
-const META: &[u8] = b"bayes:triage:v2:meta";
+/// A corpus and the tokenizer whose tokens it counts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Corpus {
+    /// Counts of [`mailrs_bayes::tokenize_raw`], the raw-byte tokenizer.
+    Legacy,
+    /// Counts of [`mailrs_bayes::tokenize`], which reads decoded text.
+    V2,
+}
+
+impl Corpus {
+    /// Every corpus; training writes each of them.
+    pub const ALL: [Corpus; 2] = [Corpus::Legacy, Corpus::V2];
+
+    /// The tokens this corpus counts, for one raw message.
+    pub fn tokenize(self, raw: &[u8]) -> Vec<String> {
+        match self {
+            Corpus::Legacy => mailrs_bayes::tokenize_raw(raw),
+            Corpus::V2 => mailrs_bayes::tokenize(raw),
+        }
+    }
+}
+
+/// The corpus classification reads, spam/ham and triage alike.
+pub const READ: Corpus = Corpus::Legacy;
+
 const TRAINED_TTL_SECS: u64 = 90 * 24 * 3600;
 /// One-vs-rest winning probability required before a verdict is
 /// applied — below this the caller defaults to Inbox.
 const MIN_CONFIDENCE: f64 = 0.75;
 
-fn tokens_key(class: &str) -> String {
-    format!("bayes:triage:v2:tokens:{class}")
+fn meta_key(corpus: Corpus) -> &'static [u8] {
+    match corpus {
+        Corpus::Legacy => b"bayes:triage:meta",
+        Corpus::V2 => b"bayes:triage:v2:meta",
+    }
+}
+
+fn tokens_key(corpus: Corpus, class: &str) -> String {
+    match corpus {
+        Corpus::Legacy => format!("bayes:triage:tokens:{class}"),
+        Corpus::V2 => format!("bayes:triage:v2:tokens:{class}"),
+    }
+}
+
+fn marker_key(corpus: Corpus, thread_id: &str) -> String {
+    match corpus {
+        Corpus::Legacy => format!("bayes:triage:trained:{thread_id}"),
+        Corpus::V2 => format!("bayes:triage:v2:trained:{thread_id}"),
+    }
 }
 
 /// True if `class` is one of the triage classes.
@@ -43,23 +85,24 @@ pub fn is_class(class: &str) -> bool {
     CLASSES.contains(&class)
 }
 
-/// Classify a pre-tokenized message into a triage class name
-/// ("inbox" | "notification" | "promotion"). Returns `None` on
-/// cold-start / low confidence — the caller then defaults to "inbox".
-/// Reads the corpus from `conn` (network kevy).
-pub fn classify(conn: &mut Connection, tokens: &[String]) -> Option<&'static str> {
+/// Classify a raw message into a triage class name ("inbox" |
+/// "notification" | "promotion") against the [`READ`] corpus. Returns
+/// `None` on cold-start / low confidence — the caller then defaults to
+/// "inbox". Reads the corpus from `conn` (network kevy).
+pub fn classify(conn: &mut Connection, raw: &[u8]) -> Option<&'static str> {
+    let tokens = READ.tokenize(raw);
     if tokens.is_empty() {
         return None;
     }
-    let corpus = class_totals(conn);
+    let corpus = class_totals(conn, READ);
 
     // Per-token per-class counts: for each token, HGET all class hashes
     // in one pipeline.
-    let tkeys: Vec<String> = CLASSES.iter().map(|c| tokens_key(c)).collect();
+    let tkeys: Vec<String> = CLASSES.iter().map(|c| tokens_key(READ, c)).collect();
     let n_classes = CLASSES.len();
     let replies = conn
         .pipeline(|p| {
-            for t in tokens {
+            for t in &tokens {
                 for tk in &tkeys {
                     p.cmd(&[b"HGET", tk.as_bytes(), t.as_bytes()]);
                 }
@@ -84,19 +127,19 @@ pub fn classify(conn: &mut Connection, tokens: &[String]) -> Option<&'static str
         }
     }
 
-    let idx = classify_multiclass(tokens, &corpus, |t| counts.get(t).cloned(), MIN_CONFIDENCE)?;
+    let idx = classify_multiclass(&tokens, &corpus, |t| counts.get(t).cloned(), MIN_CONFIDENCE)?;
     CLASSES.get(idx).copied()
 }
 
-/// How many threads the corpus has learnt per class, in [`CLASSES`] order.
-pub fn class_totals(conn: &mut Connection) -> MultiCorpus {
+/// How many threads `corpus` has learnt per class, in [`CLASSES`] order.
+pub fn class_totals(conn: &mut Connection, corpus: Corpus) -> MultiCorpus {
     MultiCorpus {
         classes: CLASSES
             .iter()
             .map(|c| {
                 let field = format!("{c}_msgs");
                 let n = conn
-                    .hget(META, field.as_bytes())
+                    .hget(meta_key(corpus), field.as_bytes())
                     .ok()
                     .flatten()
                     .and_then(|v| String::from_utf8(v).ok())
@@ -109,15 +152,21 @@ pub fn class_totals(conn: &mut Connection) -> MultiCorpus {
     }
 }
 
-/// Train the corpus on `tokens` (the deduped union of a thread's
-/// messages) as belonging to `class`. Reversible: if `thread_id` was
-/// previously trained as a different class, that class is unlearned
-/// first. Best-effort — a kevy hiccup is swallowed.
-pub fn train(conn: &mut Connection, tokens: &[String], class: &str, thread_id: &str) {
+/// Train `corpus` on `tokens` (the deduped union of a thread's messages,
+/// from that corpus's tokenizer) as belonging to `class`. Reversible: if
+/// `thread_id` was previously trained as a different class, that class is
+/// unlearned first. Best-effort — a kevy hiccup is swallowed.
+pub(crate) fn train(
+    conn: &mut Connection,
+    corpus: Corpus,
+    tokens: &[String],
+    class: &str,
+    thread_id: &str,
+) {
     if !is_class(class) || tokens.is_empty() {
         return;
     }
-    let marker = format!("bayes:triage:v2:trained:{thread_id}");
+    let marker = marker_key(corpus, thread_id);
     let prior = conn
         .get(marker.as_bytes())
         .ok()
@@ -129,9 +178,9 @@ pub fn train(conn: &mut Connection, tokens: &[String], class: &str, thread_id: &
     }
     let token_list: Vec<&str> = tokens.iter().map(String::as_str).collect();
     if let Some(prev) = prior.as_deref() {
-        adjust(conn, prev, &token_list, -1);
+        adjust(conn, corpus, prev, &token_list, -1);
     }
-    adjust(conn, class, &token_list, 1);
+    adjust(conn, corpus, class, &token_list, 1);
     refresh_marker(conn, &marker, class);
     tracing::info!(%thread_id, %class, tokens = token_list.len(), "triage: trained");
 }
@@ -145,8 +194,9 @@ fn refresh_marker(conn: &mut Connection, marker: &str, class: &str) {
 }
 
 /// HINCRBY the per-class token hash + the class message counter.
-fn adjust(conn: &mut Connection, class: &str, tokens: &[&str], delta: i64) {
-    let tkey = tokens_key(class);
+fn adjust(conn: &mut Connection, corpus: Corpus, class: &str, tokens: &[&str], delta: i64) {
+    let tkey = tokens_key(corpus, class);
+    let meta = meta_key(corpus);
     let field = format!("{class}_msgs");
     let delta_s = delta.to_string();
     let _ = conn.pipeline(|p| {
@@ -158,6 +208,6 @@ fn adjust(conn: &mut Connection, class: &str, tokens: &[&str], delta: i64) {
                 delta_s.as_bytes(),
             ]);
         }
-        p.cmd(&[b"HINCRBY", META, field.as_bytes(), delta_s.as_bytes()]);
+        p.cmd(&[b"HINCRBY", meta, field.as_bytes(), delta_s.as_bytes()]);
     });
 }

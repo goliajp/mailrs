@@ -15,7 +15,7 @@
 
 use std::collections::BTreeSet;
 
-use mailrs_triage::spam::{LEGACY_CORPUS_HAM, LEGACY_CORPUS_SPAM};
+use mailrs_triage::Corpus;
 
 use super::hangup::{Hangup, run_blocking};
 use super::prelude::*;
@@ -23,14 +23,14 @@ use crate::bayes_train::fetch_thread_raw;
 
 #[derive(Debug, Clone, Copy, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub(crate) enum Corpus {
+pub(crate) enum Which {
     Spam,
     Triage,
 }
 
 #[derive(serde::Deserialize)]
 pub(crate) struct RebuildQuery {
-    corpus: Corpus,
+    corpus: Which,
     /// Report without writing. **Default true.**
     #[serde(default = "yes")]
     dry_run: bool,
@@ -56,8 +56,8 @@ pub(crate) async fn bayes_rebuild_v2_route(
         return axum::http::StatusCode::SERVICE_UNAVAILABLE.into_response();
     };
     let work = run_blocking(move |h| match q.corpus {
-        Corpus::Spam => rebuild_spam(&state, &mut conn, &q, h),
-        Corpus::Triage => rebuild_triage(&state, &mut conn, &q, h),
+        Which::Spam => rebuild_spam(&state, &mut conn, &q, h),
+        Which::Triage => rebuild_triage(&state, &mut conn, &q, h),
     });
     match work.await {
         Ok(Ok(report)) => Json(report).into_response(),
@@ -97,8 +97,9 @@ fn rebuild_spam(
     q: &RebuildQuery,
     hangup: &Hangup,
 ) -> std::io::Result<serde_json::Value> {
-    let spam = members(conn, LEGACY_CORPUS_SPAM)?;
-    let ham = members(conn, LEGACY_CORPUS_HAM)?;
+    let legacy = mailrs_triage::spam::keys(Corpus::Legacy);
+    let spam = members(conn, legacy.corpus_spam)?;
+    let ham = members(conn, legacy.corpus_ham)?;
     let roster: BTreeSet<&String> = spam.iter().chain(ham.iter()).collect();
 
     let mut walked = 0usize;
@@ -114,7 +115,7 @@ fn rebuild_spam(
             (true, true) => {
                 in_both += 1;
                 // the old marker says which way it went last, while it lasts
-                match mailrs_triage::spam::legacy_trained_as_spam(conn, tid) {
+                match mailrs_triage::spam::trained_as_spam(conn, Corpus::Legacy, tid) {
                     Some(s) => s,
                     None => {
                         in_both_unknown += 1;
@@ -142,7 +143,7 @@ fn rebuild_spam(
             false => as_ham += 1,
         }
         if !q.dry_run {
-            mailrs_triage::spam::train(conn, tid, &raws, is_spam);
+            mailrs_triage::spam::train_in(conn, Corpus::V2, tid, &raws, is_spam);
         }
     }
     let next_skip = q.skip + walked;
@@ -220,7 +221,7 @@ fn rebuild_triage(
             per_class[i] += 1;
         }
         if !q.dry_run {
-            mailrs_triage::spam::train_class(conn, tid, &raws, class);
+            mailrs_triage::spam::train_class_in(conn, Corpus::V2, tid, &raws, class);
         }
     }
     let next_skip = q.skip + walked;

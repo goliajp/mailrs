@@ -9,7 +9,8 @@ use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
 use mailrs_fastcore::FastcoreState;
 use mailrs_mailbox_kevy::{KevyMailboxStore, ThreadRow, UserMessageFacts};
-use mailrs_triage::spam::{HAM_TOKENS, LEGACY_CORPUS_HAM, LEGACY_CORPUS_SPAM, META, SPAM_TOKENS};
+use mailrs_triage::Corpus;
+use mailrs_triage::spam::keys;
 use tower::ServiceExt;
 
 const USER: &str = "bob@x.com";
@@ -114,9 +115,10 @@ fn seeded(url: &str, root: &Path) -> Arc<FastcoreState> {
 
     let mut c = kevy_client::Connection::connect(url).unwrap();
     let s: [&[u8]; 4] = [b"t-spam", b"t-both", b"t-both2", b"t-gone"];
-    c.sadd(LEGACY_CORPUS_SPAM, &s).unwrap();
+    let legacy = keys(Corpus::Legacy);
+    c.sadd(legacy.corpus_spam, &s).unwrap();
     let h: [&[u8]; 4] = [b"t-ham", b"t-both", b"t-both2", b"t-nofile"];
-    c.sadd(LEGACY_CORPUS_HAM, &h).unwrap();
+    c.sadd(legacy.corpus_ham, &h).unwrap();
     c.set(&legacy_marker("t-both"), b"ham").unwrap();
 
     let mut state = FastcoreState::new(store);
@@ -128,7 +130,7 @@ fn seeded(url: &str, root: &Path) -> Arc<FastcoreState> {
 /// The raw-byte corpus's marker for `tid`, built from the corpus key
 /// beside it: the family is spelled only in `mailrs_triage::spam`.
 fn legacy_marker(tid: &str) -> Vec<u8> {
-    let mut k = LEGACY_CORPUS_SPAM.to_vec();
+    let mut k = keys(Corpus::Legacy).corpus_spam.to_vec();
     k.truncate(k.len() - b"corpus:spam".len());
     k.extend_from_slice(b"trained:");
     k.extend_from_slice(tid.as_bytes());
@@ -155,12 +157,14 @@ async fn rebuild(state: &Arc<FastcoreState>, query: &str) -> serde_json::Value {
     .unwrap()
 }
 
-/// The v2 spam/ham counts, sorted, so two corpora compare as values.
 type Hash = Vec<(Vec<u8>, Vec<u8>)>;
 
-fn snapshot(url: &str) -> Vec<(String, Hash)> {
+/// The spam/ham counts of `corpus`, sorted, so two corpora compare as
+/// values.
+fn snapshot_of(url: &str, corpus: Corpus) -> Vec<(String, Hash)> {
     let mut c = kevy_client::Connection::connect(url).unwrap();
-    [SPAM_TOKENS, HAM_TOKENS, META]
+    let k = keys(corpus);
+    [k.spam_tokens, k.ham_tokens, k.meta]
         .iter()
         .map(|k| {
             let flat = c.hgetall(k).unwrap();
@@ -195,7 +199,9 @@ async fn the_spam_corpus_is_rebuilt_from_the_legacy_sets() {
     assert_eq!(dry["unresolved"], 3, "{dry}");
     assert_eq!(dry["done"], true, "{dry}");
     assert!(
-        snapshot(&url_a).iter().all(|(_, v)| v.is_empty()),
+        snapshot_of(&url_a, Corpus::V2)
+            .iter()
+            .all(|(_, v)| v.is_empty()),
         "a dry run wrote"
     );
 
@@ -211,7 +217,7 @@ async fn the_spam_corpus_is_rebuilt_from_the_legacy_sets() {
         3
     );
 
-    let whole = snapshot(&url_a);
+    let whole = snapshot_of(&url_a, Corpus::V2);
     let meta = &whole[2].1;
     assert!(
         meta.contains(&(b"spam_msgs".to_vec(), b"1".to_vec()))
@@ -219,11 +225,71 @@ async fn the_spam_corpus_is_rebuilt_from_the_legacy_sets() {
         "{meta:?}"
     );
     assert!(!whole[0].1.is_empty(), "no spam tokens learnt");
-    assert_eq!(whole, snapshot(&url_b), "pages differ from one run");
+    assert_eq!(
+        whole,
+        snapshot_of(&url_b, Corpus::V2),
+        "pages differ from one run"
+    );
 
     // a page run again counts nothing twice
     rebuild(&paged, "corpus=spam&dry_run=false&limit=4").await;
-    assert_eq!(whole, snapshot(&url_b), "a repeated page counted twice");
+    assert_eq!(
+        whole,
+        snapshot_of(&url_b, Corpus::V2),
+        "a repeated page counted twice"
+    );
+
+    // the rebuild is of v2 alone: the legacy corpus it reads from is not
+    // trained a second time
+    assert!(
+        snapshot_of(&url_a, Corpus::Legacy)
+            .iter()
+            .all(|(_, v)| v.is_empty()),
+        "the rebuild wrote the legacy counts"
+    );
+}
+
+/// A reader's verdict trains both corpora, each with its own tokenizer, so
+/// the corpus classification reads stays current while the other is built.
+#[tokio::test]
+async fn a_verdict_trains_both_corpora() {
+    let (_c, url) = mailrs_test_docker::kevy::kevy_server().await;
+    // base64 body: the raw reading splits the encoding, the other decodes it
+    let raw = b"From: s@sender.example\r\nSubject: t-x\r\n\
+Content-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\n\
+aGkgdGhlcmU=\r\n"
+        .to_vec();
+    let url2 = url.clone();
+    tokio::task::spawn_blocking(move || {
+        let mut c = kevy_client::Connection::connect(&url2).unwrap();
+        mailrs_triage::spam::train(&mut c, "t-x", std::slice::from_ref(&raw), true);
+        mailrs_triage::spam::train_class(&mut c, "t-x", std::slice::from_ref(&raw), "promotion");
+    })
+    .await
+    .unwrap();
+    for corpus in Corpus::ALL {
+        let snap = snapshot_of(&url, corpus);
+        assert!(
+            snap[2].1.contains(&(b"spam_msgs".to_vec(), b"1".to_vec())),
+            "{corpus:?}: {snap:?}"
+        );
+        assert!(!snap[0].1.is_empty(), "{corpus:?} learnt no spam tokens");
+        let mut c = kevy_client::Connection::connect(&url).unwrap();
+        let totals: Vec<u32> = mailrs_triage::class_totals(&mut c, corpus)
+            .classes
+            .into_iter()
+            .map(|(_, n)| n)
+            .collect();
+        assert_eq!(totals, vec![0, 0, 1], "{corpus:?}");
+    }
+    // each with its own tokenizer
+    let legacy = snapshot_of(&url, Corpus::Legacy);
+    let v2 = snapshot_of(&url, Corpus::V2);
+    let has = |s: &[(String, Hash)], t: &[u8]| s[0].1.iter().any(|(k, _)| k == t);
+    assert!(has(&legacy, b"agkgdghlcmu"), "{legacy:?}");
+    assert!(!has(&legacy, b"there"), "{legacy:?}");
+    assert!(has(&v2, b"there"), "{v2:?}");
+    assert!(!has(&v2, b"agkgdghlcmu"), "{v2:?}");
 }
 
 #[tokio::test]
@@ -241,7 +307,7 @@ async fn the_triage_corpus_is_rebuilt_from_the_stored_buckets() {
     assert_eq!(dry["unresolved"], 1, "t-nofile: {dry}");
     let mut c = kevy_client::Connection::connect(&url).unwrap();
     let totals = |c: &mut kevy_client::Connection| -> Vec<u32> {
-        mailrs_triage::class_totals(c)
+        mailrs_triage::class_totals(c, Corpus::V2)
             .classes
             .into_iter()
             .map(|(_, n)| n)

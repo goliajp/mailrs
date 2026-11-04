@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   corpus trained with the old tokenizer does not match the new tokens and
   should be retrained.
 
+### Added
+
+- `tokenize_raw`: the previous tokenizer, unchanged, so a corpus trained
+  with it can still be read and trained while its replacement is built.
+
 - The Apache-2.0 and MIT license texts are shipped with the crate.
 
 ## [0.1.0] - 2026-08-04
