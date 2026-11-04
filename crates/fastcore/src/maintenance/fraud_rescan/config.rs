@@ -15,7 +15,7 @@ use super::super::prelude::*;
 /// Read here rather than configured, because the store is the
 /// authority on who has an account and a variable is a second copy
 /// that can drift from it.
-pub(super) fn account_display_names(state: &Arc<FastcoreState>) -> Vec<String> {
+pub(crate) fn account_display_names(state: &Arc<FastcoreState>) -> Vec<String> {
     let Ok(addrs) = state.mailbox.list_account_addresses() else {
         return Vec::new();
     };
@@ -105,7 +105,7 @@ pub(super) fn csv_env(name: &str) -> Vec<String> {
 /// was not given to this process — said out loud, because the rules
 /// that ask then decline and a silent decline reads as "nothing
 /// found".
-pub(super) fn our_authserv_id() -> Option<String> {
+pub(crate) fn our_authserv_id() -> Option<String> {
     let host = std::env::var("MAILRS_HOSTNAME")
         .ok()
         .map(|h| h.trim().to_ascii_lowercase())

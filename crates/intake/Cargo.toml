@@ -46,6 +46,8 @@ mailrs-sieve = { path = "../sieve" }
 mailrs-tls-rpt = { path = "../tls-rpt", version = "1" }
 psl = "2.1.222"
 mailrs-report = { path = "../report", version = "0.1" }
+mailrs-fraud = { path = "../fraud", version = "0" }
+mailrs-fraud-lua = { path = "../fraud-lua", version = "0" }
 mailrs-reputation = { path = "../reputation", version = "0.1" }
 sha2 = "0.11"
 reqwest = { version = "0.13", default-features = false, features = ["rustls", "json"] }

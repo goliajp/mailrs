@@ -76,6 +76,13 @@ pub struct Outcome {
     /// could be looked for.
     #[serde(default)]
     pub no_fingerprint: bool,
+    /// The hold rule of the rules in force that held the reported message
+    /// when it was reported (the `hold_rule` ground); `None` when none did.
+    #[serde(default)]
+    pub hold_rule: Option<String>,
+    /// The version of the rule set `hold_rule` is in.
+    #[serde(default)]
+    pub rules_version: Option<String>,
 }
 
 /// A report and what came of it, as both cores answer it.
@@ -100,6 +107,8 @@ pub fn to_wire(r: &Report, o: &Outcome) -> mailrs_core_api::method::report::Repo
         decided_at: o.decided_at,
         own_held: o.own_held,
         no_fingerprint: o.no_fingerprint,
+        hold_rule: o.hold_rule.clone(),
+        rules_version: o.rules_version.clone(),
     }
 }
 

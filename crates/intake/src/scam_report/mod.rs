@@ -12,6 +12,7 @@ use mailrs_core_sidestate::families::{domain_first, fraud_hits, reports};
 use mailrs_report::{Decision, Situation, Template};
 
 mod admin;
+pub mod hold_rule;
 mod notify;
 pub mod template;
 
@@ -35,9 +36,20 @@ pub trait ReportStore {
     fn candidates(&self, simhash: u64, since: i64) -> io::Result<Vec<String>>;
     /// The accounts holding a copy of `mid`.
     fn readers(&self, mid: &str) -> io::Result<Vec<String>>;
-    /// The fraud rules in force hold `mid` (a rule in shadow is never in
-    /// the stored verdict; screening rules are not fraud rules).
-    fn held_by_rule(&self, mid: &str) -> bool;
+    /// What judging `mid` again reads besides its file: the policy (with
+    /// this core's account names), the `authserv-id`, and the text of its
+    /// attachments.
+    fn fraud_inputs(&self, mid: &str) -> hold_rule::Inputs;
+    /// The fraud rules in force on `facts`: the receiver's own entry, the
+    /// bundle in `MAILRS_FRAUD_RULES_FILE`. Screening rules are not fraud
+    /// rules.
+    fn scan(
+        &self,
+        facts: &mailrs_fraud::Facts<'_>,
+        policy: &mailrs_fraud::Policy,
+    ) -> Result<mailrs_fraud_lua::Scan, String> {
+        mailrs_fraud_lua::scan(facts, policy)
+    }
     /// Hold the reporter's own conversation.
     fn hold(&self, user: &str, tid: &str) -> io::Result<()>;
     /// Take another reader's conversation back into Review for message
@@ -148,10 +160,23 @@ pub fn report<S: ReportStore + ?Sized>(
         .map(mailrs_inbound::identity::from_address)
         .unwrap_or_default();
     let alike = alike_reports(core, &mut conn, &r, template.as_ref())?;
+    let rule = hold_rule::in_force(core, user, mid, raw.as_deref());
+    if let Some(h) = &rule {
+        notify::audit(
+            &mut conn,
+            user,
+            "report.hold_rule",
+            &tid,
+            &format!(
+                "report={} message={mid} rule={} rules_version={}",
+                r.id, h.rule, h.version
+            ),
+        );
+    }
     let situation = Situation {
         reporter_is_administrator: administrator,
         reporters: alike.iter().map(|o| o.person.clone()).collect(),
-        hold_rule: core.held_by_rule(mid),
+        hold_rule: rule.is_some(),
         inboxes: inboxes(&targets),
         sender_history_days: domain_first::first_seen(&mut conn, &r.sender_domain)
             .map(|first| (at - first) / 86_400),
@@ -165,6 +190,7 @@ pub fn report<S: ReportStore + ?Sized>(
         &mailrs_report::decide(&situation),
         &targets,
         user,
+        rule.as_ref(),
     );
     let outcome = reports::Outcome {
         own_held,
@@ -306,10 +332,13 @@ fn act<S: ReportStore + ?Sized>(
     decision: &Decision,
     targets: &[Target],
     actor: &str,
+    rule: Option<&hold_rule::HoldRule>,
 ) -> reports::Outcome {
     let mut o = reports::Outcome {
         inboxes: inboxes(targets) as u64,
         targets: targets.iter().map(Target::encode).collect(),
+        hold_rule: rule.map(|h| h.rule.clone()),
+        rules_version: rule.map(|h| h.version.clone()),
         ..Default::default()
     };
     match decision {
@@ -319,7 +348,7 @@ fn act<S: ReportStore + ?Sized>(
         }
         Decision::TakeBack { grounds } => {
             o.grounds = names(grounds);
-            o.taken_back = take_back(core, conn, r, targets, actor, &o.grounds);
+            o.taken_back = take_back(core, conn, r, targets, actor, &o);
             o.state = "taken_back".into();
             o.decided_at = now();
         }
@@ -340,7 +369,7 @@ fn take_back<S: ReportStore + ?Sized>(
     r: &reports::Report,
     targets: &[Target],
     actor: &str,
-    grounds: &[String],
+    o: &reports::Outcome,
 ) -> u64 {
     let batch = format!("report:{}", r.id);
     let mut taken = 0;
@@ -357,14 +386,17 @@ fn take_back<S: ReportStore + ?Sized>(
                 "report: a copy could not be taken back"),
         }
     }
-    let detail = format!(
+    let mut detail = format!(
         "report={} fingerprint={} sender_domain={} taken_back={taken} of={} grounds={}",
         r.id,
         r.simhash,
         r.sender_domain,
         targets.len(),
-        grounds.join(",")
+        o.grounds.join(",")
     );
+    if let (Some(rule), Some(version)) = (&o.hold_rule, &o.rules_version) {
+        detail.push_str(&format!(" rule={rule} rules_version={version}"));
+    }
     notify::audit(conn, actor, "report.take_back", &r.thread_id, &detail);
     taken
 }
@@ -395,5 +427,7 @@ fn settle_waiting(
     Ok(())
 }
 
+#[cfg(test)]
+mod hold_rule_tests;
 #[cfg(test)]
 mod tests;

@@ -68,6 +68,14 @@ pub struct ReportOutcomeWire {
     /// eight words), so no other copy was looked for.
     #[serde(default)]
     pub no_fingerprint: bool,
+    /// The hold rule of the rules in force that held the reported message
+    /// when it was reported, which is the `hold_rule` ground; null when no
+    /// rule in force holds it.
+    #[serde(default)]
+    pub hold_rule: Option<String>,
+    /// The version of the rule set `hold_rule` is in; null with it.
+    #[serde(default)]
+    pub rules_version: Option<String>,
 }
 
 /// One other copy, for an administrator to look at before confirming.

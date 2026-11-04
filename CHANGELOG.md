@@ -32,6 +32,11 @@ it landed in where that is known.
   ground**: a super administrator reported it, two different people
   reported it within a day (an account and the account it forwards to
   count as one), or the message hits a hold-level fraud rule in force.
+  That last one is judged again when the message is reported, with the
+  rules running now: a rule that has since been removed, moved to shadow
+  or made to only score is not a ground, whatever was decided when the
+  message arrived. The answer names the rule and the version of the rule
+  set (`hold_rule`, `rules_version`), and the audit log records them.
   Even then they wait for a super administrator when more than 20 inboxes
   would be touched, the sender's domain has been writing to us for over
   90 days, or the sender is on the allow list. Without a ground the

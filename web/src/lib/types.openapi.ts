@@ -8357,6 +8357,10 @@ export interface components {
             own_held?: number;
             /** @description The reported message's body was too short to fingerprint (fewer than eight words), so no other copy was looked for */
             no_fingerprint?: boolean;
+            /** @description The hold rule of the fraud rules running when it was reported that holds the reported message, which is the `hold_rule` ground; null when none does */
+            hold_rule?: string | null;
+            /** @description The version of the rule set `hold_rule` is in; null with it */
+            rules_version?: string | null;
         };
         PendingReport: {
             outcome?: components["schemas"]["ReportOutcome"];

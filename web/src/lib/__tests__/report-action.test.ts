@@ -14,11 +14,13 @@ const outcome = (o: Partial<WireReportOutcome>): WireReportOutcome => ({
   at: 1,
   decided_at: 2,
   grounds: [],
+  hold_rule: null,
   inboxes: 0,
   message_id: 'm',
   no_fingerprint: false,
   own_held: 0,
   report_id: 'rp1',
+  rules_version: null,
   state: 'none_found',
   taken_back: 0,
   thread_id: 't',
@@ -61,6 +63,18 @@ describe('reporting a scam', () => {
     delete old.no_fingerprint
     const parsed = wireReportOutcomeSchema.parse(old)
     expect([parsed.own_held, parsed.no_fingerprint]).toEqual([0, false])
+  })
+
+  it('reads the hold rule and its rule set, and their absence as null', () => {
+    const old = { ...outcome({}) } as Record<string, unknown>
+    delete old.hold_rule
+    delete old.rules_version
+    const parsed = wireReportOutcomeSchema.parse(old)
+    expect([parsed.hold_rule, parsed.rules_version]).toEqual([null, null])
+    const named = wireReportOutcomeSchema.parse(
+      outcome({ hold_rule: 'x-mailer-generated', rules_version: 'abc123' })
+    )
+    expect([named.hold_rule, named.rules_version]).toEqual(['x-mailer-generated', 'abc123'])
   })
 
   it('is offered on every conversation but in the Trash, and nothing undoes it', () => {
