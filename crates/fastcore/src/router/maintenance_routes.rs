@@ -141,6 +141,11 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
             get(crate::maintenance::usage_drift_route)
                 .post(crate::maintenance::usage_drift_apply_route),
         )
+        // Read-only: what the report fingerprints and their index hold.
+        .route(
+            "/v1/admin/maintenance:template-footprint",
+            get(crate::report::footprint),
+        )
         // Reads the calendar part out of mail that arrived before
         // anybody looked at one — which is all of it, since production
         // ingested invitations for a year and stored nothing about

@@ -21,6 +21,7 @@ members = [
     "crates/uidlist",
     "crates/keywords",
     "crates/textguard",
+    "crates/report",
     "crates/threadstate",
     "crates/message-store",
     "crates/receiver",

@@ -7190,6 +7190,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/messages/{message_id}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Report a message as a scam. The reader's copy is held at once; the other copies of the same template from the last thirty days are taken back into Review when the report has a ground (a super administrator's report, two different people within a day, or a hold-level rule in force), else they wait for an administrator */
+        post: operations["reportScam"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reports/{report_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What came of one of the reader's own reports */
+        get: operations["getReportOutcome"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/reports/pending": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Reports whose other copies wait for an administrator, oldest first, with the reported message's subject, sender, sender domain and up to ten copies. Super administrators only */
+        get: operations["listPendingReports"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/reports/{report_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Take a waiting report's copies back into Review, as one batch an administrator can put back whole. Super administrators only, after a recent password confirmation */
+        post: operations["confirmReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/reports/{report_id}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Leave a waiting report's copies where they are. Super administrators only */
+        post: operations["dismissReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -7362,7 +7447,7 @@ export interface components {
                 /** @description True when computed_at is more than 15 minutes old */
                 stale?: boolean;
             } | null;
-            /** @description Hits per enforced rule of the active fraud bundle, from the receiver's daily counters (shadow rules are not counted), recounted at most every five minutes. Every enforced rule is listed, at 0 when it never fired. Null when the shared store cannot be read. */
+            /** @description Hits per enforced rule of the active fraud bundle, from the receiver's daily counters (shadow rules are not counted), recounted at most every five minutes. Every enforced rule is listed, at 0 when it never fired; beside them `report-no-fingerprint` counts scam reports whose message was too short to compare with others. Null when the shared store cannot be read. */
             fraud_hits?: {
                 /** @description The active bundle's version */
                 version?: string;
@@ -8246,6 +8331,49 @@ export interface components {
         };
         SharedFlag: {
             shared: boolean;
+        };
+        ReportOutcome: {
+            report_id: string;
+            message_id: string;
+            thread_id: string;
+            /**
+             * @description `taken_back`: the other copies were taken back into Review; `none_found`: no other inbox had a copy; `waiting`: an administrator decides; `dismissed`: an administrator left them
+             * @enum {string}
+             */
+            state: "taken_back" | "none_found" | "waiting" | "dismissed";
+            /** @description Conversations taken back from other inboxes */
+            taken_back: number;
+            /** @description Other inboxes found holding a copy */
+            inboxes: number;
+            /** @description `administrator`, `two_people`, `hold_rule`, `confirmed` */
+            grounds: string[];
+            /** @description `no_ground`, `many_inboxes`, `long_history`, `allow_listed` */
+            waits: string[];
+            /** @description Reported at, epoch seconds */
+            at: number;
+            /** @description When the other copies were decided on, epoch seconds; 0 while they wait */
+            decided_at: number;
+            /** @description The reporter's other conversations holding the same template, held with the report whatever the grounds */
+            own_held?: number;
+            /** @description The reported message's body was too short to fingerprint (fewer than eight words), so no other copy was looked for */
+            no_fingerprint?: boolean;
+            /** @description The hold rule of the fraud rules running when it was reported that holds the reported message, which is the `hold_rule` ground; null when none does */
+            hold_rule?: string | null;
+            /** @description The version of the rule set `hold_rule` is in; null with it */
+            rules_version?: string | null;
+        };
+        PendingReport: {
+            outcome?: components["schemas"]["ReportOutcome"];
+            reporter?: string;
+            subject?: string;
+            from?: string;
+            sender_domain?: string;
+            /** @description Up to ten of the other copies */
+            samples?: {
+                user?: string;
+                subject?: string;
+                from?: string;
+            }[];
         };
     };
     responses: never;
@@ -17288,6 +17416,172 @@ export interface operations {
                         quota_bytes: number | null;
                     };
                 };
+            };
+        };
+    };
+    reportScam: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description What came of it */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportOutcome"];
+                };
+            };
+            /** @description The reader has no such message */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The shared store is unreachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getReportOutcome: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The outcome */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportOutcome"];
+                };
+            };
+            /** @description No such report of the reader's */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listPendingReports: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Oldest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items?: components["schemas"]["PendingReport"][];
+                    };
+                };
+            };
+            /** @description Not a super administrator */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    confirmReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The outcome; a report not waiting is returned as it stands */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportOutcome"];
+                };
+            };
+            /** @description Not a super administrator, or `confirm_required` */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such report */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    dismissReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The outcome; a report not waiting is returned as it stands */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportOutcome"];
+                };
+            };
+            /** @description Not a super administrator */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such report */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

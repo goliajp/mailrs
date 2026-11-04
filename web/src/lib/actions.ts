@@ -22,6 +22,7 @@ import {
   ArchiveRestore,
   ArchiveX,
   Bell,
+  Flag,
   Inbox,
   Mail,
   MailOpen,
@@ -50,6 +51,7 @@ export type ActionId =
   | 'move-to-inbox'
   | 'pin'
   | 'read'
+  | 'report'
   | 'snooze'
   | 'star'
   | 'trash'
@@ -87,6 +89,7 @@ export const ICONS: Record<string, LucideIcon> = {
   ArchiveRestore,
   ArchiveX,
   Bell,
+  Flag,
   Inbox,
   Mail,
   MailOpen,
@@ -181,6 +184,7 @@ export function rowActions(s: RowState): ActionId[] {
     toggle(s.snoozed, 'unsnooze', 'snooze'),
     ...bucketActions(s.view),
     'label',
+    'report',
     'trash',
   ]
 }

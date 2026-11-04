@@ -27,7 +27,7 @@ use std::time::Duration;
 
 use crate::FastcoreState;
 
-mod judge;
+pub(crate) mod judge;
 pub(crate) mod recall;
 pub(crate) mod routes;
 

@@ -27,6 +27,7 @@ mod placement;
 mod quota;
 mod quota_limits;
 mod rejudge;
+mod reports;
 mod search;
 mod sections;
 mod sender_rules;
@@ -63,6 +64,7 @@ async fn the_two_cores_answer_every_client_call_alike() {
     webhooks::run(&cores, &mut d).await;
     ownerless::run(&cores, &mut d).await;
     rejudge::run(&cores, &mut d).await;
+    reports::run(&cores, &mut d).await;
     usage_drift::run(&cores, &mut d).await;
     accounts::teardown(&cores, &mut d).await;
     d.both(
