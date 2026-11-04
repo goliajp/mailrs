@@ -130,10 +130,24 @@ class SystemConfiguration : ExternalResource() {
         const val ATTEMPTS = 10
     }
 
+    /**
+     * The resets wait too. A reset that has not landed yet still reads
+     * as the test's own value, so the next test of the same class found
+     * 2.0 already in place, asked once, launched — and then the late 1.0
+     * arrived and its activity ran at normal size.
+     */
     override fun after() {
-        if (fontScale != null) shell("settings put system font_scale 1.0")
-        if (displaySize != null) shell("wm size reset")
-        if (density != null) shell("wm density reset")
+        if (fontScale != null) {
+            settle("font scale 1.0", "settings put system font_scale 1.0") {
+                android.content.res.Resources.getSystem().configuration.fontScale.toString().startsWith("1.0")
+            }
+        }
+        if (displaySize != null) {
+            settle("display size reset", "wm size reset") { !shell("wm size").contains("Override size") }
+        }
+        if (density != null) {
+            settle("density reset", "wm density reset") { !shell("wm density").contains("Override density") }
+        }
         if (appLocale != null) locales().applicationLocales = android.os.LocaleList.getEmptyLocaleList()
         if (night != null) shell("cmd uimode night no")
     }
