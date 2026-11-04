@@ -430,4 +430,13 @@
     <string name="section_accept_all">すべて承認</string>
     <string name="section_accept_failed">送信者を承認できませんでした</string>
     <string name="trackers_blocked">トラッカーを %1$d 件ブロックしました</string>
+    <string name="team_notes_heading">内部メモ · チームのメンバーだけが見られます。送信されることはありません</string>
+    <string name="team_notes_empty">メモはまだありません</string>
+    <string name="team_notes_edited">編集済み</string>
+    <string name="team_writing">%1$s さんが返信を書いています</string>
+    <string name="calendar_title">カレンダー</string>
+    <string name="calendar_previous">前の週</string>
+    <string name="calendar_next">来週</string>
+    <string name="calendar_all_day">終日</string>
+    <string name="calendar_empty">今週の予定はありません</string>
 </resources>

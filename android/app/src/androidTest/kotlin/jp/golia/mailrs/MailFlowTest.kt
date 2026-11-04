@@ -109,9 +109,6 @@ class MailFlowTest : MailrsUiTest() {
         compose.onNodeWithTag("field.server").assertIsDisplayed()
     }
 
-
-
-
     /**
      * Search, and in the order the server ranked it.
      *
@@ -164,7 +161,6 @@ class MailFlowTest : MailrsUiTest() {
         signIn()
         waitForTag("list.conversations", "the inbox never listed")
         compose.onAllNodesWithTag("row.conversation").onFirst().performClick()
-        waitForTag("list.messages", "the thread never opened")
         unfoldAll()
 
         // Height, not presence. A `WebView` that measured to nothing
@@ -201,7 +197,6 @@ class MailFlowTest : MailrsUiTest() {
         signIn()
         waitForTag("list.conversations", "the inbox never listed")
         compose.onAllNodesWithTag("row.conversation").onFirst().performClick()
-        waitForTag("list.messages", "the thread never opened")
         unfoldAll()
         waitForTag("list.attachments", "the message listed no attachments")
 
@@ -241,7 +236,6 @@ class MailFlowTest : MailrsUiTest() {
         )
     }
 
-
     /** And the composer goes back to whatever opened it. */
 
     /** And it collapses the search rather than leaving. */
@@ -261,7 +255,6 @@ class MailFlowTest : MailrsUiTest() {
      * some fixed time has passed — a sleep would be a guess about a
      * machine's speed.
      */
-
 
     /**
      * Leaving a mailing list, asserted at the wire.
@@ -284,7 +277,6 @@ class MailFlowTest : MailrsUiTest() {
             compose.onAllNodesWithText("This week in systems design").fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithText("This week in systems design").performClick()
-        waitForTag("list.messages", "the newsletter never opened")
         unfoldAll()
 
         // The one-click offer is the second message; the first only
@@ -301,8 +293,6 @@ class MailFlowTest : MailrsUiTest() {
         assertTrue("the request did not name thread t3: $asked", asked.contains("\"t3\""))
         assertTrue("the request did not name uid 8: $asked", asked.contains("8"))
     }
-
-
 
     /**
      * The message as it arrived, headers and all.
@@ -400,7 +390,6 @@ class MailFlowTest : MailrsUiTest() {
         signIn()
         waitForTag("list.conversations", "the inbox never listed")
         compose.onAllNodesWithTag("row.conversation").onFirst().performClick()
-        waitForTag("list.messages", "the thread never opened")
         unfoldAll()
 
         // The **second** message: the first is addressed only to me,

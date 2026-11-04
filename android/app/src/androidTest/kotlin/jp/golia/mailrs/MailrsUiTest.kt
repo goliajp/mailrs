@@ -50,7 +50,6 @@ import org.junit.runner.RunWith
  */
 abstract class MailrsUiTest : GrantsNotifications() {
 
-
     // Ordered, because one rule has to run before the other. Anything
     // that changes the configuration has to be in place *before* the
     // activity launches: changing it afterwards recreates the activity
@@ -191,6 +190,7 @@ abstract class MailrsUiTest : GrantsNotifications() {
      * body, attachments or buttons rather than about the fold itself.
      */
     protected fun unfoldAll() {
+        waitForTag("list.messages", "the thread never opened")
         val folded = SemanticsMatcher("folded message") { node ->
             node.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("message.folded.") == true
         }
@@ -249,33 +249,15 @@ abstract class MailrsUiTest : GrantsNotifications() {
         compose.waitForIdle()
     }
 
-
-
-
     /** And back leaves the selection rather than the app. */
-
-
-
-
-
-
 
     /** A DMARC row is passing against total, which is what a report is for. */
 
-
-
     /** A key is told apart by its prefix and its scopes, which is what a revoke needs. */
-
 
     /** Permission groups say which are built in, which is the first thing to know. */
 
-
-
-
     /** The launcher's Search shortcut opens the search, not the inbox. */
-
-
-
 
     /** Where the stub is, for the tests that poke its debug routes. */
     protected fun stubBase(): String =

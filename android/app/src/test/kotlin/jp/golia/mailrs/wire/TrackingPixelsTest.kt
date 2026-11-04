@@ -1,53 +1,53 @@
 package jp.golia.mailrs.wire
 
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 
-/** The same cases as the iPhone's `TrackingPixelsTests`. */
+/**
+ * Held to `web/src/lib/tracker-samples.json` (copied to this test's resources
+ * and kept the same bytes by `scripts/check-tracker-parity.sh`), which the web
+ * and iPhone tests read too, so all three clients count a message alike.
+ */
 class TrackingPixelsTest {
+    @Serializable
+    private data class Sample(val name: String, val html: String, val trackers: Int)
+
+    @Serializable
+    private data class Samples(val samples: List<Sample>)
+
+    private val json = Json { ignoreUnknownKeys = true }
+    private val rules = TrackerRules.parse(File("src/main/assets/trackers.json").readText())
+    private val samples =
+        json.decodeFromString(Samples.serializer(), javaClass.getResource("/tracker-samples.json")!!.readText()).samples
+
     @Test
-    fun countsTheBeaconsStripTakesOut() {
-        val html = """<img src="a" width="1" height="1"><img src="b" width="600"><IMG SRC="c" WIDTH=1 HEIGHT=1>"""
-        assertEquals(2, TrackingPixels.count(html))
-        assertEquals(0, TrackingPixels.count("<p>no images</p>"))
+    fun the_shared_samples_are_read() {
+        assertTrue("web/src/lib/tracker-samples.json was not read", samples.size > 10)
     }
 
     @Test
-    fun removesBeacon() {
-        val html = """<p>hi</p><img src="https://t.example/o.gif" width="1" height="1">"""
-        assertEquals("<p>hi</p>", TrackingPixels.strip(html))
+    fun counts_as_the_web_does() {
+        val wrong = samples.filter { TrackingPixels.count(it.html, rules) != it.trackers }
+            .map { "${it.name}: expected ${it.trackers}, counted ${TrackingPixels.count(it.html, rules)}" }
+        assertEquals(emptyList<String>(), wrong)
     }
 
     @Test
-    fun inlineStyle() {
-        val html = """<img src="https://t.example/o" style="width:1px;height:1px">x"""
-        assertEquals("x", TrackingPixels.strip(html))
+    fun strips_what_it_counts() {
+        for (s in samples) {
+            val stripped = TrackingPixels.strip(s.html, rules)
+            assertEquals(s.name, 0, TrackingPixels.count(stripped, rules))
+            if (s.trackers == 0) assertEquals(s.name, s.html, stripped)
+        }
     }
 
     @Test
-    fun keepsContent() {
-        val html = """<img src="https://cdn.example/hero.png" width="600" height="200">"""
-        assertEquals(html, TrackingPixels.strip(html))
-        val bare = """<img src="cid:logo@x">"""
-        assertEquals(bare, TrackingPixels.strip(bare))
-    }
-
-    @Test
-    fun severalBeacons() {
-        val html = "<img width=1 height=1 src=a><p>body</p><img height='1' width='1' src=b>"
-        assertEquals("<p>body</p>", TrackingPixels.strip(html))
-    }
-
-    @Test
-    fun noImages() {
-        val html = "<p>Just text, and a &lt;img&gt; that is not a tag.</p>"
-        assertEquals(html, TrackingPixels.strip(html))
-    }
-
-    @Test
-    fun unclosedTag() {
-        val html = """<p>a</p><img src="x" width="1" height="1""""
-        assertTrue(TrackingPixels.strip(html).startsWith("<p>a</p>"))
+    fun ships_the_web_rules() {
+        assertTrue(rules.hosts.contains("mailtrack.io"))
+        assertTrue(rules.paths.contains("/wf/open"))
     }
 }

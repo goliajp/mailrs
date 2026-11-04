@@ -23,6 +23,11 @@ struct ListSurfaces: ViewModifier {
                 if let notified { ThreadView(conversation: notified) }
             }
             .task(id: NotificationRoute.shared.threadId) { await openNotified() }
+            .sheet(isPresented: calendarShown) { CalendarWeekView() }
+    }
+
+    private var calendarShown: Binding<Bool> {
+        Binding(get: { session.showingCalendar }, set: { session.showingCalendar = $0 })
     }
 
     private var shown: Binding<Bool> {

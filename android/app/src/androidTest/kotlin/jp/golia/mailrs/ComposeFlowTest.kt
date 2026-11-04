@@ -56,7 +56,6 @@ class ComposeFlowTest : MailrsUiTest() {
         signIn()
         waitForTag("list.conversations", "the inbox never listed")
         compose.onAllNodesWithTag("row.conversation").onFirst().performClick()
-        waitForTag("list.messages", "the thread never opened")
         unfoldAll()
 
         // Under the body, so the same rule as every other control down
@@ -423,7 +422,6 @@ class ComposeFlowTest : MailrsUiTest() {
         signIn()
         waitForTag("list.conversations", "the inbox never listed")
         compose.onAllNodesWithTag("row.conversation").onFirst().performClick()
-        waitForTag("list.messages", "the thread never opened")
         unfoldAll()
 
         tapWhenSteady("button.forward", 0)

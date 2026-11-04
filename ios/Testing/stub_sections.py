@@ -18,6 +18,8 @@ the request and not only the screen.
 import json
 from urllib.parse import urlparse
 
+import stub_team
+
 BASE_TS = 1754500000
 
 ACCEPTED = []
@@ -94,6 +96,9 @@ def post(handler):
 
 
 def get(handler):
+    # the team conversation's thread, notes and the calendar live in stub_team
+    if stub_team.get(handler):
+        return True
     if urlparse(handler.path).path != "/debug/accepted":
         return False
     handler._send(list(ACCEPTED))

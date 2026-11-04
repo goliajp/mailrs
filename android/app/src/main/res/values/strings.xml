@@ -435,4 +435,13 @@
     <string name="section_accept_all">Accept all</string>
     <string name="section_accept_failed">The senders could not be accepted</string>
     <string name="trackers_blocked">Trackers blocked: %1$d</string>
+    <string name="team_notes_heading">Internal notes · Only the team sees these. They are never sent</string>
+    <string name="team_notes_empty">No notes yet</string>
+    <string name="team_notes_edited">edited</string>
+    <string name="team_writing">%1$s is writing a reply</string>
+    <string name="calendar_title">Calendar</string>
+    <string name="calendar_previous">Previous week</string>
+    <string name="calendar_next">Next week</string>
+    <string name="calendar_all_day">All day</string>
+    <string name="calendar_empty">No events this week</string>
 </resources>

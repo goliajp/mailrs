@@ -111,8 +111,7 @@ struct ReplyView: View {
                     }
                 }
                 .pickerStyle(.segmented)
-                .padding(.horizontal, 12)
-                .padding(.bottom, 8)
+                .padding(EdgeInsets(top: 0, leading: 12, bottom: 8, trailing: 12))
 
                 ComposerHeader(
                     to: toSlot, cc: $cc, bcc: $bcc,
@@ -126,6 +125,7 @@ struct ReplyView: View {
                     ) { suggestions = $0 }
                 }
 
+                ReplyClaimHint(sharedConv: thread.sharedConv)
                 ComposerEditor(text: $body_, placeholder: "Message", formatting: true)
                     .focused($focus, equals: .body)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
