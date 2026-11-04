@@ -707,18 +707,30 @@ class H(BaseHTTPRequestHandler):
                 self.send_header("Connection", "close")
                 self.end_headers()
                 return
-            # A 1×1 PNG: the smallest thing `BitmapFactory` will decode,
-            # which is what the client can actually render.
-            png = base64.b64decode(
-                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8"
-                "z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
-            )
+            # As the handler does for a BIMI domain: the SVG as stored,
+            # unless the client asks for `format=png`. Neither app can
+            # decode SVG, so one that forgets to ask draws a letter here.
+            query = parse_qs(urlparse(self.path).query)
+            if query.get("format") == ["png"]:
+                # A 1×1 PNG: the smallest thing `BitmapFactory` will
+                # decode, which is what the client can actually render.
+                body = base64.b64decode(
+                    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8"
+                    "z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+                )
+                content_type = "image/png"
+            else:
+                body = (
+                    b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8">'
+                    b'<rect width="8" height="8" rx="2" fill="#1a73e8"/></svg>'
+                )
+                content_type = "image/svg+xml"
             self.send_response(200)
-            self.send_header("Content-Type", "image/png")
-            self.send_header("Content-Length", str(len(png)))
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(body)))
             self.send_header("Connection", "close")
             self.end_headers()
-            self.wfile.write(png)
+            self.wfile.write(body)
             return
         if self.path.split("?")[0] == "/debug/icon-asks":
             self._send({"asked": ICON_ASKS})

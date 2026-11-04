@@ -316,3 +316,14 @@ opt-level = 3
 opt-level = 3
 [profile.dev.package.hayro-interpret]
 opt-level = 3
+
+# Sender icons drawn as PNG: the icon tests bound how long a hostile SVG
+# may take, and unoptimised parsing would spend that budget on its own.
+[profile.dev.package.usvg]
+opt-level = 3
+[profile.dev.package.resvg]
+opt-level = 3
+[profile.dev.package.tiny-skia]
+opt-level = 3
+[profile.dev.package.roxmltree]
+opt-level = 3
