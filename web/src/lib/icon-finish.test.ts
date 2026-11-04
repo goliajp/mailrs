@@ -72,6 +72,23 @@ describe('finishIcon', () => {
     expect(at(px, S, 16, 16)).toEqual(WHITE)
   })
 
+  it('keeps a white glyph that reaches the edge of its coloured square', () => {
+    // paypay's bimi logo: a thin white p on a red square, its stem running
+    // off the bottom edge and its bowl off the left edge
+    const side = 64
+    const red: Px = [255, 0, 51, 255]
+    const px = image(side, (x, y) => {
+      if (x >= 26 && x <= 28 && y >= 14) return WHITE
+      if (x <= 28 && y >= 12 && y <= 14) return WHITE
+      return red
+    })
+    finishIcon(px, side, iconShape(px, side))
+    expect(at(px, side, 27, 56)).toEqual(WHITE)
+    expect(at(px, side, 27, 32)).toEqual(WHITE)
+    expect(at(px, side, 10, 13)).toEqual(WHITE)
+    expect(at(px, side, 48, 48)).toEqual(red)
+  })
+
   it('keeps a white background when nothing inside it encloses the icon', () => {
     const red: Px = [190, 0, 0, 255]
     const px = image(S, (x, y) => {
