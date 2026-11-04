@@ -66,6 +66,16 @@ impl<'a> Part<'a> {
             return None;
         }
         let charset = self.content_type.charset();
+        // US-ASCII has no 8-bit bytes, so a body that has them was labelled
+        // wrong (or not at all, which defaults to US-ASCII); undeclared 8-bit
+        // mail is almost always UTF-8, and decoding it as windows-1252, as
+        // the label would, turns every CJK character into mojibake
+        if (charset.eq_ignore_ascii_case("us-ascii") || charset.eq_ignore_ascii_case("ascii"))
+            && !self.body.is_ascii()
+            && let Ok(text) = std::str::from_utf8(&self.body)
+        {
+            return Some(text.to_owned());
+        }
         // an unknown charset is read as UTF-8, replacing what does not decode
         Some(
             mailrs_rfc2047::decode_charset(charset.as_bytes(), &self.body)
@@ -763,5 +773,14 @@ mod tests {
             .expect("parsing deep nesting must not overflow the stack");
         assert_eq!(root.0, MAX_NESTING);
         assert_eq!(root.1, MAX_NESTING + 1);
+    }
+
+    #[test]
+    fn undeclared_eight_bit_utf8_is_read_as_utf8() {
+        let p = parse("Subject: x\r\n\r\n发票代开\r\n".as_bytes());
+        assert_eq!(p.body_text().unwrap().trim(), "发票代开");
+        // latin-1 bytes are not UTF-8, so the label still decides
+        let p = parse(b"Content-Type: text/plain; charset=us-ascii\r\n\r\ncaf\xe9\r\n");
+        assert_eq!(p.body_text().unwrap().trim(), "caf\u{e9}");
     }
 }

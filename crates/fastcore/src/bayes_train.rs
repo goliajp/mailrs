@@ -6,13 +6,10 @@
 //! shared network kevy so the receiver process (a different binary)
 //! can classify at SMTP time.
 //!
-//! Storage keys (network kevy):
-//!   bayes:tokens:spam   hash  field=token value=message-count
-//!   bayes:tokens:ham    hash  field=token value=message-count
-//!   bayes:meta          hash  {spam_msgs, ham_msgs}
-//!   bayes:trained:<thread_id>  string  "spam"|"ham"  (TTL 90d)
-//!     — records the last training direction so re-marking a thread
-//!       (junk → not-junk) unlearns before it re-learns.
+//! Storage keys (network kevy): see `mailrs_triage::spam`. A
+//! `bayes:v2:trained:<thread_id>` marker records the last training
+//! direction so re-marking a thread (junk → not-junk) unlearns before it
+//! re-learns.
 
 use std::sync::Arc;
 

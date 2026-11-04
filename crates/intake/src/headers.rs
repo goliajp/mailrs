@@ -224,28 +224,7 @@ pub fn message_id_or_file_id(header_id: String, blob_ref: &str) -> String {
     }
 }
 
-/// Extract the searchable text of a message: the `text/plain` part if
-/// there is one, else the `text/html` part flattened. Returns `None`
-/// when neither exists (a bare attachment, say) so the caller can skip
-/// writing an empty row.
-pub fn body_text_for_search(root: &mailrs_mime::Part<'_>) -> Option<String> {
-    let mut html: Option<String> = None;
-    for part in root.walk() {
-        match part.content_type.mime_type().as_str() {
-            "text/plain" => {
-                if let Some(t) = part.body_text() {
-                    return Some(t);
-                }
-            }
-            "text/html" if html.is_none() => html = part.body_text(),
-            _ => {}
-        }
-    }
-    if let Some(h) = html {
-        return Some(html2text::from_read(h.as_bytes(), 100).unwrap_or(h));
-    }
-    root.body_text()
-}
+pub use mailrs_clean::body_text_for_search;
 
 #[cfg(test)]
 mod tests {

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `Part::body_text` reads a body labelled US-ASCII (or carrying no charset,
+  which defaults to it) as UTF-8 when it has 8-bit bytes that are valid
+  UTF-8, instead of as windows-1252.
+
 ## [2.0.3] - 2026-10-22
 
 ### Fixed

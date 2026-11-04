@@ -8,10 +8,14 @@
 //! Storage keys (network kevy):
 //!
 //! ```text
-//! bayes:triage:tokens:<class>   hash  field=token value=message-count
-//! bayes:triage:meta             hash  {<class>_msgs}
-//! bayes:triage:trained:<tid>    string  <class>  (TTL 90d)
+//! bayes:triage:v2:tokens:<class>   hash  field=token value=message-count
+//! bayes:triage:v2:meta             hash  {<class>_msgs}
+//! bayes:triage:v2:trained:<tid>    string  <class>  (TTL 90d)
 //! ```
+//!
+//! `v2` is the corpus of the tokenizer that reads decoded text; the
+//! unversioned `bayes:triage:*` keys are the raw-byte corpus, left in place
+//! and no longer read.
 //!
 //! The last key holds the class a thread was last trained as, so a re-file
 //! unlearns the prior class before learning the new one.
@@ -24,14 +28,14 @@ pub mod spam;
 /// The triage classes, in a stable order the corpus counts align with.
 pub const CLASSES: [&str; 3] = ["inbox", "notification", "promotion"];
 
-const META: &[u8] = b"bayes:triage:meta";
+const META: &[u8] = b"bayes:triage:v2:meta";
 const TRAINED_TTL_SECS: u64 = 90 * 24 * 3600;
 /// One-vs-rest winning probability required before a verdict is
 /// applied — below this the caller defaults to Inbox.
 const MIN_CONFIDENCE: f64 = 0.75;
 
 fn tokens_key(class: &str) -> String {
-    format!("bayes:triage:tokens:{class}")
+    format!("bayes:triage:v2:tokens:{class}")
 }
 
 /// True if `class` is one of the triage classes.
@@ -47,24 +51,7 @@ pub fn classify(conn: &mut Connection, tokens: &[String]) -> Option<&'static str
     if tokens.is_empty() {
         return None;
     }
-    // Per-class message totals → MultiCorpus.
-    let corpus = MultiCorpus {
-        classes: CLASSES
-            .iter()
-            .map(|c| {
-                let field = format!("{c}_msgs");
-                let n = conn
-                    .hget(META, field.as_bytes())
-                    .ok()
-                    .flatten()
-                    .and_then(|v| String::from_utf8(v).ok())
-                    .and_then(|s| s.parse::<i64>().ok())
-                    .unwrap_or(0)
-                    .max(0) as u32;
-                ((*c).to_string(), n)
-            })
-            .collect(),
-    };
+    let corpus = class_totals(conn);
 
     // Per-token per-class counts: for each token, HGET all class hashes
     // in one pipeline.
@@ -101,6 +88,27 @@ pub fn classify(conn: &mut Connection, tokens: &[String]) -> Option<&'static str
     CLASSES.get(idx).copied()
 }
 
+/// How many threads the corpus has learnt per class, in [`CLASSES`] order.
+pub fn class_totals(conn: &mut Connection) -> MultiCorpus {
+    MultiCorpus {
+        classes: CLASSES
+            .iter()
+            .map(|c| {
+                let field = format!("{c}_msgs");
+                let n = conn
+                    .hget(META, field.as_bytes())
+                    .ok()
+                    .flatten()
+                    .and_then(|v| String::from_utf8(v).ok())
+                    .and_then(|s| s.parse::<i64>().ok())
+                    .unwrap_or(0)
+                    .max(0) as u32;
+                ((*c).to_string(), n)
+            })
+            .collect(),
+    }
+}
+
 /// Train the corpus on `tokens` (the deduped union of a thread's
 /// messages) as belonging to `class`. Reversible: if `thread_id` was
 /// previously trained as a different class, that class is unlearned
@@ -109,7 +117,7 @@ pub fn train(conn: &mut Connection, tokens: &[String], class: &str, thread_id: &
     if !is_class(class) || tokens.is_empty() {
         return;
     }
-    let marker = format!("bayes:triage:trained:{thread_id}");
+    let marker = format!("bayes:triage:v2:trained:{thread_id}");
     let prior = conn
         .get(marker.as_bytes())
         .ok()
