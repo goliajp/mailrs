@@ -15,6 +15,8 @@ struct MessageCard: View {
     /// The messages before this one in the conversation: a phone number
     /// the same sender gave there is not pointed out again.
     var earlier: [Wire.Message] = []
+    /// "Block x@y" was chosen: the thread asks first, since a menu cannot.
+    var onBlockSender: (String) -> Void = { _ in }
     /// Tapping the header folds the card back to its line.
     let onHeaderTap: () -> Void
     @Environment(Session.self) private var session
@@ -130,11 +132,7 @@ struct MessageCard: View {
             }
             Button { Clipboard.put(address) } label: { Label("Copy address", systemImage: "doc.on.doc") }
             Divider()
-            Button {
-                Task { await session.addSender(address, to: .blocked) }
-            } label: {
-                Label("Always block", systemImage: "hand.raised")
-            }
+            BlockSenderItem(address: address) { onBlockSender(address.lowercased()) }
             Button {
                 Task { await session.addSender(address, to: .allowed) }
             } label: {
@@ -338,6 +336,8 @@ struct MessageCard: View {
             } label: {
                 Label("View source", systemImage: "chevron.left.forwardslash.chevron.right")
             }
+            let sender = SenderName.extractEmail(message.sender)
+            BlockSenderItem(address: sender) { onBlockSender(sender.lowercased()) }
         }
         .task(id: message.messageId) { verdict = await session.fraudVerdict(messageId: message.messageId) }
         .sheet(isPresented: $showingSource) {

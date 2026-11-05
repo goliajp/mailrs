@@ -7962,7 +7962,7 @@
       "post": {
         "operationId": "markThreadNotJunk",
         "summary": "Move a conversation out of Junk and whitelist its senders",
-        "description": "Moves the thread to the Inbox and adds each participant address (except the caller's own) to the caller's sender whitelist. The whitelist write is best-effort: a lookup or kevy failure there does not fail the request.",
+        "description": "Moves the thread to the Inbox and adds each participant address (except the caller's own) to the caller's sender whitelist, taking it off their blacklist. The list write is best-effort: a lookup or kevy failure there does not fail the request.",
         "tags": [
           "Conversations"
         ],
@@ -7982,6 +7982,104 @@
           },
           "404": {
             "description": "Thread not found for this user (core-api NotFound); other core-api errors map to 400/403/409/500/501/503/504 with an empty body"
+          }
+        }
+      }
+    },
+    "/api/conversations/{thread_id}/block-sender": {
+      "post": {
+        "operationId": "blockThreadSender",
+        "summary": "Block a conversation's sender and move the conversation to Junk",
+        "description": "Moves the thread to Junk, then puts `address` (trimmed, lowercased) on the caller's sender blacklist and takes it off their whitelist. Later mail from the address is filed in Junk on arrival; it is never rejected at SMTP and the sender is not told. `was_allowed` says whether the address was on the whitelist, for an undo to restore it.",
+        "tags": [
+          "Conversations"
+        ],
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BlockSenderRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Blocked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlockSenderResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`address` empty after trimming or contains no `@`"
+          },
+          "404": {
+            "description": "Thread not found for this user (core-api NotFound); nothing is written. Other core-api errors map to 400/403/409/500/501/503/504 with an empty body"
+          },
+          "422": {
+            "description": "`address` is the caller's own address (nothing is moved or written), or the body lacks a string `address`"
+          },
+          "500": {
+            "description": "kevy unavailable; the thread is already in Junk"
+          }
+        }
+      }
+    },
+    "/api/conversations/{thread_id}/unblock-sender": {
+      "post": {
+        "operationId": "unblockThreadSender",
+        "summary": "Undo block-sender",
+        "description": "Moves the thread back to the Inbox and takes `address` off the caller's blacklist; with `allow: true`, puts it back on the whitelist. Unlike `mark-not-junk`, no other sender of the thread is whitelisted.",
+        "tags": [
+          "Conversations"
+        ],
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnblockSenderRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Done; empty body"
+          },
+          "404": {
+            "description": "Thread not found for this user (core-api NotFound); nothing is written. Other core-api errors map to 400/403/409/500/501/503/504 with an empty body"
+          },
+          "422": {
+            "description": "Body lacks a string `address`"
+          },
+          "500": {
+            "description": "kevy unavailable"
           }
         }
       }
@@ -8154,7 +8252,7 @@
       "post": {
         "operationId": "addSpamWhitelist",
         "summary": "Add an address to the caller's sender whitelist",
-        "description": "The address is trimmed and lowercased before it is stored.",
+        "description": "The address is trimmed and lowercased before it is stored. The address is taken off the caller's blacklist: an address is on one list at most.",
         "tags": [
           "Mail"
         ],
@@ -8241,7 +8339,7 @@
       "post": {
         "operationId": "addSpamBlacklist",
         "summary": "Add an address to the caller's sender blacklist",
-        "description": "The address is trimmed and lowercased before it is stored.",
+        "description": "The address is trimmed and lowercased before it is stored, and taken off the caller's whitelist: an address is on one list at most.",
         "tags": [
           "Mail"
         ],
@@ -8266,7 +8364,7 @@
             "description": "Missing `Content-Type: application/json`"
           },
           "422": {
-            "description": "Body is JSON but lacks a string `address`"
+            "description": "Body is JSON but lacks a string `address`, or `address` is the caller's own address"
           },
           "500": {
             "description": "kevy unavailable; empty body"
@@ -19227,6 +19325,51 @@
             "description": "Bytes; the saved draft takes it from the stored file"
           }
         }
+      },
+      "BlockSenderRequest": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string",
+            "description": "The `From:` address of the message blocked from"
+          }
+        },
+        "required": [
+          "address"
+        ]
+      },
+      "BlockSenderResponse": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string",
+            "description": "As stored: trimmed and lowercased"
+          },
+          "was_allowed": {
+            "type": "boolean",
+            "description": "It was on the whitelist and was taken off"
+          }
+        },
+        "required": [
+          "address",
+          "was_allowed"
+        ]
+      },
+      "UnblockSenderRequest": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "allow": {
+            "type": "boolean",
+            "default": false,
+            "description": "Put the address back on the whitelist"
+          }
+        },
+        "required": [
+          "address"
+        ]
       }
     }
   }

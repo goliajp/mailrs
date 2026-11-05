@@ -19,6 +19,7 @@ import jp.golia.mailrs.PendingTriage
 import jp.golia.mailrs.R
 import jp.golia.mailrs.UNDO_WINDOW_MS
 import jp.golia.mailrs.UiState
+import jp.golia.mailrs.answerBlockSender
 import jp.golia.mailrs.answerDeleteForever
 import jp.golia.mailrs.applyToOpenThread
 import jp.golia.mailrs.applyToSelection
@@ -67,6 +68,7 @@ fun UndoSnackbar(state: UiState, vm: MailViewModel, snackbars: SnackbarHostState
 
 /** What the snackbar says once an action is done: its own words, or its name. */
 private fun doneText(p: PendingTriage): String {
+    p.blocked?.let { return Texts.get(R.string.block_done, it.address) }
     val id = p.action.done ?: p.action.label
     return when (p.rows.size > 1) {
         true -> Texts.get(R.string.done_count, Texts.get(id), p.rows.size)
@@ -127,6 +129,11 @@ fun ActionDialogs(
     // two-pane screen does not show the same dialog twice.
     if (showForever && state.confirmForever.isNotEmpty()) {
         DeleteForeverDialog(state.confirmForever.size) { yes -> vm.answerDeleteForever(yes) }
+    }
+    val blocking = state.confirmBlock
+    if (showForever && blocking != null) {
+        val allowed = state.senderLists?.allowed?.contains(blocking) ?: false
+        BlockSenderDialog(blocking, allowed) { yes -> vm.answerBlockSender(yes) }
     }
     if (labelFor == null) return
     LabelPickerDialog(

@@ -203,8 +203,6 @@ export const en = {
   'deleteThread.body': 'The messages are deleted and cannot be restored.',
   'error.reload': 'Reload',
   'error.title': 'Something went wrong',
-  'feedback.block': 'Block sender',
-  'feedback.confirmBlock': 'Block this sender?',
   'feedback.confirmSpam': 'Report as spam?',
   'feedback.important': 'Mark important',
   'feedback.recorded': 'Feedback recorded',

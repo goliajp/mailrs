@@ -445,6 +445,9 @@ fn every_fixture_has_a_test() {
         "email-group-shared-set",
         "send-undo",
         "sender-list-add",
+        // read in request_contract_block.rs
+        "block-sender",
+        "unblock-sender",
         "signature-save",
         "snooze",
         "system-config-set",

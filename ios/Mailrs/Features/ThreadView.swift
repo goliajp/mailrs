@@ -15,6 +15,8 @@ struct ThreadView: View {
     /// actually expanded is derived — (is last) XOR (in here) — so a
     /// thread change only has to clear this set.
     @State private var toggled = Set<UInt32>()
+    /// The sender a message card asked to block, awaiting the answer.
+    @State private var blocking: String?
 
     init(conversation: Wire.Conversation) {
         _conversation = State(initialValue: conversation)
@@ -102,7 +104,8 @@ struct ThreadView: View {
                                 // selection, attachments).
                                 MessageCard(
                                     message: message, threadId: conversation.threadId,
-                                    earlier: Array(messages.prefix { $0.uid != message.uid })
+                                    earlier: Array(messages.prefix { $0.uid != message.uid }),
+                                    onBlockSender: { blocking = $0 }
                                 ) {
                                     withAnimation { toggled.formSymmetricDifference([message.uid]) }
                                 }
@@ -232,6 +235,11 @@ struct ThreadView: View {
         }
         .sheet(isPresented: $replying) {
             ReplyView(thread: conversation, replyingTo: messages.last)
+        }
+        .modifier(BlockSenderConfirm(address: $blocking, threadId: conversation.threadId) { dismiss() })
+        .task {
+            // once per session: the cards' Block / Unblock read it
+            if session.senderLists == nil { await session.loadSenderLists() }
         }
         .task(id: conversation.threadId) {
             // Last fetch first: an opened conversation reads from disk

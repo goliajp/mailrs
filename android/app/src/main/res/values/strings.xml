@@ -516,4 +516,12 @@
     <string name="thread_notify_default">This conversation as my notification setting says</string>
     <string name="notify_quiet_starts">Starts</string>
     <string name="notify_quiet_ends">Ends</string>
+    <string name="block_item">Block %1$s</string>
+    <string name="block_unblock_item">Unblock %1$s</string>
+    <string name="block_confirm_title">Block %1$s?</string>
+    <string name="block_confirm_body">Mail from this address will go to Junk, and this conversation moves there now. You can undo this in Settings → Always blocked.</string>
+    <string name="block_confirm_allowed">%1$s is on your Always allowed list. Blocking takes it off.</string>
+    <string name="block_confirm_action">Block</string>
+    <string name="block_done">Blocked %1$s</string>
+    <string name="block_unblocked">Unblocked %1$s</string>
 </resources>
