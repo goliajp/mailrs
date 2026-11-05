@@ -154,7 +154,11 @@ async fn the_senders_marker_ends_the_wait() {
         .unwrap()
         .to_string();
     r.d.mark_delivered(&["unrelated".into()], T + 60);
-    assert_eq!(r.d.pending_ids(), [id.clone()], "another id does not count");
+    assert_eq!(
+        r.d.pending_ids(),
+        std::slice::from_ref(&id),
+        "another id does not count"
+    );
     r.d.mark_delivered(&[id], T + 120);
     r.d.tick(T + 3600).await;
     assert!(r.hook.lock().unwrap().is_empty());
