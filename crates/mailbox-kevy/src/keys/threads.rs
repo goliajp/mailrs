@@ -6,9 +6,9 @@
 //! of writing literal `format!` strings so renames stay local.
 
 /// Thread aggregate hash. Fields: subject, senders_csv, count,
-/// unread_count, latest_date, latest_preview, category, importance_level,
-/// importance_score, requires_action, pinned, archived, has_action,
-/// sent_count.
+/// unread_count, latest_date, latest_preview, category, requires_action,
+/// pinned, archived, has_action, sent_count. The importance verdict is not
+/// here: it is per reader, on [`thread_user`].
 pub fn thread(tid: &str) -> String {
     format!("mailrs:thread:{tid}")
 }
