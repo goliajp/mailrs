@@ -99,4 +99,15 @@ impl Client {
         let path = format!("/v1/users/{}/templates/{id}", Self::enc(user));
         self.delete_authed(path, "delete_template").await
     }
+
+    /// POST /v1/admin/maintenance:backfill-sent-to — with `dry_run` false,
+    /// adds each address a user sent mail to (`sent_count` above zero) to
+    /// that user's list
+    pub async fn backfill_sent_to(
+        &self,
+        dry_run: bool,
+    ) -> ApiResult<method::admin::SentToBackfillResponse> {
+        let path = format!("/v1/admin/maintenance:backfill-sent-to?dry_run={dry_run}");
+        self.post_authed_no_body(path, "backfill_sent_to").await
+    }
 }

@@ -178,14 +178,11 @@ pub(crate) fn thread_user_pairs(
             b"latest_preview".to_vec(),
             row.latest_preview.as_bytes().to_vec(),
         ),
-        (
-            b"importance_level".to_vec(),
-            row.importance_level.as_bytes().to_vec(),
-        ),
-        (
-            b"importance_score".to_vec(),
-            row.importance_score.to_string().into_bytes(),
-        ),
+        // `importance_level` / `importance_score` are absent for the
+        // reason the flags are: a verdict is one reader's, and copying it
+        // from the shared hash gave a member who joined a conversation
+        // later the score of whoever was scored first.
+        // `set_thread_importance` writes them on this row directly.
         (
             b"requires_action".to_vec(),
             flag(row.requires_action).to_vec(),

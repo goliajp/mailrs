@@ -8,8 +8,9 @@
 //!
 //! 1. Storing the **thread** as the source of truth (a hash per thread
 //!    holding pre-aggregated counts, latest_date, senders csv, preview,
-//!    category, importance — written once on each message arrival, never
-//!    recomputed on read).
+//!    category — written once on each message arrival, never recomputed on
+//!    read). The importance verdict is one reader's and lives on their
+//!    membership row.
 //! 2. Maintaining **secondary indexes as ZSETs** keyed by activity time,
 //!    archive state, category, etc. List queries become
 //!    `ZREVRANGE + N × HGETALL`, all O(log n).
@@ -21,8 +22,8 @@
 //! ```text
 //!   mailrs:thread:<tid>             hash  — aggregated thread state
 //!     subject, senders_csv, count, unread_count, latest_date,
-//!     latest_preview, category, importance_level, importance_score,
-//!     requires_action, pinned, archived, has_action, sent_count
+//!     latest_preview, category, requires_action, pinned, archived,
+//!     has_action, sent_count
 //!
 //!   mailrs:user:<u>:threads:by_activity   zset (tid → max_date)
 //!   mailrs:user:<u>:threads:pinned        zset
