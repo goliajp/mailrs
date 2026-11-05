@@ -66,6 +66,9 @@ pub struct WebState {
     /// nobody could act on. Enabling the model is an ops decision with quota
     /// consequences and is not made here.
     pub llm_config: Option<Arc<dyn mailrs_intelligence::provider::LlmProvider>>,
+    /// The bearer token `/metrics` asks for, from `MAILRS_METRICS_TOKEN`.
+    /// `None` (unset or empty) turns the route off: it answers 404.
+    pub metrics_token: Option<String>,
 }
 
 impl WebState {
@@ -102,6 +105,9 @@ impl WebState {
                     ))
                 }
             };
+        let metrics_token = std::env::var("MAILRS_METRICS_TOKEN")
+            .ok()
+            .filter(|t| !t.is_empty());
         Self {
             core,
             bind_addr,
@@ -110,6 +116,7 @@ impl WebState {
             receiver_stats: Arc::new(handlers::smtp_monitor::StatsCache::default()),
             started_at: std::time::Instant::now(),
             llm_config,
+            metrics_token,
         }
     }
 }
@@ -290,6 +297,7 @@ mod router_tests {
             receiver_stats: Arc::new(handlers::smtp_monitor::StatsCache::default()),
             started_at: std::time::Instant::now(),
             llm_config: None,
+            metrics_token: None,
         });
         // Constructed by hand rather than via `WebState::from_env()`, which
         // reads MAILRS_CORE_API_SECRET and panics without it — and env
@@ -322,6 +330,7 @@ mod router_tests {
             receiver_stats: Arc::new(handlers::smtp_monitor::StatsCache::default()),
             started_at: std::time::Instant::now(),
             llm_config: None,
+            metrics_token: None,
         });
 
         for (path, body) in [

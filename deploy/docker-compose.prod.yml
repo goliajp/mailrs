@@ -297,6 +297,9 @@ services:
       MAILRS_SECURITY_ALERT_LANG: zh
       MAILRS_SECURITY_ALERT_UTC_OFFSET: "+09:00"
       MAILRS_WEB_BIND: 0.0.0.0:3100
+      # /metrics answers only `Authorization: Bearer <this>`; empty turns it
+      # off (404), since the reverse proxy forwards the path publicly
+      MAILRS_METRICS_TOKEN: ${MAILRS_METRICS_TOKEN:-}
       MAILRS_WEB_STATIC_DIR: /opt/mailrs/web
       MAILRS_MAILDIR: /data/maildir
       MAILRS_MOCK_DOMAIN: mock.golia.jp
