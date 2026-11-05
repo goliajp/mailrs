@@ -102,6 +102,7 @@ pub(super) fn judge(
         c.hist.as_mut(),
         &reader,
         &from,
+        &mailrs_inbound::identity::reply_to_address(&raw),
         mailrs_fraud_lua::stored::relation::Counted::After,
     );
     let arrived = mailrs_inbound::dates::received_epoch(&raw).unwrap_or(0);

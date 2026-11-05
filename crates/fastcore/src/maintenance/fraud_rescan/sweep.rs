@@ -170,6 +170,7 @@ impl Sweep<'_> {
             self.hist.as_mut(),
             user,
             &msg.from,
+            &msg.reply_to,
             mailrs_fraud_lua::stored::relation::Counted::After,
         );
         // new as of when the message arrived, as `stored::judge_for` reads it

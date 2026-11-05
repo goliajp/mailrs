@@ -159,6 +159,7 @@ impl Evidence {
             ctx.spam_lists_client.clone(),
             &receive_ctx.recipient,
             &decoded_from,
+            &reply_to,
         )
         .await;
         let novelty = crate::spam_lists::novelty_async(
