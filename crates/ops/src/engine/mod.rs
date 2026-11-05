@@ -152,11 +152,12 @@ impl Engine {
                 object: object.clone(),
                 kind,
                 severity: st.severity.unwrap_or(rule.severity),
-                value: st
-                    .value
-                    .clone()
-                    .or_else(|| st.why.clone())
-                    .unwrap_or_default(),
+                // what could not be read says why, not the last value read
+                value: match kind {
+                    NoticeKind::Unreadable => st.why.clone(),
+                    _ => st.value.clone().or_else(|| st.why.clone()),
+                }
+                .unwrap_or_default(),
                 threshold: st.threshold.clone().unwrap_or_default(),
                 since: st.firing_since.unwrap_or(st.since),
                 at: now,
