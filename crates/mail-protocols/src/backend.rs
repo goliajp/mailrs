@@ -250,6 +250,15 @@ pub trait Account: Send + Sync + 'static {
     /// not told its name.
     fn authserv_id(&self) -> Option<&str>;
 
+    /// The message in `mailbox` with the Message-ID of `bytes`, if one is
+    /// there. An APPEND to Sent answers with it: the server filed that
+    /// copy for the client's SMTP submission.
+    fn filed_copy(
+        &self,
+        mailbox: &Self::Mailbox,
+        bytes: &[u8],
+    ) -> impl Future<Output = Result<Option<Filed>>> + Send;
+
     /// A new message carrying `flags`.
     fn append(
         &self,

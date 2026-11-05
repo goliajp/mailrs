@@ -248,6 +248,10 @@ impl Account for MemoryAccount {
         Ok(())
     }
 
+    async fn filed_copy(&self, _: &(), _: &[u8]) -> Result<Option<Filed>> {
+        Ok(None)
+    }
+
     async fn append(&self, _: &(), bytes: Vec<u8>, flags: Vec<Flag>) -> Result<Filed> {
         Ok(file(&self.inbox, bytes, flags))
     }

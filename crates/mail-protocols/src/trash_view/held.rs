@@ -290,6 +290,13 @@ impl<A: Account> Account for HeldView<A> {
         }
     }
 
+    async fn filed_copy(&self, mailbox: &Self::Mailbox, bytes: &[u8]) -> Result<Option<Filed>> {
+        match mailbox {
+            HeldMailbox::Filed(m) => self.inner.filed_copy(m, bytes).await,
+            HeldMailbox::Review { .. } => Ok(None),
+        }
+    }
+
     async fn append(
         &self,
         mailbox: &Self::Mailbox,
