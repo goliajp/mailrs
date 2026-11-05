@@ -93,9 +93,12 @@ becomes a DSN on the bounce queue, which fastcore files into the sender's
 inbox like any other message. Mail submitted over SMTP AUTH (587/465) goes
 through the spool instead: the drain queues the remote recipients and
 files the Sent copy for the account that signed in, the same copy a web
-send files, unless that account already holds the Message-ID. An IMAP
-APPEND to Sent of a message already there answers with the existing
-message, so a client that saves its own copy after submitting keeps one.
+send files, unless that account already holds the Message-ID, and marks
+it in kevy-server (`mailrs:submitted:{user}`, a week). An IMAP APPEND to
+Sent of a message the account already has there replaces the marked copy
+with the client's own, once, since only the client's holds what it did
+not submit (a Bcc); any other copy answers the APPEND, so a client that
+saves its own copy after submitting keeps one.
 
 **Reading.** Lists, threads, search and flag changes are core-api calls
 from webapi to fastcore. Search runs on kevy's built-in text index over

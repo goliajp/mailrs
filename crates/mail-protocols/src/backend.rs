@@ -124,6 +124,16 @@ pub struct Filed {
     pub uid: u32,
 }
 
+/// A message already in a mailbox with the Message-ID of one being
+/// APPENDed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FiledCopy {
+    pub filed: Filed,
+    /// The core filed it for the user's SMTP submission and no copy of the
+    /// client's has replaced it yet.
+    pub submitted: bool,
+}
+
 /// A message shown in a mailbox it is not filed in (`Trash`, a label):
 /// where it is filed, and the uid it has where it is shown.
 #[derive(Debug, Clone)]
@@ -250,14 +260,25 @@ pub trait Account: Send + Sync + 'static {
     /// not told its name.
     fn authserv_id(&self) -> Option<&str>;
 
-    /// The message in `mailbox` with the Message-ID of `bytes`, if one is
-    /// there. An APPEND to Sent answers with it: the server filed that
-    /// copy for the client's SMTP submission.
+    /// This user's message in `mailbox` with the Message-ID of `bytes`, if
+    /// one is there. An APPEND to Sent answers with it, or replaces it
+    /// when it is the copy filed for the user's SMTP submission.
     fn filed_copy(
         &self,
         mailbox: &Self::Mailbox,
         bytes: &[u8],
-    ) -> impl Future<Output = Result<Option<Filed>>> + Send;
+    ) -> impl Future<Output = Result<Option<FiledCopy>>> + Send;
+
+    /// File `bytes`, the client's own copy, in place of `old`, the copy
+    /// filed for the submission, which is no longer marked as such. Where
+    /// the client's copy now is.
+    fn replace_submitted(
+        &self,
+        mailbox: &Self::Mailbox,
+        old: Filed,
+        bytes: Vec<u8>,
+        flags: Vec<Flag>,
+    ) -> impl Future<Output = Result<Filed>> + Send;
 
     /// A new message carrying `flags`.
     fn append(

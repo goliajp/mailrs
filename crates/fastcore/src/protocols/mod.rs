@@ -11,6 +11,7 @@ mod forget;
 mod mock;
 mod real;
 mod sieve;
+mod submitted;
 #[cfg(test)]
 mod tests;
 mod trash;

@@ -123,6 +123,8 @@ pub fn file<S: SentStore + ?Sized>(
 /// as [`file()`] does for a web send. `None` when they already hold a
 /// message with its Message-ID: the client filed its own copy by IMAP
 /// APPEND first, or the submission is a retry. One copy, as Gmail keeps.
+/// A copy filed here is marked (`families::submitted`) so that the
+/// client's own, which can hold what it did not submit, replaces it.
 pub fn file_submitted<S: SentStore + ?Sized>(
     core: &S,
     user: &str,
@@ -133,7 +135,15 @@ pub fn file_submitted<S: SentStore + ?Sized>(
     if !message_id.is_empty() && core.thread_for_message_id(user, &message_id).is_some() {
         return Ok(None);
     }
-    file(core, user, body, recipients).map(Some)
+    let filed = file(core, user, body, recipients)?;
+    // the client's own copy, if it files one, replaces this one
+    let marked = core.net_conn().map(|mut c| {
+        mailrs_core_sidestate::families::submitted::mark(&mut c, user, &filed.message_id)
+    });
+    if let Some(Err(e)) = marked {
+        tracing::warn!(%user, error = %e, "submission: a copy the client files will not replace this one");
+    }
+    Ok(Some(filed))
 }
 
 /// `body` without any `Authentication-Results:` naming this server

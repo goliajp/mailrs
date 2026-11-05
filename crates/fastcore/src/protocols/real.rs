@@ -68,7 +68,7 @@ impl RealAccount {
         Ok(())
     }
 
-    fn filed(&self, to: &FcMailbox, uid: u32) -> Filed {
+    pub(super) fn filed(&self, to: &FcMailbox, uid: u32) -> Filed {
         Filed {
             uidvalidity: backend::uidvalidity(&self.state, &self.user, &to.name),
             uid,
@@ -81,23 +81,6 @@ impl RealAccount {
         let uid = backend::copy_to(&self.state, &self.user, &to_imap(m), to)?;
         self.index_flags(uid, &m.flags);
         Ok(self.filed(to, uid))
-    }
-
-    /// The message in `mailbox` that is one of the user's recorded copies
-    /// of the Message-ID of `bytes`.
-    pub(crate) fn filed_copy(&self, mailbox: &FcMailbox, bytes: &[u8]) -> Result<Option<Filed>> {
-        let message_id = mailrs_intake::headers::message_id_of(bytes);
-        if message_id.is_empty() {
-            return Ok(None);
-        }
-        let files = self.state.mailbox.message_files(&self.user, &message_id)?;
-        if files.is_empty() {
-            return Ok(None);
-        }
-        let found = self.messages(mailbox).into_iter().find(|m| {
-            base_name(&m.key).is_some_and(|b| files.contains(&backend::blob_ref_for(mailbox, b)))
-        });
-        Ok(found.map(|m| self.filed(mailbox, m.uid)))
     }
 
     fn index_flags(&self, uid: u32, flags: &[Flag]) {
