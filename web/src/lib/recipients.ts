@@ -1,5 +1,7 @@
 import { extractEmail, extractName } from '@/lib/avatar'
 
+export type Person = { address: string; name: string }
+
 /**
  * One entry per addressee, keeping both halves.
  *
@@ -40,4 +42,49 @@ export function splitAddressList(value: string): string[] {
   }
   push(current)
   return out
+}
+
+/**
+ * Above this many addressees (to and cc together) the header shows one
+ * summary line instead of every name. Eight short names already fill
+ * about two lines of a reading pane; a list longer than that is a
+ * mailing, and the names past the first few are not what the reader
+ * opened the message for.
+ */
+export const COLLAPSE_ABOVE = 8
+
+/** How many addressees besides the reader the summary line names. */
+const NAMED_IN_SUMMARY = 3
+
+export type RecipientSummary = {
+  /** The reader is among the to / cc addressees (not true of a Bcc). */
+  me: boolean
+  named: Person[]
+  /** Addressees neither named nor the reader. */
+  rest: number
+  total: number
+}
+
+/**
+ * The summary line for a long list, or `null` when the list is short
+ * enough to show whole. The reader goes first when they are on it.
+ */
+export function summarizeRecipients(
+  to: Person[],
+  cc: Person[],
+  myEmail: string
+): null | RecipientSummary {
+  const total = to.length + cc.length
+  if (total <= COLLAPSE_ABOVE) return null
+  const mine = myEmail.trim().toLowerCase()
+  let mineCount = 0
+  const named: Person[] = []
+  for (const person of [...to, ...cc]) {
+    if (mine && person.address.toLowerCase() === mine) {
+      mineCount += 1
+      continue
+    }
+    if (named.length < NAMED_IN_SUMMARY) named.push(person)
+  }
+  return { me: mineCount > 0, named, rest: total - mineCount - named.length, total }
 }

@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { RecipientList } from '@/components/recipient-list'
+import { MessageRecipients, RecipientList } from '@/components/recipient-list'
 import { splitAddresses } from '@/lib/recipients'
 
 afterEach(cleanup)
@@ -63,10 +63,73 @@ describe('the recipient line', () => {
     expect(screen.queryByText('ops@golia.jp')).toBeNull()
   })
 
-  it('renders every addressee, not the first two and a count', () => {
+  it('renders every addressee of a short list, not the first two and a count', () => {
     render(<RecipientList label="to" value="a <a@x.com>, b <b@x.com>, c <c@x.com>, d <d@x.com>" />)
     for (const name of ['a', 'b', 'c', 'd']) {
       expect(screen.getByRole('button', { name })).toBeDefined()
     }
+  })
+})
+
+/**
+ * A promotional mail listed several hundred addresses in `To:` and the
+ * header grew to fill the screen, pushing the body and the verdict panel
+ * out of sight. A long list starts as one line: the reader, a few names
+ * and a count.
+ */
+describe('a message header with hundreds of addressees', () => {
+  const contacts = (n: number, from = 0) =>
+    Array.from({ length: n }, (_, i) => `contact${i + from} <c${i + from}@promo.example>`)
+  const summaryLine = (container: HTMLElement) =>
+    container.querySelector('[data-recipient-summary]')
+
+  it('collapses to the reader, three names and a count, and expands to all of them', () => {
+    const to = [...contacts(150), 'Lihao <LiHao@golia.jp>', ...contacts(149, 150)].join(', ')
+    const { container } = render(<MessageRecipients cc="" myEmail="lihao@golia.jp" to={to} />)
+    expect(summaryLine(container)?.textContent).toBe(
+      'toMe, contact0, contact1, contact2and 296 others'
+    )
+    // the rest of the list is not rendered until asked for
+    expect(screen.queryByRole('button', { name: 'contact3' })).toBeNull()
+    expect(screen.getAllByRole('button')).toHaveLength(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show all 300 recipients' }))
+    expect(summaryLine(container)).toBeNull()
+    expect(screen.getAllByRole('button')).toHaveLength(300)
+    expect(screen.getByRole('button', { name: 'contact298' })).toBeDefined()
+    expect(screen.getByRole('button', { name: 'Lihao' })).toBeDefined()
+  })
+
+  it('keeps to and cc apart once expanded', () => {
+    render(
+      <MessageRecipients
+        cc={contacts(5, 100).join(', ')}
+        myEmail="me@golia.jp"
+        to={contacts(5).join(', ')}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Show all 10 recipients' }))
+    expect(screen.getByText('to')).toBeDefined()
+    expect(screen.getByText('cc')).toBeDefined()
+    expect(screen.getAllByRole('button')).toHaveLength(10)
+  })
+
+  it('does not claim the reader when they were only Bcc', () => {
+    const { container } = render(
+      <MessageRecipients cc="" myEmail="lihao@golia.jp" to={contacts(300).join(', ')} />
+    )
+    expect(summaryLine(container)?.textContent).toBe('tocontact0, contact1, contact2and 297 others')
+  })
+
+  it('leaves a list of eight as it was', () => {
+    const { container } = render(
+      <MessageRecipients
+        cc={contacts(3, 10).join(', ')}
+        myEmail="c0@promo.example"
+        to={contacts(5).join(', ')}
+      />
+    )
+    expect(summaryLine(container)).toBeNull()
+    expect(screen.getAllByRole('button')).toHaveLength(8)
   })
 })
