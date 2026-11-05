@@ -39,7 +39,9 @@ Streamable HTTP endpoint: https://mail.golia.ai/mcp
 
 ### Email
 - POST /api/mail/send — send email (JSON)
-- POST /api/mail/send-multipart — send with attachments
+- POST /api/mail/send-multipart — send with attachments; `draft_id` sends a saved draft with its files and deletes it once queued; such a send over the 50 MiB message limit gets a 413 naming which attachments to drop
+- GET/POST /api/mail/drafts, DELETE /api/mail/drafts/{id} — drafts; `attachments` names files uploaded with POST /api/mail/draft-attachments (absent keeps them, [] removes them); GET lists drafts with files only with ?with_attachments=true
+- POST /api/mail/draft-attachments (multipart `file`), GET /api/mail/draft-attachments/{blob_id} — a draft's files, your own only
 - POST /api/mail/unsubscribe — RFC 8058 one-click leave; body names the message, the server posts to the URL that message carried
 - GET /api/conversations — list conversations (?category=, ?folder=, ?limit=, ?cursor= the last row's `cursor` for the next page)
 - GET /api/conversations/search?q=keyword — search (also ?category=, ?folder=, ?limit=); q takes operators: from:, to:, subject:, has:attachment, after:YYYY-MM-DD, before:YYYY-MM-DD, label:<name>, is:unread|read|starred|pinned, in:inbox|archive|junk|trash|sent|starred|anywhere, and - to negate

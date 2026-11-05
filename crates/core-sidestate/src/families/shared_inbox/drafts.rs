@@ -4,12 +4,15 @@
 //! time: another member takes it over by copying it into their own drafts,
 //! a fact that is kept, and from then on only they move the pointer.
 
+use std::path::Path;
+
 use kevy_client::Connection;
 use mailrs_core_api::method::admin::DraftWire;
 use serde::{Deserialize, Serialize};
 
 use super::ConvRef;
 use crate::families::prefs::{drafts_counter_key, drafts_key};
+use crate::families::uploads;
 
 /// The reply being written for the conversation.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -94,11 +97,27 @@ pub fn read(conn: &mut Connection, p: &DraftPointer) -> std::io::Result<Option<D
 /// takeover recorded, and the pointer moved to the copy, which answers
 /// `to`'s own copy of the conversation. `None` when
 /// nobody is writing, the draft is gone, or `to` already holds it.
+///
+/// The draft's files are given to `to` first, in the upload store under
+/// `root`; when one cannot be, nothing is copied, so no draft names a file
+/// its owner does not have.
 pub fn take_over(
     conn: &mut Connection,
+    root: &Path,
     r: ConvRef,
     to: &str,
     now: i64,
+) -> std::io::Result<Option<Handoff>> {
+    take_over_linking(conn, root, r, to, now, |a, b| std::fs::hard_link(a, b))
+}
+
+pub(crate) fn take_over_linking(
+    conn: &mut Connection,
+    root: &Path,
+    r: ConvRef,
+    to: &str,
+    now: i64,
+    link: fn(&Path, &Path) -> std::io::Result<()>,
 ) -> std::io::Result<Option<Handoff>> {
     let to = to.trim().to_ascii_lowercase();
     let Some(p) = pointer(conn, r)? else {
@@ -110,6 +129,16 @@ pub fn take_over(
     let Some(mut draft) = read(conn, &p)? else {
         return Ok(None);
     };
+    let at = std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(now.max(0) as u64);
+    for a in &draft.attachments {
+        let Some(sha) = uploads::sha_of(&a.blob_id) else {
+            return Err(std::io::Error::other(format!(
+                "draft file {} is not an upload",
+                a.blob_id
+            )));
+        };
+        uploads::give(root, &p.author, &to, &sha, at, link)?;
+    }
     let id = conn.incr(drafts_counter_key(&to).as_bytes())?;
     draft.id = id;
     // the reply answers the taker's own copy of the conversation
@@ -119,11 +148,7 @@ pub fn take_over(
         .map(|(_, tid)| tid);
     draft.created_at = now;
     draft.updated_at = now;
-    let body = serde_json::to_vec(&draft).map_err(std::io::Error::other)?;
-    conn.hset(
-        drafts_key(&to).as_bytes(),
-        &[(id.to_string().as_bytes(), body.as_slice())],
-    )?;
+    crate::families::draft_store::put(conn, &to, &draft)?;
     let h = Handoff {
         at: now,
         from: p.author,

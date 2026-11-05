@@ -13,7 +13,8 @@
 //! `body` is stored raw (not base64) since kevy is byte-safe. An upload
 //! is needed only until the message that shows it is sent, when it
 //! travels inside the message under a Content-ID, so it expires after
-//! `KEEP`. Each user may upload `MAX_BYTES_PER_WINDOW` in a window of
+//! `KEEP`, which saving a draft that shows it and the upload sweep push
+//! back (`inline_images`). Each user may upload `MAX_BYTES_PER_WINDOW` in a window of
 //! that length, which bounds what one account can leave in the store.
 
 use std::sync::Arc;
@@ -24,6 +25,7 @@ use axum::{
     extract::{Extension, Multipart, Path, State},
     http::StatusCode,
 };
+use mailrs_core_sidestate::families::inline_images;
 
 use crate::WebState;
 use crate::handlers::conversations::AuthedUser;
@@ -34,8 +36,7 @@ fn random_id() -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
-/// How long an upload is kept: a draft that shows it can wait this long.
-pub(crate) const KEEP: std::time::Duration = std::time::Duration::from_secs(30 * 86_400);
+use inline_images::KEEP;
 
 /// What one user may upload within one [`KEEP`].
 pub(crate) const MAX_BYTES_PER_WINDOW: i64 = 200 * 1024 * 1024;
@@ -85,7 +86,7 @@ pub async fn inline_upload(
     }
     let bytes = field.bytes().await.map_err(|_| StatusCode::BAD_REQUEST)?;
     let id = random_id();
-    let key = format!("inline:{id}");
+    let key = inline_images::key(&id);
     let ct_c = content_type.clone();
     let body_v = bytes.to_vec();
     let counted = with_kevy(move |c| {
@@ -117,7 +118,7 @@ pub async fn get_inline(
     State(_state): State<Arc<WebState>>,
     Path(id): Path<String>,
 ) -> Result<axum::response::Response, StatusCode> {
-    let key = format!("inline:{id}");
+    let key = inline_images::key(&id);
     let key_c = key.clone();
     let ct = with_kevy(move |c| {
         c.hget(key_c.as_bytes(), b"content_type")
@@ -231,7 +232,7 @@ pub(crate) async fn embed_uploads(parts: &mut crate::handlers::compose::ComposeP
         if found.contains(&id) {
             continue;
         }
-        let key = format!("inline:{id}");
+        let key = inline_images::key(&id);
         let stored = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::from));
         let Ok(flat) = stored else {
             tracing::warn!("send: a pasted image could not be read; its link is kept");

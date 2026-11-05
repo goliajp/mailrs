@@ -43,6 +43,7 @@ mod sent;
 mod sent_to;
 mod shared;
 mod side;
+mod side_drafts;
 mod submission;
 mod threads;
 mod trash;

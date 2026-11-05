@@ -25,6 +25,7 @@ import {
   unsubscribeResultSchema,
   type WireDeleteDraftResult,
   type WireDraft,
+  type WireDraftAttachment,
   type WireFeedbackResult,
   type WireInlineUploadResult,
   type WireSaveDraftResult,
@@ -122,6 +123,8 @@ export const wireUploadInlineImage = (file: File): Promise<WireInlineUploadResul
  * one per tick.
  */
 export type WireSaveDraftRequest = {
+  /** Absent keeps the draft's files; `[]` removes them. */
+  attachments?: readonly WireDraftAttachment[]
   bcc?: string
   body?: string
   cc?: string
