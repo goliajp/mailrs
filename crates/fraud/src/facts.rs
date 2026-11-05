@@ -58,6 +58,11 @@ pub struct Facts<'a> {
     /// nothing attached that carries code —
     /// [`crate::attachment_inside::Inside::encrypted_document_archive`].
     pub has_encrypted_document_archive: bool,
+    /// The parse worker died, was killed or failed while reading this
+    /// message's parts, so the readings it gives (what the attachments
+    /// hold, the Bayes tokens) are missing. Not set when no worker was
+    /// available for reasons unrelated to the message.
+    pub parser_failed_on_message: bool,
     /// The subject starts with a reply or forward marker and the message
     /// has neither `In-Reply-To` nor `References` —
     /// [`crate::reply_claim::without_thread`].

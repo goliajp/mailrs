@@ -97,23 +97,72 @@ impl<T> Outcome<T> {
     }
 }
 
-static POOL: OnceLock<pool::Pool> = OnceLock::new();
+enum Backend {
+    Workers(pool::Pool),
+    /// In process, failing the way a worker would on inputs carrying the
+    /// fault header: for tests of what callers do with each outcome.
+    #[cfg(feature = "testing")]
+    Faults,
+}
+
+static BACKEND: OnceLock<Backend> = OnceLock::new();
 
 /// Run parsing in workers from now on, for the process named `process`
 /// in the failure counters. A second call changes nothing.
 pub fn install(process: &'static str, setup: Setup) {
-    if POOL.set(pool::Pool::new(setup)).is_ok() {
+    if BACKEND
+        .set(Backend::Workers(pool::Pool::new(setup)))
+        .is_ok()
+    {
         health::set_installed(process);
     }
 }
 
+/// Parse in process, except that an input carrying
+/// `X-Parse-Worker-Fault: abort` comes back as a panic on that input and
+/// one carrying `X-Parse-Worker-Fault: unavailable` as no worker
+/// available, the first counted as the worker's would be. For tests of
+/// the callers; the real worker's own faults are tested against the
+/// binary.
+#[cfg(feature = "testing")]
+pub fn install_faults(process: &'static str) {
+    if BACKEND.set(Backend::Faults).is_ok() {
+        health::set_installed(process);
+    }
+}
+
+#[cfg(feature = "testing")]
+fn fault_of(input: &[u8]) -> Option<&'static str> {
+    const H: &[u8] = b"X-Parse-Worker-Fault: ";
+    let head = &input[..input.len().min(16 * 1024)];
+    let at = head.windows(H.len()).position(|w| w == H)?;
+    let what = &head[at + H.len()..];
+    match (what.starts_with(b"abort"), what.starts_with(b"unavailable")) {
+        (true, _) => Some("abort"),
+        (_, true) => Some("unavailable"),
+        _ => None,
+    }
+}
+
 fn call(op: Op, input: &[u8], limit: Limit, once: bool) -> Outcome<Answer> {
-    let Some(pool) = POOL.get() else {
-        return Outcome::Read(answer::answer(&op, input, &mut |_| {}));
-    };
-    let got = match once {
-        true => pool.call_once(&op, input, limit.duration()),
-        false => pool.call(&op, input, limit.duration()),
+    let got = match BACKEND.get() {
+        None => return Outcome::Read(answer::answer(&op, input, &mut |_| {})),
+        Some(Backend::Workers(pool)) => match once {
+            true => pool.call_once(&op, input, limit.duration()),
+            false => pool.call(&op, input, limit.duration()),
+        },
+        #[cfg(feature = "testing")]
+        Some(Backend::Faults) => match fault_of(input) {
+            Some("abort") => {
+                health::record_failure(Parser::Html2text, Kind::Panic);
+                Err(pool::Failure::OnInput {
+                    parser: Parser::Html2text,
+                    kind: Kind::Panic,
+                })
+            }
+            Some(_) => Err(pool::Failure::Unavailable),
+            None => Ok(answer::answer(&op, input, &mut |_| {})),
+        },
     };
     match got {
         Ok(a) => Outcome::Read(a),
@@ -201,4 +250,41 @@ pub fn pdf_pages(bytes: &[u8]) -> Outcome<Result<Vec<String>, String>> {
         Outcome::Read(_) => mismatched("pdf"),
         other => other.map(|_| Ok(Vec::new())),
     }
+}
+
+/// What a message's attachments hold, as the fraud rules read it, and
+/// whether reading them failed on this message.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct AttachmentsRead {
+    pub inside: mailrs_fraud::attachment_inside::Inside,
+    /// The worker failed on this message; `inside` is then empty.
+    pub parser_failed: bool,
+}
+
+impl AttachmentsRead {
+    /// From a reading that asked for `inside`. An unavailable worker
+    /// leaves both empty: that says nothing about the message.
+    pub fn of(outcome: &Outcome<MessageReading>) -> Self {
+        match outcome {
+            Outcome::Read(r) => Self {
+                inside: r.inside.into(),
+                parser_failed: false,
+            },
+            Outcome::FailedOnInput { .. } => Self {
+                inside: Default::default(),
+                parser_failed: true,
+            },
+            Outcome::Unavailable => Self::default(),
+        }
+    }
+}
+
+/// What the attachments of `raw` hold, each read for what it holds as
+/// well as what it is called ([`mailrs_fraud::attachment_inside::read`]).
+pub fn attachments_inside(raw: &[u8], limit: Limit) -> AttachmentsRead {
+    let want = Want {
+        inside: true,
+        ..Want::default()
+    };
+    AttachmentsRead::of(&read_message(raw, want, limit))
 }

@@ -36,12 +36,20 @@ impl Corpus {
     /// Every corpus; training writes each of them.
     pub const ALL: [Corpus; 2] = [Corpus::Legacy, Corpus::V2];
 
-    /// The tokens this corpus counts, for one raw message.
-    pub fn tokenize(self, raw: &[u8]) -> Vec<String> {
+    /// The tokenizer whose tokens this corpus counts.
+    pub fn tokenizer(self) -> mailrs_parse_worker::Tokenizer {
         match self {
-            Corpus::Legacy => mailrs_bayes::tokenize_raw(raw),
-            Corpus::V2 => mailrs_bayes::tokenize(raw),
+            Corpus::Legacy => mailrs_parse_worker::Tokenizer::Raw,
+            Corpus::V2 => mailrs_parse_worker::Tokenizer::Decoded,
         }
+    }
+
+    /// The tokens this corpus counts, for one raw message, read in the
+    /// parse worker; none when it could not read them.
+    pub fn tokenize(self, raw: &[u8]) -> Vec<String> {
+        mailrs_parse_worker::tokens(raw, self.tokenizer(), mailrs_parse_worker::Limit::Batch)
+            .read()
+            .unwrap_or_default()
     }
 }
 

@@ -14,6 +14,7 @@ use super::super::super::ConnectionContext;
 mod evidence;
 mod hits;
 mod outcome;
+mod reading;
 
 pub(super) enum AntiSpamOutcome {
     /// Pipeline produced a final response (Reject / Greylist). Caller
@@ -53,7 +54,8 @@ pub(super) async fn run_antispam(
         ctx,
     )
     .await;
-    let evidence = evidence::Evidence::gather(&receive_ctx, ctx).await;
+    let attachments = reading::read(&mut receive_ctx).await;
+    let evidence = evidence::Evidence::gather(&receive_ctx, attachments, ctx).await;
     let facts = evidence.facts(&receive_ctx, addr);
     let policy = evidence::policy(ctx).await;
     let scan = match mailrs_fraud_lua::scan(&facts, &policy) {

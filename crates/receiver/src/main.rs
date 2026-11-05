@@ -1,5 +1,9 @@
 //! The standalone `mailrs-receiver` process (P6 receiver/core split).
 
+/// Resident parse workers: two, so one slow message does not hold up
+/// every other session's scan.
+const PARSE_WORKERS: usize = 2;
+
 #[tokio::main]
 async fn main() {
     mailrs_core_api::refuse_blank_secrets();
@@ -16,6 +20,17 @@ async fn main() {
     rustls::crypto::ring::default_provider()
         .install_default()
         .expect("failed to install rustls crypto provider");
+
+    // Message bytes are parsed in workers so a parser that dies does not
+    // end every SMTP session; without the worker binary there is nothing
+    // to contain them in, and the image is broken.
+    match mailrs_parse_worker::Setup::from_env(PARSE_WORKERS) {
+        Ok(setup) => mailrs_parse_worker::install("receiver", setup),
+        Err(e) => {
+            tracing::error!(error = %e, "parse worker missing");
+            std::process::exit(1);
+        }
+    }
 
     mailrs_receiver::run().await;
 }

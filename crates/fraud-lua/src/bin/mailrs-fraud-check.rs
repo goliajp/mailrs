@@ -260,6 +260,13 @@ fn run() -> Result<(), String> {
     }
 }
 fn main() {
+    // A read-only tool: without the worker next to it (a development
+    // build) a parser that dies takes only this run, so it reads in
+    // process and says so.
+    match mailrs_parse_worker::Setup::from_env(1) {
+        Ok(setup) => mailrs_parse_worker::install("fraud-check", setup),
+        Err(e) => eprintln!("parse worker: {e}; parsing in process"),
+    }
     if let Err(e) = run() {
         eprintln!("{e}");
         std::process::exit(1);

@@ -4019,6 +4019,7 @@ dependencies = [
  "mailrs-inbound",
  "mailrs-mime",
  "mailrs-mock",
+ "mailrs-parse-worker",
  "mailrs-reputation",
  "mailrs-rfc2047",
  "mailrs-rfc5322",
@@ -4245,6 +4246,7 @@ dependencies = [
  "mailrs-fraud",
  "mailrs-inbound",
  "mailrs-mime",
+ "mailrs-parse-worker",
  "mailrs-reputation",
  "mailrs-rfc5322",
  "serde",
@@ -4679,6 +4681,7 @@ dependencies = [
  "mailrs-intelligence",
  "mailrs-message-store",
  "mailrs-mime",
+ "mailrs-parse-worker",
  "mailrs-rate-limit",
  "mailrs-reputation",
  "mailrs-rfc2047",
@@ -4985,6 +4988,7 @@ version = "0.1.0"
 dependencies = [
  "kevy-client",
  "mailrs-bayes",
+ "mailrs-parse-worker",
  "tracing",
 ]
 
