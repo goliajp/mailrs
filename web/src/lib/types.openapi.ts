@@ -1652,7 +1652,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Prometheus-format metrics */
+        /**
+         * Prometheus-format metrics
+         * @description Requires `Authorization: Bearer <token>` with the server's `MAILRS_METRICS_TOKEN`; session tokens and API keys are not accepted. When `MAILRS_METRICS_TOKEN` is unset or empty the route is off and answers 404.
+         */
         get: operations["prometheusMetrics"];
         put?: never;
         post?: never;
@@ -11623,6 +11626,20 @@ export interface operations {
                 content: {
                     "text/plain": string;
                 };
+            };
+            /** @description Bearer token missing or wrong */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description MAILRS_METRICS_TOKEN is not set */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
