@@ -15987,6 +15987,108 @@
               }
             }
           },
+          "parsing": {
+            "type": "object",
+            "description": "The parse workers of the receiver and of the core.",
+            "properties": {
+              "receiver": {
+                "type": "object",
+                "nullable": true,
+                "description": "One process's parse workers since it started; null when it has not said.",
+                "properties": {
+                  "worker": {
+                    "type": "boolean",
+                    "description": "Whether parsing runs in workers; false means in process"
+                  },
+                  "failures_24h": {
+                    "type": "integer",
+                    "description": "Messages a worker died, was killed or failed on in the last 24 hours"
+                  },
+                  "last_failure_at": {
+                    "type": "integer",
+                    "nullable": true,
+                    "description": "Unix seconds of the last such failure; null before the first"
+                  },
+                  "worker_restarts": {
+                    "type": "integer",
+                    "description": "Workers started again after one died or was killed"
+                  },
+                  "failures": {
+                    "type": "array",
+                    "description": "parser_failure_total by parser and kind",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "parser": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "panic",
+                            "timeout",
+                            "killed",
+                            "error"
+                          ]
+                        },
+                        "count": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "core": {
+                "type": "object",
+                "nullable": true,
+                "description": "One process's parse workers since it started; null when it has not said.",
+                "properties": {
+                  "worker": {
+                    "type": "boolean",
+                    "description": "Whether parsing runs in workers; false means in process"
+                  },
+                  "failures_24h": {
+                    "type": "integer",
+                    "description": "Messages a worker died, was killed or failed on in the last 24 hours"
+                  },
+                  "last_failure_at": {
+                    "type": "integer",
+                    "nullable": true,
+                    "description": "Unix seconds of the last such failure; null before the first"
+                  },
+                  "worker_restarts": {
+                    "type": "integer",
+                    "description": "Workers started again after one died or was killed"
+                  },
+                  "failures": {
+                    "type": "array",
+                    "description": "parser_failure_total by parser and kind",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "parser": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "panic",
+                            "timeout",
+                            "killed",
+                            "error"
+                          ]
+                        },
+                        "count": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
           "new_domains": {
             "type": "object",
             "nullable": true,

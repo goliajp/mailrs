@@ -32,6 +32,7 @@ tracing = "0.1"
 mailrs-rfc5322 = { path = "../rfc5322", version = "1" }
 # reading a withheld send back into a draft
 mailrs-mime = { path = "../mime", version = "2" }
+mailrs-parse-worker = { path = "../parse-worker" }
 mailrs-rfc2047 = { path = "../rfc2047", version = "1" }
 base64 = "0.22"
 rand_core = { workspace = true }
