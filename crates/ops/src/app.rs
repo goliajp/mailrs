@@ -11,6 +11,9 @@ use crate::notify::Dispatcher;
 use crate::readings::{Collector, ReportBook, Snapshot};
 use crate::store::{CycleRow, Store};
 
+/// A test message goes to every channel at least this often.
+const CHANNEL_TEST_EVERY: i64 = 7 * 86_400;
+
 pub struct App {
     pub cfg: Config,
     pub clock: Clock,
@@ -61,6 +64,7 @@ impl App {
         self.cycle_started
             .store(mailrs_ops_report::build::now(), Ordering::Relaxed);
         self.close_expired(now).await;
+        self.test_channels_when_due(now).await;
         let maintenance = self.store.maintenance(now).unwrap_or_else(|e| {
             tracing::error!(error = %e, "maintenance state not read");
             None
@@ -105,6 +109,40 @@ impl App {
             .store(mailrs_ops_report::build::now(), Ordering::Relaxed);
         self.heartbeat(&row, critical).await;
         snap
+    }
+
+    /// A test message to every channel, recorded with the configuration it
+    /// went to.
+    pub async fn test_channels(&self, now: i64) -> Vec<(String, String)> {
+        let mut d = self.dispatcher.lock().await;
+        let results = d.test(now).await;
+        if let Some(config) = d.config_fingerprint() {
+            let json = serde_json::json!(results);
+            if let Err(e) = self.store.record_channel_test(&config, &json, now) {
+                tracing::error!(error = %e, "channel test not recorded");
+            }
+        }
+        results
+    }
+
+    /// Test the channels when their configuration changed since the last
+    /// test, and otherwise once a week.
+    async fn test_channels_when_due(&self, now: i64) {
+        let Some(config) = self.dispatcher.lock().await.config_fingerprint() else {
+            return;
+        };
+        let due = match self.store.last_channel_test() {
+            Ok(Some((was, at))) => was != config || now - at >= CHANNEL_TEST_EVERY,
+            Ok(None) => true,
+            Err(e) => {
+                tracing::error!(error = %e, "last channel test not read");
+                false
+            }
+        };
+        if due {
+            let results = self.test_channels(now).await;
+            tracing::info!(?results, "notification channels tested");
+        }
     }
 
     /// Send what is queued once its grouping window is over.
