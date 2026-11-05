@@ -15735,6 +15735,22 @@
           "version": {
             "type": "string"
           },
+          "build": {
+            "type": "object",
+            "description": "The binary answering and since when: the release version, the commit it was built from (null for a build without one) and the process's start time in unix seconds.",
+            "properties": {
+              "version": {
+                "type": "string"
+              },
+              "commit": {
+                "type": "string",
+                "nullable": true
+              },
+              "started_at": {
+                "type": "integer"
+              }
+            }
+          },
           "uptime_secs": {
             "type": "integer",
             "format": "int64",
@@ -15921,6 +15937,21 @@
                     }
                   }
                 }
+              },
+              "sent_at": {
+                "type": "integer",
+                "nullable": true,
+                "description": "Unix seconds the receiver built the latest frame; null from a receiver that does not say"
+              },
+              "received_at": {
+                "type": "integer",
+                "nullable": true,
+                "description": "Unix seconds the latest frame arrived here"
+              },
+              "age_secs": {
+                "type": "integer",
+                "nullable": true,
+                "description": "Seconds since the latest frame arrived. A frame that keeps aging is the last one before the receiver stopped"
               }
             }
           },

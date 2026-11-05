@@ -392,4 +392,21 @@ mod tests {
         let waits: Vec<u64> = (2..12).map(|n| backoff(n).as_secs()).collect();
         assert_eq!(waits, [1, 2, 4, 8, 16, 32, 60, 60, 60, 60]);
     }
+
+    /// The health probe's `paused_since` is set once by the second death in
+    /// a row and kept until the slot answers again.
+    #[test]
+    fn a_held_back_worker_shows_in_the_health_probe() {
+        let mut slot = Slot::default();
+        died(&mut slot);
+        assert!(!slot.paused, "restarted at once, not held back");
+        died(&mut slot);
+        assert!(slot.paused);
+        let since = health::snapshot().paused_since.expect("paused");
+        died(&mut slot);
+        assert_eq!(health::snapshot().paused_since, Some(since), "counted once");
+        slot.paused = false;
+        health::pause_ended();
+        assert_eq!(health::snapshot().paused_since, None);
+    }
 }

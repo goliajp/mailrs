@@ -37,6 +37,11 @@ pub async fn run() {
         std::process::exit(2);
     }
 
+    // before the replay: a replay that runs out of memory and never binds
+    // the port still leaves its start counted and reported. Only HTTP and
+    // a counter file; the embedded store is not touched.
+    let ops = mailrs_ops_report::push::Reporter::start("fastcore");
+
     let kevy_dir =
         std::env::var("MAILRS_KEVY_DATA_DIR").unwrap_or_else(|_| "/data/kevy-fastcore".to_string());
     let state = store::open_state(&kevy_dir);
@@ -60,6 +65,9 @@ pub async fn run() {
         kevy_dir = %kevy_dir,
         "mailrs-fastcore listening (kevy backend)"
     );
+    ops.ready(Some(mailrs_ops_report::wire::Detail::CoreReady {
+        boot_intact: shutdown_state.boot_intact,
+    }));
     // Exit gracefully on SIGTERM/SIGINT instead of letting the default
     // handler kill the process mid-write. Returning from run() drops the
     // runtime → every task's Arc<Store> releases → kevy's DropGuard

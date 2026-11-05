@@ -132,6 +132,8 @@ pub async fn run() {
         .with_writer(std::io::stderr)
         .init();
 
+    let ops = mailrs_ops_report::push::Reporter::start("webapi");
+
     // Prometheus recorder must be installed before any counter is
     // emitted; do it as early as possible in the boot sequence.
     handlers::metrics::install();
@@ -197,6 +199,7 @@ pub async fn run() {
         .await
         .unwrap_or_else(|e| panic!("webapi bind {bind} failed: {e}"));
     tracing::info!(addr = %bind, "webapi listening");
+    ops.ready(None);
 
     // Graceful: on the signal stop accepting and let requests in flight
     // finish. Upgraded WebSockets are not waited for; the runtime drops them.
