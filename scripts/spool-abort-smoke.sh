@@ -144,9 +144,11 @@ check "the copy written before the deaths was kept, not written again" \
 check "it is indexed once: one unread conversation" '[[ "$unseen" == *"\"count\":1"* ]]'
 check "fastcore stayed up" 'kill -0 "$SVR_PID" 2>/dev/null'
 # the hook is in the smoke's binary only: the probe has to find it there
-# for its absence from the release binary to mean anything
-check "the smoke binary carries the abort hook" 'grep -aq "X-Mailrs-Test-Abort" "$HOOKED"'
-check "the release binary does not" '! grep -aq "X-Mailrs-Test-Abort" "$PROD"'
+# for its absence from the release binary to mean anything. It looks for
+# the switch's name, which the hook hands to the environment lookup as a
+# string; the marker itself is compared in place and leaves no string.
+check "the smoke binary carries the abort hook" 'grep -aq "MAILRS_TEST_ABORT" "$HOOKED"'
+check "the release binary does not" '! grep -aq "MAILRS_TEST_ABORT" "$PROD"'
 hook_in_tree() {
     cargo tree -p mailrs-fastcore -e features -i mailrs-intake --prefix none "$@" 2>/dev/null |
         grep -c 'feature "abort-hook"' || true
