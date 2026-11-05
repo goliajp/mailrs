@@ -207,7 +207,8 @@ pub(crate) fn record_engagement(
     thread_id: &str,
     event: mailrs_core_sidestate::families::contacts::Engagement,
 ) {
-    let Ok(Some(row)) = state.mailbox.get_thread(thread_id) else {
+    // the people who wrote to this reader, not to everyone on the thread
+    let Ok(Some(row)) = state.mailbox.get_thread_for_user(user, thread_id) else {
         return;
     };
     let Some(mut conn) = state.net_conn() else {

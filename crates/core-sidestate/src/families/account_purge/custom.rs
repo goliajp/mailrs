@@ -7,7 +7,7 @@ use std::io;
 use kevy_client::Connection;
 
 use super::shape::scan_all;
-use crate::families::{identity_link, masked_email, mock};
+use crate::families::{identity_link, inline_images, masked_email, mock, uploads};
 use crate::keys::{credentials, session};
 
 fn same(a: &[u8], address: &str) -> bool {
@@ -122,7 +122,17 @@ pub(super) fn oidc_grants(c: &mut Connection, address: &str, dry_run: bool) -> i
 
 /// Pasted images, hashes with an `owner` field.
 pub(super) fn inline_uploads(c: &mut Connection, address: &str, dry_run: bool) -> io::Result<u64> {
-    hash_field_is(c, "inline:*", "owner", address, dry_run)
+    hash_field_is(c, &inline_images::key("*"), "owner", address, dry_run)
+}
+
+/// The account's directory of uploads (draft files, JMAP uploads), on disk.
+/// The directory is named by the lowercased address, so only that spelling
+/// is walked; the other would count the same files twice.
+pub(super) fn upload_dir(_: &mut Connection, address: &str, dry_run: bool) -> io::Result<u64> {
+    if address != address.to_lowercase() {
+        return Ok(0);
+    }
+    uploads::purge_account(&uploads::root(), address, dry_run)
 }
 
 /// Masked addresses, through the owner's index of them; the index too.

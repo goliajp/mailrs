@@ -15,7 +15,6 @@
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fs;
-use std::path::Path;
 
 type Key = (String, String);
 
@@ -134,16 +133,6 @@ impl Unheld {
             "person_released_threads": self.released_threads.len(),
         })
     }
-}
-
-/// The file's first bytes, enough for its headers.
-pub fn head(path: &Path) -> Result<Vec<u8>, String> {
-    use std::io::Read;
-    let mut buf = Vec::with_capacity(16 * 1024);
-    fs::File::open(path)
-        .and_then(|f| f.take(16 * 1024).read_to_end(&mut buf))
-        .map_err(|e| format!("{}: {e}", path.display()))?;
-    Ok(buf)
 }
 
 #[cfg(test)]

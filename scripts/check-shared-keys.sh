@@ -41,6 +41,7 @@ admin:groups;crates/core-sidestate/src/families/permission_groups.rs
 admin:rbl:status;crates/core-sidestate/src/families/egress.rs
 egress:refusals:;crates/core-sidestate/src/families/egress.rs
 (drafts|signatures|templates):;crates/core-sidestate/src/families/prefs.rs
+inline:;crates/core-sidestate/src/families/inline_images.rs
 calendar_events?:;crates/core-sidestate/src/families/calendar_events/mod.rs
 push:tokens:;crates/core-sidestate/src/keys/push.rs
 shared:;crates/core-sidestate/src/families/shared_inbox/mod.rs

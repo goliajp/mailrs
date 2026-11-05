@@ -7,6 +7,7 @@ use axum::http::StatusCode;
 use mailrs_core_api::method::admin::DraftWire;
 use mailrs_core_sidestate::families::shared_inbox::ConvRef;
 use mailrs_core_sidestate::families::shared_inbox::drafts::{self, DraftPointer, Handoff};
+use mailrs_core_sidestate::families::uploads;
 
 use super::{now, require_member, tell_team};
 use crate::handlers::conversations::AuthedUser;
@@ -86,8 +87,8 @@ pub async fn take_over(
     require_member(&user, gid)?;
     let r = ConvRef { gid, conv };
     let who = user.clone();
-    let h =
-        with_kevy(move |c| drafts::take_over(c, r, &who, now()))?.ok_or(StatusCode::CONFLICT)?;
+    let h = with_kevy(move |c| drafts::take_over(c, &uploads::root(), r, &who, now()))?
+        .ok_or(StatusCode::CONFLICT)?;
     changed(r, &user);
     Ok(Json(h))
 }

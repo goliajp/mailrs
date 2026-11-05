@@ -6,6 +6,8 @@ mod judge;
 mod tally;
 #[path = "mailrs-fraud-check/threads.rs"]
 mod threads;
+#[path = "mailrs-fraud-check/walk.rs"]
+mod walk;
 
 use judge::{corpus, judge};
 use mailrs_fraud::{Facts, Policy};
@@ -14,7 +16,7 @@ use std::{
     collections::BTreeMap,
     fs,
     io::{BufWriter, Read, Write},
-    path::{Path, PathBuf},
+    path::Path,
 };
 use tally::{Held, Tally};
 
@@ -87,28 +89,6 @@ fn month_of(raw: &[u8]) -> String {
     format!("{year:04}-{month:02}")
 }
 
-fn paths(root: &Path, out: &mut Vec<PathBuf>, max: usize) -> Result<(), String> {
-    if out.len() > max {
-        return Err(format!(
-            "maildir exceeds {max} messages; use a larger explicit bound"
-        ));
-    }
-    for entry in fs::read_dir(root).map_err(|e| e.to_string())? {
-        let entry = entry.map_err(|e| e.to_string())?;
-        let ty = entry.file_type().map_err(|e| e.to_string())?;
-        if ty.is_dir() && entry.file_name() != "tmp" {
-            paths(&entry.path(), out, max)?;
-        } else if ty.is_file() && root.file_name().is_some_and(|s| s == "cur" || s == "new") {
-            out.push(entry.path());
-        }
-        if out.len() > max {
-            return Err(format!(
-                "maildir exceeds {max} messages; use a larger explicit bound"
-            ));
-        }
-    }
-    Ok(())
-}
 /// Whose mail a file is: `<root>/<domain>/<local>/...`. Empty when the
 /// path does not say, and then the reader's history reads as empty.
 fn reader_of(root: &Path, file: &Path) -> String {
@@ -146,13 +126,12 @@ fn compare(
         Some(Rules::compile(&source(baseline)?)?)
     };
     let mut after = Rules::compile(&source(candidate)?)?;
-    let mut files = vec![];
-    paths(Path::new(root), &mut files, limit)?;
-    files.sort();
+    let (mut maildir, files) = walk::Maildir::list(Path::new(root), limit)?;
     if files.is_empty() {
         return Err("no maildir messages found".into());
     }
-    let mut c = corpus(root, &files)?;
+    let mut c = corpus(root, &files, &mut maildir)?;
+    let mut checked = 0usize;
     let mut tally = Tally {
         list: list
             .map(|p| fs::File::create(p).map(BufWriter::new))
@@ -169,7 +148,14 @@ fn compare(
         if i % 25 == 0 {
             std::thread::sleep(std::time::Duration::from_millis(50));
         }
-        let j = judge(&mut c, &mut before, &mut after, file)?;
+        // a file the server has since deleted is counted in the report
+        let Some((file, raw)) = maildir.read(file, judge::MAX_MESSAGE + 1)? else {
+            continue;
+        };
+        let file = file.as_path();
+        let head = raw[..raw.len().min(16 * 1024)].to_vec();
+        let j = judge(&mut c, &mut before, &mut after, file, raw)?;
+        checked += 1;
         baseline_held.add(&j.old, &j.month);
         candidate_held.add(&j.new, &j.month);
         for (counts, hits) in [
@@ -183,7 +169,7 @@ fn compare(
         let rel = file.strip_prefix(root).unwrap_or(file).to_string_lossy();
         let mut thread_held_now = None;
         if let Some(t) = &held_now {
-            let (now, key) = t.held_now(&reader_of(Path::new(root), file), &threads::head(file)?);
+            let (now, key) = t.held_now(&reader_of(Path::new(root), file), &head);
             if j.new.hold_worthy() {
                 t.count(&mut unheld, now, key);
             }
@@ -200,7 +186,9 @@ fn compare(
     if let Some(list) = &mut tally.list {
         list.flush().map_err(|e| e.to_string())?;
     }
-    let mut report = serde_json::json!({"checked":files.len(),"changed":tally.changed,"added_holds":tally.added,"removed_holds":tally.released,
+    let mut report = serde_json::json!({"listed":files.len(),"checked":checked,
+        "rewalks":maildir.rewalks,"vanished":maildir.vanished.len(),"vanished_files":maildir.vanished,
+        "changed":tally.changed,"added_holds":tally.added,"removed_holds":tally.released,
         "candidate_holds":tally.held,"baseline":before.as_ref().map_or("rust",|r|r.version()),"candidate":after.version(),
         "account_names_configured":!c.policy.account_names.is_empty(),
         "holds_by_rule":candidate_held.by_rule,"holds_by_month":candidate_held.by_month,

@@ -217,6 +217,12 @@
     <string name="mail_view_source">ソースを表示</string>
     <string name="sent_edit">編集</string>
     <string name="sent_send_again">もう一度送信</string>
+    <string name="sent_status_failed">送信失敗</string>
+    <string name="sent_status_partial">一部配信</string>
+    <string name="sent_status_sending">送信中</string>
+    <string name="sent_status_scheduled">予約</string>
+    <string name="sent_status_delivered">配信済み</string>
+    <string name="sent_status_cancelled">キャンセル済み</string>
     <string name="settings_account">アカウント</string>
     <string name="settings_signed_in_as">サインイン中のアドレス</string>
     <string name="common_server">サーバー</string>

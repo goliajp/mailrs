@@ -52,6 +52,8 @@ impl MailrsMcpService {
             reply_to_thread_id: params.reply_to_thread_id,
             from: String::new(),
             scheduled_at: None,
+            // a new draft; the tool takes no files
+            attachments: None,
         };
         let resp = self
             .state

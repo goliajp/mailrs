@@ -54,6 +54,14 @@ pub struct Facts<'a> {
     /// execute: `.exe`, `.cab`, `.js`, `.lnk`, `.docm`, and the rest
     /// of that family.
     pub has_executable_attachment: bool,
+    /// An archive that encrypts entries which are all documents, with
+    /// nothing attached that carries code —
+    /// [`crate::attachment_inside::Inside::encrypted_document_archive`].
+    pub has_encrypted_document_archive: bool,
+    /// The subject starts with a reply or forward marker and the message
+    /// has neither `In-Reply-To` nor `References` —
+    /// [`crate::reply_claim::without_thread`].
+    pub reply_marker_without_thread: bool,
     /// Whether the peer that delivered it was on a loopback or private
     /// address — this deployment's own host or LAN.
     ///

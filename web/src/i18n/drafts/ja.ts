@@ -2,7 +2,7 @@ import type { DraftsKey } from './en'
 
 export const draftsJa: Record<DraftsKey, string> = {
   'drafts.attachmentsNotIncluded':
-    '添付ファイルは含まれていません。元のメールは「送信」にあります：{names}',
+    '添付ファイルは含まれていません。元のメールは「送信済み」にあります：{names}',
   'drafts.delete': '下書きを削除',
   'drafts.deleteFailed': '下書きを削除できませんでした',
   'drafts.loading': '下書きを読み込んでいます…',

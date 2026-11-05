@@ -51,7 +51,7 @@ async fn an_upload_names_its_owner_expires_and_is_capped() {
         .and_then(|u| u.rsplit('/').next())
         .expect("url")
         .to_string();
-    let key = format!("inline:{id}");
+    let key = mailrs_core_sidestate::families::inline_images::key(&id);
     let owner = net.hget(key.as_bytes(), b"owner").expect("read");
     assert_eq!(owner.as_deref(), Some(ALICE.as_bytes()), "no owner on it");
     let ttl = net.ttl_ms(key.as_bytes()).expect("ttl");
@@ -75,8 +75,16 @@ async fn an_upload_names_its_owner_expires_and_is_capped() {
         (200 * 1024 * 1024 - 4).to_string().as_bytes(),
     )
     .expect("near the cap");
-    let before = net.keys(b"inline:*").expect("keys").len();
+    let before = net
+        .keys(mailrs_core_sidestate::families::inline_images::key("*").as_bytes())
+        .expect("keys")
+        .len();
     let (status, _) = upload(&live, &alice, b"\x89PNG-too-much").await;
     assert_eq!(status, 429);
-    assert_eq!(net.keys(b"inline:*").expect("keys").len(), before);
+    assert_eq!(
+        net.keys(mailrs_core_sidestate::families::inline_images::key("*").as_bytes())
+            .expect("keys")
+            .len(),
+        before
+    );
 }

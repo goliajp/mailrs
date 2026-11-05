@@ -208,6 +208,8 @@ describe('listDrafts', () => {
     const result = await listDrafts()
     expect(result).toEqual([
       {
+        // a draft without files carries no field; it reads as none
+        attachments: [],
         bcc: '',
         body: '',
         cc: '',
