@@ -8,7 +8,9 @@
 //! delete: taken out of the index and marked [`WITHHELD`], which neither
 //! the sender's claim nor its recovery picks up, and listed under the
 //! account ([`withheld_key`]) with the time it waited for. A restore puts
-//! it back; the purge deletes it with the account.
+//! back what is still ahead; what lapsed meanwhile is not sent and comes
+//! back as a draft (`withheld_draft`). The purge deletes it with the
+//! account.
 //!
 //! The sender's due-sweep, a cancel and the delete can reach one job at the
 //! same moment: whoever takes it out of [`SCHEDULED_IDX`] has it.
@@ -69,34 +71,90 @@ pub fn withhold(conn: &mut kevy_client::Connection, address: &str) -> io::Result
     Ok(n)
 }
 
-/// Put `address`'s withheld jobs back where they waited, each with its own
-/// send time: one whose time has passed goes at the next due-sweep. How
-/// many.
-pub fn release(conn: &mut kevy_client::Connection, address: &str, now: i64) -> io::Result<usize> {
+/// What becomes of withheld mail whose send time has passed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Lapsed {
+    /// Back on the scheduled index, to go at the next due-sweep: the
+    /// delete that withheld it did not happen.
+    Send,
+    /// Not sent: back to the account as a draft. A restore, after the
+    /// account was gone past the time the mail was set to go.
+    Draft,
+}
+
+/// What [`release`] did, by message.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Released {
+    pub rescheduled: u64,
+    pub drafts: u64,
+}
+
+/// Put `address`'s withheld mail back: a message whose send time is still
+/// ahead waits on the scheduled index again; one whose time has passed is
+/// handled as `lapsed` says. Jobs are taken message by message, the jobs
+/// of one send (one per recipient) together.
+pub fn release(
+    conn: &mut kevy_client::Connection,
+    address: &str,
+    now: i64,
+    lapsed: Lapsed,
+) -> io::Result<Released> {
     let list = withheld_key(address);
     let flat = conn.hgetall(list.as_bytes())?;
-    let now = now.to_string();
-    let mut n = 0;
+    // send → (send time, its jobs with their rows)
+    let mut sends: std::collections::BTreeMap<String, (i64, Vec<(i64, serde_json::Value)>)> =
+        Default::default();
     for pair in flat.chunks(2) {
         let [m, at] = pair else { continue };
-        let job = job_key(String::from_utf8_lossy(m));
-        if conn.hget(job.as_bytes(), b"state")?.as_deref() == Some(WITHHELD) {
+        conn.hdel(list.as_bytes(), &[m.as_slice()])?;
+        let Some(id) = std::str::from_utf8(m)
+            .ok()
+            .and_then(|s| s.parse::<i64>().ok())
+        else {
+            continue;
+        };
+        let job = job_key(id);
+        if conn.hget(job.as_bytes(), b"state")?.as_deref() != Some(WITHHELD) {
+            continue;
+        }
+        let blob: serde_json::Value = conn
+            .hget(job.as_bytes(), b"blob")?
+            .and_then(|b| serde_json::from_slice(&b).ok())
+            .unwrap_or_default();
+        let send = blob
+            .get("send_id")
+            .and_then(|s| s.as_str())
+            .map_or_else(|| format!("job {id}"), String::from);
+        let at = String::from_utf8_lossy(at).parse::<i64>().unwrap_or(0);
+        sends
+            .entry(send)
+            .or_insert((at, Vec::new()))
+            .1
+            .push((id, blob));
+    }
+    let mut done = Released::default();
+    for (send, (at, jobs)) in sends {
+        if at <= now && lapsed == Lapsed::Draft {
+            super::withheld_draft::return_as_draft(conn, address, &send, at, &jobs, now)?;
+            done.drafts += 1;
+            continue;
+        }
+        let now = now.to_string();
+        for (id, _) in &jobs {
             // pending first, with a fresh time so recovery waits for the
             // index entry that follows
             conn.hset(
-                job.as_bytes(),
+                job_key(id).as_bytes(),
                 &[
                     (b"state" as &[u8], b"pending" as &[u8]),
                     (b"updated_at", now.as_bytes()),
                 ],
             )?;
-            let score = String::from_utf8_lossy(at).parse::<f64>().unwrap_or(0.0);
-            conn.zadd(SCHEDULED_IDX, &[(score, m.as_slice())])?;
-            n += 1;
+            conn.zadd(SCHEDULED_IDX, &[(at as f64, id.to_string().as_bytes())])?;
         }
-        conn.hdel(list.as_bytes(), &[m.as_slice()])?;
+        done.rescheduled += 1;
     }
-    Ok(n)
+    Ok(done)
 }
 
 /// Count `address`'s withheld jobs, or delete them with their list.
@@ -190,7 +248,12 @@ mod tests {
         assert_eq!(scheduled(&mut c, others), Some(5_000.0));
         assert_eq!(purge_withheld(&mut c, DAVE, true).unwrap(), 2);
 
-        assert_eq!(release(&mut c, DAVE, 10).unwrap(), 2);
+        assert_eq!(
+            release(&mut c, DAVE, 10, Lapsed::Draft)
+                .unwrap()
+                .rescheduled,
+            2
+        );
         assert_eq!(scheduled(&mut c, later), Some(5_000.0));
         assert_eq!(scheduled(&mut c, masked), Some(6_000.0));
         assert_eq!(state(&mut c, later).as_deref(), Some(b"pending" as &[u8]));
@@ -209,7 +272,12 @@ mod tests {
             &[(b"state" as &[u8], b"inflight" as &[u8])],
         )
         .unwrap();
-        assert_eq!(release(&mut c, DAVE, 10).unwrap(), 1);
+        assert_eq!(
+            release(&mut c, DAVE, 10, Lapsed::Draft)
+                .unwrap()
+                .rescheduled,
+            1
+        );
         assert_eq!(scheduled(&mut c, b), None);
         assert_eq!(scheduled(&mut c, a), Some(5_000.0));
 
@@ -218,5 +286,59 @@ mod tests {
         assert_eq!(state(&mut c, a), None);
         assert_eq!(state(&mut c, b).as_deref(), Some(b"inflight" as &[u8]));
         assert_eq!(c.exists(&[withheld_key(DAVE).as_bytes()]).unwrap(), 0);
+    }
+
+    #[test]
+    fn a_send_whose_time_passed_is_a_draft_after_the_restore_and_never_queued() {
+        use base64::Engine as _;
+        let mut c = kevy_client::Connection::connect("mem://outbound-withheld-draft").unwrap();
+        let raw = b"From: Mask <mask-1@x.test>\r\nTo: erin@y.test\r\nSubject: hi\r\n\r\nbody\r\n";
+        let data = base64::engine::general_purpose::STANDARD.encode(raw);
+        let mut ids = Vec::new();
+        for rcpt in ["erin@y.test", "gus@y.test"] {
+            let id = job_as(&mut c, "mask-1@x.test", Some(DAVE), Some(5_000));
+            let blob = serde_json::json!({ "sender": "mask-1@x.test", "account": DAVE,
+                "recipient": rcpt, "send_id": "s@x.test", "message_data_b64": data })
+            .to_string();
+            c.hset(
+                job_key(id).as_bytes(),
+                &[(b"blob" as &[u8], blob.as_bytes())],
+            )
+            .unwrap();
+            ids.push(id);
+        }
+        assert_eq!(withhold(&mut c, DAVE).unwrap(), 2);
+        let done = release(&mut c, DAVE, 10_000, Lapsed::Draft).unwrap();
+        assert_eq!(
+            done,
+            Released {
+                rescheduled: 0,
+                drafts: 1
+            }
+        );
+        for id in ids {
+            assert_eq!(
+                state(&mut c, id),
+                None,
+                "the job of a draft is still queued"
+            );
+            assert_eq!(scheduled(&mut c, id), None);
+        }
+        let drafts = c
+            .hgetall(crate::families::prefs::drafts_key(DAVE).as_bytes())
+            .unwrap();
+        assert_eq!(drafts.len(), 2, "one draft for the send");
+        let d: mailrs_core_api::method::admin::DraftWire =
+            serde_json::from_slice(&drafts[1]).unwrap();
+        assert_eq!(
+            (d.to.as_str(), d.bcc.as_str()),
+            ("erin@y.test", "gus@y.test")
+        );
+        assert_eq!(
+            (d.from.as_str(), d.subject.as_str()),
+            ("mask-1@x.test", "hi")
+        );
+        assert_eq!(d.body.trim(), "body");
+        assert_eq!((d.withheld_send_at, d.scheduled_at), (Some(5_000), None));
     }
 }

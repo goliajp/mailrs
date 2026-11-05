@@ -18,6 +18,12 @@ export type Draft = {
   subject: string
   to: string
   updated_at: null | number | string
+  /**
+   * When it was set to go before its account was deleted, in epoch
+   * seconds: the time passed meanwhile, so the restore put it back here
+   * unsent. Shown on the row, never acted on.
+   */
+  withheld_send_at?: null | number
 }
 
 export type FeedbackAction =

@@ -100,7 +100,7 @@ impl MailrsMcpService {
     }
 
     #[tool(
-        description = "Restore a deleted account before its purge (super administrator, recent password confirmation): its mail, settings and group memberships come back as they were. Refused when the address is an account, is not waiting for a purge, or was deleted more than once and `parked` does not name which deletion to restore (the refusal lists them)."
+        description = "Restore a deleted account before its purge (super administrator, recent password confirmation): its mail, settings and group memberships come back as they were. Refused when the address is an account, is not waiting for a purge, or was deleted more than once and `parked` does not name which deletion to restore (the refusal lists them). Returns how many sends the delete had withheld went back to their scheduled time (`rescheduled`) and how many, whose time passed while the account was deleted, came back as drafts of the account and were not sent (`returned_as_drafts`)."
     )]
     async fn restore_account(
         &self,
@@ -114,12 +114,17 @@ impl MailrsMcpService {
             by: user,
             parked: params.parked,
         };
-        self.state
+        let back = self
+            .state
             .core
             .restore_account(&params.address, &req)
             .await
             .map_err(|e| McpError::invalid_request(format!("restore_account: {e}"), None))?;
-        Ok(ok_result())
+        Ok(CallToolResult::success(vec![ContentBlock::text(
+            serde_json::json!({ "ok": true, "rescheduled": back.rescheduled,
+                "returned_as_drafts": back.returned_as_drafts })
+            .to_string(),
+        )]))
     }
 
     #[tool(

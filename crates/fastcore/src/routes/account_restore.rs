@@ -62,7 +62,7 @@ pub(crate) async fn restore_account_route(
     {
         return failed(e, &address, "writing the permissions");
     }
-    if let Err(e) = restore::finish(
+    let back = match restore::finish(
         &mut net,
         root,
         &address,
@@ -70,8 +70,10 @@ pub(crate) async fn restore_account_route(
         &req.by,
         now_secs(),
     ) {
-        return failed(e, &address, "moving the maildir back");
-    }
-    tracing::info!(%address, by = %req.by, "deleted account restored");
-    StatusCode::NO_CONTENT.into_response()
+        Ok(back) => back,
+        Err(e) => return failed(e, &address, "moving the maildir back"),
+    };
+    tracing::info!(%address, by = %req.by, rescheduled = back.rescheduled,
+        drafts = back.returned_as_drafts, "deleted account restored");
+    Json(back).into_response()
 }

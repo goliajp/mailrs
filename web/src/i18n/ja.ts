@@ -204,6 +204,7 @@ export const ja: Record<Key, string> = {
   'drafts.search': '下書きを検索',
   'drafts.searchPlaceholder': '下書きを検索…',
   'drafts.to': '宛先: {to}',
+  'drafts.withheldSendAt': '未送信: {time} に送信予定でした',
   'error.reload': '再読み込み',
   'error.title': 'エラーが発生しました',
   'feedback.block': '送信者をブロック',

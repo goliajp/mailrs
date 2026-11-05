@@ -38,7 +38,9 @@ fn refusal(message: &str) -> axum::response::Response {
 /// purge has not run, back with its mail, settings and memberships. Super
 /// administrator (declared in `route_permissions`) with a recent password
 /// confirmation. The core writes the `account.restore` audit row, naming
-/// the caller; 409 says why it refused and lists the parked maildirs.
+/// the caller; 409 says why it refused and lists the parked maildirs. 200
+/// counts the withheld sends put back: `rescheduled` still to go at their
+/// time, `returned_as_drafts` whose time passed, back as drafts, unsent.
 pub async fn restore_account(
     _: crate::session::confirm::Confirmed,
     State(state): State<Arc<WebState>>,
@@ -51,7 +53,7 @@ pub async fn restore_account(
         parked: body.and_then(|Json(b)| b.parked),
     };
     match state.core.restore_account(&address, &req).await {
-        Ok(()) => Ok(StatusCode::NO_CONTENT.into_response()),
+        Ok(back) => Ok(Json(back).into_response()),
         Err(CoreApiError::Conflict(message)) => Ok(refusal(&message)),
         Err(e) => Err(map_err(e)),
     }

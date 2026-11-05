@@ -90,6 +90,7 @@ export const draftSchema = z
     subject: z.string().default(''),
     to: z.string().default(''),
     updated_at: wireTimestampSchema,
+    withheld_send_at: z.number().nullable().default(null),
   })
   .passthrough()
 

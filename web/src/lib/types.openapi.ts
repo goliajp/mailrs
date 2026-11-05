@@ -7645,6 +7645,11 @@ export interface components {
             subject: string;
             body: string;
             reply_to_thread_id?: string;
+            /**
+             * Format: int64
+             * @description When the message was set to go before its account was deleted (epoch seconds). The time passed while the account was deleted, so its restore put the message back here unsent; shown, never acted on
+             */
+            withheld_send_at?: number;
             created_at: string;
             updated_at: string;
         };
@@ -12693,12 +12698,17 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Restored */
-            204: {
+            /** @description Restored. The sends its delete withheld: those still ahead wait for their time again; those whose time passed are back as drafts of the account, not sent */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        rescheduled: number;
+                        returned_as_drafts: number;
+                    };
+                };
             };
             /** @description Not a super administrator */
             403: {
