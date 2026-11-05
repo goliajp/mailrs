@@ -147,8 +147,12 @@ check "fastcore stayed up" 'kill -0 "$SVR_PID" 2>/dev/null'
 # for its absence from the release binary to mean anything
 check "the smoke binary carries the abort hook" 'grep -aq "X-Mailrs-Test-Abort" "$HOOKED"'
 check "the release binary does not" '! grep -aq "X-Mailrs-Test-Abort" "$PROD"'
-check "nor does its feature tree" \
-    '! cargo tree -p mailrs-fastcore -e features --prefix none 2>/dev/null | grep -q "abort-hook"'
+hook_in_tree() {
+    cargo tree -p mailrs-fastcore -e features -i mailrs-intake --prefix none "$@" 2>/dev/null |
+        grep -c 'feature "abort-hook"' || true
+}
+check "the feature tree shows the hook when asked for" '[[ "$(hook_in_tree --features abort-hook)" -gt 0 ]]'
+check "and not in the build the image makes" '[[ "$(hook_in_tree)" -eq 0 ]]'
 if (( fail )); then
     tail -40 "$WORK/fastcore.log"
     exit 1
