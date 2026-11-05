@@ -4,7 +4,7 @@
 //!
 //! **Listing, not unpacking.** A zip says what it holds in its central
 //! directory, at the end of the file, uncompressed; a RAR in a header in
-//! front of each member ([`rar`]); reading either is reading a table of
+//! front of each member (the `rar` module); reading either is reading a table of
 //! names. Nothing is decompressed, so a zip bomb is a table like any
 //! other and the work is bounded by the attachment's size. An Office
 //! file from before 2007 names its streams in UTF-16 inside the file,
