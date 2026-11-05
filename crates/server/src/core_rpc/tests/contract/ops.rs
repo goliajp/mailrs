@@ -9,9 +9,14 @@ use super::harness::{Cores, Diffs};
 
 /// A quarantined file and its record, as the drain leaves them.
 fn quarantine(maildir_root: &str, file: &str, at: i64) {
-    let dir = std::path::Path::new(&mailrs_core::spool::spool_root(maildir_root)).join("quarantine");
+    let dir =
+        std::path::Path::new(&mailrs_core::spool::spool_root(maildir_root)).join("quarantine");
     std::fs::create_dir_all(&dir).unwrap();
-    std::fs::write(dir.join(file), b"Subject: kept out of the status\r\n\r\nbody").unwrap();
+    std::fs::write(
+        dir.join(file),
+        b"Subject: kept out of the status\r\n\r\nbody",
+    )
+    .unwrap();
     let q = Quarantined {
         file: file.to_string(),
         quarantined_at: at,
