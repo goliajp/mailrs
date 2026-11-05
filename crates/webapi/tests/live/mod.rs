@@ -45,6 +45,7 @@ pub async fn start(kevy: &str) -> Live {
         receiver_stats: Arc::new(mailrs_webapi::handlers::smtp_monitor::StatsCache::default()),
         started_at: std::time::Instant::now(),
         llm_config: None,
+        metrics_token: None,
     });
     let base = serve(mailrs_webapi::build_router(state.clone())).await;
     Live {
