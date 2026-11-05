@@ -79,7 +79,9 @@ pub fn judge_with(
     let seen = domain_seen(hist.as_mut(), &msg.from);
     let rotation = reply_rotation(hist, &msg.host, &msg.reply_to);
     let rel = match reader {
-        Some((user, counted)) => relation::relation(hist.as_mut(), user, &msg.from, counted),
+        Some((user, counted)) => {
+            relation::relation(hist.as_mut(), user, &msg.from, &msg.reply_to, counted)
+        }
         None => Default::default(),
     };
     // new as of when the message arrived, not as of the re-judging
