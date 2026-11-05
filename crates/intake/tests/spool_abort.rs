@@ -7,7 +7,7 @@
 //! kevy-server) outlive each child, as they outlive a restart.
 
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::sync::Arc;
 
 use mailrs_core::spool::{SPOOL_SCHEMA_VERSION, SpoolEnvelope, encode_spool_blob};
@@ -102,6 +102,9 @@ fn drain_in_child(root: &Path, kevy: &str) -> bool {
         .args(["--exact", "child_drains_once", "--test-threads=1"])
         .env(CHILD_ROOT, root)
         .env("MAILRS_KEVY_URL", kevy)
+        // the child is a second libtest run; its "running 1 test" with no
+        // result line after an abort would throw off the gate's count
+        .stdout(Stdio::null())
         .status()
         .unwrap();
     status.success()
