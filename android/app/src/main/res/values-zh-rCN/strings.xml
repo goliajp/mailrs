@@ -511,4 +511,12 @@
     <string name="thread_notify_default">这个会话按通知设置</string>
     <string name="notify_quiet_starts">开始</string>
     <string name="notify_quiet_ends">结束</string>
+    <string name="block_item">拦截 %1$s</string>
+    <string name="block_unblock_item">取消拦截 %1$s</string>
+    <string name="block_confirm_title">拦截 %1$s？</string>
+    <string name="block_confirm_body">以后来自这个地址的邮件会进垃圾邮件，这个会话现在也会移过去。可以在「设置 → 始终拦截」里撤销</string>
+    <string name="block_confirm_allowed">%1$s 在你的「始终允许」名单里，拦截后会从那里移除</string>
+    <string name="block_confirm_action">拦截</string>
+    <string name="block_done">已拦截 %1$s</string>
+    <string name="block_unblocked">已取消拦截 %1$s</string>
 </resources>

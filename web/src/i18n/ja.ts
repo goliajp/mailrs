@@ -200,8 +200,6 @@ export const ja: Record<Key, string> = {
   'deleteThread.body': 'メッセージは削除され、元に戻せません。',
   'error.reload': '再読み込み',
   'error.title': 'エラーが発生しました',
-  'feedback.block': '送信者をブロック',
-  'feedback.confirmBlock': 'この送信者をブロックしますか？',
   'feedback.confirmSpam': '迷惑メールとして報告しますか？',
   'feedback.important': '重要にする',
   'feedback.recorded': 'フィードバックを記録しました',

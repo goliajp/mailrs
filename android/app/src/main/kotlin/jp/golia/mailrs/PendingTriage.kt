@@ -23,4 +23,9 @@ data class PendingTriage(
     val applied: Boolean = false,
     /** The label a label action put on or took off. */
     val labelId: String? = null,
+    /**
+     * Set when the undo takes back a block, which is not the action's
+     * own undo: `mark-not-junk` would whitelist every sender of the thread.
+     */
+    val blocked: BlockedSender? = null,
 )

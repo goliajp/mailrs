@@ -19,6 +19,7 @@ pub mod audit_read;
 pub mod auth;
 pub mod auth_recovery;
 pub mod autodiscover;
+pub mod block_sender;
 pub mod calendar;
 pub mod complete;
 pub mod compose;
