@@ -35,6 +35,28 @@ impl mailrs_receiver::ConnectionMetrics for NoMetrics {
     fn mask_submit_log_failed(&self) {}
 }
 
+/// This core's spool drain over `spool_root`, as one call: build it on a
+/// runtime thread, then call the returned function off the runtime workers
+/// (`spawn_blocking`), once per tick. It delivers into `maildir_root` and
+/// the store behind `pool`, with the shared side state at `net_url`, and
+/// answers how many spool files it took.
+pub fn spool_drain(
+    pool: BackendPool,
+    maildir_root: String,
+    net_url: Option<String>,
+    spool_root: &std::path::Path,
+) -> impl Fn() -> usize + Send + Sync + 'static {
+    let mailbox = Arc::new(mailrs_mailbox::PgMailboxStore::new(pool.clone()));
+    let domain = Arc::new(crate::domain_store::DomainStore::new(Some(pool), None));
+    let core = crate::intake::PgCore {
+        dir: crate::intake::PgDirectory::new(domain, maildir_root, net_url),
+        mailbox,
+        event_bus: EventBus::new(64),
+    };
+    let dirs = mailrs_intake::spool::SpoolDirs::under(spool_root);
+    move || mailrs_intake::spool::tick(&dirs, &core)
+}
+
 /// Wire the receiving path in one process: a `ConnectionContext` whose DATA
 /// writes accepted mail to the spool under `spool_root` and emits
 /// `SpoolDelivered`, and this core's spool drain delivering it into

@@ -80,10 +80,12 @@ pub(crate) async fn mark_all_read_route(
     Path(user): Path<String>,
 ) -> Json<serde_json::Value> {
     // Looped here rather than through `mark_all_seen`, which is the same
-    // loop inside the store — and the store cannot rename a file.
+    // loop inside the store — and the store cannot rename a file. Held
+    // conversations are left as they are: they are not in the badge this
+    // clears, and one released later must come back as unread as it was.
     let unread = state
         .mailbox
-        .list_thread_ids_by_flag_via_table(&user, "unread", 100_000, 0, None)
+        .list_unread_not_held(&user)
         .unwrap_or_default();
     let mut flipped = 0u32;
     for tid in &unread {
@@ -441,6 +443,10 @@ pub(crate) fn delete_removing(
     }
     if !existed {
         return Ok(None);
+    }
+    if let Err(e) = crate::hold_facts::forget_holds(state, user, thread_id) {
+        tracing::error!(error = %e, %user, %thread_id, "delete_thread: the hold facts stayed");
+        return Err(());
     }
     tracing::info!(
         %user, %thread_id, files = files.len(), unlinked = gone.messages,

@@ -176,9 +176,13 @@ pub(super) fn not_archived() -> (&'static str, String) {
     ("archived", "0".to_string())
 }
 
-/// The exclusion every list but the Trash carries.
+/// The exclusion every list but the Trash carries; `not_held`, all but Review's.
 pub(super) fn not_trashed() -> (&'static str, String) {
     ("trashed", "0".to_string())
+}
+
+pub(super) fn not_held() -> (&'static str, String) {
+    ("quarantined", "0".to_string())
 }
 
 pub(super) fn bucket_predicates<'a>(
@@ -206,7 +210,7 @@ impl KevyMailboxStore {
     }
 
     /// The live threads in `buckets` with `flag` set, the threads the
-    /// user only sent into left out — what the Inbox (`["inbox"]`) or
+    /// user only sent into and the held ones left out — what the Inbox (`["inbox"]`) or
     /// Notifications & Promotions (`NP_BUCKETS`) list of that flag holds.
     pub fn count_flag_in_buckets(
         &self,
@@ -215,7 +219,7 @@ impl KevyMailboxStore {
         buckets: &[&str],
     ) -> io::Result<usize> {
         let mut total = 0usize;
-        let live = [not_archived(), not_trashed()];
+        let live = [not_archived(), not_trashed(), not_held()];
         for bucket in buckets.iter().copied() {
             let scoped = bucket_predicates(bucket, &live, SentOnly::Excluded);
             let refs: Vec<(&str, &str)> = scoped.iter().map(|(c, v)| (*c, v.as_str())).collect();
@@ -449,7 +453,7 @@ impl KevyMailboxStore {
         // split into one pass of each by `merge_held_into_live`.
         match filter.quarantine {
             QuarantineScope::Only => extra.push(("quarantined", "1".to_string())),
-            _ => extra.push(("quarantined", "0".to_string())),
+            _ => extra.push(not_held()),
         }
         match scope {
             Scope::All => {}

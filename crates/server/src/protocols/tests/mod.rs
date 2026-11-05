@@ -218,7 +218,10 @@ async fn both_cores_hold_the_same_mail_conversations() {
     }
     let pg_store = backends.pg.mailbox.clone();
     let hold_pg = |tid: String| async move {
-        pg_store.hold_thread(harness::USER, &tid).await.unwrap();
+        pg_store
+            .hold_thread(harness::USER, &tid, "ingest", "")
+            .await
+            .unwrap();
     };
     for diff in held::held(backends.pg.clone(), hold_pg).await {
         report.push(format!("pg-core: {diff}"));

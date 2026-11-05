@@ -356,6 +356,20 @@ CREATE TABLE IF NOT EXISTS release_facts (
 CREATE INDEX IF NOT EXISTS release_facts_thread
     ON release_facts (account_address, thread_id);
 
+-- migrate-064: every hold of a conversation, as a fact, with the reader's
+-- unread Message-IDs at that moment.
+CREATE TABLE IF NOT EXISTS hold_facts (
+    id              BIGSERIAL PRIMARY KEY,
+    account_address TEXT NOT NULL,
+    thread_id       TEXT NOT NULL,
+    held_at         BIGINT NOT NULL,
+    source          TEXT NOT NULL,
+    rules_version   TEXT NOT NULL DEFAULT '',
+    unread_mids     JSONB NOT NULL DEFAULT '[]'
+);
+CREATE INDEX IF NOT EXISTS hold_facts_thread
+    ON hold_facts (account_address, thread_id);
+
 -- migrate-062: each message's template fingerprint, once per message; the
 -- four pieces only while it is inside a report's thirty days (NULL after).
 -- Derived from the file.
@@ -880,4 +894,4 @@ CREATE INDEX idx_messages_clean_text_trgm ON messages USING gin (clean_text gin_
 -- The migration this schema is equal to; the core reads it at boot and
 -- applies whatever it carries beyond it.
 CREATE TABLE schema_version (version INTEGER NOT NULL);
-INSERT INTO schema_version (version) VALUES (63);
+INSERT INTO schema_version (version) VALUES (64);
