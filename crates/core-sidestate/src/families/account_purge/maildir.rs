@@ -22,10 +22,25 @@ pub fn park(root: &Path, address: &str, ts: i64) -> io::Result<()> {
         Err(e) => return Err(e),
     }
     let into = root.join(".deleted").join(domain);
-    std::fs::create_dir_all(&into)?;
-    std::fs::rename(&from, into.join(format!("{local}.{ts}")))?;
+    move_into(&from, &into, &format!("{local}.{ts}"), || {})?;
     tracing::info!(%address, to = %into.display(), "deleted account's maildir set aside");
     Ok(())
+}
+
+/// Move `from` to `into/name`, making `into` first. A purge removes
+/// `into` when it is empty ([`let_go_of`]), and can do so between the two
+/// steps; the move then finds no directory, so `into` is made again and the
+/// move tried once more. `made` runs after `into` is first made.
+fn move_into(from: &Path, into: &Path, name: &str, made: impl FnOnce()) -> io::Result<()> {
+    std::fs::create_dir_all(into)?;
+    made();
+    match std::fs::rename(from, into.join(name)) {
+        Err(e) if e.kind() == io::ErrorKind::NotFound && from.exists() => {
+            std::fs::create_dir_all(into)?;
+            std::fs::rename(from, into.join(name))
+        }
+        moved => moved,
+    }
 }
 
 /// Every parked maildir of `address`, oldest first: one per delete, so an
@@ -176,6 +191,23 @@ mod tests {
         );
         // nothing parked is nothing to remove
         remove(root, &[]).unwrap();
+    }
+
+    #[test]
+    fn parking_survives_a_purge_removing_the_empty_parent_meanwhile() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        file(&root.join("x.test/a/cur"), "1", 1);
+        let into = root.join(".deleted/x.test");
+        // a purge of the domain's last parked maildir lets go of the
+        // directory just made, between making it and the move
+        move_into(&root.join("x.test/a"), &into, "a.100", || {
+            let_go_of(root, &into.join("b.50")).unwrap();
+            assert!(!root.join(".deleted").exists());
+        })
+        .unwrap();
+        assert!(into.join("a.100/cur/1").exists());
+        assert_eq!(parked(root, "a@x.test").unwrap(), [into.join("a.100")]);
     }
 
     #[test]
