@@ -69,6 +69,7 @@ pub static NO_QUOTA: Rule = Rule {
     text: &text::NO_QUOTA,
     eval: |s| {
         let e = counted(s, "quota").and_then(|q| {
+            number(q, "accounts", "quota")?;
             let n = number(q, "accounts_without_limit", "quota")?;
             Ok(match n {
                 0 => Eval::clear(0),
@@ -92,6 +93,7 @@ pub static QUOTA_80: Rule = Rule {
     text: &text::QUOTA_80,
     eval: |s| {
         let e = counted(s, "quota").and_then(|q| {
+            number(q, "accounts", "quota")?;
             let n = number(q, "over_80", "quota")?;
             Ok(match n {
                 0 => Eval::clear(0),
@@ -116,6 +118,8 @@ pub static NEW_DOMAINS: Rule = Rule {
     eval: |s| {
         let limit = s.limits.new_domains_per_day;
         let e = counted(s, "new_domains").and_then(|d| {
+            // a census without its key count is not one
+            number(d, "keys", "new_domains")?;
             let n = number(d, "added_24h", "new_domains")?;
             Ok(match n > limit {
                 true => Eval::holds(n, format!("> {limit} in 24h")),

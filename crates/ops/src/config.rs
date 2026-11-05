@@ -130,7 +130,7 @@ impl Config {
                 &var("MAILRS_OPS_PUSH_SOURCES")
                     .unwrap_or_else(|| "receiver,sender,fetch,backup".into()),
             ),
-            new_domains_per_day: number("MAILRS_OPS_NEW_DOMAINS_PER_DAY", 50)?,
+            new_domains_per_day: number("MAILRS_OPS_NEW_DOMAINS_PER_DAY", 5000)?,
             fastcore_ready_secs: number("MAILRS_OPS_FASTCORE_READY_SECS", 1800)?,
             hostname: var("MAILRS_HOSTNAME").unwrap_or_else(|| "mailrs".into()),
         })
@@ -169,7 +169,7 @@ impl Config {
             local_domains: vec!["example.test".into()],
             maintenance_alert_secs: 4 * 3600,
             push_sources: list("receiver,sender,fetch,backup"),
-            new_domains_per_day: 50,
+            new_domains_per_day: 5000,
             fastcore_ready_secs: 1800,
             hostname: "mx.example.test".into(),
         }
