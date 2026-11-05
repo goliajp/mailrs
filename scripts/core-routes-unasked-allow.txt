@@ -42,6 +42,7 @@ POST /v1/admin/maintenance:migrate-agent-webhooks | fold webhook subscriptions f
 POST /v1/admin/maintenance:read-state-backfill | write the maildir's read flags onto the index (?dry_run=true reports first)
 POST /v1/admin/maintenance:read-state-shadow | read-only: maildir flags against the index's read state
 POST /v1/admin/maintenance:recompute-sender-trust | re-derive the stored sender verdict from each message file
+POST /v1/admin/maintenance:recompute-thread-importance | put each reader's own importance verdict back on their row (dry run unless dry_run=false; skip/limit)
 POST /v1/admin/maintenance:reindex | put the maildir's own facts back onto every thread row
 POST /v1/admin/maintenance:repair-blob-refs | give back the file reference to rows listed with an empty blob_ref
 POST /v1/admin/maintenance:backfill-message-files | record every file each copy of a message has, so a delete removes them all

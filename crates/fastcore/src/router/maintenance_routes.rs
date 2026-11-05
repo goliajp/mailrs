@@ -350,4 +350,11 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
             "/v1/admin/maintenance:backfill-thread-importance",
             post(backfill_thread_importance_route),
         )
+        // Each reader's own verdict back on their row, from their decision
+        // log or a rescore of their own mail. `dry_run` unless
+        // `dry_run=false`; `skip` / `limit` batch it.
+        .route(
+            "/v1/admin/maintenance:recompute-thread-importance",
+            post(crate::maintenance::recompute_thread_importance_route),
+        )
 }
