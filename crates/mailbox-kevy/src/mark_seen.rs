@@ -12,12 +12,26 @@ use super::KevyMailboxStore;
 use super::keys;
 
 impl KevyMailboxStore {
-    /// Sweep every unread thread for `user` — reads the unread axis
-    /// off the declared table and calls `mark_seen` on each.
+    /// The threads "mark all as read" takes: every unread one, Junk and
+    /// archived included, held ones left out.
+    pub fn list_unread_not_held(&self, user: &str) -> io::Result<Vec<String>> {
+        let (col, val) = crate::list_threads::not_held();
+        self.list_thread_ids_by_flag_filtered(
+            user,
+            "unread",
+            &[(col, val.as_str())],
+            100_000,
+            0,
+            None,
+        )
+    }
+
+    /// Sweep every unread thread for `user` that is not held — reads the
+    /// unread axis off the declared table and calls `mark_seen` on each.
     /// Returns the number of threads flipped. Idempotent: a second call
     /// with no unread threads returns 0.
     pub fn mark_all_seen(&self, user: &str) -> io::Result<u32> {
-        let members = self.list_thread_ids_by_flag_via_table(user, "unread", 100_000, 0, None)?;
+        let members = self.list_unread_not_held(user)?;
         let mut flipped = 0u32;
         for tid in &members {
             let tid = tid.as_str();

@@ -7,6 +7,7 @@ vi.mock('@/hooks/use-current-list', () => ({
     rows: [
       { thread_id: 'unread', unread_count: 2 },
       { thread_id: 'read', unread_count: 0 },
+      { quarantined: true, thread_id: 'held', unread_count: 1 },
     ],
   }),
 }))
@@ -51,5 +52,14 @@ describe('opening an unread conversation marks it read after the paint', () => {
     act(() => vi.advanceTimersToNextFrame())
     act(() => vi.advanceTimersByTime(0))
     expect(mutate).not.toHaveBeenCalled()
+  })
+
+  // A hold leaves the conversation unread, and opening it in Review is
+  // reading it, as opening a conversation in Junk is.
+  it('also for a held conversation opened in Review', () => {
+    renderHook(() => useMarkReadOnOpen('held', true))
+    act(() => vi.advanceTimersToNextFrame())
+    act(() => vi.advanceTimersByTime(1))
+    expect(mutate).toHaveBeenCalledWith({ threadId: 'held' })
   })
 })
