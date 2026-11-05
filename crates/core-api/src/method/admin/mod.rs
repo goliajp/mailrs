@@ -10,6 +10,7 @@
 mod account_purge;
 mod credentials;
 mod directory;
+mod group_purge;
 mod ops;
 mod ownerless;
 mod permissions;
@@ -21,6 +22,7 @@ mod userdata;
 pub use account_purge::*;
 pub use credentials::*;
 pub use directory::*;
+pub use group_purge::*;
 pub use ops::*;
 pub use ownerless::*;
 pub use permissions::*;

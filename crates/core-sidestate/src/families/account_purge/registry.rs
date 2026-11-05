@@ -208,7 +208,7 @@ pub const KEPT: &[Kept] = &[
     Kept { name: "owner-notices", why: "notices to the operator, not the user's" },
     Kept { name: "mailrs:masked:submit_log", why: "the log of mail sent from masks, kept like the audit log" },
     Kept { name: "mailrs:outbound:*", why: "mail the user sent that is still on its way: it is delivered or bounced, then dropped by the queue" },
-    Kept { name: "shared:{gid}:*", why: "a team's working state (presence, copies, notes, drafts); handled when the group is deleted" },
+    Kept { name: "shared:{gid}:*", why: "a team's working state (presence, copies, notes, drafts): the group's, not a member's; purged with the group, after the same retention (group_purge)" },
     Kept { name: "mailrs:shared-reply:*", why: "a team's reply claims, keyed by conversation: team working state" },
     Kept { name: "gl:*|{user}", why: "greylisting triplets, keyed by sender and recipient, expire on their own within days" },
     Kept { name: "oidc:pending:*", why: "a sign-in waiting to be linked, keyed by a random handle; expires in 10 minutes and names the address only in its value" },
@@ -238,6 +238,7 @@ pub const KEPT: &[Kept] = &[
     Kept { name: "bayes:tokens:*", why: "the spam model's token counts, not by user" },
     Kept { name: "bayes:triage:*", why: "the triage model, not by user" },
     Kept { name: "mailrs:purge:records", why: "the dropped account record a restore needs, beside the mark; cleared with it" },
+    Kept { name: "mailrs:purge:groups", why: "deleted email groups waiting for the purge of their team state, by group id; group_purge clears a group's field last" },
     Kept { name: "mailrs:purge:pending", why: "the purge's own record of who is waiting; the purge clears the address's field last" },
 ];
 

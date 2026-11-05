@@ -16,6 +16,7 @@ mod coverage;
 mod deleted_rows;
 mod deletes;
 mod forged_results;
+mod group_purge;
 mod harness;
 mod import;
 mod intake;
@@ -69,6 +70,7 @@ async fn the_two_cores_answer_every_client_call_alike() {
     reports::run(&cores, &mut d).await;
     usage_drift::run(&cores, &mut d).await;
     account_purge::run(&cores, &mut d).await;
+    group_purge::run(&cores, &mut d).await;
     accounts::teardown(&cores, &mut d).await;
     d.both(
         "healthz",

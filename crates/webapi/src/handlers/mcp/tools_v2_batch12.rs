@@ -72,9 +72,14 @@ impl MailrsMcpService {
         let user = self.require_user()?.to_string();
         self.require_route(&user, "/api/admin/email-groups/{id}")
             .await?;
-        crate::handlers::complete::delete_email_group(self.require_confirmed()?, Path(params.id))
-            .await
-            .map_err(|c| map_status(c, "delete_email_group"))?;
+        crate::handlers::complete::delete_email_group(
+            self.require_confirmed()?,
+            axum::extract::State(self.state.clone()),
+            axum::extract::Extension(crate::handlers::conversations::AuthedUser(user.clone())),
+            Path(params.id),
+        )
+        .await
+        .map_err(|c| map_status(c, "delete_email_group"))?;
         crate::handlers::audit::record(
             &user,
             "email_group.delete",
