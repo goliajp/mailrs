@@ -1,5 +1,7 @@
 //! Purging deleted accounts on fastcore: the route, the retention task,
-//! and the embedded store's part. The registry and the network part are
+//! and the embedded store's part. The same task and a route of their own
+//! purge deleted email groups' team state, all in the network kevy
+//! (`group_purge`). The registry and the network part are
 //! `mailrs_core_sidestate::families::account_purge`, shared with the SQL
 //! core.
 
@@ -12,8 +14,11 @@ use axum::Json;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use kevy_client::Connection;
-use mailrs_core_api::method::admin::{AccountPurgeResponse, AccountPurgeRow, PurgeCount};
+use mailrs_core_api::method::admin::{
+    AccountPurgeResponse, AccountPurgeRow, GroupPurgeResponse, PurgeCount,
+};
 use mailrs_core_sidestate::families::account_purge::{self as purge, maildir, pending};
+use mailrs_core_sidestate::families::group_purge;
 use purge::registry::{Store, spellings};
 
 use crate::FastcoreState;
@@ -163,6 +168,30 @@ pub(crate) async fn account_purge_route(
     done.map(Json)
 }
 
+#[derive(Debug, serde::Deserialize)]
+pub(crate) struct GroupPurgeQuery {
+    #[serde(default = "yes")]
+    dry_run: bool,
+    gid: Option<i64>,
+}
+
+/// `POST /v1/admin/maintenance:group-purge`.
+pub(crate) async fn group_purge_route(
+    Query(q): Query<GroupPurgeQuery>,
+    State(state): State<Arc<FastcoreState>>,
+) -> Result<Json<GroupPurgeResponse>, StatusCode> {
+    let done = tokio::task::spawn_blocking(move || {
+        let mut net = state.net_conn().ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+        group_purge::run_now(&mut net, q.dry_run, q.gid, now()).map_err(|e| {
+            tracing::error!(error = %e, "group purge failed");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
+    })
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    done.map(Json)
+}
+
 /// Purge `address` now, for a delete under a retention of 0 days.
 pub(crate) async fn purge_now(state: Arc<FastcoreState>, address: String) {
     let done = tokio::task::spawn_blocking(move || {
@@ -184,8 +213,8 @@ pub(crate) async fn purge_now(state: Arc<FastcoreState>, address: String) {
 const BASE: Duration = Duration::from_secs(3600);
 const MAX: Duration = Duration::from_secs(24 * 3600);
 
-/// The wait after a pass that purged `purged` accounts: doubling while
-/// there is nothing due, back to hourly after one that purged.
+/// The wait after a pass that purged `purged` accounts and groups:
+/// doubling while there is nothing due, back to hourly after one that purged.
 pub(crate) fn next_wait(wait: Duration, purged: usize) -> Duration {
     match purged {
         0 => (wait * 2).min(MAX),
@@ -193,8 +222,8 @@ pub(crate) fn next_wait(wait: Duration, purged: usize) -> Duration {
     }
 }
 
-/// Purge what is due, for ever. A pass with nothing due reads one hash and
-/// writes nothing.
+/// Purge what is due, deleted accounts and deleted groups' team state, for
+/// ever. A pass with nothing due reads two hashes and writes nothing.
 pub(crate) fn spawn(state: Arc<FastcoreState>) {
     tokio::spawn(async move {
         let mut wait = BASE;
@@ -204,14 +233,18 @@ pub(crate) fn spawn(state: Arc<FastcoreState>) {
             let purged = tokio::task::spawn_blocking(move || {
                 let mut net = st.net_conn()?;
                 let days = pending::retention_days();
-                run(&st, &mut net, false, None, now(), days)
+                let accounts = run(&st, &mut net, false, None, now(), days)
                     .map_err(|e| tracing::warn!(error = %e, "account purge pass failed"))
-                    .ok()
+                    .map_or(0, |r| r.rows.len());
+                let groups = group_purge::run(&mut net, false, None, now(), days)
+                    .map_err(|e| tracing::warn!(error = %e, "group purge pass failed"))
+                    .map_or(0, |r| r.rows.len());
+                Some(accounts + groups)
             })
             .await
             .ok()
             .flatten()
-            .map_or(0, |r| r.rows.len());
+            .unwrap_or(0);
             wait = next_wait(wait, purged);
         }
     });

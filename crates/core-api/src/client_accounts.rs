@@ -203,6 +203,22 @@ impl Client {
         self.post_authed_no_body(path, "account_purge").await
     }
 
+    /// POST /v1/admin/maintenance:group-purge — the deleted email groups
+    /// whose retention period has passed, with their team working state
+    /// counted; with `dry_run` false each is removed for good and one audit
+    /// row written for it. `gid` narrows the pass to that one group.
+    pub async fn group_purge(
+        &self,
+        dry_run: bool,
+        gid: Option<i64>,
+    ) -> ApiResult<method::admin::GroupPurgeResponse> {
+        let mut path = format!("/v1/admin/maintenance:group-purge?dry_run={dry_run}");
+        if let Some(g) = gid {
+            path.push_str(&format!("&gid={g}"));
+        }
+        self.post_authed_no_body(path, "group_purge").await
+    }
+
     /// GET /v1/admin/maintenance:usage-drift — each account's usage
     /// counter against its maildir, and the counters of addresses that are
     /// not accounts
