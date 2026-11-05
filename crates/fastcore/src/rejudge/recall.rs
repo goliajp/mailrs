@@ -13,6 +13,12 @@
 //!
 //! Off unless `MAILRS_REJUDGE_ACT=on`: until then a round records verdicts
 //! and logs what it would do.
+//!
+//! A round that left mail the rules hold unheld — its batch discarded, or
+//! judged while acting was off — marks each such message with its
+//! observation. The verdict already reads "hold", so a later round would
+//! find nothing changed; the mark lets a later, different observation
+//! offer the message again, and keeps the marking round from doing so.
 
 use std::sync::Arc;
 
@@ -21,8 +27,10 @@ use crate::FastcoreState;
 mod batches;
 mod settle;
 mod tell;
+mod unheld;
 pub(crate) use batches::{Refused, batches, confirm_batch, discard_batch, release_batch};
 pub(crate) use settle::{offer, settle};
+pub(crate) use unheld::{leave_unheld, unheld_by_another};
 
 /// The switch: `on` acts, anything else only logs.
 pub(crate) const ACT_ENV: &str = "MAILRS_REJUDGE_ACT";
@@ -105,6 +113,7 @@ fn recall(state: &Arc<FastcoreState>, c: &Candidate, observation: &str) -> Resul
         return Ok(false);
     }
     remember(state, &c.user, &c.tid, observation, &c.rules)?;
+    unheld::taken(state, &c.user, &c.mid)?;
     Ok(true)
 }
 

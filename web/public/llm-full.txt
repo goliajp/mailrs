@@ -1328,8 +1328,11 @@ A batch that would hold more holds nothing and is listed in
 confirmation, confirms it (`POST
 /api/admin/rejudge/batches/{observation}/confirm`, which holds the
 conversations it recorded that may still be held) or discards it (`POST
-…/discard`, which holds nothing). Each reader gets one notice and one push
-per batch, however many of their conversations it took.
+…/discard`, which holds nothing). A discarded batch cannot be put back
+(409, as for a waiting one); its conversations may be held by a later,
+different piece of information about them, never again by the one whose
+batch was discarded. Each reader gets one notice and one push per batch,
+however many of their conversations it took.
 
 Known limit: a body of fewer than eight words has no fingerprint, so a
 report of it holds only that message and looks for nothing else. The

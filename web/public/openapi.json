@@ -10311,7 +10311,7 @@
             "description": "Put back, but the audit row could not be written"
           },
           "409": {
-            "description": "The round is waiting for a decision and holds nothing to put back"
+            "description": "The round is waiting for a decision or was discarded, and holds nothing to put back"
           }
         }
       }
