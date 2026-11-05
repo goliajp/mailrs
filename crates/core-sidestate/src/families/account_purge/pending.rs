@@ -18,6 +18,10 @@ use kevy_client::Connection;
 
 pub const PENDING_KEY: &str = "mailrs:purge:pending";
 pub const RECORDS_KEY: &str = "mailrs:purge:records";
+/// Deleted email groups waiting for the purge of their team working state:
+/// group id -> JSON (delete time, the dropped row). `group_purge` owns it;
+/// spelled here with the rest of the family, under the same retention.
+pub const GROUPS_KEY: &str = "mailrs:purge:groups";
 
 /// Days a deleted account's data is kept before the purge removes it:
 /// `MAILRS_DELETED_ACCOUNT_DAYS`, 30 when unset; 0 purges at the delete.

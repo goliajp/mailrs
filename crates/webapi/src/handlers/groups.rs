@@ -14,6 +14,7 @@ use crate::handlers::kevy_util::with_kevy;
 use mailrs_core_sidestate::families::email_groups::{
     COUNTER_KEY as EG_CTR, GROUPS_KEY as EG_KEY, members_key as email_group_members_key,
 };
+use mailrs_core_sidestate::families::group_purge;
 use mailrs_core_sidestate::families::permission_groups::{
     self as groups, GROUPS_KEY, members_key, permissions_key,
 };
@@ -219,17 +220,23 @@ pub async fn create_email_group(
     Ok(Json(g))
 }
 
-/// The one writer of `email_group.delete`: the MCP tool comes through here.
+/// DELETE /api/admin/email-groups/{id} — the group is out of use at once
+/// (no longer listed, routed or anyone's team); its team working state is
+/// kept until the purge, which the core runs once the retention period of
+/// deleted accounts has passed. Asked here, the core purges at once under 0
+/// days and finds nothing due otherwise. The one writer of the delete's
+/// audit line (`email_group.soft_deleted`): the MCP tool comes through here.
 pub async fn delete_email_group(
     _: crate::session::confirm::Confirmed,
-    Extension(AuthedUser(actor)): Extension<AuthedUser>,
+    axum::extract::State(state): axum::extract::State<std::sync::Arc<crate::WebState>>,
+    axum::extract::Extension(crate::handlers::conversations::AuthedUser(actor)): axum::extract::Extension<
+        crate::handlers::conversations::AuthedUser,
+    >,
     Path(id): Path<i64>,
 ) -> Result<StatusCode, StatusCode> {
-    with_kevy(move |c| {
-        c.hdel(EG_KEY.as_bytes(), &[id.to_string().as_bytes()])?;
-        c.del(&[email_group_members_key(id).as_bytes()])?;
-        Ok(())
-    })?;
-    record(&actor, "email_group.delete", &id.to_string(), "");
+    let deleted = with_kevy(move |c| group_purge::soft_delete(c, id, &actor, now_secs()))?;
+    if deleted && let Err(e) = state.core.group_purge(false, Some(id)).await {
+        tracing::error!(error = %e, gid = id, "purging the deleted group failed; the core's retention task retries");
+    }
     Ok(StatusCode::NO_CONTENT)
 }

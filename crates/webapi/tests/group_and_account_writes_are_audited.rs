@@ -33,6 +33,18 @@ fn one(action: &str, target: &str, detail: &str) {
     assert_eq!(got[0]["actor"], ADMIN, "{action} {target}");
 }
 
+/// The one row for `action` on `target`, whatever its detail, which must be
+/// by the admin. A soft delete records the group it removed as its detail.
+fn one_on(action: &str, target: &str) {
+    let all = rows();
+    let got: Vec<&Value> = all
+        .iter()
+        .filter(|r| r["action"] == action && r["target"] == target)
+        .collect();
+    assert_eq!(got.len(), 1, "{action} {target}: {all:#?}");
+    assert_eq!(got[0]["actor"], ADMIN, "{action} {target}");
+}
+
 /// How many rows `action` has in all, so a second row with another detail
 /// cannot hide beside the one [`one`] found.
 fn count(action: &str) -> usize {
@@ -86,7 +98,7 @@ async fn group_and_account_writes_leave_one_row_each() {
     one("email_group.create", &id, "team@example.test");
     one("email_group.member_add", &id, "a@example.test");
     one("email_group.member_remove", &id, "a@example.test");
-    one("email_group.delete", &id, "");
+    one_on("email_group.soft_deleted", &id);
 
     // email groups over MCP
     let mut mcp = live.mcp(&token).await;
@@ -112,7 +124,7 @@ async fn group_and_account_writes_leave_one_row_each() {
     one("email_group.create", &mid, "desk@example.test");
     one("email_group.member_add", &mid, "b@example.test");
     one("email_group.member_remove", &mid, "b@example.test");
-    one("email_group.delete", &mid, "");
+    one_on("email_group.soft_deleted", &mid);
 
     // permission groups over REST
     let (status, pg) = call(
@@ -200,7 +212,7 @@ async fn group_and_account_writes_leave_one_row_each() {
         ("email_group.create", 2),
         ("email_group.member_add", 2),
         ("email_group.member_remove", 2),
-        ("email_group.delete", 2),
+        ("email_group.soft_deleted", 2),
         ("group.create", 1),
         ("group.permissions_set", 1),
         ("group.member_add", 2),

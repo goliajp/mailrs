@@ -24,6 +24,12 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
             adm::PATH_ACCOUNT_PURGE,
             post(crate::account_purge::account_purge_route),
         )
+        // Deleted email groups whose retention has passed, their team
+        // state counted; `?dry_run=false` removes it, one audit row each.
+        .route(
+            adm::PATH_GROUP_PURGE,
+            post(crate::account_purge::group_purge_route),
+        )
         // Read-only. Answers "is a query running with no declared path" and
         // "is a declared path carrying no queries" — neither of which this
         // store could answer before kevy 5.1.
