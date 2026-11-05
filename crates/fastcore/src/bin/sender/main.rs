@@ -31,6 +31,7 @@ mod config;
 mod deliver;
 mod egress;
 mod mock;
+mod ops;
 mod outbound_scan;
 mod outcome;
 mod pause;
@@ -60,40 +61,6 @@ use retry_queue::*;
 use mailrs_core_sidestate::families::outbound::{PENDING_IDX, SCHEDULED_IDX};
 
 const PENDING_IDX_KEY: &[u8] = PENDING_IDX;
-
-impl Cfg {
-    fn from_env() -> Self {
-        Self {
-            kevy_url: std::env::var("MAILRS_KEVY_URL")
-                .expect("MAILRS_KEVY_URL required (kevy://host:port)"),
-            helo: std::env::var("MAILRS_HELO_HOSTNAME")
-                .unwrap_or_else(|_| "mail.golia.jp".to_string()),
-            dsn_from_domain: mailrs_fastcore::bounce::dsn_identity().1,
-            pause_limits: Arc::new(pause::PauseLimits::from_env().unwrap_or_else(|e| {
-                eprintln!("{e}");
-                std::process::exit(2)
-            })),
-            max_attempts: std::env::var("MAILRS_SENDER_MAX_ATTEMPTS")
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(retry::DEFAULT_MAX_ATTEMPTS),
-            max_queue_lifetime_secs: std::env::var("MAILRS_SENDER_MAX_QUEUE_LIFETIME_SECS")
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(retry::DEFAULT_MAX_QUEUE_LIFETIME_SECS),
-            poll_ms: std::env::var("MAILRS_SENDER_POLL_MS")
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(500),
-            retry_min_secs: std::env::var("MAILRS_SENDER_RETRY_MIN_SECS")
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(60),
-            dkim: load_dkim_from_env(),
-            arc_key: load_arc_key(),
-        }
-    }
-}
 
 fn kevy(url: &str) -> std::io::Result<kevy_client::Connection> {
     kevy_client::Connection::connect(url).map_err(std::io::Error::from)
@@ -311,6 +278,8 @@ async fn main() {
         .finish();
     tracing::subscriber::set_global_default(subscriber).ok();
 
+    // before the first kevy-server call, which exits when it fails
+    let reporter = ops::start();
     let cfg = Arc::new(Cfg::from_env());
     tracing::info!(
         helo = %cfg.helo,
@@ -321,6 +290,7 @@ async fn main() {
     );
 
     boot_kevy(&cfg);
+    ops::spawn_heartbeat(cfg.clone(), &reporter);
 
     // v2.5.2 §P8-B-B boot hook: reset any inflight job hash that a prior
     // sender crashed on. Best-effort — a network kevy blip here shouldn't
@@ -340,6 +310,7 @@ async fn main() {
     let mut consecutive_errors: u32 = 0;
     let mut last_stale_sweep = now_secs();
     let mut stop = stop::on_stop_signal();
+    reporter.ready(None);
     loop {
         // checked only here: a popped job is always finished, and a BRPOP
         // in flight is not abandoned (its id would be lost), so stopping

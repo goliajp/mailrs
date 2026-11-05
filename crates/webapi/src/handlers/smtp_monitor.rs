@@ -35,20 +35,31 @@ use crate::WebState;
 /// the kevy connection; each WS client gets its own receiver.
 pub type TraceBus = broadcast::Sender<String>;
 
-/// Latest counter frame, or `None` if no receiver has published since
-/// this webapi started. `None` is rendered as a dash, never as zero —
-/// see [`ReceiverStats`].
+/// Latest counter frame and when it arrived (unix seconds), or `None` if
+/// no receiver has published since this webapi started. `None` is rendered
+/// as a dash, never as zero — see [`ReceiverStats`].
 #[derive(Default)]
-pub struct StatsCache(std::sync::RwLock<Option<ReceiverStats>>);
+pub struct StatsCache(std::sync::RwLock<Option<(ReceiverStats, i64)>>);
 
 impl StatsCache {
     pub fn get(&self) -> Option<ReceiverStats> {
-        self.0.read().ok().and_then(|g| g.clone())
+        self.0
+            .read()
+            .ok()
+            .and_then(|g| g.as_ref().map(|(s, _)| s.clone()))
+    }
+
+    /// When the latest frame arrived here.
+    pub fn received_at(&self) -> Option<i64> {
+        self.0
+            .read()
+            .ok()
+            .and_then(|g| g.as_ref().map(|(_, at)| *at))
     }
 
     fn set(&self, stats: ReceiverStats) {
         if let Ok(mut g) = self.0.write() {
-            *g = Some(stats);
+            *g = Some((stats, chrono::Utc::now().timestamp()));
         }
     }
 }
@@ -173,13 +184,18 @@ fn dispatch(channel: &[u8], payload: &[u8], tx: &TraceBus, stats: &StatsCache) {
 
 /// The receiver's counters `/api/health` reports. They arrive on the
 /// stats channel every ten seconds; null until a frame has come, which is
-/// not zero.
+/// not zero. `sent_at` is when the receiver built the frame and
+/// `received_at` when it came here: a frame that keeps its old times is the
+/// last one before the receiver stopped.
 pub fn health(stats: &StatsCache) -> serde_json::Value {
     match stats.get() {
         Some(s) => serde_json::json!({
             "probe_guard_tripped": s.probe_guard_tripped,
             "mask_submit_log_failed": s.mask_submit_log_failed,
             "dane": s.dane.as_ref().map(dane_health),
+            "sent_at": s.sent_at,
+            "received_at": stats.received_at(),
+            "age_secs": stats.received_at().map(|at| chrono::Utc::now().timestamp() - at),
         }),
         None => serde_json::Value::Null,
     }
@@ -359,12 +375,16 @@ mod tests {
             mask_submit_log_failed: None,
             dane: None,
             parsing: None,
+            sent_at: Some(1_700_000_000),
         })
         .unwrap();
 
         dispatch(STATS_CHANNEL, &frame, &tx, &cache);
 
         assert_eq!(cache.get().unwrap().total_connections, 483);
+        let received = cache.received_at().expect("arrival time kept");
+        assert!((chrono::Utc::now().timestamp() - received).abs() < 5);
+        assert_eq!(health(&cache)["sent_at"], 1_700_000_000);
         // The counters are a REST answer, not a stream event — forwarding
         // them onto the trace socket would show up as an unparseable
         // entry in the event list.

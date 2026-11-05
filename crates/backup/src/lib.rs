@@ -20,6 +20,7 @@ use std::path::{Path, PathBuf};
 
 use sha2::{Digest, Sha256};
 
+pub mod ops;
 mod restore;
 pub use restore::restore;
 
