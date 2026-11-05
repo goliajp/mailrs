@@ -197,6 +197,14 @@ pub fn sort_date(header: i64, arrival: Option<i64>) -> Option<i64> {
     }
 }
 
+/// The date a message is stored under: [`sort_date`] of its `Date:` (as
+/// [`extract_headers`] reads it) and the arrival in its maildir file name,
+/// `blob_ref` with or without its subfolder; 0 when neither is known.
+pub fn stored_date(header: i64, blob_ref: &str) -> i64 {
+    let bare = blob_ref.rsplit('/').next().unwrap_or(blob_ref);
+    sort_date(header, maildir_filename_epoch(bare)).unwrap_or(0)
+}
+
 pub fn maildir_filename_epoch(name: &str) -> Option<i64> {
     let first = name.split('.').next()?;
     let n: i64 = first.parse().ok()?;

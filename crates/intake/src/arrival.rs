@@ -6,8 +6,7 @@
 use mailrs_inbound::reason::{self, Reason};
 
 use crate::headers::{
-    body_text_for_search, extract_headers, extract_sender_trust, maildir_filename_epoch,
-    message_id_or_file_id, sort_date,
+    body_text_for_search, extract_headers, extract_sender_trust, message_id_or_file_id, stored_date,
 };
 
 /// A core's per-user thread index, as threading asks about it. `None`
@@ -72,8 +71,7 @@ pub fn derive<'a, T: Threads + ?Sized>(
     // Without a Message-ID the file name supplies one, so every path that
     // reads the file arrives at the same id.
     let message_id = message_id_or_file_id(header_id, blob_ref);
-    let bare = blob_ref.rsplit('/').next().unwrap_or(blob_ref);
-    let date = sort_date(date, maildir_filename_epoch(bare)).unwrap_or(0);
+    let date = stored_date(date, blob_ref);
     let thread_id = thread_root(
         threads,
         addr,
