@@ -398,7 +398,7 @@ impl Dispatcher {
         serde_json::json!({
             "channels": channels,
             "queued": self.outbox.len(),
-            "own_path_awaiting_delivery": self.pending_ids(),
+            "own_path_awaiting_acceptance_250": self.pending_ids(),
             "held_for_maintenance": self.held.len(),
             "push_minimal": self.minimal,
         })
