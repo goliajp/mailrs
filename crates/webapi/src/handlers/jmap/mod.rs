@@ -44,7 +44,9 @@ use serde_json::{Value, json};
 use crate::WebState;
 use crate::handlers::conversations::AuthedUser;
 
-pub use blob::{download, health as upload_health, spawn_sweep as spawn_upload_sweep, upload};
+pub(crate) use blob::{disposition, media_type};
+pub use blob::{download, health as upload_health, upload};
+pub(crate) use limits::UploadSlot;
 
 /// Read JMAP's configuration now, so a bad value stops the start rather
 /// than the first request: `MAILRS_JMAP_SNAPSHOTS_KEPT`.

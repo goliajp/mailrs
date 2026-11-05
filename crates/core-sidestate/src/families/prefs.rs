@@ -17,6 +17,8 @@ use mailrs_core_api::method::admin::{
 };
 
 use crate::NetKevy;
+use crate::families::draft_store as drafts;
+use crate::families::uploads;
 
 /// Best-effort epoch seconds. Fastcore forbids `Date::now`-style calls in
 /// hot loops elsewhere, but a wall clock for a user-facing timestamp is
@@ -35,7 +37,7 @@ fn next_id(conn: &mut kevy_client::Connection, ckey: &str) -> Option<i64> {
 
 /// HGETALL a `{family}:{user}` hash and deserialize the values (odd
 /// entries) as `T`. Kevy returns a flat [field, value, field, value...].
-fn hgetall_values<T: serde::de::DeserializeOwned>(
+pub(crate) fn hgetall_values<T: serde::de::DeserializeOwned>(
     conn: &mut kevy_client::Connection,
     key: &str,
 ) -> Vec<T> {
@@ -139,34 +141,13 @@ pub async fn save_draft<S: NetKevy>(
     State(state): State<Arc<S>>,
     Path(user): Path<String>,
     Json(req): Json<SaveDraftRequest>,
-) -> Result<Json<SaveDraftResponse>, StatusCode> {
-    let mut conn = state.net_conn().ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
-    // upsert: reuse a client-supplied id (in-place update) or allocate a
-    // fresh one — so autosave updates one draft instead of spawning many.
-    let id = match req.id {
-        Some(existing) => existing,
-        None => next_id(&mut conn, &drafts_counter_key(&user))
-            .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?,
+) -> Result<Json<SaveDraftResponse>, (StatusCode, Json<serde_json::Value>)> {
+    let Some(mut conn) = state.net_conn() else {
+        return Err(drafts::SaveError::Unavailable.into_parts());
     };
-    let now = now_secs();
-    let notes = kept_restore_notes(&mut conn, &user, id);
-    let draft = DraftWire {
-        id,
-        withheld_send_at: notes.withheld_send_at,
-        attachments_not_included: notes.attachments_not_included,
-        to: req.to,
-        cc: req.cc,
-        bcc: req.bcc,
-        subject: req.subject,
-        body: req.body,
-        reply_to_thread_id: req.reply_to_thread_id,
-        from: req.from,
-        scheduled_at: req.scheduled_at,
-        created_at: now,
-        updated_at: now,
-    };
-    hset_json(&mut conn, &drafts_key(&user), id, &draft)?;
-    Ok(Json(SaveDraftResponse { id }))
+    drafts::save(&mut conn, &uploads::root(), &user, req, now_secs())
+        .map(Json)
+        .map_err(drafts::SaveError::into_parts)
 }
 
 pub async fn delete_draft<S: NetKevy>(
