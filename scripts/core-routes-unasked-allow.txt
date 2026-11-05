@@ -55,7 +55,7 @@ POST /v1/admin/maintenance:rewrite-aof | compact the embedded store's AOF from m
 POST /v1/admin/maintenance:sent-axis-shadow | read-only: the declared is_sender axis against the legacy sent zset
 POST /v1/admin/maintenance:shadow-read | read-only: the declared ORDERPATH's answer against the zset's, per account
 POST /v1/admin/maintenance:spoof-landing | read-only: where mail forging one of our own domains ended up
-POST /v1/admin/maintenance:strip-shared-per-user-fields | strip one owner's per-user fields off shared message blobs (per-user projection, stage 6)
+POST /v1/admin/maintenance:strip-shared-per-user-fields | strip one owner's per-user fields off shared message blobs (per-user projection, stage 6; dry run unless dry_run=false; skip/limit over conversations)
 POST /v1/admin/maintenance:sweep-legacy-admin-keys | delete the pre-P6 admin keyspace in process
 POST /v1/admin/maintenance:table-verify | read-only: the engine's drift check of each declared index against the rows
 POST /v1/admin/maintenance:thread-date-audit | threads dated later than anything that arrived in them ({"repair": true} fixes)

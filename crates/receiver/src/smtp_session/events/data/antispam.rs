@@ -82,6 +82,13 @@ pub(super) async fn run_antispam(
         ctx.spam_lists_client.clone(),
     )
     .await;
+    hits::record_seven_z(
+        &receive_ctx.message,
+        evidence.seven_z_archives(),
+        evidence.sender_host(),
+        ctx.spam_lists_client.clone(),
+    )
+    .await;
     // Only when something was found. The verdict costs four small
     // string builds, and this runs on every message that reaches the
     // server — but a message nobody suspected has no finding worth

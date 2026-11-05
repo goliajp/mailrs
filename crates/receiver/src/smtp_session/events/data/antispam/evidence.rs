@@ -94,6 +94,10 @@ impl Evidence {
         &self.sender_host
     }
 
+    pub(super) fn seven_z_archives(&self) -> u32 {
+        self.attachments.inside.seven_z_archives
+    }
+
     // The half of `mailrs_fraud` that needs to know what this
     // organisation is called. The other half — the mailer fingerprint —
     // is read from the message by `ReceiveContext::new`, because it
@@ -219,6 +223,7 @@ impl Evidence {
             has_executable_attachment: self.attachments.inside.carries_code,
             has_encrypted_document_archive: self.attachments.inside.encrypted_document_archive,
             parser_failed_on_message: self.attachments.parser_failed,
+            has_unreadable_archive: self.attachments.inside.unreadable_archive,
             reply_marker_without_thread: self.reply_marker_without_thread,
             has_zero_width_inside_a_word: receive_ctx.deception.zero_width_inside_a_word,
             offers_the_reader_a_sum: self.offers_the_reader_a_sum,

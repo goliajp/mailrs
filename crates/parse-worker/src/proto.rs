@@ -149,6 +149,8 @@ impl Parser {
 pub struct InsideWire {
     pub carries_code: bool,
     pub encrypted_document_archive: bool,
+    pub unreadable_archive: bool,
+    pub seven_z_archives: u32,
 }
 
 impl From<mailrs_fraud::attachment_inside::Inside> for InsideWire {
@@ -156,6 +158,8 @@ impl From<mailrs_fraud::attachment_inside::Inside> for InsideWire {
         Self {
             carries_code: i.carries_code,
             encrypted_document_archive: i.encrypted_document_archive,
+            unreadable_archive: i.unreadable_archive,
+            seven_z_archives: i.seven_z_archives,
         }
     }
 }
@@ -165,6 +169,8 @@ impl From<InsideWire> for mailrs_fraud::attachment_inside::Inside {
         Self {
             carries_code: i.carries_code,
             encrypted_document_archive: i.encrypted_document_archive,
+            unreadable_archive: i.unreadable_archive,
+            seven_z_archives: i.seven_z_archives,
         }
     }
 }
