@@ -72,7 +72,15 @@ pub(crate) fn ingest_delivered_file(
     if !a.is_own && !held && !in_junk {
         crate::senders::after_delivery(state, addr, &a.from);
     }
-    effects::after_store(state.net_conn(), addr, &a, held);
+    // held now, by this message or one before it: a follow-up to a held
+    // conversation carries no verdict of its own
+    let in_review = state
+        .mailbox
+        .get_thread_for_user(addr, &a.thread_id)
+        .ok()
+        .flatten()
+        .is_some_and(|t| t.quarantined);
+    effects::after_store(state.net_conn(), addr, &a, held, in_review);
 }
 
 /// The writes to this store. Returns whether the thread was held as fraud.

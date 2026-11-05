@@ -154,6 +154,18 @@ impl PgMailboxStore {
         Ok(true)
     }
 
+    /// Whether `thread_id` is held for `user` now.
+    pub async fn is_held(&self, user: &str, thread_id: &str) -> Result<bool, sqlx::Error> {
+        let (n,): (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM quarantine_holds WHERE account_address = $1 AND thread_id = $2",
+        )
+        .bind(user)
+        .bind(thread_id)
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(n > 0)
+    }
+
     /// Every hold of `thread_id` for `user`, oldest first.
     pub async fn holds(&self, user: &str, thread_id: &str) -> Result<Vec<HoldFact>, sqlx::Error> {
         let rows: Vec<(i64, String, String, String)> = sqlx::query_as(
