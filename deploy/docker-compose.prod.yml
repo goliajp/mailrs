@@ -233,6 +233,10 @@ services:
       MAILRS_AUDIT_REPLICA_DIR: ${MAILRS_AUDIT_REPLICA_DIR:-}
       # days a fact-ledger link row is kept for re-judging by host
       MAILRS_LEDGER_LINK_DAYS: ${MAILRS_LEDGER_LINK_DAYS:-180}
+      # days a deleted account's data is kept (maildir parked, mail rows,
+      # shared-store keys) before the purge removes it; 0 purges at the
+      # delete. Read by this core, and by the SQL core that replaces it.
+      MAILRS_DELETED_ACCOUNT_DAYS: ${MAILRS_DELETED_ACCOUNT_DAYS:-30}
       MAILRS_TLS_CERT: /certs/fullchain.pem
       MAILRS_TLS_KEY: /certs/privkey.pem
       RUST_LOG: info

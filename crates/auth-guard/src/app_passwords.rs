@@ -244,6 +244,14 @@ pub fn revoke_all(c: &mut Connection, account: &str) -> io::Result<usize> {
     Ok(n)
 }
 
+/// Globs matching every key kept for `account`'s app passwords: the
+/// passwords, when each was last used, and the account's policy. What a
+/// purge of the account removes.
+pub fn account_key_globs(account: &str) -> Vec<String> {
+    let a = crate::glob_escape(account);
+    vec![key(&a), used_key(&a), policy_key(&a)]
+}
+
 /// The id of the password `input` is, for `account`; `None` when it is
 /// none of them.
 ///

@@ -18,6 +18,9 @@ use crate::core_rpc::CoreRpcState;
 
 // ── effective permissions ───────────────────────────────────────────
 
+pub(crate) mod account_purge;
+mod account_restore;
+pub use account_restore::restore_account;
 mod aliases;
 mod ownerless;
 mod quota;
@@ -226,6 +229,7 @@ fn _import_tz() -> chrono::DateTime<chrono::Utc> {
 /// hashed here with Argon2 so the wire mirrors fastcore's add_account.
 pub async fn add_account(
     State(state): State<Arc<CoreRpcState>>,
+    axum::extract::Query(by): axum::extract::Query<wire::ActorQuery>,
     Json(req): Json<wire::AddAccountRequest>,
 ) -> Result<StatusCode, StatusCode> {
     use argon2::{
@@ -242,6 +246,12 @@ pub async fn add_account(
                 .to_string()
         }
     };
+    // a deleted account's data waits for its purge; an account created on
+    // the address now would be handed it, or lose what it gets meanwhile
+    if account_purge::is_pending(&state, &req.address).await? {
+        tracing::warn!(address = %req.address, "address pending purge; refused");
+        return Err(StatusCode::CONFLICT);
+    }
     quota::give_default(&state, &req.address)?;
     let domain = req.address.rsplit_once('@').map(|(_, d)| d).unwrap_or("");
     // ensure the domain row exists so the accounts FK is satisfied —
@@ -267,6 +277,14 @@ pub async fn add_account(
             tracing::warn!(error = %e, address = %req.address, "add_account failed");
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
+    mailrs_core_sidestate::families::audit::record_by_core(
+        &*state,
+        by.actor(),
+        mailrs_core_sidestate::families::audit::ACCOUNT_CREATE,
+        &req.address,
+        "",
+        chrono::Utc::now().timestamp(),
+    );
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -284,16 +302,55 @@ pub async fn update_account(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// DELETE /v1/admin/accounts/{address}
+/// DELETE /v1/admin/accounts/{address} — as fastcore's: the maildir is
+/// parked where delivery cannot find it, the account row is marked deleted
+/// (it and what references it stay for a restore), and the
+/// address is marked for its purge, which removes the rest once the
+/// retention period has passed (at once under 0 days). The account is kept
+/// when the maildir cannot be moved.
 pub async fn remove_account(
     State(state): State<Arc<CoreRpcState>>,
     Path(address): Path<String>,
+    axum::extract::Query(by): axum::extract::Query<wire::ActorQuery>,
 ) -> Result<StatusCode, StatusCode> {
+    let existed = account_purge::is_account(&state, &address).await?;
+    let now = chrono::Utc::now().timestamp();
+    let marked = match existed {
+        true => account_purge::mark(&state, &address, now).await?,
+        false => false,
+    };
+    if existed {
+        let root = std::path::Path::new(&state.maildir_root);
+        if let Err(e) =
+            mailrs_core_sidestate::families::account_purge::maildir::park(root, &address, now)
+        {
+            tracing::error!(error = %e, %address, "removing the account's maildir failed; account kept");
+            if marked {
+                account_purge::unmark(&state, &address).await?;
+            }
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    }
     state
         .domain
-        .remove_account(&address)
+        .remove_account(&address, now)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    mailrs_core_sidestate::families::audit::record_by_core(
+        &*state,
+        by.actor(),
+        mailrs_core_sidestate::families::audit::ACCOUNT_DELETE,
+        &address,
+        "",
+        now,
+    );
+    let days = mailrs_core_sidestate::families::account_purge::pending::retention_days();
+    if marked
+        && days == 0
+        && let Err(code) = account_purge::run(&state, false, Some(address.clone()), now, 0).await
+    {
+        tracing::error!(%code, %address, "purging at the delete failed; the retention task retries");
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 

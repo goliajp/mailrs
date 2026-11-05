@@ -7,7 +7,7 @@ use std::sync::Arc;
 use mailrs_mailbox_kevy::ledger::LedgerVerdict;
 use mailrs_reputation::{Kind, NeverList, Observation};
 
-use super::recall::{self, Recall};
+use super::recall::{self, Candidate};
 use super::{COUNTS, Counts};
 use crate::FastcoreState;
 use crate::maintenance::fraud_rescan::{Disposition, FraudJudge, FraudJudgement, disposition};
@@ -227,27 +227,25 @@ fn act(
         );
         return;
     }
-    let done = match action {
-        "hold" => {
-            let from = mailrs_inbound::from_header(raw);
-            let subject = mailrs_inbound::subject_header(raw);
-            recall::recall(
-                state,
-                &Recall {
-                    user,
-                    tid: &tid,
-                    mid,
-                    from: &from,
-                    subject: &subject,
-                    rules: new.rules.clone(),
-                    observation: obs,
-                    verdict: &judged.verdict,
-                    arrived: mailrs_inbound::dates::received_epoch(raw),
-                },
-            )
+    // a hold is gathered for the round's one decision (`recall::settle`)
+    if action == "hold" {
+        let candidate = Candidate {
+            user: user.to_string(),
+            tid,
+            mid: mid.to_string(),
+            from: mailrs_inbound::from_header(raw),
+            subject: mailrs_inbound::subject_header(raw),
+            rules: new.rules.clone(),
+            verdict: judged.verdict.clone(),
+            arrived: mailrs_inbound::dates::received_epoch(raw),
+        };
+        if let Err(e) = recall::offer(state, obs, &candidate) {
+            tracing::warn!(error = %e, %user, tid = %candidate.tid,
+                "rejudge: the conversation to hold was not kept for the round");
         }
-        _ => recall::unrecall(state, user, &tid, &judged.verdict.rules_version),
-    };
+        return;
+    }
+    let done = recall::unrecall(state, user, &tid, &judged.verdict.rules_version);
     match done {
         Ok(true) => {
             Counts::add(&COUNTS.acted, 1);

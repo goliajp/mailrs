@@ -30,6 +30,21 @@ pub mod presence;
 #[cfg(test)]
 mod tests;
 
+#[cfg(test)]
+mod family_names {
+    #[test]
+    fn a_group_purge_counts_keys_by_family() {
+        let f = |k: &str| super::group_family(12, k);
+        assert_eq!(f("shared:12:msgids"), "shared:{gid}:msgids");
+        assert_eq!(f("shared:12:note-counter"), "shared:{gid}:note-counter");
+        assert_eq!(f("shared:12:3:notes"), "shared:{gid}:{conv}:notes");
+        assert_eq!(
+            f("shared:12:3:presence:a@x"),
+            "shared:{gid}:{conv}:presence:*"
+        );
+    }
+}
+
 /// One team conversation: group `gid`'s conversation number `conv`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ConvRef {
@@ -55,6 +70,36 @@ impl ConvRef {
     /// The key of this conversation's `what` (`notes`, `assign`, ...).
     pub fn key(&self, what: &str) -> String {
         format!("shared:{}:{}:{what}", self.gid, self.conv)
+    }
+}
+
+/// Every key of group `gid`'s working state, as a glob.
+pub fn group_glob(gid: i64) -> String {
+    format!("shared:{gid}:*")
+}
+
+/// Every member's held reply claims, as a glob.
+pub const CLAIMS_GLOB: &str = "shared:claims:*";
+
+/// The name the reply claims members hold for one group are counted under
+/// when the group is purged.
+pub const GROUP_CLAIMS: &str = "shared:claims:{user} (the group's claims)";
+
+/// Group `gid`'s key `key` under its family's name, as a purge counts it:
+/// the group id as `{gid}`, a conversation number as `{conv}`, a member as
+/// `*` (`shared:{gid}:{conv}:presence:*`).
+pub fn group_family(gid: i64, key: &str) -> String {
+    let prefix = format!("shared:{gid}:");
+    let rest = key.strip_prefix(&prefix).unwrap_or(key);
+    let conv_and_what = rest
+        .split_once(':')
+        .filter(|(conv, _)| !conv.is_empty() && conv.bytes().all(|b| b.is_ascii_digit()));
+    let Some((_, what)) = conv_and_what else {
+        return format!("shared:{{gid}}:{rest}");
+    };
+    match what.split_once(':') {
+        Some((what, _)) => format!("shared:{{gid}}:{{conv}}:{what}:*"),
+        None => format!("shared:{{gid}}:{{conv}}:{what}"),
     }
 }
 
@@ -223,7 +268,7 @@ pub struct HeldClaim {
     pub claim_id: String,
 }
 
-fn claims_key(member: &str) -> String {
+pub fn claims_key(member: &str) -> String {
     format!("shared:claims:{}", member.trim().to_ascii_lowercase())
 }
 

@@ -58,7 +58,7 @@ pub(crate) fn record_release(
         .map_err(|e| e.to_string())?;
     let detail =
         format!("user={user} source={source} actor={actor} rules_version={rules_version} {scope}");
-    audit(
+    mailrs_core_sidestate::families::audit::record_by_core(
         state,
         actor,
         "quarantine.release",
@@ -129,7 +129,14 @@ pub(crate) fn record_hold(
         "user={user} source={source} rules_version={rules_version} rules={}",
         rules.join(",")
     );
-    audit(state, SYSTEM, "quarantine.hold", tid, &detail, now());
+    mailrs_core_sidestate::families::audit::record_by_core(
+        state,
+        SYSTEM,
+        "quarantine.hold",
+        tid,
+        &detail,
+        now(),
+    );
 }
 
 /// The rule ids a stored verdict names.
@@ -138,16 +145,4 @@ pub(crate) fn verdict_rules(v: &mailrs_inbound::FraudVerdict) -> Vec<String> {
         .iter()
         .flat_map(|l| l.reasons.iter().map(|r| r.code.clone()))
         .collect()
-}
-
-fn audit(state: &FastcoreState, actor: &str, action: &str, target: &str, detail: &str, at: i64) {
-    let Some(mut conn) = state.net_conn() else {
-        tracing::warn!(%action, %target, "no network kevy: the audit line was not written");
-        return;
-    };
-    if let Err(error) =
-        mailrs_core_sidestate::families::audit::append(&mut conn, actor, action, target, detail, at)
-    {
-        tracing::warn!(%error, %action, %target, "the audit line was not written");
-    }
 }

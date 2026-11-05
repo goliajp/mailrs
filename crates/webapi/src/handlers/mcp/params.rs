@@ -74,6 +74,16 @@ pub struct AddressParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+pub struct RestoreAccountParams {
+    /// The deleted account's address.
+    pub address: String,
+    /// Which parked maildir to move back, by the delete time a refusal
+    /// lists; only for an address deleted more than once.
+    #[serde(default)]
+    pub parked: Option<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
 pub struct AddAliasParams {
     /// Alias source address, e.g. `sales@example.com`.
     pub source_address: String,

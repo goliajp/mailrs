@@ -6142,7 +6142,7 @@
     "/api/review/recalled": {
       "get": {
         "operationId": "listRecalled",
-        "summary": "The caller's conversations moved to Review in the last seven days because stored mail was judged again, newest first, one per conversation",
+        "summary": "The caller's conversations moved to Review in the last seven days because stored mail was judged again or reported, newest first, one entry per round; a conversation is named only by the newest round that took it",
         "tags": [
           "Mail"
         ],
@@ -6159,22 +6159,23 @@
                       "items": {
                         "type": "object",
                         "properties": {
-                          "thread_id": {
-                            "type": "string"
-                          },
-                          "subject": {
-                            "type": "string"
+                          "thread_ids": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "The conversations the round took back"
                           },
                           "rules": {
                             "type": "array",
                             "items": {
                               "type": "string"
                             },
-                            "description": "The fraud rules that now hold it, by id"
+                            "description": "The fraud rules that now hold them, by id"
                           },
                           "observation": {
                             "type": "string",
-                            "description": "The observation that sent it back through the rules"
+                            "description": "The observation (or report batch) that sent them back through the rules"
                           },
                           "at": {
                             "type": "integer",
@@ -7583,6 +7584,82 @@
           }
         },
         "description": "Needs admin.accounts and a recent confirmation. Without `compromised` the account's agent keys keep working. With it, every agent key is revoked, and `revoke_key_ids` must be the ids of all of them as GET .../agent-keys lists them; otherwise 409 `key_list_changed` carries the current keys."
+      }
+    },
+    "/api/admin/accounts/{address}/restore": {
+      "post": {
+        "operationId": "restoreAccount",
+        "summary": "Restore a deleted account before its purge, with its mail, settings and group memberships (super administrator, recent confirmation)",
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "parked": {
+                    "type": "string",
+                    "description": "Which deletion to restore, by its delete time; only for an address deleted more than once"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Restored"
+          },
+          "403": {
+            "description": "Not a super administrator"
+          },
+          "409": {
+            "description": "Refused: the address is an account, is not waiting for a purge, or the deletion to restore is not clear",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "refused",
+                    "parked"
+                  ],
+                  "properties": {
+                    "refused": {
+                      "type": "string",
+                      "enum": [
+                        "live",
+                        "not_pending",
+                        "no_record",
+                        "several_parked",
+                        "no_such_parked",
+                        "maildir_in_the_way"
+                      ]
+                    },
+                    "parked": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/conversations/mark-all-read": {
@@ -10125,7 +10202,7 @@
     "/api/admin/rejudge/batches": {
       "get": {
         "operationId": "listRejudgeBatches",
-        "summary": "Conversations taken back into Review when stored mail was judged again, one batch per observation. Super administrators only",
+        "summary": "Conversations taken back into Review when stored mail was judged again, one batch per observation, and the rounds waiting for a decision. Super administrators only",
         "tags": [
           "Admin"
         ],
@@ -10157,6 +10234,25 @@
                           "released_at": {
                             "type": "integer",
                             "description": "When the batch was put back, epoch seconds; 0 while it has not been"
+                          },
+                          "pending": {
+                            "type": "boolean",
+                            "description": "The round would hold more conversations than one observation may on its own (50 unless the operator sets another cap), so it held nothing and waits to be confirmed or discarded"
+                          },
+                          "would_hold": {
+                            "type": "integer",
+                            "description": "Conversations the round found to hold when it was judged"
+                          },
+                          "rules": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "The fraud rules it holds them for, by id"
+                          },
+                          "discarded_at": {
+                            "type": "integer",
+                            "description": "When a waiting round was discarded, epoch seconds; 0 while it has not been"
                           }
                         }
                       }
@@ -10213,6 +10309,105 @@
           },
           "503": {
             "description": "Put back, but the audit row could not be written"
+          },
+          "409": {
+            "description": "The round is waiting for a decision and holds nothing to put back"
+          }
+        }
+      }
+    },
+    "/api/admin/rejudge/batches/{observation}/confirm": {
+      "post": {
+        "operationId": "confirmRejudgeBatch",
+        "summary": "Hold the conversations a waiting round recorded, each recorded in the audit log; one held since, released by a person since its message came, or no longer held by the rules stays out. Each reader is told once. Super administrators only, after a recent password confirmation",
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "observation",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "How many were held",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "held": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a super administrator, or `confirm_required`: the password was not confirmed in the last ten minutes"
+          },
+          "404": {
+            "description": "No such batch"
+          },
+          "409": {
+            "description": "The round is not waiting for a decision"
+          },
+          "503": {
+            "description": "Decided, but the audit row could not be written"
+          }
+        }
+      }
+    },
+    "/api/admin/rejudge/batches/{observation}/discard": {
+      "post": {
+        "operationId": "discardRejudgeBatch",
+        "summary": "Hold nothing of a waiting round. Super administrators only, after a recent password confirmation",
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "observation",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "How many it would have held",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "would_hold": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a super administrator, or `confirm_required`: the password was not confirmed in the last ten minutes"
+          },
+          "404": {
+            "description": "No such batch"
+          },
+          "409": {
+            "description": "The round is not waiting for a decision"
+          },
+          "503": {
+            "description": "Decided, but the audit row could not be written"
           }
         }
       }

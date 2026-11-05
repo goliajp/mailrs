@@ -8,6 +8,11 @@
 //! - `POST /api/admin/rejudge/batches/{observation}/release` — put one round
 //!   back whole (super administrator, recent password confirmation); each
 //!   conversation is audited by the core, the round once here
+//! - `POST /api/admin/rejudge/batches/{observation}/confirm` and
+//!   `…/discard` — decide on a round that would have held more than one
+//!   observation may on its own and so held nothing: hold what it recorded,
+//!   or nothing (super administrator, recent password confirmation; the
+//!   core and this tier each write an audit line)
 
 use std::sync::Arc;
 
@@ -61,4 +66,48 @@ pub async fn release(
         &detail,
     )?;
     Ok(Json(serde_json::json!({ "released": done.released })))
+}
+
+/// POST /api/admin/rejudge/batches/{observation}/confirm
+pub async fn confirm(
+    _: crate::session::confirm::Confirmed,
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(actor)): Extension<AuthedUser>,
+    Path(observation): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let done = state
+        .core
+        .confirm_rejudge_batch(&observation, &actor)
+        .await
+        .map_err(crate::handlers::admin::map_err)?;
+    let detail = format!("held={}", done.held);
+    crate::handlers::audit::record_required(
+        &actor,
+        "rejudge.batch_confirm",
+        &observation,
+        &detail,
+    )?;
+    Ok(Json(serde_json::json!({ "held": done.held })))
+}
+
+/// POST /api/admin/rejudge/batches/{observation}/discard
+pub async fn discard(
+    _: crate::session::confirm::Confirmed,
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(actor)): Extension<AuthedUser>,
+    Path(observation): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let done = state
+        .core
+        .discard_rejudge_batch(&observation, &actor)
+        .await
+        .map_err(crate::handlers::admin::map_err)?;
+    let detail = format!("would_hold={}", done.would_hold);
+    crate::handlers::audit::record_required(
+        &actor,
+        "rejudge.batch_discard",
+        &observation,
+        &detail,
+    )?;
+    Ok(Json(serde_json::json!({ "would_hold": done.would_hold })))
 }

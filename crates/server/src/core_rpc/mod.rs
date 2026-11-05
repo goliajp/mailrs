@@ -56,6 +56,7 @@ pub struct CoreRpcState {
 /// Start the Trash purge over this core's store.
 pub(crate) fn spawn_trash_purge(state: Arc<CoreRpcState>) {
     handlers::trash::spawn_purge(state.clone());
+    handlers::admin::account_purge::spawn(state.clone());
     handlers::sender_rules::spawn_retention(state);
 }
 

@@ -46,6 +46,8 @@ mod client_labels;
 #[cfg(feature = "client")]
 mod client_messages;
 #[cfg(feature = "client")]
+mod client_rejudge;
+#[cfg(feature = "client")]
 mod client_reports;
 #[cfg(feature = "client")]
 mod client_senders;

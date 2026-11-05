@@ -49,6 +49,27 @@ impl PgMailboxStore {
         Ok(())
     }
 
+    /// The reply claims of every conversation of group `gid`, counted, and
+    /// removed unless `dry_run`: part of a deleted group's team state. Run
+    /// once per purged group, never on a request path.
+    pub async fn purge_group_replies(&self, gid: i64, dry_run: bool) -> Result<u64, sqlx::Error> {
+        // a tag is "{gid}:{conv}": the colon keeps group 4 from taking 40's
+        let prefix = format!("{gid}:%");
+        if dry_run {
+            let (n,): (i64,) =
+                sqlx::query_as("SELECT COUNT(*) FROM shared_reply_state WHERE shared_conv LIKE $1")
+                    .bind(&prefix)
+                    .fetch_one(&self.pool)
+                    .await?;
+            return Ok(n as u64);
+        }
+        let done = sqlx::query("DELETE FROM shared_reply_state WHERE shared_conv LIKE $1")
+            .bind(&prefix)
+            .execute(&self.pool)
+            .await?;
+        Ok(done.rows_affected())
+    }
+
     /// The reply claims of team conversation `tag`.
     pub async fn reply_state(&self, tag: &str) -> Result<ReplyState, sqlx::Error> {
         let row: Option<(String,)> =

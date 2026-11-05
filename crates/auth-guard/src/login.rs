@@ -256,6 +256,21 @@ fn bucket_key(scope: &str, index: u64) -> String {
     format!("ag:w:{scope}:{index}")
 }
 
+/// Globs matching every key the guard keeps for `account`, from any
+/// source: failure windows, strikes, locks, recent and familiar networks.
+/// They all expire; a purge of the account removes them sooner.
+pub fn account_key_globs(account: &str) -> Vec<String> {
+    let a = crate::glob_escape(&normalize_account(account));
+    let mut out = vec![format!("ag:f:{a}")];
+    for scope in [format!("a:{a}"), format!("sa:*:{a}")] {
+        out.push(recent_key(&scope));
+        out.push(lock_key(&scope));
+        out.push(strike_key(&scope));
+        out.push(format!("ag:w:{scope}:*"));
+    }
+    out
+}
+
 /// The keys holding the window that ends at `now`, current bucket first.
 fn window_keys(scope: &str, window_secs: u64, now: u64) -> Vec<String> {
     let current = now / bucket_width(window_secs);

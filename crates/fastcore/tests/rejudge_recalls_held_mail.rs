@@ -67,7 +67,7 @@ async fn a_held_verdict_takes_the_conversation_back_and_a_batch_puts_it_back() {
     let now = chrono::Utc::now().timestamp();
     let notices = recall_notices::recent(&mut w.kv, USER, now).unwrap();
     assert_eq!(notices.len(), 1, "{notices:?}");
-    assert_eq!(notices[0].thread_id, program);
+    assert_eq!(notices[0].thread_ids, [program]);
     assert!(
         notices[0]
             .rules

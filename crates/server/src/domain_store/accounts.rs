@@ -12,7 +12,7 @@ impl DomainStore {
             "SELECT address, domain, display_name, active, \
              EXTRACT(EPOCH FROM created_at)::bigint, quota_bytes, password_hash, recovery_email, \
              password_cleared_at, password_cleared_by \
-             FROM accounts",
+             FROM accounts WHERE deleted_at IS NULL",
         )
         .fetch_all(pool)
         .await;
@@ -38,7 +38,7 @@ impl DomainStore {
             "SELECT address, domain, display_name, active, \
              EXTRACT(EPOCH FROM created_at)::bigint, quota_bytes, password_hash, recovery_email, \
              password_cleared_at, password_cleared_by \
-             FROM accounts ORDER BY address",
+             FROM accounts WHERE deleted_at IS NULL ORDER BY address",
         )
         .fetch_all(pool)
         .await?;
@@ -104,12 +104,14 @@ impl DomainStore {
         display_name: &str,
     ) -> Result<bool> {
         let pool = self.pg()?;
-        let rows = sqlx::query("UPDATE accounts SET display_name = $2 WHERE address = $1")
-            .bind(address)
-            .bind(display_name)
-            .execute(pool)
-            .await?
-            .rows_affected();
+        let rows = sqlx::query(
+            "UPDATE accounts SET display_name = $2 WHERE address = $1 AND deleted_at IS NULL",
+        )
+        .bind(address)
+        .bind(display_name)
+        .execute(pool)
+        .await?
+        .rows_affected();
         if rows > 0 {
             // invalidate caches
             self.account_cache.remove(address);
@@ -131,7 +133,7 @@ impl DomainStore {
                 "SELECT address, domain, display_name, active, \
                  EXTRACT(EPOCH FROM created_at)::bigint, quota_bytes, password_hash, recovery_email, \
                  password_cleared_at, password_cleared_by \
-                 FROM accounts WHERE address = $1",
+                 FROM accounts WHERE address = $1 AND deleted_at IS NULL",
             )
             .bind(address)
             .fetch_optional(pool)
@@ -164,28 +166,52 @@ impl DomainStore {
         Ok(None)
     }
 
-    pub async fn remove_account(&self, address: &str) -> Result<bool> {
+    /// Mark the account deleted at `now`. The row stays, and with it every
+    /// row that references it (sieve, calendars, contacts, keys, group
+    /// memberships), so a restore brings them back; the purge deletes it.
+    /// Every read and write of accounts leaves a deleted row alone.
+    pub async fn remove_account(&self, address: &str, now: i64) -> Result<bool> {
         let pool = self.pg()?;
-        let res = sqlx::query("DELETE FROM accounts WHERE address = $1")
-            .bind(address)
-            .execute(pool)
-            .await?;
-        sqlx::query("DELETE FROM account_send_as WHERE account_address = $1")
-            .bind(address)
-            .execute(pool)
-            .await?;
+        let res = sqlx::query(
+            "UPDATE accounts SET deleted_at = $2 WHERE address = $1 AND deleted_at IS NULL",
+        )
+        .bind(address)
+        .bind(now)
+        .execute(pool)
+        .await?;
+        self.forget_account(address);
+        Ok(res.rows_affected() > 0)
+    }
+
+    /// Bring a deleted account's row back. `false` when there is no
+    /// deleted row for `address`.
+    pub async fn restore_account(&self, address: &str) -> Result<bool> {
+        let pool = self.pg()?;
+        let res = sqlx::query(
+            "UPDATE accounts SET deleted_at = NULL WHERE address = $1 AND deleted_at IS NOT NULL",
+        )
+        .bind(address)
+        .execute(pool)
+        .await?;
+        self.forget_account(address);
+        Ok(res.rows_affected() > 0)
+    }
+
+    fn forget_account(&self, address: &str) {
         self.account_cache.remove(address);
         self.kevy_del(&format!("acct:{address}"));
-        Ok(res.rows_affected() > 0)
+        self.kevy_del(&format!("perms:{address}"));
     }
 
     pub async fn set_quota(&self, address: &str, quota_bytes: i64) -> Result<bool> {
         let pool = self.pg()?;
-        let res = sqlx::query("UPDATE accounts SET quota_bytes = $1 WHERE address = $2")
-            .bind(quota_bytes)
-            .bind(address)
-            .execute(pool)
-            .await?;
+        let res = sqlx::query(
+            "UPDATE accounts SET quota_bytes = $1 WHERE address = $2 AND deleted_at IS NULL",
+        )
+        .bind(quota_bytes)
+        .bind(address)
+        .execute(pool)
+        .await?;
         // invalidate caches
         if let Some(mut entry) = self.account_cache.get_mut(address) {
             entry.account.quota_bytes = quota_bytes;
@@ -196,11 +222,13 @@ impl DomainStore {
 
     pub async fn update_recovery_email(&self, address: &str, recovery_email: &str) -> Result<bool> {
         let pool = self.pg()?;
-        let res = sqlx::query("UPDATE accounts SET recovery_email = $1 WHERE address = $2")
-            .bind(recovery_email)
-            .bind(address)
-            .execute(pool)
-            .await?;
+        let res = sqlx::query(
+            "UPDATE accounts SET recovery_email = $1 WHERE address = $2 AND deleted_at IS NULL",
+        )
+        .bind(recovery_email)
+        .bind(address)
+        .execute(pool)
+        .await?;
         // invalidate caches
         if let Some(mut entry) = self.account_cache.get_mut(address) {
             entry.account.recovery_email = recovery_email.to_string();
@@ -217,7 +245,8 @@ impl DomainStore {
         // a password set is no longer a password cleared
         let res = sqlx::query(
             "UPDATE accounts SET password_hash = $1, \
-             password_cleared_at = NULL, password_cleared_by = NULL WHERE address = $2",
+             password_cleared_at = NULL, password_cleared_by = NULL \
+             WHERE address = $2 AND deleted_at IS NULL",
         )
         .bind(password_hash)
         .bind(address)
@@ -234,7 +263,8 @@ impl DomainStore {
         let pool = self.pg()?;
         let res = sqlx::query(
             "UPDATE accounts SET password_hash = '', \
-             password_cleared_at = $1, password_cleared_by = $2 WHERE address = $3",
+             password_cleared_at = $1, password_cleared_by = $2 \
+             WHERE address = $3 AND deleted_at IS NULL",
         )
         .bind(now)
         .bind(by)

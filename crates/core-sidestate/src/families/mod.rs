@@ -2,6 +2,7 @@
 //! `S: crate::NetKevy` so both cores mount the same code.
 
 pub mod account_names;
+pub mod account_purge;
 pub mod admin_state;
 pub mod audit;
 pub mod audit_chain;
@@ -19,6 +20,7 @@ pub mod egress;
 pub mod email_groups;
 pub mod forwarding;
 pub mod fraud_hits;
+pub mod group_purge;
 pub mod identity_link;
 pub mod image_prefetch;
 pub mod imap_import;

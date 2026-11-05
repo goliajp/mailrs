@@ -4,6 +4,11 @@ use crate::client::Client;
 use crate::error::ApiResult;
 use crate::method;
 
+/// An address as a query value: `&`, `=` and `+` are legal in a local part.
+fn actor_param(actor: &str) -> String {
+    percent_encoding::utf8_percent_encode(actor, percent_encoding::NON_ALPHANUMERIC).to_string()
+}
+
 impl Client {
     /// GET /v1/admin/accounts/{address}/effective-permissions
     pub async fn effective_permissions(
@@ -17,11 +22,32 @@ impl Client {
         self.get_authed(path, "effective_permissions").await
     }
 
-    /// POST /v1/admin/accounts — create account
+    /// POST /v1/admin/accounts — create account; the core audits it as `system`
     pub async fn add_account(&self, req: &method::admin::AddAccountRequest) -> ApiResult<()> {
+        self.add_account_as(req, None).await
+    }
+
+    /// POST /v1/admin/accounts — create account; the core audits it as `actor`
+    pub async fn add_account_by(
+        &self,
+        req: &method::admin::AddAccountRequest,
+        actor: &str,
+    ) -> ApiResult<()> {
+        self.add_account_as(req, Some(actor)).await
+    }
+
+    async fn add_account_as(
+        &self,
+        req: &method::admin::AddAccountRequest,
+        actor: Option<&str>,
+    ) -> ApiResult<()> {
+        let path = match actor {
+            Some(a) => format!("/v1/admin/accounts?actor={}", actor_param(a)),
+            None => "/v1/admin/accounts".to_string(),
+        };
         let resp = self
             .inner
-            .post(self.url("/v1/admin/accounts"))
+            .post(self.url(&path))
             .bearer_auth(&self.auth_bearer)
             .json(req)
             .send()
@@ -30,9 +56,19 @@ impl Client {
         Self::map_status_unit(resp, "add_account").await
     }
 
-    /// DELETE /v1/admin/accounts/{address}
+    /// DELETE /v1/admin/accounts/{address} — the core audits it as `system`
     pub async fn remove_account(&self, address: &str) -> ApiResult<()> {
         let path = format!("/v1/admin/accounts/{}", Self::enc(address));
+        self.delete_authed(path, "remove_account").await
+    }
+
+    /// DELETE /v1/admin/accounts/{address} — the core audits it as `actor`
+    pub async fn remove_account_by(&self, address: &str, actor: &str) -> ApiResult<()> {
+        let path = format!(
+            "/v1/admin/accounts/{}?actor={}",
+            Self::enc(address),
+            actor_param(actor)
+        );
         self.delete_authed(path, "remove_account").await
     }
 
@@ -157,6 +193,68 @@ impl Client {
         self.post_authed_no_body(path, "quota_limits").await
     }
 
+    /// POST /v1/admin/accounts/{address}/restore — a deleted account whose
+    /// purge has not run, back as it was. A refusal is a `Conflict` naming
+    /// the reason and the parked maildirs there are.
+    pub async fn restore_account(
+        &self,
+        address: &str,
+        req: &method::admin::RestoreAccountRequest,
+    ) -> ApiResult<()> {
+        let resp = self
+            .inner
+            .post(self.url(&format!(
+                "/v1/admin/accounts/{}/restore",
+                Self::enc(address)
+            )))
+            .bearer_auth(&self.auth_bearer)
+            .json(req)
+            .send()
+            .await
+            .map_err(|e| crate::client::transport("restore_account", e))?;
+        if resp.status().as_u16() != 409 {
+            return Self::map_status_unit(resp, "restore_account").await;
+        }
+        let body = resp.text().await.unwrap_or_default();
+        Err(crate::error::CoreApiError::Conflict(format!(
+            "restore_account: {body}"
+        )))
+    }
+
+    /// POST /v1/admin/maintenance:account-purge — the deleted accounts whose
+    /// retention period has passed, counted per store; with `dry_run` false
+    /// each is removed for good and one audit row written for it. `address`
+    /// narrows the pass to that one pending address.
+    pub async fn account_purge(
+        &self,
+        dry_run: bool,
+        address: Option<&str>,
+    ) -> ApiResult<method::admin::AccountPurgeResponse> {
+        let mut path = format!("/v1/admin/maintenance:account-purge?dry_run={dry_run}");
+        if let Some(a) = address {
+            // `&` and `=` are legal in a local part and end a query value
+            let a = Self::enc(a).replace('&', "%26").replace('=', "%3D");
+            path.push_str(&format!("&address={a}"));
+        }
+        self.post_authed_no_body(path, "account_purge").await
+    }
+
+    /// POST /v1/admin/maintenance:group-purge — the deleted email groups
+    /// whose retention period has passed, with their team working state
+    /// counted; with `dry_run` false each is removed for good and one audit
+    /// row written for it. `gid` narrows the pass to that one group.
+    pub async fn group_purge(
+        &self,
+        dry_run: bool,
+        gid: Option<i64>,
+    ) -> ApiResult<method::admin::GroupPurgeResponse> {
+        let mut path = format!("/v1/admin/maintenance:group-purge?dry_run={dry_run}");
+        if let Some(g) = gid {
+            path.push_str(&format!("&gid={g}"));
+        }
+        self.post_authed_no_body(path, "group_purge").await
+    }
+
     /// GET /v1/admin/maintenance:usage-drift — each account's usage
     /// counter against its maildir, and the counters of addresses that are
     /// not accounts
@@ -195,29 +293,6 @@ impl Client {
             Self::enc(thread_id)
         );
         self.post_authed_no_body(path, "delete_ownerless_thread")
-            .await
-    }
-
-    /// GET /v1/admin/rejudge-batches — what re-judging took back, by round
-    pub async fn rejudge_batches(&self) -> ApiResult<method::admin::RejudgeBatchesResponse> {
-        self.get_authed("/v1/admin/rejudge-batches".to_string(), "rejudge_batches")
-            .await
-    }
-
-    /// POST /v1/admin/rejudge-batches/{observation}/release — put a round back
-    pub async fn release_rejudge_batch(
-        &self,
-        observation: &str,
-        actor: &str,
-    ) -> ApiResult<method::admin::ReleaseRejudgeBatchResponse> {
-        let path = format!(
-            "/v1/admin/rejudge-batches/{}/release",
-            Self::enc(observation)
-        );
-        let req = method::admin::ReleaseRejudgeBatchRequest {
-            actor: actor.to_string(),
-        };
-        self.post_authed_json(path, &req, "release_rejudge_batch")
             .await
     }
 
