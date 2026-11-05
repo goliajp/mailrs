@@ -92,6 +92,16 @@ pub struct ReceiverBeat {
     pub active_connections: u64,
     pub total_connections: u64,
     pub total_messages: u64,
+    /// Its parse workers; `None` from a receiver that parses in process.
+    pub parsing: Option<ParsingBeat>,
+}
+
+/// A process's parse workers, as its health probe reports them.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ParsingBeat {
+    pub failures_24h: u64,
+    /// Unix seconds since which a worker has been held back.
+    pub paused_since: Option<i64>,
 }
 
 /// The sender's progress.
