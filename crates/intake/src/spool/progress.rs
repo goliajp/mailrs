@@ -36,7 +36,7 @@ pub fn drain_progress() -> DrainProgressWire {
 /// The ops status of the spool under `spool_root`, for either core.
 pub fn ops_status(spool_root: &Path) -> OpsStatusWire {
     let (total, mut records) = super::quarantine::records(spool_root);
-    records.sort_by(|a, b| b.quarantined_at.cmp(&a.quarantined_at));
+    records.sort_by_key(|q| std::cmp::Reverse(q.quarantined_at));
     records.truncate(MAX_QUARANTINE_RECORDS);
     OpsStatusWire {
         build: mailrs_ops_report::build::build(),
