@@ -34,7 +34,7 @@ use std::time::Duration;
 
 pub use health::Kind;
 pub use pool::{Failure, Pool, Setup};
-pub use proto::{HtmlFacts, MessageReading, OfficeKind, Parser, Tokenizer, Want};
+pub use proto::{CleanedHtml, HtmlFacts, MessageReading, OfficeKind, Parser, Tokenizer, Want};
 
 use proto::{Answer, AnswerHeader, Op};
 
@@ -262,6 +262,18 @@ pub fn office_text(kind: OfficeKind, bytes: &[u8]) -> Outcome<Result<Vec<String>
         }) => Outcome::Read(lines),
         Outcome::Read(_) => mismatched("office"),
         other => other.map(|_| Ok(Vec::new())),
+    }
+}
+
+/// One HTML document cleaned to text ([`mailrs_clean::clean_email_html`]).
+pub fn clean_html(html: &str, limit: Limit) -> Outcome<CleanedHtml> {
+    match call(Op::CleanHtml, html.as_bytes(), limit, false) {
+        Outcome::Read(Answer {
+            header: AnswerHeader::CleanHtml(c),
+            ..
+        }) => Outcome::Read(c),
+        Outcome::Read(_) => mismatched("clean_html"),
+        other => other.map(|_| CleanedHtml::default()),
     }
 }
 

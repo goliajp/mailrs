@@ -121,11 +121,13 @@ impl PgCore {
         let (text_body, html_body, _) = crate::message_util::parse_message(body);
         let head = String::from_utf8_lossy(&body[..body.len().min(4096)]);
         let is_bulk = clean::detect_bulk_sender(&head);
-        let (clean_text, has_tracking) = match &html_body {
-            Some(html) => {
-                let cleaned = clean::clean_email_html(html);
-                (Some(cleaned.clean_text), cleaned.has_tracking_pixel)
-            }
+        // cleaned in the parse worker; one it fails on is indexed like a
+        // message without HTML
+        let cleaned = html_body.as_deref().and_then(|html| {
+            mailrs_parse_worker::clean_html(html, mailrs_parse_worker::Limit::Inbound).read()
+        });
+        let (clean_text, has_tracking) = match cleaned {
+            Some(c) => (Some(c.clean_text), c.facts.has_tracking_pixel),
             None => (text_body.clone(), false),
         };
         let new_content = clean_text

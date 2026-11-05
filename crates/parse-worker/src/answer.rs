@@ -4,7 +4,9 @@
 //! `step` is called with each parser before it runs; the worker turns
 //! that into a progress frame.
 
-use crate::proto::{Answer, AnswerHeader, HtmlFacts, MessageReading, Op, Parser, Tokenizer, Want};
+use crate::proto::{
+    Answer, AnswerHeader, CleanedHtml, HtmlFacts, MessageReading, Op, Parser, Tokenizer, Want,
+};
 
 /// The answer to `op` on `input`.
 pub fn answer(op: &Op, input: &[u8], step: &mut dyn FnMut(Parser)) -> Answer {
@@ -26,6 +28,21 @@ pub fn answer(op: &Op, input: &[u8], step: &mut dyn FnMut(Parser)) -> Answer {
                 .map(|sections| sections.into_iter().flat_map(|s| s.lines).collect());
             Answer {
                 header: AnswerHeader::Office { lines },
+                blobs: Vec::new(),
+            }
+        }
+        Op::CleanHtml => {
+            step(Parser::CleanHtml);
+            let cleaned = mailrs_clean::clean_email_html(&String::from_utf8_lossy(input));
+            Answer {
+                header: AnswerHeader::CleanHtml(CleanedHtml {
+                    facts: HtmlFacts {
+                        has_tracking_pixel: cleaned.has_tracking_pixel,
+                        is_template_heavy: cleaned.is_template_heavy,
+                        link_count: cleaned.link_count,
+                    },
+                    clean_text: cleaned.clean_text,
+                }),
                 blobs: Vec::new(),
             }
         }
@@ -136,6 +153,18 @@ MZ\r\n\
                 Parser::BayesTokenizer
             ]
         );
+    }
+
+    #[test]
+    fn cleaned_html_is_what_the_cleaner_gives() {
+        let html = "<p>Hello <a href=\"https://x.example/\">there</a></p>";
+        let a = answer(&Op::CleanHtml, html.as_bytes(), &mut |_| {});
+        let AnswerHeader::CleanHtml(c) = a.header else {
+            panic!("a cleaned document");
+        };
+        let want = mailrs_clean::clean_email_html(html);
+        assert_eq!(c.clean_text, want.clean_text);
+        assert_eq!(c.facts.link_count, want.link_count);
     }
 
     #[test]
