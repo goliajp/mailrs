@@ -105,9 +105,8 @@ pub(crate) async fn threadrow_shadow_route(
             if mine.subject != shared.subject {
                 fields.push("subject");
             }
-            if mine.senders_csv != shared.senders_csv {
-                fields.push("senders_csv");
-            }
+            // Not `senders_csv`: a reader's list is the senders of the
+            // messages they hold, and the shared hash lists everyone's.
             if mine.count != shared.count {
                 fields.push("count");
             }

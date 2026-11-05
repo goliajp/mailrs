@@ -125,6 +125,7 @@ impl KevyMailboxStore {
                 row.sent_count = sent;
             }
             self.upsert_thread(user, &row)?;
+            self.recount_participants(user, into, false)?;
             self.set_unread_axis(user, into, row.unread_count)?;
             if let Some((level, score)) = verdict {
                 self.set_thread_importance(user, into, &level, score)?;
@@ -223,6 +224,7 @@ impl KevyMailboxStore {
                     row.subject = w["subject"].as_str().unwrap_or(&row.subject).to_string();
                 }
                 self.upsert_thread(user, &row)?;
+                self.recount_participants(user, &old_tid, false)?;
                 self.set_unread_axis(user, &old_tid, row.unread_count)?;
             } else {
                 // no messages left — drop the empty thread entirely.
@@ -263,6 +265,7 @@ impl KevyMailboxStore {
             trashed_at: 0,
         };
         self.upsert_thread(user, &row)?;
+        self.recount_participants(user, &new_tid, false)?;
         self.set_unread_axis(user, &new_tid, row.unread_count)?;
         Ok(Some(new_tid))
     }

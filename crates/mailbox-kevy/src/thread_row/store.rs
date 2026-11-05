@@ -48,6 +48,9 @@ impl KevyMailboxStore {
             .filter(|f| !have.contains_key(f.as_bytes()))
             .collect();
         if missing.is_empty() && want.iter().all(|(k, v)| have.get(k) == Some(v)) {
+            if !have.contains_key(b"senders_csv".as_slice()) {
+                self.seed_participants(user, &row.thread_id)?;
+            }
             return Ok(false);
         }
         let refs: Vec<(&[u8], &[u8])> = want
@@ -62,6 +65,7 @@ impl KevyMailboxStore {
             }
             Ok(())
         })?;
+        self.seed_participants(user, &row.thread_id)?;
         Ok(true)
     }
 
@@ -114,7 +118,8 @@ impl KevyMailboxStore {
 
                 Ok(())
             })
-            .map_err(std::io::Error::from)
+            .map_err(std::io::Error::from)?;
+        self.seed_participants(user, &row.thread_id)
     }
 
     /// Read a single thread row back. Returns `None` if the hash is

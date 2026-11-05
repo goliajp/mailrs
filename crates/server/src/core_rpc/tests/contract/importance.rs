@@ -60,15 +60,11 @@ async fn a_later_member_does_not_read_an_earlier_members_importance() {
             ..Default::default()
         },
     };
-    // `participants` is left out, and not because it may differ: fastcore's
-    // comes from the shared thread hash and names Carol, who never wrote to
-    // Bob. The same leak in another field, and a defect of its own.
-    let ignore: Vec<&str> = MINTED.iter().copied().chain(["participants"]).collect();
     let rows = d.both(
         "list_conversations [Sent] for the member who only replied",
         cores.fastcore.list_conversations(BOB, &sent).await,
         cores.pg_core.list_conversations(BOB, &sent).await,
-        &ignore,
+        MINTED,
     );
     let (fc, pg) = rows.expect("both cores list Bob's Sent");
     for (core, rows) in [("fastcore", &fc), ("pg-core", &pg)] {

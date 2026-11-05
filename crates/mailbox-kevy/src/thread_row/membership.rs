@@ -173,7 +173,10 @@ pub(crate) fn thread_user_pairs(
         // this list is written with `hset`, which would overwrite each
         // increment with the shared row's total.
         (b"subject".to_vec(), row.subject.as_bytes().to_vec()),
-        (b"senders_csv".to_vec(), row.senders_csv.as_bytes().to_vec()),
+        // `senders_csv` is absent for the reason the flags are: the shared
+        // hash lists every sender any member received, and copying it gave
+        // a member who joined later people who never wrote to them. It is
+        // this reader's, from their own messages (`participants.rs`).
         (
             b"latest_preview".to_vec(),
             row.latest_preview.as_bytes().to_vec(),
