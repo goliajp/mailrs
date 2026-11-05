@@ -427,3 +427,28 @@ fn each_shipped_rule_names_the_facts_its_sentence_needs() {
         "sentences with params no case covers: {unshown:?}"
     );
 }
+
+/// Every shipped rule, shadow ones included, has its sentence in every
+/// language the clients speak. A rule without one makes the panel fall
+/// back to the English detail for its whole layer.
+#[test]
+fn every_shipped_rule_has_a_sentence_in_every_language() {
+    let table: serde_json::Value =
+        serde_json::from_str(include_str!("../../inbound/src/reasons.json")).expect("reasons.json");
+    let rules = Rules::compile(DEFAULT_SOURCE).expect("compiles");
+    let ids: Vec<&String> = rules
+        .enforced_rules()
+        .iter()
+        .chain(rules.shadow_rules())
+        .collect();
+    assert_eq!(ids.len(), rules.rule_count());
+    for id in ids {
+        for lang in ["en", "zh", "ja"] {
+            let text = table[id.as_str()][lang].as_str();
+            assert!(
+                text.is_some_and(|s| !s.is_empty()),
+                "{id} has no {lang} sentence"
+            );
+        }
+    }
+}

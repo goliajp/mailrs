@@ -56,3 +56,48 @@ Content-Type: text/plain; charset=UTF-8\r\n\r\n\
 LINE限定クーポン配信中！ ＼友達追加／ QRコードはこちら\r\n";
     assert!(!findings(raw.as_bytes()).has(RULE));
 }
+
+/// What the re-scan stores for the reported letter names the content
+/// rule that held it, with its score, as a line of the content layer.
+/// It used to say the content layer found nothing.
+#[test]
+fn the_stored_verdict_names_the_content_rule() {
+    let raw = REPORTED.as_bytes();
+    let v = mailrs_fraud_lua::stored::rescan_verdict(raw, &findings(raw));
+    let content = v
+        .layers
+        .iter()
+        .find(|l| l.name == "content")
+        .expect("content");
+    let line = content
+        .reasons
+        .iter()
+        .find(|r| r.code == RULE)
+        .unwrap_or_else(|| panic!("no {RULE} line: {:?}", content.reasons));
+    assert_eq!(line.score, Some(content.score));
+    assert!(content.score > 0.0);
+    let lines: f64 = v
+        .layers
+        .iter()
+        .flat_map(|l| &l.reasons)
+        .filter_map(|r| r.score)
+        .sum();
+    assert!((v.score - lines).abs() < 1e-9, "{v:?}");
+}
+
+/// The counter-example: a letter no content rule fires on stores an
+/// empty content layer.
+#[test]
+fn a_letter_no_content_rule_reads_has_no_content_line() {
+    let raw = "From: shop <info@shop.example>\r\nSubject: coupon\r\n\
+Content-Type: text/plain; charset=UTF-8\r\n\r\n\
+LINE限定クーポン配信中！ ＼友達追加／ QRコードはこちら\r\n";
+    let v = mailrs_fraud_lua::stored::rescan_verdict(raw.as_bytes(), &findings(raw.as_bytes()));
+    let content = v
+        .layers
+        .iter()
+        .find(|l| l.name == "content")
+        .expect("content");
+    assert!(content.reasons.is_empty(), "{:?}", content.reasons);
+    assert_eq!(content.score, 0.0);
+}

@@ -14,7 +14,7 @@ use mailrs_inbound::reason::{
 };
 
 /// One host the message links to, and why a reader should look twice.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct LinkWarning {
     /// The host the link goes to, lower-case. A client marks every link
     /// in the message whose target is on this host.
