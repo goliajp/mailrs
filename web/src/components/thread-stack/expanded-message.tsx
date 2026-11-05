@@ -12,7 +12,7 @@ import { InviteCard } from '@/components/invite-card'
 import { linkifyNodes } from '@/components/linkify-nodes'
 import { MessageBubble } from '@/components/message-bubble'
 import { MessageSource } from '@/components/message-source'
-import { RecipientList } from '@/components/recipient-list'
+import { MessageRecipients } from '@/components/recipient-list'
 import { SenderAvatar } from '@/components/sender-avatar'
 import { SenderClaimBadge } from '@/components/sender-claim-badge'
 import { SenderChecks, SenderTrustBadge } from '@/components/sender-trust-badge'
@@ -116,14 +116,7 @@ export function ExpandedMessage({
               <span className="truncate">{extractEmail(m.sender)}</span>
             </Copyable>
           </p>
-          <p className="flex min-h-4 items-center">
-            <RecipientList label={t('read.to')} value={m.recipients} />
-          </p>
-          {m.cc && (
-            <p className="flex min-h-4 items-center">
-              <RecipientList label={t('read.cc')} value={m.cc} />
-            </p>
-          )}
+          <MessageRecipients cc={m.cc ?? ''} myEmail={myEmail} to={m.recipients} />
           {isSpoofSuspected(m.sender_trust) && <SenderChecks checks={m.sender_checks} />}
           <MessageTags message={m} />
         </div>

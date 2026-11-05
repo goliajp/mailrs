@@ -1,7 +1,50 @@
-import { useEffect, useRef, useState } from 'react'
+import type { Key } from '@/i18n'
+import type { RecipientSummary } from '@/lib/recipients'
+
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { Copyable } from '@/components/copy-button'
-import { splitAddresses } from '@/lib/recipients'
+import { useT } from '@/i18n'
+import { splitAddresses, summarizeRecipients } from '@/lib/recipients'
+
+/**
+ * A message's to and cc lines. A long list — a mailing that names its
+ * several hundred addressees in `To:` — would otherwise fill the header
+ * and push the body and the verdict panel off screen, so it starts as one
+ * line: the reader, the first few names and a count. Pressing the count
+ * shows the to and cc lines whole; until then they are not rendered.
+ */
+export function MessageRecipients({
+  cc,
+  myEmail,
+  to,
+}: {
+  cc: string
+  myEmail: string
+  to: string
+}) {
+  const t = useT()
+  const [expanded, setExpanded] = useState(false)
+  const summary = useMemo(
+    () => summarizeRecipients(splitAddresses(to), splitAddresses(cc), myEmail),
+    [to, cc, myEmail]
+  )
+  if (summary && !expanded) {
+    return <RecipientSummaryLine onExpand={() => setExpanded(true)} summary={summary} />
+  }
+  return (
+    <>
+      <p className="flex min-h-4 items-center">
+        <RecipientList label={t('read.to')} value={to} />
+      </p>
+      {cc && (
+        <p className="flex min-h-4 items-center">
+          <RecipientList label={t('read.cc')} value={cc} />
+        </p>
+      )}
+    </>
+  )
+}
 
 /**
  * The `to` / `cc` line, with the addresses still reachable.
@@ -74,5 +117,38 @@ export function RecipientList({ label, value }: { label: string; value: string }
         </span>
       )}
     </span>
+  )
+}
+
+function othersKey(n: number): Key {
+  if (n === 1) return 'read.recipients.others.one'
+  return 'read.recipients.others.other'
+}
+
+function RecipientSummaryLine({
+  onExpand,
+  summary,
+}: {
+  onExpand: () => void
+  summary: RecipientSummary
+}) {
+  const t = useT()
+  const names = summary.named.map((p) => p.name)
+  if (summary.me) names.unshift(t('thread.me'))
+  return (
+    <p className="flex min-h-4 min-w-0 items-center gap-1" data-recipient-summary>
+      <span className="shrink-0">{t('read.to')}</span>
+      <span className="min-w-0 truncate" title={names.join(', ')}>
+        {names.join(', ')}
+      </span>
+      <button
+        aria-label={t('read.recipients.showAll', { n: summary.total })}
+        className="hover:text-fg focus-visible:ring-accent/50 shrink-0 rounded underline decoration-dotted underline-offset-2 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+        onClick={onExpand}
+        type="button"
+      >
+        {t(othersKey(summary.rest), { n: summary.rest })}
+      </button>
+    </p>
   )
 }

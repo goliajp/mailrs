@@ -3493,6 +3493,22 @@
         }
       }
     },
+    "Me": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自分"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "我"
+          }
+        }
+      }
+    },
     "Members": {
       "localizations": {
         "ja": {
@@ -6022,6 +6038,22 @@
         }
       }
     },
+    "Show all %lld recipients": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "受信者 %lld 名をすべて表示"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示全部 %lld 位收件人"
+          }
+        }
+      }
+    },
     "Show password": {
       "localizations": {
         "ja": {
@@ -7554,6 +7586,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "管理员"
+          }
+        }
+      }
+    },
+    "and %lld others": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ほか %lld 名"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等另外 %lld 人"
+          }
+        }
+      }
+    },
+    "and 1 other": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ほか 1 名"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等另外 1 人"
           }
         }
       }
