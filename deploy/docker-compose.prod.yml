@@ -85,6 +85,11 @@ x-web-push: &web-push
   # mailto:postmaster@ the server's MAILRS_HOSTNAME
   MAILRS_VAPID_SUBJECT: ${MAILRS_VAPID_SUBJECT:-}
 
+# where each process pushes its reports to the ops daemon. A process
+# sends them only once its own key is in ./ops/<process>.env.
+x-ops-report: &ops-report
+  MAILRS_OPS_URL: http://ops:3600
+
 services:
   receiver:
     container_name: mailrs-receiver
@@ -92,16 +97,25 @@ services:
     entrypoint: ["mailrs-receiver"]
     pull_policy: always
     mem_limit: 2g
-    # no web server in the receiver — the image default healthcheck
-    # curls :3100 and flags a perfectly healthy receiver unhealthy
+    # no web server: the heartbeat to the ops daemon also touches a file
     healthcheck:
-      disable: true
+      test: ["CMD", "mailrs-ops", "check-alive", "/data/ops/receiver", "90"]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
     ports:
       - "25:25"
       - "465:465"
       - "587:587"
+    # this process's MAILRS_OPS_REPORT_KEY (`mailrs-ops report-key receiver`
+    # in the ops container); without the file it sends no reports
+    env_file:
+      - path: ./ops/receiver.env
+        required: false
     environment:
-      <<: [*password-reset, *fraud-policy]
+      <<: [*password-reset, *fraud-policy, *ops-report]
+      MAILRS_OPS_STATE_DIR: /data/ops/receiver
       MAILRS_HOSTNAME: mail.golia.ai
       # disposable test mailboxes; every process that touches them reads it
       MAILRS_MOCK_DOMAIN: mock.golia.jp
@@ -152,8 +166,18 @@ services:
     # at 45k messages, growing about 56KB per message), so 4g left no room
     # for the OCR child.
     mem_limit: 6g
+    # the port binds after the replay, so the start period covers one
     healthcheck:
-      disable: true
+      test: ["CMD", "curl", "-sf", "-m", "4", "-o", "/dev/null", "http://localhost:3301/v1/healthz"]
+      interval: 30s
+      timeout: 5s
+      start_period: 600s
+      retries: 3
+    # this process's MAILRS_OPS_REPORT_KEY (`mailrs-ops report-key fastcore`
+    # in the ops container); without the file it sends no reports
+    env_file:
+      - path: ./ops/fastcore.env
+        required: false
     ports:
       - "127.0.0.1:3201:3301"
       - "143:143"
@@ -175,8 +199,9 @@ services:
     networks: [default, fetch]
     environment:
       MAILRS_FASTCORE_BIND: 0.0.0.0:3301
-      <<: [*imap-listeners, *password-reset, *fraud-policy, *web-push]
+      <<: [*imap-listeners, *password-reset, *fraud-policy, *web-push, *ops-report]
       MAILRS_KEVY_DATA_DIR: /data/kevy-fastcore
+      MAILRS_OPS_STATE_DIR: /data/ops/fastcore
       # the upload store webapi-fc writes (same volume): drafts saved
       # through this core name its files, and the account purge removes them
       MAILRS_JMAP_UPLOAD_DIR: /data/jmap-uploads
@@ -270,6 +295,17 @@ services:
     entrypoint: ["mailrs-webapi"]
     pull_policy: always
     mem_limit: 1g
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "-m", "4", "-o", "/dev/null", "http://localhost:3100/api/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    # this process's MAILRS_OPS_REPORT_KEY (`mailrs-ops report-key webapi`
+    # in the ops container); without the file it sends no reports
+    env_file:
+      - path: ./ops/webapi.env
+        required: false
     ports:
       - "127.0.0.1:3103:3100"
     environment:
@@ -311,7 +347,8 @@ services:
       # draft names them; 1 GiB per account
       MAILRS_JMAP_UPLOAD_DIR: /data/jmap-uploads
       # the domain check reads only domain and selector, never the key files
-      <<: [*dkim-identity, *imap-listeners, *password-reset, *fraud-policy, *web-push]
+      <<: [*dkim-identity, *imap-listeners, *password-reset, *fraud-policy, *web-push, *ops-report]
+      MAILRS_OPS_STATE_DIR: /data/ops/webapi
       RUST_LOG: info
     # the image declares /certs for the TLS-serving roles; this one serves
     # no TLS, and without this each recreate leaves an anonymous volume
@@ -338,8 +375,18 @@ services:
     # killed and redelivered by the in-flight recovery, once.
     stop_grace_period: 120s
     healthcheck:
-      disable: true
+      test: ["CMD", "mailrs-ops", "check-alive", "/data/ops/sender", "90"]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
+    # this process's MAILRS_OPS_REPORT_KEY (`mailrs-ops report-key sender`
+    # in the ops container); without the file it sends no reports
+    env_file:
+      - path: ./ops/sender.env
+        required: false
     environment:
+      MAILRS_OPS_STATE_DIR: /data/ops/sender
       MAILRS_KEVY_URL: kevy://kevy-server:6379
       # EHLO name must match the PTR of the sending IP (FCrDNS).
       # 52.195.89.111 reverses to mail.golia.ai, so announcing
@@ -363,7 +410,7 @@ services:
       # policy it was written before.
       MAILRS_SENDER_POLL_MS: "500"
       MAILRS_SENDER_RETRY_MIN_SECS: "60"
-      <<: [*dkim-identity, *fraud-policy]
+      <<: [*dkim-identity, *fraud-policy, *ops-report]
       MAILRS_DKIM_PRIVATE_KEY: /dkim/golia.jp.key
       # our sending address, checked daily against the blocklists below
       MAILRS_EGRESS_IPS: 52.195.89.111
@@ -397,9 +444,22 @@ services:
     pull_policy: always
     user: "0:0"
     mem_limit: 512m
+    # its data mounts are read-only, so the start counter and liveness
+    # file live beside the archives
     healthcheck:
-      disable: true
+      test: ["CMD", "mailrs-ops", "check-alive", "/backup/.ops", "180"]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
+    # this process's MAILRS_OPS_REPORT_KEY (`mailrs-ops report-key backup`
+    # in the ops container); without the file it sends no reports
+    env_file:
+      - path: ./ops/backup.env
+        required: false
     environment:
+      <<: *ops-report
+      MAILRS_OPS_STATE_DIR: /backup/.ops
       MAILRS_KEVY_URL: kevy://kevy-server:6379
       MAILRS_HOSTNAME: mail.golia.ai
       MAILRS_BACKUP_AGE_RECIPIENT: ${MAILRS_BACKUP_AGE_RECIPIENT:?set MAILRS_BACKUP_AGE_RECIPIENT in .env}
@@ -439,9 +499,58 @@ services:
       - /data:size=1m,mode=0700
       - /certs:size=1m,mode=0700
     healthcheck:
-      disable: true
+      test: ["CMD", "curl", "-sf", "-m", "4", "-o", "/dev/null", "http://localhost:3500/healthz"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    # No MAILRS_OPS_URL: fetch shares a network with fastcore alone and has
+    # no writable volume, so it can neither reach the ops daemon nor keep a
+    # start counter. The daemon is told not to expect it
+    # (MAILRS_OPS_PUSH_SOURCES below).
     environment:
       RUST_LOG: info
+    restart: unless-stopped
+
+  # The operations daemon: reads fastcore and webapi, takes the processes'
+  # signed reports, keeps alert state in its own SQLite file, and sends
+  # notices through channels that do not pass through this server's mail.
+  # It never connects to kevy-server and mounts no mail data.
+  #
+  # Everything it needs from the deployment goes in ./ops/ops.env:
+  # MAILRS_OPS_REPORT_MASTER_KEY (the processes' keys are derived from it),
+  # MAILRS_OPS_TOKEN (fastcore gets its sha256), MAILRS_OPS_HEARTBEAT_URL,
+  # and the channels (MAILRS_OPS_WEBHOOK_URL / _PUSH_URL / _RELAY_*). With
+  # no channel configured it only records: `docker exec mailrs-ops
+  # mailrs-ops status` shows the alerts.
+  ops:
+    container_name: mailrs-ops
+    image: ghcr.io/goliajp/mailrs:${MAILRS_VERSION:?set MAILRS_VERSION in .env}
+    entrypoint: ["mailrs-ops"]
+    pull_policy: always
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "mailrs-ops", "status"]
+      interval: 60s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+    env_file:
+      - path: ./ops/ops.env
+        required: false
+    environment:
+      <<: *fraud-policy
+      MAILRS_OPS_BIND: 0.0.0.0:3600
+      MAILRS_OPS_DATA_DIR: /data
+      MAILRS_OPS_FASTCORE_URL: http://fastcore:3301
+      MAILRS_OPS_WEBAPI_URL: http://webapi-fc:3100
+      MAILRS_OPS_PUSH_SOURCES: receiver,sender,backup
+      MAILRS_HOSTNAME: mail.golia.ai
+      RUST_LOG: info
+    tmpfs:
+      - /certs:size=1m,mode=0700
+    volumes:
+      - mailrs-ops-data:/data
     restart: unless-stopped
 
   kevy-server:
@@ -489,6 +598,8 @@ services:
 volumes:
   mailrs-data:
   kevy-server-data:
+  # the ops daemon's SQLite store; a local disk, never a network share
+  mailrs-ops-data:
 
 
 # The address webapi trusts to forward client addresses

@@ -176,6 +176,7 @@ jobs:
           build-args: |
             VERSION=${{ steps.ver.outputs.version }}
             CACHE_BUST=${{ github.ref_name }}
+            GIT_COMMIT=${{ github.sha }}
           # Push without a tag — output is the image digest. The
           # `manifest` job below collects per-arch digests and stamps
           # the semver tags on the combined manifest.
