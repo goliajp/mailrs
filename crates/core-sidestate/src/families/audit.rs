@@ -61,6 +61,31 @@ pub fn append(
     Ok(())
 }
 
+/// One row a core writes for an action it has already taken. The action
+/// stands either way, so a row that cannot be written (no network store,
+/// a failed write) is logged rather than returned.
+pub fn record_by_core(
+    net: &impl crate::NetKevy,
+    actor: &str,
+    action: &str,
+    target: &str,
+    detail: &str,
+    now: i64,
+) {
+    let Some(mut c) = net.net_conn() else {
+        tracing::warn!(%action, %target, "no network kevy: the audit line was not written");
+        return;
+    };
+    if let Err(error) = append(&mut c, actor, action, target, detail, now) {
+        tracing::warn!(%error, %action, %target, "the audit line was not written");
+    }
+}
+
+/// An account made, written by the core that made it, from either core.
+pub const ACCOUNT_CREATE: &str = "account.create";
+/// An account removed, written by the core that removed it.
+pub const ACCOUNT_DELETE: &str = "account.delete";
+
 /// The action of a conversation's mail deleted for good, from any entry
 /// point: the web, MCP, JMAP, IMAP.
 pub const DELETED_FOREVER: &str = "mail.deleted_forever";

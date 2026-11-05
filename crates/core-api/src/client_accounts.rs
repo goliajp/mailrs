@@ -4,6 +4,11 @@ use crate::client::Client;
 use crate::error::ApiResult;
 use crate::method;
 
+/// An address as a query value: `&`, `=` and `+` are legal in a local part.
+fn actor_param(actor: &str) -> String {
+    percent_encoding::utf8_percent_encode(actor, percent_encoding::NON_ALPHANUMERIC).to_string()
+}
+
 impl Client {
     /// GET /v1/admin/accounts/{address}/effective-permissions
     pub async fn effective_permissions(
@@ -17,11 +22,32 @@ impl Client {
         self.get_authed(path, "effective_permissions").await
     }
 
-    /// POST /v1/admin/accounts — create account
+    /// POST /v1/admin/accounts — create account; the core audits it as `system`
     pub async fn add_account(&self, req: &method::admin::AddAccountRequest) -> ApiResult<()> {
+        self.add_account_as(req, None).await
+    }
+
+    /// POST /v1/admin/accounts — create account; the core audits it as `actor`
+    pub async fn add_account_by(
+        &self,
+        req: &method::admin::AddAccountRequest,
+        actor: &str,
+    ) -> ApiResult<()> {
+        self.add_account_as(req, Some(actor)).await
+    }
+
+    async fn add_account_as(
+        &self,
+        req: &method::admin::AddAccountRequest,
+        actor: Option<&str>,
+    ) -> ApiResult<()> {
+        let path = match actor {
+            Some(a) => format!("/v1/admin/accounts?actor={}", actor_param(a)),
+            None => "/v1/admin/accounts".to_string(),
+        };
         let resp = self
             .inner
-            .post(self.url("/v1/admin/accounts"))
+            .post(self.url(&path))
             .bearer_auth(&self.auth_bearer)
             .json(req)
             .send()
@@ -30,9 +56,19 @@ impl Client {
         Self::map_status_unit(resp, "add_account").await
     }
 
-    /// DELETE /v1/admin/accounts/{address}
+    /// DELETE /v1/admin/accounts/{address} — the core audits it as `system`
     pub async fn remove_account(&self, address: &str) -> ApiResult<()> {
         let path = format!("/v1/admin/accounts/{}", Self::enc(address));
+        self.delete_authed(path, "remove_account").await
+    }
+
+    /// DELETE /v1/admin/accounts/{address} — the core audits it as `actor`
+    pub async fn remove_account_by(&self, address: &str, actor: &str) -> ApiResult<()> {
+        let path = format!(
+            "/v1/admin/accounts/{}?actor={}",
+            Self::enc(address),
+            actor_param(actor)
+        );
         self.delete_authed(path, "remove_account").await
     }
 

@@ -23,6 +23,7 @@ use crate::*;
 pub(crate) async fn remove_account_route(
     State(state): State<Arc<FastcoreState>>,
     Path(address): Path<String>,
+    axum::extract::Query(by): axum::extract::Query<mailrs_core_api::method::admin::ActorQuery>,
 ) -> axum::response::Response {
     let blob = match state.mailbox.get_account_blob(&address) {
         Ok(Some(b)) => b,
@@ -67,8 +68,16 @@ pub(crate) async fn remove_account_route(
         }
         return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
-    if let Err(e) = state.mailbox.delete_account(&address) {
-        tracing::warn!(err = %e, %address, "delete_account failed");
+    match state.mailbox.delete_account(&address) {
+        Ok(_) => mailrs_core_sidestate::families::audit::record_by_core(
+            &*state,
+            by.actor(),
+            mailrs_core_sidestate::families::audit::ACCOUNT_DELETE,
+            &address,
+            "",
+            now_secs(),
+        ),
+        Err(e) => tracing::warn!(err = %e, %address, "delete_account failed"),
     }
     if net.is_some() && pending::retention_days() == 0 {
         crate::account_purge::purge_now(state.clone(), address).await;
