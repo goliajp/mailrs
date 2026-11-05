@@ -39,8 +39,9 @@ different entrypoint (`deploy/docker-compose.prod.yml`).
 
 fastcore starts `mailrs-fastcore-ocr` as a short-lived child process per
 attachment that needs OCR, with its own memory and CPU limits.
-The receiver, fastcore and the SQL core each keep two `mailrs-parse-worker`
-children (`crates/parse-worker`) and read untrusted message bytes in them:
+The receiver keeps one `mailrs-parse-worker` child, fastcore and the SQL
+core two each (`crates/parse-worker`), and they read untrusted message bytes
+in them:
 HTML to text, what attachments hold, Bayes tokens, report decompression,
 Office and PDF text (the last two in a worker started per attachment). A
 worker that dies, loops past its time limit or answers nonsense costs the
