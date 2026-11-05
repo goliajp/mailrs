@@ -217,6 +217,12 @@
     <string name="mail_view_source">查看原文</string>
     <string name="sent_edit">编辑</string>
     <string name="sent_send_again">重新发送</string>
+    <string name="sent_status_failed">发送失败</string>
+    <string name="sent_status_partial">部分送达</string>
+    <string name="sent_status_sending">发送中</string>
+    <string name="sent_status_scheduled">已排定</string>
+    <string name="sent_status_delivered">已送达</string>
+    <string name="sent_status_cancelled">已取消</string>
     <string name="settings_account">账号</string>
     <string name="settings_signed_in_as">当前登录</string>
     <string name="common_server">服务器</string>

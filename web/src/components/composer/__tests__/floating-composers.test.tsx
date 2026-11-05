@@ -60,9 +60,7 @@ describe('floating composers', () => {
     const win = screen.getByRole('dialog')
     fireEvent.change(within(win).getByLabelText('To'), { target: { value: 'bob@example.com' } })
     const body = (await within(win).findByPlaceholderText(
-      'Write your message…',
-      {},
-      { timeout: 5_000 }
+      'Write your message…'
     )) as HTMLTextAreaElement
     fireEvent.change(body, { target: { value: 'hello bob' } })
     fireEvent.click(within(win).getByRole('button', { name: 'Minimize' }))

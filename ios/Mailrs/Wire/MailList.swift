@@ -98,10 +98,10 @@ enum MailList: String, CaseIterable, Identifiable, Sendable {
     /// One of the reader's labels; which one is `Session.activeLabel`.
     /// Not drawn with the fixed lists: each label is a row of its own.
     case label
-    /// Not a thread list: two endpoints joined by `SendJoin`. "Send",
-    /// not "Sent" — the rows include mail that failed and mail still
-    /// going out, and a heading claiming they were sent would be wrong
-    /// about exactly the rows worth looking at.
+    /// Not a thread list: two endpoints joined by `SendJoin`. Titled
+    /// "Sent" like the folder in every other client; each row's status
+    /// badge says when a message failed or is still going out. The
+    /// title must not share the compose button's "Send" key.
     case send
 
     var id: String { rawValue }
@@ -127,7 +127,7 @@ enum MailList: String, CaseIterable, Identifiable, Sendable {
         case .review: "Review"
         case .trash: "Trash"
         case .label: "Label"
-        case .send: "Send"
+        case .send: "Sent"
         }
     }
 
