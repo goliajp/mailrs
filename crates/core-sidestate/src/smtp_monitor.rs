@@ -161,6 +161,7 @@ mod tests {
                     kind: "panic".into(),
                     count: 1,
                 }],
+                paused_since: None,
             }),
         };
         let bytes = serde_json::to_vec(&sent).unwrap();

@@ -79,7 +79,13 @@ impl Handler for CoreRpcState {
             spool: Some(self.spool_health()),
             set_aside: None,
             parsing: Some(mailrs_core_sidestate::parsing::health()),
+            build: Some(mailrs_ops_report::build::build()),
         }
+    }
+
+    async fn ops_status(&self) -> mailrs_core_api::method::ops::OpsStatusWire {
+        let root = mailrs_core::spool::spool_root(&self.maildir_root);
+        mailrs_intake::spool::ops_status(std::path::Path::new(&root))
     }
 
     async fn readyz(&self) -> HealthResponse {
@@ -112,6 +118,7 @@ impl Handler for CoreRpcState {
             spool: Some(self.spool_health()),
             set_aside: None,
             parsing: Some(mailrs_core_sidestate::parsing::health()),
+            build: Some(mailrs_ops_report::build::build()),
         }
     }
 }
