@@ -2,12 +2,14 @@
 //!
 //! Most maintenance routes and several periodic tasks walk the corpus with
 //! synchronous calls inside an `async fn`. On the serving runtime such a
-//! stretch does not cost one worker out of four: the worker that last
-//! polled the I/O driver runs it, the other workers stay parked without
-//! being told there are sockets to read, and every request waits until the
-//! stretch ends (measured on a prod copy while the fraud backfill ran:
-//! three of four workers parked for the whole 5 s sample, half of all
-//! requests over 0.5 s). Here the stretch blocks only this runtime.
+//! stretch holds a worker for its whole length, and one that starts when a
+//! timer wakes the task (a pause inside the walk, a periodic task's sleep)
+//! costs more than that: it runs on the worker that was polling the I/O
+//! driver, tokio hands the driver to no other worker while only one task
+//! is runnable, and no socket is read until the stretch ends. Measured on
+//! a prod copy during the fraud backfill: three of four workers parked
+//! through a 5 s sample, half of all requests over 0.5 s. Here a stretch
+//! blocks only this runtime.
 
 use std::sync::LazyLock;
 
