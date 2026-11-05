@@ -22,6 +22,11 @@ const RAR5: &[u8] = b"Rar!\x1a\x07\x01\x00";
 /// RAR 5 caps a name at 2048 bytes; a longer one is not a RAR 5 name.
 const NAME_MAX: usize = 2048;
 
+/// Whether `b` starts with a RAR 1.5–4.x or RAR 5 signature.
+pub(super) fn is_rar(b: &[u8]) -> bool {
+    b.starts_with(RAR5) || b.starts_with(RAR4)
+}
+
 /// The listing of a RAR archive, or `None` when `b` is not one.
 pub(super) fn listing(b: &[u8]) -> Option<Listing> {
     if b.starts_with(RAR5) {

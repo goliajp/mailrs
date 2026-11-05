@@ -70,6 +70,13 @@ pub fn carries_code(name: &str, bytes: &[u8]) -> bool {
         || ole_has_macros(bytes)
 }
 
+/// Whether `bytes` is a RAR archive by its signature, whatever it is
+/// called.
+#[must_use]
+pub fn is_rar(bytes: &[u8]) -> bool {
+    rar::is_rar(bytes)
+}
+
 /// What `(name, bytes)` hold between them.
 #[must_use]
 pub fn read<'a>(parts: impl IntoIterator<Item = (&'a str, &'a [u8])>) -> Inside {
