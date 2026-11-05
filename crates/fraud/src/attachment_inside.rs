@@ -15,11 +15,13 @@ use crate::attachment::is_executable_name;
 const ENTRIES_MAX: usize = 10_000;
 
 /// Extensions an encrypted archive entry may carry and still be read as a
-/// document: formats that cannot carry a macro under their plain name.
-/// The legacy Office formats (`doc`, `xls`, `ppt`) and `rtf` can, and an
-/// encrypted one cannot be looked into, so they are not here.
+/// document. The legacy Office formats (`doc`, `xls`, `ppt`) and `rtf`
+/// can carry a macro or an embedded object under their plain name, and an
+/// encrypted one cannot be looked into; they are documents all the same,
+/// so they score with the rest rather than hold. The macro-enabled forms
+/// (`docm`, …) are executable names and hold.
 const DOCUMENT_EXTENSIONS: &[&str] = &[
-    "pdf", "docx", "xlsx", "pptx", "odt", "ods", "odp", "txt", "csv",
+    "pdf", "docx", "xlsx", "pptx", "odt", "ods", "odp", "txt", "csv", "doc", "xls", "ppt", "rtf",
 ];
 
 /// What one message's attachments hold, read once.
@@ -63,8 +65,8 @@ struct ZipReading {
     /// It names an executable or a macro project, or encrypts an entry
     /// whose name does not say it is a document. Entry names are
     /// readable whether or not the entry is encrypted; encryption hides
-    /// the contents, so an encrypted archive inside, or an encrypted
-    /// legacy Office file, could still hold anything.
+    /// the contents, so an encrypted archive inside, or an encrypted file
+    /// with no extension, could still hold anything.
     hides_code: bool,
     /// It encrypts at least one entry, and every encrypted entry is a
     /// document.
@@ -257,19 +259,41 @@ mod tests {
         assert!(carries_code("order.zip", &zip(&[("order.pdf.pif", true)])));
     }
 
+    /// A legacy Office file or an RTF, encrypted: it may carry a macro or
+    /// an embedded object that nothing can look at, which is worth a
+    /// score, and it is a document, which is not worth a hold.
+    #[test]
+    fn an_encrypted_legacy_office_file_scores_and_does_not_hold() {
+        for name in [
+            "report.doc",
+            "sheet.XLS",
+            "deck.ppt",
+            "letter.rtf",
+            "見積書.xls",
+        ] {
+            let r = read([("x.zip", &zip(&[(name, true)])[..])]);
+            assert!(!r.carries_code, "{name} should not hold");
+            assert!(r.encrypted_document_archive, "{name} should score");
+        }
+    }
+
     /// What encryption hides and a name cannot vouch for still counts:
-    /// an archive inside, a legacy Office file that can carry macros
-    /// under its plain name, a file with no extension, a script in a
-    /// script not on the executable list.
+    /// an archive inside, a file with no extension; and what runs counts
+    /// encrypted or not — scripts, programs, the macro-enabled Office
+    /// formats.
     #[test]
     fn an_encrypted_entry_that_is_not_a_document_still_counts() {
         for name in [
             "inner.zip",
             "inner.7z",
-            "report.doc",
-            "sheet.xls",
+            "inner.rar",
             "payload",
-            "a.rtf",
+            "invoice.hta",
+            "invoice.pif",
+            "tender.cab",
+            "report.docm",
+            "sheet.xlsm",
+            "deck.pptm",
         ] {
             assert!(
                 carries_code("x.zip", &zip(&[(name, true)])),
