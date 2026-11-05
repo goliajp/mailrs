@@ -126,6 +126,14 @@ impl Collector {
                     _ => None,
                 });
         let kevy = kevy_reading(webapi.got(), &processes, now);
+        // the marker counts whatever the heartbeat's age: it is a fact
+        let ops_alerts_delivered = processes
+            .get("sender")
+            .and_then(|p| match &p.latest.detail {
+                Some(Detail::Sender(b)) => Some(b.ops_alerts_delivered.clone()),
+                _ => None,
+            })
+            .unwrap_or_default();
         Snapshot {
             now,
             core_parse_increase: trend(&mut self.core_trend, now, core_failures),
@@ -143,6 +151,7 @@ impl Collector {
             heartbeat_configured: self.heartbeat_configured,
             maintenance,
             limits: self.limits.clone(),
+            ops_alerts_delivered,
         }
     }
 

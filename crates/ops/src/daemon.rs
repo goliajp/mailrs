@@ -63,6 +63,9 @@ pub async fn serve(cfg: Config) -> std::process::ExitCode {
         heartbeat = cfg.heartbeat_url.is_some(),
         "mailrs-ops running"
     );
+    for w in app.warnings().await {
+        tracing::warn!("{w}");
+    }
     if cfg.heartbeat_url.is_none() {
         tracing::warn!("MAILRS_OPS_HEARTBEAT_URL is not set: nothing outside watches this daemon");
     }

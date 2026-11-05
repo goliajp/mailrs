@@ -19,7 +19,8 @@ use axum::{
     routing::get,
 };
 
-use crate::method::ops::{OpsAuth, OpsStatusWire};
+use crate::method::ops::OpsStatusWire;
+use crate::method::ops_alert::{OpsAlertWire, OpsConfig, OpsOperators};
 use crate::types::HealthResponse;
 
 mod ops;
@@ -42,6 +43,14 @@ pub trait Handler: Send + Sync + 'static {
     /// What the ops daemon reads: drain progress and quarantine records.
     fn ops_status(&self) -> impl std::future::Future<Output = OpsStatusWire> + Send;
 
+    /// Queue `alert` as mail from `operators.from` to each of
+    /// `operators.to`; the number of jobs queued.
+    fn ops_alert(
+        &self,
+        operators: &OpsOperators,
+        alert: OpsAlertWire,
+    ) -> impl std::future::Future<Output = Result<usize, String>> + Send;
+
     /// Write one line to the audit log with the ops daemon as the actor: a
     /// refused call to its route, or its first read after it started.
     fn ops_audit(
@@ -51,32 +60,17 @@ pub trait Handler: Send + Sync + 'static {
     ) -> impl std::future::Future<Output = ()> + Send;
 }
 
-/// Build the base router: healthz/readyz (no auth), the ops daemon's
-/// status route (its own token) and fetch's report relay (see
-/// [`crate::method::ops`]). The relay goes to `MAILRS_OPS_URL`.
+/// Build the base router: healthz/readyz (no auth) and the ops daemon's
+/// routes (see [`crate::method::ops`] and [`crate::method::ops_alert`]),
+/// configured from the environment.
 pub fn base_router<H: Handler>(handler: Arc<H>) -> Router {
-    let relay_to = std::env::var("MAILRS_OPS_URL")
-        .ok()
-        .filter(|u| !u.trim().is_empty())
-        .map(|u| {
-            format!(
-                "{}{}",
-                u.trim_end_matches('/'),
-                mailrs_ops_report::wire::REPORTS_PATH
-            )
-        });
-    base_router_with_ops(handler, OpsAuth::from_env(), relay_to)
+    base_router_with_ops(handler, OpsConfig::from_env())
 }
 
-pub fn base_router_with_ops<H: Handler>(
-    handler: Arc<H>,
-    auth: OpsAuth,
-    relay_to: Option<String>,
-) -> Router {
+pub fn base_router_with_ops<H: Handler>(handler: Arc<H>, cfg: OpsConfig) -> Router {
     let ops_state = Arc::new(ops::Ops {
         handler: handler.clone(),
-        auth,
-        relay_to,
+        cfg,
         http: reqwest::Client::new(),
     });
     let ops_route = Router::new()
@@ -84,6 +78,12 @@ pub fn base_router_with_ops<H: Handler>(
         .route(
             crate::method::ops::PATH_OPS_RELAY,
             axum::routing::post(ops::relay::<H>).layer(axum::extract::DefaultBodyLimit::max(
+                mailrs_ops_report::wire::MAX_REPORT_BYTES,
+            )),
+        )
+        .route(
+            crate::method::ops_alert::PATH_OPS_ALERTS,
+            axum::routing::post(ops::alert::<H>).layer(axum::extract::DefaultBodyLimit::max(
                 mailrs_ops_report::wire::MAX_REPORT_BYTES,
             )),
         )
@@ -129,7 +129,7 @@ pub async fn auth_middleware(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::method::ops::DrainProgressWire;
+    use crate::method::ops::{DrainProgressWire, OpsAuth};
     use crate::types::BackendKind;
     use sha2::Digest;
     use tower::ServiceExt;
@@ -172,6 +172,20 @@ mod tests {
         async fn ops_audit(&self, action: &'static str, _detail: String) {
             self.0.lock().unwrap().push(action);
         }
+        async fn ops_alert(
+            &self,
+            operators: &OpsOperators,
+            _alert: OpsAlertWire,
+        ) -> Result<usize, String> {
+            Ok(operators.to.len())
+        }
+    }
+
+    fn with_status(auth: OpsAuth) -> OpsConfig {
+        OpsConfig {
+            status: auth,
+            ..OpsConfig::open()
+        }
     }
 
     async fn status(core: &Arc<Core>, auth: OpsAuth, bearer: Option<&str>, first: bool) -> u16 {
@@ -182,7 +196,7 @@ mod tests {
         if first {
             req = req.header(crate::method::ops::FIRST_READ_HEADER, "1");
         }
-        base_router_with_ops(core.clone(), auth, None)
+        base_router_with_ops(core.clone(), with_status(auth))
             .oneshot(req.body(axum::body::Body::empty()).unwrap())
             .await
             .unwrap()
@@ -232,7 +246,7 @@ mod tests {
         let req = axum::http::Request::post(crate::method::ops::PATH_OPS_RELAY)
             .body(axum::body::Body::from(body.to_string()))
             .unwrap();
-        base_router_with_ops(Arc::new(Core::default()), OpsAuth::Open, None)
+        base_router_with_ops(Arc::new(Core::default()), OpsConfig::open())
             .oneshot(req)
             .await
             .unwrap()

@@ -2,7 +2,7 @@
 //! to kevy-server, so a sender that cannot reach it still shows its
 //! restarts), that it is ready, and every 30 seconds how far it has got.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::time::Duration;
@@ -19,6 +19,10 @@ const HEARTBEAT: Duration = Duration::from_secs(30);
 static LAST_POP_AT: AtomicI64 = AtomicI64::new(0);
 static LAST_JOB_AT: AtomicI64 = AtomicI64::new(0);
 static OUTCOMES: Mutex<BTreeMap<String, u64>> = Mutex::new(BTreeMap::new());
+/// The ops alerts delivered lately, oldest first.
+static OPS_ALERTS: Mutex<VecDeque<String>> = Mutex::new(VecDeque::new());
+/// Alert ids a heartbeat carries; ten minutes of alerts at most.
+const OPS_ALERTS_KEPT: usize = 50;
 
 pub(super) fn start() -> Reporter {
     Reporter::start("sender")
@@ -34,10 +38,18 @@ pub(super) fn popped(job: bool) {
     mailrs_ops_report::kevy_contact();
 }
 
-/// One delivery attempt ended this way.
-pub(super) fn outcome(kind: &str) {
+/// One delivery attempt ended this way; a delivered ops alert is
+/// remembered for the heartbeat.
+pub(super) fn outcome(kind: &str, envelope: &serde_json::Value) {
     if let Ok(mut o) = OUTCOMES.lock() {
         *o.entry(kind.to_string()).or_default() += 1;
+    }
+    let alert = envelope[mailrs_core_sidestate::families::outbound::OPS_ALERT_ID].as_str();
+    if let (Some(id), "delivered", Ok(mut kept)) = (alert, kind, OPS_ALERTS.lock()) {
+        if kept.len() == OPS_ALERTS_KEPT {
+            kept.pop_front();
+        }
+        kept.push_back(id.to_string());
     }
 }
 
@@ -81,6 +93,10 @@ pub(super) fn spawn_heartbeat(cfg: std::sync::Arc<Cfg>, reporter: &Reporter) {
             pending,
             oldest_pending_age_secs: oldest,
             outcomes,
+            ops_alerts_delivered: OPS_ALERTS
+                .lock()
+                .map(|k| k.iter().cloned().collect())
+                .unwrap_or_default(),
         }))
     });
 }

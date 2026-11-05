@@ -117,6 +117,7 @@ impl App {
         };
         {
             let mut d = self.dispatcher.lock().await;
+            d.mark_delivered(&snap.ops_alerts_delivered, now);
             d.accept(&notices, &silences, maintenance.is_some(), now);
             d.tick(now).await;
         }
@@ -260,11 +261,20 @@ impl App {
             "silences": self.store.silences(now).map_err(|e| e.0)?,
             "alerts": alerts,
             "notifications": self.dispatcher.lock().await.status(),
+            "warnings": self.warnings().await,
             "report_rejections": self.store.rejection_counts().map_err(|e| e.0)?,
             "admin_refusals": self.store.denial_counts().map_err(|e| e.0)?,
             "ops_status_polls": seen.polls,
             "processes": processes,
         }))
+    }
+
+    /// What the operator must know about how far alerts can reach.
+    pub async fn warnings(&self) -> Vec<&'static str> {
+        match self.dispatcher.lock().await.has_external() {
+            true => Vec::new(),
+            false => vec![crate::notify::NO_EXTERNAL_WARNING],
+        }
     }
 
     pub fn history(&self, since: i64, limit: u32) -> Result<serde_json::Value, String> {

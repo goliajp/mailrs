@@ -244,6 +244,14 @@ impl Handler for FastcoreState {
         }
     }
 
+    async fn ops_alert(
+        &self,
+        operators: &mailrs_core_api::method::ops_alert::OpsOperators,
+        alert: mailrs_core_api::method::ops_alert::OpsAlertWire,
+    ) -> Result<usize, String> {
+        mailrs_core_sidestate::families::ops_alerts::submit_for(self, operators, &alert)
+    }
+
     async fn ops_audit(&self, action: &'static str, detail: String) {
         mailrs_core_sidestate::families::audit::by_ops_daemon(self, action, &detail);
     }

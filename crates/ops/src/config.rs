@@ -41,6 +41,12 @@ pub struct Config {
     pub new_domains_per_day: u64,
     pub fastcore_ready_secs: i64,
     pub hostname: String,
+    /// Alerts go first through mailrs's own path (the core's
+    /// `/v1/ops/alerts`, as the daemon's derived key).
+    pub own_path: bool,
+    /// How long an own-path alert may go without the sender's delivered
+    /// marker before the external channels get it.
+    pub own_path_fallback_secs: i64,
 }
 
 fn var(name: &str) -> Option<String> {
@@ -96,6 +102,13 @@ impl Config {
                 ));
             }
         };
+        let own_path = match var("MAILRS_OPS_OWN_PATH").as_deref() {
+            None | Some("0") | Some("false") | Some("off") => false,
+            Some("1") | Some("true") | Some("on") => true,
+            Some(other) => {
+                return Err(format!("MAILRS_OPS_OWN_PATH={other:?}: expected on or off"));
+            }
+        };
         let interval_secs: i64 = number("MAILRS_OPS_INTERVAL_SECS", 60)?;
         if interval_secs < 1 {
             return Err("MAILRS_OPS_INTERVAL_SECS must be at least 1".into());
@@ -133,6 +146,8 @@ impl Config {
             new_domains_per_day: number("MAILRS_OPS_NEW_DOMAINS_PER_DAY", 5000)?,
             fastcore_ready_secs: number("MAILRS_OPS_FASTCORE_READY_SECS", 1800)?,
             hostname: var("MAILRS_HOSTNAME").unwrap_or_else(|| "mailrs".into()),
+            own_path,
+            own_path_fallback_secs: number("MAILRS_OPS_OWN_PATH_FALLBACK_SECS", 300)?,
         })
     }
 
@@ -172,6 +187,8 @@ impl Config {
             new_domains_per_day: 5000,
             fastcore_ready_secs: 1800,
             hostname: "mx.example.test".into(),
+            own_path: false,
+            own_path_fallback_secs: 300,
         }
     }
 }

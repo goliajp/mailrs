@@ -121,18 +121,22 @@ pub(super) enum Outcome {
 /// screen.
 pub(super) fn report_send_outcome(
     cfg: &Cfg,
-    send_id: Option<&str>,
+    envelope: &serde_json::Value,
     user: &str,
     recipient: &str,
     outcome: &Outcome,
     attempts: u32,
 ) {
     use mailrs_core_sidestate::families::send as sendfam;
-    super::ops::outcome(match outcome {
-        Outcome::Delivered => "delivered",
-        Outcome::Permanent(_) => "permanent",
-        Outcome::Transient(_) => "transient",
-    });
+    super::ops::outcome(
+        match outcome {
+            Outcome::Delivered => "delivered",
+            Outcome::Permanent(_) => "permanent",
+            Outcome::Transient(_) => "transient",
+        },
+        envelope,
+    );
+    let send_id = envelope.get("send_id").and_then(|v| v.as_str());
     super::egress::note_refusal(cfg, outcome);
     let Some(send_id) = send_id else {
         // Mail nobody composed — tls-rpt, a bounce DSN, a sieve

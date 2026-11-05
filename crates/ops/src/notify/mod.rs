@@ -3,10 +3,12 @@
 
 mod channels;
 mod render;
+mod route;
 
 use std::sync::Arc;
 
 pub use channels::{Channel, mail_bytes, relay_refusal};
+pub use route::{NO_EXTERNAL_WARNING, via_own_path};
 
 use crate::config::Config;
 use crate::engine::Notice;
@@ -106,11 +108,24 @@ pub struct Dispatcher {
     link: Option<String>,
     host: String,
     seq: u64,
+    /// Sent by the own path and not yet confirmed by the sender.
+    pending: Vec<route::Pending>,
+    fallback_secs: i64,
+}
+
+/// Which slots a message goes to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Which {
+    Own,
+    External,
 }
 
 impl Dispatcher {
     pub fn new(cfg: &Config, store: Arc<Store>) -> Self {
         let mut channels = Vec::new();
+        if let Some(own) = route::own_channel(cfg) {
+            channels.push(own);
+        }
         if let Some(url) = &cfg.webhook_url {
             channels.push(Channel::Webhook {
                 url: url.clone(),
@@ -159,6 +174,8 @@ impl Dispatcher {
             link: cfg.admin_url.clone(),
             host: cfg.hostname.clone(),
             seq: 0,
+            pending: Vec::new(),
+            fallback_secs: cfg.own_path_fallback_secs,
         }
     }
 
@@ -224,6 +241,7 @@ impl Dispatcher {
     /// Send the queued group once its window has passed, and each
     /// channel's digest once the hour that ran out of budget is over.
     pub async fn tick(&mut self, now: i64) {
+        self.fall_back(now).await;
         let hour = now / 3600;
         for i in 0..self.slots.len() {
             let (old, skipped) = (self.slots[i].hour, self.slots[i].skipped);
@@ -243,7 +261,7 @@ impl Dispatcher {
             let notices = std::mem::take(&mut self.outbox);
             self.outbox_since = None;
             let msg = self.message(MessageKind::Alerts, notices, now);
-            self.send(&msg, now).await;
+            self.route(msg, now).await;
         }
     }
 
@@ -255,7 +273,7 @@ impl Dispatcher {
             held,
             now,
         );
-        self.send(&msg, now).await;
+        self.route(msg, now).await;
     }
 
     /// What the channels are configured to reach, as a hash: a test goes out
@@ -272,6 +290,7 @@ impl Dispatcher {
                 Channel::Webhook { url, .. } => format!("webhook {url}"),
                 Channel::Push { url, .. } => format!("push {url}"),
                 Channel::Relay(r) => format!("relay {}:{} {}", r.host, r.port, r.to.join(",")),
+                Channel::Own { url, .. } => format!("own {url}"),
             })
             .collect();
         Some(hex::encode(sha2::Sha256::digest(
@@ -293,8 +312,18 @@ impl Dispatcher {
         out
     }
 
-    async fn send(&mut self, msg: &Message, now: i64) {
+    /// Send `msg` to the slots `which` picks; whether the own path took it.
+    async fn send_to(&mut self, msg: &Message, now: i64, which: Which) -> bool {
+        let mut own_took = false;
         for i in 0..self.slots.len() {
+            let own = self.slots[i].channel.is_own();
+            let picked = match which {
+                Which::Own => own,
+                Which::External => !own,
+            };
+            if !picked {
+                continue;
+            }
             let name = self.slots[i].channel.name();
             // a channel's own failure goes out through the others
             let about_itself = msg
@@ -309,8 +338,10 @@ impl Dispatcher {
                 self.log(&msg.id, name, "over budget".into(), &msg.summary(), now);
                 continue;
             }
-            self.send_one(i, msg, now).await;
+            let sent = self.send_one(i, msg, now).await == "sent";
+            own_took |= own && sent;
         }
+        own_took
     }
 
     async fn send_one(&mut self, i: usize, msg: &Message, now: i64) -> String {
@@ -367,6 +398,7 @@ impl Dispatcher {
         serde_json::json!({
             "channels": channels,
             "queued": self.outbox.len(),
+            "own_path_awaiting_delivery": self.pending_ids(),
             "held_for_maintenance": self.held.len(),
             "push_minimal": self.minimal,
         })

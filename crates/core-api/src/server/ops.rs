@@ -7,6 +7,10 @@
 //!
 //! `/v1/ops/reports:relay` passes fetch's reports on to the daemon as they
 //! came. The core cannot write one: the daemon checks fetch's signature.
+//!
+//! `/v1/ops/alerts` queues the daemon's alert to the configured operator
+//! addresses and nowhere else; every call to it, queued or refused, is
+//! audited, since it changes state.
 
 use std::sync::Arc;
 
@@ -18,12 +22,11 @@ use axum::response::{IntoResponse, Response};
 
 use super::Handler;
 use crate::method::ops::{FIRST_READ_HEADER, OpsAuth};
+use crate::method::ops_alert::{OpsAlertQueued, OpsAlertWire, OpsConfig};
 
 pub(super) struct Ops<H> {
     pub handler: Arc<H>,
-    pub auth: OpsAuth,
-    /// The daemon's report endpoint (`MAILRS_OPS_URL` + `/v1/reports`).
-    pub relay_to: Option<String>,
+    pub cfg: OpsConfig,
     pub http: reqwest::Client,
 }
 
@@ -51,7 +54,7 @@ pub(super) async fn status<H: Handler>(
     State(ops): State<Arc<Ops<H>>>,
     headers: HeaderMap,
 ) -> Response {
-    if let Some(why) = refused(&ops.auth, &headers) {
+    if let Some(why) = refused(&ops.cfg.status, &headers) {
         ops.handler
             .ops_audit("ops.status.refused", why.to_string())
             .await;
@@ -84,7 +87,7 @@ pub(super) async fn relay<H: Handler>(
     if head["kind"] == "start" {
         crate::method::ops::witness_fetch_start();
     }
-    let Some(to) = &ops.relay_to else {
+    let Some(to) = &ops.cfg.relay_to else {
         return StatusCode::SERVICE_UNAVAILABLE;
     };
     let signature = headers
@@ -103,5 +106,45 @@ pub(super) async fn relay<H: Handler>(
     match sent {
         Ok(r) => StatusCode::from_u16(r.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY),
         Err(_) => StatusCode::BAD_GATEWAY,
+    }
+}
+
+pub(super) async fn alert<H: Handler>(
+    State(ops): State<Arc<Ops<H>>>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    if let Some(why) = refused(&ops.cfg.alerts, &headers) {
+        ops.handler
+            .ops_audit("ops.alert.refused", why.to_string())
+            .await;
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+    // a body naming recipients, or anything else, is not an alert
+    let Ok(alert) = serde_json::from_slice::<OpsAlertWire>(&body) else {
+        ops.handler
+            .ops_audit("ops.alert.refused", "not an alert".into())
+            .await;
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    let Some(operators) = &ops.cfg.operators else {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            "no operator addresses configured",
+        )
+            .into_response();
+    };
+    let id = alert.id.clone();
+    match ops.handler.ops_alert(operators, alert).await {
+        Ok(queued) => {
+            ops.handler
+                .ops_audit(
+                    "ops.alert.queued",
+                    format!("alert {id} to {} address(es)", queued),
+                )
+                .await;
+            Json(OpsAlertQueued { queued }).into_response()
+        }
+        Err(e) => (StatusCode::SERVICE_UNAVAILABLE, e).into_response(),
     }
 }
