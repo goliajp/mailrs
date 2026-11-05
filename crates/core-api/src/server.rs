@@ -126,3 +126,74 @@ pub async fn auth_middleware(
         _ => Err(StatusCode::UNAUTHORIZED),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::method::ops::DrainProgressWire;
+    use crate::types::BackendKind;
+    use sha2::Digest;
+    use tower::ServiceExt;
+
+    struct Core;
+
+    fn health() -> HealthResponse {
+        HealthResponse {
+            version: "v1".into(),
+            backend: BackendKind::Kevy,
+            ready: true,
+            memory: None,
+            spool: None,
+            set_aside: None,
+            parsing: None,
+            build: None,
+        }
+    }
+
+    impl Handler for Core {
+        async fn healthz(&self) -> HealthResponse {
+            health()
+        }
+        async fn readyz(&self) -> HealthResponse {
+            health()
+        }
+        async fn ops_status(&self) -> OpsStatusWire {
+            OpsStatusWire {
+                build: mailrs_ops_report::build::build(),
+                drain: DrainProgressWire {
+                    ticks: 0,
+                    delivered: 0,
+                    last_tick_at: None,
+                },
+                quarantined_total: 0,
+                quarantined: vec![],
+            }
+        }
+    }
+
+    async fn status(auth: OpsAuth, bearer: Option<&str>) -> u16 {
+        let mut req = axum::http::Request::get(crate::method::ops::PATH_OPS_STATUS);
+        if let Some(b) = bearer {
+            req = req.header("authorization", format!("Bearer {b}"));
+        }
+        base_router_with_ops(Arc::new(Core), auth)
+            .oneshot(req.body(axum::body::Body::empty()).unwrap())
+            .await
+            .unwrap()
+            .status()
+            .as_u16()
+    }
+
+    /// The daemon's token opens the route; the core's own secret, another
+    /// token or none do not, and a deployment without the hash is closed.
+    #[tokio::test]
+    async fn the_ops_route_takes_only_the_daemon_token() {
+        let hash = hex::encode(sha2::Sha256::digest(b"daemon-token"));
+        let by_token = || OpsAuth::TokenSha256(hash.clone());
+        assert_eq!(status(by_token(), Some("daemon-token")).await, 200);
+        assert_eq!(status(by_token(), Some("core-secret")).await, 401);
+        assert_eq!(status(by_token(), None).await, 401);
+        assert_eq!(status(OpsAuth::Closed, Some("daemon-token")).await, 401);
+        assert_eq!(status(OpsAuth::Open, None).await, 200);
+    }
+}
