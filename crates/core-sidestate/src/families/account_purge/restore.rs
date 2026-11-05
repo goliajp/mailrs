@@ -90,8 +90,8 @@ pub fn finish(
     };
     let back = outbound::release(c, address, now, outbound::Lapsed::Draft)?;
     let detail = format!(
-        "parked={parked} rescheduled={} drafts={}",
-        back.rescheduled, back.drafts
+        "parked={parked} rescheduled={} drafts={} attachments_not_included={}",
+        back.rescheduled, back.drafts, back.attachments_not_included
     );
     crate::families::audit::append(c, by, RESTORED, address, &detail, now)?;
     pending::clear(c, address)?;

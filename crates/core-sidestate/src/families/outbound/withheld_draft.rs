@@ -4,8 +4,8 @@
 //! (`withheld_send_at`), which the draft shows. Its jobs leave the queue,
 //! and its Send row says it was cancelled, by the restore.
 //!
-//! A draft holds no attachments; a message that had some keeps them in the
-//! Sent copy its send filed.
+//! A draft holds no attachments: it lists the names of those it left out
+//! (`attachments_not_included`); the original, with them, is in Sent.
 
 use std::io;
 
@@ -41,8 +41,17 @@ fn text(raw: &[u8]) -> String {
         .unwrap_or_default()
 }
 
+/// The names of the message's attachments, which the draft leaves out.
+fn attachment_names(raw: &[u8]) -> Vec<String> {
+    mailrs_mime::parse(raw)
+        .attachments()
+        .map(|p| p.attachment_filename().unwrap_or("unnamed").to_string())
+        .collect()
+}
+
 /// Turn the withheld `jobs` of `address`'s send `send` (set to go at `at`)
-/// into one draft, and take them out of the queue.
+/// into one draft, and take them out of the queue. Returns how many
+/// attachments the draft left out.
 pub(super) fn return_as_draft(
     conn: &mut kevy_client::Connection,
     address: &str,
@@ -50,13 +59,14 @@ pub(super) fn return_as_draft(
     at: i64,
     jobs: &[(i64, serde_json::Value)],
     now: i64,
-) -> io::Result<()> {
+) -> io::Result<u64> {
     use base64::Engine as _;
     let raw = jobs
         .iter()
         .find_map(|(_, b)| b.get("message_data_b64").and_then(|d| d.as_str()))
         .and_then(|d| base64::engine::general_purpose::STANDARD.decode(d).ok())
         .unwrap_or_default();
+    let left_out = attachment_names(&raw);
     let (to, cc) = (header(&raw, "To"), header(&raw, "Cc"));
     let addressed: Vec<String> = split_list(&to)
         .chain(split_list(&cc))
@@ -90,6 +100,7 @@ pub(super) fn return_as_draft(
         from,
         scheduled_at: None,
         withheld_send_at: Some(at),
+        attachments_not_included: left_out.clone(),
         created_at: now,
         updated_at: now,
     };
@@ -112,5 +123,5 @@ pub(super) fn return_as_draft(
         };
         send::record_event(conn, address, send, &event)?;
     }
-    Ok(())
+    Ok(left_out.len() as u64)
 }

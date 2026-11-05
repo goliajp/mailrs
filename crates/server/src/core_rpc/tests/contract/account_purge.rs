@@ -154,12 +154,18 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
             Some("see you on monday")
         );
         assert_eq!(draft["withheld_send_at"], 1_790_000_000);
+        assert_eq!(
+            draft["attachments_not_included"],
+            serde_json::json!(["agenda.pdf", "map.png"]),
+            "{}",
+            q.url
+        );
         assert!(draft.get("scheduled_at").is_none(), "{draft}");
         let restored: Vec<String> = audit_details(q.url, "account.restore");
         assert!(
             restored
                 .iter()
-                .all(|r| r.contains("rescheduled=1 drafts=1")),
+                .all(|r| r.contains("rescheduled=1 drafts=1 attachments_not_included=2")),
             "{}: {restored:?}",
             q.url
         );

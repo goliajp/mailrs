@@ -7650,6 +7650,8 @@ export interface components {
              * @description When the message was set to go before its account was deleted (epoch seconds). The time passed while the account was deleted, so its restore put the message back here unsent; shown, never acted on
              */
             withheld_send_at?: number;
+            /** @description The names of the attachments that message had, which a draft cannot carry; the original, with them, is in Sent. Shown beside withheld_send_at, never acted on */
+            attachments_not_included?: string[];
             created_at: string;
             updated_at: string;
         };

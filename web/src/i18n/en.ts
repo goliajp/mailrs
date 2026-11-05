@@ -3,6 +3,7 @@ import { adminEn } from './admin/en'
 import { appEn } from './app/en'
 import { calendarEn } from './calendar/en'
 import { composerEn } from './composer/en'
+import { draftsEn } from './drafts/en'
 import { mockEn } from './mock/en'
 import { reasonsEn } from './reasons/en'
 import { sectionsEn } from './sections/en'
@@ -16,6 +17,7 @@ import { settingsEn } from './settings/en'
 export const en = {
   ...appEn,
   ...composerEn,
+  ...draftsEn,
   ...calendarEn,
   ...sectionsEn,
   ...reasonsEn,
@@ -199,15 +201,6 @@ export const en = {
   'date.today': 'Today',
   'date.yesterday': 'Yesterday',
   'deleteThread.body': 'The messages are deleted and cannot be restored.',
-  'drafts.delete': 'Delete draft',
-  'drafts.deleteFailed': 'Could not delete draft',
-  'drafts.loading': 'Loading drafts…',
-  'drafts.noMatch': 'No matching drafts',
-  'drafts.open': 'Open',
-  'drafts.search': 'Search drafts',
-  'drafts.searchPlaceholder': 'Search drafts…',
-  'drafts.to': 'To: {to}',
-  'drafts.withheldSendAt': 'Not sent: was set to go {time}',
   'error.reload': 'Reload',
   'error.title': 'Something went wrong',
   'feedback.block': 'Block sender',

@@ -50,6 +50,12 @@ export type ReplyContext = {
 
 export type ReplyMode = 'forward' | 'reply' | 'reply-all'
 
+/** The attachments a draft a restore returned could not carry. */
+export function attachmentsNotIncluded(s: ComposerStart): readonly string[] {
+  if (s.kind === 'draft') return s.draft.attachmentsNotIncluded ?? []
+  return []
+}
+
 export function initialBcc(s: ComposerStart): string {
   if (s.kind === 'draft') return s.draft.bcc
   if (s.kind === 'redraft') return s.redraft.bcc

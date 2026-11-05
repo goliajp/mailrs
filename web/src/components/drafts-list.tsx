@@ -6,6 +6,7 @@ import { useSetAtom } from 'jotai'
 import { Trash2 } from 'lucide-react'
 import { memo, useMemo } from 'react'
 
+import { AttachmentsNotIncluded } from '@/components/attachments-not-included'
 import { ActionSheet, ContextMenu, useContextMenu } from '@/components/context-menu'
 import { DateDivider } from '@/components/conversation-list'
 import { FilterBar } from '@/components/conversation-list-filter-bar'
@@ -45,6 +46,7 @@ export function DraftsList() {
   const openDraft = (d: Draft) => {
     setReplySource(null)
     setDraftSource({
+      attachmentsNotIncluded: d.attachments_not_included ?? [],
       bcc: d.bcc,
       body: d.body,
       cc: d.cc,
@@ -175,6 +177,11 @@ const DraftRow = memo(function DraftRow({
           </div>
           <span className="text-fg-muted truncate text-sm">
             {withheldNote(draft, t)}
+            {(draft.attachments_not_included?.length ?? 0) > 0 && (
+              <>
+                <AttachmentsNotIncluded names={draft.attachments_not_included} /> ·{' '}
+              </>
+            )}
             {t('drafts.to', { to: draft.to || '—' })} · {draftPreview(draft.body)}
           </span>
         </div>

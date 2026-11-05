@@ -7,9 +7,10 @@ import { draftListSchema } from '../schemas/mail'
 // first row is what an account's restore writes for a send whose time
 // passed while the account was deleted
 // (crates/core-sidestate/src/families/outbound/withheld_draft.rs); the
-// second is an ordinary draft, which omits the field.
+// second is an ordinary draft, which omits both fields.
 const LISTED = [
   {
+    attachments_not_included: ['agenda.pdf', 'map.png'],
     bcc: 'gus@outside.example',
     body: 'see you on monday\r\n',
     cc: 'fay@outside.example',
@@ -41,5 +42,7 @@ describe('a draft a restore returned', () => {
     // returned unsent: nothing schedules it again
     expect(items[0].scheduled_at).toBeNull()
     expect(items[1].withheld_send_at).toBeNull()
+    expect(items[0].attachments_not_included).toEqual(['agenda.pdf', 'map.png'])
+    expect(items[1].attachments_not_included).toEqual([])
   })
 })

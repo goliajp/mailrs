@@ -5,6 +5,8 @@ const API_BASE = '/api'
 // `to_addresses` / `_addresses` variants shown in openapi.json /
 // llm-full.txt are stale documentation, never matched runtime.
 export type Draft = {
+  /** The attachments a draft a restore returned could not carry, by name. */
+  attachments_not_included?: string[]
   bcc: string
   body: string
   cc: string
