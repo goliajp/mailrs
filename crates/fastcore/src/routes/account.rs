@@ -51,6 +51,7 @@ pub(crate) async fn list_accounts(
 
 pub(crate) async fn add_account_route(
     State(state): State<Arc<FastcoreState>>,
+    axum::extract::Query(by): axum::extract::Query<adm::ActorQuery>,
     Json(req): Json<adm::AddAccountRequest>,
 ) -> axum::response::Response {
     use argon2::{
@@ -125,6 +126,14 @@ pub(crate) async fn add_account_route(
     if let Err(e) = state.mailbox.upsert_permissions(&req.address, &perms) {
         tracing::warn!(err = %e, addr = %req.address, "upsert_permissions failed");
     }
+    mailrs_core_sidestate::families::audit::record_by_core(
+        &*state,
+        by.actor(),
+        mailrs_core_sidestate::families::audit::ACCOUNT_CREATE,
+        &req.address,
+        "",
+        now_secs(),
+    );
     axum::http::StatusCode::NO_CONTENT.into_response()
 }
 

@@ -57,17 +57,16 @@ impl MailrsMcpService {
             McpError::invalid_params("that address is or was a masked address", None)
         })?;
         let req = mailrs_core_api::method::admin::AddAccountRequest {
-            address: params.address.clone(),
+            address: params.address,
             display_name: params.display_name,
             password: params.password,
             password_hash: None,
         };
         self.state
             .core
-            .add_account(&req)
+            .add_account_by(&req, &user)
             .await
             .map_err(|e| McpError::internal_error(format!("create_account: {e}"), None))?;
-        crate::handlers::audit::record(&user, "account.create", &params.address, "via mcp");
         Ok(ok_result())
     }
 
@@ -91,13 +90,12 @@ impl MailrsMcpService {
             })?;
         self.state
             .core
-            .remove_account(&params.address)
+            .remove_account_by(&params.address, &user)
             .await
             .map_err(|e| McpError::internal_error(format!("remove_account: {e}"), None))?;
         crate::handlers::auth::revoke_all_access(&params.address).map_err(|code| {
             McpError::internal_error(format!("remove_account: revoking access: {code}"), None)
         })?;
-        crate::handlers::audit::record(&user, "account.delete", &params.address, "via mcp");
         Ok(ok_result())
     }
 
