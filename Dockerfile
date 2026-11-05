@@ -62,7 +62,7 @@ COPY --from=planner /build/recipe.json recipe.json
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/build/target \
-    for p in mailrs-fraud-lua mailrs-receiver mailrs-webapi mailrs-fastcore mailrs-parse-worker mailrs-backup mailrs-fetch; do \
+    for p in mailrs-fraud-lua mailrs-receiver mailrs-webapi mailrs-fastcore mailrs-parse-worker mailrs-backup mailrs-fetch mailrs-ops; do \
         cargo chef cook --release --recipe-path recipe.json -p "$p" --bins || exit 1; \
     done
 
@@ -71,10 +71,17 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
 COPY crates/ crates/
 
+# The commit the image is built from. Every process reports it beside the
+# version, so a container running some other binary than its tag says can
+# be told apart (2026-07-15: tag 2.9.0, binary 0.0.5). Declared after
+# the cook so a new commit does not throw away the cooked dependencies.
+ARG GIT_COMMIT=
+ENV MAILRS_BUILD_COMMIT=${GIT_COMMIT}
+
 # Patch the workspace root version BEFORE cargo build so the resolver
 # picks it up. Only the workspace.package.version line; member crates
 # inherit via `version.workspace = true`.
-RUN echo "cache-bust=$CACHE_BUST version=$VERSION" \
+RUN echo "cache-bust=$CACHE_BUST version=$VERSION commit=$GIT_COMMIT" \
     && sed -i "0,/^version = \".*\"/s//version = \"$VERSION\"/" Cargo.toml
 
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
@@ -87,6 +94,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     && cargo build --release -p mailrs-parse-worker --bin mailrs-parse-worker \
     && cargo build --release -p mailrs-backup --bin mailrs-backup \
     && cargo build --release -p mailrs-fetch --bin mailrs-fetch \
+    && cargo build --release -p mailrs-ops --bin mailrs-ops \
     && cp /build/target/release/mailrs-fraud-check /usr/local/bin/mailrs-fraud-check \
     && cp /build/target/release/mailrs-receiver /usr/local/bin/mailrs-receiver \
     && cp /build/target/release/mailrs-webapi /usr/local/bin/mailrs-webapi \
@@ -95,7 +103,8 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     && cp /build/target/release/mailrs-fastcore-ocr /usr/local/bin/mailrs-fastcore-ocr \
     && cp /build/target/release/mailrs-parse-worker /usr/local/bin/mailrs-parse-worker \
     && cp /build/target/release/mailrs-backup /usr/local/bin/mailrs-backup \
-    && cp /build/target/release/mailrs-fetch /usr/local/bin/mailrs-fetch
+    && cp /build/target/release/mailrs-fetch /usr/local/bin/mailrs-fetch \
+    && cp /build/target/release/mailrs-ops /usr/local/bin/mailrs-ops
 
 # stage 2: build frontend
 # OCR models, fetched and checked against the sha256 in the manifest. Its
@@ -170,6 +179,9 @@ COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-ocr /usr/local/bin/mailr
 COPY --from=rust-builder /usr/local/bin/mailrs-parse-worker /usr/local/bin/mailrs-parse-worker
 COPY --from=rust-builder /usr/local/bin/mailrs-backup /usr/local/bin/mailrs-backup
 COPY --from=rust-builder /usr/local/bin/mailrs-fetch /usr/local/bin/mailrs-fetch
+# The ops daemon, and the healthcheck command of the roles without HTTP
+# (`mailrs-ops check-alive`).
+COPY --from=rust-builder /usr/local/bin/mailrs-ops /usr/local/bin/mailrs-ops
 COPY --from=ocr-models /usr/share/mailrs/ocr /usr/share/mailrs/ocr
 COPY --from=web-builder /build/dist /opt/mailrs/web
 
@@ -201,10 +213,9 @@ EXPOSE 25 80 110 587 465 143 993 995 3100 4190
 
 VOLUME ["/data", "/certs"]
 
-# Serves mailrs-webapi, which binds 3100 inside the container. The other
-# three roles bind different ports and disable this check in compose.
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -sf http://localhost:3100/api/health || exit 1
+# No image-wide HEALTHCHECK: the roles listen on different ports or on
+# none, so each compose service declares its own.
+HEALTHCHECK NONE
 
 USER mailrs
 
