@@ -1,6 +1,7 @@
 package jp.golia.mailrs.ui
 
 import jp.golia.mailrs.R
+import jp.golia.mailrs.wire.SendStatus
 import jp.golia.mailrs.wire.Texts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.material3.SnackbarHost
@@ -242,7 +243,7 @@ private fun SentRow(
             // one.
             row.status?.let {
                 Text(
-                    it,
+                    SendStatus.text(it),
                     color = statusColour(it, theme),
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
