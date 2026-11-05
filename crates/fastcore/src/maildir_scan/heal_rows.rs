@@ -117,6 +117,7 @@ pub(crate) fn heal_membership_rows(
         // loop used to zadd the sent zset and bump `sent_added`
         // unconditionally, so a fully-healed mailbox still logged
         // `sent_added=255 created=0` every 31 s forever (2026-07-19).
+        let mut reader_raise = None;
         let changed = state
             .mailbox
             .store_ref()
@@ -135,16 +136,14 @@ pub(crate) fn heal_membership_rows(
                         thread_key.as_bytes(),
                         &[(b"latest_date" as &[u8], agg_latest.to_string().as_bytes())],
                     )?;
-                    // The membership row carries the same fact as
-                    // `activity`, and every axis sorts on that one — so
-                    // healing the hash alone would move the date pill
-                    // and leave the order it is supposed to explain.
-                    ctx.hset(
-                        tu_key.as_bytes(),
-                        &[(b"activity" as &[u8], agg_latest.to_string().as_bytes())],
-                    )?;
                     changed = true;
                 }
+                // The reader's own `activity`, which every axis sorts on,
+                // against their row rather than the shared hash: the
+                // files are theirs, the hash's date is whoever's mail
+                // came last.
+                let mine = read_i64(ctx, &tu_key, b"activity")?;
+                reader_raise = healed_date(inbound_max, window_max, mine, count, sent);
                 // Merge user into the thread's senders_csv so future
                 // upsert_thread invocations (mark_read etc.) don't drop
                 // sent-index membership.
@@ -177,7 +176,13 @@ pub(crate) fn heal_membership_rows(
                 Ok(changed)
             })
             .unwrap_or(false);
-        if changed {
+        let raised_mine = reader_raise.is_some_and(|d| {
+            state
+                .mailbox
+                .set_thread_display_date(user, root, d)
+                .unwrap_or(false)
+        });
+        if changed || raised_mine {
             rows_healed += 1;
         }
     }

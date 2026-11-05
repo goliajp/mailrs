@@ -185,10 +185,12 @@ fn repair_message(
 // the row follows the newest inbound message; a thread whose newest
 // message is the user's own keeps its date, as `thread-date-audit` does
 fn lower_row(state: &FastcoreState, user: &str, tid: &str) -> bool {
-    let Ok(Some(row)) = state.mailbox.get_thread(tid) else {
+    // this reader's row and messages: another member's newer mail is not
+    // a reason to keep or move this reader's date
+    let Ok(Some(row)) = state.mailbox.get_thread_for_user(user, tid) else {
         return false;
     };
-    let Ok(wires) = state.mailbox.thread_messages_unscoped(tid) else {
+    let Ok(wires) = state.mailbox.list_thread_messages(user, tid) else {
         return false;
     };
     let Some(display) = mailrs_mailbox_kevy::display_message(&wires, user) else {
@@ -210,7 +212,10 @@ fn lower_row(state: &FastcoreState, user: &str, tid: &str) -> bool {
 
 // every file in this user's maildirs, keyed the way a `blob_ref` names
 // it: folder plus the name before the `:2,` flags, which a rename keeps
-fn files_of(state: &Arc<FastcoreState>, user: &str) -> HashMap<(String, String), PathBuf> {
+pub(crate) fn files_of(
+    state: &Arc<FastcoreState>,
+    user: &str,
+) -> HashMap<(String, String), PathBuf> {
     let mut out = HashMap::new();
     for mb in crate::imap::backend::list_mailboxes(state, user) {
         let folder = folder_of(std::path::Path::new(&mb.path));

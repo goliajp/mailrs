@@ -380,4 +380,18 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
             "/v1/admin/maintenance:recompute-thread-display",
             post(crate::maintenance::recompute_thread_display_route),
         )
+        // Each reader's tab and time back to their own messages, with
+        // per-account counts of what would move tab or re-sort. Same query
+        // shape as the three above.
+        .route(
+            "/v1/admin/maintenance:recompute-thread-standing",
+            post(crate::maintenance::recompute_thread_standing_route),
+        )
+        // Stored message dates back to what ingest computes from the file,
+        // with each reader's row time and the shared latest_date recounted.
+        // Same batching as the four above.
+        .route(
+            "/v1/admin/maintenance:recompute-message-dates",
+            post(crate::maintenance::recompute_message_dates_route),
+        )
 }

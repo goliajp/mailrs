@@ -139,5 +139,8 @@ fn record_message(
     }
     let _ = state
         .mailbox
+        .set_message_category(user, &m.message_id, category);
+    let _ = state
+        .mailbox
         .set_thread_for_message_id(user, &m.message_id, root);
 }
