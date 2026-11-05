@@ -200,6 +200,9 @@ impl KevyMailboxStore {
         if let Some(row) = self.get_thread(m.thread_id)? {
             self.write_thread_user_if_changed(m.user, &row)?;
         }
+        // The reader's own list: this message's sender joins it. The
+        // shared hash's union above is everybody's.
+        self.add_participants(m.user, m.thread_id, m.senders_csv)?;
         Ok(())
     }
 }

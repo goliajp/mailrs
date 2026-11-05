@@ -164,6 +164,7 @@ impl KevyMailboxStore {
             row.subject = w["subject"].as_str().unwrap_or(&row.subject).to_string();
         }
         self.upsert_thread(user, &row)?;
+        self.recount_participants(user, thread_id, false)?;
         self.set_unread_axis(user, thread_id, row.unread_count)
     }
 }

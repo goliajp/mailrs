@@ -30,6 +30,7 @@ mod mail;
 mod operator;
 mod ownerless;
 mod paging;
+mod participants;
 mod placement;
 mod purge_fixture;
 mod quota;
