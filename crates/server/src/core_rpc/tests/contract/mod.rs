@@ -28,6 +28,7 @@ mod operator;
 mod ownerless;
 mod paging;
 mod placement;
+mod purge_fixture;
 mod quota;
 mod quota_limits;
 mod rejudge;
