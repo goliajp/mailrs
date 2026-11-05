@@ -20,11 +20,8 @@ use crate::FastcoreState;
 
 use mailrs_core_sidestate::families::correspondent::{all_addresses, first_address};
 
-/// Score an inbound message and store the verdict on its thread row.
-///
-/// The score is the shared one (`mailrs_intake::importance`); a store
-/// error is logged and swallowed — importance is a derivation, and failing
-/// to write it must never fail delivery.
+/// Score an inbound message for one reader, with the shared scorer
+/// (`mailrs_intake::importance`). [`record_verdict`] stores it.
 ///
 /// Call only for inbound messages. The user's own reply must not
 /// restate the thread's importance, mirroring the display-field rule in
@@ -32,34 +29,43 @@ use mailrs_core_sidestate::families::correspondent::{all_addresses, first_addres
 pub(crate) fn score_inbound(
     state: &Arc<FastcoreState>,
     user: &str,
-    thread_id: &str,
     senders_csv: &str,
     head: &[u8],
     raw: &[u8],
-) {
-    if let Some((level, score)) =
-        mailrs_intake::importance::score_inbound(state.net_conn(), user, senders_csv, head, raw)
-    {
-        record_verdict(state, user, thread_id, level, score);
-    }
+) -> Option<(importance::ImportanceLevel, f32)> {
+    mailrs_intake::importance::score_inbound(state.net_conn(), user, senders_csv, head, raw)
 }
 
-/// Fold the signals and persist the verdict on the thread row.
-fn store_verdict(
+/// Score this reader's newest inbound message in a conversation again,
+/// from the file, without recording anything. `None` when they have no
+/// inbound message there whose file can be read.
+///
+/// **Read-only with respect to the relationship counters.** It must not
+/// call `record_inbound`: HINCRBY-ing on top of counters the
+/// relationship backfill set to absolute values would corrupt the very
+/// facts the score depends on.
+pub(crate) fn rescore(
     state: &Arc<FastcoreState>,
     user: &str,
     thread_id: &str,
-    facts: MessageFacts,
-    contact: Option<ContactFacts>,
-    is_reply_to_my_email: bool,
-) {
-    let signals = importance::signals_for_inbound(facts, contact, is_reply_to_my_email);
-    let (level, score) = importance::calculate_importance(&signals);
-    record_verdict(state, user, thread_id, level, score);
+) -> Option<(importance::ImportanceLevel, f32)> {
+    let (sender, raw) = latest_inbound_raw(state, user, thread_id)?;
+    let head = &raw[..raw.len().min(16 * 1024)];
+    let facts: MessageFacts = message_facts(&sender, head, &raw);
+    let (contact, replied): (Option<ContactFacts>, bool) = match state.net_conn() {
+        Some(mut conn) => read_relationship(&mut conn, user, &sender),
+        None => (None, false),
+    };
+    let signals = importance::signals_for_inbound(facts, contact, replied);
+    Some(importance::calculate_importance(&signals))
 }
 
-/// Persist a verdict on the thread row.
-fn record_verdict(
+/// Persist one reader's verdict on their membership row, and in their
+/// decision log.
+///
+/// A store error is logged and swallowed — importance is a derivation,
+/// and failing to write it must never fail delivery.
+pub(crate) fn record_verdict(
     state: &Arc<FastcoreState>,
     user: &str,
     thread_id: &str,
@@ -73,10 +79,21 @@ fn record_verdict(
     {
         tracing::warn!(error = %e, %user, %thread_id, "importance: store failed");
     }
-    // Tier 1: a verdict at a point in time. Re-running the ranker is not
-    // free and its inputs move — the contact tallies it reads change with
-    // every message — so the recorded answer is a fact rather than
-    // something a rebuild can derive again.
+    record_in_log(user, thread_id, level, score);
+}
+
+/// Append one reader's verdict to their decision log only.
+///
+/// Tier 1: a verdict at a point in time. Re-running the ranker is not
+/// free and its inputs move — the contact tallies it reads change with
+/// every message — so the recorded answer is a fact rather than
+/// something a rebuild can derive again.
+pub(crate) fn record_in_log(
+    user: &str,
+    thread_id: &str,
+    level: importance::ImportanceLevel,
+    score: f32,
+) {
     let mut rec = crate::threadstate::about(thread_id);
     rec.importance_level = Some(level.as_str().to_string());
     rec.importance_score = Some(score as f64);
@@ -237,10 +254,8 @@ pub(crate) fn read_event(
 /// feature look like it did nothing. This rebuilds them from the
 /// message already on disk.
 ///
-/// **Read-only with respect to the relationship counters.** It must not
-/// call `record_inbound`: the counters were just rebuilt to absolute
-/// values, and HINCRBY-ing on top of them here would corrupt the very
-/// facts the score depends on.
+/// Read-only with respect to the relationship counters, through
+/// [`rescore`].
 ///
 /// `only_missing` skips threads that already carry a verdict, so a
 /// re-run is cheap and does not fight live scoring.
@@ -259,44 +274,47 @@ pub(crate) fn backfill_thread_importance(
         for tid in &tids {
             let tid = tid.as_str();
             if only_missing {
-                let has = matches!(state.mailbox.get_thread(tid), Ok(Some(r)) if !r.importance_level.is_empty());
+                // this reader's row: the verdict is theirs, not the thread's
+                let has = matches!(state.mailbox.get_thread_for_user(user, tid), Ok(Some(r)) if !r.importance_level.is_empty());
                 if has {
                     skipped += 1;
                     continue;
                 }
             }
-            let Some((sender, raw)) = latest_inbound_raw(state, user, tid) else {
+            let Some((level, score)) = rescore(state, user, tid) else {
                 skipped += 1;
                 continue;
             };
-            let head = &raw[..raw.len().min(16 * 1024)];
-            let facts = message_facts(&sender, head, &raw);
-            let (contact, replied) = match state.net_conn() {
-                Some(mut conn) => read_relationship(&mut conn, user, &sender),
-                None => (None, false),
-            };
-            store_verdict(state, user, tid, facts, contact, replied);
+            record_verdict(state, user, tid, level, score);
             scored += 1;
         }
     }
     (scored, skipped)
 }
 
-/// Newest inbound (not self-sent) message of a thread: its sender
-/// address and raw bytes, read back from maildir. Importance follows
-/// the latest inbound message, matching the ingest rule.
+/// This reader's newest inbound (not self-sent) message in a thread: its
+/// sender address and raw bytes, read back from their maildir. Importance
+/// follows the latest inbound message, matching the ingest rule.
+///
+/// Their own copies, through their message view: the shared blob carries
+/// no `blob_ref` since the per-user message rows, and the thread's shared
+/// message list holds other members' copies too, so a message only another
+/// member received would have been scored as this reader's.
 fn latest_inbound_raw(
     state: &Arc<FastcoreState>,
     user: &str,
     thread_id: &str,
 ) -> Option<(String, Vec<u8>)> {
-    let wires = state
+    let mids = state
         .mailbox
-        .thread_messages_for_maintenance(thread_id)
+        .user_thread_message_ids(user, thread_id)
         .ok()?;
-    // list_thread_messages is date-ordered; walk newest first.
-    for blob in wires.iter().rev() {
-        let Ok(v) = serde_json::from_slice::<serde_json::Value>(blob) else {
+    // oldest first; walk newest first
+    for mid in mids.iter().rev() {
+        let Ok(Some(blob)) = state.mailbox.user_message_view(user, mid) else {
+            continue;
+        };
+        let Ok(v) = serde_json::from_slice::<serde_json::Value>(&blob) else {
             continue;
         };
         let sender = v.get("sender").and_then(|x| x.as_str()).unwrap_or("");

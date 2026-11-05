@@ -32,10 +32,10 @@ pub(crate) fn combine_rows(
     // `sent_count == count` is the row-level spelling of "nothing here
     // but my own": a merged row's `senders_csv` holds both sides'
     // senders, so it cannot answer this and the counters can.
-    let (latest, older) = if display_side_is_a(&a, &b) {
-        (a.clone(), b.clone())
+    let latest = if display_side_is_a(&a, &b) {
+        a.clone()
     } else {
-        (b.clone(), a.clone())
+        b.clone()
     };
     let mut senders: Vec<String> = Vec::new();
     for part in a.senders_csv.split(',').chain(b.senders_csv.split(',')) {
@@ -43,10 +43,6 @@ pub(crate) fn combine_rows(
         if !p.is_empty() && !senders.iter().any(|s| s.eq_ignore_ascii_case(p)) {
             senders.push(p.to_string());
         }
-    }
-    let mut importance_score = a.importance_score;
-    if b.importance_score > importance_score {
-        importance_score = b.importance_score;
     }
     crate::thread_row::ThreadRow {
         // Carried from the thread being rebuilt: rethreading moves
@@ -61,8 +57,9 @@ pub(crate) fn combine_rows(
         latest_date: latest.latest_date,
         latest_preview: latest.latest_preview,
         category: latest.category,
-        importance_level: older.importance_level,
-        importance_score,
+        // one reader's, carried by `merge_thread_into` from their own rows
+        importance_level: String::new(),
+        importance_score: 0.0,
         requires_action: a.requires_action || b.requires_action,
         pinned: a.pinned || b.pinned,
         archived: a.archived && b.archived,

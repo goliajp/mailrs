@@ -20,6 +20,7 @@ mod forged_results;
 mod group_purge;
 mod harness;
 mod import;
+mod importance;
 mod intake;
 mod intake_rules;
 mod labels;

@@ -235,6 +235,16 @@ pub(crate) async fn run_ingest_once(
                 tracing::warn!(error = %e, %user, tid = %s.thread_id, "upsert_thread failed");
                 continue;
             }
+            // The source's summary is this user's, so its verdict is theirs;
+            // `upsert_thread` writes none, as it derives from the shared hash.
+            if let Err(e) = state.mailbox.set_thread_importance(
+                user,
+                &s.thread_id,
+                &s.importance_level,
+                s.importance_score as f64,
+            ) {
+                tracing::warn!(error = %e, %user, tid = %s.thread_id, "importance not mirrored");
+            }
             // Pull the thread's messages and mirror them so `get_thread_messages`
             // returns the fresh content on the next click.
             if let Ok(msgs) = client.list_thread_messages(user, &s.thread_id).await {
