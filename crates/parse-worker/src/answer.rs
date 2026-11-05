@@ -68,13 +68,22 @@ fn message(want: Want, raw: &[u8], step: &mut dyn FnMut(Parser)) -> MessageReadi
             out.body_text = mailrs_clean::body_text_for_search(&parsed);
         }
         if want.inside {
+            let parts: Vec<(&str, &[u8])> = parsed
+                .attachments()
+                .map(|p| (p.attachment_filename().unwrap_or(""), &p.body[..]))
+                .collect();
+            // each RAR is read on its own first, so a worker that dies in
+            // the RAR walker is counted under `rar`; the listing is
+            // bounded by the archive's size, so reading it twice is cheap
+            for part in parts
+                .iter()
+                .filter(|(_, b)| mailrs_fraud::attachment_inside::is_rar(b))
+            {
+                step(Parser::Rar);
+                let _ = mailrs_fraud::attachment_inside::read([*part]);
+            }
             step(Parser::AttachmentInside);
-            out.inside = mailrs_fraud::attachment_inside::read(
-                parsed
-                    .attachments()
-                    .map(|p| (p.attachment_filename().unwrap_or(""), &p.body[..])),
-            )
-            .into();
+            out.inside = mailrs_fraud::attachment_inside::read(parts).into();
         }
         if want.html_facts {
             step(Parser::CleanHtml);
@@ -153,6 +162,35 @@ MZ\r\n\
                 Parser::BayesTokenizer
             ]
         );
+    }
+
+    /// A RAR is read under its own progress step, before the whole
+    /// reading, so a death in the RAR walker is counted as `rar`; a RAR
+    /// whose headers break off reads as an archive that will not say what
+    /// it holds.
+    #[test]
+    fn a_rar_attachment_is_read_under_its_own_step() {
+        let msg = b"From: a@b.example\r\n\
+Content-Type: multipart/mixed; boundary=b\r\n\
+\r\n\
+--b\r\n\
+Content-Type: application/octet-stream\r\n\
+Content-Disposition: attachment; filename=order.dat\r\n\
+\r\n\
+Rar!\x1a\x07\x01\x00\r\n\
+--b--\r\n";
+        let mut steps = Vec::new();
+        let want = Want {
+            inside: true,
+            ..Want::default()
+        };
+        let a = answer(&Op::Message(want), msg, &mut |p| steps.push(p));
+        let AnswerHeader::Message(r) = a.header else {
+            panic!("a message reading");
+        };
+        assert_eq!(steps, [Parser::Mime, Parser::Rar, Parser::AttachmentInside]);
+        assert!(r.inside.unreadable_archive, "{:?}", r.inside);
+        assert!(!r.inside.carries_code);
     }
 
     #[test]

@@ -107,10 +107,11 @@ pub enum Parser {
     ReportDecompress,
     Office,
     Pdf,
+    Rar,
 }
 
 impl Parser {
-    pub const ALL: [Parser; 8] = [
+    pub const ALL: [Parser; 9] = [
         Parser::Mime,
         Parser::Html2text,
         Parser::AttachmentInside,
@@ -119,6 +120,7 @@ impl Parser {
         Parser::ReportDecompress,
         Parser::Office,
         Parser::Pdf,
+        Parser::Rar,
     ];
 
     pub fn as_str(self) -> &'static str {
@@ -131,6 +133,7 @@ impl Parser {
             Parser::ReportDecompress => "report_decompress",
             Parser::Office => "office",
             Parser::Pdf => "pdf",
+            Parser::Rar => "rar",
         }
     }
 
