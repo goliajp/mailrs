@@ -388,7 +388,15 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
             "/v1/admin/maintenance:recompute-thread-display",
             post(crate::maintenance::recompute_thread_display_route),
         );
-    r.merge(walks.route_layer(axum::middleware::from_fn(
+    #[cfg(feature = "measure-hooks")]
+    let walks = walks.route(
+        "/v1/admin/debug:run-periodic",
+        post(crate::measure_hooks::run_periodic),
+    );
+    // one admission per router: each router counts only the requests it runs
+    let admission = Arc::new(crate::maintenance::offload::Admission::default());
+    r.merge(walks.route_layer(axum::middleware::from_fn_with_state(
+        admission,
         crate::maintenance::offload::off_serving_runtime,
     )))
 }
