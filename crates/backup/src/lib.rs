@@ -320,3 +320,34 @@ impl Write for HashingWriter {
         self.file.flush()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The ops start counter and liveness file live in `.ops/` under the
+    /// backup target (the only place this process may write); keeping two
+    /// archives must never take them, or `last.json`, with the old ones.
+    #[test]
+    fn keeping_two_archives_leaves_the_ops_directory_and_last_json() {
+        let dir = tempfile::tempdir().unwrap();
+        let t = dir.path();
+        let ops = mailrs_ops_report::counter::start(Some(&t.join(".ops")));
+        mailrs_ops_report::counter::touch_alive(&t.join(".ops")).unwrap();
+        fs::write(t.join("last.json"), b"{}").unwrap();
+        for day in ["20261101", "20261102", "20261103"] {
+            let a = t.join(format!("mailrs-{day}.tar.age"));
+            fs::write(&a, b"x").unwrap();
+            fs::write(format!("{}.sha256", a.display()), b"y").unwrap();
+        }
+        prune(t, 2).unwrap();
+        assert!(!t.join("mailrs-20261101.tar.age").exists());
+        assert!(!t.join("mailrs-20261101.tar.age.sha256").exists());
+        assert!(t.join("mailrs-20261103.tar.age").exists());
+        assert_eq!(fs::read(t.join("last.json")).unwrap(), b"{}");
+        let again = mailrs_ops_report::counter::start(Some(&t.join(".ops")));
+        assert_eq!(again.instance, ops.instance);
+        assert_eq!(again.start_count, Some(2));
+        assert!(mailrs_ops_report::counter::alive_age(&t.join(".ops"), 0).is_some());
+    }
+}
