@@ -24,6 +24,14 @@
 //!    be read — a conversation of only their own sends, which the ingest
 //!    path never scores. Whatever the row holds was somebody else's.
 //!
+//! Steps 2 and 3 apply only to conversations another account also holds,
+//! unless `all=true`. A copied verdict needs a second member to copy it
+//! from; on a conversation only one reader holds, a row the log does not
+//! mention carries that reader's own verdict from before the log, and a
+//! rescore today would replace it with an answer from moved inputs rather
+//! than correct it. On a copy of production that was 22,700 rows of one
+//! account.
+//!
 //! Recompute rather than wait for the next message: most conversations get
 //! no next message, so a wrong verdict would stay for good.
 //!
@@ -50,6 +58,9 @@ pub(crate) struct RecomputeImportanceQuery {
     skip: usize,
     #[serde(default = "default_limit")]
     limit: usize,
+    /// Rescore conversations only this reader holds too; see the module docs.
+    #[serde(default)]
+    all: bool,
 }
 
 fn yes() -> bool {
@@ -92,11 +103,18 @@ struct UserTally {
     from_log: u64,
     rescored: u64,
     cleared: u64,
+    /// Walked pairs on a conversation another account also holds.
+    shared: u64,
     /// Of `change`: the row holds exactly another member's logged verdict.
     another_members_verdict: u64,
+    /// Of `change`: the row holds exactly what another member's row holds.
+    another_members_row: u64,
+    /// Rows only this reader holds and the log does not mention, left as
+    /// they are (`all=false`).
+    kept_single_owner: u64,
 }
 
-/// `POST /v1/admin/maintenance:recompute-thread-importance[?user=&dry_run=false&skip=&limit=]`
+/// `POST /v1/admin/maintenance:recompute-thread-importance[?user=&dry_run=false&skip=&limit=&all=true]`
 pub(crate) async fn recompute_thread_importance_route(
     State(state): State<Arc<FastcoreState>>,
     Query(q): Query<RecomputeImportanceQuery>,
@@ -158,7 +176,26 @@ pub(crate) async fn recompute_thread_importance_route(
                 true => None,
                 false => Some((row.importance_level.clone(), row.importance_score)),
             };
-            let (want, source, fresh) = match logged(&logs[user], tid) {
+            // the other accounts holding this conversation, with their rows'
+            // verdicts
+            let others: Vec<(&String, Verdict)> = accounts
+                .iter()
+                .filter(|o| *o != user)
+                .filter_map(|o| match state.mailbox.get_thread_for_user(o, tid) {
+                    Ok(Some(r)) if r.importance_level.is_empty() => Some((o, None)),
+                    Ok(Some(r)) => Some((o, Some((r.importance_level, r.importance_score)))),
+                    _ => None,
+                })
+                .collect();
+            if !others.is_empty() {
+                tally.shared += 1;
+            }
+            let log = logged(&logs[user], tid);
+            if log.is_none() && others.is_empty() && !q.all {
+                tally.kept_single_owner += 1;
+                continue;
+            }
+            let (want, source, fresh) = match log {
                 Some(v) => (Some(v), Source::Log, None),
                 None => match crate::importance::rescore(&state, user, tid) {
                     Some((level, score)) => (
@@ -188,20 +225,18 @@ pub(crate) async fn recompute_thread_importance_route(
                 Source::Rescored => tally.rescored += 1,
                 Source::Unscorable => tally.cleared += 1,
             }
-            let others: Vec<&String> = accounts
-                .iter()
-                .filter(|o| *o != user)
-                .filter(|o| matches!(state.mailbox.get_thread_for_user(o, tid), Ok(Some(_))))
-                .collect();
             if !others.is_empty() {
                 multi_owner_changes += 1;
             }
             if have.is_some()
                 && others
                     .iter()
-                    .any(|o| same(&logged(&logs[o.as_str()], tid), &have))
+                    .any(|(o, _)| same(&logged(&logs[o.as_str()], tid), &have))
             {
                 tally.another_members_verdict += 1;
+            }
+            if have.is_some() && others.iter().any(|(_, v)| same(v, &have)) {
+                tally.another_members_row += 1;
             }
             if q.dry_run {
                 continue;
@@ -243,6 +278,7 @@ pub(crate) async fn recompute_thread_importance_route(
     Json(crate::store_motion::with_motion(
         serde_json::json!({
             "dry_run": q.dry_run,
+            "all": q.all,
             "skip": q.skip,
             "limit": q.limit,
             // What it looked at, so a zero below reads as agreement rather

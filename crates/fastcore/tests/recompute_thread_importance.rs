@@ -4,7 +4,8 @@
 //! member's row was written next, so rows carry other members' scores.
 //! `maintenance:recompute-thread-importance` corrects them: from the
 //! reader's decision log, else a rescore of their own newest inbound
-//! message, else unscored. A dry run changes nothing, and a second real run
+//! message, else unscored; the last two only where another account holds
+//! the conversation too. A dry run changes nothing, and a second real run
 //! changes nothing either.
 
 use std::sync::Arc;
@@ -83,9 +84,15 @@ const SHARED: &[u8] = b"From: carol@y.com\r\nTo: alice@x.com, bob@x.com\r\n\
 Subject: plans\r\nMessage-ID: <m-1@y.com>\r\nDate: Fri, 14 Aug 2026 01:00:00 +0000\r\n\r\n\
 see you friday\r\n";
 
-const BOBS_OWN: &[u8] = b"From: bob@x.com\r\nTo: dave@y.com\r\n\
+/// Bob writes to Alice: her inbound mail, his own send.
+const BOBS_OWN: &[u8] = b"From: bob@x.com\r\nTo: alice@x.com\r\n\
 Subject: mine\r\nMessage-ID: <own-1@x.com>\r\nDate: Fri, 14 Aug 2026 02:00:00 +0000\r\n\r\n\
 a note\r\n";
+
+/// A conversation only Bob holds.
+const BOB_ONLY: &[u8] = b"From: carol@y.com\r\nTo: bob@x.com\r\n\
+Subject: just you\r\nMessage-ID: <only-1@y.com>\r\nDate: Fri, 14 Aug 2026 03:00:00 +0000\r\n\r\n\
+a question\r\n";
 
 fn verdict(s: &Arc<mailrs_fastcore::FastcoreState>, user: &str, tid: &str) -> (String, f64) {
     let r = s
@@ -114,13 +121,22 @@ async fn wrong_verdicts_are_corrected_per_reader_and_the_second_run_changes_noth
 
     let state = Arc::new(mailrs_fastcore::FastcoreState::new(store()));
     spool(&incoming, "1.M1P1.a", "carol@y.com", &[ALICE, BOB], SHARED);
-    spool(&incoming, "2.M2P1.b", BOB, &[BOB], BOBS_OWN);
+    spool(&incoming, "2.M2P1.b", BOB, &[ALICE, BOB], BOBS_OWN);
+    spool(&incoming, "3.M3P1.c", "carol@y.com", &[BOB], BOB_ONLY);
     let (drained, _) =
         mailrs_fastcore::spool_drain::drain_once(&incoming, root.to_str().unwrap(), &state);
-    assert_eq!(drained, 2, "the drain did not take both");
+    assert_eq!(drained, 3, "the drain did not take all three");
     let shared = "m-1@y.com";
     let own = "own-1@x.com";
-    for (user, tid) in [(ALICE, shared), (BOB, shared), (BOB, own)] {
+    let only = "only-1@y.com";
+    let pairs = [
+        (ALICE, shared),
+        (ALICE, own),
+        (BOB, shared),
+        (BOB, only),
+        (BOB, own),
+    ];
+    for (user, tid) in pairs {
         assert!(
             state
                 .mailbox
@@ -132,13 +148,15 @@ async fn wrong_verdicts_are_corrected_per_reader_and_the_second_run_changes_noth
     }
 
     // Delivery scores each inbound reader on their own row; Bob's own send
-    // is not scored, and does not pick up anybody else's verdict.
-    assert!(
-        !verdict(&state, ALICE, shared).0.is_empty(),
-        "Alice unscored"
-    );
-    assert!(!verdict(&state, BOB, shared).0.is_empty(), "Bob unscored");
+    // is not scored, and does not pick up Alice's verdict on it.
+    for (user, tid) in [(ALICE, shared), (ALICE, own), (BOB, shared), (BOB, only)] {
+        assert!(
+            !verdict(&state, user, tid).0.is_empty(),
+            "{user}/{tid} unscored"
+        );
+    }
     assert_eq!(verdict(&state, BOB, own), (String::new(), 0.0));
+    let alices_on_own = verdict(&state, ALICE, own);
 
     // Bob's verdicts predate his decision log.
     std::fs::remove_file(mailrs_threadstate::path(root.join("x.com").join("bob")))
@@ -151,17 +169,19 @@ async fn wrong_verdicts_are_corrected_per_reader_and_the_second_run_changes_noth
     mailrs_threadstate::append(root.join("x.com").join("alice"), &rec).expect("log");
 
     // The rows as the shared field left them: Alice's overwritten, Bob's
-    // carrying Alice's score, and Bob's own-only conversation a score that
-    // was never his.
+    // carrying Alice's logged score, and Bob's own send carrying Alice's
+    // row. Bob's conversation of his own keeps a verdict from before the
+    // log, which is his.
     let seed = [
-        (ALICE, shared, "low", 0.1),
-        (BOB, shared, "critical", 0.9),
-        (BOB, own, "important", 0.7),
+        (ALICE, shared, "low".to_string(), 0.1),
+        (BOB, shared, "critical".to_string(), 0.9),
+        (BOB, own, alices_on_own.0.clone(), alices_on_own.1),
+        (BOB, only, "important".to_string(), 0.7),
     ];
-    for (user, tid, level, score) in seed {
+    for (user, tid, level, score) in &seed {
         state
             .mailbox
-            .set_thread_importance(user, tid, level, score)
+            .set_thread_importance(user, tid, level, *score)
             .expect("seed");
     }
 
@@ -170,23 +190,32 @@ async fn wrong_verdicts_are_corrected_per_reader_and_the_second_run_changes_noth
         dry["dry_run"], true,
         "a call without dry_run is not dry: {dry}"
     );
-    assert_eq!(dry["walked"], 3, "{dry}");
+    assert_eq!(dry["walked"], 5, "{dry}");
     assert_eq!(dry["would_change"], 3, "{dry}");
     assert_eq!(dry["changed"], 0, "{dry}");
     assert_eq!(dry["by_user"][ALICE]["from_log"], 1, "{dry}");
     assert_eq!(dry["by_user"][BOB]["rescored"], 1, "{dry}");
     assert_eq!(dry["by_user"][BOB]["cleared"], 1, "{dry}");
+    assert_eq!(dry["by_user"][BOB]["kept_single_owner"], 1, "{dry}");
+    // both of Bob's copies are what Alice's log says for her
     assert_eq!(
-        dry["by_user"][BOB]["another_members_verdict"], 1,
-        "Bob's copy of Alice's score is not recognised as hers: {dry}"
+        dry["by_user"][BOB]["another_members_verdict"], 2,
+        "Bob's copies of Alice's logged scores are not recognised as hers: {dry}"
     );
-    for (user, tid, level, score) in seed {
+    assert_eq!(
+        dry["by_user"][BOB]["another_members_row"], 1,
+        "Bob's copy of Alice's row is not recognised as hers: {dry}"
+    );
+    for (user, tid, level, score) in &seed {
         assert_eq!(
             verdict(&state, user, tid),
-            (level.to_string(), score),
+            (level.clone(), *score),
             "the dry run wrote {user}/{tid}"
         );
     }
+    // Asked to, it rescores the conversation only Bob holds as well.
+    let wide = call(&state, "?all=true").await;
+    assert_eq!(wide["by_user"][BOB]["kept_single_owner"], 0, "{wide}");
 
     let first = call(&state, "?dry_run=false").await;
     assert_eq!(first["changed"], 3, "{first}");
@@ -196,9 +225,11 @@ async fn wrong_verdicts_are_corrected_per_reader_and_the_second_run_changes_noth
     assert!(!bobs.0.is_empty(), "Bob's inbound copy was left unscored");
     assert_ne!(bobs, ("critical".into(), 0.9), "Bob kept Alice's score");
     assert_eq!(verdict(&state, BOB, own), (String::new(), 0.0));
+    assert_eq!(verdict(&state, BOB, only), ("important".into(), 0.7));
+    assert_eq!(verdict(&state, ALICE, own), alices_on_own);
 
     let second = call(&state, "?dry_run=false").await;
-    assert_eq!(second["walked"], 3, "{second}");
+    assert_eq!(second["walked"], 5, "{second}");
     assert_eq!(second["would_change"], 0, "{second}");
     assert_eq!(second["changed"], 0, "{second}");
     assert_eq!(
@@ -207,7 +238,7 @@ async fn wrong_verdicts_are_corrected_per_reader_and_the_second_run_changes_noth
         "the second run moved Bob's"
     );
 
-    // Batched: the same three pairs, one call each.
+    // Batched: the same five pairs, one call each.
     let mut skip = 0;
     let mut walked = 0;
     loop {
@@ -217,7 +248,7 @@ async fn wrong_verdicts_are_corrected_per_reader_and_the_second_run_changes_noth
             break;
         }
         skip = page["next_skip"].as_u64().expect("next_skip");
-        assert!(skip <= 3, "the batches do not end: {page}");
+        assert!(skip <= 5, "the batches do not end: {page}");
     }
-    assert_eq!(walked, 3);
+    assert_eq!(walked, 5);
 }
