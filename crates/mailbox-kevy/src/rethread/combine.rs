@@ -236,17 +236,29 @@ mod search_tests {
         assert_eq!(combine_rows("t1", unindexed, inbound).latest_date, 900);
     }
 
+    /// Delivered the way intake leaves it: the sender is on the reader's
+    /// row because a message of theirs came from it.
+    fn deliver(s: &KevyMailboxStore, u: &str, tid: &str, subject: &str, from: &str, body: &str) {
+        crate::display_tests::deliver(
+            s,
+            u,
+            tid,
+            &crate::display_tests::Mail {
+                mid: tid,
+                from,
+                subject,
+                body,
+                date: 100,
+            },
+        );
+    }
+
     #[test]
     fn finds_by_subject_sender_and_preview() {
         let s = store();
         let u = "u@x.com";
-        s.upsert_thread(
-            u,
-            &row("t1", "Release notes", "bot@github.com", "v9 is out"),
-        )
-        .unwrap();
-        s.upsert_thread(u, &row("t2", "Lunch", "alice@x.com", "see you at noon"))
-            .unwrap();
+        deliver(&s, u, "t1", "Release notes", "bot@github.com", "v9 is out");
+        deliver(&s, u, "t2", "Lunch", "alice@x.com", "see you at noon");
 
         // subject
         assert_eq!(s.search_threads(u, "release", 10).unwrap()[0].0, "t1");
@@ -260,11 +272,14 @@ mod search_tests {
     fn finds_japanese_without_a_tokenizer() {
         let s = store();
         let u = "u@x.com";
-        s.upsert_thread(
+        deliver(
+            &s,
             u,
-            &row("t1", "小柳ルミ子 誕生日", "アメマガ <sp@ameba.jp>", ""),
-        )
-        .unwrap();
+            "t1",
+            "小柳ルミ子 誕生日",
+            "アメマガ <sp@ameba.jp>",
+            "",
+        );
         // CJK bigrams — the mailbox this was reported against is mostly
         // Japanese commercial mail
         assert_eq!(s.search_threads(u, "アメマガ", 10).unwrap().len(), 1);

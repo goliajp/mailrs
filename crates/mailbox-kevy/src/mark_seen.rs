@@ -63,48 +63,22 @@ impl KevyMailboxStore {
             crate::thread_row::hset_membership(ctx, user_key.as_bytes(), &[(b"unread", b"0")])?;
             Ok(true)
         })?;
-        // only somebody in the thread speaks for its shared copies, which
-        // are every owner's
-        if !member {
-            return Ok(false);
-        }
-        // Sink the \Seen fact into every per-message wire too. The
-        // thread-hash zero above is a cache; the wires are what
-        // self-heal recounts and what a rethread merge recounts from —
-        // without this, a restart (self-heal) or a merge resurrected
-        // already-read mail as unread (2026-07-17).
-        let msgs_key = keys::thread_messages(thread_id);
-        let members = self.store().zrange(msgs_key.as_bytes(), 0, -1)?;
-        for (mid_bytes, _score) in &members {
-            let Ok(mid) = std::str::from_utf8(mid_bytes) else {
-                continue;
-            };
-            let blob_key = keys::message_blob(mid);
-            if let Some(bytes) = self.store().get(blob_key.as_bytes())?
-                && let Ok(mut wire) = serde_json::from_slice::<serde_json::Value>(&bytes)
-            {
-                let flags = wire["flags"].as_u64().unwrap_or(0);
-                if flags & 1 == 0 {
-                    wire["flags"] = serde_json::Value::from(flags | 1);
-                    if let Ok(payload) = serde_json::to_vec(&wire) {
-                        self.store().set(blob_key.as_bytes(), &payload)?;
-                    }
-                }
-            }
-        }
-        Ok(true)
+        // Nothing is written to the messages' shared blobs. Their `flags`
+        // is stripped to zero on every write because several readers hold
+        // the same message; setting the bit there made one member's read
+        // the next reader's: a split of their own copy took `seen` from it.
+        // Every read path takes the bit from the reader's own row.
+        Ok(member)
     }
 
     /// Set `\Seen` on every message `user` holds in `thread_id`, at the
     /// row level, and report the files that are now behind.
     ///
-    /// [`mark_seen`](Self::mark_seen) writes the thread's *axis column*
-    /// and sinks the bit into the shared blob — where, since stage 5 of the
-    /// per-user message projection, no read path consults it: the blob's
-    /// `flags` is stripped to zero on write and `user_message_view`
-    /// overlays this row on top. So a conversation read in the web left
-    /// every message in it unread on the row that serves reads, and
-    /// unrenamed on disk.
+    /// [`mark_seen`](Self::mark_seen) writes only the thread's *axis
+    /// column*; the message rows that serve reads (`user_message_view`
+    /// overlays them on the shared blob) are this. Calling only the first
+    /// left every message in a conversation read in the web unread on the
+    /// row that serves reads, and unrenamed on disk.
     ///
     /// Returns `(blob_ref, flags)` for each row it changed, so the caller
     /// — which is the only layer that may touch the filesystem — can bring
@@ -503,9 +477,7 @@ mod tests {
     /// the test above says otherwise only because it asks the shared
     /// thread hash. A list renders `unread_count` off the **per-user**
     /// membership row, and `mark_seen` does not write it: it writes
-    /// the axis column, and sinks the bit into a shared blob no read
-    /// path has consulted since stage 5 of the per-user message
-    /// projection.
+    /// the axis column only.
     ///
     /// Two sides, each self-consistent — so a thread leaves every
     /// unread list and stays bold in the one that shows it. That is
@@ -594,7 +566,7 @@ mod tests {
     }
 
     #[test]
-    fn only_a_participant_marks_the_shared_copies_seen() {
+    fn marking_seen_leaves_the_shared_copies_alone() {
         let s = store();
         s.record_message_arrival(&arr("t1", "a@x.com", true))
             .unwrap();
@@ -611,14 +583,9 @@ mod tests {
                 .unwrap()
         };
 
-        s.mark_seen("stranger@x.com", "t1").unwrap();
-        assert_eq!(shared_flags(), 0, "a stranger marked the owner's mail seen");
-
-        s.mark_seen("a@x.com", "t1").unwrap();
-        assert_ne!(
-            shared_flags() & u64::from(mailrs_mailbox::types::FLAG_SEEN),
-            0
-        );
+        assert!(!s.mark_seen("stranger@x.com", "t1").unwrap());
+        assert!(s.mark_seen("a@x.com", "t1").unwrap());
+        assert_eq!(shared_flags(), 0, "one reader's read is not everybody's");
     }
 
     #[test]
