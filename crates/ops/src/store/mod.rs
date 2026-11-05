@@ -109,6 +109,12 @@ CREATE TABLE IF NOT EXISTS report_rejections_log (
     reason TEXT NOT NULL,
     at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS admin_refusals_log (
+    id INTEGER PRIMARY KEY,
+    route TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    at INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS channel_tests_events (
     id INTEGER PRIMARY KEY,
     config TEXT NOT NULL,

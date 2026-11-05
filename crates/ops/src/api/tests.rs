@@ -35,6 +35,7 @@ async fn a_process_report_from_the_real_sender_is_taken() {
         "receiver",
         mailrs_ops_report::push::Config {
             url: Some(url),
+            reports_url: None,
             key: mailrs_ops_report::key::derive(b"test-master", "receiver"),
             state_dir: Some(dir.path().join("receiver")),
         },

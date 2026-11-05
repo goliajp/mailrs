@@ -79,16 +79,25 @@ async fn webapi_auth(
     next: Next,
 ) -> Result<Response, StatusCode> {
     use sha2::Digest;
-    let Some(want) = &app.cfg.admin_secret_sha256 else {
-        return Err(StatusCode::FORBIDDEN);
-    };
     let given = req
         .headers()
         .get(ADMIN_SECRET_HEADER)
-        .and_then(|v| v.to_str().ok())
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-    if hex::encode(sha2::Sha256::digest(given.as_bytes())) != *want {
-        return Err(StatusCode::UNAUTHORIZED);
+        .and_then(|v| v.to_str().ok());
+    let refused = match (&app.cfg.admin_secret_sha256, given) {
+        (None, _) => Some((StatusCode::FORBIDDEN, "no admin secret configured")),
+        (Some(_), None) => Some((StatusCode::UNAUTHORIZED, "no secret")),
+        (Some(want), Some(g)) => match hex::encode(sha2::Sha256::digest(g.as_bytes())) == *want {
+            true => None,
+            false => Some((StatusCode::UNAUTHORIZED, "wrong secret")),
+        },
+    };
+    if let Some((status, why)) = refused {
+        let route = req.uri().path().to_string();
+        if let Err(e) = app.store.record_denial(&route, why, app.clock.now()) {
+            tracing::error!(error = %e, "refused admin call not recorded");
+        }
+        tracing::warn!(%route, reason = why, "admin call refused");
+        return Err(status);
     }
     let actor = req
         .headers()

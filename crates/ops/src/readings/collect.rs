@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use mailrs_ops_report::wire::Detail;
 
-use super::pull::Puller;
+use super::pull::{Polls, Puller};
 use super::{ChannelView, InstanceView, Limits, ProcessView, Reading, ReportBook, Snapshot};
 use crate::config::Config;
 use crate::store::{Maintenance, Store, StoredReport};
@@ -37,6 +37,7 @@ pub struct Collector {
     receiver_trend: VecDeque<(i64, u64)>,
     push_sources: Vec<String>,
     limits: Limits,
+    polls: Polls,
     heartbeat_configured: bool,
 }
 
@@ -70,7 +71,13 @@ impl Collector {
                 fastcore_ready_secs: cfg.fastcore_ready_secs,
             },
             heartbeat_configured: cfg.heartbeat_url.is_some(),
+            polls: Polls::default(),
         }
+    }
+
+    /// The daemon's own count of its status reads.
+    pub fn polls(&self) -> Polls {
+        self.polls.clone()
     }
 
     pub async fn collect(
@@ -79,8 +86,18 @@ impl Collector {
         channels: Vec<ChannelView>,
         maintenance: Option<Maintenance>,
     ) -> Snapshot {
+        // until one read has succeeded, every read is the first
+        let first_read = self.polls.last_success_at.is_none();
         let ((fastcore, fastcore_ready, fastcore_ops), (webapi, webapi_ready)) =
-            tokio::join!(self.puller.fastcore(), self.puller.webapi());
+            tokio::join!(self.puller.fastcore(first_read), self.puller.webapi());
+        self.polls.calls += 1;
+        match &fastcore_ops {
+            Reading::Got(_) => self.polls.last_success_at = Some(now),
+            Reading::Unreadable(why) => {
+                self.polls.last_failure_at = Some(now);
+                self.polls.last_failure = Some(why.clone());
+            }
+        }
         let drain_still_secs = fastcore_ops.got().and_then(|o| {
             let delivered = o.drain.delivered;
             match self.drain {

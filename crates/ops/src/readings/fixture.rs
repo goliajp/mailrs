@@ -49,7 +49,6 @@ pub fn health() -> HealthResponse {
             failures: vec![],
             paused_since: None,
         }),
-        build: Some(build()),
     }
 }
 
@@ -57,7 +56,6 @@ pub fn webapi(now: i64) -> serde_json::Value {
     serde_json::json!({
         "status": "healthy",
         "kevy": true,
-        "build": { "version": "2.214.0", "commit": "abcdef1234567890", "started_at": 1000 },
         "kevy_server_memory": { "used_bytes": 100, "limit_bytes": 1000, "high": false },
         "quota": { "accounts": 5, "accounts_without_limit": 0, "over_80": 0, "computed_at": now, "stale": false },
         "new_domains": { "keys": 100, "added_24h": 3, "computed_at": now, "stale": false },
@@ -128,6 +126,7 @@ pub fn healthy(now: i64) -> Snapshot {
     processes.insert("sender".into(), view("sender", now, true, Some(sender)));
     processes.insert("fetch".into(), view("fetch", now, true, Some(fetch)));
     processes.insert("backup".into(), view("backup", now, true, Some(backup)));
+    processes.insert("webapi".into(), view("webapi", now, false, None));
     processes.insert(
         "fastcore".into(),
         view(
@@ -142,6 +141,7 @@ pub fn healthy(now: i64) -> Snapshot {
     s.fastcore_ready = Reading::Got(health());
     s.fastcore_ops = Reading::Got(OpsStatusWire {
         build: build(),
+        fetch_starts_witnessed: 1,
         drain: DrainProgressWire {
             ticks: 10,
             delivered: 4,

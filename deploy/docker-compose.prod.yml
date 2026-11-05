@@ -479,7 +479,7 @@ services:
 
   # Fetches the remote images of arriving mail for fastcore, and nothing
   # else. It talks to the outside on purpose, so it holds nothing worth
-  # taking: no MAILRS_* secret, no kevy, no volume. Its own checks refuse
+  # taking: no secret but its own ops report key, no kevy, no volume. Its own checks refuse
   # every private address; on top of that it shares only the `fetch`
   # network, with fastcore alone, and runs locked down.
   fetch:
@@ -504,11 +504,15 @@ services:
       timeout: 5s
       start_period: 10s
       retries: 3
-    # No MAILRS_OPS_URL: fetch shares a network with fastcore alone and has
-    # no writable volume, so it can neither reach the ops daemon nor keep a
-    # start counter. The daemon is told not to expect it
-    # (MAILRS_OPS_PUSH_SOURCES below).
+    # fetch shares a network with fastcore alone, so its reports go to
+    # fastcore's relay, which passes them on unchanged; they stay signed with
+    # fetch's own key from ./ops/fetch.env. It has no writable volume and so
+    # no start counter: the daemon shows the starts fastcore relayed instead.
+    env_file:
+      - path: ./ops/fetch.env
+        required: false
     environment:
+      MAILRS_OPS_REPORTS_URL: http://fastcore:3301/v1/ops/reports:relay
       RUST_LOG: info
     restart: unless-stopped
 
@@ -544,7 +548,7 @@ services:
       MAILRS_OPS_DATA_DIR: /data
       MAILRS_OPS_FASTCORE_URL: http://fastcore:3301
       MAILRS_OPS_WEBAPI_URL: http://webapi-fc:3100
-      MAILRS_OPS_PUSH_SOURCES: receiver,sender,backup
+      MAILRS_OPS_PUSH_SOURCES: receiver,sender,fetch,backup
       MAILRS_HOSTNAME: mail.golia.ai
       RUST_LOG: info
     tmpfs:

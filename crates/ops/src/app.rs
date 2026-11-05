@@ -8,11 +8,19 @@ use crate::clock::Clock;
 use crate::config::Config;
 use crate::engine::Engine;
 use crate::notify::Dispatcher;
-use crate::readings::{Collector, ReportBook, Snapshot};
+use crate::readings::{Collector, Polls, ReportBook, Snapshot};
 use crate::store::{CycleRow, Store};
 
 /// A test message goes to every channel at least this often.
 const CHANNEL_TEST_EVERY: i64 = 7 * 86_400;
+
+/// What the last cycle read that the state view shows beside the alerts.
+#[derive(Debug, Clone, Default)]
+struct Seen {
+    polls: Polls,
+    /// fetch starts the core relayed, and since when it has been counting.
+    fetch_witnessed: Option<(u64, i64)>,
+}
 
 pub struct App {
     pub cfg: Config,
@@ -22,6 +30,8 @@ pub struct App {
     pub engine: std::sync::Mutex<Engine>,
     pub dispatcher: tokio::sync::Mutex<Dispatcher>,
     collector: tokio::sync::Mutex<Collector>,
+    /// From the last cycle, for the state view without waiting on a read.
+    seen: std::sync::Mutex<Seen>,
     http: reqwest::Client,
     /// Unix seconds the current or last cycle started and finished, for
     /// the watchdog.
@@ -57,6 +67,7 @@ impl App {
             engine: std::sync::Mutex::new(engine),
             dispatcher: tokio::sync::Mutex::new(dispatcher),
             collector: tokio::sync::Mutex::new(collector),
+            seen: std::sync::Mutex::new(Seen::default()),
             http: reqwest::Client::new(),
             cycle_started: AtomicI64::new(mailrs_ops_report::build::now()),
             cycle_finished: AtomicI64::new(mailrs_ops_report::build::now()),
@@ -87,12 +98,18 @@ impl App {
             Vec::new()
         });
         let channels = self.dispatcher.lock().await.channel_views();
-        let snap = self
-            .collector
-            .lock()
-            .await
-            .collect(now, channels, maintenance.clone())
-            .await;
+        let (snap, polls) = {
+            let mut c = self.collector.lock().await;
+            let snap = c.collect(now, channels, maintenance.clone()).await;
+            (snap, c.polls())
+        };
+        {
+            let mut seen = self.seen.lock().unwrap_or_else(|p| p.into_inner());
+            seen.polls = polls;
+            if let Some(o) = snap.fastcore_ops.got() {
+                seen.fetch_witnessed = Some((o.fetch_starts_witnessed, o.build.started_at));
+            }
+        }
         let (notices, critical) = {
             let mut engine = self.engine();
             let notices = engine.evaluate(&snap);
@@ -205,16 +222,28 @@ impl App {
     pub async fn state(&self) -> Result<serde_json::Value, String> {
         let now = self.clock.now();
         let alerts = self.engine().view();
+        let seen = self.seen.lock().unwrap_or_else(|p| p.into_inner()).clone();
         let processes: Vec<_> = self
             .book
             .latest()
             .into_iter()
             .map(|r| {
+                // fetch has no counter of its own; the core counts the
+                // start reports it relays, which is a weaker reading
+                let (count, source) = match (r.report.process.as_str(), r.report.start_count) {
+                    ("fetch", _) => (
+                        seen.fetch_witnessed.map(|(n, _)| n),
+                        "witnessed by fastcore since it started (unverified, weaker than self-reported)",
+                    ),
+                    (_, Some(n)) => (Some(n), "self-reported"),
+                    (_, None) => (None, "not kept"),
+                };
                 serde_json::json!({
                     "process": r.report.process,
                     "instance": r.report.instance,
                     "kind": r.report.kind,
-                    "start_count": r.report.start_count,
+                    "start_count": count,
+                    "start_count_source": source,
                     "build": r.report.build,
                     "received_at": r.received_at,
                     "age_secs": now - r.received_at,
@@ -232,6 +261,8 @@ impl App {
             "alerts": alerts,
             "notifications": self.dispatcher.lock().await.status(),
             "report_rejections": self.store.rejection_counts().map_err(|e| e.0)?,
+            "admin_refusals": self.store.denial_counts().map_err(|e| e.0)?,
+            "ops_status_polls": seen.polls,
             "processes": processes,
         }))
     }

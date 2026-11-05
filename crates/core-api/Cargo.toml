@@ -19,7 +19,7 @@ default = []
 # server-side dependencies (axum + tower). Pulled in by `core` and
 # `fastcore` binaries which expose the RPC. webapi/sender just want the
 # `client` feature.
-server = ["dep:axum", "dep:tower-http", "dep:sha2", "dep:hex"]
+server = ["dep:axum", "dep:tower-http", "dep:sha2", "dep:hex", "dep:reqwest"]
 # client-side dependencies (reqwest). Pulled in by webapi/sender to call
 # core.
 client = ["dep:reqwest", "dep:percent-encoding"]

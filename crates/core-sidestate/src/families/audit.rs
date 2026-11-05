@@ -28,6 +28,25 @@ pub struct AuditFact {
     pub detail: String,
 }
 
+/// Who the ops daemon is in the audit log.
+pub const OPS_DAEMON: &str = "ops-daemon";
+
+/// Record `action` with the ops daemon as the actor, on the shared store
+/// `core` reaches. Not recorded (and logged) when that store cannot be
+/// reached: the calls audited this way change nothing.
+pub fn by_ops_daemon<C: crate::NetKevy>(core: &C, action: &str, detail: &str) {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs() as i64);
+    let written = core
+        .net_conn()
+        .ok_or_else(|| std::io::Error::other("no shared store"))
+        .and_then(|mut c| append(&mut c, OPS_DAEMON, action, "core-api", detail, now));
+    if let Err(e) = written {
+        tracing::error!(error = %e, action, "ops daemon call not audited");
+    }
+}
+
 /// Append one fact recorded at `now`.
 pub fn append(
     c: &mut kevy_client::Connection,

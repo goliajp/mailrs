@@ -40,6 +40,7 @@ pub fn ops_status(spool_root: &Path) -> OpsStatusWire {
     records.truncate(MAX_QUARANTINE_RECORDS);
     OpsStatusWire {
         build: mailrs_ops_report::build::build(),
+        fetch_starts_witnessed: mailrs_core_api::method::ops::fetch_starts_witnessed(),
         drain: drain_progress(),
         quarantined_total: total,
         quarantined: records

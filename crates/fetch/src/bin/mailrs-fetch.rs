@@ -1,8 +1,10 @@
 //! `mailrs-fetch` — fetches one remote image per request for fastcore.
 //!
 //! `POST /fetch {"url": …}` answers the re-encoded image, or 422 with why
-//! it was refused. It holds no secret and reaches nothing of mailrs: it
-//! sits on a network shared with fastcore alone, and its own checks refuse
+//! it was refused. The only secret it holds is its own ops report key,
+//! which lets it speak for fetch and nothing else. It reaches nothing of
+//! mailrs but fastcore, with which it alone shares a network (its reports
+//! go to fastcore's relay, `MAILRS_OPS_REPORTS_URL`); its own checks refuse
 //! every private address, that network's included.
 
 use std::sync::Arc;

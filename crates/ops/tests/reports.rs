@@ -39,6 +39,7 @@ async fn daemon(data: &std::path::Path, hook: String) -> (Arc<App>, String) {
 fn push(url: Option<&str>, process: &str, dir: &std::path::Path) -> PushConfig {
     PushConfig {
         url: url.map(String::from),
+        reports_url: None,
         key: mailrs_ops_report::key::derive(b"test-master", process),
         state_dir: Some(dir.to_path_buf()),
     }
