@@ -99,7 +99,12 @@ fn holds(raw: &[u8]) -> Vec<String> {
     let mut rules = Rules::compile(&format!("{DEFAULT_SOURCE}{PROBE}")).expect("compiles");
     let out = rules.classify(&reading.facts(0, 0, Default::default()), &Policy::default());
     assert!(out.errors.is_empty(), "{:?}", out.errors);
-    let mut held: Vec<String> = out.findings.rules().iter().map(|r| r.to_string()).collect();
+    let mut held: Vec<String> = out
+        .findings
+        .iter()
+        .filter(|f| f.holds)
+        .map(|f| f.rule.clone())
+        .collect();
     held.sort();
     held
 }
@@ -163,5 +168,78 @@ fn the_checker_reads_the_fact() {
     assert_eq!(report["holds_by_rule"], candidate_holds, "{report}");
     let baseline = serde_json::json!({"executable-attachment": 1});
     assert_eq!(report["baseline_holds_by_rule"], baseline, "{report}");
+    fs::remove_dir_all(root).unwrap();
+}
+
+/// The built-in rule on the sweep's reading: a 7z scores 3 and is not
+/// held; a RAR whose names show only documents is not touched.
+#[test]
+fn the_shipped_rule_scores_a_7z_on_the_sweeps_reading() {
+    let judge = |raw: &[u8]| {
+        let reading = Reading::of(raw, None, &[]);
+        let mut rules = Rules::compile(DEFAULT_SOURCE).expect("compiles");
+        let out = rules.classify(&reading.facts(0, 0, Default::default()), &Policy::default());
+        assert!(out.errors.is_empty(), "{:?}", out.errors);
+        out.findings
+    };
+    let found = judge(&message("invoice.7z", &seven_z()));
+    let hit = found
+        .iter()
+        .find(|f| f.rule == "archive-names-unreadable")
+        .expect("the rule fires on a 7z");
+    assert_eq!(hit.score, 3.0);
+    assert!(!found.hold_worthy(), "{:?}", found.rules());
+    let docs = judge(&message("docs.rar", &rar5(&["a.pdf"])));
+    assert!(!docs.has("archive-names-unreadable"), "{:?}", docs.rules());
+}
+
+/// The checker, comparing the shipped pack with the same pack minus the
+/// new rule: the rule is added on the 7z and the header-encrypted RAR,
+/// and holds nothing anywhere.
+#[test]
+fn the_checker_adds_the_rule_without_adding_a_hold() {
+    let root = std::env::temp_dir().join(format!("mailrs-fraud-check-b58r-{}", std::process::id()));
+    fs::create_dir_all(root.join("cur")).unwrap();
+    for (i, raw) in [
+        message("order.taz", &rar5(&["order.bat"])),
+        message("docs.rar", &rar5(&["a.pdf"])),
+        message("invoice.rar", &rar5_encrypted_headers()),
+        message("invoice.7z", &seven_z()),
+    ]
+    .iter()
+    .enumerate()
+    {
+        fs::write(root.join("cur").join(i.to_string()), raw).unwrap();
+    }
+    let rule = "if m.has_unreadable_archive then";
+    assert!(DEFAULT_SOURCE.contains(rule), "the shipped rule moved");
+    let baseline = root.join("baseline.lua");
+    fs::write(&baseline, DEFAULT_SOURCE.replace(rule, "if false then")).unwrap();
+    let out = Command::new(env!("CARGO_BIN_EXE_mailrs-fraud-check"))
+        .args([
+            "compare",
+            baseline.to_str().unwrap(),
+            "builtin",
+            root.to_str().unwrap(),
+            "4",
+        ])
+        .env_remove("MAILRS_KEVY_URL")
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let report: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(
+        report["changed_by_rule"],
+        serde_json::json!({"+archive-names-unreadable": 2}),
+        "{report}"
+    );
+    assert_eq!(report["added_holds"], 0, "{report}");
+    let holds = serde_json::json!({"executable-attachment": 1});
+    assert_eq!(report["holds_by_rule"], holds, "{report}");
+    assert_eq!(report["baseline_holds_by_rule"], holds, "{report}");
     fs::remove_dir_all(root).unwrap();
 }
