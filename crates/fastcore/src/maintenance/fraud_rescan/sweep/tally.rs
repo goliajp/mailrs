@@ -3,12 +3,12 @@
 use super::*;
 
 impl Tally {
-    pub(super) fn into_response(
+    pub(super) fn into_json(
         self,
         q: &RescanQuery,
         walked: u64,
         stopped_early: bool,
-    ) -> axum::response::Response {
+    ) -> serde_json::Value {
         tracing::info!(
             walked,
             found = self.found,
@@ -25,7 +25,7 @@ impl Tally {
             dry_run = q.dry_run,
             "fraud-rescan complete"
         );
-        Json(serde_json::json!({
+        serde_json::json!({
             "done": !stopped_early,
             "next_skip": q.skip + walked,
             "dry_run": q.dry_run,
@@ -62,7 +62,6 @@ impl Tally {
             "scored_but_whitelisted": self.scored_whitelisted,
             "scored_by_reason": self.scored_by_reason,
             "scored_samples": self.scored_samples,
-        }))
-        .into_response()
+        })
     }
 }

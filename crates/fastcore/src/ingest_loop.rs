@@ -73,11 +73,7 @@ pub(crate) async fn ingest_sync_loop(state: Arc<FastcoreState>) {
                     true => 0,
                     false => now_secs().saturating_sub(INCREMENTAL_WINDOW_SECS),
                 };
-                let addrs = state.mailbox.list_account_addresses().unwrap_or_default();
-                let mut repaired = false;
-                for user in &addrs {
-                    repaired |= healed_from_maildir(&state, user, since).await;
-                }
+                let repaired = heal_pass(&state, since).await;
                 if full {
                     last_full_sweep = Some(std::time::Instant::now());
                 }
@@ -94,6 +90,16 @@ pub(crate) async fn ingest_sync_loop(state: Arc<FastcoreState>) {
         }
         tokio::time::sleep(wait).await;
     }
+}
+
+/// Every user's maildir against the store, for mail since `since` (0: all).
+pub(crate) async fn heal_pass(state: &Arc<FastcoreState>, since: i64) -> bool {
+    let addrs = state.mailbox.list_account_addresses().unwrap_or_default();
+    let mut repaired = false;
+    for user in &addrs {
+        repaired |= healed_from_maildir(state, user, since).await;
+    }
+    repaired
 }
 
 pub(crate) async fn run_ingest_once(

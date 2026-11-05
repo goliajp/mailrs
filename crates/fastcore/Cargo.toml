@@ -37,6 +37,10 @@ path = "src/bin/sender/main.rs"
 name = "mailrs-fastcore-ocr"
 path = "src/bin/ocr.rs"
 
+[features]
+# a debug route that starts a periodic task's round at once; never in a release image
+measure-hooks = []
+
 [dependencies]
 mailrs-apns = { path = "../apns", version = "1" }
 mailrs-core-api = { path = "../core-api", features = ["server", "client"] }

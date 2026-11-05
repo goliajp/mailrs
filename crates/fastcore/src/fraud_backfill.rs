@@ -1,10 +1,16 @@
 //! Durable, bounded reconciliation after a Lua rule version changes.
-use std::{fs, io::Write, path::Path, sync::Arc, time::Duration};
+use std::{fs, path::Path, sync::Arc, time::Duration};
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::{FastcoreState, maintenance::fraud_rescan};
+use crate::{
+    FastcoreState,
+    maintenance::{fraud_rescan, hangup::Hangup},
+};
+
+mod journal;
+use journal::{now, read_json, save};
 
 const BATCH: usize = 100;
 
@@ -59,22 +65,6 @@ struct Skipped {
     user: String,
     thread_id: String,
     at: i64,
-}
-
-fn now() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.as_secs() as i64)
-}
-
-fn read_json<T: serde::de::DeserializeOwned>(path: &Path) -> Result<Option<T>, String> {
-    match fs::read(path) {
-        Ok(raw) => serde_json::from_slice(&raw)
-            .map(Some)
-            .map_err(|e| e.to_string()),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(e) => Err(e.to_string()),
-    }
 }
 
 /// How many conversations the backfill in `journal` skipped for its
@@ -147,18 +137,6 @@ fn next_range(
     })
 }
 
-fn save(path: &Path, value: &impl Serialize) -> Result<(), String> {
-    let tmp = path.with_extension("tmp");
-    let mut file = fs::File::create(&tmp).map_err(|e| e.to_string())?;
-    serde_json::to_writer(&mut file, value).map_err(|e| e.to_string())?;
-    file.flush().map_err(|e| e.to_string())?;
-    file.sync_all().map_err(|e| e.to_string())?;
-    fs::rename(tmp, path).map_err(|e| e.to_string())?;
-    fs::File::open(path.parent().ok_or("missing journal parent")?)
-        .and_then(|dir| dir.sync_all())
-        .map_err(|e| e.to_string())
-}
-
 fn version(source: &str) -> String {
     format!("lua:{:x}", Sha256::digest(source.as_bytes()))
 }
@@ -175,10 +153,28 @@ fn validate(source: &str) -> Result<(), String> {
 
 /// Run at most 100 conversations, or do no work for a completed version.
 /// The journal and snapshot are durable; only one caller may own this directory.
+///
+/// All of it runs on the blocking pool: the snapshot, the journal's fsyncs
+/// and every judgement are synchronous, and on a runtime worker a batch
+/// kept every request to this process waiting for seconds at a time.
 pub async fn run_once(
     state: Arc<FastcoreState>,
     journal: &Path,
     rules_file: &Path,
+) -> Result<bool, String> {
+    let (journal, rules_file) = (journal.to_path_buf(), rules_file.to_path_buf());
+    crate::maintenance::hangup::run_blocking(move |h| {
+        run_once_blocking(&state, &journal, &rules_file, h)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+fn run_once_blocking(
+    state: &Arc<FastcoreState>,
+    journal: &Path,
+    rules_file: &Path,
+    hangup: &Hangup,
 ) -> Result<bool, String> {
     use std::io::Read;
     let mut source = String::new();
@@ -201,7 +197,7 @@ pub async fn run_once(
     let snapshot_file = journal.join(format!("snapshot-{}.json", &current[4..]));
     if progress.as_ref().is_none_or(|p| p.version != current) {
         validate(&source)?;
-        let targets = fraud_rescan::snapshot(&state).map_err(|e| e.to_string())?;
+        let targets = fraud_rescan::snapshot(state).map_err(|e| e.to_string())?;
         fs::create_dir_all(journal).map_err(|e| e.to_string())?;
         // Snapshot first, then publish its cursor. No offset into a changing
         // keyspace, and no reshuffling on restart or arrival of new mail.
@@ -247,7 +243,7 @@ pub async fn run_once(
     save(&inflight_file, &flight)?;
     let end = flight.end;
     let batch = targets[progress.cursor..end].to_vec();
-    let judged = judge(state, batch, &current, &mut progress, end).await;
+    let judged = judge(state, batch, &current, &mut progress, end, hangup);
     if let Err(e) = &judged {
         // a run that returned did not die: this start is not counted
         let undo = Inflight {
@@ -281,18 +277,19 @@ pub async fn run_once(
 
 /// Judge `batch`, the targets up to `end`, and add what came of it to
 /// `progress` with the cursor moved to `end`.
-async fn judge(
-    state: Arc<FastcoreState>,
+fn judge(
+    state: &Arc<FastcoreState>,
     batch: Vec<(String, String)>,
     current: &str,
     progress: &mut Progress,
     end: usize,
+    hangup: &Hangup,
 ) -> Result<(), String> {
     // A lost response/checkpoint repeats only this batch. The apply path checks
     // existing verdict, quarantine and unread state before writing.
-    let response = fraud_rescan::rescan(
+    let result = fraud_rescan::walk(
         state,
-        fraud_rescan::RescanQuery {
+        &fraud_rescan::RescanQuery {
             dry_run: false,
             skip: 0,
             limit: BATCH as u64,
@@ -301,15 +298,9 @@ async fn judge(
         },
         Some(batch),
         Some(current),
+        hangup,
     )
-    .await;
-    if !response.status().is_success() {
-        return Err(format!("rescan failed: {}", response.status()));
-    }
-    let bytes = axum::body::to_bytes(response.into_body(), 128 * 1024)
-        .await
-        .map_err(|e| e.to_string())?;
-    let result: serde_json::Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+    .map_err(|e| format!("rescan failed: {e}"))?;
     if result["verdict_failed"].as_u64() != Some(0)
         || result["threads_walked"].as_u64() != Some((end - progress.cursor) as u64)
     {
