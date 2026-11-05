@@ -52,7 +52,7 @@ pub async fn prefetch_images(
             .await
             .map_err(fail)?;
         let q = mailrs_intake::image_prefetch::NetworkQueue { url };
-        mailrs_intake::image_prefetch::queue_thread(&q, &user, &thread_id, &raws);
+        mailrs_intake::image_prefetch::ask_thread(&q, &user, &thread_id, &raws);
     }
     Ok(Json(wire::ThreadActionResponse {
         affected: 1,

@@ -229,6 +229,8 @@ export const en = {
     'Images are not loaded for mail in Junk or held for review: loading them tells the sender the address is read.',
   'images.hidden': 'Images in this message are hidden.',
   'images.hiddenBySettings': 'Images are hidden by your settings',
+  'images.loading': 'Loading images',
+  'images.missing': 'Some images could not be loaded',
   'images.show': 'Show images',
   'images.showAnyway': 'Show images anyway',
   'invite.accept': 'Accept',

@@ -1,6 +1,7 @@
-//! Fetching a thread's remote images on request, for mail that arrived
-//! before images were fetched on arrival. Never for a thread in Junk or held
-//! for review: fetching a sender's images tells them the address is read.
+//! Fetching a thread's remote images on request, for mail whose images
+//! were not fetched on arrival, while the reader waits for them. Never for
+//! a thread in Junk or held for review unless the reader insists: fetching
+//! a sender's images tells them the address is read.
 
 use std::sync::Arc;
 
@@ -31,6 +32,6 @@ pub(crate) async fn prefetch_images(
     if !q.anyway && (row.quarantined || bucket_of(&row.category) == Bucket::Junk) {
         return StatusCode::CONFLICT.into_response();
     }
-    crate::image_prefetch::queue_thread(&state, &user, &thread_id);
+    crate::image_prefetch::ask_thread(&state, &user, &thread_id);
     action_result(true)
 }
