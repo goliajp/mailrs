@@ -226,6 +226,7 @@ fn _import_tz() -> chrono::DateTime<chrono::Utc> {
 /// hashed here with Argon2 so the wire mirrors fastcore's add_account.
 pub async fn add_account(
     State(state): State<Arc<CoreRpcState>>,
+    axum::extract::Query(by): axum::extract::Query<wire::ActorQuery>,
     Json(req): Json<wire::AddAccountRequest>,
 ) -> Result<StatusCode, StatusCode> {
     use argon2::{
@@ -267,6 +268,14 @@ pub async fn add_account(
             tracing::warn!(error = %e, address = %req.address, "add_account failed");
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
+    mailrs_core_sidestate::families::audit::record_by_core(
+        &*state,
+        by.actor(),
+        mailrs_core_sidestate::families::audit::ACCOUNT_CREATE,
+        &req.address,
+        "",
+        chrono::Utc::now().timestamp(),
+    );
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -288,12 +297,21 @@ pub async fn update_account(
 pub async fn remove_account(
     State(state): State<Arc<CoreRpcState>>,
     Path(address): Path<String>,
+    axum::extract::Query(by): axum::extract::Query<wire::ActorQuery>,
 ) -> Result<StatusCode, StatusCode> {
     state
         .domain
         .remove_account(&address)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    mailrs_core_sidestate::families::audit::record_by_core(
+        &*state,
+        by.actor(),
+        mailrs_core_sidestate::families::audit::ACCOUNT_DELETE,
+        &address,
+        "",
+        chrono::Utc::now().timestamp(),
+    );
     Ok(StatusCode::NO_CONTENT)
 }
 

@@ -10,6 +10,7 @@
 //! the coverage check at the end needs to have seen all of them: every path
 //! the client can ask for must have been asked of both cores.
 
+mod account_audit;
 mod accounts;
 mod coverage;
 mod deletes;

@@ -90,6 +90,24 @@ impl AddAccountRequest {
     }
 }
 
+/// Query string of an account create or delete: who asked, for the audit
+/// row the core writes. Webapi names the signed-in administrator; a caller
+/// that names no one (a script, a test) is recorded as `system`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ActorQuery {
+    #[serde(default)]
+    pub actor: Option<String>,
+}
+
+impl ActorQuery {
+    pub fn actor(&self) -> &str {
+        match self.actor.as_deref() {
+            Some(a) if !a.is_empty() => a,
+            _ => "system",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateAccountRequest {
     pub display_name: String,

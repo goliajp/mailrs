@@ -54,8 +54,12 @@ pub async fn add_account(
         password: req.password,
         password_hash: None,
     };
-    state.core.add_account(&req).await.map_err(map_err)?;
-    crate::handlers::audit::record(&actor, "account.create", &req.address, "");
+    // the core writes the audit row
+    state
+        .core
+        .add_account_by(&req, &actor)
+        .await
+        .map_err(map_err)?;
     Ok(StatusCode::NO_CONTENT.into_response())
 }
 
@@ -68,10 +72,14 @@ pub async fn remove_account(
     Path(address): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
     require_permission(&state, &actor, "admin.accounts").await?;
-    state.core.remove_account(&address).await.map_err(map_err)?;
+    // the core writes the audit row
+    state
+        .core
+        .remove_account_by(&address, &actor)
+        .await
+        .map_err(map_err)?;
     // after the account is gone, so no sign-in can slip in behind it
     crate::handlers::auth::revoke_all_access(&address)?;
-    crate::handlers::audit::record(&actor, "account.delete", &address, "");
     Ok(StatusCode::NO_CONTENT)
 }
 

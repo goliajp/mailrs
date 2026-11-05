@@ -14,6 +14,7 @@ use crate::*;
 pub(crate) async fn remove_account_route(
     State(state): State<Arc<FastcoreState>>,
     Path(address): Path<String>,
+    axum::extract::Query(by): axum::extract::Query<mailrs_core_api::method::admin::ActorQuery>,
 ) -> axum::response::Response {
     let root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
     let set_aside = match state.mailbox.get_account_blob(&address) {
@@ -25,8 +26,16 @@ pub(crate) async fn remove_account_route(
         tracing::error!(err = %e, %address, "removing the account's maildir failed; account kept");
         return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
-    if let Err(e) = state.mailbox.delete_account(&address) {
-        tracing::warn!(err = %e, %address, "delete_account failed");
+    match state.mailbox.delete_account(&address) {
+        Ok(_) => mailrs_core_sidestate::families::audit::record_by_core(
+            &*state,
+            by.actor(),
+            mailrs_core_sidestate::families::audit::ACCOUNT_DELETE,
+            &address,
+            "",
+            now_secs(),
+        ),
+        Err(e) => tracing::warn!(err = %e, %address, "delete_account failed"),
     }
     axum::http::StatusCode::NO_CONTENT.into_response()
 }
