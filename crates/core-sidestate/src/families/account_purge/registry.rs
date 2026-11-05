@@ -237,11 +237,13 @@ pub const KEPT: &[Kept] = &[
     Kept { name: "notify:account-signout", why: "a pub/sub channel, not a key" },
     Kept { name: "bayes:tokens:*", why: "the spam model's token counts, not by user" },
     Kept { name: "bayes:triage:*", why: "the triage model, not by user" },
+    Kept { name: "mailrs:purge:records", why: "the dropped account record a restore needs, beside the mark; cleared with it" },
     Kept { name: "mailrs:purge:pending", why: "the purge's own record of who is waiting; the purge clears the address's field last" },
 ];
 
-/// The SQL core's rows an account owns, beyond what deleting the account
-/// row cascades to at the delete (`init-schema.sql`): table, column.
+/// The SQL core's rows an account owns that no foreign key ties to the
+/// account row (`init-schema.sql`): table, column. The purge deletes
+/// them, then the row, which takes [`SQL_CASCADED`] with it.
 pub const SQL_TABLES: &[(&str, &str)] = &[
     ("account_send_as", "account_address"),
     ("user_uids", "user_address"),
@@ -263,6 +265,30 @@ pub const SQL_TABLES: &[(&str, &str)] = &[
     ("aliases", "target_address"),
     // last: its messages, their attachment text and analysis cascade
     ("mailboxes", "user_address"),
+];
+
+/// The SQL core's rows that reference the account row by a cascading
+/// foreign key: kept while the row is marked deleted, so a restore brings
+/// them back, and gone with the row at the purge. Counted by the purge;
+/// table, column. Their own dependents (calendar events, contacts, an
+/// app's keys) cascade with them.
+pub const SQL_CASCADED: &[(&str, &str)] = &[
+    ("sieve_scripts", "address"),
+    ("email_templates", "user_address"),
+    ("account_groups", "account_address"),
+    ("account_permission_overrides", "account_address"),
+    ("apps", "owner_address"),
+    ("api_keys", "account_address"),
+    ("email_group_members", "member_address"),
+    ("signatures", "account_address"),
+    ("password_reset_tokens", "account_address"),
+    ("totp_secrets", "account_address"),
+    ("encryption_keys", "account_address"),
+    ("calendars", "account_address"),
+    ("address_books", "account_address"),
+    ("oauth_auth_codes", "account_address"),
+    ("oauth_refresh_tokens", "account_address"),
+    ("external_calendar_feeds", "account_address"),
 ];
 
 /// The spellings of `address` keys may carry: as given, and lowercased.

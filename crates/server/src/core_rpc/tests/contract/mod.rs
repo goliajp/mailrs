@@ -13,6 +13,7 @@
 mod account_purge;
 mod accounts;
 mod coverage;
+mod deleted_rows;
 mod deletes;
 mod forged_results;
 mod harness;

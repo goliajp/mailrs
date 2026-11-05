@@ -1,10 +1,15 @@
-//! Deleting an account and purging it, alike on both cores: the delete
-//! parks the maildir and marks the address, which then cannot be taken; a
-//! purge before the retention period finds nothing due; after it, a dry
-//! run counts what each store holds and the purge removes it, the same in
-//! the shared store and on disk, and a second pass has nothing to do.
+//! Deleting an account, restoring it and purging it, alike on both cores:
+//! a restore before the purge gives back what each core answered before
+//! the delete; the delete parks the maildir and marks the address, which
+//! then cannot be taken; a purge before the retention period finds nothing
+//! due; after it, a dry run counts what each store holds and the purge
+//! removes it, the same in the shared store and on disk, and a second pass
+//! has nothing to do.
 
-use mailrs_core_api::method::admin::AddAccountRequest;
+use mailrs_core_api::client::Client;
+use mailrs_core_api::method::admin::{AddAccountRequest, RestoreAccountRequest};
+use mailrs_core_api::method::conversation::ListConversationsRequest;
+use mailrs_core_api::types::ConversationFilter;
 use mailrs_core_sidestate::families::account_purge::pending;
 
 use super::harness::{Cores, Diffs, FASTCORE_KEVY, PG_CORE_KEVY};
@@ -31,6 +36,57 @@ fn parked(root: &str) -> usize {
         .flatten()
         .filter(|e| e.file_name().to_string_lossy().starts_with("dave."))
         .count()
+}
+
+/// What a core answers about dave: the account list, his account with its
+/// hash, and his conversations.
+async fn answers(core: &Client) -> serde_json::Value {
+    let req = ListConversationsRequest {
+        filter: ConversationFilter {
+            limit: 50,
+            ..Default::default()
+        },
+    };
+    serde_json::json!({
+        "accounts": core.list_accounts().await.expect("accounts"),
+        "dave": core.get_account_with_hash(DAVE).await.expect("dave"),
+        "conversations": core.list_conversations(DAVE, &req).await.expect("conversations"),
+    })
+}
+
+/// Delete dave and restore him on both cores: each answers as before.
+async fn delete_and_restore(c: &Cores, d: &mut Diffs) {
+    let before = [answers(&c.fastcore).await, answers(&c.pg_core).await];
+    d.both(
+        "remove_account dave to restore",
+        c.fastcore.remove_account(DAVE).await,
+        c.pg_core.remove_account(DAVE).await,
+        &[],
+    );
+    let restore = RestoreAccountRequest {
+        by: "admin@example.test".into(),
+        parked: None,
+    };
+    d.both(
+        "restore_account dave",
+        c.fastcore.restore_account(DAVE, &restore).await,
+        c.pg_core.restore_account(DAVE, &restore).await,
+        &[],
+    );
+    let after = [answers(&c.fastcore).await, answers(&c.pg_core).await];
+    for (core, (b, a)) in ["fastcore", "pg-core"]
+        .iter()
+        .zip(before.iter().zip(after.iter()))
+    {
+        assert_eq!(a, b, "{core} answers differently after a restore");
+    }
+    let again = d.both(
+        "restore_account dave once restored",
+        c.fastcore.restore_account(DAVE, &restore).await,
+        c.pg_core.restore_account(DAVE, &restore).await,
+        &[],
+    );
+    assert!(again.is_none(), "a restore of a live account was accepted");
 }
 
 pub(super) async fn run(c: &Cores, d: &mut Diffs) {
@@ -62,6 +118,7 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
         )
         .expect("draft");
     }
+    delete_and_restore(c, d).await;
 
     d.both(
         "remove_account dave",

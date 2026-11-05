@@ -2,18 +2,22 @@
 //!
 //! ```text
 //! mailrs:purge:pending   hash   address -> unix seconds of the delete
+//! mailrs:purge:records   hash   address -> the account record the delete
+//!                               dropped, for a restore (fastcore's; the
+//!                               SQL core keeps its row)
 //! ```
 //!
-//! Written by the account delete of whichever core runs, read by its purge.
-//! A field goes when the purge of its address has removed everything, so
-//! the hash is empty when nothing is waiting, and the retention task reads
-//! one key to learn that.
+//! Written by the account delete of whichever core runs, read by its purge
+//! and its restore. A field goes when the purge of its address has removed
+//! everything, or a restore has brought it back, so the hash is empty when
+//! nothing is waiting, and the retention task reads one key to learn that.
 
 use std::io;
 
 use kevy_client::Connection;
 
 pub const PENDING_KEY: &str = "mailrs:purge:pending";
+pub const RECORDS_KEY: &str = "mailrs:purge:records";
 
 /// Days a deleted account's data is kept before the purge removes it:
 /// `MAILRS_DELETED_ACCOUNT_DAYS`, 30 when unset; 0 purges at the delete.
@@ -81,8 +85,25 @@ pub fn all(c: &mut Connection) -> io::Result<Vec<(String, i64)>> {
 /// Stop waiting for `address`: its purge is done, or the delete that
 /// marked it did not happen.
 pub fn clear(c: &mut Connection, address: &str) -> io::Result<()> {
+    c.hdel(RECORDS_KEY.as_bytes(), &[address.as_bytes()])?;
     c.hdel(PENDING_KEY.as_bytes(), &[address.as_bytes()])?;
     Ok(())
+}
+
+/// Keep `record`, the account record the delete of `address` drops, until
+/// the purge or a restore.
+pub fn keep_record(c: &mut Connection, address: &str, record: &str) -> io::Result<()> {
+    c.hset(
+        RECORDS_KEY.as_bytes(),
+        &[(address.as_bytes(), record.as_bytes())],
+    )?;
+    Ok(())
+}
+
+/// The record [`keep_record`] kept for `address`.
+pub fn record(c: &mut Connection, address: &str) -> io::Result<Option<String>> {
+    let v = c.hget(RECORDS_KEY.as_bytes(), address.as_bytes())?;
+    Ok(v.map(|b| String::from_utf8_lossy(&b).into_owned()))
 }
 
 #[cfg(test)]
@@ -109,7 +130,14 @@ mod tests {
             all(&mut c).unwrap(),
             [("a@x.test".to_string(), 100), ("b@x.test".to_string(), 150)]
         );
+        keep_record(&mut c, "a@x.test", "{}").unwrap();
+        assert_eq!(record(&mut c, "a@x.test").unwrap().as_deref(), Some("{}"));
         clear(&mut c, "a@x.test").unwrap();
         assert_eq!(deleted_at(&mut c, "a@x.test").unwrap(), None);
+        assert_eq!(
+            record(&mut c, "a@x.test").unwrap(),
+            None,
+            "the record outlived the mark"
+        );
     }
 }

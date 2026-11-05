@@ -4534,6 +4534,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/accounts/{address}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore a deleted account before its purge, with its mail, settings and group memberships (super administrator, recent confirmation) */
+        post: operations["restoreAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/conversations/mark-all-read": {
         parameters: {
             query?: never;
@@ -12619,6 +12636,53 @@ export interface operations {
                             /** @description Unix seconds, to the hour; null when nothing was recorded (every key before recording began) */
                             last_used_at: number | null;
                         }[];
+                    };
+                };
+            };
+        };
+    };
+    restoreAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                address: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description Which deletion to restore, by its delete time; only for an address deleted more than once */
+                    parked?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Restored */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not a super administrator */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Refused: the address is an account, is not waiting for a purge, or the deletion to restore is not clear */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        refused: "live" | "not_pending" | "no_record" | "several_parked" | "no_such_parked" | "maildir_in_the_way";
+                        parked: string[];
                     };
                 };
             };

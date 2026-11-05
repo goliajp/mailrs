@@ -157,6 +157,34 @@ impl Client {
         self.post_authed_no_body(path, "quota_limits").await
     }
 
+    /// POST /v1/admin/accounts/{address}/restore — a deleted account whose
+    /// purge has not run, back as it was. A refusal is a `Conflict` naming
+    /// the reason and the parked maildirs there are.
+    pub async fn restore_account(
+        &self,
+        address: &str,
+        req: &method::admin::RestoreAccountRequest,
+    ) -> ApiResult<()> {
+        let resp = self
+            .inner
+            .post(self.url(&format!(
+                "/v1/admin/accounts/{}/restore",
+                Self::enc(address)
+            )))
+            .bearer_auth(&self.auth_bearer)
+            .json(req)
+            .send()
+            .await
+            .map_err(|e| crate::client::transport("restore_account", e))?;
+        if resp.status().as_u16() != 409 {
+            return Self::map_status_unit(resp, "restore_account").await;
+        }
+        let body = resp.text().await.unwrap_or_default();
+        Err(crate::error::CoreApiError::Conflict(format!(
+            "restore_account: {body}"
+        )))
+    }
+
     /// POST /v1/admin/maintenance:account-purge — the deleted accounts whose
     /// retention period has passed, counted per store; with `dry_run` false
     /// each is removed for good and one audit row written for it. `address`

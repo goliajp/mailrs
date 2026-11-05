@@ -12,6 +12,7 @@
 
 mod account;
 mod account_delete;
+mod account_restore;
 pub(crate) mod images;
 pub(crate) mod labels;
 mod message_index;
@@ -30,6 +31,7 @@ pub(crate) mod trash;
 
 pub(crate) use account::*;
 pub(crate) use account_delete::*;
+pub(crate) use account_restore::*;
 pub(crate) use message_index::message_index;
 pub(crate) use message_ops::*;
 pub(crate) use message_reads::*;
