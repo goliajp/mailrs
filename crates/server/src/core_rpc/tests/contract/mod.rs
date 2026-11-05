@@ -38,6 +38,7 @@ mod sender_rules;
 mod sent;
 mod shared;
 mod side;
+mod submission;
 mod threads;
 mod trash;
 mod usage_drift;

@@ -222,6 +222,22 @@ impl Account for PgAccount {
         self.remove_bodies(std::slice::from_ref(m), &removed).await
     }
 
+    async fn filed_copy(&self, mailbox: &Mailbox, bytes: &[u8]) -> Result<Option<Filed>> {
+        let message_id = mailrs_intake::headers::message_id_of(bytes);
+        if message_id.is_empty() {
+            return Ok(None);
+        }
+        let uid = self
+            .mailbox
+            .uid_by_message_id(mailbox.id, &message_id)
+            .await
+            .map_err(store)?;
+        Ok(uid.map(|uid| Filed {
+            uidvalidity: mailbox.uidvalidity,
+            uid,
+        }))
+    }
+
     async fn append(&self, mailbox: &Mailbox, bytes: Vec<u8>, flags: Vec<Flag>) -> Result<Filed> {
         let uid = self
             .deliver(mailbox, &bytes, maildir_flags_to_bitmask(&flags))

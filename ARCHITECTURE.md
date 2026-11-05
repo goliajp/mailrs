@@ -90,7 +90,12 @@ webapi then writes a job to the outbound queue in kevy-server, and a Send
 row naming the conversation and the file. fastcore-sender delivers the
 job. A permanent failure
 becomes a DSN on the bounce queue, which fastcore files into the sender's
-inbox like any other message.
+inbox like any other message. Mail submitted over SMTP AUTH (587/465) goes
+through the spool instead: the drain queues the remote recipients and
+files the Sent copy for the account that signed in, the same copy a web
+send files, unless that account already holds the Message-ID. An IMAP
+APPEND to Sent of a message already there answers with the existing
+message, so a client that saves its own copy after submitting keeps one.
 
 **Reading.** Lists, threads, search and flag changes are core-api calls
 from webapi to fastcore. Search runs on kevy's built-in text index over

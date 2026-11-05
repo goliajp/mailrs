@@ -137,6 +137,23 @@ impl PgMailboxStore {
         Ok((ids, total))
     }
 
+    /// The uid of the message in `mailbox_id` with this message_id header.
+    pub async fn uid_by_message_id(
+        &self,
+        mailbox_id: i64,
+        message_id: &str,
+    ) -> Result<Option<u32>, sqlx::Error> {
+        let row = sqlx::query_as::<_, (i32,)>(
+            "SELECT uid FROM messages WHERE message_id = $1 AND mailbox_id = $2
+             ORDER BY uid LIMIT 1",
+        )
+        .bind(message_id)
+        .bind(mailbox_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(row.map(|(uid,)| uid as u32))
+    }
+
     /// find a message by its message_id header (across all user's mailboxes)
     pub async fn find_message_by_message_id(
         &self,

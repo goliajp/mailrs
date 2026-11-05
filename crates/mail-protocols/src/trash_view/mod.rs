@@ -305,6 +305,13 @@ impl<A: Account> Account for TrashView<A> {
         }
     }
 
+    async fn filed_copy(&self, mailbox: &Self::Mailbox, bytes: &[u8]) -> Result<Option<Filed>> {
+        match mailbox {
+            ViewMailbox::Filed(m) => self.inner.filed_copy(m, bytes).await,
+            _ => Ok(None),
+        }
+    }
+
     async fn append(
         &self,
         mailbox: &Self::Mailbox,

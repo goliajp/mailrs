@@ -22,6 +22,7 @@ mod passwordless;
 mod script;
 mod seen;
 mod selection;
+mod sent_append;
 mod steps;
 mod uidl;
 
@@ -158,6 +159,7 @@ async fn conversations<D: Directory>(
         diffs.extend(converse(client, "pop3", &steps).await);
     }
     diffs.extend(forged_append::append(dir.clone(), home.clone()).await);
+    diffs.extend(sent_append::append_twice(dir.clone(), home.clone()).await);
     diffs.extend(bodies::folders(dir.clone(), home.clone(), net).await);
     diffs.extend(labelled::label(dir.clone(), home).await);
     diffs.extend(passwordless_refused(dir).await);

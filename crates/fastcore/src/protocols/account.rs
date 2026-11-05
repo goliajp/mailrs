@@ -186,6 +186,13 @@ impl Account for FastcoreAccount {
         }
     }
 
+    async fn filed_copy(&self, mailbox: &FcMailbox, bytes: &[u8]) -> Result<Option<Filed>> {
+        match self {
+            Self::Real(a) => a.filed_copy(mailbox, bytes),
+            Self::Mock(_) => Ok(None),
+        }
+    }
+
     async fn append(&self, mailbox: &FcMailbox, bytes: Vec<u8>, flags: Vec<Flag>) -> Result<Filed> {
         match self {
             Self::Real(a) => a.append(mailbox, &bytes, &flags),

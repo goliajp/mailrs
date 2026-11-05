@@ -34,6 +34,8 @@ async fn a_submitted_job_names_the_account_that_signed_in() {
     ));
     let mut state = mailrs_fastcore::FastcoreState::new(mailbox);
     state.net_url = Some(url.clone());
+    // where the drain files bob's own copy of what he submits
+    state.maildir_root = maildir.to_string_lossy().into_owned();
     let state = Arc::new(state);
     let router = mailrs_fastcore::build_router_with_secret(state.clone(), SECRET.into());
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
