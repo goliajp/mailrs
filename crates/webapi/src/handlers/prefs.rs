@@ -88,8 +88,13 @@ pub async fn save_draft(
         Some(existing) => existing,
         None => with_kevy(move |c| next_id(c, &ckey_c))?,
     };
+    let u = user.clone();
+    let withheld_send_at = with_kevy(move |c| {
+        Ok(mailrs_core_sidestate::families::prefs::kept_withheld_send_at(c, &u, id))
+    })?;
     let draft = mailrs_core_api::method::admin::DraftWire {
         id,
+        withheld_send_at,
         to: req.to,
         cc: req.cc,
         bcc: req.bcc,

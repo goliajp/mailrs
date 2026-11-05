@@ -38,11 +38,19 @@ pub(super) async fn fingerprints(c: &Cores, mid: &str) -> (bool, bool) {
     (fc, n == 1)
 }
 
-/// Dave's mail in one core's queue: one send scheduled for later, one
+/// The message dave scheduled and whose time passes while he is deleted.
+pub(super) const LAPSING: &[u8] = b"From: Dave <dave@example.test>\r\n\
+To: Erin <erin@outside.example>\r\nCc: fay@outside.example\r\n\
+Subject: =?UTF-8?B?44GK55+l44KJ44Gb?=\r\nMessage-ID: <lapsing@example.test>\r\n\
+Content-Type: text/plain; charset=utf-8\r\n\r\nsee you on monday\r\n";
+
+/// Dave's mail in one core's queue: two sends scheduled for later (the
+/// second, to erin, fay and a blind gus, lapses while he is deleted), one
 /// already released for delivery, one released and waiting for a retry.
 pub(super) struct Queued {
     pub(super) url: &'static str,
     pub(super) scheduled: i64,
+    pub(super) lapsing: Vec<i64>,
     pub(super) released: i64,
     pub(super) retrying: i64,
 }
@@ -55,10 +63,12 @@ pub(super) fn queue() -> Vec<Queued> {
             let mut s = store(url);
             // the job rows as the enqueue writes them (its pipeline is not
             // in the in-process store), then each in its index
-            let mut job = || {
+            let mut job = |rcpt: &str, send_id: &str, raw: &[u8]| {
+                use base64::Engine as _;
                 let id = s.incr(ob::COUNTER).expect("id");
+                let data = base64::engine::general_purpose::STANDARD.encode(raw);
                 let blob = serde_json::json!({ "id": id, "sender": DAVE,
-                    "recipient": "erin@outside.example" })
+                    "recipient": rcpt, "send_id": send_id, "message_data_b64": data })
                 .to_string();
                 s.hset(
                     ob::job_key(id).as_bytes(),
@@ -71,13 +81,19 @@ pub(super) fn queue() -> Vec<Queued> {
                 .expect("job");
                 id
             };
-            let (scheduled, released, retrying) = (job(), job(), job());
+            let erin = "erin@outside.example";
+            let scheduled = job(erin, "s1@example.test", b"Subject: s1\r\n\r\nx\r\n");
+            let released = job(erin, "s2@example.test", b"Subject: s2\r\n\r\nx\r\n");
+            let retrying = job(erin, "s3@example.test", b"Subject: s3\r\n\r\nx\r\n");
+            let lapsing: Vec<i64> = [erin, "fay@outside.example", "gus@outside.example"]
+                .into_iter()
+                .map(|r| job(r, "lapsing@example.test", LAPSING))
+                .collect();
             let later = LATER as f64;
-            s.zadd(
-                ob::SCHEDULED_IDX,
-                &[(later, scheduled.to_string().as_bytes())],
-            )
-            .expect("scheduled");
+            for id in std::iter::once(scheduled).chain(lapsing.iter().copied()) {
+                s.zadd(ob::SCHEDULED_IDX, &[(later, id.to_string().as_bytes())])
+                    .expect("scheduled");
+            }
             s.lpush(ob::PENDING_IDX, &[released.to_string().as_bytes()])
                 .expect("pending");
             s.zadd(ob::RETRY_IDX, &[(later, retrying.to_string().as_bytes())])
@@ -85,6 +101,7 @@ pub(super) fn queue() -> Vec<Queued> {
             Queued {
                 url,
                 scheduled,
+                lapsing,
                 released,
                 retrying,
             }
@@ -123,4 +140,60 @@ pub(super) fn released_untouched(q: &Queued) {
 
 pub(super) fn store(url: &str) -> kevy_client::Connection {
     kevy_client::Connection::connect(url).expect("side state")
+}
+
+/// The lapsing send's time passes while dave is deleted: what the delete
+/// withheld now waits for a time gone by.
+pub(super) fn lapse(q: &Queued) {
+    use mailrs_core_sidestate::families::outbound as ob;
+    let mut s = store(q.url);
+    for id in &q.lapsing {
+        s.hset(
+            ob::withheld_key(DAVE).as_bytes(),
+            &[(id.to_string().as_bytes(), b"1790000000".as_slice())],
+        )
+        .expect("lapse");
+    }
+}
+
+/// Whether job `id` can still be sent: its row, or its id in any index.
+pub(super) fn queued(url: &str, id: i64) -> bool {
+    use mailrs_core_sidestate::families::outbound as ob;
+    let mut s = store(url);
+    let m = id.to_string();
+    s.exists(&[ob::job_key(id).as_bytes()]).expect("exists") == 1
+        || s.zscore(ob::SCHEDULED_IDX, m.as_bytes())
+            .expect("zscore")
+            .is_some()
+        || s.zscore(ob::RETRY_IDX, m.as_bytes())
+            .expect("zscore")
+            .is_some()
+        || s.lrange(ob::PENDING_IDX, 0, -1)
+            .expect("pending")
+            .iter()
+            .any(|p| p == m.as_bytes())
+}
+
+/// Dave's drafts in one core's shared store.
+pub(super) fn drafts(url: &str) -> Vec<serde_json::Value> {
+    let mut s = store(url);
+    let key = mailrs_core_sidestate::families::prefs::drafts_key(DAVE);
+    s.hgetall(key.as_bytes())
+        .expect("drafts")
+        .chunks(2)
+        .map(|p| serde_json::from_slice(&p[1]).expect("draft"))
+        .collect()
+}
+
+/// The details of one core's audit rows with `action`.
+pub(super) fn audit_details(url: &str, action: &str) -> Vec<String> {
+    use mailrs_core_sidestate::families::audit::AuditFact;
+    store(url)
+        .lrange(mailrs_core_sidestate::keys::admin::AUDIT_LOG, 0, -1)
+        .expect("audit")
+        .iter()
+        .map(|r| serde_json::from_slice::<AuditFact>(r).expect("fact"))
+        .filter(|f| f.action == action)
+        .map(|f| f.detail)
+        .collect()
 }

@@ -123,6 +123,7 @@ fn save_draft(c: &mut Connection, user: &str, id: i64, body: &str) {
         reply_to_thread_id: Some("t-a".into()),
         from: "team@x".into(),
         scheduled_at: None,
+        withheld_send_at: None,
         created_at: 1,
         updated_at: 1,
     };

@@ -174,6 +174,7 @@ const DraftRow = memo(function DraftRow({
             </span>
           </div>
           <span className="text-fg-muted truncate text-sm">
+            {withheldNote(draft, t)}
             {t('drafts.to', { to: draft.to || '—' })} · {draftPreview(draft.body)}
           </span>
         </div>
@@ -227,4 +228,15 @@ function groupByDate(drafts: readonly Draft[]): DraftListItem[] {
     out.push({ draft: d, type: 'row' })
   }
   return out
+}
+
+/// A draft the account's restore returned, unsent, says when it was set to
+/// go; any other draft says nothing here.
+function withheldNote(draft: Draft, t: ReturnType<typeof useT>) {
+  if (draft.withheld_send_at === null || draft.withheld_send_at === undefined) return null
+  return (
+    <span className="text-warning">
+      {t('drafts.withheldSendAt', { time: formatFullDate(draft.withheld_send_at) })} ·{' '}
+    </span>
+  )
 }

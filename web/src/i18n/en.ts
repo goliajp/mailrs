@@ -207,6 +207,7 @@ export const en = {
   'drafts.search': 'Search drafts',
   'drafts.searchPlaceholder': 'Search drafts…',
   'drafts.to': 'To: {to}',
+  'drafts.withheldSendAt': 'Not sent: was set to go {time}',
   'error.reload': 'Reload',
   'error.title': 'Something went wrong',
   'feedback.block': 'Block sender',

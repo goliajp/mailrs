@@ -91,10 +91,11 @@ pub fn all(c: &mut Connection) -> io::Result<Vec<(String, i64)>> {
 
 /// Stop waiting for `address`: its purge is done (which deleted the
 /// withheld mail first), it was restored, or the delete that marked it did
-/// not happen. Mail [`mark`] withheld is put back where it waited.
+/// not happen. Mail [`mark`] withheld is put back where it waited (a
+/// restore has already taken it, with what lapsed as drafts).
 pub fn clear(c: &mut Connection, address: &str) -> io::Result<()> {
     let now = chrono::Utc::now().timestamp();
-    crate::families::outbound::release(c, address, now)?;
+    crate::families::outbound::release(c, address, now, crate::families::outbound::Lapsed::Send)?;
     c.hdel(RECORDS_KEY.as_bytes(), &[address.as_bytes()])?;
     c.hdel(PENDING_KEY.as_bytes(), &[address.as_bytes()])?;
     Ok(())

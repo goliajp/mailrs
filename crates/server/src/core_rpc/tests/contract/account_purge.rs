@@ -54,7 +54,7 @@ async fn answers(core: &Client) -> serde_json::Value {
 }
 
 /// Delete dave and restore him on both cores: each answers as before.
-async fn delete_and_restore(c: &Cores, d: &mut Diffs) {
+async fn delete_and_restore(c: &Cores, d: &mut Diffs, held: &[Queued]) {
     let before = [answers(&c.fastcore).await, answers(&c.pg_core).await];
     d.both(
         "remove_account dave to restore",
@@ -62,16 +62,23 @@ async fn delete_and_restore(c: &Cores, d: &mut Diffs) {
         c.pg_core.remove_account(DAVE).await,
         &[],
     );
+    held.iter().for_each(lapse);
     let restore = RestoreAccountRequest {
         by: "admin@example.test".into(),
         parked: None,
     };
-    d.both(
+    let back = d.both(
         "restore_account dave",
         c.fastcore.restore_account(DAVE, &restore).await,
         c.pg_core.restore_account(DAVE, &restore).await,
         &[],
     );
+    // one send still ahead, one whose time passed
+    let counts = mailrs_core_api::method::admin::RestoreAccountResponse {
+        rescheduled: 1,
+        returned_as_drafts: 1,
+    };
+    assert_eq!(back, Some((counts, counts)));
     let after = [answers(&c.fastcore).await, answers(&c.pg_core).await];
     for (core, (b, a)) in ["fastcore", "pg-core"]
         .iter()
@@ -121,8 +128,9 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
         )
         .expect("draft");
     }
-    delete_and_restore(c, d).await;
-    // the restore gave the scheduled send back its time
+    delete_and_restore(c, d, &held).await;
+    // the restore gave the scheduled send back its time, and the one whose
+    // time passed back to dave as a draft, sent to nobody
     for q in &held {
         assert_eq!(
             job(q.url, q.scheduled),
@@ -131,6 +139,30 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
             q.url
         );
         released_untouched(q);
+        for id in &q.lapsing {
+            assert!(!queued(q.url, *id), "{}: a lapsed send can still go", q.url);
+        }
+        let drafts = drafts(q.url);
+        assert_eq!(drafts.len(), 1, "{}: {drafts:?}", q.url);
+        let draft = &drafts[0];
+        assert_eq!(draft["to"], "Erin <erin@outside.example>", "{}", q.url);
+        assert_eq!(draft["cc"], "fay@outside.example");
+        assert_eq!(draft["bcc"], "gus@outside.example");
+        assert_eq!(draft["subject"], "お知らせ");
+        assert_eq!(
+            draft["body"].as_str().map(str::trim),
+            Some("see you on monday")
+        );
+        assert_eq!(draft["withheld_send_at"], 1_790_000_000);
+        assert!(draft.get("scheduled_at").is_none(), "{draft}");
+        let restored: Vec<String> = audit_details(q.url, "account.restore");
+        assert!(
+            restored
+                .iter()
+                .all(|r| r.contains("rescheduled=1 drafts=1")),
+            "{}: {restored:?}",
+            q.url
+        );
     }
 
     d.both(

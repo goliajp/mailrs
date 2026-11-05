@@ -220,6 +220,7 @@ describe('listDrafts', () => {
         subject: 'Draft 1',
         to: '',
         updated_at: 1720392000,
+        withheld_send_at: null,
       },
     ])
     expect(vi.mocked(fetch).mock.calls[0][0]).toBe('/api/mail/drafts')

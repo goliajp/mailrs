@@ -200,6 +200,7 @@ export const zh: Record<Key, string> = {
   'drafts.search': '搜索草稿',
   'drafts.searchPlaceholder': '搜索草稿…',
   'drafts.to': '收件人：{to}',
+  'drafts.withheldSendAt': '未发送：原定 {time} 发出',
   'error.reload': '重新加载',
   'error.title': '出错了',
   'feedback.block': '屏蔽发件人',
