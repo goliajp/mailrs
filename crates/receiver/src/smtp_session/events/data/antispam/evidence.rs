@@ -70,7 +70,8 @@ pub(super) struct Evidence {
     domain_seen: u64,
     x_mailer: Option<String>,
     has_zero_width_in_name: bool,
-    carries_code: bool,
+    inside: mailrs_fraud::attachment_inside::Inside,
+    reply_marker_without_thread: bool,
     offers_the_reader_a_sum: bool,
     asks_for_the_readers_line: bool,
     shown_links: String,
@@ -123,12 +124,9 @@ impl Evidence {
         let x_mailer = mailrs_inbound::identity::x_mailer_header(&receive_ctx.message);
         let name_deception = mailrs_inbound::deception_in_display_name(&receive_ctx.message);
         let parsed = mailrs_mime::parse(&receive_ctx.message);
-        // read for what it holds as well as what it is called
-        let carries_code = mailrs_fraud::attachment_inside::any_carries_code(
-            parsed
-                .attachments()
-                .map(|p| (p.attachment_filename().unwrap_or(""), &p.body[..])),
-        );
+        let inside = mailrs_inbound::body::attachments_inside(&parsed);
+        let reply_marker_without_thread =
+            mailrs_inbound::thread_claim::reply_marker_without_thread(&receive_ctx.message);
         let offers_the_reader_a_sum = mailrs_inbound::body::offers_the_reader_a_sum(&parsed);
         let asks_for_the_readers_line = mailrs_inbound::body::asks_for_the_readers_line(&parsed);
         let shown_links = mailrs_inbound::body::shown_links(&parsed);
@@ -161,6 +159,7 @@ impl Evidence {
             ctx.spam_lists_client.clone(),
             &receive_ctx.recipient,
             &decoded_from,
+            &reply_to,
         )
         .await;
         let novelty = crate::spam_lists::novelty_async(
@@ -177,7 +176,8 @@ impl Evidence {
             domain_seen,
             x_mailer,
             has_zero_width_in_name: name_deception.unjustified_zero_width,
-            carries_code,
+            inside,
+            reply_marker_without_thread,
             offers_the_reader_a_sum,
             asks_for_the_readers_line,
             shown_links,
@@ -213,7 +213,9 @@ impl Evidence {
             // occasionally legitimate. In a display name it never was —
             // forty in the corpus, forty phishing.
             has_zero_width_in_name: self.has_zero_width_in_name,
-            has_executable_attachment: self.carries_code,
+            has_executable_attachment: self.inside.carries_code,
+            has_encrypted_document_archive: self.inside.encrypted_document_archive,
+            reply_marker_without_thread: self.reply_marker_without_thread,
             has_zero_width_inside_a_word: receive_ctx.deception.zero_width_inside_a_word,
             offers_the_reader_a_sum: self.offers_the_reader_a_sum,
             asks_for_the_readers_line: self.asks_for_the_readers_line,

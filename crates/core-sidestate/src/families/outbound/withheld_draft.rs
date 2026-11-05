@@ -13,7 +13,7 @@ use mailrs_core_api::method::admin::DraftWire;
 use mailrs_rfc5322::{addr_key, addr_spec, split_list};
 
 use super::*;
-use crate::families::prefs::{drafts_counter_key, drafts_key};
+use crate::families::prefs::drafts_counter_key;
 use crate::families::send;
 
 /// What a send returned as a draft says on each recipient.
@@ -101,14 +101,11 @@ pub(super) fn return_as_draft(
         scheduled_at: None,
         withheld_send_at: Some(at),
         attachments_not_included: left_out.clone(),
+        attachments: Vec::new(),
         created_at: now,
         updated_at: now,
     };
-    let json = serde_json::to_vec(&draft).map_err(io::Error::other)?;
-    conn.hset(
-        drafts_key(address).as_bytes(),
-        &[(id.to_string().as_bytes(), json.as_slice())],
-    )?;
+    crate::families::draft_store::put(conn, address, &draft)?;
     for (id, _) in jobs {
         let (job, legacy) = (job_key(id), legacy_row_key(id));
         conn.del(&[job.as_bytes(), legacy.as_bytes()])?;

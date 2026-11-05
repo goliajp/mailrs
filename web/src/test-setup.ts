@@ -1,7 +1,18 @@
 import '@testing-library/jest-dom/vitest'
 
-import { cleanup } from '@testing-library/react'
+import { cleanup, configure } from '@testing-library/react'
 import { afterEach } from 'vitest'
+
+// `findBy*` and `waitFor` give up after one second of wall clock by
+// default. Most pages under test wait on nothing but CPU: the fetch is
+// stubbed and resolves at once, so an admin table that shows in 3-20 ms
+// on an idle machine took over a second in the full parallel suite on a
+// loaded one, and the first test in a file, which pays for first-time
+// code paths, failed while the rest passed. Same reasoning as
+// `testTimeout` in vite.config.ts: the budget is not a speed check. A
+// test that waits on a real timer (a retry delay, a debounce) still says
+// so at the call.
+configure({ asyncUtilTimeout: 5_000 })
 
 // Vitest doesn't auto-cleanup React test roots between tests; without
 // this you get "found multiple elements by data-testid" the moment two

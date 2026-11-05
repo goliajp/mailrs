@@ -1,6 +1,8 @@
 package jp.golia.mailrs
 
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.assertTextContains
 import org.junit.Assert.assertEquals
@@ -49,12 +51,17 @@ class SentFlowTest : MailrsUiTest() {
         waitForTag("list.sent", "the sent list never opened")
 
         compose.onNodeWithText("Filed and delivered").assertIsDisplayed()
-        compose.onNodeWithText("delivered").assertIsDisplayed()
+        compose.onNodeWithText("Delivered").assertIsDisplayed()
 
         // A send the sweep has not filed yet is still on the list —
         // without that pass, a message that left successfully is absent
-        // from the only screen that would show it.
+        // from the only screen that would show it. And it says, in its
+        // own row, that it failed.
         compose.onNodeWithText("Never left the queue").assertIsDisplayed()
+        // the row is clickable, so its texts merge into the row's node
+        compose.onNode(
+            hasTestTag("row.sent") and hasText("Never left the queue") and hasText("Failed"),
+        ).assertIsDisplayed()
 
         // And the one nobody tracked carries no status at all. Counting
         // the badges is the assertion: three rows, and only the two the

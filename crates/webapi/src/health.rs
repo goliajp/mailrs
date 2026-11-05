@@ -76,7 +76,7 @@ pub(crate) async fn health_handler(
         "quota": quota(&state).await,
         "fraud_hits": fraud_hits(),
         "receiver": handlers::smtp_monitor::health(&state.receiver_stats),
-        "jmap_uploads": handlers::jmap::upload_health(),
+        "jmap_uploads": handlers::upload_sweep::health(),
         "spool": spool,
         "set_aside": set_aside,
     }))

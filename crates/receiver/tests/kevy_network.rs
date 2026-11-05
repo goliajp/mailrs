@@ -301,6 +301,7 @@ async fn correspondents_are_whom_the_user_wrote_to_on_both_paths() {
     let me = "me@golia.example";
     let stranger = "Stranger <billing@stranger.example>";
     let partner = "Tanaka <tanaka@partner.example>";
+    const REPLY_TO: &str = "Tanaka@partner.example";
     {
         let url = url.clone();
         tokio::task::spawn_blocking(move || {
@@ -328,8 +329,11 @@ async fn correspondents_are_whom_the_user_wrote_to_on_both_paths() {
         ("sato@partner.example", "sato@partner.example", false),
     ] {
         let live =
-            mailrs_receiver::spam_lists::relation_async(Some(client.clone()), me, from).await;
+            mailrs_receiver::spam_lists::relation_async(Some(client.clone()), me, from, REPLY_TO)
+                .await;
         assert_eq!(live.from_correspondent, wrote_to, "{from}");
+        // the Reply-To half is read on the receive path too
+        assert!(live.reply_to_correspondent, "{from}");
         assert_eq!(
             live.from_correspondent_domain,
             from.contains("partner.example"),
@@ -339,7 +343,7 @@ async fn correspondents_are_whom_the_user_wrote_to_on_both_paths() {
         let later = tokio::task::spawn_blocking(move || {
             let mut c = kevy_client::Connection::connect(&url).expect("kevy");
             contacts::record_inbound(&mut c, me, address, "", false, false).expect("inbound");
-            relation(Some(&mut c), me, from, Counted::After)
+            relation(Some(&mut c), me, from, REPLY_TO, Counted::After)
         })
         .await
         .expect("rejudge");

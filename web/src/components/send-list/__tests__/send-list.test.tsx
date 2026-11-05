@@ -162,6 +162,17 @@ describe('SendList status', () => {
     expect(screen.getByText('1 needs attention')).toBeTruthy()
   })
 
+  /// The other states that are not a plain arrival say so in the row too.
+  it.each([
+    ['partial', 'Partly delivered'],
+    ['sending', 'Sending'],
+  ] as const)('shows a %s send as such in its row', (status, label) => {
+    stub.messages = [msg({ message_id: 'a@golia.jp' })]
+    stub.sends = [send({ send_id: 'a@golia.jp', status })]
+    renderList()
+    expect(badgesInRow()).toEqual([label])
+  })
+
   /// Every send before the projection shipped has no record. It still has
   /// to appear, and with no badge — an "unknown" pill on hundreds of rows
   /// would be noise, and a "delivered" one would be a false claim.

@@ -117,14 +117,11 @@ const SHELLS: Shell[] = [
 ]
 
 async function body(): Promise<HTMLTextAreaElement> {
-  return waitFor(
-    () => {
-      const el = document.querySelector('textarea')
-      if (!el) throw new Error('editor not mounted yet')
-      return el
-    },
-    { timeout: 5_000 }
-  )
+  return waitFor(() => {
+    const el = document.querySelector('textarea')
+    if (!el) throw new Error('editor not mounted yet')
+    return el
+  })
 }
 
 function clickSend() {
@@ -198,12 +195,13 @@ describe.each(SHELLS)('the composer in the $name', (shell) => {
   it('saves what is typed as a draft', async () => {
     setup(shell)
     await write(shell, 'a draft in progress')
+    // autosave runs on a 3 s interval, so the first save can be 3 s away
     await waitFor(
       () =>
         expect(net.saveDraft).toHaveBeenCalledWith(
           expect.objectContaining({ body: 'a draft in progress' })
         ),
-      { timeout: 5_000 }
+      { timeout: 8_000 }
     )
   })
 
@@ -211,14 +209,14 @@ describe.each(SHELLS)('the composer in the $name', (shell) => {
     net.listDrafts.mockResolvedValue([DRAFT])
     setup(shell, true)
     const editor = await body()
-    await waitFor(() => expect(editor.value).toBe('saved earlier'), { timeout: 5_000 })
+    await waitFor(() => expect(editor.value).toBe('saved earlier'))
   })
 
   it('comes back to who a saved draft is from and when it goes', async () => {
     net.listDrafts.mockResolvedValue([DRAFT])
     setup(shell, true)
     const editor = await body()
-    await waitFor(() => expect(editor.value).toBe('saved earlier'), { timeout: 5_000 })
+    await waitFor(() => expect(editor.value).toBe('saved earlier'))
     clickSend()
     await waitFor(() => expect(net.sendMail).toHaveBeenCalledTimes(1))
     const sent = net.sendMail.mock.calls[0][0]

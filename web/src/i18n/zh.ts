@@ -47,7 +47,7 @@ export const zh: Record<Key, string> = {
   'list.recalled': '收到过的 {count} 个会话移到了待审：发件人有了新的信誉记录',
   'list.recalledOpen': '打开待审',
   'list.search.empty': '没有找到结果',
-  'list.send': '发送',
+  'list.send': '已发送',
   'list.send.empty': '还没有发过信',
   'list.starred': '已加星',
   'list.starred.empty': '没有加星的会话',

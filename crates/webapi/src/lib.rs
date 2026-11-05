@@ -178,7 +178,7 @@ pub async fn run() {
     login_guard::spawn_alert_mailer();
     handlers::owner_notice::spawn_queue_mailer(state.clone());
     handlers::jmap::read_config();
-    handlers::jmap::spawn_upload_sweep();
+    handlers::upload_sweep::spawn();
     handlers::screening_admin::spawn_refresh();
     // a bad MAILRS_CSRF stops the process here, not on the first request
     let csrf = session::csrf::config();

@@ -77,6 +77,7 @@ pub mod pipeline;
 pub mod reason;
 pub mod scan_input;
 pub mod stage;
+pub mod thread_claim;
 pub mod verdict;
 
 // Public re-exports — the surface most consumers reach for.

@@ -1020,15 +1020,31 @@ curl https://mail.golia.ai/api/contacts \
 ### Drafts
 
 ```
-# list drafts
-curl https://mail.golia.ai/api/mail/drafts \
+# list drafts; with_attachments=true also lists drafts that have files
+# (leave it out if you do not send drafts with draft_id)
+curl "https://mail.golia.ai/api/mail/drafts?with_attachments=true" \
   -H "Authorization: Bearer mlrs_..."
 
-# save draft
+# upload a file for a draft; answers {blob_id, name, content_type, size}
+curl -X POST https://mail.golia.ai/api/mail/draft-attachments \
+  -H "Authorization: Bearer mlrs_..." \
+  -F "file=@quote.pdf"
+
+# save draft (id saves in place; attachments absent keeps the draft's
+# files, [] removes them; at most 25 MiB together)
 curl -X POST https://mail.golia.ai/api/mail/drafts \
   -H "Authorization: Bearer mlrs_..." \
   -H "Content-Type: application/json" \
-  -d '{"to": ["..."], "subject": "...", "text_body": "..."}'
+  -d '{"to": "...", "subject": "...", "body": "...", "attachments": [{"blob_id": "U...", "name": "quote.pdf", "content_type": "application/pdf", "size": 48213}]}'
+
+# download one of your draft files
+curl "https://mail.golia.ai/api/mail/draft-attachments/{blob_id}?name=quote.pdf" \
+  -H "Authorization: Bearer mlrs_..."
+
+# send a draft: its files are attached and the draft is deleted once queued
+curl -X POST https://mail.golia.ai/api/mail/send-multipart \
+  -H "Authorization: Bearer mlrs_..." \
+  -F "to=..." -F "subject=..." -F "body=..." -F "draft_id=42"
 
 # delete draft
 curl -X DELETE https://mail.golia.ai/api/mail/drafts/{id} \

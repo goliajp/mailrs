@@ -398,6 +398,7 @@ fn every_fixture_has_a_test() {
         "change-password",
         "calendar-feed-create",
         "draft-save",
+        "draft-save-attachments",
         "email-group-create",
         "email-group-members-add",
         "feedback",

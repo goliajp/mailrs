@@ -7326,6 +7326,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/mail/draft-attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload a file for a draft
+         * @description Stored in the caller's upload store; the answer is what the draft save takes in `attachments`. A file no draft names is deleted a day after its last use.
+         */
+        post: operations["uploadDraftAttachment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mail/draft-attachments/{blob_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download one of the caller's draft files
+         * @description Served as an attachment with nosniff and a sandboxing CSP. Another account's file, or none, is 404.
+         */
+        get: operations["downloadDraftAttachment"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -7637,6 +7677,11 @@ export interface components {
             /** @description Hold an immediate send this many seconds (capped at 30) so DELETE /api/mail/pending/{message_id} can still stop it. Ignored when scheduled_at is set. */
             undo_seconds?: number;
             shared?: components["schemas"]["SharedReply"];
+            /**
+             * Format: int64
+             * @description The saved draft this sends: its files are attached, and the draft is deleted once the message is queued
+             */
+            draft_id?: number;
         };
         SaveDraftRequest: {
             to?: string;
@@ -7645,6 +7690,16 @@ export interface components {
             subject?: string;
             body?: string;
             reply_to_thread_id?: string;
+            /**
+             * Format: int64
+             * @description Save in place; absent makes a new draft
+             */
+            id?: number;
+            from?: string;
+            /** Format: int64 */
+            scheduled_at?: number;
+            /** @description Absent keeps the draft's files; [] removes them. Each must be one of the caller's uploads (POST /api/mail/draft-attachments); together at most 25 MiB. */
+            attachments?: components["schemas"]["DraftAttachment"][];
         };
         SaveDraftResult: {
             success: boolean;
@@ -7670,6 +7725,8 @@ export interface components {
             attachments_not_included?: string[];
             created_at: string;
             updated_at: string;
+            /** @description Absent when the draft has none */
+            attachments?: components["schemas"]["DraftAttachment"][];
         };
         ConversationResponse: {
             thread_id: string;
@@ -8449,6 +8506,15 @@ export interface components {
                 from?: string;
             }[];
         };
+        /** @description A file kept with a draft. The bytes are in the account's upload store under blob_id; the draft holds only this reference. */
+        DraftAttachment: {
+            /** @description U and the SHA-256 of the bytes, as the upload answered it */
+            blob_id: string;
+            name: string;
+            content_type: string;
+            /** @description Bytes; the saved draft takes it from the stored file */
+            size: number;
+        };
     };
     responses: never;
     parameters: never;
@@ -8890,6 +8956,8 @@ export interface operations {
                     subject?: string;
                     body?: string;
                     attachments?: string[];
+                    /** @description The saved draft this sends: its files go first, ahead of the form's, and the draft is deleted once the message is queued */
+                    draft_id?: number;
                 };
             };
         };
@@ -8903,6 +8971,13 @@ export interface operations {
                     "application/json": components["schemas"]["ApiResult"];
                 };
             };
+            /** @description The draft named by draft_id is gone */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description `already_replied`: another team member answered the conversation after the composer opened; `by`, `at` and `seq` say who and when. Send again with shared.force to reply anyway. */
             409: {
                 headers: {
@@ -8910,7 +8985,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description The form is larger than the 25 MiB limit; nothing was sent */
+            /** @description The form is larger than the 25 MiB limit, or a send naming draft_id builds a message, the draft's files counted in it, larger than the 50 MiB message limit; then `drop` names which attachments to remove. Nothing was sent. */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -8919,8 +8994,21 @@ export interface operations {
                     "application/json": {
                         error: string;
                         limit_bytes: number;
+                        attachments?: {
+                            name?: string;
+                            size?: number;
+                        }[];
+                        drop?: string[];
+                        message_bytes?: number;
                     };
                 };
+            };
+            /** @description Some of the draft's files are no longer stored; `missing` names them */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description The sent copy could not be filed; nothing was sent */
             500: {
@@ -9002,7 +9090,10 @@ export interface operations {
     };
     listDrafts: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Also list drafts that have files. A client that does not send them with draft_id leaves this out, and is not shown such drafts, so it cannot send one without its files. */
+                with_attachments?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -9040,6 +9131,31 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SaveDraftResult"];
+                };
+            };
+            /** @description The files come to more than the 25 MiB limit; nothing was written */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: string;
+                        limit_bytes: number;
+                        total_bytes: number;
+                    };
+                };
+            };
+            /** @description Files the request names are not among the caller's uploads; `missing` lists them. Nothing was written. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: string;
+                        missing: string[];
+                    };
                 };
             };
         };
@@ -17832,6 +17948,88 @@ export interface operations {
                 content?: never;
             };
             /** @description No such report */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    uploadDraftAttachment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Stored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftAttachment"];
+                };
+            };
+            /** @description The file is larger than the 25 MiB limit */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Too many uploads at once */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The account's uploads are full (1 GiB) */
+            507: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    downloadDraftAttachment: {
+        parameters: {
+            query?: {
+                /** @description The filename to download as */
+                name?: string;
+                /** @description The media type to serve it as */
+                type?: string;
+            };
+            header?: never;
+            path: {
+                blob_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The bytes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            /** @description Not one of the caller's uploads */
             404: {
                 headers: {
                     [name: string]: unknown;

@@ -115,7 +115,7 @@ pub(super) fn conversation_routes() -> axum::Router<Arc<WebState>> {
         )
 }
 
-/// Everything under `/api/mail` — send, drafts, signatures, search,
+/// Everything under `/api/mail` — send, signatures, search,
 /// attachments, the AI assists, and the per-user settings.
 pub(super) fn mail_routes() -> axum::Router<Arc<WebState>> {
     use crate::handlers;
@@ -269,14 +269,6 @@ pub(super) fn mail_routes() -> axum::Router<Arc<WebState>> {
         .route(
             "/api/push/tokens/{token}",
             delete(handlers::push::delete_push_token),
-        )
-        .route(
-            "/api/mail/drafts",
-            get(handlers::prefs::list_drafts).post(handlers::prefs::save_draft),
-        )
-        .route(
-            "/api/mail/drafts/{id}",
-            delete(handlers::prefs::delete_draft),
         )
         .route(
             "/api/mail/signatures",

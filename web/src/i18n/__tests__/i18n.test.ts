@@ -40,3 +40,22 @@ describe('translate', () => {
     expect(browserLang('fr')).toBe('en')
   })
 })
+
+describe('the Sent list', () => {
+  // Other sentences name the list ("the original is in Sent", "Go to
+  // Sent"); a label that drifts from them, or borrows the composer's verb,
+  // sends the reader looking for a tab that is not there.
+  for (const [name, dict] of Object.entries({ en, ja, zh })) {
+    it(`${name} names it as a folder, apart from the Send button`, () => {
+      const label = dict['list.send']
+      expect(label).not.toBe(dict['compose.send'])
+      expect(dict['drafts.attachmentsNotIncluded']).toContain(label)
+      expect(dict['palette.goSent']).toContain(label)
+    })
+  }
+
+  it('reads Sent in English and keeps Send on the button', () => {
+    expect(en['list.send']).toBe('Sent')
+    expect(en['compose.send']).toBe('Send')
+  })
+})

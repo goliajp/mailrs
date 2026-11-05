@@ -13,6 +13,7 @@ const MINTED: &[&str] = &["id", "created_at", "updated_at", "signing_secret"];
 
 pub(super) async fn run(c: &Cores, d: &mut Diffs) {
     let (fc, pg) = (&c.fastcore, &c.pg_core);
+    super::side_drafts::drafts_with_files(c, d).await;
 
     let req = SaveDraftRequest {
         id: None,
@@ -24,6 +25,7 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
         reply_to_thread_id: None,
         from: "alias@golia.test".into(),
         scheduled_at: Some(1_800_000_000),
+        attachments: None,
     };
     let saved = d.both(
         "save_draft",
