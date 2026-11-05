@@ -230,7 +230,13 @@ pub fn message_id_or_file_id(header_id: String, blob_ref: &str) -> String {
     }
 }
 
-pub use mailrs_clean::body_text_for_search;
+/// [`mailrs_clean::body_text_for_search`] of the raw message, read in
+/// the parse worker. `None` when it has no text, and when the worker
+/// failed on it or was unavailable: the message is then delivered and
+/// indexed without its body, and the failure is counted by the worker.
+pub fn body_text_for_search(raw: &[u8], limit: mailrs_parse_worker::Limit) -> Option<String> {
+    mailrs_parse_worker::body_text(raw, limit).read().flatten()
+}
 
 #[cfg(test)]
 mod tests {

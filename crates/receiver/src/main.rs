@@ -21,16 +21,9 @@ async fn main() {
         .install_default()
         .expect("failed to install rustls crypto provider");
 
-    // Message bytes are parsed in workers so a parser that dies does not
-    // end every SMTP session; without the worker binary there is nothing
-    // to contain them in, and the image is broken.
-    match mailrs_parse_worker::Setup::from_env(PARSE_WORKERS) {
-        Ok(setup) => mailrs_parse_worker::install("receiver", setup),
-        Err(e) => {
-            tracing::error!(error = %e, "parse worker missing");
-            std::process::exit(1);
-        }
-    }
+    // message bytes are parsed in workers, so a parser that dies does
+    // not end every SMTP session
+    mailrs_parse_worker::install_or_exit("receiver", PARSE_WORKERS);
 
     mailrs_receiver::run().await;
 }

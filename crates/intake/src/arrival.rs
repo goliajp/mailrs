@@ -97,7 +97,7 @@ pub fn derive<'a, T: Threads + ?Sized>(
         crate::section_facts::facts(net.as_mut(), addr, &from, &to, head, category_of, is_own);
     let category = category_of;
     let parsed = mailrs_mime::parse(body);
-    let body_text = body_text_for_search(&parsed);
+    let body_text = body_text_for_search(body, mailrs_parse_worker::Limit::Inbound);
     let preview = body_text
         .as_deref()
         .map(|t| mailrs_clean::preview_line(t, 120))

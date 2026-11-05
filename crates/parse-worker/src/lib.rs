@@ -118,6 +118,20 @@ pub fn install(process: &'static str, setup: Setup) {
     }
 }
 
+/// [`install`] with `workers` resident workers from
+/// [`Setup::from_env`], for a server: without the worker binary there is
+/// nothing to contain the parsers in and the image is broken, so the
+/// process says so and exits.
+pub fn install_or_exit(process: &'static str, workers: usize) {
+    match Setup::from_env(workers) {
+        Ok(setup) => install(process, setup),
+        Err(e) => {
+            eprintln!("{process}: parse worker: {e}");
+            std::process::exit(1);
+        }
+    }
+}
+
 /// Parse in process, except that an input carrying
 /// `X-Parse-Worker-Fault: abort` comes back as a panic on that input and
 /// one carrying `X-Parse-Worker-Fault: unavailable` as no worker
