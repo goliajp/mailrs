@@ -11,3 +11,4 @@ mod forged_results;
 mod harness;
 mod masked;
 mod probing;
+mod rar_and_7z;

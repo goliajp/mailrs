@@ -58,6 +58,12 @@ pub struct Facts<'a> {
     /// nothing attached that carries code —
     /// [`crate::attachment_inside::Inside::encrypted_document_archive`].
     pub has_encrypted_document_archive: bool,
+    /// An archive whose entry names cannot all be read — a 7z, a RAR with
+    /// header encryption, one whose headers break off — with nothing
+    /// attached that carries code —
+    /// [`crate::attachment_inside::Inside::unreadable_archive`]. A score,
+    /// never a hold by itself.
+    pub has_unreadable_archive: bool,
     /// The subject starts with a reply or forward marker and the message
     /// has neither `In-Reply-To` nor `References` —
     /// [`crate::reply_claim::without_thread`].

@@ -143,6 +143,7 @@ pub(super) fn judge(
         is_bulk: mailrs_inbound::body::is_bulk(&raw),
         has_executable_attachment: inside.carries_code,
         has_encrypted_document_archive: inside.encrypted_document_archive,
+        has_unreadable_archive: inside.unreadable_archive,
         reply_marker_without_thread: mailrs_inbound::thread_claim::reply_marker_without_thread(
             &raw,
         ),
