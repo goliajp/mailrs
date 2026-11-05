@@ -5,20 +5,25 @@ extension Wire {
     ///
     /// Backend: `mailrs_inbound::reason::Reason` (crates/inbound/src/reason.rs).
     /// `code` is a fraud rule id or one of that module's codes; `params`
-    /// is left out when empty.
+    /// is left out when empty. `score` is set on a verdict layer's lines:
+    /// what each added, so the layer's score is the sum of its lines;
+    /// absent on a line that adds nothing, on placement, on older verdicts.
     struct Reason: Codable, Equatable, Hashable, Sendable {
         let code: String
         let params: [String: String]
+        let score: Double?
 
-        init(code: String, params: [String: String] = [:]) {
+        init(code: String, params: [String: String] = [:], score: Double? = nil) {
             self.code = code
             self.params = params
+            self.score = score
         }
 
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             code = try c.decode(String.self, forKey: .code)
             params = try c.decodeIfPresent([String: String].self, forKey: .params) ?? [:]
+            score = try c.decodeIfPresent(Double.self, forKey: .score)
         }
     }
 

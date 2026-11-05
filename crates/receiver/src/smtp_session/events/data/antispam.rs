@@ -14,6 +14,8 @@ use super::super::super::ConnectionContext;
 mod evidence;
 mod hits;
 mod outcome;
+#[cfg(test)]
+mod tests;
 
 pub(super) enum AntiSpamOutcome {
     /// Pipeline produced a final response (Reject / Greylist). Caller

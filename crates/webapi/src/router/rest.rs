@@ -264,7 +264,7 @@ pub(super) fn unauth_routes() -> axum::Router<Arc<WebState>> {
             "/api/events/smtp",
             get(handlers::smtp_monitor::ws_smtp_trace),
         )
-        // Prometheus, unauth on internal network.
+        // Prometheus: bearer `MAILRS_METRICS_TOKEN`, 404 when unset.
         .route("/metrics", get(handlers::metrics::prometheus_metrics))
         // Public-key lookup by address — unauth (used by any correspondent).
         .route(

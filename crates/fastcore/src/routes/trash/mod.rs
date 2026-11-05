@@ -137,7 +137,9 @@ pub(crate) fn spawn_purge(state: Arc<FastcoreState>) {
     const BASE: Duration = Duration::from_secs(3600);
     const MAX: Duration = Duration::from_secs(6 * 3600);
     const BATCH: usize = 500;
-    tokio::spawn(async move {
+    // a purge round deletes up to `BATCH` conversations and their files
+    // without yielding, so it runs on the maintenance runtime
+    crate::maintenance::offload::spawn(async move {
         let mut wait = BASE;
         loop {
             tokio::time::sleep(wait).await;

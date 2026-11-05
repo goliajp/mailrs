@@ -25,6 +25,8 @@ baseline=builtin
 docker exec mailrs-fastcore mailrs-fraud-check validate "/fraud-rules/$candidate"
 docker exec mailrs-fastcore mailrs-fraud-check compare "$baseline" "/fraud-rules/$candidate" /data/maildir 100000 > "report-$hash.json"
 cat "report-$hash.json"
+echo "--- summary (lua:$hash) ---"
+docker exec mailrs-fastcore mailrs-fraud-check summary "/fraud-rules/report-$hash.json"
 if [ "$mode" = --activate ]; then
     [ ! -f active.lua ] || cp -p active.lua previous.lua
     chmod 644 "$candidate"

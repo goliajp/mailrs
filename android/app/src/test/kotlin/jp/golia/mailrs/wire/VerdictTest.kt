@@ -91,6 +91,34 @@ class FraudVerdictWireTest {
         assertEquals(listOf(WireVerdict.Reason("junk-your-filter")), v.placement)
     }
 
+    /**
+     * A content layer as `mailrs_inbound::assess` stores it: the content scan
+     * as one line, each content rule as its own, each with what it added. The
+     * numbers the panel writes under the layer add up to the one beside it.
+     */
+    @Test
+    fun `every content rule is a line, and the layer is their sum`() {
+        val v = json.decodeFromString(
+            WireVerdict.Response.serializer(),
+            """{"verdict":{"layers":[{"name":"transport","outcome":"pass","detail":"",
+              "reasons":[{"code":"auth-check","params":{"check":"SPF","result":"pass"}}],"score":0},
+              {"name":"content","outcome":"fail","detail":"d","score":12.5,
+              "reasons":[{"code":"content-score","params":{"content":"1.5","classifier":"0.0","rules":""},"score":1.5},
+              {"code":"offers-the-reader-a-sum","score":5},{"code":"asks-for-the-readers-line","score":6}]}],
+              "quarantined":true,"rules_version":"2026-11-06.1","score":12.5}}""",
+        ).verdict!!
+        val content = v.layers.first { it.name == "content" }
+        assertEquals(
+            listOf("content-score", "offers-the-reader-a-sum", "asks-for-the-readers-line"),
+            content.reasons.map { it.code },
+        )
+        val shown = content.reasons.mapNotNull { it.score }.map { jp.golia.mailrs.ui.scoreLabel(it).drop(1).toDouble() }
+        assertEquals(content.reasons.size, shown.size)
+        assertEquals(jp.golia.mailrs.ui.scoreLabel(content.score), jp.golia.mailrs.ui.scoreLabel(shown.sum()))
+        // the authentication checks add nothing and carry no number
+        assertTrue(v.layers[0].reasons.all { it.score == null })
+    }
+
     @Test
     fun `no verdict is null, not an error`() {
         assertNull(json.decodeFromString(WireVerdict.Response.serializer(), """{"verdict":null}""").verdict)

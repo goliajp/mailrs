@@ -42,7 +42,7 @@ pub(crate) mod config;
 mod decision;
 pub(crate) mod holding;
 mod sweep;
-pub(crate) use sweep::rescan;
+pub(crate) use sweep::walk;
 
 pub(crate) fn snapshot(state: &FastcoreState) -> std::io::Result<Vec<(String, String)>> {
     let mut targets = Vec::new();
@@ -140,7 +140,18 @@ pub(crate) async fn fraud_rescan_route(
     State(state): State<Arc<FastcoreState>>,
     Query(q): Query<RescanQuery>,
 ) -> axum::response::Response {
-    rescan(state, q, None, None).await
+    let walked = super::hangup::run_blocking(move |h| walk(&state, &q, None, None, h)).await;
+    match walked {
+        Ok(Ok(answer)) => Json(answer).into_response(),
+        Ok(Err(e)) => {
+            tracing::error!(err = %e, "fraud snapshot failed");
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+        Err(e) => {
+            tracing::error!(err = %e, "fraud rescan task failed");
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
 }
 
 #[cfg(test)]

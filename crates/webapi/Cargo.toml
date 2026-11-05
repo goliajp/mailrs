@@ -67,6 +67,8 @@ thiserror = "2"
 # via tokio::task::spawn_blocking on the auth hot path.
 kevy-client = { workspace = true }
 base64 = "0.22"
+# the /metrics bearer token is compared in constant time
+subtle = "2.6"
 argon2 = { workspace = true }
 password-hash = { workspace = true }
 rand_core = { workspace = true }
