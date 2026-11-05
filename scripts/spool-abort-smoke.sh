@@ -31,6 +31,7 @@ trap cleanup EXIT
 
 if [[ "${SKIP_BUILD:-}" != 1 ]]; then
     cargo build --release -p mailrs-fastcore --bin mailrs-fastcore 2>&1 | tail -3
+    cargo build --release -p mailrs-parse-worker --bin mailrs-parse-worker 2>&1 | tail -3
 fi
 
 MAILDIR="$WORK/maildir"

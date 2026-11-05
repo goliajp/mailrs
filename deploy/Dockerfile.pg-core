@@ -42,7 +42,9 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/build/target \
     cargo build --release -p mailrs-server --bin mailrs-pg-core ${FEATURES:+--features "$FEATURES"} \
     && cargo build --release -p mailrs-core-sync \
+    && cargo build --release -p mailrs-parse-worker --bin mailrs-parse-worker \
     && cp /build/target/release/mailrs-pg-core /usr/local/bin/mailrs-pg-core \
+    && cp /build/target/release/mailrs-parse-worker /usr/local/bin/mailrs-parse-worker \
     && cp /build/target/release/mailrs-core-sync /usr/local/bin/mailrs-core-sync
 
 FROM debian:trixie-slim
@@ -51,6 +53,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=rust-builder /usr/local/bin/mailrs-pg-core /usr/local/bin/mailrs-pg-core
 COPY --from=rust-builder /usr/local/bin/mailrs-core-sync /usr/local/bin/mailrs-core-sync
+# the core parses message bytes in it and will not start without it
+COPY --from=rust-builder /usr/local/bin/mailrs-parse-worker /usr/local/bin/mailrs-parse-worker
 # mailrs-core-sync rides along on purpose: the switch this image exists for is
 # "bring the other core up, sync, flip MAILRS_CORE_RPC_BASE", and the sync has
 # to be runnable from beside the core it is syncing.
