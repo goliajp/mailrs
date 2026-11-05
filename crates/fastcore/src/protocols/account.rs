@@ -4,7 +4,8 @@
 use std::path::PathBuf;
 
 use mailrs_mail_protocols::backend::{
-    Account, Error, Expunged, Filed, Flag, LabelFolder, Message, Quota, Result, Selected, Trashed,
+    Account, Error, Expunged, Filed, FiledCopy, Flag, LabelFolder, Message, Quota, Result,
+    Selected, Trashed,
 };
 
 use super::mock::MockAccount;
@@ -186,10 +187,23 @@ impl Account for FastcoreAccount {
         }
     }
 
-    async fn filed_copy(&self, mailbox: &FcMailbox, bytes: &[u8]) -> Result<Option<Filed>> {
+    async fn filed_copy(&self, mailbox: &FcMailbox, bytes: &[u8]) -> Result<Option<FiledCopy>> {
         match self {
             Self::Real(a) => a.filed_copy(mailbox, bytes),
             Self::Mock(_) => Ok(None),
+        }
+    }
+
+    async fn replace_submitted(
+        &self,
+        mailbox: &FcMailbox,
+        old: Filed,
+        bytes: Vec<u8>,
+        flags: Vec<Flag>,
+    ) -> Result<Filed> {
+        match self {
+            Self::Real(a) => a.replace_submitted(mailbox, old, &bytes, &flags),
+            Self::Mock(_) => refused(),
         }
     }
 

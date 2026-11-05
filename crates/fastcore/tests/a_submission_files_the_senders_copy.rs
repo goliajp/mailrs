@@ -138,6 +138,12 @@ async fn a_submission_is_in_sent_like_a_web_send() {
             .unwrap_or(0)
     };
     assert_eq!(sent_files(), 2, "one file each, read");
+    // marked, so that the copy the client files itself replaces it; a web
+    // send's copy is the client's own
+    let mut kv = kevy_client::Connection::connect(&url).unwrap();
+    use mailrs_core_sidestate::families::submitted::is_marked;
+    assert!(is_marked(&mut kv, BOB, "smtp1@golia.example").unwrap());
+    assert!(!is_marked(&mut kv, BOB, "web1@golia.example").unwrap());
 
     // a client retrying the same submission
     let r = smtp.send(BOB, &["someone@example.org"], &submitted).await;

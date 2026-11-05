@@ -5,7 +5,8 @@
 use std::sync::Arc;
 
 use mailrs_mail_protocols::backend::{
-    Account, Error, Expunged, Filed, Flag, LabelFolder, Message, Quota, Result, Selected, Trashed,
+    Account, Error, Expunged, Filed, FiledCopy, Flag, LabelFolder, Message, Quota, Result,
+    Selected, Trashed,
 };
 use mailrs_mailbox::{
     FLAG_DELETED, Mailbox, MessageMeta, PgMailboxStore, bitmask_to_maildir_flags,
@@ -21,6 +22,7 @@ use crate::sieve_store;
 
 mod archive;
 mod filing;
+mod submitted;
 mod trash;
 
 pub(crate) struct PgAccount {
@@ -222,20 +224,18 @@ impl Account for PgAccount {
         self.remove_bodies(std::slice::from_ref(m), &removed).await
     }
 
-    async fn filed_copy(&self, mailbox: &Mailbox, bytes: &[u8]) -> Result<Option<Filed>> {
-        let message_id = mailrs_intake::headers::message_id_of(bytes);
-        if message_id.is_empty() {
-            return Ok(None);
-        }
-        let uid = self
-            .mailbox
-            .uid_by_message_id(mailbox.id, &message_id)
-            .await
-            .map_err(store)?;
-        Ok(uid.map(|uid| Filed {
-            uidvalidity: mailbox.uidvalidity,
-            uid,
-        }))
+    async fn filed_copy(&self, mailbox: &Mailbox, bytes: &[u8]) -> Result<Option<FiledCopy>> {
+        self.copy_filed(mailbox, bytes).await
+    }
+
+    async fn replace_submitted(
+        &self,
+        mailbox: &Mailbox,
+        old: Filed,
+        bytes: Vec<u8>,
+        flags: Vec<Flag>,
+    ) -> Result<Filed> {
+        self.replace_filed(mailbox, old, &bytes, &flags).await
     }
 
     async fn append(&self, mailbox: &Mailbox, bytes: Vec<u8>, flags: Vec<Flag>) -> Result<Filed> {

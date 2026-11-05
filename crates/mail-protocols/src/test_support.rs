@@ -10,8 +10,8 @@ use tokio_rustls::client::TlsStream;
 pub(crate) use crate::test_tls::{Cert, cert};
 
 use crate::backend::{
-    Account, Directory, Error, Expunged, Filed, Flag, LabelFolder, Message, Protocol, Quota,
-    Result, Selected, ShownMessage, Trashed, Watch,
+    Account, Directory, Error, Expunged, Filed, FiledCopy, Flag, LabelFolder, Message, Protocol,
+    Quota, Result, Selected, ShownMessage, Trashed, Watch,
 };
 
 pub(crate) const USER: &str = "alice@golia.example.test";
@@ -248,8 +248,14 @@ impl Account for MemoryAccount {
         Ok(())
     }
 
-    async fn filed_copy(&self, _: &(), _: &[u8]) -> Result<Option<Filed>> {
+    async fn filed_copy(&self, _: &(), _: &[u8]) -> Result<Option<FiledCopy>> {
         Ok(None)
+    }
+
+    async fn replace_submitted(&self, _: &(), _: Filed, _: Vec<u8>, _: Vec<Flag>) -> Result<Filed> {
+        Err(Error::Refused(
+            "nothing here is filed for a submission".into(),
+        ))
     }
 
     async fn append(&self, _: &(), bytes: Vec<u8>, flags: Vec<Flag>) -> Result<Filed> {

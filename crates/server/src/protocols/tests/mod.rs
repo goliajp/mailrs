@@ -224,6 +224,14 @@ async fn both_cores_hold_the_same_mail_conversations() {
         report.push(format!("pg-core: {diff}"));
     }
     report.extend(archived_alike(&backends).await);
+    sent_append::submit_on_fastcore(&backends).await;
+    for diff in sent_append::after_submission(backends.fastcore.clone(), backends.home(0)).await {
+        report.push(format!("fastcore: {diff}"));
+    }
+    sent_append::submit_on_pg(&backends).await;
+    for diff in sent_append::after_submission(backends.pg.clone(), backends.home(1)).await {
+        report.push(format!("pg-core: {diff}"));
+    }
     assert!(
         report.is_empty(),
         "{} difference(s) from the script:\n\n{}",
