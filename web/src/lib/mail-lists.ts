@@ -154,6 +154,12 @@ export const MAIL_LISTS: Record<MailListId, MailList> = {
     selectable: true,
     source: { filters: { folder: 'NP' }, kind: 'threads' },
   },
+  pinned: {
+    emptyLabel: 'list.pinned.empty',
+    label: 'list.pinned',
+    selectable: true,
+    source: { filters: { folder: 'NonJunk', pinned: true }, kind: 'threads' },
+  },
   quarantine: {
     // A real answer, not an apology: nothing is being held.
     emptyLabel: 'list.quarantine.empty',
@@ -164,15 +170,9 @@ export const MAIL_LISTS: Record<MailListId, MailList> = {
     // over them could not reach these.
     source: { filters: { quarantined: true }, kind: 'threads' },
   },
-  // "Send", not "Sent": the view holds sends that failed and sends still
-  // going out, so a heading claiming they were sent would be wrong about
-  // the rows it is showing.
-  pinned: {
-    emptyLabel: 'list.pinned.empty',
-    label: 'list.pinned',
-    selectable: true,
-    source: { filters: { folder: 'NonJunk', pinned: true }, kind: 'threads' },
-  },
+  // Labelled "Sent" like the folder everywhere else; the rows' status
+  // badges say which sends failed or are still going out. The label is
+  // its own key, apart from the composer's "Send" button.
   send: {
     emptyLabel: 'list.send.empty',
     label: 'list.send',
