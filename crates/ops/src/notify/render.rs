@@ -85,14 +85,15 @@ impl Message {
     }
 
     /// The push title and body. Minimal: rule names, levels and the kind of
-    /// object only, plus the link; no host, object, value or reason.
+    /// object only; no host, object, value, reason or link (the link names
+    /// the server's own domain). The full form carries the link.
     pub fn push_text(&self, minimal: bool) -> (String, String) {
         let title = match minimal {
             true => format!("mailrs: {}", self.summary()),
             false => format!("mailrs {}: {}", self.host, self.summary()),
         };
         let mut body: Vec<String> = self.notices.iter().map(|n| n.text_line(minimal)).collect();
-        if let Some(link) = &self.link {
+        if let (false, Some(link)) = (minimal, &self.link) {
             body.push(link.clone());
         }
         (title, body.join("\n"))

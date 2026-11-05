@@ -242,9 +242,11 @@ async fn a_minimal_push_names_no_address_or_local_domain() {
         let all = format!("{} {body}", headers["title"].to_str().unwrap());
         let leaks = all.contains('@') || c.local_domains.iter().any(|d| all.contains(d.as_str()));
         assert_eq!(leaks, !minimal, "minimal={minimal}: {all}");
-        assert!(
-            all.contains("maintenance_too_long") && all.contains("ops-console.invalid"),
-            "{all}"
+        assert!(all.contains("maintenance_too_long"), "{all}");
+        assert_eq!(
+            all.contains("ops-console.invalid"),
+            !minimal,
+            "the link: {all}"
         );
     }
 }
