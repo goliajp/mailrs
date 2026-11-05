@@ -73,9 +73,6 @@ impl KevyMailboxStore {
             // write only seeds the fields when the thread is brand new
             // (sent-only thread, nothing to preserve).
             let have_display = ctx.hexists(thread_key.as_bytes(), b"latest_date")?;
-            // `search_blob` is the field the full-text index reads;
-            // it has to move in lockstep with the three fields it
-            // concatenates or search goes stale for this thread.
             if !m.is_own || !have_display {
                 // An empty preview means the caller has none, not
                 // that the preview is empty — the maildir self-heal
@@ -89,44 +86,19 @@ impl KevyMailboxStore {
                 } else {
                     preview.clone()
                 };
-                let blob = keys::search_blob(
-                    m.subject,
-                    &String::from_utf8_lossy(&merged_senders),
-                    &String::from_utf8_lossy(&kept_preview),
-                )
-                .into_bytes();
                 let pairs: &[(&[u8], &[u8])] = &[
                     (b"subject", &subj),
                     (b"senders_csv", &merged_senders),
                     (b"latest_date", &date_s),
                     (b"latest_preview", &kept_preview),
                     (b"category", &category),
-                    (keys::THREAD_SEARCH_FIELD, &blob),
                 ];
                 ctx.hset(thread_key.as_bytes(), pairs)?;
             } else {
-                // own send: only the participant union changed, but the
-                // blob embeds it, so refresh both.
-                let cur_subject = ctx
-                    .hget(thread_key.as_bytes(), b"subject")?
-                    .and_then(|v| String::from_utf8(v).ok())
-                    .unwrap_or_default();
-                let cur_preview = ctx
-                    .hget(thread_key.as_bytes(), b"latest_preview")?
-                    .and_then(|v| String::from_utf8(v).ok())
-                    .unwrap_or_default();
-                let blob = keys::search_blob(
-                    &cur_subject,
-                    &String::from_utf8_lossy(&merged_senders),
-                    &cur_preview,
-                )
-                .into_bytes();
+                // own send: only the participant union changed
                 ctx.hset(
                     thread_key.as_bytes(),
-                    &[
-                        (b"senders_csv" as &[u8], merged_senders.as_slice()),
-                        (keys::THREAD_SEARCH_FIELD, blob.as_slice()),
-                    ],
+                    &[(b"senders_csv" as &[u8], merged_senders.as_slice())],
                 )?;
             }
             // Atomic counters. The membership row is derived from
@@ -203,6 +175,8 @@ impl KevyMailboxStore {
         // The reader's own list: this message's sender joins it. The
         // shared hash's union above is everybody's.
         self.add_participants(m.user, m.thread_id, m.senders_csv)?;
+        // And its subject and preview, onto the reader's row only.
+        self.add_display(m.user, m.thread_id, m.subject, m.latest_preview, m.is_own)?;
         Ok(())
     }
 }
