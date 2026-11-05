@@ -1,5 +1,5 @@
 //! Durable, bounded reconciliation after a Lua rule version changes.
-use std::{fs, io::Write, path::Path, sync::Arc, time::Duration};
+use std::{fs, path::Path, sync::Arc, time::Duration};
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -8,6 +8,9 @@ use crate::{
     FastcoreState,
     maintenance::{fraud_rescan, hangup::Hangup},
 };
+
+mod journal;
+use journal::{now, read_json, save};
 
 const BATCH: usize = 100;
 
@@ -62,22 +65,6 @@ struct Skipped {
     user: String,
     thread_id: String,
     at: i64,
-}
-
-fn now() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.as_secs() as i64)
-}
-
-fn read_json<T: serde::de::DeserializeOwned>(path: &Path) -> Result<Option<T>, String> {
-    match fs::read(path) {
-        Ok(raw) => serde_json::from_slice(&raw)
-            .map(Some)
-            .map_err(|e| e.to_string()),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(e) => Err(e.to_string()),
-    }
 }
 
 /// How many conversations the backfill in `journal` skipped for its
@@ -150,18 +137,6 @@ fn next_range(
     })
 }
 
-fn save(path: &Path, value: &impl Serialize) -> Result<(), String> {
-    let tmp = path.with_extension("tmp");
-    let mut file = fs::File::create(&tmp).map_err(|e| e.to_string())?;
-    serde_json::to_writer(&mut file, value).map_err(|e| e.to_string())?;
-    file.flush().map_err(|e| e.to_string())?;
-    file.sync_all().map_err(|e| e.to_string())?;
-    fs::rename(tmp, path).map_err(|e| e.to_string())?;
-    fs::File::open(path.parent().ok_or("missing journal parent")?)
-        .and_then(|dir| dir.sync_all())
-        .map_err(|e| e.to_string())
-}
-
 fn version(source: &str) -> String {
     format!("lua:{:x}", Sha256::digest(source.as_bytes()))
 }
@@ -180,8 +155,8 @@ fn validate(source: &str) -> Result<(), String> {
 /// The journal and snapshot are durable; only one caller may own this directory.
 ///
 /// All of it runs on the blocking pool: the snapshot, the journal's fsyncs
-/// and every judgement are synchronous, and on a runtime worker they stall
-/// whatever request is queued behind that worker.
+/// and every judgement are synchronous, and on a runtime worker a batch
+/// kept every request to this process waiting for seconds at a time.
 pub async fn run_once(
     state: Arc<FastcoreState>,
     journal: &Path,
@@ -189,13 +164,13 @@ pub async fn run_once(
 ) -> Result<bool, String> {
     let (journal, rules_file) = (journal.to_path_buf(), rules_file.to_path_buf());
     crate::maintenance::hangup::run_blocking(move |h| {
-        run_blocking(&state, &journal, &rules_file, h)
+        run_once_blocking(&state, &journal, &rules_file, h)
     })
     .await
     .map_err(|e| e.to_string())?
 }
 
-fn run_blocking(
+fn run_once_blocking(
     state: &Arc<FastcoreState>,
     journal: &Path,
     rules_file: &Path,

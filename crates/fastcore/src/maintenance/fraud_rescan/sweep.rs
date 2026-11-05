@@ -47,33 +47,8 @@ struct Tally {
     scored_samples: Vec<serde_json::Value>,
 }
 
-/// The walk off the async runtime. Every item is synchronous work (store
-/// reads and writes, a maildir file, MIME, Lua, network kevy round trips),
-/// tens of milliseconds each; run on a runtime worker, the 25 items between
-/// pauses held that worker for about 2 s, and requests queued behind it
-/// waited that long.
-pub(crate) async fn rescan(
-    state: Arc<FastcoreState>,
-    q: RescanQuery,
-    targets: Option<Vec<(String, String)>>,
-) -> axum::response::Response {
-    let walked =
-        crate::maintenance::hangup::run_blocking(move |h| walk(&state, &q, targets, None, h)).await;
-    match walked {
-        Ok(Ok(answer)) => Json(answer).into_response(),
-        Ok(Err(e)) => {
-            tracing::error!(err = %e, "fraud snapshot failed");
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
-        }
-        Err(e) => {
-            tracing::error!(err = %e, "fraud rescan task failed");
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
-        }
-    }
-}
-
-/// Judge `targets` (or every conversation), blocking. The background
-/// worker supplies an immutable batch and pins its rule version.
+/// Judge `targets` (or all), blocking: run it off the async runtime. The
+/// background worker supplies an immutable batch and pins its rule version.
 pub(crate) fn walk(
     state: &Arc<FastcoreState>,
     q: &RescanQuery,
