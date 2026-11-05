@@ -18,6 +18,7 @@ use crate::store::Maintenance;
 
 pub use book::{Rejection, ReportBook};
 pub use collect::Collector;
+pub use pull::Polls;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Reading<T> {
@@ -122,7 +123,7 @@ impl Snapshot {
             maintenance: None,
             limits: Limits {
                 maintenance_alert_secs: 4 * 3600,
-                new_domains_per_day: 50,
+                new_domains_per_day: 5000,
                 ready_secs: 600,
                 fastcore_ready_secs: 1800,
             },

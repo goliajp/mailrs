@@ -48,11 +48,11 @@ pub(super) async fn run(cores: &Cores, d: &mut Diffs) {
     }
     let answers = d.both(
         "ops_status",
-        cores.fastcore.ops_status().await,
-        cores.pg_core.ops_status().await,
+        cores.fastcore.ops_status(true).await,
+        cores.pg_core.ops_status(true).await,
         &[],
     );
-    if let Some((fc, _)) = answers {
+    if let Some((fc, _)) = &answers {
         let files: Vec<_> = fc.quarantined.iter().map(|q| q.file.as_str()).collect();
         if fc.quarantined_total != 2 || files != ["1700000100.M1P1.b", "1700000000.M1P1.a"] {
             d.0.push(format!(
@@ -61,13 +61,10 @@ pub(super) async fn run(cores: &Cores, d: &mut Diffs) {
             ));
         }
     }
-    let builds = d.both(
-        "healthz build",
-        cores.fastcore.healthz().await.map(|h| h.build),
-        cores.pg_core.healthz().await.map(|h| h.build),
-        &[],
-    );
-    if let Some((None, _)) = builds {
-        d.0.push("healthz: no build reported".into());
+    if answers
+        .as_ref()
+        .is_some_and(|(fc, _)| fc.build.version.is_empty())
+    {
+        d.0.push("ops_status: no build reported".into());
     }
 }

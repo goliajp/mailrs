@@ -56,6 +56,7 @@ async fn settle(shared: &Shared, want: usize, within: Duration) {
 fn cfg(url: &str, dir: &std::path::Path) -> Config {
     Config {
         url: Some(url.to_string()),
+        reports_url: None,
         key: crate::key::derive(b"master", "receiver"),
         state_dir: Some(dir.to_path_buf()),
     }

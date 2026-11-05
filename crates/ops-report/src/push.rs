@@ -8,6 +8,8 @@
 //! - `MAILRS_OPS_URL`: the daemon's base URL (`http://ops:3600`)
 //! - `MAILRS_OPS_REPORT_KEY`: this process's key (`mailrs-ops report-key`)
 //! - `MAILRS_OPS_STATE_DIR`: where the start counter and liveness file live
+//! - `MAILRS_OPS_REPORTS_URL`: the full URL to post to, in place of
+//!   `MAILRS_OPS_URL` + `/v1/reports`; fetch posts to the core's relay
 //!
 //! Without the URL or the key nothing is sent; the counter and the liveness
 //! file are still kept when the directory is set, so starts made while the
@@ -29,6 +31,8 @@ const ATTEMPT_TIMEOUT: Duration = Duration::from_secs(5);
 #[derive(Debug, Clone, Default)]
 pub struct Config {
     pub url: Option<String>,
+    /// Posted to as it is, instead of `url` + `/v1/reports`.
+    pub reports_url: Option<String>,
     pub key: Option<String>,
     pub state_dir: Option<PathBuf>,
 }
@@ -38,6 +42,7 @@ impl Config {
         let var = |name: &str| std::env::var(name).ok().filter(|v| !v.trim().is_empty());
         Self {
             url: var("MAILRS_OPS_URL"),
+            reports_url: var("MAILRS_OPS_REPORTS_URL"),
             key: var("MAILRS_OPS_REPORT_KEY"),
             state_dir: var("MAILRS_OPS_STATE_DIR").map(PathBuf::from),
         }
@@ -72,16 +77,20 @@ impl Reporter {
     pub fn start_with(process: &'static str, cfg: Config) -> Self {
         crate::build::mark_start();
         let started = counter::start(cfg.state_dir.as_deref());
-        let target = match (cfg.url, cfg.key) {
+        let to = cfg.reports_url.or_else(|| {
+            cfg.url
+                .map(|u| format!("{}{REPORTS_PATH}", u.trim_end_matches('/')))
+        });
+        let target = match (to, cfg.key) {
             (Some(url), Some(key)) => Some(Target {
-                url: format!("{}{REPORTS_PATH}", url.trim_end_matches('/')),
+                url,
                 key,
                 client: reqwest::Client::new(),
             }),
             _ => {
                 tracing::info!(
                     process,
-                    "ops reports off: MAILRS_OPS_URL or MAILRS_OPS_REPORT_KEY is not set"
+                    "ops reports off: MAILRS_OPS_URL (or _REPORTS_URL) or MAILRS_OPS_REPORT_KEY is not set"
                 );
                 None
             }

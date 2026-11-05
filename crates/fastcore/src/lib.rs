@@ -241,8 +241,11 @@ impl Handler for FastcoreState {
             spool: Some(self.spool_health()),
             set_aside: Some(self.set_aside()),
             parsing: Some(mailrs_core_sidestate::parsing::health()),
-            build: Some(mailrs_ops_report::build::build()),
         }
+    }
+
+    async fn ops_audit(&self, action: &'static str, detail: String) {
+        mailrs_core_sidestate::families::audit::by_ops_daemon(self, action, &detail);
     }
 
     async fn ops_status(&self) -> mailrs_core_api::method::ops::OpsStatusWire {
@@ -263,7 +266,6 @@ impl Handler for FastcoreState {
             spool: Some(self.spool_health()),
             set_aside: Some(self.set_aside()),
             parsing: Some(mailrs_core_sidestate::parsing::health()),
-            build: Some(mailrs_ops_report::build::build()),
         }
     }
 }

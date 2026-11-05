@@ -11,12 +11,42 @@ use serde::{Deserialize, Serialize};
 
 pub const PATH_OPS_STATUS: &str = "/v1/ops/status";
 
+/// Where the image fetcher's reports are handed to the core, which passes
+/// them on to the daemon unchanged. fetch shares a network with the core
+/// alone; the report stays signed with fetch's own key, so the core can
+/// pass it on but not write one.
+pub const PATH_OPS_RELAY: &str = "/v1/ops/reports:relay";
+
+/// Sent by the daemon on its first status read after it starts; the core
+/// records that read in the audit log, so the log shows the daemon came up.
+pub const FIRST_READ_HEADER: &str = "x-mailrs-ops-first-read";
+
+static FETCH_STARTS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// A fetch start report went through this core's relay.
+pub fn witness_fetch_start() {
+    FETCH_STARTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// fetch start reports relayed since this core started. fetch keeps no
+/// counter of its own (its only writable space is a tmpfs), so this is a
+/// weaker reading: what the core saw pass through, unverified, not what
+/// fetch counted.
+pub fn fetch_starts_witnessed() -> u64 {
+    FETCH_STARTS.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 /// Quarantine records listed at most; `quarantined_total` counts them all.
 pub const MAX_QUARANTINE_RECORDS: usize = 50;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OpsStatusWire {
+    /// The answering core's version, commit and start time. Served here,
+    /// behind the daemon's token, rather than in the health answer.
     pub build: mailrs_ops_report::build::BuildInfo,
+    /// fetch start reports relayed through this core since it started; see
+    /// [`fetch_starts_witnessed`].
+    pub fetch_starts_witnessed: u64,
     pub drain: DrainProgressWire,
     pub quarantined_total: u64,
     /// Newest first, at most [`MAX_QUARANTINE_RECORDS`].

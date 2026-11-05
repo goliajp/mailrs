@@ -141,6 +141,16 @@ fn print_status(v: &serde_json::Value) {
         );
     }
     println!("{ok} alert(s) ok, {} not ok", alerts.len() - ok);
+    for p in v["processes"].as_array().cloned().unwrap_or_default() {
+        println!(
+            "  {:<10} {:<18} starts {} ({}), last report {}s ago",
+            p["process"].as_str().unwrap_or(""),
+            p["instance"].as_str().unwrap_or(""),
+            p["start_count"],
+            p["start_count_source"].as_str().unwrap_or(""),
+            p["age_secs"],
+        );
+    }
 }
 
 pub async fn run(args: &[String]) -> ExitCode {

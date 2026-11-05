@@ -22,6 +22,7 @@ use axum::{
 use crate::method::ops::{OpsAuth, OpsStatusWire};
 use crate::types::HealthResponse;
 
+mod ops;
 mod thread_events;
 pub use thread_events::{ThreadEventHit, ThreadEventSink, thread_events};
 
@@ -40,25 +41,53 @@ pub trait Handler: Send + Sync + 'static {
 
     /// What the ops daemon reads: drain progress and quarantine records.
     fn ops_status(&self) -> impl std::future::Future<Output = OpsStatusWire> + Send;
+
+    /// Write one line to the audit log with the ops daemon as the actor: a
+    /// refused call to its route, or its first read after it started.
+    fn ops_audit(
+        &self,
+        action: &'static str,
+        detail: String,
+    ) -> impl std::future::Future<Output = ()> + Send;
 }
 
-/// Build the base router: healthz/readyz (no auth) and the ops daemon's
-/// status route (its own token, see [`crate::method::ops`]).
+/// Build the base router: healthz/readyz (no auth), the ops daemon's
+/// status route (its own token) and fetch's report relay (see
+/// [`crate::method::ops`]). The relay goes to `MAILRS_OPS_URL`.
 pub fn base_router<H: Handler>(handler: Arc<H>) -> Router {
-    base_router_with_ops(handler, OpsAuth::from_env())
+    let relay_to = std::env::var("MAILRS_OPS_URL")
+        .ok()
+        .filter(|u| !u.trim().is_empty())
+        .map(|u| {
+            format!(
+                "{}{}",
+                u.trim_end_matches('/'),
+                mailrs_ops_report::wire::REPORTS_PATH
+            )
+        });
+    base_router_with_ops(handler, OpsAuth::from_env(), relay_to)
 }
 
-pub fn base_router_with_ops<H: Handler>(handler: Arc<H>, ops: OpsAuth) -> Router {
+pub fn base_router_with_ops<H: Handler>(
+    handler: Arc<H>,
+    auth: OpsAuth,
+    relay_to: Option<String>,
+) -> Router {
+    let ops_state = Arc::new(ops::Ops {
+        handler: handler.clone(),
+        auth,
+        relay_to,
+        http: reqwest::Client::new(),
+    });
     let ops_route = Router::new()
+        .route(crate::method::ops::PATH_OPS_STATUS, get(ops::status::<H>))
         .route(
-            crate::method::ops::PATH_OPS_STATUS,
-            get(ops_status_handler::<H>),
+            crate::method::ops::PATH_OPS_RELAY,
+            axum::routing::post(ops::relay::<H>).layer(axum::extract::DefaultBodyLimit::max(
+                mailrs_ops_report::wire::MAX_REPORT_BYTES,
+            )),
         )
-        .layer(axum::middleware::from_fn_with_state(
-            Arc::new(ops),
-            ops_auth_middleware,
-        ))
-        .with_state(handler.clone());
+        .with_state(ops_state);
     Router::new()
         .route(
             crate::method::health::PATH_HEALTHZ,
@@ -67,36 +96,6 @@ pub fn base_router_with_ops<H: Handler>(handler: Arc<H>, ops: OpsAuth) -> Router
         .route(crate::method::health::PATH_READYZ, get(readyz_handler::<H>))
         .with_state(handler)
         .merge(ops_route)
-}
-
-async fn ops_status_handler<H: Handler>(State(h): State<Arc<H>>) -> Json<OpsStatusWire> {
-    Json(h.ops_status().await)
-}
-
-/// The ops daemon's bearer, compared by its sha256.
-async fn ops_auth_middleware(
-    State(auth): State<Arc<OpsAuth>>,
-    req: Request,
-    next: Next,
-) -> Result<Response, StatusCode> {
-    use sha2::Digest;
-    let bearer = req
-        .headers()
-        .get(axum::http::header::AUTHORIZATION)
-        .and_then(|h| h.to_str().ok())
-        .and_then(|s| s.strip_prefix("Bearer "));
-    let allowed = match (auth.as_ref(), bearer) {
-        (OpsAuth::Open, _) => true,
-        (OpsAuth::Closed, _) => false,
-        (OpsAuth::TokenSha256(want), Some(token)) => {
-            hex::encode(sha2::Sha256::digest(token.as_bytes())) == *want
-        }
-        (OpsAuth::TokenSha256(_), None) => false,
-    };
-    match allowed {
-        true => Ok(next.run(req).await),
-        false => Err(StatusCode::UNAUTHORIZED),
-    }
 }
 
 async fn healthz_handler<H: Handler>(State(h): State<Arc<H>>) -> Json<HealthResponse> {
@@ -135,7 +134,8 @@ mod tests {
     use sha2::Digest;
     use tower::ServiceExt;
 
-    struct Core;
+    #[derive(Default)]
+    struct Core(std::sync::Mutex<Vec<&'static str>>);
 
     fn health() -> HealthResponse {
         HealthResponse {
@@ -146,7 +146,6 @@ mod tests {
             spool: None,
             set_aside: None,
             parsing: None,
-            build: None,
         }
     }
 
@@ -160,6 +159,7 @@ mod tests {
         async fn ops_status(&self) -> OpsStatusWire {
             OpsStatusWire {
                 build: mailrs_ops_report::build::build(),
+                fetch_starts_witnessed: 0,
                 drain: DrainProgressWire {
                     ticks: 0,
                     delivered: 0,
@@ -169,14 +169,20 @@ mod tests {
                 quarantined: vec![],
             }
         }
+        async fn ops_audit(&self, action: &'static str, _detail: String) {
+            self.0.lock().unwrap().push(action);
+        }
     }
 
-    async fn status(auth: OpsAuth, bearer: Option<&str>) -> u16 {
+    async fn status(core: &Arc<Core>, auth: OpsAuth, bearer: Option<&str>, first: bool) -> u16 {
         let mut req = axum::http::Request::get(crate::method::ops::PATH_OPS_STATUS);
         if let Some(b) = bearer {
             req = req.header("authorization", format!("Bearer {b}"));
         }
-        base_router_with_ops(Arc::new(Core), auth)
+        if first {
+            req = req.header(crate::method::ops::FIRST_READ_HEADER, "1");
+        }
+        base_router_with_ops(core.clone(), auth, None)
             .oneshot(req.body(axum::body::Body::empty()).unwrap())
             .await
             .unwrap()
@@ -186,14 +192,64 @@ mod tests {
 
     /// The daemon's token opens the route; the core's own secret, another
     /// token or none do not, and a deployment without the hash is closed.
+    /// Each refusal is audited, and of the successful reads only the first
+    /// after the daemon started.
     #[tokio::test]
     async fn the_ops_route_takes_only_the_daemon_token() {
+        let core = Arc::new(Core::default());
         let hash = hex::encode(sha2::Sha256::digest(b"daemon-token"));
         let by_token = || OpsAuth::TokenSha256(hash.clone());
-        assert_eq!(status(by_token(), Some("daemon-token")).await, 200);
-        assert_eq!(status(by_token(), Some("core-secret")).await, 401);
-        assert_eq!(status(by_token(), None).await, 401);
-        assert_eq!(status(OpsAuth::Closed, Some("daemon-token")).await, 401);
-        assert_eq!(status(OpsAuth::Open, None).await, 200);
+        assert_eq!(
+            status(&core, by_token(), Some("daemon-token"), true).await,
+            200
+        );
+        assert_eq!(
+            status(&core, by_token(), Some("daemon-token"), false).await,
+            200
+        );
+        assert_eq!(
+            status(&core, by_token(), Some("core-secret"), false).await,
+            401
+        );
+        assert_eq!(status(&core, by_token(), None, false).await, 401);
+        assert_eq!(
+            status(&core, OpsAuth::Closed, Some("daemon-token"), false).await,
+            401
+        );
+        assert_eq!(status(&core, OpsAuth::Open, None, false).await, 200);
+        assert_eq!(
+            *core.0.lock().unwrap(),
+            [
+                "ops.status.first_read",
+                "ops.status.refused",
+                "ops.status.refused",
+                "ops.status.refused"
+            ]
+        );
+    }
+
+    async fn relay(body: serde_json::Value) -> u16 {
+        let req = axum::http::Request::post(crate::method::ops::PATH_OPS_RELAY)
+            .body(axum::body::Body::from(body.to_string()))
+            .unwrap();
+        base_router_with_ops(Arc::new(Core::default()), OpsAuth::Open, None)
+            .oneshot(req)
+            .await
+            .unwrap()
+            .status()
+            .as_u16()
+    }
+
+    /// Only fetch's reports are relayed, and each start is counted as it
+    /// passes, whether or not the daemon can take it.
+    #[tokio::test]
+    async fn the_relay_carries_fetch_reports_only_and_counts_its_starts() {
+        let before = crate::method::ops::fetch_starts_witnessed();
+        let start = serde_json::json!({"process": "fetch", "kind": "start"});
+        assert_eq!(relay(start).await, 503, "no daemon configured");
+        assert_eq!(crate::method::ops::fetch_starts_witnessed(), before + 1);
+        let other = serde_json::json!({"process": "receiver", "kind": "start"});
+        assert_eq!(relay(other).await, 403);
+        assert_eq!(crate::method::ops::fetch_starts_witnessed(), before + 1);
     }
 }

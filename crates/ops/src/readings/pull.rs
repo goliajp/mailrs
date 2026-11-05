@@ -20,6 +20,17 @@ pub struct Puller {
     http: reqwest::Client,
 }
 
+/// The daemon's own count of its `/v1/ops/status` reads. The core audits
+/// only refusals and the first read after the daemon starts; the polling in
+/// between is accounted for here.
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize)]
+pub struct Polls {
+    pub calls: u64,
+    pub last_success_at: Option<i64>,
+    pub last_failure_at: Option<i64>,
+    pub last_failure: Option<String>,
+}
+
 async fn within<T, E: std::fmt::Display>(f: impl Future<Output = Result<T, E>>) -> Reading<T> {
     match tokio::time::timeout(TIMEOUT, f).await {
         Ok(Ok(v)) => Reading::Got(v),
@@ -37,8 +48,11 @@ impl Puller {
         }
     }
 
+    /// healthz, readyz and the ops status; `first_read` marks the ops
+    /// status read as the first since the daemon started.
     pub async fn fastcore(
         &self,
+        first_read: bool,
     ) -> (
         Reading<HealthResponse>,
         Reading<HealthResponse>,
@@ -47,7 +61,7 @@ impl Puller {
         tokio::join!(
             within(self.fastcore.healthz()),
             within(self.fastcore.readyz()),
-            within(self.fastcore.ops_status()),
+            within(self.fastcore.ops_status(first_read)),
         )
     }
 
@@ -102,7 +116,7 @@ mod tests {
         tokio::spawn(async move { axum::serve(l, app).await });
         let p = Puller::new(&format!("http://{addr}"), None, "http://127.0.0.1:9");
         let started = std::time::Instant::now();
-        let (health, _, _) = p.fastcore().await;
+        let (health, _, _) = p.fastcore(true).await;
         assert!(started.elapsed() < Duration::from_millis(5800));
         match health {
             Reading::Unreadable(why) => assert!(why.contains("within 5s"), "{why}"),

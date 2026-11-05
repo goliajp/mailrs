@@ -108,6 +108,25 @@ impl Store {
         .optional()?)
     }
 
+    /// An administrator route refused for its credentials.
+    pub fn record_denial(&self, route: &str, reason: &str, now: i64) -> Result<()> {
+        self.conn().execute(
+            "INSERT INTO admin_refusals_log (route, reason, at) VALUES (?1, ?2, ?3)",
+            params![route, reason, now],
+        )?;
+        Ok(())
+    }
+
+    /// Refused administrator calls by reason.
+    pub fn denial_counts(&self) -> Result<Vec<(String, i64)>> {
+        let c = self.conn();
+        let mut st = c.prepare(
+            "SELECT reason, COUNT(*) FROM admin_refusals_log GROUP BY reason ORDER BY reason",
+        )?;
+        let rows = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?;
+        Ok(rows.collect::<std::result::Result<_, _>>()?)
+    }
+
     pub fn record_rejection(&self, process: &str, reason: &str, now: i64) -> Result<()> {
         self.conn().execute(
             "INSERT INTO report_rejections_log (process, reason, at) VALUES (?1, ?2, ?3)",
