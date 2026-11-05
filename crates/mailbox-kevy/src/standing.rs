@@ -39,10 +39,10 @@ const SENT_ONLY: &[u8] = b"sent_only";
 const VERDICT: &[u8] = b"category";
 
 /// One of the reader's messages, as much of it as the row needs.
-struct Held {
-    mid: String,
-    date: i64,
-    own: bool,
+pub(crate) struct Held {
+    pub(crate) mid: String,
+    pub(crate) date: i64,
+    pub(crate) own: bool,
 }
 
 /// The row as it was before an arrival wrote anything.
@@ -119,7 +119,7 @@ impl KevyMailboxStore {
         Ok(class)
     }
 
-    fn held_dates(&self, user: &str, thread_id: &str) -> io::Result<Vec<Held>> {
+    pub(crate) fn held_dates(&self, user: &str, thread_id: &str) -> io::Result<Vec<Held>> {
         let key = keys::thread_user_messages(user, thread_id);
         let mut out = Vec::new();
         for (m, score) in self.store().zrange(key.as_bytes(), 0, -1)? {
@@ -140,7 +140,7 @@ impl KevyMailboxStore {
 
     /// The reader's newest inbound message, or their newest when they sent
     /// every one.
-    fn newest_of(held: &[Held]) -> Option<&Held> {
+    pub(crate) fn newest_of(held: &[Held]) -> Option<&Held> {
         // A date of 0 is not known (rows written by an old backfill), so
         // such a message cannot say what is newest. On a tie in date the
         // later in zset order, as `max_by_key` keeps.
@@ -170,7 +170,11 @@ impl KevyMailboxStore {
 
     /// `user`'s stored category and activity, or `None` when they have no
     /// row.
-    fn stored_standing(&self, user: &str, thread_id: &str) -> io::Result<Option<(String, i64)>> {
+    pub(crate) fn stored_standing(
+        &self,
+        user: &str,
+        thread_id: &str,
+    ) -> io::Result<Option<(String, i64)>> {
         let key = keys::thread_user(user, thread_id);
         let store = self.store();
         if !store.hexists(key.as_bytes(), b"tid")? {

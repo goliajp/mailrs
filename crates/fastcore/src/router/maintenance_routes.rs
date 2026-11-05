@@ -387,4 +387,11 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
             "/v1/admin/maintenance:recompute-thread-standing",
             post(crate::maintenance::recompute_thread_standing_route),
         )
+        // Stored message dates back to what ingest computes from the file,
+        // with each reader's row time and the shared latest_date recounted.
+        // Same batching as the four above.
+        .route(
+            "/v1/admin/maintenance:recompute-message-dates",
+            post(crate::maintenance::recompute_message_dates_route),
+        )
 }
