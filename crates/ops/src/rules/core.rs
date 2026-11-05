@@ -67,9 +67,10 @@ pub static CORE_MEMORY: Rule = Rule {
     eval: |s| {
         let e = match health(s).map(|h| h.memory) {
             Err(e) => e,
-            // no cgroup or no limit: the container has no ceiling to near
-            Ok(None) => Eval::clear("no container limit"),
+            // the cgroup could not be read: no reading, not "fine"
+            Ok(None) => Eval::field("fastcore reports no memory"),
             Ok(Some(m)) => match m.limit_bytes {
+                // read, and the container has no ceiling to near
                 None => Eval::clear("no container limit"),
                 Some(limit) if at_least(m.used_bytes, limit, 85) => {
                     Eval::holds(format!("{} of {limit} bytes", m.used_bytes), ">= 85%")

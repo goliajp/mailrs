@@ -105,6 +105,19 @@ async fn a_stopped_core_is_one_grouped_alert_by_webhook_and_relay_and_never_the_
     )
     .unwrap();
 
+    // whether this host gives the core a cgroup to read is not the test's
+    // business; its "cannot read the core's memory" is silenced
+    app.store
+        .set_silence(&mailrs_ops::store::Silence {
+            id: "host-cgroup".into(),
+            rule: "core_memory_high".into(),
+            object: None,
+            until: mailrs_ops_report::build::now() + 3600,
+            reason: "depends on the test host".into(),
+            by: "test".into(),
+            set_at: mailrs_ops_report::build::now(),
+        })
+        .unwrap();
     run(&app, 4).await;
     assert!(
         common::alerts(&hook_inbox).is_empty(),
