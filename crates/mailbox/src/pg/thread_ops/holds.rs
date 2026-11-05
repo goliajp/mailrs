@@ -101,17 +101,95 @@ impl PgMailboxStore {
         Ok(rows.into_iter().map(row_to_message_meta).collect())
     }
 
-    /// Hold `thread_id` for `user`. Returns whether it was not held before.
-    pub async fn hold_thread(&self, user: &str, thread_id: &str) -> Result<bool, sqlx::Error> {
+    /// Hold `thread_id` for `user`, and append the hold fact when it was not
+    /// held before: `source` (`ingest` or `report`), the rule pack, and the
+    /// reader's messages unread at this moment. What is read is left as it
+    /// is. Returns whether it was not held before.
+    pub async fn hold_thread(
+        &self,
+        user: &str,
+        thread_id: &str,
+        source: &str,
+        rules_version: &str,
+    ) -> Result<bool, sqlx::Error> {
+        let mut tx = self.pool.begin().await?;
         let done = sqlx::query(
             "INSERT INTO quarantine_holds (account_address, thread_id) VALUES ($1, $2)
              ON CONFLICT (account_address, thread_id) DO NOTHING",
         )
         .bind(user)
         .bind(thread_id)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await?;
-        Ok(done.rows_affected() > 0)
+        if done.rows_affected() == 0 {
+            tx.commit().await?;
+            return Ok(false);
+        }
+        let unread: Vec<(String,)> = sqlx::query_as(
+            "SELECT m.message_id FROM messages m JOIN mailboxes mb ON m.mailbox_id = mb.id
+              WHERE m.thread_id = $1 AND mb.user_address = $2 AND (m.flags & $3) = 0
+              ORDER BY m.id",
+        )
+        .bind(thread_id)
+        .bind(user)
+        .bind(crate::types::FLAG_SEEN as i32)
+        .fetch_all(&mut *tx)
+        .await?;
+        let mids: Vec<String> = unread.into_iter().map(|(m,)| m).collect();
+        let mids = serde_json::to_string(&mids).map_err(|e| sqlx::Error::Encode(Box::new(e)))?;
+        sqlx::query(
+            "INSERT INTO hold_facts
+                 (account_address, thread_id, held_at, source, rules_version, unread_mids)
+             VALUES ($1, $2, $3, $4, $5, CAST($6 AS JSONB))",
+        )
+        .bind(user)
+        .bind(thread_id)
+        .bind(chrono::Utc::now().timestamp())
+        .bind(source)
+        .bind(rules_version)
+        .bind(mids)
+        .execute(&mut *tx)
+        .await?;
+        tx.commit().await?;
+        Ok(true)
+    }
+
+    /// Every hold of `thread_id` for `user`, oldest first.
+    pub async fn holds(&self, user: &str, thread_id: &str) -> Result<Vec<HoldFact>, sqlx::Error> {
+        let rows: Vec<(i64, String, String, String)> = sqlx::query_as(
+            "SELECT held_at, source, rules_version, CAST(unread_mids AS TEXT) FROM hold_facts
+              WHERE account_address = $1 AND thread_id = $2
+              ORDER BY id",
+        )
+        .bind(user)
+        .bind(thread_id)
+        .fetch_all(&self.pool)
+        .await?;
+        rows.into_iter()
+            .map(|(at, source, rules_version, mids)| {
+                Ok(HoldFact {
+                    at,
+                    source,
+                    rules_version,
+                    unread_mids: serde_json::from_str(&mids)
+                        .map_err(|e| sqlx::Error::Decode(Box::new(e)))?,
+                })
+            })
+            .collect()
+    }
+
+    /// Drop the holds of a conversation deleted for good.
+    pub(crate) async fn drop_hold_facts(
+        &self,
+        user: &str,
+        thread_id: &str,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query("DELETE FROM hold_facts WHERE account_address = $1 AND thread_id = $2")
+            .bind(user)
+            .bind(thread_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
     }
 
     /// Release `thread_id` for `user`. The verdict stays; it was true of
@@ -175,6 +253,21 @@ impl PgMailboxStore {
             })
             .collect())
     }
+}
+
+/// One hold of a conversation, as stored. Nothing in the product reads it
+/// yet: it is what a later look at "what was unread when this was held" has
+/// to go on, the way [`ReleaseFact`] is for releases.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HoldFact {
+    /// Unix seconds.
+    pub at: i64,
+    /// `ingest` or `report`.
+    pub source: String,
+    /// The rule pack whose verdict held it; empty for a report.
+    pub rules_version: String,
+    /// The reader's messages not read when it was held.
+    pub unread_mids: Vec<String>,
 }
 
 /// One release of a held conversation, as stored.

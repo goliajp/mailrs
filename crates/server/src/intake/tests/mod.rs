@@ -204,3 +204,4 @@ fn maildir_file(root: &Path, domain: &str, local: &str, name: &str) -> PathBuf {
 
 mod arrival;
 mod drain;
+mod hold_facts;

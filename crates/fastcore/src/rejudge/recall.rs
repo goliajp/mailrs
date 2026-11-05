@@ -141,6 +141,7 @@ pub(crate) fn hold_reported(
     {
         return Err("thread membership disappeared".into());
     }
+    crate::hold_facts::record_hold_fact(state, user, tid, crate::hold_facts::REPORT, "")?;
     remember(state, user, tid, batch, &["reported".to_string()])?;
     Ok(true)
 }

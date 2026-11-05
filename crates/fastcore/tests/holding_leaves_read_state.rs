@@ -1,22 +1,11 @@
-//! Holding a conversation must leave it read, in all three places.
+//! A rescan that holds a conversation leaves what the reader has read as
+//! it was, in all three places it is recorded: the membership row, the
+//! per-user message row, and the maildir file name.
 //!
-//! `read_state_reaches_both_stores.rs` pinned the per-message route. The
-//! per-thread one — the verb the conversation list issues, and the one a
-//! person actually uses — wrote only the thread counter. `mark_seen` does
-//! sink `\Seen` into the shared message blob, but that blob's `flags` has
-//! been stripped to zero by design since stage 5 of the per-user message
-//! projection, and no read path consults it: `user_message_view` overlays
-//! the per-user row on top. So the write landed in the dead half, the per-user
-//! row stayed unread, and the file was never renamed.
-//!
-//! Two consequences, both measured on production 2026-08-14:
-//!
-//! - mail read in the web stayed bold in every IMAP client, forever;
-//! - `read-state-shadow`'s `unread_count_differs` climbed monotonically —
-//!   9, then 32, then 68, then 127 — because every conversation opened in
-//!   the web added one thread whose counter said 0 and whose files said
-//!   otherwise. A level would have been a stock of old damage; a trend is
-//!   a live writer.
+//! Holding used to mark the conversation read in all three, so that held
+//! mail would not be bold or counted. It was released read too, and a
+//! reader never noticed it was back. Held mail is kept out of the badge by
+//! the badge's own predicate instead.
 
 use std::sync::Arc;
 
@@ -42,7 +31,7 @@ fn file_name(root: &std::path::Path) -> String {
 /// One test per binary — the route reads `MAILRS_MAILDIR` from the process
 /// environment and two would race for it.
 #[tokio::test]
-async fn holding_a_conversation_leaves_it_read_everywhere() {
+async fn holding_a_conversation_leaves_it_unread_everywhere() {
     let tmp = tempfile::tempdir().expect("tmp");
     let root = tmp.path().to_path_buf();
     let md_dir = root.join("x.com").join("bob");
@@ -136,14 +125,14 @@ async fn holding_a_conversation_leaves_it_read_everywhere() {
         .expect("call");
     assert!(res.status().is_success());
 
-    // The counter, which is all this ever wrote.
+    // The membership row.
     let row = state
         .mailbox
         .get_thread_for_user(USER, TID)
         .expect("thread")
         .expect("row");
     assert!(row.quarantined, "the sweep did not hold it");
-    assert_eq!(row.unread_count, 0, "held and still counted unread");
+    assert_eq!(row.unread_count, 1, "held and marked read");
 
     // The row a read actually serves from.
     let facts = state
@@ -151,13 +140,7 @@ async fn holding_a_conversation_leaves_it_read_everywhere() {
         .user_message_facts(USER, MID)
         .expect("facts")
         .expect("row");
-    assert_eq!(
-        facts.flags & 1,
-        1,
-        "the per-user row still says unread — so the review screen, \
-         which counts from these rows, shows a held conversation in \
-         bold. `mark_seen` alone writes the axis and not this."
-    );
+    assert_eq!(facts.flags & 1, 0, "the per-user row says read");
 
     // The verdict the sweep stored names the rule that held it, and keeps
     // the reason it was filed where it was.
@@ -185,9 +168,9 @@ async fn holding_a_conversation_leaves_it_read_everywhere() {
 
     // The name an IMAP client reads.
     let name = file_name(&root);
+    assert!(!name.is_empty(), "the file is gone");
     assert!(
-        name.contains(":2,") && name.contains('S'),
-        "the file name still says unread ({name:?}) — a held \
-         conversation would ring an IMAP client's badge"
+        !name.split(":2,").nth(1).is_some_and(|f| f.contains('S')),
+        "the file name says read ({name:?})"
     );
 }

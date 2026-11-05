@@ -93,11 +93,14 @@ impl ReportStore for Reports<'_> {
         }
     }
 
+    /// Asked only of a conversation not held already; the report writes the
+    /// audit line.
     fn hold(&self, user: &str, tid: &str) -> io::Result<()> {
-        match self.0.mailbox.set_quarantined(user, tid, true)? {
-            true => Ok(()),
-            false => Err(io::Error::other("thread membership disappeared")),
+        if !self.0.mailbox.set_quarantined(user, tid, true)? {
+            return Err(io::Error::other("thread membership disappeared"));
         }
+        crate::hold_facts::record_hold_fact(self.0, user, tid, crate::hold_facts::REPORT, "")
+            .map_err(io::Error::other)
     }
 
     fn take_back(&self, user: &str, tid: &str, mid: &str, batch: &str) -> Result<bool, String> {

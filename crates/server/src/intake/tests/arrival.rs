@@ -67,10 +67,10 @@ sent from my phone\r\n";
     );
 }
 
-/// A held verdict is stored, holds the conversation, and reads it; a
-/// verdict that does not hold leaves the conversation alone.
+/// A held verdict is stored and holds the conversation, leaving it unread;
+/// a verdict that does not hold leaves the conversation alone.
 #[tokio::test(flavor = "multi_thread")]
-async fn a_fraud_verdict_that_holds_takes_the_conversation_out_read() {
+async fn a_fraud_verdict_that_holds_takes_the_conversation_out_unread() {
     let f = fixture().await;
     let verdict = |held: bool| {
         serde_json::json!({
@@ -100,7 +100,10 @@ hello\r\n";
             .await
             .expect("holds");
     assert_eq!(held, [("q1@outside.example".to_string(),)]);
-    assert!(f.indexed(ALICE, "Quarterly report").await.seen);
+    assert!(
+        !f.indexed(ALICE, "Quarterly report").await.seen,
+        "held and marked read"
+    );
     assert!(!f.indexed(ALICE, "harmless").await.seen);
     let stored = f
         .core

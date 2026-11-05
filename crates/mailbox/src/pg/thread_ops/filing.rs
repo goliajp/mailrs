@@ -38,12 +38,14 @@ impl PgMailboxStore {
         Ok(flipped)
     }
 
-    /// Mark everything `user` has unread as read: live and archived, held
-    /// or not, Junk included. Returns how many conversations changed.
+    /// Mark everything `user` has unread as read: live and archived, Junk
+    /// included, held conversations left as they are (they are not in the
+    /// badge, and one released later comes back as unread as it was).
+    /// Returns how many conversations changed.
     pub async fn mark_all_read(&self, user: &str) -> Result<u32, sqlx::Error> {
         let q = ThreadQuery {
             archived: None,
-            held: Held::Include,
+            held: Held::Hide,
             ..ThreadQuery::all(user)
         };
         self.mark_rows_read(&q).await

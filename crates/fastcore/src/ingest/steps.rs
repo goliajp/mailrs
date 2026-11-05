@@ -72,15 +72,18 @@ fn hold_and_audit(
         .get_thread_for_user(addr, root)?
         .is_some_and(|t| t.quarantined);
     let ok = state.mailbox.set_quarantined(addr, root, true)?;
-    if ok && !was_held {
-        crate::hold_facts::record_hold(
+    if ok
+        && !was_held
+        && let Err(e) = crate::hold_facts::record_hold(
             state,
             addr,
             root,
             "ingest",
             &v.rules_version,
             &crate::hold_facts::verdict_rules(v),
-        );
+        )
+    {
+        tracing::warn!(error = %e, %addr, %root, "the hold fact was not recorded");
     }
     Ok(ok)
 }
@@ -105,16 +108,11 @@ pub(super) fn hold_if_fraud(
         match serde_json::from_str::<mailrs_inbound::FraudVerdict>(json) {
             Ok(v) if v.quarantined => match hold_and_audit(state, addr, root, &v) {
                 Ok(true) => {
-                    // Read, at the same moment. A held conversation
-                    // that is also unread is bold, adds to the badge
-                    // and rings the phone — the attempt to defraud
-                    // getting exactly the attention it was sent to
-                    // get, which is what holding exists to remove.
-                    //
-                    // Both halves, through the function that writes
-                    // both: the axis column and the per-user rows the
-                    // count comes off.
-                    crate::routes::thread_actions::mark_thread_read_everywhere(state, addr, root);
+                    // Left as unread as it came. Held mail is out of the
+                    // badge by the badge's own predicate and is not pushed
+                    // (`mailrs_intake::effects`); marking it read here hid
+                    // it from the badge and returned it read on release,
+                    // so a released conversation was never noticed.
                     held = true;
                     tracing::info!(
                         %addr, %root, score = v.score, rules = %v.rules_version,
