@@ -5,6 +5,11 @@ use crate::keys::admin::AUDIT_LOG;
 const DAY: i64 = 86_400;
 const T0: i64 = 1_700_000_000;
 
+/// A core whose store holds nothing of the group.
+fn none(_: i64, _: bool) -> io::Result<Vec<PurgeCount>> {
+    Ok(Vec::new())
+}
+
 fn conn(name: &str) -> Connection {
     Connection::connect(&format!("mem://group-purge-{name}")).unwrap()
 }
@@ -97,7 +102,7 @@ fn audit(c: &mut Connection, action: &str) -> Vec<serde_json::Value> {
 }
 
 fn count(row: &GroupPurgeRow, name: &str) -> u64 {
-    row.removed
+    row.network
         .iter()
         .find(|p| p.name == name)
         .map_or(0, |p| p.count)
@@ -134,7 +139,7 @@ fn a_deleted_group_is_out_of_use_at_once_and_its_state_is_kept() {
 
     // a second delete changes nothing and keeps the first time
     assert!(!soft_delete(&mut c, 1, "admin@x", T0 + DAY).unwrap());
-    let r = run(&mut c, true, None, T0 + 30 * DAY, 30).unwrap();
+    let r = run(&mut c, true, None, T0 + 30 * DAY, 30, none).unwrap();
     assert_eq!((r.pending, r.due), (1, 1));
     assert_eq!(r.rows[0].deleted_at, T0);
     assert_eq!(r.rows[0].address, "team@x");
@@ -151,12 +156,12 @@ fn the_state_is_kept_until_its_retention_has_passed_and_a_dry_run_writes_nothing
     soft_delete(&mut c, 1, "admin@x", T0).unwrap();
     let before = snapshot(&mut c);
 
-    let early = run(&mut c, false, None, T0 + 29 * DAY, 30).unwrap();
+    let early = run(&mut c, false, None, T0 + 29 * DAY, 30, none).unwrap();
     assert_eq!((early.pending, early.due), (1, 0));
     assert!(early.rows.is_empty());
     assert_eq!(snapshot(&mut c), before, "nothing is due yet");
 
-    let dry = run(&mut c, true, None, T0 + 30 * DAY, 30).unwrap();
+    let dry = run(&mut c, true, None, T0 + 30 * DAY, 30, none).unwrap();
     assert_eq!((dry.pending, dry.due, dry.rows.len()), (1, 1, 1));
     assert_eq!(snapshot(&mut c), before, "a dry run writes nothing");
     let row = &dry.rows[0];
@@ -170,12 +175,12 @@ fn the_state_is_kept_until_its_retention_has_passed_and_a_dry_run_writes_nothing
         .chain([shared_inbox::GROUP_CLAIMS.to_string()])
         .collect();
     assert_eq!(names.len(), 9);
-    assert_eq!(row.removed.len(), 9, "{:?}", row.removed);
+    assert_eq!(row.network.len(), 9, "{:?}", row.network);
     for name in &names {
-        assert_eq!(count(row, name), 1, "{name}: {:?}", row.removed);
+        assert_eq!(count(row, name), 1, "{name}: {:?}", row.network);
     }
 
-    let done = run(&mut c, false, None, T0 + 30 * DAY, 30).unwrap();
+    let done = run(&mut c, false, None, T0 + 30 * DAY, 30, none).unwrap();
     assert_eq!(
         done.rows, dry.rows,
         "the purge removes what the dry run counted"
@@ -189,8 +194,8 @@ fn the_state_is_kept_until_its_retention_has_passed_and_a_dry_run_writes_nothing
     let detail: serde_json::Value =
         serde_json::from_str(purged[0]["detail"].as_str().unwrap()).unwrap();
     assert_eq!(
-        detail["removed"],
-        serde_json::to_value(&row.removed).unwrap()
+        detail["network"],
+        serde_json::to_value(&row.network).unwrap()
     );
     assert_eq!(detail["deleted_at"], T0);
 }
@@ -201,7 +206,7 @@ fn under_zero_days_the_state_is_due_at_the_delete() {
     team(&mut c, 3, "team@x");
     work(&mut c, 3);
     soft_delete(&mut c, 3, "admin@x", T0).unwrap();
-    let r = run(&mut c, false, Some(3), T0, 0).unwrap();
+    let r = run(&mut c, false, Some(3), T0, 0, none).unwrap();
     assert_eq!(r.rows.len(), 1);
     assert_eq!(team_keys(&mut c, 3), 0);
     assert!(claim_gids(&mut c).is_empty());
@@ -214,10 +219,10 @@ fn a_pass_with_nothing_due_converges_to_reading_and_writing_nothing() {
     team(&mut c, 1, "team@x");
     work(&mut c, 1);
     soft_delete(&mut c, 1, "admin@x", T0).unwrap();
-    assert_eq!(run(&mut c, false, None, T0, 0).unwrap().rows.len(), 1);
+    assert_eq!(run(&mut c, false, None, T0, 0, none).unwrap().rows.len(), 1);
     let after = snapshot(&mut c);
     for _ in 0..3 {
-        let r = run(&mut c, false, None, T0 + DAY, 0).unwrap();
+        let r = run(&mut c, false, None, T0 + DAY, 0, none).unwrap();
         assert_eq!((r.pending, r.due, r.rows.len()), (0, 0, 0));
         assert!(r.skipped_live.is_empty());
     }
@@ -243,8 +248,47 @@ fn a_marked_group_whose_row_is_there_is_left_alone() {
         )],
     )
     .unwrap();
-    let r = run(&mut c, false, None, T0, 0).unwrap();
+    let r = run(&mut c, false, None, T0, 0, none).unwrap();
     assert_eq!(r.skipped_live, [1]);
     assert!(r.rows.is_empty());
     assert_eq!(team_keys(&mut c, 1), 8);
+}
+
+#[test]
+fn the_core_s_store_is_purged_with_the_group_and_counted_in_the_same_audit_row() {
+    let mut c = conn("mail-store");
+    team(&mut c, 6, "team@x");
+    work(&mut c, 6);
+    soft_delete(&mut c, 6, "admin@x", T0).unwrap();
+    let mut calls = Vec::new();
+    let mut store = |gid: i64, dry_run: bool| {
+        calls.push((gid, dry_run));
+        Ok(vec![
+            PurgeCount {
+                name: "replies".into(),
+                count: 2,
+            },
+            PurgeCount {
+                name: "empty".into(),
+                count: 0,
+            },
+        ])
+    };
+    let dry = run(&mut c, true, None, T0, 0, &mut store).unwrap();
+    assert_eq!(
+        dry.rows[0].mail_store.len(),
+        1,
+        "a family with nothing is left out"
+    );
+    let done = run(&mut c, false, None, T0, 0, &mut store).unwrap();
+    assert_eq!(calls, [(6, true), (6, false)]);
+    assert_eq!(done.rows[0].mail_store, dry.rows[0].mail_store);
+    let purged = audit(&mut c, PURGED);
+    let detail: serde_json::Value =
+        serde_json::from_str(purged[0]["detail"].as_str().unwrap()).unwrap();
+    assert_eq!(
+        detail["mail_store"],
+        serde_json::json!([{ "name": "replies", "count": 2 }])
+    );
+    assert_eq!(detail["network"].as_array().unwrap().len(), 9);
 }

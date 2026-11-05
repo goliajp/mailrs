@@ -7,22 +7,26 @@
 //! worked on, [`shared_inbox`]'s `shared:{gid}:*` keys and the reply claims
 //! members hold for it in `shared:claims:*`, stays, and the group is marked
 //! in [`GROUPS_KEY`]. Once the retention period of deleted accounts
-//! ([`pending::retention_days`]) has passed, [`run`] removes that state and
-//! writes one audit row with the counts. The mail stays in the members'
-//! mailboxes.
+//! ([`retention_days`]) has passed, [`run`] removes that state, and the
+//! reply claims each core keeps in its own store for the group's
+//! conversations, and writes one audit row with the counts per store and
+//! family. The mail stays in the members' mailboxes, and so do the team
+//! columns on their copies.
 //!
 //! Group ids come from a counter that only grows, so a group created
 //! later, on the same address and name, never has a deleted group's id and
 //! reads none of its state.
 //!
-//! Everything here is in the network kevy, so both cores run the same pass.
+//! The pass is the network kevy's, the same on both cores; each core
+//! passes in its own store's part.
 
 use std::io;
 
 use kevy_client::Connection;
 use mailrs_core_api::method::admin::{GroupPurgeResponse, GroupPurgeRow, PurgeCount};
 
-use super::account_purge::pending::{self, GROUPS_KEY};
+use super::account_purge::pending::GROUPS_KEY;
+pub use super::account_purge::pending::retention_days;
 use super::account_purge::scan_all;
 use super::{audit, email_groups, shared_inbox};
 
@@ -143,35 +147,73 @@ fn walk(c: &mut Connection, gid: i64, dry_run: bool) -> io::Result<Vec<PurgeCoun
     Ok(counts)
 }
 
-/// One pass: every pending group whose `retention_days` have passed at
-/// `now` (or only `only`), counted, and removed unless `dry_run`. With
-/// nothing pending it reads one hash and writes nothing.
-pub fn run(
+/// A deleted group whose retention has passed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DueGroup {
+    pub gid: i64,
+    pub address: String,
+    pub deleted_at: i64,
+}
+
+/// What [`due`] found waiting.
+#[derive(Debug, Default)]
+pub struct Pass {
+    /// Groups waiting, due or not.
+    pub pending: usize,
+    /// Due groups whose row is gone: theirs to purge.
+    pub due: Vec<DueGroup>,
+    /// Due groups whose row is there: a delete cut short, left alone.
+    pub skipped_live: Vec<i64>,
+}
+
+impl Pass {
+    pub fn response(
+        self,
+        dry_run: bool,
+        retention_days: u64,
+        rows: Vec<GroupPurgeRow>,
+    ) -> GroupPurgeResponse {
+        GroupPurgeResponse {
+            dry_run,
+            retention_days,
+            pending: self.pending,
+            due: self.due.len() + self.skipped_live.len(),
+            rows,
+            skipped_live: self.skipped_live,
+        }
+    }
+}
+
+/// The pending groups whose `retention_days` have passed at `now`; only
+/// `only` when given. With nothing pending it reads one hash.
+pub fn due(
     c: &mut Connection,
-    dry_run: bool,
-    only: Option<i64>,
     now: i64,
     retention_days: u64,
-) -> io::Result<GroupPurgeResponse> {
+    only: Option<i64>,
+) -> io::Result<Pass> {
     let all = all(c)?;
     let cutoff = now - (retention_days as i64).saturating_mul(86_400);
-    let due: Vec<&(i64, Mark)> = all
-        .iter()
-        .filter(|(g, m)| m.deleted_at <= cutoff && only.is_none_or(|o| o == *g))
-        .collect();
-    let mut rows = Vec::new();
-    let mut skipped_live = Vec::new();
-    for (gid, mark) in &due {
-        let field = gid.to_string();
-        if c.hget(email_groups::GROUPS_KEY.as_bytes(), field.as_bytes())?
-            .is_some()
-        {
-            skipped_live.push(*gid);
+    let mut pass = Pass {
+        pending: all.len(),
+        ..Pass::default()
+    };
+    for (gid, mark) in all {
+        if mark.deleted_at > cutoff || only.is_some_and(|o| o != gid) {
             continue;
         }
-        let removed = walk(c, *gid, dry_run)?;
-        let row = GroupPurgeRow {
-            gid: *gid,
+        let live = c
+            .hget(
+                email_groups::GROUPS_KEY.as_bytes(),
+                gid.to_string().as_bytes(),
+            )?
+            .is_some();
+        if live {
+            pass.skipped_live.push(gid);
+            continue;
+        }
+        pass.due.push(DueGroup {
+            gid,
             address: mark
                 .group
                 .get("address")
@@ -179,46 +221,68 @@ pub fn run(
                 .unwrap_or_default()
                 .to_string(),
             deleted_at: mark.deleted_at,
-            removed,
-        };
-        if !dry_run {
-            finish(c, &row, now)?;
-            tracing::info!(gid, address = %row.address, "deleted group's team state purged");
-        }
-        rows.push(row);
+        });
     }
-    Ok(GroupPurgeResponse {
-        dry_run,
-        retention_days,
-        pending: all.len(),
-        due: due.len(),
-        rows,
-        skipped_live,
-    })
+    Ok(pass)
 }
 
-/// [`run`] under the retention in force.
-pub fn run_now(
+/// The network kevy's part of purging `g`: its team state counted, and
+/// removed unless `dry_run`.
+pub fn network(c: &mut Connection, g: &DueGroup, dry_run: bool) -> io::Result<Vec<PurgeCount>> {
+    walk(c, g.gid, dry_run)
+}
+
+/// One pass: every pending group whose `retention_days` have passed at
+/// `now` (or only `only`), counted, and removed unless `dry_run`.
+/// `mail_store` is the core's own part (the reply claims in its store),
+/// called before the network part with the group id and `dry_run`. With
+/// nothing pending it reads one hash and writes nothing.
+pub fn run(
     c: &mut Connection,
     dry_run: bool,
     only: Option<i64>,
     now: i64,
+    retention_days: u64,
+    mut mail_store: impl FnMut(i64, bool) -> io::Result<Vec<PurgeCount>>,
 ) -> io::Result<GroupPurgeResponse> {
-    run(c, dry_run, only, now, pending::retention_days())
+    let pass = due(c, now, retention_days, only)?;
+    let mut rows = Vec::new();
+    for g in &pass.due {
+        let mail = mail_store(g.gid, dry_run)?;
+        let row = row(g, network(c, g, dry_run)?, mail);
+        if !dry_run {
+            finish(c, &row, now)?;
+        }
+        rows.push(row);
+    }
+    Ok(pass.response(dry_run, retention_days, rows))
+}
+
+/// The row of `g`, from what each store counted.
+pub fn row(g: &DueGroup, network: Vec<PurgeCount>, mail_store: Vec<PurgeCount>) -> GroupPurgeRow {
+    GroupPurgeRow {
+        gid: g.gid,
+        address: g.address.clone(),
+        deleted_at: g.deleted_at,
+        network,
+        mail_store: mail_store.into_iter().filter(|p| p.count > 0).collect(),
+    }
 }
 
 /// The purge's audit row, then the mark goes. Last, so a purge that failed
 /// part-way is retried by the next pass.
-fn finish(c: &mut Connection, row: &GroupPurgeRow, now: i64) -> io::Result<()> {
+pub fn finish(c: &mut Connection, row: &GroupPurgeRow, now: i64) -> io::Result<()> {
     let detail = serde_json::json!({
         "address": row.address,
         "deleted_at": row.deleted_at,
-        "removed": row.removed,
+        "network": row.network,
+        "mail_store": row.mail_store,
     })
     .to_string();
     let field = row.gid.to_string();
     audit::append(c, "system", PURGED, &field, &detail, now)?;
     c.hdel(GROUPS_KEY.as_bytes(), &[field.as_bytes()])?;
+    tracing::info!(gid = row.gid, address = %row.address, "deleted group's team state purged");
     Ok(())
 }
 

@@ -1,7 +1,7 @@
 //! Purging deleted accounts on fastcore: the route, the retention task,
 //! and the embedded store's part. The same task and a route of their own
-//! purge deleted email groups' team state, all in the network kevy
-//! (`group_purge`). The registry and the network part are
+//! purge deleted email groups' team state (`group_purge`) and their reply
+//! claims in the embedded store. The registry and the network part are
 //! `mailrs_core_sidestate::families::account_purge`, shared with the SQL
 //! core.
 
@@ -168,6 +168,24 @@ pub(crate) async fn account_purge_route(
     done.map(Json)
 }
 
+/// One group pass: the network kevy's part, and the reply claims of the
+/// groups' conversations in the embedded store.
+pub(crate) fn run_groups(
+    state: &FastcoreState,
+    net: &mut Connection,
+    dry_run: bool,
+    only: Option<i64>,
+    now: i64,
+    retention_days: u64,
+) -> io::Result<GroupPurgeResponse> {
+    group_purge::run(net, dry_run, only, now, retention_days, |gid, dry_run| {
+        Ok(vec![PurgeCount {
+            name: mailrs_mailbox_kevy::SHARED_REPLY_FAMILY.to_string(),
+            count: state.mailbox.purge_group_replies(gid, dry_run)?,
+        }])
+    })
+}
+
 #[derive(Debug, serde::Deserialize)]
 pub(crate) struct GroupPurgeQuery {
     #[serde(default = "yes")]
@@ -182,7 +200,8 @@ pub(crate) async fn group_purge_route(
 ) -> Result<Json<GroupPurgeResponse>, StatusCode> {
     let done = tokio::task::spawn_blocking(move || {
         let mut net = state.net_conn().ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
-        group_purge::run_now(&mut net, q.dry_run, q.gid, now()).map_err(|e| {
+        let days = group_purge::retention_days();
+        run_groups(&state, &mut net, q.dry_run, q.gid, now(), days).map_err(|e| {
             tracing::error!(error = %e, "group purge failed");
             StatusCode::INTERNAL_SERVER_ERROR
         })
@@ -236,7 +255,7 @@ pub(crate) fn spawn(state: Arc<FastcoreState>) {
                 let accounts = run(&st, &mut net, false, None, now(), days)
                     .map_err(|e| tracing::warn!(error = %e, "account purge pass failed"))
                     .map_or(0, |r| r.rows.len());
-                let groups = group_purge::run(&mut net, false, None, now(), days)
+                let groups = run_groups(&st, &mut net, false, None, now(), days)
                     .map_err(|e| tracing::warn!(error = %e, "group purge pass failed"))
                     .map_or(0, |r| r.rows.len());
                 Some(accounts + groups)
