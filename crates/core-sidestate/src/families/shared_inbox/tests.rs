@@ -5,6 +5,8 @@ use super::notes::{self, Refused};
 use super::presence::{self, State};
 use super::{ConvRef, conv_for_arrival, copies, drafts, record_copy};
 
+mod handover;
+
 fn conn(name: &str) -> Connection {
     Connection::connect(&format!("mem://shared-inbox-{name}")).unwrap()
 }
@@ -123,6 +125,7 @@ fn save_draft(c: &mut Connection, user: &str, id: i64, body: &str) {
         reply_to_thread_id: Some("t-a".into()),
         from: "team@x".into(),
         scheduled_at: None,
+        attachments: Vec::new(),
         created_at: 1,
         updated_at: 1,
     };
@@ -145,7 +148,10 @@ fn a_takeover_copies_the_draft_and_locks_out_the_earlier_author() {
     drafts::announce(&mut c, r, "a@x", 1, 10).unwrap().unwrap();
     // someone else's save does not move it
     assert!(drafts::announce(&mut c, r, "b@x", 9, 11).unwrap().is_err());
-    let h = drafts::take_over(&mut c, r, "b@x", 12).unwrap().unwrap();
+    let root = tempfile::tempdir().unwrap();
+    let h = drafts::take_over(&mut c, root.path(), r, "b@x", 12)
+        .unwrap()
+        .unwrap();
     assert_eq!((h.from.as_str(), h.to.as_str()), ("a@x", "b@x"));
     let p = drafts::pointer(&mut c, r).unwrap().unwrap();
     assert_eq!((p.author.as_str(), p.draft_id), ("b@x", h.draft_id));
@@ -157,7 +163,10 @@ fn a_takeover_copies_the_draft_and_locks_out_the_earlier_author() {
     assert!(!drafts::clear(&mut c, r, "a@x").unwrap());
     assert_eq!(drafts::handoffs(&mut c, r).unwrap(), vec![h]);
     // taking over one's own reply is nothing
-    assert_eq!(drafts::take_over(&mut c, r, "b@x", 14).unwrap(), None);
+    assert_eq!(
+        drafts::take_over(&mut c, root.path(), r, "b@x", 14).unwrap(),
+        None
+    );
     assert!(drafts::clear(&mut c, r, "b@x").unwrap());
     assert_eq!(drafts::pointer(&mut c, r).unwrap(), None);
 }

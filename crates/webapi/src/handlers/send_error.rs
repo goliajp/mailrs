@@ -9,8 +9,10 @@ use axum::response::{IntoResponse, Response};
 /// The largest request body the web tier takes. Axum's default is 2 MiB,
 /// which turns away any form with a sizeable attachment. The message
 /// built from a full form, attachments in base64, stays under the SMTP
-/// limit the core files sent copies to.
-pub const MAX_MULTIPART_BODY: usize = 25 * 1024 * 1024;
+/// limit the core files sent copies to. The same number bounds a draft's
+/// files, so a draft that can be saved can be sent.
+pub const MAX_MULTIPART_BODY: usize =
+    mailrs_core_sidestate::families::uploads::MAX_ATTACHMENT_BYTES as usize;
 
 #[derive(Debug)]
 pub struct SendError {
@@ -29,6 +31,14 @@ impl SendError {
     /// A refusal that carries its own JSON body.
     pub fn with_body(status: StatusCode, body: serde_json::Value) -> Self {
         Self { status, body }
+    }
+
+    pub fn status(&self) -> StatusCode {
+        self.status
+    }
+
+    pub fn body(&self) -> &serde_json::Value {
+        &self.body
     }
 
     /// A To, Cc, Bcc, Subject or In-Reply-To with a line break in it.

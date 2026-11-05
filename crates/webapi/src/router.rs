@@ -10,6 +10,7 @@ use std::sync::Arc;
 
 use crate::*;
 
+mod drafts;
 mod mail;
 mod masked;
 mod mock;
@@ -18,6 +19,7 @@ mod rest;
 mod rules;
 mod shared;
 
+use drafts::*;
 use mail::*;
 use masked::*;
 use mock::*;
@@ -60,6 +62,7 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         .merge(rule_routes())
         .merge(masked_routes())
         .merge(shared_routes())
+        .merge(draft_routes())
         .merge(sender_and_notify_routes())
         .merge(auth_routes)
         .merge(admin_routes)

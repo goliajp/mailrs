@@ -747,6 +747,10 @@
                       "type": "string",
                       "format": "binary"
                     }
+                  },
+                  "draft_id": {
+                    "type": "integer",
+                    "description": "The saved draft this sends: its files go first, ahead of the form's, and the draft is deleted once the message is queued"
                   }
                 }
               }
@@ -765,7 +769,7 @@
             }
           },
           "413": {
-            "description": "The form is larger than the 25 MiB limit; nothing was sent",
+            "description": "The form is larger than the 25 MiB limit, or the attachments together (the draft's, the form's, a forward's or redraft's) come to more; `drop` names which to remove. Nothing was sent.",
             "content": {
               "application/json": {
                 "schema": {
@@ -780,6 +784,29 @@
                     },
                     "limit_bytes": {
                       "type": "integer"
+                    },
+                    "total_bytes": {
+                      "type": "integer"
+                    },
+                    "attachments": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "size": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    },
+                    "drop": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     }
                   }
                 }
@@ -806,6 +833,12 @@
           },
           "409": {
             "description": "`already_replied`: another team member answered the conversation after the composer opened; `by`, `at` and `seq` say who and when. Send again with shared.force to reply anyway."
+          },
+          "404": {
+            "description": "The draft named by draft_id is gone"
+          },
+          "422": {
+            "description": "Some of the draft's files are no longer stored; `missing` names them"
           }
         },
         "description": ""
@@ -912,7 +945,19 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "with_attachments",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "description": "Also list drafts that have files. A client that does not send them with draft_id leaves this out, and is not shown such drafts, so it cannot send one without its files."
+          }
+        ]
       },
       "post": {
         "operationId": "saveDraft",
@@ -937,6 +982,57 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SaveDraftResult"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The files come to more than the 25 MiB limit; nothing was written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "limit_bytes",
+                    "total_bytes"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "limit_bytes": {
+                      "type": "integer"
+                    },
+                    "total_bytes": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Files the request names are not among the caller's uploads; `missing` lists them. Nothing was written.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "missing"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "missing": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -15381,6 +15477,107 @@
           }
         }
       }
+    },
+    "/api/mail/draft-attachments": {
+      "post": {
+        "operationId": "uploadDraftAttachment",
+        "summary": "Upload a file for a draft",
+        "description": "Stored in the caller's upload store; the answer is what the draft save takes in `attachments`. A file no draft names is deleted a day after its last use.",
+        "tags": [
+          "Drafts"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftAttachment"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The file is larger than the 25 MiB limit"
+          },
+          "429": {
+            "description": "Too many uploads at once"
+          },
+          "507": {
+            "description": "The account's uploads are full (1 GiB)"
+          }
+        }
+      }
+    },
+    "/api/mail/draft-attachments/{blob_id}": {
+      "get": {
+        "operationId": "downloadDraftAttachment",
+        "summary": "Download one of the caller's draft files",
+        "description": "Served as an attachment with nosniff and a sandboxing CSP. Another account's file, or none, is 404.",
+        "tags": [
+          "Drafts"
+        ],
+        "parameters": [
+          {
+            "name": "blob_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The filename to download as"
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The media type to serve it as"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The bytes",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not one of the caller's uploads"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -16214,6 +16411,11 @@
           },
           "shared": {
             "$ref": "#/components/schemas/SharedReply"
+          },
+          "draft_id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The saved draft this sends: its files are attached, and the draft is deleted once the message is queued"
           }
         },
         "required": [
@@ -16243,6 +16445,25 @@
           },
           "reply_to_thread_id": {
             "type": "string"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Save in place; absent makes a new draft"
+          },
+          "from": {
+            "type": "string"
+          },
+          "scheduled_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "attachments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DraftAttachment"
+            },
+            "description": "Absent keeps the draft's files; [] removes them. Each must be one of the caller's uploads (POST /api/mail/draft-attachments); together at most 25 MiB."
           }
         }
       },
@@ -16294,6 +16515,13 @@
           },
           "updated_at": {
             "type": "string"
+          },
+          "attachments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DraftAttachment"
+            },
+            "description": "Absent when the draft has none"
           }
         },
         "required": [
@@ -18782,6 +19010,32 @@
                 }
               }
             }
+          }
+        }
+      },
+      "DraftAttachment": {
+        "type": "object",
+        "description": "A file kept with a draft. The bytes are in the account's upload store under blob_id; the draft holds only this reference.",
+        "required": [
+          "blob_id",
+          "name",
+          "content_type",
+          "size"
+        ],
+        "properties": {
+          "blob_id": {
+            "type": "string",
+            "description": "U and the SHA-256 of the bytes, as the upload answered it"
+          },
+          "name": {
+            "type": "string"
+          },
+          "content_type": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer",
+            "description": "Bytes; the saved draft takes it from the stored file"
           }
         }
       }

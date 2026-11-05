@@ -96,6 +96,7 @@
 /api/admin/protocol-logins	read only
 /api/settings/forwarding	read only, never the code
 /api/mail/drafts	read only
+/api/mail/draft-attachments/{blob_id}	read only; the caller's own uploads only
 /api/mail/export	read only
 /api/mail/import/imap	read only
 /api/mail/folders	read only
