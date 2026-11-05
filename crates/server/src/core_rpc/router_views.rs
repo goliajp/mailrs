@@ -1,6 +1,7 @@
 //! Routes for search, the sent list, marking a view as read, filing into a
-//! bucket, holds and fraud verdicts, invitations and the RCPT check: the
-//! surface the kevy core grew while this one was not running.
+//! bucket, holds and fraud verdicts, invitations, the RCPT check and
+//! re-judge batches: the surface the kevy core grew while this one was not
+//! running.
 
 use std::sync::Arc;
 
@@ -13,7 +14,7 @@ use mailrs_core_api::method::message as msg;
 use mailrs_core_api::method::thread as th;
 
 use super::CoreRpcState;
-use super::handlers::{filing, holds, message, views};
+use super::handlers::{admin, filing, holds, message, views};
 
 pub(super) fn view_routes(state: Arc<CoreRpcState>) -> Router {
     Router::new()
@@ -41,5 +42,18 @@ pub(super) fn view_routes(state: Arc<CoreRpcState>) -> Router {
             get(holds::recipient_deliverable),
         )
         .route(msg::PATH_GET_INVITE, get(message::get_invite))
+        .route(adm::PATH_REJUDGE_BATCHES, get(admin::rejudge_batches))
+        .route(
+            adm::PATH_RELEASE_REJUDGE_BATCH,
+            post(admin::release_rejudge_batch),
+        )
+        .route(
+            adm::PATH_CONFIRM_REJUDGE_BATCH,
+            post(admin::confirm_rejudge_batch),
+        )
+        .route(
+            adm::PATH_DISCARD_REJUDGE_BATCH,
+            post(admin::discard_rejudge_batch),
+        )
         .with_state(state)
 }

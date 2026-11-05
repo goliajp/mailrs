@@ -4102,7 +4102,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The caller's conversations moved to Review in the last seven days because stored mail was judged again, newest first, one per conversation */
+        /** The caller's conversations moved to Review in the last seven days because stored mail was judged again or reported, newest first, one entry per round; a conversation is named only by the newest round that took it */
         get: operations["listRecalled"];
         put?: never;
         post?: never;
@@ -5366,7 +5366,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Conversations taken back into Review when stored mail was judged again, one batch per observation. Super administrators only */
+        /** Conversations taken back into Review when stored mail was judged again, one batch per observation, and the rounds waiting for a decision. Super administrators only */
         get: operations["listRejudgeBatches"];
         put?: never;
         post?: never;
@@ -5387,6 +5387,40 @@ export interface paths {
         put?: never;
         /** Put every conversation one batch still holds back where it was, each recorded in the audit log. Super administrators only, after a recent password confirmation */
         post: operations["releaseRejudgeBatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/rejudge/batches/{observation}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Hold the conversations a waiting round recorded, each recorded in the audit log; one held since, released by a person since its message came, or no longer held by the rules stays out. Each reader is told once. Super administrators only, after a recent password confirmation */
+        post: operations["confirmRejudgeBatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/rejudge/batches/{observation}/discard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Hold nothing of a waiting round. Super administrators only, after a recent password confirmation */
+        post: operations["discardRejudgeBatch"];
         delete?: never;
         options?: never;
         head?: never;
@@ -11847,11 +11881,11 @@ export interface operations {
                 content: {
                     "application/json": {
                         items?: {
-                            thread_id?: string;
-                            subject?: string;
-                            /** @description The fraud rules that now hold it, by id */
+                            /** @description The conversations the round took back */
+                            thread_ids?: string[];
+                            /** @description The fraud rules that now hold them, by id */
                             rules?: string[];
-                            /** @description The observation that sent it back through the rules */
+                            /** @description The observation (or report batch) that sent them back through the rules */
                             observation?: string;
                             /** @description Epoch seconds */
                             at?: number;
@@ -14706,6 +14740,14 @@ export interface operations {
                             conversations?: number;
                             /** @description When the batch was put back, epoch seconds; 0 while it has not been */
                             released_at?: number;
+                            /** @description The round would hold more conversations than one observation may on its own (50 unless the operator sets another cap), so it held nothing and waits to be confirmed or discarded */
+                            pending?: boolean;
+                            /** @description Conversations the round found to hold when it was judged */
+                            would_hold?: number;
+                            /** @description The fraud rules it holds them for, by id */
+                            rules?: string[];
+                            /** @description When a waiting round was discarded, epoch seconds; 0 while it has not been */
+                            discarded_at?: number;
                         }[];
                     };
                 };
@@ -14755,7 +14797,118 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description The round is waiting for a decision and holds nothing to put back */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description Put back, but the audit row could not be written */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    confirmRejudgeBatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                observation: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description How many were held */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        held?: number;
+                    };
+                };
+            };
+            /** @description Not a super administrator, or `confirm_required`: the password was not confirmed in the last ten minutes */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such batch */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The round is not waiting for a decision */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Decided, but the audit row could not be written */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    discardRejudgeBatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                observation: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description How many it would have held */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        would_hold?: number;
+                    };
+                };
+            };
+            /** @description Not a super administrator, or `confirm_required`: the password was not confirmed in the last ten minutes */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such batch */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The round is not waiting for a decision */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Decided, but the audit row could not be written */
             503: {
                 headers: {
                     [name: string]: unknown;

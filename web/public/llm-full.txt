@@ -1318,6 +1318,19 @@ can be put back whole, and each reader whose copy was taken sees a line
 where it was, gets the `mail.held` webhook with `reason: "reported"`, and a
 push. Not available as an MCP tool.
 
+When new information about a sender makes the rules hold mail that was
+already delivered, the server takes those conversations back into Review
+the same way, one batch per piece of information. One batch holds at most
+50 conversations on its own (the operator sets `MAILRS_REJUDGE_HOLD_CAP`).
+A batch that would hold more holds nothing and is listed in
+`/api/admin/rejudge/batches` with `pending: true`, `would_hold` and
+`rules`, until a super administrator, after a recent password
+confirmation, confirms it (`POST
+/api/admin/rejudge/batches/{observation}/confirm`, which holds the
+conversations it recorded that may still be held) or discards it (`POST
+…/discard`, which holds nothing). Each reader gets one notice and one push
+per batch, however many of their conversations it took.
+
 Known limit: a body of fewer than eight words has no fingerprint, so a
 report of it holds only that message and looks for nothing else. The
 answer says `"no_fingerprint": true`, and each such report is counted in

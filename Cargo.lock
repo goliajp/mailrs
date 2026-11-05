@@ -4131,6 +4131,7 @@ name = "mailrs-fastcore"
 version = "0.0.0"
 dependencies = [
  "argon2",
+ "aws-lc-rs",
  "axum",
  "base64 0.22.1",
  "chrono",
