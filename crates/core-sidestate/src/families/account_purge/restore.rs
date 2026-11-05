@@ -84,6 +84,7 @@ pub fn finish(
     let parked = match (dir, live_dir(root, address)) {
         (Some(from), Some(to)) => {
             std::fs::rename(from, &to)?;
+            maildir::let_go_of(root, from)?;
             parked_id(from)
         }
         _ => "none".to_string(),

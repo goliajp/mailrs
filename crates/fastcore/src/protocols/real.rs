@@ -68,7 +68,7 @@ impl RealAccount {
         Ok(())
     }
 
-    fn filed(&self, to: &FcMailbox, uid: u32) -> Filed {
+    pub(super) fn filed(&self, to: &FcMailbox, uid: u32) -> Filed {
         Filed {
             uidvalidity: backend::uidvalidity(&self.state, &self.user, &to.name),
             uid,
