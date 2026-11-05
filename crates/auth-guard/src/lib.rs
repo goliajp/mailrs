@@ -21,6 +21,19 @@ pub mod protocol_usage;
 #[cfg(feature = "signins")]
 pub mod signins;
 
+/// `name` with every glob metacharacter escaped, for a `KEYS`/`SCAN`
+/// pattern that must match it and nothing else.
+fn glob_escape(name: &str) -> String {
+    let mut out = String::with_capacity(name.len());
+    for ch in name.chars() {
+        if matches!(ch, '*' | '?' | '[' | ']' | '\\') {
+            out.push('\\');
+        }
+        out.push(ch);
+    }
+    out
+}
+
 /// Tunable thresholds for the auth-guard's lockout policy.
 ///
 /// Defaults are tuned for an SMTP/IMAP submission server:

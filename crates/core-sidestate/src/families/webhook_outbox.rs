@@ -250,6 +250,30 @@ pub fn depth(conn: &mut Connection) -> std::io::Result<(usize, usize)> {
     Ok((ready, dead))
 }
 
+/// Remove `address`'s entries waiting or given up on, or count them on a
+/// dry run. The entries carry no index by owner, so each is read.
+pub fn purge_account(conn: &mut Connection, address: &str, dry_run: bool) -> std::io::Result<u64> {
+    let mut n = 0;
+    for key in conn.keys(b"webhook:outbox:*")? {
+        if conn.type_of(&key)? != "hash" {
+            continue;
+        }
+        let owner = conn.hget(&key, b"account_address")?;
+        if !owner.is_some_and(|o| o.eq_ignore_ascii_case(address.as_bytes())) {
+            continue;
+        }
+        n += 1;
+        if dry_run {
+            continue;
+        }
+        let id = String::from_utf8_lossy(&key["webhook:outbox:".len()..]).into_owned();
+        conn.zrem(READY, &[id.as_bytes()])?;
+        conn.zrem(DEAD, &[id.as_bytes()])?;
+        conn.del(&[key.as_slice()])?;
+    }
+    Ok(n)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

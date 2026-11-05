@@ -7585,6 +7585,82 @@
         "description": "Needs admin.accounts and a recent confirmation. Without `compromised` the account's agent keys keep working. With it, every agent key is revoked, and `revoke_key_ids` must be the ids of all of them as GET .../agent-keys lists them; otherwise 409 `key_list_changed` carries the current keys."
       }
     },
+    "/api/admin/accounts/{address}/restore": {
+      "post": {
+        "operationId": "restoreAccount",
+        "summary": "Restore a deleted account before its purge, with its mail, settings and group memberships (super administrator, recent confirmation)",
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "parked": {
+                    "type": "string",
+                    "description": "Which deletion to restore, by its delete time; only for an address deleted more than once"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Restored"
+          },
+          "403": {
+            "description": "Not a super administrator"
+          },
+          "409": {
+            "description": "Refused: the address is an account, is not waiting for a purge, or the deletion to restore is not clear",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "refused",
+                    "parked"
+                  ],
+                  "properties": {
+                    "refused": {
+                      "type": "string",
+                      "enum": [
+                        "live",
+                        "not_pending",
+                        "no_record",
+                        "several_parked",
+                        "no_such_parked",
+                        "maildir_in_the_way"
+                      ]
+                    },
+                    "parked": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/conversations/mark-all-read": {
       "post": {
         "operationId": "markAllConversationsRead",

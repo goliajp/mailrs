@@ -163,6 +163,7 @@ pub fn build_router_with_secret(state: Arc<FastcoreState>, secret: String) -> Ro
             adm::PATH_UPDATE_ACCOUNT,
             put(update_account_route).delete(remove_account_route),
         )
+        .route(adm::PATH_RESTORE_ACCOUNT, post(restore_account_route))
         .route(adm::PATH_SET_QUOTA, post(set_quota_route))
         .route(
             adm::PATH_UPDATE_RECOVERY_EMAIL,

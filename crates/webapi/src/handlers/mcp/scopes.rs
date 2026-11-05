@@ -110,6 +110,7 @@ const TOOL_CATEGORIES: &[(&str, ToolCategory)] = &[
     ("reply_email", Write),
     ("reschedule_scheduled", Write),
     ("reset_system_config", Admin),
+    ("restore_account", Admin),
     ("restore_thread", Write),
     ("resume_outbound_paused", Admin),
     ("retry_queue_message", Admin),

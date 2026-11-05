@@ -317,3 +317,23 @@ pub(super) fn dir_bytes(dir: &Path) -> i64 {
         .map(|m| m.len() as i64)
         .sum()
 }
+
+/// Remove every namespace `owner` owns, with its messages and their files
+/// under `root`, or count them on a dry run.
+pub fn purge_owner(
+    conn: &mut Connection,
+    root: &Path,
+    owner: &str,
+    dry_run: bool,
+) -> MockResult<u64> {
+    let names = conn.smembers(owner_key(owner).as_bytes())?;
+    if !dry_run {
+        for name in &names {
+            if let Some(ns) = get_namespace(conn, &utf8(name.clone()))? {
+                delete_namespace(conn, root, &Usable(ns))?;
+            }
+        }
+        conn.del(&[owner_key(owner).as_bytes()])?;
+    }
+    Ok(names.len() as u64)
+}

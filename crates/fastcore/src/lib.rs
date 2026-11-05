@@ -9,6 +9,7 @@
 
 #![allow(missing_docs)]
 
+mod account_purge;
 mod acme_task;
 mod aof_compact;
 pub mod arc_seal;

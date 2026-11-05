@@ -267,6 +267,19 @@ pub fn matches(sub: &WebhookSubWire, sender: Option<&str>, thread_id: Option<&st
     true
 }
 
+/// Remove every subscription `address` owns, with the owner index's
+/// entries for them, or count them on a dry run.
+pub fn purge_owner(conn: &mut Connection, address: &str, dry_run: bool) -> std::io::Result<u64> {
+    let key = account_key(address);
+    let ids = conn.hkeys(key.as_bytes())?;
+    if !dry_run && !ids.is_empty() {
+        let refs: Vec<&[u8]> = ids.iter().map(Vec::as_slice).collect();
+        conn.hdel(OWNER, &refs)?;
+        conn.del(&[key.as_bytes()])?;
+    }
+    Ok(ids.len() as u64)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

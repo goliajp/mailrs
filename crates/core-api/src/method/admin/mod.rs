@@ -7,6 +7,7 @@
 //! **are** the wire contract, so moving one between files must not move
 //! it in any caller's path.
 
+mod account_purge;
 mod credentials;
 mod directory;
 mod ops;
@@ -17,6 +18,7 @@ mod rejudge;
 mod usage_drift;
 mod userdata;
 
+pub use account_purge::*;
 pub use credentials::*;
 pub use directory::*;
 pub use ops::*;
