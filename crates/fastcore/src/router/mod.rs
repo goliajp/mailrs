@@ -198,6 +198,14 @@ pub fn build_router_with_secret(state: Arc<FastcoreState>, secret: String) -> Ro
             adm::PATH_RELEASE_REJUDGE_BATCH,
             post(crate::rejudge::routes::release),
         )
+        .route(
+            adm::PATH_CONFIRM_REJUDGE_BATCH,
+            post(crate::rejudge::routes::confirm),
+        )
+        .route(
+            adm::PATH_DISCARD_REJUDGE_BATCH,
+            post(crate::rejudge::routes::discard),
+        )
         .route(adm::PATH_SET_MESSAGE_FLAGS, post(set_message_flags_route))
         // Ops endpoint — reset every user's ingest cursor to 0 so the
         // next sync tick re-processes historic threads and (via the

@@ -168,7 +168,11 @@ pub async fn confirm(
         c.del(&[failures.as_bytes()])?;
         Ok(())
     }) {
-        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Ok(()) => {
+            // like a sign-in: failures are counted by the login guard, not audited
+            crate::handlers::audit::record(&address, "auth.confirm", &address, "");
+            StatusCode::NO_CONTENT.into_response()
+        }
         Err(status) => status.into_response(),
     }
 }

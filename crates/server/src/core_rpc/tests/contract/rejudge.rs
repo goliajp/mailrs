@@ -1,5 +1,6 @@
 //! Rounds of re-judging: after ordinary mail neither core has taken anything
-//! back, and putting back a round that does not exist is 404 on both.
+//! back, and putting back, confirming or discarding a round that does not
+//! exist is 404 on both.
 
 use super::harness::{Cores, Diffs};
 
@@ -17,10 +18,23 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
         fc.release_rejudge_batch("r999", "admin@example.test").await,
         pg.release_rejudge_batch("r999", "admin@example.test").await,
     );
-    let status = |r: &Result<_, mailrs_core_api::error::CoreApiError>| match r {
-        Ok(_) => 200,
-        Err(e) => e.status_code(),
-    };
+    fn status<T>(r: &Result<T, mailrs_core_api::error::CoreApiError>) -> u16 {
+        match r {
+            Ok(_) => 200,
+            Err(e) => e.status_code(),
+        }
+    }
+    assert_eq!((status(&a), status(&b)), (404, 404), "{a:?} {b:?}");
+    // nor is there a waiting round to confirm or discard
+    let (a, b) = (
+        fc.confirm_rejudge_batch("r999", "admin@example.test").await,
+        pg.confirm_rejudge_batch("r999", "admin@example.test").await,
+    );
+    assert_eq!((status(&a), status(&b)), (404, 404), "{a:?} {b:?}");
+    let (a, b) = (
+        fc.discard_rejudge_batch("r999", "admin@example.test").await,
+        pg.discard_rejudge_batch("r999", "admin@example.test").await,
+    );
     assert_eq!((status(&a), status(&b)), (404, 404), "{a:?} {b:?}");
 
     // a conversation nobody released has no release facts on either core
