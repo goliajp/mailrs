@@ -93,11 +93,18 @@ impl PgCore {
         let base = crate::body::user_root(&self.dir.maildir_root, addr)?;
         let want = crate::body::folder(&base, mailbox);
         let at = want.join("new").join(file);
-        if !at.exists() {
+        let from = base.join(from_folder).join("new").join(file);
+        if at.exists() {
+            // filed by an earlier attempt on the same spool file, and the
+            // drain wrote it again where it delivers: one copy, not two
+            if from != at && from.exists() {
+                std::fs::remove_file(&from)?;
+            }
+        } else {
             for leaf in ["cur", "new", "tmp"] {
                 std::fs::create_dir_all(want.join(leaf))?;
             }
-            std::fs::rename(base.join(from_folder).join("new").join(file), at)?;
+            std::fs::rename(from, at)?;
         }
         Ok(crate::body::blob_ref(mailbox, file))
     }

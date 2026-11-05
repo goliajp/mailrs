@@ -205,6 +205,30 @@ impl FastcoreState {
     }
 }
 
+impl FastcoreState {
+    /// The spool this core drains, as the health probe reports it.
+    fn spool_health(&self) -> mailrs_core_api::types::SpoolHealthWire {
+        let root = mailrs_core::spool::spool_root(&self.maildir_root);
+        let h = mailrs_intake::spool::health(std::path::Path::new(&root));
+        mailrs_core_api::types::SpoolHealthWire {
+            quarantined: h.quarantined,
+            oldest_incoming_age_seconds: h.oldest_incoming_age_seconds,
+        }
+    }
+
+    /// What the background loops gave up on.
+    fn set_aside(&self) -> mailrs_core_api::types::SetAsideWire {
+        mailrs_core_api::types::SetAsideWire {
+            attachment_text: self
+                .mailbox
+                .attachment_texts_set_aside()
+                .ok()
+                .map(|n| n as u64),
+            fraud_backfill: fraud_backfill::skipped_here(),
+        }
+    }
+}
+
 impl Handler for FastcoreState {
     async fn healthz(&self) -> HealthResponse {
         HealthResponse {
@@ -212,6 +236,8 @@ impl Handler for FastcoreState {
             backend: BackendKind::Kevy,
             ready: self.boot_intact,
             memory: self.memory(),
+            spool: Some(self.spool_health()),
+            set_aside: Some(self.set_aside()),
         }
     }
 
@@ -225,6 +251,8 @@ impl Handler for FastcoreState {
             backend: BackendKind::Kevy,
             ready: self.boot_intact,
             memory: self.memory(),
+            spool: Some(self.spool_health()),
+            set_aside: Some(self.set_aside()),
         }
     }
 }
@@ -462,6 +490,34 @@ mod tests {
         assert_eq!(resp.status(), 200);
         let body = body_string(resp).await;
         assert!(body.contains("\"backend\":\"kevy\""), "{body}");
+    }
+
+    /// The spool's quarantine and the attachment items given up on reach
+    /// the health answer webapi passes on.
+    #[tokio::test]
+    async fn healthz_reports_what_was_set_aside() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut state = fresh_state_owned();
+        state.maildir_root = tmp.path().to_string_lossy().into_owned();
+        let quarantine = tmp.path().join(".spool/quarantine");
+        std::fs::create_dir_all(&quarantine).unwrap();
+        std::fs::write(quarantine.join("F"), b"x").unwrap();
+        std::fs::write(quarantine.join("F.json"), b"{}").unwrap();
+        state
+            .mailbox
+            .queue_attachment_text("u@x.com", "m1")
+            .unwrap();
+        state
+            .mailbox
+            .set_aside_attachment_text("u@x.com", "m1")
+            .unwrap();
+        let health = Handler::healthz(&state).await;
+        let spool = health.spool.expect("the spool section");
+        assert_eq!(spool.quarantined, 1);
+        assert_eq!(spool.oldest_incoming_age_seconds, 0);
+        let set_aside = health.set_aside.expect("the set-aside section");
+        assert_eq!(set_aside.attachment_text, Some(1));
+        assert_eq!(set_aside.fraud_backfill, None, "no backfill runs here");
     }
 
     /// With a secret set, a business route answers only a caller that

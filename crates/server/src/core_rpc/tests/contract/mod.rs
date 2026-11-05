@@ -23,6 +23,7 @@ mod held_read_state;
 mod import;
 mod importance;
 mod intake;
+mod intake_redrain;
 mod intake_rules;
 mod labels;
 mod mail;
