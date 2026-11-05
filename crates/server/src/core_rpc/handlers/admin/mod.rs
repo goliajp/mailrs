@@ -20,6 +20,7 @@ use crate::core_rpc::CoreRpcState;
 
 pub(crate) mod account_purge;
 mod account_restore;
+pub(crate) mod group_purge;
 pub use account_restore::restore_account;
 mod aliases;
 mod ownerless;

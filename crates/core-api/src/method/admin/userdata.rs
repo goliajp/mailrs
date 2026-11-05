@@ -61,6 +61,17 @@ pub struct DraftWire {
     /// When the message is set to go, in epoch seconds; absent sends at once.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scheduled_at: Option<i64>,
+    /// When the message was set to go before its account was deleted, in
+    /// epoch seconds: that time passed while the account was deleted, so
+    /// the restore put the message back here unsent. Shown, never acted
+    /// on; kept across the draft's saves.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub withheld_send_at: Option<i64>,
+    /// The names of the attachments that message had, which a draft cannot
+    /// carry: the original, with them, is in Sent. Shown beside
+    /// `withheld_send_at`, never acted on; kept across the draft's saves.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub attachments_not_included: Vec<String>,
     /// Epoch seconds.
     pub created_at: i64,
     /// Epoch seconds.

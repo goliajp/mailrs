@@ -7620,8 +7620,27 @@
           }
         },
         "responses": {
-          "204": {
-            "description": "Restored"
+          "200": {
+            "description": "Restored. The sends its delete withheld: those still ahead wait for their time again; those whose time passed are back as drafts of the account, not sent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "rescheduled",
+                    "returned_as_drafts"
+                  ],
+                  "properties": {
+                    "rescheduled": {
+                      "type": "integer"
+                    },
+                    "returned_as_drafts": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
           },
           "403": {
             "description": "Not a super administrator"
@@ -16288,6 +16307,18 @@
           },
           "reply_to_thread_id": {
             "type": "string"
+          },
+          "withheld_send_at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "When the message was set to go before its account was deleted (epoch seconds). The time passed while the account was deleted, so its restore put the message back here unsent; shown, never acted on"
+          },
+          "attachments_not_included": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The names of the attachments that message had, which a draft cannot carry; the original, with them, is in Sent. Shown beside withheld_send_at, never acted on"
           },
           "created_at": {
             "type": "string"

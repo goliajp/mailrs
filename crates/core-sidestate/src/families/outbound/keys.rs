@@ -66,6 +66,12 @@ pub const SUPPRESSION: &[u8] = b"mailrs:outbound:suppression";
 /// Next job id.
 pub const COUNTER: &[u8] = b"mailrs:outbound:counter";
 
+/// A deleted account's jobs not yet released for delivery, stopped at the
+/// delete: job id → the send time it was waiting for.
+pub fn withheld_key(address: &str) -> String {
+    format!("mailrs:outbound:withheld:{address}")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -87,5 +93,6 @@ mod tests {
         assert_eq!(INFLIGHT, b"mailrs:outbound:inflight");
         assert_eq!(SUPPRESSION, b"mailrs:outbound:suppression");
         assert_eq!(COUNTER, b"mailrs:outbound:counter");
+        assert_eq!(withheld_key("a@x"), "mailrs:outbound:withheld:a@x");
     }
 }
