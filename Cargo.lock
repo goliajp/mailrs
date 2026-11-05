@@ -4578,6 +4578,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-ops-report"
+version = "0.0.0"
+dependencies = [
+ "axum",
+ "hex",
+ "mailrs-webhook-signature",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "mailrs-outbound-queue"
 version = "6.0.0"
 dependencies = [
