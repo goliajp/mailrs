@@ -126,9 +126,7 @@ struct VerdictPanel: View {
                     layerTitle(layer.name).font(.caption.weight(.medium))
                     Spacer()
                     if layer.score > 0 {
-                        Text(verbatim: "+" + String(format: "%.1f", layer.score))
-                            .font(.caption2.monospaced())
-                            .foregroundStyle(.secondary)
+                        scoreText(layer.score)
                     }
                 }
                 layerQuestion(layer.name)
@@ -157,14 +155,33 @@ struct VerdictPanel: View {
         }
     }
 
+    /// Each line beside what it added to its layer, so the layer's score
+    /// is the sum of the numbers the reader sees under it.
     private func reasonList(_ reasons: [Wire.Reason]) -> some View {
         VStack(alignment: .leading, spacing: 1) {
             ForEach(Array(reasons.enumerated()), id: \.offset) { _, reason in
-                Text(verbatim: ReasonText.bundled.words(reason, lang))
-                    .font(.caption2)
-                    .fixedSize(horizontal: false, vertical: true)
+                HStack(alignment: .firstTextBaseline) {
+                    Text(verbatim: ReasonText.bundled.words(reason, lang))
+                        .font(.caption2)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let score = reason.score, score > 0 {
+                        Spacer()
+                        scoreText(score)
+                    }
+                }
             }
         }
+    }
+
+    private func scoreText(_ score: Double) -> some View {
+        Text(verbatim: Self.scoreLabel(score))
+            .font(.caption2.monospaced())
+            .foregroundStyle(.secondary)
+    }
+
+    /// `+4.5`: how a layer's score and each of its lines are written.
+    static func scoreLabel(_ score: Double) -> String {
+        "+" + String(format: "%.1f", score)
     }
 
     private func placementNote(_ reasons: [Wire.Reason]) -> some View {

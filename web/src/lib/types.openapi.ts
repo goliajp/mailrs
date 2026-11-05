@@ -1652,7 +1652,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Prometheus-format metrics */
+        /**
+         * Prometheus-format metrics
+         * @description Requires `Authorization: Bearer <token>` with the server's `MAILRS_METRICS_TOKEN`; session tokens and API keys are not accepted. When `MAILRS_METRICS_TOKEN` is unset or empty the route is off and answers 404.
+         */
         get: operations["prometheusMetrics"];
         put?: never;
         post?: never;
@@ -4160,7 +4163,7 @@ export interface paths {
         };
         /**
          * The four layers that decided one message
-         * @description transport / identity / provenance / content, as they were decided, with the rule-set version; each layer carries `reasons` (codes and values), and `placement` says why it was filed where it was (Junk, a sender rule, the classifier, a filter). `{"verdict": null}` when nothing was found and nothing sorted it — which is not the same as examined and cleared.
+         * @description transport / identity / provenance / content, as they were decided, with the rule-set version; each layer carries `reasons` (codes and values), one per finding, every rule filed under the layer included, each scored line with the `score` it added so a layer's score is the sum of its lines; and `placement` says why it was filed where it was (Junk, a sender rule, the classifier, a filter). `{"verdict": null}` when nothing was found and nothing sorted it — which is not the same as examined and cleared.
          */
         get: {
             parameters: {
@@ -8339,6 +8342,8 @@ export interface components {
             params?: {
                 [key: string]: string;
             };
+            /** @description On a line of a fraud verdict layer: what it added to the layer's score, which is the sum of its lines. Left out on a line that adds nothing (an authentication check), on placement reasons, and on verdicts stored before lines carried it */
+            score?: number;
         };
         LinkWarning: {
             /** @description The host the link goes to, lower-case */
@@ -11621,6 +11626,20 @@ export interface operations {
                 content: {
                     "text/plain": string;
                 };
+            };
+            /** @description Bearer token missing or wrong */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description MAILRS_METRICS_TOKEN is not set */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

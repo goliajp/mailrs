@@ -1,6 +1,7 @@
 package jp.golia.mailrs.wire
 
 import org.junit.Assert.assertEquals
+import org.junit.Before
 import org.junit.Test
 
 /**
@@ -11,6 +12,10 @@ import org.junit.Test
  * taps "Unsubscribe" and lands in a browser has been surprised.
  */
 class UnsubscribeOfferTest {
+    // the labels below are asserted in English, so set English rather than
+    // inherit whatever language the previous class left
+    @Before
+    fun englishWords() = TestTexts.install()
 
     @Test
     fun nothing_advertised_is_no_offer() {
