@@ -57,6 +57,8 @@ mod recompute_importance;
 pub(crate) use recompute_importance::recompute_thread_importance_route;
 mod recompute_participants;
 pub(crate) use recompute_participants::recompute_thread_participants_route;
+mod recompute_dates;
+pub(crate) use recompute_dates::recompute_message_dates_route;
 mod recompute_display;
 mod recompute_standing;
 pub(crate) use recompute_standing::recompute_thread_standing_route;

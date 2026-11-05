@@ -212,7 +212,10 @@ fn lower_row(state: &FastcoreState, user: &str, tid: &str) -> bool {
 
 // every file in this user's maildirs, keyed the way a `blob_ref` names
 // it: folder plus the name before the `:2,` flags, which a rename keeps
-fn files_of(state: &Arc<FastcoreState>, user: &str) -> HashMap<(String, String), PathBuf> {
+pub(crate) fn files_of(
+    state: &Arc<FastcoreState>,
+    user: &str,
+) -> HashMap<(String, String), PathBuf> {
     let mut out = HashMap::new();
     for mb in crate::imap::backend::list_mailboxes(state, user) {
         let folder = folder_of(std::path::Path::new(&mb.path));

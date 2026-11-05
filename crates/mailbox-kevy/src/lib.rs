@@ -90,6 +90,10 @@ mod marker_tests;
 mod marker_upkeep;
 pub mod mbid;
 mod message_arrival;
+mod message_dates;
+pub use message_dates::{ListSlot, Owned, Redate, RowRedate};
+#[cfg(test)]
+mod message_dates_tests;
 mod messages;
 mod move_category;
 mod mutations;
