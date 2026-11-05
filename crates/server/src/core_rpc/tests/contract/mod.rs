@@ -37,6 +37,7 @@ mod search;
 mod sections;
 mod sender_rules;
 mod sent;
+mod sent_to;
 mod shared;
 mod side;
 mod submission;
@@ -72,6 +73,7 @@ async fn the_two_cores_answer_every_client_call_alike() {
     rejudge::run(&cores, &mut d).await;
     reports::run(&cores, &mut d).await;
     usage_drift::run(&cores, &mut d).await;
+    sent_to::run(&cores, &mut d).await;
     account_purge::run(&cores, &mut d).await;
     group_purge::run(&cores, &mut d).await;
     accounts::teardown(&cores, &mut d).await;

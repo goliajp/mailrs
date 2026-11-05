@@ -7,7 +7,7 @@
 
 use std::sync::LazyLock;
 
-use mailrs_core_sidestate::families::{contact_cards, contacts};
+use mailrs_core_sidestate::families::{contact_cards, contact_sent, contacts};
 use mailrs_fraud::impersonation::{display_name_of, fold};
 use mailrs_fraud::relation::{Correspondent, History, Relation};
 
@@ -64,19 +64,37 @@ pub fn relation(
     )
 }
 
-/// Everyone `user` has written to, from the autocomplete store (address
-/// and the name it was written as).
+/// Every address `user` has sent mail to (`sent_count` above zero), with
+/// the name the autocomplete store shows for it.
+///
+/// Not the autocomplete store's addresses: every delivery adds its sender
+/// there, so it holds whoever wrote in, forgers included.
 fn correspondents(conn: &mut kevy_client::Connection, user: &str) -> Vec<Correspondent> {
+    let sent_to = contact_sent::sent_to(conn, user).unwrap_or_default();
+    if sent_to.is_empty() {
+        return Vec::new();
+    }
     let flat = conn
         .hgetall(contact_cards::autocomplete_key(user).as_bytes())
         .unwrap_or_default();
-    flat.chunks_exact(2)
+    let shown: std::collections::HashMap<String, String> = flat
+        .chunks_exact(2)
         .map(|pair| {
-            let shown = String::from_utf8_lossy(&pair[1]);
-            Correspondent {
-                address: String::from_utf8_lossy(&pair[0]).to_ascii_lowercase(),
-                name: fold(&display_name_of(&shown)),
-            }
+            (
+                String::from_utf8_lossy(&pair[0]).to_ascii_lowercase(),
+                String::from_utf8_lossy(&pair[1]).into_owned(),
+            )
+        })
+        .collect();
+    sent_to
+        .into_iter()
+        .map(|address| {
+            let address = address.to_ascii_lowercase();
+            let name = shown
+                .get(&address)
+                .map(|s| fold(&display_name_of(s)))
+                .unwrap_or_default();
+            Correspondent { address, name }
         })
         .collect()
 }

@@ -343,6 +343,9 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
             "/v1/admin/maintenance:backfill-contact-relationships",
             post(backfill_contact_relationships_route),
         )
+        // The list of addresses each user sent mail to, from the
+        // relationship counters, for the fraud rules (dry by default).
+        .route(adm::PATH_BACKFILL_SENT_TO, post(backfill_sent_to_route))
         // Importance verdicts for threads that predate the feature —
         // scoring only runs at ingest, so without this every existing
         // thread would stay blank forever.
