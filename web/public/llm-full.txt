@@ -364,6 +364,7 @@ Returns `{"id": "team@golia.jp"}`: an alias is identified by its source address.
   "address": "user@golia.jp"
 }
 ```
+`group_id` is the number `create_email_group` returns; the same digits as a string (`"1"`) are accepted too. `remove_email_group_member` takes the same parameters, and `get_email_group_members` takes the group as `id`.
 
 #### greylist_local_add (domain)
 ```json

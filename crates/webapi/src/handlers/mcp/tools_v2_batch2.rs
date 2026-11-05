@@ -6,18 +6,11 @@ use rmcp::ErrorData as McpError;
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{tool, tool_router};
-use schemars::JsonSchema;
-use serde::Deserialize;
 
 use super::MailrsMcpService;
+use super::params_email_groups::EmailGroupIdParams;
 use crate::handlers::kevy_util::with_kevy;
 use mailrs_core_sidestate::families::outbound::SCHEDULED_IDX;
-
-#[derive(Debug, Deserialize, JsonSchema)]
-pub struct EmailGroupIdParams {
-    /// Email group id (e.g. `1`, `2` — returned by `list_email_groups`).
-    pub id: String,
-}
 
 #[tool_router(router = tool_router_v2_batch2, vis = "pub")]
 impl MailrsMcpService {
@@ -78,7 +71,7 @@ impl MailrsMcpService {
         let user = self.require_user()?.to_string();
         self.require_route(&user, "/api/admin/email-groups/{id}/members")
             .await?;
-        let key = mailrs_core_sidestate::families::email_groups::members_key(&params.id);
+        let key = mailrs_core_sidestate::families::email_groups::members_key(params.id);
         let members = with_kevy(move |c| c.smembers(key.as_bytes()).map_err(std::io::Error::from))
             .map_err(|_| McpError::internal_error("kevy read", None))?;
         let items: Vec<String> = members

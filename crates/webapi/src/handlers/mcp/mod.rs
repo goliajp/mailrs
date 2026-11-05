@@ -42,6 +42,7 @@ use crate::WebState;
 pub use scopes::McpIdentity;
 
 mod params;
+mod params_email_groups;
 mod params_greylist;
 mod params_labels;
 mod params_rules;
