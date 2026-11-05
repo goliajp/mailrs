@@ -134,11 +134,16 @@ pub async fn relation_async(
     client: Option<Arc<KevyNetClient>>,
     user: &str,
     from: &str,
+    reply_to: &str,
 ) -> mailrs_fraud::relation::Relation {
     let Some(client) = client else {
         return Default::default();
     };
-    let (user, from) = (user.to_ascii_lowercase(), from.to_string());
+    let (user, from, reply_to) = (
+        user.to_ascii_lowercase(),
+        from.to_string(),
+        reply_to.to_string(),
+    );
     tokio::task::spawn_blocking(move || {
         client
             .with_conn(|c| {
@@ -146,6 +151,7 @@ pub async fn relation_async(
                     Some(c),
                     &user,
                     &from,
+                    &reply_to,
                     mailrs_fraud_lua::stored::relation::Counted::Before,
                 ))
             })
