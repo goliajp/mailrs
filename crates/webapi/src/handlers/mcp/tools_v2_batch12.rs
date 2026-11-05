@@ -48,17 +48,20 @@ impl MailrsMcpService {
             .map(|(_, d)| d.to_string())
             .unwrap_or_default();
         let req = crate::handlers::complete::CreateEmailGroupRequest {
-            address: params.address.clone(),
+            address: params.address,
             domain,
             name: params.name,
             description: String::new(),
             members: params.members,
         };
-        let Json(group) =
-            crate::handlers::complete::create_email_group(self.require_confirmed()?, Json(req))
-                .await
-                .map_err(|c| map_status(c, "create_email_group"))?;
-        crate::handlers::audit::record(&user, "email_group.create", &params.address, "via mcp");
+        // the handler writes the audit row
+        let Json(group) = crate::handlers::complete::create_email_group(
+            self.require_confirmed()?,
+            axum::Extension(AuthedUser(user)),
+            Json(req),
+        )
+        .await
+        .map_err(|c| map_status(c, "create_email_group"))?;
         Ok(CallToolResult::success(vec![ContentBlock::text(
             group.to_string(),
         )]))
@@ -72,15 +75,14 @@ impl MailrsMcpService {
         let user = self.require_user()?.to_string();
         self.require_route(&user, "/api/admin/email-groups/{id}")
             .await?;
-        crate::handlers::complete::delete_email_group(self.require_confirmed()?, Path(params.id))
-            .await
-            .map_err(|c| map_status(c, "delete_email_group"))?;
-        crate::handlers::audit::record(
-            &user,
-            "email_group.delete",
-            &params.id.to_string(),
-            "via mcp",
-        );
+        // the handler writes the audit row
+        crate::handlers::complete::delete_email_group(
+            self.require_confirmed()?,
+            axum::Extension(AuthedUser(user)),
+            Path(params.id),
+        )
+        .await
+        .map_err(|c| map_status(c, "delete_email_group"))?;
         Ok(ok_result())
     }
 
