@@ -29,6 +29,17 @@ pub struct App {
     pub cycle_finished: AtomicI64,
 }
 
+/// With `MAILRS_OPS_TEST_STALL` set, every cycle after the first never
+/// finishes: what a cycle stuck on a read looks like to the watchdog.
+#[cfg(feature = "stall-hook")]
+async fn stall_hook() {
+    static CYCLES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let first = CYCLES.fetch_add(1, Ordering::Relaxed) == 0;
+    if !first && std::env::var_os("MAILRS_OPS_TEST_STALL").is_some() {
+        std::future::pending::<()>().await;
+    }
+}
+
 impl App {
     pub fn open(cfg: Config, clock: Clock, store: Store) -> Result<Arc<App>, String> {
         let store = Arc::new(store);
@@ -47,8 +58,8 @@ impl App {
             dispatcher: tokio::sync::Mutex::new(dispatcher),
             collector: tokio::sync::Mutex::new(collector),
             http: reqwest::Client::new(),
-            cycle_started: AtomicI64::new(now),
-            cycle_finished: AtomicI64::new(now),
+            cycle_started: AtomicI64::new(mailrs_ops_report::build::now()),
+            cycle_finished: AtomicI64::new(mailrs_ops_report::build::now()),
         }))
     }
 
@@ -63,6 +74,8 @@ impl App {
         let now = self.clock.now();
         self.cycle_started
             .store(mailrs_ops_report::build::now(), Ordering::Relaxed);
+        #[cfg(feature = "stall-hook")]
+        stall_hook().await;
         self.close_expired(now).await;
         self.test_channels_when_due(now).await;
         let maintenance = self.store.maintenance(now).unwrap_or_else(|e| {
