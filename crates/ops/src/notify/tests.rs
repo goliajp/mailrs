@@ -104,7 +104,12 @@ async fn notices_within_the_window_go_out_as_one_signed_message() {
     let (headers, body) = &got.bodies[0];
     let v: serde_json::Value = serde_json::from_str(body).unwrap();
     assert_eq!(v["alerts"].as_array().unwrap().len(), 2);
-    assert!(!v["alerts"][1]["first_step"]["zh"].as_str().unwrap().is_empty());
+    assert!(
+        !v["alerts"][1]["first_step"]["zh"]
+            .as_str()
+            .unwrap()
+            .is_empty()
+    );
     let sig = headers["x-mailrs-signature"].to_str().unwrap();
     assert!(mailrs_webhook_signature::verify_header(
         b"hook-secret",

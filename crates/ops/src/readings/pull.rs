@@ -81,3 +81,32 @@ impl Puller {
         tokio::join!(within(health), within(ready))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A core that takes six seconds to answer is "could not read", not a
+    /// value: the reading is given up at five.
+    #[tokio::test]
+    async fn a_slow_core_is_unreadable_not_abnormal() {
+        let app = axum::Router::new().route(
+            "/v1/healthz",
+            axum::routing::get(|| async {
+                tokio::time::sleep(Duration::from_secs(6)).await;
+                "late"
+            }),
+        );
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = l.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(l, app).await });
+        let p = Puller::new(&format!("http://{addr}"), None, "http://127.0.0.1:9");
+        let started = std::time::Instant::now();
+        let (health, _, _) = p.fastcore().await;
+        assert!(started.elapsed() < Duration::from_millis(5800));
+        match health {
+            Reading::Unreadable(why) => assert!(why.contains("within 5s"), "{why}"),
+            Reading::Got(h) => panic!("read {h:?}"),
+        }
+    }
+}
