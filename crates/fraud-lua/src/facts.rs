@@ -110,7 +110,7 @@ fn fill(lua: &mut Lua, t: LuaTable, f: &Facts<'_>, p: &Policy) -> Result<(), Str
         ),
         ("has_bidi_override", f.has_bidi_override),
         ("has_executable_attachment", f.has_executable_attachment),
-        // no rule under rules/ reads these three yet; deployed packs do
+        // no rule under rules/ reads this one yet; deployed packs do
         (
             "has_encrypted_document_archive",
             f.has_encrypted_document_archive,

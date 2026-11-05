@@ -18,6 +18,15 @@ under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
 
+### An archive whose file names cannot be read scores 3
+
+- The new rule `archive-names-unreadable` scores an attachment that is an
+  archive by its signature but whose entry names cannot be read (a 7z, a
+  RAR with header encryption, a RAR whose headers break off or that has
+  more entries than are read) 3 points: below the Junk threshold of 5, never a hold by
+  itself. An archive whose names show a program still holds through
+  `executable-attachment`.
+
 ### A message that crashes a parser no longer takes the server with it
 
 - The receiver, fastcore and the SQL core read untrusted message bytes
