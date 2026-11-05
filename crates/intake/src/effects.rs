@@ -20,21 +20,31 @@ pub fn before_store(
 }
 
 /// Tell the clients last: a client that hears of new mail asks for its list
-/// at once, and must find the message there. Mail held as fraud rings no
-/// phone. The webhook event is queued here, once whether it was held is
-/// known.
+/// at once, and must find the message there. The webhook event is queued
+/// here, once whether it was held is known.
+///
+/// `held` is whether this message's verdict held its conversation;
+/// `in_review` whether the conversation is held for `addr` once the message
+/// is stored, by this message or an earlier one. Mail in Review tells the
+/// reader nothing: no push, and no new-mail event, which the web turns into
+/// a sound and a desktop notice. A message arriving in a conversation held
+/// earlier has no verdict of its own, so `held` alone let it ring.
 pub fn after_store(
     mut net: Option<kevy_client::Connection>,
     addr: &str,
     a: &Arrival<'_>,
     held: bool,
+    in_review: bool,
 ) {
     record_domains(net.as_mut(), a);
-    if !held {
+    let tell = !held && !in_review;
+    if tell {
         push::maybe_notify(net.as_mut(), addr, a);
     }
     webhook_delivery::enqueue_for_arrival(net, addr, a, held);
-    live_sync::publish_new_mail(addr, &a.thread_id, &a.from, &a.subject, "");
+    if tell {
+        live_sync::publish_new_mail(addr, &a.thread_id, &a.from, &a.subject, "");
+    }
 }
 
 /// When the deployment first saw the sender's domain and its link domains;
