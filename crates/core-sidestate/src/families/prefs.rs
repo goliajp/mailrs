@@ -80,6 +80,31 @@ pub fn drafts_counter_key(user: &str) -> String {
     format!("drafts:{user}:counter")
 }
 
+/// What a draft an account's restore returned says about the message it
+/// was: when it was set to go, and the attachments it did not carry.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct RestoreNotes {
+    pub withheld_send_at: Option<i64>,
+    pub attachments_not_included: Vec<String>,
+}
+
+/// The [`RestoreNotes`] draft `id` already carries, for a save that
+/// rewrites it: the saving client does not send them back, and a draft a
+/// restore returned keeps saying them.
+pub fn kept_restore_notes(conn: &mut kevy_client::Connection, user: &str, id: i64) -> RestoreNotes {
+    let raw = conn
+        .hget(drafts_key(user).as_bytes(), id.to_string().as_bytes())
+        .ok()
+        .flatten();
+    match raw.and_then(|r| serde_json::from_slice::<DraftWire>(&r).ok()) {
+        Some(d) => RestoreNotes {
+            withheld_send_at: d.withheld_send_at,
+            attachments_not_included: d.attachments_not_included,
+        },
+        None => RestoreNotes::default(),
+    }
+}
+
 pub fn signatures_key(user: &str) -> String {
     format!("signatures:{user}")
 }
@@ -124,8 +149,11 @@ pub async fn save_draft<S: NetKevy>(
             .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?,
     };
     let now = now_secs();
+    let notes = kept_restore_notes(&mut conn, &user, id);
     let draft = DraftWire {
         id,
+        withheld_send_at: notes.withheld_send_at,
+        attachments_not_included: notes.attachments_not_included,
         to: req.to,
         cc: req.cc,
         bcc: req.bcc,

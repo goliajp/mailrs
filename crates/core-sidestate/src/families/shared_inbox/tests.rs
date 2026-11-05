@@ -123,6 +123,8 @@ fn save_draft(c: &mut Connection, user: &str, id: i64, body: &str) {
         reply_to_thread_id: Some("t-a".into()),
         from: "team@x".into(),
         scheduled_at: None,
+        withheld_send_at: None,
+        attachments_not_included: Vec::new(),
         created_at: 1,
         updated_at: 1,
     };
@@ -239,6 +241,41 @@ fn an_assignment_writes_the_fact_every_copy_and_the_webhook() {
     })
     .unwrap();
     assert_eq!(who, None);
+    // one audit line per change, by whom, which conversation, to whom
+    assert_eq!(
+        audit_rows(&mut c),
+        [
+            (
+                "a@x".into(),
+                "shared.assign".into(),
+                "4:1".into(),
+                "b@x".into()
+            ),
+            (
+                "b@x".into(),
+                "shared.unassign".into(),
+                "4:1".into(),
+                String::new()
+            ),
+        ]
+    );
+    // reading who has it writes none
+    assign::current(&mut c, r).unwrap();
+    assign::history(&mut c, r).unwrap();
+    assert_eq!(audit_rows(&mut c).len(), 2);
+}
+
+/// (actor, action, target, detail) of every audit row, oldest first.
+fn audit_rows(c: &mut Connection) -> Vec<(String, String, String, String)> {
+    let mut got: Vec<_> = c
+        .lrange(crate::keys::admin::AUDIT_LOG, 0, -1)
+        .unwrap()
+        .iter()
+        .map(|r| serde_json::from_slice::<crate::families::audit::AuditFact>(r).unwrap())
+        .map(|f| (f.actor, f.action, f.target, f.detail))
+        .collect();
+    got.reverse();
+    got
 }
 
 #[test]
@@ -256,4 +293,8 @@ fn only_members_assign_and_only_to_members() {
         Err(assign::Refused::AssigneeNotMember)
     ));
     assert!(assign::history(&mut c, r).unwrap().is_empty());
+    assert!(
+        audit_rows(&mut c).is_empty(),
+        "a refused assignment was audited"
+    );
 }
