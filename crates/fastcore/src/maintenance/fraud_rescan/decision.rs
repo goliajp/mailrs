@@ -96,6 +96,11 @@ pub(crate) struct RescanQuery {
     /// `junk` (default) or `delete`.
     #[serde(default)]
     pub(crate) action: Action,
+    /// The sha256 of a candidate pack, `candidate-<sha256>.lua` beside the
+    /// active rules file: judge with it instead, dry, as the re-judge after
+    /// activating it would (`action=hold`).
+    #[serde(default)]
+    pub(crate) candidate: Option<String>,
 }
 
 fn yes() -> bool {

@@ -62,6 +62,9 @@ impl Tally {
             "scored_but_whitelisted": self.scored_whitelisted,
             "scored_by_reason": self.scored_by_reason,
             "scored_samples": self.scored_samples,
+            // what the walk changes against the stored state; in a dry run,
+            // what applying it would change
+            "from_stored": self.from_stored.json(),
         })
     }
 }
