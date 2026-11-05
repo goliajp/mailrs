@@ -145,12 +145,11 @@ impl Maildir {
         for entry in fs::read_dir(&cur)? {
             let entry = entry?;
             let path = entry.path();
-            if !path.is_file() {
-                continue;
-            }
             let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
             let base = filename.split(':').next().unwrap_or(filename);
-            if base == base_id(id) {
+            // the name first: a stat per entry made one lookup in a large
+            // cur/ cost tens of milliseconds
+            if base == base_id(id) && path.is_file() {
                 return Ok(Some(path));
             }
         }
