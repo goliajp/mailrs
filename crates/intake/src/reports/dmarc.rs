@@ -59,7 +59,10 @@ pub fn maybe_ingest(addr: &str, body: &[u8]) {
         tracing::debug!("no network kevy — DMARC report ingestion disabled");
         return;
     };
-    for payload in mailrs_dmarc::ingest::extract_report_payloads(body) {
+    // decompressed in the parse worker; a report it fails on is skipped
+    let payloads =
+        mailrs_parse_worker::report_payloads(body, mailrs_parse_worker::Limit::Inbound).read();
+    for payload in payloads.unwrap_or_default() {
         let report = match mailrs_dmarc::ingest::parse_aggregate_report(&payload) {
             Ok(r) => r,
             Err(e) => {

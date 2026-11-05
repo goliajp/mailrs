@@ -358,6 +358,7 @@ mod tests {
             probe_guard_tripped: Some(0),
             mask_submit_log_failed: None,
             dane: None,
+            parsing: None,
         })
         .unwrap();
 

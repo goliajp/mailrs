@@ -60,6 +60,7 @@ mailrs-smtp-proto = { path = "../smtp-proto", version = "1" }
 mailrs-smtp-codec = { path = "../smtp-codec", version = "1" }
 mailrs-rfc2047 = { path = "../rfc2047", version = "1" }
 mailrs-mime = { path = "../mime", version = "2" }
+mailrs-parse-worker = { path = "../parse-worker" }
 mailrs-reputation = { path = "../reputation", version = "0.1" }
 mailrs-attachment-scan = { path = "../attachment-scan", version = "0.1" }
 mailrs-screening-lua = { path = "../screening-lua", version = "0" }
@@ -90,3 +91,4 @@ testcontainers = "0.27"
 mailrs-test-docker = { path = "../test-docker" }
 rcgen = "0.13"
 tempfile = "3"
+mailrs-parse-worker = { path = "../parse-worker", features = ["testing"] }

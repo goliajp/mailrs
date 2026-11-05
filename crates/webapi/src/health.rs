@@ -46,6 +46,10 @@ pub(crate) async fn health_handler(
     let core_health = core_health(&state).await;
     let core_memory = core_memory(core_health.as_ref());
     let (spool, set_aside) = loop_health(core_health.as_ref());
+    let parsing = parsing(
+        state.receiver_stats.get().and_then(|s| s.parsing),
+        core_health.as_ref().and_then(|h| h.parsing.clone()),
+    );
     let kevy_server_memory = kevy_server_memory();
     // the daily check of this server's sending addresses against blocklists
     let egress =
@@ -79,7 +83,19 @@ pub(crate) async fn health_handler(
         "jmap_uploads": handlers::upload_sweep::health(),
         "spool": spool,
         "set_aside": set_aside,
+        "parsing": parsing,
     }))
+}
+
+/// The parse workers of the receiver (from its stats frames) and of the
+/// core (from its health answer): `{receiver, core}`, each
+/// `{worker, failures_24h, last_failure_at, worker_restarts, failures}`
+/// or null when that process has not said.
+fn parsing(
+    receiver: Option<mailrs_core_api::types::ParsingHealthWire>,
+    core: Option<mailrs_core_api::types::ParsingHealthWire>,
+) -> serde_json::Value {
+    serde_json::json!({ "receiver": receiver, "core": core })
 }
 
 /// How many domains have a first-seen time (`mailrs:domfirst:`), and how
@@ -141,9 +157,8 @@ fn fraud_hits() -> serde_json::Value {
     if let Some(v) = cached {
         return with_staleness(v, now);
     }
-    let (version, mut rules) = mailrs_fraud_lua::active_rule_set();
-    // not a rule: reports that could not look for other copies
-    rules.push(mailrs_core_sidestate::families::reports::NO_FINGERPRINT.to_string());
+    let (version, rules) = mailrs_fraud_lua::active_rule_set();
+    let rules = counted(rules);
     let counts = handlers::kevy_util::with_kevy(move |c| {
         mailrs_core_sidestate::families::fraud_hits::counts(c, &rules, now)
     });
@@ -155,6 +170,16 @@ fn fraud_hits() -> serde_json::Value {
         *last = Some((Instant::now(), v.clone()));
     }
     with_staleness(v, now)
+}
+
+/// The counters `fraud_hits` reads: the enforced rules, and beside them
+/// two that are not rules — reports that could not look for other copies,
+/// and attachments that are 7z archives (whose names are not read yet).
+fn counted(mut rules: Vec<String>) -> Vec<String> {
+    use mailrs_core_sidestate::families::{fraud_hits, reports};
+    rules.push(reports::NO_FINGERPRINT.to_string());
+    rules.push(fraud_hits::SEVEN_Z_ATTACHMENT.to_string());
+    rules
 }
 
 fn fraud_hits_value(
@@ -409,6 +434,41 @@ pub(crate) async fn status_handler(
 
 #[cfg(test)]
 mod tests {
+    /// The receiver's half arrives in its stats frame, the core's in its
+    /// health answer; a process that has not said reads null, not zero.
+    #[test]
+    fn parsing_carries_each_process_and_null_for_one_not_heard_from() {
+        let frame = br#"{"active_connections":0,"total_connections":0,"total_messages":0,
+            "uptime_secs":1,"parsing":{"worker":true,"failures_24h":2,
+            "last_failure_at":1700000000,"worker_restarts":1,
+            "failures":[{"parser":"html2text","kind":"timeout","count":2}]}}"#;
+        let stats: mailrs_core_sidestate::smtp_monitor::ReceiverStats =
+            serde_json::from_slice(frame).unwrap();
+        let v = super::parsing(stats.parsing, None);
+        assert_eq!(v["receiver"]["failures_24h"], 2);
+        assert_eq!(v["receiver"]["worker_restarts"], 1);
+        assert_eq!(v["receiver"]["last_failure_at"], 1_700_000_000);
+        assert_eq!(v["receiver"]["failures"][0]["kind"], "timeout");
+        assert!(v["core"].is_null(), "{v}");
+    }
+
+    /// The receiver's 7z count is read back under the same name it was
+    /// written, from the same store `fraud_hits` reads.
+    #[test]
+    fn the_7z_counter_the_receiver_writes_is_read_by_health() {
+        use mailrs_core_sidestate::families::fraud_hits;
+        let rules = super::counted(vec!["svg-runs-script".into()]);
+        let mut c = kevy_client::Connection::connect("mem://health-seven-z").unwrap();
+        let now = 1_793_750_400;
+        fraud_hits::record(&mut c, &[fraud_hits::SEVEN_Z_ATTACHMENT.into()], now).unwrap();
+        let counts = fraud_hits::counts(&mut c, &rules, now).unwrap();
+        let v = super::fraud_hits_value("lua:abc", &counts, now);
+        assert_eq!(v["by_rule_today"]["attachment-7z"], 1);
+        assert_eq!(v["by_rule_30d"]["attachment-7z"], 1);
+        assert_eq!(v["by_rule_today"]["svg-runs-script"], 0);
+        assert_eq!(v["by_rule_today"]["report-no-fingerprint"], 0);
+    }
+
     #[test]
     fn every_enforced_rule_is_listed_and_one_that_never_fired_reads_zero() {
         let mut c = mailrs_core_sidestate::families::fraud_hits::Counts::default();

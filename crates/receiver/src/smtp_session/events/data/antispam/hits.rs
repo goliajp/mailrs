@@ -62,6 +62,38 @@ pub(super) async fn record(
     count(client, rules, chrono::Utc::now().timestamp()).await;
 }
 
+/// Log and count the attachments that are 7z archives by signature,
+/// one count each, under
+/// [`mailrs_core_sidestate::families::fraud_hits::SEVEN_Z_ATTACHMENT`].
+pub(super) async fn record_seven_z(
+    raw: &[u8],
+    archives: u32,
+    sender_domain: &str,
+    client: Option<Arc<KevyNetClient>>,
+) {
+    if archives == 0 {
+        return;
+    }
+    let message_id = crate::screening::message_id(raw);
+    tracing::info!(
+        event = "seven_z_attachment",
+        %message_id,
+        archives,
+        sender_domain = %sender_domain,
+        "7z attachment received"
+    );
+    let Some(client) = client else {
+        return;
+    };
+    let name = mailrs_core_sidestate::families::fraud_hits::SEVEN_Z_ATTACHMENT.to_string();
+    count(
+        client,
+        vec![name; archives as usize],
+        chrono::Utc::now().timestamp(),
+    )
+    .await;
+}
+
 async fn count(client: Arc<KevyNetClient>, rules: Vec<String>, now: i64) {
     let done = tokio::task::spawn_blocking(move || {
         client.with_conn(|c| mailrs_core_sidestate::families::fraud_hits::record(c, &rules, now))
@@ -130,6 +162,22 @@ mod tests {
     #[test]
     fn nothing_found_is_no_hit() {
         assert!(hits(&Findings::new()).is_empty());
+    }
+
+    #[tokio::test]
+    async fn each_7z_attachment_adds_one_and_a_message_without_one_adds_none() {
+        use mailrs_core_sidestate::families::fraud_hits::{SEVEN_Z_ATTACHMENT, counts};
+        let client = Arc::new(KevyNetClient::new("mem://receiver-seven-z"));
+        record_seven_z(b"", 0, "x.example", Some(client.clone())).await;
+        record_seven_z(b"", 2, "x.example", Some(client.clone())).await;
+        let now = chrono::Utc::now().timestamp();
+        let got = tokio::task::spawn_blocking(move || {
+            client.with_conn(|c| counts(c, &[SEVEN_Z_ATTACHMENT.to_string()], now))
+        })
+        .await
+        .unwrap()
+        .unwrap();
+        assert_eq!(got.today[SEVEN_Z_ATTACHMENT], 2);
     }
 
     #[tokio::test]

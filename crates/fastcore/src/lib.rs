@@ -240,6 +240,7 @@ impl Handler for FastcoreState {
             memory: self.memory(),
             spool: Some(self.spool_health()),
             set_aside: Some(self.set_aside()),
+            parsing: Some(mailrs_core_sidestate::parsing::health()),
         }
     }
 
@@ -255,6 +256,7 @@ impl Handler for FastcoreState {
             memory: self.memory(),
             spool: Some(self.spool_health()),
             set_aside: Some(self.set_aside()),
+            parsing: Some(mailrs_core_sidestate::parsing::health()),
         }
     }
 }

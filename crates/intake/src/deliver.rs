@@ -114,13 +114,17 @@ impl<C: Core + ?Sized> Inbound<'_, C> {
     fn keep(&self, addr: &str) -> bool {
         let root = self.core.maildir_root();
         match deliver(root, addr, "", self.filename, self.body, self.retry) {
-            Ok(true) => self.core.ingest(
-                addr,
-                self.filename,
-                self.body,
-                &self.env.target_folder,
-                self.env.fraud_verdict.as_deref(),
-            ),
+            Ok(true) => {
+                #[cfg(feature = "abort-hook")]
+                crate::abort_hook::before_ingest(self.body);
+                self.core.ingest(
+                    addr,
+                    self.filename,
+                    self.body,
+                    &self.env.target_folder,
+                    self.env.fraud_verdict.as_deref(),
+                )
+            }
             Ok(false) => false,
             Err(e) => {
                 tracing::warn!(fwd = %addr, error = %e, "spool deliver");

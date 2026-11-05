@@ -78,6 +78,7 @@ impl Handler for CoreRpcState {
             memory: mailrs_core_api::memory::cgroup(),
             spool: Some(self.spool_health()),
             set_aside: None,
+            parsing: Some(mailrs_core_sidestate::parsing::health()),
         }
     }
 
@@ -110,6 +111,7 @@ impl Handler for CoreRpcState {
             memory: mailrs_core_api::memory::cgroup(),
             spool: Some(self.spool_health()),
             set_aside: None,
+            parsing: Some(mailrs_core_sidestate::parsing::health()),
         }
     }
 }

@@ -1,0 +1,36 @@
+[package]
+name = "mailrs-parse-worker"
+version = "0.0.0"
+edition = "2024"
+description = "Reads untrusted mail bytes (HTML to text, attachment listings, Bayes tokens, report and Office/PDF decompression) in a resident child process that can die, loop or balloon without taking the mail server with it."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+authors = ["GOLIA K.K."]
+publish = false
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "mailrs-parse-worker"
+path = "src/main.rs"
+
+[dependencies]
+mailrs-attachment-extract = { path = "../attachment-extract" }
+mailrs-bayes = { path = "../bayes" }
+mailrs-clean = { path = "../clean" }
+mailrs-dmarc = { path = "../dmarc", version = "3" }
+mailrs-fraud = { path = "../fraud", version = "0" }
+mailrs-mime = { path = "../mime", version = "2" }
+metrics = "0.24"
+rustix = { version = "1", features = ["param", "process", "time"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = "0.1"
+
+[features]
+# lets the callers' tests fail parsing on chosen inputs, in process
+testing = []
+
+[dev-dependencies]
+tempfile = "3"

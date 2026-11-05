@@ -3,16 +3,33 @@
 //! Office document carrying macros whatever its name says.
 //!
 //! **Listing, not unpacking.** A zip says what it holds in its central
-//! directory, at the end of the file, uncompressed; reading that is
-//! reading a table of names. Nothing is decompressed, so a zip bomb is a
-//! table like any other and the work is bounded by the attachment's size.
-//! An Office file from before 2007 names its streams in UTF-16 inside
-//! the file, and the macro stream's name is looked for, not parsed.
+//! directory, at the end of the file, uncompressed; a RAR in a header in
+//! front of each member (the `rar` module); reading either is reading a table of
+//! names. Nothing is decompressed, so a zip bomb is a table like any
+//! other and the work is bounded by the attachment's size. An Office
+//! file from before 2007 names its streams in UTF-16 inside the file,
+//! and the macro stream's name is looked for, not parsed.
+//!
+//! **The format is the signature, not the name.** Of the nine RAR
+//! attachments in this deployment's history (2026-11-05), four were
+//! called `.cab`, `.taz` or `.ace`.
+//!
+//! **An archive whose names cannot be read scores and never holds.** A
+//! 7z keeps its names in a compressed header, which is not decoded here:
+//! the maintained pure-Rust reader sizes that decode from what the
+//! archive declares, and history holds no 7z to measure a capped reader
+//! against. A RAR made with header encryption, or one whose headers break
+//! off before their end, is in the same place: something is in there and
+//! nothing says what, which is worth a score and not a conviction.
 
 use crate::attachment::is_executable_name;
 
+mod rar;
+
 /// Entries read from one archive's directory, at most.
 const ENTRIES_MAX: usize = 10_000;
+
+const SEVEN_Z: &[u8] = b"7z\xbc\xaf\x27\x1c";
 
 /// Extensions an encrypted archive entry may carry and still be read as a
 /// document. The legacy Office formats (`doc`, `xls`, `ppt`) and `rtf`
@@ -34,6 +51,14 @@ pub struct Inside {
     /// attached carries code: the password-in-the-letter habit banks and
     /// accountants share with malware.
     pub encrypted_document_archive: bool,
+    /// An archive whose entry names cannot all be read — a 7z, a RAR with
+    /// header encryption, a RAR whose headers break off — and nothing
+    /// attached carries code.
+    pub unreadable_archive: bool,
+    /// Attachments that are 7z archives by their signature, whatever
+    /// they are called. None has arrived yet; the count is how the first
+    /// one gets noticed.
+    pub seven_z_archives: u32,
 }
 
 /// Whether this attachment carries code: named like something the machine
@@ -41,8 +66,15 @@ pub struct Inside {
 #[must_use]
 pub fn carries_code(name: &str, bytes: &[u8]) -> bool {
     is_executable_name(name)
-        || zip_reading(bytes).is_some_and(|z| z.hides_code)
+        || listing(bytes).is_some_and(|l| judge(&l).hides_code)
         || ole_has_macros(bytes)
+}
+
+/// Whether `bytes` is a RAR archive by its signature, whatever it is
+/// called.
+#[must_use]
+pub fn is_rar(bytes: &[u8]) -> bool {
+    rar::is_rar(bytes)
 }
 
 /// What `(name, bytes)` hold between them.
@@ -50,18 +82,67 @@ pub fn carries_code(name: &str, bytes: &[u8]) -> bool {
 pub fn read<'a>(parts: impl IntoIterator<Item = (&'a str, &'a [u8])>) -> Inside {
     let mut code = false;
     let mut encrypted_documents = false;
+    let mut unreadable = false;
+    let mut seven_z = 0u32;
     for (name, bytes) in parts {
-        code |= carries_code(name, bytes);
-        encrypted_documents |= zip_reading(bytes).is_some_and(|z| z.encrypted_documents);
+        let judged = listing(bytes).map(|l| judge(&l));
+        code |= is_executable_name(name)
+            || judged.as_ref().is_some_and(|j| j.hides_code)
+            || ole_has_macros(bytes);
+        encrypted_documents |= judged.as_ref().is_some_and(|j| j.encrypted_documents);
+        unreadable |= judged.as_ref().is_some_and(|j| j.unreadable);
+        if bytes.starts_with(SEVEN_Z) {
+            seven_z = seven_z.saturating_add(1);
+        }
     }
     Inside {
         carries_code: code,
         encrypted_document_archive: encrypted_documents && !code,
+        unreadable_archive: unreadable && !code,
+        seven_z_archives: seven_z,
     }
 }
 
-/// What a zip's directory says about it.
-struct ZipReading {
+/// One member of an archive, as its directory names it.
+struct Entry {
+    name: String,
+    directory: bool,
+    encrypted: bool,
+}
+
+/// What an archive's directory says, as far as it could be read.
+#[derive(Default)]
+struct Listing {
+    entries: Vec<Entry>,
+    /// The directory was read to its end. False when the names are
+    /// encrypted, not decoded here, or the headers break off.
+    whole: bool,
+}
+
+/// An archive's listing, or `None` when `bytes` is no archive read here.
+fn listing(bytes: &[u8]) -> Option<Listing> {
+    if let Some(entries) = central_directory(bytes) {
+        let entries = entries
+            .into_iter()
+            .map(|(name, encrypted)| Entry {
+                directory: name.ends_with('/'),
+                name,
+                encrypted,
+            })
+            .collect();
+        return Some(Listing {
+            entries,
+            whole: true,
+        });
+    }
+    if bytes.starts_with(SEVEN_Z) {
+        return Some(Listing::default());
+    }
+    rar::listing(bytes)
+}
+
+/// What an archive's listing says about it.
+struct Judged {
     /// It names an executable or a macro project, or encrypts an entry
     /// whose name does not say it is a document. Entry names are
     /// readable whether or not the entry is encrypted; encryption hides
@@ -71,28 +152,26 @@ struct ZipReading {
     /// It encrypts at least one entry, and every encrypted entry is a
     /// document.
     encrypted_documents: bool,
+    /// Not every name could be read.
+    unreadable: bool,
 }
 
-/// A zip (or an OOXML document, which is one) read from its central
-/// directory. `None` when this is not a zip.
-fn zip_reading(bytes: &[u8]) -> Option<ZipReading> {
-    let entries = central_directory(bytes)?;
+fn judge(listing: &Listing) -> Judged {
     let mut hides_code = false;
     let mut encrypted = false;
-    for (name, is_encrypted) in &entries {
-        if name.ends_with('/') {
-            continue;
-        }
-        let base = name.rsplit('/').next().unwrap_or(name);
+    for entry in listing.entries.iter().filter(|e| !e.directory) {
+        let name = entry.name.as_str();
+        let base = name.rsplit(['/', '\\']).next().unwrap_or(name);
         hides_code |= is_executable_name(name)
             || base.eq_ignore_ascii_case("vbaProject.bin")
-            || (*is_encrypted && !is_document_name(base));
-        encrypted |= *is_encrypted;
+            || (entry.encrypted && !is_document_name(base));
+        encrypted |= entry.encrypted;
     }
-    Some(ZipReading {
+    Judged {
         hides_code,
         encrypted_documents: encrypted && !hides_code,
-    })
+        unreadable: !listing.whole,
+    }
 }
 
 fn is_document_name(name: &str) -> bool {
@@ -151,6 +230,10 @@ fn ole_has_macros(b: &[u8]) -> bool {
         .collect();
     b.windows(name.len()).any(|w| w == name.as_slice())
 }
+
+#[cfg(test)]
+#[path = "archive_tests.rs"]
+mod archive_tests;
 
 #[cfg(test)]
 mod tests {

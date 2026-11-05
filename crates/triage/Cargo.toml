@@ -16,5 +16,6 @@ workspace = true
 
 [dependencies]
 mailrs-bayes = { path = "../bayes" }
+mailrs-parse-worker = { path = "../parse-worker" }
 kevy-client = { workspace = true }
 tracing = "0.1"

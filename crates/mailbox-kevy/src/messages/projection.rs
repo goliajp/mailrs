@@ -204,11 +204,16 @@ impl KevyMailboxStore {
     /// files resolve for the user asking (`maintenance:usermsg-shadow`,
     /// `shared_resolves: 0`).
     ///
-    /// Returns `(messages_seen, rewritten)`. The write is conditional on the
+    /// Returns `(messages_seen, differing)`: the blobs that carry per-user
+    /// fields, rewritten unless `dry_run`. The write is conditional on the
     /// blob actually changing, so a second pass over a stripped thread does
     /// no writes and reports none — a sweep that redoes its work every cycle
     /// is a busy-wait, not a sweep.
-    pub fn strip_shared_per_user_fields(&self, thread_id: &str) -> io::Result<(u64, u64)> {
+    pub fn strip_shared_per_user_fields(
+        &self,
+        thread_id: &str,
+        dry_run: bool,
+    ) -> io::Result<(u64, u64)> {
         let mut seen = 0u64;
         let mut rewritten = 0u64;
         for blob in self.thread_messages_for_maintenance(thread_id)? {
@@ -223,9 +228,11 @@ impl KevyMailboxStore {
             if stripped == blob {
                 continue;
             }
-            self.store()
-                .set(keys::message_blob(mid).as_bytes(), &stripped)?;
             rewritten += 1;
+            if !dry_run {
+                self.store()
+                    .set(keys::message_blob(mid).as_bytes(), &stripped)?;
+            }
         }
         Ok((seen, rewritten))
     }

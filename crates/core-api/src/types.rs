@@ -35,6 +35,33 @@ pub struct HealthResponse {
     /// core) or one that predates it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub set_aside: Option<SetAsideWire>,
+    /// This core's parse workers. `None` from a core that predates them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parsing: Option<ParsingHealthWire>,
+}
+
+/// What one process's parse workers went through since it started.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ParsingHealthWire {
+    /// Whether parsing runs in workers; `false` means in process.
+    pub worker: bool,
+    /// Messages a worker failed on in the last 24 hours.
+    pub failures_24h: u64,
+    /// Unix seconds of the last such failure; `None` before the first.
+    pub last_failure_at: Option<i64>,
+    /// Workers started again after one died or was killed.
+    pub worker_restarts: u64,
+    /// `parser_failure_total` by parser and kind, since start.
+    pub failures: Vec<ParserFailureWire>,
+}
+
+/// One `parser_failure_total{parser, kind}` count.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ParserFailureWire {
+    pub parser: String,
+    /// `panic`, `timeout`, `killed` or `error`.
+    pub kind: String,
+    pub count: u64,
 }
 
 /// The spool, as a health probe sees it.

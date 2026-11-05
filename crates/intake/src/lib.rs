@@ -13,6 +13,8 @@
 //! are, and [`Core`] to say what happens to a copy that reached one of its
 //! mailboxes. Nothing here knows which store is behind either.
 
+#[cfg(feature = "abort-hook")]
+mod abort_hook;
 mod deliver;
 mod drain;
 mod forward;

@@ -18,6 +18,11 @@ pub const KEEP_DAYS: i64 = 35;
 /// Days summed for the long window.
 pub const WINDOW_DAYS: i64 = 30;
 
+/// The counter of attachments the receiver found to be 7z archives by
+/// their signature. Not a rule: 7z names are not read yet, and none had
+/// arrived when this was added, so the first one is what this is for.
+pub const SEVEN_Z_ATTACHMENT: &str = "attachment-7z";
+
 /// The counter of `rule`'s hits on UTC day `day` (`yyyymmdd`).
 pub fn key(rule: &str, day: &str) -> String {
     format!("mailrs:fraud:hits:{rule}:{day}")

@@ -14,6 +14,7 @@ use super::super::super::ConnectionContext;
 mod evidence;
 mod hits;
 mod outcome;
+mod reading;
 #[cfg(test)]
 mod tests;
 
@@ -55,7 +56,8 @@ pub(super) async fn run_antispam(
         ctx,
     )
     .await;
-    let evidence = evidence::Evidence::gather(&receive_ctx, ctx).await;
+    let attachments = reading::read(&mut receive_ctx).await;
+    let evidence = evidence::Evidence::gather(&receive_ctx, attachments, ctx).await;
     let facts = evidence.facts(&receive_ctx, addr);
     let policy = evidence::policy(ctx).await;
     let scan = match mailrs_fraud_lua::scan(&facts, &policy) {
@@ -77,6 +79,13 @@ pub(super) async fn run_antispam(
         hits::hits(&receive_ctx.fraud),
         evidence.sender_host(),
         &rules_version,
+        ctx.spam_lists_client.clone(),
+    )
+    .await;
+    hits::record_seven_z(
+        &receive_ctx.message,
+        evidence.seven_z_archives(),
+        evidence.sender_host(),
         ctx.spam_lists_client.clone(),
     )
     .await;

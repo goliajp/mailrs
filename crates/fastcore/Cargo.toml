@@ -40,6 +40,9 @@ path = "src/bin/ocr.rs"
 [features]
 # a debug route that starts a periodic task's round at once; never in a release image
 measure-hooks = []
+# the release smoke of the spool quarantine aborts on a marked message;
+# no shipped binary is built with it
+abort-hook = ["mailrs-intake/abort-hook"]
 
 [dependencies]
 mailrs-apns = { path = "../apns", version = "1" }
@@ -51,6 +54,7 @@ mailrs-report = { path = "../report", version = "0.1" }
 mailrs-rfc5322 = { path = "../rfc5322", version = "1" }
 mailrs-bayes = { path = "../bayes" }
 mailrs-clean = { path = "../clean" }
+mailrs-parse-worker = { path = "../parse-worker" }
 mailrs-intelligence = { path = "../intelligence" }
 mailrs-triage = { path = "../triage" }
 mailrs-alias-store = { path = "../alias-store" }
@@ -130,6 +134,7 @@ tempfile = "3"
 # signs the Web Push key a re-judge test pushes with
 aws-lc-rs = "1"
 mailrs-receiver = { path = "../receiver" }
+mailrs-parse-worker = { path = "../parse-worker", features = ["testing"] }
 mailrs-test-docker = { path = "../test-docker" }
 testcontainers = "0.27"
 # builds the PDF attachments the extraction tests deliver
