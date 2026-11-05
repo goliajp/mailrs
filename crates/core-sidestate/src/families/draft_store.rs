@@ -4,7 +4,10 @@
 //! route, either core's route, the MCP tool through a core): it reads the
 //! stored draft, merges the request into it and writes it back on one
 //! connection. A request without `attachments` keeps the files the draft
-//! has; `created_at` is the first save's.
+//! has; `created_at` is the first save's; `withheld_send_at` and
+//! `attachments_not_included`, which an account restore notes on a draft
+//! it returns and no client sends, are kept as they are. The restore's own
+//! draft is written with [`put`].
 
 use std::io;
 use std::path::Path;
@@ -166,12 +169,21 @@ pub fn save(
         Some(id) => id,
         None => conn.incr(drafts_counter_key(user).as_bytes())?,
     };
-    let (created_at, kept) = match old {
-        Some(d) => (d.created_at, d.attachments),
-        None => (now, Vec::new()),
+    // what no client sends back: the first save's time, the files, and what
+    // an account restore noted on a draft it returned
+    let (created_at, kept, withheld_send_at, attachments_not_included) = match old {
+        Some(d) => (
+            d.created_at,
+            d.attachments,
+            d.withheld_send_at,
+            d.attachments_not_included,
+        ),
+        None => (now, Vec::new(), None, Vec::new()),
     };
     let draft = DraftWire {
         id,
+        withheld_send_at,
+        attachments_not_included,
         to: req.to,
         cc: req.cc,
         bcc: req.bcc,

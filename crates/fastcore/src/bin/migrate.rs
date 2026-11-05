@@ -20,6 +20,10 @@
 //! Env:
 //! - `MAILRS_KEVY_DATA_DIR` — same as fastcore proper, default
 //!   `/data/kevy-fastcore`
+//! - `MAILRS_KEVY_URL` — the shared store, needed by `permissions`
+//!   records: each grant or change writes an audit line there first, under
+//!   the actor `host`, and a record whose line cannot be written is not
+//!   imported
 //!
 //! Output: one progress line every 1000 records, final summary on
 //! stderr. Exit code != 0 on parse failure.
@@ -120,6 +124,59 @@ impl From<ThreadRowJson> for ThreadRow {
     }
 }
 
+/// The audit action of permissions the import grants or changes.
+const PERMISSIONS_SET: &str = "account.permissions_set";
+
+/// Write `blob` as `address`'s permissions after one audit line, actor
+/// `host`, in the shared store; permissions equal to those stored are left
+/// with no line. This tool makes administrators without webapi or a core
+/// route, so a line that cannot be written fails the record, ungranted.
+fn grant(
+    mailbox: &KevyMailboxStore,
+    audit: &mut Option<kevy_client::Connection>,
+    address: &str,
+    blob: &serde_json::Value,
+) -> Result<(), String> {
+    let old = mailbox
+        .get_permissions_blob(address)
+        .map_err(|e| format!("reading the stored permissions: {e}"))?;
+    let old_value = old.as_deref().and_then(|j| serde_json::from_str(j).ok());
+    if old_value.as_ref() == Some(blob) {
+        return Ok(());
+    }
+    let new = blob.to_string();
+    let detail = format!("{} -> {new}", old.as_deref().unwrap_or("none"));
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs() as i64);
+    let conn = match audit {
+        Some(c) => c,
+        None => {
+            let url = std::env::var("MAILRS_KEVY_URL")
+                .map_err(|_| "MAILRS_KEVY_URL is needed to audit a permissions record")?;
+            let c = kevy_client::Connection::connect(&url)
+                .map_err(|e| format!("the shared store for the audit line: {e}"))?;
+            audit.insert(c)
+        }
+    };
+    if let Err(e) = mailrs_core_sidestate::families::audit::append(
+        conn,
+        "host",
+        PERMISSIONS_SET,
+        address,
+        &detail,
+        now,
+    ) {
+        *audit = None;
+        return Err(format!(
+            "the audit line was not written, nothing granted: {e}"
+        ));
+    }
+    mailbox
+        .upsert_permissions(address, &new)
+        .map_err(|e| format!("upsert_permissions after its audit line: {e}"))
+}
+
 fn main() {
     let kevy_dir =
         std::env::var("MAILRS_KEVY_DATA_DIR").unwrap_or_else(|_| "/data/kevy-fastcore".to_string());
@@ -128,6 +185,7 @@ fn main() {
     let mailbox = KevyMailboxStore::new(store);
 
     let reader = BufReader::new(std::io::stdin());
+    let mut audit: Option<kevy_client::Connection> = None;
     let mut threads = 0u64;
     let mut messages = 0u64;
     let mut errors = 0u64;
@@ -225,9 +283,8 @@ fn main() {
                 }
             }
             Record::Permissions { address, blob } => {
-                let json = blob.to_string();
-                if let Err(e) = mailbox.upsert_permissions(&address, &json) {
-                    eprintln!("line {idx}: upsert_permissions({address}): {e}");
+                if let Err(e) = grant(&mailbox, &mut audit, &address, &blob) {
+                    eprintln!("line {idx}: permissions({address}): {e}");
                     errors += 1;
                 }
             }

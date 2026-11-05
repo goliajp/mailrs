@@ -43,6 +43,10 @@ pub trait Core: Directory {
     /// web send and SMTP submission decide it. A vacation reply a Sieve
     /// script sends is held to the same rule.
     fn may_send_as(&self, user: &str, from: &str) -> bool;
+    /// File `body`, which `user` submitted over SMTP AUTH, as their sent
+    /// copy ([`crate::sent::file_submitted`]).
+    fn file_submitted(&self, user: &str, body: &[u8], recipients: &[String])
+    -> std::io::Result<()>;
 }
 
 /// The spooled message being delivered.
@@ -204,6 +208,9 @@ fn drain_file<C: Core + ?Sized>(dir: &Path, path: &Path, filename: &str, core: &
         body,
         env: &env,
     };
+    // first, as a web send files it before the message is queued: a local
+    // recipient's delivery is not to shape the sender's conversation
+    inbound.file_senders_copy();
     let (delivered_here, unresolved) = inbound.each_recipient();
     if delivered_here == 0 {
         if !aging::set_aside_if_stale(dir, path, filename) && stuck::is_new(filename) {
@@ -244,6 +251,31 @@ fn drain_file<C: Core + ?Sized>(dir: &Path, path: &Path, filename: &str, core: &
 }
 
 impl<C: Core + ?Sized> Inbound<'_, C> {
+    /// The copy a web send files for its sender, filed for the account that
+    /// signed in to submit this. A spool file drained again (a recipient
+    /// left for the next tick) finds it filed and files nothing more. Not
+    /// filing it holds back no recipient's copy.
+    fn file_senders_copy(&self) {
+        let Some(user) = self.env.auth_user.as_deref() else {
+            return;
+        };
+        match self.core.is_account(user) {
+            Ok(true) => {}
+            // a relay login from the users file has no mailbox
+            Ok(false) => return,
+            Err(e) => {
+                tracing::warn!(%user, error = %e, "submission: sender's copy not filed");
+                return;
+            }
+        }
+        if let Err(e) = self
+            .core
+            .file_submitted(user, self.body, &self.env.forward_paths)
+        {
+            tracing::warn!(%user, error = %e, "submission: sender's copy not filed");
+        }
+    }
+
     /// Every envelope recipient's copy: how many were consumed, and who was
     /// left unresolved.
     fn each_recipient(&self) -> (usize, Vec<String>) {

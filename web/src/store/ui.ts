@@ -199,6 +199,11 @@ export const composeReplySourceAtom = atom<ComposeReplySource | null>(null)
 // tracks its id so autosave upserts the same draft and send/discard
 // deletes it. cleared when the composer closes.
 export type ComposeDraftSource = {
+  /**
+   * The attachments the message a restore returned as this draft had,
+   * which the draft does not carry; shown, never sent.
+   */
+  attachmentsNotIncluded?: readonly string[]
   bcc: string
   body: string
   cc: string

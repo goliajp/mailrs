@@ -92,6 +92,8 @@ export const draftSchema = z
     // absent when the draft has none; listed only to a client that asks
     // with `with_attachments=true` (crates/webapi/src/handlers/draft_send.rs)
     attachments: z.array(draftAttachmentSchema).default([]),
+    // the attachments a draft a restore returned could not carry, by name
+    attachments_not_included: z.array(z.string()).default([]),
     bcc: z.string().default(''),
     body: z.string().default(''),
     cc: z.string().default(''),
@@ -103,6 +105,7 @@ export const draftSchema = z
     subject: z.string().default(''),
     to: z.string().default(''),
     updated_at: wireTimestampSchema,
+    withheld_send_at: z.number().nullable().default(null),
   })
   .passthrough()
 

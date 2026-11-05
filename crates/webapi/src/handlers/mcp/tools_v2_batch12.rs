@@ -15,7 +15,8 @@ use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::{tool, tool_router};
 
-use super::params::{CreateEmailGroupParams, EmailGroupIdNumParams, EmailGroupMemberParams};
+use super::params::{CreateEmailGroupParams, EmailGroupIdNumParams};
+use super::params_email_groups::EmailGroupMemberParams;
 use super::{MailrsMcpService, ok_result};
 use crate::handlers::conversations::AuthedUser;
 
@@ -104,7 +105,7 @@ impl MailrsMcpService {
             self.require_confirmed()?,
             State(self.state.clone()),
             axum::Extension(AuthedUser(user)),
-            Path(params.group_id),
+            Path(params.group_id.to_string()),
             Json(req),
         )
         .await
@@ -124,7 +125,7 @@ impl MailrsMcpService {
             self.require_confirmed()?,
             State(self.state.clone()),
             axum::Extension(AuthedUser(user)),
-            Path((params.group_id, params.address)),
+            Path((params.group_id.to_string(), params.address)),
         )
         .await
         .map_err(|c| map_status(c, "remove_email_group_member"))?;

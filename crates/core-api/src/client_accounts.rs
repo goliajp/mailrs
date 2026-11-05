@@ -200,7 +200,7 @@ impl Client {
         &self,
         address: &str,
         req: &method::admin::RestoreAccountRequest,
-    ) -> ApiResult<()> {
+    ) -> ApiResult<method::admin::RestoreAccountResponse> {
         let resp = self
             .inner
             .post(self.url(&format!(
@@ -213,7 +213,7 @@ impl Client {
             .await
             .map_err(|e| crate::client::transport("restore_account", e))?;
         if resp.status().as_u16() != 409 {
-            return Self::map_status_unit(resp, "restore_account").await;
+            return Self::map_status(resp, "restore_account").await;
         }
         let body = resp.text().await.unwrap_or_default();
         Err(crate::error::CoreApiError::Conflict(format!(

@@ -215,3 +215,25 @@ fn saving_a_draft_keeps_its_pasted_images() {
     let left = c.ttl_ms(key.as_bytes()).unwrap() as u128;
     assert!(left > inline_images::KEEP.as_millis() / 2, "{left}");
 }
+
+#[test]
+fn what_a_restore_noted_on_a_draft_outlives_its_saves() {
+    let mut c = conn("restore-notes");
+    let root = tempfile::tempdir().unwrap();
+    let saved = save(&mut c, root.path(), ALICE, req(None, "v1", None), NOW).unwrap();
+    let mut d = get(&mut c, ALICE, saved.id).unwrap().unwrap();
+    d.withheld_send_at = Some(NOW - 600);
+    d.attachments_not_included = vec!["contract.pdf".into()];
+    put(&mut c, ALICE, &d).unwrap();
+    let a = upload(root.path(), ALICE, b"a file added since");
+    let later = req(Some(saved.id), "v2", Some(vec![a]));
+    save(&mut c, root.path(), ALICE, later, NOW + 60).unwrap();
+    let after = get(&mut c, ALICE, saved.id).unwrap().unwrap();
+    assert_eq!(after.body, "v2");
+    assert_eq!(after.withheld_send_at, Some(NOW - 600));
+    assert_eq!(
+        after.attachments_not_included,
+        vec!["contract.pdf".to_string()]
+    );
+    assert_eq!(after.attachments.len(), 1);
+}

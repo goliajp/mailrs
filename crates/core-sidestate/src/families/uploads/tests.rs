@@ -33,6 +33,8 @@ fn draft_naming(c: &mut Connection, user: &str, id: i64, sha: &str) {
         reply_to_thread_id: None,
         from: String::new(),
         scheduled_at: None,
+        withheld_send_at: None,
+        attachments_not_included: Vec::new(),
         attachments: vec![DraftAttachment {
             blob_id: blob_id(sha),
             name: "f".into(),

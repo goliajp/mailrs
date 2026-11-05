@@ -55,7 +55,7 @@ pub async fn restore_account(
     }
     let st = state.clone();
     let a = address.clone();
-    tokio::task::spawn_blocking(move || {
+    let back = tokio::task::spawn_blocking(move || {
         let mut c = st.net_conn().ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
         let root = std::path::Path::new(&st.maildir_root);
         let now = chrono::Utc::now().timestamp();
@@ -64,6 +64,7 @@ pub async fn restore_account(
     })
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)??;
-    tracing::info!(%address, "deleted account restored");
-    Ok(StatusCode::NO_CONTENT.into_response())
+    tracing::info!(%address, rescheduled = back.rescheduled,
+        drafts = back.returned_as_drafts, "deleted account restored");
+    Ok(Json(back).into_response())
 }

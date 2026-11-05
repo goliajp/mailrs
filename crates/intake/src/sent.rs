@@ -119,6 +119,33 @@ pub fn file<S: SentStore + ?Sized>(
     })
 }
 
+/// File `body`, which `user` submitted over SMTP AUTH, as their sent copy,
+/// as [`file()`] does for a web send. `None` when they already hold a
+/// message with its Message-ID: the client filed its own copy by IMAP
+/// APPEND first, or the submission is a retry. One copy, as Gmail keeps.
+/// A copy filed here is marked (`families::submitted`) so that the
+/// client's own, which can hold what it did not submit, replaces it.
+pub fn file_submitted<S: SentStore + ?Sized>(
+    core: &S,
+    user: &str,
+    body: &[u8],
+    recipients: &[String],
+) -> io::Result<Option<Filed>> {
+    let message_id = crate::headers::message_id_of(body);
+    if !message_id.is_empty() && core.thread_for_message_id(user, &message_id).is_some() {
+        return Ok(None);
+    }
+    let filed = file(core, user, body, recipients)?;
+    // the client's own copy, if it files one, replaces this one
+    let marked = core.net_conn().map(|mut c| {
+        mailrs_core_sidestate::families::submitted::mark(&mut c, user, &filed.message_id)
+    });
+    if let Some(Err(e)) = marked {
+        tracing::warn!(%user, error = %e, "submission: a copy the client files will not replace this one");
+    }
+    Ok(Some(filed))
+}
+
 /// `body` without any `Authentication-Results:` naming this server
 /// (RFC 8601 §5). Only the receiver writes one; on every other way into a
 /// mailbox the header came from whoever wrote the message.

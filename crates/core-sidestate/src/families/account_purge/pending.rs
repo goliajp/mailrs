@@ -49,9 +49,12 @@ pub fn retention_days() -> u64 {
     retention_days_from(std::env::var(RETENTION_ENV).ok().as_deref())
 }
 
-/// Record `address` as deleted at `now`. A second delete of an address
-/// already waiting keeps the first time: its retention runs from then.
+/// Record `address` as deleted at `now`, and withhold its mail not yet
+/// released for delivery (`outbound::withhold`); what was released keeps
+/// going. A second delete of an address already waiting keeps the first
+/// time: its retention runs from then.
 pub fn mark(c: &mut Connection, address: &str, now: i64) -> io::Result<()> {
+    crate::families::outbound::withhold(c, address)?;
     if c.hget(PENDING_KEY.as_bytes(), address.as_bytes())?
         .is_some()
     {
@@ -86,9 +89,13 @@ pub fn all(c: &mut Connection) -> io::Result<Vec<(String, i64)>> {
     Ok(out)
 }
 
-/// Stop waiting for `address`: its purge is done, or the delete that
-/// marked it did not happen.
+/// Stop waiting for `address`: its purge is done (which deleted the
+/// withheld mail first), it was restored, or the delete that marked it did
+/// not happen. Mail [`mark`] withheld is put back where it waited (a
+/// restore has already taken it, with what lapsed as drafts).
 pub fn clear(c: &mut Connection, address: &str) -> io::Result<()> {
+    let now = chrono::Utc::now().timestamp();
+    crate::families::outbound::release(c, address, now, crate::families::outbound::Lapsed::Send)?;
     c.hdel(RECORDS_KEY.as_bytes(), &[address.as_bytes()])?;
     c.hdel(PENDING_KEY.as_bytes(), &[address.as_bytes()])?;
     Ok(())
