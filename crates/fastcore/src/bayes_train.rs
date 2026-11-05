@@ -189,7 +189,13 @@ pub fn bootstrap(state: &Arc<FastcoreState>, user: &str) -> (u64, u64) {
 /// Deliberately simple; the Bayes classifier refines it from the
 /// user's mark-as corrections thereafter.
 fn heuristic_triage_label(raw: &[u8]) -> &'static str {
-    let toks = mailrs_bayes::tokenize(raw);
+    let toks = mailrs_parse_worker::tokens(
+        raw,
+        mailrs_parse_worker::Tokenizer::Decoded,
+        mailrs_parse_worker::Limit::Batch,
+    )
+    .read()
+    .unwrap_or_default();
     let has = |t: &str| toks.iter().any(|x| x == t);
     if has("from:automated") || has("hdr:auto-submitted") {
         "notification"
