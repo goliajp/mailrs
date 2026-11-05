@@ -222,6 +222,12 @@
     <string name="mail_view_source">View source</string>
     <string name="sent_edit">Edit</string>
     <string name="sent_send_again">Send again</string>
+    <string name="sent_status_failed">Failed</string>
+    <string name="sent_status_partial">Partly delivered</string>
+    <string name="sent_status_sending">Sending</string>
+    <string name="sent_status_scheduled">Scheduled</string>
+    <string name="sent_status_delivered">Delivered</string>
+    <string name="sent_status_cancelled">Cancelled</string>
     <string name="settings_account">Account</string>
     <string name="settings_signed_in_as">Signed in as</string>
     <string name="common_server">Server</string>
