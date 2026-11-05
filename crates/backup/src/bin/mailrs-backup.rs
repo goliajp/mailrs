@@ -137,6 +137,7 @@ fn run_at() -> Result<(u32, u32), String> {
 }
 
 async fn daemon(plan: Plan, at: (u32, u32)) -> std::process::ExitCode {
+    let ops = mailrs_backup::ops::start(&plan.target);
     tracing::info!(target = %plan.target.display(), at = ?at, keep = plan.keep, "backups scheduled");
     let mut last_day = String::new();
     loop {
@@ -147,7 +148,9 @@ async fn daemon(plan: Plan, at: (u32, u32)) -> std::process::ExitCode {
             .is_some_and(|o| o.file == format!("mailrs-{day}.tar.age") && o.ok);
         if due && !done_today && last_day != day {
             last_day = day;
-            once(&plan).await;
+            if let Some(o) = once(&plan).await {
+                mailrs_backup::ops::result(&ops, &o);
+            }
         }
         check_stale(&plan.target).await;
         tokio::time::sleep(Duration::from_secs(300)).await;

@@ -17,6 +17,8 @@ abort-hook = []
 [dependencies]
 mailrs-core = { path = "../core" }
 mailrs-core-sidestate = { path = "../core-sidestate" }
+mailrs-core-api = { path = "../core-api" }
+mailrs-ops-report = { path = "../ops-report" }
 mailrs-auth-guard = { path = "../auth-guard", version = "3", features = ["kevy"] }
 mailrs-mock = { path = "../mock" }
 mailrs-srs = { path = "../srs", version = "1" }

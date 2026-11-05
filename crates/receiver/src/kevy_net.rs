@@ -70,7 +70,10 @@ impl KevyNetClient {
         }
         let conn = slot.as_mut().expect("just ensured Some");
         match f(conn) {
-            Ok(r) => Ok(r),
+            Ok(r) => {
+                mailrs_ops_report::kevy_contact();
+                Ok(r)
+            }
             Err(e) => {
                 // drop the possibly-broken connection; next use reopens
                 *slot = None;

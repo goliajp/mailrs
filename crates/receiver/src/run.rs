@@ -161,6 +161,7 @@ pub async fn start() -> Receiver {
 /// subscriber bridge.
 fn event_bus(kevy_client: &Arc<KevyNetClient>, counters: &SharedCounters) -> EventBus {
     spawn_stats_heartbeat(kevy_client.clone(), counters.clone());
+    crate::ops::spawn_heartbeat(counters.clone());
 
     let publisher = Arc::new(KevyEventPublisher::new(
         kevy_client.clone(),
@@ -179,7 +180,9 @@ fn event_bus(kevy_client: &Arc<KevyNetClient>, counters: &SharedCounters) -> Eve
 
 /// Run the receiver process: [`start`] it and block until a shutdown signal.
 pub async fn run() {
+    crate::ops::start();
     let receiver = start().await;
+    crate::ops::ready();
     tracing::info!("mailrs-receiver listening; awaiting shutdown signal");
     wait_for_shutdown().await;
     receiver.stop();

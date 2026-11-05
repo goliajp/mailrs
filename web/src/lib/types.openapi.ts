@@ -7486,6 +7486,12 @@ export interface components {
                         error: string | null;
                     }[];
                 } | null;
+                /** @description Unix seconds the receiver built the latest frame; null from a receiver that does not say */
+                sent_at?: number | null;
+                /** @description Unix seconds the latest frame arrived here */
+                received_at?: number | null;
+                /** @description Seconds since the latest frame arrived. A frame that keeps aging is the last one before the receiver stopped */
+                age_secs?: number | null;
             } | null;
             /** @description The daily check of this server's sending addresses against the configured blocklists. Null when the store cannot be read. */
             egress?: {

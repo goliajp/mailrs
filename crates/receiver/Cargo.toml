@@ -16,6 +16,7 @@ name = "mailrs-receiver"
 path = "src/main.rs"
 
 [dependencies]
+mailrs-ops-report = { path = "../ops-report", features = ["push"] }
 async-trait = { workspace = true }
 mailrs-message-store = { path = "../message-store" }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

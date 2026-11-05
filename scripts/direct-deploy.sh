@@ -227,6 +227,7 @@ elif [ "${SKIP_BUILD:-0}" != 1 ]; then
         --platform linux/arm64 \
         --build-arg VERSION="$VERSION" \
         --build-arg CACHE_BUST="direct-$VERSION" \
+        --build-arg GIT_COMMIT="$(git rev-parse HEAD)" \
         -t "$TAG" \
         --load \
         .
@@ -451,7 +452,7 @@ for i in $(seq 1 90); do
     sleep 2
 done
 ssh "$PROD" "cd /apps/mailrs \
-  && docker compose up -d --pull never --no-deps receiver webapi-fc fastcore-sender backup fetch"
+  && docker compose up -d --pull never --no-deps receiver webapi-fc fastcore-sender backup fetch ops"
 
 echo "==> [4/6] verify prod"
 

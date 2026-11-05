@@ -148,6 +148,40 @@ pub(super) fn boot_kevy(cfg: &Cfg) {
     }
 }
 
+impl Cfg {
+    pub(super) fn from_env() -> Self {
+        Self {
+            kevy_url: std::env::var("MAILRS_KEVY_URL")
+                .expect("MAILRS_KEVY_URL required (kevy://host:port)"),
+            helo: std::env::var("MAILRS_HELO_HOSTNAME")
+                .unwrap_or_else(|_| "mail.golia.jp".to_string()),
+            dsn_from_domain: mailrs_fastcore::bounce::dsn_identity().1,
+            pause_limits: Arc::new(pause::PauseLimits::from_env().unwrap_or_else(|e| {
+                eprintln!("{e}");
+                std::process::exit(2)
+            })),
+            max_attempts: std::env::var("MAILRS_SENDER_MAX_ATTEMPTS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(retry::DEFAULT_MAX_ATTEMPTS),
+            max_queue_lifetime_secs: std::env::var("MAILRS_SENDER_MAX_QUEUE_LIFETIME_SECS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(retry::DEFAULT_MAX_QUEUE_LIFETIME_SECS),
+            poll_ms: std::env::var("MAILRS_SENDER_POLL_MS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(500),
+            retry_min_secs: std::env::var("MAILRS_SENDER_RETRY_MIN_SECS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(60),
+            dkim: load_dkim_from_env(),
+            arc_key: load_arc_key(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

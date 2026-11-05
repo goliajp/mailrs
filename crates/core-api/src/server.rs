@@ -19,8 +19,11 @@ use axum::{
     routing::get,
 };
 
+use crate::method::ops::OpsStatusWire;
+use crate::method::ops_alert::{OpsAlertWire, OpsConfig, OpsOperators};
 use crate::types::HealthResponse;
 
+mod ops;
 mod thread_events;
 pub use thread_events::{ThreadEventHit, ThreadEventSink, thread_events};
 
@@ -36,12 +39,55 @@ pub trait Handler: Send + Sync + 'static {
 
     /// Deeper readiness probe — verifies the backend pool is open.
     fn readyz(&self) -> impl std::future::Future<Output = HealthResponse> + Send;
+
+    /// What the ops daemon reads: drain progress and quarantine records.
+    fn ops_status(&self) -> impl std::future::Future<Output = OpsStatusWire> + Send;
+
+    /// Queue `alert` as mail from `operators.from` to each of
+    /// `operators.to`; the number of jobs queued.
+    fn ops_alert(
+        &self,
+        operators: &OpsOperators,
+        alert: OpsAlertWire,
+    ) -> impl std::future::Future<Output = Result<usize, String>> + Send;
+
+    /// Write one line to the audit log with the ops daemon as the actor: a
+    /// refused call to its route, or its first read after it started.
+    fn ops_audit(
+        &self,
+        action: &'static str,
+        detail: String,
+    ) -> impl std::future::Future<Output = ()> + Send;
 }
 
-/// Build the base router with healthz/readyz mounted (no auth on health).
-///
-/// Per-method routes are added by the backend in later checklist items.
+/// Build the base router: healthz/readyz (no auth) and the ops daemon's
+/// routes (see [`crate::method::ops`] and [`crate::method::ops_alert`]),
+/// configured from the environment.
 pub fn base_router<H: Handler>(handler: Arc<H>) -> Router {
+    base_router_with_ops(handler, OpsConfig::from_env())
+}
+
+pub fn base_router_with_ops<H: Handler>(handler: Arc<H>, cfg: OpsConfig) -> Router {
+    let ops_state = Arc::new(ops::Ops {
+        handler: handler.clone(),
+        cfg,
+        http: reqwest::Client::new(),
+    });
+    let ops_route = Router::new()
+        .route(crate::method::ops::PATH_OPS_STATUS, get(ops::status::<H>))
+        .route(
+            crate::method::ops::PATH_OPS_RELAY,
+            axum::routing::post(ops::relay::<H>).layer(axum::extract::DefaultBodyLimit::max(
+                mailrs_ops_report::wire::MAX_REPORT_BYTES,
+            )),
+        )
+        .route(
+            crate::method::ops_alert::PATH_OPS_ALERTS,
+            axum::routing::post(ops::alert::<H>).layer(axum::extract::DefaultBodyLimit::max(
+                mailrs_ops_report::wire::MAX_REPORT_BYTES,
+            )),
+        )
+        .with_state(ops_state);
     Router::new()
         .route(
             crate::method::health::PATH_HEALTHZ,
@@ -49,6 +95,7 @@ pub fn base_router<H: Handler>(handler: Arc<H>) -> Router {
         )
         .route(crate::method::health::PATH_READYZ, get(readyz_handler::<H>))
         .with_state(handler)
+        .merge(ops_route)
 }
 
 async fn healthz_handler<H: Handler>(State(h): State<Arc<H>>) -> Json<HealthResponse> {
@@ -76,5 +123,147 @@ pub async fn auth_middleware(
     match header {
         Some(token) if token == expected_secret.as_str() => Ok(next.run(req).await),
         _ => Err(StatusCode::UNAUTHORIZED),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::method::ops::{DrainProgressWire, OpsAuth};
+    use crate::types::BackendKind;
+    use sha2::Digest;
+    use tower::ServiceExt;
+
+    #[derive(Default)]
+    struct Core(std::sync::Mutex<Vec<&'static str>>);
+
+    fn health() -> HealthResponse {
+        HealthResponse {
+            version: "v1".into(),
+            backend: BackendKind::Kevy,
+            ready: true,
+            memory: None,
+            spool: None,
+            set_aside: None,
+            parsing: None,
+        }
+    }
+
+    impl Handler for Core {
+        async fn healthz(&self) -> HealthResponse {
+            health()
+        }
+        async fn readyz(&self) -> HealthResponse {
+            health()
+        }
+        async fn ops_status(&self) -> OpsStatusWire {
+            OpsStatusWire {
+                build: mailrs_ops_report::build::build(),
+                fetch_starts_witnessed: 0,
+                drain: DrainProgressWire {
+                    ticks: 0,
+                    delivered: 0,
+                    last_tick_at: None,
+                },
+                quarantined_total: 0,
+                quarantined: vec![],
+            }
+        }
+        async fn ops_audit(&self, action: &'static str, _detail: String) {
+            self.0.lock().unwrap().push(action);
+        }
+        async fn ops_alert(
+            &self,
+            operators: &OpsOperators,
+            _alert: OpsAlertWire,
+        ) -> Result<usize, String> {
+            Ok(operators.to.len())
+        }
+    }
+
+    fn with_status(auth: OpsAuth) -> OpsConfig {
+        OpsConfig {
+            status: auth,
+            ..OpsConfig::open()
+        }
+    }
+
+    async fn status(core: &Arc<Core>, auth: OpsAuth, bearer: Option<&str>, first: bool) -> u16 {
+        let mut req = axum::http::Request::get(crate::method::ops::PATH_OPS_STATUS);
+        if let Some(b) = bearer {
+            req = req.header("authorization", format!("Bearer {b}"));
+        }
+        if first {
+            req = req.header(crate::method::ops::FIRST_READ_HEADER, "1");
+        }
+        base_router_with_ops(core.clone(), with_status(auth))
+            .oneshot(req.body(axum::body::Body::empty()).unwrap())
+            .await
+            .unwrap()
+            .status()
+            .as_u16()
+    }
+
+    /// The daemon's token opens the route; the core's own secret, another
+    /// token or none do not, and a deployment without the hash is closed.
+    /// Each refusal is audited, and of the successful reads only the first
+    /// after the daemon started.
+    #[tokio::test]
+    async fn the_ops_route_takes_only_the_daemon_token() {
+        let core = Arc::new(Core::default());
+        let hash = hex::encode(sha2::Sha256::digest(b"daemon-token"));
+        let by_token = || OpsAuth::TokenSha256(hash.clone());
+        assert_eq!(
+            status(&core, by_token(), Some("daemon-token"), true).await,
+            200
+        );
+        assert_eq!(
+            status(&core, by_token(), Some("daemon-token"), false).await,
+            200
+        );
+        assert_eq!(
+            status(&core, by_token(), Some("core-secret"), false).await,
+            401
+        );
+        assert_eq!(status(&core, by_token(), None, false).await, 401);
+        assert_eq!(
+            status(&core, OpsAuth::Closed, Some("daemon-token"), false).await,
+            401
+        );
+        assert_eq!(status(&core, OpsAuth::Open, None, false).await, 200);
+        assert_eq!(
+            *core.0.lock().unwrap(),
+            [
+                "ops.status.first_read",
+                "ops.status.refused",
+                "ops.status.refused",
+                "ops.status.refused"
+            ]
+        );
+    }
+
+    async fn relay(body: serde_json::Value) -> u16 {
+        let req = axum::http::Request::post(crate::method::ops::PATH_OPS_RELAY)
+            .body(axum::body::Body::from(body.to_string()))
+            .unwrap();
+        base_router_with_ops(Arc::new(Core::default()), OpsConfig::open())
+            .oneshot(req)
+            .await
+            .unwrap()
+            .status()
+            .as_u16()
+    }
+
+    /// Only fetch's reports are relayed, and each start is counted as it
+    /// passes, whether or not the daemon can take it.
+    #[tokio::test]
+    async fn the_relay_carries_fetch_reports_only_and_counts_its_starts() {
+        let before = crate::method::ops::fetch_starts_witnessed();
+        let start = serde_json::json!({"process": "fetch", "kind": "start"});
+        assert_eq!(relay(start).await, 503, "no daemon configured");
+        assert_eq!(crate::method::ops::fetch_starts_witnessed(), before + 1);
+        let other = serde_json::json!({"process": "receiver", "kind": "start"});
+        assert_eq!(relay(other).await, 403);
+        assert_eq!(crate::method::ops::fetch_starts_witnessed(), before + 1);
     }
 }

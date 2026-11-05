@@ -45,6 +45,7 @@ measure-hooks = []
 abort-hook = ["mailrs-intake/abort-hook"]
 
 [dependencies]
+mailrs-ops-report = { path = "../ops-report", features = ["push"] }
 mailrs-apns = { path = "../apns", version = "1" }
 mailrs-core-api = { path = "../core-api", features = ["server", "client"] }
 mailrs-core = { path = "../core" }

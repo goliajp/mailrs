@@ -53,6 +53,10 @@ pub struct ParsingHealthWire {
     pub worker_restarts: u64,
     /// `parser_failure_total` by parser and kind, since start.
     pub failures: Vec<ParserFailureWire>,
+    /// Unix seconds since which a worker has been held back after dying
+    /// repeatedly; `None` while none is, or from a process that predates it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub paused_since: Option<i64>,
 }
 
 /// One `parser_failure_total{parser, kind}` count.

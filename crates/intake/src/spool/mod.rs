@@ -16,10 +16,12 @@ use crate::drain::{Core, drain_once};
 
 pub(crate) mod aging;
 pub mod attempts;
+mod progress;
 pub mod quarantine;
 pub(crate) mod stuck;
 mod wake;
 
+pub use progress::{drain_progress, ops_status};
 pub use wake::is_spool_delivered;
 
 /// The two directories a spool is drained from.
@@ -79,6 +81,7 @@ pub fn tick<C: Core + ?Sized>(dirs: &SpoolDirs, core: &C) -> usize {
     seen_all.extend(seen_cur);
     stuck::forget_departed(&seen_all);
     let total = delivered_new + delivered_cur;
+    progress::record_tick(total);
     if total > 0 {
         tracing::info!(delivered = total, "spool drain tick");
     }

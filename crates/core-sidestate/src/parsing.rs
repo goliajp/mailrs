@@ -19,5 +19,6 @@ pub fn health() -> ParsingHealthWire {
                 count,
             })
             .collect(),
+        paused_since: s.paused_since,
     }
 }
