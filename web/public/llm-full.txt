@@ -1394,7 +1394,10 @@ Inbox changes — `NewMessage`, `InviteReceived`, and
 `MailboxChanged` (`{"type":"MailboxChanged","user":"<address>"}`): something
 in the mailbox was read, moved, starred or deleted, from any client —
 the web UI, another tab, IMAP, a phone. It names no thread; refetch what
-you show. At most one per second per user. Served from kevy's change
+you show. At most one per second per user. `NewMessage` carries
+`"held": true` when the conversation is held for review (suspected
+fraud): refresh what you show, Review included, but raise no sound or
+notification for it. Served from kevy's change
 feed and kept five minutes; a client away longer should refetch
 everything when it reconnects. Used by the web UI for live updates.
 

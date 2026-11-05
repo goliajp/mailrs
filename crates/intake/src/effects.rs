@@ -25,10 +25,11 @@ pub fn before_store(
 ///
 /// `held` is whether this message's verdict held its conversation;
 /// `in_review` whether the conversation is held for `addr` once the message
-/// is stored, by this message or an earlier one. Mail in Review tells the
-/// reader nothing: no push, and no new-mail event, which the web turns into
-/// a sound and a desktop notice. A message arriving in a conversation held
-/// earlier has no verdict of its own, so `held` alone let it ring.
+/// is stored, by this message or an earlier one. Mail in Review rings no
+/// phone, and its new-mail event says it is held: the clients refresh what
+/// they show, Review included, and raise no sound, notice or announcement.
+/// A message arriving in a conversation held earlier has no verdict of its
+/// own, so `held` alone let it ring.
 pub fn after_store(
     mut net: Option<kevy_client::Connection>,
     addr: &str,
@@ -37,14 +38,12 @@ pub fn after_store(
     in_review: bool,
 ) {
     record_domains(net.as_mut(), a);
-    let tell = !held && !in_review;
-    if tell {
+    let quiet = held || in_review;
+    if !quiet {
         push::maybe_notify(net.as_mut(), addr, a);
     }
     webhook_delivery::enqueue_for_arrival(net, addr, a, held);
-    if tell {
-        live_sync::publish_new_mail(addr, &a.thread_id, &a.from, &a.subject, "");
-    }
+    live_sync::publish_new_mail(addr, &a.thread_id, &a.from, &a.subject, "", quiet);
 }
 
 /// When the deployment first saw the sender's domain and its link domains;
