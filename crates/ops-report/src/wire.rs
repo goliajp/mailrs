@@ -121,10 +121,11 @@ pub struct SenderBeat {
     pub oldest_pending_age_secs: Option<u64>,
     /// Jobs finished since start, by how they ended.
     pub outcomes: BTreeMap<String, u64>,
-    /// Ids of the ops daemon's alerts this sender delivered, the latest
-    /// last; the daemon counts an alert delivered only when it is here.
+    /// Ids of the ops daemon's alerts the receiving server accepted (250)
+    /// from this sender, the latest last; the daemon counts an alert
+    /// accepted only when it is here. Not a read receipt.
     #[serde(default)]
-    pub ops_alerts_delivered: Vec<String>,
+    pub ops_alerts_accepted: Vec<String>,
 }
 
 /// The image fetcher's counters since start.
@@ -174,7 +175,7 @@ mod tests {
                 pending: Some(2),
                 oldest_pending_age_secs: Some(30),
                 outcomes: BTreeMap::from([("delivered".into(), 4)]),
-                ops_alerts_delivered: vec!["1-1".into()],
+                ops_alerts_accepted: vec!["1-1".into()],
             })),
         };
         let json = serde_json::to_string(&r).unwrap();

@@ -117,7 +117,7 @@ impl App {
         };
         {
             let mut d = self.dispatcher.lock().await;
-            d.mark_delivered(&snap.ops_alerts_delivered, now);
+            d.mark_accepted(&snap.ops_alerts_accepted, now);
             d.accept(&notices, &silences, maintenance.is_some(), now);
             d.tick(now).await;
         }

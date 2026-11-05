@@ -100,8 +100,9 @@ pub struct Snapshot {
     pub heartbeat_configured: bool,
     pub maintenance: Option<Maintenance>,
     pub limits: Limits,
-    /// The own-path alerts the sender's latest heartbeat says it delivered.
-    pub ops_alerts_delivered: Vec<String>,
+    /// The own-path alerts the sender's latest heartbeat says the receiving
+    /// server accepted (250).
+    pub ops_alerts_accepted: Vec<String>,
 }
 
 impl Snapshot {
@@ -129,7 +130,7 @@ impl Snapshot {
                 ready_secs: 600,
                 fastcore_ready_secs: 1800,
             },
-            ops_alerts_delivered: Vec::new(),
+            ops_alerts_accepted: Vec::new(),
         }
     }
 

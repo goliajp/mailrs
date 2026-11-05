@@ -1,10 +1,11 @@
 //! Which way an alert goes.
 //!
 //! mailrs's own path first: the core queues the alert as mail to the
-//! operator addresses and mailrs's sender delivers it (the operator's apps
-//! hear of it as of any new mail). It counts as delivered only when the
-//! sender's heartbeat lists the message's id; the core's 200 says queued,
-//! nothing more. Without that marker within `MAILRS_OPS_OWN_PATH_FALLBACK_SECS`
+//! operator addresses and mailrs's sender sends it (the operator's apps
+//! hear of it as of any new mail). It counts as accepted by the receiving
+//! server (250) only when the sender's heartbeat lists the message's id;
+//! the core's 200 says queued, nothing more. Neither is a read receipt, and
+//! the 250 does not say the mail reached a mailbox. Without that marker within `MAILRS_OPS_OWN_PATH_FALLBACK_SECS`
 //! (5 minutes by default) the message goes out again through the external
 //! channels, when any are configured.
 //!
@@ -129,8 +130,9 @@ impl Dispatcher {
         }
     }
 
-    /// The ids the sender's heartbeat says it delivered.
-    pub fn mark_delivered(&mut self, ids: &[String], now: i64) {
+    /// The ids the sender's heartbeat says the receiving server accepted
+    /// (250).
+    pub fn mark_accepted(&mut self, ids: &[String], now: i64) {
         let (done, left): (Vec<Pending>, Vec<Pending>) = std::mem::take(&mut self.pending)
             .into_iter()
             .partition(|p| ids.contains(&p.msg.id));
@@ -139,7 +141,7 @@ impl Dispatcher {
             self.log(
                 &p.msg.id,
                 "own",
-                "delivered (sender heartbeat)".into(),
+                "accepted by the receiving server (250), per the sender's heartbeat".into(),
                 &p.msg.summary(),
                 now,
             );
@@ -154,7 +156,10 @@ impl Dispatcher {
             .partition(|p| now - p.sent_at >= self.fallback_secs);
         self.pending = left;
         for p in due {
-            let why = format!("no delivered marker within {}s", self.fallback_secs);
+            let why = format!(
+                "not accepted by the receiving server (250) within {}s",
+                self.fallback_secs
+            );
             match self.has_external() {
                 true => {
                     self.log(
