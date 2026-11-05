@@ -188,6 +188,21 @@ fn notify(spool_root: &Path, domain: &str, q: &Quarantined) {
     }
 }
 
+/// Files in quarantine, and the records beside them that can be read.
+pub(crate) fn records(spool_root: &Path) -> (u64, Vec<Quarantined>) {
+    let total = count(spool_root);
+    let Ok(entries) = std::fs::read_dir(dir(spool_root)) else {
+        return (total, Vec::new());
+    };
+    let records = entries
+        .flatten()
+        .filter(|e| e.file_name().to_string_lossy().ends_with(".json"))
+        .filter_map(|e| std::fs::read(e.path()).ok())
+        .filter_map(|raw| serde_json::from_slice::<Quarantined>(&raw).ok())
+        .collect();
+    (total, records)
+}
+
 /// Files in quarantine, not counting their records.
 pub(crate) fn count(spool_root: &Path) -> u64 {
     let Ok(entries) = std::fs::read_dir(dir(spool_root)) else {

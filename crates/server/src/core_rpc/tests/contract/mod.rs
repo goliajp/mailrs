@@ -29,6 +29,7 @@ mod intake_rules;
 mod labels;
 mod mail;
 mod operator;
+mod ops;
 mod ownerless;
 mod paging;
 mod participants;
@@ -84,6 +85,7 @@ async fn the_two_cores_answer_every_client_call_alike() {
     sent_to::run(&cores, &mut d).await;
     account_purge::run(&cores, &mut d).await;
     group_purge::run(&cores, &mut d).await;
+    ops::run(&cores, &mut d).await;
     accounts::teardown(&cores, &mut d).await;
     d.both(
         "healthz",

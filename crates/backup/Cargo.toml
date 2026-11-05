@@ -10,6 +10,7 @@ license = "Apache-2.0 OR MIT"
 workspace = true
 
 [dependencies]
+mailrs-ops-report = { path = "../ops-report", features = ["push"] }
 age = "0.11"
 chrono = { workspace = true }
 kevy-client = { workspace = true }

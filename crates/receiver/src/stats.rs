@@ -78,6 +78,7 @@ impl ReceiverCounters {
             mask_submit_log_failed: Some(self.mask_submit_log_failed.load(Ordering::Relaxed)),
             dane: self.dane.get(),
             parsing: Some(mailrs_core_sidestate::parsing::health()),
+            sent_at: Some(mailrs_ops_report::build::now()),
         }
     }
 }

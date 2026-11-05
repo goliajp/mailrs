@@ -4,7 +4,7 @@
 
 use std::collections::{BTreeMap, VecDeque};
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering};
 
 use crate::proto::Parser;
 
@@ -47,6 +47,9 @@ pub struct Snapshot {
     pub worker_restarts: u64,
     /// `(parser, kind) -> count` since this process started.
     pub failures: BTreeMap<(&'static str, &'static str), u64>,
+    /// Unix seconds since which at least one worker has been held back
+    /// after dying repeatedly; `None` while every worker can be started.
+    pub paused_since: Option<i64>,
 }
 
 struct Failures {
@@ -59,6 +62,8 @@ static FAILURES: Mutex<Failures> = Mutex::new(Failures {
     by: BTreeMap::new(),
 });
 static RESTARTS: AtomicU64 = AtomicU64::new(0);
+static PAUSED: AtomicU64 = AtomicU64::new(0);
+static PAUSED_SINCE: AtomicI64 = AtomicI64::new(0);
 static INSTALLED: AtomicBool = AtomicBool::new(false);
 static PROCESS: Mutex<&'static str> = Mutex::new("unknown");
 
@@ -88,6 +93,20 @@ pub(crate) fn record_failure(parser: Parser, kind: Kind) {
     }
 }
 
+/// A worker slot is held back before its next start.
+pub(crate) fn pause_started() {
+    if PAUSED.fetch_add(1, Ordering::Relaxed) == 0 {
+        PAUSED_SINCE.store(now(), Ordering::Relaxed);
+    }
+}
+
+/// A held-back slot answered again.
+pub(crate) fn pause_ended() {
+    if PAUSED.fetch_sub(1, Ordering::Relaxed) == 1 {
+        PAUSED_SINCE.store(0, Ordering::Relaxed);
+    }
+}
+
 pub(crate) fn record_restart() {
     RESTARTS.fetch_add(1, Ordering::Relaxed);
 }
@@ -108,6 +127,10 @@ pub fn snapshot() -> Snapshot {
         last_failure_at,
         worker_restarts: RESTARTS.load(Ordering::Relaxed),
         failures,
+        paused_since: match PAUSED_SINCE.load(Ordering::Relaxed) {
+            0 => None,
+            t => Some(t),
+        },
     }
 }
 
