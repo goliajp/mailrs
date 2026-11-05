@@ -2,6 +2,8 @@
 // a file directly under src/bin/ would be built as a binary of its own
 #[path = "mailrs-fraud-check/judge.rs"]
 mod judge;
+#[path = "mailrs-fraud-check/live.rs"]
+mod live;
 #[path = "mailrs-fraud-check/placement.rs"]
 mod placement;
 #[path = "mailrs-fraud-check/tally.rs"]
@@ -219,7 +221,7 @@ fn compare(
     }
     Ok(())
 }
-const USAGE: &str = "usage: mailrs-fraud-check bundle | validate FILE | compare rust|builtin|BASELINE FILE|builtin MAILDIR MAX_MESSAGES [--list OUT.jsonl] [--held-threads HELD.tsv [--released-threads RELEASED.tsv]] | summary REPORT.json";
+const USAGE: &str = "usage: mailrs-fraud-check bundle | validate FILE | compare rust|builtin|BASELINE FILE|builtin MAILDIR MAX_MESSAGES [--list OUT.jsonl] [--held-threads HELD.tsv [--released-threads RELEASED.tsv]] | gate REPORT.json LIVE.jsonl | summary REPORT.json";
 
 fn run() -> Result<(), String> {
     let args: Vec<_> = std::env::args().skip(1).collect();
@@ -241,12 +243,14 @@ fn run() -> Result<(), String> {
             Ok(())
         }
         [cmd, path] if cmd == "summary" => {
-            let report: serde_json::Value =
-                serde_json::from_slice(&fs::read(path).map_err(|e| format!("{path}: {e}"))?)
-                    .map_err(|e| format!("{path}: {e}"))?;
-            for line in placement::summary(&report) {
+            for line in summary(&read_json(path)?) {
                 println!("{line}");
             }
+            Ok(())
+        }
+        [cmd, report, pages] if cmd == "gate" => {
+            let pages = fs::read_to_string(pages).map_err(|e| format!("{pages}: {e}"))?;
+            println!("{}", live::gate(read_json(report)?, &pages)?);
             Ok(())
         }
         [cmd, baseline, candidate, root, limit, flags @ ..] if cmd == "compare" => {
@@ -278,6 +282,28 @@ fn run() -> Result<(), String> {
         _ => Err(USAGE.into()),
     }
 }
+fn read_json(path: &str) -> Result<serde_json::Value, String> {
+    serde_json::from_slice(&fs::read(path).map_err(|e| format!("{path}: {e}"))?)
+        .map_err(|e| format!("{path}: {e}"))
+}
+
+/// A gate report's lines, stored against candidate first; a bare compare
+/// report says the first number was not measured.
+fn summary(report: &serde_json::Value) -> Vec<String> {
+    let Some(pack) = report.get("pack_vs_pack") else {
+        let mut lines = vec!["== live vs candidate: not measured ==".to_string()];
+        lines.extend(placement::summary(report));
+        return lines;
+    };
+    let mut lines = live::summary(&report["live_vs_candidate"]);
+    lines.push(
+        "== pack vs pack: baseline against candidate, both judged by this binary (the rule change alone) =="
+            .to_string(),
+    );
+    lines.extend(placement::summary(pack));
+    lines
+}
+
 fn main() {
     // A read-only tool: without the worker next to it (a development
     // build) a parser that dies takes only this run, so it reads in

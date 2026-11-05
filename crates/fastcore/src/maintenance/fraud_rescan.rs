@@ -38,6 +38,7 @@ const PAUSE_EVERY: u64 = 25;
 
 pub(crate) use decision::*;
 
+mod candidate;
 pub(crate) mod config;
 mod decision;
 pub(crate) mod holding;
@@ -135,12 +136,19 @@ pub(crate) fn judge_outgoing(raw: &[u8]) -> Result<mailrs_fraud_lua::Scan, Strin
     mailrs_fraud_lua::scan(&reading.facts(0, 0, Default::default()), &policy)
 }
 
-/// `POST /v1/admin/maintenance:fraud-rescan?dry_run=false`
+/// `POST /v1/admin/maintenance:fraud-rescan?dry_run=false`, or
+/// `?candidate=<sha256>` for what activating that pack would change.
 pub(crate) async fn fraud_rescan_route(
     State(state): State<Arc<FastcoreState>>,
-    Query(q): Query<RescanQuery>,
+    Query(mut q): Query<RescanQuery>,
 ) -> axum::response::Response {
-    let walked = super::hangup::run_blocking(move |h| walk(&state, &q, None, None, h)).await;
+    let source = match candidate::prepare(&mut q) {
+        Ok(source) => source,
+        Err(e) => return (axum::http::StatusCode::BAD_REQUEST, e).into_response(),
+    };
+    let walked =
+        super::hangup::run_blocking(move |h| walk(&state, &q, None, None, source.as_deref(), h))
+            .await;
     match walked {
         Ok(Ok(answer)) => Json(answer).into_response(),
         Ok(Err(e)) => {

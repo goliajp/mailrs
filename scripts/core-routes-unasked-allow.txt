@@ -33,7 +33,7 @@ POST /v1/admin/maintenance:drop-legacy-zsets | delete the hand-maintained per-us
 POST /v1/admin/maintenance:drop-stray-usermsg-keys | remove per-user message index keys written under the wrong prefix
 POST /v1/admin/maintenance:duplicate-blob-census | read-only: maildir files registered under two message rows
 POST /v1/admin/maintenance:duplicate-blob-repair | drop the synthetic-id second row of a file registered twice
-POST /v1/admin/maintenance:fraud-rescan | re-judge stored mail with the current fraud rules (dry run by default)
+POST /v1/admin/maintenance:fraud-rescan | re-judge stored mail with the current fraud rules (dry run by default); with ?candidate=<sha256>, dry, what activating that pack would change against the stored state
 POST /v1/admin/maintenance:future-dates | re-date stored mail whose Date: header is later than its arrival
 POST /v1/admin/maintenance:group-backfill | write the group column onto membership rows that predate it
 POST /v1/admin/maintenance:idx-advice | read-only: queries running without a declared path, and declared paths nothing queries

@@ -2,7 +2,12 @@
 
 use super::*;
 
+mod acting;
+pub(crate) mod from_stored;
 mod tally;
+
+use acting::after_found;
+use from_stored::{FromStored, Position};
 
 /// One walk: what it judges with, and what it has counted so far.
 struct Sweep<'a> {
@@ -12,6 +17,8 @@ struct Sweep<'a> {
     our_stamp: Option<&'a str>,
     expected_version: Option<&'a str>,
     hist: Option<kevy_client::Connection>,
+    /// A pack judged in place of the active one, for a dry run.
+    candidate: Option<mailrs_fraud_lua::Rules>,
     t: Tally,
 }
 
@@ -45,17 +52,25 @@ struct Tally {
     scored_whitelisted: u64,
     scored_by_reason: HashMap<String, u64>,
     scored_samples: Vec<serde_json::Value>,
+    // where each conversation is stored now against where this walk puts it
+    from_stored: FromStored,
 }
 
 /// Judge `targets` (or all), blocking: run it off the async runtime. The
 /// background worker supplies an immutable batch and pins its rule version.
+/// `candidate` is a pack's source to judge with instead of the active one.
 pub(crate) fn walk(
     state: &Arc<FastcoreState>,
     q: &RescanQuery,
     targets: Option<Vec<(String, String)>>,
     expected_version: Option<&str>,
+    candidate: Option<&str>,
     hangup: &crate::maintenance::hangup::Hangup,
 ) -> std::io::Result<serde_json::Value> {
+    let candidate = candidate
+        .map(mailrs_fraud_lua::Rules::compile)
+        .transpose()
+        .map_err(std::io::Error::other)?;
     let policy = policy_from_env(state);
     // This deployment's own `authserv-id`, for telling its stamp from
     // a forwarder's — `None` when the process was not told, which the
@@ -83,6 +98,7 @@ pub(crate) fn walk(
         our_stamp: our_stamp.as_deref(),
         expected_version,
         hist,
+        candidate,
         t: Tally::default(),
     };
 
@@ -105,20 +121,15 @@ pub(crate) fn walk(
         sweep.thread(user, tid);
     }
 
-    Ok(sweep.t.into_json(q, walked, stopped_early))
+    let candidate = sweep.candidate.as_ref().map(|r| r.version().to_string());
+    let mut answer = sweep.t.into_json(q, walked, stopped_early);
+    answer["candidate"] = serde_json::json!(candidate);
+    Ok(answer)
 }
 
 impl Sweep<'_> {
-    fn is_held(&self, user: &str, tid: &str) -> bool {
-        self.state
-            .mailbox
-            .get_thread_for_user(user, tid)
-            .ok()
-            .flatten()
-            .is_some_and(|t| t.quarantined)
-    }
-
     fn thread(&mut self, user: &str, tid: &str) {
+        let before = self.position(user, tid);
         let Some((message_id, raw)) = newest_raw(self.state, user, tid) else {
             self.t.no_file += 1;
             // A conversation with no file cannot be re-judged, so
@@ -127,7 +138,7 @@ impl Sweep<'_> {
             // from `no_file`, which otherwise folds that together
             // with the ordinary case of a thread that was not
             // held in the first place.
-            if self.is_held(user, tid) {
+            if before.held {
                 self.t.held_but_unreadable += 1;
             }
             return;
@@ -186,7 +197,7 @@ impl Sweep<'_> {
             novelty,
             ..msg.facts(seen, reply_rotation, rel)
         };
-        let scan = match mailrs_fraud_lua::scan(&facts, self.policy) {
+        let scan = match self.scan(&facts) {
             Ok(scan) => scan,
             Err(error) => {
                 tracing::error!(%error, %user, %tid, "fraud rescan evaluation failed; leaving thread unchanged");
@@ -215,7 +226,7 @@ impl Sweep<'_> {
         // here and a score threshold there is what left 43 held
         // conversations carrying a verdict that said otherwise.
         if !mailrs_inbound::holds(&findings) {
-            self.not_held(user, tid, &raw, &msg, &findings, &scan.version);
+            self.not_held(before, (user, tid), (&raw, &msg), &findings, &scan.version);
             return;
         }
         // A person released this conversation: what was already there
@@ -234,6 +245,11 @@ impl Sweep<'_> {
             }
         }
         self.t.found += 1;
+        if let Some(after) = after_found(self.q.action, before) {
+            self.t
+                .from_stored
+                .record((before, after), (user, tid), &msg.host, &findings.rules());
+        }
         for r in findings.rules() {
             *self.t.by_reason.entry(r.to_string()).or_default() += 1;
         }
@@ -256,10 +272,9 @@ impl Sweep<'_> {
     /// or leave it.
     fn not_held(
         &mut self,
-        user: &str,
-        tid: &str,
-        raw: &[u8],
-        msg: &Reading,
+        before: Position,
+        (user, tid): (&str, &str),
+        (raw, msg): (&[u8], &Reading),
         findings: &mailrs_fraud::Findings,
         version: &str,
     ) {
@@ -286,16 +301,23 @@ impl Sweep<'_> {
         // path holds and — until the same day — did not mark
         // read. A release path resting on "there is only one
         // writer" has to name them.
-        let held_now = self.is_held(user, tid);
-        match disposition(false, junks_on_its_own(findings), held_now) {
+        match disposition(false, junks_on_its_own(findings), before.held) {
             Disposition::Release => {}
             Disposition::Junk => {
-                self.score_into_junk(user, tid, raw, msg, findings);
+                self.score_into_junk(before, (user, tid), raw, msg, findings);
                 return;
             }
             Disposition::Act | Disposition::Leave => return,
         }
         self.t.releasable += 1;
+        // back to the bucket it was held from
+        let after = Position {
+            held: false,
+            ..before
+        };
+        self.t
+            .from_stored
+            .record((before, after), (user, tid), &msg.host, &findings.rules());
         if self.t.release_samples.len() < 25 {
             self.t.release_samples.push(serde_json::json!({
                 "user": user,
@@ -331,8 +353,8 @@ impl Sweep<'_> {
 
     fn score_into_junk(
         &mut self,
-        user: &str,
-        tid: &str,
+        before: Position,
+        (user, tid): (&str, &str),
         raw: &[u8],
         msg: &Reading,
         findings: &mailrs_fraud::Findings,
@@ -344,6 +366,13 @@ impl Sweep<'_> {
             return;
         }
         self.t.scored_found += 1;
+        let after = Position {
+            held: false,
+            junk: true,
+        };
+        self.t
+            .from_stored
+            .record((before, after), (user, tid), &msg.host, &findings.rules());
         for r in findings.rules() {
             *self.t.scored_by_reason.entry(r.to_string()).or_default() += 1;
         }
@@ -363,56 +392,6 @@ impl Sweep<'_> {
                 Some(false) => self.t.scored_moved += 1,
                 None => {}
             }
-        }
-    }
-
-    /// Carry out the requested action on a held thread.
-    fn act(
-        &mut self,
-        user: &str,
-        tid: &str,
-        message_id: &str,
-        raw: &[u8],
-        findings: &mailrs_fraud::Findings,
-        rules_version: &str,
-    ) {
-        let state = self.state;
-        let t = &mut self.t;
-        match self.q.action {
-            Action::Junk => match move_to_junk(state, user, tid) {
-                Some(true) => t.already_junk += 1,
-                Some(false) => t.moved += 1,
-                None => {}
-            },
-            Action::Hold => {
-                let mut verdict = rescan_verdict(raw, findings);
-                verdict.rules_version = rules_version.to_string();
-                match holding::apply(
-                    state,
-                    user,
-                    tid,
-                    message_id,
-                    &verdict,
-                    crate::hold_facts::REJUDGE,
-                ) {
-                    Ok(changed) => t.held += u64::from(changed),
-                    Err(error) => {
-                        t.verdict_failed += 1;
-                        tracing::error!(%error, %user, %tid, "fraud hold incomplete");
-                    }
-                }
-            }
-            Action::Delete => match state.mailbox.delete_thread(user, tid) {
-                Ok((_, blobs)) => {
-                    for b in &blobs {
-                        crate::routes::message_ops::unlink_maildir_file(state, user, b);
-                    }
-                    t.deleted += 1;
-                }
-                Err(e) => {
-                    tracing::warn!(err = %e, %user, %tid, "fraud rescan: delete failed");
-                }
-            },
         }
     }
 }
