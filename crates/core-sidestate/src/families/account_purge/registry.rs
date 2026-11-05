@@ -189,6 +189,7 @@ pub const OWNED: &[Owned] = &[
     mail("L:v:{user}|*", Shape::Globs(|a| under("L:v:", a, "|"))),
     mail("L:r:{user}:*", Shape::Globs(|a| under("L:r:", a, ":"))),
     mail("release:facts:{user}:*", Shape::Globs(|a| under("release:facts:", a, ":"))),
+    mail("hold:facts:{user}:*", Shape::Globs(|a| under("hold:facts:", a, ":"))),
     mail("rejudge:released:{user}:*", Shape::Globs(|a| under("rejudge:released:", a, ":"))),
     mail("rejudge:recalled:{user}:*", Shape::Globs(|a| under("rejudge:recalled:", a, ":"))),
     mail("rejudge:unheld:{user}:*", Shape::Globs(|a| under("rejudge:unheld:", a, ":"))),

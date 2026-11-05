@@ -128,6 +128,32 @@ fn unread_follows_arrival_read_and_unread() {
     assert_marked(&st, "t", "unread", "0");
 }
 
+/// A held conversation keeps its unread mail: the badge does not count it
+/// and "mark all as read" does not take it, and a release counts it again.
+#[test]
+fn held_unread_is_out_of_the_badge_and_out_of_mark_all_seen() {
+    let st = store();
+    arrive(&st, U, "held", 100, false, "bob@y.com");
+    arrive(&st, U, "live", 200, false, "bob@y.com");
+    assert!(st.set_quarantined(U, "held", true).unwrap());
+    assert_eq!(
+        st.count_flag_non_junk(U, "unread").unwrap(),
+        1,
+        "the badge counted held mail"
+    );
+    assert_eq!(
+        st.count_flag_in_buckets(U, "unread", &["inbox"]).unwrap(),
+        1
+    );
+
+    assert_eq!(st.mark_all_seen(U).unwrap(), 1);
+    assert_marked(&st, "held", "unread", "1");
+    assert_marked(&st, "live", "unread", "0");
+
+    assert!(st.set_quarantined(U, "held", false).unwrap());
+    assert_eq!(st.count_flag_non_junk(U, "unread").unwrap(), 1);
+}
+
 #[test]
 fn trash_sets_and_restore_clears_both_markers() {
     let st = store();

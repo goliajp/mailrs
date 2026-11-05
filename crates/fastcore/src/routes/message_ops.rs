@@ -195,6 +195,7 @@ pub(crate) async fn deliver_message(
         &req.senders_csv,
         &req.subject,
         &req.latest_preview,
+        false,
     );
     crate::live_sync::upsert_contacts(&user, &req.senders_csv);
 

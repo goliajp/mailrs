@@ -175,7 +175,10 @@ export type MailboxChangedEvent = {
   user: string
 }
 
+// Backend: crates/intake/src/live_sync.rs — fn publish_new_mail
 export type NewMessageEvent = {
+  /** The conversation is held for review: refresh, but raise no notice. Absent from older servers. */
+  held?: boolean
   sender: string
   snippet: string
   subject: string

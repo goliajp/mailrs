@@ -174,12 +174,6 @@ export function useMailEvents(user: string, onOpen?: (threadId: string) => void)
               // isolation. Local `patchConversationCaches` kept until
               // the next Phase pass cleans it up.
               onNewMessage(queryClient, msg)
-              announce(
-                translate(langRef.current, 'live.newMail', {
-                  sender: msg.sender,
-                  subject: msg.subject || msg.snippet,
-                })
-              )
               queryClient.invalidateQueries({ queryKey: mailKeys.categories([]) }).catch(() => {})
               // also bust the thread the event belongs to, if it's the one
               // we're viewing
@@ -189,6 +183,16 @@ export function useMailEvents(user: string, onOpen?: (threadId: string) => void)
                   .catch(() => {})
               }
 
+              // Mail held for review refreshes what is shown, Review
+              // included, and is not announced: no sound, desktop notice
+              // or screen-reader line naming the scam's sender.
+              if (msg.held === true) return
+              announce(
+                translate(langRef.current, 'live.newMail', {
+                  sender: msg.sender,
+                  subject: msg.subject || msg.snippet,
+                })
+              )
               if (notificationsRef.current) {
                 if (soundRef.current) playNotificationSound()
                 showNewMailNotice(msg, (threadId) => onOpenRef.current?.(threadId))

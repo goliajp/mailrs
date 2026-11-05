@@ -52,6 +52,8 @@ vi.mock('@/lib/query-keys', () => ({
 }))
 const mockPlaySound = vi.fn()
 vi.mock('@/lib/notification-sound', () => ({ playNotificationSound: mockPlaySound }))
+const mockAnnounce = vi.fn()
+vi.mock('@/lib/announce', () => ({ announce: mockAnnounce }))
 vi.mock('@/store/ui', () => ({
   categoryFilterAtom: Symbol('category'),
   connectionStatusAtom: Symbol('connectionStatus'),
@@ -313,6 +315,40 @@ describe('useMailEvents — messages', () => {
     })
 
     expect(NotificationMock).toHaveBeenCalledWith('bob@example.com', expect.any(Object))
+  })
+
+  // Mail held for review: the lists and counts refresh (Review is a list
+  // too), and nothing announces it. A normal event right after still does.
+  it('refreshes for held mail but raises no sound, notice or announcement', async () => {
+    Object.defineProperty(document, 'hidden', { configurable: true, value: true })
+    const NotificationMock = vi.fn()
+    ;(NotificationMock as unknown as { permission: string }).permission = 'granted'
+    vi.stubGlobal('Notification', NotificationMock)
+    await renderMailEvents('alice@example.com')
+    mockInvalidateQueries.mockClear()
+    mockAnnounce.mockClear()
+    const event = (held: boolean) => ({
+      data: JSON.stringify({
+        held,
+        sender: 'Bank <alerts@outside.example>',
+        snippet: '',
+        subject: 'Your account is locked',
+        thread_id: 'p1',
+        type: 'NewMessage',
+        user: 'alice@example.com',
+      }),
+    })
+
+    act(() => mockWs!.onmessage?.(event(true)))
+    expect(mockInvalidateQueries).toHaveBeenCalled()
+    expect(mockPlaySound).not.toHaveBeenCalled()
+    expect(NotificationMock).not.toHaveBeenCalled()
+    expect(mockAnnounce).not.toHaveBeenCalled()
+
+    act(() => mockWs!.onmessage?.(event(false)))
+    expect(mockPlaySound).toHaveBeenCalledTimes(1)
+    expect(NotificationMock).toHaveBeenCalledTimes(1)
+    expect(mockAnnounce).toHaveBeenCalledTimes(1)
   })
 
   it('skips desktop notification when permission denied', async () => {
