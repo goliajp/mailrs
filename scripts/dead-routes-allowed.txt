@@ -97,3 +97,5 @@
 /api/admin/ownerless-threads/{thread_id}  # one irreversible delete at a time, by the super administrator with curl after the list is reviewed.
 /api/admin/rejudge/batches  # the super administrator reads what re-judging took back, with curl, to decide on a batch release.
 /api/admin/rejudge/batches/{observation}/release  # one batch put back by the super administrator with curl, after reading the list.
+/api/admin/rejudge/batches/{observation}/confirm  # a round waiting over the hold cap, held by the super administrator with curl after reading the list. No admin page has been asked for.
+/api/admin/rejudge/batches/{observation}/discard  # a round waiting over the hold cap, dropped by the super administrator with curl after reading the list. No admin page has been asked for.

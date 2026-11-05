@@ -21,6 +21,11 @@ pub const FROM: &str = "billing@mail.vendorbill.com";
 /// contact, so `bec-pay-to-a-stranger`), and with `program` a `.exe`
 /// attached (`executable-attachment`, which holds).
 pub fn letter(mid: &str, program: bool) -> Vec<u8> {
+    letter_from(FROM, USER, mid, program)
+}
+
+/// [`letter`] from `from` to `to`.
+pub fn letter_from(from: &str, to: &str, mid: &str, program: bool) -> Vec<u8> {
     let attachment = match program {
         true => {
             "--b\r\nContent-Type: application/octet-stream\r\n\
@@ -30,7 +35,7 @@ Content-Transfer-Encoding: base64\r\n\r\nTVqQAAMAAAAEAAAA\r\n"
         false => "",
     };
     format!(
-        "From: Billing <{FROM}>\r\nTo: {USER}\r\nSubject: Invoice {mid}\r\n\
+        "From: Billing <{from}>\r\nTo: {to}\r\nSubject: Invoice {mid}\r\n\
 Message-ID: <{mid}>\r\nDate: Mon, 2 Nov 2026 09:00:00 +0000\r\n\
 MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"b\"\r\n\r\n\
 --b\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n\
@@ -78,26 +83,47 @@ pub fn world(kevy: &str) -> World {
 
 /// Deliver `raw` as its own conversation `mid`, already read.
 pub fn add(w: &World, mid: &str, raw: &[u8]) {
+    add_as(w, USER, FROM, mid, raw);
+}
+
+/// Make `user` (at x.com) a reader with a maildir, as [`world`] does for
+/// [`USER`].
+pub fn reader(w: &World, user: &str) {
+    let local = user.split('@').next().unwrap();
+    for leaf in ["new", "cur", "tmp"] {
+        std::fs::create_dir_all(w.root.join("x.com").join(local).join(leaf)).unwrap();
+    }
+    w.state
+        .mailbox
+        .upsert_account(user, &format!(r#"{{"address":"{user}","active":true}}"#))
+        .unwrap();
+}
+
+/// Deliver `raw` from `from` to `user` as its own conversation `mid`,
+/// already read.
+pub fn add_as(w: &World, user: &str, from: &str, mid: &str, raw: &[u8]) {
     let store = &w.state.mailbox;
-    let md = mailrs_maildir::Maildir::open(w.root.join("x.com/bob"));
+    let domain = from.rsplit('@').next().unwrap().to_string();
+    let local = user.split('@').next().unwrap();
+    let md = mailrs_maildir::Maildir::open(w.root.join("x.com").join(local));
     let blob = md.deliver(raw).unwrap().0;
-    let uid = store.allocate_uid(USER, mid).unwrap();
+    let uid = store.allocate_uid(user, mid).unwrap();
     let at = 1_788_000_000i64;
     let wire = serde_json::json!({
         "id": 0, "mailbox_id": 0, "uid": uid, "blob_ref": blob,
-        "sender": format!("Billing <{FROM}>"), "recipients": USER,
+        "sender": format!("Billing <{from}>"), "recipients": user,
         "subject": format!("Invoice {mid}"), "date": at,
         "internal_date": at, "size": raw.len(), "flags": 1,
         "message_id": mid, "in_reply_to": "", "thread_id": mid, "modseq": 1
     });
     store
         .upsert_thread(
-            USER,
+            user,
             &ThreadRow {
                 account_id: String::new(),
                 thread_id: mid.into(),
                 subject: format!("Invoice {mid}"),
-                senders_csv: format!("Billing <{FROM}>"),
+                senders_csv: format!("Billing <{from}>"),
                 count: 1,
                 unread_count: 0,
                 latest_date: at,
@@ -119,7 +145,7 @@ pub fn add(w: &World, mid: &str, raw: &[u8]) {
         .unwrap();
     store
         .upsert_user_message(
-            USER,
+            user,
             mid,
             mid,
             at,
@@ -134,10 +160,10 @@ pub fn add(w: &World, mid: &str, raw: &[u8]) {
         .unwrap();
     let facts = LedgerFacts {
         message_id: mid.into(),
-        user: USER.into(),
-        from_addr: FROM.into(),
-        from_domain: "mail.vendorbill.com".into(),
-        from_reg: "vendorbill.com".into(),
+        user: user.into(),
+        from_addr: from.into(),
+        from_domain: domain.clone(),
+        from_reg: mailrs_reputation::registrable(&domain),
         arrived: chrono::Utc::now().timestamp(),
         ..LedgerFacts::default()
     };
@@ -222,6 +248,15 @@ pub fn held(state: &FastcoreState, mid: &str) -> bool {
     state
         .mailbox
         .get_thread_for_user(USER, mid)
+        .unwrap()
+        .unwrap()
+        .quarantined
+}
+
+pub fn held_by(state: &FastcoreState, user: &str, tid: &str) -> bool {
+    state
+        .mailbox
+        .get_thread_for_user(user, tid)
         .unwrap()
         .unwrap()
         .quarantined

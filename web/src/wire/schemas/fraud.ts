@@ -52,13 +52,13 @@ export const wireFraudVerdictResponseSchema = z.object({
 // Backend: crates/webapi/src/handlers/rejudge.rs — fn recalled, which reads
 // `mailrs_core_sidestate::families::recall_notices::Recalled`: conversations
 // the reader had that were taken back into Review when stored mail was
-// judged again, the last seven days, newest first, one per conversation.
+// judged again or reported, the last seven days, newest first, one entry
+// per round; a conversation is named only by the newest round that took it.
 export const wireRecalledSchema = z.object({
   at: z.number(),
   observation: z.string(),
   rules: z.array(z.string()),
-  subject: z.string(),
-  thread_id: z.string(),
+  thread_ids: z.array(z.string()),
 })
 
 export const wireRecalledResponseSchema = z.object({

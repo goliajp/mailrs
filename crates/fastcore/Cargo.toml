@@ -123,6 +123,8 @@ zip = { version = "9.0.4", default-features = false, features = ["deflate"] }
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
 tempfile = "3"
+# signs the Web Push key a re-judge test pushes with
+aws-lc-rs = "1"
 mailrs-receiver = { path = "../receiver" }
 mailrs-test-docker = { path = "../test-docker" }
 testcontainers = "0.27"

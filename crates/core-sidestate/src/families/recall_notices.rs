@@ -1,7 +1,8 @@
 //! What a reader is told when mail they already had is taken back into
-//! Review: one entry per conversation, newest first, kept a few hundred
-//! deep. The core that re-judged the mail writes; the web tier reads it to
-//! show a line where the conversation used to be.
+//! Review: one entry per round that took some of theirs (one observation's
+//! re-judge, or one report), naming every conversation it took, newest
+//! first, kept a few hundred deep. The core that took the mail writes; the
+//! web tier reads it to show a line where the conversations used to be.
 //!
 //! ```text
 //! mailrs:recalled:{user}   list   JSON entries, newest first
@@ -12,17 +13,17 @@ use serde::{Deserialize, Serialize};
 /// Entries kept per reader.
 pub const KEPT: i64 = 200;
 
-/// How long the line stays where the conversation was.
+/// How long the line stays where the conversations were.
 pub const SHOWN_SECS: i64 = 7 * 86_400;
 
-/// One conversation taken back, and why.
+/// The conversations one round took back, and why.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Recalled {
-    pub thread_id: String,
-    pub subject: String,
-    /// The rules that now hold it, by id.
+    pub thread_ids: Vec<String>,
+    /// The rules that now hold them, by id.
     pub rules: Vec<String>,
-    /// The observation that sent it back through the rules.
+    /// The observation (or report batch) that sent them back through the
+    /// rules.
     pub observation: String,
     /// Unix seconds.
     pub at: i64,
@@ -32,7 +33,7 @@ pub fn key(user: &str) -> String {
     format!("mailrs:recalled:{}", user.to_ascii_lowercase())
 }
 
-/// Tell `user` about one conversation taken back.
+/// Tell `user` about the conversations one round took back.
 ///
 /// # Errors
 /// The store could not be written.
@@ -47,8 +48,9 @@ pub fn push(conn: &mut kevy_client::Connection, user: &str, r: &Recalled) -> std
     Ok(())
 }
 
-/// The entries of the last [`SHOWN_SECS`] before `now`, newest first; one
-/// per conversation, the newest.
+/// The entries of the last [`SHOWN_SECS`] before `now`, newest first. A
+/// conversation is named only by the newest entry that took it, and an
+/// entry left naming none is dropped.
 ///
 /// # Errors
 /// The store could not be read.
@@ -63,7 +65,10 @@ pub fn recent(
         .iter()
         .filter_map(|r| serde_json::from_slice::<Recalled>(r).ok())
         .filter(|r| now - r.at <= SHOWN_SECS)
-        .filter(|r| seen.insert(r.thread_id.clone()))
+        .filter_map(|mut r| {
+            r.thread_ids.retain(|t| seen.insert(t.clone()));
+            (!r.thread_ids.is_empty()).then_some(r)
+        })
         .collect())
 }
 
@@ -71,12 +76,11 @@ pub fn recent(
 mod tests {
     use super::*;
 
-    fn entry(tid: &str, at: i64) -> Recalled {
+    fn entry(ids: &[&str], observation: &str, at: i64) -> Recalled {
         Recalled {
-            thread_id: tid.into(),
-            subject: "s".into(),
+            thread_ids: ids.iter().map(|s| s.to_string()).collect(),
             rules: vec!["executable-attachment".into()],
-            observation: "r1".into(),
+            observation: observation.into(),
             at,
         }
     }
@@ -85,19 +89,45 @@ mod tests {
     fn the_newest_are_kept_one_per_conversation_for_a_week() {
         let mut c = kevy_client::Connection::connect("mem://recall-notices").unwrap();
         let now = 2_000_000_000;
-        push(&mut c, "Bob@x.com", &entry("old", now - SHOWN_SECS - 1)).unwrap();
+        push(
+            &mut c,
+            "Bob@x.com",
+            &entry(&["old"], "r1", now - SHOWN_SECS - 1),
+        )
+        .unwrap();
         assert!(
             recent(&mut c, "bob@x.com", now).unwrap().is_empty(),
             "a week old"
         );
         for n in 0..KEPT + 5 {
-            push(&mut c, "bob@x.com", &entry(&format!("t{n}"), now)).unwrap();
+            push(&mut c, "bob@x.com", &entry(&[&format!("t{n}")], "r1", now)).unwrap();
         }
-        push(&mut c, "bob@x.com", &entry("t200", now)).unwrap();
+        push(&mut c, "bob@x.com", &entry(&["t200"], "r1", now)).unwrap();
         assert_eq!(c.llen(key("bob@x.com").as_bytes()).unwrap() as i64, KEPT);
         let shown = recent(&mut c, "bob@x.com", now).unwrap();
-        assert_eq!(shown[0].thread_id, "t200", "newest first");
-        assert_eq!(shown.iter().filter(|r| r.thread_id == "t200").count(), 1);
+        assert_eq!(shown[0].thread_ids, ["t200"], "newest first");
+        let named = |tid: &str| {
+            shown
+                .iter()
+                .filter(|r| r.thread_ids.iter().any(|t| t == tid))
+                .count()
+        };
+        assert_eq!(named("t200"), 1);
         assert_eq!(shown.len() as i64, KEPT - 1, "one repeat folded away");
+    }
+
+    #[test]
+    fn a_round_is_one_entry_and_a_newer_round_names_its_conversations() {
+        let mut c = kevy_client::Connection::connect("mem://recall-notices-rounds").unwrap();
+        let now = 2_000_000_000;
+        push(&mut c, "bob@x.com", &entry(&["a", "b", "c"], "r1", now)).unwrap();
+        push(&mut c, "bob@x.com", &entry(&["c"], "r2", now)).unwrap();
+        push(&mut c, "bob@x.com", &entry(&["c"], "r3", now)).unwrap();
+        let shown = recent(&mut c, "bob@x.com", now).unwrap();
+        assert_eq!(shown.len(), 2, "{shown:?}");
+        assert_eq!(shown[0].observation, "r3");
+        assert_eq!(shown[0].thread_ids, ["c"]);
+        assert_eq!(shown[1].observation, "r1");
+        assert_eq!(shown[1].thread_ids, ["a", "b"]);
     }
 }
