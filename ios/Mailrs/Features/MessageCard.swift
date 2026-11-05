@@ -193,16 +193,7 @@ struct MessageCard: View {
                     )
                     .padding(.top, 1)
                     HStack(spacing: 6) {
-                        // Middle truncation keeps both ends of one
-                        // address readable, which is the right trade on
-                        // one line. At the accessibility sizes one line
-                        // holds about six characters and the result was
-                        // "me…ple.com>" — so there, it wraps instead.
-                        Text("To: \(message.recipients)")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(RowLayout.recipientLines(typeSize))
-                            .truncationMode(.middle)
+                        RecipientLine(recipients: message.recipients, myAddress: session.myAddress)
                         AliasBadge(
                             alias: AliasMark.arrivedVia(
                                 recipients: message.recipients,
