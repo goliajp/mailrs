@@ -2,6 +2,8 @@
 // a file directly under src/bin/ would be built as a binary of its own
 #[path = "mailrs-fraud-check/judge.rs"]
 mod judge;
+#[path = "mailrs-fraud-check/placement.rs"]
+mod placement;
 #[path = "mailrs-fraud-check/tally.rs"]
 mod tally;
 #[path = "mailrs-fraud-check/threads.rs"]
@@ -144,6 +146,7 @@ fn compare(
     let mut baseline_shadow = shadow_counts(before.as_ref());
     let mut candidate_shadow = shadow_counts(Some(&after));
     let mut unheld = threads::Unheld::default();
+    let mut moves = placement::Moves::default();
     for (i, file) in files.iter().enumerate() {
         if i % 25 == 0 {
             std::thread::sleep(std::time::Duration::from_millis(50));
@@ -166,6 +169,11 @@ fn compare(
                 *counts.entry(r.to_string()).or_default() += 1;
             }
         }
+        let places = (
+            placement::place(&j.old, j.whitelisted),
+            placement::place(&j.new, j.whitelisted),
+        );
+        moves.record(places, &j.domain, &j.old, &j.new);
         let rel = file.strip_prefix(root).unwrap_or(file).to_string_lossy();
         let mut thread_held_now = None;
         if let Some(t) = &held_now {
@@ -181,6 +189,7 @@ fn compare(
             (&j.old, &j.old_shadow),
             (&j.new, &j.new_shadow),
             thread_held_now,
+            (places.0.as_str(), places.1.as_str()),
         )?;
     }
     if let Some(list) = &mut tally.list {
@@ -197,6 +206,7 @@ fn compare(
         "shadow_rules":after.shadow_rules(),"shadow_hits_by_rule":candidate_shadow,
         "baseline_shadow_rules":before.as_ref().map_or(&[][..],|r|r.shadow_rules()),"baseline_shadow_hits_by_rule":baseline_shadow,
         "samples":tally.samples});
+    moves.report(&mut report, c.whitelist_checked());
     // what a re-judge after activating would newly hold, given what is held now
     if held_now.is_some() {
         report["would_hold_in_unheld_threads"] = unheld.json();
@@ -209,7 +219,7 @@ fn compare(
     }
     Ok(())
 }
-const USAGE: &str = "usage: mailrs-fraud-check bundle | validate FILE | compare rust|builtin|BASELINE FILE|builtin MAILDIR MAX_MESSAGES [--list OUT.jsonl] [--held-threads HELD.tsv [--released-threads RELEASED.tsv]]";
+const USAGE: &str = "usage: mailrs-fraud-check bundle | validate FILE | compare rust|builtin|BASELINE FILE|builtin MAILDIR MAX_MESSAGES [--list OUT.jsonl] [--held-threads HELD.tsv [--released-threads RELEASED.tsv]] | summary REPORT.json";
 
 fn run() -> Result<(), String> {
     let args: Vec<_> = std::env::args().skip(1).collect();
@@ -228,6 +238,15 @@ fn run() -> Result<(), String> {
                 "{}",
                 serde_json::json!({"version":rules.version(),"rules":rules.rule_count(),"shadow":rules.shadow_rules()})
             );
+            Ok(())
+        }
+        [cmd, path] if cmd == "summary" => {
+            let report: serde_json::Value =
+                serde_json::from_slice(&fs::read(path).map_err(|e| format!("{path}: {e}"))?)
+                    .map_err(|e| format!("{path}: {e}"))?;
+            for line in placement::summary(&report) {
+                println!("{line}");
+            }
             Ok(())
         }
         [cmd, baseline, candidate, root, limit, flags @ ..] if cmd == "compare" => {
