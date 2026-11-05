@@ -221,6 +221,8 @@ export const zh: Record<Key, string> = {
   'images.heldNote': '垃圾邮件和待审的信不加载图片：加载图片会让发件人知道这个地址有人在看。',
   'images.hidden': '这封信的图片已隐藏。',
   'images.hiddenBySettings': '按你的设置，图片不显示',
+  'images.loading': '正在加载图片',
+  'images.missing': '部分图片无法加载',
   'images.show': '显示图片',
   'images.showAnyway': '仍然显示图片',
   'invite.accept': '接受',

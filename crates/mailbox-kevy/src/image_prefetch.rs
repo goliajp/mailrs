@@ -3,16 +3,18 @@
 use std::io;
 
 use crate::KevyMailboxStore;
-use crate::keys;
 
 fn member(user: &str, message_id: &str, url: &str) -> String {
     format!("{user}\t{message_id}\t{url}")
 }
 
 impl KevyMailboxStore {
-    /// Queue `urls`, found in `user`'s message `message_id`, for fetching.
+    /// Queue `urls`, found in `user`'s message `message_id`, for fetching,
+    /// in `set` ([`crate::keys::IMAGE_PREFETCH_PENDING`] or
+    /// [`crate::keys::IMAGE_PREFETCH_ASKED`]).
     pub fn queue_image_prefetch(
         &self,
+        set: &[u8],
         user: &str,
         message_id: &str,
         urls: &[String],
@@ -22,18 +24,17 @@ impl KevyMailboxStore {
         }
         let members: Vec<String> = urls.iter().map(|u| member(user, message_id, u)).collect();
         let refs: Vec<&[u8]> = members.iter().map(|m| m.as_bytes()).collect();
-        self.store().sadd(keys::IMAGE_PREFETCH_PENDING, &refs)?;
+        self.store().sadd(set, &refs)?;
         Ok(())
     }
 
     /// Up to `limit` queued `(user, message id, url)`, left in the queue.
     pub fn pending_image_prefetches(
         &self,
+        set: &[u8],
         limit: usize,
     ) -> io::Result<Vec<(String, String, String)>> {
-        let raw = self
-            .store()
-            .srandmember(keys::IMAGE_PREFETCH_PENDING, limit)?;
+        let raw = self.store().srandmember(set, limit)?;
         Ok(raw
             .into_iter()
             .filter_map(|m| {
@@ -49,10 +50,15 @@ impl KevyMailboxStore {
     }
 
     /// Take one fetched or given-up image off the queue.
-    pub fn done_image_prefetch(&self, user: &str, message_id: &str, url: &str) -> io::Result<()> {
+    pub fn done_image_prefetch(
+        &self,
+        set: &[u8],
+        user: &str,
+        message_id: &str,
+        url: &str,
+    ) -> io::Result<()> {
         let m = member(user, message_id, url);
-        self.store()
-            .srem(keys::IMAGE_PREFETCH_PENDING, &[m.as_bytes()])?;
+        self.store().srem(set, &[m.as_bytes()])?;
         Ok(())
     }
 }
@@ -64,13 +70,20 @@ mod tests {
     use kevy_embedded::{Config, Store};
 
     use crate::KevyMailboxStore;
+    use crate::keys::{IMAGE_PREFETCH_ASKED as ASKED, IMAGE_PREFETCH_PENDING as PENDING};
 
     #[test]
     fn queued_images_come_back_once_and_leave() {
         let s = KevyMailboxStore::new(Arc::new(Store::open(Config::default()).unwrap()));
-        s.queue_image_prefetch("a@x.jp", "<m1@x>", &["https://e.example/a.png".into()])
-            .unwrap();
-        let got = s.pending_image_prefetches(10).unwrap();
+        s.queue_image_prefetch(
+            PENDING,
+            "a@x.jp",
+            "<m1@x>",
+            &["https://e.example/a.png".into()],
+        )
+        .unwrap();
+        assert!(s.pending_image_prefetches(ASKED, 10).unwrap().is_empty());
+        let got = s.pending_image_prefetches(PENDING, 10).unwrap();
         assert_eq!(
             got,
             vec![(
@@ -79,8 +92,8 @@ mod tests {
                 "https://e.example/a.png".into()
             )]
         );
-        s.done_image_prefetch("a@x.jp", "<m1@x>", "https://e.example/a.png")
+        s.done_image_prefetch(PENDING, "a@x.jp", "<m1@x>", "https://e.example/a.png")
             .unwrap();
-        assert!(s.pending_image_prefetches(10).unwrap().is_empty());
+        assert!(s.pending_image_prefetches(PENDING, 10).unwrap().is_empty());
     }
 }
