@@ -77,7 +77,8 @@ fn main() {
         let mut pending: Vec<(String, String)> = Vec::new();
         for tid in &entries {
             let tid = tid.as_str();
-            let hkey = keys::thread(tid);
+            // this user's own list; the shared hash names everyone's senders
+            let hkey = keys::thread_user(user, tid);
             let raw = match store.hget(hkey.as_bytes(), b"senders_csv") {
                 Ok(Some(bytes)) => String::from_utf8_lossy(&bytes).to_string(),
                 _ => continue,

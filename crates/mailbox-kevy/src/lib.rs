@@ -93,6 +93,9 @@ mod messages;
 mod move_category;
 mod mutations;
 mod ownerless;
+mod participants;
+#[cfg(test)]
+mod participants_tests;
 mod rethread;
 mod sections;
 mod shared;

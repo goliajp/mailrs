@@ -11,6 +11,7 @@
 mod archive;
 mod bodies;
 mod checks;
+mod expunged_sender;
 mod folders;
 mod forged_append;
 mod harness;
@@ -235,12 +236,58 @@ async fn both_cores_hold_the_same_mail_conversations() {
     for diff in sent_append::after_submission(backends.pg.clone(), backends.home(1)).await {
         report.push(format!("pg-core: {diff}"));
     }
+    report.extend(expunged_alike(&backends).await);
     assert!(
         report.is_empty(),
         "{} difference(s) from the script:\n\n{}",
         report.len(),
         report.join("\n\n")
     );
+}
+
+/// The expunge scenario on each core, reading the participant list the
+/// conversation row shows.
+async fn expunged_alike(backends: &harness::Backends) -> Vec<String> {
+    let mut report = Vec::new();
+    let state = backends.fastcore_state.clone();
+    let listed = |tid: String| {
+        let state = state.clone();
+        async move {
+            state
+                .mailbox
+                .get_thread_for_user(harness::USER, &tid)
+                .unwrap()
+                .map(|r| r.senders_csv)
+                .unwrap_or_default()
+        }
+    };
+    for diff in expunged_sender::expunged_sender(backends.fastcore.clone(), listed).await {
+        report.push(format!("fastcore: {diff}"));
+    }
+    let pg_store = backends.pg.mailbox.clone();
+    let listed = |tid: String| {
+        let store = pg_store.clone();
+        async move {
+            let ids = [tid];
+            let q = mailrs_mailbox::pg::ThreadQuery {
+                archived: None,
+                trashed: None,
+                thread_ids: Some(&ids),
+                ..mailrs_mailbox::pg::ThreadQuery::all(harness::USER)
+            };
+            store
+                .thread_rows(&q)
+                .await
+                .unwrap()
+                .first()
+                .map(|r| r.participants.clone())
+                .unwrap_or_default()
+        }
+    };
+    for diff in expunged_sender::expunged_sender(backends.pg.clone(), listed).await {
+        report.push(format!("pg-core: {diff}"));
+    }
+    report
 }
 
 /// The archive script on each core, archiving and reading back the archive
