@@ -4,7 +4,10 @@
 //! then cannot be taken; a purge before the retention period finds nothing
 //! due; after it, a dry run counts what each store holds and the purge
 //! removes it, the same in the shared store and on disk, and a second pass
-//! has nothing to do.
+//! has nothing to do. Mail dave had released for delivery stays queued
+//! throughout; his scheduled send is withheld at each delete, back after
+//! the restore and gone with the purge. The purge takes the fingerprint of
+//! the message dave alone read, and leaves the one alice still reads.
 
 use mailrs_core_api::client::Client;
 use mailrs_core_api::method::admin::{AddAccountRequest, RestoreAccountRequest};
@@ -12,14 +15,10 @@ use mailrs_core_api::method::conversation::ListConversationsRequest;
 use mailrs_core_api::types::ConversationFilter;
 use mailrs_core_sidestate::families::account_purge::pending;
 
+use super::ALICE;
 use super::harness::{Cores, Diffs, FASTCORE_KEVY, PG_CORE_KEVY};
 use super::intake::{Spools, envelope};
-
-const DAVE: &str = "dave@example.test";
-
-fn store(url: &str) -> kevy_client::Connection {
-    kevy_client::Connection::connect(url).expect("side state")
-}
+use super::purge_fixture::*;
 
 fn keys_naming(c: &mut kevy_client::Connection, address: &str) -> Vec<String> {
     c.keys(format!("*{address}*").as_bytes())
@@ -102,12 +101,16 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
         c.pg_core.add_account(&add).await,
         &[],
     );
-    let mut env = envelope(None);
-    env.forward_paths = vec![DAVE.into()];
-    let mail = b"From: Carol <carol@outside.example>\r\nTo: dave@example.test\r\n\
-        Subject: before he left\r\nMessage-ID: <dave1@outside.example>\r\n\
-        Date: Tue, 5 Aug 2025 09:00:00 +0900\r\n\r\nhello\r\n";
-    Spools::new(c).arrive(c, &env, mail).await;
+    // dave1 reaches dave alone, dave2 dave and alice: dave is the last
+    // reader of the first, and not of the second
+    for (mid, to) in [(DAVE_ONLY, vec![DAVE]), (SHARED, vec![DAVE, ALICE])] {
+        let mut env = envelope(None);
+        env.forward_paths = to.iter().map(|a| a.to_string()).collect();
+        Spools::new(c).arrive(c, &env, &mail(mid)).await;
+    }
+    assert_eq!(fingerprints(c, DAVE_ONLY).await, (true, true));
+    assert_eq!(fingerprints(c, SHARED).await, (true, true));
+    let held = queue();
     for url in [FASTCORE_KEVY, PG_CORE_KEVY] {
         let mut s = store(url);
         s.set(mailrs_core_sidestate::sieve_key(DAVE).as_bytes(), b"keep;")
@@ -119,6 +122,16 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
         .expect("draft");
     }
     delete_and_restore(c, d).await;
+    // the restore gave the scheduled send back its time
+    for q in &held {
+        assert_eq!(
+            job(q.url, q.scheduled),
+            (Some("pending".into()), Some(LATER as f64), None),
+            "{}: the restore did not put the scheduled send back",
+            q.url
+        );
+        released_untouched(q);
+    }
 
     d.both(
         "remove_account dave",
@@ -126,6 +139,16 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
         c.pg_core.remove_account(DAVE).await,
         &[],
     );
+    // the delete stops what was not yet released, and only that
+    for q in &held {
+        assert_eq!(
+            job(q.url, q.scheduled),
+            (Some("withheld".into()), None, None),
+            "{}: a scheduled send of a deleted account can still go",
+            q.url
+        );
+        released_untouched(q);
+    }
     let roots = [
         (FASTCORE_KEVY, c.fastcore_state.maildir_root.clone()),
         (PG_CORE_KEVY, c.pg_core_state.maildir_root.clone()),
@@ -233,6 +256,25 @@ pub(super) async fn run(c: &Cores, d: &mut Diffs) {
             .await
             .expect("count");
     assert_eq!(mailboxes, 0, "pg-core: dave's mailboxes remain");
+    assert_eq!(
+        fingerprints(c, DAVE_ONLY).await,
+        (false, false),
+        "dave was its last reader"
+    );
+    assert_eq!(
+        fingerprints(c, SHARED).await,
+        (true, true),
+        "alice still reads it"
+    );
+    for q in &held {
+        assert_eq!(
+            job(q.url, q.scheduled),
+            (None, None, None),
+            "{}: the withheld send outlived the purge",
+            q.url
+        );
+        released_untouched(q);
+    }
 
     let quiet = d.both(
         "account_purge again",

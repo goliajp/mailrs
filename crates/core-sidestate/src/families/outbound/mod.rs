@@ -15,11 +15,13 @@ mod failed;
 mod keys;
 pub mod pause;
 mod terminal;
+mod withheld;
 
 pub use cancel::*;
 pub use failed::*;
 pub use keys::*;
 pub use terminal::*;
+pub use withheld::*;
 
 fn now_secs() -> i64 {
     std::time::SystemTime::now()

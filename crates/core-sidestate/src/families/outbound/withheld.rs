@@ -1,0 +1,222 @@
+//! What an account's delete does to its queued mail.
+//!
+//! Mail already released for delivery (on `pending-idx`, in flight, or on
+//! [`RETRY_IDX`] between attempts) was sent by the person, and keeps being
+//! delivered. Mail not yet released waits on [`SCHEDULED_IDX`]: a send
+//! scheduled for later, the undo window of an immediate send, a JMAP
+//! submission held with `HOLDFOR` / `HOLDUNTIL`. That is withheld at the
+//! delete: taken out of the index and marked [`WITHHELD`], which neither
+//! the sender's claim nor its recovery picks up, and listed under the
+//! account ([`withheld_key`]) with the time it waited for. A restore puts
+//! it back; the purge deletes it with the account.
+//!
+//! The sender's due-sweep, a cancel and the delete can reach one job at the
+//! same moment: whoever takes it out of [`SCHEDULED_IDX`] has it.
+
+use std::io;
+
+use super::*;
+
+/// The state of a job withheld at its account's delete.
+pub const WITHHELD: &[u8] = b"withheld";
+
+/// Whose a job is: the account it was sent from when that is not the
+/// envelope sender (a mask, a send-as address), the sender otherwise.
+fn sent_from(conn: &mut kevy_client::Connection, id: i64, address: &str) -> io::Result<bool> {
+    let Some(raw) = conn.hget(job_key(id).as_bytes(), b"blob")? else {
+        return Ok(false);
+    };
+    let Ok(v) = serde_json::from_slice::<serde_json::Value>(&raw) else {
+        return Ok(false);
+    };
+    let owner = v
+        .get("account")
+        .and_then(|a| a.as_str())
+        .or_else(|| v.get("sender").and_then(|s| s.as_str()));
+    Ok(owner.is_some_and(|o| o.eq_ignore_ascii_case(address)))
+}
+
+/// Withhold `address`'s jobs not yet released for delivery; how many.
+pub fn withhold(conn: &mut kevy_client::Connection, address: &str) -> io::Result<usize> {
+    let list = withheld_key(address);
+    let mut n = 0;
+    for m in conn.zrange(SCHEDULED_IDX, 0, -1)? {
+        let Some(id) = std::str::from_utf8(&m).ok().and_then(|s| s.parse().ok()) else {
+            continue;
+        };
+        if !sent_from(conn, id, address)? {
+            continue;
+        }
+        let Some(at) = conn.zscore(SCHEDULED_IDX, &m)? else {
+            continue;
+        };
+        // listed and marked before it leaves the index, so a job is never
+        // pending in no index, which recovery would put on the queue
+        let at = (at as i64).to_string();
+        conn.hset(list.as_bytes(), &[(m.as_slice(), at.as_bytes())])?;
+        let job = job_key(id);
+        conn.hset(job.as_bytes(), &[(b"state" as &[u8], WITHHELD)])?;
+        if conn.zrem(SCHEDULED_IDX, &[m.as_slice()])? == 0 {
+            // released or cancelled meanwhile: as it was
+            conn.hdel(list.as_bytes(), &[m.as_slice()])?;
+            if conn.exists(&[job.as_bytes()])? == 1 {
+                conn.hset(job.as_bytes(), &[(b"state" as &[u8], b"pending" as &[u8])])?;
+            }
+            continue;
+        }
+        n += 1;
+    }
+    Ok(n)
+}
+
+/// Put `address`'s withheld jobs back where they waited, each with its own
+/// send time: one whose time has passed goes at the next due-sweep. How
+/// many.
+pub fn release(conn: &mut kevy_client::Connection, address: &str, now: i64) -> io::Result<usize> {
+    let list = withheld_key(address);
+    let flat = conn.hgetall(list.as_bytes())?;
+    let now = now.to_string();
+    let mut n = 0;
+    for pair in flat.chunks(2) {
+        let [m, at] = pair else { continue };
+        let job = job_key(String::from_utf8_lossy(m));
+        if conn.hget(job.as_bytes(), b"state")?.as_deref() == Some(WITHHELD) {
+            // pending first, with a fresh time so recovery waits for the
+            // index entry that follows
+            conn.hset(
+                job.as_bytes(),
+                &[
+                    (b"state" as &[u8], b"pending" as &[u8]),
+                    (b"updated_at", now.as_bytes()),
+                ],
+            )?;
+            let score = String::from_utf8_lossy(at).parse::<f64>().unwrap_or(0.0);
+            conn.zadd(SCHEDULED_IDX, &[(score, m.as_slice())])?;
+            n += 1;
+        }
+        conn.hdel(list.as_bytes(), &[m.as_slice()])?;
+    }
+    Ok(n)
+}
+
+/// Count `address`'s withheld jobs, or delete them with their list.
+pub fn purge_withheld(
+    conn: &mut kevy_client::Connection,
+    address: &str,
+    dry_run: bool,
+) -> io::Result<u64> {
+    let list = withheld_key(address);
+    let ids = conn.hkeys(list.as_bytes())?;
+    if dry_run {
+        return Ok(ids.len() as u64);
+    }
+    for m in &ids {
+        let id = String::from_utf8_lossy(m);
+        let job = job_key(&*id);
+        if conn.hget(job.as_bytes(), b"state")?.as_deref() == Some(WITHHELD) {
+            let legacy = legacy_row_key(&*id);
+            conn.del(&[job.as_bytes(), legacy.as_bytes()])?;
+        }
+    }
+    conn.del(&[list.as_bytes()])?;
+    Ok(ids.len() as u64)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const DAVE: &str = "dave@x.test";
+
+    /// A job as the enqueue writes it (its pipeline is not in the
+    /// in-process store): scheduled for `at`, or released when `None`.
+    fn job_as(
+        c: &mut kevy_client::Connection,
+        sender: &str,
+        account: Option<&str>,
+        at: Option<i64>,
+    ) -> i64 {
+        let id = c.incr(COUNTER).unwrap();
+        let mut blob = serde_json::json!({ "id": id, "sender": sender });
+        if let Some(a) = account {
+            blob["account"] = a.into();
+        }
+        let blob = blob.to_string();
+        c.hset(
+            job_key(id).as_bytes(),
+            &[
+                (b"state" as &[u8], b"pending" as &[u8]),
+                (b"blob", blob.as_bytes()),
+            ],
+        )
+        .unwrap();
+        let m = id.to_string();
+        match at {
+            Some(at) => {
+                c.zadd(SCHEDULED_IDX, &[(at as f64, m.as_bytes())]).unwrap();
+            }
+            None => {
+                c.lpush(PENDING_IDX, &[m.as_bytes()]).unwrap();
+            }
+        }
+        id
+    }
+
+    fn job(c: &mut kevy_client::Connection, sender: &str, at: Option<i64>) -> i64 {
+        job_as(c, sender, None, at)
+    }
+
+    fn state(c: &mut kevy_client::Connection, id: i64) -> Option<Vec<u8>> {
+        c.hget(job_key(id).as_bytes(), b"state").unwrap()
+    }
+
+    fn scheduled(c: &mut kevy_client::Connection, id: i64) -> Option<f64> {
+        c.zscore(SCHEDULED_IDX, id.to_string().as_bytes()).unwrap()
+    }
+
+    #[test]
+    fn only_what_is_not_yet_released_is_withheld_and_a_restore_gives_it_back() {
+        let mut c = kevy_client::Connection::connect("mem://outbound-withheld").unwrap();
+        let later = job(&mut c, DAVE, Some(5_000));
+        let now = job(&mut c, DAVE, None);
+        let others = job(&mut c, "erin@x.test", Some(5_000));
+        let masked = job_as(&mut c, "mask-1@x.test", Some(DAVE), Some(6_000));
+        assert_eq!(withhold(&mut c, DAVE).unwrap(), 2);
+        for id in [later, masked] {
+            assert_eq!(state(&mut c, id).as_deref(), Some(WITHHELD));
+            assert_eq!(scheduled(&mut c, id), None);
+        }
+        assert_eq!(state(&mut c, now).as_deref(), Some(b"pending" as &[u8]));
+        assert_eq!(scheduled(&mut c, others), Some(5_000.0));
+        assert_eq!(purge_withheld(&mut c, DAVE, true).unwrap(), 2);
+
+        assert_eq!(release(&mut c, DAVE, 10).unwrap(), 2);
+        assert_eq!(scheduled(&mut c, later), Some(5_000.0));
+        assert_eq!(scheduled(&mut c, masked), Some(6_000.0));
+        assert_eq!(state(&mut c, later).as_deref(), Some(b"pending" as &[u8]));
+        assert_eq!(c.hlen(withheld_key(DAVE).as_bytes()).unwrap(), 0);
+    }
+
+    #[test]
+    fn a_purge_deletes_the_withheld_and_a_restore_leaves_one_that_moved_on() {
+        let mut c = kevy_client::Connection::connect("mem://outbound-withheld-purge").unwrap();
+        let a = job(&mut c, DAVE, Some(5_000));
+        let b = job(&mut c, DAVE, Some(5_000));
+        assert_eq!(withhold(&mut c, DAVE).unwrap(), 2);
+        // b was claimed by a sender regardless: it is not put back
+        c.hset(
+            job_key(b).as_bytes(),
+            &[(b"state" as &[u8], b"inflight" as &[u8])],
+        )
+        .unwrap();
+        assert_eq!(release(&mut c, DAVE, 10).unwrap(), 1);
+        assert_eq!(scheduled(&mut c, b), None);
+        assert_eq!(scheduled(&mut c, a), Some(5_000.0));
+
+        assert_eq!(withhold(&mut c, DAVE).unwrap(), 1);
+        assert_eq!(purge_withheld(&mut c, DAVE, false).unwrap(), 1);
+        assert_eq!(state(&mut c, a), None);
+        assert_eq!(state(&mut c, b).as_deref(), Some(b"inflight" as &[u8]));
+        assert_eq!(c.exists(&[withheld_key(DAVE).as_bytes()]).unwrap(), 0);
+    }
+}
