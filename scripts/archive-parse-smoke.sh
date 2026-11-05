@@ -5,13 +5,17 @@
 # Only a release binary shows this: release builds abort on panic, tests
 # unwind. Two readers of attachments are run on the same set of messages:
 #
-#   1. mailrs-fraud-check over a maildir. It calls the function the
-#      receiver calls at SMTP time (mailrs_inbound::body::attachments_inside).
+#   1. mailrs-fraud-check over a maildir. It reads attachments through
+#      the parse worker, as the receiver does at SMTP time
+#      (mailrs_parse_worker::attachments_inside).
 #   2. mailrs-fastcore with a fraud rule file, so the backfill judges every
 #      conversation at start (fraud_rescan, the reading rejudge and the
 #      maintenance sweeps use). It is restarted as a supervisor would, up
 #      to five runs; a run that dies must end in the backfill's skip list
 #      and in /v1/healthz.
+#
+# Both read through mailrs-parse-worker, found next to their binaries; a
+# worker that dies on an archive is counted in healthz `parsing`.
 #
 # The archives are synthesized headers: truncations of a valid RAR 4 and
 # RAR 5 at every byte, header encryption, declared sizes past the end,
@@ -40,6 +44,7 @@ trap cleanup EXIT
 if [[ "${SKIP_BUILD:-}" != 1 ]]; then
     cargo build --release -p mailrs-fastcore --bin mailrs-fastcore 2>&1 | tail -3
     cargo build --release -p mailrs-fraud-lua --bin mailrs-fraud-check 2>&1 | tail -3
+    cargo build --release -p mailrs-parse-worker --bin mailrs-parse-worker 2>&1 | tail -3
 fi
 
 MAILDIR="$WORK/maildir"
@@ -161,6 +166,7 @@ code=0
 checked=$(python3 -I -c 'import json,sys;print(json.load(open(sys.argv[1]))["checked"])' "$WORK/check.json" 2>/dev/null || echo none)
 echo "fraud-check: exit $code, checked $checked of $COUNT"
 check "fraud-check read every message and exited 0" '[[ $code -eq 0 && "$checked" == "$COUNT" ]]'
+check "fraud-check read through the parse worker" '! grep -q "parsing in process" "$WORK/check.err"'
 
 SECRET=$(openssl rand -hex 16)
 # the secret stays out of every argv: the header is read from a file
@@ -230,6 +236,7 @@ delivered=$(count_delivered)
 echo "delivered: $delivered of $COUNT; deaths: $deaths"
 check "every message was delivered" '[[ "$delivered" == "$COUNT" ]]'
 check "fastcore is up" '[[ -n "${SVR_PID:-}" ]]'
+check "fastcore reads through the parse worker" '[[ "$health" == *"\"parsing\":{\"worker\":true"* ]]'
 check "the backfill judged every conversation" 'grep -q "\"complete\":true" "$progress" && grep -q "\"total\":$COUNT" "$progress"'
 if (( deaths == 0 )); then
     check "no run died" 'true'
