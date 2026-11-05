@@ -9,7 +9,8 @@ mod common;
 use std::sync::Arc;
 use std::time::Duration;
 
-use mailrs_core_api::method::ops::{OpsAuth, PATH_OPS_RELAY};
+use mailrs_core_api::method::ops::PATH_OPS_RELAY;
+use mailrs_core_api::method::ops_alert::OpsConfig;
 use mailrs_ops::app::App;
 use mailrs_ops::clock::Clock;
 use mailrs_ops::config::Config;
@@ -38,8 +39,10 @@ async fn fetch_reports_pass_through_the_core_and_only_fetch_can_sign_them() {
     let maildir = tempfile::tempdir().unwrap();
     let core_router = mailrs_core_api::server::base_router_with_ops(
         core(maildir.path()),
-        OpsAuth::Open,
-        Some(format!("{daemon_url}{REPORTS_PATH}")),
+        OpsConfig {
+            relay_to: Some(format!("{daemon_url}{REPORTS_PATH}")),
+            ..OpsConfig::open()
+        },
     );
     tokio::spawn(async move { axum::serve(core_l, core_router).await });
 

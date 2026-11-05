@@ -90,7 +90,7 @@ pub fn write_fresh_pending_once(
     if conn.exists(&[key.as_bytes()])? > 0 {
         return Ok(None);
     }
-    write_pending_marked(conn, job, None, Some(&key), now).map(Some)
+    write_pending_marked(conn, job, None, Some(&key), None, now).map(Some)
 }
 
 /// The kind a security alert's job carries. The sender neither counts
@@ -108,13 +108,35 @@ pub fn write_security_alert_pending(
     write_pending(conn, job, Some(SECURITY_ALERT_KIND), now)
 }
 
+/// The job field naming the ops daemon's alert a job carries; the sender
+/// reports the id back in its heartbeat once the job is delivered.
+pub const OPS_ALERT_ID: &str = "ops_alert_id";
+
+/// An ops daemon alert: a system alert like the security ones (no pause,
+/// no outbound scan), carrying the daemon's id for the delivered marker.
+pub fn write_ops_alert_pending(
+    conn: &mut kevy_client::Connection,
+    job: &FreshPending<'_>,
+    alert_id: &str,
+    now: i64,
+) -> std::io::Result<i64> {
+    write_pending_marked(
+        conn,
+        job,
+        Some(SECURITY_ALERT_KIND),
+        None,
+        Some(alert_id),
+        now,
+    )
+}
+
 fn write_pending(
     conn: &mut kevy_client::Connection,
     job: &FreshPending<'_>,
     kind: Option<&str>,
     now: i64,
 ) -> std::io::Result<i64> {
-    write_pending_marked(conn, job, kind, None, now)
+    write_pending_marked(conn, job, kind, None, None, now)
 }
 
 fn write_pending_marked(
@@ -122,6 +144,7 @@ fn write_pending_marked(
     job: &FreshPending<'_>,
     kind: Option<&str>,
     once_key: Option<&str>,
+    ops_alert_id: Option<&str>,
     now: i64,
 ) -> std::io::Result<i64> {
     let FreshPending {
@@ -149,7 +172,13 @@ fn write_pending_marked(
         updated_at: now,
         send_id: send_id.map(String::from),
     };
-    let blob = row_blob(&row, kind, account);
+    let mut blob = row_blob(&row, kind, account);
+    if let Some(alert) = ops_alert_id {
+        let mut v: serde_json::Value =
+            serde_json::from_str(&blob).map_err(std::io::Error::other)?;
+        v[OPS_ALERT_ID] = alert.into();
+        blob = v.to_string();
+    }
     let job_k = job_key(id);
     let id_str = id.to_string();
     let now_str = now.to_string();

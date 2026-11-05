@@ -32,6 +32,7 @@ pub mod local_forward;
 pub mod masked_email;
 pub mod mock;
 pub mod notify;
+pub mod ops_alerts;
 pub mod outbound;
 pub mod owner_notices;
 pub mod password_clear;

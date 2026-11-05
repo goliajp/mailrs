@@ -44,7 +44,7 @@ pub(super) async fn report_delivered(
         record_state(&cfg, send_id, sender, state);
     } else {
         tracing::info!(%id, %recipient, "example.com: reported delivered, not sent");
-        report_send_outcome(&cfg, send_id, sender, recipient, &Outcome::Delivered, 1);
+        report_send_outcome(&cfg, envelope, sender, recipient, &Outcome::Delivered, 1);
     }
     if let Err(e) = drop_blob(cfg, id.clone()).await {
         tracing::error!(%id, err = %e, "drop_blob after mocked delivery failed");

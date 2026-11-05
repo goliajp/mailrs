@@ -23,6 +23,8 @@ pub const PROCESSES: &[&str] = &[
     "sender",
     "fetch",
     "backup",
+    // the daemon itself, for the alerts it hands the core
+    "ops",
     "preflight",
     "drill",
 ];
@@ -119,6 +121,10 @@ pub struct SenderBeat {
     pub oldest_pending_age_secs: Option<u64>,
     /// Jobs finished since start, by how they ended.
     pub outcomes: BTreeMap<String, u64>,
+    /// Ids of the ops daemon's alerts this sender delivered, the latest
+    /// last; the daemon counts an alert delivered only when it is here.
+    #[serde(default)]
+    pub ops_alerts_delivered: Vec<String>,
 }
 
 /// The image fetcher's counters since start.
@@ -168,6 +174,7 @@ mod tests {
                 pending: Some(2),
                 oldest_pending_age_secs: Some(30),
                 outcomes: BTreeMap::from([("delivered".into(), 4)]),
+                ops_alerts_delivered: vec!["1-1".into()],
             })),
         };
         let json = serde_json::to_string(&r).unwrap();

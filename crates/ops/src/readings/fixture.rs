@@ -108,6 +108,7 @@ pub fn healthy(now: i64) -> Snapshot {
         pending: Some(0),
         oldest_pending_age_secs: None,
         outcomes: BTreeMap::new(),
+        ops_alerts_delivered: vec![],
     });
     let fetch = Detail::Fetch(FetchBeat {
         fetched: 1,

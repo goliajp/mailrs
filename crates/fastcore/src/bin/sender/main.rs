@@ -181,7 +181,7 @@ async fn process_one(cfg: Cfg, id: String) {
     // once, before the queue handling, so every arm is covered by construction
     report_send_outcome(
         &cfg,
-        envelope.get("send_id").and_then(|v| v.as_str()),
+        &envelope,
         &sender,
         &recipient,
         &outcome,

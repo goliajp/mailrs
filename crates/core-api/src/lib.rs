@@ -118,6 +118,8 @@ pub const SECRET_ENVS: &[&str] = &[
     "MAILRS_OIDC_PORTAL_CLIENT_SECRET",
     "MAILRS_OPS_ADMIN_SECRET",
     // not a secret: its hash, and blank is no setting at all
+    "MAILRS_OPS_ALERT_KEY_SHA256",
+    // not a secret: its hash, and blank is no setting at all
     "MAILRS_OPS_ADMIN_SECRET_SHA256",
     "MAILRS_OPS_PUSH_TOKEN",
     "MAILRS_OPS_RELAY_PASSWORD",

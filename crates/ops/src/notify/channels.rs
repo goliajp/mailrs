@@ -11,9 +11,21 @@ const TIMEOUT: Duration = Duration::from_secs(10);
 
 #[derive(Debug, Clone)]
 pub enum Channel {
-    Webhook { url: String, secret: Option<String> },
-    Push { url: String, token: Option<String> },
+    Webhook {
+        url: String,
+        secret: Option<String>,
+    },
+    Push {
+        url: String,
+        token: Option<String>,
+    },
     Relay(RelayConfig),
+    /// mailrs's own path: the core's `/v1/ops/alerts`, as the daemon's
+    /// derived key.
+    Own {
+        url: String,
+        key: String,
+    },
 }
 
 impl Channel {
@@ -22,7 +34,12 @@ impl Channel {
             Channel::Webhook { .. } => "webhook",
             Channel::Push { .. } => "push",
             Channel::Relay(_) => "relay",
+            Channel::Own { .. } => "own",
         }
+    }
+
+    pub fn is_own(&self) -> bool {
+        matches!(self, Channel::Own { .. })
     }
 
     pub async fn send(
@@ -35,6 +52,7 @@ impl Channel {
             Channel::Webhook { url, secret } => webhook(url, secret.as_deref(), msg, http).await,
             Channel::Push { url, token } => push(url, token.as_deref(), msg, http, minimal).await,
             Channel::Relay(cfg) => relay(cfg, msg).await,
+            Channel::Own { url, key } => own(url, key, msg, http).await,
         }
     }
 }
@@ -180,4 +198,21 @@ async fn relay(cfg: &RelayConfig, msg: &Message) -> Result<(), String> {
             r.message()
         )),
     }
+}
+
+/// Hand the message to the core as an alert. A 200 means queued; whether it
+/// arrived is told by the sender's heartbeat, not by this answer.
+async fn own(url: &str, key: &str, msg: &Message, http: &reqwest::Client) -> Result<(), String> {
+    let (subject, text) = msg.mail_text();
+    let alert = mailrs_core_api::method::ops_alert::OpsAlertWire {
+        id: msg.id.clone(),
+        subject,
+        text,
+    };
+    let req = http
+        .post(url)
+        .timeout(TIMEOUT)
+        .bearer_auth(key)
+        .json(&alert);
+    check(req.send().await).await
 }

@@ -17,6 +17,7 @@ pub const USAGE: &str = "usage:
   mailrs-ops maintenance end --reason <text> --by <name>
   mailrs-ops test-channels
   mailrs-ops report-key <process>     (reads MAILRS_OPS_REPORT_MASTER_KEY)
+  mailrs-ops alert-key-sha256         (the core's MAILRS_OPS_ALERT_KEY_SHA256)
   mailrs-ops check-alive <state dir> <max age seconds>";
 
 /// `30s`, `45m`, `2h`, `1d`, or plain seconds.
@@ -115,6 +116,9 @@ fn print_status(v: &serde_json::Value) {
         when(&v["last_cycle"]["started_at"]),
         v["last_cycle"]["duration_ms"]
     );
+    for w in v["warnings"].as_array().cloned().unwrap_or_default() {
+        println!("WARNING: {}", w.as_str().unwrap_or(""));
+    }
     match v["unmonitored"].as_bool() {
         Some(true) => println!("external watch: NONE (MAILRS_OPS_HEARTBEAT_URL unset)"),
         _ => println!("external watch: configured"),
@@ -209,6 +213,7 @@ pub async fn run(args: &[String]) -> ExitCode {
         }
         ["test-channels"] => print_answer(call(&path, "POST", "/v1/channels/test", None).await),
         ["report-key", process] => report_key(process),
+        ["alert-key-sha256"] => alert_key_sha256(),
         ["check-alive", dir, max] => check_alive(dir, max),
         _ => {
             eprintln!("{USAGE}");
@@ -234,6 +239,24 @@ fn report_key(process: &str) -> ExitCode {
             );
             ExitCode::from(2)
         }
+    }
+}
+
+/// The sha256 of the daemon's own-path key, for the core's
+/// `MAILRS_OPS_ALERT_KEY_SHA256`; the key itself never leaves the daemon.
+fn alert_key_sha256() -> ExitCode {
+    use sha2::Digest;
+    let Ok(master) = std::env::var("MAILRS_OPS_REPORT_MASTER_KEY") else {
+        eprintln!("MAILRS_OPS_REPORT_MASTER_KEY is not set");
+        return ExitCode::from(2);
+    };
+    let process = mailrs_core_api::method::ops_alert::OPS_PROCESS;
+    match mailrs_ops_report::key::derive(master.as_bytes(), process) {
+        Some(key) => {
+            println!("{}", hex::encode(sha2::Sha256::digest(key.as_bytes())));
+            ExitCode::SUCCESS
+        }
+        None => ExitCode::from(2),
     }
 }
 

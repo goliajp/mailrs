@@ -60,6 +60,7 @@ pub mod mailbox;
 pub mod message;
 pub mod message_index;
 pub mod ops;
+pub mod ops_alert;
 pub mod outbound;
 pub mod report;
 pub mod senders;
