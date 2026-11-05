@@ -16,24 +16,52 @@
 //!
 //! Bounded: 50 images a message, 30 a minute per sending domain, 20000 a
 //! day in all, and the cache under a size cap, oldest-read first out.
+//!
+//! Two lanes. What arrival and leaving Junk queue waits in the background
+//! lane; what a reader asks for on opening a message waits in the asked
+//! lane, which the worker serves first and wakes for, since someone is
+//! looking at the gap where the images should be.
 
 mod trackers;
 mod worker;
 
 use std::io;
+use std::sync::atomic::{AtomicBool, Ordering};
 
-pub use worker::{spawn, sweep};
+use tokio::sync::Notify;
+
+pub use worker::{Done, Worker, spawn, sweep};
 
 const PER_MESSAGE: usize = 50;
+
+/// Which of the two queues an image waits in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Lane {
+    /// Queued on arrival or on leaving Junk; nobody is waiting.
+    Background,
+    /// A reader has the message open and asked for its images.
+    Asked,
+}
 
 /// Where a core keeps the images waiting to be fetched.
 pub trait PrefetchQueue: Send + Sync + 'static {
     /// Queue `urls`, found in `user`'s message `message_id`.
-    fn queue(&self, user: &str, message_id: &str, urls: &[String]) -> io::Result<()>;
+    fn queue(&self, lane: Lane, user: &str, message_id: &str, urls: &[String]) -> io::Result<()>;
     /// Up to `limit` queued `(user, message id, url)`, left in the queue.
-    fn pending(&self, limit: usize) -> io::Result<Vec<(String, String, String)>>;
+    fn pending(&self, lane: Lane, limit: usize) -> io::Result<Vec<(String, String, String)>>;
     /// Take one fetched or given-up image off the queue.
-    fn done(&self, user: &str, message_id: &str, url: &str) -> io::Result<()>;
+    fn done(&self, lane: Lane, user: &str, message_id: &str, url: &str) -> io::Result<()>;
+}
+
+// one worker per process, and the routes that ask run in the same one
+static ASKED: AtomicBool = AtomicBool::new(false);
+static WAKE: Notify = Notify::const_new();
+
+/// Tell the worker a reader asked: it stops between two background
+/// fetches, or wakes from waiting for work.
+fn wake() {
+    ASKED.store(true, Ordering::SeqCst);
+    WAKE.notify_one();
 }
 
 /// The fetcher's address; prefetching is off without one.
@@ -49,6 +77,16 @@ pub fn queue(q: &dyn PrefetchQueue, user: &str, message_id: &str, parsed: &mailr
     if fetcher().is_none() {
         return;
     }
+    queue_in(q, Lane::Background, user, message_id, parsed);
+}
+
+fn queue_in(
+    q: &dyn PrefetchQueue,
+    lane: Lane,
+    user: &str,
+    message_id: &str,
+    parsed: &mailrs_mime::Part<'_>,
+) {
     let mut urls = Vec::new();
     for part in parsed
         .walk()
@@ -62,7 +100,7 @@ pub fn queue(q: &dyn PrefetchQueue, user: &str, message_id: &str, parsed: &mailr
             }
         }
     }
-    if let Err(e) = q.queue(user, message_id, &urls) {
+    if let Err(e) = q.queue(lane, user, message_id, &urls) {
         tracing::warn!(error = %e, %user, "queueing image prefetch failed");
     }
 }
@@ -72,13 +110,32 @@ pub fn queue(q: &dyn PrefetchQueue, user: &str, message_id: &str, parsed: &mailr
 /// were not fetched on arrival. An image already in the cache is not
 /// fetched again.
 pub fn queue_thread(q: &dyn PrefetchQueue, user: &str, thread_id: &str, raws: &[Vec<u8>]) {
+    queue_thread_in(q, Lane::Background, user, thread_id, raws);
+}
+
+/// Queue the remote images of `user`'s thread for a reader who has it open
+/// and is waiting for them: ahead of the background lane, and the worker
+/// is woken for them.
+pub fn ask_thread(q: &dyn PrefetchQueue, user: &str, thread_id: &str, raws: &[Vec<u8>]) {
+    queue_thread_in(q, Lane::Asked, user, thread_id, raws);
+    wake();
+}
+
+fn queue_thread_in(
+    q: &dyn PrefetchQueue,
+    lane: Lane,
+    user: &str,
+    thread_id: &str,
+    raws: &[Vec<u8>],
+) {
     if fetcher().is_none() {
         return;
     }
     for (n, raw) in raws.iter().enumerate() {
         // the queue keys an image by message only to tell entries apart
-        queue(
+        queue_in(
             q,
+            lane,
             user,
             &format!("{thread_id}#{n}"),
             &mailrs_mime::parse(raw),
@@ -98,21 +155,35 @@ impl NetworkQueue {
     }
 }
 
+fn network_set(lane: Lane) -> &'static [u8] {
+    use mailrs_core_sidestate::families::image_prefetch::{ASKED, PENDING};
+    match lane {
+        Lane::Background => PENDING,
+        Lane::Asked => ASKED,
+    }
+}
+
 impl PrefetchQueue for NetworkQueue {
-    fn queue(&self, user: &str, message_id: &str, urls: &[String]) -> io::Result<()> {
+    fn queue(&self, lane: Lane, user: &str, message_id: &str, urls: &[String]) -> io::Result<()> {
         mailrs_core_sidestate::families::image_prefetch::queue(
             &mut self.conn()?,
+            network_set(lane),
             user,
             message_id,
             urls,
         )
     }
-    fn pending(&self, limit: usize) -> io::Result<Vec<(String, String, String)>> {
-        mailrs_core_sidestate::families::image_prefetch::pending(&mut self.conn()?, limit)
+    fn pending(&self, lane: Lane, limit: usize) -> io::Result<Vec<(String, String, String)>> {
+        mailrs_core_sidestate::families::image_prefetch::pending(
+            &mut self.conn()?,
+            network_set(lane),
+            limit,
+        )
     }
-    fn done(&self, user: &str, message_id: &str, url: &str) -> io::Result<()> {
+    fn done(&self, lane: Lane, user: &str, message_id: &str, url: &str) -> io::Result<()> {
         mailrs_core_sidestate::families::image_prefetch::done(
             &mut self.conn()?,
+            network_set(lane),
             user,
             message_id,
             url,

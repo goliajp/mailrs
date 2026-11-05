@@ -48,6 +48,18 @@ export function ImagesHiddenNote({
   )
 }
 
+const WAIT_TEXT = { loading: 'images.loading', missing: 'images.missing' } as const
+
+/** Above a message whose images the server is fetching now, or gave up on. */
+export function ImagesWaitNote({ state }: { state: keyof typeof WAIT_TEXT }) {
+  const t = useT()
+  return (
+    <p className={NOTE} role="status">
+      {t(WAIT_TEXT[state])}
+    </p>
+  )
+}
+
 /** Above a message whose trackers were taken out: who wanted to know it was read. */
 export function TrackersNote({ count, hosts }: { count: number; hosts: string[] }) {
   const t = useT()

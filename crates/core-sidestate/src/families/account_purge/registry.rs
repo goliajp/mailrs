@@ -97,6 +97,9 @@ pub const OWNED: &[Owned] = &[
     net("spam:{user}:blacklist", Shape::Key(sender_lists::blacklist_key)),
     net("sender_rules:{user}", Shape::Key(sender_rules::rules_key)),
     net("sender_rules:retaining", Shape::Members { keys: || sender_rules::RETAINING_KEY.into(), sep: None }),
+    // the SQL core's image prefetch queues
+    net("mailrs:image-prefetch:pending", Shape::Members { keys: || "mailrs:image-prefetch:pending".into(), sep: Some("\t") }),
+    net("mailrs:image-prefetch:asked", Shape::Members { keys: || "mailrs:image-prefetch:asked".into(), sep: Some("\t") }),
     net("corrections:{user}", Shape::Key(sender_rules::corrections_key)),
     net("saved_searches:{user}", Shape::Key(saved_searches::key)),
     net("saved_searches:{user}:*", Shape::Globs(|a| under("saved_searches:", &a.to_lowercase(), ":"))),
@@ -202,6 +205,7 @@ pub const OWNED: &[Owned] = &[
     mail("mailrs:attattempts", Shape::Members { keys: || "mailrs:attattempts".into(), sep: Some("\t") }),
     mail("mailrs:attsetaside", Shape::Members { keys: || "mailrs:attsetaside".into(), sep: Some("\t") }),
     mail("mailrs:imgpending", Shape::Members { keys: || "mailrs:imgpending".into(), sep: Some("\t") }),
+    mail("mailrs:imgasked", Shape::Members { keys: || "mailrs:imgasked".into(), sep: Some("\t") }),
     mail("mailrs:sync:cursor:{user}", Shape::Key(|a| format!("mailrs:sync:cursor:{a}"))),
     mail("mailrs:mbid:*", Shape::Custom(custom::mailbox_ids)),
     mail("mailrs:alias:v2:* (target)", Shape::Custom(custom::aliases_to)),
