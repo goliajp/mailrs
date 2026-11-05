@@ -39,7 +39,8 @@ impl<C: Core + ?Sized> Inbound<'_, C> {
             }
             // a redirect keeps no copy here
             Decision::Redirect(target) => {
-                match enqueue_redirect(addr, &target, body, &env.reverse_path) {
+                let once = self.once("redirect", addr, &target);
+                match enqueue_redirect(addr, &target, body, &env.reverse_path, Some(&once)) {
                     Ok(()) => {
                         tracing::info!(recipient = %addr, %target, "sieve: redirect");
                         (true, false)
@@ -112,7 +113,7 @@ impl<C: Core + ?Sized> Inbound<'_, C> {
     /// The copy in INBOX, filed where the receiver's verdict put it.
     fn keep(&self, addr: &str) -> bool {
         let root = self.core.maildir_root();
-        match deliver(root, addr, "", self.filename, self.body) {
+        match deliver(root, addr, "", self.filename, self.body, self.retry) {
             Ok(true) => self.core.ingest(
                 addr,
                 self.filename,
@@ -133,7 +134,7 @@ impl<C: Core + ?Sized> Inbound<'_, C> {
     fn file_into(&self, addr: &str, folder: &str) -> bool {
         let subfolder = maildir_subfolder(folder);
         let root = self.core.maildir_root();
-        match deliver(root, addr, &subfolder, self.filename, self.body) {
+        match deliver(root, addr, &subfolder, self.filename, self.body, self.retry) {
             Ok(true) => {
                 tracing::info!(recipient = %addr, %subfolder, "sieve: fileinto");
                 self.core.ingest(
@@ -174,7 +175,8 @@ impl<C: Core + ?Sized> Inbound<'_, C> {
             &format!("550 5.7.1 {reason}"),
             self.body,
         );
-        match enqueue_outbound(&env.reverse_path, "", &dsn) {
+        let once = self.once("reject-dsn", addr, &env.reverse_path);
+        match enqueue_outbound(&env.reverse_path, "", &dsn, Some(&once)) {
             Ok(()) => tracing::info!(recipient = %addr, "sieve: reject DSN queued"),
             Err(e) => tracing::warn!(recipient = %addr, error = %e,
                 "sieve: reject DSN enqueue failed; message discarded"),

@@ -9,6 +9,10 @@
 //! live sender is claiming or sending is left alone. A second sender
 //! doing the same sweep loses the WATCH and drops through; an id pushed
 //! twice is claimed once, as the claim checks the state.
+//!
+//! A job left claimed by a dead sender [`INTERRUPTED_LIMIT`] times is the
+//! job that stops it (a message its scan or signing cannot get through),
+//! and is set aside instead of being put back every five minutes.
 
 use super::config::*;
 use super::*;
@@ -90,23 +94,78 @@ fn reset_stale_inflight(
         c.unwatch()?;
         return Ok(false);
     }
+    let interrupted = field_secs(c, key, b"interrupted")?.unwrap_or(0) + 1;
     let now_s = now.to_string();
+    let interrupted_s = interrupted.to_string();
+    let give_up = interrupted >= i64::from(INTERRUPTED_LIMIT);
     let mut tx = c.multi()?;
+    let state: &[u8] = match give_up {
+        true => SET_ASIDE_STATE,
+        false => b"pending",
+    };
     tx.queue(&[
         b"HSET",
         key,
         b"state",
-        b"pending",
+        state,
         b"updated_at",
         now_s.as_bytes(),
+        b"interrupted",
+        interrupted_s.as_bytes(),
     ])?;
     tx.queue(&[b"HDEL", key, b"claimed_at"])?;
-    tx.queue(&[b"LPUSH", PENDING_IDX_KEY, id.as_bytes()])?;
+    match give_up {
+        true => tx.queue(&[b"ZADD", ob::SET_ASIDE_IDX, now_s.as_bytes(), id.as_bytes()])?,
+        false => tx.queue(&[b"LPUSH", PENDING_IDX_KEY, id.as_bytes()])?,
+    }
     let done = tx.exec_watched()?.is_some();
-    if done {
-        tracing::info!(%id, "recover: reset inflight -> pending");
+    match (done, give_up) {
+        (true, true) => report_set_aside(c, key, id, interrupted, now)?,
+        (true, false) => tracing::info!(%id, interrupted, "recover: reset inflight -> pending"),
+        (false, _) => {}
     }
     Ok(done)
+}
+
+/// Claims of one job that a dead sender left behind before the job is set
+/// aside. A deploy or an unrelated crash can leave an innocent job claimed
+/// once; the same job three times running is the job.
+pub(super) const INTERRUPTED_LIMIT: u32 = 3;
+
+/// The state of a job set aside after [`INTERRUPTED_LIMIT`] dead claims.
+/// Kept, with its message, for a person; nothing claims or expires it. To
+/// send it again: `HSET <job> state pending` and `LPUSH` its id onto the
+/// pending index.
+pub(super) const SET_ASIDE_STATE: &[u8] = b"set_aside";
+
+/// The log line and the failed-jobs record the admin queue page reads.
+/// No DSN: composing one quotes the message, and reading the message is
+/// what stopped the sender.
+fn report_set_aside(
+    c: &mut kevy_client::Connection,
+    key: &[u8],
+    id: &str,
+    interrupted: i64,
+    now: i64,
+) -> std::io::Result<()> {
+    let blob: serde_json::Value = c
+        .hget(key, b"blob")?
+        .and_then(|b| serde_json::from_slice(&b).ok())
+        .unwrap_or_default();
+    let field = |name: &str| blob[name].as_str().unwrap_or_default().to_string();
+    let reason = format!("set aside: the sender stopped while sending it {interrupted} times");
+    tracing::error!(event = "outbound_job_set_aside", %id, interrupted,
+        sender = %field("sender"), recipient = %field("recipient"), "{reason}");
+    ob::record_failure(
+        c,
+        &ob::Failure {
+            id: id.to_string(),
+            failed_at: now,
+            reason,
+            sender: field("sender"),
+            recipient: field("recipient"),
+        },
+    )
 }
 
 /// A pending job is waiting in exactly one place: `pending-idx`, or
@@ -260,6 +319,48 @@ mod tests {
                 .as_deref(),
             Some(&b"pending"[..])
         );
+    }
+
+    /// A sender that dies on the same job every time it claims it: put back
+    /// twice, then set aside and reported, never queued a fourth time.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_job_a_sender_died_on_three_times_is_set_aside() {
+        let (_kevy, mut c) = server().await;
+        let blob = r#"{"sender":"a@x.test","recipient":"b@y.test"}"#;
+        job(
+            &mut c,
+            "9",
+            &[(b"state", "pending"), (b"blob", blob), (b"updated_at", "0")],
+        );
+        let mut now = 10_000;
+        for round in 1..=3 {
+            // claimed, and the sender died holding it
+            assert_eq!(try_claim(&mut c, "9").unwrap(), Claim::Won, "round {round}");
+            c.hset(
+                ob::job_key("9").as_bytes(),
+                &[(b"claimed_at" as &[u8], now.to_string().as_bytes())],
+            )
+            .unwrap();
+            // popped by the sender that died
+            let _ = c.rpop(PENDING_IDX_KEY, 100);
+            now += 1_000;
+            assert_eq!(recover_on(&mut c, now).unwrap(), 1, "round {round}");
+        }
+        let state = c.hget(ob::job_key("9").as_bytes(), b"state").unwrap();
+        assert_eq!(state.as_deref(), Some(&b"set_aside"[..]));
+        assert!(
+            pending_ids(&mut c).is_empty(),
+            "set aside but queued again: {:?}",
+            pending_ids(&mut c)
+        );
+        assert_eq!(c.zcard(ob::SET_ASIDE_IDX).unwrap(), 1);
+        let failed = ob::failures(&mut c).unwrap();
+        assert_eq!(failed.len(), 1);
+        assert_eq!(failed[0].recipient, "b@y.test");
+        assert!(failed[0].reason.contains("3 times"), "{}", failed[0].reason);
+        // later sweeps leave it alone
+        assert_eq!(recover_on(&mut c, now + 10_000).unwrap(), 0);
+        assert!(pending_ids(&mut c).is_empty());
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
