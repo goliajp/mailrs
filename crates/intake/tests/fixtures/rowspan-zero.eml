@@ -1,0 +1,9 @@
+From: Sender <sender@outside.example>
+To: u@local.test
+Subject: a table html2text 0.17.1 divides by zero on
+Message-ID: <rowspan-zero@outside.example>
+Date: Wed, 5 Nov 2026 09:00:00 +0900
+MIME-Version: 1.0
+Content-Type: text/html; charset=utf-8
+
+<html><body><table><tr><td rowspan="0">a</td><td>b</td></tr><tr><td>c</td></tr></table></body></html>

@@ -123,7 +123,15 @@ impl<C: Core + ?Sized> Inbound<'_, C> {
                     }
                 }
                 Target::Outside(member) => {
-                    match enqueue_redirect(fwd, &member, self.body, &self.env.reverse_path) {
+                    let once = self.once("group", fwd, &member);
+                    let queued = enqueue_redirect(
+                        fwd,
+                        &member,
+                        self.body,
+                        &self.env.reverse_path,
+                        Some(&once),
+                    );
+                    match queued {
                         Ok(()) => out.delivered += 1,
                         Err(e) => {
                             tracing::warn!(group = %fwd, %member, error = %e,

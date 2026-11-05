@@ -6,6 +6,9 @@
 //! async runtime (OCR in a child process, see `ocr`), and stores it where
 //! search and the fraud sweep read it. Every item leaves the queue after
 //! one attempt, whatever came of it, and the stored state says what did.
+//! An attempt is counted on disk before it starts, so an item the process
+//! dies on (a parser that aborts) is given up on after [`ATTEMPTS`] tries
+//! instead of taking the process down at every restart.
 //!
 //! **It does not re-judge.** No shipped rule reads the attachment facts,
 //! and a re-judge here would act per conversation with today's domain
@@ -40,6 +43,12 @@ const PAUSE: Duration = Duration::from_millis(100);
 const BUSY_INTERVAL: Duration = Duration::from_secs(5);
 /// Longest wait while the queue stays empty.
 const IDLE_INTERVAL: Duration = Duration::from_secs(300);
+/// Interrupted attempts at one item before it is given up on. The same
+/// reasoning as the spool's: a deploy or another task's OOM can interrupt
+/// an innocent item once, and three in a row on one item is the item.
+/// Only the in-process readers (PDF, Office) can take the process down;
+/// OCR runs in a child that is killed alone.
+pub const ATTEMPTS: u32 = 3;
 
 /// Queue `user`'s copy of the message if any part is a PDF or an image.
 pub(crate) fn queue_if_it_has_readable_parts(
@@ -107,6 +116,8 @@ pub struct Round {
     pub qr_host_not_in_message: u64,
     /// Of those, the image prints a domain the code does not go to.
     pub qr_text_mismatch: u64,
+    /// Items the process died reading [`ATTEMPTS`] times, given up on.
+    pub set_aside: u64,
 }
 
 /// Take one bounded batch off the queue and process it, with OCR as this
@@ -126,6 +137,17 @@ pub async fn run_once(state: &Arc<FastcoreState>) -> Round {
             tokio::time::sleep(PAUSE).await;
         }
         round.taken += 1;
+        match state.mailbox.begin_attachment_text(&user, &mid) {
+            Ok(n) if n > ATTEMPTS => {
+                set_aside(state, &user, &mid, n - 1, ocr, &mut round);
+                continue;
+            }
+            Ok(_) => {}
+            // unprotected rather than not read: the count is what is lost
+            Err(e) => {
+                tracing::warn!(error = %e, %user, %mid, "attachment text: attempt not recorded")
+            }
+        }
         process(state, &user, &mid, ocr, &mut round).await;
         if let Err(e) = state.mailbox.dequeue_attachment_text(&user, &mid) {
             tracing::warn!(error = %e, %user, %mid, "attachment text: dequeue failed");
@@ -135,6 +157,38 @@ pub async fn run_once(state: &Arc<FastcoreState>) -> Round {
         tracing::info!(?round, "attachment text round");
     }
     round
+}
+
+/// `user`'s copy was started `interrupted` times and the process died each
+/// time: stored as failed, so search and the sweep see it was tried, and
+/// taken off the queue into the set-aside set.
+fn set_aside(
+    state: &FastcoreState,
+    user: &str,
+    mid: &str,
+    interrupted: u32,
+    ocr: Option<&OcrSetup>,
+    round: &mut Round,
+) {
+    tracing::error!(
+        event = "attachment_text_set_aside",
+        %user,
+        %mid,
+        interrupted,
+        "attachment text: the process stopped reading this message every time; set aside"
+    );
+    let failed = mailrs_mailbox_kevy::AttachmentTextState {
+        version: current_version(ocr),
+        failed: 1,
+        ..Default::default()
+    };
+    if let Err(e) = state.mailbox.store_attachment_texts(mid, &[], &failed) {
+        tracing::warn!(error = %e, %user, %mid, "attachment text: storing failed");
+    }
+    match state.mailbox.set_aside_attachment_text(user, mid) {
+        Ok(()) => round.set_aside += 1,
+        Err(e) => tracing::warn!(error = %e, %user, %mid, "attachment text: set aside failed"),
+    }
 }
 
 async fn process(

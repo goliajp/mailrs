@@ -43,7 +43,9 @@ pub(crate) async fn health_handler(
         handlers::kevy_util::with_kevy(mailrs_core_sidestate::families::audit_chain::read_status)
             .ok()
             .flatten();
-    let core_memory = core_memory(&state).await;
+    let core_health = core_health(&state).await;
+    let core_memory = core_memory(core_health.as_ref());
+    let (spool, set_aside) = loop_health(core_health.as_ref());
     let kevy_server_memory = kevy_server_memory();
     // the daily check of this server's sending addresses against blocklists
     let egress =
@@ -75,6 +77,8 @@ pub(crate) async fn health_handler(
         "fraud_hits": fraud_hits(),
         "receiver": handlers::smtp_monitor::health(&state.receiver_stats),
         "jmap_uploads": handlers::jmap::upload_health(),
+        "spool": spool,
+        "set_aside": set_aside,
     }))
 }
 
@@ -226,17 +230,57 @@ fn with_staleness(mut value: serde_json::Value, now: i64) -> serde_json::Value {
     value
 }
 
+/// The core's own health answer; `None` when it does not answer within two
+/// seconds.
+async fn core_health(state: &WebState) -> Option<mailrs_core_api::types::HealthResponse> {
+    let answer =
+        tokio::time::timeout(std::time::Duration::from_secs(2), state.core.healthz()).await;
+    answer.ok().and_then(Result::ok)
+}
+
+/// The spool the core drains and what its loops gave up on:
+///
+/// - `spool`: `{quarantined, oldest_incoming_age_seconds}` — spool files
+///   set aside because the core died on each three times, and the age of
+///   the oldest file waiting to be delivered (0 when none is);
+/// - `set_aside`: `{attachment_text, fraud_backfill, sender}` — attachment
+///   queue items and fraud-backfill conversations the core gave up on, and
+///   outbound jobs the sender set aside after dying on them.
+///
+/// `spool` is null when the core does not answer; inside `set_aside`, each
+/// count is null when its store cannot be read or (`fraud_backfill`) no
+/// backfill runs.
+fn loop_health(
+    health: Option<&mailrs_core_api::types::HealthResponse>,
+) -> (serde_json::Value, serde_json::Value) {
+    let spool = health
+        .and_then(|h| h.spool)
+        .map_or(serde_json::Value::Null, |s| {
+            serde_json::json!({
+                "quarantined": s.quarantined,
+                "oldest_incoming_age_seconds": s.oldest_incoming_age_seconds,
+            })
+        });
+    let core = health.and_then(|h| h.set_aside);
+    let sender = handlers::kevy_util::with_kevy(|c| {
+        c.zcard(mailrs_core_sidestate::families::outbound::SET_ASIDE_IDX)
+            .map_err(std::io::Error::from)
+    })
+    .ok();
+    let set_aside = serde_json::json!({
+        "attachment_text": core.and_then(|s| s.attachment_text),
+        "fraud_backfill": core.and_then(|s| s.fraud_backfill),
+        "sender": sender,
+    });
+    (spool, set_aside)
+}
+
 /// The core's container memory, and whether it is at or past
 /// `MAILRS_MEMORY_HIGH_PERCENT` (80 by default) of its limit, for a watch
 /// that compares one value; null when the core does not answer within two
 /// seconds or cannot read its cgroup, and `high` null without a limit.
-async fn core_memory(state: &WebState) -> serde_json::Value {
-    let answer =
-        tokio::time::timeout(std::time::Duration::from_secs(2), state.core.healthz()).await;
-    let Ok(Ok(health)) = answer else {
-        return serde_json::Value::Null;
-    };
-    let Some(m) = health.memory else {
+fn core_memory(health: Option<&mailrs_core_api::types::HealthResponse>) -> serde_json::Value {
+    let Some(m) = health.and_then(|h| h.memory) else {
         return serde_json::Value::Null;
     };
     let percent = high_percent();

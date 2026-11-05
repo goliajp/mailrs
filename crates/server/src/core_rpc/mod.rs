@@ -76,6 +76,8 @@ impl Handler for CoreRpcState {
             // healthz is a liveness probe — process is up.
             ready: true,
             memory: mailrs_core_api::memory::cgroup(),
+            spool: Some(self.spool_health()),
+            set_aside: None,
         }
     }
 
@@ -106,6 +108,20 @@ impl Handler for CoreRpcState {
             backend: BackendKind::Pg,
             ready,
             memory: mailrs_core_api::memory::cgroup(),
+            spool: Some(self.spool_health()),
+            set_aside: None,
+        }
+    }
+}
+
+impl CoreRpcState {
+    /// The spool this core drains, as the health probe reports it.
+    fn spool_health(&self) -> mailrs_core_api::types::SpoolHealthWire {
+        let root = mailrs_core::spool::spool_root(&self.maildir_root);
+        let h = mailrs_intake::spool::health(std::path::Path::new(&root));
+        mailrs_core_api::types::SpoolHealthWire {
+            quarantined: h.quarantined,
+            oldest_incoming_age_seconds: h.oldest_incoming_age_seconds,
         }
     }
 }
