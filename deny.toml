@@ -32,6 +32,7 @@ ignore = [
     # them or an actual vulnerability is reported.
     { id = "RUSTSEC-2026-0374", reason = "basic-toml: unmaintained; build-time only, under age's translation macros" },
     { id = "RUSTSEC-2026-0173", reason = "proc-macro-error2: unmaintained; build-time only, under age's translation macros" },
+    { id = "RUSTSEC-2026-0440", reason = "astral-tokio-tar: unmaintained; test-only, under testcontainers (mailrs-test-docker); in no shipped binary; testcontainers 0.28.0 still depends on it" },
 ]
 
 [licenses]
