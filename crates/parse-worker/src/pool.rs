@@ -14,6 +14,12 @@ use crate::proto::{self, Answer, Op, Parser};
 
 /// The longest pause before a worker that keeps dying is started again.
 const MAX_BACKOFF: Duration = Duration::from_secs(60);
+/// A resident worker holding more than this after an answer is retired
+/// and started afresh on the next request: the allocator keeps what the
+/// largest message needed (464 MB after a pass over the production corpus,
+/// 158 MB for the largest message alone), well under the worker's own
+/// address-space limit of 768 MiB.
+const RETIRE_RSS: u64 = 384 * 1024 * 1024;
 
 /// How a request ended without an answer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -193,6 +199,10 @@ fn call_in(
         Ok(answer) => {
             slot.deaths_in_a_row = 0;
             slot.retry_at = None;
+            if resident_bytes(live.child.id()).is_some_and(|b| b > RETIRE_RSS) {
+                retire(slot);
+                pid.store(0, Ordering::Relaxed);
+            }
             Ok(answer)
         }
         Err((parser, kind)) => {
@@ -272,6 +282,26 @@ fn kind_of(status: ExitStatus) -> Kind {
 #[cfg(not(unix))]
 fn kind_of(_status: ExitStatus) -> Kind {
     Kind::Killed
+}
+
+/// Close a worker's input and wait for it to exit, which it does at the
+/// end of its input.
+fn retire(slot: &mut Slot) {
+    if let Some(mut live) = slot.live.take() {
+        drop(live.stdin);
+        let _ = live.child.wait();
+        tracing::info!(
+            event = "parse_worker_retired",
+            "a parse worker grew large and was retired"
+        );
+    }
+}
+
+/// Resident memory of `pid`, from `/proc`; `None` where there is none.
+fn resident_bytes(pid: u32) -> Option<u64> {
+    let statm = std::fs::read_to_string(format!("/proc/{pid}/statm")).ok()?;
+    let pages: u64 = statm.split_whitespace().nth(1)?.parse().ok()?;
+    Some(pages * rustix::param::page_size() as u64)
 }
 
 fn reap(slot: &mut Slot) {

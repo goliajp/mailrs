@@ -60,11 +60,22 @@ impl Limit {
     }
 }
 
-/// See the parse-time measurement in the containment notes: the slowest
-/// legitimate message of the production corpus stays well inside it.
+// Measured 2026-11-05 on a copy of the production maildir (45,575
+// messages, up to 23.8 MB), release worker on an M-series host, round trip
+// per request: the receiver's scan p50 0.14 ms, p99 3.5 ms, p99.9 71 ms,
+// max 576 ms; the drain's search text max 261 ms and markup max 61 ms;
+// the slowest message's three drain-and-scan readings together 657 ms.
+// PDFs (525) max 83 ms, Office files (82) max 48 ms.
+
+/// About 3.5 times the slowest production message, for a slower and
+/// busier host than the one measured.
 pub const INBOUND_LIMIT: Duration = Duration::from_secs(2);
+/// Nobody waits on these, and a failure there writes the parser fact
+/// onto a stored message: wider, so a slow host does not make one.
 pub const BATCH_LIMIT: Duration = Duration::from_secs(10);
-pub const DOCUMENT_LIMIT: Duration = Duration::from_secs(120);
+/// Over 300 times the slowest attachment; the worker is started for the
+/// one file, and the OCR child beside it has 30 minutes.
+pub const DOCUMENT_LIMIT: Duration = Duration::from_secs(30);
 
 /// How one call went.
 #[derive(Debug, Clone, PartialEq, Eq)]

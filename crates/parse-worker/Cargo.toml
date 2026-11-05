@@ -23,7 +23,7 @@ mailrs-dmarc = { path = "../dmarc", version = "3" }
 mailrs-fraud = { path = "../fraud", version = "0" }
 mailrs-mime = { path = "../mime", version = "2" }
 metrics = "0.24"
-rustix = { version = "1", features = ["process", "time"] }
+rustix = { version = "1", features = ["param", "process", "time"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = "0.1"
