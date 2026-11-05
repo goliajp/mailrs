@@ -393,6 +393,7 @@ impl PgMailboxStore {
         // again on every pass
         self.untrash_thread(user, thread_id).await?;
         self.drop_thread_labels(user, thread_id).await?;
+        self.drop_hold_facts(user, thread_id).await?;
 
         Ok(maildir_ids.into_iter().map(|(id,)| id).collect())
     }

@@ -128,7 +128,17 @@ pub fn network_kevy_url() -> Option<String> {
 /// find nothing; it only wakes the drain. webapi reads these keys off the
 /// change feed and sends each to its user's sockets as they are; this
 /// payload IS the frontend contract (web/src/lib/types.ts NewMessageEvent).
-pub fn publish_new_mail(user: &str, thread_id: &str, sender: &str, subject: &str, snippet: &str) {
+///
+/// `held`: the conversation is held for review. The clients still refresh
+/// what they show, so Review stays live, but raise no notice for it.
+pub fn publish_new_mail(
+    user: &str,
+    thread_id: &str,
+    sender: &str,
+    subject: &str,
+    snippet: &str,
+    held: bool,
+) {
     let Some(url) = network_kevy_url() else {
         return;
     };
@@ -142,6 +152,7 @@ pub fn publish_new_mail(user: &str, thread_id: &str, sender: &str, subject: &str
         "sender": sender,
         "subject": subject,
         "snippet": snippet,
+        "held": held,
     });
     let Ok(bytes) = serde_json::to_vec(&payload) else {
         return;

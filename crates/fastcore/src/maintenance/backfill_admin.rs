@@ -151,6 +151,52 @@ pub(crate) async fn backfill_contact_relationships_route(
     .into_response()
 }
 
+#[derive(serde::Deserialize)]
+pub(crate) struct SentToQuery {
+    /// Count without writing. **Default true.**
+    #[serde(default = "dry_by_default")]
+    dry_run: bool,
+}
+
+fn dry_by_default() -> bool {
+    true
+}
+
+/// `POST /v1/admin/maintenance:backfill-sent-to?dry_run=false` — list,
+/// for each user, the addresses they have sent mail to, from the
+/// `sent_count` already on each relationship record.
+///
+/// The fraud rules' "someone the user wrote to" reads that list. The
+/// sender adds to it on every delivery from the day it shipped; this adds
+/// what was sent before. Adds only, so a second run reports nothing missing.
+pub(crate) async fn backfill_sent_to_route(
+    State(state): State<Arc<FastcoreState>>,
+    Query(q): Query<SentToQuery>,
+) -> axum::response::Response {
+    let Some(mut conn) = state.net_conn() else {
+        return axum::http::StatusCode::SERVICE_UNAVAILABLE.into_response();
+    };
+    let dry = q.dry_run;
+    let res = tokio::task::spawn_blocking(move || {
+        mailrs_core_sidestate::families::contact_sent::rebuild_sent_to(&mut conn, dry)
+    })
+    .await;
+    match res {
+        Ok(Ok(found)) => {
+            tracing::info!(?found, "backfill-sent-to complete");
+            Json(found).into_response()
+        }
+        Ok(Err(e)) => {
+            tracing::error!(error = %e, "backfill-sent-to failed");
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "backfill-sent-to: task failed");
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
 /// `POST /v1/admin/maintenance:migrate-agent-webhooks` — one namespace.
 ///
 /// The settings page wrote `agent:webhooks:{user}` and the admin surface

@@ -45,9 +45,11 @@ pub(crate) fn apply(
     {
         return Err("thread membership disappeared".into());
     }
+    // The line that says which conversation a run took, so a count of holds
+    // can be traced back to the conversations behind it. What the reader
+    // has read is left as it is: held mail is out of the badge, and a
+    // release must return the conversation as the reader left it.
     if !row.quarantined {
-        // the line that says which conversation a run took, so a count
-        // of holds can be traced back to the conversations behind it
         crate::hold_facts::record_hold(
             state,
             user,
@@ -55,39 +57,7 @@ pub(crate) fn apply(
             source,
             &verdict.rules_version,
             &crate::hold_facts::verdict_rules(&verdict),
-        );
-    }
-    let messages = state
-        .mailbox
-        .user_thread_message_ids(user, tid)
-        .map_err(|e| e.to_string())?;
-    let mut unread = row.unread_count > 0;
-    // Do file renames before advancing the read projection. A rename error
-    // leaves this batch retryable, including after a process restart.
-    for mid in &messages {
-        let facts = state
-            .mailbox
-            .user_message_facts(user, mid)
-            .map_err(|e| e.to_string())?
-            .ok_or("message row disappeared")?;
-        unread |= facts.flags & 1 == 0;
-        crate::maildir_scan::apply_flag_bitmask(user, &facts.blob_ref, facts.flags | 1)
-            .map_err(|e| e.to_string())?;
-    }
-    if unread {
-        if !crate::routes::thread_actions::mark_thread_read_everywhere(state, user, tid) {
-            return Err("mark read failed".into());
-        }
-        for mid in &messages {
-            if state
-                .mailbox
-                .user_message_facts(user, mid)
-                .map_err(|e| e.to_string())?
-                .is_none_or(|facts| facts.flags & 1 == 0)
-            {
-                return Err("read projection incomplete".into());
-            }
-        }
+        )?;
     }
     Ok(!row.quarantined)
 }

@@ -277,10 +277,6 @@ pub(crate) async fn list_mailboxes(
         .mailbox
         .count_thread_ids_by_activity_via_table(&user, mailrs_mailbox_kevy::ArchiveScope::All)
         .unwrap_or(0) as u32;
-    let unseen = state
-        .mailbox
-        .count_thread_ids_by_flag_via_table(&user, "unread")
-        .unwrap_or(0) as u32;
     let items = vec![
         MailboxWire {
             id: 1,
@@ -323,7 +319,6 @@ pub(crate) async fn list_mailboxes(
             highest_modseq: 0,
         },
     ];
-    let _ = unseen;
     Json(ListMailboxesResponse { items })
 }
 

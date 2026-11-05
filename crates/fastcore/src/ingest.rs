@@ -47,12 +47,18 @@ pub(crate) fn ingest_delivered_file(
         state.authserv_id.as_deref(),
     );
     // Importance follows the latest INBOUND message, like the thread's
-    // display fields — the user's own reply must not restate it.
-    if !a.is_own {
-        crate::importance::score_inbound(state, addr, &a.thread_id, &a.from, a.head, body);
-    }
+    // display fields — the user's own reply must not restate it. Scored
+    // before the side effects touch the contact facts it reads, stored
+    // after the arrival, which is what creates this reader's row.
+    let verdict = match a.is_own {
+        true => None,
+        false => crate::importance::score_inbound(state, addr, &a.from, a.head, body),
+    };
     effects::before_store(state.net_conn(), addr, &a, body.len());
     let held = store_arrival(state, addr, blob_ref, body, &a, fraud_verdict);
+    if let Some((level, score)) = verdict {
+        crate::importance::record_verdict(state, addr, &a.thread_id, level, score);
+    }
     if !a.is_own {
         crate::ledger::record_delivery(state, addr, &a.message_id, body);
     }
@@ -72,7 +78,15 @@ pub(crate) fn ingest_delivered_file(
     if !a.is_own && !held && !in_junk {
         crate::senders::after_delivery(state, addr, &a.from);
     }
-    effects::after_store(state.net_conn(), addr, &a, held);
+    // held now, by this message or one before it: a follow-up to a held
+    // conversation carries no verdict of its own
+    let in_review = state
+        .mailbox
+        .get_thread_for_user(addr, &a.thread_id)
+        .ok()
+        .flatten()
+        .is_some_and(|t| t.quarantined);
+    effects::after_store(state.net_conn(), addr, &a, held, in_review);
 }
 
 /// The writes to this store. Returns whether the thread was held as fraud.

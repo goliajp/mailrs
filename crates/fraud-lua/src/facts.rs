@@ -126,6 +126,10 @@ fn fill(lua: &mut Lua, t: LuaTable, f: &Facts<'_>, p: &Policy) -> Result<(), Str
         ("svg_runs_script", f.html.svg_runs_script),
         ("attachment_login_form_offsite", f.html.offsite_login_form),
         ("first_contact", f.relation.first_contact),
+        // no rule under rules/ reads it yet: it is the address half of
+        // "the reader wrote to this sender", for an exemption a deployed
+        // pack can make where the domain half cannot (a shared platform)
+        ("from_correspondent", f.relation.from_correspondent),
         (
             "from_correspondent_domain",
             f.relation.from_correspondent_domain,

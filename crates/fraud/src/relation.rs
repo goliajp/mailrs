@@ -6,8 +6,11 @@
 
 use crate::brand::registrable;
 
-/// One person the reader has written to: the address and the name it
-/// was written as.
+/// One address the reader has sent mail to, and the name it goes by.
+///
+/// Only an address the reader wrote to is a correspondent. Mail that
+/// arrived from an address makes it known, never a correspondent: anyone,
+/// a forger included, can write in.
 #[derive(Debug, Clone)]
 pub struct Correspondent {
     /// Lowercased address.
@@ -32,10 +35,14 @@ pub struct History {
 pub struct Relation {
     /// Nothing has passed between the reader and this address.
     pub first_contact: bool,
-    /// The sender's registrable domain is one the reader writes to.
+    /// The reader has sent mail to this very address.
+    pub from_correspondent: bool,
+    /// The reader has sent mail to some address at the sender's
+    /// registrable domain. A shared platform (the never-list: gmail.com
+    /// and the like) is nobody's domain, so it is never true there.
     pub from_correspondent_domain: bool,
     /// The sender's registrable domain is two edits or a look-alike
-    /// letter away from one the reader writes to, without being it.
+    /// letter away from one the reader has sent mail to, without being it.
     pub looks_like_correspondent: bool,
     /// The correspondent's domain it looks like, when it does.
     pub lookalike_of: Option<String>,
@@ -78,6 +85,8 @@ pub fn assess(
             .any(|c| c.address != from_address && !c.name.is_empty() && c.name == display);
     Relation {
         first_contact,
+        from_correspondent: !from_address.is_empty()
+            && correspondents.iter().any(|c| c.address == from_address),
         from_correspondent_domain: !sender.is_empty() && domains.contains(&sender),
         looks_like_correspondent: lookalike_of.is_some(),
         lookalike_of,
@@ -183,6 +192,19 @@ mod tests {
         // short names are too close to each other to tell
         let r = assess("x@abd.jp", "", &[c("a@abc.jp", "")], NEW, never);
         assert!(!r.looks_like_correspondent);
+    }
+
+    /// The address itself counts even on a shared platform, where the
+    /// domain is nobody's.
+    #[test]
+    fn the_exact_address_written_to_is_a_correspondent() {
+        let people = [c("friend@gmail.com", ""), c("tanaka@acme.example", "")];
+        let r = assess("friend@gmail.com", "", &people, NEW, never);
+        assert!(r.from_correspondent && !r.from_correspondent_domain);
+        let r = assess("sato@acme.example", "", &people, NEW, never);
+        assert!(!r.from_correspondent && r.from_correspondent_domain);
+        let r = assess("other@gmail.com", "", &people, NEW, never);
+        assert!(!r.from_correspondent && !r.from_correspondent_domain);
     }
 
     #[test]

@@ -140,9 +140,9 @@ impl PgCore {
             .await
     }
 
-    /// Store the receiver's verdict, and hold the conversation, read, when
-    /// it says to: a held conversation that is also unread is bold, counts
-    /// in the badge and rings the phone, which is what holding removes.
+    /// Store the receiver's verdict, and hold the conversation when it says
+    /// to. What is read is left as it is: held mail is out of the badge and
+    /// is not pushed, and a release returns it as the reader left it.
     async fn hold_if_fraud(
         &self,
         addr: &str,
@@ -175,10 +175,13 @@ impl PgCore {
         if !verdict.quarantined {
             return Ok(false);
         }
-        if self.mailbox.hold_thread(addr, thread_id).await? {
+        if self
+            .mailbox
+            .hold_thread(addr, thread_id, "ingest", &verdict.rules_version)
+            .await?
+        {
             self.audit_hold(addr, thread_id, &verdict);
         }
-        self.mailbox.mark_thread_read(addr, thread_id, None).await?;
         tracing::info!(
             %addr, %thread_id, score = verdict.score, rules = %verdict.rules_version,
             "held: suspected fraud"

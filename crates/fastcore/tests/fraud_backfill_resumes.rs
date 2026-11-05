@@ -106,8 +106,9 @@ async fn snapshot_resume_reload_and_failure_preserve_progress_and_mail() {
         .get_thread_for_user(USER, "t000")
         .unwrap()
         .unwrap();
+    // held, and as unread as it was: a hold leaves what was read alone
     assert!(row.quarantined);
-    assert_eq!(row.unread_count, 0);
+    assert_eq!(row.unread_count, 1);
     assert_eq!(
         state
             .mailbox
@@ -116,7 +117,7 @@ async fn snapshot_resume_reload_and_failure_preserve_progress_and_mail() {
             .unwrap()
             .flags
             & 1,
-        1
+        0
     );
     assert_eq!(
         std::fs::read_dir(root.join("x.com/bob/cur"))
@@ -124,7 +125,7 @@ async fn snapshot_resume_reload_and_failure_preserve_progress_and_mail() {
             .filter_map(Result::ok)
             .filter(|e| e.file_name().to_string_lossy().ends_with(":2,S"))
             .count(),
-        100
+        0
     );
 
     // A new key sorting before the cursor cannot move the durable snapshot.
@@ -213,6 +214,7 @@ async fn snapshot_resume_reload_and_failure_preserve_progress_and_mail() {
             .unwrap()
             .unwrap()
             .unread_count,
-        0
+        1,
+        "released read"
     );
 }

@@ -122,7 +122,20 @@ impl PgCore {
                 now,
             );
         }
-        effects::after_store(self.net_conn(), addr, &a, held);
+        // held now, by this message or one before it: a follow-up to a held
+        // conversation carries no verdict of its own
+        let in_review = match self
+            .dir
+            .rt
+            .block_on(self.mailbox.is_held(addr, &a.thread_id))
+        {
+            Ok(held) => held,
+            Err(e) => {
+                tracing::warn!(error = %e, %addr, "whether the conversation is held was not read");
+                false
+            }
+        };
+        effects::after_store(self.net_conn(), addr, &a, held, in_review);
         self.announce(addr, &a);
         true
     }

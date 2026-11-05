@@ -136,7 +136,7 @@ impl ReportStore for PgCore {
     fn hold(&self, user: &str, tid: &str) -> io::Result<()> {
         self.dir
             .rt
-            .block_on(self.mailbox.hold_thread(user, tid))
+            .block_on(self.mailbox.hold_thread(user, tid, "report", ""))
             .map(|_| ())
             .map_err(io)
     }
@@ -169,7 +169,7 @@ impl ReportStore for PgCore {
         }
         self.dir
             .rt
-            .block_on(self.mailbox.hold_thread(user, tid))
+            .block_on(self.mailbox.hold_thread(user, tid, "report", ""))
             .map_err(err)
     }
 }

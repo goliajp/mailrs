@@ -13,6 +13,7 @@ pub const SQL_TABLES: &[(&str, &str)] = &[
     ("message_placements", "account_address"),
     ("quarantine_holds", "account_address"),
     ("release_facts", "account_address"),
+    ("hold_facts", "account_address"),
     ("trashed_conversations", "account_address"),
     ("accepted_senders", "account_address"),
     ("shared_thread_copies", "account_address"),

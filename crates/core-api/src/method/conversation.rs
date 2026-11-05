@@ -129,7 +129,8 @@ pub struct CategoryCount {
 /// Response body for `GET /v1/users/{user}/conversations/unseen-count`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct UnseenCountResponse {
-    /// Number of unread, non-archived, non-spam threads (excluding self-replies).
+    /// Number of unread, non-archived, non-spam threads not held for review
+    /// (excluding self-replies).
     pub count: i64,
     /// Of those, the ones the Inbox lists.
     #[serde(default)]

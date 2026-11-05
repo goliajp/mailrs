@@ -9,6 +9,7 @@ pub mod audit_chain;
 pub mod calendar_events;
 pub mod calendar_feeds;
 pub mod contact_cards;
+pub mod contact_sent;
 pub mod contacts;
 pub mod correspondent;
 pub mod dav_store;

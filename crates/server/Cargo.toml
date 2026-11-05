@@ -91,6 +91,8 @@ kevy-embedded = { workspace = true }
 # the contract tests read a filed message the way the stored re-judge does
 mailrs-fraud-lua = { path = "../fraud-lua" }
 mailrs-fraud = { path = "../fraud" }
+# signs the Web Push key the held-mail push test pushes with
+aws-lc-rs = "1"
 
 [[bin]]
 name = "mailrs-pg-core"
