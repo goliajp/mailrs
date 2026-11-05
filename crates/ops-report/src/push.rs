@@ -4,6 +4,10 @@
 //! memory for at most two minutes and then dropped. Nothing waits on it —
 //! not the process's start, not fastcore's replay.
 //!
+//! Reports go out one at a time, in the order they were made: the daemon
+//! refuses a sequence number lower than one it has seen, so a start report
+//! overtaken by the heartbeat right after it would be refused as a replay.
+//!
 //! Configuration, all optional:
 //! - `MAILRS_OPS_URL`: the daemon's base URL (`http://ops:3600`)
 //! - `MAILRS_OPS_REPORT_KEY`: this process's key (`mailrs-ops report-key`)
@@ -16,8 +20,8 @@
 //! daemon was not configured are counted all the same.
 
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 use crate::counter::{self, Started};
@@ -53,6 +57,9 @@ struct Target {
     url: String,
     key: String,
     client: reqwest::Client,
+    /// The one task delivering this reporter's reports, started with the
+    /// first report.
+    queue: OnceLock<tokio::sync::mpsc::UnboundedSender<(reqwest::RequestBuilder, ReportKind)>>,
 }
 
 struct Inner {
@@ -86,6 +93,7 @@ impl Reporter {
                 url,
                 key,
                 client: reqwest::Client::new(),
+                queue: OnceLock::new(),
             }),
             _ => {
                 tracing::info!(
@@ -188,7 +196,21 @@ impl Reporter {
             .header(reqwest::header::CONTENT_TYPE, "application/json")
             .timeout(ATTEMPT_TIMEOUT)
             .body(body);
-        handle.spawn(deliver(request, kind));
+        let queue = target.queue.get_or_init(|| {
+            let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+            handle.spawn(async move {
+                while let Some((request, kind)) = rx.recv().await {
+                    deliver(request, kind).await;
+                }
+            });
+            tx
+        });
+        if queue.send((request, kind)).is_err() {
+            tracing::warn!(
+                kind = kind.as_str(),
+                "ops report not sent: its delivery task has ended"
+            );
+        }
     }
 }
 

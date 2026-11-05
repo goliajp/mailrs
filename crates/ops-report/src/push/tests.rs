@@ -95,6 +95,26 @@ async fn a_report_the_daemon_could_not_take_is_tried_again() {
     assert_eq!(got.reports[0].0.kind, ReportKind::Start);
 }
 
+/// Without ordering, the ready and heartbeat reports sent while the start
+/// report waits for its retry would overtake it, and the daemon would
+/// refuse the start as a replay.
+#[tokio::test]
+async fn reports_made_back_to_back_arrive_in_order_through_a_retry() {
+    let (url, shared) = daemon(1).await;
+    let dir = tempfile::tempdir().unwrap();
+    let r = Reporter::start_with("receiver", cfg(&url, dir.path()));
+    r.ready(None);
+    r.heartbeat(None);
+    settle(&shared, 3, Duration::from_secs(10)).await;
+    let got = shared.lock().unwrap();
+    let seqs: Vec<_> = got.reports.iter().map(|(r, _)| r.seq).collect();
+    assert_eq!(seqs, [1, 2, 3]);
+    assert_eq!(
+        got.seen, 4,
+        "one refusal, then the retry, then the other two"
+    );
+}
+
 #[tokio::test]
 async fn without_a_key_nothing_is_sent_but_the_start_is_counted() {
     let (url, shared) = daemon(0).await;
