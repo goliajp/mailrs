@@ -3,7 +3,9 @@
 //! the shared outbound queue `mailrs-fastcore-sender` claims from.
 
 use base64::Engine as _;
-use mailrs_core_sidestate::families::outbound::{FreshPending, write_fresh_pending};
+use mailrs_core_sidestate::families::outbound::{
+    FreshPending, write_fresh_pending, write_fresh_pending_once,
+};
 
 fn now() -> i64 {
     std::time::SystemTime::now()
@@ -19,10 +21,34 @@ fn connect() -> std::io::Result<kevy_client::Connection> {
 }
 
 /// Enqueue an arbitrary outbound message (DSN / auto-reply). `sender`
-/// is the MAIL FROM ("<>" for null-envelope notifications).
-pub fn enqueue_outbound(to: &str, sender: &str, body: &[u8]) -> std::io::Result<()> {
+/// is the MAIL FROM ("<>" for null-envelope notifications). With `once`,
+/// queued once for that key ([`write_fresh_pending_once`]).
+pub fn enqueue_outbound(
+    to: &str,
+    sender: &str,
+    body: &[u8],
+    once: Option<&str>,
+) -> std::io::Result<()> {
     let mail_from = if sender.is_empty() { "<>" } else { sender };
-    enqueue_relay(mail_from, to, body, mail_from)
+    enqueue_relay(mail_from, to, body, mail_from, once)
+}
+
+/// The job written, once for `once` when it is given.
+fn write_job(
+    conn: &mut kevy_client::Connection,
+    job: &FreshPending<'_>,
+    once: Option<&str>,
+) -> std::io::Result<Option<i64>> {
+    match once {
+        Some(key) => {
+            let written = write_fresh_pending_once(conn, job, key, now())?;
+            if written.is_none() {
+                tracing::info!(to = %job.recipient, "outbound job already queued by an earlier attempt");
+            }
+            Ok(written)
+        }
+        None => write_fresh_pending(conn, job, now()).map(Some),
+    }
 }
 
 /// A security alert from `from` to `to`: neither counted toward nor held
@@ -59,12 +85,13 @@ pub fn enqueue_redirect(
     target: &str,
     body: &[u8],
     reverse_path: &str,
+    once: Option<&str>,
 ) -> std::io::Result<()> {
     if let Some(why) = crate::forward_loop::refused(body, original_recipient) {
         return Err(std::io::Error::other(format!("not forwarded: {why}")));
     }
     let marked = crate::forward_loop::marked(body, original_recipient);
-    enqueue_relay(original_recipient, target, &marked, reverse_path)
+    enqueue_relay(original_recipient, target, &marked, reverse_path, once)
 }
 
 fn enqueue_relay(
@@ -72,6 +99,7 @@ fn enqueue_relay(
     target: &str,
     body: &[u8],
     reverse_path: &str,
+    once: Option<&str>,
 ) -> std::io::Result<()> {
     let mut conn = connect()?;
     let b64_body = base64::engine::general_purpose::STANDARD.encode(body);
@@ -93,7 +121,7 @@ fn enqueue_relay(
     };
     // Through the shared primitive, never by hand: it writes the job row and
     // the pending index the sender's claim reads.
-    write_fresh_pending(
+    write_job(
         &mut conn,
         &FreshPending {
             sender: &mail_from,
@@ -105,7 +133,7 @@ fn enqueue_relay(
             send_id: None,
             account: None,
         },
-        now(),
+        once,
     )?;
     Ok(())
 }
@@ -118,11 +146,12 @@ pub fn enqueue_submission(
     account: Option<&str>,
     rcpt: &str,
     body: &[u8],
+    once: Option<&str>,
 ) -> std::io::Result<()> {
     let mut conn = connect()?;
     let b64_body = base64::engine::general_purpose::STANDARD.encode(body);
     let sender = sender.trim().trim_matches(['<', '>']);
-    let id = write_fresh_pending(
+    let id = write_job(
         &mut conn,
         &FreshPending {
             sender,
@@ -134,8 +163,10 @@ pub fn enqueue_submission(
             send_id: None,
             account,
         },
-        now(),
+        once,
     )?;
-    tracing::info!(from = %sender, to = %rcpt, job = id, "submission queued for relay");
+    if let Some(id) = id {
+        tracing::info!(from = %sender, to = %rcpt, job = id, "submission queued for relay");
+    }
     Ok(())
 }

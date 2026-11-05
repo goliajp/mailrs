@@ -39,6 +39,15 @@ pub fn attachment_text_state(message_id: &str) -> String {
 /// one attempt whatever the attempt produced.
 pub const ATTACHMENT_TEXT_PENDING: &[u8] = b"mailrs:attpending";
 
+/// Queue members whose extraction has been started and not finished:
+/// member → attempts. A count that survives a restart is a process that
+/// died reading that message.
+pub const ATTACHMENT_TEXT_ATTEMPTS: &[u8] = b"mailrs:attattempts";
+
+/// Queue members given up on because the process died reading them every
+/// time it tried: set of `{user}\t{message_id}`.
+pub const ATTACHMENT_TEXT_SET_ASIDE: &[u8] = b"mailrs:attsetaside";
+
 /// Truncate `text` to at most `cap` bytes without splitting a char.
 pub fn cap_text(text: &str, cap: usize) -> &str {
     if text.len() <= cap {

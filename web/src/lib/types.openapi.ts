@@ -7461,6 +7461,22 @@ export interface components {
                 /** @description Bytes free on the volume; null when it cannot be read */
                 volume_free_bytes?: number | null;
             };
+            /** @description The spool the core drains. Null when the core does not answer. */
+            spool?: {
+                /** @description Spool files set aside in quarantine/ because the core stopped while delivering each of them three times */
+                quarantined?: number;
+                /** @description Age in seconds of the oldest file waiting in incoming/new/; 0 when none is waiting */
+                oldest_incoming_age_seconds?: number;
+            } | null;
+            /** @description Work items given up on because the process stopped on them each time it tried. */
+            set_aside?: {
+                /** @description Attachment-text queue items; null when the core does not answer */
+                attachment_text?: number | null;
+                /** @description Conversations the fraud backfill skipped for its current rules; null when no backfill runs or the core does not answer */
+                fraud_backfill?: number | null;
+                /** @description Outbound jobs the sender set aside; null when the shared store cannot be read */
+                sender?: number | null;
+            };
             /** @description Domains with a first-seen time (mailrs:domfirst:), recounted at most every five minutes. Null when the shared store cannot be read. */
             new_domains?: {
                 /** @description Domains with a first-seen time */
