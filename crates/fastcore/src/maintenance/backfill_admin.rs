@@ -183,8 +183,8 @@ pub(crate) async fn backfill_sent_to_route(
     .await;
     match res {
         Ok(Ok(found)) => {
-            tracing::info!(?found, dry, "backfill-sent-to complete");
-            Json(serde_json::json!({ "dry_run": dry, "found": found })).into_response()
+            tracing::info!(?found, "backfill-sent-to complete");
+            Json(found).into_response()
         }
         Ok(Err(e)) => {
             tracing::error!(error = %e, "backfill-sent-to failed");

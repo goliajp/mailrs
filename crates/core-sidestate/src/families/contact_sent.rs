@@ -9,6 +9,8 @@
 //! `sent_count` and this set together; [`rebuild_sent_to`] derives the set
 //! afresh from the records.
 
+use mailrs_core_api::method::admin::SentToBackfillResponse;
+
 use super::contacts::{CONTACT_PREFIX, contact_key};
 
 /// The addresses `user` has sent mail to: those whose `sent_count` is
@@ -50,25 +52,18 @@ pub fn sent_to(conn: &mut kevy_client::Connection, user: &str) -> std::io::Resul
         .collect())
 }
 
-/// What [`rebuild_sent_to`] found.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize)]
-pub struct SentToRebuild {
-    /// Relationship hashes read.
-    pub records: u64,
-    /// Of those, the ones with `sent_count` above zero.
-    pub sent_to: u64,
-    /// Of those, the ones not yet in their user's set (added, unless dry).
-    pub missing: u64,
-}
-
 /// Derive every user's [`sent_to_key`] set from the relationship hashes,
 /// adding each address whose `sent_count` is above zero. Adds only, so a
-/// second run finds nothing missing; `dry` counts without writing.
+/// second run finds nothing missing; `dry` counts without writing. Both
+/// cores answer `POST /v1/admin/maintenance:backfill-sent-to` with it.
 pub fn rebuild_sent_to(
     conn: &mut kevy_client::Connection,
     dry: bool,
-) -> std::io::Result<SentToRebuild> {
-    let mut out = SentToRebuild::default();
+) -> std::io::Result<SentToBackfillResponse> {
+    let mut out = SentToBackfillResponse {
+        dry_run: dry,
+        ..SentToBackfillResponse::default()
+    };
     let pattern = format!("{CONTACT_PREFIX}*");
     let mut cursor = 0u64;
     loop {
@@ -147,7 +142,8 @@ mod tests {
         let dry = rebuild_sent_to(&mut c, true).unwrap();
         assert_eq!(
             dry,
-            SentToRebuild {
+            SentToBackfillResponse {
+                dry_run: true,
                 records: 3,
                 sent_to: 1,
                 missing: 1
