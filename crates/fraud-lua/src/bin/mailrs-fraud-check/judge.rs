@@ -5,8 +5,6 @@ use mailrs_fraud::{Facts, Findings, Policy};
 use mailrs_fraud_lua::Rules;
 use std::{
     collections::HashMap,
-    fs,
-    io::Read,
     path::{Path, PathBuf},
 };
 
@@ -32,17 +30,21 @@ pub(super) struct Judged {
     pub(super) new_shadow: Findings,
 }
 
-pub(super) fn corpus<'r>(root: &'r str, files: &[PathBuf]) -> Result<Corpus<'r>, String> {
+/// Largest message judged; a larger one stops the run.
+pub(super) const MAX_MESSAGE: u64 = 32 * 1024 * 1024;
+
+pub(super) fn corpus<'r>(
+    root: &'r str,
+    files: &[PathBuf],
+    maildir: &mut super::walk::Maildir,
+) -> Result<Corpus<'r>, String> {
     let mut domain_counts = HashMap::<String, u64>::new();
     let mut replies = HashMap::<String, std::collections::HashSet<String>>::new();
     // History from this read-only corpus, supplied identically to both engines.
     for file in files {
-        let mut header = vec![];
-        fs::File::open(file)
-            .map_err(|e| e.to_string())?
-            .take(64 * 1024)
-            .read_to_end(&mut header)
-            .map_err(|e| e.to_string())?;
+        let Some((_, header)) = maildir.read(file, 64 * 1024)? else {
+            continue;
+        };
         let from = mailrs_inbound::from_header(&header);
         let host = mailrs_fraud::impersonation::address_of(&from)
             .and_then(|a| a.rsplit('@').next())
@@ -73,11 +75,11 @@ pub(super) fn judge(
     before: &mut Option<Rules>,
     after: &mut Rules,
     file: &Path,
+    raw: Vec<u8>,
 ) -> Result<Judged, String> {
-    if fs::metadata(file).map_err(|e| e.to_string())?.len() > 32 * 1024 * 1024 {
+    if raw.len() as u64 > MAX_MESSAGE {
         return Err(format!("message exceeds 32 MiB: {}", file.display()));
     }
-    let raw = fs::read(file).map_err(|e| e.to_string())?;
     let from = mailrs_inbound::from_header(&raw);
     let host = mailrs_fraud::impersonation::address_of(&from)
         .and_then(|a| a.rsplit('@').next())
