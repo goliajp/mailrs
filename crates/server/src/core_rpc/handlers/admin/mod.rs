@@ -19,6 +19,8 @@ use crate::core_rpc::CoreRpcState;
 // ── effective permissions ───────────────────────────────────────────
 
 pub(crate) mod account_purge;
+mod account_restore;
+pub use account_restore::restore_account;
 mod aliases;
 mod ownerless;
 mod quota;
@@ -292,7 +294,8 @@ pub async fn update_account(
 }
 
 /// DELETE /v1/admin/accounts/{address} — as fastcore's: the maildir is
-/// parked where delivery cannot find it, the account row goes, and the
+/// parked where delivery cannot find it, the account row is marked deleted
+/// (it and what references it stay for a restore), and the
 /// address is marked for its purge, which removes the rest once the
 /// retention period has passed (at once under 0 days). The account is kept
 /// when the maildir cannot be moved.
@@ -320,7 +323,7 @@ pub async fn remove_account(
     }
     state
         .domain
-        .remove_account(&address)
+        .remove_account(&address, now)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let days = mailrs_core_sidestate::families::account_purge::pending::retention_days();

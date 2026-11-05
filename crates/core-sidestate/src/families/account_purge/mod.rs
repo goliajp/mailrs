@@ -9,11 +9,17 @@
 //! mark. The pieces here are what both cores share; each core removes its
 //! own mail rows (fastcore conversation by conversation, so records other
 //! owners share stay; the SQL core by [`registry::SQL_TABLES`]).
+//!
+//! Until the purge runs, [`restore`] undoes the delete: the core puts its
+//! account record back (fastcore from the record [`pending::keep_record`]
+//! kept, the SQL core by clearing its row's `deleted_at`) and the parked
+//! maildir goes back where delivery finds it.
 
 mod custom;
 pub mod maildir;
 pub mod pending;
 pub mod registry;
+pub mod restore;
 mod shape;
 
 use std::io;

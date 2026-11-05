@@ -11,7 +11,7 @@ OpenAPI spec: https://mail.golia.ai/openapi.json
 ## MCP (recommended)
 
 Streamable HTTP endpoint: https://mail.golia.ai/mcp
-126 tools auto-discovered, grouped by category:
+127 tools auto-discovered, grouped by category:
 
 ```json
 {"mcpServers":{"mailrs":{"type":"streamable-http","url":"https://mail.golia.ai/mcp","headers":{"Authorization":"Bearer <API_KEY>"}}}}
@@ -23,7 +23,7 @@ Streamable HTTP endpoint: https://mail.golia.ai/mcp
 **Senders and pushes:** reclassify_sender, undo_sender_correction, list_sender_rules, set_sender_rule, delete_sender_rule, get_notify_settings, set_notify_settings, set_sender_notify, set_thread_notify, notify_stats, list_important_contacts, set_important_contact, accept_senders
 **Labels:** list_labels, create_label, update_label, delete_label, label_thread, unlabel_thread
 **Drafts & Templates:** list_drafts, save_draft, delete_draft, list_templates, save_template, delete_template, list_signatures, save_signature, delete_signature
-**Accounts:** list_accounts, create_account, remove_account, set_account_password, list_account_agent_keys, get_account_send_as, set_account_send_as, get_account_forwards, set_account_forwards
+**Accounts:** list_accounts, create_account, remove_account, restore_account, set_account_password, list_account_agent_keys, get_account_send_as, set_account_send_as, get_account_forwards, set_account_forwards
 **Permissions:** list_groups, get_account_permissions, get_my_permissions, add_account_to_group, remove_account_from_group
 **Domains:** list_domains, add_domain, remove_domain
 **Aliases:** list_aliases_admin, add_alias, remove_alias
@@ -97,6 +97,7 @@ Streamable HTTP endpoint: https://mail.golia.ai/mcp
 - GET /api/admin/flow — where mail is right now: receiving, spool backlog, outbound queue (queued / retrying / scheduled / failed), mock mail
 - GET /api/admin/mock, PUT /api/admin/mock/settings — mock mail usage and settings (on/off, retention days, per-namespace and total limits, namespaces per person, who may create); an admin lists everyone's namespaces with GET /api/mock/namespaces?all=true
 - POST /api/admin/accounts/{address}/password — a new password, the account's sessions signed out; with `{"compromised":{"revoke_key_ids":[...]}}` (every key id the list below shows) all its agent keys are revoked too (admin.accounts, recent confirmation)
+- POST /api/admin/accounts/{address}/restore — a deleted account back, before its purge, with its mail, settings and group memberships; body `{"parked": "<delete time>"}` only for an address deleted more than once (super administrator, recent confirmation; 409 `{refused, parked}`)
 - GET /api/admin/accounts/{address}/agent-keys — an account's agent keys with created and last-used times (admin.accounts, recent confirmation)
 - GET /api/admin/outbound/paused, POST /api/admin/outbound/paused/{address}/resume — accounts whose outbound mail is paused after unusual sending, and releasing one with its held mail sent or discarded (super administrator)
 - A send from a paused account answers 423 `outbound_paused`; SMTP submission answers 550 5.7.1 at MAIL FROM

@@ -102,6 +102,29 @@ impl MailrsMcpService {
     }
 
     #[tool(
+        description = "Restore a deleted account before its purge (super administrator, recent password confirmation): its mail, settings and group memberships come back as they were. Refused when the address is an account, is not waiting for a purge, or was deleted more than once and `parked` does not name which deletion to restore (the refusal lists them)."
+    )]
+    async fn restore_account(
+        &self,
+        Parameters(params): Parameters<RestoreAccountParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?.to_string();
+        self.require_confirmed()?;
+        self.require_route(&user, "/api/admin/accounts/{address}/restore")
+            .await?;
+        let req = mailrs_core_api::method::admin::RestoreAccountRequest {
+            by: user,
+            parked: params.parked,
+        };
+        self.state
+            .core
+            .restore_account(&params.address, &req)
+            .await
+            .map_err(|e| McpError::invalid_request(format!("restore_account: {e}"), None))?;
+        Ok(ok_result())
+    }
+
+    #[tool(
         description = "Add an email alias (requires an admin permission). Mail to `source_address` is delivered to `target_address`; an existing alias with the same source is replaced. Returns the alias id, which is its source address."
     )]
     async fn add_alias(

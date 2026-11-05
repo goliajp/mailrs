@@ -187,6 +187,10 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
             adm_paths::PATH_UPDATE_ACCOUNT,
             put(handlers::admin::update_account).delete(handlers::admin::remove_account),
         )
+        .route(
+            adm_paths::PATH_RESTORE_ACCOUNT,
+            post(handlers::admin::restore_account),
+        )
         .route(adm_paths::PATH_SET_QUOTA, post(handlers::admin::set_quota))
         .route(
             adm_paths::PATH_QUOTA_LIMITS,

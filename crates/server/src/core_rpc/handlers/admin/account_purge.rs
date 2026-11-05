@@ -14,7 +14,7 @@ use kevy_client::Connection;
 use mailrs_core_api::method::admin::{AccountPurgeResponse, AccountPurgeRow, PurgeCount};
 use mailrs_core_sidestate::NetKevy;
 use mailrs_core_sidestate::families::account_purge::{self as purge, maildir, pending};
-use purge::registry::{SQL_TABLES, Store};
+use purge::registry::{SQL_CASCADED, SQL_TABLES, Store};
 
 use crate::core_rpc::CoreRpcState;
 
@@ -49,11 +49,12 @@ async fn net<T: Send + 'static>(
 }
 
 pub(crate) async fn is_account(state: &CoreRpcState, address: &str) -> Result<bool, StatusCode> {
-    let found: Option<(i32,)> = sqlx::query_as("SELECT 1 FROM accounts WHERE address = $1")
-        .bind(address)
-        .fetch_optional(&state.pool)
-        .await
-        .map_err(sql_failed)?;
+    let found: Option<(i32,)> =
+        sqlx::query_as("SELECT 1 FROM accounts WHERE address = $1 AND deleted_at IS NULL")
+            .bind(address)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(sql_failed)?;
     Ok(found.is_some())
 }
 
@@ -74,7 +75,11 @@ async fn count_rows(state: &CoreRpcState, address: &str) -> Result<Vec<PurgeCoun
             count: n as u64,
         });
     }
-    for (table, column) in SQL_TABLES {
+    let rows = SQL_TABLES
+        .iter()
+        .chain(SQL_CASCADED)
+        .chain(&[("accounts", "address")]);
+    for (table, column) in rows {
         let q = format!("SELECT COUNT(*) FROM {table} WHERE {column} = $1");
         let (n,): (i64,) = sqlx::query_as(&q)
             .bind(address)
@@ -101,6 +106,12 @@ async fn delete_rows(state: &CoreRpcState, address: &str) -> Result<(), StatusCo
             .await
             .map_err(sql_failed)?;
     }
+    // the row last: what references it goes with it
+    sqlx::query("DELETE FROM accounts WHERE address = $1 AND deleted_at IS NOT NULL")
+        .bind(address)
+        .execute(&mut *tx)
+        .await
+        .map_err(sql_failed)?;
     tx.commit().await.map_err(sql_failed)
 }
 

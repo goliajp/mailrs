@@ -101,7 +101,16 @@ pub async fn fixture() -> Fixture {
     mailbox.ensure_admin_indexes();
     mailbox.ensure_ledger_tables().unwrap();
     let hash = mailrs_core::users::UserStore::hash_password(PASSWORD).unwrap();
-    let blob = serde_json::json!({ "password_hash": hash, "active": true }).to_string();
+    // as the create route writes it: `created_at` in the blob, which the
+    // store's index field is derived from
+    let blob = serde_json::json!({
+        "password_hash": hash,
+        "active": true,
+        "created_at": 1_786_000_000,
+        "display_name": "Someone",
+        "quota_bytes": 10_737_418_240_i64,
+    })
+    .to_string();
     for who in [BOB, ALICE] {
         mailbox.upsert_account(who, &blob).unwrap();
         mailbox.upsert_permissions(who, "{}").unwrap();
