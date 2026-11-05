@@ -199,7 +199,12 @@ mod tests {
         let legacy = br#"{"message_id":"msg-1","blob_ref":"owner-copy.host:2,S","uid":7,"flags":1,"modseq":3,"mailbox_id":2,"user_address":"owner@x.com","subject":"Subj"}"#;
         s.upsert_message("t1", "msg-1", 100, legacy).unwrap();
 
-        let (seen, rewritten) = s.strip_shared_per_user_fields("t1").unwrap();
+        // A dry run reports the row and leaves it as it was.
+        assert_eq!(s.strip_shared_per_user_fields("t1", true).unwrap(), (1, 1));
+        let before = s.thread_messages_for_maintenance("t1").unwrap().remove(0);
+        assert_eq!(before, legacy.to_vec());
+
+        let (seen, rewritten) = s.strip_shared_per_user_fields("t1", false).unwrap();
         assert_eq!((seen, rewritten), (1, 1));
         let blob = s.thread_messages_for_maintenance("t1").unwrap().remove(0);
         let v: serde_json::Value = serde_json::from_slice(&blob).unwrap();
@@ -210,7 +215,7 @@ mod tests {
 
         // Second pass: nothing to do, and it says so rather than
         // rewriting the same bytes every cycle.
-        assert_eq!(s.strip_shared_per_user_fields("t1").unwrap(), (1, 0));
+        assert_eq!(s.strip_shared_per_user_fields("t1", false).unwrap(), (1, 0));
     }
 
     #[test]

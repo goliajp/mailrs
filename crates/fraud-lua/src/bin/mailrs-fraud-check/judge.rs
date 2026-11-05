@@ -182,6 +182,7 @@ pub(super) fn judge(
         has_executable_attachment: inside.carries_code,
         has_encrypted_document_archive: inside.encrypted_document_archive,
         parser_failed_on_message: read.parser_failed,
+        has_unreadable_archive: inside.unreadable_archive,
         reply_marker_without_thread: mailrs_inbound::thread_claim::reply_marker_without_thread(
             &raw,
         ),

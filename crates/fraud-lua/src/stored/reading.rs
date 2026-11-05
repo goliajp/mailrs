@@ -136,6 +136,7 @@ impl Reading {
             has_executable_attachment: self.inside.inside.carries_code,
             has_encrypted_document_archive: self.inside.inside.encrypted_document_archive,
             parser_failed_on_message: self.inside.parser_failed,
+            has_unreadable_archive: self.inside.inside.unreadable_archive,
             reply_marker_without_thread: self.reply_marker_without_thread,
             has_zero_width_inside_a_word: self.has_zero_width_inside_a_word,
             offers_the_reader_a_sum: self.offers_the_reader_a_sum,
