@@ -179,28 +179,35 @@ private struct StatusBadge: View {
     let status: String?
 
     var body: some View {
+        if let key = SendStatus.labelKey(status) {
+            badge(LocalizedStringKey(key))
+        }
+    }
+
+    // The title is a catalog key, not the wire word: `Text(aString)`
+    // is verbatim, so "Sending" stayed English on a Chinese screen.
+    @ViewBuilder
+    private func badge(_ title: LocalizedStringKey) -> some View {
         switch status {
         case "failed":
             // `.titleAndIcon` explicitly: inside a List, the default
             // label style is the Form one, which aligns icons in their
             // own column and stretched the glyph away from its word.
-            Label("Failed", systemImage: "exclamationmark.circle.fill")
+            Label(title, systemImage: "exclamationmark.circle.fill")
                 .labelStyle(.titleAndIcon)
                 .chip(.red)
         case "partial":
-            Label("Partial", systemImage: "exclamationmark.triangle.fill")
+            Label(title, systemImage: "exclamationmark.triangle.fill")
                 .labelStyle(.titleAndIcon)
                 .chip(.orange)
-        case "sending", "scheduled":
-            Text((status ?? "").capitalized)
-                .chip(.secondary)
         case "delivered":
             Image(systemName: "checkmark")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
-                .accessibilityLabel("Delivered")
+                .accessibilityLabel(title)
         default:
-            EmptyView()
+            Text(title)
+                .chip(.secondary)
         }
     }
 }

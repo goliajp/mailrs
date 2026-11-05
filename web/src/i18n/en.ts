@@ -51,7 +51,7 @@ export const en = {
     '{count} conversation(s) you had were moved to Review: new information about the sender',
   'list.recalledOpen': 'Open Review',
   'list.search.empty': 'No results found',
-  'list.send': 'Send',
+  'list.send': 'Sent',
   'list.send.empty': 'Nothing sent yet',
   'list.starred': 'Starred',
   'list.starred.empty': 'Nothing starred',

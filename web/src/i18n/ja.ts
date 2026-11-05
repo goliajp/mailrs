@@ -48,7 +48,7 @@ export const ja: Record<Key, string> = {
     '受信済みの {count} 件の会話を確認待ちに移しました：送信者について新しい情報がありました',
   'list.recalledOpen': '確認待ちを開く',
   'list.search.empty': '該当する結果はありません',
-  'list.send': '送信',
+  'list.send': '送信済み',
   'list.send.empty': 'まだ送信したメールはありません',
   'list.starred': 'スター付き',
   'list.starred.empty': 'スター付きの会話はありません',
