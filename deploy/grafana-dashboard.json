@@ -12,7 +12,7 @@
       }
     ]
   },
-  "description": "mailrs server operational overview. Points at /metrics on the mailrs-server HTTP API (default :3100 internal, :3200 dev). Designed against the metric names emitted as of v1.7.32.",
+  "description": "mailrs operational overview. Points at /metrics on the webapi HTTP listener (default :3100). The route answers only with Authorization: Bearer <MAILRS_METRICS_TOKEN> (configure the same value as the scrape job's bearer token) and answers 404 when MAILRS_METRICS_TOKEN is unset. Designed against the metric names emitted as of v1.7.32.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,

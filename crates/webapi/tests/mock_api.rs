@@ -27,6 +27,7 @@ fn state() -> Arc<WebState> {
         receiver_stats: Arc::new(mailrs_webapi::handlers::smtp_monitor::StatsCache::default()),
         started_at: std::time::Instant::now(),
         llm_config: None,
+        metrics_token: None,
     })
 }
 
